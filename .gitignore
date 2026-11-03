@@ -182,6 +182,7 @@ fonts/*.ttf
 
 # Data Agent packages the harness-owned shared Python data core.
 /apps/data-agent/backend/_core/
+/apps/data/backend/_core/
 /packages/connectors/helpers/
 
 # Built app bundles.

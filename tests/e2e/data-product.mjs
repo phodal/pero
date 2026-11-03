@@ -4,8 +4,9 @@ import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { productShellStyle } from '../../scripts/build/shell-style.mjs';
 import { build } from 'esbuild';
+import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -37,7 +38,7 @@ async function launch() {
   });
   await expect(page).toHaveTitle('Data');
   frame = page.frameLocator('iframe[title="data"]');
-  await expect(frame.getByRole('button', { name: 'Add data', exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(frame.getByRole('button', { name: 'Add data', exact: true })).toBeEnabled({ timeout: 30000 });
   await expect.poll(async () => (await state()).sources.length).toBe(2);
 }
 async function close() {
@@ -71,6 +72,7 @@ try {
     .toEqual({ product: 'undefined', pero: 'undefined' });
   await expect(page.locator('iframe')).toHaveCount(1);
   await expect(page.locator('#product-chat-toggle')).toBeHidden();
+  await expect(frame.getByText('No data yet', { exact: true })).toBeVisible();
   checks.push('production Data entry opens directly in standalone shell without chat or App preload access');
   // Capture the OS boundary: exercise the actual link without opening a browser.
   await app.evaluate(({ shell }) => {
@@ -86,20 +88,32 @@ try {
   await frame.getByRole('button', { name: 'Add data', exact: true }).click();
   const dialog = frame.getByRole('dialog');
   await dialog.locator('input[type="file"]').setInputFiles({ name: 'standalone.csv', mimeType: 'text/csv', buffer: bytes });
+  await dialog.getByRole('button', { name: 'Import', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(frame.getByRole('button', { name: 'standalone.csv', exact: true })).toBeVisible();
-  expect((await state()).assets).toEqual([]);
+  const saved = await state();
+  expect(saved.assets).toHaveLength(1);
+  expect(saved.datasets).toHaveLength(1);
+  expect(saved.assets[0].sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
+  expect(relative(profile, saved.assets[0].location)).not.toMatch(/^\.\./);
+  expect(await readFile(saved.assets[0].location)).toEqual(bytes);
+  const preview = frame.getByRole('complementary', { name: 'Preview' });
+  await expect(preview.locator('.data-rows tbody tr')).toHaveCount(3);
   expect((await state()).download).toBeNull();
   await page.screenshot({ path: join(output, 'standalone-data.png') });
   await close();
   await launch();
-  expect((await state()).assets).toEqual([]);
-  expect((await state()).download).toBeNull();
-  await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toBeVisible();
-  await expect(frame.getByRole('button', { name: 'standalone.csv', exact: true })).toHaveCount(0);
-  expect(requests.filter(request => request.method === 'POST')).toEqual([]);
+  const reopened = await state();
+  expect(reopened.assets).toEqual(saved.assets);
+  expect(reopened.datasets).toEqual(saved.datasets);
+  expect(reopened.download).toBeNull();
+  await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toHaveCount(0);
+  await expect(frame.getByRole('button', { name: 'standalone.csv', exact: true })).toBeVisible();
+  await expect(frame.getByRole('complementary', { name: 'Preview' }).locator('.data-rows tbody tr')).toHaveCount(3);
+  expect(requests.filter(request => request.method === 'POST' && request.path === '/api/import')).toHaveLength(1);
+  expect(requests.filter(request => request.method === 'POST' && request.path.includes('download'))).toEqual([]);
   expect(errors).toEqual([]);
-  checks.push('in-browser CSV add stays out of the catalog; restart shows the sample library; no import POST');
+  checks.push('real import persists exact bytes and identities in the standalone profile; restart previews the same dataset; no source download');
   await close();
   await writeFile(join(output, 'result.json'), JSON.stringify({ scope: 'standalone-development-system-python', checks, errors, requests,
     productionPython: production.python, temporaryTestPython: 'system', exclusions: ['bundled Python acceptance', 'signed installer', 'live source downloads', 'model execution'] }, null, 2));

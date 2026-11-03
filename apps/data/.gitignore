@@ -1,5 +1,6 @@
 /node_modules
 /dist/
+/backend/_core/
 __pycache__/
 *.py[cod]
 *.egg-info/

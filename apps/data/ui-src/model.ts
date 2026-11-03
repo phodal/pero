@@ -1,118 +1,63 @@
-export type Cell = string | number | boolean | null | Cell[] | { [key: string]: Cell };
-export type Row = Record<string, Cell>;
-export type AssetKind = 'Time series' | 'Table' | 'Model' | 'Records';
+/** The Data API boundary. Original values arrive as text, never floating-point replacements. */
 export type Asset = {
-  id: string;
-  name: string;
-  kind: AssetKind;
-  format: string;
-  source: string;
-  description: string;
-  updated: string;
-  updatedRank: number;
-  rows: Row[];
-  units: Record<string, string>;
+  id: string; name: string; kind: 'dataset' | 'model'; format: string; size: number;
+  source: string; revision: string; license: string; sha256: string; createdAt: string;
+  checksums: { algorithm: string; value: string; provenance: string }[];
+  bundleId: string; sourceId: string; localAvailable: boolean; availability: 'present' | 'missing' | 'changed';
 };
-export type PreviewMode = 'chart' | 'rows';
+export type Dataset = {
+  id: string; name: string; kind: 'dataset' | 'model'; versions: string[]; projectRef: string; archived: boolean;
+};
+export type ViewSpec = { columns: string[]; filterField: string; contains: string; units: Record<string, string> };
+export const emptyView = (): ViewSpec => ({ columns: [], filterField: '', contains: '', units: {} });
+export type FieldProfile = { name: string; kinds: string[]; missing: number; nulls: number; empty: number };
+export type Report = {
+  parserVersion: string; scope: 'full'; rowCount: number; fields: FieldProfile[];
+  missing: number; nulls: number; empty: number; duplicateRows: number; blankLines: number;
+  duplicates: { row: number; duplicateOf: number; sourceLine: number | null }[];
+};
+export type SavedView = {
+  id: string; name: string; datasetId: string; assetId: string; sha256: string;
+  view: ViewSpec; report: Report; createdAt: string;
+};
+export type Source = {
+  id: string; name: string; kind: string; filename: string; size: number; license: string; revision: string; sourceUrl: string;
+};
+export type CatalogState = {
+  assets: Asset[]; datasets: Dataset[]; views: SavedView[]; sources: Source[];
+  download: { id: string; status: string; received: number; total: number; error: string } | null;
+  parserVersion: string; limits: { importBytes: number; previewBytes: number; records: number; fields: number; columns: number };
+  selectedDatasetId?: string; selectedAssetId?: string; savedViewId?: string;
+};
+export type Selection = { datasetId: string; assetId: string };
+export type Inspection = {
+  status: 'ok'; datasetId: string; assetId: string; sha256: string; report: Report;
+  columns: string[]; matched: number; offset: number; nextOffset: number | null;
+  rows: { row: number; pointer: string; line: number | null; cells: { kind: string; text: string }[] }[];
+} | { status: 'invalid' | 'changed' | 'missing' | 'unsupported'; datasetId: string; assetId: string; message: string };
 
-export const IMPORT_LIMIT = 5 * 1024 * 1024;
-export const ROW_LIMIT = 10_000;
+export function visibleDatasets(state: CatalogState, query: string, project: string, archived: boolean): Dataset[] {
+  const term = query.trim().toLocaleLowerCase();
+  return state.datasets.filter(dataset => dataset.archived === archived && (!project || dataset.projectRef === project) &&
+    (!term || `${dataset.name} ${dataset.kind} ${dataset.projectRef} ${state.assets.filter(a => dataset.versions.includes(a.id))
+      .map(a => `${a.name} ${a.format} ${a.source}`).join(' ')}`.toLocaleLowerCase().includes(term)));
+}
 
-const NUMBER_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+export function retainSelection(state: CatalogState, current: Selection | null): Selection | null {
+  const dataset = state.datasets.find(d => d.id === current?.datasetId);
+  if (current && dataset?.versions.includes(current.assetId)) return current;
+  const first = state.datasets.find(d => !d.archived);
+  return first ? { datasetId: first.id, assetId: first.versions[first.versions.length - 1] } : null;
+}
 
 export const formatInt = (value: number) => new Intl.NumberFormat('en-US').format(value);
-export const formatNum = (value: number) => Number.isFinite(value) ? (Math.round(value * 1000) / 1000).toString() : '\u2014';
+export const formatBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 ** 2 ? `${(value / 1024).toFixed(1)} KiB` : `${(value / 1024 ** 2).toFixed(1)} MiB`;
+export const availabilityLabel = (asset: Asset) => ({ present: 'Stored', missing: 'Missing', changed: 'Changed' })[asset.availability];
 
-export function fields(asset: Asset): string[] {
-  return [...new Set(asset.rows.flatMap(row => Object.keys(row)))];
-}
-
-export function missingCount(asset: Asset): number {
-  const keys = fields(asset);
-  return asset.rows.reduce((total, row) => total + keys.filter(key => row[key] == null || row[key] === '').length, 0);
-}
-
-export function visibleAssets(assets: Asset[], query: string): Asset[] {
-  const text = query.trim().toLowerCase();
-  const list = text
-    ? assets.filter(asset => `${asset.name} ${asset.kind} ${asset.source} ${asset.description} ${fields(asset).join(' ')}`.toLowerCase().includes(text))
-    : assets;
-  return [...list].sort((a, b) => b.updatedRank - a.updatedRank || a.name.localeCompare(b.name));
-}
-
-export function chartEligible(asset: Asset): boolean {
-  if (asset.kind === 'Records' || asset.kind === 'Model') return false;
-  const numeric = fields(asset).filter(key => {
-    const present = asset.rows.filter(row => row[key] != null);
-    return present.some(row => Number.isFinite(Number(row[key]))) && present.every(row => typeof row[key] === 'number' || (typeof row[key] === 'string' && row[key].trim() !== '' && !Number.isNaN(Number(row[key]))));
-  });
-  return numeric.length >= 1 && asset.rows.length > 2;
-}
-
-export function chartSeries(asset: Asset): { x: string | null; ys: string[] } {
-  const numeric = fields(asset).filter(key => asset.rows.some(row => typeof row[key] === 'number') && asset.rows.every(row => row[key] == null || typeof row[key] === 'number'));
-  const x = numeric.find(key => /^(time|timestamp|frequency|sample|index)/i.test(key)) ?? null;
-  let ys = numeric.filter(key => key !== x);
-  if (ys.includes('setpoint') && ys.includes('response')) ys = ['response', 'setpoint'];
-  else if (ys.length > 1 && asset.units[ys[0]] && asset.units[ys[1]] && asset.units[ys[0]] !== asset.units[ys[1]]) ys = ys.slice(0, 1);
-  return { x, ys: ys.slice(0, 2) };
-}
-
-export function parseDelimited(text: string, separator: string): Row[] {
-  const result: string[][] = [];
-  let current: string[] = [];
-  let value = '';
-  let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const character = text[i];
-    if (character === '"') {
-      if (quoted && text[i + 1] === '"') { value += '"'; i += 1; }
-      else quoted = !quoted;
-    } else if (character === separator && !quoted) {
-      current.push(value); value = '';
-    } else if ((character === '\n' || character === '\r') && !quoted) {
-      if (character === '\r' && text[i + 1] === '\n') i += 1;
-      current.push(value); value = '';
-      if (current.some(cell => cell !== '')) result.push(current);
-      current = [];
-    } else value += character;
-  }
-  if (quoted) throw new Error('Unclosed quoted field');
-  if (value !== '' || current.length) { current.push(value); result.push(current); }
-  if (result.length < 2) throw new Error('Expected a header row and at least one data row');
-  const head = result[0].map((name, index) => name.trim() || `field_${index + 1}`);
-  if (new Set(head).size !== head.length) throw new Error('Duplicate column names in header');
-  if (head.length > 64) throw new Error('Up to 64 fields');
-  const rows: Row[] = result.slice(1).map((cells, index) => {
-    if (cells.length !== head.length) throw new Error(`Row ${index + 2} has ${cells.length} fields, expected ${head.length}`);
-    return Object.fromEntries(head.map((key, column) => [key, cells[column] === undefined || cells[column].trim() === '' ? null : cells[column]]));
-  });
-  for (const key of head) {
-    const known = rows.map(row => row[key]).filter(value => value != null);
-    if (known.length && known.every(value => typeof value === 'string' && NUMBER_RE.test(value) && Number.isFinite(Number(value))))
-      for (const row of rows) if (row[key] != null) row[key] = Number(row[key]);
-  }
-  return rows;
-}
-
-function normalizeJSON(value: unknown): Row[] {
-  const rows = Array.isArray(value) ? value : [value];
-  if (!rows.every(row => row && typeof row === 'object' && !Array.isArray(row))) throw new Error('Expected an object or array of objects');
-  return rows as Row[];
-}
-
-export function parseImported(name: string, text: string): { rows: Row[]; kind: AssetKind; format: string } {
-  const ext = (name.split('.').pop() ?? '').toLowerCase();
-  let parsed: unknown;
-  if (ext === 'csv') parsed = parseDelimited(text, ',');
-  else if (ext === 'tsv') parsed = parseDelimited(text, '\t');
-  else if (ext === 'json') parsed = JSON.parse(text);
-  else if (ext === 'jsonl' || ext === 'ndjson') parsed = text.split(/\r?\n/).filter(line => line.trim()).map((line, index) => {
-    try { return JSON.parse(line); }
-    catch { throw new Error(`Invalid JSON on line ${index + 1}`); }
-  });
-  else throw new Error('Unsupported format');
-  const rows = normalizeJSON(parsed);
-  if (rows.length > ROW_LIMIT) throw new Error('Up to 10,000 rows');
-  return { rows, kind: ext === 'json' ? 'Records' : 'Table', format: ext.toUpperCase() };
+export function encodeBytes(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let encoded = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000)
+    encoded += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  return btoa(encoded);
 }

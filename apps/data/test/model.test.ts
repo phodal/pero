@@ -1,38 +1,37 @@
-import { strict as assert } from 'node:assert';
+import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chartSeries, missingCount, parseImported, visibleAssets } from '../ui-src/model.ts';
-import { seedAssets } from '../ui-src/sample.ts';
+import { availabilityLabel, encodeBytes, retainSelection, visibleDatasets, type Asset, type CatalogState, type Dataset } from '../ui-src/model.ts';
 
-const assets = seedAssets();
-const asset = (id: string) => assets.find(item => item.id === id)!;
+const asset = (id: string, source = 'Local files'): Asset => ({ id, name: 'sample.csv', kind: 'dataset', format: 'csv', size: 4,
+  source, revision: '', license: 'Unknown', sha256: 'digest', createdAt: '', checksums: [], bundleId: '', sourceId: '', localAvailable: true, availability: 'present' });
+const dataset = (id: string, versions: string[], projectRef = '', archived = false): Dataset => ({ id, versions, name: `Data ${id}`, kind: 'dataset', projectRef, archived });
+const state: CatalogState = { assets: [asset('a', 'Control Lab'), asset('b'), asset('c')],
+  datasets: [dataset('first', ['a', 'b'], 'control'), dataset('second', ['c'], 'bio', true)], views: [], sources: [], download: null,
+  parserVersion: 'pero-data/1', limits: { importBytes: 10, previewBytes: 10, records: 100, fields: 256, columns: 32 } };
 
-test('sample library search and chart series', () => {
-  assert.equal(missingCount(asset('motor-telemetry')), 5);
-  assert.equal(missingCount(asset('plant-model')), 0);
-  assert.deepEqual(visibleAssets(assets, '').map(item => item.name), ['servo-response.csv', 'motor-telemetry.csv', 'plant-model.json', 'baseline-response.csv', 'response-metrics.json', 'wind-disturbance.csv']);
-  assert.deepEqual(visibleAssets(assets, 'rpm').map(item => item.id), ['motor-telemetry']);
-  assert.deepEqual(visibleAssets(assets, 'Model').map(item => item.id), ['plant-model']);
-  assert.deepEqual(chartSeries(asset('servo-response')), { x: 'time_s', ys: ['response', 'setpoint'] });
-  assert.equal(chartSeries(asset('motor-telemetry')).ys[0], 'temperature_c');
+test('catalog search covers historical source metadata and explicit project/archive filters', () => {
+  assert.deepEqual(visibleDatasets(state, 'Control Lab', '', false).map(d => d.id), ['first']);
+  assert.deepEqual(visibleDatasets(state, '', 'bio', false), []);
+  assert.deepEqual(visibleDatasets(state, '', 'bio', true).map(d => d.id), ['second']);
+  assert.deepEqual(visibleDatasets(state, 'absent', '', false), []);
 });
 
-test('import parsing accepts delimited and json records and rejects broken files', () => {
-  const csv = parseImported('bench.csv', 'time_s,note\n0,ok\n0.1,\n1,"quoted, value"\n');
-  assert.equal(csv.kind, 'Table');
-  assert.deepEqual(csv.rows[0], { time_s: 0, note: 'ok' });
-  assert.equal(csv.rows[1].note, null);
-  assert.equal(csv.rows[2].note, 'quoted, value');
-  const json = parseImported('model.json', '{"gain":1}');
-  assert.equal(json.kind, 'Records');
-  assert.deepEqual(json.rows, [{ gain: 1 }]);
-  const jsonl = parseImported('rows.jsonl', '{"a":1}\n{"a":2}\n');
-  assert.equal(jsonl.kind, 'Table');
-  assert.equal(jsonl.rows.length, 2);
-  assert.throws(() => parseImported('dup.csv', 'a,a\n1,2\n'), /Duplicate column/);
-  assert.throws(() => parseImported('short.csv', 'a,b\n1\n'), /Row 2 has 1 fields/);
-  assert.throws(() => parseImported('quote.csv', '"open\n'), /Unclosed/);
-  assert.throws(() => parseImported('notes.txt', 'hello'), /Unsupported/);
-  assert.throws(() => parseImported('empty.json', 'null'), /Expected an object/);
-  const tooMany = JSON.stringify(Array.from({ length: 10001 }, () => ({ a: 1 })));
-  assert.throws(() => parseImported('big.json', tooMany), /10,000/);
+test('refresh preserves a pinned older version, not a moving latest alias', () => {
+  const pinned = { datasetId: 'first', assetId: 'a' };
+  assert.equal(retainSelection(state, pinned), pinned);
+  assert.deepEqual(retainSelection(state, null), { datasetId: 'first', assetId: 'b' });
+  assert.deepEqual(retainSelection(state, { datasetId: 'first', assetId: 'c' }), { datasetId: 'first', assetId: 'b' });
+  assert.equal(retainSelection({ ...state, datasets: [] }, pinned), null);
+});
+
+test('byte encoding preserves opaque content, including non-UTF8 and a chunk boundary', () => {
+  const bytes = new Uint8Array(65539);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = i % 256;
+  assert.deepEqual(Uint8Array.from(atob(encodeBytes(bytes.buffer)), c => c.charCodeAt(0)), bytes);
+});
+
+test('stored is not a scientific or current-byte verification claim', () => {
+  assert.equal(availabilityLabel(asset('a')), 'Stored');
+  assert.equal(availabilityLabel({ ...asset('a'), availability: 'changed' }), 'Changed');
+  assert.equal(availabilityLabel({ ...asset('a'), availability: 'missing' }), 'Missing');
 });
