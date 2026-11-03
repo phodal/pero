@@ -16,6 +16,7 @@ func mountNativeGuidance(ctx context.Context, h *harness.Harness) error {
 				names    []string
 				guidance string
 			}{
+				{[]string{"ToolSearch", "tool_search"}, "Use %s to find current caller-visible tools and their input schemas. Search does not activate hidden tools or grant permissions; recheck the current declarations before calling."},
 				{[]string{"NotebookRead", "notebook_read"}, "Use %s to read notebook cells and saved outputs. Follow cell pagination and truncation markers; saved outputs are not evidence that you executed code or visually inspected embedded images."},
 				{[]string{"Read", "read_file"}, "Read relevant code and applicable workspace instructions before editing. Follow returned offsets for truncated text."},
 				{[]string{"Glob", "glob_files"}, "Use %s to locate files by name. Narrow the directory or pattern when traversal is truncated."},
