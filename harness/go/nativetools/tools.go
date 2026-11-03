@@ -88,12 +88,12 @@ type arguments struct {
 	Limit                                          int    `json:"limit"`
 	Command                                        string `json:"command"`
 	TimeoutMS                                      int    `json:"timeout_ms"`
-	Pattern                                        string
-	Glob                                           string
+	Pattern                                        string `json:"pattern"`
+	Glob                                           string `json:"glob"`
 	FileType                                       string
-	OutputMode                                     string
-	IgnoreCase                                     bool
-	Multiline                                      bool
+	OutputMode                                     string `json:"output_mode"`
+	IgnoreCase                                     bool   `json:"ignore_case"`
+	Multiline                                      bool   `json:"multiline"`
 	LineNumbers                                    *bool
 	Before, After, Around, HeadLimit, SearchOffset int
 	ResourcePath                                   string
@@ -157,6 +157,10 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			return workspaceFrom(c, files).Search(c, a.Path, a.Query)
 		}},
 	}
+	if !opts.ClaudeTools {
+		definitions = append(definitions, genericSearchDefinitions(files)...)
+	}
+
 	if opts.ClaudeTools && files.SupportsReplacement() {
 		definitions = append(definitions, toolDefinition{
 			"notebook_edit",

@@ -18,6 +18,7 @@ type claudeGlobResult struct {
 	Files          []string `json:"files"`
 	ScannedEntries int      `json:"scanned_entries"`
 	Truncated      bool     `json:"truncated"`
+	NextOffset     int      `json:"next_offset,omitempty"`
 }
 
 type claudeGrepMatch struct {
@@ -117,10 +118,17 @@ func claudeGlob(ctx context.Context, files *fstools.Workspace, input arguments) 
 	})
 	result.ScannedEntries, result.Truncated = traversal.Entries, traversal.Truncated
 	sort.Strings(result.Files)
-	if len(result.Files) > claudeResultLimit {
-		result.Files = result.Files[:claudeResultLimit]
+	limit := claudeResultLimit
+	if input.HeadLimit > 0 {
+		limit = min(limit, input.HeadLimit)
+	}
+	start := min(max(0, input.SearchOffset), len(result.Files))
+	end := min(start+limit, len(result.Files))
+	if end < len(result.Files) {
+		result.NextOffset = end
 		result.Truncated = true
 	}
+	result.Files = result.Files[start:end]
 	return result, err
 }
 
