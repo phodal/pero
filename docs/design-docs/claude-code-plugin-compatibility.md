@@ -927,4 +927,24 @@ SubagentResult 现在统一拥有 ParentContent 投影：向父会话传递支�
 
 针对回归连续三次 race 通过，最终 Go 全量 race/vet 与 Bazel harness、subagents、完整 CLI 三个目标通过。修复不修改历史真实日志；此前已持久化的错误 tool-result 不能当作正常恢复历史偷偷重写。后续需显式选择新运行时及恢复上下文，按原编排脚本的权威 resume_step 继续。
 
-三次完整入口尝试合计 **510 次真实 HTTP 请求、509 个已提交 usage 回执**，仍未进入实现或 done。第三次的临时观察脚本在 close 返回后、序列化清理回执前遇到上述 Unicode 读取错误，因此该次 exit code/cleanup_failures 明确为未知，后来的无残留进程观察不能补写成原清理成功。原只读状态脚本当前要求 `classify:requirement`，原因是 classification stale；持久 current_step 仍为 plan:adversarial-review。匿名回执保留这一差异和统计来源，不标完整开发验收成功。
+三次完整入口尝试合计 **510 次真实 HTTP 请求、509 个已提交 usage 回执**，仍未进入实现或 done。第三次的临时观察脚本在 close 返回后、序列化清理回执前遇到上述 Unicode 读取错误，因此该次 exit code/cleanup_failures 明确为未知，后来的无残留进程观察不能补写成原清理成功。该次结束时原只读状态脚本要求 `classify:requirement`，原因是 classification stale；持久 current_step 仍为 plan:adversarial-review。匿名回执保留这一差异和统计来源，不标完整开发验收成功。
+
+### 16.22 原 coder 完整流程恢复至 done 与本地合并
+
+显式选择修复后的运行时 `0843cee3` 和已迁移 worktree 脚本，新建 root session 恢复同一 batch-labels 工程。旧非法 tool-result 历史单独保留，不导入、不改写；原需求、方案、审查及失效确认继续由原 runner 核验。恢复先完成第五轮方案审查、精确方案确认、worktree 选择和实现，发出 256 次真实 HTTP 后达到共享预算。该轮仍记 incomplete。持久阶段虽然为 review:cr，权威恢复点要求 test:unit，因为审查后的修改使旧测试证据失效；没有跳过当前 HEAD 重测。
+
+随后通过 session/load 继续这个新 root，发出 **245 次真实 HTTP**，正常 end_turn、进程退出 0、无清理错误。原 Workflow 曾返回 spec_failed，返修后再次实际运行返回 completed/approved（3 个审查代理）。原 spec/d4/d8/integration 解析器最终均 pass；前三项保留历史 rework_count=2，不能把最终摘要里的“零返修”扩大为从未返修。全量验证绑定最终 HEAD `c802bda`，精确 JSON/HTML 审查快照确认后选择测试工程本地合并。
+
+独立复验重新执行原 done 与 merge-review-confirmed gate，均 pass；原状态脚本 current_step/resume_step 均为 done、revision 30。main 和 feat/batch-labels 指向相同提交，主工作区干净。重新运行 Node 测试 **17/17 pass**，源文件行/分支/函数覆盖率均为 100%；原 Oracle 回执另记录 12/12 pass。合并确认中的 JSON/HTML SHA-256 与实际文件一致，报告源 HEAD 与 main HEAD 一致。确认文件虽由插件记录 confirmed_by:user，实际来自显式机器问答策略，不是真人审阅。
+
+两次恢复合计 501 次 HTTP；连同此前三次不完整尝试，总计 **1011 次 HTTP、1010 个已提交 usage 回执**。续轮统计扣除导入历史，费用未知。该工程没有 Git remote，没有外部 push 或 PR；feature 分支和登记 worktree 仍保留，不声称完成清理。所选插件关键文件与原快照加显式迁移后的哈希一致，未将它扩展为全包不可变性审计。[完整分段回执与证据哈希](../../harness/tools/trial/coder-entry-acceptance.json)
+
+此证据证明该原始完整流程经显式恢复后可在真实模型和真实文件/Git/测试操作下完成；它包含多次预算边界和跨 root 的恢复，不是从初始请求开始的一次无中断运行，也不证明 Claude 模型质量等价或全部 15 个插件完成验收。
+
+### 16.23 new-code 多仓生命周期与大 JSON 输入
+
+原 CLI/ACP 回归在含空格的非 Git 外层工作区发现两个真实仓库，创建 request、绑定真实 session 并建立两个 worktree。原 PreToolUse 拒绝主仓写入；真实失败测试触发原 Stop hook 续轮，实际 Edit 修复后提交、重测，再调用原 fresh-reviewer 读取两个文件。新增提交导致旧证据失效，原 publish-all 正确拒绝；重测后只推送到两个临时本地 bare remote，并保持 published_testing、绑定和 worktree。第二条显式 done 命令才完成、解绑、清理，保留本地和远端分支，原仓文件未变。[可重跑测试](../../harness/go/cmd/pero-agent-acp/new_code_cli_test.go)
+
+初次运行暴露本机 Node 文件入口携带大 JSON 参数时 SIGKILL；后来在 Harness 外同样复现，不能归为 Harness 进程终止缺陷。独立、带精确前后哈希的 P08 迁移新增互斥的 --payload-file 输入，保留旧 --payload 及原 CLI 状态 owner，并给两个 skill 增加使用说明；不直接修改状态文件或放宽发布 gate。宿主根因仍未知。[迁移说明](../../harness/go/plugins/migrations/README.md#selected-state-payload-input)、[问题及验证](../issues/2026-11-03-new-code-cli-transition-signal.md)
+
+本步骤六条迁移测试、原插件 62 条 Node 测试、实际 CLI opt-in race 回归、完整 CLI race/vet 与 Bazel CLI 目标通过。生命周期模型为 loopback HTTP fixture，17 次父请求、3 次子请求、12 次审批；Git、Node、文件、hook 和进程效果真实，不冒充付费模型独立开发验收。连续 LSP、后台 Workflow 执行栈续跑及其余插件的外部依赖和完整业务验收仍按前文边界保留。
