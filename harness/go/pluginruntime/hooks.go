@@ -59,6 +59,7 @@ type HookApp struct {
 	dynamicWatches      map[*harness.Agent][]string
 	idleCancels         map[*harness.Agent]context.CancelFunc
 	modelNotes          map[*harness.Agent]modelNote
+	elicitationAgents   map[string]*harness.Agent
 }
 
 type sessionHook struct {

@@ -77,6 +77,9 @@ func MountMCP(ctx context.Context, h *harness.Harness, packages []plugins.Packag
 				if hooks != nil {
 					for index := range servers {
 						servers[index].Elicit = bindElicitation(hooks, servers[index].ElicitationName, servers[index].Name)
+						servers[index].ElicitationCompleted = func(_ context.Context, id string, caller any) {
+							hooks.noteElicitationComplete(caller, id)
+						}
 					}
 				}
 				if err := harness.MountMCPServers(startup, ownerRun, h.Tools(), h.Prompts(), servers); err != nil {

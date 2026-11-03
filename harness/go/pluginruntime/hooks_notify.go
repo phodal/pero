@@ -52,6 +52,45 @@ func (app *HookApp) schedulePermissionNotification(request harness.ApprovalReque
 	}()
 }
 
+func (app *HookApp) noteElicitation(agent *harness.Agent, kind, message, title string) {
+	if app == nil || agent == nil || kind == "" || !app.hasHookEvent("Notification") {
+		return
+	}
+	_, _ = app.event(context.Background(), agent, claudehooks.Input{
+		Event: "Notification", NotificationType: kind, Message: message, Title: title,
+	})
+}
+
+// watchElicitationDialog notifies when a form or URL dialog is still open
+// after the permission prompt wait. An earlier answer cancels it.
+func (app *HookApp) watchElicitationDialog(agent *harness.Agent, mode string) func() {
+	if app == nil || agent == nil || !app.hasHookEvent("Notification") {
+		return func() {}
+	}
+	kind, message := "elicitation_dialog", "An MCP server is waiting for your input"
+	if mode == "url" {
+		kind, message = "elicitation_url_dialog", "An MCP server is waiting for you to open a URL"
+	}
+	parent := app.owner
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	app.calls.Add(1)
+	go func() {
+		defer app.calls.Done()
+		timer := time.NewTimer(permissionNotifyDelay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+		app.noteElicitation(agent, kind, message, "Elicitation")
+	}()
+	return cancel
+}
+
 func (app *HookApp) noteAgentCompleted(info harness.SubagentLifecycle) {
 	if app == nil || info.Parent == nil || !info.Background || !app.hasHookEvent("Notification") {
 		return

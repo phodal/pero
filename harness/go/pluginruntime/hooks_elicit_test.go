@@ -23,9 +23,9 @@ import (
 
 func TestElicitationHookAnswersAndSkipsTheResultHook(t *testing.T) {
 	root := t.TempDir()
-	reply := runElicitation(t, root,
+	reply, _ := runElicitation(t, root,
 		scriptHook(t, root, "Elicitation", `printf '%s' '{"hookSpecificOutput":{"hookEventName":"Elicitation","action":"accept","content":{"project_key":"DOCS"}}}'`),
-		scriptHook(t, root, "ElicitationResult", `printf ran > "$CLAUDE_PLUGIN_ROOT/result"`), nil)
+		scriptHook(t, root, "ElicitationResult", `printf ran > "$CLAUDE_PLUGIN_ROOT/result"`), nil, "")
 	if !strings.Contains(reply, `"action":"accept"`) || !strings.Contains(reply, `"project_key":"DOCS"`) {
 		t.Fatalf("server received %s", reply)
 	}
@@ -33,9 +33,9 @@ func TestElicitationHookAnswersAndSkipsTheResultHook(t *testing.T) {
 
 func TestElicitationResultRewritesTheDialogAnswer(t *testing.T) {
 	root := t.TempDir()
-	reply := runElicitation(t, root, scriptHook(t, root, "Elicitation", "true"), scriptHook(t, root, "ElicitationResult", `printf '%s' '{"hookSpecificOutput":{"hookEventName":"ElicitationResult","action":"accept","content":{"project_key":"alice@example.com"}}}'`), func(context.Context, claudehooks.Input) (claudehooks.Decision, error) {
+	reply, _ := runElicitation(t, root, scriptHook(t, root, "Elicitation", "true"), scriptHook(t, root, "ElicitationResult", `printf '%s' '{"hookSpecificOutput":{"hookEventName":"ElicitationResult","action":"accept","content":{"project_key":"alice@example.com"}}}'`), func(context.Context, claudehooks.Input) (claudehooks.Decision, error) {
 		return claudehooks.Decision{Action: "accept", Content: json.RawMessage(`{"project_key":"alice"}`)}, nil
-	})
+	}, "")
 	if !strings.Contains(reply, "alice@example.com") || strings.Contains(reply, `"alice"`) {
 		t.Fatalf("server received %s", reply)
 	}
@@ -43,16 +43,68 @@ func TestElicitationResultRewritesTheDialogAnswer(t *testing.T) {
 
 func TestElicitationExit2Declines(t *testing.T) {
 	root := t.TempDir()
-	reply := runElicitation(t, root, scriptHook(t, root, "Elicitation", "exit 2"), scriptHook(t, root, "ElicitationResult", `printf ran > "$CLAUDE_PLUGIN_ROOT/result"`), func(context.Context, claudehooks.Input) (claudehooks.Decision, error) {
+	reply, _ := runElicitation(t, root, scriptHook(t, root, "Elicitation", "exit 2"), scriptHook(t, root, "ElicitationResult", `printf ran > "$CLAUDE_PLUGIN_ROOT/result"`), func(context.Context, claudehooks.Input) (claudehooks.Decision, error) {
 		t.Fatal("dialog ran after a declining elicitation hook")
 		return claudehooks.Decision{}, nil
-	})
+	}, "")
 	if !strings.Contains(reply, `"action":"decline"`) {
 		t.Fatalf("server received %s", reply)
 	}
 }
 
-func runElicitation(t *testing.T, root string, elicit, result claudehooks.Hook, answer func(context.Context, claudehooks.Input) (claudehooks.Decision, error)) string {
+func TestElicitationNotifiesWhenTheDialogWaitsAndWhenTheResponseReturns(t *testing.T) {
+	previous := permissionNotifyDelay
+	permissionNotifyDelay = 20 * time.Millisecond
+	t.Cleanup(func() { permissionNotifyDelay = previous })
+	root := t.TempDir()
+	notice := scriptHook(t, root, "Notification", `cat >> "$CLAUDE_PLUGIN_ROOT/notices"`)
+	_, app := runElicitation(t, root, scriptHook(t, root, "Elicitation", "true"), scriptHook(t, root, "ElicitationResult", "true"), func(context.Context, claudehooks.Input) (claudehooks.Decision, error) {
+		time.Sleep(60 * time.Millisecond)
+		return claudehooks.Decision{Action: "accept", Content: json.RawMessage(`{"project_key":"DOCS"}`)}, nil
+	}, "", notice)
+	payload, err := os.ReadFile(filepath.Join(root, "notices"))
+	if err != nil || !strings.Contains(string(payload), `"notification_type":"elicitation_dialog"`) || !strings.Contains(string(payload), `"notification_type":"elicitation_response"`) || !strings.Contains(string(payload), "Elicitation response accept") {
+		t.Fatalf("notices=%s err=%v", payload, err)
+	}
+	app.noteElicitationComplete(nil, "absent")
+	payload, _ = os.ReadFile(filepath.Join(root, "notices"))
+	if strings.Contains(string(payload), "elicitation_complete") {
+		t.Fatal("unknown elicitation completed")
+	}
+	root = t.TempDir()
+	notice = scriptHook(t, root, "Notification", `cat >> "$CLAUDE_PLUGIN_ROOT/notices"`)
+	runElicitation(t, root, scriptHook(t, root, "Elicitation", "true"), scriptHook(t, root, "ElicitationResult", "true"), func(context.Context, claudehooks.Input) (claudehooks.Decision, error) {
+		return claudehooks.Decision{Action: "decline"}, nil
+	}, "", notice)
+	time.Sleep(50 * time.Millisecond)
+	payload, err = os.ReadFile(filepath.Join(root, "notices"))
+	if err != nil || !strings.Contains(string(payload), `"notification_type":"elicitation_response"`) || strings.Contains(string(payload), "elicitation_dialog") {
+		t.Fatalf("fast answer notified the dialog: %s %v", payload, err)
+	}
+	root = t.TempDir()
+	notice = scriptHook(t, root, "Notification", `cat >> "$CLAUDE_PLUGIN_ROOT/notices"`)
+	runElicitation(t, root, scriptHook(t, root, "Elicitation", "true"), scriptHook(t, root, "ElicitationResult", "true"), func(context.Context, claudehooks.Input) (claudehooks.Decision, error) {
+		time.Sleep(60 * time.Millisecond)
+		return claudehooks.Decision{Action: "accept"}, nil
+	}, "url", notice)
+	payload, err = os.ReadFile(filepath.Join(root, "notices"))
+	if err != nil || !strings.Contains(string(payload), `"notification_type":"elicitation_url_dialog"`) || strings.Contains(string(payload), `"notification_type":"elicitation_dialog"`) {
+		t.Fatalf("url dialog=%s err=%v", payload, err)
+	}
+}
+
+func TestURLElicitationCompletionUsesTheRecordedSession(t *testing.T) {
+	root := t.TempDir()
+	notice := scriptHook(t, root, "Notification", `cat >> "$CLAUDE_PLUGIN_ROOT/notices"`)
+	_, app := runElicitation(t, root, scriptHook(t, root, "Elicitation", `printf '%s' '{"hookSpecificOutput":{"hookEventName":"Elicitation","action":"accept"}}'`), scriptHook(t, root, "ElicitationResult", `printf ran > "$CLAUDE_PLUGIN_ROOT/result"`), nil, "url", notice)
+	app.noteElicitationComplete(nil, "login")
+	payload, err := os.ReadFile(filepath.Join(root, "notices"))
+	if err != nil || !strings.Contains(string(payload), `"notification_type":"elicitation_response"`) || !strings.Contains(string(payload), `"notification_type":"elicitation_complete"`) || strings.Contains(string(payload), "elicitation_url_dialog") {
+		t.Fatalf("notices=%s err=%v", payload, err)
+	}
+}
+
+func runElicitation(t *testing.T, root string, elicit, result claudehooks.Hook, answer func(context.Context, claudehooks.Input) (claudehooks.Decision, error), mode string, extra ...claudehooks.Hook) (string, *HookApp) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
@@ -61,10 +113,15 @@ func runElicitation(t *testing.T, root string, elicit, result claudehooks.Hook, 
 	server := sdk.NewServer(&sdk.Implementation{Name: "fixture", Version: "1"}, nil)
 	server.AddTool(&sdk.Tool{Name: "ask", InputSchema: json.RawMessage(`{"type":"object"}`)}, func(_ context.Context, request *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
 		if len(request.Params.InputResponses) == 0 {
-			return &sdk.CallToolResult{InputRequests: sdk.InputRequestMap{"form": &sdk.ElicitParams{
-				Message:         "Which project?",
-				RequestedSchema: map[string]any{"type": "object", "properties": map[string]any{"project_key": map[string]any{"type": "string"}}},
-			}}}, nil
+			params := &sdk.ElicitParams{Message: "Which project?", Mode: mode}
+			if mode == "url" {
+				params.URL = "https://auth.example/login"
+				params.ElicitationID = "login"
+			} else {
+				params.Mode = "form"
+				params.RequestedSchema = map[string]any{"type": "object", "properties": map[string]any{"project_key": map[string]any{"type": "string"}}}
+			}
+			return &sdk.CallToolResult{InputRequests: sdk.InputRequestMap{"form": params}}, nil
 		}
 		encoded, _ := json.Marshal(request.Params.InputResponses)
 		mu.Lock()
@@ -86,7 +143,7 @@ func runElicitation(t *testing.T, root string, elicit, result claudehooks.Hook, 
 		t.Fatal(err)
 	}
 	elicit.Matcher, result.Matcher = "memory", "memory"
-	pkg := plugins.Package{Root: root, Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "memory", Transport: "http", URL: endpoint.URL}}, Hooks: []claudehooks.Hook{elicit, result}}
+	pkg := plugins.Package{Root: root, Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "memory", Transport: "http", URL: endpoint.URL}}, Hooks: append([]claudehooks.Hook{elicit, result}, extra...)}
 	app, err := MountHooks(ctx, h, []plugins.Package{pkg}, HookOptions{Shell: "/bin/sh", StateDirectory: root, AnswerElicitation: answer})
 	if err != nil || app == nil {
 		t.Fatal(err)
@@ -114,5 +171,5 @@ func runElicitation(t *testing.T, root string, elicit, result claudehooks.Hook, 
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	return got
+	return got, app
 }

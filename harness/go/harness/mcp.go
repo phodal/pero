@@ -55,6 +55,8 @@ type MCPServerConfig struct {
 	ElicitationName string
 	// Elicit answers an elicitation for this server. Nil leaves the capability off.
 	Elicit func(context.Context, harnessmcp.ElicitationRequest, any) (harnessmcp.ElicitationReply, error)
+	// ElicitationCompleted receives notifications/elicitation/complete.
+	ElicitationCompleted func(context.Context, string, any)
 }
 
 // MountMCPServers validates and connects a complete server set before the
@@ -113,7 +115,7 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 	return harnessmcp.MountConnection(ctx, run, harnessmcp.ConnectionOptions{
 		ServerName: config.Name, Reconnect: policy, ToolCallTimeout: config.resolvedToolCallTimeout,
 		FailOnStartupError: config.FailOnStartupError, TransportFactory: transportFactory, ListTools: config.testListTools,
-		Resources: directory, Observe: config.Observe, Elicit: config.Elicit,
+		Resources: directory, Observe: config.Observe, Elicit: config.Elicit, ElicitationCompleted: config.ElicitationCompleted,
 	}, func(owner *point.Run, generation string, definitions []harnessmcp.Tool) (point.Dispose, error) {
 		tools := make([]Tool, len(definitions))
 		for i, definition := range definitions {

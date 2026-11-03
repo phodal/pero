@@ -28,6 +28,8 @@ type ConnectionOptions struct {
 	Observe            func(ConnectionObservation)
 	// Elicit answers an MCP elicitation. Nil leaves the capability unadvertised.
 	Elicit func(context.Context, ElicitationRequest, any) (ElicitationReply, error)
+	// ElicitationCompleted receives notifications/elicitation/complete.
+	ElicitationCompleted func(context.Context, string, any)
 }
 
 type mcpGeneration struct {
@@ -94,6 +96,7 @@ type mcpConnectionSupervisor struct {
 	resources        *ResourceDirectory
 	observe          func(ConnectionObservation)
 	elicit           func(context.Context, ElicitationRequest, any) (ElicitationReply, error)
+	completed        func(context.Context, string, any)
 	calls            callStack
 
 	nextGeneration   uint64
@@ -117,7 +120,7 @@ func MountConnection(ctx context.Context, run *point.Run, options ConnectionOpti
 	supervisor := &mcpConnectionSupervisor{
 		ownerRun: run, replaceTools: replaceTools, serverName: options.ServerName,
 		policy: options.Reconnect, toolCallTimeout: options.ToolCallTimeout,
-		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources, observe: options.Observe, elicit: options.Elicit,
+		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources, observe: options.Observe, elicit: options.Elicit, completed: options.ElicitationCompleted,
 		changes: make(chan uint64, 8), down: make(chan mcpDownEvent, 8), stop: make(chan struct{}),
 	}
 	retrySafe, initialErr := supervisor.connect(ctx)
@@ -166,6 +169,13 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 		},
 	}
 	if s.elicit != nil {
+		clientOptions.Capabilities = &mcp.ClientCapabilities{
+			RootsV2: &mcp.RootCapabilities{ListChanged: true},
+			Elicitation: &mcp.ElicitationCapabilities{
+				Form: &mcp.FormElicitationCapabilities{},
+				URL:  &mcp.URLElicitationCapabilities{},
+			},
+		}
 		clientOptions.ElicitationHandler = func(ctx context.Context, request *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
 			if request == nil || request.Params == nil {
 				return &mcp.ElicitResult{Action: "decline"}, nil
@@ -175,6 +185,19 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 				caller = s.calls.current()
 			}
 			return elicit(ctx, s.elicit, request.Params, caller)
+		}
+	}
+	if s.completed != nil {
+		clientOptions.ElicitationCompleteHandler = func(ctx context.Context, request *mcp.ElicitationCompleteNotificationRequest) {
+			caller := ToolCaller(ctx)
+			if caller == nil {
+				caller = s.calls.current()
+			}
+			id := ""
+			if request != nil && request.Params != nil {
+				id = request.Params.ElicitationID
+			}
+			s.completed(ctx, id, caller)
 		}
 	}
 	client := mcp.NewClient(&mcp.Implementation{Name: "point-harness", Version: "0.1.0"}, clientOptions)
