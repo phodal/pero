@@ -387,7 +387,12 @@ func (p *inProcessProvider) childAgentOptions(request harness.SubagentRequest, s
 	if err != nil {
 		return harness.AgentOptions{}, err
 	}
-	if request.CWD != "" && request.CWD != cwd && request.CWD != resolvedCWD {
+	if request.IsolatedWorktree {
+		if request.CWD == "" {
+			return harness.AgentOptions{}, errors.New("subagents: isolated worktree requires a directory")
+		}
+		cwd = request.CWD
+	} else if request.CWD != "" && request.CWD != cwd && request.CWD != resolvedCWD {
 		return harness.AgentOptions{}, errors.New("subagents: child working directory must match parent")
 	}
 	var compaction *harness.BasicCompactionConfig
@@ -395,18 +400,22 @@ func (p *inProcessProvider) childAgentOptions(request harness.SubagentRequest, s
 		copied := harness.CloneBasicCompactionConfig(*p.compaction)
 		compaction = &copied
 	}
+	sessionCWD := request.Parent.Session().Header().CWD
+	if request.IsolatedWorktree {
+		sessionCWD = cwd
+	}
 	return harness.AgentOptions{Compaction: compaction,
-		CWD: request.Parent.Session().Header().CWD, Provider: provider, Model: model, ReasoningEffort: effort, MaxSteps: steps, MaxTokens: tokens,
+		CWD: sessionCWD, Provider: provider, Model: model, ReasoningEffort: effort, MaxSteps: steps, MaxTokens: tokens,
 		Delegated: true, Parent: request.Parent, DelegationDepth: request.Depth,
 		Configure: func(ctx context.Context, run *point.Run, agent *harness.Agent) error {
 			// Preserve the native writer lease cleanup ordering before agent.worker.
 			if err := run.Defer("subagent-persistence", func(context.Context) error { return p.detachSession(agent.Session()) }); err != nil {
 				return err
 			}
-			if agent.Session().WorkingDirectory() != cwd {
+			if !request.IsolatedWorktree && agent.Session().WorkingDirectory() != request.Parent.Session().WorkingDirectory() {
 				if _, err := agent.Session().Append("working-directory/change", struct {
 					CWD string `json:"cwd"`
-				}{cwd}); err != nil {
+				}{request.Parent.Session().WorkingDirectory()}); err != nil {
 					return err
 				}
 			}
@@ -429,7 +438,15 @@ func (p *inProcessProvider) childAgentOptions(request harness.SubagentRequest, s
 				return err
 			}
 			if request.ToolFilter != nil {
-				if _, err := p.h.Tools().Restrict(ctx, run, agent, *request.ToolFilter); err != nil {
+				filter := *request.ToolFilter
+				if filter.Allow != nil {
+					allow, err := availableToolAllow(ctx, p.h, agent, filter.Allow)
+					if err != nil {
+						return err
+					}
+					filter.Allow = allow
+				}
+				if _, err := p.h.Tools().Restrict(ctx, run, agent, filter); err != nil {
 					return err
 				}
 			}

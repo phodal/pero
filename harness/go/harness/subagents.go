@@ -97,7 +97,10 @@ type SubagentProviderDescriptor struct {
 type SubagentRequest struct {
 	// CWD captures an orchestrator-owned execution directory. Empty inherits the
 	// parent current directory at admission; it never changes the sandbox root.
-	CWD string
+	// IsolatedWorktree is the trusted exception: the provider created a detached
+	// Git worktree and file tools for that session use it.
+	CWD              string
+	IsolatedWorktree bool
 	// ChildID optionally reserves the provider-owned Session identity before
 	// preparation. Durable orchestrators use it to journal provisioning before
 	// any child side effect; providers must return this exact identity.

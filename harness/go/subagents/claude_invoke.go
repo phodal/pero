@@ -10,6 +10,7 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 	harnessmodel "github.com/phodal/pero/harness/go/model"
 	point "github.com/phodal/pero/harness/go/runtime"
+	"github.com/phodal/pero/harness/go/shell"
 )
 
 // ClaudeInvocation is trusted native composition, not a model tool input.
@@ -17,10 +18,10 @@ import (
 // scoped workflow policy before the child's first turn; it cannot replace the
 // provider's workspace, route, budget, depth or inherited approval checks.
 type ClaudeInvocation struct {
-	Definition, Prompt, Description, Model, Origin string
-	OutputSchema                                   json.RawMessage
-	Background                                     bool
-	ConfigureChild                                 func(context.Context, *point.Run, *harness.Agent) error
+	Definition, Prompt, Description, Model, Origin, Isolation string
+	OutputSchema                                              json.RawMessage
+	Background                                                bool
+	ConfigureChild                                            func(context.Context, *point.Run, *harness.Agent) error
 }
 
 type claudeChildConfigurationKey struct{}
@@ -80,6 +81,25 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 		input.Description = definition.Description
 	}
 	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, OutputSchema: input.OutputSchema}
+	var cleanup func()
+	if input.Isolation != "" {
+		if input.Isolation != "worktree" {
+			return nil, errors.New("subagents: isolation must be worktree")
+		}
+		dir, release, err := isolateGitWorktree(parent.Session().WorkingDirectory())
+		if err != nil {
+			return nil, err
+		}
+		child.CWD, child.IsolatedWorktree, cleanup = dir, true, release
+	}
+	releaseWorktree := cleanup != nil
+	if cleanup != nil {
+		defer func() {
+			if releaseWorktree {
+				cleanup()
+			}
+		}()
+	}
 	if definition.Tools != nil {
 		child.ToolFilter = &harness.ToolRestriction{Allow: append([]string{}, definition.Tools...)}
 	}
@@ -89,6 +109,9 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 			return nil, err
 		}
 		child.ToolFilter = &harness.ToolRestriction{Allow: tools}
+		input.ConfigureChild = composeChildConfiguration(input.ConfigureChild, func(setup context.Context, run *point.Run, agent *harness.Agent) error {
+			return mountReadOnlyBashGate(s.h, run, agent)
+		})
 	}
 	model := definition.Model
 	if input.Model != "" {
@@ -117,7 +140,7 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if err != nil {
 		return nil, err
 	}
-	task := &claudeTask{parent: parent, activation: activation, done: make(chan struct{})}
+	task := &claudeTask{parent: parent, activation: activation, done: make(chan struct{}), cleanup: cleanup}
 	task.notifyParent.Store(input.Background && s.backgroundNotices)
 	s.mu.Lock()
 	s.tasks[activation.ChildID] = task
@@ -130,5 +153,74 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 		s.mu.Unlock()
 		return nil, errors.Join(err, cleanupErr)
 	}
+	releaseWorktree = false
 	return task, nil
+}
+
+func availableToolAllow(ctx context.Context, h *harness.Harness, agent *harness.Agent, allow []string) ([]string, error) {
+	schemas, err := h.Tools().SchemasForAgent(ctx, agent)
+	if err != nil {
+		return nil, err
+	}
+	known := make(map[string]bool, len(schemas))
+	for _, schema := range schemas {
+		known[schema.Name] = true
+	}
+	kept := make([]string, 0, len(allow))
+	for _, name := range allow {
+		if known[name] {
+			kept = append(kept, name)
+		}
+	}
+	if len(allow) > 0 && len(kept) == 0 {
+		return nil, fmt.Errorf("subagents: none of the declared tools are available")
+	}
+	return kept, nil
+}
+
+func composeChildConfiguration(base, next func(context.Context, *point.Run, *harness.Agent) error) func(context.Context, *point.Run, *harness.Agent) error {
+	switch {
+	case base == nil:
+		return next
+	case next == nil:
+		return base
+	default:
+		return func(ctx context.Context, run *point.Run, child *harness.Agent) error {
+			if err := base(ctx, run, child); err != nil {
+				return err
+			}
+			return next(ctx, run, child)
+		}
+	}
+}
+
+// mountReadOnlyBashGate keeps Explore/Plan aligned with Claude's read-only tool
+// pool: Bash may be visible, but only documented read-only commands run.
+func mountReadOnlyBashGate(h *harness.Harness, run *point.Run, child *harness.Agent) error {
+	_, err := h.Tools().Before.Use(run, func(_ context.Context, request harness.ToolRequest, next point.Next[harness.ToolRequest]) (harness.ToolRequest, error) {
+		request, err := next(request)
+		if err != nil || request.Agent != child || (request.Name != "Bash" && request.Name != "shell") {
+			return request, err
+		}
+		var input struct {
+			Command string `json:"command"`
+		}
+		if json.Unmarshal(request.Arguments, &input) != nil || strings.TrimSpace(input.Command) == "" {
+			request.DenyReason = "Explore/Plan may only run read-only shell commands"
+			return request, nil
+		}
+		commands, ok := shell.ClaudeAllowCommands(input.Command)
+		if !ok {
+			request.DenyReason = "Explore/Plan may only run read-only shell commands"
+			return request, nil
+		}
+		for _, command := range commands {
+			if !shell.ClaudeReadOnlyAllowCommand(command) {
+				request.DenyReason = "Explore/Plan may only run read-only shell commands"
+				return request, nil
+			}
+		}
+		return request, nil
+	})
+	return err
 }

@@ -12,12 +12,14 @@ go_library(
         "resume.go",
         "structured.go",
         "tool.go",
+        "worktree.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/subagents",
     visibility = ["//visibility:public"],
     deps = [
         "//harness",
         "//model",
+        "//nativetools",
         "//runtime",
     ],
 )
@@ -37,7 +39,9 @@ go_test(
         "restart_test.go",
         "resume_disk_test.go",
         "resume_test.go",
+        "tool_availability_test.go",
         "shared_budget_review_test.go",
+        "worktree_isolation_test.go",
     ],
     embed = [":subagents"],
     deps = [

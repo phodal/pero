@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/nativetools"
 )
 
 func TestBuiltinExploreAndPlanReallyReadWithoutWriting(t *testing.T) {
@@ -80,6 +81,75 @@ func TestBuiltinExploreAndPlanReallyReadWithoutWriting(t *testing.T) {
 				t.Fatal("invisible write reached approval handler")
 			}
 		})
+	}
+}
+
+func TestBuiltinExploreAllowsReadOnlyBashAndRejectsWrites(t *testing.T) {
+	root := t.TempDir()
+	existing := filepath.Join(root, "existing.txt")
+	forbidden := filepath.Join(root, "forbidden.txt")
+	if err := os.WriteFile(existing, []byte("probe-content"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int32
+	f := newClaudeHTTPFixture(t, root, func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages json.RawMessage `json:"messages"`
+			Tools    []struct {
+				Function struct {
+					Name string `json:"name"`
+				} `json:"function"`
+			} `json:"tools"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+			w.WriteHeader(400)
+			return
+		}
+		foundBash := false
+		for _, tool := range body.Tools {
+			foundBash = foundBash || tool.Function.Name == "Bash"
+			if tool.Function.Name == "Write" || tool.Function.Name == "Edit" {
+				t.Errorf("read-only builtin exposed %s", tool.Function.Name)
+			}
+		}
+		if !foundBash {
+			t.Error("Explore lost mounted Bash")
+		}
+		switch calls.Add(1) {
+		case 1:
+			readArgs, _ := json.Marshal(struct {
+				Command string `json:"command"`
+			}{`cat existing.txt`})
+			quotedRead, _ := json.Marshal(string(readArgs))
+			writeArgs, _ := json.Marshal(struct {
+				Command string `json:"command"`
+			}{`printf changed > forbidden.txt`})
+			quotedWrite, _ := json.Marshal(string(writeArgs))
+			claudeHTTPAnswer(w, `{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"readonly-bash","type":"function","function":{"name":"Bash","arguments":`+string(quotedRead)+`}},{"index":1,"id":"write-bash","type":"function","function":{"name":"Bash","arguments":`+string(quotedWrite)+`}}]},"finish_reason":"tool_calls"}]}`)
+		default:
+			messages := string(body.Messages)
+			if !strings.Contains(messages, "probe-content") {
+				t.Error("Explore did not receive read-only Bash output")
+			}
+			if !strings.Contains(messages, "read-only shell commands") {
+				t.Error("Explore missing deny reason for mutating Bash")
+			}
+			if strings.Contains(messages, `"is_error":false`) && strings.Contains(messages, "write-bash") {
+				t.Error("Explore reported mutating Bash as success")
+			}
+			claudeTextAnswer(w, "explore-bash-result")
+		}
+	}, true, nil, ClaudeOptions{}, nativetools.Options{Workspace: root, ClaudeTools: true, EnableShell: true})
+	if _, err := harness.SetPermissionMode(f.parent.Session(), harness.PermissionAutoReview); err != nil {
+		t.Fatal(err)
+	}
+	result := f.call(t, f.parent, "Agent", `{"subagent_type":"Explore","description":"shell research","prompt":"Inspect existing.txt with Bash."}`)
+	if result.IsError || taskReceipt(t, result).Status != harness.SubagentCompleted || !strings.Contains(fmt.Sprint(result.Content), "explore-bash-result") {
+		t.Fatalf("Explore Bash path failed: %+v", result)
+	}
+	if _, err := os.Stat(forbidden); !os.IsNotExist(err) {
+		t.Fatal("mutating Bash wrote a file through Explore")
 	}
 }
 

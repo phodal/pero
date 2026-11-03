@@ -67,6 +67,7 @@ type claudeTask struct {
 	done           chan struct{}
 	result         harness.SubagentResult
 	err            error
+	cleanup        func()
 }
 
 type claudeDelegation struct {
@@ -216,12 +217,13 @@ func (s *claudeDelegation) agentTool() harness.Tool {
 		}
 		fmt.Fprintf(&available, "\n- %s: %s", name, string(description))
 	}
-	return harness.Tool{Schema: harness.ToolSchema{Name: "Agent", Description: "Run an independent agent with selected instructions, tools and an explicitly mapped model. subagent_type defaults to general-purpose. Bare names resolve within the current plugin first, then by a unique scoped suffix; use the full name if ambiguous. Exact names, including builtins, take precedence. Explore/Plan use only mounted read-only file/search/web/LSP tools; this profile does not give them Bash, Skill or arbitrary MCP tools. Background runs return a real task_id for TaskOutput/TaskStop. Resume custom/general-purpose agents with their ID and a new prompt; Explore/Plan remain one-shot. Available subagent_type values:" + available.String(), InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"subagent_type":{"type":"string","minLength":1},"description":{"type":"string","minLength":1},"prompt":{"type":"string","minLength":1},"model":{"type":"string"},"run_in_background":{"type":"boolean"},"resume":{"type":"string"}},"required":["description","prompt"]}`)}, IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+	return harness.Tool{Schema: harness.ToolSchema{Name: "Agent", Description: "Run an independent agent with selected instructions, tools and an explicitly mapped model. subagent_type defaults to general-purpose. Bare names resolve within the current plugin first, then by a unique scoped suffix; use the full name if ambiguous. Exact names, including builtins, take precedence. Explore/Plan use mounted read-only file/search/web/LSP tools and, when the parent mounted shell, read-only Bash only; Write/Edit, Skill and arbitrary MCP stay unavailable. isolation=worktree runs the child in a detached Git worktree that is removed when the child finishes. Background runs return a real task_id for TaskOutput/TaskStop. Resume custom/general-purpose agents with their ID and a new prompt; Explore/Plan remain one-shot. Available subagent_type values:" + available.String(), InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"subagent_type":{"type":"string","minLength":1},"description":{"type":"string","minLength":1},"prompt":{"type":"string","minLength":1},"model":{"type":"string"},"isolation":{"type":"string","enum":["worktree"]},"run_in_background":{"type":"boolean"},"resume":{"type":"string"}},"required":["description","prompt"]}`)}, IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 		var input struct {
 			Type        string `json:"subagent_type"`
 			Description string `json:"description"`
 			Prompt      string `json:"prompt"`
 			Model       string `json:"model"`
+			Isolation   string `json:"isolation"`
 			Background  bool   `json:"run_in_background"`
 			Resume      string `json:"resume"`
 		}
@@ -236,7 +238,7 @@ func (s *claudeDelegation) agentTool() harness.Tool {
 			}
 			task, err = s.resume(ctx, request.Agent, harness.SessionID(input.Resume), input.Prompt, input.Background)
 		} else {
-			task, err = s.start(ctx, request.Agent, ClaudeInvocation{Definition: input.Type, Prompt: input.Prompt, Description: input.Description, Model: input.Model, Background: input.Background})
+			task, err = s.start(ctx, request.Agent, ClaudeInvocation{Definition: input.Type, Prompt: input.Prompt, Description: input.Description, Model: input.Model, Isolation: input.Isolation, Background: input.Background})
 		}
 		if err != nil {
 			return harness.ToolResult{}, err
@@ -255,6 +257,12 @@ func (s *claudeDelegation) agentTool() harness.Tool {
 }
 
 func (s *claudeDelegation) observeTask(ctx context.Context, task *claudeTask) {
+	defer func() {
+		if task.cleanup != nil {
+			task.cleanup()
+		}
+		close(task.done)
+	}()
 	var result harness.SubagentResult
 	var ok bool
 	select {
@@ -282,7 +290,6 @@ func (s *claudeDelegation) observeTask(ctx context.Context, task *claudeTask) {
 			}
 		}
 	}
-	close(task.done)
 }
 
 func (s *claudeDelegation) lookupTask(ctx context.Context, parent *harness.Agent, id string) (harness.TaskHandle, bool, error) {

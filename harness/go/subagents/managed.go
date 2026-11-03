@@ -91,7 +91,11 @@ func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent
 			return err
 		}
 		if definition.Tools != nil {
-			_, err := p.h.Tools().Restrict(ctx, run, child, harness.ToolRestriction{Allow: definition.Tools})
+			allow, err := availableToolAllow(ctx, p.h, child, definition.Tools)
+			if err != nil {
+				return err
+			}
+			_, err = p.h.Tools().Restrict(ctx, run, child, harness.ToolRestriction{Allow: allow})
 			return err
 		}
 		return nil
