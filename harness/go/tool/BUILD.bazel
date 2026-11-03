@@ -12,6 +12,7 @@ go_library(
         "spill_local.go",
         "spill_local_cleanup_other.go",
         "spill_local_cleanup_unix.go",
+        "spill_quota.go",
         "types.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/tool",
@@ -30,6 +31,7 @@ go_test(
     srcs = [
         "json_schema_subset_test.go",
         "output_test.go",
+        "spill_quota_test.go",
     ],
     embed = [":tool"],
 )
