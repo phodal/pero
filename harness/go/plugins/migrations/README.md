@@ -48,3 +48,20 @@ Tests execute only the memory guard against disposable paths. They check real
 exit codes for allowed targets, source writes, malformed payloads, top-level
 field spoofing, traversal and symlink escapes. Other tests cover digest refusal,
 complete preflight, idempotence and preservation of unrelated opaque fields.
+
+## Selected review hook repair
+
+`selected-coder-hook-v1.json` is a separate P03 migration for one exact hook
+snapshot. Its echo-separator expression rejects quoted output such as
+`echo "=== full diff ==="`. The repair admits that quoted argument while
+preserving the existing unquoted-separator policy and every other hook check.
+This is a plugin repair, rather than a Harness hook bypass.
+
+```sh
+python3 replay.py --plan selected-coder-hook-v1.json --check --root P03=/absolute/coder
+python3 replay.py --plan selected-coder-hook-v1.json --root P03=/absolute/coder
+```
+
+The eight-command regression runs the actual JavaScript expressions. The
+selected package's original twelve resilience tests also passed after applying
+the migration. See the [incident and real-model verification](../../../../docs/issues/2026-11-03-coder-quoted-separator.md).

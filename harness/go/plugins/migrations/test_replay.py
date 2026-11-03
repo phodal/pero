@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -8,6 +9,32 @@ import replay
 
 
 class MigrationTests(unittest.TestCase):
+    def test_quoted_echo_separator_retains_existing_bare_command_policy(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node is needed for the plugin hook expression")
+        source = r'''const unsafe = text => /(?:^|[;&|]\s*)(?:={2,}[A-Za-z0-9_-]*|[A-Za-z0-9_-]*={2,})(?=\s|[;&|]|$)/.test(text)
+            || /\becho\s+["']?={2,}["']?(?=\s|[;&|]|$)/.test(text);
+        const inputs = JSON.parse(process.argv[1]);
+        console.log(JSON.stringify(inputs.map(unsafe)));
+        '''.encode()
+        cases = [
+            ('git diff BASE --stat && echo "=== full diff ===" && git diff BASE', False),
+            ('cat .gitignore; echo "=== sec grep ==="; grep token labels.py', False),
+            ('echo "== greps =="; git status --porcelain', False),
+            ("head -20 a; echo '==='; head -5 b", False),
+            ('printf "%s\\n" "=== diff ==="', False),
+            ('head -20 a; echo ===; head -5 b', True),
+            ('git status; ===; git diff', True),
+            ('git status && ===heading && git diff', True),
+        ]
+        updated = replay.transform(source, [{"kind": "quoted-echo-separator"}], Path("."))
+        result = subprocess.run([node, "-e", updated.decode(), json.dumps([row[0] for row in cases])],
+                                text=True, capture_output=True, check=True, timeout=5)
+        self.assertEqual(json.loads(result.stdout), [row[1] for row in cases])
+        with self.assertRaises(replay.MigrationError):
+            replay.transform(updated, [{"kind": "quoted-echo-separator"}], Path("."))
+
     def test_content_addressed_replay_is_idempotent_and_preflights_all_files(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

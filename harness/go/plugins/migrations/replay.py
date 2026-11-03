@@ -125,6 +125,12 @@ def transform(data, actions, root):
             if text.count("MB-atlassian") != 1:
                 raise MigrationError("documented alias precondition failed")
             data = text.replace("MB-atlassian", "mcp-atlassian").encode()
+        elif kind == "quoted-echo-separator":
+            old = r'''/\becho\s+["']?={2,}["']?(?=\s|[;&|]|$)/'''
+            new = r'''/\becho\s+={2,}(?=\s|[;&|]|$)/'''
+            if text.count(old) != 1:
+                raise MigrationError("quoted echo separator precondition failed")
+            data = text.replace(old, new).encode()
         else:
             raise MigrationError("unknown migration action")
     return data
