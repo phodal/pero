@@ -206,6 +206,7 @@ func (r *ToolRegistry) prepareFinalContentView(ctx context.Context, agent *Agent
 			return Tool{}, false, err
 		}
 		if replace {
+			candidate.catalogID = catalog.id
 			current = resolvedToolView{scope: catalog.scope, generation: catalog.generation, tool: candidate}
 			selected = true
 		}

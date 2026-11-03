@@ -15,6 +15,8 @@ import (
 )
 
 type Tool struct {
+	registrationID             uint64
+	catalogID                  uint64
 	dshTodoNumberCompatibility bool
 	nativeFinalContent         *nativeFinalContent
 	nativeFinalTransfer        *sourceFinalContentTransfer
@@ -102,6 +104,9 @@ type ToolCatalogProvider struct {
 	// ordinary Go/dynamic capability and project those capabilities through an
 	// external presentation runtime such as DSH native/PTC/both.
 	Authoritative bool
+	// Exclusive rejects overlapping authoritative presenters at registration.
+	// Use it when a view cannot compose another presenter's declarations.
+	Exclusive bool
 	// Bind receives a capability view that excludes this provider and every
 	// authoritative presentation provider. It is invoked synchronously during
 	// registration before the provider can serve requests.

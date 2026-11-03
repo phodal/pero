@@ -19,10 +19,12 @@ type toolCatalogIdentityKey struct {
 // source presentation preparation consults its published/live owner fence;
 // ordinary catalog selection and captured pure receipts keep their contracts.
 type toolCatalogIdentity struct {
-	id        uint64
-	run       *point.Run
-	published atomic.Bool
-	sealed    atomic.Bool
+	id            uint64
+	run           *point.Run
+	authoritative bool
+	exclusive     bool
+	published     atomic.Bool
+	sealed        atomic.Bool
 }
 
 func (identity *toolCatalogIdentity) active() bool {
@@ -43,9 +45,21 @@ func (r *ToolRegistry) registerCatalogWithIdentity(run *point.Run, generation st
 		return nil, ErrToolOwnerRetired
 	}
 	for _, existing := range r.catalogs {
+		if provider.Authoritative && existing.provider.Authoritative && (provider.Exclusive || existing.provider.Exclusive) &&
+			(run.Scope.Contains(existing.scope) || existing.scope.Contains(run.Scope)) {
+			r.mu.Unlock()
+			return nil, fmt.Errorf("harness: exclusive authoritative tool catalog %q cannot compose with %q", generation, existing.generation)
+		}
 		if existing.scope == run.Scope && existing.generation == generation {
 			r.mu.Unlock()
 			return nil, fmt.Errorf("harness: tool catalog generation %q already registered in this scope", generation)
+		}
+	}
+	for pendingKey, existing := range r.catalogPending {
+		if provider.Authoritative && existing.authoritative && (provider.Exclusive || existing.exclusive) &&
+			(run.Scope.Contains(pendingKey.scope) || pendingKey.scope.Contains(run.Scope)) {
+			r.mu.Unlock()
+			return nil, fmt.Errorf("harness: exclusive authoritative tool catalog %q cannot compose with binding catalog %q", generation, pendingKey.generation)
 		}
 	}
 	if r.catalogPending[key] != nil {
@@ -53,7 +67,7 @@ func (r *ToolRegistry) registerCatalogWithIdentity(run *point.Run, generation st
 		return nil, fmt.Errorf("harness: tool catalog generation %q is already binding in this scope", generation)
 	}
 	r.nextID++
-	identity := &toolCatalogIdentity{id: r.nextID, run: run}
+	identity := &toolCatalogIdentity{id: r.nextID, run: run, authoritative: provider.Authoritative, exclusive: provider.Exclusive}
 	if r.catalogPending == nil {
 		r.catalogPending = make(map[toolCatalogIdentityKey]*toolCatalogIdentity)
 	}

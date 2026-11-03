@@ -302,6 +302,7 @@ func (r *ToolRegistry) resolveForAgent(ctx context.Context, agent *Agent, name s
 			return Tool{}, false, mergeErr
 		}
 		if replace {
+			candidate.catalogID = catalog.id
 			current = resolvedToolView{scope: catalog.scope, generation: catalog.generation, tool: candidate}
 			found = true
 		}
@@ -420,6 +421,7 @@ func (r *ToolRegistry) resolveForAgentBase(ctx context.Context, agent *Agent, na
 			return Tool{}, false, mergeErr
 		}
 		if replace {
+			candidate.catalogID = catalog.id
 			current = resolvedToolView{scope: catalog.scope, generation: catalog.generation, tool: candidate}
 			found = true
 		}
