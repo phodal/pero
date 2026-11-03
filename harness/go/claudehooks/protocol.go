@@ -126,10 +126,12 @@ type Decision struct {
 	// the hook left the request unanswered.
 	Action  string
 	Content json.RawMessage
-	// SessionTitle is the title a SessionStart hook asked to store.
+	// SessionTitle is the title a SessionStart or UserPromptSubmit hook asked to store.
 	SessionTitle string
 	// ReloadSkills asks the host to re-read its authorized skill roots.
 	ReloadSkills bool
+	// SuppressOriginalPrompt leaves the submitted text out of a blocked prompt message.
+	SuppressOriginalPrompt bool
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
@@ -152,20 +154,21 @@ type output struct {
 }
 
 type specificOutput struct {
-	Event              string                     `json:"hookEventName"`
-	Permission         string                     `json:"permissionDecision"`
-	Reason             string                     `json:"permissionDecisionReason"`
-	UpdatedInput       json.RawMessage            `json:"updatedInput"`
-	AdditionalContext  string                     `json:"additionalContext"`
-	RequestDecision    *permissionRequestDecision `json:"decision"`
-	WorktreePath       string                     `json:"worktreePath"`
-	UpdatedToolOutput  json.RawMessage            `json:"updatedToolOutput"`
-	WatchPaths         []string                   `json:"watchPaths"`
-	DisplayContent     *string                    `json:"displayContent,omitempty"`
-	Action             string                     `json:"action,omitempty"`
-	Content            json.RawMessage            `json:"content,omitempty"`
-	SessionTitle       string                     `json:"sessionTitle,omitempty"`
-	InitialUserMessage string                     `json:"initialUserMessage,omitempty"`
+	Event                  string                     `json:"hookEventName"`
+	Permission             string                     `json:"permissionDecision"`
+	Reason                 string                     `json:"permissionDecisionReason"`
+	UpdatedInput           json.RawMessage            `json:"updatedInput"`
+	AdditionalContext      string                     `json:"additionalContext"`
+	RequestDecision        *permissionRequestDecision `json:"decision"`
+	WorktreePath           string                     `json:"worktreePath"`
+	UpdatedToolOutput      json.RawMessage            `json:"updatedToolOutput"`
+	WatchPaths             []string                   `json:"watchPaths"`
+	DisplayContent         *string                    `json:"displayContent,omitempty"`
+	Action                 string                     `json:"action,omitempty"`
+	Content                json.RawMessage            `json:"content,omitempty"`
+	SessionTitle           string                     `json:"sessionTitle,omitempty"`
+	SuppressOriginalPrompt bool                       `json:"suppressOriginalPrompt,omitempty"`
+	InitialUserMessage     string                     `json:"initialUserMessage,omitempty"`
 	// ReloadSkills is accepted so a SessionStart hook can request a skill
 	// rescan. The catalog stays fixed for this process.
 	ReloadSkills *bool `json:"reloadSkills,omitempty"`
@@ -318,8 +321,11 @@ func (wire output) decision(event string) (Decision, error) {
 			}
 			result.UpdatedInput = append(json.RawMessage(nil), specific.UpdatedInput...)
 		}
-		if event == "SessionStart" && specific.SessionTitle != "" {
+		if (event == "SessionStart" || event == "UserPromptSubmit") && specific.SessionTitle != "" {
 			result.SessionTitle = specific.SessionTitle
+		}
+		if event == "UserPromptSubmit" && specific.SuppressOriginalPrompt {
+			result.SuppressOriginalPrompt = true
 		}
 		if event == "SessionStart" && specific.ReloadSkills != nil && *specific.ReloadSkills {
 			result.ReloadSkills = true
@@ -421,6 +427,7 @@ func Merge(decisions []Decision) (Decision, error) {
 			merged.SessionTitle = decision.SessionTitle
 		}
 		merged.ReloadSkills = merged.ReloadSkills || decision.ReloadSkills
+		merged.SuppressOriginalPrompt = merged.SuppressOriginalPrompt || decision.SuppressOriginalPrompt
 		if len(decision.UpdatedToolOutput) > 0 {
 			if len(merged.UpdatedToolOutput) > 0 && !equalJSON(merged.UpdatedToolOutput, decision.UpdatedToolOutput) {
 				return Decision{}, errors.New("claudehooks: conflicting updatedToolOutput from multiple hooks")

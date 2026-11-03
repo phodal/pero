@@ -31,8 +31,10 @@ func (app *HookApp) finishSessionStart(ctx context.Context, agent *harness.Agent
 	if decision.WatchPaths != nil {
 		app.setDynamicWatches(agent, decision.WatchPaths)
 	}
-	if err := app.storeSessionTitle(agent, source, decision.SessionTitle); err != nil {
-		return err
+	if (source == "startup" || source == "resume") && decision.SessionTitle != "" {
+		if err := app.storeSessionTitle(agent, decision.SessionTitle); err != nil {
+			return err
+		}
 	}
 	if decision.ReloadSkills && app.options.ReloadSkills != nil {
 		return app.options.ReloadSkills(ctx)
@@ -40,13 +42,24 @@ func (app *HookApp) finishSessionStart(ctx context.Context, agent *harness.Agent
 	return nil
 }
 
-func (app *HookApp) storeSessionTitle(agent *harness.Agent, source, title string) error {
+func (app *HookApp) storeSessionTitle(agent *harness.Agent, title string) error {
 	if app == nil || agent == nil || agent.Session() == nil || title == "" {
-		return nil
-	}
-	if source != "startup" && source != "resume" {
 		return nil
 	}
 	_, err := agent.Session().Append("session/title", map[string]string{"title": title})
 	return err
+}
+
+func blockedPromptReason(decision claudehooks.Decision, prompt string) string {
+	if !decision.Stop && !decision.Block {
+		return ""
+	}
+	reason := decision.Reason
+	if reason == "" {
+		reason = "Claude command hook rejected this user prompt."
+	}
+	if !decision.SuppressOriginalPrompt && prompt != "" {
+		reason += "\nOriginal prompt: " + prompt
+	}
+	return reason
 }

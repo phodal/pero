@@ -443,19 +443,20 @@ func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state
 	if len(userIDs) == 0 {
 		return nil
 	}
-	decision, err := app.event(ctx, input.Agent, claudehooks.Input{Event: "UserPromptSubmit", Prompt: strings.Join(prompts, "\n")})
+	submitted := strings.Join(prompts, "\n")
+	decision, err := app.event(ctx, input.Agent, claudehooks.Input{Event: "UserPromptSubmit", Prompt: submitted, SessionTitle: customSessionTitle(input.Agent)})
 	if err != nil {
 		return err
 	}
 	for _, id := range userIDs {
 		state.userMessages[id] = true
 	}
-	if decision.Stop || decision.Block {
+	if err := app.storeSessionTitle(input.Agent, decision.SessionTitle); err != nil {
+		return err
+	}
+	if reason := blockedPromptReason(decision, submitted); reason != "" {
 		input.Reject = true
-		input.RejectReason = decision.Reason
-		if input.RejectReason == "" {
-			input.RejectReason = "Claude command hook rejected this user prompt."
-		}
+		input.RejectReason = reason
 	}
 	if decision.AdditionalContext != "" {
 		input.Messages = append(input.Messages, hookMessage("UserPromptSubmit", decision.AdditionalContext))
