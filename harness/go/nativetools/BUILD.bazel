@@ -35,6 +35,8 @@ go_test(
         "background_restart_test.go",
         "background_test.go",
         "claude_test.go",
+        "notice_recovery_test.go",
+        "notifications_test.go",
         "output_file_test.go",
         "presenter_integration_test.go",
         "presenter_test.go",

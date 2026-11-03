@@ -41,9 +41,9 @@ func shellReceipt(t *testing.T, result harness.ToolResult) shellTaskReceipt {
 	return receipt
 }
 
-func newBackgroundFixture(t *testing.T) *claudeFixture {
+func newBackgroundFixture(t *testing.T, adapters ...harness.Adapter) *claudeFixture {
 	t.Helper()
-	f := newClaudeFixture(t, Options{EnableShell: true})
+	f := newClaudeFixture(t, Options{EnableShell: true, BackgroundNotifications: len(adapters) > 0}, adapters...)
 	for _, tool := range []harness.Tool{harness.TaskOutputTool(f.app.LookupTask), harness.TaskStopTool(f.app.LookupTask)} {
 		if _, err := f.harness.RegisterTool(t.Context(), "fixture/"+tool.Schema.Name, tool); err != nil {
 			t.Fatal(err)

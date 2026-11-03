@@ -29,14 +29,18 @@ type claudeFixture struct {
 	calls     atomic.Int32
 }
 
-func newClaudeFixture(t *testing.T, options Options) *claudeFixture {
+func newClaudeFixture(t *testing.T, options Options, adapters ...harness.Adapter) *claudeFixture {
 	t.Helper()
 	if goruntime.GOOS != "darwin" && goruntime.GOOS != "linux" && goruntime.GOOS != "windows" {
 		t.Skip("native workspace unavailable")
 	}
 	fixture := &claudeFixture{root: t.TempDir()}
 	options.Workspace, options.ClaudeTools = fixture.root, true
-	h, err := harness.Boot(t.Context(), harness.Options{ApprovalPolicy: harness.ApprovalAsk})
+	boot := harness.Options{ApprovalPolicy: harness.ApprovalAsk}
+	if len(adapters) != 0 {
+		boot.Adapter = adapters[0]
+	}
+	h, err := harness.Boot(t.Context(), boot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,9 +74,11 @@ func newClaudeFixture(t *testing.T, options Options) *claudeFixture {
 		if err != nil {
 			t.Fatal(err)
 		}
-		agent.Session().Append("turn/start", struct {
-			Turn int `json:"turn"`
-		}{1})
+		if len(adapters) == 0 {
+			agent.Session().Append("turn/start", struct {
+				Turn int `json:"turn"`
+			}{1})
+		}
 		if allowed {
 			fixture.allowed = agent
 		} else {
