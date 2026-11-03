@@ -64,11 +64,14 @@ export async function exerciseTextImportNavigation({ frame, page, out }) {
   await page.screenshot({ path: resolve(out, 'search-preview-import-opened.png') });
   await reader.getByRole('button', { name: 'Back to library', exact: true }).click();
 
-  // Leaving during either persistence delivery or the parent's library refresh
-  // must keep the user's navigation while still retaining the saved document.
-  for (const [phase, path] of [['save', '/api/papers/import'], ['refresh', '/api/library']]) {
+  // A completed save may refresh data, but cannot take over a later import visit.
+  for (const [phase, path, reopen] of [
+    ['save', '/api/papers/import', false], ['refresh', '/api/library', false],
+    ['save', '/api/papers/import', true], ['refresh', '/api/library', true],
+  ]) {
     await frame.getByRole('button', { name: 'Add papers', exact: true }).click();
-    const name = `Text import left during ${phase}`;
+    const name = `Text import ${reopen ? 'reopened' : 'left'} during ${phase}`;
+    const draft = `New draft after ${phase}`, draftText = `This ${phase} draft belongs to the reopened importer.`;
     await fill(name, `Saving during ${phase} must not take over navigation.`);
     await frame.locator('body').evaluate(deferImportResponse, path);
     try {
@@ -78,15 +81,28 @@ export async function exerciseTextImportNavigation({ frame, page, out }) {
         return window.paperImportGate.arrived;
       })).toBe(true);
       await library.getByRole('button', { name: 'Back to library', exact: true }).click();
+      if (reopen) {
+        await library.getByRole('button', { name: 'Add papers', exact: true }).click();
+        await fill(draft, draftText);
+      }
       await frame.locator('body').evaluate(() => window.paperImportGate.release());
       await expect(form.getByRole('button', { name: 'Save source snapshot', exact: true, includeHidden: true })).toBeEnabled();
       await expect(reader).toBeHidden();
-      await expect(library.getByRole('button', { name: 'Add papers', exact: true })).toBeVisible();
+      if (reopen) {
+        await expect(form).toBeVisible();
+        await expect(form.getByLabel('Paper title', { exact: true })).toHaveValue(draft);
+        await expect(form.getByLabel('Source text or abstract', { exact: true })).toHaveValue(draftText);
+        await page.screenshot({ path: resolve(out, `import-reopened-during-${phase}.png`) });
+      } else await expect(library.getByRole('button', { name: 'Add papers', exact: true })).toBeVisible();
       expect((await readLibrary()).papers.filter(paper => paper.title === name)).toHaveLength(1);
     } finally {
       await frame.locator('body').evaluate(() => {
         window.paperImportGate.release(); delete window.paperImportGate; delete window.paperFetchObserver;
       });
+    }
+    if (reopen) {
+      await saveAndRead(draft, draftText);
+      await reader.getByRole('button', { name: 'Back to library', exact: true }).click();
     }
   }
   await search.fill('');

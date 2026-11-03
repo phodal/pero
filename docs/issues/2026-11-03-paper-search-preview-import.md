@@ -1,8 +1,8 @@
 ---
 kind: issue
-status: open
+status: resolved
 github_issue: 118
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/118
 ---
 
@@ -10,6 +10,8 @@ github_url: https://github.com/phodal/pero/issues/118
 
 Maintainer scope confirmation: [welcome to PR](https://github.com/phodal/pero/issues/118#issuecomment-6602609930).
 The fix targets `master@5a092c8e7e10570b6564ea887874856d4b266462`.
+Merged in [PR #122](https://github.com/phodal/pero/pull/122) as `399d2c35`.
+Issue #118 was closed on 2026-11-03.
 
 ## Reproduction
 
@@ -117,3 +119,32 @@ Host context. This is not a full `npm run test:paper` Rust Host/Desktop pass.
 The root `npm run check` cannot complete in this checkout because generated
 `web/src/reader-wasm/pero_reader_web` is absent; no stub was substituted.
 No model or external source service was exercised.
+
+## Reopened importer follow-up
+
+The [review finding](https://github.com/phodal/pero/pull/122#discussion_r4454318687)
+identifies a further no-focus-stealing case: leave Add papers during a save
+or refresh, reopen it and edit another draft before the response arrives.
+On merged `master@399d2c35`, the old response opens its paper because activity
+is true again. The deferred-response regression reproduces this with the real
+Python backend; the previous saved document replaces the reopened import form.
+
+Each import now captures its importer session before saving. Losing activity
+or unmounting invalidates that session, so reentering cannot authorize a
+previous visit's navigation. Saved data still refreshes, the new draft stays
+visible and editable, and saving that draft opens its own original.
+
+The existing import flow covers both leaving and leaving/reopening during
+save delivery and library refresh. It asserts that the old document persists,
+the current draft remains intact, and a subsequent save opens correctly.
+All six navigation scenarios pass in the focused Electron/real-backend runner.
+Paper and independent core typechecks, 32 reader component tests, 3 library
+availability tests and 5 manual evidence tests pass. Light/dark, narrow layout
+and keyboard import checks also pass. Full Rust Host/Desktop acceptance was
+not rerun locally for this follow-up.
+
+For the already-merged #122 head `6b1725eb`, both
+[Linux CI](https://github.com/phodal/pero/actions/runs/41645057412) and
+[full-platform CI](https://github.com/phodal/pero/actions/runs/41645057070)
+passed, including `paper-reading` and `paper-research-import` Desktop acceptance.
+Those results cover #122, not this follow-up.
