@@ -33,10 +33,10 @@ function CheckReport({ report, t }: { report: Verification; t: Translate }) {
   }));
   return <>
     <div className="section-heading"><h3>{t("verification")}</h3><Status value={report.status} t={t} /></div>
-    <div className="table-scroll"><table><thead><tr>
-      <th>{t("metric")}</th><th>{t("measured")}</th><th>{t("limit")}</th><th>{t("verification")}</th>
+    <div className="table-scroll"><table className="check-table"><thead><tr>
+      <th scope="col">{t("metric")}</th><th scope="col">{t("measured")}</th><th scope="col">{t("limit")}</th><th scope="col">{t("verification")}</th>
     </tr></thead><tbody>{checks.map(check => <tr key={check.id}>
-      <td>{propertyLabel(check.id, chinese, check.label)}</td><td>{number(check.value)}</td><td>{number(check.threshold)}</td>
+      <th scope="row">{propertyLabel(check.id, chinese, check.label)}</th><td>{number(check.value)}</td><td>{number(check.threshold)}</td>
       <td>{check.passed === undefined ? "—" : <Status value={check.passed ? "pass" : "fail"} t={t} />}</td>
     </tr>)}</tbody></table></div>
     {!report.checks?.length && <details><summary>{t("criteria")}</summary><Facts values={report.thresholds} /></details>}
@@ -51,7 +51,9 @@ export function RunEvidence({ run, t, busy, exporting, onVerify, onCancel, onExp
 }) {
   const active = run.status === "running" || Boolean(run.operation);
   return <section className="run-evidence" aria-label={t("details")}>
-    <div className="section-heading"><div><h2>{run.benchmarkName}</h2></div>
+    <div className="section-heading"><div><h2>{run.benchmarkName}</h2>
+      <dl className="run-overview"><div><dt>{t("status")}</dt><dd><Status value={run.status} t={t} /></dd></div><div><dt>{t("elapsed")}</dt><dd>{number(run.elapsedSeconds)}</dd></div></dl>
+    </div>
       <div className="toolbar">
         {run.status === "running" && <button disabled={busy} onClick={onCancel}>{t("cancel")}</button>}
         <button disabled={busy || active || !run.artifacts.length} onClick={onVerify}>{run.operation === "verify" ? t("verifying") : t("verify")}</button>
@@ -68,7 +70,6 @@ export function RunEvidence({ run, t, busy, exporting, onVerify, onCancel, onExp
     <details><summary>{t("logs")}</summary><pre className="log">{run.logs || t("noLogs")}</pre></details>
     <details><summary>{t("details")}</summary>    <dl className="run-summary">
       <div><dt>{t("created")}</dt><dd>{new Date(run.createdAt).toLocaleString()}</dd></div>
-      <div><dt>{t("elapsed")}</dt><dd>{number(run.elapsedSeconds)}</dd></div>
       <div><dt>{t("exit")}</dt><dd>{number(run.exitCode)}</dd></div>
       <div><dt>ReFrame</dt><dd>{run.reframeVersion || "—"}</dd></div>
     </dl>

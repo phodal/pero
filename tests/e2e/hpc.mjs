@@ -54,7 +54,7 @@ async function open() {
   if (await setup.isVisible()) await setup.click();
 }
 async function run(benchmark) {
-  await frame.locator('.method-list button').filter({ hasText: benchmark.name }).click();
+  await frame.getByRole('combobox', { name: 'Benchmarks', exact: true }).selectOption(benchmark.id);
   const request = page.waitForResponse(response => new URL(response.url()).pathname === '/api/runs' && response.request().method() === 'POST');
   await frame.getByRole('button', { name: 'Run local reference', exact: true }).click();
   const response = await request;
@@ -118,7 +118,7 @@ try {
   checks.push('Same-spec result comparison and explicit incompatible-method rejection');
 
   const unavailable = initial.benchmarks.find(item => !item.available);
-  await frame.locator('.method-list button').filter({ hasText: unavailable.name }).click();
+  await frame.getByRole('combobox', { name: 'Benchmarks', exact: true }).selectOption(unavailable.id);
   await expect(frame.getByRole('button', { name: 'Run benchmark', exact: true })).toBeDisabled();
   await expect(frame.locator('.unavailable-note')).toBeVisible();
   const rejected = await post('/api/runs', { benchmarkId: unavailable.id });
@@ -126,7 +126,7 @@ try {
   expect((await get('/api/state')).runs).toHaveLength(3);
   checks.push('Unavailable OpenFOAM/Slurm remains visible and cannot create a fake execution');
 
-  await frame.locator('.method-list button').filter({ hasText: methods[0].name }).click();
+  await frame.getByRole('combobox', { name: 'Benchmarks', exact: true }).selectOption(methods[0].id);
   const separator = frame.getByRole('separator');
   await separator.focus();
   await separator.press('ArrowRight');
@@ -139,7 +139,7 @@ try {
   await frame.getByRole('button', { name: `Inspect: ${other.id}`, exact: true }).click();
   await expect(frame.getByRole('img', { name: /Numerical solution/ })).toBeVisible();
   await page.screenshot({ path: resolve(out, 'results-dark.png') });
-  await frame.locator('.method-list button').filter({ hasText: methods[0].name }).click();
+  await frame.getByRole('combobox', { name: 'Benchmarks', exact: true }).selectOption(methods[0].id);
   await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
   await expect(frame.getByRole('heading', { name: 'HPC 基准', exact: true })).toBeVisible();
   await app.evaluate(({ BrowserWindow }) => {
