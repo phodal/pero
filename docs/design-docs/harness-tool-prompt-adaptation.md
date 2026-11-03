@@ -224,7 +224,7 @@ Codex 证据：[模型元数据模板](https://github.com/openai/codex/blob/fc39
 | P2 | 目录与长输出预算 | Skill/Agent/MCP summaries 总预算；spill 全文位置、截断原因、续读范围；完整结果可恢复并受会话配额约束 |
 | P3 | Monitor/cron/team | 有真实需求再接已有 inbox/task/scheduler；不能用同名空工具假装监控、跨会话通信或冷恢复 |
 
-本轮完成的是研究、source lock 和 MCP 指引修复；其余行是待实现计划。
+上述研究阶段完成的是研究、source lock 和 MCP 指引修复；该时点其余行是待实现计划。
 不是全部工具已经补齐的声明。每项应独立提交，保持一个状态 owner，避免为追齐目录新增无实际消费者的层。
 
 ### 媒体缺口的具体触发
@@ -380,3 +380,37 @@ Codex 重建 initial context 后再插入压缩历史。
 - `subagents/claude_invoke.go` 导入 shell，但 `subagents/BUILD.bazel` 仍缺 `//shell`；
   本次为静态复核，未据此宣称完整 Bazel 或全模块测试通过。
 - 本次未完成真实模型 A/B、所有第三方插件业务验收、PDF/PTY/patch 新工具实现。
+
+
+## 本次修复与验收（2026-11-03）
+
+后续实现状态以 [执行记录](../exec-plans/active/harness-tool-contracts.md) 为准，
+上面的基线比较保留为修改前的研究证据。
+
+已补齐：工具图片归一化与历史恢复、请求准入后按实际工具/模型生成指导、
+无 shell 的 regex/glob、多文件 patch 的预检与部分效果回执、根会话 Plan
+状态/限制、Skill 本轮禁用工具、层级项目指令、调用者目录搜索，以及 Notebook
+单元格读取。Bash 工作目录观察和 Bazel shell 直接依赖也已修复。
+完整 CLI 回归另发现 MessageDisplay 在 session observer 内运行 hook 的死锁，
+已将 hook 移至消息发布前，observer 只消费显示结果，原始模型文本保留在日志。
+
+层级指令通过 `--enable-hierarchical-instructions --workspace PATH` 显式启用，
+只读取工作区内 root/已触及路径上的 CLAUDE.md 和 AGENTS.md；首次写入新目录或
+指令变更后，先拒绝该次文件变更，下一步交付刷新后的指令再允许重试。Shell
+不提供可靠的文件目标清单，因此不包含在这个文件工具拦截范围内。
+
+ToolSearch / tool_search 返回当前调用者注册目录内的 schema 与哈希；受限 child
+不会获得被拒工具，卸载后也不能继续发现旧工具。它不激活隐藏工具，当前实现仍
+完整声明工具，因此不能称为 deferred loading 或宣称减少了 wire tokens。
+NotebookRead / notebook_read 保留单元格 index/ID、源码、execution_count 与保存的
+outputs/attachments，提供单元格分页和明确截断；不执行代码，不渲染嵌入图像。
+Explore/Plan 的实际只读池同步纳入新能力。
+
+验收：Go 全量 race/vet、全部 34 个 Harness Bazel 目标通过；Bash 磁盘恢复回归
+连续 10 次 race 通过。真实 CLI/ACP 使用 loopback provider 与本地进程/文件效果，
+没有付费模型请求。无第三方完整 prompt、实现或测试源码引入本批修改。
+
+仍待实现的是交互 PTY/stdin、根会话 Worktree 切换、PDF 渲染和目录/输出共享总配额；
+现有子代理临时 worktree 的强制清理不能用于根会话工作区。目录搜索和各读取工具的
+局部预算已实现，不代表所有 Skill/Agent/MCP 描述已有共享预算。具体 owner 与下一步
+契约见执行记录。静态与确定性回归不能证明 prompt 最优，仍需相同模型/任务的效果评测。

@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: active
+status: resolved
 ---
 
 # Align native tools, prompts and provider requests
@@ -16,3 +16,18 @@ Implementation and verification are tracked in
 `docs/exec-plans/active/harness-tool-contracts.md`. Reuse the existing workspace,
 shell, tool restriction, instruction and session owners. Reference projects are
 behavioral comparisons only; no third-party source, prompts or tests are copied.
+
+The reproducible blockers above are resolved: directory observation no longer
+contaminates command output; Bazel declares the direct dependency; Read normalizes
+images and invalid historical payloads remain recoverable. Per-request guidance,
+regex/glob, multi-file patches, planning, scoped instructions, catalog search,
+Skill denials and notebook reading now have behavioral coverage. MessageDisplay's
+separate notification deadlock is recorded in its own resolved incident.
+
+Final verification: all Go race tests and vet passed, all 34 Harness Bazel tests
+passed. Full-suite load also exposed an invalid assertion in the Bash recovery
+test: Dispose can legitimately return ErrHarnessDisposalInProgress while its
+owned callbacks settle. The test now accepts that receipt and still checks Drain,
+no command replay and one recovered notice; ten consecutive race runs passed.
+The execution plan retains deferred product capabilities and model evaluation;
+this incident resolution does not declare every comparison feature implemented.

@@ -182,3 +182,16 @@ as raw research before ledger/final/summary generation. The fixture client
 answered the gates; actual human approval and real-world research quality are
 separate. Provider and Web data were loopback fixtures. This does not add
 background-agent residency after parent exit or restart recovery.
+
+
+`ToolSearch` (`tool_search` in the generic profile) searches current caller-visible
+names/descriptions, returns current input schemas and declaration hashes, and
+paginates within a 32 KiB item budget. It changes no permissions or activation
+state. It indexes the existing registry rather than adding deferred loading; use
+only tools declared for the current model request.
+
+`NotebookRead` (`notebook_read` generically) reads saved nbformat 4 cell source,
+IDs, execution counts, outputs and attachments. `offset`/`next_offset` are 1-based
+cell numbers, with a default 20 cells and 48 KiB cell budget. Oversized cells carry
+an explicit omission marker and source preview. No code is executed and embedded
+images/HTML are not rendered. Files stay under the same workspace read authority.
