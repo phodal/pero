@@ -136,6 +136,33 @@ def transform(data, actions, root):
             if text.count(old) != 1:
                 raise MigrationError("worktree repository path precondition failed")
             data = text.replace(old, "args.repos.map(path => resolve(path))").encode()
+        elif kind == "state-payload-file":
+            option = "    payload: { type: 'string' },"
+            expression = "values.payload ? JSON.parse(values.payload) : {}"
+            entry = "function cliMain(argv) {"
+            if text.count(option) != 1 or text.count(expression) != 2 or text.count(entry) != 1:
+                raise MigrationError("state payload file precondition failed")
+            reader = """function readPayload(values) {
+  if (values.payload !== undefined && values['payload-file'] !== undefined) {
+    throw new Error('Choose only one of --payload and --payload-file');
+  }
+  if (values['payload-file'] !== undefined) {
+    return JSON.parse(fs.readFileSync(values['payload-file'], 'utf8'));
+  }
+  return values.payload ? JSON.parse(values.payload) : {};
+}
+
+"""
+            text = text.replace(expression, "readPayload(values)")
+            data = text.replace(entry, reader + entry).replace(option, option + "\n    'payload-file': { type: 'string' },").encode()
+        elif kind == "state-payload-file-guidance":
+            anchor = action.get("anchor")
+            if anchor not in ("## 第一步：会话绑定", "## 前置条件(逐条核实,不要假设)") or text.count(anchor) != 1:
+                raise MigrationError("state payload guidance precondition failed")
+            guidance = """大体积 JSON 请先写入本 request 目录内的输入文件，再用 `state-store.mjs transition/annotate --payload-file <文件路径>` 传入；不要把整段 JSON 放进命令行参数。`--payload` 仍支持小对象，两个参数互斥。输入文件不是状态凭据，`state.json` 和事件仍只能由原 CLI 更新。
+
+"""
+            data = text.replace(anchor, guidance + anchor).encode()
         else:
             raise MigrationError("unknown migration action")
     return data

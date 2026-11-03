@@ -92,3 +92,27 @@ Its model endpoint is a loopback fixture. Nine actual model requests and five
 tool approvals per run verify process wiring and real Git/file effects, without
 claiming full model-driven development acceptance. See the
 [resolved incident](../../../../docs/issues/2026-11-03-coder-worktree-repos.md).
+
+## Selected state payload input
+
+`selected-new-code-payload-v1.json` repairs one exact P08 snapshot: it adds
+`--payload-file` to transition/annotate and guidance in two skills. Large JSON is
+read from a request-local input file; the original CLI still owns state and
+revision checks. Inline `--payload` remains available; supplying both options or
+malformed JSON fails. No migration runs implicitly.
+
+```sh
+python3 replay.py --plan selected-new-code-payload-v1.json --check --root P08=/absolute/new-code
+python3 replay.py --plan selected-new-code-payload-v1.json --root P08=/absolute/new-code
+PERO_NEW_CODE_SOURCE=/absolute/new-code go -C ../.. test -race ./cmd/pero-agent-acp \
+  -run TestNewCodeCLIMultiRepositoryLifecycleOptIn -count=1 -timeout=90s
+```
+
+The actual CLI fixture uses two repositories and disposable local bare remotes.
+It verifies original guards, failing-test Stop continuation, actual repair and
+reviewer reads, stale verification refusal, retest and publication, then a
+separate explicit completion command that unbinds and removes clean worktrees
+while retaining branches. The loopback model drives 17 parent and three child
+requests with 12 tool approvals; this proves wiring and effects, not model
+quality. The selected package's 62 original tests also passed. See the
+[host argument incident](../../../../docs/issues/2026-11-03-new-code-cli-transition-signal.md).

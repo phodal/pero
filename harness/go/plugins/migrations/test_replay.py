@@ -9,6 +9,41 @@ import replay
 
 
 class MigrationTests(unittest.TestCase):
+    def test_state_payload_file_preserves_json_and_rejects_ambiguous_input(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node is needed for the selected state CLI boundary")
+        source = b'''import fs from 'node:fs';import {parseArgs} from 'node:util';
+function cliMain(argv) {
+  const [command,...args]=argv;
+  const {values}=parseArgs({args,options:{
+    payload: { type: 'string' },
+  }});
+  if(command==='transition')return values.payload ? JSON.parse(values.payload) : {};
+  if(command==='annotate')return values.payload ? JSON.parse(values.payload) : {};
+}
+console.log(JSON.stringify(cliMain(process.argv.slice(2))));'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script, payload = root / "state.mjs", root / "input.json"
+            script.write_bytes(replay.transform(source, [{"kind": "state-payload-file"}], root))
+            value = {"text": "标签" * 2000, "items": [{"passed": True}, None]}
+            payload.write_text(json.dumps(value, ensure_ascii=False))
+            for command in ("transition", "annotate"):
+                result = subprocess.run([node, str(script), command, "--payload-file", str(payload)],
+                                        text=True, capture_output=True, check=True, timeout=5)
+                self.assertEqual(json.loads(result.stdout), value)
+                inline = subprocess.run([node, str(script), command, "--payload", '{"passed":true}'],
+                                        text=True, capture_output=True, check=True, timeout=5)
+                self.assertEqual(json.loads(inline.stdout), {"passed": True})
+            for extra in (["--payload", "{}"], []):
+                if not extra:
+                    payload.write_text("{invalid")
+                result = subprocess.run([node, str(script), "transition", "--payload-file", str(payload), *extra],
+                                        text=True, capture_output=True, timeout=5)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+
     def test_explicit_worktree_repositories_do_not_pass_array_map_arguments(self):
         node = shutil.which("node")
         if not node:
