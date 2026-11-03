@@ -1,3 +1,4 @@
+import { installPdfPersistenceTrace, pdfPersistenceTracePrefix } from './paper-persistence-trace.mjs';
 import { installPaperFetchObserver } from './paper-fetch-observer.mjs';
 import { selectPaperOption } from './paper-research-ui-controls.mjs';
 import { exerciseImageOnly, reopenImageOnly, isImageOnlyStudyRejectionConsole } from './paper-image-only-flow.mjs';
@@ -63,6 +64,7 @@ const fixtureTurns = async () => { try { return (await readFile(capture, 'utf8')
 const observe = page => {
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => {
+    if (!process.env.PERO_PAPER_PDF_FILE && message.text().startsWith(pdfPersistenceTracePrefix)) { console.log(message.text()); return; }
     if (message.type() !== 'error') return;
     const url = message.location().url;
     if (isImageOnlyStudyRejectionConsole(url, message.text())) expectedConsole.push({ kind: 'image-only-study-rejection', url, text: message.text() });
@@ -328,7 +330,12 @@ try {
   checks.push('PDF pointer highlight, contextual crop, native image copy, inline manual matrix, source navigation and PDF failure recovery');
   checks.push('full-text retrieval -> Host ACP answer -> exact PDF quotation highlight');
   const beforeRestart=(await fixtureTurns()).length;
+  const persistenceTrace = process.env.PERO_PAPER_PDF_FILE ? null : {
+    key: `pero.paper.pdf-view:${savedPdf.readerState.documentId}:${savedPdf.fileDigest}`,
+  };
+  if (persistenceTrace) await frame.locator('body').evaluate(installPdfPersistenceTrace, { ...persistenceTrace, phase: 'before-close' });
   await app.close();app=await launch();page=await app.firstWindow();
+  if (persistenceTrace) await page.addInitScript(installPdfPersistenceTrace, { ...persistenceTrace, phase: 'restart-before-reader' });
   await page.addInitScript(installPaperFetchObserver);
   await expect(page.locator('iframe[title="paper-agent"]')).toHaveCount(0);
   observe(page);
