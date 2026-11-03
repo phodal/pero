@@ -1,6 +1,7 @@
 // Managed Data Agent -> dataset -> GPUI Kit chart -> provenance and persistence.
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
+import {clickAppShortcut} from './sidebar-controls.mjs';
 import {mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -15,7 +16,7 @@ const rows=[{period:'A',target:'B',value:10,open:8,high:12,low:7,close:10},{peri
 await writeFile(fixture,JSON.stringify(rows,null,2));
 const agents=join(temp,'agents.json');await writeFile(agents,JSON.stringify([{id:'codex',name:'Data fixture',command:process.execPath,args:[join(root,'tests/fixtures/data-agent-acp.mjs')]}]));
 const settings=join(temp,'settings.json');await writeFile(settings,JSON.stringify({chat_agent:'codex'}));
-const env={...process.env,PERO_BUILTIN_APPS:[...JSON.parse(await readFile(join(root,'products/pero.json'),'utf8')).apps,'data-agent'].join(','),PERO_DESKTOP_DATA_DIR:join(temp,'profile'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:join(temp,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'en'};
+const env={...process.env,PERO_DESKTOP_DATA_DIR:join(temp,'profile'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:join(temp,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'en'};
 let app=await electron.launch({args:['--use-mock-keychain',join(distribution,'desktop')],cwd:distribution,env});
 let page;const errors=[],checks=[],logs=[];app.process().stderr?.on('data',data=>logs.push(String(data)));
 try {
@@ -23,25 +24,24 @@ try {
   const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1488,1086));
-  await expect.poll(async()=>(await state()).apps?.some(value=>value.name==='data-agent')).toBe(true);
-  await page.mouse.click(80,await page.evaluate(()=>innerHeight-52));
-  await expect.poll(async()=>(await state()).navigation).toBe(7);
+  await expect.poll(async()=>(await state()).apps?.some(value=>value.name==='data')).toBe(true);
+  await clickAppShortcut(page,'data');
   await expect.poll(async()=>(await state()).appsLoading).toBe(false);
-  const index=(await state()).apps.findIndex(value=>value.name==='data-agent');
-  // GPUI's catalog is canvas-based. Calculate the row from the live catalog,
-  // then assert that the requested App, not another row, actually opens.
-  await page.mouse.click(1317,128+58*index);
-  let frame=page.frameLocator('iframe[title="data-agent"]');
-  await expect(frame.getByRole('button',{name:'Open example',exact:true})).toBeVisible({timeout:30000});
-  await frame.locator('input[type=file]').first().setInputFiles(fixture);
+  let frame=page.frameLocator('iframe[title="data"]');
+  await expect(frame.getByRole('button',{name:'Add data',exact:true})).toBeVisible({timeout:30000});
+  await frame.getByRole('button',{name:'Add data',exact:true}).click();
+  await frame.getByRole('dialog').locator('input[type=file]').setInputFiles(fixture);
+  await frame.getByRole('dialog').getByRole('button',{name:'Import',exact:true}).click();
   await expect(frame.locator('.data-grid tbody tr')).toHaveCount(3);
-  await frame.getByLabel('Chart data',{exact:true}).selectOption('records');
+  await frame.getByRole('tab',{name:'Chart',exact:true}).click();
+  const choose=async(name,value)=>{const trigger=frame.locator('.data-chart-panel').getByRole('button',{name,exact:true});await trigger.click();await frame.getByRole('listbox',{name,exact:true}).getByRole('option',{name:value,exact:true}).click();};
+  await choose('Chart data','Record fields');
   async function stableScreenshot(locator,path) {
     let previous;
     await expect.poll(async()=>{const current=await locator.screenshot({scale:'css'});const same=previous?.equals(current)??false;previous=current;return same;},{timeout:7000,intervals:[250,250,500]}).toBe(true);
     await writeFile(path,previous);
   }
-  const select=(name,value)=>frame.getByLabel(name,{exact:true}).selectOption(value);
+  const select=choose;
   let panel=frame.locator('.data-chart-panel');
   for(const kind of ['line','bar','area','pie','radar','candlestick','sankey']) {
     await select('Chart type',kind);
@@ -71,11 +71,10 @@ try {
   await expect.poll(async()=>{try{return JSON.parse(await readFile(exported,'utf8')).chart.type;}catch{return '';}}).toBe('sankey');
   const document=JSON.parse(await readFile(exported,'utf8'));
   expect(document.rows).toHaveLength(3);expect(document.source.records).toHaveLength(3);
-  await panel.locator('summary').filter({hasText:'Saved charts'}).click();
-  let saved=frame.getByLabel('Open saved chart',{exact:true});
-  await expect.poll(()=>saved.locator('option').count()).toBeGreaterThan(1);
-  const sankey=await saved.locator('option').evaluateAll(options=>options.find(option=>option.textContent.includes('(sankey)'))?.value);
-  expect(sankey).toBeTruthy();await saved.selectOption(sankey);
+  const savedCharts=frame.getByRole('button',{name:'Saved charts',exact:true});
+  if(await savedCharts.getAttribute('aria-expanded')!=='true')await savedCharts.click();
+  await expect.poll(()=>frame.locator('.data-saved-list button').count()).toBeGreaterThan(1);
+  await frame.getByRole('button',{name:/\(sankey\)$/}).click();
   await expect(frame.frameLocator('iframe[data-pero-chart]').locator('canvas').first()).toBeVisible({timeout:60000});
   await frame.locator('input[aria-label="Open chart JSON"]').setInputFiles(exported);
   await expect(frame.getByRole('button',{name:'Export chart JSON',exact:true})).toBeVisible({timeout:30000});
@@ -113,22 +112,21 @@ try {
   page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1488,1086));
-  await expect.poll(async()=>(await state()).apps?.some(value=>value.name==='data-agent')).toBe(true);
-  await page.mouse.click(80,await page.evaluate(()=>innerHeight-52));await expect.poll(async()=>(await state()).navigation).toBe(7);
+  await expect.poll(async()=>(await state()).apps?.some(value=>value.name==='data')).toBe(true);
+  await clickAppShortcut(page,'data');
   await expect.poll(async()=>(await state()).appsLoading).toBe(false);
-  const restartIndex=(await state()).apps.findIndex(value=>value.name==='data-agent');
-  await page.mouse.click(1317,128+((await state()).contentTabs.length?30:0)+58*restartIndex);
-  frame=page.frameLocator('iframe[title="data-agent"]');panel=frame.locator('.data-chart-panel');saved=frame.getByLabel('Open saved chart',{exact:true});
-  await expect(frame.getByRole('button',{name:'Open example',exact:true})).toBeVisible({timeout:30000});
-  await panel.locator('summary').filter({hasText:'Saved charts'}).click();
-  await expect.poll(()=>saved.locator('option').count()).toBeGreaterThan(1);
-  const restartedSankey=await saved.locator('option').evaluateAll(options=>options.find(option=>option.textContent.includes('(sankey)'))?.value);
-  expect(restartedSankey).toBeTruthy();await saved.selectOption(restartedSankey);
+  frame=page.frameLocator('iframe[title="data"]');panel=frame.locator('.data-chart-panel');
+  await expect(frame.getByRole('button',{name:'Add data',exact:true})).toBeVisible({timeout:30000});
+  await frame.getByRole('tab',{name:'Chart',exact:true}).click();
+  const restartedCharts=frame.getByRole('button',{name:'Saved charts',exact:true});
+  if(await restartedCharts.getAttribute('aria-expanded')!=='true')await restartedCharts.click();
+  await expect.poll(()=>frame.locator('.data-saved-list button').count()).toBeGreaterThan(1);
+  await frame.getByRole('button',{name:/\(sankey\)$/}).click();
   await expect(frame.getByRole('button',{name:'Export chart JSON',exact:true})).toBeVisible({timeout:30000});
   await panel.locator('summary').filter({hasText:'Chart source'}).click();
   await panel.locator('summary').filter({hasText:'Source records'}).click();
   await panel.locator('.data-chart-source button').first().click();
-  await expect.poll(async()=>(await state()).documents?.some(value=>value.item.value.origin?.app==='data-agent'&&value.reader.source)).toBe(true);
+  await expect.poll(async()=>(await state()).documents?.some(value=>value.item.value.origin?.app==='data'&&value.reader.source)).toBe(true);
   checks.push('Saved chart survives Desktop restart and its original record opens in the shared source reader');
   expect(errors).toEqual([]);
   await writeFile(join(output,'result.json'),JSON.stringify({checks,errors,logs},null,2));

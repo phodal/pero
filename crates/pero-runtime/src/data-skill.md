@@ -1,6 +1,6 @@
 ---
 name: data
-description: Analyze accessible datasets and create source-aware charts with the Pero Data Agent App.
+description: Analyze accessible datasets and create source-aware charts with the Pero Data app.
 ---
 
 # Data
@@ -14,7 +14,7 @@ source links or statistical certainty.
 ## Charts in this conversation
 
 When the harness advertises `chart_render`, prefer it for a chart in the answer.
-It publishes reviewed JSON to the conversation without opening Data Agent.
+It publishes reviewed JSON to the conversation without opening the Data app.
 Supply `{"document": <version 1 chart document>}` for supplied chart rows.
 For traceable source records, supply `dataset:{name,content,format}` (format is
 `json` or `json_lines`), `chartDocument:{title,chart}`, optional `view` with
@@ -26,28 +26,36 @@ Verify the displayed chart and keep relevant source qualifications in the answer
 A source label is still a declaration, not an independently verified source.
 If `chart_render` is not advertised, use the available App workflow below.
 
-## Work with Data Agent
+## Work with Data
 
 Use the existing `app_use` workflow. Discover the installed and mounted Data
-Agent with `inventory`, then start a task for the needed actions and observe its
+app with `inventory`, then start a task for the needed actions and observe its
 `dataset-view` and `chart-document` objects. Use the actual observed actions
 and parameter schemas; do not assume that an App or dataset exists. If the App
 is not available or the provider has no App Use capability, explain the limitation.
 An independent chart document can be rendered without opening a dataset;
 creating a chart from a dataset requires a current dataset view.
+Do not open the Data app only to draw a chart when `chart_render` is available.
 
-- Import explicit JSON through the App's declared write when appropriate, or
-  ask the user to select a file in the App. Do not fabricate a file reference.
-- Read the dataset identity, revision, fields, counts, query and selected scope.
+The dataset object identity is the catalog dataset id, the immutable asset id,
+and the asset SHA-256, together with the view id. A content digest alone is not
+the dataset id. Opaque model files are listed and are not rows.
+
+- Ask the user to choose a file in Data. Import goes through the catalog file
+  picker and `/api/import` (10 MiB, with dataset or model kind and metadata).
+  Do not invent a second importer or a file reference.
+- Read the dataset id, asset id, SHA-256, fields, counts, query and selected scope.
   A sample is only a sample; use bounded `read` requests for additional rows.
 - Use `query` to change supported filters, sort, displayed fields or record
   selection. An explicit selection narrows the analysis. Re-observe after an
   action and keep the returned view identity with any resulting conclusions.
 - For a chart of the current dataset, invoke `chart-document.create` with the
   chart `type` and field names. It uses the current matching records or explicit
-  selection and records the dataset identity, view and source record pointers.
+  selection and records the dataset id, asset id, SHA-256, view and source record pointers.
   This action uses the selected rows directly; it does not perform aggregation.
   Read and validate the scope and values before drawing conclusions.
+  A chart is an error when the selection is empty or above 2,000 records; do not
+  treat a partial plot as the complete result.
 - To display an independently supplied chart document, invoke
   `chart-document.render` with `document` containing the JSON document as a
   string (at most 65,536 characters). Its source label is a declaration, not
@@ -55,10 +63,11 @@ creating a chart from a dataset requires a current dataset view.
   success does not by itself prove it appeared. Observe or capture the visible
   panel and verify what can actually be seen.
 - For a dataset-generated chart, `chart-document.source` opens the linked
-  immutable source, optionally at an original record ordinal. A chart with no
+  catalog version, optionally at an original record ordinal. A chart with no
   linked dataset cannot use this action.
 - Use `dataset-view.source` to open the complete immutable input, or
   `dataset-view.export` to open the selected result and provenance manifest.
+  The manifest names the catalog dataset, asset, and SHA-256.
   Read only what the task needs and retain source identities and relevant
   limitations in the answer.
 

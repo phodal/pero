@@ -1,24 +1,20 @@
 // Actual managed Python App -> exact view -> selected ACP/MCP context -> source.
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
-import {cp,mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
+import {mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {build} from 'esbuild';
-import {setAppearance} from './sidebar-controls.mjs';
+import {clickAppShortcut,setAppearance} from './sidebar-controls.mjs';
 const root=resolve(import.meta.dirname,'../..');
 const distribution=resolve(process.env.PERO_CONTENT_TEST_ROOT||root);
-const output=resolve(root,'test-results/data-agent');await mkdir(output,{recursive:true});
-const temp=await mkdtemp(join(tmpdir(),'pero-data-agent-'));
-await build({entryPoints:[join(root,'apps/data-agent/ui-src/frame.tsx')],outfile:join(root,'apps/data-agent/dist/index.js'),bundle:true,format:'esm',platform:'browser',jsx:'automatic',nodePaths:[join(root,'apps/data-agent/node_modules')],alias:{'@pero/app-sdk/ui':join(root,'packages/app-sdk/src/ui.tsx'),'@pero/app-sdk':join(root,'packages/app-sdk/src/index.tsx')}});
-if(distribution!==root)await cp(join(root,'apps/data-agent'),join(distribution,'apps/data-agent'),{recursive:true,filter:path=>!/[\\/](node_modules|__pycache__)([\\/]|$)/.test(path)});
+const output=resolve(root,'test-results/data');await mkdir(output,{recursive:true});
+const temp=await mkdtemp(join(tmpdir(),'pero-data-'));
 const fixture=join(temp,'observations.json');
 const rows=['{"group":"A","n":9007199254740993,"note":"中文😀"}','{"group":"B","n":1.0000000000000000001}','{"group":"A","n":0,"note":null}','{"group":"A"}'];
 const source='[\n'+rows.join(',\n')+'\n]';await writeFile(fixture,source);
 const agents=join(temp,'agents.json');await writeFile(agents,JSON.stringify([{id:'codex',name:'Data transport fixture',command:process.execPath,args:[join(root,'tests/fixtures/data-agent-acp.mjs')]}]));
 const settings=join(temp,'settings.json');await writeFile(settings,JSON.stringify({chat_agent:'codex'}));
-// Data Agent is test-only: opt it in beside the product's builtin Apps.
-const env={...process.env,PERO_BUILTIN_APPS:[...JSON.parse(await readFile(join(root,'products/pero.json'),'utf8')).apps,'data-agent'].join(','),PERO_DESKTOP_DATA_DIR:join(temp,'profile'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:join(temp,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'en'};
+const env={...process.env,PERO_DESKTOP_DATA_DIR:join(temp,'profile'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:join(temp,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'en'};
 const app=await electron.launch({args:['--use-mock-keychain',join(distribution,'desktop')],cwd:distribution,env});
 let page;const errors=[],checks=[],logs=[];app.process().stderr?.on('data',data=>logs.push(String(data)));
 try{
@@ -27,33 +23,34 @@ try{
   const paint=()=>page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1488,1086));
-  await expect.poll(async()=>(await state()).apps?.some(value=>value.name==='data-agent')).toBe(true);
-  await page.mouse.click(80,await page.evaluate(()=>innerHeight-52));
-  await expect.poll(async()=>(await state()).navigation).toBe(7);await expect.poll(async()=>(await state()).appsLoading).toBe(false);await paint();
-  await page.mouse.click(1317,76+64*(await state()).apps.findIndex(value=>value.name==='data-agent'));
-  const frame=page.frameLocator('iframe[title="data-agent"]');
-  await expect(frame.getByRole('button',{name:'Open example',exact:true})).toBeVisible({timeout:20000});
-  await frame.getByRole('button',{name:'Open example',exact:true}).click();await expect(frame.locator('.data-grid tbody tr')).toHaveCount(6);
-  checks.push('Host launches the real authenticated Python backend and illustrative example');
+  await expect.poll(async()=>(await state()).apps?.some(value=>value.name==='data')).toBe(true);
+  await clickAppShortcut(page,'data');
+  await expect.poll(async()=>(await state()).appsLoading).toBe(false);await paint();
+  const frame=page.frameLocator('iframe[title="data"]');
+  await expect(frame.getByRole('button',{name:'Add data',exact:true})).toBeVisible({timeout:20000});
+  await frame.getByRole('button',{name:'Add data',exact:true}).click();
+  await frame.getByRole('dialog').locator('input[type=file]').setInputFiles(join(root,'apps/data/test/fixtures/observations.json'));
+  await frame.getByRole('dialog').getByRole('button',{name:'Import',exact:true}).click();
+  await expect(frame.locator('.data-grid tbody tr')).toHaveCount(6);
+  checks.push('Host launches the real authenticated Python backend and opens an imported dataset');
   await frame.getByRole('button',{name:'All data',exact:true}).click();
-  await expect(frame.locator('.data-home')).toBeVisible();
-  // Simulate a declared Host write through the real backend and SDK notification seam.
+  await expect(frame.getByRole('heading',{name:'No dataset selected',exact:true})).toBeVisible();
   await frame.locator('main').evaluate(async()=>{
-    const response=await fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'background.json',content:'[{"background":true}]',format:'json'})});
+    const response=await fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'background.json',kind:'dataset',content:btoa('[{"background":true}]'),source:'Local import',license:'Unknown'})});
     if(!response.ok)throw new Error(await response.text());
     window.dispatchEvent(new Event('pero:app:data-changed'));
   });
-  await expect(frame.locator('.data-datasets')).toContainText('background.json');
+  await expect(frame.getByRole('button',{name:'background.json',exact:true})).toBeVisible();
   await expect(frame.locator('main')).toHaveAttribute('aria-busy','false');
-  await expect(frame.locator('.data-home')).toBeVisible();
-  await frame.locator('.data-datasets').getByRole('button',{name:'observations.json',exact:true}).click();
+  await expect(frame.locator('.data-grid')).toHaveCount(0);
+  await frame.getByRole('button',{name:'observations.json',exact:true}).click();
   await expect(frame.locator('.data-grid tbody tr')).toHaveCount(6);
   checks.push('Background catalog refresh respects All data; an explicit dataset choice returns to the table');
   // The real SDK slot asks the Host to present its existing scoped conversation.
   await frame.getByRole('button',{name:'Open chat',exact:true}).click();
   const slot=frame.locator('[data-pero-chat-slot]');
   await expect(slot).toHaveAttribute('data-mounted','true',{timeout:20000});
-  await expect.poll(async()=>(await state()).scope).toEqual({app:'data-agent',panel:'main'});
+  await expect.poll(async()=>(await state()).scope).toEqual({app:'data',panel:'main'});
   const box=await slot.boundingBox();expect(box).not.toBeNull();
   await page.mouse.click(box.x+box.width/2,box.y+box.height-65);
   await expect.poll(async()=>(await state()).composerFocused).toBe(true);
@@ -80,7 +77,7 @@ try{
   await page.mouse.click(80,await page.evaluate(()=>innerHeight-52));
   await expect.poll(async()=>(await state()).navigation).toBe(7);
   await paint();
-  await page.mouse.click(1317,106+58*(await state()).apps.findIndex(value=>value.name==='data-agent'));
+  await clickAppShortcut(page,'data');
   await expect(slot).toHaveAttribute('data-mounted','true');
   await expect.poll(async()=>(await state()).composer).toBe('Keep this embedded draft');
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,800));
@@ -96,7 +93,10 @@ try{
   await expect.poll(async()=>(await state()).composer).toBe('Keep this embedded draft');
   await frame.getByRole('button',{name:'Close chat',exact:true}).click();
   checks.push('Real App SDK embeds Host conversation, preserves draft across resize and closing, and retains the App');
-  await frame.getByLabel('Import JSON',{exact:true}).setInputFiles(fixture);await expect(frame.locator('.data-grid tbody tr')).toHaveCount(4);
+  await frame.getByRole('button',{name:'Add data',exact:true}).click();
+  await frame.getByRole('dialog').locator('input[type=file]').setInputFiles(fixture);
+  await frame.getByRole('dialog').getByRole('button',{name:'Import',exact:true}).click();
+  await expect(frame.locator('.data-grid tbody tr')).toHaveCount(4);
   await expect(frame.locator('.data-grid')).toContainText('9007199254740993');await expect(frame.locator('.data-grid')).toContainText('1.0000000000000000001');
   await frame.getByLabel('Filter field',{exact:true}).click();await frame.getByRole('option',{name:'group',exact:true}).click();
   await frame.getByLabel('Condition',{exact:true}).click();await frame.getByRole('option',{name:'Equals',exact:true}).click();await frame.getByLabel('Filter value',{exact:true}).fill('A');
@@ -112,10 +112,10 @@ try{
   checks.push('Exact imported number tokens, filter, stable selection, chart and persisted provenance export');
   await frame.getByRole('tab',{name:'Table',exact:true}).click();
   await frame.getByLabel('Show record source 3',{exact:true}).click();
-  await expect.poll(async()=>(await state()).documents?.find(value=>value.item.value.origin?.app==='data-agent')?.reader.source).toBe(true);
-  const opened=(await state()).documents.find(value=>value.item.value.origin?.app==='data-agent');
+  await expect.poll(async()=>(await state()).documents?.find(value=>value.item.value.origin?.app==='data')?.reader.source).toBe(true);
+  const opened=(await state()).documents.find(value=>value.item.value.origin?.app==='data');
   const start=Buffer.byteLength(source.slice(0,source.indexOf(rows[2]))),end=start+Buffer.byteLength(rows[2]);
-  await expect.poll(async()=>(await state()).documents.find(value=>value.item.value.origin?.app==='data-agent').reader.selection).toEqual({start,end});
+  await expect.poll(async()=>(await state()).documents.find(value=>value.item.value.origin?.app==='data').reader.selection).toEqual({start,end});
   expect(opened.reader.editable).toBe(false);await paint();await page.keyboard.press('Meta+c');
   await expect.poll(()=>app.evaluate(({clipboard})=>clipboard.readText())).toBe(rows[2]);
   await page.screenshot({path:join(output,'located-source.png'),scale:'css'});

@@ -39,7 +39,7 @@ impl InstalledApp {
         match self.name.as_str() { "insights" => AppPlacement::Primary, "paper-agent" | "data" => AppPlacement::Workspace, "connectors" => AppPlacement::Customize, "automations" => AppPlacement::Automation, _ => AppPlacement::Catalog }
     }
     pub fn category(&self) -> AppCategory {
-        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" => AppCategory::Research, "data-agent" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
+        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
     }
 }
 

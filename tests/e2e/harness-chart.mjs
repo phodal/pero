@@ -42,6 +42,7 @@ try {
  await expect.poll(async()=>(await state()).chats[0]?.messages.filter(m=>m.role==='assistant').map(m=>m.text).join(''),{timeout:60000}).toContain('HARNESS_CHART_OK');
  let current=await state();let charts=current.chats[0].tools.filter(tool=>tool.chart);
  expect(charts).toHaveLength(7);expect(current.chats[0].tools.find(tool=>tool.id==='invalid').status).toBe('failed');
+ expect(await page.locator('iframe[title="data"]').count()).toBe(0);
  expect(await page.locator('iframe[title="data-agent"]').count()).toBe(0);
  expect(charts.find(tool=>tool.id==='chart-1').chart.document.source.exactValues[0]).toBe('9007199254740993');
  expect(providerErrors).toEqual([]);

@@ -21,12 +21,12 @@ async function exercise(prompt) {
     return JSON.parse(result.content.find(part=>part.type==='text').text);
   };
   let inventory=await use({action:'inventory'});
-  let surface=inventory.surfaces.find(value=>value.app==='data-agent'||value.scope?.app==='data-agent');
-  assert.ok(surface,'Data Agent must be mounted');
+  let surface=inventory.surfaces.find(value=>value.app==='data'||value.scope?.app==='data');
+  assert.ok(surface,'Data must be mounted');
   const deadline=Date.now()+5000;
   while(!surface.operable){
-    assert.ok(surface.active&&surface.visible,'Data Agent must be visible');
-    assert.ok(Date.now()<deadline,'Data Agent did not become idle');
+    assert.ok(surface.active&&surface.visible,'Data must be visible');
+    assert.ok(Date.now()<deadline,'Data did not become idle');
     await poll(50);inventory=await use({action:'inventory'});surface=inventory.surfaces.find(value=>value.surfaceId===surface.surfaceId);
   }
   const task=await use({action:'start',surfaceId:surface.surfaceId,actions:['observe','semantic.invoke','verify']});
@@ -34,18 +34,21 @@ async function exercise(prompt) {
     const before=await use({action:'observe',taskId:task.taskId,target:'chart-document'});
     const created=await use({action:'act',taskId:task.taskId,command:'semantic.invoke',target:'chart-document',name:'create',params:{type:'line',x:'period',y:'value'},expectedRevisions:before.revisions});
     const chart=created.result.result;
-    assert.equal(chart.dataset,context.selection.dataset);
+    assert.equal(chart.datasetId,context.selection.datasetId);
+    assert.equal(chart.assetId,context.selection.assetId);
+    assert.equal(chart.sha256,context.selection.sha256);
     assert.equal(chart.viewId,context.selection.viewId);
     assert.equal(chart.records,2);
     assert.equal(chart.type,'line');
     assert.match(chart.artifactId,/^[a-f0-9]{64}$/);
     const observed=await use({action:'observe',taskId:task.taskId,target:'chart-document'});
-    assert.equal(observed.objects[0].state.dataset,chart.dataset);
+    assert.equal(observed.objects[0].state.datasetId,chart.datasetId);
+    assert.equal(observed.objects[0].state.assetId,chart.assetId);
     assert.equal(observed.objects[0].state.viewId,chart.viewId);
     assert.equal(observed.objects[0].state.artifactId,chart.artifactId);
     await use({action:'verify',taskId:task.taskId,check:{kind:'semantic.equals',target:'chart-document',key:'artifactId',value:chart.artifactId}});
     const source=await use({action:'act',taskId:task.taskId,command:'semantic.invoke',target:'chart-document',name:'source',params:{record:0},expectedRevisions:observed.revisions});
-    assert.equal(source.result.result.dataset,chart.dataset);
+    assert.equal(source.result.result.dataset,chart.datasetId);
     return {fixture:true,realModel:false,chart,source:source.result.result};
   } finally {await use({action:'stop',taskId:task.taskId});}
 }
