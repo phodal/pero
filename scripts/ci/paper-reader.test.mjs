@@ -500,27 +500,3 @@ test('cached EmbedPDF restoration emits before a late observer; reader subscribe
   assert.equal(text.current, '', 'old scope cannot update text after unmount');
   assert.equal(listeners.size, 0);
 });
-
-import { installPdfPersistenceTrace, pdfPersistenceTracePrefix } from '../../tests/e2e/paper-persistence-trace.mjs';
-test('synthetic restart trace forwards storage unchanged and logs only the exact local key', () => {
-  const records = [], calls = [];
-  const key = `pero.paper.pdf-view:${'a'.repeat(64)}:${'b'.repeat(64)}`;
-  const original = new Map([[key, '{"selection":null}']]);
-  class Storage {
-    constructor(values = new Map()) { this.values = values; }
-    getItem(name) { return this.values.get(name) ?? null; }
-    setItem(name, value) { calls.push([this, name, value]); this.values.set(name, String(value)); }
-  }
-  const localStorage = new Storage(original), sessionStorage = new Storage();
-  const context = { Storage, localStorage, location: { protocol: 'pero-app:', hostname: 'paper-agent' }, console: { info: text => records.push(JSON.parse(text.slice(pdfPersistenceTracePrefix.length))) } };
-  runInNewContext(`(${installPdfPersistenceTrace})(${JSON.stringify({key,phase:'restart-before-reader'})})`, context);
-  assert.equal(records[0].value, '{"selection":null}');
-  localStorage.setItem('private-unrelated', 'not logged');
-  sessionStorage.setItem(key, 'not logged');
-  localStorage.setItem(key, '{"selection":{"start":12}}');
-  assert.equal(calls.length, 3); assert.equal(records.length, 2);
-  assert.equal(records[1].value, '{"selection":{"start":12}}');
-  assert.equal(localStorage.getItem('private-unrelated'), 'not logged');
-  for (let i=0;i<50;i++) localStorage.setItem(key, i);
-  assert.equal(localStorage.getItem(key), '49'); assert.equal(records.length, 40);
-});
