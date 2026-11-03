@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 
+	harnessmodel "github.com/phodal/pero/harness/go/model"
 	harnesstool "github.com/phodal/pero/harness/go/tool"
 
 	point "github.com/phodal/pero/harness/go/runtime"
@@ -452,6 +453,7 @@ func mergeToolView(name string, currentScope *point.Scope, currentGeneration str
 }
 
 func cloneToolSchema(schema ToolSchema) ToolSchema {
+	schema.Catalog = harnessmodel.CloneCatalogText(schema.Catalog)
 	schema.InputSchema = append(json.RawMessage(nil), schema.InputSchema...)
 	schema.OutputSchema = append(json.RawMessage(nil), schema.OutputSchema...)
 	schema.OutputProjectionConfig = append(json.RawMessage(nil), schema.OutputProjectionConfig...)

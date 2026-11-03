@@ -36,10 +36,15 @@ func (c PromptCapabilities) HasTool(name string) bool {
 }
 
 type PromptSection struct {
-	ID       string
-	Order    int
-	Content  func(context.Context, *Agent) (string, error)
-	Guidance func(context.Context, *Agent, PromptCapabilities) (string, error)
+	ID    string
+	Order int
+	// Catalog sections share the model-facing catalog budget with tagged tool
+	// descriptions; omission always names an available recovery operation.
+	Catalog             bool
+	CatalogContinuation string
+	CatalogRecoveryTool string
+	Content             func(context.Context, *Agent) (string, error)
+	Guidance            func(context.Context, *Agent, PromptCapabilities) (string, error)
 	// Presentation is an alternative to Content for providers of dynamic context.
 	Presentation func(context.Context, *Agent) (PromptPresentation, error)
 }
@@ -115,7 +120,7 @@ func (r *PromptRegistry) Assemble(ctx context.Context, agent *Agent) (string, er
 		tools, err = agent.tools.SchemasForAgent(ctx, agent)
 		if err == nil {
 			var guidance string
-			guidance, err = value.Guidance(ctx, PromptCapabilities{Tools: tools})
+			guidance, err = value.Guidance(ctx, PromptCapabilities{Tools: BoundToolCatalogs(tools)})
 			value.System = strings.TrimSpace(value.System + "\n\n" + guidance)
 		}
 	}
@@ -189,6 +194,12 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 	if len(guidanceSections) > 0 {
 		value.Guidance = func(ctx context.Context, capabilities PromptCapabilities) (string, error) {
 			var parts []string
+			budget := CatalogBudget{Remaining: DefaultCatalogBytes}
+			for _, tool := range capabilities.Tools {
+				if tool.Catalog != nil {
+					budget.Remaining -= len(tool.Description)
+				}
+			}
 			for _, section := range guidanceSections {
 				// Contributions receive values, never mutable request slices.
 				captured := PromptCapabilities{Model: cloneModelInfo(capabilities.Model)}
@@ -200,6 +211,16 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 					return "", err
 				}
 				if text = strings.TrimSpace(text); text != "" {
+					if section.Catalog {
+						if len(parts) > 0 {
+							budget.Remaining -= 2
+						}
+						continuation := section.CatalogContinuation
+						if section.CatalogRecoveryTool != "" && !capabilities.HasTool(section.CatalogRecoveryTool) {
+							continuation = "Additional entries are omitted from this request."
+						}
+						text = budget.Render(CatalogText{Rows: []string{text}, Continuation: continuation})
+					}
 					parts = append(parts, text)
 				}
 			}

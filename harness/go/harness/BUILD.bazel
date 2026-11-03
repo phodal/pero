@@ -25,6 +25,7 @@ go_library(
         "boot_registration.go",
         "boot_services.go",
         "boot_shutdown.go",
+        "catalog_budget.go",
         "checkpoint_policy.go",
         "command_compact.go",
         "command_owners.go",
