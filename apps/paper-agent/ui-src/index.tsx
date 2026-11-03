@@ -43,7 +43,7 @@ function SearchFrame({ preview, resizeLabel, children }: { preview: boolean; res
 export default function PaperAgent() {
   const api = useAppApi(), chat = useAppChat(), info = useAppInfo(), { t } = useAppI18n(messages);
   const [library, setLibrary] = useState<Library>({ papers: [], intents: [], reports: [] });
-  const [screen, setScreen] = useState<WorkspaceScreen>('library'), [libraryScreen, setLibraryScreen] = useState<LibraryScreen>('papers');
+  const [screen, setScreen] = useState<WorkspaceScreen>('library'), [libraryScreen, setLibraryScreenState] = useState<LibraryScreen>('papers');
   const [bundleOpening, setBundleOpening] = useState<{ id: string; startDownloadIds: string[]; startPdfIds: string[]; startSourceIds: string[]; token: number } | null>(null);
   const [importingPdf, setImportingPdf] = useState(false);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [reading, setReading] = useState<Paper | null>(null), [readingBusy, setReadingBusy] = useState(false);
@@ -62,7 +62,7 @@ export default function PaperAgent() {
   const [shelf, setShelf] = useState<Shelf>(() => loadShelf());
   const [shelfFilter, setShelfFilter] = useState<ShelfFilter>('all');
   const [libraryQuery, setLibraryQuery] = useState('');
-  const mounted = useRef(true), active = useRef(info.active), readVersion = useRef(0), libraryVersion = useRef(0), evidenceVersion = useRef(0);
+  const mounted = useRef(true), active = useRef(info.active), readVersion = useRef(0), readerOpenToken = useRef(0), libraryVersion = useRef(0), evidenceVersion = useRef(0);
   const preserveView = useRef<(() => void) | null>(null), askButton = useRef<HTMLDivElement>(null), citationTrigger = useRef<HTMLElement | null>(null);
   const libraryScreenNow = useRef(libraryScreen);
   libraryScreenNow.current = libraryScreen;
@@ -137,19 +137,23 @@ export default function PaperAgent() {
     return () => { window.removeEventListener('resize', measure); window.clearInterval(timer); };
   }, [questionMode]);
 
+  function setLibraryScreen(next: LibraryScreen) {
+    readVersion.current++; setReadingBusy(false); setLibraryScreenState(next);
+  }
   function openBundle(id: string) {
     setBundleOpening(previous => ({ id, startDownloadIds: [], startPdfIds: [], startSourceIds: [], token: (previous?.token ?? 0) + 1 }));
     setLibraryScreen('bundle');
   }
   async function read(paper: Paper, keepRecords = false, propagate = false, fromSearch = false) {
-    const version = ++readVersion.current; setShelf(current => openPaper(current, paper.id)); setReadingBusy(true); setScreen('reading'); setCitation(null); setError('');
+    const version = ++readVersion.current; readerOpenToken.current++; setShelf(current => openPaper(current, paper.id)); setReadingBusy(true); setScreen('reading'); setCitation(null); setError('');
     setHitPreview(fromSearch);
     if (!fromSearch) setOpenHit(null);
     if (!fromSearch && paper.id !== reading?.id) setPdfFocus(null);
     if (!keepRecords) setShowResearch(false);
     try {
       const full = paper.content ? paper : await api.get<Paper>(`/api/papers/${paper.id}`);
-      if (mounted.current && version === readVersion.current) setReading(full);
+      if (full.id !== paper.id) throw new Error('Saved paper identity does not match the requested paper.');
+      if (mounted.current && version === readVersion.current) { setReading(full); return full; }
     } catch (error) { if (mounted.current && version === readVersion.current) onError(error); if (propagate) throw error; }
     finally { if (mounted.current && version === readVersion.current) setReadingBusy(false); }
   }
@@ -181,15 +185,22 @@ export default function PaperAgent() {
     await refresh().catch(onError);
   }
   async function readSavedSource(id: string, focus?: PdfFocus) {
-    const version = ++readVersion.current;
+    let version = ++readVersion.current, opened = false;
     try {
       const paper = await api.get<Paper>(`/api/papers/${id}`);
+      if (paper.id !== id) throw new Error('Saved paper identity does not match the requested paper.');
       if (mounted.current && version === readVersion.current && active.current && libraryScreenNow.current === 'bundle') {
-        await read(paper);
-        if (focus) { setPdfFocus(focus); if (narrow) closeRecords(); }
+        const reading = read(paper, false, true);
+        version = readVersion.current;
+        const openedPaper = await reading;
+        if (openedPaper?.id === id && mounted.current && version === readVersion.current && active.current) {
+          if (focus) { setPdfFocus(focus); if (narrow) closeRecords(); }
+          opened = true;
+        }
       }
       await refresh();
     } catch (error) { if (mounted.current && version === readVersion.current) onError(error); }
+    return opened && mounted.current && active.current && version === readVersion.current;
   }
   async function importPdf(file: File) {
     if (importingPdf) return;
@@ -355,14 +366,14 @@ export default function PaperAgent() {
         {!!library.favorites?.length && <details className="pa-library-saved"><summary>{t('favorites')} {library.favorites.length}</summary><ul className="pa-report-list">{library.favorites.map(favorite => <li key={favorite.id} data-favorite-work={favorite.paper.id}><Button variant="ghost" disabled={!favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite)}>{favorite.paper.title}</Button><div className="pa-actions"><Button variant="ghost" disabled={!favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite, true)}>{t('addToMatrix')}</Button><Button variant="ghost" onClick={() => { setDiscoveryOpening({ historyId: favorite.batchId }); setLibraryScreen('discovery'); }}>{t('viewDiscovery')}</Button><a href={favorite.paper.url} target="_blank" rel="noreferrer">{t('original')}</a></div></li>)}</ul></details>}
       </div>
       <div hidden={libraryScreen !== 'import'}><ImportPanel onBundleSaved={bundleSaved} onImportPdf={importPdf} importingPdf={importingPdf} api={api} t={t} active={screen === 'library' && libraryScreen === 'import' && info.active} onAdded={added} onError={onError} onClose={() => setLibraryScreen('papers')}/></div>
-      <div hidden={libraryScreen !== 'bundle'}>{bundleOpening && <ResearchBundleView key={`${bundleOpening.id}:${bundleOpening.token}`} api={api} {...bundleOpening} onBack={() => setLibraryScreen('papers')} onRead={(id, focus) => void readSavedSource(id, focus)}/>}</div>
-      <div hidden={libraryScreen !== 'discovery'}><Discovery api={api} opening={discoveryOpening} library={library} locked={false} selected={reading ? [reading.id] : []} onRefresh={refresh} onRead={paper => read(paper)} onCompare={addToComparison} onReturn={id => { const paper = library.papers.find(p => p.id === id); if (paper) void read(paper); }} t={t}/></div>
+      <div hidden={libraryScreen !== 'bundle'}>{bundleOpening && <ResearchBundleView key={`${bundleOpening.id}:${bundleOpening.token}`} api={api} {...bundleOpening} onBack={() => setLibraryScreen('papers')} onRead={readSavedSource}/>}</div>
+      <div hidden={libraryScreen !== 'discovery'}><Discovery api={api} opening={discoveryOpening} library={library} locked={false} selected={reading ? [reading.id] : []} onRefresh={refresh} onRead={async paper => { await read(paper); }} onCompare={addToComparison} onReturn={id => { const paper = library.papers.find(p => p.id === id); if (paper) void read(paper); }} t={t}/></div>
       <div className="pa-find-screen" hidden={libraryScreen !== 'find'}><DiscoverSearch api={api} papers={library.papers} active={screen === 'library' && libraryScreen === 'find' && info.active} onAdded={added} onOpenSaved={paper => void read(paper)} onAddByLink={() => setLibraryScreen('import')}/></div>
     </section>
     <section className="pa-reading-screen" hidden={screen !== 'reading'} data-agent={showResearch}>
       <div className="pa-reading-main" inert={narrow && showResearch}>
         <header className="pa-reading-bar pero-reader-header"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={back}><Icon family="shell" name="back" size={16}/></Button><div className="pa-reader-crumb"><Button variant="ghost" onClick={back}>{t('library')}</Button><Icon name="chevron-right" size={13}/><h1 title={reading?.title}>{reading?.title ?? t('loading')}</h1></div><div className="pa-reader-tools" ref={setPdfToolbar}/>{!questionMode && <><Button className="pa-records-toggle" variant="ghost" aria-label={t('researchProgress')} title={t('researchProgress')} aria-expanded={showResearch} onClick={() => { preserveView.current?.(); setShowResearch(value => !value); }}><Icon name="panel-right" size={14}/><span>{t('researchProgress')}</span></Button><div ref={askButton}><Button variant="primary" disabled={!reading || readingBusy} onMouseDown={event => event.preventDefault()} onClick={() => void ask()} aria-keyshortcuts="Control+j Meta+j">{t('ask')}</Button></div></>}</header>
-        <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} openToken={readVersion.current} pdfReloadToken={saveRevision} chrome={{ onSave: () => { if (reading) setSavingPaper(reading); }, toolbar: pdfToolbar, preserveView, onNavigate: () => { focusVersion.current++; } }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onReview={() => { setScreen('library'); setLibraryScreen('import'); }} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
+        <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} openToken={readerOpenToken.current} pdfReloadToken={saveRevision} chrome={{ onSave: () => { if (reading) setSavingPaper(reading); }, toolbar: pdfToolbar, preserveView, onNavigate: () => { focusVersion.current++; } }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onReview={() => { setScreen('library'); setLibraryScreen('import'); }} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
       </div>
       {screen === 'reading' && showResearch && <aside className="pa-records" aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
         <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}>×</Button></header>

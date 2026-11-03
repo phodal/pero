@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { registerHooks } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
 
 // Electron's file transport is the only substituted seam; the App serves real
@@ -13,10 +13,14 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 } });
 const { DesktopApps } = await import('./apps.ts');
 
-test('App assets embed only Host-declared frame origins', async () => {
+test('App assets keep declared frame origins and allow same-app ancestors only for bundled reader frames', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pero-app-frames-'));
-  await mkdir(join(root, 'dist'));
-  await writeFile(join(root, 'dist/index.html'), '<h1>App frame policy fixture</h1>');
+  const assets = ['index.html', '_reader/reader.html', '_paper-reader/frame.html',
+    '_paper-reader/frame-copy.html', '_paper-reader/frame.html.bak', 'untrusted/_paper-reader/frame.html'];
+  for (const asset of assets) {
+    await mkdir(dirname(join(root, 'dist', asset)), { recursive: true });
+    await writeFile(join(root, 'dist', asset), '<h1>App frame policy fixture</h1>');
+  }
   const apps = new DesktopApps(command => {
     const request = command as { id: string; name: string; action: string };
     assert.equal(request.action, 'resolve');
@@ -26,13 +30,18 @@ test('App assets embed only Host-declared frame origins', async () => {
   }, () => { throw new Error('Private Host access must not be published'); }, async () => undefined);
   try {
     for (const [name, expected] of [['paper-agent', "'self' https://arxiv.org"], ['other-app', "'self'"]]) {
-      const response = await apps.serve(new Request(`pero-app://${name}/dist/index.html`));
-      assert.equal(response.status, 200);
-      const csp = response.headers.get('Content-Security-Policy')!;
-      assert.equal(csp.match(/(?:^|; )frame-src ([^;]+)/)?.[1].trim(), expected);
-      assert.ok(csp.includes("connect-src 'self'"));
-      assert.ok(csp.includes("script-src 'self' 'wasm-unsafe-eval'"));
-      assert.equal(await response.text(), '<h1>App frame policy fixture</h1>');
+      for (const asset of assets) {
+        const response = await apps.serve(new Request(`pero-app://${name}/dist/${asset}`));
+        assert.equal(response.status, 200);
+        const csp = response.headers.get('Content-Security-Policy')!;
+        assert.equal(csp.match(/(?:^|; )frame-src ([^;]+)/)?.[1].trim(), expected);
+        const ancestors = csp.match(/(?:^|; )frame-ancestors ([^;]+)/)?.[1].trim();
+        const nested = asset === '_reader/reader.html' || name === 'paper-agent' && asset === '_paper-reader/frame.html';
+        assert.equal(ancestors, nested ? "'self' pero://workbench" : 'pero://workbench', `${name}/${asset}`);
+        assert.ok(csp.includes("connect-src 'self'"));
+        assert.ok(csp.includes("script-src 'self' 'wasm-unsafe-eval'"));
+        assert.equal(await response.text(), '<h1>App frame policy fixture</h1>');
+      }
     }
   } finally { apps.close(); await rm(root, { recursive: true, force: true }); }
 });

@@ -443,3 +443,64 @@ test('PDF wheel waits for pending zoom DOM alignment and clamps the native bound
   assert.equal((await pending).position.y, 40); // Only20px fit before the bottom.
   assert.equal(calls, 1);
 });
+
+import { createRequire } from 'node:module';
+const paperRequire = createRequire(new URL('../../apps/paper-agent/package.json', import.meta.url));
+
+test('cached EmbedPDF restoration emits before a late observer; reader snapshots current scope', async () => {
+  const { SelectionPlugin } = await import(paperRequire.resolve('@embedpdf/plugin-selection'));
+  const { PdfTaskHelper } = await import(paperRequire.resolve('@embedpdf/models'));
+  const range = { start: { page: 0, index: 1 }, end: { page: 0, index: 3 } };
+  const state = { selection: null, rects: {}, geometry: { 0: {} } }, listeners = new Set();
+  const plugin = Object.create(SelectionPlugin.prototype);
+  Object.defineProperty(plugin, 'state', { value: { documents: { doc: state } } });
+  Object.assign(plugin, {
+    validateRange: () => null, normalizeRange: value => value,
+    getOrLoadGeometry: () => PdfTaskHelper.resolve(state.geometry[0]),
+    clampRangeToGeometry: (_id, value) => value,
+    selecting: new Map(), anchor: new Map(), getDocumentState: () => state,
+    dispatch: action => { if (action.payload?.selection) state.selection = action.payload.selection; },
+    updateRectsAndSlices() {}, notifyPage() {}, recalculateMenuPlacement() {},
+    selChange$: { emit: (_id, value) => { for (const listener of listeners) listener(value); } },
+  });
+  let lateSeen = false;
+  const restored = plugin.applySelection('doc', range);
+  listeners.add(() => { lateSeen = true; });
+  await restored.toPromise();
+  assert.equal(lateSeen, false, 'listeners registered after apply miss the cached emit');
+  assert.deepEqual(state.selection, range);
+  // Production subscribes then reads getState().selection so a pre-existing
+  // restored range still opens the toolbar without depending on that emit.
+  const source = readFileSync(new URL('../../apps/paper-agent/ui-src/pdf-reader.tsx', import.meta.url), 'utf8');
+  const subscribe = source.indexOf('scope.onSelectionChange(update)');
+  const snapshot = source.indexOf('update(scope.getState().selection)', subscribe);
+  assert.ok(subscribe >= 0 && snapshot > subscribe, 'observer must snapshot after subscribe');
+});
+
+test('PDF selection persistence keeps deactivation clears and honors explicit discard', async () => {
+  const { transformSync } = await import('esbuild');
+  const { runInNewContext } = await import('node:vm');
+  const source = readFileSync(new URL('../../apps/paper-agent/ui-src/reader-state.ts', import.meta.url), 'utf8');
+  const store = new Map(), module = { exports: {} };
+  runInNewContext(transformSync(source, { loader: 'ts', format: 'cjs' }).code, {
+    module, exports: module.exports,
+    localStorage: { getItem: key => store.get(key) ?? null, setItem: (key, value) => { store.set(key, value); } },
+  }, { filename: 'reader-state.ts' });
+  const { persistedSelection, loadReaderState, saveReaderState, readerStateKey } = module.exports;
+  const range = { start: { page: 0, index: 12 }, end: { page: 0, index: 35 } };
+  const document = { id: 'doc', fileDigest: 'digest', pages: [{}, {}] };
+  const same = (left, right) => assert.equal(JSON.stringify(left), JSON.stringify(right));
+  same(persistedSelection(range, false, null), range);
+  same(persistedSelection(null, false, range), range);
+  assert.equal(persistedSelection(null, true, range), null, 'explicit discard forgets the saved range');
+  assert.equal(persistedSelection(null, false, null), null);
+  const value = { schema: 1, documentId: document.id, fileDigest: document.fileDigest, page: 1, zoom: 1.2,
+    mode: 'pdf', position: { x: -100, y: 0 }, selection: range };
+  assert.equal(saveReaderState(document, value), true);
+  assert.equal(readerStateKey(document), `pero.paper.pdf-view:${document.id}:${document.fileDigest}`);
+  same(loadReaderState(document)?.selection, range);
+  assert.equal(saveReaderState(document, { ...value, selection: persistedSelection(null, false, loadReaderState(document)?.selection) }), true);
+  same(loadReaderState(document)?.selection, range);
+  assert.equal(saveReaderState(document, { ...value, selection: persistedSelection(null, true, loadReaderState(document)?.selection) }), true);
+  assert.equal(loadReaderState(document)?.selection, null);
+});
