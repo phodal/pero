@@ -121,6 +121,19 @@
             "fixed": 10,
             "open": 6
           }
+        },
+        "3": {
+          "status": "fail",
+          "findings_by_status": {
+            "fixed": 15,
+            "open": 5
+          },
+          "blocking_high_medium_open": 4,
+          "coverage": {
+            "pass": 21,
+            "fail": 1
+          },
+          "source": "committed child closing answer; original JSON was later reinitialized for attempt 4"
         }
       },
       "plan_review_attempt_4": "interrupted by shared HTTP request budget; no complete pass report",

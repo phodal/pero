@@ -921,7 +921,7 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 
 ### 16.21 子代理失败回执的父会话内容边界
 
-第三次真实尝试使用 600 秒 idle 上限，实际发出 192 次 HTTP 请求；第二轮方案审查确认 10 条 fixed/6 条 open，第三轮确认 15 条 fixed/4 条 open，返修后第四轮因共享请求预算耗尽而未完成。原子诊断为 BUDGET_EXHAUSTED，但 Agent 失败回执还拼入了子代理最后的 Bash tool-call，父会话下一请求因此在 provider 内容转换时失败。这是已复现的运行时缺陷，与未通过的方案 gate 分别处理。[问题与修复](../issues/2026-11-03-failed-subagent-tool-content.md)
+第三次真实尝试使用 600 秒 idle 上限，实际发出 192 次 HTTP 请求；第二轮方案审查确认 10 条 fixed/6 条 open，第三轮最终确认 15 条 fixed/5 条 open（其中 4 条 high/medium 阻塞项，另 1 条 low），返修后第四轮因共享请求预算耗尽而未完成。原子诊断为 BUDGET_EXHAUSTED，但 Agent 失败回执还拼入了子代理最后的 Bash tool-call，父会话下一请求因此在 provider 内容转换时失败。这是已复现的运行时缺陷，与未通过的方案 gate 分别处理。[问题与修复](../issues/2026-11-03-failed-subagent-tool-content.md)
 
 SubagentResult 现在统一拥有 ParentContent 投影：向父会话传递支持的文本和图片并复制媒体数据；assistant-only tool-call、嵌套工具结果和 reasoning 保留在子 transcript。所选 Claude、通用同步工具和旧通知入口均使用这一边界。真实 loopback HTTP 回归验证 1 次父请求、19 次子请求在共享 20 次上限处停止，原预算错误不被转换错误覆盖，没有第 21 次请求；一次实际 Write 保留，后续 Read 不重放它，可见文本仍进入失败回执。测试显式 auto-review，无真人审批。
 
