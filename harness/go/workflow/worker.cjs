@@ -125,9 +125,10 @@ async function evaluate(path, args, declaredMeta, depth = 0) {
   let currentPhase;
   function agent(prompt, supplied = {}) {
     text(prompt, 'agent prompt');
-    const options = object(supplied, 'agent options', ['label', 'phase', 'provider', 'model', 'schema', 'isolation', 'agentType']);
+    const options = object(supplied, 'agent options', ['label', 'phase', 'provider', 'model', 'schema', 'isolation', 'agentType', 'effort']);
     for (const key of ['label', 'phase', 'provider', 'model', 'agentType']) if (options[key] !== undefined) text(options[key], 'agent option ' + key, key === 'agentType' ? false : true);
     if (options.isolation !== undefined && options.isolation !== 'worktree') throw new Fatal('agent isolation must be worktree');
+    if (options.effort !== undefined && !['low', 'medium', 'high', 'xhigh', 'max'].includes(options.effort)) throw new Fatal('agent effort must be low, medium, high, xhigh, or max');
     if (options.schema !== undefined && (options.schema === null || typeof options.schema !== 'object' || Array.isArray(options.schema))) throw new Fatal('agent schema must be an object JSON schema');
     agentCount++;
     const phase = options.phase === undefined ? currentPhase : options.phase;
@@ -141,6 +142,7 @@ async function evaluate(path, args, declaredMeta, depth = 0) {
       ...(options.schema === undefined ? {} : { schema: options.schema }),
       ...(options.isolation ? { isolation: options.isolation } : {}),
       ...(options.agentType ? { agentType: options.agentType } : {}),
+      ...(options.effort ? { effort: options.effort } : {}),
     }).then(result => {
       if (result.status !== 'completed') return null;
       return options.schema === undefined ? (result.text || '') : (result.structured === undefined ? null : result.structured);

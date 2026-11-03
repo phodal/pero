@@ -43,7 +43,7 @@ return results;
 
 | Helper | Contract |
 | --- | --- |
-| `agent(prompt, options)` | Options: label, phase, provider, model, schema, isolation, and agentType. `isolation: "worktree"` runs that child in a separate Git worktree. `agentType` selects a mounted agent such as Explore or Plan. Reuses existing model routes, tools, approvals, cancellation and structured output. Returns text, a structured value, or null for a failed member. |
+| `agent(prompt, options)` | Options: label, phase, provider, model, schema, isolation, agentType, and effort. `isolation: "worktree"` runs that child in a separate Git worktree. `agentType` selects a mounted agent such as Explore or Plan. `effort` is low, medium, high, xhigh, or max. Reuses existing model routes, tools, approvals, cancellation and structured output. Returns text, a structured value, or null for a failed member. |
 | `parallel(thunks)` | Runs functions and preserves input order. Ordinary member failures become null; protocol and unsupported-capability errors remain explicit. |
 | `pipeline(items, ...stages)` | Runs each item's stages in order, preserving item order; stages receive current value, original item and index. |
 | `workflow({scriptPath, meta?}, args)` | Runs another selected script, sharing the process, cancellation and agent() budgets. |

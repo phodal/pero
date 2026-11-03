@@ -193,6 +193,7 @@ func TestWorkflowFailuresStayExplicit(t *testing.T) {
 		{"unknown option", `return parallel([()=>agent('work',{color:'blue'})]);`, "unsupported field"},
 		{"remote isolation", `return agent('work',{isolation:'remote'});`, "isolation"},
 		{"unknown agent", `return agent('work',{agentType:'Missing'});`, "subagent_type"},
+		{"bad effort", `return agent('work',{effort:'turbo'});`, "effort"},
 		{"undeclared provider", `return agent('work',{provider:'unconfigured'});`, "provider"},
 		{"nested unselected", `return workflow({scriptPath:'/unselected/workflows/other.js'},{});`, "outside"},
 		{"non JSON output", `return {value:undefined};`, "lossless JSON"},
@@ -275,5 +276,18 @@ func TestWorkflowAgentTypeUsesTheReadOnlyExplorer(t *testing.T) {
 	result, err := f.app.Execute(f.ctx, f.parent, Call{ScriptPath: filepath.Join(root, "workflows", "main.js"), Args: json.RawMessage(`{}`)})
 	if err != nil || result.StopReason != "completed" || string(result.Value) != `"found"` || !sawRead || sawWrite {
 		t.Fatalf("result=%+v error=%v read=%v write=%v", result, err, sawRead, sawWrite)
+	}
+}
+
+func TestWorkflowAgentEffortReachesTheChild(t *testing.T) {
+	root, workspace, packages := selectedPackage(t, map[string]string{"workflows/main.js": `export const meta={name:'effort',description:'Use a stronger effort'}; return agent('work',{effort:'high'});`})
+	var saw harness.ReasoningEffort
+	f := newWorkflowFixture(t, root, workspace, packages, harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		saw = request.ReasoningEffort
+		return workflowAnswer("done"), nil
+	}), true, 0)
+	result, err := f.app.Execute(f.ctx, f.parent, Call{ScriptPath: filepath.Join(root, "workflows", "main.js"), Args: json.RawMessage(`{}`)})
+	if err != nil || result.StopReason != "completed" || string(result.Value) != `"done"` || saw != "high" {
+		t.Fatalf("result=%+v error=%v effort=%q", result, err, saw)
 	}
 }
