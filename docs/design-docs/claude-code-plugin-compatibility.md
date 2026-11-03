@@ -678,7 +678,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 | LSP | `--lsp-config`、所选插件 `.lsp.json`/manifest 声明默认装配；9 类 query、UTF-16 坐标、能力协商、取消与进程生命周期 | 实际 `/usr/bin/clangd` hover、operator/bundled 两种真实 CLI 路径通过；不安装服务器，不应用编辑；Write/Edit 后有界诊断已接通；连续异步诊断与动态注册仍缺 |
 | WebSearch/WebFetch | 显式 DeepSeek Search/Fetch provider；域名过滤、引用、offset 分片及无工具子代理提取 | CLI loopback 验证审批、共享预算、取消和拒绝写文件；真实 API 两次请求通过；缓存与跨域 redirect handoff 尚未实现，搜索后端不同 |
 | 同步 Workflow | 原始 scriptPath、export const meta、args、嵌套 workflow、agent/parallel/pipeline/phase/log；RPC 复用 ClaudeContribution.Invoke | 原始 3 个审查脚本实际运行；9 次 agent()、10 次 loopback HTTP、峰值并发 3；同步检查点见 16.4；后台任务接入见 16.10 |
-| Trial runner | 显式选择 Harness ACP 或原 Claude runner；工作区/session/续跑/问答策略/权限模式/真实 usage/进程回收 | 16 项本地测试通过；所有 session 与最终产物复核，取消/关闭失败/非零退出不伪成功；不估算 USD，不重试已提交 prompt |
+| Trial runner | 显式选择 Harness ACP 或原 Claude runner；工作区/session/续跑/问答策略/权限模式/真实 usage/进程回收 | 18 项本地测试通过；所有 session 与最终产物复核，取消/关闭失败/非零退出不伪成功；不估算 USD，不重试已提交 prompt |
 | 显式研究依赖 | 选定固定来源后生成内容寻址 package view；原 research → research-deep → research-report 留在 root，保留人工 gate | 原链 CLI loopback 已通过：6 次问答、2 个后台研究代理、10 Search、2 Fetch、2 次无工具提取、16 次审批、原 validator 和 raw 字节归档；不宣称真实研究质量 |
 
 ### 16.1 真实模型结果
@@ -912,3 +912,9 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 权限核对进一步复现：没有启用 shell 的实际 CLI 在显式 auto-review 下仍能执行动态 skill 命令。原因是预处理器直接构造 shell executor，只询问权限而未查询工具可见性。现复用 ToolRegistry.SchemasForAgent 的实际 scope/catalog 视图，缺少 Bash 就在审批和命令副作用前中止；allowed-tools 和 auto-review 都不能制造缺失的工具，静态 skill 不受影响。没有另建工具可见性或审批规则。[官方契约](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)、[问题与回归](../issues/2026-11-03-skill-command-shell-visibility.md)
 
 真实 CLI 测试覆盖 shell 未启用、手动模式拒绝和显式 auto-review 成功三条路径；scope 测试覆盖被限制的 Bash 在 full-access/auto-review 下均不能执行，即使 skill 声明 Bash 预批准。修复后 Trial 十六项、Go 全量 race/vet、Bazel pluginruntime 与完整 CLI 两个目标通过。正在运行的完整 coder 验证保持其已启动二进制，不中途替换验收对象。
+
+### 16.20 Trial 的 Unicode JSONL 记录边界
+
+后续真实尝试达到请求上限后，观察脚本在汇总 usage 时失败。原 JSONL 按物理行逐条都能解析，并未损坏；问题是 Python 文本 splitlines 把合法 JSON 字符串里的 U+0085/NEL 也当作记录分隔符。usage reader、pipeline journal 投影与审查验证器现按字节换行读取，保留字符串内的 Unicode 分隔字符，仍拒绝物理记录内的非法换行或残缺 JSON。[问题与复现](../issues/2026-11-03-trial-unicode-jsonl.md)
+
+实际 CLI 回归写入并返回 NEL/U+2028/U+2029，检查文件、聚合 journal、两次 provider usage 和进程回收；另验证非法物理记录继续报错。Trial 十八项测试通过。修复后仅重读既有日志就恢复 509 个已提交 completion 的 usage，没有重放模型、命令或文件操作；原完整流程仍记不完整。观察失败和业务流程结果分别记录，不用统计修复倒推原运行已经成功。

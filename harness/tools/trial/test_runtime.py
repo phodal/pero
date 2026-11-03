@@ -165,6 +165,30 @@ class RuntimeTrial(unittest.TestCase):
         self.assertEqual(result["interactions"][0]["answers"], {"Choose format": "Markdown"})
         self.assert_reclaimed(result)
 
+    def test_jsonl_unicode_separators_preserve_output_and_usage(self):
+
+        value = "before\u0085NEL\u2028line\u2029paragraph after"
+        calls = []
+
+        def dispatch(request):
+            calls.append(request)
+            if len(calls) == 1:
+                return [dict(tool("Write", {"file_path": "report.md", "content": value}),
+                             usage={"prompt_tokens": 11, "completion_tokens": 3, "total_tokens": 14})]
+            return [answer(value)]
+
+        with provider(dispatch) as endpoint:
+            result = run_pipeline(self.config(endpoint, success_patterns=["report.md"], max_continuations=0))
+        self.assertTrue(result["pipeline_complete"], result)
+        self.assertEqual(Path(result["workspace"], "report.md").read_text(), value)
+        self.assertEqual(result["usage"]["reported_completions"], 2)
+        self.assertEqual(result["usage"]["total_tokens"], 28)
+        with Path(result["journal_path"]).open() as source:
+            events = [json.loads(line) for line in source]
+        previews = [block.get("preview", "") for event in events for block in event.get("blocks", [])]
+        self.assertIn(value, "".join(previews))
+        self.assert_reclaimed(result)
+
     def test_idle_after_effect_is_not_success_or_retried(self):
         calls, release = [], threading.Event()
         def dispatch(request):

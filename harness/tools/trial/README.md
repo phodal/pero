@@ -76,6 +76,9 @@ each has name, prompt, success_artifact or success_patterns, and an optional
 max_continuations. Sessions share the trial workspace but each owns a separate
 ACP process and persistent session directory. `session_timeout` is a wall-clock
 limit including startup; `idle_timeout` measures silence during a prompt.
+Only received ACP frames reset idle time. Child model/file activity without
+parent ACP updates does not reset it; choose a sufficient idle timeout for long
+delegated reviews. An idle timeout cancels the turn and remains incomplete.
 With ordered sessions, top-level success_patterns adds final pipeline
 requirements. It does not replace each session's own patterns.
 
@@ -131,6 +134,8 @@ pipeline_complete, artifacts, pattern_artifacts and sessions. They add runtime
 identity, actual HTTP attempt counts, artifact matches and provider-reported
 usage from committed session records, including child sessions. Missing usage
 reports are counted; failed or uncommitted requests may have unknown usage.
+JSONL records are framed by byte newlines, preserving legal Unicode separators
+inside string values. Malformed physical records still fail usage validation.
 An unavailable total stays null. No token count is inferred from text and
 cost_usd is always null. Trials also expose duration_ms, success, journal_path,
 events, continuations, interactions and tool_summary at the top level for

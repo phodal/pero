@@ -162,7 +162,7 @@ def run_pipeline(config: TrialConfig) -> dict:
     with aggregate.open("x", encoding="utf-8") as journal:
         aggregate.chmod(0o600)
         for receipt in receipts:
-            for line in Path(receipt.journal_path).read_text().splitlines():
+            for line in Path(receipt.journal_path).read_bytes().splitlines():
                 event = json.loads(line)
                 event_count += 1
                 event.update(seq=event_count, elapsed_ms=round(event["elapsed_ms"] + offset, 1), source_session=receipt.session)

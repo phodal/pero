@@ -1,6 +1,10 @@
 import unittest
 from dataclasses import replace
+import json
+from pathlib import Path
+import tempfile
 
+from acp import read_usage
 from core import ArtifactMatch, CleanupResult, SessionReceipt, SessionSpec, TrialConfig, TrialError, Usage, pipeline_succeeded, session_succeeded
 
 
@@ -11,6 +15,22 @@ def config_input():
 
 
 class TrialRules(unittest.TestCase):
+    def test_usage_jsonl_preserves_unicode_and_rejects_broken_records(self):
+        event = {"event": {"type": "assistant/message", "data": {
+            "message": "legal\u0085NEL\u2028line\u2029paragraph",
+            "usage": {"inputTokens": 11, "outputTokens": 3, "totalTokens": 14}}}}
+        valid = json.dumps(event, ensure_ascii=False).encode() + b"\n"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sessions").mkdir()
+            path = root / "sessions/one.jsonl"
+            path.write_bytes(valid)
+            self.assertEqual(read_usage(root), Usage(11, 3, 14, reported_completions=1))
+            for invalid in (valid.replace(b"legal", b"broken\nrecord"), valid + b"{incomplete\n"):
+                path.write_bytes(invalid)
+                with self.assertRaises(ValueError):
+                    read_usage(root)
+
     def test_completion_requires_all_patterns_and_normal_end(self):
         all_found = (ArtifactMatch("one", ("one",)), ArtifactMatch("two", ("two",)))
         for label, matches, stop, fatal, want in [

@@ -153,7 +153,7 @@ def verify(base: Path, session_directory: Path) -> dict:
         raise TrialError("the selected plugin changed during review")
     calls, results = {}, []
     for path in session_directory.glob("*.jsonl"):
-        for line in path.read_text().splitlines():
+        for line in path.read_bytes().splitlines():
             event = json.loads(line).get("event")
             if not event:
                 continue

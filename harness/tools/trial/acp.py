@@ -258,7 +258,7 @@ class ACPClient:
 def read_usage(directory: Path) -> Usage:
     values = []
     for path in (directory / "sessions").glob("*.jsonl"):
-        for line in path.read_text().splitlines():
+        for line in path.read_bytes().splitlines():
             event = json.loads(line).get("event", {})
             if event.get("type") != "assistant/message":
                 continue
