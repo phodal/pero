@@ -338,6 +338,10 @@ func run() (resultErr error) {
 		return nil
 	}
 	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, Name: "pero-agent-acp", Version: "0.1"}
+	if pluginHooks != nil {
+		serverOptions.HoldAssistantText = func(*harness.Agent) bool { return pluginHooks.HoldsAssistantText() }
+		serverOptions.RenderAssistantText = pluginHooks.RenderAssistantText
+	}
 	if native != nil {
 		serverOptions.ValidateWorkingDirectory = native.CheckCWD
 	}

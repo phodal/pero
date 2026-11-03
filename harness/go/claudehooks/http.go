@@ -23,6 +23,8 @@ func hookTimeout(hook Hook) (time.Duration, error) {
 			timeout = 600 * time.Second
 			if hook.Event == "UserPromptSubmit" || hook.Event == "PreModelSwitch" || hook.Event == "PostModelSwitch" {
 				timeout = 30 * time.Second
+			} else if hook.Event == "MessageDisplay" {
+				timeout = 10 * time.Second
 			} else if hook.Event == "SessionEnd" {
 				timeout = 1500 * time.Millisecond
 			}

@@ -65,6 +65,7 @@ go_test(
         "plugin_agent_hook_test.go",
         "plugin_cli_semantics_test.go",
         "plugin_data_home_test.go",
+        "plugin_display_test.go",
         "plugin_execution_test.go",
         "plugin_stop_failure_test.go",
         "plugin_expansion_test.go",

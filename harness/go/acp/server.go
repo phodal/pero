@@ -40,6 +40,11 @@ type Options struct {
 	Name                     string
 	Version                  string
 	SessionListPageSize      int
+	// HoldAssistantText and RenderAssistantText let a MessageDisplay hook
+	// replace one completed assistant message on the wire. Nil leaves streaming
+	// unchanged. The stored message stays the original text.
+	HoldAssistantText   func(*harness.Agent) bool
+	RenderAssistantText func(context.Context, *harness.Agent, string) string
 }
 
 type Server struct {
@@ -57,23 +62,25 @@ type Server struct {
 	version                  string
 	sessionListPageSize      int
 
-	mu             sync.Mutex
-	sessions       map[harness.SessionID]*activeSession
-	activating     map[harness.SessionID]struct{}
-	retiring       map[*harness.Agent]*activeSession
-	closedSessions map[harness.SessionID]*activeSession
-	operations     int
-	operationWG    sync.WaitGroup
-	closing        bool
-	closeDone      chan struct{}
-	closeErr       error
-	retireErr      error
-	nextID         uint64
-	pending        map[string]chan clientResponse
-	writer         *wireWriter
-	mcpRuntime     bool
-	questionTools  bool
-	userQuestions  bool
+	mu                  sync.Mutex
+	sessions            map[harness.SessionID]*activeSession
+	activating          map[harness.SessionID]struct{}
+	retiring            map[*harness.Agent]*activeSession
+	closedSessions      map[harness.SessionID]*activeSession
+	operations          int
+	operationWG         sync.WaitGroup
+	closing             bool
+	closeDone           chan struct{}
+	closeErr            error
+	retireErr           error
+	nextID              uint64
+	pending             map[string]chan clientResponse
+	writer              *wireWriter
+	mcpRuntime          bool
+	questionTools       bool
+	userQuestions       bool
+	holdAssistantText   func(*harness.Agent) bool
+	renderAssistantText func(context.Context, *harness.Agent, string) string
 }
 
 type clientResponse struct {
@@ -136,8 +143,8 @@ func NewServer(options Options) (*Server, error) {
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
 		provider: options.Provider, model: options.Model, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
 		name: options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
-		questionTools: options.UserQuestions,
-		sessions:      make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
+		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText,
+		sessions: make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),
 	}, nil
 }

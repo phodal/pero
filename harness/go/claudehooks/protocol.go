@@ -86,6 +86,11 @@ type Input struct {
 	ToModel              string          `json:"to_model,omitempty"`
 	RequestedModel       string          `json:"requested_model,omitempty"`
 	ContextTokens        *int            `json:"context_tokens,omitempty"`
+	TurnID               string          `json:"turn_id,omitempty"`
+	MessageID            string          `json:"message_id,omitempty"`
+	DisplayIndex         int             `json:"index,omitempty"`
+	Final                bool            `json:"final,omitempty"`
+	Delta                string          `json:"delta,omitempty"`
 }
 
 type Decision struct {
@@ -101,6 +106,8 @@ type Decision struct {
 	// EndTurn stops the current turn after a prompt hook blocks. It is not a
 	// command-hook field.
 	EndTurn bool
+	// DisplayContent replaces assistant text on screen. Nil keeps the original.
+	DisplayContent *string
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
@@ -118,7 +125,8 @@ type output struct {
 	HookSpecificOutput *specificOutput `json:"hookSpecificOutput"`
 	// TerminalSequence is accepted so a hook can request a bell or title.
 	// This harness has no terminal write path, so the value is not emitted.
-	TerminalSequence string `json:"terminalSequence,omitempty"`
+	TerminalSequence string  `json:"terminalSequence,omitempty"`
+	DisplayContent   *string `json:"displayContent,omitempty"`
 }
 
 type specificOutput struct {
@@ -319,6 +327,12 @@ func (wire output) decision(event string) (Decision, error) {
 		result.Stop = true
 		result.Reason = wire.StopReason
 	}
+	if event == "MessageDisplay" {
+		result.DisplayContent = wire.DisplayContent
+		result.SystemMessage = ""
+		result.Stop = false
+		result.AdditionalContext = ""
+	}
 	if event == "PreCompact" || event == "PostCompact" || event == "SessionEnd" {
 		result.SystemMessage = ""
 		result.Stop = false
@@ -343,6 +357,9 @@ func Merge(decisions []Decision) (Decision, error) {
 		merged.Block = merged.Block || decision.Block
 		merged.Stop = merged.Stop || decision.Stop
 		merged.EndTurn = merged.EndTurn || decision.EndTurn
+		if decision.DisplayContent != nil {
+			merged.DisplayContent = decision.DisplayContent
+		}
 		merged.AdditionalContext = joinContext(merged.AdditionalContext, decision.AdditionalContext)
 		merged.SystemMessage = joinContext(merged.SystemMessage, decision.SystemMessage)
 		if merged.WorktreePath == "" {
@@ -408,7 +425,7 @@ func blockingEvent(event string) bool {
 
 func runControlEvent(event string) bool {
 	switch event {
-	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart", "FileChanged", "Setup", "PreModelSwitch", "PostModelSwitch":
+	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart", "FileChanged", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay":
 		return false
 	}
 	return true
