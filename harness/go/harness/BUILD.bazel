@@ -51,6 +51,7 @@ go_library(
         "model_info.go",
         "owned_followup.go",
         "permission_mode.go",
+        "plan_mode.go",
         "profile_owner_admission.go",
         "profile_owner_commands.go",
         "profile_owner_tools.go",

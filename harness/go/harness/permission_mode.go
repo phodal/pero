@@ -72,6 +72,9 @@ func permissionDecision(policy ApprovalPolicy, request ApprovalRequest) (Approva
 	if mode, found, err := latestClaudePermissionMode(events); err != nil {
 		return ApprovalRejected, false
 	} else if found {
+		if mode == "plan" && request.ToolName == "ExitPlanMode" && request.AlwaysAsk {
+			return "", true
+		}
 		return claudePermissionDecision(mode, request)
 	}
 	mode, found, err := PermissionModeOverride(events)
