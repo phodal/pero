@@ -197,6 +197,59 @@ func TestClaudeTrustedInvocationCancellationJoinsChild(t *testing.T) {
 	}
 }
 
+func TestAgentBackgroundDefaultsToABackgroundRun(t *testing.T) {
+	release := make(chan struct{})
+	adapter := harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		<-release
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	})
+	ctx := t.Context()
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = h.Dispose(cleanup)
+		_ = h.Drain(cleanup)
+	})
+	if _, err := MountClaude(ctx, h, []AgentDefinition{{Name: "reviewer", Description: "Review", Instructions: "Review.", Background: true}}, ClaudeOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	parent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "background-parent", CWD: t.TempDir(), Provider: "fixture", Model: "parent-model", MaxSteps: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan harness.ToolResult, 1)
+	go func() {
+		out, err := h.Tools().Execute(ctx, harness.ToolRequest{Agent: parent, Name: "Agent", CallID: "agent-background", Arguments: json.RawMessage(`{"description":"review","prompt":"look","subagent_type":"reviewer"}`)})
+		if err != nil {
+			t.Errorf("execute: %v", err)
+			return
+		}
+		done <- out.Result
+	}()
+	select {
+	case result := <-done:
+		if !strings.Contains(result.Content[0].Text, `"retrieval_status":"not_ready"`) {
+			t.Fatalf("background receipt = %+v", result)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("background agent waited for the model")
+	}
+	close(release)
+	foreground, err := h.Tools().Execute(ctx, harness.ToolRequest{Agent: parent, Name: "Agent", CallID: "agent-foreground", Arguments: json.RawMessage(`{"description":"review","prompt":"look","subagent_type":"reviewer","run_in_background":false}`)})
+	if err != nil || !strings.Contains(foreground.Result.Content[0].Text, `"retrieval_status":"success"`) {
+		t.Fatalf("explicit foreground = %+v err=%v", foreground.Result, err)
+	}
+}
+
 func TestAgentDisallowedToolsRemoveWrite(t *testing.T) {
 	root := t.TempDir()
 	var sawRead, sawWrite bool

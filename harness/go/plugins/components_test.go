@@ -73,6 +73,13 @@ func TestComponentDefinitions(t *testing.T) {
 	}
 }
 
+func TestAgentBackgroundField(t *testing.T) {
+	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nbackground: true\n---\nReview."))
+	if len(diagnostics) != 0 || component.Background == nil || !*component.Background {
+		t.Fatalf("component=%+v diagnostics=%v", component, diagnostics)
+	}
+}
+
 func TestAgentDisallowedToolsField(t *testing.T) {
 	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\ndisallowedTools: [Write, Edit]\n---\nReview."))
 	if len(diagnostics) != 0 || !reflect.DeepEqual(component.DisallowedTools, []string{"Write", "Edit"}) {

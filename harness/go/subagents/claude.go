@@ -19,8 +19,28 @@ import (
 type AgentDefinition struct {
 	Name, Description, Instructions, Model, Effort, Isolation string
 	MaxTurns                                                  int
+	Background                                                bool
 	Tools                                                     []string
 	DisallowedTools                                           []string
+}
+
+func requestedBackground(value *bool) bool {
+	return value != nil && *value
+}
+
+func (s *claudeDelegation) agentDefaultsToBackground(parent *harness.Agent, name string) bool {
+	if name == "" {
+		name = "general-purpose"
+	}
+	origin := ""
+	if parent != nil && s.invocationOrigin != nil {
+		origin = s.invocationOrigin(parent)
+	}
+	definition, err := resolveClaudeDefinition(s.definitions, name, origin)
+	if err != nil {
+		return false
+	}
+	return definition.Background
 }
 
 func validAgentEffort(effort string) bool {
@@ -255,11 +275,15 @@ func (s *claudeDelegation) agentTool() harness.Tool {
 			Prompt      string `json:"prompt"`
 			Model       string `json:"model"`
 			Isolation   string `json:"isolation"`
-			Background  bool   `json:"run_in_background"`
+			Background  *bool  `json:"run_in_background"`
 			Resume      string `json:"resume"`
 		}
 		if err := json.Unmarshal(request.Arguments, &input); err != nil {
 			return harness.ToolResult{}, err
+		}
+		background := requestedBackground(input.Background)
+		if input.Background == nil && input.Resume == "" {
+			background = s.agentDefaultsToBackground(request.Agent, input.Type)
 		}
 		var task *claudeTask
 		var err error
@@ -267,14 +291,14 @@ func (s *claudeDelegation) agentTool() harness.Tool {
 			if input.Type != "" || input.Model != "" {
 				return harness.ToolResult{}, errors.New("subagents: resume retains its original definition and model route; omit subagent_type/model")
 			}
-			task, err = s.resume(ctx, request.Agent, harness.SessionID(input.Resume), input.Prompt, input.Background)
+			task, err = s.resume(ctx, request.Agent, harness.SessionID(input.Resume), input.Prompt, background)
 		} else {
-			task, err = s.start(ctx, request.Agent, ClaudeInvocation{Definition: input.Type, Prompt: input.Prompt, Description: input.Description, Model: input.Model, Isolation: input.Isolation, Background: input.Background})
+			task, err = s.start(ctx, request.Agent, ClaudeInvocation{Definition: input.Type, Prompt: input.Prompt, Description: input.Description, Model: input.Model, Isolation: input.Isolation, Background: background})
 		}
 		if err != nil {
 			return harness.ToolResult{}, err
 		}
-		if input.Background {
+		if background {
 			return claudeTaskResult(task, "not_ready"), nil
 		}
 		select {

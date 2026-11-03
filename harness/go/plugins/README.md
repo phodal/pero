@@ -104,6 +104,7 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   `isolation: worktree` runs that agent in a separate Git worktree.
   `maxTurns` caps that agent's steps and cannot exceed the parent budget.
   `disallowedTools` removes those tools from the agent.
+  `background: true` starts the agent in the background unless the call sets `run_in_background` to false.
   Custom/general-purpose agents retain their ID and history across completed
   turns and, with explicit persistence, JSONL reload. Explore/Plan and temporary
   ConfigureChild compositions remain one-shot. See the [agent profiles](../subagents/README.md).

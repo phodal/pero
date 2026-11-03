@@ -360,8 +360,10 @@ func knownComponentField(kind ComponentKind, key string) bool {
 	switch key {
 	case "name", "description", "model", "effort", "version", "license", "compatibility", "metadata", "homepage", "platforms":
 		return true
-	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background":
+	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent":
 		return kind != ComponentAgent
+	case "background":
+		return true
 	case "tools", "disallowedTools", "color", "isolation", "maxTurns":
 		return kind == ComponentAgent
 	}
