@@ -260,7 +260,11 @@ func (r *SubagentRegistry) continuableRecordMode(ctx context.Context, parent *Ag
 			suppressParentSettlement: snapshot.SuppressParentSettlement,
 		}
 		if managed {
-			record.activation = newSubagentActivation("parent")
+			delivery, _ := ctx.Value(resumeDeliveryKey{}).(string)
+			if delivery == "" {
+				delivery = "parent"
+			}
+			record.activation = newSubagentActivation(delivery)
 			record.suppressParentSettlement = true
 		}
 		r.mu.Lock()
