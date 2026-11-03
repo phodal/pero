@@ -105,6 +105,8 @@ type Input struct {
 	Directory            string          `json:"directory,omitempty"`
 	// SessionTitle is the custom title already stored for this session.
 	SessionTitle string `json:"session_title,omitempty"`
+	// Model is the active model id for SessionStart.
+	Model string `json:"model,omitempty"`
 }
 
 type Decision struct {

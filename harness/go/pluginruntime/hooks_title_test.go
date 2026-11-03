@@ -31,7 +31,7 @@ func TestSessionStartReadsAndStoresACustomTitle(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, err := os.ReadFile(filepath.Join(root, "start.json"))
-	if err != nil || !strings.Contains(string(body), `"session_title":"kept"`) {
+	if err != nil || !strings.Contains(string(body), `"session_title":"kept"`) || !strings.Contains(string(body), `"model":"scripted"`) {
 		t.Fatalf("hook input = %s %v", body, err)
 	}
 	if title := customSessionTitle(agent); title != "from-hook" {

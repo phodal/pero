@@ -8,6 +8,13 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 )
 
+func sessionHookModel(agent *harness.Agent, input claudehooks.Input) string {
+	if input.Event != "SessionStart" || input.Model != "" || agent == nil {
+		return input.Model
+	}
+	return agent.Model()
+}
+
 func customSessionTitle(agent *harness.Agent) string {
 	if agent == nil || agent.Session() == nil {
 		return ""
