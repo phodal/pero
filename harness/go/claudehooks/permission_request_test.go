@@ -5,6 +5,15 @@ import (
 	"testing"
 )
 
+func TestCompactHooksKeepPlainStdoutAsContext(t *testing.T) {
+	for _, event := range []string{"PreCompact", "PostCompact"} {
+		decision, err := ParseDecision(event, []byte("keep-this-checkpoint\n"), nil, 0)
+		if err != nil || decision.AdditionalContext != "keep-this-checkpoint" || decision.Block {
+			t.Fatalf("%s context=%q block=%v error=%v", event, decision.AdditionalContext, decision.Block, err)
+		}
+	}
+}
+
 func TestWorktreeCreateReadsTheLastPathLine(t *testing.T) {
 	decision, err := ParseDecision("WorktreeCreate", []byte("banner\n\x1b[31mred\x1b[0m\n/tmp/feature\n"), nil, 0)
 	if err != nil || decision.WorktreePath != "/tmp/feature" {

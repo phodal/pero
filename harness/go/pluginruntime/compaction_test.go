@@ -16,6 +16,40 @@ import (
 	"github.com/phodal/pero/harness/go/plugins"
 )
 
+func TestPreCompactPlainTextSurvivesCompaction(t *testing.T) {
+	root := t.TempDir()
+	const marker = "keep-this-checkpoint"
+	hook := scriptHook(t, root, "PreCompact", "printf '%s\\n' "+marker)
+	h, _ := testHookHarness(t, harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		text := "done"
+		if request.Purpose == "compaction" {
+			text = "short checkpoint"
+		}
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}}}, nil
+	}), plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{hook}}, 0)
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "precompact-text", CWD: root, Provider: "fixture", Model: "scripted", Compaction: &harness.BasicCompactionConfig{ContextWindow: 8192, MaxTokens: 128}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prompt(t, agent, strings.Repeat("historical requirements detail ", 200)); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := agent.CompactNow(t.Context()); err != nil || result == nil {
+		t.Fatalf("manual compaction: %+v %v", result, err)
+	}
+	messages, err := agent.Session().DeriveMessages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, message := range messages {
+		count += strings.Count(messageText(message), marker)
+	}
+	if count != 1 {
+		t.Fatalf("pre-compact checkpoint copies=%d", count)
+	}
+}
+
 func TestCompactionSessionStartContextPrecedesNextRequest(t *testing.T) {
 	for _, trigger := range []string{"manual", "overflow"} {
 		t.Run(trigger, func(t *testing.T) {

@@ -145,7 +145,7 @@ func ParseDecision(event string, stdout, stderr []byte, exitCode int) (Decision,
 			} else {
 				decision, parseErr = wire.decision(event)
 			}
-		} else if event == "SessionStart" || event == "UserPromptSubmit" {
+		} else if event == "SessionStart" || event == "UserPromptSubmit" || event == "PreCompact" || event == "PostCompact" {
 			decision.AdditionalContext = string(stdout)
 		}
 	}

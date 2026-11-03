@@ -212,10 +212,15 @@ func (app *HookApp) register(run *point.Run) error {
 	if _, err := hooks.PreCompact.Use(run, func(ctx context.Context, input harness.CompactionHookInput, next point.Next[harness.CompactionHookInput]) (harness.CompactionHookInput, error) {
 		err := app.withAgent(ctx, input.Agent, func(ctx context.Context, state *hookAgentState) error {
 			decision, err := app.event(ctx, input.Agent, claudehooks.Input{Event: "PreCompact", Trigger: input.Trigger})
-			if err == nil && decision.Block {
-				input.Reject, input.Reason = true, decision.Reason
+			if err != nil {
+				return err
 			}
-			return err
+			if decision.Block {
+				input.Reject, input.Reason = true, decision.Reason
+			} else if decision.AdditionalContext != "" {
+				input.Messages = append(input.Messages, hookMessage("PreCompact", decision.AdditionalContext))
+			}
+			return nil
 		})
 		if err != nil {
 			return input, err
