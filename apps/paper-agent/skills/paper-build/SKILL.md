@@ -12,6 +12,10 @@ opened preview does not prove its scientific content was reviewed.
 ## Inspect the inputs and environment
 
 Identify the manuscript root, entrypoint, bibliography, figure assets and template.
+For a downloaded paper, first read
+[TeX source locations](../research-resource-import/references/tex-source-locations.md).
+Use the whole verified source project; a hash-named cached TeX member is not a
+standalone build directory. Keep author drafts separate from downloaded originals.
 Read the template's actual requirements. Use the existing authorized build
 environment. Check the installed engine, bibliography processor and preview tools;
 do not silently install a TeX distribution, fetch packages or change global config.

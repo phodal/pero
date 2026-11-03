@@ -4,7 +4,8 @@ import { join, resolve, sep } from 'node:path';
 
 const APP_ENTRIES = ['app.json', 'dist', 'backend', 'examples', 'evidence', 'THIRD_PARTY_NOTICES.md', 'README.md', 'licenses'];
 const PAPER_ENTRIES = [
-  'tools/research.py', 'skills/research-resource-import/SKILL.md',
+  'tools/research.py', 'tools/locate-source.py', 'skills/research-resource-import/SKILL.md',
+  'skills/research-resource-import/references/tex-source-locations.md',
   'skills/paper-code-audit/SKILL.md',
   'skills/paper-code-audit/references/audit-contract.md',
   'skills/paper-code-audit/references/other-cases.md',

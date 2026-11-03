@@ -1,7 +1,12 @@
 ---
 name: research-resource-import
-description: Collect a research URL and its linked paper, code, model, dataset and benchmark references in Paper, including nonstandard websites through observed-link Agent proposals, version-pinned read-only TeX source, PDF comparison and optional Data downloads.
+description: Locate a saved paper's versioned TeX and figure files, or collect a research URL and linked paper, code, model, dataset and benchmark references in Paper. Supports source/PDF inspection and optional Data downloads; does not run experiments.
 ---
+
+For an already saved paper's TeX or figures, start with
+[TeX source locations](references/tex-source-locations.md). Reuse its approved
+source scope and offline locator before inspecting a new URL. That reference
+distinguishes `~/.pero/paper` export copies from profile-local managed members.
 
 Use Paper's declared App tools through the existing Host App Use session. Prefer
 advertised `app__paper-agent__<tool>` tools and their schemas; only when using the

@@ -55,7 +55,8 @@ test('Workbench payload drops standalone Chat while retaining its own runtime an
 test('Builtin staging ships only the exact Paper CLI and skill additions', async () => {
   const { stageBuiltinApp } = await import('./builtin-app-payload.mjs');
   const { existsSync, symlinkSync } = await import('node:fs');
-  const paperEntries = ['tools/research.py', 'skills/research-resource-import/SKILL.md',
+  const paperEntries = ['tools/research.py', 'tools/locate-source.py', 'skills/research-resource-import/SKILL.md',
+    'skills/research-resource-import/references/tex-source-locations.md',
     'skills/paper-code-audit/SKILL.md', 'skills/paper-code-audit/references/audit-contract.md',
     'skills/paper-code-audit/references/other-cases.md', 'skills/paper-code-audit/references/pcgym-table6.md',
     'skills/paper-reproduction/SKILL.md', 'skills/paper-reproduction/references/reproduction-protocol.md',
@@ -96,7 +97,7 @@ test('Builtin staging ships only the exact Paper CLI and skill additions', async
 
 test('Staged Paper CLI executes references-only commit and export using its staged backend', async () => {
   const { stageBuiltinApp } = await import('./builtin-app-payload.mjs');
-  const { execFileSync } = await import('node:child_process');
+  const { execFileSync, spawnSync } = await import('node:child_process');
   const { resolve } = await import('node:path');
   const directory = mkdtempSync(join(tmpdir(), 'pero-paper-cli-payload-'));
   try {
@@ -113,6 +114,10 @@ test('Staged Paper CLI executes references-only commit and export using its stag
     assert.equal(exported.ok, true); assert.equal(exported.result.schema, 'pero.research-evidence.v1');
     assert.equal(exported.result.acquisitions[0].status, 'reference_only');
     assert.equal(exported.result.bundle.resources[0].originalUrl, 'https://example.org/frozen-paper.pdf');
+    const sourceLookup = spawnSync(python, ['-I', join(payload, 'tools/locate-source.py'), '--arxiv', '2610.27435v1',
+      '--cache', cache, '--paper-dir', join(directory, 'unused-exports')], { encoding: 'utf8', cwd: directory });
+    assert.equal(sourceLookup.status, 4, sourceLookup.stderr);
+    assert.deepEqual(JSON.parse(sourceLookup.stdout).sources, []);
     assert.match(readFileSync(join(payload, 'skills/research-resource-import/SKILL.md'), 'utf8'), /research-resource-import/);
     const auditDirectory = join(payload, 'skills/paper-code-audit');
     const auditSkill = readFileSync(join(auditDirectory, 'SKILL.md'), 'utf8');
