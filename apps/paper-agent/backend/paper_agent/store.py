@@ -255,8 +255,19 @@ class ResearchStore:
                     continue
                 if stat.S_ISREG(info.st_mode) and info.st_size > 0:
                     cached.add(paper_id)
-        papers = [dict(ArxivPaper.reading_view(self.paper(identity), False), hasCachedPdf=identity in cached)
-                  for identity in self._list("papers")]
+        snapshots = {identity: self.paper(identity) for identity in self._list('papers')}
+        associated = {(doc.file_digest, doc.source_url) for identity, doc in latest.items()
+                      if identity in cached and identity in snapshots and snapshots[identity].source != 'local-pdf'}
+        acquisition_copies = set()
+        for identity in self._list('pdf-downloads'):
+            receipt = self.pdf_downloads._read(identity).receipt
+            if receipt and (receipt.fileDigest, receipt.requestUrl) in associated:
+                acquisition_copies.add(receipt.paperId)
+        # Keep receipt-owned snapshots addressable for citations and imports, but
+        # show their explicitly associated original paper once in the Library.
+        papers = [dict(ArxivPaper.reading_view(paper, False), hasCachedPdf=identity in cached)
+                  for identity, paper in snapshots.items()
+                  if identity not in acquisition_copies or paper.source != 'local-pdf']
         intents = []
         for identity in self._list("intents"):
             intent = self.intent(identity)

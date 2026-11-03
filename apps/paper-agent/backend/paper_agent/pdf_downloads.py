@@ -149,4 +149,5 @@ class PdfDownloads:
 
 def url_filename(url):
     from urllib.parse import urlsplit
-    return urlsplit(url).path.rsplit('/', 1)[-1] or 'downloaded.pdf'
+    name = urlsplit(url).path.rsplit('/', 1)[-1] or 'downloaded.pdf'
+    return name if name.lower().endswith('.pdf') else name + '.pdf'

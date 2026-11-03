@@ -182,6 +182,7 @@ class LibraryFilesTest(unittest.TestCase):
         self.assertEqual(self.store.paper(self.paper.id).to_dict(), original_paper)
         self.assertEqual(self.store._list('source-observations'), [])
         self.assertEqual(self.export(plan), saved)
+        self.assertEqual([p['id'] for p in self.store.library()['papers']], [self.paper.id])
         paper_ids = set(self.store._list('papers'))
         self.assertEqual(len(paper_ids), 2)
         repeat = self.confirm()
