@@ -83,6 +83,7 @@ type shellTask struct {
 	lifecycle   sync.Mutex
 	deadline    *time.Timer
 	promotion   *shellTaskPromotion
+	activity    *harness.SubagentBackgroundActivity
 }
 
 func (t *shellTask) Write(data []byte) (int, error) {
@@ -190,6 +191,7 @@ type shellTasks struct {
 	foreground   shell.LocalOptions
 	outputPolicy bashOutputPolicy
 	timingPolicy bashTimingPolicy
+	subagents    *harness.SubagentRegistry
 	mu           sync.Mutex
 	closed       bool
 	fenced       map[*harness.Agent]bool
@@ -201,7 +203,7 @@ type shellTasks struct {
 func mountShellTasks(ctx context.Context, h *harness.Harness, options shell.LocalOptions, policy bashOutputPolicy, timing bashTimingPolicy) (*shellTasks, error) {
 	foreground := options
 	options.Timeout, options.MaxTimeout = timing.backgroundDefault, timing.backgroundMaximum
-	owner := &shellTasks{options: options, foreground: foreground, outputPolicy: policy, timingPolicy: timing, tasks: make(map[string]*shellTask), fenced: make(map[*harness.Agent]bool)}
+	owner := &shellTasks{options: options, foreground: foreground, outputPolicy: policy, timingPolicy: timing, subagents: h.Subagents(), tasks: make(map[string]*shellTask), fenced: make(map[*harness.Agent]bool)}
 	definition := point.Define(point.Descriptor{ID: "harness/contribution/background-shell", Requires: []point.Requirement{point.Require(harness.AgentHooksKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		owner.run = run
 		if _, err := h.Hooks().Activated.On(run, func(ctx context.Context, agent *harness.Agent) error {
@@ -334,6 +336,13 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 	task.intent.OutputFile = plan.Path()
 	taskCtx, cancel := context.WithCancelCause(s.run.Context)
 	task.cancel = cancel
+	if input.RunInBackground {
+		task.activity, err = s.subagents.RetainBackgroundActivity(request.Agent)
+		if err != nil {
+			cancel(err)
+			return harness.ToolResult{}, err
+		}
+	}
 	s.mu.Lock()
 	active := 0
 	for _, existing := range s.tasks {
@@ -346,6 +355,7 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 	if s.closed || s.fenced[request.Agent] || !s.run.Active() || active >= maximumBackgroundShells {
 		s.mu.Unlock()
 		cancel(context.Canceled)
+		task.activity.Release(nil)
 		return harness.ToolResult{}, errors.New("background shell admission unavailable: owner retired or 16-task capacity reached")
 	}
 	s.tasks[task.intent.ID] = task
@@ -475,6 +485,10 @@ func (s *shellTasks) finish(task *shellTask, result *shell.RunResult, operationE
 	task.terminal = &terminal
 	task.mu.Unlock()
 	close(task.done)
+	// TaskOutput/TaskStop may be called by synchronous inbox observers. Publish
+	// the terminal receipt before admitting the notice, while retention still
+	// prevents the managed activation from settling.
+	s.completeActivity(ctx, task, result != nil, err)
 }
 
 func (s *shellTasks) stop(ctx context.Context, parent *harness.Agent, all, fence bool) error {

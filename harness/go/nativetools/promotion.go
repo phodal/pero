@@ -41,6 +41,16 @@ func (s *shellTasks) promote(ctx context.Context, task *shellTask) (bool, error)
 	if settled || already {
 		return already, nil
 	}
+	activity, err := s.subagents.RetainBackgroundActivity(task.parent)
+	if err != nil {
+		return false, err
+	}
+	retained := false
+	defer func() {
+		if !retained {
+			activity.Release(nil)
+		}
+	}()
 	promotion := shellTaskPromotion{Version: 1, ID: task.intent.ID, Owner: task.intent.Owner}
 	if s.timingPolicy.mode == BashInteractive {
 		promotion.NoDeadline = true
@@ -56,6 +66,8 @@ func (s *shellTasks) promote(ctx context.Context, task *shellTask) (bool, error)
 	task.mu.Lock()
 	task.promotion = &promotion
 	task.mu.Unlock()
+	task.activity = activity
+	retained = true
 	if !promotion.NoDeadline {
 		task.deadline = time.AfterFunc(time.Duration(promotion.TimeoutMS)*time.Millisecond, func() { task.cancel(shell.ErrTimeout) })
 	}
