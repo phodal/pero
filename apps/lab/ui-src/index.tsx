@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { appObjectProps, downloadFile, useAppApi, useAppChat, useAppDataChanged, useAppObject } from '@pero/app-sdk';
-import { Button, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { Button, Icon, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import type { Comparison, Engine, Experiment, LabState, Protocol } from './types';
 import { bytesToBase64, exampleProtocol, trialLabel } from './presentation';
 import { Deck } from './deck';
@@ -106,6 +106,9 @@ export default function Lab() {
     setParentId(trial.id); setReason(''); setDraft(JSON.stringify(trial.protocol, null, 2)); setTab('protocol');
     setNotice('');
   }
+  function startNewExperiment() {
+    selected.current = ''; setExperiment(null); setTrialId(''); setParentId(''); setReason(''); setComparison(null); setError(''); setNotice('');
+  }
   async function importFile(file: File) {
     if (!experiment || !trial) return;
     await perform(async () => {
@@ -131,21 +134,23 @@ export default function Lab() {
     select_tab: { description: 'Show a Lab view.', parameters: { type: 'object', properties: { tab: { enum: ['deck', 'protocol', 'runs', 'results'] } }, required: ['tab'], additionalProperties: false }, run: ({ tab }) => { if (!['deck', 'protocol', 'runs', 'results'].includes(String(tab))) throw new Error('Unknown tab'); setTab(String(tab)); } },
   } });
   return <main className="lab" {...appObjectProps('lab')} aria-busy={loading || busy}>
-    <header className="lab-header"><div><h1>Lab</h1><details className="simulation-details"><summary>Simulation only</summary><p>Illustrative dye model. No physical or biological validation.</p></details></div><div className="toolbar">
-      <Button disabled={busy || loading} onClick={() => { selected.current = ''; setExperiment(null); setTrialId(''); setParentId(''); setReason(''); setComparison(null); setError(''); setNotice(''); }}>New experiment</Button>
+    <header className="lab-header"><div className="app-title"><Icon name="flask" size={18} /><h1>Lab</h1><details className="simulation-details"><summary>Simulation only</summary><p>Illustrative dye model. No physical or biological validation.</p></details></div><div className="toolbar">
+      {experiment && <Button disabled={busy || loading} onClick={startNewExperiment}><Icon name="plus" />New experiment</Button>}
+      <Button className="icon-button" variant="ghost" aria-label="Refresh" title="Refresh" disabled={busy || loading} onClick={() => void perform(refresh)}><Icon name="refresh" /></Button>
       {/* Composing must not mutate the referenced App object while Host verifies its revision. */}
-      <Button disabled={!experiment || busy || loading || running} onClick={() => void chat.compose(`Help with Color Mixing experiment ${experiment!.id}. Read its frozen criteria and lab state using Lab's declared tools. Propose a bounded Protocol IR, validate and simulate with PyLabRobot Chatterbox only, attach explicitly synthetic observations or inspect imported evidence, independently evaluate, then propose a linked revision with a reason based on the discrepancy. Do not change frozen criteria or claim physical validity.`, { attachments: [chat.objectReference('lab')], approveGoal: true }).catch(fail)}>Approve goal and ask Agent</Button>
-      <Button disabled={busy || loading} onClick={() => void perform(refresh)}>Refresh</Button>
+      {experiment ? <Button variant="primary" disabled={busy || loading || running} onClick={() => void chat.compose(`Help with Color Mixing experiment ${experiment.id}. Read its frozen criteria and lab state using Lab's declared tools. Propose a bounded Protocol IR, validate and simulate with PyLabRobot Chatterbox only, attach explicitly synthetic observations or inspect imported evidence, independently evaluate, then propose a linked revision with a reason based on the discrepancy. Do not change frozen criteria or claim physical validity.`, { attachments: [chat.objectReference('lab')], approveGoal: true }).catch(fail)}><Icon name="agent" />Approve goal and ask Agent</Button> : <Button variant="primary" disabled={loading} busy={busy} onClick={() => void freeze()}><Icon name="lock" />Freeze experiment</Button>}
     </div></header>
-    {error && <div className="error" role="alert">{error} <Button onClick={() => void perform(refresh)} disabled={busy}>Retry connection</Button></div>}
-    {notice && <p className="notice" role="status">{notice}</p>}
-    {loading ? <p role="status">Loading saved experiments…</p> : <>
-      <div className="context-row"><label>Saved experiments <select aria-label="Saved experiments" value={experiment?.id ?? ''} disabled={busy} onChange={event => { if (event.target.value) void open(event.target.value); }}><option value="">New experiment</option>{history.map(item => <option value={item.id} key={item.id}>{item.objective} ({item.trials.length} trials)</option>)}</select></label>
-        <span className={engine?.available ? 'muted' : 'error'}>{engine?.name ?? 'Backend'} {engine?.version ?? ''}: {engine?.available ? 'Ready' : 'Unavailable'}</span></div>
-      {engine?.error && <p className="error">{engine.error}</p>}
-      {!experiment ? <Split className="setup-layout" storageKey="lab.setup.panes" collapseBelow={920}>
-        <SplitPane id="goal" min={300} size={420} resizeLabel="Resize experiment goal">
-          <section className="new-experiment"><h2>Experiment goal</h2>
+    {error && <div className="error app-error" role="alert"><Icon name="alert" />{error} <Button onClick={() => void perform(refresh)} disabled={busy}>Retry connection</Button></div>}
+    {engine?.error && <p className="error app-error">{engine.error}</p>}
+    {!loading && <div className="context-row"><label className="experiment-picker">Experiment<select aria-label="Saved experiments" title={experiment?.objective} value={experiment?.id ?? ''} disabled={busy} onChange={event => { if (event.target.value) void open(event.target.value); else startNewExperiment(); }}><option value="">New experiment</option>{history.map(item => <option value={item.id} key={item.id}>{item.objective} ({item.trials.length} trials)</option>)}</select></label>
+      {experiment && <div className="toolbar"><label>Trial<select aria-label="Trial" value={trialId} onChange={event => setTrialId(event.target.value)} disabled={busy}><option value="">Select trial</option>{experiment.trials.map((item, index) => <option value={item.id} key={item.id}>{index + 1}: {item.status}{item.parent_trial_id ? ' (revision)' : ''}</option>)}</select></label><Button variant="ghost" disabled={busy} onClick={() => void perform(async () => { const report = await api.get<unknown>(`/api/experiments/${experiment.id}/export`); downloadFile(`lab-${experiment.id}.json`, JSON.stringify(report, null, 2), 'application/json'); setNotice('Evidence report exported.'); })}><Icon name="export" />Export JSON</Button></div>}
+    </div>}
+    {experiment && <div className="experiment-summary"><span className="frozen-label"><Icon name="lock" size={12} />Frozen</span><span>{experiment.criteria.target_well}</span><span>{experiment.criteria.target_volume_ul} ± {experiment.criteria.volume_tolerance_ul} µL</span><span>Red fraction {experiment.criteria.target_fraction} ± {experiment.criteria.tolerance}</span><span>{experiment.trials.length}/{experiment.max_trials} trials</span></div>}
+    <div className="lab-workspace">
+    {loading ? <p className="empty" role="status">Loading saved experiments…</p> : <>
+      {!experiment ? <Split className="setup-layout" storageKey="lab.setup.workbench.panes" collapseBelow={820}>
+        <SplitPane id="goal" className="goal-pane" min={300} size={320} resizeLabel="Resize experiment goal">
+          <section className="new-experiment"><h2><Icon name="target" />Experiment goal</h2>
             <label>Objective<textarea className="objective-input" rows={2} value={objective} maxLength={500} disabled={busy} onChange={event => setObjective(event.target.value)} /></label>
             <div className="fields">
               <label>Target red fraction<input type="number" min="0" max="1" step="0.01" value={target} disabled={busy} onChange={event => setTarget(event.target.value)} /></label>
@@ -153,32 +158,29 @@ export default function Lab() {
             </div>
             <label>Maximum trials<input type="number" min="1" max="8" value={budget} disabled={busy} onChange={event => setBudget(event.target.value)} /></label>
             <dl className="facts goal-facts"><dt>Target well</dt><dd>B1</dd><dt>Final volume</dt><dd>100 ± 1 µL</dd><dt>Step limit</dt><dd>64 per trial</dd></dl>
-            <div className="goal-actions"><Button variant="primary" busy={busy} onClick={() => void freeze()}>Freeze experiment</Button></div>
           </section>
         </SplitPane>
-        <SplitPane id="initial-deck" min={460}>{initialState ? <Deck state={initialState} preview compact title="Initial deck" /> : <p className="muted">Preview unavailable. Refresh to retry.</p>}</SplitPane>
+        <SplitPane id="initial-deck" className="initial-deck-pane" min={460}>{initialState ? <Deck state={initialState} preview compact title="Initial deck" /> : <p className="empty">Preview unavailable. Refresh to retry.</p>}</SplitPane>
       </Split> : <>
-        <section className="experiment-heading"><h2>{experiment.objective}</h2><p className="muted experiment-summary"><span className="candidate-status">Frozen</span><span>{experiment.criteria.target_well}</span><span>{experiment.criteria.target_volume_ul} ± {experiment.criteria.volume_tolerance_ul} µL</span><span>Red fraction {experiment.criteria.target_fraction} ± {experiment.criteria.tolerance}</span><span>{experiment.trials.length}/{experiment.max_trials} trials</span></p>
-          <div className="toolbar"><label>Trial <select aria-label="Trial" value={trialId} onChange={event => setTrialId(event.target.value)} disabled={busy}><option value="">Select trial</option>{experiment.trials.map((item, index) => <option value={item.id} key={item.id}>{index + 1}: {item.status}{item.parent_trial_id ? ' (revision)' : ''}</option>)}</select></label>
-          <Button disabled={busy} onClick={() => void perform(async () => { const report = await api.get<unknown>(`/api/experiments/${experiment.id}/export`); downloadFile(`lab-${experiment.id}.json`, JSON.stringify(report, null, 2), 'application/json'); setNotice('Evidence report exported.'); })}>Export JSON</Button></div>
-        </section>
-        <Tabs value={tab} onValueChange={setTab}><TabsList aria-label="Experiment views">{['deck', 'protocol', 'runs', 'results'].map(value => <TabsTrigger key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</TabsTrigger>)}</TabsList>
-          <TabsContent value="deck"><Deck state={trial?.final_state ?? experiment.initial_state} /></TabsContent>
-          <TabsContent value="protocol"><Split className="protocol-layout" storageKey="lab.protocol.panes" collapseBelow={980}>
-            <SplitPane id="draft" min={360}>
+        <Tabs className="experiment-tabs" value={tab} onValueChange={setTab}><TabsList aria-label="Experiment views">{['deck', 'protocol', 'runs', 'results'].map(value => <TabsTrigger key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</TabsTrigger>)}</TabsList>
+          <TabsContent className="workbench-panel" value="deck"><Deck state={trial?.final_state ?? experiment.initial_state} /></TabsContent>
+          <TabsContent className="workbench-panel" value="protocol"><Split className="protocol-layout" storageKey="lab.protocol.workbench.panes" collapseBelow={940}>
+            <SplitPane id="draft" className="draft-pane" min={480}>
               <ProtocolEditor heading={parentId ? 'Revision draft' : 'Candidate draft'} value={draft} onChange={setDraft} disabled={busy || running} state={experiment.initial_state} maxSteps={experiment.max_steps} />
-              {parentId && <p className="muted">Revises {trialLabel(experiment.trials, parentId)}</p>}
-              <details className="candidate-rationale" key={parentId || 'candidate'} open={!!parentId}><summary>{parentId ? 'Revision rationale (required)' : 'Candidate rationale'}</summary><input aria-label={parentId ? 'Revision rationale' : 'Candidate rationale'} value={reason} onChange={event => setReason(event.target.value)} disabled={busy || running} required={!!parentId} /></details>
-              <div className="toolbar"><Button variant="primary" disabled={busy || running || experiment.trials.length >= experiment.max_trials || (!!parentId && !reason.trim())} onClick={() => void propose()}>Save candidate</Button><Button disabled={busy || running} onClick={() => { setDraft(JSON.stringify(exampleProtocol(50, experiment.initial_state.revision), null, 2)); }}>Load example protocol</Button></div>
-              {experiment.trials.length >= experiment.max_trials && <p className="notice">Trial limit reached. Start a new experiment.</p>}
+              <div className="draft-footer">
+                {parentId && <p className="muted">Revises {trialLabel(experiment.trials, parentId)}</p>}
+                <details className="candidate-rationale" key={parentId || 'candidate'} open={!!parentId}><summary>{parentId ? 'Revision rationale (required)' : 'Candidate rationale'}</summary><input aria-label={parentId ? 'Revision rationale' : 'Candidate rationale'} value={reason} onChange={event => setReason(event.target.value)} disabled={busy || running} required={!!parentId} /></details>
+                <div className="toolbar save-toolbar"><Button disabled={busy || running} onClick={() => { setDraft(JSON.stringify(exampleProtocol(50, experiment.initial_state.revision), null, 2)); }}>Load example protocol</Button><Button variant="primary" disabled={busy || running || experiment.trials.length >= experiment.max_trials || (!!parentId && !reason.trim())} onClick={() => void propose()}><Icon name="save" />Save candidate</Button></div>
+                {experiment.trials.length >= experiment.max_trials && <p className="notice">Trial limit reached. Start a new experiment.</p>}
+              </div>
             </SplitPane>
-            <SplitPane id="candidate" min={460} size={520} resizeLabel="Resize saved candidate and deck">
-              <section className="saved-candidate"><div className="section-toolbar"><h2>Saved candidate</h2>{trial && <span className="candidate-status">{trial.status}</span>}</div>
+            <SplitPane id="candidate" className="candidate-pane" min={380} size={440} resizeLabel="Resize saved candidate and deck">
+              <section className="saved-candidate"><div className="section-toolbar"><h2><Icon name="document" />Saved candidate</h2>{trial && <span className="candidate-status">{trial.status}</span>}</div>
                 {!trial ? <p className="muted">No candidate saved.</p> : <>
                   <p className="candidate-title">{trialLabel(experiment.trials, trial.id)}</p>
                   <details><summary>{trial.protocol.steps.length} saved steps</summary><p className="muted">{trial.reason}</p><ol className="steps">{trial.protocol.steps.map((step, i) => <li key={i}>{describeStep(step)}</li>)}</ol></details>
                   {trial.error && <p className="error" role="alert">{trial.error}</p>}
-                  <div className="toolbar"><Button disabled={busy || running || trial.status !== 'proposed'} onClick={() => void act('validate')}>Validate</Button><Button variant="primary" disabled={busy || running || trial.status !== 'validated' || !engine?.available} onClick={() => void act('simulate')}>Run simulation</Button><Button disabled={busy || running || !trial.verification} onClick={revise}>Revise candidate</Button></div>
+                  <div className="toolbar"><Button disabled={busy || running || trial.status !== 'proposed'} onClick={() => void act('validate')}><Icon name="check" />Validate</Button><Button variant="primary" disabled={busy || running || trial.status !== 'validated' || !engine?.available} onClick={() => void act('simulate')}><Icon name="play" />Run simulation</Button><Button disabled={busy || running || !trial.verification} onClick={revise}>Revise candidate</Button></div>
                 </>}
               </section>
               <Deck compact state={experiment.initial_state} title="Initial deck" />
@@ -196,5 +198,7 @@ export default function Lab() {
         </Tabs>
       </>}
     </>}
+    </div>
+    <footer className="lab-statusbar"><span className={engine?.available ? 'engine-status' : 'error'}><Icon name="circuit" size={12} />{engine?.name ?? 'Backend'} {engine?.version ?? ''}: {loading ? 'Connecting' : engine?.available ? 'Ready' : 'Unavailable'}</span><span className="status-message" role="status">{busy ? 'Working…' : notice || (running ? 'Simulation running…' : '')}</span></footer>
   </main>;
 }
