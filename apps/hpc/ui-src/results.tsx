@@ -51,9 +51,8 @@ export function RunEvidence({ run, t, busy, exporting, onVerify, onCancel, onExp
 }) {
   const active = run.status === "running" || Boolean(run.operation);
   return <section className="run-evidence" aria-label={t("details")}>
-    <div className="section-heading"><div><h2>{run.benchmarkName}</h2>
+    <div className="section-heading">
       <dl className="run-overview"><div><dt>{t("status")}</dt><dd><Status value={run.status} t={t} /></dd></div><div><dt>{t("elapsed")}</dt><dd>{number(run.elapsedSeconds)}</dd></div></dl>
-    </div>
       <div className="toolbar">
         {run.status === "running" && <button disabled={busy} onClick={onCancel}>{t("cancel")}</button>}
         <button disabled={busy || active || !run.artifacts.length} onClick={onVerify}>{run.operation === "verify" ? t("verifying") : t("verify")}</button>

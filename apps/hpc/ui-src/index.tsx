@@ -155,12 +155,12 @@ export default function HpcBenchmarks() {
     {data && !data.runtime.reframeAvailable && <div className="feedback feedback-warning" role="status"><span>{data.runtime.message}</span><button onClick={() => void initialize()}>{t("reload")}</button></div>}
     {loading ? <main className="loading" role="status">{t("loading")}</main> : <main className="content">
         <div className="method-picker">
-          <label htmlFor="benchmark-method">{t("method")}</label>
+          <label htmlFor="benchmark-method" className="visually-hidden">{t("method")}</label>
           <select id="benchmark-method" aria-label={t("methods")} value={selectedBenchmark?.id ?? ""} disabled={!data?.benchmarks.length} onChange={event => {
             const benchmark = data?.benchmarks.find(item => item.id === event.target.value);
             if (benchmark) chooseBenchmark(benchmark);
           }}>{data?.benchmarks.map(benchmark => <option key={benchmark.id} value={benchmark.id}>{benchmark.name}{!benchmark.available ? ` (${t("unavailable")})` : ""}</option>)}</select>
-          {selectedBenchmark && <span className="muted">{t("version")} {selectedBenchmark.version}</span>}
+          {selectedBenchmark && <span className="muted">{selectedBenchmark.version}</span>}
         </div>
         <Tabs value={tab} onValueChange={setTab} className="content-tabs"><TabsList><TabsTrigger value="method">{t("method")}</TabsTrigger><TabsTrigger value="runs">{t("results")}</TabsTrigger><TabsTrigger value="compare">{t("compare")}{chosen.length ? ` (${chosen.length})` : ""}</TabsTrigger></TabsList>
           <TabsContent value="method" className="method-content">
@@ -168,7 +168,7 @@ export default function HpcBenchmarks() {
           </TabsContent>
           <TabsContent value="runs" className="runs-content">
             {selectedRun && <>
-              <div className="run-picker"><label htmlFor="saved-run">{t("savedRun")}</label><select id="saved-run" value={selectedRun.id} onChange={event => {
+              <div className="run-picker"><label htmlFor="saved-run" className="visually-hidden">{t("savedRun")}</label><select id="saved-run" value={selectedRun.id} onChange={event => {
                 const run = data?.runs.find(item => item.id === event.target.value);
                 if (run) void openRun(run).catch(onError);
               }}>{data?.runs.map(run => <option key={run.id} value={run.id}>{new Date(run.createdAt).toLocaleString()} — {run.benchmarkName}</option>)}</select></div>

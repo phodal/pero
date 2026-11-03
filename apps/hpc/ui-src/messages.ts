@@ -18,6 +18,7 @@ export const messages = {
   compare: { en: "Compare", zh: "比较" },
   version: { en: "Version", zh: "版本" },
   environment: { en: "Environment", zh: "环境" },
+  specification: { en: "Specification", zh: "方法规格" },
   parameters: { en: "Fixed inputs", zh: "固定输入" },
   criteria: { en: "Acceptance rules", zh: "验收规则" },
   run: { en: "Run local reference", zh: "运行本地参考" },

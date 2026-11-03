@@ -41,17 +41,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .method-layout { flex: none; }
 .specification { padding-right: 12px; }
 .acceptance-rules { padding-left: 12px; }
-.method-description { margin-bottom: 12px; }
-.method-formula { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; min-height: 104px; padding: 12px; margin-bottom: 12px; background: var(--pero-bg); font-size: 24px; overflow-wrap: anywhere; }
+.method-formula { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; min-height: 128px; padding: 12px; margin-bottom: 12px; background: var(--pero-bg); color: var(--pero-accent-text); border: 0.5px solid var(--pero-border); border-radius: 4px; font-size: 24px; overflow-wrap: anywhere; }
 .integral-symbol { font-family: math, serif; }
 .integral-limits { display: flex; flex-direction: column; align-self: stretch; justify-content: center; gap: 4px; margin-left: -6px; }
 .integral-limits sub, .integral-limits sup { font-size: 12px; line-height: 1; }
-.specification > h2, .acceptance-rules > h2 { margin-bottom: 8px; }
+.specification > h2, .acceptance-panel > h2 { margin-bottom: 8px; }
+.acceptance-panel { padding: 12px; border: 0.5px solid var(--pero-border); border-radius: 4px; }
 .facts { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 1fr); gap: 0 12px; margin: 0; font-variant-numeric: tabular-nums; }
 .facts dt, .facts dd { padding: 2px 0; line-height: 20px; border-bottom: 0.5px solid var(--pero-border); overflow-wrap: anywhere; }
 .facts dt { color: var(--pero-text-muted); font-size: 12px; }
 .facts dd { margin: 0; text-align: right; }
-.acceptance-rules > .facts { grid-template-columns: minmax(0, 1fr) auto; }
+.acceptance-panel > .facts { grid-template-columns: minmax(0, 1fr) auto; }
+.acceptance-panel .facts dd { font-weight: 600; }
 .acceptance-rules details { font-size: 12px; }
 .method-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; border-top: 0.5px solid var(--pero-border); padding-top: 12px; margin-top: 12px; }
 .runtime-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
@@ -83,7 +84,7 @@ tr.selected { background: var(--pero-surface-muted); }
 .status-running { color: var(--pero-info); }
 .status-incomplete, .status-interrupted { color: var(--pero-warning); }
 .status-pending, .status-cancelled { color: var(--pero-text-muted); }
-.run-overview { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 4px 0 0; font-size: 12px; }
+.run-overview { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; font-size: 12px; }
 .run-overview > div { display: flex; gap: 6px; }
 .run-overview dt { color: var(--pero-text-muted); }
 .run-overview dd { margin: 0; font-variant-numeric: tabular-nums; }
