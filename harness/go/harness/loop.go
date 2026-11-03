@@ -819,6 +819,33 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 		}
 		concluded = concluded || outcome.Result.ConcludesTurn
 	}
+	if a.hooks != nil && a.hooks.PostToolBatch != nil {
+		batch := ToolBatchInput{Agent: a, Calls: make([]ToolBatchCall, len(outcomes))}
+		for index, outcome := range outcomes {
+			batch.Calls[index] = ToolBatchCall{
+				Name: outcome.Request.Name, ToolCallID: outcome.Request.CallID,
+				Input: append(json.RawMessage(nil), outcome.Request.Arguments...), Response: serializedToolResponse(blocks[index].Content),
+			}
+		}
+		batch, err := a.hooks.PostToolBatch.Run(ctx, batch, func(_ context.Context, value ToolBatchInput) (ToolBatchInput, error) { return value, nil })
+		if err != nil {
+			return false, err
+		}
+		notice := strings.TrimSpace(batch.Reason + "\n" + batch.Context)
+		if notice != "" {
+			source, err := json.Marshal(struct {
+				Kind  string `json:"kind"`
+				Event string `json:"event"`
+			}{"post-tool-batch", "PostToolBatch"})
+			if err != nil {
+				return false, err
+			}
+			deferred = append(deferred, DeferredContext{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: notice}}, Source: source})
+		}
+		if batch.Stop {
+			concluded = true
+		}
+	}
 	// OpenAI-compatible histories require every result for one assistant tool
 	// batch to remain contiguous. Deferred user context is therefore committed
 	// only after all results, while preserving call and context order.
@@ -833,6 +860,20 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 		}
 	}
 	return concluded, nil
+}
+
+func serializedToolResponse(blocks []ContentBlock) json.RawMessage {
+	if len(blocks) == 1 && blocks[0].Type == BlockText {
+		raw, err := json.Marshal(blocks[0].Text)
+		if err == nil {
+			return raw
+		}
+	}
+	raw, err := json.Marshal(blocks)
+	if err != nil {
+		return []byte("null")
+	}
+	return raw
 }
 
 func (a *Agent) toolExecutionMode(ctx context.Context, call ContentBlock) ExecutionMode {

@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"sync/atomic"
 
@@ -129,6 +130,24 @@ type InboxDiscardedInput struct {
 	UserAuthored bool
 }
 
+// ToolBatchCall is one resolved call in an assistant tool batch.
+type ToolBatchCall struct {
+	Name       string          `json:"tool_name"`
+	ToolCallID ToolCallID      `json:"tool_use_id"`
+	Input      json.RawMessage `json:"tool_input"`
+	Response   json.RawMessage `json:"tool_response"`
+}
+
+// ToolBatchInput is the resolved assistant tool batch. Listeners may add one
+// notice and stop the loop before the next model call.
+type ToolBatchInput struct {
+	Agent   *Agent
+	Calls   []ToolBatchCall
+	Context string
+	Reason  string
+	Stop    bool
+}
+
 type AgentHooks struct {
 	// MainRequest observes only an admitted, prepared loop dispatch after its
 	// durable header fold. Its receipt is valid only during this notification.
@@ -139,6 +158,8 @@ type AgentHooks struct {
 	TurnStopping *point.Signal[TurnStoppingInput]
 	PreCompact   *point.Pipeline[CompactionHookInput]
 	PostCompact  *point.Pipeline[CompactionHookInput]
+	// PostToolBatch runs once after every tool call in one assistant batch.
+	PostToolBatch *point.Pipeline[ToolBatchInput]
 	// Error is a contained lifecycle notification. The loop never replaces the
 	// original turn failure with a listener failure.
 	Error     *point.Signal[AgentErrorInput]
@@ -170,6 +191,7 @@ func NewAgentHooks(runtime *point.Runtime) *AgentHooks {
 		TurnStopping:      point.NewSignal[TurnStoppingInput](runtime, "harness/agent/turn-stopping"),
 		PreCompact:        point.NewPipeline[CompactionHookInput](runtime, "harness/agent/pre-compact"),
 		PostCompact:       point.NewPipeline[CompactionHookInput](runtime, "harness/agent/post-compact"),
+		PostToolBatch:     point.NewPipeline[ToolBatchInput](runtime, "harness/agent/post-tool-batch"),
 		Error:             point.NewSignal[AgentErrorInput](runtime, "harness/agent/error"),
 		Status:            point.NewSignal[AgentStatusInput](runtime, "harness/agent/status"),
 		Published:         point.NewSignal[*Agent](runtime, "harness/agent/published"),

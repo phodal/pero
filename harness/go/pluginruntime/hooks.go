@@ -78,7 +78,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove":
+			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}
@@ -176,6 +176,17 @@ func (app *HookApp) register(run *point.Run) error {
 			return request, err
 		}
 		return next(request)
+	}); err != nil {
+		return err
+	}
+	if _, err := hooks.PostToolBatch.Use(run, func(ctx context.Context, input harness.ToolBatchInput, next point.Next[harness.ToolBatchInput]) (harness.ToolBatchInput, error) {
+		err := app.withAgent(ctx, input.Agent, func(ctx context.Context, _ *hookAgentState) error {
+			return app.afterToolBatch(ctx, &input)
+		})
+		if err != nil {
+			return input, err
+		}
+		return next(input)
 	}); err != nil {
 		return err
 	}
