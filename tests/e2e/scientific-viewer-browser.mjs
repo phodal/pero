@@ -36,6 +36,16 @@ if (process.argv.includes('--serve')) {
     await example('solvents.smi');
     await expect(app.getByRole('img', { name: 'Molecule 1', exact: true })).toBeVisible({ timeout: 30000 });
     await expect(app.getByRole('button', { name: /^Select Molecule / })).toHaveCount(3);
+    // Shared illustration CSS must never position imported structures over the workbench.
+    for (let index = 1; index <= 3; index++) {
+      const card = await app.getByRole('button', { name: `Select Molecule ${index}`, exact: true }).boundingBox();
+      const image = await app.getByRole('img', { name: `Molecule ${index}`, exact: true }).boundingBox();
+      expect(image.x).toBeGreaterThanOrEqual(card.x);
+      expect(image.y).toBeGreaterThanOrEqual(card.y);
+      expect(image.x + image.width).toBeLessThanOrEqual(card.x + card.width + 1);
+      expect(image.y + image.height).toBeLessThanOrEqual(card.y + card.height + 1);
+    }
+    await app.getByRole('button', { name: 'Select Molecule 3', exact: true }).click();
     const ethanol = app.getByRole('button', { name: 'Select Molecule 2', exact: true });
     await ethanol.focus(); await page.keyboard.press('Enter');
     await expect(ethanol).toHaveAttribute('aria-pressed', 'true');
@@ -48,6 +58,7 @@ if (process.argv.includes('--serve')) {
     await separator.focus(); const before = await separator.getAttribute('aria-valuenow');
     await page.keyboard.press('ArrowLeft');
     await expect(separator).not.toHaveAttribute('aria-valuenow', before);
+    await ethanol.click();
     await noOverflow(); await capture('molecules-light');
     checks.push('Real RDKit structures and selected ethanol descriptors; keyboard selection and SDK splitter');
 

@@ -33,40 +33,40 @@ export function Molecules({ asset }: { asset: Asset }) {
     return () => { generation.current++; };
   }, [asset, api, retry]);
   const current = rows[selected], invalid = rows.filter(row => row.error).length;
-  return <section className="molecule-workspace" aria-label="Molecules">
-    <header className="molecule-section-heading">
+  return <section className="sv-molecule-workspace" aria-label="Molecules">
+    <header className="sv-molecule-section-heading">
       <h2>Molecules</h2>
-      {status === 'ready' && <p className="molecule-count">{rows.length} {rows.length === 1 ? 'record' : 'records'}{invalid > 0 && <><span>{rows.length - invalid} rendered</span><span className="molecule-invalid-count">{invalid} invalid</span></>}<span>{format}</span></p>}
+      {status === 'ready' && <p className="sv-molecule-count">{rows.length} {rows.length === 1 ? 'record' : 'records'}{invalid > 0 && <><span>{rows.length - invalid} rendered</span><span className="sv-molecule-invalid-count">{invalid} invalid</span></>}<span>{format}</span></p>}
     </header>
     {error && <p role="alert">{error}</p>}
-    {status === 'loading' && <div className="molecule-load-state"><p role="status">Preparing molecule preview…</p><button onClick={() => { generation.current++; setStatus('stopped'); }}>Stop waiting</button></div>}
+    {status === 'loading' && <div className="sv-molecule-load-state"><p role="status">Preparing molecule preview…</p><button onClick={() => { generation.current++; setStatus('stopped'); }}>Stop waiting</button></div>}
     {status === 'stopped' && <p role="status">Result discarded. The bounded local calculation may still finish.</p>}
     {(status === 'failed' || status === 'stopped') && <div><button onClick={() => setRetry(value => value + 1)}>Retry molecule preview</button></div>}
-    {rows.length > 0 && <Split className="molecule-layout" storageKey="scientific-viewer.molecule-panes" collapseBelow={720}>
-      <SplitPane as="section" id="molecule-gallery" aria-label="Molecule structures" min={320} className="molecule-gallery">
-        <div className="molecule-grid">
-          {rows.map((row, index) => <article className="molecule-card" key={index} data-status={row.error ? 'invalid' : 'ready'} data-selected={selected === index ? '' : undefined}>
-            <button className="molecule-select" aria-label={`Select Molecule ${index + 1}`} aria-pressed={selected === index} onClick={() => setSelected(index)}>
-              <span className="molecule-card-title"><span>Molecule {index + 1}</span>{selected === index && <span className="molecule-selected-label">Selected</span>}</span>
-              <span className="molecule-canvas">{row.error ? <span className="molecule-unavailable">No structure</span> : <img alt={`Molecule ${index + 1}`} src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(row.svg!)}`} />}</span>
-              {format === 'SMILES' && <code className="molecule-input-preview">{row.input}</code>}
+    {rows.length > 0 && <Split className="sv-molecule-layout" storageKey="scientific-viewer.sv-molecule-panes" collapseBelow={720}>
+      <SplitPane as="section" id="sv-molecule-gallery" aria-label="Molecule structures" min={320} className="sv-molecule-gallery">
+        <div className="sv-molecule-grid">
+          {rows.map((row, index) => <article className="sv-molecule-card" key={index} data-status={row.error ? 'invalid' : 'ready'} data-selected={selected === index ? '' : undefined}>
+            <button className="sv-molecule-select" aria-label={`Select Molecule ${index + 1}`} aria-pressed={selected === index} onClick={() => setSelected(index)}>
+              <span className="sv-molecule-card-title"><span>Molecule {index + 1}</span>{selected === index && <span className="sv-molecule-selected-label">Selected</span>}</span>
+              <span className="sv-molecule-canvas">{row.error ? <span className="sv-molecule-unavailable">No structure</span> : <img alt={`Molecule ${index + 1}`} src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(row.svg!)}`} />}</span>
+              {format === 'SMILES' && <code className="sv-molecule-input-preview">{row.input}</code>}
             </button>
-            {row.error && <p className="molecule-record-error" role="alert">{row.error}</p>}
+            {row.error && <p className="sv-molecule-record-error" role="alert">{row.error}</p>}
           </article>)}
         </div>
       </SplitPane>
-      <SplitPane as="aside" id="molecule-details" aria-label="Molecule details" min={240} size={280} resizeLabel="Resize molecule details" className="molecule-inspector">
+      <SplitPane as="aside" id="sv-molecule-details" aria-label="Molecule details" min={240} size={280} resizeLabel="Resize molecule details" className="sv-molecule-inspector">
         {current && <>
           <h3>Molecule {selected + 1}</h3>
-          {format === 'SMILES' ? <dl className="molecule-source"><dt>SMILES</dt><dd><code>{current.input}</code></dd></dl> : <details className="molecule-source-record"><summary>Source record ({format})</summary><pre>{current.input}</pre></details>}
-          {current.error ? <p className="molecule-invalid-details">Descriptors unavailable for this record.</p> : <section aria-label="Computed descriptors" className="molecule-properties">
+          {format === 'SMILES' ? <dl className="sv-molecule-source"><dt>SMILES</dt><dd><code>{current.input}</code></dd></dl> : <details className="sv-molecule-source-record"><summary>Source record ({format})</summary><pre>{current.input}</pre></details>}
+          {current.error ? <p className="sv-molecule-invalid-details">Descriptors unavailable for this record.</p> : <section aria-label="Computed descriptors" className="sv-molecule-properties">
             <h4>Computed descriptors</h4>
             <dl>{Object.entries(current.descriptors ?? {}).map(([key, value]) => {
               const descriptor = descriptorLabels[key];
-              return <React.Fragment key={key}><dt>{descriptor?.label ?? key}</dt><dd><span title={String(value)}>{Number.isInteger(value) ? value : Number(value.toPrecision(7))}</span>{descriptor?.unit && <span className="molecule-unit"> {descriptor.unit}</span>}</dd></React.Fragment>;
+              return <React.Fragment key={key}><dt>{descriptor?.label ?? key}</dt><dd><span title={String(value)}>{Number.isInteger(value) ? value : Number(value.toPrecision(7))}</span>{descriptor?.unit && <span className="sv-molecule-unit"> {descriptor.unit}</span>}</dd></React.Fragment>;
             })}</dl>
           </section>}
-          <div className="molecule-calculation-note"><p>{engine}</p><p>Computed values, not scientifically verified.</p></div>
+          <div className="sv-molecule-calculation-note"><p>{engine}</p><p>Computed values, not scientifically verified.</p></div>
         </>}
       </SplitPane>
     </Split>}
