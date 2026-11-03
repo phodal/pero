@@ -139,7 +139,7 @@ func TestSettingsHookOnceDoesNotLimitExecution(t *testing.T) {
 		t.Fatalf("packages=%v error=%v", packages, err)
 	}
 	hook := packages[0].Hooks[0]
-	if hook.Once || hook.Shell != "bash" || hook.Command != "true" {
+	if hook.Once || hook.Shell != "bash" || hook.StatusMessage != "Checking" || hook.Command != "true" {
 		t.Fatalf("settings hook = %+v", hook)
 	}
 }

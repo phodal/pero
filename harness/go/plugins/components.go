@@ -469,7 +469,11 @@ func parseComponentHooks(path string, node *yaml.Node) ([]claudehooks.Hook, []Di
 					diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks.shell", Message: "Hook shell must be bash or powershell."})
 					continue
 				}
-				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure, Shell: handler.Shell}
+				if len(handler.StatusMessage) > 256 {
+					diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks.statusMessage", Message: "Hook statusMessage must be at most 256 bytes."})
+					continue
+				}
+				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure, Shell: handler.Shell, StatusMessage: handler.StatusMessage}
 				if len(handler.Args) > 0 {
 					hook.ExecForm = true
 					hook.Args = append([]string{}, handler.Args...)

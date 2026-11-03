@@ -42,6 +42,9 @@ type HookOptions struct {
 	ReloadSkills func(context.Context) error
 	// EmitTerminal writes one hook terminalSequence to the controlling terminal.
 	EmitTerminal func(string)
+	// ReportStatus shows a hook statusMessage while that hook runs. An empty
+	// message clears it.
+	ReportStatus func(*harness.Agent, string)
 }
 
 type HookApp struct {
@@ -715,25 +718,10 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 		}
 		runner := claudehooks.Runner{Shell: app.options.Shell, Environment: environment}
 		var decision claudehooks.Decision
-		if hook.Agent {
-			if !claudehooks.PromptHookAllowed(input.Event) || input.Event == "PermissionRequest" {
-				continue
-			}
-			decision, err = app.runAgentHook(ctx, agent, hook, input)
-		} else if hook.MCPTool != "" {
-			if input.Event == "Setup" || input.Event == "SessionStart" && input.Source != "compact" {
-				continue
-			}
-			decision, err = app.runMCPHook(ctx, agent, selected.plugin, hook, input)
-		} else if hook.Prompt != "" {
-			if !claudehooks.PromptHookAllowed(input.Event) {
-				continue
-			}
-			decision, err = app.runPromptHook(ctx, agent, hook, input)
-		} else if hook.URL != "" {
-			decision, err = runner.Post(ctx, hook, input)
-		} else {
-			decision, err = runner.Run(ctx, hook, input)
+		var ran bool
+		decision, err, ran = app.executeHook(ctx, agent, selected.plugin, hook, input, runner)
+		if !ran {
+			continue
 		}
 		if selected.onceID != "" && hook.Once && err == nil && !decision.Block {
 			app.retireSkillHook(agent, selected.onceID)

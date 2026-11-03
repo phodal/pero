@@ -31,6 +31,8 @@ type Hook struct {
 	// Shell is "" (the runner shell), "bash", or "powershell". It applies only
 	// to shell-form commands. Settings hooks ignore Once; skill frontmatter does not.
 	Shell string
+	// StatusMessage is shown while this hook runs and cleared when it finishes.
+	StatusMessage string
 	// URL selects an HTTP hook. Command and Args are unused.
 	URL            string
 	Headers        map[string]string
