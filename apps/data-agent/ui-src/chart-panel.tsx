@@ -100,10 +100,9 @@ export function ChartPanel({data,busy,aggregationControls,onActivate}:{data:Resu
     </div>}
     {pending&&<p role="status">{zh?'正在生成图表…':'Preparing chart…'}</p>}
     {error&&<p role="alert" className="data-chart-error">{error}</p>}
-    {data&&!result&&!pending&&!error&&<p className="data-muted">{mode==='aggregate'?(zh?'选择分组字段以生成图表。':'Choose a grouping field to create a chart.'):(zh?'选择字段后生成图表。':'Choose fields, then create a chart.')}</p>}
+    {data&&!result&&!pending&&!error&&<p className="data-muted">{mode==='aggregate'?(zh?'选择分组字段。':'Choose a grouping field.'):(zh?'选择图表字段。':'Choose chart fields.')}</p>}
     {result&&<>
       <div className="data-chart-result-heading"><h3>{result.document.title}</h3><div className="data-chart-actions"><Button onClick={()=>downloadFile(`${result.document.id||'chart'}.json`,result.content,'application/json')}>{zh?'导出图表 JSON':'Export chart JSON'}</Button>{result.document.source.dataset&&<Button onClick={()=>void showSource().catch(reason=>setError(String(reason)))}>{zh?'打开来源':'Open source'}</Button>}</div></div>
-      {result.document.description&&<p>{result.document.description}</p>}
       {(result.document.chart.xLabel||result.document.chart.yLabel)&&<p>{[result.document.chart.xLabel,result.document.chart.yLabel].filter(Boolean).join(' / ')}</p>}
       <ChartSurface document={result.document}/>
       <div className="data-chart-notes">
@@ -114,6 +113,7 @@ export function ChartPanel({data,busy,aggregationControls,onActivate}:{data:Resu
       </div>
       <details><summary>{zh?'图表数据':'Chart data'} ({result.document.rows.length})</summary><div className="data-chart-table"><table><thead><tr>{columns.map(key=><th key={key} scope="col">{key}</th>)}</tr></thead><tbody>{result.document.rows.map((row,index)=><tr key={index}>{columns.map(key=><td key={key}>{key===result.document.chart.y&&result.document.source.exactValues?.[index]!==undefined?result.document.source.exactValues[index]:row[key]===null?'—':String(row[key]??'—')}</td>)}</tr>)}</tbody></table></div></details>
       <details className="data-chart-source"><summary>{zh?'图表来源':'Chart source'}</summary>
+        {result.document.description&&<p>{result.document.description}</p>}
         <p>{zh?'图表摘要':'Chart digest'}: <code>{result.artifactId}</code></p>
         {result.document.source.dataset&&<><p>{zh?'来源摘要':'Source digest'}: <code>{result.document.source.dataset}</code></p><p>{zh?'视图':'View'}: <code>{result.document.source.viewId}</code></p><details><summary>{zh?'筛选和选区':'Filter and selection'}</summary><pre>{JSON.stringify({view:result.document.source.view,aggregation:result.document.source.aggregation},null,2)}</pre></details></>}
         {result.document.source.executedAt&&<p>{result.document.source.executedAt}</p>}{result.document.source.sql&&<details><summary>SQL</summary><pre>{result.document.source.sql}</pre></details>}

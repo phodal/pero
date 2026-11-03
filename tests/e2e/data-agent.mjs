@@ -35,6 +35,20 @@ try{
   await expect(frame.getByRole('button',{name:'Open example',exact:true})).toBeVisible({timeout:20000});
   await frame.getByRole('button',{name:'Open example',exact:true}).click();await expect(frame.locator('.data-grid tbody tr')).toHaveCount(6);
   checks.push('Host launches the real authenticated Python backend and illustrative example');
+  await frame.getByRole('button',{name:'All data',exact:true}).click();
+  await expect(frame.locator('.data-home')).toBeVisible();
+  // Simulate a declared Host write through the real backend and SDK notification seam.
+  await frame.locator('main').evaluate(async()=>{
+    const response=await fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'background.json',content:'[{"background":true}]',format:'json'})});
+    if(!response.ok)throw new Error(await response.text());
+    window.dispatchEvent(new Event('pero:app:data-changed'));
+  });
+  await expect(frame.locator('.data-datasets')).toContainText('background.json');
+  await expect(frame.locator('main')).toHaveAttribute('aria-busy','false');
+  await expect(frame.locator('.data-home')).toBeVisible();
+  await frame.getByRole('button',{name:/^observations\.json/}).click();
+  await expect(frame.locator('.data-grid tbody tr')).toHaveCount(6);
+  checks.push('Background catalog refresh respects All data; an explicit dataset choice returns to the table');
   // The real SDK slot asks the Host to present its existing scoped conversation.
   await frame.getByRole('button',{name:'Open chat',exact:true}).click();
   const slot=frame.locator('[data-pero-chat-slot]');

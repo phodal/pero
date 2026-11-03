@@ -7,9 +7,6 @@ import {ChartPanel} from './chart-panel';
 import './styles.css';
 
 type Example = { id: string; name: string; format: Dataset['format']; records: number; fields: string[] };
-const exampleSummary: Record<string, 'exampleObservations' | 'exampleSeries' | 'examplePrices' | 'exampleFlows'> = {
-  observations: 'exampleObservations', 'response-series': 'exampleSeries', 'price-bars': 'examplePrices', 'region-flows': 'exampleFlows',
-};
 
 export default function DataAgent() {
   const api=useAppApi(),chat=useAppChat(),{t}=useAppI18n(messages);
@@ -19,6 +16,7 @@ export default function DataAgent() {
   const [tab,setTab]=useState('table'),[dragging,setDragging]=useState(false);
   const [filterField,setFilterField]=useState(''),[operator,setOperator]=useState('contains'),[filterValue,setFilterValue]=useState('');
   const request=useRef(0);
+  const homeRequested=useRef(false);
   const view=data?.view||emptyView;
   async function query(dataset: string, next: ViewSpec, offset=0) {
     const id=++request.current;setBusy(true);setError('');
@@ -32,6 +30,7 @@ export default function DataAgent() {
     finally{if(id===request.current)setBusy(false);}
   }
   async function choose(dataset:Dataset) {
+    homeRequested.current=false;
     const numeric=dataset.fields.find(field=>field.kinds.includes('number'));
     const category=dataset.fields.find(field=>field.kinds.includes('string'))||dataset.fields[0];
     const result=await query(dataset.id,{...emptyView,columns:dataset.fields.slice(0,8).map(field=>field.name),chart:category&&numeric?{category:category.name,measure:numeric.name,aggregation:'sum'}:null});
@@ -42,6 +41,7 @@ export default function DataAgent() {
     setError('');
     try { const [listed,value]=await Promise.all([api.get<{examples:Example[]}>('/api/examples'),api.get<{datasets:Dataset[]}>('/api/datasets')]);
       setExamples(listed.examples);setCatalog(value.datasets);
+      if(homeRequested.current)return;
       const current=value.datasets.find(item=>item.id===data?.dataset.id)||value.datasets[0];
       if(current){
         if(data&&current.id===data.dataset.id)await query(current.id,data.view,data.offset);
@@ -112,9 +112,9 @@ export default function DataAgent() {
   const selected=new Set(view.selection);
   const visibleFields=fields.filter(field=>field.name.toLowerCase().includes(fieldSearch.toLowerCase()));
   const picker=<FilePicker label={t('import')} emptyLabel={t('noFile')} accept=".json,.jsonl,.ndjson,application/json" disabled={busy} busy={busy} onFile={importFile}/>;
-  return <AppFrame className="data-agent" label={t('title')} title={!data?t('datasets'):undefined} aria-busy={busy}
+  return <AppFrame className="data-agent" data-screen={data?'dataset':'home'} label={t('title')} title={!data?t('title'):undefined} aria-busy={busy}
     tools={data&&<>
-      <Button variant="ghost" disabled={busy} onClick={()=>{setData(null);setShowChat(false);setError('');}}>{t('allData')}</Button>
+      <Button variant="ghost" disabled={busy} onClick={()=>{homeRequested.current=true;++request.current;setData(null);setBusy(false);setShowChat(false);setError('');}}>{t('allData')}</Button>
       <Select label={t('dataset')} value={data.dataset.id} options={catalog.map(item=>({value:item.id,label:item.name}))} disabled={busy} onChange={id=>{const found=catalog.find(item=>item.id===id);if(found)act(()=>choose(found));}}/>
     </>}
     actions={data&&<>
@@ -127,8 +127,9 @@ export default function DataAgent() {
     {error&&<Feedback kind="error"><span>{error}</span><Button disabled={busy} onClick={()=>{void reload();}}>{t('retry')}</Button></Feedback>}
     {busy&&<p className="data-status" role="status">{t('loading')}</p>}
     {!data?<div className="data-home">
-      <Split className="data-start" storageKey="data-agent.start-split" collapseBelow={740}>
+      <Split className="data-start" storageKey="data-agent.start-split" collapseBelow={820}>
         <SplitPane id="data-import" min={280} className="data-import" as="section">
+          <div className="data-home-panel">
           <h2>{t('importData')}</h2>
           <div className="data-dropzone" data-dragging={dragging||undefined}
             onDragOver={event=>{event.preventDefault();if(!busy)setDragging(true);}}
@@ -138,16 +139,18 @@ export default function DataAgent() {
             <p>{t(dragging?'dropToImport':'dropFile')}</p>
             {picker}
           </div>
+          </div>
         </SplitPane>
-        <SplitPane id="data-examples" min={320} size={440} resizeLabel={t('resizeExamples')} className="data-examples" as="section">
+        <SplitPane id="data-examples" min={320} size={500} resizeLabel={t('resizeExamples')} className="data-examples" as="section">
+          <div className="data-home-panel">
           <h2>{t('examples')}</h2>
           {examples.length?<ul>{examples.map(example=><li key={example.id}>
             <div><h3>{example.name}</h3>
-              {exampleSummary[example.id]&&<p>{t(exampleSummary[example.id])}</p>}
               <span className="data-example-meta">{example.records.toLocaleString()} {t('rows')}, {example.fields.length} {t('fieldCount')}</span>
             </div>
             <Button disabled={busy} aria-label={example.id==='observations'?undefined:`${t('open')} ${example.name}`} onClick={()=>act(()=>openListed(example))}>{t(example.id==='observations'?'example':'open')}</Button>
           </li>)}</ul>:examplesReady&&!error?<p className="data-muted">{t('noExamples')}</p>:!error?<p className="data-muted" role="status">{t('loading')}</p>:null}
+          </div>
         </SplitPane>
       </Split>
       {catalog.length>0&&<section className="data-datasets"><h2>{t('datasets')}</h2><ul>{catalog.map(item=><li key={item.id}>
@@ -183,7 +186,7 @@ export default function DataAgent() {
               <footer className="data-pagination"><span>{data.rows.length?data.offset+1:0}–{data.offset+data.rows.length} / {data.matching.toLocaleString()}</span><Button disabled={busy||data.offset===0} onClick={()=>update(view,Math.max(0,data.offset-50))}>{t('previous')}</Button><Button disabled={busy||data.offset+50>=data.matching} onClick={()=>update(view,data.offset+50)}>{t('next')}</Button>{view.selection.length>0&&<Button disabled={busy} onClick={()=>update({...view,selection:[]},data.offset)}>{t('clearSelection')}</Button>}</footer>
             </TabsContent>
             <TabsContent value="fields" forceMount className="data-tab-panel data-fields">
-              <Toolbar className="data-field-controls"><Input type="search" aria-label={t('findFields')} placeholder={t('findFields')} value={fieldSearch} onChange={event=>setFieldSearch(event.target.value)}/><p>{t('displayLimit')}</p></Toolbar>
+              <Toolbar className="data-field-controls"><Input type="search" aria-label={t('findFields')} placeholder={t('findFields')} value={fieldSearch} onChange={event=>setFieldSearch(event.target.value)}/><p>{view.columns.length} / 32 {t('displayed')}</p></Toolbar>
               <div className="data-fields-table" tabIndex={0} role="region" aria-label={t('quality')}><table>
                 <thead><tr><th scope="col">{t('inTable')}</th><th scope="col">{t('field')}</th><th scope="col">{t('type')}</th><th scope="col">{t('nullValues')}</th><th scope="col">{t('missingFields')}</th></tr></thead>
                 <tbody>{visibleFields.map(field=><tr key={field.name}>
@@ -193,7 +196,6 @@ export default function DataAgent() {
               </table>{!visibleFields.length&&<EmptyState heading={t('noFields')}/>}</div>
             </TabsContent>
             <TabsContent value="chart" forceMount className="data-tab-panel data-chart">
-              <p className="data-chart-scope">{t('chartScope')} {view.selection.length?`${view.selection.length} ${t('selected')}`:`${data.matching.toLocaleString()} ${t('matching')}`} {t('rows')}.</p>
               <ChartPanel data={data} busy={busy} onActivate={()=>setTab('chart')} aggregationControls={<>
                 <label className="data-chart-field"><span>{t('category')}</span><Select label={t('category')} value={view.chart?.category||''} options={[{value:'',label:t('category')},...fieldOptions]} disabled={busy} onChange={category=>update({...view,chart:category?{category,measure:view.chart?.measure||fields[0].name,aggregation:view.chart?.aggregation||'count'}:null})}/></label>
                 {view.chart&&<><label className="data-chart-field"><span>{t('measure')}</span><Select label={t('measure')} value={view.chart.measure} options={fieldOptions} disabled={busy} onChange={measure=>update({...view,chart:{...view.chart!,measure}})}/></label><label className="data-chart-field"><span>{t('aggregation')}</span><Select label={t('aggregation')} value={view.chart.aggregation} options={[{value:'sum',label:t('sum')},{value:'count',label:t('count')}]} disabled={busy} onChange={aggregation=>update({...view,chart:{...view.chart!,aggregation}})}/></label></>}
@@ -203,7 +205,7 @@ export default function DataAgent() {
         </SplitPane>
         <SplitPane id="data-conversation" min={280} size={360} resizeLabel={t('resizeChat')} className="data-chat" hidden={!showChat}>{showChat&&<AppConversation fallback={<p role="status">{t('chatUnavailable')}</p>}/>}</SplitPane>
       </Split>
-      <footer className="data-provenance"><details><summary>{t('sourceDetails')}</summary><p>{t('provenance')}: <code>{data.dataset.id}</code></p><p>{data.dataset.bytes.toLocaleString()} bytes</p></details></footer>
+      <footer className="data-provenance"><details><summary>{t('sourceDetails')}</summary><p>{t('provenance')}: <code>{data.dataset.id}</code></p><p>{data.dataset.bytes.toLocaleString()} bytes</p><p>{t('exportFields')}</p></details></footer>
     </>}
   </AppFrame>;
 }
