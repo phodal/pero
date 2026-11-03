@@ -51,6 +51,7 @@ type Input struct {
 	Prompt               string          `json:"prompt,omitempty"`
 	LastAssistantMessage string          `json:"last_assistant_message,omitempty"`
 	Reason               string          `json:"reason,omitempty"`
+	Name                 string          `json:"name,omitempty"`
 	TaskID               string          `json:"task_id,omitempty"`
 	TaskSubject          string          `json:"task_subject,omitempty"`
 	TaskDescription      string          `json:"task_description,omitempty"`
@@ -62,10 +63,13 @@ type Decision struct {
 	AdditionalContext string
 	SystemMessage     string
 	UpdatedInput      json.RawMessage
+	WorktreePath      string
 	Block, Stop       bool
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
+
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`)
 
 type output struct {
 	Continue           *bool           `json:"continue"`
@@ -85,6 +89,7 @@ type specificOutput struct {
 	UpdatedInput      json.RawMessage            `json:"updatedInput"`
 	AdditionalContext string                     `json:"additionalContext"`
 	RequestDecision   *permissionRequestDecision `json:"decision"`
+	WorktreePath      string                     `json:"worktreePath"`
 }
 
 // permissionRequestDecision is the PermissionRequest allow or deny object.
@@ -173,7 +178,22 @@ func ParseDecision(event string, stdout, stderr []byte, exitCode int) (Decision,
 	if parseErr != nil {
 		return Decision{}, parseErr
 	}
+	if event == "WorktreeCreate" && decision.WorktreePath == "" && (len(stdout) == 0 || stdout[0] != '{') {
+		decision.WorktreePath = worktreePathLine(stdout)
+	}
 	return decision, nil
+}
+
+func worktreePathLine(stdout []byte) string {
+	text := ansiEscape.ReplaceAllString(string(stdout), "")
+	last := ""
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			last = line
+		}
+	}
+	return last
 }
 
 func (wire output) decision(event string) (Decision, error) {
@@ -212,6 +232,12 @@ func (wire output) decision(event string) (Decision, error) {
 				return Decision{}, errors.New("claudehooks: updatedInput requires a PreToolUse JSON object")
 			}
 			result.UpdatedInput = append(json.RawMessage(nil), specific.UpdatedInput...)
+		}
+		if specific.WorktreePath != "" {
+			if event != "WorktreeCreate" {
+				return Decision{}, errors.New("claudehooks: worktreePath is unsupported for this event")
+			}
+			result.WorktreePath = specific.WorktreePath
 		}
 		if specific.RequestDecision != nil {
 			if event != "PermissionRequest" {
@@ -268,6 +294,9 @@ func Merge(decisions []Decision) (Decision, error) {
 		merged.Stop = merged.Stop || decision.Stop
 		merged.AdditionalContext = joinContext(merged.AdditionalContext, decision.AdditionalContext)
 		merged.SystemMessage = joinContext(merged.SystemMessage, decision.SystemMessage)
+		if merged.WorktreePath == "" {
+			merged.WorktreePath = decision.WorktreePath
+		}
 		if len(decision.UpdatedInput) > 0 {
 			if !jsonObject(decision.UpdatedInput) {
 				return Decision{}, errors.New("claudehooks: updatedInput must be a JSON object")

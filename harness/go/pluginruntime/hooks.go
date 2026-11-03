@@ -78,7 +78,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted":
+			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}

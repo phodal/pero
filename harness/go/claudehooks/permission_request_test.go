@@ -5,6 +5,13 @@ import (
 	"testing"
 )
 
+func TestWorktreeCreateReadsTheLastPathLine(t *testing.T) {
+	decision, err := ParseDecision("WorktreeCreate", []byte("banner\n\x1b[31mred\x1b[0m\n/tmp/feature\n"), nil, 0)
+	if err != nil || decision.WorktreePath != "/tmp/feature" {
+		t.Fatalf("path=%q error=%v", decision.WorktreePath, err)
+	}
+}
+
 func TestPermissionRequestDecisionAndExit2(t *testing.T) {
 	decision, err := ParseDecision("PermissionRequest", []byte(`{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedInput":{"command":"printf allowed"}}}}`), nil, 0)
 	if err != nil || decision.Permission != "allow" || !strings.Contains(string(decision.UpdatedInput), "printf allowed") || decision.Block {

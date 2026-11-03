@@ -86,7 +86,15 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 		if input.Isolation != "worktree" {
 			return nil, errors.New("subagents: isolation must be worktree")
 		}
-		dir, release, err := isolateGitWorktree(parent.Session().WorkingDirectory())
+		var dir string
+		var release func()
+		var err error
+		if s.isolatedWorktree != nil {
+			dir, release, err = s.isolatedWorktree(ctx, parent)
+		}
+		if s.isolatedWorktree == nil || errors.Is(err, ErrDefaultWorktree) {
+			dir, release, err = isolateGitWorktree(parent.Session().WorkingDirectory())
+		}
 		if err != nil {
 			return nil, err
 		}

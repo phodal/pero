@@ -12,6 +12,9 @@ import (
 // failureBlocks reports whether a failed hook should stop the triggering action.
 // Stop-style events and async hooks ignore onFailure. The default is to continue.
 func failureBlocks(hook claudehooks.Hook, event string) bool {
+	if event == "WorktreeCreate" {
+		return true
+	}
 	switch event {
 	case "Stop", "SubagentStop", "TaskCompleted", "TeammateIdle":
 		return false

@@ -37,7 +37,14 @@ type ClaudeOptions struct {
 	// BackgroundNotifications delivers actual terminal notices after child
 	// cleanup. It does not make a one-shot child resident.
 	BackgroundNotifications bool
+	// IsolatedWorktree creates the directory for isolation=worktree. Returning
+	// ErrDefaultWorktree keeps the Git worktree. A nil cleanup leaves a
+	// hook-created directory in place when the child finishes.
+	IsolatedWorktree func(context.Context, *harness.Agent) (string, func(), error)
 }
+
+// ErrDefaultWorktree asks the caller to create the Git worktree itself.
+var ErrDefaultWorktree = errors.New("subagents: no WorktreeCreate hook is configured")
 
 type ClaudeContribution struct {
 	instance  *point.Instance
@@ -81,6 +88,7 @@ type claudeDelegation struct {
 	invocationOrigin  func(*harness.Agent) string
 	taskLookup        harness.TaskLookup
 	backgroundNotices bool
+	isolatedWorktree  func(context.Context, *harness.Agent) (string, func(), error)
 	mu                sync.Mutex
 	tasks             map[harness.SessionID]*claudeTask
 }
@@ -102,7 +110,7 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	service := &claudeDelegation{h: h, maxDepth: options.MaxDepth, invocationOrigin: options.InvocationOrigin, taskLookup: options.TaskLookup, backgroundNotices: options.BackgroundNotifications, definitions: make(map[string]AgentDefinition), readOnlyBuiltins: make(map[string]bool), routes: make(map[string]ModelRoute), tasks: make(map[harness.SessionID]*claudeTask)}
+	service := &claudeDelegation{h: h, maxDepth: options.MaxDepth, invocationOrigin: options.InvocationOrigin, taskLookup: options.TaskLookup, backgroundNotices: options.BackgroundNotifications, isolatedWorktree: options.IsolatedWorktree, definitions: make(map[string]AgentDefinition), readOnlyBuiltins: make(map[string]bool), routes: make(map[string]ModelRoute), tasks: make(map[harness.SessionID]*claudeTask)}
 	for _, definition := range definitions {
 		if strings.TrimSpace(definition.Name) == "" || strings.TrimSpace(definition.Description) == "" || strings.TrimSpace(definition.Instructions) == "" {
 			return nil, errors.New("subagents: Claude agent requires name, description and instructions")

@@ -250,7 +250,12 @@ func run() (resultErr error) {
 		if _, err := tasks.Mount(ctx, h); err != nil {
 			return err
 		}
-		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{TaskLookup: func(ctx context.Context, parent *harness.Agent, id string) (harness.TaskHandle, bool, error) {
+		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{IsolatedWorktree: func(ctx context.Context, parent *harness.Agent) (string, func(), error) {
+			if pluginHooks == nil {
+				return "", nil, subagents.ErrDefaultWorktree
+			}
+			return pluginHooks.CreateIsolatedWorktree(ctx, parent)
+		}, TaskLookup: func(ctx context.Context, parent *harness.Agent, id string) (harness.TaskHandle, bool, error) {
 			if task, found, err := native.LookupTask(ctx, parent, id); found || err != nil {
 				return task, found, err
 			}
