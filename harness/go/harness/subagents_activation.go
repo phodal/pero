@@ -752,7 +752,7 @@ func (r *SubagentRegistry) completeActivation(record *subagentRecord, result Sub
 			// This accepted activation already owns callbackWG even if registry
 			// admission closed. Do not Add a fresh callback claim during Drain.
 			r.callbacks.Add(1)
-			endedErr = r.Ended.Emit(context.Background(), SubagentLifecycle{RunID: state.runID, Provider: record.snapshot.Provider, ID: record.snapshot.ID, Parent: record.parent, Child: record.child, Local: record.child != nil, StopReason: result.Status, Managed: true, Facade: state.facade, Result: &result})
+			endedErr = r.Ended.Emit(context.Background(), SubagentLifecycle{RunID: state.runID, Provider: record.snapshot.Provider, ID: record.snapshot.ID, Parent: record.parent, Child: record.child, Local: record.child != nil, StopReason: result.Status, Managed: true, Background: state.retainActivities, Facade: state.facade, Result: &result})
 			r.callbacks.Add(-1)
 			state.busy.Add(-1)
 		}

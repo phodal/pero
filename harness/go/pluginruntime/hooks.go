@@ -321,6 +321,14 @@ func (app *HookApp) register(run *point.Run) error {
 	}); err != nil {
 		return err
 	}
+	if registry := app.h.Subagents(); registry != nil && registry.Ended != nil {
+		if _, err := registry.Ended.On(run, func(_ context.Context, info harness.SubagentLifecycle) error {
+			app.noteAgentCompleted(info)
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
 	if _, err := hooks.Status.On(run, func(_ context.Context, input harness.AgentStatusInput) error {
 		app.noteIdle(input.Agent, input.Status)
 		return nil

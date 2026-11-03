@@ -52,6 +52,20 @@ func (app *HookApp) schedulePermissionNotification(request harness.ApprovalReque
 	}()
 }
 
+func (app *HookApp) noteAgentCompleted(info harness.SubagentLifecycle) {
+	if app == nil || info.Parent == nil || !info.Background || !app.hasHookEvent("Notification") {
+		return
+	}
+	status := "completed"
+	if info.StopReason != "" && info.StopReason != harness.SubagentCompleted {
+		status = string(info.StopReason)
+	}
+	_, _ = app.event(context.Background(), info.Parent, claudehooks.Input{
+		Event: "Notification", NotificationType: "agent_completed",
+		Message: "Background agent " + string(info.ID) + " " + status, Title: "Agent completed",
+	})
+}
+
 func (app *HookApp) noteIdle(agent *harness.Agent, status harness.AgentStatus) {
 	if app == nil || agent == nil || agent.Parent() != nil || !app.hasHookEvent("Notification") {
 		return

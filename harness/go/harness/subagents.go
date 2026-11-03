@@ -361,6 +361,9 @@ type SubagentLifecycle struct {
 	Local      bool
 	StopReason SubagentStatus
 	Managed    bool
+	// Background is set when the child was started to keep running after the
+	// parent turn. Notification hooks use it for agent_completed.
+	Background bool
 	// Facade identifies the optional profile-local runtime service generation.
 	Facade *SubagentFacade `json:"-"`
 	Result *SubagentResult
