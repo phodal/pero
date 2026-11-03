@@ -12,13 +12,34 @@ Local checks: 16 App tests, 8 Python backend tests, 2 production-build checks an
 the App typecheck pass. A real HTTP fixture also returned RDKit 2026.09.1 SVGs
 for all three solvent records; no scientific responses were mocked.
 
-The focused browser acceptance is `tests/e2e/scientific-viewer-browser.mjs`.
+The focused Chromium acceptance, `tests/e2e/scientific-viewer-browser.mjs`,
+passed all five check groups in [CI run 41559708803](https://github.com/phodal/pero/actions/runs/41559708803).
 It uses the production bundle and SDK with real IndexedDB and RDKit; only the
-Desktop HTTP/context transport is replaced. CI saves screenshots, the engine
-version, bundle SHA and check results under `test-results/scientific-viewer-browser/`.
-Browser visual acceptance is pending that run: the current cloud browser blocked
-the local preview URL and the local Chromium download did not produce a valid
-archive. No local browser pass is claimed.
+Desktop HTTP/context transport is replaced.
+
+| Browser check | Observed result |
+| --- | --- |
+| Imported molecules | Real RDKit SVGs and ethanol descriptors; images stay within their cards; pointer and keyboard selection and SDK splitter work. |
+| Chart and Table | Actual headers/units and exact point values; missing records break the line and remain visible in the table; chosen axes survive view switches. |
+| File import | All 205 source rows remain reachable across 100/100/5-row pages and persist after IndexedDB reload. |
+| Failure and recovery | Invalid molecular records and empty-file errors stay visible; a subsequent valid import recovers. |
+| Theme and width | Actual SDK dark theme and 390px molecule/chart/table layouts render without horizontal document overflow. |
+
+All eight screenshots in the [browser evidence artifact](https://github.com/phodal/pero/actions/runs/41559708803/artifacts/13195937613)
+were visually inspected. They cover light/dark molecules, narrow stacked molecule
+panes, diffraction, missing-value charts and tables, and narrow dark chart/table
+states. No blocking clipping, overlapping controls or misplaced structures were
+observed. The artifact also includes the engine version and machine-readable
+check results. This evidence is linked from [PR #112](https://github.com/phodal/pero/pull/112).
+
+Tested source: `210c514f8ec8382542f1bf59662408a46d56663b`.
+CI merge commit: `f5dbe1e5d5288743acb07de8e4769dc93e3a9da0`.
+App JS SHA-256: `35832711448c20f0a2eed4e4c1026675ab841d7d3c3330acba605ee1e43ea078`.
+The final follow-up records this evidence only; no App or test code changes.
+
+Browser acceptance ran in CI. The cloud browser blocked the local preview URL,
+and the local Chromium download did not produce a valid archive; no local
+browser pass is claimed.
 
 The full Electron/GPUI, PDF/Agent/export flow and signed package have not been
 rerun for this change. The earlier Native/browser evidence below concerns the
