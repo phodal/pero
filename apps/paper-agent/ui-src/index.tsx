@@ -34,9 +34,14 @@ type ResearchDraft = { selection: Partial<PaperResearchSelection>; message: stri
 
 function SearchFrame({ preview, resizeLabel, children }: { preview: boolean; resizeLabel: string; children: React.ReactNode }) {
   const [library, reading] = React.Children.toArray(children);
-  return <Split storageKey="paper-agent.search-split" collapseBelow={preview ? 640 : 0} className="pa-search-split" data-preview={preview ? '' : undefined}>
-    <SplitPane id="paper-search-results" as="div" size={preview ? 420 : undefined} min={preview ? 280 : 0} resizeLabel={resizeLabel} className="pa-search-results-pane">{library}</SplitPane>
-    <SplitPane id="paper-search-preview" as="div" min={preview ? 320 : 0} className="pa-search-preview-pane">{reading}</SplitPane>
+  // Outside hit-preview the Host only shows one screen. A two-pane Split with
+  // :has([hidden]) can leave a blank flex column after iframe resizes.
+  if (!preview) {
+    return <div className="pa-search-split" data-single="">{library}{reading}</div>;
+  }
+  return <Split storageKey="paper-agent.search-split" collapseBelow={640} className="pa-search-split" data-preview="">
+    <SplitPane id="paper-search-results" as="div" size={420} min={280} resizeLabel={resizeLabel} className="pa-search-results-pane">{library}</SplitPane>
+    <SplitPane id="paper-search-preview" as="div" min={320} className="pa-search-preview-pane">{reading}</SplitPane>
   </Split>;
 }
 
