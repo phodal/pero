@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Disclosure, Feedback, Select, Toolbar } from '@pero/app-sdk/ui';
 import type { Api } from './types';
@@ -60,8 +59,21 @@ function Contents({ tokens, onTarget }: { tokens: Inline[]; onTarget(target: str
 
 function readSetting(key: string) { try { return localStorage.getItem(key); } catch { return null; } }
 function saveSetting(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* Reading works without storage. */ } }
+function httpsUrl(value?: string | null): value is string {
+  return typeof value === 'string' && value.startsWith('https://');
+}
+// A local PDF, or any snapshot with no remote HTML, has nothing to review.
+// Unauthorized PDF permission is a notice, not a review target.
+function htmlReviewAvailable(overview: Overview, paperSource?: string) {
+  if (paperSource === 'local-pdf') return false;
+  const paperReview = httpsUrl(overview.reviewUrl);
+  const htmlSources = overview.sources.filter(item => httpsUrl(item.url));
+  if (!paperReview && htmlSources.length === 0) return false;
+  if (!paperReview && htmlSources.every(item => !item.authorized)) return false;
+  return true;
+}
 
-export function StructuredReading({ api, paperId, openToken, onReady, onPrepared, onReview, showText, toolbar, children, onSourceUrl, onDiscuss }: { onDiscuss?(text: string): void; api: Api; paperId: string; openToken: number; showText?: boolean; toolbar?: HTMLElement | null; onSourceUrl?(url: string): void; onReady(ready: boolean): void; onPrepared?(): void; onReview(): void; children: React.ReactNode }) {
+export function StructuredReading({ api, paperId, openToken, onReady, onPrepared, onReview, showText, paperSource, children, onSourceUrl, onDiscuss }: { onDiscuss?(text: string): void; api: Api; paperId: string; openToken: number; showText?: boolean; paperSource?: string; onSourceUrl?(url: string): void; onReady(ready: boolean): void; onPrepared?(): void; onReview(): void; children: React.ReactNode }) {
   const { t } = useAppI18n({ prepareReading: { zh: '排版阅读', en: 'Format' }, preparing: { zh: '排版中…', en: 'Formatting…' }, failed: { zh: '阅读失败', en: 'Reading failed' }, partialHtml: { zh: 'HTML 转换不完整；图片未下载。', en: 'Partial HTML conversion; images not downloaded.' }, missingImages: { zh: '图片未下载。', en: 'Images not downloaded.' }, official: { zh: '查看原文', en: 'Official source' }, backReading: { zh: '返回阅读', en: 'Back to reading' } });
   const [reviewing, setReviewing] = useState(false);
   const [overview, setOverview] = useState<Overview>({ revisions: [], sources: [] }), [document, setDocument] = useState<Document | null>(null);
@@ -174,17 +186,18 @@ export function StructuredReading({ api, paperId, openToken, onReady, onPrepared
     } catch (error) { if (version === originalEpoch.current) setError({ message: error instanceof Error ? error.message : String(error) }); }
   }
   if (showText) return <div className="pa-text-document">{children}</div>;
-  const controls = <div className="pa-reader-format-controls pa-reader-read-controls">
-    {!document && <><Button variant="ghost" disabled={busy} aria-expanded={reviewing} onClick={() => overview.reviewUrl ? setReviewing(value => !value) : onReview()}>{overview.reviewUrl ? t('prepareReading') : 'Review HTML sources'}</Button>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} busy={busy} onClick={() => void prepare(s)}>Prepare Read · {s.revision}</Button>)}</>}
-    {reviewing && <ArxivReading api={api} paperId={paperId} onClose={() => setReviewing(false)} onPrepare={async source => { await prepare(source); setReviewing(false); }}/>}
-    {busy && <span role="status">{t('preparing')}</span>}
-
-  </div>;
+  const reviewHtml = !document && htmlReviewAvailable(overview, paperSource);
+  const prepareSources = !document ? overview.sources.filter(item => item.authorized) : [];
   return <div ref={root} className="pa-structured-reading" data-document-id={document?.id}>
-    {toolbar ? createPortal(controls, toolbar) : controls}
     {error && <Feedback kind="error">{error.message}<Button onClick={() => setError(null)}>Dismiss</Button>{error.source && <Button disabled={busy} onClick={() => void prepare(error.source!, true)}>Retry {error.source.revision}</Button>}</Feedback>}
     {!document && !overview.reviewUrl && overview.sources.length === 0 && <p className="pa-document-meta">Read needs an explicitly approved, fixed-version official HTML source. Existing text and PDF remain available.</p>}
-    {!document && overview.sources.some(s => !s.authorized) && <p className="pa-document-meta">HTML acquisition is not authorized. Review sources before downloading; PDF permission does not include HTML.</p>}
+    {!document && overview.sources.some(item => !item.authorized) && <p className="pa-document-meta">HTML acquisition is not authorized. Review sources before downloading; PDF permission does not include HTML.</p>}
+    {(reviewHtml || prepareSources.length > 0 || busy) && <div className="pa-html-review">
+      {reviewHtml && <Button variant="ghost" disabled={busy} aria-expanded={overview.reviewUrl ? reviewing : undefined} onClick={() => overview.reviewUrl ? setReviewing(value => !value) : onReview()}>{overview.reviewUrl ? t('prepareReading') : 'Review HTML sources'}</Button>}
+      {prepareSources.map(item => <Button key={`${item.bundleId}:${item.resourceId}`} variant="ghost" busy={busy} onClick={() => void prepare(item)}>Prepare Read · {item.revision}</Button>)}
+      {busy && <span role="status">{t('preparing')}</span>}
+    </div>}
+    {reviewing && <ArxivReading api={api} paperId={paperId} onClose={() => setReviewing(false)} onPrepare={async item => { await prepare(item); setReviewing(false); }}/>}
     {!document ? <div className="pa-text-document"><TextContents blocks={[]} current={target} onOpen={reveal}/>{children}</div> : <div className="pa-reading-column">
       {(scopes.length > 1 || !!evidenceScope && !selectedScope) && <Select label="Evidence bundle" disabled={busy} value={selectedScope ? `${selectedScope.bundleId}:${selectedScope.resourceId}` : ''} onChange={value => {
         const scope = scopes.find(scope => `${scope.bundleId}:${scope.resourceId}` === value); chooseScope(document.id, scope ?? null);

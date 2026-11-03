@@ -374,16 +374,17 @@ try {
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(toolbarPaper.title, { exact: true }) }).click();
   await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
-  const format = toolbarBar.getByRole('button', { name: 'Format', exact: true });
   const boxes = await Promise.all(['Read', 'PDF', 'TeX', 'Source', 'Zoom in'].map(name => toolbarBar.getByRole('button', { name, exact: true }).boundingBox()));
   expect(boxes.every(box => box && Math.abs(box.y - boxes[0].y) <= 4)).toBe(true);
+  await expect(toolbarBar.getByRole('button', { name: 'Format', exact: true })).toHaveCount(0);
+  await expect(toolbarBar.getByRole('button', { name: 'Review HTML sources', exact: true })).toHaveCount(0);
   await expect(toolbarBar.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', toolbarPaper.url);
   await toolbarBar.getByRole('button', { name: 'Read', exact: true }).click();
-  await format.click();
+  await frame.locator('.pa-structured-reading').getByRole('button', { name: 'Format', exact: true }).click();
   const sourceReview = frame.getByRole('dialog', { name: 'arXiv v2', exact: true });
   await expect(sourceReview.getByRole('button', { name: 'Download and format', exact: true })).toBeVisible();
   await expect(sourceReview).toContainText('arXiv v2');
-  await expect(frame.locator('.pa-structured-reading').getByRole('button', { name: 'Format', exact: true })).toHaveCount(0);
+  await expect(toolbarBar.getByRole('button', { name: 'Format', exact: true })).toHaveCount(0);
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 800));
   await expect.poll(() => sourceReview.evaluate(element => {
     const box = element.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth;
@@ -403,7 +404,7 @@ try {
   await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
   await expect(toolbarBar.getByRole('button', { name: 'Read', exact: true })).toBeVisible();
-  checks.push('Saved arXiv paper reviews and formats beside Read/PDF/TeX/Source; one-row controls and a bounded source review, visible acquisition failure/retry and automatic Read/PDF switching work through real APIs');
+  checks.push('Saved arXiv paper reviews HTML from the reading body while Read/PDF/TeX/Source stay on one toolbar row; a bounded source review, visible acquisition failure/retry and automatic Read/PDF switching work through real APIs');
   expect(errors).toEqual([]); expect(remoteRequests).toEqual([]);
   // Export a private stopped-profile copy through the existing real JSON CLI.
   await app.close(); app = null;

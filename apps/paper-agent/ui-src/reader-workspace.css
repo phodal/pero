@@ -26,18 +26,28 @@
   font-weight: 600;
 }
 
-.pa-workbench .pa-reading-bar .pero-ui-button[data-variant=primary] {
-  height: 30px;
-  min-height: 30px;
-  padding: 0 12px;
+.pa-workbench .pa-reading-bar > .pa-records-toggle.pero-ui-button,
+.pa-workbench .pa-reading-bar .pa-ask.pero-ui-button {
+  box-sizing: border-box;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
   border: 0;
   border-radius: 6px;
+  box-shadow: none;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+}
+.pa-workbench .pa-reading-bar > .pa-records-toggle.pero-ui-button {
+  background: transparent;
+  color: var(--pero-text);
+}
+.pa-workbench .pa-reading-bar .pa-ask.pero-ui-button {
   background: var(--pero-action);
   color: var(--pero-on-action);
-  font-size: 14px;
-  font-weight: 600;
 }
-.pa-workbench .pa-reading-bar .pero-ui-button[data-variant=primary]:hover:not(:disabled) {
+.pa-workbench .pa-reading-bar .pa-ask.pero-ui-button:hover:not(:disabled) {
   background: var(--pero-action-hover);
   color: var(--pero-on-action);
 }
