@@ -43,7 +43,7 @@ try{
   phase=`example:${example.name}`;
   await frame.getByLabel('Example',{exact:true}).selectOption(example.name);await expect(frame.getByRole('combobox',{name:'Current file',exact:true}).locator('option:checked')).toHaveText(example.name);await expect(frame.getByText('Synthetic example, unverified',{exact:true})).toBeVisible();
   if(example.name.endsWith('.csv')){
-   await expect(frame.getByRole('table')).toBeVisible();if(example.name!=='quoted-table.csv'){await frame.getByRole('button',{name:'Spectrum',exact:true}).click();await expect(frame.getByRole('img',{name:'Spectrum from first two columns'})).toBeVisible();}
+   await frame.getByRole('button',{name:'Table',exact:true}).click();await expect(frame.getByRole('table')).toBeVisible();if(example.name!=='quoted-table.csv'){await frame.getByRole('button',{name:'Chart',exact:true}).click();await expect(frame.getByRole('img',{name:/^Chart of /})).toBeVisible();}
    if(example.name==='invalid-spectrum.csv')await expect(frame.getByRole('alert')).toContainText('2 missing or nonnumeric pairs');
   }
   if(example.name.endsWith('.pdb')){await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();}

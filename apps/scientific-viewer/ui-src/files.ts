@@ -31,13 +31,34 @@ export function inspect(name: string): 'table' | 'structure' | 'molecule' | 'pdf
   if (ext === 'json') return 'json';
   return 'opaque';
 }
-export function spectrum(table: Table) {
-  if (table.headers.length < 2) throw new Error('A spectrum needs two columns');
+export type NumericPoint = { x: number; y: number; row: number };
+function finiteNumber(value: string): number | null {
+  if (!value.trim()) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+/** Choose the first pair of columns with an observed numeric pair, without reordering rows. */
+export function defaultNumericColumns(table: Table): [number, number] | null {
+  for (const row of table.rows) {
+    let first = -1;
+    for (let column = 0; column < row.length; column++) {
+      if (finiteNumber(row[column]) === null) continue;
+      if (first !== -1) return [first, column];
+      first = column;
+    }
+  }
+  return null;
+}
+/** A null entry is a gap, not a zero or permission to connect its neighboring points. */
+export function numericSeries(table: Table, xColumn = 0, yColumn = 1): Array<NumericPoint | null> {
+  if ([xColumn, yColumn].some(column => !Number.isInteger(column) || column < 0 || column >= table.headers.length))
+    throw new Error('Choose two columns from this table');
   return table.rows.map((row, index) => {
-    const point = row.slice(0, 2).map(value => value.trim() ? Number(value) : NaN);
-    return point.every(Number.isFinite) ? { x: point[0], y: point[1], row: index + 2 } : null;
+    const x = finiteNumber(row[xColumn]), y = finiteNumber(row[yColumn]);
+    return x !== null && y !== null ? { x, y, row: index + 2 } : null;
   });
 }
+export { numericSeries as spectrum };
 export async function assetFrom(file: File, metadata: Partial<Pick<Asset, 'source' | 'license' | 'synthetic'>> = {}): Promise<Asset> {
   if (!file.size || file.size > MAX_FILE) throw new Error('Choose a nonempty file up to 10 MiB');
   const bytes = new Uint8Array(await file.arrayBuffer());

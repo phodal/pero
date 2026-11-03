@@ -38,6 +38,38 @@ defaults:
     shell: bash
 
 jobs:
+  scientific-viewer:
+    name: Scientific Viewer browser inspection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/scientific-viewer/requirements.txt
+      - name: Prepare pinned App and actual molecular engine
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/scientific-viewer --ignore-scripts
+          python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt
+          npx playwright install --with-deps chromium
+          npm run build --prefix apps/scientific-viewer
+      - name: Verify imported files, charts, molecules and responsive themes
+        run: node tests/e2e/scientific-viewer-browser.mjs
+      - name: Viewer screenshots and exact bundle evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scientific-viewer-browser-${{ github.sha }}
+          path: test-results/scientific-viewer-browser/
+          if-no-files-found: warn
+
   data:
     name: Data local catalog and download contracts
     runs-on: ubuntu-latest
@@ -670,7 +702,7 @@ jobs:
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [paper-html-live, core, data, lab, control-lab, virtual-cell, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [paper-html-live, core, data, lab, control-lab, virtual-cell, scientific-viewer, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
