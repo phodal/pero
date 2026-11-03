@@ -60,6 +60,7 @@ type HookApp struct {
 	idleCancels         map[*harness.Agent]context.CancelFunc
 	modelNotes          map[*harness.Agent]modelNote
 	elicitationAgents   map[string]*harness.Agent
+	addedDirs           map[*harness.Agent]map[string]bool
 }
 
 type sessionHook struct {
@@ -89,7 +90,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay", "Elicitation", "ElicitationResult", "CwdChanged":
+			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay", "Elicitation", "ElicitationResult", "CwdChanged", "DirectoryAdded":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}
@@ -126,7 +127,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 	}
 	app := &HookApp{h: h, packages: append([]plugins.Package(nil), packages...), options: options, transcriptDirectory: directory, states: make(map[*harness.Agent]*hookAgentState)}
 	app.options.Environment = append([]string(nil), options.Environment...)
-	requires := []point.Requirement{point.Require(harness.AgentHooksKey), point.Require(harness.ToolRegistryKey)}
+	requires := []point.Requirement{point.Require(harness.AgentHooksKey), point.Require(harness.ToolRegistryKey), point.Require(harness.CommandRegistryKey)}
 	if h.Subagents() != nil {
 		requires = append(requires, point.Require(harness.SubagentRegistryKey))
 	}
@@ -324,6 +325,11 @@ func (app *HookApp) register(run *point.Run) error {
 		return next(input)
 	}); err != nil {
 		return err
+	}
+	if commands := app.h.Commands(); commands != nil {
+		if _, err := commands.Register(run, addDirectoryCommand(app)); err != nil {
+			return err
+		}
 	}
 	if registry := app.h.Subagents(); registry != nil && registry.Ended != nil {
 		if _, err := registry.Ended.On(run, func(_ context.Context, info harness.SubagentLifecycle) error {
@@ -649,6 +655,8 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			matcherValue, filter = input.AgentType, true
 		case "Elicitation", "ElicitationResult":
 			matcherValue, filter = input.MCPServerName, true
+		case "DirectoryAdded":
+			matcherValue, filter = input.Source, true
 		case "PreCompact", "PostCompact", "Setup":
 			matcherValue, filter = input.Trigger, true
 		}
@@ -962,8 +970,10 @@ func (app *HookApp) drain(ctx context.Context) error {
 	go func() { app.calls.Wait(); close(done) }()
 	select {
 	case <-done:
+		app.releaseAddedDirectories()
 		return nil
 	case <-ctx.Done():
+		app.releaseAddedDirectories()
 		return ctx.Err()
 	}
 }

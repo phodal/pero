@@ -102,6 +102,7 @@ type Input struct {
 	Content              json.RawMessage `json:"content,omitempty"`
 	OldCWD               string          `json:"old_cwd,omitempty"`
 	NewCWD               string          `json:"new_cwd,omitempty"`
+	Directory            string          `json:"directory,omitempty"`
 }
 
 type Decision struct {

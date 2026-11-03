@@ -42,7 +42,8 @@ func (s *shellTasks) observeShellDirectory(task *shellTask, old string) {
 		workspace = s.options.CWD
 	}
 	rel, err := filepath.Rel(workspace, nextResolved)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	outside := err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	if outside && !isolatedWorkdir(nextResolved) {
 		return
 	}
 	s.mu.Lock()

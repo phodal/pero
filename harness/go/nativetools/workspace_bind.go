@@ -2,6 +2,9 @@ package nativetools
 
 import (
 	"context"
+	"encoding/json"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/phodal/pero/harness/go/fstools"
@@ -45,11 +48,63 @@ func (a *App) filesFor(cwd string) *fstools.Workspace {
 }
 
 func isolatedWorkdir(path string) bool {
-	value, ok := boundWorkspaces.Load(path)
-	if !ok {
+	return workspaceContaining(path) != nil
+}
+
+func workspaceContaining(path string) *fstools.Workspace {
+	if path == "" {
+		return nil
+	}
+	candidates := []string{path, filepath.Clean(path)}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil && resolved != "" {
+		candidates = append(candidates, resolved)
+	}
+	var found *fstools.Workspace
+	boundWorkspaces.Range(func(key, value any) bool {
+		root, _ := key.(string)
+		roots := []string{root}
+		if resolved, err := filepath.EvalSymlinks(root); err == nil && resolved != "" {
+			roots = append(roots, resolved)
+		}
+		for _, candidate := range candidates {
+			for _, root := range roots {
+				if pathWithin(root, candidate) {
+					found = value.(*fstools.Workspace)
+					return false
+				}
+			}
+		}
+		return true
+	})
+	return found
+}
+
+func absoluteToolPath(raw json.RawMessage) string {
+	var fields struct {
+		Path         string `json:"path"`
+		FilePath     string `json:"file_path"`
+		NotebookPath string `json:"notebook_path"`
+	}
+	if json.Unmarshal(raw, &fields) != nil {
+		return ""
+	}
+	for _, path := range []string{fields.FilePath, fields.NotebookPath, fields.Path} {
+		if filepath.IsAbs(path) {
+			return path
+		}
+	}
+	return ""
+}
+
+func pathWithin(root, path string) bool {
+	if root == "" || path == "" {
 		return false
 	}
-	return value.(*fstools.Workspace).CheckCWD(path) == nil
+	if path == root {
+		return true
+	}
+	rel, err := filepath.Rel(root, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func withWorkspace(ctx context.Context, files *fstools.Workspace) context.Context {

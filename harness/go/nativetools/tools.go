@@ -302,6 +302,10 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 				return harness.ToolResult{}, errors.New("native tools require an agent")
 			}
 			selected := app.filesFor(request.Agent.Session().WorkingDirectory())
+			if added := workspaceContaining(absoluteToolPath(request.Arguments)); added != nil && (selected == nil || added.Path() != selected.Path()) {
+				selected = added
+				c = withWorkspace(c, selected)
+			}
 			if e := app.CheckCWD(request.Agent.Session().WorkingDirectory()); e != nil {
 				return harness.ToolResult{}, e
 			}
