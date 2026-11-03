@@ -61,9 +61,9 @@ async function inspect() {
   await expect(frame.getByRole('region', { name: 'Review resources' })).toBeVisible({ timeout: 65000 });
   return (await api('/api/research/drafts')).drafts.find(draft => draft.seedUrl === seed);
 }
-const sources = () => frame.getByRole('region', { name: 'PDF reading sources', exact: true });
+const sources = () => frame.locator('.pa-research-bundle').getByRole('region', { name: 'PDF', exact: true });
 const status = (bundle, resource) => api('/api/research/pdf', { operation: 'status', bundleId: bundle.id, resourceId: resource.id });
-const pdfRow = title => sources().locator('li').filter({ has: frame.getByRole('heading', { name: title, exact: true }) });
+const pdfRow = title => sources().locator(':scope > ul > li').filter({ has: frame.locator('.pa-source-provenance').getByText(title, { exact: true }) });
 async function fixtureRequests() {
   return (await readFile(resolve(profile, 'desktop/app-data/paper-agent/pdf-fixture-requests.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
 }
@@ -86,7 +86,7 @@ try {
   await expect(frame.getByRole('checkbox', { name: /^Download PDF/ }).first()).not.toBeChecked();
   if (!live) await page.screenshot({ path: resolve(out, 'candidate-review-light.png') });
   await frame.getByRole('button', { name: 'Save references only', exact: true }).click();
-  await expect(frame.getByText('Saved references', { exact: true })).toBeVisible();
+  await expect(frame.locator('.pa-research-bundle').getByRole('heading', { level: 1, name: draft.title, exact: true })).toBeVisible();
   let bundle = (await api('/api/library')).bundles[0];
   expect(bundle.pdfDownloadIds).toEqual([]); expect(bundle.downloadIds).toEqual([]);
   if (!live) expect((await fixtureRequests()).filter(item => item.kind === 'pdf')).toEqual([]);
@@ -105,9 +105,9 @@ try {
   expect(acquired.receipt.fileDigest).toMatch(/^[a-f0-9]{64}$/); expect(acquired.receipt.explicitVersion).toBe(`sha256:${acquired.receipt.fileDigest}`);
   expect(acquired.readPages).toEqual([]); expect(acquired.receipt.workIdentity).toBeNull();
   if (!live) expect((await fixtureRequests()).filter(item => item.kind === 'pdf').map(item => item.url)).toEqual([selectedUrl]);
+  await pdfRow(resource.title).getByText('PDF source and version', { exact: true }).click();
   await expect(pdfRow(resource.title).getByText('No pages read by a study yet.', { exact: true })).toBeVisible();
   if (live) {
-    await pdfRow(resource.title).getByText('PDF source and version', { exact: true }).click();
     await sources().screenshot({ path: resolve(out, 'live-source-receipt.png') }); // Provenance only, no PDF page or full text.
   }
   await pdfRow(resource.title).getByRole('button', { name: 'Open saved PDF', exact: true }).click();
@@ -126,6 +126,12 @@ try {
   const report = await api(`/api/reports/${reportId}`), study = await api(`/api/studies/${report.intentId}`);
   expect(study.steps.some(step => step.action === 'read')).toBe(true); expect(study.steps.at(-1).action).toBe('finalize');
   const observed = await status(bundle, resource); expect(observed.readPages).toContain(1);
+  // Search and read steps can consult multiple pages. Match the persisted
+  // passage ledger for this exact document, never infer full-page reading.
+  const consultedPages = [...new Set(study.steps.flatMap(step => step.passages)
+    .filter(passage => passage.documentId === acquired.receipt.documentId)
+    .map(passage => passage.page))].sort((a, b) => a - b);
+  expect(observed.readPages).toEqual(consultedPages);
   receipts.push({ ...observed, reportId, studyId: study.id, actions: study.steps.map(step => step.action) });
   const trace = (await readFile(capture + '.mcp.jsonl', 'utf8')).trim().split('\n').map(JSON.parse);
   expect(trace[0].synthetic).toBe(true); expect(trace[0].tools).toContain('app_write');
@@ -142,9 +148,12 @@ try {
   if (!live) await page.screenshot({ path: resolve(out, 'study-dark-narrow.png') });
   await backToLibrary(frame);
   await app.close(); app = await launch(); await ready(); await openPaper();
-  await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: bundle.title, exact: true }).click();
-  expect((await status(bundle, resource)).receipt).toEqual(acquired.receipt);
-  await expect(pdfRow(resource.title)).toContainText('Study observed text on pages 1');
+  await frame.getByRole('navigation', { name: 'Papers', exact: true }).getByRole('button', { name: bundle.title, exact: true }).click();
+  const reopened = await status(bundle, resource);
+  expect(reopened.receipt).toEqual(acquired.receipt);
+  expect(reopened.readPages).toEqual(consultedPages);
+  await pdfRow(resource.title).getByText('PDF source and version', { exact: true }).click();
+  await expect(pdfRow(resource.title).getByText(`Study consulted pages ${consultedPages.join(', ')}; this does not mean every page was read in full.`, { exact: true })).toBeVisible();
   await api('/api/research/pdf', { operation: 'start', bundleId: bundle.id, resourceId: resource.id });
   if (!live) expect((await fixtureRequests()).filter(item => item.kind === 'pdf')).toHaveLength(1);
   checks.push('Actual Desktop/backend restart preserves source/version/read pages and repeated start reuses existing bytes');
@@ -153,7 +162,7 @@ try {
     const savedBytes = resolve(profile, 'desktop/app-data/paper-agent/research-v1/pdf-files', `${acquired.receipt.fileDigest}.pdf`);
     expect(createHash('sha256').update(await readFile(savedBytes)).digest('hex')).toBe(acquired.receipt.fileDigest);
     await rm(savedBytes);
-    await sources().getByRole('button', { name: 'Refresh PDF status', exact: true }).click();
+    await pdfRow(resource.title).getByRole('button', { name: 'Refresh PDF status', exact: true }).click();
     await expect(pdfRow(resource.title)).toContainText('Original PDF unavailable');
     await expect(pdfRow(resource.title).getByRole('button', { name: 'Open saved PDF', exact: true })).toBeDisabled();
     const unavailable = await status(bundle, resource);
@@ -175,17 +184,19 @@ try {
     await frame.getByRole('button', { name: 'Save and download', exact: true }).click();
     bundle = (await api('/api/library')).bundles[0];
     const retry = candidates.find(item => item.originalUrl.endsWith('/retry.pdf')), cancel = candidates.find(item => item.originalUrl.endsWith('/cancel.pdf'));
-    await expect(pdfRow(retry.title)).toContainText('PDF download failed', { timeout: 15000 });
+    await expect(pdfRow(retry.title)).toContainText('Download failed', { timeout: 15000 });
     expect((await status(bundle, retry)).receipt).toBeNull();
     await pdfRow(retry.title).getByRole('button', { name: 'Retry PDF download', exact: true }).dblclick();
-    await expect(pdfRow(retry.title)).toContainText('PDF downloaded; text extraction available', { timeout: 15000 });
+    await expect(pdfRow(retry.title).locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Downloaded', { timeout: 15000 });
+    expect((await status(bundle, retry)).receipt.textPages).toBeGreaterThan(0);
     await pdfRow(cancel.title).getByRole('button', { name: 'Start PDF download', exact: true }).click();
     await expect.poll(async () => (await fixtureRequests()).filter(item => item.url.endsWith('/cancel.pdf')).length).toBe(1);
     await pdfRow(cancel.title).getByRole('button', { name: 'Cancel PDF download', exact: true }).click();
-    await expect(pdfRow(cancel.title)).toContainText('PDF download cancelled', { timeout: 10000 });
+    await expect(pdfRow(cancel.title)).toContainText('Download cancelled', { timeout: 10000 });
     expect((await status(bundle, cancel)).receipt).toBeNull();
     await pdfRow(cancel.title).getByRole('button', { name: 'Retry PDF download', exact: true }).click();
-    await expect(pdfRow(cancel.title)).toContainText('PDF downloaded; text extraction available', { timeout: 15000 });
+    await expect(pdfRow(cancel.title).locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Downloaded', { timeout: 15000 });
+    expect((await status(bundle, cancel)).receipt.textPages).toBeGreaterThan(0);
     await page.screenshot({ path: resolve(out, 'retry-cancel-recovered.png') });
     checks.push('HTML response fails without publication; explicit retry, duplicate clicks, active cancellation and explicit recovery work through real UI');
   }

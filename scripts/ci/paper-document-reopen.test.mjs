@@ -51,9 +51,13 @@ test('same-paper reopen refreshes scopes and rejects late previous overview and 
 
 test('explicit same-paper read forwards a new token while preserving PDF identity and full text', async () => {
   const api = { get: async () => ({ papers: [paper], intents: [], reports: [] }) };
-  const components = paperComponents(api), app = components.mount(components.PaperAgent);
+  const components = paperComponents(api);
+  components.storage.set('paper-agent.shelf', JSON.stringify({ [paper.id]: 'to-read' }));
+  const app = components.mount(components.PaperAgent);
   await drain(); app.render();
+  assert.equal(find(app, node => node.type === 'PaperList').props.shelf[paper.id], 'to-read');
   find(app, node => node.type === 'PaperList').props.onRead(paper); await drain(); app.render();
+  assert.equal(JSON.parse(components.storage.get('paper-agent.shelf'))[paper.id], 'reading');
   const first = find(app, node => node.type === components.Reader);
   find(app, node => node.type === 'PaperList').props.onRead(paper); await drain(); app.render();
   const second = find(app, node => node.type === components.Reader);
