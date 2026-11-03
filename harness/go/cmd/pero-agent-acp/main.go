@@ -48,6 +48,7 @@ func run() (resultErr error) {
 	workflowNode := flag.String("workflow-node", "node", "Node executable for explicitly selected plugin workflows")
 	recoverTail := flag.Bool("recover-complete-session-tail", false, "opt in to lossless final JSONL delimiter recovery with a private backup")
 	initOnly := flag.Bool("init-only", false, "run Setup init and SessionStart startup, then exit without a conversation")
+	printMode := flag.Bool("print", false, "run one non-interactive prompt, using a SessionStart initialUserMessage as the first turn")
 	maintenance := flag.Bool("maintenance", false, "run Setup maintenance, then exit without a conversation")
 	sessions := flag.String("session-dir", "", "private directory for durable JSONL sessions (required)")
 	keyEnv := flag.String("api-key-env", "AGENT_PROVIDER_API_KEY", "environment variable containing the provider credential")
@@ -72,17 +73,18 @@ func run() (resultErr error) {
 	lspConfig := bindLSPOptions(flag.CommandLine)
 	research := bindResearchOptions(flag.CommandLine)
 	flag.Parse()
-	if flag.NArg() != 0 || strings.TrimSpace(*model) == "" || strings.TrimSpace(*sessions) == "" {
-		return errors.New("--model and --session-dir are required; positional arguments are unsupported")
+	printPrompt := strings.TrimSpace(strings.Join(flag.Args(), " "))
+	if !*printMode && flag.NArg() != 0 || strings.TrimSpace(*model) == "" || strings.TrimSpace(*sessions) == "" {
+		return errors.New("--model and --session-dir are required; positional arguments require --print")
 	}
 	if *approval != "never" && *approval != "ask" {
 		return errors.New("--approval must be never or ask")
 	}
-	if *initOnly && *maintenance {
-		return errors.New("--init-only and --maintenance are mutually exclusive")
+	if *initOnly && *maintenance || *printMode && (*initOnly || *maintenance) {
+		return errors.New("--init-only, --maintenance, and --print are mutually exclusive")
 	}
-	if (*initOnly || *maintenance) && *workspace == "" {
-		return errors.New("--init-only and --maintenance require --workspace")
+	if (*initOnly || *maintenance || *printMode) && *workspace == "" {
+		return errors.New("--init-only, --maintenance, and --print require --workspace")
 	}
 	if (*enableShell || *enableResearchClone) && *workspace == "" {
 		return errors.New("--enable-shell / --enable-research-clone requires --workspace")
@@ -355,6 +357,9 @@ func run() (resultErr error) {
 			}
 		}
 		return nil
+	}
+	if *printMode {
+		return runPrint(ctx, h, pluginHooks, *model, *workspace, printPrompt)
 	}
 	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, Name: "pero-agent-acp", Version: "0.1"}
 	if pluginHooks != nil {

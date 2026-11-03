@@ -63,6 +63,7 @@ type HookApp struct {
 	modelNotes          map[*harness.Agent]modelNote
 	elicitationAgents   map[string]*harness.Agent
 	addedDirs           map[*harness.Agent]map[string]bool
+	pendingContext      map[*harness.Agent][]string
 }
 
 type sessionHook struct {
@@ -412,25 +413,16 @@ func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state
 		return nil
 	}
 	if !state.started {
-		app.ensureFileWatch(input.Agent)
-		source := "startup"
-		if !input.Agent.FreshSession() {
-			source = "resume"
-		}
-		decision, err := app.event(ctx, input.Agent, claudehooks.Input{Event: "SessionStart", Source: source, SessionTitle: customSessionTitle(input.Agent)})
+		decision, err := app.startSession(ctx, input.Agent, state)
 		if err != nil {
 			return err
-		}
-		if decision.Stop {
-			return fmt.Errorf("%w: %s", ErrHookStopped, decision.Reason)
 		}
 		if decision.AdditionalContext != "" {
 			input.Messages = append(input.Messages, hookMessage("SessionStart", decision.AdditionalContext))
 		}
-		if err := app.finishSessionStart(ctx, input.Agent, source, decision); err != nil {
-			return err
-		}
-		state.started = true
+	}
+	if text := app.takeSessionContext(input.Agent); text != "" {
+		input.Messages = append(input.Messages, hookMessage("SessionStart", text))
 	}
 	var userIDs, prompts []string
 	for _, message := range input.Messages {

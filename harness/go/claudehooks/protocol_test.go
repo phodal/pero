@@ -145,7 +145,7 @@ func TestDecisionAggregation(t *testing.T) {
 
 func TestSessionStartTitleParsesAlongsideTheOtherFields(t *testing.T) {
 	got, err := ParseDecision("SessionStart", []byte(`{"hookSpecificOutput":{"hookEventName":"SessionStart","sessionTitle":"auth-refactor","initialUserMessage":"begin","reloadSkills":true,"additionalContext":"branch"}}`), nil, 0)
-	if err != nil || got.SessionTitle != "auth-refactor" || got.AdditionalContext != "branch" {
+	if err != nil || got.SessionTitle != "auth-refactor" || got.InitialUserMessage != "begin" || !got.ReloadSkills || got.AdditionalContext != "branch" {
 		t.Fatalf("title = %+v %v", got, err)
 	}
 }

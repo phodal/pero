@@ -66,6 +66,7 @@ go_test(
         "hooks_elicit_test.go",
         "hooks_files_test.go",
         "hooks_http_test.go",
+        "hooks_initial_test.go",
         "hooks_mcp_test.go",
         "hooks_model_test.go",
         "hooks_notify_test.go",

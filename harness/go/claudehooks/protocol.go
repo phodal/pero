@@ -130,6 +130,8 @@ type Decision struct {
 	Content json.RawMessage
 	// SessionTitle is the title a SessionStart or UserPromptSubmit hook asked to store.
 	SessionTitle string
+	// InitialUserMessage is the first turn supplied by a SessionStart hook.
+	InitialUserMessage string
 	// ReloadSkills asks the host to re-read its authorized skill roots.
 	ReloadSkills bool
 	// SuppressOriginalPrompt leaves the submitted text out of a blocked prompt message.
@@ -332,6 +334,9 @@ func (wire output) decision(event string) (Decision, error) {
 		if event == "SessionStart" && specific.ReloadSkills != nil && *specific.ReloadSkills {
 			result.ReloadSkills = true
 		}
+		if event == "SessionStart" && specific.InitialUserMessage != "" {
+			result.InitialUserMessage = specific.InitialUserMessage
+		}
 		if (event == "FileChanged" || event == "CwdChanged" || event == "SessionStart") && specific.WatchPaths != nil {
 			result.WatchPaths = make([]string, len(specific.WatchPaths))
 			copy(result.WatchPaths, specific.WatchPaths)
@@ -429,6 +434,9 @@ func Merge(decisions []Decision) (Decision, error) {
 			merged.SessionTitle = decision.SessionTitle
 		}
 		merged.ReloadSkills = merged.ReloadSkills || decision.ReloadSkills
+		if decision.InitialUserMessage != "" {
+			merged.InitialUserMessage = decision.InitialUserMessage
+		}
 		merged.SuppressOriginalPrompt = merged.SuppressOriginalPrompt || decision.SuppressOriginalPrompt
 		if len(decision.UpdatedToolOutput) > 0 {
 			if len(merged.UpdatedToolOutput) > 0 && !equalJSON(merged.UpdatedToolOutput, decision.UpdatedToolOutput) {
