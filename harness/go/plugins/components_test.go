@@ -73,6 +73,17 @@ func TestComponentDefinitions(t *testing.T) {
 	}
 }
 
+func TestAgentMaxTurnsField(t *testing.T) {
+	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nmaxTurns: 3\n---\nReview."))
+	if component.MaxTurns != 3 || len(diagnostics) != 0 {
+		t.Fatalf("component=%+v diagnostics=%v", component, diagnostics)
+	}
+	_, diagnostics = ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nmaxTurns: 0\n---\nReview."))
+	if len(diagnostics) != 1 || diagnostics[0].Code != "INVALID_COMPONENT_FIELD" {
+		t.Fatalf("diagnostics=%v", diagnostics)
+	}
+}
+
 func TestAgentIsolationField(t *testing.T) {
 	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nisolation: worktree\n---\nReview."))
 	if component.Isolation != "worktree" || len(diagnostics) != 0 {

@@ -111,7 +111,11 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if input.Isolation == "" {
 		input.Isolation = definition.Isolation
 	}
-	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, MaxSteps: input.MaxSteps, OutputSchema: input.OutputSchema, ReasoningEffort: harness.ReasoningEffort(effort)}
+	steps := input.MaxSteps
+	if definition.MaxTurns > 0 && (steps == 0 || definition.MaxTurns < steps) {
+		steps = definition.MaxTurns
+	}
+	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, MaxSteps: steps, OutputSchema: input.OutputSchema, ReasoningEffort: harness.ReasoningEffort(effort)}
 	var cleanup func()
 	if input.Isolation != "" {
 		if input.Isolation != "worktree" {

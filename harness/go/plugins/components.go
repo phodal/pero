@@ -44,6 +44,7 @@ type Component struct {
 	Model         string               `json:"model,omitempty"`
 	Effort        string               `json:"effort,omitempty"`
 	Isolation     string               `json:"isolation,omitempty"`
+	MaxTurns      int                  `json:"maxTurns,omitempty"`
 	Context       string               `json:"context,omitempty"`
 	Agent         string               `json:"agent,omitempty"`
 	Background    *bool                `json:"background,omitempty"`
@@ -59,6 +60,7 @@ type componentHeader struct {
 	Model                  componentText  `yaml:"model"`
 	Effort                 componentText  `yaml:"effort"`
 	Isolation              componentText  `yaml:"isolation"`
+	MaxTurns               *int           `yaml:"maxTurns"`
 	Context                componentText  `yaml:"context"`
 	Agent                  componentText  `yaml:"agent"`
 	Background             *componentBool `yaml:"background"`
@@ -259,6 +261,13 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 		if component.Isolation != "" && component.Isolation != "worktree" {
 			add(SeverityError, "INVALID_COMPONENT_FIELD", "isolation", "Agent isolation must be worktree or omitted.")
 		}
+		if header.MaxTurns != nil {
+			if *header.MaxTurns < 1 {
+				add(SeverityError, "INVALID_COMPONENT_FIELD", "maxTurns", "Agent maxTurns must be a positive integer.")
+			} else {
+				component.MaxTurns = *header.MaxTurns
+			}
+		}
 		if component.Name == "" {
 			component.Name = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 			add(SeverityWarning, "AGENT_NAME_DEFAULTED", "name", "Agent name defaults to the filename.")
@@ -350,7 +359,7 @@ func knownComponentField(kind ComponentKind, key string) bool {
 		return true
 	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background":
 		return kind != ComponentAgent
-	case "tools", "color", "isolation":
+	case "tools", "color", "isolation", "maxTurns":
 		return kind == ComponentAgent
 	}
 	return false

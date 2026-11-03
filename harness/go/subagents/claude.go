@@ -18,6 +18,7 @@ import (
 // Tools is an exact allowlist intersected with the parent's existing tools.
 type AgentDefinition struct {
 	Name, Description, Instructions, Model, Effort, Isolation string
+	MaxTurns                                                  int
 	Tools                                                     []string
 }
 
@@ -129,6 +130,9 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		}
 		if definition.Isolation != "" && definition.Isolation != "worktree" {
 			return nil, fmt.Errorf("subagents: agent %q isolation must be worktree", definition.Name)
+		}
+		if definition.MaxTurns < 0 {
+			return nil, fmt.Errorf("subagents: agent %q maxTurns must be positive", definition.Name)
 		}
 		if _, exists := service.definitions[definition.Name]; exists {
 			return nil, fmt.Errorf("subagents: duplicate Claude agent %q", definition.Name)

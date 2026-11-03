@@ -196,6 +196,46 @@ func TestClaudeTrustedInvocationCancellationJoinsChild(t *testing.T) {
 	}
 }
 
+func TestAgentDefinitionMaxTurnsCapsTheChild(t *testing.T) {
+	var steps int
+	adapter := harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	})
+	ctx := t.Context()
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = h.Dispose(cleanup)
+		_ = h.Drain(cleanup)
+	})
+	claude, err := MountClaude(ctx, h, []AgentDefinition{{Name: "reviewer", Description: "Review", Instructions: "Review.", MaxTurns: 3}}, ClaudeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "turns-parent", CWD: t.TempDir(), Provider: "fixture", Model: "parent-model", MaxSteps: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := claude.Invoke(ctx, parent, ClaudeInvocation{Definition: "reviewer", Prompt: "look", ConfigureChild: func(_ context.Context, _ *point.Run, child *harness.Agent) error {
+		steps = child.MaxSteps()
+		return nil
+	}})
+	if err != nil || result.Status != harness.SubagentCompleted || steps != 3 {
+		t.Fatalf("result=%+v err=%v steps=%d", result, err, steps)
+	}
+	result, err = claude.Invoke(ctx, parent, ClaudeInvocation{Definition: "reviewer", Prompt: "tighter", MaxSteps: 2, ConfigureChild: func(_ context.Context, _ *point.Run, child *harness.Agent) error {
+		steps = child.MaxSteps()
+		return nil
+	}})
+	if err != nil || steps != 2 {
+		t.Fatalf("tighter result=%+v err=%v steps=%d", result, err, steps)
+	}
+}
+
 func TestAgentDefinitionIsolationUsesTheConfiguredWorktree(t *testing.T) {
 	workspace := t.TempDir()
 	isolated := t.TempDir()
