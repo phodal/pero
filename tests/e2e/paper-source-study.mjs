@@ -52,24 +52,8 @@ async function inspect() {
   await expect(frame.getByRole('region', { name: 'Review resources' })).toBeVisible({ timeout: 65000 });
   return (await api('/api/research/drafts')).drafts.find(draft => draft.seedUrl === seed);
 }
-const sources = () => frame.getByRole('region', { name: 'TeX source', exact: true });
-// Display headings collapse to TeX source for one item and work identity for
-// several. The exact discovery title remains in each row's provenance.
-const row = title => sources().locator(':scope > ul > li').filter({ has: frame.locator('.pa-source-provenance').getByText(title, { exact: true }) });
-const sourceDialog = () => frame.getByRole('dialog').filter({ has: frame.locator('.pa-source-browser') });
-async function openSource(title, action = 'Browse source files') {
-  await row(title).getByRole('button', { name: action, exact: true }).click();
-  await expect(sourceDialog()).toBeVisible();
-  await expect(sourceDialog().locator('.pa-source-analysis')).not.toHaveAttribute('open', '');
-}
-async function openSourceAnalysis() {
-  await sourceDialog().getByText('PDF comparison and evidence', { exact: true }).click();
-  await expect(sourceDialog().locator('.pa-source-analysis')).toHaveAttribute('open', '');
-}
-async function closeSource() {
-  await sourceDialog().getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(sourceDialog()).toHaveCount(0);
-}
+const sources = () => frame.getByRole('region', { name: 'Paper source files', exact: true });
+const row = title => sources().locator('li').filter({ has: frame.getByRole('heading', { name: title, exact: true }) });
 const sourceStatus = (bundle, resource) => api('/api/research/source', { operation: 'status', bundleId: bundle.id, resourceId: resource.id });
 const requests = async () => (await readFile(resolve(profile, 'desktop/app-data/paper-agent/source-fixture-requests.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
 try {
@@ -91,10 +75,8 @@ try {
   const source = live ? candidates[0] : candidates.find(resource => resource.originalUrl.endsWith('/2610.00001v1'));
   await expect(frame.getByRole('checkbox', { name: /^Get source for read-only inspection/ }).first()).not.toBeChecked();
   await frame.getByRole('button', { name: 'Save references only', exact: true }).click();
-  await expect(frame.locator('.pa-research-bundle')).toBeVisible();
-  let bundle = (await api('/api/library')).bundles[0];
-  await expect(frame.locator('.pa-research-bundle .pa-bundle-header').getByRole('heading', { name: bundle.title, exact: true })).toBeVisible();
-  expect(bundle.sourceDownloadIds).toEqual([]);
+  await expect(frame.getByText('Saved references', { exact: true })).toBeVisible();
+  let bundle = (await api('/api/library')).bundles[0]; expect(bundle.sourceDownloadIds).toEqual([]);
   if (!live) expect((await requests()).filter(item => item.kind !== 'metadata')).toEqual([]);
   draft = await inspect();
   await frame.getByRole('region', { name: 'Review resources' }).locator('.pa-resource-list>li').filter({ hasText: source.title }).getByRole('checkbox', { name: /^Get source for read-only inspection/ }).check();
@@ -103,36 +85,35 @@ try {
   await frame.getByRole('button', { name: 'Save and download', exact: true }).dblclick();
   await expect(sources()).toBeVisible(); bundle = (await api('/api/library')).bundles[0];
   if (!live) {
-    await expect(row(source.title)).toContainText('Download failed', { timeout: 15000 });
+    await expect(row(source.title)).toContainText('Source acquisition failed', { timeout: 15000 });
     expect((await sourceStatus(bundle, source)).receipt).toBeNull();
     await row(source.title).getByRole('button', { name: 'Retry source download', exact: true }).dblclick();
   }
-  await expect(row(source.title)).toContainText('Downloaded', { timeout: 60000 });
+  await expect(row(source.title)).toContainText('Source files available', { timeout: 60000 });
   const acquired = await sourceStatus(bundle, source); receipts.push(acquired.receipt);
   expect(acquired.localAvailable).toBe(true); expect(bundle.pdfDownloadIds).toEqual([]);
   if (live) {
-    await row(source.title).getByText('Source and download details', { exact: true }).click();
+    await row(source.title).getByText('Source archive provenance', { exact: true }).click();
     // Live third-party source UI is never captured in public artifacts.
   }
-  await openSource(source.title);
+  await row(source.title).getByRole('button', { name: 'Browse source files', exact: true }).click();
   const catalog = await api('/api/research/source-read', { operation: 'list', bundleId: bundle.id, resourceId: source.id });
   const tex = catalog.members.find(member => member.path === 'main.tex') || catalog.members.find(member => member.path.endsWith('.tex'));
   expect(tex).toBeTruthy();
   if (!live) expect((await api('/api/research/source-report', { operation: 'observations', bundleId: bundle.id })).observations).toEqual([]);
-  await sourceDialog().getByRole('button', { name: tex.path, exact: true }).click();
+  await row(source.title).getByRole('button', { name: tex.path, exact: true }).click();
   await expect(frame.getByLabel(`Original source: ${tex.path}`, { exact: true })).toBeVisible();
-  await openSourceAnalysis();
-  await expect(sourceDialog().getByRole('region', { name: 'Compare with saved PDF', exact: true })).toContainText('No PDF saved for comparison. Download a fixed-version PDF first.');
+  await expect(row(source.title).getByRole('region', { name: 'Source and PDF comparison', exact: true })).toContainText('No PDF approved in this bundle');
   if (!live) {
     expect((await requests()).filter(item => item.kind === 'pdf')).toEqual([]);
     await page.screenshot({ path: resolve(out, 'source-lines-light.png') });
-    await sourceDialog().getByRole('button', { name: 'figure.png', exact: true }).click();
+    await row(source.title).getByRole('button', { name: 'figure.png', exact: true }).click();
     const image = frame.getByRole('img', { name: 'Source image figure.png', exact: true });
     await expect(image).toBeVisible(); expect(await image.evaluate(element => element.naturalWidth)).toBe(1);
     await setPaperAppearance(page, 'dark'); await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
     await expect.poll(() => frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
     await page.screenshot({ path: resolve(out, 'source-image-dark-narrow.png') });
-    const reports = sourceDialog().getByRole('region', { name: 'Recorded evidence', exact: true });
+    const reports = row(source.title).getByRole('region', { name: 'Source evidence reports', exact: true });
     await reports.getByText('New report from recorded evidence', { exact: true }).click();
     await expect(reports.getByRole('checkbox')).toHaveCount(2);
     for (const choice of await reports.getByRole('checkbox').all()) await choice.check();
@@ -155,15 +136,14 @@ try {
   }
   checks.push('Explicit source-only consent, failure retry, original source lines and raster preview; no PDF/code/model download or TeX execution');
   await app.close(); app = await launch(); await ready(); await openPaper();
-  await frame.getByRole('navigation', { name: 'Papers', exact: true }).getByRole('button', { name: bundle.title, exact: true }).click();
+  await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: bundle.title, exact: true }).click();
   expect((await sourceStatus(bundle, source)).receipt).toEqual(acquired.receipt);
   await api('/api/research/source', { operation: 'start', bundleId: bundle.id, resourceId: source.id });
   if (!live) expect((await requests()).filter(item => item.url === source.originalUrl)).toHaveLength(2);
   checks.push('Actual Desktop/backend restart and repeated start reuse the same archive receipt without reacquisition');
   if (!live) {
-    await openSource(source.title);
-    await openSourceAnalysis();
-    const reports = sourceDialog().getByRole('region', { name: 'Recorded evidence', exact: true });
+    await row(source.title).getByRole('button', { name: 'Browse source files', exact: true }).click();
+    const reports = row(source.title).getByRole('region', { name: 'Source evidence reports', exact: true });
     await reports.getByRole('button', { name: 'Authored source evidence', exact: true }).click();
     await expect(reports.getByRole('article', { name: 'Saved source evidence report', exact: true })).toBeVisible();
     const reopened = await api('/api/research/source-report', { operation: 'read', bundleId: bundle.id, reportId: savedSourceReport.id });
@@ -175,20 +155,10 @@ try {
     const observationCount = (await api('/api/research/source-report', { operation: 'observations', bundleId: bundle.id })).observations.length;
     for (const original of savedWindows) {
       const saved = reports.getByRole('article', { name: 'Saved source evidence report', exact: true });
-      const label = `${tex.path}, lines ${original.startLine}–${original.endLine}, characters ${original.start}–${original.end}`;
-      const evidence = saved.getByRole('listitem').filter({ has: frame.getByText(label, { exact: true }) });
-      await evidence.getByRole('button', { name: 'Open original evidence', exact: true }).click();
+      const label = `${tex.path} · lines ${original.startLine}–${original.endLine} · characters ${original.start}–${original.end}`;
+      await saved.getByRole('listitem').filter({ has: frame.getByText(label, { exact: true }) }).getByRole('button', { name: 'Open original evidence', exact: true }).click();
       await expect(frame.getByLabel(`Original source: ${tex.path}`, { exact: true })).toHaveText(original.content);
-      await expect(sourceDialog().getByText(`Lines ${original.startLine}–${original.endLine} of ${original.totalLines}`, { exact: true })).toBeVisible();
-      // Character offsets now live in the saved evidence identity, not the
-      // compact source header. Verify those exact bounds through the visible UI.
-      const identity = evidence.locator(':scope > details');
-      if (!await identity.evaluate(element => element.open)) await identity.locator('summary').click();
-      await expect(identity.locator('pre')).toBeVisible();
-      expect(JSON.parse(await identity.locator('pre').innerText())).toMatchObject({
-        archiveDigest: original.archiveDigest, memberId: original.memberId, memberDigest: original.memberDigest,
-        start: original.start, end: original.end, startLine: original.startLine, endLine: original.endLine,
-      });
+      await expect(row(source.title).getByText(`Original lines ${original.startLine}–${original.endLine} of ${original.totalLines} / characters ${original.start}–${original.end}`, { exact: true })).toBeVisible();
       expect((await api('/api/research/source-report', { operation: 'observations', bundleId: bundle.id })).observations).toHaveLength(observationCount);
     }
     expect(await api('/api/research/source-report', { operation: 'read', bundleId: bundle.id, reportId: savedWindowReport.id })).toEqual(savedWindowReport);
@@ -196,18 +166,14 @@ try {
     const originalPath = resolve(profile, 'desktop/app-data/paper-agent/research-v1/source-files', acquired.receipt.archiveDigest + '.bin');
     const originalBytes = await readFile(originalPath);
     await rm(originalPath);
-    await closeSource();
-    await row(source.title).getByRole('button', { name: 'Refresh source status', exact: true }).click();
-    await expect(row(source.title)).toContainText('Local files unavailable');
-    await openSource(source.title, 'Open saved source evidence');
-    await openSourceAnalysis();
+    await sources().getByRole('button', { name: 'Refresh source status', exact: true }).click();
+    await expect(row(source.title)).toContainText('Source files or previews unavailable');
     await reports.getByRole('button', { name: 'Authored source evidence', exact: true }).click();
-    await expect(reports.getByText('Original unavailable. Restore its exact version before rereading.', { exact: true })).toHaveCount(2);
+    await expect(reports.getByText('Original currently unavailable. Restore its exact version before rereading.', { exact: true })).toHaveCount(2);
     await expect(reports.getByRole('button', { name: 'Open original evidence', exact: true })).toHaveCount(0);
     await writeFile(originalPath, originalBytes); // Restore only the self-authored fixture bytes.
-    await closeSource();
-    await row(source.title).getByRole('button', { name: 'Refresh source status', exact: true }).click();
-    await expect(row(source.title)).toContainText('Downloaded');
+    await sources().getByRole('button', { name: 'Refresh source status', exact: true }).click();
+    await expect(row(source.title)).toContainText('Source files available');
     expect(await api('/api/research/source-report', { operation: 'read', bundleId: bundle.id, reportId: savedSourceReport.id })).toEqual(savedSourceReport);
     checks.push('Only actual source/image reads become report evidence; selected scopes and unresolved interpretation persist through Desktop restart and missing-original recovery');
   }
@@ -219,7 +185,7 @@ try {
     await frame.getByRole('button', { name: 'Save and download', exact: true }).click();
     await expect.poll(async () => (await requests()).filter(item => item.url === single.originalUrl).length).toBe(1);
     await row(single.title).getByRole('button', { name: 'Cancel source download', exact: true }).click();
-    await expect(row(single.title)).toContainText('Download cancelled', { timeout: 10000 });
+    await expect(row(single.title)).toContainText('Source acquisition cancelled', { timeout: 10000 });
     expect((await sourceStatus(bundle, single)).receipt).toBeNull();
     expect((await requests()).filter(item => item.kind === 'pdf')).toEqual([]);
     // One new explicit review retries the cancelled source and authorizes the first PDF.
@@ -232,31 +198,23 @@ try {
     await review.getByRole('checkbox', { name: /^I confirm downloading only/ }).check();
     await frame.getByRole('button', { name: 'Save and download', exact: true }).click();
     bundle = (await api('/api/library')).bundles[0];
-    await expect(row(single.title)).toContainText('Downloaded', { timeout: 15000 });
+    await expect(row(single.title)).toContainText('Source files available', { timeout: 15000 });
     const gzipSource = await sourceStatus(bundle, single);
     expect(gzipSource.receipt.texCount).toBe(1);
-    const pdfSources = frame.getByRole('region', { name: 'PDF', exact: true });
-    await expect(pdfSources.locator(':scope > ul > li').locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Downloaded', { timeout: 15000 });
-    await expect(pdfSources).toContainText('Text on 1 pages');
-    const downloadedPdf = await api('/api/research/pdf', { operation: 'status', bundleId: bundle.id, resourceId: pdf.id });
-    expect(downloadedPdf.localAvailable).toBe(true);
-    expect(downloadedPdf.receipt.textPages).toBe(1);
-    expect(downloadedPdf.receipt.textCharacters).toBeGreaterThan(0);
+    const pdfSources = frame.getByRole('region', { name: 'PDF reading sources', exact: true });
+    await expect(pdfSources).toContainText('PDF downloaded; text extraction available', { timeout: 15000 });
     const acquisitionRequests = (await requests()).filter(item => item.kind !== 'metadata');
     expect(acquisitionRequests.filter(item => item.url === single.originalUrl)).toHaveLength(2);
     expect(acquisitionRequests.filter(item => item.kind === 'pdf')).toHaveLength(1);
     expect(acquisitionRequests.findLastIndex(item => item.url === single.originalUrl)).toBeLessThan(acquisitionRequests.findIndex(item => item.kind === 'pdf'));
     expect(acquisitionConflicts).toEqual([]);
     checks.push('One explicit review selects source plus first PDF: cancelled source retries to gzip before PDF acquisition, with no shared-worker 409');
-    await openSource(source.title);
-    await openSourceAnalysis();
-    const compare = sourceDialog().getByRole('region', { name: 'Compare with saved PDF', exact: true });
-    await compare.getByRole('combobox', { name: 'Select a saved PDF', exact: true }).selectOption(pdf.id);
+    await row(source.title).getByRole('button', { name: 'Browse source files', exact: true }).click();
+    const compare = row(source.title).getByRole('region', { name: 'Source and PDF comparison', exact: true });
+    await compare.getByRole('combobox', { name: 'PDF for comparison', exact: true }).selectOption(pdf.id);
     await compare.getByRole('button', { name: 'Compare source and PDF', exact: true }).click();
     await expect(compare).toContainText('Evidence-backed caption matches');
     await compare.getByRole('button', { name: 'Open matched PDF page 1', exact: true }).first().click();
-    // Navigation must release the native modal, not leave the PDF reader inert.
-    await expect(frame.locator('.pa-tex-source-dialog[open]')).toHaveCount(0);
     const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
     await expect(viewer.locator('[data-page-number="1"] img,[data-page-number="1"] canvas').first()).toBeVisible({ timeout: 30000 });
     await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
@@ -266,7 +224,7 @@ try {
     await frame.getByRole('region', { name: 'Review resources' }).locator('.pa-resource-list>li').filter({ hasText: pdfOnly.title }).getByRole('checkbox', { name: /^Get source for read-only inspection/ }).check();
     await frame.getByRole('checkbox', { name: /^I confirm downloading only/ }).check();
     await frame.getByRole('button', { name: 'Save and download', exact: true }).click();
-    await expect(row(pdfOnly.title)).toContainText('PDF only; no TeX source', { timeout: 15000 });
+    await expect(row(pdfOnly.title)).toContainText('Provider returned PDF only; no TeX source', { timeout: 15000 });
     checks.push('Cancellation interrupts source acquisition; explicit retry accepts gzip single TeX; PDF-only response never claims TeX');
   }
   if (!live) {

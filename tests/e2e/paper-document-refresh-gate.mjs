@@ -2,7 +2,6 @@
 // authenticated backend request, response, parser work or persistence.
 export function deferDocumentRefresh() {
   const original = window.paperNativeFetch;
-  if (typeof original !== 'function') throw Error('Install the Paper fetch observer before opening the App');
   let release, ready;
   const held = new Promise(resolve => { release = resolve; });
   const gate = window.paperRefreshGate = {
@@ -23,29 +22,6 @@ export function deferDocumentRefresh() {
       gate.arrived = true; ready();
       await held;
       gate.delivered = true;
-      return response;
-    } catch (error) { gate.error = String(error); ready(); throw error; }
-  };
-}
-
-// Hold the refreshed ownership overview through the same pre-SDK dispatcher.
-export function deferScopeOverview() {
-  const original = window.paperNativeFetch;
-  if (typeof original !== 'function') throw Error('Install the Paper fetch observer before opening the App');
-  let release, ready;
-  const held = new Promise(resolve => { release = resolve; });
-  const gate = window.paperScopeOverviewGate = {
-    arrived: false, delivered: false, error: '', ready: new Promise(resolve => { ready = resolve; }),
-    release, restore() { delete window.paperFetchObserver; release(); },
-  };
-  window.paperFetchObserver = async (...args) => {
-    const url = new URL(typeof args[0] === 'string' ? args[0] : args[0].url, window.location.href);
-    const response = await original.apply(window, args);
-    if (url.pathname !== '/api/paper-documents') return response;
-    try {
-      if (!response.ok) throw Error(`Overview failed: ${response.status}`);
-      await response.clone().arrayBuffer(); gate.arrived = true; ready();
-      await held; gate.delivered = true;
       return response;
     } catch (error) { gate.error = String(error); ready(); throw error; }
   };

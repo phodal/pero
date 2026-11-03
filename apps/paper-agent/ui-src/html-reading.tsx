@@ -4,8 +4,8 @@ import { Button, Disclosure, Feedback } from '@pero/app-sdk/ui';
 import { mountPaperReader, type OutlineEntry, type ReaderSelection } from '@pero/paper-reader';
 
 /** App adapter: fetch the existing immutable original, own theme and discussion. */
-export function HtmlReading({ id, sourceUrl, onDiscuss, renderSelection, children, recorded }: {
-  recorded: boolean; id: string; sourceUrl: string; onDiscuss?(text: string): void; children: React.ReactNode; renderSelection?(selection: ReaderSelection): React.ReactNode;
+export function HtmlReading({ id, sourceUrl, onDiscuss, children, recorded }: {
+  recorded: boolean; id: string; sourceUrl: string; onDiscuss?(text: string): void; children: React.ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const reader = useRef<ReturnType<typeof mountPaperReader> | null>(null);
@@ -43,7 +43,7 @@ export function HtmlReading({ id, sourceUrl, onDiscuss, renderSelection, childre
     {status === 'loading' && <p role="status">{t('loading')}</p>}
     {error && <Feedback kind="error">{error}<Button onClick={() => setAttempt(value => value + 1)}>{t('retry')}</Button></Feedback>}
     {!!outline.length && <Disclosure summary={t('contents')}><nav aria-label={t('contents')}>{outline.map(item => <button key={item.id} className="pa-text-contents-item" onClick={() => reader.current?.reveal(item.id)}>{item.title}</button>)}</nav></Disclosure>}
-    {selection && <div className="pa-html-selection">{onDiscuss && <Button onClick={() => onDiscuss(selection.text)}>{t('discuss')}</Button>}{renderSelection?.(selection)}</div>}
+    {selection && onDiscuss && <div className="pa-html-selection"><Button onClick={() => onDiscuss(selection.text)}>{t('discuss')}</Button></div>}
     <div ref={root}/>
     {status === 'error' && children}
   </div>;

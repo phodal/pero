@@ -30,7 +30,7 @@ export function ResearchBundleList({ bundles, onOpen }: { bundles: ResearchBundl
   return <section className="pa-research-bundles" aria-label={t('bundles')}><h2>{t('bundles')}</h2><ul>{bundles.map(bundle => <li key={bundle.id}><Button variant="ghost" onClick={() => onOpen(bundle.id)}>{bundle.title}</Button><small>{t('references', { count: bundle.resources.length })}</small></li>)}</ul></section>;
 }
 
-export function ResearchBundleView({ api, id, startDownloadIds, startPdfIds, startSourceIds, onRead, onBack }: { api: Api; id: string; startDownloadIds: string[]; startPdfIds: string[]; startSourceIds: string[]; onRead(id: string, focus?: PdfFocus): void | boolean | Promise<void | boolean>; onBack(): void }) {
+export function ResearchBundleView({ api, id, startDownloadIds, startPdfIds, startSourceIds, onRead, onBack }: { api: Api; id: string; startDownloadIds: string[]; startPdfIds: string[]; startSourceIds: string[]; onRead(id: string, focus?: PdfFocus): void; onBack(): void }) {
   const { t } = useAppI18n(labels);
   const [bundle, setBundle] = useState<ResearchBundle | null>(null), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
   const sourceBatch = `${id}:${startSourceIds.join(',')}`;

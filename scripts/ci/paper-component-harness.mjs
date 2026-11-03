@@ -4,7 +4,7 @@ import { runInNewContext } from 'node:vm';
 
 // Execute complete production components, not source fragments. This shallow
 // hook host leaves DOM/PDF rendering to e2e; effects and handlers run unchanged.
-export function paperComponents(api, environment = {}) {
+export function paperComponents(api) {
   let current;
   const storage = new Map();
   const react = {
@@ -30,7 +30,7 @@ export function paperComponents(api, environment = {}) {
     },
   };
   const sdk = { useAppApi: () => api, useAppChat: () => ({}), useAppInfo: () => ({ active: true }),
-    useAppI18n: () => ({ t: key => key }), useAppContext: () => ({ active: true, locale: 'en', dark: false }), useAppObject() {}, useAppDataChanged() {}, appObjectProps: () => ({}) };
+    useAppI18n: () => ({ t: key => key }), useAppObject() {}, useAppDataChanged() {}, appObjectProps: () => ({}) };
   const cache = new Map();
   function load(name) {
     if (cache.has(name)) return cache.get(name);
@@ -38,19 +38,17 @@ export function paperComponents(api, environment = {}) {
     const code = transformSync(readFileSync(path, 'utf8'), { loader: name.endsWith('.tsx') ? 'tsx' : 'ts', format: 'cjs', jsx: 'transform' }).code;
     const module = { exports: {} };
     const require = specifier => {
-      if (specifier in (environment.modules ?? {})) return environment.modules[specifier];
       if (specifier === 'react') return react;
       if (specifier === 'react-dom') return { createPortal: children => children };
       if (specifier === '@pero/app-sdk') return sdk;
       if (['./documents', './pdf-reader', './structured-reading'].includes(specifier)) return load(`${specifier.slice(2)}.tsx`);
-      if (['./reader-state', './shelf', './research-types'].includes(specifier)) return load(`${specifier.slice(2)}.ts`);
+      if (specifier === './reader-state') return load('reader-state.ts');
       // Child views are opaque elements; no child domain behavior is faked.
       return new Proxy({}, { get: (_, key) => key === '__esModule' ? false : String(key) });
     };
     runInNewContext(code, { module, exports: module.exports, require, console, Error,
       localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
       window: { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }), addEventListener() {}, removeEventListener() {} },
-      ...environment.globals,
     }, { filename: path.pathname });
     cache.set(name, module.exports);
     return module.exports;
@@ -68,7 +66,7 @@ export function paperComponents(api, environment = {}) {
     host.render();
     return host;
   }
-  return { ...load('research-sources.tsx'), ...load('research-source-browser.tsx'), ...load('html-reading.tsx'), ...load('documents.tsx'), ...load('structured-reading.tsx'), ...load('pdf-reader.tsx'),
+  return { ...load('documents.tsx'), ...load('structured-reading.tsx'), ...load('pdf-reader.tsx'),
     PaperAgent: load('index.tsx').default, mount, storage };
 }
 

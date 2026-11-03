@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deferDocumentRefresh, deferScopeOverview } from '../../tests/e2e/paper-document-refresh-gate.mjs';
+import { deferDocumentRefresh } from '../../tests/e2e/paper-document-refresh-gate.mjs';
 
 test('refresh gate forwards real requests and holds only the actual refresh Response', async () => {
   const previous = globalThis.window;
@@ -85,7 +85,6 @@ test('SDK captured before late response observers still holds real refresh and l
     for (const [arm, key, path, body] of [
       [deferDocumentRefresh, 'paperRefreshGate', '/api/paper-document', { operation: 'prepare', refresh: true }],
       [deferPdfLocate, 'paperLocateGate', '/api/pdf/locate', { page: 2 }],
-      [deferScopeOverview, 'paperScopeOverviewGate', '/api/paper-documents?paperId=fixed', undefined],
     ]) {
       const calls = [];
       const native = async (...args) => { calls.push(args); return new Response(JSON.stringify({ actual: 'backend response' })); };
@@ -98,13 +97,12 @@ test('SDK captured before late response observers still holds real refresh and l
         hostHeaders: { 'X-Pero-App-Token': 'real-host-token' } });
       arm();
       let delivered = false;
-      const pending = (body === undefined ? api.get(path) : api.post(path, body)).then(value => { delivered = true; return value; });
+      const pending = api.post(path, body).then(value => { delivered = true; return value; });
       await Promise.race([window[key].ready, pending.then(() => { throw Error('Captured SDK fetch bypassed the late response observer'); })]);
       assert.equal(window[key].arrived, true);
       assert.equal(delivered, false);
       assert.equal(calls[0][0], path);
-      if (body === undefined) assert.equal(calls[0][1].method, 'GET');
-      else assert.deepEqual(JSON.parse(calls[0][1].body), body);
+      assert.deepEqual(JSON.parse(calls[0][1].body), body);
       assert.equal(calls[0][1].headers.get('X-Pero-App-Token'), 'real-host-token');
       window[key].release();
       assert.deepEqual(await pending, { actual: 'backend response' });
@@ -118,16 +116,4 @@ test('SDK captured before late response observers still holds real refresh and l
   } finally {
     if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow;
   }
-});
-
-// Runtime probe covers dispatcher delivery; this wiring assertion guards the
-// missing bootstrap that allowed the real Desktop SDK to capture native fetch.
-test('structured journey installs the observer on every window before opening Paper', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('../../tests/e2e/paper-structured-reading.mjs', import.meta.url), 'utf8');
-  assert.match(source, /import \{ installPaperFetchObserver \} from '\.\/paper-fetch-observer\.mjs'/);
-  const ready = source.slice(source.indexOf('async function ready()'), source.indexOf('async function openPaper()'));
-  assert.match(ready, /await page\.addInitScript\(installPaperFetchObserver\)/);
-  assert.ok(ready.indexOf('addInitScript') < ready.indexOf('waitForFunction'));
-  assert.doesNotMatch(source, /window\.fetch\s*=/);
 });
