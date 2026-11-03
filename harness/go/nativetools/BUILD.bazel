@@ -47,6 +47,7 @@ go_test(
         "notice_recovery_test.go",
         "notifications_test.go",
         "output_file_test.go",
+        "patch_test.go",
         "presenter_integration_test.go",
         "presenter_test.go",
         "promotion_test.go",

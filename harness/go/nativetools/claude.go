@@ -13,6 +13,7 @@ import (
 // Claude arguments are converted once at the registration boundary. The
 // original registry call still owns approval, cancellation and the tool receipt.
 type claudeArguments struct {
+	Patch           string `json:"patch"`
 	FilePath        string `json:"file_path"`
 	NotebookPath    string `json:"notebook_path"`
 	Path            string `json:"path"`
@@ -103,7 +104,8 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 		around = value.Context
 	}
 	return arguments{
-		Path: selectedPath, Content: content, OldText: value.OldString,
+		Patch: value.Patch,
+		Path:  selectedPath, Content: content, OldText: value.OldString,
 		NewText: value.NewString, ReplaceAll: value.ReplaceAll, Offset: value.Offset,
 		Limit: value.Limit, Command: value.Command, TimeoutMS: value.Timeout,
 		Pattern: value.Pattern, Glob: value.Glob, FileType: value.FileType,

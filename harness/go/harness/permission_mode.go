@@ -161,7 +161,7 @@ func claudePermissionDecision(mode string, request ApprovalRequest) (ApprovalOut
 
 func claudeEditTool(name string) bool {
 	switch name {
-	case "Write", "Edit", "NotebookEdit", "MultiEdit", "write_file", "edit_file", "notebook_edit":
+	case "Write", "Edit", "NotebookEdit", "MultiEdit", "write_file", "edit_file", "notebook_edit", "apply_patch":
 		return true
 	default:
 		return false

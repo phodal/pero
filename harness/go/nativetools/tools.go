@@ -78,6 +78,7 @@ func (a *App) CheckCWD(cwd string) error {
 }
 
 type arguments struct {
+	Patch                                          string `json:"patch"`
 	Path                                           string `json:"path"`
 	Content                                        string `json:"content"`
 	OldText                                        string `json:"old_text"`
@@ -160,7 +161,11 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 	if !opts.ClaudeTools {
 		definitions = append(definitions, genericSearchDefinitions(files)...)
 	}
-
+	if files.SupportsReplacement() {
+		definitions = append(definitions, toolDefinition{"apply_patch", "Apply an approved multi-file text patch. Format: *** Begin Patch, then *** Add File: path (+lines), *** Update File: path (@@ hunks with space context, -removed, +added), or *** Delete File: path, ending *** End Patch. Updates may include *** Move to: new-path and @@ exact anchor or *** End of File. Paths are workspace-relative; parents must exist, add/move targets must be absent, and context must match uniquely. At most 32 files/1 MiB patch. All files are preflighted; commits are ordered, not transactional. Inspect per-file applied/unknown/not-applied receipts before retrying a partial failure.", `"patch":{"type":"string","minLength":1,"maxLength":1048576}`, `"patch"`, true, func(ctx context.Context, input arguments) (any, error) {
+			return workspaceFrom(ctx, files).ApplyPatch(ctx, input.Patch)
+		}})
+	}
 	if opts.ClaudeTools && files.SupportsReplacement() {
 		definitions = append(definitions, toolDefinition{
 			"notebook_edit",
@@ -276,7 +281,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 	}
 	// Registered contributions are owned by the Harness and drain before App.Close.
 	for _, d := range definitions {
-		if opts.Sandbox != nil && opts.Sandbox.Mode == sandbox.ReadOnly && (d.name == "write_file" || d.name == "edit_file" || d.name == "notebook_edit") {
+		if opts.Sandbox != nil && opts.Sandbox.Mode == sandbox.ReadOnly && d.approval && d.name != "shell" {
 			continue
 		}
 		if !files.SupportsReplacement() {
