@@ -101,6 +101,54 @@ export async function exerciseSearchKeyboard({ frame, page, out }) {
   } finally { page.off('request', observeSearch); }
 }
 
+export async function exerciseTextSearchLocations({ frame, page, out, saved }) {
+  const cases = [
+    { name: 'bmp', query: 'offsetcontrol', content: 'ASCII 中文\n# Target\noffsetcontrol ends here.', passage: '# Target\noffsetcontrol ends here.', line: '2' },
+    { name: 'before', query: 'offsetbefore', content: '𝑥𝑦𝑧 🧪\n# Target\noffsetbefore ends here.', passage: '# Target\noffsetbefore ends here.', line: '2' },
+    { name: 'inside', query: 'offsetinside', content: 'Intro\n# Target\noffsetinside 𝑥 🧪 ends here.\n# Later\nOutside.', passage: '# Target\noffsetinside 𝑥 🧪 ends here.\n', line: '2' },
+    { name: 'whole', query: 'offsetwhole', content: 'offsetwhole ends with 🧪', passage: 'offsetwhole ends with 🧪', line: '1' },
+  ];
+  // Seed synthetic snapshots through the real backend; reopening must use the
+  // original saved IDs without importing again or changing source contents.
+  const papers = saved ?? await frame.locator('body').evaluate(async (_element, cases) => {
+    const papers = [];
+    for (const item of cases) {
+      const title = `Text location ${item.name}`;
+      const response = await fetch('/api/papers/import', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, url: `https://example.org/text-location-${item.name}`, content: item.content, contentKind: 'full-text', authors: [] }) });
+      if (!response.ok) throw new Error(`Text fixture import failed: ${response.status}`);
+      const paper = await response.json();
+      papers.push({ ...item, title, id: paper.id });
+    }
+    return papers;
+  }, cases);
+  const search = frame.getByRole('region', { name: 'Search saved text', exact: true });
+  const input = search.getByRole('searchbox', { name: 'Search saved text', exact: true });
+  await input.fill('');
+  await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(frame.locator('.pa-library-list')).toContainText(papers[0].title);
+  for (const item of papers) {
+    await input.fill(item.query);
+    await input.press('Enter');
+    const hit = search.locator('[data-search-hit]');
+    await expect(hit).toHaveCount(1);
+    await hit.getByRole('button', { name: item.title, exact: true }).click();
+    const source = frame.locator(`[data-paper-id="${item.id}"] .pa-search-source`);
+    const mark = source.locator('mark');
+    // textContent preserves newlines and trailing characters that normalized
+    // visible-text assertions could hide, including split surrogate pairs.
+    await expect(mark).toBeVisible();
+    expect(await mark.textContent()).toBe(item.passage);
+    await expect(mark).toHaveAttribute('data-search-line', item.line);
+    expect(await source.textContent()).toBe(item.content);
+    if (item.name === 'before') await page.screenshot({ path: resolve(out, saved ? 'text-location-reopened.png' : 'text-location-unicode.png') });
+    await frame.getByRole('button', { name: 'Back to library', exact: true }).click();
+  }
+  await search.getByRole('button', { name: 'Clear search', exact: true }).click();
+  await expect(frame.locator('.pa-library-list')).toBeVisible();
+  return papers;
+}
+
 export async function exercisePdfSearch({ frame, page, out, realPdf }) {
   const search = frame.getByRole('region', { name: 'Search saved text', exact: true });
   const input = search.getByRole('searchbox', { name: 'Search saved text', exact: true });
