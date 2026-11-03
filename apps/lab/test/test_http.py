@@ -85,6 +85,18 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(result['step_index'], 1)
         self.assertEqual(self.store.read(other)['trials'], [])
 
+    def test_initial_preview_matches_frozen_state_without_creating_an_experiment(self):
+        status, preview = self.request('GET', '/api/state')
+        self.assertEqual(status, 200)
+        self.assertEqual(preview['experiments'], [])
+        status, experiment = self.request('POST', '/api/experiments', {'target_fraction': 0.4})
+        self.assertEqual(status, 201)
+        self.assertEqual(preview['initial_state'], experiment['initial_state'])
+        status, listing = self.request('GET', '/api/state')
+        self.assertEqual(status, 200)
+        self.assertEqual([item['id'] for item in listing['experiments']], [experiment['id']])
+        self.assertEqual(listing['initial_state'], preview['initial_state'])
+
     def test_request_schema_and_size_limits(self):
         for data in ({'max_trials': True}, {'max_trials': 10 ** 1000}, {'hardware': True}, {'criteria': {'tolerance': 1}}, []):
             self.assertEqual(self.request('POST', '/api/experiments', data)[0], 400)

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { appObjectProps, downloadFile, useAppApi, useAppChat, useAppDataChanged, useAppObject } from '@pero/app-sdk';
 import { Button, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
-import type { Comparison, Engine, Experiment, Protocol } from './types';
+import type { Comparison, Engine, Experiment, LabState, Protocol } from './types';
 import { bytesToBase64, exampleProtocol, trialLabel } from './presentation';
 import { Deck } from './deck';
 import { ProtocolEditor } from './protocol-editor';
@@ -14,6 +14,7 @@ const emptySchema = { type: 'object', properties: {}, additionalProperties: fals
 export default function Lab() {
   const api = useAppApi(), chat = useAppChat();
   const [history, setHistory] = useState<Experiment[]>([]), [engine, setEngine] = useState<Engine | null>(null);
+  const [initialState, setInitialState] = useState<LabState | null>(null);
   const [experiment, setExperiment] = useState<Experiment | null>(null), [trialId, setTrialId] = useState('');
   const [tab, setTab] = useState('deck'), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState('');
@@ -33,8 +34,8 @@ export default function Lab() {
     setTrialId(previous => next.trials.some(item => item.id === previous) ? previous : next.trials.at(-1)?.id ?? '');
   };
   const refresh = useCallback(async () => {
-    const data = await api.get<{ experiments: Experiment[]; engine: Engine }>('/api/state');
-    setHistory(data.experiments); setEngine(data.engine);
+    const data = await api.get<{ experiments: Experiment[]; engine: Engine; initial_state: LabState }>('/api/state');
+    setHistory(data.experiments); setEngine(data.engine); setInitialState(data.initial_state);
     if (selected.current) {
       const next = data.experiments.find(item => item.id === selected.current);
       if (next) setExperiment(next);
@@ -156,7 +157,7 @@ export default function Lab() {
             <div className="goal-actions"><Button variant="primary" busy={busy} onClick={() => void freeze()}>Freeze experiment</Button><p className="muted">Every trial starts from the same frozen deck.</p></div>
           </section>
         </SplitPane>
-        <SplitPane id="initial-deck" min={460}><Deck compact title="Initial deck" /></SplitPane>
+        <SplitPane id="initial-deck" min={460}>{initialState ? <Deck state={initialState} preview compact title="Initial deck" /> : <p className="muted">Initial deck preview is unavailable. Refresh to retry.</p>}</SplitPane>
       </Split> : <>
         <section className="experiment-heading"><h2>{experiment.objective}</h2><p className="muted">Frozen target: {experiment.criteria.target_well}, red fraction {experiment.criteria.target_fraction} ± {experiment.criteria.tolerance}; {experiment.criteria.target_volume_ul} µL. Trials {experiment.trials.length}/{experiment.max_trials}.</p>
           <div className="toolbar"><label>Trial <select aria-label="Trial" value={trialId} onChange={event => setTrialId(event.target.value)} disabled={busy}><option value="">Select trial</option>{experiment.trials.map((item, index) => <option value={item.id} key={item.id}>{index + 1}: {item.status}{item.parent_trial_id ? ' (revision)' : ''}</option>)}</select></label>

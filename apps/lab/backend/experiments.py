@@ -11,7 +11,7 @@ import sys
 import threading
 import uuid
 
-from domain import parse_criteria, parse_experiment, parse_protocol, parse_state, validate_protocol, transition_trial
+from domain import initial_state, parse_criteria, parse_experiment, parse_protocol, parse_state, validate_protocol, transition_trial
 from observations import import_measurements
 
 LIMITATIONS = ['Simulation only: no physical execution authorization.',
@@ -64,7 +64,8 @@ class ExperimentStore:
         with self.lock: return deepcopy(self.get(identity))
 
     def listing(self):
-        with self.lock: return {'experiments':deepcopy(list(self.records.values())), 'engine':capability()}
+        with self.lock: return {'experiments':deepcopy(list(self.records.values())), 'engine':capability(),
+                               'initial_state':initial_state().to_dict()}
 
     def create(self, data):
         with self.lock:

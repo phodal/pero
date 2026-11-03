@@ -3,22 +3,11 @@ import { Split, SplitPane } from '@pero/app-sdk/ui';
 import type { LabState } from './types';
 import { formatNumber } from './presentation';
 
-// A preview of the fixed Color Mixing layout, never an executed or saved state.
-const startingLayout: LabState = {
-  wells: [...'ABCDEFGH'].flatMap(row => Array.from({ length: 12 }, (_, index) => {
-    const id = `${row}${index + 1}`;
-    return { id, volume_ul: id === 'A1' || id === 'A2' ? 200 : 0, red_fraction: id === 'A1' ? 1 : 0, capacity_ul: 300 };
-  })),
-  available_tips: Array.from({ length: 96 }, (_, index) => `T${index + 1}`), consumed_tips: [],
-  pipette: { tip_id: null, volume_ul: 0, red_fraction: 0, capacity_ul: 300 }, revision: 0,
-};
-
-export function Deck({ state: savedState, compact = false, title = '96-well plate' }: { state?: LabState; compact?: boolean; title?: string }) {
-  const state = savedState ?? startingLayout;
+export function Deck({ state, preview = false, compact = false, title = '96-well plate' }: { state: LabState; preview?: boolean; compact?: boolean; title?: string }) {
   const [selected, setSelected] = useState('B1');
   const well = state.wells.find(item => item.id === selected);
   const plate = <>
-      <div className="section-toolbar"><h2>{title}</h2><span className="muted">{savedState ? `Revision ${state.revision}` : 'Preview'}</span></div>
+      <div className="section-toolbar"><h2>{title}</h2><span className="muted">{preview ? 'Preview' : `Revision ${state.revision}`}</span></div>
       <div className="plate-scroll"><div className="plate" role="group" aria-label="96-well plate">
         <span />{Array.from({ length: 12 }, (_, n) => <span className="plate-axis" key={n}>{n + 1}</span>)}
         {'ABCDEFGH'.split('').map(row => <React.Fragment key={row}><span className="plate-axis">{row}</span>
@@ -31,7 +20,7 @@ export function Deck({ state: savedState, compact = false, title = '96-well plat
           })}</React.Fragment>)}
       </div></div>
       <div className="deck-legend"><span><strong>A1</strong> Red dye</span><span><strong>A2</strong> Diluent</span><span><strong>B1</strong> Target mixture</span></div>
-      <p className="muted">{savedState ? 'Virtual dye intensity shows the predicted fraction. Volumes in µL.' : 'Initial layout preview. Freezing the experiment records its starting state.'}</p>
+      <p className="muted">{preview ? 'Initial layout preview. Freezing the experiment records its starting state.' : 'Virtual dye intensity shows the predicted fraction. Volumes in µL.'}</p>
     </>;
   const resources = <>
       <h2>Well {selected}</h2>
