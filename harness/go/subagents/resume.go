@@ -32,6 +32,7 @@ func (s *claudeDelegation) resume(ctx context.Context, parent *harness.Agent, id
 			return previous, nil
 		}
 	}
+	ctx = context.WithValue(ctx, claudeBackgroundActivationKey{}, background)
 	activation, err := s.facade.ResumeActivation(ctx, parent, id, harness.Message{Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: prompt}}})
 	if err != nil {
 		return nil, err

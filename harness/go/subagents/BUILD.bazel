@@ -25,6 +25,7 @@ go_library(
 go_test(
     name = "subagents_test",
     srcs = [
+        "background_activity_test.go",
         "builtins_test.go",
         "claude_invoke_test.go",
         "claude_legacy_task_test.go",

@@ -11,6 +11,8 @@ import (
 // provider. Legacy spawn/fork providers retain their one-shot capability set.
 type managedClaudeProvider struct{ *inProcessProvider }
 
+type claudeBackgroundActivationKey struct{}
+
 func (p *managedClaudeProvider) PrepareContinuable(ctx context.Context, request harness.SubagentRequest) (harness.SubagentContinuationProviderRun, error) {
 	return harness.SubagentContinuationProviderRun{}, harness.ErrSubagentActivationModeUnsupported
 }
@@ -19,7 +21,7 @@ func (p *managedClaudeProvider) PrepareActivation(ctx context.Context, request h
 	if err != nil {
 		return harness.SubagentContinuationProviderRun{}, err
 	}
-	run := p.continuationRun(child)
+	run := p.continuationRun(ctx, child)
 	run.InitialMessageID = request.InitialPromptMessage().ID
 	run.Begin = func(ctx context.Context) (<-chan harness.TurnOutcome, error) {
 		if capture != nil && capture.admission != nil {
@@ -33,8 +35,9 @@ func (p *managedClaudeProvider) PrepareActivation(ctx context.Context, request h
 	}
 	return run, nil
 }
-func (p *managedClaudeProvider) continuationRun(child *harness.Agent) harness.SubagentContinuationProviderRun {
-	return harness.SubagentContinuationProviderRun{Child: child, ChildID: child.ID(), Submit: child.FollowupResultContext, Dispose: func(ctx context.Context) error { return p.removeChild(ctx, child) }}
+func (p *managedClaudeProvider) continuationRun(ctx context.Context, child *harness.Agent) harness.SubagentContinuationProviderRun {
+	background, _ := ctx.Value(claudeBackgroundActivationKey{}).(bool)
+	return harness.SubagentContinuationProviderRun{Child: child, ChildID: child.ID(), Submit: child.FollowupResultContext, Dispose: func(ctx context.Context) error { return p.removeChild(ctx, child) }, RetainBackgroundActivities: background}
 }
 func (p *managedClaudeProvider) PrepareResume(ctx context.Context, parent *harness.Agent, id harness.SessionID) (harness.SubagentContinuationProviderRun, harness.SubagentSnapshot, error) {
 	return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, harness.ErrSubagentActivationModeUnsupported
@@ -101,5 +104,5 @@ func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent
 		_ = p.removeChild(context.Background(), child)
 		return harness.SubagentContinuationProviderRun{}, harness.SubagentSnapshot{}, err
 	}
-	return p.continuationRun(child), harness.SubagentSnapshot{ID: id, Parent: parent.ID(), Provider: p.name, Label: descriptor.Label, Depth: header.DelegationDepth, Continuable: true, SuppressParentSettlement: descriptor.SuppressParentSettlement}, nil
+	return p.continuationRun(ctx, child), harness.SubagentSnapshot{ID: id, Parent: parent.ID(), Provider: p.name, Label: descriptor.Label, Depth: header.DelegationDepth, Continuable: true, SuppressParentSettlement: descriptor.SuppressParentSettlement}, nil
 }

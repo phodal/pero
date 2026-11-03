@@ -29,7 +29,7 @@ type claudeHTTPFixture struct {
 	approvals atomic.Int32
 }
 
-func newClaudeHTTPFixture(t *testing.T, root string, handler http.HandlerFunc, allowed bool, definitions []AgentDefinition, options ClaudeOptions) *claudeHTTPFixture {
+func newClaudeHTTPFixture(t *testing.T, root string, handler http.HandlerFunc, allowed bool, definitions []AgentDefinition, options ClaudeOptions, nativeOptions ...nativetools.Options) *claudeHTTPFixture {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -43,7 +43,11 @@ func newClaudeHTTPFixture(t *testing.T, root string, handler http.HandlerFunc, a
 	if err != nil {
 		t.Fatal(err)
 	}
-	native, err := nativetools.Mount(ctx, h, nativetools.Options{Workspace: root, ClaudeTools: true})
+	nativeConfig := nativetools.Options{Workspace: root, ClaudeTools: true}
+	if len(nativeOptions) != 0 {
+		nativeConfig = nativeOptions[0]
+	}
+	native, err := nativetools.Mount(ctx, h, nativeConfig)
 	if err != nil {
 		t.Fatal(err)
 	}

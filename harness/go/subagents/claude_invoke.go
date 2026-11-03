@@ -105,6 +105,7 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 		origin = plugin
 	}
 	ctx = context.WithValue(ctx, claudeDefinitionContextKey{}, claudeDefinitionIdentity{Version: 1, Name: definition.Name, Origin: origin})
+	ctx = context.WithValue(ctx, claudeBackgroundActivationKey{}, input.Background)
 	if input.ConfigureChild != nil {
 		ctx = context.WithValue(ctx, claudeChildConfigurationKey{}, input.ConfigureChild)
 	}
