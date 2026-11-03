@@ -17,6 +17,37 @@ import (
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
+func TestIdlePromptNotificationFiresAfterAFinishedResponse(t *testing.T) {
+	previous := idleNotifyDelay
+	idleNotifyDelay = 40 * time.Millisecond
+	t.Cleanup(func() { idleNotifyDelay = previous })
+	root := t.TempDir()
+	hook := scriptHook(t, root, "Notification", `cat > "$CLAUDE_PLUGIN_ROOT/idle.json"`)
+	hook.Matcher = "idle_prompt"
+	h, _ := testHookHarness(t, harness.AdapterFunc(func(_ context.Context, _ harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	}), plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{hook}}, 0)
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "idle-notify", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prompt(t, agent, "finish"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	var payload []byte
+	for {
+		payload, err = os.ReadFile(filepath.Join(root, "idle.json"))
+		if err == nil && strings.Contains(string(payload), `"notification_type":"idle_prompt"`) && strings.Contains(string(payload), "Claude is waiting for your input") {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("idle notice missing: %s %v", payload, err)
+		}
+		time.Sleep(15 * time.Millisecond)
+	}
+}
+
 func TestPermissionPromptNotificationWaitsForAnUnansweredPrompt(t *testing.T) {
 	previous := permissionNotifyDelay
 	permissionNotifyDelay = 40 * time.Millisecond

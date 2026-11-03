@@ -52,6 +52,7 @@ type HookApp struct {
 	asyncCancels        []context.CancelFunc
 	fileWatchCancels    map[*harness.Agent]context.CancelFunc
 	dynamicWatches      map[*harness.Agent][]string
+	idleCancels         map[*harness.Agent]context.CancelFunc
 }
 
 type sessionHook struct {
@@ -267,6 +268,12 @@ func (app *HookApp) register(run *point.Run) error {
 	}); err != nil {
 		return err
 	}
+	if _, err := hooks.Status.On(run, func(_ context.Context, input harness.AgentStatusInput) error {
+		app.noteIdle(input.Agent, input.Status)
+		return nil
+	}); err != nil {
+		return err
+	}
 	_, err := hooks.Deactivated.On(run, func(ctx context.Context, agent *harness.Agent) error {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
@@ -282,6 +289,10 @@ func (app *HookApp) register(run *point.Run) error {
 		if cancelWatch := app.fileWatchCancels[agent]; cancelWatch != nil {
 			delete(app.fileWatchCancels, agent)
 			cancelWatch()
+		}
+		if cancelIdle := app.idleCancels[agent]; cancelIdle != nil {
+			delete(app.idleCancels, agent)
+			cancelIdle()
 		}
 		delete(app.dynamicWatches, agent)
 		app.mu.Unlock()

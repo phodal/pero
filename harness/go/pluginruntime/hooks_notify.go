@@ -11,8 +11,12 @@ import (
 )
 
 // permissionNotifyDelay matches Claude's Agent SDK permission_prompt wait.
-// Tests shorten it; production stays at six seconds.
-var permissionNotifyDelay = 6 * time.Second
+// idleNotifyDelay matches the idle_prompt wait after a finished response.
+// Tests shorten them; production stays at the documented intervals.
+var (
+	permissionNotifyDelay = 6 * time.Second
+	idleNotifyDelay       = 60 * time.Second
+)
 
 // schedulePermissionNotification fires Notification permission_prompt when an
 // approval prompt is still unanswered. An earlier answer skips it.
@@ -46,6 +50,62 @@ func (app *HookApp) schedulePermissionNotification(request harness.ApprovalReque
 			Message: "Claude needs your permission", Title: "Permission needed",
 		})
 	}()
+}
+
+func (app *HookApp) noteIdle(agent *harness.Agent, status harness.AgentStatus) {
+	if app == nil || agent == nil || agent.Parent() != nil || !app.hasHookEvent("Notification") {
+		return
+	}
+	app.mu.Lock()
+	if cancel := app.idleCancels[agent]; cancel != nil {
+		cancel()
+		delete(app.idleCancels, agent)
+	}
+	if app.closed || status != harness.AgentIdle {
+		app.mu.Unlock()
+		return
+	}
+	parent := app.owner
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	if app.idleCancels == nil {
+		app.idleCancels = map[*harness.Agent]context.CancelFunc{}
+	}
+	app.idleCancels[agent] = cancel
+	app.calls.Add(1)
+	app.mu.Unlock()
+	go func() {
+		defer app.calls.Done()
+		timer := time.NewTimer(idleNotifyDelay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+		if agent.Status() != harness.AgentIdle || app.backgroundBusy(agent) {
+			return
+		}
+		_, _ = app.event(context.WithoutCancel(ctx), agent, claudehooks.Input{
+			Event: "Notification", NotificationType: "idle_prompt",
+			Message: "Claude is waiting for your input", Title: "Idle",
+		})
+	}()
+}
+
+func (app *HookApp) backgroundBusy(agent *harness.Agent) bool {
+	registry := app.h.Subagents()
+	if registry == nil || agent == nil {
+		return false
+	}
+	for _, child := range registry.ListChildren(agent, true) {
+		if child.Status == harness.SubagentRunning {
+			return true
+		}
+	}
+	return false
 }
 
 func approvalDecided(session *harness.Session, id string) bool {
