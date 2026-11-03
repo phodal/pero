@@ -53,6 +53,7 @@ type HookApp struct {
 	fileWatchCancels    map[*harness.Agent]context.CancelFunc
 	dynamicWatches      map[*harness.Agent][]string
 	idleCancels         map[*harness.Agent]context.CancelFunc
+	modelNotes          map[*harness.Agent]modelNote
 }
 
 type sessionHook struct {
@@ -82,7 +83,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup":
+			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup", "PreModelSwitch", "PostModelSwitch":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}
@@ -213,6 +214,40 @@ func (app *HookApp) register(run *point.Run) error {
 	}); err != nil {
 		return err
 	}
+	if _, err := hooks.PreModelSwitch.Use(run, func(ctx context.Context, input harness.ModelSwitchInput, next point.Next[harness.ModelSwitchInput]) (harness.ModelSwitchInput, error) {
+		err := app.withAgent(ctx, input.Agent, func(ctx context.Context, _ *hookAgentState) error {
+			return app.beforeModelSwitch(ctx, &input)
+		})
+		if err != nil {
+			return input, err
+		}
+		return next(input)
+	}); err != nil {
+		return err
+	}
+	if _, err := hooks.PostModelSwitch.Use(run, func(ctx context.Context, input harness.ModelSwitchInput, next point.Next[harness.ModelSwitchInput]) (harness.ModelSwitchInput, error) {
+		err := app.withAgent(ctx, input.Agent, func(ctx context.Context, _ *hookAgentState) error {
+			return app.afterModelSwitch(ctx, input)
+		})
+		if err != nil {
+			return input, err
+		}
+		return next(input)
+	}); err != nil {
+		return err
+	}
+	if _, err := hooks.Request.Use(run, func(ctx context.Context, request harness.GenerateRequest, next point.Next[harness.GenerateRequest]) (harness.GenerateRequest, error) {
+		request, err := next(request)
+		if err != nil || request.Agent == nil || request.Purpose != "" {
+			return request, err
+		}
+		if note := app.modelNoteForRequest(request.Agent, request.Turn); note != "" {
+			request.Messages = append(request.Messages, hookMessage("PostModelSwitch", note))
+		}
+		return request, nil
+	}, point.ListenerOptions{Prepend: true}); err != nil {
+		return err
+	}
 	if _, err := hooks.Error.On(run, func(ctx context.Context, input harness.AgentErrorInput) error {
 		return app.withAgent(ctx, input.Agent, func(ctx context.Context, _ *hookAgentState) error {
 			return app.stopFailure(ctx, input.Agent, input.Error)
@@ -301,6 +336,7 @@ func (app *HookApp) register(run *point.Run) error {
 			delete(app.idleCancels, agent)
 			cancelIdle()
 		}
+		delete(app.modelNotes, agent)
 		delete(app.dynamicWatches, agent)
 		app.mu.Unlock()
 		return err
@@ -339,6 +375,7 @@ func (app *HookApp) withAgent(ctx context.Context, agent *harness.Agent, effect 
 func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state *hookAgentState) error {
 	if state.turn != input.Turn {
 		state.turn, state.stopBlocks = input.Turn, 0
+		app.retireUsedModelNote(input.Agent, input.Turn)
 	}
 	if input.Agent.Parent() != nil {
 		return nil
@@ -561,6 +598,8 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			matcherValue, filter = input.CommandName, true
 		case "StopFailure":
 			matcherValue, filter = input.ErrorKind, true
+		case "PreModelSwitch", "PostModelSwitch":
+			matcherValue, filter = input.ToModel, true
 		case "SubagentStart", "SubagentStop":
 			matcherValue, filter = input.AgentType, true
 		case "PreCompact", "PostCompact", "Setup":
@@ -620,6 +659,10 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 		if err != nil {
 			if errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 				return claudehooks.Decision{}, err
+			}
+			if input.Event == "PreModelSwitch" && errors.Is(err, context.DeadlineExceeded) {
+				decisions = append(decisions, claudehooks.Decision{Block: true, Reason: "PreModelSwitch hook timed out."})
+				continue
 			}
 			if failureBlocks(hook, input.Event) {
 				decisions = append(decisions, blockedHookFailure(hook, input, err))

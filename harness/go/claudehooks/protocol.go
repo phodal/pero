@@ -68,6 +68,10 @@ type Input struct {
 	CommandSource        string          `json:"command_source,omitempty"`
 	ErrorKind            string          `json:"error,omitempty"`
 	ErrorDetails         string          `json:"error_details,omitempty"`
+	FromModel            string          `json:"from_model,omitempty"`
+	ToModel              string          `json:"to_model,omitempty"`
+	RequestedModel       string          `json:"requested_model,omitempty"`
+	ContextTokens        *int            `json:"context_tokens,omitempty"`
 }
 
 type Decision struct {
@@ -164,7 +168,7 @@ func ParseDecision(event string, stdout, stderr []byte, exitCode int) (Decision,
 			} else {
 				decision, parseErr = wire.decision(event)
 			}
-		} else if event == "SessionStart" || event == "UserPromptSubmit" || event == "PreCompact" || event == "PostCompact" {
+		} else if event == "SessionStart" || event == "UserPromptSubmit" || event == "PreCompact" || event == "PostCompact" || event == "PostModelSwitch" {
 			decision.AdditionalContext = string(stdout)
 		}
 	}
@@ -386,7 +390,7 @@ func blockingEvent(event string) bool {
 
 func runControlEvent(event string) bool {
 	switch event {
-	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart", "FileChanged", "Setup":
+	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart", "FileChanged", "Setup", "PreModelSwitch", "PostModelSwitch":
 		return false
 	}
 	return true

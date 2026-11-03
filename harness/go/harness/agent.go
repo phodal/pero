@@ -153,13 +153,15 @@ type ToolBatchInput struct {
 type AgentHooks struct {
 	// MainRequest observes only an admitted, prepared loop dispatch after its
 	// durable header fold. Its receipt is valid only during this notification.
-	MainRequest  *point.Signal[MainRequestInput]
-	PreStep      *point.Pipeline[StepInput]
-	Request      *point.Pipeline[GenerateRequest]
-	RequestError *point.Pipeline[RequestErrorInput]
-	TurnStopping *point.Signal[TurnStoppingInput]
-	PreCompact   *point.Pipeline[CompactionHookInput]
-	PostCompact  *point.Pipeline[CompactionHookInput]
+	MainRequest     *point.Signal[MainRequestInput]
+	PreStep         *point.Pipeline[StepInput]
+	Request         *point.Pipeline[GenerateRequest]
+	RequestError    *point.Pipeline[RequestErrorInput]
+	TurnStopping    *point.Signal[TurnStoppingInput]
+	PreCompact      *point.Pipeline[CompactionHookInput]
+	PostCompact     *point.Pipeline[CompactionHookInput]
+	PreModelSwitch  *point.Pipeline[ModelSwitchInput]
+	PostModelSwitch *point.Pipeline[ModelSwitchInput]
 	// PostToolBatch runs once after every tool call in one assistant batch.
 	PostToolBatch *point.Pipeline[ToolBatchInput]
 	// Error is a contained lifecycle notification. The loop never replaces the
@@ -193,6 +195,8 @@ func NewAgentHooks(runtime *point.Runtime) *AgentHooks {
 		TurnStopping:      point.NewSignal[TurnStoppingInput](runtime, "harness/agent/turn-stopping"),
 		PreCompact:        point.NewPipeline[CompactionHookInput](runtime, "harness/agent/pre-compact"),
 		PostCompact:       point.NewPipeline[CompactionHookInput](runtime, "harness/agent/post-compact"),
+		PreModelSwitch:    point.NewPipeline[ModelSwitchInput](runtime, "harness/agent/pre-model-switch"),
+		PostModelSwitch:   point.NewPipeline[ModelSwitchInput](runtime, "harness/agent/post-model-switch"),
 		PostToolBatch:     point.NewPipeline[ToolBatchInput](runtime, "harness/agent/post-tool-batch"),
 		Error:             point.NewSignal[AgentErrorInput](runtime, "harness/agent/error"),
 		Status:            point.NewSignal[AgentStatusInput](runtime, "harness/agent/status"),

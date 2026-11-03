@@ -5,6 +5,30 @@ import (
 	"encoding/json"
 )
 
+// ModelSwitchInput is one requested session model change. Reject cancels it
+// before the choice is recorded. Context is guidance for the next request.
+type ModelSwitchInput struct {
+	Agent          *Agent
+	FromModel      string
+	To             AgentModelSelection
+	RequestedModel string
+	Source         string
+	Reject         bool
+	Reason         string
+	Context        string
+}
+
+// ModelSwitchRejectedError means a hook refused the switch. The session model
+// is unchanged and the caller must not treat the session as corrupt.
+type ModelSwitchRejectedError struct{ Reason string }
+
+func (e *ModelSwitchRejectedError) Error() string {
+	if e == nil || e.Reason == "" {
+		return "model switch was blocked"
+	}
+	return e.Reason
+}
+
 // ModelSelection is the durable route for the next request. Reading the log
 // keeps resume and fork behavior identical to live model switching.
 func (a *Agent) ModelSelection() AgentModelSelection {
@@ -35,8 +59,36 @@ func (a *Agent) SelectModel(ctx context.Context, next AgentModelSelection) error
 	if err := a.mutationAdmissionError(); err != nil {
 		return err
 	}
+	current := a.ModelSelection()
+	if current.Provider != next.Provider || current.Model != next.Model {
+		switchInput := ModelSwitchInput{Agent: a, FromModel: current.Model, To: next, RequestedModel: next.Model, Source: "sdk"}
+		if a.hooks != nil && a.hooks.PreModelSwitch != nil {
+			switchInput, err = a.hooks.PreModelSwitch.Run(ctx, switchInput, func(_ context.Context, value ModelSwitchInput) (ModelSwitchInput, error) {
+				return value, nil
+			})
+			if err != nil {
+				return err
+			}
+			if switchInput.Reject {
+				reason := switchInput.Reason
+				if reason == "" {
+					reason = "model switch was blocked"
+				}
+				return &ModelSwitchRejectedError{Reason: reason}
+			}
+		}
+	}
 	if _, err = a.session.Append("session/model-selected", next); err != nil {
 		return err
+	}
+	if current.Provider != next.Provider || current.Model != next.Model {
+		if a.hooks != nil && a.hooks.PostModelSwitch != nil {
+			if _, err = a.hooks.PostModelSwitch.Run(ctx, ModelSwitchInput{Agent: a, FromModel: current.Model, To: next, RequestedModel: next.Model, Source: "sdk"}, func(_ context.Context, value ModelSwitchInput) (ModelSwitchInput, error) {
+				return value, nil
+			}); err != nil {
+				return err
+			}
+		}
 	}
 	if a.session.DurabilityAttached() {
 		return a.session.Flush(ctx)
