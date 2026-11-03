@@ -109,6 +109,8 @@ type Input struct {
 	SessionTitle string `json:"session_title,omitempty"`
 	// Model is the active model id for SessionStart.
 	Model string `json:"model,omitempty"`
+	// PermissionMode is the current Claude permission mode on events that carry it.
+	PermissionMode string `json:"permission_mode,omitempty"`
 }
 
 type Decision struct {

@@ -14,6 +14,22 @@ type sessionPermissionRule struct {
 	behavior, rule string
 }
 
+func sessionHookPermissionMode(agent *harness.Agent, event string) string {
+	if agent == nil || agent.Session() == nil || !hookCarriesPermissionMode(event) {
+		return ""
+	}
+	return harness.HookPermissionMode(agent.Session().Events())
+}
+
+func hookCarriesPermissionMode(event string) bool {
+	switch event {
+	case "PreToolUse", "UserPromptSubmit", "UserPromptExpansion", "PermissionRequest", "PostToolUse", "PostToolUseFailure", "PostToolBatch", "PermissionDenied", "SubagentStop", "TaskCompleted", "Stop", "TeammateIdle":
+		return true
+	default:
+		return false
+	}
+}
+
 // permissionRequest runs only when an approval prompt is about to be shown, or
 // when a non-interactive ask cannot prompt. Exit 2 leaves that flow unchanged.
 // allow can replace the tool arguments. interrupt rejects the call and stops

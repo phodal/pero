@@ -168,6 +168,32 @@ func claudeEditTool(name string) bool {
 	}
 }
 
+// HookPermissionMode is the permission_mode value for a hook event. An empty
+// result means this session's latest fact is a composer preset, which has no
+// Claude mode name. No recorded mode is "default".
+func HookPermissionMode(events []Event) string {
+	for index := len(events) - 1; index >= 0; index-- {
+		switch events[index].Type {
+		case "permission/preset":
+			return ""
+		case "permission/claude-mode":
+			var payload struct {
+				Mode string `json:"mode"`
+			}
+			if json.Unmarshal(events[index].Data, &payload) != nil {
+				return ""
+			}
+			switch payload.Mode {
+			case "default", "plan", "acceptEdits", "dontAsk":
+				return payload.Mode
+			default:
+				return ""
+			}
+		}
+	}
+	return "default"
+}
+
 func claudePermissionPrompt(mode string) string {
 	switch mode {
 	case "plan":

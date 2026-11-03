@@ -635,6 +635,7 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 	}
 	input.SessionID, input.CWD = string(identity.Session.ID()), agent.Session().WorkingDirectory()
 	input.Model = sessionHookModel(agent, input)
+	input.PermissionMode = sessionHookPermissionMode(agent, input.Event)
 	if input.Event == "CwdChanged" && input.NewCWD != "" {
 		input.CWD = input.NewCWD
 	}

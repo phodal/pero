@@ -5,6 +5,8 @@ package pluginruntime
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -94,6 +96,41 @@ func TestPermissionRequestHookDecidesBeforeThePrompt(t *testing.T) {
 				t.Fatalf("deny reason missing: %s", followed)
 			}
 		})
+	}
+}
+
+func TestHookInputCarriesTheSessionPermissionMode(t *testing.T) {
+	root := t.TempDir()
+	pre := scriptHook(t, root, "PreToolUse", `cat > "$CLAUDE_PLUGIN_ROOT/pre.json"`)
+	start := scriptHook(t, root, "SessionStart", `cat > "$CLAUDE_PLUGIN_ROOT/start.json"`)
+	adapter := harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant}}, nil
+	})
+	h, app := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{pre, start}}, 0)
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "hook-mode-input", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.event(t.Context(), agent, claudehooks.Input{Event: "PreToolUse", ToolName: "Write"}); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(root, "pre.json"))
+	if err != nil || !strings.Contains(string(body), `"permission_mode":"default"`) {
+		t.Fatalf("default input = %s %v", body, err)
+	}
+	if _, err := harness.SetClaudePermissionMode(agent.Session(), "acceptEdits"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.event(t.Context(), agent, claudehooks.Input{Event: "PreToolUse", ToolName: "Write"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.event(t.Context(), agent, claudehooks.Input{Event: "SessionStart", Source: "startup"}); err != nil {
+		t.Fatal(err)
+	}
+	body, err = os.ReadFile(filepath.Join(root, "pre.json"))
+	startBody, startErr := os.ReadFile(filepath.Join(root, "start.json"))
+	if err != nil || startErr != nil || !strings.Contains(string(body), `"permission_mode":"acceptEdits"`) || strings.Contains(string(startBody), "permission_mode") {
+		t.Fatalf("pre=%s start=%s err=%v %v", body, startBody, err, startErr)
 	}
 }
 

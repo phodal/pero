@@ -97,7 +97,7 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   the main session identity and the actual child identity. Stop defaults to
   eight consecutive continuations and resets after ordinary tool work.
   Structured answer submissions also pass the stop gate and can be revised.
-  A PermissionRequest `updatedPermissions` entry with destination `session` applies allow, deny, and ask rules, adds or removes working directories, and can set the session mode to `default`, `plan`, `acceptEdits`, or `dontAsk`. `auto` and `bypassPermissions` do not change the mode. Other destinations are ignored and are not written to settings files. Directory updates do not fire `DirectoryAdded`.
+  A PermissionRequest `updatedPermissions` entry with destination `session` applies allow, deny, and ask rules, adds or removes working directories, and can set the session mode to `default`, `plan`, `acceptEdits`, or `dontAsk`. `auto` and `bypassPermissions` do not change the mode. Other destinations are ignored and are not written to settings files. Directory updates do not fire `DirectoryAdded`. Tool, prompt, and stop hooks receive that mode as `permission_mode`.
 - MCP stdio, streamable HTTP and legacy SSE connections belong to root-agent lifetimes.
   Each package gets a server namespace; children inherit the parent connection.
   `list_mcp_prompts` and `get_mcp_prompt` read prompts from those servers.
