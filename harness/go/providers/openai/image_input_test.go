@@ -161,3 +161,41 @@ func TestImageInputRejectsUnsafeMediaBeforeHTTP(t *testing.T) {
 		t.Fatal("request-wide image byte bound ignored")
 	}
 }
+
+func TestTextOnlyToolImageKeepsReferenceAndDisclosesUnreadPixels(t *testing.T) {
+	data := ownedPNG(t, 2, 2)
+	var received atomic.Int32
+	a, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
+		var body wireRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+			return
+		}
+		message := body.Messages[len(body.Messages)-1]
+		text, ok := message.Content.(string)
+		if !ok || message.Role != "tool" || message.ToolCallID != "figure" ||
+			!strings.Contains(text, "![Figure](pero-image://observed)") ||
+			!strings.Contains(text, "has not inspected its pixels") ||
+			!strings.HasSuffix(text, "Original caption and TeX lines.") || strings.Contains(text, "base64") {
+			t.Errorf("text-only tool projection lost reference or limitation: %+v", message)
+		}
+		received.Add(1)
+		w.Header().Set("Content-Type", "text/event-stream")
+		event(w, `{"choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":"stop"}]}`)
+		event(w, "[DONE]")
+	})
+	r := request()
+	r.Messages = []harness.Message{{Role: harness.RoleTool, Content: []harness.ContentBlock{{
+		Type: harness.BlockToolResult, ToolCallID: "figure", Content: []harness.ContentBlock{
+			{Type: harness.BlockText, Text: "![Figure](pero-image://observed)"},
+			{Type: harness.BlockImage, MIMEType: "image/png", Data: data},
+			{Type: harness.BlockText, Text: "Original caption and TeX lines."},
+		},
+	}}}}
+	if _, err := a.Generate(t.Context(), r, nil); err != nil {
+		t.Fatal(err)
+	}
+	if received.Load() != 1 || !bytes.Equal(r.Messages[0].Content[0].Content[1].Data, data) {
+		t.Fatal("tool image was lost from the retained transcript")
+	}
+}
