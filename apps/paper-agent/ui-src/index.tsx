@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useAppApi, useAppI18n, useAppInfo, useAppChat, useAppObject, useAppDataChanged, appObjectProps } from '@pero/app-sdk';
+import { useAppApi, useAppI18n, useAppInfo, useAppChat, useAppObject, useAppDataChanged, useAppContext, useAppEvents, appObjectProps } from '@pero/app-sdk';
 import { Button, EmptyState, Feedback, Icon, PageHeader, Split, SplitPane } from '@pero/app-sdk/ui';
 import { messages } from './i18n';
 import { ImportPanel, PaperList } from './library';
@@ -28,6 +28,7 @@ function SearchFrame({ preview, resizeLabel, children }: { preview: boolean; res
 
 export default function PaperAgent() {
   const api = useAppApi(), chat = useAppChat(), info = useAppInfo(), { t } = useAppI18n(messages);
+  const sdkContext = useAppContext();
   const [library, setLibrary] = useState<Library>({ papers: [], intents: [], reports: [] });
   const [screen, setScreen] = useState<WorkspaceScreen>('library'), [libraryScreen, setLibraryScreen] = useState<LibraryScreen>('papers');
   const [bundleOpening, setBundleOpening] = useState<{ id: string; startDownloadIds: string[]; startPdfIds: string[]; startSourceIds: string[]; token: number } | null>(null);
@@ -280,6 +281,7 @@ export default function PaperAgent() {
     void chat.compose(chatRequest.message, { attachments: [chat.objectReference('paper-agent', selection)] }).catch(onError);
   }, [chatRequest, readingBusy]);
   return <div onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { if (!event.dataTransfer.files.length) return; event.preventDefault(); void importPdf(event.dataTransfer.files[0]); }} className="pa-workbench pa-reading-first" data-screen={screen} data-research={showResearch} {...appObjectProps('paper-agent')}>
+    {sdkContext.permissions && <ChatClosed onClose={() => setQuestionMode(false)}/>}
     {importingPdf && <p className="pa-loading" role="status">{t('pdfImporting')}</p>}
     {error && <div className="pa-global-error"><Feedback kind="error"><span>{error}</span><Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback></div>}
     {savingPaper && <LibrarySave key={savingPaper.id} api={api} paper={savingPaper} t={t} onError={onError} onRead={id => { pendingAsk.current = null; setSavingPaper(null); void api.get<Paper>(`/api/papers/${id}`).then(paper => read(paper)).catch(onError); }} onClose={() => { pendingAsk.current = null; setSavingPaper(null); }} onSaved={async () => { setSaveRevision(value => value + 1); await refresh().catch(error => onError(`${t('savedRefreshFailed')} ${error instanceof Error ? error.message : String(error)}`)); const queued = pendingAsk.current; pendingAsk.current = null; if (queued) { setSavingPaper(null); await ask(queued.selection, queued.message); } }}/>}
@@ -314,4 +316,10 @@ export default function PaperAgent() {
     </SearchFrame>
     </div>
   </div>;
+}
+
+/** Mount only after the Host has supplied event declarations. */
+function ChatClosed({ onClose }: { onClose(): void }) {
+  useAppEvents('chat:closed', onClose);
+  return null;
 }
