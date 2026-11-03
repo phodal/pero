@@ -49,7 +49,7 @@ type HookApp struct {
 	states              map[*harness.Agent]*hookAgentState
 	calls               sync.WaitGroup
 	skillHooks          map[*harness.Agent][]sessionHook
-	retired             map[string]bool
+	retired             map[harness.SessionID]map[string]bool
 	asyncNotes          map[*harness.Agent][]string
 	asyncCancels        []context.CancelFunc
 	fileWatchCancels    map[*harness.Agent]context.CancelFunc
@@ -713,7 +713,7 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			decision, err = runner.Run(ctx, hook, input)
 		}
 		if selected.onceID != "" && hook.Once && err == nil && !decision.Block {
-			app.retireSkillHook(selected.onceID)
+			app.retireSkillHook(agent, selected.onceID)
 		}
 		if err != nil {
 			if errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -763,8 +763,12 @@ func (app *HookApp) hooksFor(agent *harness.Agent, input claudehooks.Input) []ru
 	}
 	app.mu.Lock()
 	defer app.mu.Unlock()
+	if agent == nil {
+		return hooks
+	}
+	retired := app.retired[agent.ID()]
 	for _, hook := range app.skillHooks[agent] {
-		if app.retired[hook.id] {
+		if retired[hook.id] {
 			continue
 		}
 		hooks = append(hooks, runnableHook{hook: hook.hook, root: hook.root, plugin: hook.plugin, onceID: hook.id})
@@ -773,7 +777,8 @@ func (app *HookApp) hooksFor(agent *harness.Agent, input claudehooks.Input) []ru
 }
 
 // ActivateSkillHooks keeps skill frontmatter hooks for the rest of this agent session.
-// once hooks leave after their first successful run.
+// once hooks leave after their first successful run in that session. Another session
+// loading the same skill starts again.
 func (app *HookApp) ActivateSkillHooks(agent *harness.Agent, pluginName, root, skill string, hooks []claudehooks.Hook) {
 	if app == nil || agent == nil || len(hooks) == 0 {
 		return
@@ -784,9 +789,10 @@ func (app *HookApp) ActivateSkillHooks(agent *harness.Agent, pluginName, root, s
 		app.skillHooks = map[*harness.Agent][]sessionHook{}
 	}
 	current := app.skillHooks[agent]
+	retired := app.retired[agent.ID()]
 	for index, hook := range hooks {
 		id := skill + "#" + hook.Event + "#" + strconv.Itoa(index)
-		if app.retired[id] {
+		if retired[id] {
 			continue
 		}
 		exists := false
@@ -871,10 +877,7 @@ func (app *HookApp) startAsyncHook(agent *harness.Agent, selected runnableHook, 
 		}
 		app.asyncNotes[agent] = append(app.asyncNotes[agent], text)
 		if selected.onceID != "" && hook.Once && err == nil {
-			if app.retired == nil {
-				app.retired = map[string]bool{}
-			}
-			app.retired[selected.onceID] = true
+			app.retireSkillHookLocked(agent, selected.onceID)
 		}
 		app.mu.Unlock()
 	}()
@@ -900,13 +903,25 @@ func (app *HookApp) deliverAsyncNotes(input *harness.StepInput) {
 	}
 }
 
-func (app *HookApp) retireSkillHook(id string) {
+func (app *HookApp) retireSkillHook(agent *harness.Agent, id string) {
 	app.mu.Lock()
 	defer app.mu.Unlock()
-	if app.retired == nil {
-		app.retired = map[string]bool{}
+	app.retireSkillHookLocked(agent, id)
+}
+
+func (app *HookApp) retireSkillHookLocked(agent *harness.Agent, id string) {
+	if agent == nil || id == "" {
+		return
 	}
-	app.retired[id] = true
+	if app.retired == nil {
+		app.retired = map[harness.SessionID]map[string]bool{}
+	}
+	retired := app.retired[agent.ID()]
+	if retired == nil {
+		retired = map[string]bool{}
+		app.retired[agent.ID()] = retired
+	}
+	retired[id] = true
 }
 
 func hookMessage(event, text string) harness.Message {

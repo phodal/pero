@@ -485,6 +485,44 @@ func TestSkillFrontmatterHookRunsOnce(t *testing.T) {
 	}
 }
 
+func TestSkillFrontmatterOnceStaysInsideItsSession(t *testing.T) {
+	root := t.TempDir()
+	hook := scriptHook(t, root, "PreToolUse", `printf ran >> "$CLAUDE_PLUGIN_ROOT/ran"`)
+	hook.Once = true
+	var first, second atomic.Int32
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		counter := &first
+		if request.Agent.ID() == "skill-hooks-b" {
+			counter = &second
+		}
+		if counter.Add(1) > 2 {
+			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+		}
+		return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: "Bash", ToolCallID: harness.ToolCallID("bash"), Arguments: json.RawMessage(`{"command":"printf ok"}`)}}}}, nil
+	})
+	keepalive := scriptHook(t, root, "SessionStart", "true")
+	h, app := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{keepalive}}, 0)
+	if _, err := h.RegisterTool(t.Context(), "fixture-bash", harness.Tool{Schema: harness.ToolSchema{Name: "Bash", InputSchema: json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`)}, Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+		return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "ok"}}}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []harness.SessionID{"skill-hooks-a", "skill-hooks-b"} {
+		agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: id, CWD: root, Provider: "fixture", Model: "scripted"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		app.ActivateSkillHooks(agent, "fixture", root, "fixture:secure", []claudehooks.Hook{hook})
+		if err := prompt(t, agent, "run twice"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(root, "ran"))
+	if err != nil || string(data) != "ranran" {
+		t.Fatalf("once hook ran %q across two sessions: %v", data, err)
+	}
+}
+
 func TestAgentFrontmatterStopBecomesSubagentStop(t *testing.T) {
 	root := t.TempDir()
 	var calls atomic.Int32
