@@ -150,7 +150,7 @@ func TestSubagentActivationDisposalReentryReleasesSynchronousObservers(t *testin
 				}
 				return SubagentContinuationProviderRun{ChildID: child.ID(), Child: child, InitialMessageID: request.InitialPromptMessage().ID,
 					Begin: func(ctx context.Context) (<-chan TurnOutcome, error) {
-						return child.FollowupResultContext(ctx, request.InitialPromptMessage())
+						return child.AdmitDSHMessage(ctx, request.InitialPromptMessage(), InboxNextTurn)
 					}, Submit: child.FollowupResultContext,
 					Dispose: func(ctx context.Context) error { cleanupCalls.Add(1); return h.Agents().RemoveExact(ctx, child) }}, nil
 			}}
@@ -239,7 +239,7 @@ func testSubagentStartedObserverRetirement(t *testing.T) {
 		return SubagentContinuationProviderRun{ChildID: child.ID(), Child: child, InitialMessageID: request.InitialPromptMessage().ID,
 			Begin: func(ctx context.Context) (<-chan TurnOutcome, error) {
 				beginCalls.Add(1)
-				return child.FollowupResultContext(ctx, request.InitialPromptMessage())
+				return child.AdmitDSHMessage(ctx, request.InitialPromptMessage(), InboxNextTurn)
 			}, Submit: child.FollowupResultContext,
 			Dispose: func(ctx context.Context) error { cleanupCalls.Add(1); return h.Agents().RemoveExact(ctx, child) }}, nil
 	}}
@@ -373,7 +373,7 @@ func activationLocalTestProvider(h *Harness, id SessionID, configure func(*Agent
 		}
 		return SubagentContinuationProviderRun{ChildID: child.ID(), Child: child, InitialMessageID: request.InitialPromptMessage().ID,
 			Begin: func(ctx context.Context) (<-chan TurnOutcome, error) {
-				return child.FollowupResultContext(ctx, request.InitialPromptMessage())
+				return child.AdmitDSHMessage(ctx, request.InitialPromptMessage(), InboxNextTurn)
 			},
 			Submit: child.FollowupResultContext, Dispose: func(ctx context.Context) error { return h.Agents().RemoveExact(ctx, child) }}, nil
 	}}

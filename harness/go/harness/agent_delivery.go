@@ -87,7 +87,8 @@ func (a *Agent) StageBackgroundNotice(ctx context.Context, message Message) erro
 }
 
 func (a *Agent) deliverInboxNotice(ctx context.Context, message Message, delivery inboxDelivery) error {
-	if err := a.mutationAdmissionError(); err != nil {
+	message, err := validatePluginMessage(a, message)
+	if err != nil {
 		return err
 	}
 	if a == nil || a.durableInbox == nil {
@@ -453,6 +454,19 @@ func (a *Agent) tryFollowupOwned(message Message, admission *FollowupAdmission, 
 }
 
 func validatePluginMessage(a *Agent, message Message) (Message, error) {
+	message, err := validateInboxMessage(a, message)
+	if err != nil {
+		return Message{}, err
+	}
+	if messageHasUserSource(message) {
+		return Message{}, errors.New("harness: plugin message cannot declare user source")
+	}
+	return message, nil
+}
+
+// validateInboxMessage admits the shared user-role envelope. Host DSH
+// admissions may carry user provenance; plugin-only entry points may not.
+func validateInboxMessage(a *Agent, message Message) (Message, error) {
 	if a == nil {
 		return Message{}, errors.New("harness: cannot deliver to a nil agent")
 	}
@@ -463,7 +477,7 @@ func validatePluginMessage(a *Agent, message Message) (Message, error) {
 		message.Role = RoleUser
 	}
 	if message.Role != RoleUser || len(message.Content) == 0 {
-		return Message{}, errors.New("harness: plugin message must be a non-empty user message")
+		return Message{}, errors.New("harness: inbox message must be a non-empty user message")
 	}
 	select {
 	case <-a.done:

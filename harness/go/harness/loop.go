@@ -367,9 +367,19 @@ func (a *Agent) claimDurableInbox(ctx context.Context, target InboxTarget, turn 
 	if afterCommit != nil {
 		afterCommit(claimed)
 	}
+	var headID string
+	if target == InboxNextTurn {
+		headID = claimed[len(claimed)-1].ID
+	}
 	claimed = a.filterFollowupAdmissions(ctx, claimed, false)
 	for _, message := range claimed {
-		a.publishInboxClaimed(ctx, message, turn, messageHasUserSource(message))
+		userAuthored := messageHasUserSource(message)
+		if message.ID == headID {
+			// The worker retains the head request's actual admission origin.
+			// A plugin followup cannot become human by setting Source.kind.
+			userAuthored = a.TurnUserAuthored()
+		}
+		a.publishInboxClaimed(ctx, message, turn, userAuthored)
 	}
 	return claimed, nil
 }

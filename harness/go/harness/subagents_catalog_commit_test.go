@@ -55,7 +55,7 @@ func TestSubagentCatalogManagedStartedPrecedesInboxAndCommit(t *testing.T) {
 			return SubagentContinuationProviderRun{}, err
 		}
 		return SubagentContinuationProviderRun{ChildID: child.ID(), Child: child, InitialMessageID: request.InitialPromptMessage().ID, Begin: func(ctx context.Context) (<-chan TurnOutcome, error) {
-			return child.FollowupResultContext(ctx, request.InitialPromptMessage())
+			return child.AdmitDSHMessage(ctx, request.InitialPromptMessage(), InboxNextTurn)
 		}, Submit: child.FollowupResultContext, Dispose: func(ctx context.Context) error { return h.Agents().RemoveExact(ctx, child) }}, nil
 	}}
 	mountRetirementHooks(t, h, func(run *point.Run) error {
