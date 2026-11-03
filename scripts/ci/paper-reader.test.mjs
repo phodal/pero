@@ -500,3 +500,40 @@ test('cached EmbedPDF restoration emits before a late observer; reader subscribe
   assert.equal(text.current, '', 'old scope cannot update text after unmount');
   assert.equal(listeners.size, 0);
 });
+
+test('PDF view persistence keeps selection when EmbedPDF clears on handler deactivation', () => {
+  const source = readFileSync(new URL('../../apps/paper-agent/ui-src/pdf-reader.tsx', import.meta.url), 'utf8');
+  assert.match(source, /discardPersistedSelection/, 'reader must gate null selection persistence');
+  assert.match(source, /onEmptySpaceClick/, 'empty-space clears must still forget the saved selection');
+  assert.match(source, /discardSelection/, 'toolbar Close\/Escape\/save must explicitly discard');
+  const range = { start: { page: 0, index: 12 }, end: { page: 0, index: 35 } };
+  const document = { id: 'doc', fileDigest: 'digest', pages: [{}, {}] };
+  const store = new Map();
+  const loadReaderState = doc => {
+    const raw = store.get(`pero.paper.pdf-view:${doc.id}:${doc.fileDigest}`);
+    return raw ? JSON.parse(raw) : null;
+  };
+  const saveReaderState = (doc, value) => {
+    store.set(`pero.paper.pdf-view:${doc.id}:${doc.fileDigest}`, JSON.stringify(value));
+    return true;
+  };
+  let live = range;
+  const discardPersistedSelection = { current: false };
+  const persist = () => {
+    const selectionValue = live ?? (discardPersistedSelection.current ? null : loadReaderState(document)?.selection ?? null);
+    saveReaderState(document, {
+      schema: 1, documentId: document.id, fileDigest: document.fileDigest,
+      page: 1, zoom: 1.2, mode: 'pdf', position: { x: -100, y: 0 }, selection: selectionValue,
+    });
+  };
+  persist();
+  assert.deepEqual(loadReaderState(document).selection, range);
+  // Handler deactivation / Back-to-library: EmbedPDF clears live selection.
+  live = null;
+  persist();
+  assert.deepEqual(loadReaderState(document).selection, range, 'deactivation must not wipe the saved selection');
+  // Explicit discard (Close / empty space): forget the saved range.
+  discardPersistedSelection.current = true;
+  persist();
+  assert.equal(loadReaderState(document).selection, null);
+});

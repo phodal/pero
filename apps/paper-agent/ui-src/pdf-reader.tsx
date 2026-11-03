@@ -156,6 +156,15 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   const activeNow = useRef(active), focusNow = useRef(focus), restored = useRef(false), stateReady = useRef(false);
   activeNow.current = active; focusNow.current = focus;
   const persistView = useRef<() => void>(() => {});
+  // EmbedPDF clears selection when the pointer handler deactivates (Back to
+  // library, mode switches). Only explicit discardSelection() may persist null.
+  const discardPersistedSelection = useRef(false);
+  const discardSelection = () => {
+    discardPersistedSelection.current = true;
+    selection?.forDocument(documentId).clear();
+    persistView.current();
+    discardPersistedSelection.current = false;
+  };
   useEffect(() => {
     if (!scroll || !zoom || !selection || !scrollCapability) return;
     const selected = selection.forDocument(documentId);
@@ -165,10 +174,15 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       const metrics = scroll.getMetrics(), scale = zoom.getState().currentZoomLevel;
       const page = metrics.pageVisibilityMetrics.find(item => item.pageNumber === metrics.currentPage);
       if (!page || !scale) return;
+      const live = selected.getState().selection;
+      // Handler deactivation emits null without user intent; keep the last saved
+      // selection so Desktop restart can restore the Highlight toolbar.
+      const selectionValue = live ?? (discardPersistedSelection.current ? null : loadReaderState(document)?.selection ?? null);
+      if (live) discardPersistedSelection.current = false;
       const value: PdfReaderState = { schema: 1, documentId: document.id, fileDigest: document.fileDigest,
         page: metrics.currentPage, zoom: scale, mode: activeNow.current ? 'pdf' : 'text',
         position: { x: page.original.pageX - page.viewportX / scale, y: page.original.pageY - page.viewportY / scale },
-        selection: selected.getState().selection };
+        selection: selectionValue };
       if (!saveReaderState(document, value)) setError('Reading position could not be saved.');
     };
     persistView.current = persist;
@@ -185,17 +199,31 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
         if (!alive) return;
         // An explicit citation received while geometry was loading wins over a
         // saved selection; it never inherits a different historical selection.
-        if (focusNow.current !== focusAtRestore) selected.clear();
+        if (focusNow.current !== focusAtRestore) {
+          discardPersistedSelection.current = true;
+          selected.clear();
+          stateReady.current = true; persist();
+          discardPersistedSelection.current = false;
+          return;
+        }
         stateReady.current = true; persist();
       }, () => {
         if (!alive) return;
         stateReady.current = true; setError('Saved selection could not be restored. The PDF remains readable.');
       });
     };
-    const unsubscribe = [scroll.onScroll(persist), zoom.onStateChange(persist), selected.onSelectionChange(persist),
+    const forgetOnEmptySpace = selected.onEmptySpaceClick(() => { discardPersistedSelection.current = true; });
+    const unsubscribe = [scroll.onScroll(persist), zoom.onStateChange(persist), selected.onSelectionChange(persist), forgetOnEmptySpace,
       scrollCapability.onLayoutReady(event => { if (event.documentId === documentId) restore(); })];
     restore();
-    return () => { persist(); alive = false; unsubscribe.forEach(stop => stop()); persistView.current = () => {}; };
+    return () => {
+      // Persist before alive=false so teardown-cleared live selection still
+      // falls back to the last saved range. Then drop listeners.
+      if (stateReady.current) persist();
+      alive = false;
+      unsubscribe.forEach(stop => stop());
+      persistView.current = () => {};
+    };
   }, [scroll, zoom, selection, scrollCapability, documentId, document.id, document.fileDigest]);
   useEffect(() => { persistView.current(); }, [active]);
 
@@ -229,7 +257,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     try {
       const annotation = await api.post<PdfAnnotation>('/api/annotations', { documentId: document.id, fileDigest: document.fileDigest, note, ...value });
       onSaved(annotation); setNotes(true); setTarget(annotation.id); setStatus(t('pdfSaved')); setNote('');
-      selection?.forDocument(documentId).clear();
+      discardSelection();
     } catch (e) { fail(e); }
     finally { setBusy(false); }
   }
@@ -285,7 +313,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button role="menuitem" onClick={() => { setMenu(null); chrome.onSave(); }}>{t('downloadPaper')}</Button>
       <Button role="menuitem" onClick={() => { setMenu(null); onText(); }}>{readLabel}</Button>
     </div>}
-    {hasSelection && !readOnly && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') selection?.forDocument(documentId).clear(); }}><Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/><Button disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>{onDiscuss && <Button disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button variant="ghost" onClick={() => selection?.forDocument(documentId).clear()}>{t('close')}</Button></div>}
+    {hasSelection && !readOnly && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') discardSelection(); }}><Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/><Button disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>{onDiscuss && <Button disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button variant="ghost" onClick={() => discardSelection()}>{t('close')}</Button></div>}
     {error && <Feedback kind="error">{error}<Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback>}
     {(busy || status) && <div role="status" className="pa-pdf-status">{busy ? t('pdfSaving') : status}</div>}
     <div className="pa-pdf-body" data-notes={notes}>
