@@ -125,8 +125,9 @@ async function evaluate(path, args, declaredMeta, depth = 0) {
   let currentPhase;
   function agent(prompt, supplied = {}) {
     text(prompt, 'agent prompt');
-    const options = object(supplied, 'agent options', ['label', 'phase', 'provider', 'model', 'schema']);
+    const options = object(supplied, 'agent options', ['label', 'phase', 'provider', 'model', 'schema', 'isolation']);
     for (const key of ['label', 'phase', 'provider', 'model']) if (options[key] !== undefined) text(options[key], 'agent option ' + key, true);
+    if (options.isolation !== undefined && options.isolation !== 'worktree') throw new Fatal('agent isolation must be worktree');
     if (options.schema !== undefined && (options.schema === null || typeof options.schema !== 'object' || Array.isArray(options.schema))) throw new Fatal('agent schema must be an object JSON schema');
     agentCount++;
     const phase = options.phase === undefined ? currentPhase : options.phase;
@@ -138,6 +139,7 @@ async function evaluate(path, args, declaredMeta, depth = 0) {
       ...(options.provider || defaults.provider ? { provider: options.provider || defaults.provider } : {}),
       ...(options.model || defaults.model ? { model: options.model || defaults.model } : {}),
       ...(options.schema === undefined ? {} : { schema: options.schema }),
+      ...(options.isolation ? { isolation: options.isolation } : {}),
     }).then(result => {
       if (result.status !== 'completed') return null;
       return options.schema === undefined ? (result.text || '') : (result.structured === undefined ? null : result.structured);

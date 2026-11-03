@@ -36,6 +36,7 @@ type wireRequest struct {
 	Provider   string          `json:"provider,omitempty"`
 	Model      string          `json:"model,omitempty"`
 	Schema     json.RawMessage `json:"schema,omitempty"`
+	Isolation  string          `json:"isolation,omitempty"`
 	Meta       *Meta           `json:"meta,omitempty"`
 	Message    string          `json:"message,omitempty"`
 	Result     *Result         `json:"result,omitempty"`
@@ -389,7 +390,7 @@ func (run *execution) agent(ctx context.Context, request wireRequest) {
 		return
 	}
 	result, err := run.app.options.Agents.Invoke(ctx, run.parent, subagents.ClaudeInvocation{
-		Prompt: request.Prompt, Model: request.Model, Description: request.Label, Origin: selected.plugin, OutputSchema: request.Schema,
+		Prompt: request.Prompt, Model: request.Model, Description: request.Label, Origin: selected.plugin, Isolation: request.Isolation, OutputSchema: request.Schema,
 		ConfigureChild: func(ctx context.Context, owner *point.Run, child *harness.Agent) error {
 			_, err := run.app.h.Tools().Restrict(ctx, owner, child, harness.ToolRestriction{Deny: []string{"Workflow"}})
 			return err

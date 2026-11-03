@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -188,7 +190,8 @@ func TestWorkflowUnawaitedAgentRecordsJoinedCancellation(t *testing.T) {
 func TestWorkflowFailuresStayExplicit(t *testing.T) {
 	for _, test := range []struct{ name, body, error string }{
 		{"schema rejected", `return agent('work',{schema:{type:'string'}});`, "schema"},
-		{"unknown option", `return parallel([()=>agent('work',{isolation:'worktree'})]);`, "unsupported field"},
+		{"unknown option", `return parallel([()=>agent('work',{color:'blue'})]);`, "unsupported field"},
+		{"remote isolation", `return agent('work',{isolation:'remote'});`, "isolation"},
 		{"undeclared provider", `return agent('work',{provider:'unconfigured'});`, "provider"},
 		{"nested unselected", `return workflow({scriptPath:'/unselected/workflows/other.js'},{});`, "outside"},
 		{"non JSON output", `return {value:undefined};`, "lossless JSON"},
@@ -205,5 +208,51 @@ func TestWorkflowFailuresStayExplicit(t *testing.T) {
 				t.Fatalf("failure became null/success: %+v error=%v", result, err)
 			}
 		})
+	}
+}
+
+func TestWorkflowAgentWorktreeStaysOutsideTheParentCheckout(t *testing.T) {
+	root, workspace, packages := selectedPackage(t, map[string]string{"workflows/main.js": `export const meta={name:'isolated',description:'Run one isolated agent'}; return agent('work',{isolation:'worktree'});`})
+	if err := os.WriteFile(filepath.Join(workspace, "seed.txt"), []byte("seed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	git := func(args ...string) {
+		t.Helper()
+		command := exec.Command("git", append([]string{"-C", workspace}, args...)...)
+		command.Env = append(os.Environ(), "GIT_AUTHOR_NAME=fixture", "GIT_AUTHOR_EMAIL=fixture@example.com", "GIT_COMMITTER_NAME=fixture", "GIT_COMMITTER_EMAIL=fixture@example.com")
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v %s", strings.Join(args, " "), err, output)
+		}
+	}
+	git("init", "-b", "master", "--template=")
+	git("add", "seed.txt")
+	git("commit", "-m", "seed")
+	parent, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var child string
+	var listed bool
+	f := newWorkflowFixture(t, root, workspace, packages, harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		if request.Agent != nil && request.Agent.Session() != nil {
+			resolved, err := filepath.EvalSymlinks(request.Agent.Session().WorkingDirectory())
+			if err == nil {
+				child = resolved
+			}
+			list, err := exec.Command("git", "-C", workspace, "worktree", "list", "--porcelain").Output()
+			listed = err == nil && strings.Contains(string(list), child)
+		}
+		return workflowAnswer("isolated"), nil
+	}), true, 0)
+	result, err := f.app.Execute(f.ctx, f.parent, Call{ScriptPath: filepath.Join(root, "workflows", "main.js"), Args: json.RawMessage(`{}`)})
+	if err != nil || result.StopReason != "completed" || string(result.Value) != `"isolated"` {
+		t.Fatalf("result=%+v error=%v", result, err)
+	}
+	if child == "" || child == parent || !listed {
+		t.Fatalf("child checkout = %q parent = %q listed=%v", child, parent, listed)
+	}
+	list, err := exec.Command("git", "-C", workspace, "worktree", "list", "--porcelain").Output()
+	if err != nil || strings.Count(string(list), "worktree ") != 1 {
+		t.Fatalf("worktree left behind: %v %s", err, list)
 	}
 }
