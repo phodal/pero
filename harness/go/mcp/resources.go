@@ -90,9 +90,37 @@ func (d *ResourceDirectory) Request(ctx context.Context, server, method string, 
 		result, err = session.ListResourceTemplates(requestCtx, params)
 	case "resources/read":
 		result, err = session.ReadResource(requestCtx, &mcp.ReadResourceParams{URI: uri})
+	case "prompts/list":
+		params := &mcp.ListPromptsParams{}
+		if cursor != nil {
+			params.Cursor = *cursor
+		}
+		result, err = session.ListPrompts(requestCtx, params)
 	default:
 		return nil, fmt.Errorf("unsupported MCP resource method %q", method)
 	}
+	if err != nil {
+		return nil, SafeError(err)
+	}
+	return marshalResource(result)
+}
+
+// GetPrompt reads one named prompt from the server's live session.
+func (d *ResourceDirectory) GetPrompt(ctx context.Context, server, name string, arguments map[string]string) (json.RawMessage, error) {
+	if d == nil {
+		return nil, fmt.Errorf("MCP resource server %q is unavailable in this agent's scope", server)
+	}
+	endpoint := d.endpoints[server]
+	if endpoint == nil {
+		return nil, fmt.Errorf("MCP resource server %q is unavailable in this agent's scope", server)
+	}
+	session := endpoint.session.Load()
+	if session == nil {
+		return nil, fmt.Errorf("mcp-client(%s): server is disconnected", server)
+	}
+	requestCtx, cancel := context.WithTimeout(ctx, endpoint.timeout)
+	defer cancel()
+	result, err := session.GetPrompt(requestCtx, &mcp.GetPromptParams{Name: name, Arguments: arguments})
 	if err != nil {
 		return nil, SafeError(err)
 	}

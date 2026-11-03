@@ -240,6 +240,8 @@ func registerMCPResourceTools(run *point.Run, registry *ToolRegistry, directory 
 		mcpResourceTool(directory, "list_mcp_resources", "List resources available from an MCP server.", mcpResourceListSchema, "resources/list"),
 		mcpResourceTool(directory, "list_mcp_resource_templates", "List parameterized resource URI templates from an MCP server.", mcpResourceListSchema, "resources/templates/list"),
 		mcpResourceTool(directory, "read_mcp_resource", "Read an MCP resource by URI from the named server. Use a listed URI or an expanded resource template.", mcpResourceReadSchema, "resources/read"),
+		mcpResourceTool(directory, "list_mcp_prompts", "List prompts available from an MCP server.", mcpResourceListSchema, "prompts/list"),
+		mcpPromptTool(directory),
 	}
 	_, err := registry.ReplaceGeneration(run, "mcp-resources", tools)
 	return err
@@ -257,10 +259,36 @@ func registerMCPResourcePrompt(run *point.Run, prompts *PromptRegistry, director
 			if marshalErr != nil {
 				return "", marshalErr
 			}
-			return "## MCP resource servers\n\nUse list_mcp_resources, list_mcp_resource_templates, or read_mcp_resource with one of these names as the server argument: " + string(encoded) + ".", nil
+			return "## MCP resource servers\n\nUse list_mcp_resources, list_mcp_resource_templates, read_mcp_resource, list_mcp_prompts, or get_mcp_prompt with one of these names as the server argument: " + string(encoded) + ".", nil
 		},
 	})
 	return err
+}
+
+func mcpPromptTool(directory *harnessmcp.ResourceDirectory) Tool {
+	schema := `{"type":"object","additionalProperties":false,"required":["server","name"],"properties":{"server":{"type":"string","description":"Configured MCP server name."},"name":{"type":"string","description":"Prompt name."},"arguments":{"type":"object","additionalProperties":{"type":"string"},"description":"Prompt arguments."}}}`
+	return Tool{
+		Schema: ToolSchema{Name: "get_mcp_prompt", Description: "Get one named prompt from an MCP server. Arguments are string values for the prompt template.", InputSchema: json.RawMessage(schema)},
+		Execute: func(ctx context.Context, raw json.RawMessage) (ToolResult, error) {
+			var args struct {
+				Server    string            `json:"server"`
+				Name      string            `json:"name"`
+				Arguments map[string]string `json:"arguments"`
+			}
+			if err := json.Unmarshal(raw, &args); err != nil {
+				return ToolResult{}, err
+			}
+			payload, err := directory.GetPrompt(ctx, args.Server, args.Name, args.Arguments)
+			if err != nil {
+				return ToolResult{IsError: true, Content: []ContentBlock{{Type: BlockText, Text: err.Error()}}}, nil
+			}
+			text, err := harnessmcp.RenderResourceResult(args.Server, payload)
+			if err != nil {
+				return ToolResult{}, err
+			}
+			return ToolResult{Content: []ContentBlock{{Type: BlockText, Text: text}}}, nil
+		},
+	}
 }
 
 func mcpResourceTool(directory *harnessmcp.ResourceDirectory, name, description, schema, method string) Tool {

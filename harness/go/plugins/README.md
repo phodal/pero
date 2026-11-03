@@ -99,6 +99,7 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   Structured answer submissions also pass the stop gate and can be revised.
 - MCP stdio, streamable HTTP and legacy SSE connections belong to root-agent lifetimes.
   Each package gets a server namespace; children inherit the parent connection.
+  `list_mcp_prompts` and `get_mcp_prompt` read prompts from those servers.
 - Agent, SendMessage, TaskOutput and TaskStop run, continue and cancel actual harness children.
   An agent `effort` of low, medium, high, xhigh, or max is sent on that child's requests.
   `isolation: worktree` runs that agent in a separate Git worktree.
