@@ -56,6 +56,30 @@ func TestForkResultRetainsTerminalStatus(t *testing.T) {
 	}
 }
 
+func TestForkBackgroundReportsARunningChild(t *testing.T) {
+	h, err := harness.Boot(t.Context(), harness.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Dispose(context.Background())
+	parent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "fork-background-parent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	background := true
+	definition := Definition{Summary: Summary{Name: "sample:research", Digest: "digest"}, Context: "fork", Content: "private child instructions", Background: &background}
+	output, err := forkInvocation(t.Context(), MountOptions{Fork: func(context.Context, *harness.Agent, Definition) (harness.SubagentResult, error) {
+		return harness.SubagentResult{ChildID: "background-child", Status: harness.SubagentRunning}, nil
+	}}, parent, definition, "args", "invocation")
+	if err != nil || output.status != harness.SubagentRunning || len(output.messages) != 1 {
+		t.Fatalf("output=%+v err=%v", output, err)
+	}
+	encoded, _ := json.Marshal(output.messages)
+	if strings.Contains(string(encoded), definition.Content) || !strings.Contains(string(encoded), "background-child") || strings.Contains(string(encoded), "fork-result") {
+		t.Fatalf("background message = %s", encoded)
+	}
+}
+
 func TestForkRequiresConfiguredExecutor(t *testing.T) {
 	requireCatalogPlatform(t)
 	root := canonicalTempDir(t)

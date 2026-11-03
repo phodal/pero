@@ -78,6 +78,17 @@ func forkInvocation(ctx context.Context, options MountOptions, parent *harness.A
 	if err := ctx.Err(); err != nil {
 		return forkOutput{}, err
 	}
+	background := definition.Background != nil && *definition.Background
+	if background {
+		if output.ChildID == "" || output.Status != harness.SubagentRunning {
+			return forkOutput{}, errors.New("skills: background fork must return a running child")
+		}
+		invocation := skillInvocation{Kind: "skill-invocation", Form: "activation", Name: definition.Name, Digest: definition.Digest, Arguments: arguments, Turn: parent.CurrentTurn(), ID: id, Context: "fork", ChildID: output.ChildID, Status: output.Status}
+		activation, _ := json.Marshal(invocation)
+		return forkOutput{status: output.Status, messages: []harness.Message{
+			{Role: harness.RoleUser, Source: activation, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Forked workflow " + definition.Name + " is running in the background as " + string(output.ChildID) + "."}}},
+		}}, nil
+	}
 	if output.ChildID == "" || output.Status != harness.SubagentCompleted && output.Status != harness.SubagentFailed && output.Status != harness.SubagentAborted {
 		return forkOutput{}, errors.New("skills: fork executor must return a child identity and terminal status")
 	}

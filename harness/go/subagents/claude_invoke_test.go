@@ -10,12 +10,55 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
 	point "github.com/phodal/pero/harness/go/runtime"
 )
+
+func TestBackgroundForkReturnsBeforeTheChildFinishes(t *testing.T) {
+	release := make(chan struct{})
+	entered := make(chan struct{})
+	var once sync.Once
+	f := newClaudeHTTPFixture(t, t.TempDir(), func(w http.ResponseWriter, _ *http.Request) {
+		once.Do(func() { close(entered) })
+		<-release
+		claudeTextAnswer(w, "background-result")
+	}, true, nil, ClaudeOptions{})
+	result, err := f.claude.Start(f.ctx, f.parent, ClaudeInvocation{Prompt: "run later", Background: true, ReportCompletion: true})
+	if err != nil || result.Status != harness.SubagentRunning || result.ChildID == "" {
+		t.Fatalf("start=%+v err=%v", result, err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("child did not reach the model")
+	}
+	close(release)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		messages, err := f.parent.Session().DeriveMessages()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var text string
+		for _, message := range messages {
+			for _, block := range message.Content {
+				text += block.Text
+			}
+		}
+		if strings.Contains(text, "background-result") && strings.Contains(text, string(result.ChildID)) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("parent did not receive the background result: %s", text)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
 
 func TestClaudeInvocationHonorsAChildStepCap(t *testing.T) {
 	f := newClaudeHTTPFixture(t, t.TempDir(), func(w http.ResponseWriter, _ *http.Request) {

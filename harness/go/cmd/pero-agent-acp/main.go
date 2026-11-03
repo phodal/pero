@@ -235,12 +235,17 @@ func run() (resultErr error) {
 			mountOptions.ResolveModel = pluginModelResolver(pluginConfig.Models)
 			mountOptions.Fork = func(ctx context.Context, parent *harness.Agent, definition skills.Definition) (harness.SubagentResult, error) {
 				origin, _, _ := strings.Cut(definition.Name, ":")
-				return pluginAgents.Invoke(ctx, parent, subagents.ClaudeInvocation{
-					Definition: definition.Agent, Prompt: definition.Content, Description: "Run " + definition.Name, Model: definition.Model, Origin: origin,
+				background := definition.Background != nil && *definition.Background
+				invocation := subagents.ClaudeInvocation{
+					Definition: definition.Agent, Prompt: definition.Content, Description: "Run " + definition.Name, Model: definition.Model, Origin: origin, Background: background, ReportCompletion: background,
 					ConfigureChild: func(ctx context.Context, run *point.Run, child *harness.Agent) error {
 						return skills.ConfigureFork(ctx, h, run, child, definition)
 					},
-				})
+				}
+				if background {
+					return pluginAgents.Start(ctx, parent, invocation)
+				}
+				return pluginAgents.Invoke(ctx, parent, invocation)
 			}
 			mountOptions.Expand = func(ctx context.Context, agent *harness.Agent, definition skills.Definition, args string) (skills.Definition, error) {
 				return pluginruntime.ExpandSkill(ctx, h, agent, definition, args, pluginruntime.ExpansionOptions{Shell: pluginShell, Environment: pluginEnvironment, Sandbox: sandboxConfig})

@@ -86,8 +86,10 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   failed/cancelled expansion removes its temporary file. Its projection remains
   separate from native Bash output presentation.
 - Skill model overrides last for their invocation turn. `context: fork` runs
-  through the existing isolated Agent executor and returns its actual result;
-  ACP waits synchronously. Instructions and tool grants remain in the child.
+  through the existing isolated Agent executor and returns its actual result.
+  `background: false` waits for that result. `background: true` returns as soon
+  as the child is running and delivers the result to the parent when it
+  finishes. Instructions and tool grants remain in the child.
 - Command hooks run with Claude JSON stdin and parse actual decisions. The
   supported lifecycle includes startup/resume, user input, before/after tools,
   compaction, Stop continuation, SessionEnd and SubagentStart/SubagentStop.

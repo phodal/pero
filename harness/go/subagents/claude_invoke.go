@@ -21,6 +21,9 @@ type ClaudeInvocation struct {
 	Definition, Prompt, Description, Model, Origin, Isolation string
 	OutputSchema                                              json.RawMessage
 	Background                                                bool
+	// ReportCompletion posts the terminal result to the parent after a
+	// background run. The caller does not wait for that result.
+	ReportCompletion bool
 	// MaxSteps caps the child. Zero inherits the parent budget. A positive
 	// value cannot exceed the parent budget.
 	MaxSteps       int
@@ -56,6 +59,24 @@ func (c *ClaudeContribution) Invoke(ctx context.Context, parent *harness.Agent, 
 	result := task.result
 	result.Output = harnessmodel.CloneContentBlocks(result.Output)
 	return result, err
+}
+
+// Start admits a background child and returns while it is still running.
+func (c *ClaudeContribution) Start(ctx context.Context, parent *harness.Agent, input ClaudeInvocation) (harness.SubagentResult, error) {
+	if c == nil || c.service == nil {
+		return harness.SubagentResult{}, errors.New("subagents: Claude delegation is not mounted")
+	}
+	if !input.Background {
+		return harness.SubagentResult{}, errors.New("subagents: background start requires background execution")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	task, err := c.service.start(ctx, parent, input)
+	if err != nil {
+		return harness.SubagentResult{}, err
+	}
+	return harness.SubagentResult{ChildID: task.activation.ChildID, Status: harness.SubagentRunning}, nil
 }
 
 func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, input ClaudeInvocation) (*claudeTask, error) {
@@ -152,7 +173,7 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 		return nil, err
 	}
 	task := &claudeTask{parent: parent, activation: activation, done: make(chan struct{}), cleanup: cleanup}
-	task.notifyParent.Store(input.Background && s.backgroundNotices)
+	task.notifyParent.Store(input.Background && (s.backgroundNotices || input.ReportCompletion))
 	s.mu.Lock()
 	s.tasks[activation.ChildID] = task
 	s.mu.Unlock()

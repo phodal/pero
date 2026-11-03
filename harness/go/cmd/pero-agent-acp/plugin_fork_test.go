@@ -49,7 +49,7 @@ func TestPluginForkCLIIsolationAndChildGrants(t *testing.T) {
 			}
 			files := map[string]string{
 				".claude-plugin/plugin.json": `{"name":"sample","version":"1.0.0"}`,
-				"skills/research/SKILL.md":   "---\nname: research\ndescription: Run an isolated research task\ncontext: fork\nagent: " + test.agent + "\nmodel: analysis\nbackground: true\nallowed-tools: Write\n---\n" + body + "\narguments=$ARGUMENTS\ntemplate=${CLAUDE_PLUGIN_ROOT}/templates/report.md\n",
+				"skills/research/SKILL.md":   "---\nname: research\ndescription: Run an isolated research task\ncontext: fork\nagent: " + test.agent + "\nmodel: analysis\nbackground: false\nallowed-tools: Write\n---\n" + body + "\narguments=$ARGUMENTS\ntemplate=${CLAUDE_PLUGIN_ROOT}/templates/report.md\n",
 				"agents/reviewer.md":         "---\nname: reviewer\ndescription: Isolated reviewer\ntools: [Read, Write]\n---\n" + agentInstructions,
 				"templates/report.md":        "verified-plugin-template-content",
 			}
