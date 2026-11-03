@@ -113,6 +113,7 @@ Data Agent. Generated copies are not committed.
 ```sh
 python3 -m unittest discover -s apps/data/test -v
 npm --prefix apps/data run test:ui
+npm --prefix apps/data run test:browser
 npm --prefix apps/data run typecheck
 npm --prefix apps/data run build
 node tests/e2e/data.mjs
@@ -127,3 +128,10 @@ originals. Screenshots/receipts belong under `test-results/data/` and
 `test-results/data-product/`, not in source control. A configured test is not a
 claim it has run. Executed evidence and remaining gates are recorded in
 [Data Workspace verification](../../docs/fitness/data-workspace.md).
+
+The browser regression bundles the real Data frame and App SDK with synthetic,
+loopback HTTP responses. It delays inspection replies to check keyboard focus,
+unit drafts, current field selections, version isolation and failure clearing.
+Install Chromium with `npx playwright install --with-deps chromium`, or set
+`PERO_CHROMIUM_EXECUTABLE` to an available browser. This is not a Host authorization,
+persistence or full Desktop test; those remain in the two Desktop suites above.

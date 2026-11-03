@@ -67,3 +67,33 @@ Expected receipts: `test-results/data/result.json` and
 `data-dark-narrow.png`, `standalone-data.png`. These paths are planned outputs, not
 proof they exist. Record the tested commit and actual CI artifacts before marking
 #105 complete or removing draft status. Do not merge based on this local record.
+
+## Fields keyboard correction (2026-11-03)
+
+Follow-up to #110 review `discussion_r4449333470`, based on merged master
+`f3336eec7b50b4680e408bad962d2a5b19686048`:
+
+- Keep field controls mounted while inspecting a changed view of the same input.
+  Pending statistics are explicitly labelled as the last successful inspection.
+  Preview rows and Checks still require the current request; switching input,
+  parser, integrity metadata or explicit refresh invalidates retained fields.
+  A failed inspection clears them. Unit drafts have stable identity; asynchronous
+  replies cannot replace a field being edited. Units remain labels, not conversions.
+- `npm --prefix apps/data run typecheck`: passed.
+- `node --test apps/data/test/model.test.ts`: 4 passed.
+- `python3 -m unittest discover -s apps/data/test -p 'test_*.py' -v`: 47 passed
+  (2.124 seconds), including authenticated HTTP and immutable input checks.
+- `node --test scripts/ci/*.test.mjs`: 42 passed (12.052 seconds).
+- The new `test:browser` bundles the real Data React frame and SDK against a
+  synthetic loopback API, with explicitly released delayed replies. It covers
+  native Tab navigation, continued unit typing across a reply, successive field
+  selections, version-switch stale replies, and integrity/transport failures.
+  It is included in the existing Data CI job, without a Desktop/GPUI build.
+
+Browser assertions have **not run locally**: Chromium startup was rejected by the
+cloud sandbox (`process_singleton_posix.cc`, `socket(): Operation not permitted`),
+including one permitted execution retry. No alternate desktop was used and no
+screenshots were produced. CI must establish behavioral evidence; successful
+bundling and static review are not substitutes. Full App build was also blocked
+by absent `PERO_GPUI_KIT_PATH`; strict App type checking above did run. This
+follow-up does not establish full Host, standalone or Workbench GUI acceptance.
