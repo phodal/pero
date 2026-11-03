@@ -73,6 +73,17 @@ func TestComponentDefinitions(t *testing.T) {
 	}
 }
 
+func TestAgentAutoCompactWindowField(t *testing.T) {
+	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nautoCompactWindow: 1000\n---\nReview."))
+	if len(diagnostics) != 0 || component.AutoCompactWindow != 1000 {
+		t.Fatalf("component=%+v diagnostics=%v", component, diagnostics)
+	}
+	_, diagnostics = ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nautoCompactWindow: 0\n---\nReview."))
+	if len(diagnostics) != 1 || diagnostics[0].Code != "INVALID_COMPONENT_FIELD" {
+		t.Fatalf("diagnostics=%v", diagnostics)
+	}
+}
+
 func TestAgentMemoryField(t *testing.T) {
 	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nmemory: project\n---\nReview."))
 	if len(diagnostics) != 0 || component.Memory != "project" {

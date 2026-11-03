@@ -403,6 +403,13 @@ func (p *inProcessProvider) childAgentOptions(request harness.SubagentRequest, s
 		copied := harness.CloneBasicCompactionConfig(*p.compaction)
 		compaction = &copied
 	}
+	if request.AutoCompactWindow > 0 {
+		if compaction == nil {
+			return harness.AgentOptions{}, errors.New("subagents: auto compact window requires a compaction policy")
+		}
+		window := request.AutoCompactWindow
+		compaction.HeadroomTokens = &window
+	}
 	sessionCWD := request.Parent.Session().Header().CWD
 	if request.IsolatedWorktree {
 		sessionCWD = cwd

@@ -120,11 +120,14 @@ type SubagentRequest struct {
 	ReasoningEffort ReasoningEffort
 	MaxSteps        int
 	MaxTokens       int
-	AgentPreset     string
-	Persona         string
-	ToolFilter      *ToolRestriction
-	OutputSchema    json.RawMessage
-	MaxDepth        int
+	// AutoCompactWindow reserves this many tokens before automatic compaction.
+	// Zero keeps the mounted compaction policy.
+	AutoCompactWindow int
+	AgentPreset       string
+	Persona           string
+	ToolFilter        *ToolRestriction
+	OutputSchema      json.RawMessage
+	MaxDepth          int
 	// ProviderManagedDepth represents an omitted cap, not an arbitrary large number.
 	ProviderManagedDepth bool
 	// Depth is provider-resolved by the registry and cannot be widened by a

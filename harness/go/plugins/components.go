@@ -30,28 +30,29 @@ type InvocationVisibility struct {
 
 // Component contains parsed instructions, not a grant to execute their tools.
 type Component struct {
-	Kind            ComponentKind        `json:"kind"`
-	Name            string               `json:"name"`
-	QualifiedName   string               `json:"qualifiedName"`
-	Path            string               `json:"path"`
-	Description     string               `json:"description,omitempty"`
-	Content         string               `json:"-"`
-	Digest          string               `json:"digest"`
-	Visibility      InvocationVisibility `json:"visibility"`
-	ArgumentHint    string               `json:"argumentHint,omitempty"`
-	AllowedTools    []string             `json:"allowedTools,omitempty"`
-	Tools           []string             `json:"tools,omitempty"`
-	DisallowedTools []string             `json:"disallowedTools,omitempty"`
-	Skills          []string             `json:"skills,omitempty"`
-	Memory          string               `json:"memory,omitempty"`
-	Model           string               `json:"model,omitempty"`
-	Effort          string               `json:"effort,omitempty"`
-	Isolation       string               `json:"isolation,omitempty"`
-	MaxTurns        int                  `json:"maxTurns,omitempty"`
-	Context         string               `json:"context,omitempty"`
-	Agent           string               `json:"agent,omitempty"`
-	Background      *bool                `json:"background,omitempty"`
-	Hooks           []claudehooks.Hook   `json:"hooks,omitempty"`
+	Kind              ComponentKind        `json:"kind"`
+	Name              string               `json:"name"`
+	QualifiedName     string               `json:"qualifiedName"`
+	Path              string               `json:"path"`
+	Description       string               `json:"description,omitempty"`
+	Content           string               `json:"-"`
+	Digest            string               `json:"digest"`
+	Visibility        InvocationVisibility `json:"visibility"`
+	ArgumentHint      string               `json:"argumentHint,omitempty"`
+	AllowedTools      []string             `json:"allowedTools,omitempty"`
+	Tools             []string             `json:"tools,omitempty"`
+	DisallowedTools   []string             `json:"disallowedTools,omitempty"`
+	Skills            []string             `json:"skills,omitempty"`
+	Memory            string               `json:"memory,omitempty"`
+	AutoCompactWindow int                  `json:"autoCompactWindow,omitempty"`
+	Model             string               `json:"model,omitempty"`
+	Effort            string               `json:"effort,omitempty"`
+	Isolation         string               `json:"isolation,omitempty"`
+	MaxTurns          int                  `json:"maxTurns,omitempty"`
+	Context           string               `json:"context,omitempty"`
+	Agent             string               `json:"agent,omitempty"`
+	Background        *bool                `json:"background,omitempty"`
+	Hooks             []claudehooks.Hook   `json:"hooks,omitempty"`
 }
 
 type componentHeader struct {
@@ -63,6 +64,7 @@ type componentHeader struct {
 	DisallowedTools        componentTools `yaml:"disallowedTools"`
 	Skills                 componentTools `yaml:"skills"`
 	Memory                 componentText  `yaml:"memory"`
+	AutoCompactWindow      *int           `yaml:"autoCompactWindow"`
 	Model                  componentText  `yaml:"model"`
 	Effort                 componentText  `yaml:"effort"`
 	Isolation              componentText  `yaml:"isolation"`
@@ -279,6 +281,13 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 		if component.Memory != "" && component.Memory != "user" && component.Memory != "project" && component.Memory != "local" {
 			add(SeverityError, "INVALID_COMPONENT_FIELD", "memory", "Agent memory must be user, project, or local.")
 		}
+		if header.AutoCompactWindow != nil {
+			if *header.AutoCompactWindow < 1 {
+				add(SeverityError, "INVALID_COMPONENT_FIELD", "autoCompactWindow", "Agent autoCompactWindow must be a positive integer.")
+			} else {
+				component.AutoCompactWindow = *header.AutoCompactWindow
+			}
+		}
 		if header.MaxTurns != nil {
 			if *header.MaxTurns < 1 {
 				add(SeverityError, "INVALID_COMPONENT_FIELD", "maxTurns", "Agent maxTurns must be a positive integer.")
@@ -379,7 +388,7 @@ func knownComponentField(kind ComponentKind, key string) bool {
 		return kind != ComponentAgent
 	case "background":
 		return true
-	case "tools", "disallowedTools", "skills", "memory", "color", "isolation", "maxTurns":
+	case "tools", "disallowedTools", "skills", "memory", "color", "isolation", "maxTurns", "autoCompactWindow":
 		return kind == ComponentAgent
 	}
 	return false

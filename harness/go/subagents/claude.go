@@ -24,6 +24,7 @@ type AgentDefinition struct {
 	DisallowedTools                                           []string
 	Skills                                                    []string
 	Memory                                                    string
+	AutoCompactWindow                                         int
 }
 
 func requestedBackground(value *bool) bool {
@@ -175,6 +176,9 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		}
 		if definition.Memory != "" && definition.Memory != "user" && definition.Memory != "project" && definition.Memory != "local" {
 			return nil, fmt.Errorf("subagents: agent %q memory must be user, project, or local", definition.Name)
+		}
+		if definition.AutoCompactWindow < 0 {
+			return nil, fmt.Errorf("subagents: agent %q auto compact window must be positive", definition.Name)
 		}
 		service.definitions[definition.Name] = definition
 	}
