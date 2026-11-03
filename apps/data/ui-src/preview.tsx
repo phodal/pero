@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, EmptyState, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { FormSelect } from './form-select';
 import { availabilityLabel, formatBytes, formatInt, type Asset, type Dataset, type Inspection, type SavedView, type ViewSpec } from './model';
 
 type Props = {
   dataset: Dataset; asset: Asset; assets: Asset[]; views: SavedView[]; result: Inspection | null;
+  fields: Extract<Inspection, { status: 'ok' }> | null;
   loading: boolean; busy: boolean; view: ViewSpec; maxColumns: number;
   onVersion(id: string): void; onView(value: ViewSpec): void; onPage(offset: number): void;
   onAddVersion(): void; onEdit(value: { name: string; projectRef: string; archived: boolean }): void;
@@ -12,10 +13,11 @@ type Props = {
 };
 
 export function Preview(props: Props) {
-  const { dataset, asset, result, view, loading, busy } = props;
+  const { dataset, asset, result, fields, view, loading, busy } = props;
   const [tab, setTab] = useState('preview');
   const [confirmArchive, setConfirmArchive] = useState(false);
   const inspected = result?.status === 'ok' && result.assetId === asset.id ? result : null;
+  const columns = view.columns.length ? view.columns : fields?.columns ?? [];
   const versions = dataset.versions.map(id => props.assets.find(a => a.id === id)!).filter(Boolean);
   const metadata = { name: dataset.name, projectRef: dataset.projectRef, archived: dataset.archived };
   return <>
@@ -91,17 +93,18 @@ export function Preview(props: Props) {
         </> : null}
       </TabsContent>
       <TabsContent value="fields">
-        {inspected ? <>
+        {fields ? <>
+          {loading ? <p role="status">Updating inspection… Field statistics are from the last successful inspection of this version.</p> : null}
           <p className="data-note">Select up to {props.maxColumns} fields. Units are labels; values are not converted.</p>
           <div className="data-rows-scroll" tabIndex={0}><table className="data-rows">
             <thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col">Unit</th><th scope="col">Missing</th><th scope="col">Null</th><th scope="col">Empty</th></tr></thead>
-            <tbody>{inspected.report.fields.map(field => <tr key={field.name}>
-              <th scope="row"><label><input type="checkbox" aria-label={`Show ${field.name}`} checked={inspected.columns.includes(field.name)}
-                disabled={busy || loading || (inspected.columns.includes(field.name) ? inspected.columns.length === 1 : inspected.columns.length >= props.maxColumns)}
-                onChange={event => props.onView({ ...view, columns: event.target.checked ? [...inspected.columns, field.name] : inspected.columns.filter(c => c !== field.name) })} /> {field.name}</label></th>
+            <tbody>{fields.report.fields.map(field => <tr key={field.name}>
+              <th scope="row"><label><input type="checkbox" aria-label={`Show ${field.name}`} checked={columns.includes(field.name)}
+                disabled={busy || (columns.includes(field.name) ? columns.length === 1 : columns.length >= props.maxColumns)}
+                onChange={event => props.onView({ ...view, columns: event.target.checked ? [...columns, field.name] : columns.filter(c => c !== field.name) })} /> {field.name}</label></th>
               <td>{field.kinds.join(', ')}</td>
-              <td><Input aria-label={`Unit for ${field.name}`} key={`${asset.id}:${field.name}:${view.units[field.name] || ''}`} defaultValue={view.units[field.name] || ''} maxLength={60} disabled={busy || loading}
-                onBlur={event => { const unit = event.target.value.trim(); if (unit !== (view.units[field.name] || '')) props.onView({ ...view, units: { ...view.units, [field.name]: unit } }); }} /></td>
+              <td><FieldUnit key={`${asset.id}:${field.name}`} field={field.name} unit={view.units[field.name] || ''} disabled={busy}
+                onCommit={unit => props.onView({ ...view, units: { ...view.units, [field.name]: unit } })} /></td>
               <td>{field.missing}</td><td>{field.nulls}</td><td>{field.empty}</td>
             </tr>)}</tbody>
           </table></div>
@@ -145,4 +148,15 @@ export function Preview(props: Props) {
       </TabsContent>
     </Tabs>
   </>;
+}
+
+// Editing a draft must not depend on the lifetime of an inspection request.
+function FieldUnit({ field, unit, disabled, onCommit }: {
+  field: string; unit: string; disabled: boolean; onCommit(unit: string): void;
+}) {
+  const [draft, setDraft] = useState(unit);
+  useEffect(() => { setDraft(unit); }, [unit]);
+  return <Input aria-label={`Unit for ${field}`} value={draft} maxLength={60} disabled={disabled}
+    onChange={event => setDraft(event.target.value)}
+    onBlur={() => { const next = draft.trim(); setDraft(next); if (next !== unit) onCommit(next); }} />;
 }

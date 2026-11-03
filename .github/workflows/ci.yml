@@ -51,6 +51,30 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python -m unittest discover -s apps/data/test -p 'test_*.py' -v
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/data/package-lock.json
+      - name: Install Data browser test dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/data --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Check Data types and keyboard behavior in the real App frame
+        run: |
+          npm --prefix apps/data run typecheck
+          npm --prefix apps/data run test:ui
+          npm --prefix apps/data run test:browser
+      - name: Upload Data browser evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: data-fields-browser
+          path: test-results/data-fields/
+          if-no-files-found: ignore
 
   lab:
     name: Lab real Chatterbox and evidence contracts

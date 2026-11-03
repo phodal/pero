@@ -7,6 +7,8 @@ import { ImportDialog, type ImportDetails } from './import';
 import { Preview } from './preview';
 import './styles.css';
 
+// A completed inspection belongs to one input revision and one requested view.
+type InspectionSnapshot = { scope: string; view: ViewSpec; offset: number; result: Inspection };
 type Focus = { selection: Selection | null; view: ViewSpec; offset: number; parserVersion: string };
 const focused = (selection: Selection | null, parserVersion: string): Focus => ({ selection, view: emptyView(), offset: 0, parserVersion });
 
@@ -17,7 +19,7 @@ export default function Data() {
   const [query, setQuery] = useState(''), [project, setProject] = useState(''), [archived, setArchived] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
-  const [result, setResult] = useState<Inspection | null>(null), [inspecting, setInspecting] = useState(false);
+  const [snapshot, setSnapshot] = useState<InspectionSnapshot | null>(null), [inspecting, setInspecting] = useState(false);
   const [inspectionEpoch, setInspectionEpoch] = useState(0);
   const [importTarget, setImportTarget] = useState<Dataset | null | undefined>(undefined);
   const pending = useRef(false), requests = useRef(0);
@@ -25,6 +27,11 @@ export default function Data() {
   const dataset = visible.find(item => item.id === focus.selection?.datasetId) ?? null;
   const asset = dataset ? state?.assets.find(item => item.id === focus.selection?.assetId) ?? null : null;
   const selectedId = dataset?.id, assetId = asset?.id;
+  const inspectionScope = JSON.stringify([selectedId, assetId, asset?.sha256, asset?.availability,
+    focus.parserVersion, inspectionEpoch]);
+  const sameInput = active && snapshot?.scope === inspectionScope ? snapshot : null;
+  const result = sameInput?.view === focus.view && sameInput.offset === focus.offset ? sameInput.result : null;
+  const fields = sameInput?.result.status === 'ok' ? sameInput.result : null;
   const fail = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
 
   const adopt = useCallback((next: CatalogState) => {
@@ -58,16 +65,15 @@ export default function Data() {
   }, [active, state?.download?.status, refresh]);
 
   useEffect(() => {
-    setResult(null);
-    if (!active || !selectedId || !assetId) { setInspecting(false); return; }
+    if (!active || !selectedId || !assetId) { setSnapshot(null); setInspecting(false); return; }
     let current = true;
     setInspecting(true);
     void api.post<Inspection>('/api/inspect', { datasetId: selectedId, assetId, view: focus.view,
       offset: focus.offset, limit: 50, parserVersion: focus.parserVersion }).then(value => {
-      if (current) setResult(value);
-    }).catch(cause => { if (current) fail(cause); }).finally(() => { if (current) setInspecting(false); });
+      if (current) setSnapshot({ scope: inspectionScope, view: focus.view, offset: focus.offset, result: value });
+    }).catch(cause => { if (current) { setSnapshot(null); fail(cause); } }).finally(() => { if (current) setInspecting(false); });
     return () => { current = false; };
-  }, [active, selectedId, assetId, focus.view, focus.offset, focus.parserVersion, inspectionEpoch, api]);
+  }, [active, selectedId, assetId, focus.view, focus.offset, focus.parserVersion, inspectionScope, api]);
 
   async function perform(work: () => Promise<void>) {
     if (pending.current) return;
@@ -156,7 +162,7 @@ export default function Data() {
       </SplitPane>
       <SplitPane as="aside" id="data-preview" aria-label="Preview" className="data-preview" size={520} min={320} resizeLabel="Resize preview">
         {dataset && asset && state ? <Preview key={dataset.id} dataset={dataset} asset={asset} assets={state.assets}
-          views={state.views.filter(v => v.datasetId === dataset.id)} result={result} loading={inspecting} busy={busy}
+          views={state.views.filter(v => v.datasetId === dataset.id)} result={result} fields={fields} loading={inspecting} busy={busy}
           view={focus.view} maxColumns={state.limits.columns} onVersion={id => choose(dataset, id)}
           onView={view => setFocus(previous => ({ ...previous, view, offset: 0 }))}
           onPage={offset => setFocus(previous => ({ ...previous, offset }))}
