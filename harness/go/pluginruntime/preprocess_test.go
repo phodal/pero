@@ -333,6 +333,7 @@ func TestDynamicCommandBoundaries(t *testing.T) {
 		fail          bool
 	}{
 		{"inline", "!`printf ok`", 1, false},
+		{"compound fallback stays one command", "!`node missing 2>/dev/null || echo ready`", 1, false},
 		{"unicode whitespace", "text\u3000!`printf ok`", 1, false},
 		{"punctuation is not whitespace", "text:!`printf ok`", 0, false},
 		{"inline cannot cross lines", "!`printf\nok`", 0, false},
@@ -351,6 +352,9 @@ func TestDynamicCommandBoundaries(t *testing.T) {
 				if strings.TrimSpace(command.command) == "" {
 					t.Fatal("scanner selected an empty executable span")
 				}
+			}
+			if test.name == "compound fallback stays one command" && (len(commands) != 1 || commands[0].command != "node missing 2>/dev/null || echo ready") {
+				t.Fatalf("compound command was split: %+v", commands)
 			}
 		})
 	}

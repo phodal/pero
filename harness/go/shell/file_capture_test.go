@@ -10,6 +10,31 @@ import (
 	"testing"
 )
 
+func TestFileCaptureTrimStopsOnUTF8Boundary(t *testing.T) {
+	plan, err := PlanOutputFile(t.TempDir(), ".pero/output", "capture.txt", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	capture := &FileCapture{}
+	if err := capture.Open(plan); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := capture.Write([]byte("aaaa汉")); err != nil {
+		t.Fatal(err)
+	}
+	size, truncated, err := capture.Trim(5)
+	if err != nil || size != 4 || !truncated {
+		t.Fatalf("trim size=%d truncated=%v error=%v", size, truncated, err)
+	}
+	if err := capture.Close(true); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(plan.Path())
+	if err != nil || string(data) != "aaaa" {
+		t.Fatalf("trimmed bytes=%q error=%v", data, err)
+	}
+}
+
 func TestPrivateFileCaptureRetainsOrDiscardsActualBytes(t *testing.T) {
 	for _, test := range []struct {
 		name           string

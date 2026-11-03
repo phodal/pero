@@ -1,25 +1,19 @@
 package nativetools
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
-	"strings"
-	"unicode/utf8"
 
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/shell"
 )
 
 const (
-	bashDefaultInlineChars         = 30000
-	bashFailureInlineChars         = 10000
-	bashArtifactPreviewChars       = 2000
-	bashArtifactBytes        int64 = 64 << 20
-	bashMaximumReadbackChars       = 150000
+	bashDefaultInlineChars         = shell.ClaudeInlineChars
+	bashArtifactBytes        int64 = shell.ClaudeArtifactBytes
+	bashMaximumReadbackChars       = shell.ClaudeMaximumReadbackChars
 	bashMaximumInlineChars         = 128000
 )
 
@@ -45,17 +39,10 @@ func resolveBashOutputPolicy(options BashOutputOptions, environment []string) (b
 		return bashOutputPolicy{}, errors.New("Bash readback must be between 1 and 150000 when set")
 	}
 	if readback == 0 {
-		readback = bashDefaultInlineChars
-		for _, entry := range environment {
-			name, value, found := strings.Cut(entry, "=")
-			if !found || name != "BASH_MAX_OUTPUT_LENGTH" {
-				continue
-			}
-			n, err := strconv.ParseInt(value, 10, 64)
-			if err != nil || n < 1 {
-				return bashOutputPolicy{}, errors.New("BASH_MAX_OUTPUT_LENGTH must be a positive integer")
-			}
-			readback = int(min(n, int64(bashMaximumReadbackChars)))
+		var err error
+		readback, err = shell.ResolveClaudeReadback(environment)
+		if err != nil {
+			return bashOutputPolicy{}, err
 		}
 	}
 	return bashOutputPolicy{bashDefaultInlineChars, readback}, nil
@@ -78,45 +65,12 @@ type bashOutputProjection struct {
 // Character budgets count Unicode code points and never split UTF-8. Failure
 // excerpts come from the readback window, rather than the entire working log.
 func projectBashOutput(policy bashOutputPolicy, source []rune, success bool) bashOutputProjection {
-	window := source[:min(len(source), policy.readbackChars)]
-	projection := bashOutputProjection{bashPresentation: bashPresentation{ReadbackTruncated: len(source) > len(window)}}
-	projection.Truncated = projection.ReadbackTruncated
-	if success {
-		projection.artifact = len(source) > policy.inlineChars
-		if projection.artifact {
-			window = window[:min(len(window), bashArtifactPreviewChars)]
-			projection.Truncated = true
-		}
-		projection.Text = string(window)
-		return projection
-	}
-	if len(window) > bashFailureInlineChars {
-		const separator = "\n...\n"
-		head := (bashFailureInlineChars - len([]rune(separator))) / 2
-		tail := bashFailureInlineChars - len([]rune(separator)) - head
-		projection.Text = string(window[:head]) + separator + string(window[len(window)-tail:])
-		projection.Truncated = true
-	} else {
-		projection.Text = string(window)
-	}
-	return projection
+	projected := shell.ProjectClaudeCommandOutput(source, policy.inlineChars, policy.readbackChars, success)
+	return bashOutputProjection{bashPresentation: bashPresentation{Text: projected.Text, Truncated: projected.Truncated, ReadbackTruncated: projected.ReadbackTruncated}, artifact: projected.Artifact}
 }
 
 func (p bashOutputPolicy) readPrefix(source io.Reader) ([]rune, error) {
-	reader := bufio.NewReader(source)
-	limit := max(p.inlineChars, p.readbackChars) + 1
-	characters := make([]rune, 0, limit)
-	for len(characters) < limit {
-		r, _, err := reader.ReadRune()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		characters = append(characters, r)
-	}
-	return characters, nil
+	return shell.ReadClaudeOutputRunes(source, shell.ClaudeOutputReadLimit(p.inlineChars, p.readbackChars))
 }
 
 func (s *shellTasks) presentCapture(task *shellTask, success bool) (*bashPresentation, error) {
@@ -143,7 +97,7 @@ func (s *shellTasks) presentCapture(task *shellTask, success bool) (*bashPresent
 	if err := artifact.Open(plan); err != nil {
 		return nil, fmt.Errorf("save Bash output artifact: %w", err)
 	}
-	bytes, err := utf8ArtifactPrefix(task.capture, min(task.capture.Bytes(), bashArtifactBytes))
+	bytes, err := shell.UTF8PrefixLength(task.capture, min(task.capture.Bytes(), bashArtifactBytes))
 	if err != nil {
 		return nil, errors.Join(err, artifact.Close(false))
 	}
@@ -156,25 +110,6 @@ func (s *shellTasks) presentCapture(task *shellTask, success bool) (*bashPresent
 	projection.OutputFile, projection.OutputFileBytes = plan.Path(), bytes
 	projection.OutputFileTruncated = task.capture.Bytes() > bytes
 	return &projection.bashPresentation, nil
-}
-
-func utf8ArtifactPrefix(source io.ReaderAt, bytes int64) (int64, error) {
-	start := max(int64(0), bytes-utf8.UTFMax)
-	tail := make([]byte, bytes-start)
-	if _, err := source.ReadAt(tail, start); err != nil && !errors.Is(err, io.EOF) {
-		return 0, err
-	}
-	if len(tail) == 0 {
-		return bytes, nil
-	}
-	position := len(tail) - 1
-	for position > 0 && !utf8.RuneStart(tail[position]) {
-		position--
-	}
-	if utf8.RuneStart(tail[position]) && !utf8.FullRune(tail[position:]) {
-		return start + int64(position), nil
-	}
-	return bytes, nil
 }
 
 type bashPresentedResult struct {

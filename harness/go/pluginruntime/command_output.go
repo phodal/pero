@@ -6,10 +6,7 @@ import (
 	"github.com/phodal/pero/harness/go/shell"
 )
 
-const (
-	skillCommandInlineBytes  = 64 << 10
-	skillCommandPreviewBytes = 2048
-)
+const skillCommandInlineBytes = 64 << 10
 
 var ErrSkillCommandOutputLimit = shell.ErrOutputFileLimit
 
@@ -35,20 +32,21 @@ func (w *skillCommandOutput) open(workspace string) error {
 
 func (w *skillCommandOutput) Write(source []byte) (int, error) { return w.capture.Write(source) }
 
-func (w *skillCommandOutput) projection(success bool) (string, error) {
-	limit := 0
-	if success {
-		limit = skillCommandInlineBytes
-	}
-	output, err := w.capture.Preview(limit, skillCommandPreviewBytes)
+func (w *skillCommandOutput) projection(success bool, readback int) (string, error) {
+	characters, err := w.capture.ReadRunes(shell.ClaudeOutputReadLimit(shell.ClaudeInlineChars, readback))
 	if err != nil {
 		return "", err
 	}
-	if !success || !output.Truncated {
-		return output.Text, nil
+	projected := shell.ProjectClaudeCommandOutput(characters, shell.ClaudeInlineChars, readback, success)
+	if !success || !projected.Artifact {
+		return projected.Text, nil
+	}
+	size, truncated, err := w.capture.Trim(shell.ClaudeArtifactBytes)
+	if err != nil {
+		return "", err
 	}
 	w.spilled = true
-	return fmt.Sprintf("Output saved to: %s\nTotal bytes: %d\nFirst and last %d bytes:\n%s", w.path, output.Bytes, skillCommandPreviewBytes, output.Text), nil
+	return fmt.Sprintf("output_file: %s\noutput_file_bytes: %d\noutput_file_truncated: %t\n%s", w.path, size, truncated, projected.Text), nil
 }
 
 func (w *skillCommandOutput) close(keep bool) error { return w.capture.Close(keep) }

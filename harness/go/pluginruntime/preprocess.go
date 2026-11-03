@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/plugins"
 	"github.com/phodal/pero/harness/go/sandbox"
 	"github.com/phodal/pero/harness/go/shell"
 	"github.com/phodal/pero/harness/go/skills"
@@ -80,7 +81,19 @@ func ExpandSkill(ctx context.Context, h *harness.Harness, agent *harness.Agent, 
 		return skills.Definition{}, err
 	}
 	environment := append([]string{}, options.Environment...)
-	environment = append(environment, "CLAUDE_PLUGIN_ROOT="+definition.ResourceBase, "CLAUDE_PROJECT_DIR="+project, "CLAUDE_SESSION_ID="+string(agent.ID()))
+	pluginName, _, _ := strings.Cut(definition.Name, ":")
+	if pluginName == "" {
+		pluginName = definition.Name
+	}
+	dataDirectory, err := plugins.EnsurePluginDataDirectory(pluginName)
+	if err != nil {
+		return skills.Definition{}, err
+	}
+	environment = append(environment, "CLAUDE_PLUGIN_ROOT="+definition.ResourceBase, "CLAUDE_PLUGIN_DATA="+dataDirectory, "CLAUDE_PROJECT_DIR="+project, "CLAUDE_SESSION_ID="+string(agent.ID()))
+	readback, err := shell.ResolveClaudeReadback(environment)
+	if err != nil {
+		return skills.Definition{}, fmt.Errorf("plugin-runtime: skill command output budget: %w", err)
+	}
 	localOptions := shell.LocalOptions{Shell: options.Shell, CWD: project, Sandbox: options.Sandbox, Timeout: 120 * time.Second, MaxTimeout: 120 * time.Second, MaxOutputBytes: skillCommandInlineBytes, BaseEnv: environment, TrustedBaseEnvironment: true}
 	var outputs []*skillCommandOutput
 	complete := false
@@ -138,7 +151,7 @@ func ExpandSkill(ctx context.Context, h *harness.Harness, agent *harness.Agent, 
 			return skills.Definition{}, fmt.Errorf("plugin-runtime: skill command failed: %w", err)
 		}
 		success := shell.ClaudeCommandSucceeded(spec.Command, result.ExitCode)
-		text, err := output.projection(success)
+		text, err := output.projection(success, readback)
 		if err != nil {
 			return skills.Definition{}, fmt.Errorf("plugin-runtime: read skill command output: %w", err)
 		}

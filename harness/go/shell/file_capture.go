@@ -128,6 +128,34 @@ func (w *FileCapture) Path() string {
 }
 func (w *FileCapture) Bytes() int64 { return w.bytes }
 
+// ReadRunes reads at most limit Unicode code points from the start of the log.
+func (w *FileCapture) ReadRunes(limit int) ([]rune, error) {
+	if w.file == nil || limit < 1 {
+		return nil, errors.New("shell: output capture is not open")
+	}
+	return ReadClaudeOutputRunes(io.NewSectionReader(w.file, 0, w.bytes), limit)
+}
+
+// Trim shortens a finished capture to a valid UTF-8 prefix. Call it only after
+// the producing process has exited.
+func (w *FileCapture) Trim(maximum int64) (int64, bool, error) {
+	if w.file == nil || maximum < 1 {
+		return 0, false, errors.New("shell: output capture is not open")
+	}
+	if w.bytes <= maximum {
+		return w.bytes, false, nil
+	}
+	boundary, err := UTF8PrefixLength(w.file, maximum)
+	if err != nil {
+		return 0, false, err
+	}
+	if err := w.file.Truncate(boundary); err != nil {
+		return 0, false, err
+	}
+	w.bytes = boundary
+	return boundary, true, nil
+}
+
 // ReadAt borrows the already-open command log for post-execution projection.
 func (w *FileCapture) ReadAt(destination []byte, offset int64) (int, error) {
 	if w.file == nil {

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "shell",
     srcs = [
+        "claude_output.go",
         "claude_status.go",
         "file_capture.go",
         "local.go",
