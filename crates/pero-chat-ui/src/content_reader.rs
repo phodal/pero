@@ -410,12 +410,11 @@ impl ContentReader {
         self.pending_anchor = None;
         if self.editor.is_none() {
             let language = self.document.language();
-            // Long single-line JSON must not shape a screenful of wrapped text.
             self.editor = Some(cx.new(|cx| {
                 let mut editor = EditorState::new(window, cx)
                     .language(language.to_owned())
                     .searchable(true)
-                    .soft_wrap(false)
+                    .soft_wrap(true)
                     .default_value(self.document.source().to_owned());
                 crate::source_syntax::configure_source_syntax(
                     &mut editor,

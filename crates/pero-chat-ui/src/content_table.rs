@@ -165,7 +165,7 @@ impl SourceRows {
     }
     fn cell(&self, row: usize, column: usize) -> Option<Range<usize>> {
         let column = if self.preview.shape == PreviewShape::Properties {
-            (column == 2).then_some(0)?
+            (column == 1).then_some(0)?
         } else {
             column.checked_sub(1)?
         };
@@ -175,13 +175,14 @@ impl SourceRows {
         let Some(&original) = self.projection.rows.get(row) else {
             return String::new();
         };
-        if column == 0 {
+        if self.preview.shape != PreviewShape::Properties && column == 0 {
             return self.preview.rows[original].line.to_string();
         }
+        if self.preview.shape == PreviewShape::Properties && column == 0 {
+            return self.preview.columns[original].clone();
+        }
         let range = self.cell(row, column);
-        let raw = if self.preview.shape == PreviewShape::Properties && column == 1 {
-            self.preview.columns[original].as_str()
-        } else if let Some(range) = &range {
+        let raw = if let Some(range) = &range {
             self.document.text(range)
         } else {
             return pero_contracts::i18n::text(&self.locale, "content.missing").into();
@@ -218,7 +219,7 @@ impl SourceRows {
 impl TableDelegate for SourceRows {
     fn columns_count(&self, _: &App) -> usize {
         if self.preview.shape == PreviewShape::Properties {
-            3
+            2
         } else {
             self.preview.columns.len().max(1) + 1
         }
@@ -227,18 +228,18 @@ impl TableDelegate for SourceRows {
         self.projection.rows.len()
     }
     fn column(&self, index: usize, _: &App) -> Column {
-        let name = if index == 0 {
-            "#".into()
-        } else if self.preview.shape == PreviewShape::Properties {
+        let name = if self.preview.shape == PreviewShape::Properties {
             pero_contracts::i18n::text(
                 &self.locale,
-                if index == 1 {
+                if index == 0 {
                     "content.field"
                 } else {
                     "content.value"
                 },
             )
             .into()
+        } else if index == 0 {
+            "#".into()
         } else {
             self.preview
                 .columns
@@ -246,11 +247,12 @@ impl TableDelegate for SourceRows {
                 .cloned()
                 .unwrap_or_else(|| pero_contracts::i18n::text(&self.locale, "content.value").into())
         };
+        let line = self.preview.shape != PreviewShape::Properties && index == 0;
         let column = Column::new(format!("source-{index}"), name)
             .movable(false)
-            .width(px(if index == 0 { 48. } else { 180. }))
-            .min_width(px(if index == 0 { 48. } else { 80. }))
-            .resizable(index != 0);
+            .width(px(if line { 48. } else { 180. }))
+            .min_width(px(if line { 48. } else { 80. }))
+            .resizable(!line);
         if index > 0 && self.preview.shape != PreviewShape::Properties {
             column.sortable()
         } else {
