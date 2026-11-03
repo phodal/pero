@@ -110,6 +110,9 @@ continuation: [Paper research Agent](paper-research-agent.md).
 
 Public literature search, source metadata and thumbnails: [Paper search](paper-search.md).
 
+Single-row reading controls, approved-source TeX compilation and Native/browser
+verification: [Paper reading views](paper-reading-views.md).
+
 
 
 Pinned Harness/DSH capability comparison, deterministic Skill compaction evidence

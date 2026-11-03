@@ -389,7 +389,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/codegen/contracts.mjs --check
-      - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs
+      - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs tests/build/product-chat-startup.test.mjs
 
   core:
     name: Linux core types, permissions and durable runtime
@@ -443,6 +443,7 @@ jobs:
           npm ci --prefix apps/paper-agent --ignore-scripts
           npm run typecheck --prefix apps/paper-agent
           node --test tests/e2e/paper-library-availability.test.mjs
+          node --experimental-transform-types --test tests/e2e/paper-manual-evidence.test.ts
           node --test scripts/build/apps.test.mjs
           npm ci --prefix apps/scientific-viewer --ignore-scripts
           npm test --prefix apps/automations
@@ -482,7 +483,7 @@ jobs:
           node tests/contracts/mcp-ownership.mjs
           node tests/runtime/automation.mjs
           node tests/runtime/automation-app.mjs
-          PERO_HOST_EXECUTABLE="$PWD/target/debug/pero-host" node tests/contracts/point-agent.mjs
+          PERO_HOST_EXECUTABLE="$PWD/target/debug/pero-host" node tests/contracts/app-agent-runs.mjs
       - name: Core failure and recovery evidence
         if: always()
         uses: actions/upload-artifact@v7

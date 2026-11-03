@@ -87,7 +87,7 @@ export function LibrarySave({ api, paper, t, onClose, onSaved, onRead, onError }
         {review.warnings.map((warning, index) => <Feedback key={index}>{warning}</Feedback>)}
         <ul className="pa-save-options">{(['pdf', 'tex'] as const).map(kind => {
           const option = review[kind];
-          return <li key={kind}><label><Checkbox checked={kind === 'pdf' || tex} disabled={busy || kind === 'pdf' || !option.available} onCheckedChange={setTex}/>{kind === 'pdf' ? 'PDF' : 'TeX'}</label>
+          return <li key={kind}><label><Checkbox checked={kind === 'pdf' || tex} disabled={busy || kind === 'pdf' || !option.available} onCheckedChange={checked => setTex(checked === true)}/>{kind === 'pdf' ? 'PDF' : 'TeX'}</label>
             <span>{t('saveLicense')}: {option.license || t('saveUnknown')} / {assetSize(option.size)}</span>
             {option.reason && !review.warnings.includes(option.reason) && <p>{option.reason}</p>}</li>;
         })}</ul>

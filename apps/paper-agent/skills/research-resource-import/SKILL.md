@@ -211,3 +211,26 @@ originals. Restore missing originals only with explicit approved acquisition;
 changed bytes cannot update historical evidence. The existing CLI `source-report`
 action and export use the same core. Verification certifies hashes/scopes only,
 not scientific correctness, completeness, reproducibility or model vision.
+
+## Manual question, scope and revisions
+
+When asked to preserve a research question or screening decisions, use
+`research-record` with existing saved Paper IDs. `create` requires question,
+scope, inclusion/exclusion conditions, and one reasoned include/exclude/pending
+decision per paper. Link existing ordinary research reports for support or
+counterevidence; a gap may have no report. The server validates report/source
+ownership and digests. These labels and notes are interpretations, not newly
+observed evidence. This route does not substitute for `research-source-report`.
+
+A revision supplies parentId and new explicit fields. Old records/reports remain
+unchanged. A local review is self-declared, never independent peer review or a
+scientific PASS. list/read are safe reopen operations. impact compares actual
+retained snapshots with the same exact provider identity; changed means different
+saved bytes, not a proven later upstream version. Unknown identity/freshness stays
+unknown. No data/method update or scheduler is implemented here.
+
+select records the user's chosen paper IDs for rereading; it does not start an
+Agent, create observations, or authorize execution. read also returns retained
+selections after restart. export is a references-only index: notes, paper/report
+text, data and paths are omitted. It is not a full handoff or no-Agent
+recomputation package. The JSON CLI action `record` uses the same core.

@@ -46,6 +46,13 @@ PAPER_STUDY_PYTHON_ENV=/absolute/isolated-venv \
 ```
 
 Replace `source` with `vision`, `nonstandard` or `nonstandard-read` for deterministic cases.
+The bounded synthetic controller also supports `standard`, `nonstandard-decline`,
+`ambiguity` and `injection`. Original reference-saving cases may commit references
+in turn one, but cannot authorize downloads then; inspection-only cases cannot
+commit. Turn two permits only the authored source/PDF selection and matching
+read operations; image input is limited to `vision`. Decline turns grant nothing.
+Every grant still requires the exact scripted pending call on the owned session
+and a single-use Host permission response; unknown tools and other Apps fail closed.
 These commands make no real model calls. Real inference is a separately authorized
 validation activity, not a prerequisite for running the fixture suite.
 Do not publish original research documents, raw sessions or credentials.
@@ -66,7 +73,14 @@ from an automated campaign pass.
 after a real source index/read succeeds; the recorded byte SHA is not an inferred
 paper version. Other attachments and the code repository remain references.
 
-`public-results` is an explicit authentic-material replay case. It requires the
+`public-results` describes the historical authentic-material replay case, not a
+currently supported `--fixture` invocation: the synthetic controller intentionally
+rejects authentic-material grants. Restoring it requires separately reviewed
+permissions; providing an archive path does not authorize it. `--real` likewise
+stops before credential input or provider construction until an explicit human
+ACP responder is wired (use the existing product permission UI instead).
+
+The historical `public-results` replay requires the
 already authorized public arXiv `2610.33195v1` archive, with fixed size/SHA
 checked before serving bytes. Set `PAPER_STUDY_SOURCE_ARCHIVE` to that authorized
 archive's absolute local path; missing/relative paths or mismatched bytes are
@@ -181,3 +195,45 @@ Existing Go `TestExplicit*` Skill tests and
 `TestImageInputRejectsUnsafeMediaBeforeHTTP` also passed offline; the provider hard
 guard was not modified. Independent review verified the persisted event fields,
 exact injected-body formatting and both MCP rejection routes.
+
+## Current-source synthetic permission controller (2026-11-02)
+
+The four closure fixtures use `--approval ask` and an owned test-only ACP
+controller. It matches each permission to the current session, pending tool-call
+ID, exact scripted Paper tool/arguments and current prompt phase, once. A maximum
+of 128 decisions is accepted per case. Turn one permits only inspection and
+candidate context/proposal; decline turn permits none. Standard turn two permits
+only the authored source/PDF acquisition, reading and report trajectory after
+checking the observed original URLs against the exact approved arXiv version.
+No Data downloads, generic app_write, image, shell, installation or execution
+receive grants. Decisions and unexpected requests are retained in result.json.
+This is a synthetic policy, not human approval or evidence of model judgment.
+
+Current source `08f248cc` plus freshly rebuilt Host/Go initially failed all four
+cases: master now honors explicit MCP `readOnlyHint:false`, while the old fixture
+used `--approval never`. Inspection was correctly denied; the scripted provider
+then mistook the denial text for JSON. These failures do not invalidate or update
+historical real-provider evidence; they expose a stale test authorization setup.
+The fixture now reports a terminal explicit denial instead of opaque HTTP 500.
+
+Only these four synthetic cases have the bounded controller. Other historical
+fixture modes stop explicitly until their own scope is reviewed. Real campaign
+mode stops before reading credentials or starting a provider: this runner has no
+human ACP permission responder. Synthetic grants must never be reused for real
+inference, public networking or a different case.
+
+Historical real-provider proof remains pinned to its recorded source and binary
+hashes; these current scripted passes cannot establish current real-provider
+end-to-end success. For real inference, use the existing product Host/ACP
+permission UI to review individual requests. A headless campaign needs an explicit
+human responder before it can proceed; a plan's `confirmed` flag is not a human
+permission response.
+
+The first controller revision `6e451635` produced four exit-zero trajectories,
+but all recorded zero permission decisions: Go ACP's default `auto-review` mode
+answered before the controller. Those runs are **not** permission integration
+passes. The fixture now selects the existing narrower `workspace-write` setting
+and waits for its actual `configuration_changed` acknowledgement before prompting.
+Every active phase must have actual bounded decisions and every planned Paper
+call must consume its own permission request; auto-review can no longer silently
+pass this check. No production default or persistent permission was changed.

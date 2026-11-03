@@ -1045,6 +1045,12 @@
         "entry": {
           "type": "string"
         },
+        "frameOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "backend": {
           "$ref": "#/$defs/BackendAccess"
         }

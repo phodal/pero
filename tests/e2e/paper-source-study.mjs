@@ -228,7 +228,8 @@ try {
     checks.push('Cancellation interrupts source acquisition; explicit retry accepts gzip single TeX; PDF-only response never claims TeX');
   }
   if (!live) {
-    await exerciseLibrarySave({ frame, page, api, requests, out, profile, restart: async () => {
+    const priorPdf = await api('/api/research/pdf', { operation: 'status', bundleId: bundle.id, resourceId: bundle.pdfDownloadIds[0] });
+    await exerciseLibrarySave({ frame, page, api, requests, out, profile, priorDocumentId: priorPdf.receipt.documentId, restart: async () => {
       await app.close(); app = await launch(); await ready(); await openPaper(); return { frame, page };
     } });
     checks.push('Library explicit fixed-version copies, cancellation, original identity/annotations, evidence ledger and Desktop restart');

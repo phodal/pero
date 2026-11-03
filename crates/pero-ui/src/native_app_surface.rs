@@ -29,7 +29,7 @@ addEventListener('message',event=>{
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);
 "#;
 impl NativeAppPage {
-    fn new(name: String, entry: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(name: String, entry: String, frame_origins: Vec<String>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (sender, receiver) = async_channel::unbounded();
         let loads = sender.clone();
         let links = sender.clone();
@@ -37,6 +37,7 @@ impl NativeAppPage {
         let client = crate::native::apps();
         let owner = name.clone();
         let allowed = format!("pero-app://{name}/");
+        let ipc_origin = allowed.clone();
         let builder = wry::WebViewBuilder::new()
             .with_url(format!("pero-app://{name}/{entry}"))
             .with_initialization_script_for_main_only(BRIDGE, true)
@@ -46,7 +47,7 @@ impl NativeAppPage {
                 std::thread::spawn(move || responder.respond(client.serve(&name, request)));
             })
             .with_navigation_handler(move |uri| {
-                if uri.starts_with(&allowed) {
+                if uri.starts_with(&allowed) || frame_origins.iter().any(|origin| uri == *origin || uri.strip_prefix(origin).is_some_and(|tail| tail.starts_with('/'))) {
                     return true;
                 }
                 let _ = links.try_send(json!({"type":"link","url":uri}));
@@ -62,6 +63,7 @@ impl NativeAppPage {
                 }
             })
             .with_ipc_handler(move |request| {
+                if !request.uri().to_string().starts_with(&ipc_origin) { return; }
                 if request.body().len() <= 256_000 {
                     if let Ok(message) = serde_json::from_str::<Value>(request.body()) {
                         let _ = sender.try_send(message);
@@ -308,6 +310,8 @@ impl Workbench {
             name: String,
             panel: String,
             entry: String,
+            #[serde(default, rename = "frameOrigins")]
+            frame_origins: Vec<String>,
         }
         let Ok(open) = serde_json::from_value::<Open>(event.data.clone()) else {
             return;
@@ -325,7 +329,7 @@ impl Workbench {
         if self.native_app_pages.contains_key(&key) {
             return;
         }
-        let view = cx.new(|cx| NativeAppPage::new(key.0.clone(), open.entry, window, cx));
+        let view = cx.new(|cx| NativeAppPage::new(key.0.clone(), open.entry, open.frame_origins, window, cx));
         let scope = pero_contracts::AppChatScope {
             app: key.0.clone(),
             panel: key.1.clone(),

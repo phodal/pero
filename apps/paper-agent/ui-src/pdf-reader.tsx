@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Feedback, Icon, Input, Toolbar } from '@pero/app-sdk/ui';
+import { Button, Feedback, Icon, Input, Popover, Toolbar } from '@pero/app-sdk/ui';
 import { createPluginRegistration } from '@embedpdf/core';
 import { EmbedPDF, useStoreState } from '@embedpdf/core/react';
 import { usePdfiumEngine } from '@embedpdf/engines/react';
@@ -17,18 +17,23 @@ import type { Api, Paper, PdfAnnotation, PdfDocument, PdfFocus, PdfReading, PdfS
 import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
 import { loadReaderState, saveReaderState, type PdfReaderState } from './reader-state';
+import { TexReader } from './tex-reader';
+
+type ReadingView = 'text' | 'pdf' | 'tex' | 'original';
 
 export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; onSave(): void; back?: () => void };
 
-export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel, readRequest = 0, pdfReloadToken = 0 }: {
+export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel, readRequest = 0, pdfReloadToken = 0, onReview, sourceUrl, openToken = 0 }: {
   paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string; readRequest?: number; pdfReloadToken?: number;
   onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
+  onReview(): void; sourceUrl?: string; openToken?: number;
 }) {
   const [reading, setReading] = useState<PdfReading>({ document: null, annotations: [] });
   const pdfLoadEpoch = useRef(0);
   const [lookupAttempt, setLookupAttempt] = useState(0);
-  const [mode, setMode] = useState<'text' | 'pdf'>('text'), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [mode, setMode] = useState<ReadingView>('text'), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [visitedTex, setVisitedTex] = useState(false);
   useEffect(() => {
     if (lockText) return;
     if (focus && reading.document?.id === focus.documentId) return;
@@ -58,12 +63,13 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   useEffect(() => { if (lockText) setMode('text'); else if (focus) setMode('pdf'); }, [focus, lockText]);
   useEffect(() => { if (readRequest) setMode('text'); }, [readRequest]);
   const view = lockText ? 'text' : mode;
-  const textLabel = readLabel ?? t('pdfText');
-  const originalUrl = paper.fullTextUrl ?? paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
-  const modes = <div className="pa-reader-modes">
+  const textLabel = readLabel ?? 'Read';
+  const originalUrl = sourceUrl ?? paper.fullTextUrl ?? paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
+  const modes = <div className="pa-reader-modes" role="group" aria-label={t('readerView')}>
     <Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button>
-    {(paper.pdfUrl || reading.document) && <Button variant="ghost" aria-pressed={view === 'pdf'} onClick={() => void open()}>PDF</Button>}
-    {originalUrl?.startsWith('https://') && <a className="pa-reader-original" href={originalUrl} target="_blank" rel="noreferrer" aria-label={t('original')}><Icon name="external-link"/><span>{t('readerOriginal')}</span></a>}
+    <Button variant="ghost" aria-pressed={view === 'pdf'} disabled={!paper.pdfUrl && !reading.document} onClick={() => void open()}>PDF</Button>
+    <Button variant="ghost" aria-pressed={view === 'tex'} onClick={() => { setVisitedTex(true); setMode('tex'); }}>TeX</Button>
+    <Button variant="ghost" aria-pressed={view === 'original'} title={originalUrl} disabled={!originalUrl?.startsWith('https://')} onClick={() => setMode('original')}>{t('readerOriginal')}</Button>
   </div>;
   function open() {
     if (reading.document) { setMode('pdf'); return; }
@@ -71,42 +77,43 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   }
   // Reader input (including portal toolbar events) supersedes a pending search
   // reveal. Programmatic focus/scroll updates do not invalidate their own request.
-  return <div className="pa-pdf-reading" onPointerDownCapture={chrome.onNavigate} onClickCapture={chrome.onNavigate}
+  return <div className="pa-pdf-reading" data-reader-view={view} onPointerDownCapture={chrome.onNavigate} onClickCapture={chrome.onNavigate}
     onKeyDownCapture={chrome.onNavigate} onWheelCapture={chrome.onNavigate} onChangeCapture={chrome.onNavigate}>
     {!lockText && (chrome.toolbar ? createPortal(modes, chrome.toolbar) : <Toolbar>{modes}</Toolbar>)}
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => setLookupAttempt(value => value + 1)} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('loading')}</p>}
-    {view !== 'pdf' && chrome.back && <div className="pa-pdf-inline-toolbar"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={chrome.back}>‹</Button></div>}
     <div className="pa-reader-views" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', flex: 1, minHeight: 0, minWidth: 0 }}>
       {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, minWidth: 0, visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
         <PdfViewer chrome={{ ...chrome, toolbar: view === 'pdf' ? chrome.toolbar : null }} active={view === 'pdf'} readLabel={textLabel} onText={() => setMode('text')} key={`${reading.document.id}:${reading.document.fileDigest}`} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/>
       </div>}
       <div className="pa-text-view-slot" aria-hidden={view !== 'text'} inert={view !== 'text'} style={{ gridArea: '1 / 1', display: view === 'text' ? 'flex' : 'none', minHeight: 0, minWidth: 0 }}>{children}</div>
+      {visitedTex && <div className="pa-tex-view-slot" aria-hidden={view !== 'tex'} inert={view !== 'tex'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, minWidth: 0, visibility: view === 'tex' ? 'visible' : 'hidden' }}><TexReader api={api} paper={paper} active={view === 'tex'} openToken={openToken} chrome={chrome} t={t} onReview={onReview}/></div>}
+      {view === 'original' && originalUrl?.startsWith('https://') && <section className="pa-original-view" style={{ gridArea: '1 / 1' }} aria-label={t('readerOriginal')}><div className="pa-original-location"><a href={originalUrl} target="_blank" rel="noreferrer"><Icon name="external-link"/>{originalUrl}</a></div><iframe title={t('readerOriginal')} src={originalUrl} sandbox="allow-same-origin allow-popups" referrerPolicy="no-referrer"/></section>}
     </div>
   </div>;
 }
 
-function PdfViewer({ document, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel }: {
-  document: PdfDocument; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void; active: boolean; readLabel: string;
+export function PdfViewer({ document, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel, fileUrl, readOnly = false }: {
+  document: PdfDocument; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void; active: boolean; readLabel: string; fileUrl?: string; readOnly?: boolean;
   onSaved(annotation: PdfAnnotation): void; onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
 }) {
   const { engine, isLoading, error } = usePdfiumEngine({ wasmUrl: new URL(wasmUrl, location.href).href, fontFallback: null });
   const initial = useMemo(() => loadReaderState(document), [document.id, document.fileDigest]);
   const plugins = useMemo(() => [
-    createPluginRegistration(DocumentManagerPluginPackage, { initialDocuments: [{ documentId: document.id, url: new URL(`/api/pdf/${document.id}/file`, location.href).href, mode: 'full-fetch' as const }] }),
+    createPluginRegistration(DocumentManagerPluginPackage, { initialDocuments: [{ documentId: document.id, url: new URL(fileUrl ?? `/api/pdf/${document.id}/file`, location.href).href, mode: 'full-fetch' as const }] }),
     createPluginRegistration(ViewportPluginPackage), createPluginRegistration(ScrollPluginPackage),
     createPluginRegistration(RenderPluginPackage), createPluginRegistration(InteractionManagerPluginPackage),
     createPluginRegistration(SelectionPluginPackage), createPluginRegistration(ZoomPluginPackage, { defaultZoomLevel: ZoomMode.FitPage }),
     createPluginRegistration(CapturePluginPackage, { scale: 2, withAnnotations: false }),
-  ], [document.id, document.fileDigest]);
+  ], [document.id, document.fileDigest, fileUrl]);
   if (error) return <Feedback kind="error">{error.message}</Feedback>;
   if (isLoading || !engine) return <p role="status">{t('loading')}</p>;
-  return <EmbedPDF engine={engine} plugins={plugins}>{({ activeDocumentId }) => activeDocumentId && <DocumentContent documentId={activeDocumentId}>{({ isLoaded, isError }) => isError ? <Feedback kind="error">{t('pdfLoadError')}</Feedback> : isLoaded ? <PdfPages chrome={chrome} onText={onText} active={active} readLabel={readLabel} initial={initial} document={document} documentId={activeDocumentId} annotations={annotations} api={api} focus={focus} t={t} onSaved={onSaved} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}/> : <p role="status">{t('loading')}</p>}</DocumentContent>}</EmbedPDF>;
+  return <EmbedPDF engine={engine} plugins={plugins}>{({ activeDocumentId }) => activeDocumentId && <DocumentContent documentId={activeDocumentId}>{({ isLoaded, isError }) => isError ? <Feedback kind="error">{t('pdfLoadError')}</Feedback> : isLoaded ? <PdfPages chrome={chrome} onText={onText} active={active} readLabel={readLabel} initial={initial} document={document} documentId={activeDocumentId} annotations={annotations} api={api} focus={focus} t={t} onSaved={onSaved} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} readOnly={readOnly}/> : <p role="status">{t('loading')}</p>}</DocumentContent>}</EmbedPDF>;
 }
 
-function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel, initial }: {
-  initial: PdfReaderState | null; document: PdfDocument; documentId: string; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void; active: boolean; readLabel: string;
+function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel, initial, readOnly }: {
+  readOnly?: boolean; initial: PdfReaderState | null; document: PdfDocument; documentId: string; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void; active: boolean; readLabel: string;
   onSaved(annotation: PdfAnnotation): void; onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
 }) {
@@ -121,7 +128,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   const [menu, setMenu] = useState<{x: number; y: number} | null>(null), [pageText, setPageText] = useState(false);
   const layoutReady = useRef(false);
   const menuRef = useRef<HTMLDivElement>(null), appliedFocus = useRef<PdfFocus | null>(null);
-  useEffect(() => { chrome.preserveView.current = () => zoom?.requestZoom(zoom.getState().currentZoomLevel); return () => { chrome.preserveView.current = null; }; }, [zoom, chrome.preserveView]);
+  useEffect(() => { if (!active) return; chrome.preserveView.current = () => zoom?.requestZoom(zoom.getState().currentZoomLevel); return () => { chrome.preserveView.current = null; }; }, [zoom, chrome.preserveView, active]);
   useEffect(() => { if (menu) menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus(); }, [menu]);
   const [matrixAnnotation, setMatrixAnnotation] = useState(''), [column, setColumn] = useState(t('pdfEvidenceColumn'));
   const [verificationAnnotation, setVerificationAnnotation] = useState('');
@@ -180,6 +187,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   }), [selection, documentId]);
   useEffect(() => {
     const copy = (event: ClipboardEvent) => {
+      if (!activeNow.current) return;
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return;
       const text = selectedText.current.trim();
@@ -245,9 +253,10 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button variant="ghost" aria-label={t('pdfPrevious')} disabled={!scroll || scrollState.currentPage <= 1} onClick={() => scroll?.scrollToPreviousPage('instant')}>‹</Button>
       <label className="pa-pdf-page-input"><span className="pa-sr-only">{t('pdfPage')}</span><input aria-label={t('pdfPage')} type="number" min={1} max={document.pages.length} value={scrollState.currentPage || 1} onChange={event => { const pageNumber = Number(event.target.value); if (pageNumber >= 1 && pageNumber <= document.pages.length) scroll?.scrollToPage({ pageNumber, behavior: 'instant' }); }}/><span>/ {document.pages.length}</span></label>
       <Button variant="ghost" aria-label={t('pdfNext')} disabled={!scroll || scrollState.currentPage >= document.pages.length} onClick={() => scroll?.scrollToNextPage('instant')}>›</Button>
-      <Button variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button variant="ghost" aria-label={t('pdfFitPage')} onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{Math.round((zoomState.currentZoomLevel || 1) * 100)}%</Button><Button variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button>
+      <Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfFitPage')} onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{Math.round((zoomState.currentZoomLevel || 1) * 100)}%</Button><Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button>
+      <Popover className="pa-pdf-zoom-menu" label={t('pdfZoom')} trigger={`${Math.round((zoomState.currentZoomLevel || 1) * 100)}%`} triggerVariant="ghost" contentClassName="pa-pdf-zoom-panel">{() => <><Button variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button variant="ghost" onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{t('pdfFitPage')}</Button><Button variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button></>}</Popover>
     </div>;
-  return <section className="pa-pdf-viewer" aria-label={t('pdfReader')} tabIndex={0} onContextMenu={event => { event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setMenu({ x: Math.max(0, Math.min(event.clientX - box.left, box.width - 200)), y: Math.max(0, Math.min(event.clientY - box.top, box.height - 190)) }); }} onKeyDown={event => { if (event.key === 'F10' && event.shiftKey) { event.preventDefault(); setMenu({ x: 16, y: 16 }); } }}>
+  return <section className="pa-pdf-viewer" aria-label={readOnly ? 'TeX preview' : t('pdfReader')} tabIndex={0} onContextMenu={event => { if (readOnly) return; event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setMenu({ x: Math.max(0, Math.min(event.clientX - box.left, box.width - 200)), y: Math.max(0, Math.min(event.clientY - box.top, box.height - 190)) }); }} onKeyDown={event => { if (!readOnly && event.key === 'F10' && event.shiftKey) { event.preventDefault(); setMenu({ x: 16, y: 16 }); } }}>
     {chrome.toolbar ? createPortal(pager, chrome.toolbar) : <div className="pa-pdf-inline-toolbar">{pager}</div>}
     {captureState.isMarqueeCaptureActive && <div className="pa-pdf-context-action"><Button onClick={() => capture?.disableMarqueeCapture()}>{t('pdfCancelCapture')}</Button></div>}
     {menu && <div className="pa-pdf-menu" role="menu" aria-label={t('pdfActions')} ref={menuRef} style={{left: menu.x, top: menu.y}} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setMenu(null); }} onKeyDown={event => {
@@ -261,7 +270,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button role="menuitem" onClick={() => { setMenu(null); chrome.onSave(); }}>{t('downloadPaper')}</Button>
       <Button role="menuitem" onClick={() => { setMenu(null); onText(); }}>{readLabel}</Button>
     </div>}
-    {hasSelection && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') selection?.forDocument(documentId).clear(); }}><Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/><Button disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>{onDiscuss && <Button disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button variant="ghost" onClick={() => selection?.forDocument(documentId).clear()}>{t('close')}</Button></div>}
+    {hasSelection && !readOnly && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') selection?.forDocument(documentId).clear(); }}><Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/><Button disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>{onDiscuss && <Button disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button variant="ghost" onClick={() => selection?.forDocument(documentId).clear()}>{t('close')}</Button></div>}
     {error && <Feedback kind="error">{error}<Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback>}
     {(busy || status) && <div role="status" className="pa-pdf-status">{busy ? t('pdfSaving') : status}</div>}
     <div className="pa-pdf-body" data-notes={notes}>

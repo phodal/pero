@@ -1,0 +1,262 @@
+# Linux Host-owned reproduction approval — implementation, not acceptance
+
+2026-11-02. User explicitly authorized replacing only Linux's approval window
+and exercising real semantic clicks on an owned **no-computation** fixture.
+macOS/Windows retain the original native message box. No scientific worker,
+model, credential, private compute token, user desktop or OS security setting
+was used here. Old #97 positive GTK attempts and #103 read-only evidence remain
+separate and unchanged: this does **not** repair the GTK accessibility bridge.
+
+## Authority and UI boundary
+
+`confirmReproduction` selects a separate Linux BrowserWindow parented/modally
+bound to its owner. The fixed trusted document is bundled in the main process;
+its summary arrives only at the static isolated preload and is assigned through
+`textContent`. No Paper App iframe, remote document, runtime-generated preload,
+page script or contextBridge API is involved. CSP rejects script/network/frame
+content; a fresh nonpersistent session permits only its exact fixed top-level document
+for that exact popup and denies all other requests, permissions and downloads.
+Node integration/devtools/webviews are disabled; sandbox/context isolation are
+explicit. Navigation/redirect/new-window attempts deny the pending request.
+
+The main process owns a fresh random nonce per request and validates exact
+webContents, exact main-frame identity, fixed document URL, nonce and exact
+message shape before settling one decision. A synchronous per-owner reservation
+rejects a second request during asynchronous window loading; it is released on
+settlement rather than sharing an earlier grant. Preload accepts only a trusted
+control event after configuration, disables both controls on submission and
+cannot approve a second time. Cancel starts focused; Escape, abort, owner close
+(including prevented close), forced destruction, popup close, renderer failure,
+unresponsiveness, failed load and a 120-second timeout deny. The owner is never
+manually re-enabled; already disabled/destroyed owners are rejected before window
+creation. No prior grant is inherited. Existing Host frozen-ticket/private-token
+and execution-owner paths are unchanged; a UI decision is not a new capability.
+
+Desktop and Product builds both emit the same static
+`reproduction-approval-preload.cjs` beside their main entry bundle. Existing
+runtime packaging includes the Desktop dist directory. Missing preload/loading
+failure cannot produce an allow decision; readiness/timeout fails closed.
+
+## Local verification
+
+Passed:
+
+```sh
+node --experimental-transform-types --test desktop/src/main/reproduction-approval-linux.test.ts desktop/src/main/apps-reproduction.test.ts tests/fixtures/paper-host-approval.test.mjs
+```
+
+20 tests cover wrong sender/frame/URL/nonce, malformed/replayed decisions,
+Host private-boundary regressions, native fallback lifecycle, denial paths and
+VM execution of the actual preload (malicious markup remains text; untrusted
+synthetic click cannot submit; only one trusted decision). New fixture/helper
+syntax, focused TypeScript checking, focused main/preload esbuild and diff-check
+passed. Two additional static CI wiring tests verify distinct default-off gating,
+packaged preload, exact artifacts/deadlines and retained native semantic gates.
+Tests are not real clicks or native accessibility acceptance.
+
+Full local Desktop build was attempted with a read-only dependency symlink to an
+older scratch installation and blocked by missing `fflate` / `pdfjs-dist`.
+Aggregate typecheck was blocked by the ungenerated reader-Wasm module. These are
+not full build passes. CI must install the lockfile dependencies and use the
+normal generated-runtime/build pipeline; Product packaging itself is not tested.
+
+## Explicit positive no-compute fixture (not run locally)
+
+`tests/e2e/paper-host-approval-native.mjs` is a new, separately opt-in entry point.
+It copies the **built production preload unchanged** beside a temporary main
+bundle. Fixture-only `force-renderer-accessibility` follows the existing authored
+Electron fixture convention; the production launch flags are unchanged.
+
+Before any input it verifies exact Electron PID exclusion, one owned window,
+a complete native tree, named frame plus nested named dialog, authored nonce
+inside that dialog, and one enabled semantic button. The native driver's exact
+PID/±2 geometry and invoking-action gates are unchanged. Only native semantic
+Cancel and Run once are accepted; no DOM click, pixel/key fallback or synthetic
+approval is used. The native receipt and independent main-process decision must
+both agree. Abort, ordinary owner close and forced owner destroy run first.
+
+CI is now wired in `computer-use.yml`, but has not been executed for this change.
+Only a Linux PR labelled `ci:paper-host-approval-native` or manual dispatch with
+boolean `paper_host_approval_native=true` (default false) runs this fixture.
+The #103 read-only label, ordinary PR/push/schedule and `ci:full` do not opt in.
+Preparation installs official GTK/AT-SPI/Gio/X11 prerequisites and locked root
+npm dependencies plus the separate locked `packages/connectors` dependencies
+with `--ignore-scripts`, builds Desktop/static preload using the normal build entry,
+and runs unit negatives before UI input. The existing job supplies the native
+driver. The UI step has a 3-minute outer timeout and a 120-second owned runner:
+
+
+```sh
+PERO_PAPER_HOST_APPROVAL_NATIVE=1 PERO_TEST_HEADED=1 PERO_TEST_SOFTWARE_GL=1 node scripts/ci/run-acceptance.mjs --name paper-host-approval-native --timeout-seconds 120 -- xvfb-run -a node tests/e2e/paper-host-approval-native.mjs
+```
+
+The entry creates its private D-Bus session and writes only its own evidence to
+`test-results/paper-host-approval-native`, plus the runner's named receipt. Keep
+CI opt-in distinct from `ci:paper-native-diagnostic`; exact screenshot/evidence
+and named runner receipt paths are uploaded with seven-day retention. Remove
+its positive label after
+the intended run. If complete semantic evidence is missing, stop; do not relax
+the gates. Any follow-up scientific environment or worker run remains outside
+this authorized no-compute UI exercise.
+
+
+## First CI preparation failures (no UI or input)
+
+PR #107 head `5fb6463fb153251fb427701760df8b914ded69cd` runs
+[41419923766](https://github.com/phodal/pero/actions/runs/41419923766) and
+[41419924398](https://github.com/phodal/pero/actions/runs/41419924398) failed in
+**Prepare opt-in Host approval UI**, before the semantic fixture step. Job
+`125192737152` reported missing `fflate` and
+`pdfjs-dist/legacy/build/pdf{.worker}.mjs` imports from the Feishu file parser.
+Root `npm ci` had succeeded; `packages/connectors` is not a root workspace and
+owns a separate committed package-lock. The normal connector build initializes
+that lock with `npm ci --prefix ... --ignore-scripts` before Desktop bundling.
+
+The narrow preparation fix runs that same locked dependency initialization
+explicitly, without building/launching connector workers, changing dependency
+versions, externalizing imports or bypassing production bundling. A static wiring
+regression checks lock entries and ordering before the Desktop build. Both failed
+attempts remain failures; neither produced native input or approval evidence.
+The corrected workflow has not yet been run. Labels were removed before the fix;
+root controls publication and a separately opted-in retry.
+
+
+## First actual UI startup failure (no semantic input)
+
+After the dependency fix, run
+[41421332038](https://github.com/phodal/pero/actions/runs/41421332038), job
+`125197309656`, head `dd6972f83f6c74c11ea19511f1ae3e2d5cfdc967`, passed Desktop
+build and 20 unit/helper tests, then failed the first abort-lifecycle readiness
+check: owner disabled was not observed within the unchanged 10-second bound.
+Artifact `13129538388` (SHA-256
+`e86651c1d57084d7710e91186c1927b0d6f10da4eec0c25a14b98d20ad4a0aec`) retained
+runtime and runner records only. No semantic input was attempted.
+
+Pinned Electron implements Linux modal-parent disablement and `isEnabled()`;
+there is no basis to drop that readiness gate. Source review found a bootstrap
+policy defect: the unconditional session request blocker has no exception for
+its own trusted main document. It now permits **only** exact popup webContentsId,
+mainFrame resource type and complete fixed data URL; alternate data URLs,
+foreign windows, frames, resources and remote URLs remain blocked. Unit tests
+exercise this allow case and each independent mismatch. This is not a broader
+origin allowlist or a relaxed security/semantic gate.
+
+The old log does not prove that data-URL interception caused this particular
+failure. That causal diagnosis and the fix's native effect remain unverified.
+The fixture now retains up to 64 authored-process startup events (including
+load/preload failure and show/close), up to 8 window metadata records and, if
+one exact owned approval window survives, a renderer diagnostic screenshot
+with a 2-second capture deadline and hash. Such PNGs are labelled diagnostic,
+not native approval evidence. Original native-driver screenshot/identity/tree
+requirements still precede every semantic click; all existing deadlines remain.
+Root controls publication and the next single opt-in CI verification. No local
+GUI launch, worker, computation or OS security change was performed.
+
+
+## Bootstrap retry reached semantic observation, then fixture-contract mismatch
+
+Run [41423141414](https://github.com/phodal/pero/actions/runs/41423141414), job
+`125203262733`, head `3c0458445284f9bbf21ad422cc2c2897639f23f3`, progressed beyond
+startup: abort, owner-close and forced owner-destroy all observed the modal's
+owner disablement and independently settled deny. Before the first Cancel input,
+the exact-owned native screenshot and complete tree were saved. The screenshot
+SHA-256 is `edee82e4e6eb273d9b1d0cd38006ee936040afb60b904558e910ab8417559ff8`.
+
+The tree contains the named frame, named dialog at depth 8, authored nonce and
+both buttons inside that dialog at depth 10. Their actual native role is
+**`button`**, each with `actions=["click"]`; there is **no state field**.
+The helper erroneously expected GTK's `push button` plus mandatory state, and
+stopped before submitting any action. This is a fixture-contract mismatch, not
+missing buttons or a successful positive approval.
+
+The minimal correction uses this new HTML surface's exact canonical `button`
+role, not a broad role-name heuristic. `ObservedControl::into_element` currently
+sets `state=None` and emits actions only when enabled and non-secure. Linux
+`NodeFacts::control` supplies invocability only for a real AT-SPI click/press and
+an actionable state; `Accessibility::check` revalidates exact PID, rendered and
+actionable state immediately before execution. Therefore the helper requires
+the existing native `click` capability without fabricating state. If optional
+state is supplied, contradictory disabled/secure facts still fail closed.
+
+Negative tests retain wrong/duplicate/out-of-dialog button, missing native click,
+wrong nonce, foreign target and incomplete-tree refusals. No driver, PID,
+geometry, semantic receipt, owner binding or complete-tree gate changes. A future
+semantic click must still yield a matching native receipt **and** the independent
+main-process decision. No positive click occurred in this failed run.
+
+
+Contract source references at the unchanged base:
+- [`ObservedControl::into_element`, lines 26–50](https://github.com/phodal/pero/blob/78881615e37790b0a0b4635a197e18f974ea6867/use/computer/crates/computer-core/src/accessibility.rs#L26-L50): enabled/non-secure action projection and omitted state.
+- [`NodeFacts::control`, lines 62–78](https://github.com/phodal/pero/blob/78881615e37790b0a0b4635a197e18f974ea6867/use/computer/crates/computer-linux/src/accessibility/model.rs#L62-L78): original AT-SPI role spelling and actionable invoking action.
+- [`Accessibility::check`, lines 266–280](https://github.com/phodal/pero/blob/78881615e37790b0a0b4635a197e18f974ea6867/use/computer/crates/computer-linux/src/accessibility/bus.rs#L266-L280): execution-time exact process/state/visibility revalidation.
+
+## Owned no-computation acceptance, then theme/review corrections
+
+Run [41424263207](https://github.com/phodal/pero/actions/runs/41424263207)
+succeeded at head `05e3e630ed079fa827114aeae6fec9f57362493c`.
+Root independently inspected artifact `13131332703`, archive SHA-256
+`0694672fdc4ec4a1fddfa001e5375f71144e4fa9ba1336f8e51e6dcea25b0a65`.
+The report records abort, owner close and owner destroy as false, semantic Cancel
+as false and semantic Run once as true. Both input receipts executed using the
+semantic route against their exact owned targets. This establishes the authorized
+Linux no-computation fixture only, not scientific computation or other platforms.
+
+The subsequent review correction replaces hardcoded approval colors with the
+existing generated DESIGN.md light/dark tokens. Main selects one static bundled
+document using Electron's resolved native theme; Product already sets
+`nativeTheme.themeSource` from its menu, and Desktop now propagates only the
+runtime's acknowledged light/dark/system workbench appearance to that same source.
+No App-controlled styles, new page bridge, scripts or remote assets are added.
+Exact document identity remains pinned for the lifetime of each request.
+Behavioral tests exercise both resolved palettes, reject a changed document and
+retain the sender/frame/nonce, cancel, destroy and one-shot checks. Startup
+diagnostic tests now execute their bounded output behavior rather than matching
+literal implementation statements.
+
+These review changes are newer than the successful native run and require a fresh
+owned CI run for native UI acceptance. No local GUI, actual worker or science run
+was performed for the correction.
+
+Correction checks: 26 focused unit/helper/wiring tests passed, along with focused
+TypeScript and approval bundle checks. A fresh full local Desktop build remains
+blocked by absent connector `fflate` and `pdfjs-dist` dependencies in the existing
+scratch installation; no externalization or dependency bypass was used. CI's
+locked connector installation is still required before the normal build.
+
+## Consolidated PR #106: themed owned native acceptance
+
+2026-11-02. [Run 41434159265](https://github.com/phodal/pero/actions/runs/41434159265),
+[job 125239757020](https://github.com/phodal/pero/actions/runs/41434159265/job/125239757020),
+passed for branch head `a95d6bbd8f434d66b526e8bebbb1ec3a96099bab`.
+Checkout logs and screenshot metadata identify the tested PR merge checkout as
+`a97bc77e98615e76db6afbbdcf056c8fe64755aa` (that head merged into
+`b44f9ce41395eab8dfef6dc4085f65257d968dd8`), not an untested later local head.
+
+Downloaded artifact `13135926825` (`paper-host-approval-native`, 48,254 bytes)
+was independently hashed; ZIP SHA-256 matches GitHub's recorded digest:
+`7781e35ff98ae9d93c151b8a2bded9a82060dde2c53610942c8b9ea4f6676196`.
+The named runner receipt reports passed, exit 0, no timeout, duration 4,781 ms.
+Abort, owner close and owner destroy each observed owner disablement and settled
+false. Native semantic Cancel settled false; native semantic Run once settled
+true. Both action receipts report `executed` with route `semantic`; request,
+observation and exact target identities match their saved complete native trees
+and image metadata. Each tree contains the authored no-compute nonce and the
+selected native `button` with `click` capability inside the named dialog.
+Both ownership records identify PID 6748, one primary dialog and zero matches
+when that exact owner is excluded. No pixel, key or renderer-input fallback is
+claimed by these receipts.
+
+Both 640×430 native X11 JPEGs independently hash to
+`17d623144a62f5d2a7b9aafa43079d532864b9e959901e2a5e7efa616996f2ed`.
+Visual inspection shows the light themed surface, fully visible heading and
+synthetic no-job summary, Cancel/Run once controls and teal Cancel focus ring.
+These are native driver observations, not diagnostic renderer captures.
+The CI log also records the passing light/dark shared-token behavioral test
+within 21 passing focused approval tests. Actual screenshots establish the light
+surface only: this run does not establish a dark-mode screenshot, live theme
+switching, or full Desktop/Product settings interaction acceptance.
+
+Scope remains the authorized owned Linux **no-computation** fixture. No scientific
+worker, model/API credential or real reproduction job was used. This is neither
+a repaired GTK accessibility bridge nor macOS/Windows or signed-release acceptance.
+Artifact inspection launched no GUI, sent no input and started no additional CI.

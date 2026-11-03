@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Checkbox, Disclosure, Feedback, Toolbar } from '@pero/app-sdk/ui';
+import { Button, Checkbox, Dialog, Feedback, Toolbar } from '@pero/app-sdk/ui';
 import type { Api } from './types';
 import type { ResearchBundle } from './research-types';
-import { ResearchSources } from './research-sources';
 
 export type ReadingSource = { bundleId: string; resourceId: string; url: string; revision: string; authorized: boolean; reviewUrl: string };
 type Review = { status: string; draftId: string; reviewId?: string; version?: string; htmlUrl?: string; texUrl?: string | null; warnings?: string[]; error?: string };
 type Selection = { bundle: ResearchBundle; source: ReadingSource; sourceIds: string[] };
 
-export function ArxivReading({ api, paperId, onPrepare }: { api: Api; paperId: string; onPrepare(source: ReadingSource): Promise<void> }) {
+export function ArxivReading({ api, paperId, onPrepare, onClose }: { api: Api; paperId: string; onPrepare(source: ReadingSource): Promise<void>; onClose(): void }) {
   const { t } = useAppI18n({
     sources: { zh: 'arXiv 阅读来源', en: 'arXiv reading sources' },
     checking: { zh: '检查版本…', en: 'Checking version…' },
@@ -18,7 +17,7 @@ export function ArxivReading({ api, paperId, onPrepare }: { api: Api; paperId: s
     tex: { zh: '附带 TeX 源码（最多 16 MiB，大小和许可未知）', en: 'Include TeX source (up to 16 MiB; size and license unknown)' },
     download: { zh: '下载并排版', en: 'Download and format' },
     failed: { zh: '排版失败', en: 'Formatting failed' },
-    sourceFiles: { zh: 'TeX 源码', en: 'TeX source files' },
+    close: { zh: '关闭来源检查', en: 'Close source review' },
   });
   const [review, setReview] = useState<Review | null>(null), [selection, setSelection] = useState<Selection | null>(null);
   const [tex, setTex] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
@@ -43,26 +42,19 @@ export function ArxivReading({ api, paperId, onPrepare }: { api: Api; paperId: s
     try {
       const value = await api.post<Selection>(endpoint, { operation: 'confirm', draftId: review.draftId, reviewId: review.reviewId, tex, confirmedDownloads: true });
       setSelection(value);
+      for (const resourceId of value.sourceIds) await api.post('/api/research/source', { operation: 'start', bundleId: value.bundle.id, resourceId });
       await onPrepare(value.source);
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   }
-  return <section className="pa-reading-source-tools" aria-label={t('sources')}>
-    {!review && !error || review?.status === 'inspecting' ? <span role="status">{t('checking')}</span> : null}
-    {(error || review?.error || review?.status === 'ready' && !selection) && <details className="pa-reading-source-menu" open>
-      <summary>{error || review?.error ? t('failed') : `arXiv ${review?.version}`}</summary>
-      <div className="pa-reading-source-options">
-        {(error || review?.error) && <Feedback kind="error">{error || review?.error}<Button disabled={busy} onClick={() => selection ? void onPrepare(selection.source) : setAttempt(value => value + 1)}>{t('retry')}</Button></Feedback>}
-        {review?.status === 'ready' && !selection && <>
-          <a href={review.htmlUrl} target="_blank" rel="noreferrer">arXiv {review.version} HTML</a>
-          <p className="pa-document-meta">{t('scope')}</p>
-          {review.texUrl && <label><Checkbox checked={tex} disabled={busy} onCheckedChange={setTex}/>{t('tex')}</label>}
-          <Toolbar><Button variant="primary" busy={busy} onClick={() => void confirm()}>{t('download')}</Button></Toolbar>
-        </>}
-      </div>
-    </details>}
-    {selection && <>
-      {selection.sourceIds.length > 0 && <div className="pa-reading-source-menu"><Disclosure summary={t('sourceFiles')}><div className="pa-reading-source-options"><ResearchSources api={api} bundle={selection.bundle} startSourceIds={selection.sourceIds} scopedIds={selection.sourceIds} onRead={() => {}}/></div></Disclosure></div>}
+  return <Dialog className="pa-reading-review-dialog" title={review?.version ? `arXiv ${review.version}` : t('sources')} closeLabel={t('close')} onClose={onClose} size="sm">
+    {!review && !error || review?.status === 'inspecting' ? <p role="status">{t('checking')}</p> : null}
+    {(error || review?.error) && <Feedback kind="error">{error || review?.error}<Button disabled={busy} onClick={() => selection ? void onPrepare(selection.source) : setAttempt(value => value + 1)}>{t('retry')}</Button></Feedback>}
+    {review?.status === 'ready' && !selection && <>
+      <a href={review.htmlUrl} target="_blank" rel="noreferrer">arXiv {review.version} HTML</a>
+      <p className="pa-document-meta">{t('scope')}</p>
+      {review.texUrl && <label><Checkbox checked={tex} disabled={busy} onCheckedChange={checked => setTex(checked === true)}/>{t('tex')}</label>}
+      <Toolbar><Button variant="primary" busy={busy} onClick={() => void confirm()}>{t('download')}</Button></Toolbar>
     </>}
-  </section>;
+  </Dialog>;
 }

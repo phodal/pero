@@ -501,7 +501,7 @@
         "path": "harness/go/mcp/tools.go",
         "language": "go",
         "symbol": "ListTools",
-        "sha256": "d96b44c95d72f1df01643024312ce3bfc8400159abbccf527a2d9ae3b00a136e"
+        "sha256": "ffd57a9f63d755285d0a72487e061ee5ee8f6ff5d0f8b90599fb910565381e72"
       },
       "notes": "A server without tools capability need not implement tools/list. A capabilities guard should precede discovery.",
       "landmarks": [
@@ -530,7 +530,7 @@
         "path": "harness/go/mcp/tools.go",
         "language": "go",
         "symbol": "fromMCPResult",
-        "sha256": "d96b44c95d72f1df01643024312ce3bfc8400159abbccf527a2d9ae3b00a136e"
+        "sha256": "ffd57a9f63d755285d0a72487e061ee5ee8f6ff5d0f8b90599fb910565381e72"
       },
       "notes": "Canonical value and supported output schema now flow through the existing tool registry. Existing Go text/image projection is retained; this does not claim complete official rich-attachment/PTC rendering parity.",
       "landmarks": [

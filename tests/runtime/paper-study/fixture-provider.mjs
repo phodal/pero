@@ -9,6 +9,7 @@ const skillName = 'research-resource-import';
 const alias = name => `mcp__pero-app-use__app__paper-agent__${name}`;
 function* invoke(name, args, pointer = '', text) {
   const raw = yield { name, args, text };
+  assert(!String(raw).startsWith('tool approval '), `Fixture tool denied before dispatch: ${name}: ${raw}`);
   let value = JSON.parse(raw);
   if (value.type === 'content_reference') {
     let request = { id: value.artifact.id, pointer, maxBytes: 16384 };
@@ -63,6 +64,11 @@ export function* plan(scene, digest) {
   if (!spec.inspectOnly) yield { answer: 'Synthetic protocol stopped at references. Exact source/PDF acquisition still requires next user confirmation.' };
   const source = draft.resources.find(resource => resource.kind === 'source_archive' && (!spec.sourceURL || resource.originalUrl === spec.sourceURL));
   const pdf = draft.resources.find(resource => resource.kind === 'pdf_candidate');
+  if (!spec.publicRecording) {
+    assert.equal(source?.originalUrl, spec.sourceURL || `https://arxiv.org/src/${spec.version}`);
+    if (spec.pdf) assert.equal(pdf?.originalUrl, `https://arxiv.org/pdf/${spec.version}`);
+    selection.resourceIds = [source.id, ...(spec.pdf ? [pdf.id] : [])];
+  }
   bundle = yield* write('commit-research-bundle', { ...selection, sourceIds: [source.id], pdfIds: spec.pdf ? [pdf.id] : [], confirmedDownloads: true });
   const base = { bundleId: bundle.id, resourceId: source.id };
   let job = yield* write('research-source', { ...base, operation: 'start' });
@@ -111,7 +117,7 @@ export function verifyFirstSkillInput(body, skillBody) {
     'First provider request must contain actual Go-injected Skill instructions');
 }
 
-export async function startFixtureProvider(scene, digest, skillBody) {
+export async function startFixtureProvider(scene, digest, skillBody, fixtureApproval) {
   const iterator = plan(scene, digest), errors = [];
   let requests = 0, imageRequests = 0, firstProviderSkillContent = false;
   const server = createServer(async (request, response) => {
@@ -134,11 +140,18 @@ export async function startFixtureProvider(scene, digest, skillBody) {
         if (scenes[scene].imageSHA) assert.equal(createHash('sha256').update(bytes).digest('hex'), scenes[scene].imageSHA);
         imageRequests++;
       }
+      if (typeof last === 'string' && last.startsWith('tool approval ')) {
+        errors.push(`Fixture tool denied before dispatch: ${last}`);
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Synthetic trajectory stopped: tool permission denied; no retry.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+        return;
+      }
       const step = iterator.next(Array.isArray(last) ? last.filter(part => part.type === 'text').map(part => part.text).join('') : last);
       let delta, finish_reason;
       if (step.done || step.value.answer) { delta = { content: step.done ? step.value : step.value.answer }; finish_reason = 'stop'; }
       else {
         const call = step.value;
+        fixtureApproval?.expect(`fixture-${requests}`, call.name, call.args);
         assert(body.tools.some(tool => tool.function.name === call.name), `Not advertised: ${call.name}`);
         if (call.args.operation === 'status' || call.args.draftId) await pause(50); // Poll an actual external worker condition.
         delta = { ...(call.text ? { content: call.text } : {}), tool_calls: [{ index: 0, id: `fixture-${requests}`, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.args) } }] };

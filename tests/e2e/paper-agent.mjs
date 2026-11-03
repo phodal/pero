@@ -1,3 +1,5 @@
+import { installPaperFetchObserver } from './paper-fetch-observer.mjs';
+import { selectPaperOption } from './paper-research-ui-controls.mjs';
 import { exerciseImageOnly, reopenImageOnly, isImageOnlyStudyRejectionConsole } from './paper-image-only-flow.mjs';
 import { paperBackendFixture } from './paper-backend-fixture.mjs';
 import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
@@ -97,6 +99,8 @@ const savedCount = async frame => (await library(frame)).reports.length;
 try {
   app = await launch();
   let page = await app.firstWindow();
+  await page.addInitScript(installPaperFetchObserver);
+  await expect(page.locator('iframe[title="paper-agent"]')).toHaveCount(0);
   observe(page);
   // Change only the disposable installed package: keep the real Python transport,
   // adapter and store while replacing the external HTTP seam with synthetic data.
@@ -114,10 +118,10 @@ try {
     // Synthetic content is explicit test input, imported through the real UI.
     const sample = await frame.locator('body').evaluate(async () => (await fetch('/api/example')).json());
     await frame.getByRole('button', { name: 'Add papers', exact: true }).click();
-    await expect(frame.getByLabel('Sort', { exact: true })).toHaveValue('recency');
+    await expect(frame.getByRole('button', { name: 'Sort', exact: true })).toHaveAttribute('data-value', 'recency');
     expect(await frame.locator('.pero-ui-page-header').evaluate(element => element.getBoundingClientRect().height)).toBeLessThanOrEqual(56);
     await page.screenshot({ path: resolve(out, 'import-search-light.png') });
-    await frame.getByRole('combobox', { name: 'Literature source', exact: true }).selectOption('openalex');
+    await selectPaperOption(frame, 'Literature source', 'OpenAlex', 'openalex');
     await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('attention');
     await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).press('Enter');
     await expect(frame.locator('.pa-search-results>li').first()).toBeVisible();
@@ -127,8 +131,8 @@ try {
     await expect(searchResult.getByRole('link', { name: 'Original', exact: true })).toHaveAttribute('href', 'https://doi.org/10.1234/W1');
     // Hold only the external fetch seam; observe actual busy/error/retry controls.
     await frame.locator('body').evaluate(() => {
-      window.paperFetch = window.fetch;
-      window.fetch = (path, options) => path === '/api/papers'
+      window.paperFetch = window.paperNativeFetch;
+      window.paperFetchObserver = (path, options) => path === '/api/papers'
         ? new Promise(resolve => { window.finishPaperAdd = () => resolve(new Response(JSON.stringify({ detail: 'Synthetic source unavailable. Retry or open the original.' }), { status: 400, headers: { 'Content-Type': 'application/json' } })); })
         : window.paperFetch(path, options);
     });
@@ -145,15 +149,15 @@ try {
       await frame.locator('body').evaluate(() => window.finishPaperAdd());
       await expect(searchResult.getByRole('button', { name: 'Retry', exact: true })).toBeEnabled();
       await page.screenshot({ path: resolve(out, 'import-inline-error.png') });
-    } finally { await frame.locator('body').evaluate(() => { window.fetch = window.paperFetch; delete window.paperFetch; delete window.finishPaperAdd; }); }
+    } finally { await frame.locator('body').evaluate(() => { delete window.paperFetchObserver; delete window.paperFetch; delete window.finishPaperAdd; }); }
 
-    await frame.getByLabel('Sort', { exact: true }).selectOption('popular');
+    await selectPaperOption(frame, 'Sort', 'Most cited', 'popular');
     const searchReply = page.waitForResponse(response => response.url().endsWith('/api/search') && response.request().method() === 'POST');
     await frame.getByRole('button', { name: 'Search papers', exact: true }).click();
     expect((await searchReply).request().postDataJSON().priority).toBe('popular');
     await expect(frame.getByText('Sort returned results by OpenAlex citations; results without citation data follow.', { exact: true })).toBeVisible();
     await page.screenshot({ path: resolve(out, 'search-results-light.png') });
-    await frame.getByRole('combobox', { name: 'Literature source', exact: true }).selectOption('huggingface');
+    await selectPaperOption(frame, 'Literature source', 'Hugging Face', 'huggingface');
     await frame.getByRole('button', { name: 'Search papers', exact: true }).click();
     const hfResult = frame.locator('.pa-search-results>li').filter({ hasText: 'Synthetic AI paper' });
     await expect(hfResult).toBeVisible();
@@ -324,7 +328,10 @@ try {
   checks.push('PDF pointer highlight, contextual crop, native image copy, inline manual matrix, source navigation and PDF failure recovery');
   checks.push('full-text retrieval -> Host ACP answer -> exact PDF quotation highlight');
   const beforeRestart=(await fixtureTurns()).length;
-  await app.close();app=await launch();page=await app.firstWindow();observe(page);
+  await app.close();app=await launch();page=await app.firstWindow();
+  await page.addInitScript(installPaperFetchObserver);
+  await expect(page.locator('iframe[title="paper-agent"]')).toHaveCount(0);
+  observe(page);
   await app.evaluate(({Menu,BrowserWindow})=>{Menu.getApplicationMenu().getMenuItemById('locale-en').click();BrowserWindow.getAllWindows()[0].setSize(1440,900);});
   frame=await openPaper(page);
   await reopenPdf({frame,page,saved:savedPdf});

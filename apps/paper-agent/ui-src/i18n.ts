@@ -1,4 +1,6 @@
 export const messages = {
+  readerView: { zh: '论文视图', en: 'Paper view' },
+  pdfZoom: { zh: '缩放', en: 'Zoom' },
   researchUrl: { zh: '链接导入', en: 'Research URL' },
   reproductionEnvironmentFailed: { zh: '环境预检失败（未启动计算）', en: 'Environment preflight failed (computation not started)' },
   reproductionSmokeOnly: { zh: '此入口仅启动 smoke；其他方案的已有结果仍可查看。', en: 'This entry only starts smoke runs; existing results from other profiles remain readable.' },
@@ -37,7 +39,7 @@ export const messages = {
   reproductionReasons: { zh: "判定原因", en: "Reasons" },
   reproductionLogTruncated: { zh: "日志只显示前 64 KiB，完整记录仍保留。", en: "Only the first 64 KiB of the log is shown; the full record is retained." },
   closeRecords: { zh: '关闭研究记录', en: 'Close research records' },
-  noResearchRecords: { zh: '暂无研究记录', en: 'No research records yet' },
+  noResearchRecords: { zh: '暂无阅读会话或矩阵', en: 'No saved reading sessions or matrix yet' },
   editCell: { zh: '修改单元格', en: 'Edit cell' }, matrixValue: { zh: '值', en: 'Value' },
   evidenceStatus: { zh: '证据状态', en: 'Evidence status' }, sourcePassage: { zh: '原文片段', en: 'Source passage' },
   choosePassage: { zh: '选择原文片段', en: 'Choose a source passage' }, addEvidence: { zh: '添加证据', en: 'Add evidence' },

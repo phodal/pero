@@ -100,11 +100,11 @@ try {
   await expect(viewer.locator('[data-page-number="1"] img,[data-page-number="1"] canvas').first()).toBeVisible({ timeout: 30000 });
   const bar = frame.locator('.pa-reader-tools');
   await expect(bar.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
-  await expect(bar.getByRole('link', { name: 'Open original source', exact: true })).toHaveAttribute('href', pdfUrl);
+  await expect(bar.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', pdfUrl);
   await bar.getByRole('spinbutton', { name: 'Page', exact: true }).fill('2');
   await expect(bar.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('2');
   const zoom = await bar.getByRole('button', { name: 'Fit page', exact: true }).innerText();
-  await frame.getByRole('button', { name: 'Text', exact: true }).click();
+  await frame.getByRole('button', { name: 'Read', exact: true }).click();
   await frame.getByRole('button', { name: 'Prepare Read · v2', exact: true }).click();
   const rejection = frame.getByText('HTML identity differs from the requested version', { exact: false });
   await expect(rejection).toBeVisible({ timeout: 60000 });
@@ -118,7 +118,7 @@ try {
   await expect(bar.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('2');
   await expect(bar.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
   await expect(viewer.locator('[data-page-number="2"] img,[data-page-number="2"] canvas').first()).toBeVisible();
-  await frame.getByRole('button', { name: 'Text', exact: true }).click();
+  await frame.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(rejection).toBeVisible();
   await writeFile(htmlFixture, original);
   await frame.getByRole('button', { name: 'Retry v2', exact: true }).click();
@@ -339,30 +339,34 @@ try {
   await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
   const format = toolbarBar.getByRole('button', { name: 'Format', exact: true });
-  const boxes = await Promise.all(['Text', 'PDF', 'Format', 'Zoom in'].map(name => toolbarBar.getByRole('button', { name, exact: true }).boundingBox()));
+  const boxes = await Promise.all(['Read', 'PDF', 'TeX', 'Source', 'Zoom in'].map(name => toolbarBar.getByRole('button', { name, exact: true }).boundingBox()));
   expect(boxes.every(box => box && Math.abs(box.y - boxes[0].y) <= 4)).toBe(true);
-  await expect(toolbarBar.getByRole('link', { name: 'Open original source', exact: true })).toHaveAttribute('href', toolbarPaper.url);
+  await expect(toolbarBar.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', toolbarPaper.url);
+  await toolbarBar.getByRole('button', { name: 'Read', exact: true }).click();
   await format.click();
-  await expect(toolbarBar.getByRole('button', { name: 'Download and format', exact: true })).toBeVisible();
-  await expect(toolbarBar.locator('.pa-reading-source-menu')).toContainText('arXiv v2');
+  const sourceReview = frame.getByRole('dialog', { name: 'arXiv v2', exact: true });
+  await expect(sourceReview.getByRole('button', { name: 'Download and format', exact: true })).toBeVisible();
+  await expect(sourceReview).toContainText('arXiv v2');
   await expect(frame.locator('.pa-structured-reading').getByRole('button', { name: 'Format', exact: true })).toHaveCount(0);
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 800));
-  await expect.poll(() => toolbarBar.locator('.pa-reading-source-options').evaluate(element => {
+  await expect.poll(() => sourceReview.evaluate(element => {
     const box = element.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth;
   })).toBe(true);
   await page.screenshot({ path: resolve(out, 'toolbar-source-review-narrow.png') });
   await writeFile(resolve(profile, 'desktop/app-data/paper-agent/fail-next-html'), 'synthetic acquisition failure');
-  await toolbarBar.getByRole('button', { name: 'Download and format', exact: true }).click();
-  await expect(toolbarBar.getByRole('alert')).toContainText('503');
+  await sourceReview.getByRole('button', { name: 'Download and format', exact: true }).click();
+  await expect(frame.getByRole('alert')).toContainText('503');
+  await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
   await page.screenshot({ path: resolve(out, 'toolbar-format-error.png') });
-  await toolbarBar.getByRole('button', { name: 'Retry v2', exact: true }).click();
+  await toolbarBar.getByRole('button', { name: 'Read', exact: true }).click();
+  await frame.getByRole('button', { name: 'Retry v2', exact: true }).click();
   await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
   await expect(toolbarViewer).not.toBeVisible();
   await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
   await expect(toolbarBar.getByRole('button', { name: 'Read', exact: true })).toBeVisible();
-  checks.push('Saved arXiv paper reviews and formats beside Text/PDF; original link, one-row controls, narrow source menu, visible acquisition failure/retry and automatic Read/PDF switching work through real APIs');
+  checks.push('Saved arXiv paper reviews and formats beside Read/PDF/TeX/Source; one-row controls and a bounded source review, visible acquisition failure/retry and automatic Read/PDF switching work through real APIs');
   expect(errors).toEqual([]); expect(remoteRequests).toEqual([]);
   // Export a private stopped-profile copy through the existing real JSON CLI.
   await app.close(); app = null;

@@ -24,6 +24,7 @@ export function Reader({ paper, busy, openToken, pdfReloadToken, api, pdfFocus, 
 }) {
   const source = useRef<HTMLDivElement>(null);
   const [excerpt, setExcerpt] = useState(''), [structured, setStructured] = useState(false);
+  const [sourceUrl, setSourceUrl] = useState<string>();
   const [readRequest, setReadRequest] = useState(0);
   useEffect(() => { setExcerpt(''); }, [paper.id]);
   function capture() {
@@ -33,9 +34,9 @@ export function Reader({ paper, busy, openToken, pdfReloadToken, api, pdfFocus, 
     setExcerpt(value);
   }
   return <article className="pa-document pa-reading-document" data-paper-id={paper.id} aria-label={paper.title}>
-    <PdfReader key={paper.id} readRequest={readRequest} pdfReloadToken={pdfReloadToken} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} readLabel={structured && !textFocus ? 'Read' : undefined} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
+    <PdfReader key={paper.id} onReview={onReview} sourceUrl={sourceUrl} openToken={openToken} readRequest={readRequest} pdfReloadToken={pdfReloadToken} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} readLabel={structured && !textFocus ? 'Read' : undefined} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
       <div className="pa-text-reading pero-reader-body"><div className="pero-reader-content">
-        <StructuredReading toolbar={chrome.toolbar} openToken={openToken} showText={!!textFocus} api={api} paperId={paper.id} onReady={setStructured} onPrepared={() => setReadRequest(value => value + 1)} onReview={onReview}>
+        <StructuredReading onSourceUrl={setSourceUrl} toolbar={chrome.toolbar} openToken={openToken} showText={!!textFocus} api={api} paperId={paper.id} onReady={setStructured} onPrepared={() => setReadRequest(value => value + 1)} onReview={onReview}>
         {paper.contentKind !== 'full-text' && !textFocus && <p className="pa-document-meta">{paper.resourceKind === 'web_article' ? 'Article excerpt' : t(paper.contentKind === 'abstract' ? 'abstract' : 'sourceReport')}</p>}
         {paper.limitation && <p className="pa-document-meta">{paper.limitation}</p>}
         <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content != null ? textFocus ? <SourceLines content={paper.content} focus={textFocus} label={t('sourceLine')}/> : paper.resourceKind ? <p className="pa-resource-excerpt">{paper.content}</p> : <ScientificContent content={paper.content}/> : t('loading')}</div>

@@ -46,8 +46,13 @@ This builds and opens an isolated development profile at
 OpenAlex, bioRxiv or PubMed, read a supported ID/URL, or import text/Markdown or a local PDF. A PDF can also
 be dropped into the App; importing opens the saved original in reading mode. Identical
 PDF bytes reuse the existing paper, regardless of filename.
-Open a paper to enter reading mode. The top bar contains Back, title, PDF
-navigation, zoom and **Ask**. Opening the App never starts research.
+Open a paper to enter reading mode. One top bar contains Back, title,
+**Read / PDF / TeX / Original**, the active preview's navigation and zoom,
+and **Ask**. Opening the App never starts research.
+
+**Original** embeds the official arXiv page in an iframe and retains an
+external-open link. Paper declares only arXiv as an external frame origin;
+embedding preserves the source site's own layout and conversion limitations.
 
 Existing profiles discover new bundled Apps at startup and when entering or
 refreshing Apps. A bundled App already in the managed directory is replaced
@@ -380,8 +385,8 @@ the current paper's fixed arXiv version without leaving the reader. **Download
 and format** grants that official HTML representation and prepares Read; the
 optional TeX checkbox acquires the same version's inert source archive. A failed
 review can refresh metadata, and failed HTML preparation can retry while PDF
-remains available. Official HTML supplies the layout; local TeX compilation is
-not provided. Unversioned search text remains immutable, and HTML never supplies
+remains available. Official HTML supplies Read's structure. Unversioned search
+text remains immutable, and HTML never supplies
 page coordinates for the saved PDF.
 
 For an explicitly selected arXiv vN, review **Allow official HTML for Read**
@@ -390,3 +395,25 @@ Tables, equations and figure metadata retain source structure; **Reveal original
 shows the actual inert HTML bytes. Read/PDF keeps the existing PDF viewer state.
 Images are not downloaded, and parsed content is not automatically study evidence.
 See [scope and verification](../../docs/fitness/paper-structured-reading.md).
+
+## Typeset TeX reading
+
+**TeX** compiles an approved source archive for the selected paper/version and
+shows its generated PDF in the existing viewer. The full source project,
+including custom classes, bibliography and figures, is staged together. A unique
+main file containing `\documentclass` is compiled automatically; multiple main
+files require a selection. **Source files** opens a separate resizable inspector;
+closing it restores the reading view without moving the toolbar.
+
+The current runner requires macOS and Tectonic (`brew install tectonic`). It runs
+with shell escape disabled and filesystem restrictions, retains a package cache,
+and limits each attempt to 180 seconds. The first attempt can need package
+downloads; failed attempts expose diagnostics and a retry. Compiler warnings stay
+visible and their details are available in the source inspector.
+
+Generated PDFs and their source archive/entry/engine identities are stored under
+`tex-previews` and `tex-preview-files`, separately from original PDF evidence.
+PDF and TeX preserve separate page/zoom states when switching. This is reading
+downloaded source projects; author manuscript editing and build routes remain
+the separate planned workflow described above. Verification and current limits:
+[Paper reading views](../../docs/fitness/paper-reading-views.md).

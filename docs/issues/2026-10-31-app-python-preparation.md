@@ -55,3 +55,43 @@ installer or saving bindings. Both Desktop shells expose an explicit preparation
 action; an unprepared App is shown as not ready rather than already installing.
 The offline contract covers repeated opens, project catalog reads, missing pins
 and unchanged settings. Real Desktop verification is recorded in `docs/fitness/app-preparation.md`.
+
+## CI fixture follow-up: explicit provisioned interpreter bindings
+
+Run [41454820123](https://github.com/phodal/pero/actions/runs/41454820123)
+checks the new read-only opening behavior correctly. Control Lab, Control Lab
+App Use, bounded Control Lab live-fixture, and Lab stopped before their first
+App control at “Environment not ready / Prepare environment”. These suites
+already validate packages from the CI-provisioned `PERO_APP_PYTHON` virtualenv,
+but their fresh settings did not select that interpreter for the App. They
+previously depended on opening implicitly acquiring another environment.
+
+The fixtures now record the validated interpreter's `sys.prefix` as the
+App-specific `app_python` binding before launching Desktop, matching the
+existing Paper/Scientific Viewer fixture boundary. Dependency checks, App
+readiness assertions, deadlines, real-solver assertions and production consent
+behavior remain intact. No preparation, installer, GUI, provider or scientific
+worker was executed during this source-only correction; actual CI is pending.
+
+Control Lab evidence artifact `13147191322` was hash-verified as
+`8584e0ede56570677bf1b203122e52ec7a755927b06dd228736f0cb2e24b49be`;
+its screenshot and ARIA snapshot show the explicit preparation action.
+
+Scientific Viewer is a separate unresolved failure in the same run: all its
+UI/evidence/restart/navigation checks reached the final assertion, which found
+one page error with message `KE`. Its artifact `13146288490`, hash
+`77b9785778f62acbdefc785e62f21905a1f41511be35c9566fb11736d5c3b88f`,
+contains a healthy final-view screenshot but no error stack or stage. The
+fixture now retains page-error name/stack/stage and a failure JSON for the next
+run without filtering or weakening the zero-page-error assertion. A production
+fix cannot yet be justified from the minified message alone.
+
+The same run's Linux core gate exposed a stale IPC denial fixture: it still
+classified public environment `prepare` as a private reproduction action. The
+fixture supplied no Host response, so the real 660-second preparation timeout
+expired. The corrected fixture separately checks private reproduction denial
+and public environment preparation, including removal of nested reproduction
+fields. Unexpected Host writes fail immediately and test resources always close.
+The original failure reproduces in milliseconds with that test seam; the fixed
+19-test contract group passed in under one second. Production permissions and
+request deadlines are unchanged.

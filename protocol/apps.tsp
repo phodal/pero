@@ -28,7 +28,7 @@ model AppRecord {
 }
 /** Host-to-main-process descriptor. Never forwarded to App or Workbench renderers. */
 model BackendAccess { url: string; token: string; ...AppClosed; }
-model AppAccess { root: string; entry: string; backend?: BackendAccess; ...AppClosed; }
+model AppAccess { root: string; entry: string; frameOrigins?: string[]; backend?: BackendAccess; ...AppClosed; }
 model AppSdkPermissions {api:string[];events:string[];host:string[];...AppClosed}
 model AppSdkContext {name:AppName;version:string;permissions:AppSdkPermissions;...AppClosed}
 model AppApiAccess {action:"apiaccess";name:AppName;path:string;...RequestBase}

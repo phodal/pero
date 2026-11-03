@@ -44,6 +44,8 @@ struct AppInstallation {
 pub struct AppAccess {
     pub root: PathBuf,
     pub entry: String,
+    #[serde(rename = "frameOrigins", skip_serializing_if = "Vec::is_empty")]
+    pub frame_origins: Vec<definition::AppFrameOrigin>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub backend: Option<BackendAccess>,
 }
@@ -536,6 +538,7 @@ impl AppStore {
         Ok(AppAccess {
             root,
             entry,
+            frame_origins: app.definition.permissions.frame_origins.clone(),
             backend,
         })
     }

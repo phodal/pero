@@ -42,10 +42,14 @@ export class Product {
     return this.shell === 'workbench' ? 160_000_000 : undefined;
   }
 
-  /** A product can open only its included Apps; secondary Apps use their first panel. */
-  selectApp(name: unknown = this.entry?.app): Readonly<{ app: string; panel?: string }> {
+  /** Only included Apps may open; omitted panels retain the entry/first-panel defaults. */
+  selectApp(name: unknown = this.entry?.app, panel?: unknown): Readonly<{ app: string; panel?: string }> {
     if (this.shell !== 'app' || typeof name !== 'string' || !this.apps.includes(name)) {
       throw new Error('Choose an App included in this Product');
+    }
+    if (panel !== undefined) {
+      if (typeof panel !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(panel)) throw new Error('Choose a valid App panel');
+      return Object.freeze({ app: name, panel });
     }
     return name === this.entry!.app ? this.entry! : Object.freeze({ app: name });
   }

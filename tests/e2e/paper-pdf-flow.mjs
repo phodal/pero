@@ -126,8 +126,8 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect(first).toHaveAttribute('data-selection-ready', 'true', { timeout: 30000 });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
   const tools = frame.locator('.pa-reader-tools');
-  await expect(tools.getByRole('link', { name: 'Open original source', exact: true })).toHaveAttribute('href', 'https://arxiv.org/html/1706.03762v1');
-  const toolBoxes = await Promise.all(['Text', 'PDF', 'Zoom out', 'Zoom in'].map(name => tools.getByRole('button', { name, exact: true }).boundingBox()));
+  await expect(tools.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', 'https://arxiv.org/html/1706.03762v1');
+  const toolBoxes = await Promise.all(['Read', 'PDF', 'Zoom out', 'Zoom in'].map(name => tools.getByRole('button', { name, exact: true }).boundingBox()));
   expect(toolBoxes.every(box => box && Math.abs(box.y - toolBoxes[0].y) <= 4)).toBe(true);
   expect(await frame.locator('.pa-reading-bar h1').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(16);
   await nav.getByRole('button', { name: 'Fit page', exact: true }).click();
@@ -148,7 +148,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(true);
   await expect(first.locator('img,canvas').first()).toHaveAttribute('data-reading-identity', 'retained');
   await expect(frame.locator('.pa-workspace')).toHaveAttribute('data-question', 'true');
-  await expect(frame.locator('.pa-reading-bar')).toHaveCount(0);
+  await expect(frame.locator('.pa-reading-bar')).toBeVisible();
   await expect(nav.getByRole('button', { name: 'Zoom in', exact: true })).toBeVisible();
   await expect.poll(async () => `${Math.round((await storedView()).zoom * 100)}%`).toBe(zoom);
   await closePaperChat(page, frame);
@@ -162,7 +162,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   const viewport = viewer.locator('.pa-pdf-viewport');
   const beforeText = await scrollPdfAndRead(page, viewport, storedView, 60);
   await first.locator('img,canvas').first().evaluate(element => element.dataset.readingIdentity = 'retained');
-  await frame.locator('.pa-reader-tools').getByRole('button', { name: 'Text', exact: true }).click();
+  await frame.locator('.pa-reader-tools').getByRole('button', { name: 'Read', exact: true }).click();
   await expect(viewer).toHaveCount(0);
   await expect(frame.locator('.pa-pdf-view-slot')).toHaveAttribute('inert', '');
   await expect(frame.locator('[data-reading-identity="retained"]')).toHaveCount(1);

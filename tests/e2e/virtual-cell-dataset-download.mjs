@@ -75,7 +75,9 @@ async function openPanel() {
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'virtual-cell', panel: 'main' } });
   frame = page.frameLocator('iframe[title="virtual-cell"]');
   await expect(frame.getByLabel('Data view', { exact: true })).toBeVisible({ timeout: 20000 });
-  await frame.getByLabel('Data view', { exact: true }).selectOption('comparison');
+  await frame.getByRole('button', { name: 'Data view', exact: true }).click();
+  await frame.getByRole('listbox', { name: 'Data view', exact: true }).getByRole('option', { name: 'Baseline comparison', exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'Data view', exact: true })).toHaveAttribute('data-value', 'comparison');
   panel = frame.getByRole('region', { name: 'Norman data', exact: true });
   await expect(panel.getByText(label, { exact: true })).toBeVisible();
   await expect(panel.getByText('Raw H5AD still needs preparation and import before baseline comparison.', { exact: true })).toBeVisible();
@@ -213,8 +215,12 @@ try {
   expect(initial.attempt).toBe(0); expect(initial.prepared).toBe(false);
   expect(sourceRequests).toEqual([]); expect(apiPosts()).toEqual([]);
   // Re-entering the view is an observed GET window, not a timed no-op pause.
-  await frame.getByLabel('Data view', { exact: true }).selectOption('atlas');
-  await frame.getByLabel('Data view', { exact: true }).selectOption('comparison');
+  await frame.getByRole('button', { name: 'Data view', exact: true }).click();
+  await frame.getByRole('listbox', { name: 'Data view', exact: true }).getByRole('option', { name: 'Cell atlas', exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'Data view', exact: true })).toHaveAttribute('data-value', 'atlas');
+  await frame.getByRole('button', { name: 'Data view', exact: true }).click();
+  await frame.getByRole('listbox', { name: 'Data view', exact: true }).getByRole('option', { name: 'Baseline comparison', exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'Data view', exact: true })).toHaveAttribute('data-value', 'comparison');
   await expect(status()).toHaveText('Not downloaded');
   expect((await read()).attempt).toBe(0);
   expect(sourceRequests).toEqual([]); expect(apiPosts()).toEqual([]);

@@ -47,12 +47,32 @@ pub struct AppPanel {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AppPermissions {
+    #[serde(default, rename = "frameOrigins", skip_serializing_if = "Vec::is_empty")]
+    pub frame_origins: Vec<AppFrameOrigin>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub events: Vec<String>,
     #[serde(default)]
     pub host: Vec<String>,
+}
+
+/// Exact HTTPS origins an App may embed; never a CSP expression or URL prefix.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct AppFrameOrigin(String);
+impl TryFrom<String> for AppFrameOrigin {
+    type Error = String;
+    fn try_from(value: String) -> Result<Self, String> {
+        let parsed = url::Url::parse(&value).map_err(|_| "Invalid App frame origin")?;
+        if value.len() > 256 || parsed.scheme() != "https" || parsed.origin().ascii_serialization() != value {
+            return Err("App frame origins must be exact HTTPS origins without paths or credentials".into());
+        }
+        Ok(Self(value))
+    }
+}
+impl From<AppFrameOrigin> for String {
+    fn from(value: AppFrameOrigin) -> Self { value.0 }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -175,6 +195,9 @@ impl AppDefinition {
             return Err("Invalid App version, displayName or description".into());
         }
         let mut seen = std::collections::BTreeSet::new();
+        if value.permissions.frame_origins.len() > 16 {
+            return Err("App frame permissions allow at most 16 origins".into());
+        }
         for grant in &value.permissions.host {
             if !matches!(grant.as_str(), "agent" | "agent-plugin" | "insights" | "connectors" | "automation" | "research-assets") || !seen.insert(grant.as_str()) {
                 return Err(
@@ -247,6 +270,17 @@ impl AppDefinition {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn frame_origins_are_exact_https_origins() {
+        for (origin, accepted) in [
+            ("https://arxiv.org", true), ("https://example.org:8443", true),
+            ("http://arxiv.org", false), ("https://arxiv.org/html/1234.56789v1", false),
+            ("https://user@arxiv.org", false), ("https://arxiv.org/", false),
+            ("*", false), ("https://arxiv.org; script-src *", false),
+        ] {
+            assert_eq!(AppFrameOrigin::try_from(origin.to_owned()).is_ok(), accepted, "{origin}");
+        }
+    }
     #[test]
     fn builtin_paper_manifest_and_write_capacity() {
         // Exercise the actual packaged manifest at the Host validation boundary:
