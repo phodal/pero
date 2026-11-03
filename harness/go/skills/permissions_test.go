@@ -3,6 +3,10 @@ package skills
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/phodal/pero/harness/go/harness"
@@ -54,6 +58,64 @@ func TestAllowedToolGrants(t *testing.T) {
 				t.Fatalf("allowed=%t want=%t", got, test.want)
 			}
 		})
+	}
+}
+
+func TestSkillDenialsApplyBeforeFirstRequestAndExpire(t *testing.T) {
+	requireCatalogPlatform(t)
+	root := canonicalTempDir(t)
+	selection := selectedFixture(t, root, "sample:limited")
+	selection.Definition.DisallowedTools = []string{"Write"}
+	selection.Definition.AllowedTools = []string{"Write"}
+	catalog, err := OpenSelected(t.Context(), nil, []FileSelection{selection})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer catalog.Close()
+	var writes, requests atomic.Int32
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		index := requests.Add(1)
+		visible := false
+		for _, tool := range request.Tools {
+			visible = visible || tool.Name == "Write"
+		}
+		if visible != (request.Turn == 2) {
+			t.Errorf("turn %d: Write visibility=%v", request.Turn, visible)
+		}
+		if index == 1 || index == 3 {
+			return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, ToolCallID: harness.ToolCallID(fmt.Sprintf("write-%d", index)), Name: "Write", Arguments: json.RawMessage(`{}`)}}}}, nil
+		}
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant}}, nil
+	})
+	h, err := harness.Boot(t.Context(), harness.Options{Adapter: adapter})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { h.Dispose(context.Background()); h.Drain(context.Background()) }()
+	if err := MountCatalog(t.Context(), h, catalog, MountOptions{Claude: true}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = h.RegisterTool(t.Context(), "fixture/write", harness.Tool{Schema: harness.ToolSchema{Name: "Write", InputSchema: json.RawMessage(`{"type":"object"}`)}, Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+		writes.Add(1)
+		return harness.ToolResult{}, os.WriteFile(filepath.Join(root, "effect"), []byte("one"), 0600)
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "denials", CWD: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"/sample:limited", "continue normally"} {
+		if _, err := agent.Prompt(t.Context(), harness.Message{Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}}); err != nil {
+			t.Fatal(err)
+		}
+		if text == "/sample:limited" && writes.Load() != 0 {
+			t.Fatal("allow grant overrode explicit skill denial")
+		}
+	}
+	if writes.Load() != 1 || requests.Load() != 4 {
+		t.Fatalf("writes=%d requests=%d", writes.Load(), requests.Load())
 	}
 }
 

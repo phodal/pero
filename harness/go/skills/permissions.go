@@ -165,28 +165,9 @@ func wildcard(pattern, value string) bool {
 // instructions have been compacted away. A new direct user message clears the
 // previous grants; a new turn never inherits the previous turn's approval.
 func turnGrants(ctx context.Context, catalog *Catalog, events []harness.Event) ([]string, error) {
-	var names []skillInvocation
-	for _, event := range events {
-		if event.Type == "turn/start" {
-			names = nil
-			continue
-		}
-		if event.Type != "user/message" {
-			continue
-		}
-		var message harness.Message
-		if err := json.Unmarshal(event.Data, &message); err != nil {
-			return nil, err
-		}
-		var source skillInvocation
-		if json.Unmarshal(message.Source, &source) != nil {
-			continue
-		}
-		if source.Kind == "user" {
-			names = nil
-		} else if source.Kind == "skill-invocation" && source.Form != "reattached" {
-			names = append(names, source)
-		}
+	names, err := activeSkillInvocations(events, nil, 0)
+	if err != nil {
+		return nil, err
 	}
 	var rules []string
 	for _, source := range names {

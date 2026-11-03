@@ -57,6 +57,9 @@ func ExpandSkill(ctx context.Context, h *harness.Harness, agent *harness.Agent, 
 	if len(commands) == 0 {
 		return definition, nil
 	}
+	if skills.DisallowsTool(definition.DisallowedTools, "Bash") {
+		return skills.Definition{}, ErrSkillCommandDenied
+	}
 	if h == nil || agent == nil {
 		return skills.Definition{}, errors.New("plugin-runtime: executable skill context requires its harness and agent")
 	}

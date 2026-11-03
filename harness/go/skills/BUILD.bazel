@@ -12,6 +12,7 @@ go_library(
         "paths.go",
         "permissions.go",
         "reattach.go",
+        "restrictions.go",
         "selected.go",
         "tool.go",
     ],
@@ -23,6 +24,7 @@ go_library(
         "//harness",
         "//plugins",
         "//runtime",
+        "//shell",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ],
 )

@@ -154,6 +154,9 @@ func MountCatalog(ctx context.Context, h *harness.Harness, catalog *Catalog, opt
 		if err := mountSkillModels(run, hooks, catalog, options); err != nil {
 			return nil, err
 		}
+		if err := mountSkillRestrictions(run, h, hooks, catalog); err != nil {
+			return nil, err
+		}
 		if err := mountSkillPaths(run, h, hooks, catalog); err != nil {
 			return nil, err
 		}
