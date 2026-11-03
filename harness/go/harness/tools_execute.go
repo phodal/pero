@@ -287,9 +287,11 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 			if filtered.profileLease != nil && !filtered.profileLease.active() {
 				return r.settle(ctx, ToolOutcome{Request: filtered, Result: retiredToolOwnerResult(nil)}, nested, tool.Schema.Name, tool.ObserveResult)
 			}
+			var hookResult ApprovalHookResult
 			approval, err = r.approval.Request(ctx, ApprovalRequest{
 				Agent: filtered.Agent, CallID: filtered.CallID, ToolName: filtered.Name,
 				Reason: reason, Native: native, AlwaysAsk: tool.AlwaysAskApproval || filtered.RequestApproval, Preapproved: filtered.Preapproved,
+				ToolInput: filtered.Arguments, HookResult: &hookResult,
 			})
 			if err != nil {
 				if contextFailure(ctx) != nil {
@@ -299,6 +301,15 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 				}
 				return ToolOutcome{}, err
 			}
+			if hookResult.Interrupt {
+				return ToolOutcome{}, fmt.Errorf("permission hook interrupted the turn: %s", hookResult.Reason)
+			}
+			if approval == ApprovalAllowedOnce && len(hookResult.UpdatedInput) > 0 {
+				filtered.Arguments = hookResult.UpdatedInput
+			}
+			if hookResult.Reason != "" {
+				filtered.DenyReason = hookResult.Reason
+			}
 		}
 		if approval != ApprovalAllowedOnce {
 			if contextFailure(ctx) != nil {
@@ -306,8 +317,12 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 					"tool call aborted before dispatch", "AbortError", ToolAbortedBeforeDispatch, nil,
 				)}, nested, tool.Schema.Name, tool.ObserveResult)
 			}
+			text := "tool approval " + string(approval) + ": " + filtered.Name
+			if filtered.DenyReason != "" {
+				text = filtered.DenyReason
+			}
 			return r.settle(ctx, ToolOutcome{Request: filtered, Result: ToolResult{
-				IsError: true, Content: []ContentBlock{{Type: BlockText, Text: "tool approval " + string(approval) + ": " + filtered.Name}},
+				IsError: true, Content: []ContentBlock{{Type: BlockText, Text: text}},
 			}}, nested, tool.Schema.Name, tool.ObserveResult)
 		}
 	}

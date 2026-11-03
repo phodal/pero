@@ -49,6 +49,10 @@ type ApprovalRequest struct {
 	CallID   ToolCallID `json:"callId,omitempty"`
 	ToolName string     `json:"toolName"`
 	Reason   string     `json:"reason,omitempty"`
+	// ToolInput is the call about to be approved. It is not part of the audit record.
+	ToolInput json.RawMessage `json:"-"`
+	// HookResult is filled by a before-prompt handler. The caller owns the value.
+	HookResult *ApprovalHookResult `json:"-"`
 	// Native is produced only by trusted registration code, never tool arguments.
 	Native *NativeApprovalDescriptor `json:"-"`
 	// Set only by trusted tool registration, never by model arguments.
@@ -73,10 +77,19 @@ type NativeApprovalDescriptor struct {
 
 type ApprovalHandler func(context.Context, ApprovalRequest) (ApprovalOutcome, error)
 
+// ApprovalHookResult carries a PermissionRequest hook's effect back to the tool
+// call. UpdatedInput replaces the arguments only after an allow.
+type ApprovalHookResult struct {
+	UpdatedInput json.RawMessage
+	Reason       string
+	Interrupt    bool
+}
+
 type approvalEntry struct {
-	id      uint64
-	scope   *point.Scope
-	handler ApprovalHandler
+	id           uint64
+	scope        *point.Scope
+	handler      ApprovalHandler
+	beforePrompt bool
 }
 
 // ApprovalBroker is a fail-closed, effect-owned approval waterfall. Visible
@@ -207,6 +220,17 @@ func SessionHasFullAccess(events []Event) bool {
 }
 
 func (b *ApprovalBroker) Register(run *point.Run, handler ApprovalHandler) (point.Dispose, error) {
+	return b.register(run, handler, false)
+}
+
+// RegisterBeforePrompt runs before interactive answerers, including a more
+// specific session prompt. A handler that returns unavailable leaves the prompt
+// in place.
+func (b *ApprovalBroker) RegisterBeforePrompt(run *point.Run, handler ApprovalHandler) (point.Dispose, error) {
+	return b.register(run, handler, true)
+}
+
+func (b *ApprovalBroker) register(run *point.Run, handler ApprovalHandler, beforePrompt bool) (point.Dispose, error) {
 	if run == nil || !run.Active() {
 		return nil, point.ErrInactiveRun
 	}
@@ -215,7 +239,7 @@ func (b *ApprovalBroker) Register(run *point.Run, handler ApprovalHandler) (poin
 	}
 	b.mu.Lock()
 	b.nextID++
-	entry := approvalEntry{id: b.nextID, scope: run.Scope, handler: handler}
+	entry := approvalEntry{id: b.nextID, scope: run.Scope, handler: handler, beforePrompt: beforePrompt}
 	b.entries = append(b.entries, entry)
 	b.mu.Unlock()
 	var once sync.Once
@@ -299,9 +323,14 @@ func (b *ApprovalBroker) resolve(ctx context.Context, request ApprovalRequest, p
 		return ApprovalAllowedOnce
 	}
 	if request.NonInteractive {
+		// A session that cannot prompt still lets a PermissionRequest hook decide.
+		// No decision stays unavailable, which the tool treats as a denial.
+		if outcome := b.decide(ctx, request, b.visibleHandlers(request.Agent.Scope(), true)); outcome != ApprovalUnavailable {
+			return outcome
+		}
 		return ApprovalUnavailable
 	}
-	return b.decide(ctx, request, b.visibleHandlers(request.Agent.Scope()))
+	return b.decide(ctx, request, b.visibleHandlers(request.Agent.Scope(), false))
 }
 
 func hasOpenApprovalTurn(events []Event) bool {
@@ -360,17 +389,23 @@ func callApprovalHandler(ctx context.Context, handler ApprovalHandler, request A
 	}
 }
 
-func (b *ApprovalBroker) visibleHandlers(scope *point.Scope) []ApprovalHandler {
+func (b *ApprovalBroker) visibleHandlers(scope *point.Scope, beforePromptOnly bool) []ApprovalHandler {
 	b.mu.RLock()
 	entries := append([]approvalEntry(nil), b.entries...)
 	b.mu.RUnlock()
 	visible := entries[:0]
 	for _, entry := range entries {
+		if beforePromptOnly && !entry.beforePrompt {
+			continue
+		}
 		if entry.scope.Contains(scope) {
 			visible = append(visible, entry)
 		}
 	}
 	sort.SliceStable(visible, func(i, j int) bool {
+		if visible[i].beforePrompt != visible[j].beforePrompt {
+			return visible[i].beforePrompt
+		}
 		if visible[i].scope != visible[j].scope {
 			if visible[i].scope.Contains(visible[j].scope) {
 				return false

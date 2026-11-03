@@ -78,7 +78,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted":
+			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}
@@ -162,6 +162,11 @@ func (app *HookApp) register(run *point.Run) error {
 		return next(input)
 	}, point.ListenerOptions{Prepend: true}); err != nil {
 		return err
+	}
+	if app.h.Approvals() != nil {
+		if _, err := app.h.Approvals().RegisterBeforePrompt(run, app.permissionRequest); err != nil {
+			return err
+		}
 	}
 	if _, err := tools.Before.Use(run, func(ctx context.Context, request harness.ToolRequest, next point.Next[harness.ToolRequest]) (harness.ToolRequest, error) {
 		err := app.withAgent(ctx, request.Agent, func(ctx context.Context, state *hookAgentState) error {
@@ -471,7 +476,7 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 		switch input.Event {
 		case "SessionStart":
 			matcherValue, filter = input.Source, true
-		case "PreToolUse", "PostToolUse", "PostToolUseFailure":
+		case "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest":
 			matcherValue, filter = input.ToolName, true
 		case "SubagentStart", "SubagentStop":
 			matcherValue, filter = input.AgentType, true

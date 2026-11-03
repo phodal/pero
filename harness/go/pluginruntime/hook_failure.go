@@ -33,7 +33,7 @@ func blockedHookFailure(hook claudehooks.Hook, input claudehooks.Input, err erro
 	}
 	reason := fmt.Sprintf("%s hook error: [%s]: %s; blocking because onFailure is \"block\": %s", target, strings.TrimSpace(hook.Command), kind, err.Error())
 	decision := claudehooks.Decision{Block: true, Reason: reason}
-	if input.Event == "PreToolUse" {
+	if input.Event == "PreToolUse" || input.Event == "PermissionRequest" {
 		decision.Permission = "deny"
 	}
 	return decision

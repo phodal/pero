@@ -79,11 +79,23 @@ type output struct {
 }
 
 type specificOutput struct {
-	Event             string          `json:"hookEventName"`
-	Permission        string          `json:"permissionDecision"`
-	Reason            string          `json:"permissionDecisionReason"`
-	UpdatedInput      json.RawMessage `json:"updatedInput"`
-	AdditionalContext string          `json:"additionalContext"`
+	Event             string                     `json:"hookEventName"`
+	Permission        string                     `json:"permissionDecision"`
+	Reason            string                     `json:"permissionDecisionReason"`
+	UpdatedInput      json.RawMessage            `json:"updatedInput"`
+	AdditionalContext string                     `json:"additionalContext"`
+	RequestDecision   *permissionRequestDecision `json:"decision"`
+}
+
+// permissionRequestDecision is the PermissionRequest allow or deny object.
+// updatedPermissions is accepted so a hook can echo a suggestion; this harness
+// does not write Claude settings rules from it.
+type permissionRequestDecision struct {
+	Behavior           string          `json:"behavior"`
+	UpdatedInput       json.RawMessage `json:"updatedInput"`
+	Message            string          `json:"message"`
+	Interrupt          bool            `json:"interrupt"`
+	UpdatedPermissions json.RawMessage `json:"updatedPermissions"`
 }
 
 // Match implements exact alternatives and the Go-compatible portion of JS
@@ -130,6 +142,13 @@ func ParseDecision(event string, stdout, stderr []byte, exitCode int) (Decision,
 		} else if event == "SessionStart" || event == "UserPromptSubmit" {
 			decision.AdditionalContext = string(stdout)
 		}
+	}
+	if exitCode == 2 && event == "PermissionRequest" {
+		// Exit 2 does not decide this event. A parsed allow or deny still applies.
+		if decision.Permission == "" {
+			return Decision{}, nil
+		}
+		return decision, nil
 	}
 	if exitCode == 2 {
 		if !blockingEvent(event) {
@@ -193,6 +212,31 @@ func (wire output) decision(event string) (Decision, error) {
 				return Decision{}, errors.New("claudehooks: updatedInput requires a PreToolUse JSON object")
 			}
 			result.UpdatedInput = append(json.RawMessage(nil), specific.UpdatedInput...)
+		}
+		if specific.RequestDecision != nil {
+			if event != "PermissionRequest" {
+				return Decision{}, errors.New("claudehooks: permission request decision is unsupported for this event")
+			}
+			switch specific.RequestDecision.Behavior {
+			case "allow":
+				result.Permission = "allow"
+				result.Block = false
+				if len(specific.RequestDecision.UpdatedInput) > 0 && string(specific.RequestDecision.UpdatedInput) != "null" {
+					if !jsonObject(specific.RequestDecision.UpdatedInput) {
+						return Decision{}, errors.New("claudehooks: permission updatedInput must be a JSON object")
+					}
+					result.UpdatedInput = append(json.RawMessage(nil), specific.RequestDecision.UpdatedInput...)
+				}
+			case "deny":
+				result.Permission = "deny"
+				result.Block = true
+				if specific.RequestDecision.Message != "" {
+					result.Reason = specific.RequestDecision.Message
+				}
+				result.Stop = specific.RequestDecision.Interrupt
+			default:
+				return Decision{}, errors.New("claudehooks: permission request behavior must be allow or deny")
+			}
 		}
 	}
 	if wire.Continue != nil && !*wire.Continue && runControlEvent(event) {
