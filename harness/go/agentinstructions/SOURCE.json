@@ -34,15 +34,16 @@
     "Reuse fstools descriptor authority and bounded renderer. Mutation guard requires the target hierarchy to match a delivered baseline; tool-call events and complete baseline digests reconstruct state after JSONL restore.",
     "Point bounded UTF-8 rendering retained. Context is untrusted user-role guidance, never permission.",
     "Reconstruct prior baseline from durable session messages on each preparation; no premature cache mutation.",
-    "Host adapter and regression tests are new extraction glue; no planmode or user-question subsystem imported."
+    "Host adapter and regression tests are new extraction glue; no planmode or user-question subsystem imported.",
+    "Instruction authority follows an active native root-worktree lease (or an existing child retained there), never an arbitrary CWD event or generic additional-directory binding."
   ],
   "destination_sha256": {
-    "BUILD.bazel": "205c1c63b03695442206be3a657b75f5473f96fd9612705f10c2e3d0fdde1c44",
-    "README.md": "fbc1d21ba91a1a1246b1863ce1075eb4792eafc827cc244cffaa8de056f2472d",
-    "app.go": "d42dfceb21b296771c7ba91333476d5f0141c0126dc9a090645d01410bf79317",
-    "app_test.go": "35c0f76daaabc9c9b93acb8dcd40f1f98a6ce68c81ce02aa34649faf149359f8",
+    "BUILD.bazel": "4fff0da01e1d1b41aee4e5d393a364afd5249024bd1fb0d61c44c3fbbc6ca51c",
+    "README.md": "7bab6b90fac91bb7e3c59baa291ede779f77637cda4b66c73f06b8814858be29",
+    "app.go": "ea26ccaee9e2c0c97953b9bc9ff9de823e7ebd28a08edf5314c77c960ec6c6a1",
+    "app_test.go": "7e27e4fcfc19b2f5d1d5b053b982f65fcf2a2f172c54d13a69d2a9d848a603fe",
     "config.go": "c3c380b2745d4580ae26fac76fa58e53109f7bfb27d68f2ca7fc41b6f7af3633",
-    "files.go": "fc13c459ac98a24b6c79423a77d98eff9282c3d75cadc1cc73c0ba871f29b2aa",
+    "files.go": "5de41706f89b6a04c2cd2a6a0cd9e083a1e900292d98ba363503c77b80e474b8",
     "render.go": "b5deb794b256dcdf19930a1fa7ba0c3f88ee4e6da4ee732bbe52e50404fa5c04"
   }
 }

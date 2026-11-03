@@ -33,4 +33,8 @@ baseline. This covers a first write into an unread directory and instruction
 edits/removals between steps. Discovery and refresh derive from durable tool-call
 events and message digests, so JSONL restore requires no mutable cache. Shell
 commands do not expose their file targets and are outside this file-tool gate.
-The configured workspace/CWD remains fixed; root worktree switching is not added.
+When native root-worktree tools are mounted, the instruction reader follows only
+the current root session's typed, active worktree lease and verified descriptor.
+Returning to the original workspace replaces the baseline again. Existing
+children keep their retained worktree context. Generic added-directory bindings
+and a bare working-directory event do not grant instruction authority.

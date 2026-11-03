@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//fstools",
         "//harness",
+        "//nativetools",
         "//runtime",
     ],
 )
@@ -21,5 +22,8 @@ go_test(
     name = "agentinstructions_test",
     srcs = ["app_test.go"],
     embed = [":agentinstructions"],
-    deps = ["//harness"],
+    deps = [
+        "//harness",
+        "//nativetools",
+    ],
 )

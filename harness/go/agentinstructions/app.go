@@ -10,6 +10,7 @@ import (
 
 	"github.com/phodal/pero/harness/go/fstools"
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/nativetools"
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
@@ -109,15 +110,22 @@ func (a *App) preparePaths(ctx context.Context, input harness.StepInput, paths .
 	if input.Agent == nil {
 		return input, errors.New("agent-instructions: agent required")
 	}
+	reader := a
 	if err := a.CheckCWD(input.Agent.Session().WorkingDirectory()); err != nil {
-		return input, err
+		files, worktreeErr := nativetools.RootWorktreeWorkspace(input.Agent, a.files.Path())
+		if worktreeErr != nil {
+			return input, err
+		}
+		view := *a
+		view.files, view.workspaceAlias = files, files.Path()
+		reader = &view
 	}
 	paths = append(paths, instructionPaths(input.Agent.Session().Events())...)
-	files, err := a.read(ctx, paths...)
+	files, err := reader.read(ctx, paths...)
 	if err != nil {
 		return input, fmt.Errorf("agent-instructions: %w", err)
 	}
-	identity := fmt.Sprintf("%s:%d:%t", a.files.Path(), a.maxBytes, a.hierarchical)
+	identity := fmt.Sprintf("%s:%d:%t", reader.files.Path(), a.maxBytes, a.hierarchical)
 	var snapshot string
 	for _, file := range files {
 		snapshot += file.scope + "\x00" + digest(file.content) + "\n"

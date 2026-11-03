@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/nativetools"
 )
 
 type noCallAdapter struct{}
@@ -333,5 +335,87 @@ func TestInstructionRenderingPlatformIndependent(t *testing.T) {
 				t.Fatalf("incorrect truncation: %s", rendered)
 			}
 		})
+	}
+}
+
+func TestRootWorktreeInstructionsUseOnlyTheVerifiedActiveLease(t *testing.T) {
+	requireInstructionPlatform(t)
+	root := t.TempDir()
+	write(t, filepath.Join(root, "AGENTS.md"), "original instruction baseline")
+	for _, args := range [][]string{{"init"}, {"config", "user.name", "Fixture"}, {"config", "user.email", "fixture@example.invalid"}, {"add", "AGENTS.md"}, {"commit", "-m", "instruction fixture"}} {
+		if output, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git: %v %s", err, output)
+		}
+	}
+	h, err := harness.Boot(t.Context(), harness.Options{Adapter: noCallAdapter{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	native, err := nativetools.Mount(t.Context(), h, nativetools.Options{Workspace: root, ClaudeTools: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := Mount(t.Context(), h, Options{Workspace: root, Hierarchical: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = h.Dispose(context.Background())
+		_ = h.Drain(context.Background())
+		_ = app.Close()
+		_ = native.Close()
+	})
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{CWD: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agent.Session().Append("turn/start", struct {
+		Turn int `json:"turn"`
+	}{1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.SetPermissionMode(agent.Session(), harness.PermissionAutoReview); err != nil {
+		t.Fatal(err)
+	}
+	persist(t, agent, prepare(t, app, agent))
+	entered, err := h.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, Name: "EnterWorktree", Arguments: json.RawMessage(`{}`)})
+	if err != nil || entered.Result.IsError {
+		t.Fatalf("enter: %+v %v", entered, err)
+	}
+	worktree := agent.Session().WorkingDirectory()
+	write(t, filepath.Join(worktree, "AGENTS.md"), "worktree-specific instruction baseline")
+	baseline := prepare(t, app, agent)
+	if len(baseline.Messages) != 1 || !strings.Contains(baseline.Messages[0].Content[0].Text, "worktree-specific instruction baseline") || strings.Contains(baseline.Messages[0].Content[0].Text, "original instruction baseline") {
+		t.Fatalf("wrong instruction authority: %+v", baseline)
+	}
+	persist(t, agent, baseline)
+	child, err := h.Agents().Create(t.Context(), harness.AgentOptions{Parent: agent, CWD: worktree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	persist(t, child, prepare(t, app, child))
+	exited, err := h.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, Name: "ExitWorktree", Arguments: json.RawMessage(`{}`)})
+	if err != nil || exited.Result.IsError {
+		t.Fatalf("exit: %+v %v", exited, err)
+	}
+	restored := prepare(t, app, agent)
+	if len(restored.Messages) != 1 || !strings.Contains(restored.Messages[0].Content[0].Text, "original instruction baseline") {
+		t.Fatalf("original baseline did not return: %+v", restored)
+	}
+	if _, err := app.prepare(t.Context(), harness.StepInput{Agent: child}); err != nil {
+		t.Fatalf("root exit withdrew a still-owned child worktree: %v", err)
+	}
+	outside, err := nativetools.BindIsolatedWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { nativetools.ReleaseIsolatedWorkspace(outside) })
+	if _, err := agent.Session().Append("working-directory/change", struct {
+		CWD string `json:"cwd"`
+	}{outside}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.prepare(t.Context(), harness.StepInput{Agent: agent}); err == nil {
+		t.Fatal("generic binding or bare cwd fact granted instruction authority")
 	}
 }

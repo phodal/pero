@@ -84,7 +84,7 @@ func instructionPaths(events []harness.Event) []string {
 
 func toolInstructionPaths(name string, arguments json.RawMessage) []string {
 	switch name {
-	case "Read", "Write", "Edit", "NotebookEdit", "NotebookRead", "read_file", "write_file", "edit_file", "notebook_read", "apply_patch":
+	case "Read", "Write", "Edit", "NotebookEdit", "NotebookRead", "PDFRead", "NotebookImage", "read_file", "write_file", "edit_file", "notebook_read", "pdf_read", "notebook_image", "apply_patch":
 	default:
 		return nil
 	}
