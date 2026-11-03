@@ -54,7 +54,7 @@ func (runner Runner) Run(ctx context.Context, hook Hook, input Input) (Decision,
 			return Decision{}, errors.New("claudehooks: invalid explicit environment binding")
 		}
 	}
-	timeout, err := hookTimeout(hook)
+	timeout, err := HookTimeout(hook)
 	if err != nil {
 		return Decision{}, err
 	}

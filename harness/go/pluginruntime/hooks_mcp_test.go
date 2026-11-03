@@ -15,6 +15,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/phodal/pero/harness/go/claudehooks"
 	"github.com/phodal/pero/harness/go/harness"
+	harnessmcp "github.com/phodal/pero/harness/go/mcp"
 	"github.com/phodal/pero/harness/go/plugins"
 )
 
@@ -93,5 +94,54 @@ func TestMCPToolHookDeniesAWriteAndSkipsLaunchSessionStart(t *testing.T) {
 	defer mu.Unlock()
 	if len(calls) != 1 || calls[0] != "guard" || path != "original.md" {
 		t.Fatalf("calls=%v path=%q", calls, path)
+	}
+}
+
+func TestMCPHookTimeoutBoundsTheToolCall(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	root := t.TempDir()
+	hook := claudehooks.Hook{Event: "PreToolUse", Matcher: "Write", MCPServer: "memory", MCPTool: "guard", Timeout: 10 * time.Millisecond}
+	h, err := harness.Boot(ctx, harness.Options{AdapterProviders: []string{"fixture"}, Adapter: harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		return harness.Completion{}, nil
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := MountHooks(ctx, h, []plugins.Package{{Root: root, Definition: plugins.Plugin{Name: "sample"}, Hooks: []claudehooks.Hook{hook}}}, HookOptions{StateDirectory: root})
+	if err != nil || app == nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stop()
+		_ = h.Dispose(cleanup)
+		_ = h.Drain(cleanup)
+		_ = app.Close()
+	})
+	name := harnessmcp.PublicMCPToolName(pluginMCPName("sample", "memory"), "guard")
+	var deadline time.Time
+	var hasDeadline bool
+	if _, err := h.RegisterTool(ctx, "fixture-mcp-hook", harness.Tool{Schema: harness.ToolSchema{Name: name, InputSchema: json.RawMessage(`{"type":"object"}`)}, Execute: func(callCtx context.Context, _ json.RawMessage) (harness.ToolResult, error) {
+		deadline, hasDeadline = callCtx.Deadline()
+		<-callCtx.Done()
+		return harness.ToolResult{}, callCtx.Err()
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "mcp-timeout", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, stop := context.WithTimeout(context.Background(), 5*time.Second)
+	defer stop()
+	started := time.Now()
+	_, err = app.runMCPHook(parent, agent, "sample", hook, claudehooks.Input{Event: "PreToolUse"})
+	elapsed := time.Since(started)
+	if elapsed > time.Second {
+		t.Fatalf("MCP hook waited %s for a 10ms timeout: %v", elapsed, err)
+	}
+	if !hasDeadline || deadline.Sub(started) > time.Second {
+		t.Fatalf("tool deadline offset=%s has=%v err=%v", deadline.Sub(started), hasDeadline, err)
 	}
 }

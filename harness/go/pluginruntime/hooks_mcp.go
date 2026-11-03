@@ -25,6 +25,12 @@ func (app *HookApp) runMCPHook(ctx context.Context, agent *harness.Agent, plugin
 	if err != nil {
 		return claudehooks.Decision{}, fmt.Errorf("%w for %s: %s", claudehooks.ErrNonBlocking, hook.Event, err.Error())
 	}
+	timeout, err := claudehooks.HookTimeout(hook)
+	if err != nil {
+		return claudehooks.Decision{}, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	outcome, err := app.h.Tools().Execute(context.WithValue(ctx, mcpHookCall{}, true), harness.ToolRequest{Agent: agent, Name: name, Arguments: arguments})
 	if err != nil {
 		return claudehooks.Decision{}, fmt.Errorf("%w for %s: %s", claudehooks.ErrNonBlocking, hook.Event, err.Error())

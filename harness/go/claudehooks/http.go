@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-func hookTimeout(hook Hook) (time.Duration, error) {
+// HookTimeout is the wait for one hook. Zero selects the event default.
+func HookTimeout(hook Hook) (time.Duration, error) {
 	timeout := hook.Timeout
 	if timeout == 0 {
 		if strings.TrimSpace(hook.Prompt) != "" {
@@ -55,7 +56,7 @@ func (runner Runner) Post(ctx context.Context, hook Hook, input Input) (Decision
 	if strings.TrimSpace(hook.URL) == "" {
 		return Decision{}, errors.New("claudehooks: HTTP hook URL is required")
 	}
-	timeout, err := hookTimeout(hook)
+	timeout, err := HookTimeout(hook)
 	if err != nil {
 		return Decision{}, err
 	}
