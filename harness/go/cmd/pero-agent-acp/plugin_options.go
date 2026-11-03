@@ -52,7 +52,7 @@ func pluginSelections(packages []plugins.Package) ([]skills.FileSelection, []sub
 		for _, component := range pkg.Definition.Components {
 			if component.Kind == plugins.ComponentAgent {
 				instructions := strings.NewReplacer("${CLAUDE_PLUGIN_ROOT}", pkg.Root).Replace(component.Content)
-				agents = append(agents, subagents.AgentDefinition{Name: component.QualifiedName, Description: component.Description, Instructions: instructions, Model: component.Model, Effort: component.Effort, Isolation: component.Isolation, MaxTurns: component.MaxTurns, Tools: component.Tools})
+				agents = append(agents, subagents.AgentDefinition{Name: component.QualifiedName, Description: component.Description, Instructions: instructions, Model: component.Model, Effort: component.Effort, Isolation: component.Isolation, MaxTurns: component.MaxTurns, Tools: component.Tools, DisallowedTools: component.DisallowedTools})
 				continue
 			}
 			selection := skills.FileSelection{

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/nativetools"
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
@@ -193,6 +194,55 @@ func TestClaudeTrustedInvocationCancellationJoinsChild(t *testing.T) {
 		}
 	case <-f.ctx.Done():
 		t.Fatal("trusted invocation did not cancel and join its child")
+	}
+}
+
+func TestAgentDisallowedToolsRemoveWrite(t *testing.T) {
+	root := t.TempDir()
+	var sawRead, sawWrite bool
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		sawRead, sawWrite = false, false
+		for _, tool := range request.Tools {
+			if tool.Name == "Read" {
+				sawRead = true
+			}
+			if tool.Name == "Write" {
+				sawWrite = true
+			}
+		}
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	})
+	ctx := t.Context()
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = h.Dispose(cleanup)
+		_ = h.Drain(cleanup)
+	})
+	if _, err := nativetools.Mount(ctx, h, nativetools.Options{Workspace: root, ClaudeTools: true}); err != nil {
+		t.Fatal(err)
+	}
+	claude, err := MountClaude(ctx, h, []AgentDefinition{
+		{Name: "reviewer", Description: "Review", Instructions: "Review.", DisallowedTools: []string{"Write"}},
+		{Name: "broken", Description: "Broken", Instructions: "Broken.", DisallowedTools: []string{"Nope"}},
+	}, ClaudeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "deny-parent", CWD: root, Provider: "fixture", Model: "parent-model", MaxSteps: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := claude.Invoke(ctx, parent, ClaudeInvocation{Definition: "reviewer", Prompt: "look"})
+	if err != nil || result.Status != harness.SubagentCompleted || !sawRead || sawWrite {
+		t.Fatalf("result=%+v err=%v read=%v write=%v", result, err, sawRead, sawWrite)
+	}
+	if _, err := claude.Invoke(ctx, parent, ClaudeInvocation{Definition: "broken", Prompt: "look"}); err == nil || !strings.Contains(err.Error(), "Nope") {
+		t.Fatalf("unknown disallowed tool err=%v", err)
 	}
 }
 

@@ -73,6 +73,13 @@ func TestComponentDefinitions(t *testing.T) {
 	}
 }
 
+func TestAgentDisallowedToolsField(t *testing.T) {
+	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\ndisallowedTools: [Write, Edit]\n---\nReview."))
+	if len(diagnostics) != 0 || !reflect.DeepEqual(component.DisallowedTools, []string{"Write", "Edit"}) {
+		t.Fatalf("component=%+v diagnostics=%v", component, diagnostics)
+	}
+}
+
 func TestAgentMaxTurnsField(t *testing.T) {
 	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nmaxTurns: 3\n---\nReview."))
 	if component.MaxTurns != 3 || len(diagnostics) != 0 {

@@ -143,8 +143,15 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 			}
 		}()
 	}
-	if definition.Tools != nil {
-		child.ToolFilter = &harness.ToolRestriction{Allow: append([]string{}, definition.Tools...)}
+	if definition.Tools != nil || len(definition.DisallowedTools) > 0 {
+		filter := &harness.ToolRestriction{}
+		if definition.Tools != nil {
+			filter.Allow = append([]string{}, definition.Tools...)
+		}
+		if len(definition.DisallowedTools) > 0 {
+			filter.Deny = append([]string{}, definition.DisallowedTools...)
+		}
+		child.ToolFilter = filter
 	}
 	if s.readOnlyBuiltins[definition.Name] {
 		tools, err := s.readOnlyTools(ctx, parent)

@@ -30,25 +30,26 @@ type InvocationVisibility struct {
 
 // Component contains parsed instructions, not a grant to execute their tools.
 type Component struct {
-	Kind          ComponentKind        `json:"kind"`
-	Name          string               `json:"name"`
-	QualifiedName string               `json:"qualifiedName"`
-	Path          string               `json:"path"`
-	Description   string               `json:"description,omitempty"`
-	Content       string               `json:"-"`
-	Digest        string               `json:"digest"`
-	Visibility    InvocationVisibility `json:"visibility"`
-	ArgumentHint  string               `json:"argumentHint,omitempty"`
-	AllowedTools  []string             `json:"allowedTools,omitempty"`
-	Tools         []string             `json:"tools,omitempty"`
-	Model         string               `json:"model,omitempty"`
-	Effort        string               `json:"effort,omitempty"`
-	Isolation     string               `json:"isolation,omitempty"`
-	MaxTurns      int                  `json:"maxTurns,omitempty"`
-	Context       string               `json:"context,omitempty"`
-	Agent         string               `json:"agent,omitempty"`
-	Background    *bool                `json:"background,omitempty"`
-	Hooks         []claudehooks.Hook   `json:"hooks,omitempty"`
+	Kind            ComponentKind        `json:"kind"`
+	Name            string               `json:"name"`
+	QualifiedName   string               `json:"qualifiedName"`
+	Path            string               `json:"path"`
+	Description     string               `json:"description,omitempty"`
+	Content         string               `json:"-"`
+	Digest          string               `json:"digest"`
+	Visibility      InvocationVisibility `json:"visibility"`
+	ArgumentHint    string               `json:"argumentHint,omitempty"`
+	AllowedTools    []string             `json:"allowedTools,omitempty"`
+	Tools           []string             `json:"tools,omitempty"`
+	DisallowedTools []string             `json:"disallowedTools,omitempty"`
+	Model           string               `json:"model,omitempty"`
+	Effort          string               `json:"effort,omitempty"`
+	Isolation       string               `json:"isolation,omitempty"`
+	MaxTurns        int                  `json:"maxTurns,omitempty"`
+	Context         string               `json:"context,omitempty"`
+	Agent           string               `json:"agent,omitempty"`
+	Background      *bool                `json:"background,omitempty"`
+	Hooks           []claudehooks.Hook   `json:"hooks,omitempty"`
 }
 
 type componentHeader struct {
@@ -57,6 +58,7 @@ type componentHeader struct {
 	ArgumentHint           componentText  `yaml:"argument-hint"`
 	AllowedTools           componentTools `yaml:"allowed-tools"`
 	Tools                  componentTools `yaml:"tools"`
+	DisallowedTools        componentTools `yaml:"disallowedTools"`
 	Model                  componentText  `yaml:"model"`
 	Effort                 componentText  `yaml:"effort"`
 	Isolation              componentText  `yaml:"isolation"`
@@ -221,6 +223,7 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 	component.ArgumentHint = string(header.ArgumentHint)
 	component.AllowedTools = []string(header.AllowedTools)
 	component.Tools = []string(header.Tools)
+	component.DisallowedTools = []string(header.DisallowedTools)
 	component.Model = strings.TrimSpace(string(header.Model))
 	if effort := strings.TrimSpace(string(header.Effort)); effort != "" && !validSkillEffort(effort) {
 		add(SeverityError, "INVALID_COMPONENT_FIELD", "effort", "Skill effort must be low, medium, high, xhigh, or max.")
@@ -359,7 +362,7 @@ func knownComponentField(kind ComponentKind, key string) bool {
 		return true
 	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background":
 		return kind != ComponentAgent
-	case "tools", "color", "isolation", "maxTurns":
+	case "tools", "disallowedTools", "color", "isolation", "maxTurns":
 		return kind == ComponentAgent
 	}
 	return false

@@ -20,6 +20,7 @@ type AgentDefinition struct {
 	Name, Description, Instructions, Model, Effort, Isolation string
 	MaxTurns                                                  int
 	Tools                                                     []string
+	DisallowedTools                                           []string
 }
 
 func validAgentEffort(effort string) bool {
@@ -139,6 +140,9 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		}
 		if definition.Tools != nil {
 			definition.Tools = append([]string{}, definition.Tools...)
+		}
+		if definition.DisallowedTools != nil {
+			definition.DisallowedTools = append([]string{}, definition.DisallowedTools...)
 		}
 		service.definitions[definition.Name] = definition
 	}
