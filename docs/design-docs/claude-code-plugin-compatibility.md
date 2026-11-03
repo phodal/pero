@@ -886,3 +886,19 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 实际调用合计 Read 23、Bash 39、Write 4、Edit 1、Grep 2、structured_output 4；44 次批准由显式测试客户端自动选择 allow-once，并非真人审阅，Bash 没有额外 OS sandbox。工具错误为零，根 session/prompt 正常 end_turn，进程退出码为 0 且无清理错误。56 个 completion 都带 provider usage；回执保留实际字段，不估算美元费用。第一次不完整记录与第二次成功记录分别保留，不合并为一次成功运行。
 
 这证明原始审查子流程在真实模型与实际 Git/文件/测试操作下可运行；不扩大为完整 coder 开发、worktree、人工返修决策及 merge 编排已经通过，也不证明所有质量维度、所有缺陷识别或全部 15 个插件都已验收。可重跑入口默认只准备 fixture，--execute 才显式调用模型；接受条件检查真实 journal、原解析器、代码快照和测试，不能仅凭文件存在判成功。本批配置迁移测试四项、原插件测试十二项及 Trial 既有十五项回归通过。
+
+### 16.17 多仓 worktree 的真实 CLI 链路
+
+继续优先验证插件业务链路，LSP 连续诊断保留为低优先级。新增显式选择原 coder 包的 CLI/ACP 回归：外层目录不是 Git 仓库且路径含空格，内含两个独立仓库。原 multi-repo-worktree 脚本创建两个 worktree，真实子代理通过原生 Read/Write 操作隔离文件；父代理实际提交、从 worktree 内恢复 registry，最后以显式 --repos 清理。两个原仓库的文件不变，隔离分支的提交保留，两个 worktree 目录均移除。[可重跑测试](../../harness/go/cmd/pero-agent-acp/coder_worktree_test.go)
+
+首次运行在清理阶段暴露原插件 `args.repos.map(resolve)` 的回调参数问题；Node 把 index/array 当作路径，尚未运行 Git 就报错。独立迁移用单参数回调修复这一精确快照，保留 before/after SHA-256、预检和幂等机制，没有在 Harness 中忽略清理失败，也没有移除 --repos 掩盖缺陷。[迁移入口](../../harness/go/plugins/migrations/README.md#selected-worktree-repair)、[问题与证据](../issues/2026-11-03-coder-worktree-repos.md)
+
+修复后带 race 的实际 CLI 回归连续三次通过，每次五次父模型请求、四次子模型请求、五次实际工具审批。模型为 loopback HTTP fixture；Git、Node、文件和 CLI 子进程均真实执行，不冒充真实模型的开发判断。原插件八条 worktree/branch-merge 测试另行通过。最终完整 CLI race/vet 与 Go 模块下的 Bazel CLI 目标通过。此步骤证明多仓工作目录和清理链路，不表示完整开发入口或最终合并已经通过。
+
+### 16.18 完整入口验证与显式权限选择
+
+真实模型完整入口使用隔离 Node ES module 项目，通过原 `/coder:coder` 新建 batch-labels；由原分类器选择 standard，保留需求、方案和人工确认门禁。首轮实际发出 167 次 HTTP 请求，推进到 `plan:design`，以 max_tokens 终止；不能因部分报告已存在而判成功。单次输出上限为 4096，零自动重试；既有会话、工程和原 workflow 状态全部保留，用于显式恢复同一需求。模型为明确映射后的 deepseek-flash，不能当作原 Claude 模型质量等价的证明。
+
+首轮手动 full-access 模式中，未预授权的动态 skill 命令被 noninteractive unavailable 拒绝。这符合动态注入不能弹出审批问题的手动权限契约，不作为运行时缺陷绕过。Trial 现可通过 permission_mode 显式选择已有 ACP 模式，默认仍为开启 shell 时 full-access、否则 workspace-write，回执记录实际选择。Harness auto-review 允许普通 scoped 操作，语义不等于 Claude 的自动风险分类器；开启 shell 仍需明确 enable_shell 和 allow-unsandboxed。[官方注入权限说明](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)、[Trial 使用契约](../../harness/tools/trial/README.md)
+
+真实 CLI/loopback 回归验证同一动态 skill 在 full-access 下于首次模型请求之前失败，显式 auto-review 下完成动态上下文展开及两次原生 Write，没有额外审批问题；没有修改运行时审批规则。Trial 十六项测试与迁移五项测试通过。恢复验收显式提高单次输出上限到 16384、选择 auto-review，继续原 session 和 batch-labels。确认由 first-option 测试客户端回答，记录为机器策略，不是真人验收；最终仍以原编排状态、实际测试、审查结果和合并快照为准。
