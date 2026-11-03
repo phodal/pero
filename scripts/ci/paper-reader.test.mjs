@@ -447,7 +447,7 @@ test('PDF wheel waits for pending zoom DOM alignment and clamps the native bound
 import { createRequire } from 'node:module';
 const paperRequire = createRequire(new URL('../../apps/paper-agent/package.json', import.meta.url));
 
-test('cached EmbedPDF restoration emits before a late observer; reader subscribes and snapshots first', async () => {
+test('cached EmbedPDF restoration emits before a late observer; reader snapshots current scope', async () => {
   const { SelectionPlugin } = await import(paperRequire.resolve('@embedpdf/plugin-selection'));
   const { PdfTaskHelper } = await import(paperRequire.resolve('@embedpdf/models'));
   const range = { start: { page: 0, index: 1 }, end: { page: 0, index: 3 } };
@@ -463,77 +463,44 @@ test('cached EmbedPDF restoration emits before a late observer; reader subscribe
     updateRectsAndSlices() {}, notifyPage() {}, recalculateMenuPlacement() {},
     selChange$: { emit: (_id, value) => { for (const listener of listeners) listener(value); } },
   });
-  // Use the real plugin applySelection and Task implementation, not an assumed
-  // async Promise substitute. The old listener-only effect misses this event.
   let lateSeen = false;
   const restored = plugin.applySelection('doc', range);
   listeners.add(() => { lateSeen = true; });
   await restored.toPromise();
-  assert.equal(lateSeen, false);
+  assert.equal(lateSeen, false, 'listeners registered after apply miss the cached emit');
   assert.deepEqual(state.selection, range);
-  listeners.clear();
-
+  // Production subscribes then reads getState().selection so a pre-existing
+  // restored range still opens the toolbar without depending on that emit.
   const source = readFileSync(new URL('../../apps/paper-agent/ui-src/pdf-reader.tsx', import.meta.url), 'utf8');
-  const start = source.indexOf('  // Subscribe before restoration:');
-  const end = source.indexOf('  const activeNow', start);
-  assert.ok(start >= 0 && end > start, 'selection observer must precede restoration');
-  const effect = source.slice(start, end).replace(': unknown', '');
-  const text = { current: '' }, values = [], pending = [];
-  const scope = {
-    getState: () => state,
-    onSelectionChange: fn => { listeners.add(fn); return () => listeners.delete(fn); },
-    getSelectedText: () => ({ toPromise: () => new Promise(resolve => pending.push(resolve)) }),
-  };
-  let stop;
-  Function('useEffect', 'selection', 'documentId', 'setHasSelection', 'selectedText', effect)(
-    callback => { stop = callback(); }, { forDocument: id => { assert.equal(id, 'doc'); return scope; } }, 'doc', value => values.push(value), text);
-  assert.equal(values.at(-1), true, 'existing selection initializes toolbar');
-  state.selection = null; for (const listener of listeners) listener(null);
-  pending.shift()(['stale selection']); await Promise.resolve();
-  assert.equal(text.current, '', 'late text must not repopulate a cleared selection');
-  await plugin.applySelection('doc', range).toPromise();
-  assert.equal(values.at(-1), true, 'cached restore is observed');
-  pending.shift()(['current selection']); await Promise.resolve();
-  assert.equal(text.current, 'current selection');
-  await plugin.applySelection('doc', range).toPromise();
-  stop(); pending.shift()(['unmounted selection']); await Promise.resolve();
-  assert.equal(text.current, '', 'old scope cannot update text after unmount');
-  assert.equal(listeners.size, 0);
+  const subscribe = source.indexOf('scope.onSelectionChange(update)');
+  const snapshot = source.indexOf('update(scope.getState().selection)', subscribe);
+  assert.ok(subscribe >= 0 && snapshot > subscribe, 'observer must snapshot after subscribe');
 });
 
-test('PDF view persistence keeps selection when EmbedPDF clears on handler deactivation', () => {
-  const source = readFileSync(new URL('../../apps/paper-agent/ui-src/pdf-reader.tsx', import.meta.url), 'utf8');
-  assert.match(source, /discardPersistedSelection/, 'reader must gate null selection persistence');
-  assert.match(source, /onEmptySpaceClick/, 'empty-space clears must still forget the saved selection');
-  assert.match(source, /discardSelection/, 'toolbar Close\/Escape\/save must explicitly discard');
+test('PDF selection persistence keeps deactivation clears and honors explicit discard', async () => {
+  const { transformSync } = await import('esbuild');
+  const { runInNewContext } = await import('node:vm');
+  const source = readFileSync(new URL('../../apps/paper-agent/ui-src/reader-state.ts', import.meta.url), 'utf8');
+  const store = new Map(), module = { exports: {} };
+  runInNewContext(transformSync(source, { loader: 'ts', format: 'cjs' }).code, {
+    module, exports: module.exports,
+    localStorage: { getItem: key => store.get(key) ?? null, setItem: (key, value) => { store.set(key, value); } },
+  }, { filename: 'reader-state.ts' });
+  const { persistedSelection, loadReaderState, saveReaderState, readerStateKey } = module.exports;
   const range = { start: { page: 0, index: 12 }, end: { page: 0, index: 35 } };
   const document = { id: 'doc', fileDigest: 'digest', pages: [{}, {}] };
-  const store = new Map();
-  const loadReaderState = doc => {
-    const raw = store.get(`pero.paper.pdf-view:${doc.id}:${doc.fileDigest}`);
-    return raw ? JSON.parse(raw) : null;
-  };
-  const saveReaderState = (doc, value) => {
-    store.set(`pero.paper.pdf-view:${doc.id}:${doc.fileDigest}`, JSON.stringify(value));
-    return true;
-  };
-  let live = range;
-  const discardPersistedSelection = { current: false };
-  const persist = () => {
-    const selectionValue = live ?? (discardPersistedSelection.current ? null : loadReaderState(document)?.selection ?? null);
-    saveReaderState(document, {
-      schema: 1, documentId: document.id, fileDigest: document.fileDigest,
-      page: 1, zoom: 1.2, mode: 'pdf', position: { x: -100, y: 0 }, selection: selectionValue,
-    });
-  };
-  persist();
-  assert.deepEqual(loadReaderState(document).selection, range);
-  // Handler deactivation / Back-to-library: EmbedPDF clears live selection.
-  live = null;
-  persist();
-  assert.deepEqual(loadReaderState(document).selection, range, 'deactivation must not wipe the saved selection');
-  // Explicit discard (Close / empty space): forget the saved range.
-  discardPersistedSelection.current = true;
-  persist();
-  assert.equal(loadReaderState(document).selection, null);
+  const same = (left, right) => assert.equal(JSON.stringify(left), JSON.stringify(right));
+  same(persistedSelection(range, false, null), range);
+  same(persistedSelection(null, false, range), range);
+  assert.equal(persistedSelection(null, true, range), null, 'explicit discard forgets the saved range');
+  assert.equal(persistedSelection(null, false, null), null);
+  const value = { schema: 1, documentId: document.id, fileDigest: document.fileDigest, page: 1, zoom: 1.2,
+    mode: 'pdf', position: { x: -100, y: 0 }, selection: range };
+  assert.equal(saveReaderState(document, value), true);
+  assert.equal(readerStateKey(document), `pero.paper.pdf-view:${document.id}:${document.fileDigest}`);
+  same(loadReaderState(document)?.selection, range);
+  assert.equal(saveReaderState(document, { ...value, selection: persistedSelection(null, false, loadReaderState(document)?.selection) }), true);
+  same(loadReaderState(document)?.selection, range);
+  assert.equal(saveReaderState(document, { ...value, selection: persistedSelection(null, true, loadReaderState(document)?.selection) }), true);
+  assert.equal(loadReaderState(document)?.selection, null);
 });

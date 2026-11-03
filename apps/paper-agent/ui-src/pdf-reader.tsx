@@ -16,7 +16,7 @@ import wasmUrl from '@embedpdf/pdfium/pdfium.wasm';
 import type { Api, Paper, PdfAnnotation, PdfDocument, PdfFocus, PdfReading, PdfSource } from './types';
 import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
-import { loadReaderState, saveReaderState, type PdfReaderState } from './reader-state';
+import { loadReaderState, persistedSelection, saveReaderState, type PdfReaderState } from './reader-state';
 import { TexReader } from './tex-reader';
 
 type ReadingView = 'text' | 'pdf' | 'tex' | 'original';
@@ -177,7 +177,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       const live = selected.getState().selection;
       // Handler deactivation emits null without user intent; keep the last saved
       // selection so Desktop restart can restore the Highlight toolbar.
-      const selectionValue = live ?? (discardPersistedSelection.current ? null : loadReaderState(document)?.selection ?? null);
+      const selectionValue = persistedSelection(live, discardPersistedSelection.current, loadReaderState(document)?.selection);
       if (live) discardPersistedSelection.current = false;
       const value: PdfReaderState = { schema: 1, documentId: document.id, fileDigest: document.fileDigest,
         page: metrics.currentPage, zoom: scale, mode: activeNow.current ? 'pdf' : 'text',
