@@ -1,10 +1,11 @@
+import { installPaperFetchObserver } from './paper-fetch-observer.mjs';
 import { paperDocumentBackendFixture } from './paper-backend-fixture.mjs';
 // Offline authored corpus through actual Desktop/Host/approved Paper APIs/PDFium.
 // No mocked API responses, remote provider or scientific acceptance claim.
 // One refresh holds the unchanged real App fetch response to exercise busy UI.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { deferDocumentRefresh } from './paper-document-refresh-gate.mjs';
+import { deferDocumentRefresh, deferScopeOverview } from './paper-document-refresh-gate.mjs';
 import { openResearchImport, inspectResearchReview } from './paper-research-ui-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
 import { setPaperAppearance, backToLibrary, saveLibraryCopies } from './paper-pdf-flow.mjs';
@@ -34,7 +35,9 @@ const checks = [], errors = [], remoteRequests = [];
 let app, page, frame;
 const launch = () => electron.launch({ args: [resolve(root, 'desktop')], cwd: root, env });
 async function ready() {
-  page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
+  page = await app.firstWindow();
+  await page.addInitScript(installPaperFetchObserver);
+  page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (/^https:\/\//.test(request.url())) remoteRequests.push(request.url()); });
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(() => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(app => app.name === 'paper-agent') ?? false)).toBe(true);
@@ -63,6 +66,39 @@ async function api(path, body) {
     const value = await response.json(); if (!response.ok) throw Error(value.detail || JSON.stringify(value)); return value;
   }, { path, body });
 }
+async function openParsingDetails() {
+  const details = frame.locator('.pa-structured-reading details').filter({ has: frame.locator('summary').filter({ hasText: /^Source and parsing details$/ }) });
+  await expect(details).toBeAttached({ timeout: 60000 });
+  if (!(await details.evaluate(element => element.open))) await details.locator('summary').click();
+  await expect(details).toHaveAttribute('open', '');
+}
+function readerReports() {
+  return frame.locator('.pa-structured-reading').getByRole('region', { name: 'Recorded evidence', exact: true });
+}
+async function openRecordedEvidence() {
+  // The Library's saved bundle stays mounted, and both report regions also
+  // have a heading with this text. Open only the Reader's own disclosure.
+  const details = frame.locator('.pa-structured-reading .pa-reading-column > details').filter({
+    has: frame.locator(':scope > summary').filter({ hasText: /^Recorded evidence$/ }),
+  });
+  await expect(details).toHaveCount(1);
+  if (!(await details.evaluate(element => element.open))) await details.locator(':scope > summary').click();
+  await expect(details).toHaveAttribute('open', '');
+  await expect(readerReports()).toBeVisible();
+}
+async function selectOriginalTable() {
+  const caption = frame.frameLocator('.pa-html-reading iframe').locator('[id="T1"] figcaption');
+  await expect(caption).toBeVisible();
+  await caption.evaluate(element => {
+    const range = element.ownerDocument.createRange(); range.selectNodeContents(element);
+    const selection = element.ownerDocument.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+    element.ownerDocument.dispatchEvent(new Event('selectionchange'));
+  });
+}
+async function expectReadVersion(identity) {
+  await openParsingDetails();
+  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toHaveAttribute('data-value', identity);
+}
 const requests = async () => (await readFile(resolve(profile, 'desktop/app-data/paper-agent/structured-fixture-requests.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
 const status = (bundle, resource) => api('/api/research/pdf', { operation: 'status', bundleId: bundle.id, resourceId: resource.id });
 try {
@@ -88,7 +124,7 @@ try {
   await expect(frame.getByRole('button', { name: 'Save and download', exact: true })).toBeDisabled();
   await frame.getByRole('checkbox', { name: /^I confirm downloading only/ }).check();
   await frame.getByRole('button', { name: 'Save and download', exact: true }).click();
-  await expect(frame.getByRole('region', { name: 'PDF reading sources', exact: true })).toBeVisible();
+  await expect(frame.locator('.pa-research-bundle').getByRole('region', { name: 'PDF', exact: true })).toBeVisible();
   const bundle = (await api('/api/library')).bundles[0];
   expect(bundle.htmlDownloadIds).toEqual([resource.id]); expect(bundle.pdfDownloadIds).toEqual([resource.id]);
   await expect.poll(async () => (await status(bundle, resource)).status, { timeout: 60000 }).toBe('completed');
@@ -122,7 +158,8 @@ try {
   await expect(rejection).toBeVisible();
   await writeFile(htmlFixture, original);
   await frame.getByRole('button', { name: 'Retry v2', exact: true }).click();
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
+  await openParsingDetails();
+  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeVisible();
   const overview = await api(`/api/paper-documents?paperId=${paperId}`), identity = overview.revisions[0].id;
   const document = await api(`/api/paper-documents/${identity}`);
   await expect(rejection).toHaveCount(0);
@@ -132,10 +169,14 @@ try {
   expect(document.sourceIdentity).toBe('response-explicit-version');
   const orderedAnchors = ['S1.p1', 'E1', 'T1', 'F1', 'code', 'note1', 'A'];
   const orderedBlocks = orderedAnchors.map(anchor => document.blocks.find(block => block.anchors.includes(anchor)).id);
-  await expect.poll(() => frame.locator('.pa-structured-reading [data-block-id]').evaluateAll(
-    (elements, ids) => elements.map(element => element.dataset.blockId).filter(id => ids.includes(id)), orderedBlocks
-  )).toEqual(orderedBlocks);
-  await expect(frame.locator('.pa-structured-reading [style*="column-count"]')).toHaveCount(0);
+  expect(new Set(orderedBlocks).size).toBe(orderedAnchors.length);
+  expect(document.blocks.map(block => block.id).filter(id => orderedBlocks.includes(id))).toEqual(orderedBlocks);
+  const article = frame.frameLocator('.pa-html-reading iframe');
+  await expect(frame.locator('.pa-structured-reading')).toHaveAttribute('data-document-id', identity);
+  await expect.poll(() => article.locator('[id]').evaluateAll(
+    (elements, ids) => elements.map(element => element.id).filter(id => ids.includes(id)), orderedAnchors
+  )).toEqual(orderedAnchors);
+  await expect(article.locator('[style*="column-count"]')).toHaveCount(0);
   checks.push('Two-column native HTML retains source DOM block order in Read without importing source presentation CSS or claiming PDF column reconstruction');
   expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(2);
   const table = document.blocks.find(b => b.kind === 'table'), equation = document.blocks.find(b => b.kind === 'equation'), figure = document.blocks.find(b => b.kind === 'figure');
@@ -151,19 +192,25 @@ try {
     expect(value.kind).toBe(block.kind); expect(value.evidenceAdmission).toBe('tool-observed-scope');
     expect(value.observationId).toMatch(/^[a-f0-9]{64}$/); observedIds.push(value.observationId);
   }
-  const tableView = frame.locator(`[data-block-id="${table.id}"]`);
+  const tableView = article.locator('[id="T1"]');
+  await expect(article.locator('[id="S1.p1"]')).toContainText('中文 Δ −1.20 µL.');
+  await expect(tableView).toContainText('−1.20');
+  await expect(tableView).toContainText('µL');
   await expect(tableView.locator('th[rowspan="2"]')).toHaveText('Method');
   await expect(tableView.locator('th[colspan="2"]')).toHaveText('Score');
   const gap = document.blocks.find(b => b.kind === 'table' && b.anchors.includes('Tgap'));
-  const gapRows = frame.locator(`[data-block-id="${gap.id}"] tr`);
+  expect(gap.anchors).toContain('Tgap');
+  const gapRows = article.locator('[id="Tgap"] tr');
   await expect(gapRows).toHaveCount(3);
   await expect(gapRows.nth(1).locator('td,th')).toHaveCount(0);
   await expect(gapRows.first().locator('td')).toHaveAttribute('rowspan', '2');
   await expect(gapRows.nth(2).locator('td')).toHaveText('B');
-  await expect(frame.locator(`[data-block-id="${equation.id}"] math`)).toBeVisible();
-  await expect(frame.locator(`[data-block-id="${figure.id}"]`)).toContainText('Image bytes not acquired or visually observed.');
-  await expect(frame.locator('.pa-structured-reading img')).toHaveCount(0);
-  await tableView.getByRole('button', { name: 'Reveal original', exact: true }).click();
+  await expect(article.locator('[id="E1"] math')).toBeVisible();
+  await expect(article.locator('[id="F1"] .reader-missing-image')).toHaveText('Image not downloaded: Synthetic diagram');
+  await expect(article.locator('[id="F1"] figcaption')).toHaveText('Figure 1: Caption is not image observation.');
+  await expect(article.locator('img')).toHaveCount(0);
+  await selectOriginalTable();
+  await frame.locator(`.pa-original-block-actions[data-block-id="${table.id}"]`).getByRole('button', { name: 'Reveal original', exact: true }).click();
   const originalPanel = frame.getByRole('complementary', { name: 'Original HTML source', exact: true });
   await expect(originalPanel.locator('pre')).toContainText('<figure class="ltx_table"');
   await expect(originalPanel.locator('pre')).toContainText('rowspan="2"');
@@ -177,10 +224,10 @@ try {
   const shortRaw = await api('/api/paper-document', { operation: 'source', documentId: identity, start: 13, limit: 17, bundleId: bundle.id, resourceId: resource.id });
   expect(shortRaw.content).toBe(original.toString('utf8').slice(13, 30)); observedIds.push(shortRaw.observationId);
   expect((await sourceReports({ operation: 'observations' })).observations.map(item => item.id).sort()).toEqual([...observedIds].sort());
-  await frame.getByText('Recorded evidence', { exact: true }).click();
-  await frame.getByRole('button', { name: 'Refresh recorded evidence', exact: true }).click();
-  const reports = frame.getByRole('region', { name: 'Source evidence reports', exact: true });
-  await reports.getByText('New report from recorded evidence', { exact: true }).click();
+  await openRecordedEvidence();
+  await frame.locator('.pa-structured-reading').getByRole('button', { name: 'Refresh recorded evidence', exact: true }).click();
+  const reports = readerReports();
+  await reports.locator('summary').filter({ hasText: /^New report from recorded evidence$/ }).click();
   await expect(reports.getByRole('checkbox')).toHaveCount(observedIds.length);
   for (const checkbox of await reports.getByRole('checkbox').all()) await checkbox.check();
   await reports.getByLabel('Report title', { exact: true }).fill('Structured scopes');
@@ -192,7 +239,7 @@ try {
   expect(sourceReport.observations.every(item => item.kind === 'scientific_document')).toBe(true);
   expect(sourceReport.observations.find(item => item.anchor.documentScopes[0].unit === 'images').anchor.visualReview).toBe('not_reviewed');
   await reports.getByRole('button', { name: `Open recorded cells 0–${tableRead.end}`, exact: true }).click();
-  await expect(tableView).toHaveAttribute('data-focused', 'true');
+  await expect(frame.locator(`.pa-document-block[data-block-id="${table.id}"]`)).toHaveAttribute('data-focused', 'true');
   await reports.getByRole('button', { name: 'Open recorded original-html 13–30', exact: true }).click();
   await expect(originalPanel.locator('pre')).toHaveText(shortRaw.content);
   await expect(originalPanel).toContainText('characters 13–30');
@@ -204,15 +251,15 @@ try {
   // Delay delivery only: the real API has already parsed/persisted its unchanged response.
   await frame.locator('body').evaluate(deferDocumentRefresh);
   try {
-    await frame.getByText('Source and parsing details', { exact: true }).click();
+    await openParsingDetails();
     await frame.getByRole('button', { name: 'Prepare fresh parse · v2', exact: true }).click();
     await expect.poll(() => frame.locator('body').evaluate(() => {
       if (window.paperRefreshGate.error) throw Error(window.paperRefreshGate.error);
       return window.paperRefreshGate.arrived;
     }), { message: 'Real document refresh response reached the App fetch gate' }).toBe(true);
-    await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeDisabled();
+    await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeDisabled();
     await frame.locator('body').evaluate(() => window.paperRefreshGate.release());
-    await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeEnabled();
+    await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeEnabled();
     expect(await frame.locator('body').evaluate(() => window.paperRefreshGate.delivered)).toBe(true);
   } finally {
     await frame.locator('body').evaluate(() => { window.paperRefreshGate.restore(); delete window.paperRefreshGate; });
@@ -225,16 +272,16 @@ try {
   await expect(bar.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('2');
   await expect(bar.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(zoom);
   await frame.getByRole('button', { name: 'Read', exact: true }).click();
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
+  await expectReadVersion(identity);
   await setPaperAppearance(page, 'dark');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
   await expect.poll(() => frame.locator('html').evaluate(e => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
   await page.screenshot({ path: resolve(out, 'structured-dark-narrow.png') });
   await backToLibrary(frame);
   await app.close(); app = await launch(); await ready(); await openPaper();
-  await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: bundle.title, exact: true }).click();
-  await frame.locator('.pa-research-bundle').getByText('Saved evidence', { exact: true }).click();
-  const bundleReports = frame.locator('.pa-research-bundle').getByRole('region', { name: 'Source evidence reports', exact: true });
+  await frame.getByRole('navigation', { name: 'Papers', exact: true }).getByRole('button', { name: bundle.title, exact: true }).click();
+  await frame.locator('.pa-research-bundle .pa-bundle-evidence > summary').filter({ hasText: /^Reading evidence and reports$/ }).click();
+  const bundleReports = frame.locator('.pa-research-bundle').getByRole('region', { name: 'Recorded evidence', exact: true });
   await bundleReports.getByRole('button', { name: 'Structured scopes', exact: true }).click();
   await expect(bundleReports.getByRole('article', { name: 'Saved source evidence report', exact: true })).toBeVisible();
   await expect(bundleReports.getByRole('button', { name: /^Open recorded/ })).toHaveCount(0);
@@ -243,14 +290,14 @@ try {
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   const readButton = frame.getByRole('button', { name: 'Read', exact: true });
   await expect(readButton).toBeVisible(); await readButton.click();
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
+  await expectReadVersion(identity);
   expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
-  await frame.getByText('Recorded evidence', { exact: true }).click();
-  const reopenedReports = frame.getByRole('region', { name: 'Source evidence reports', exact: true });
+  await openRecordedEvidence();
+  const reopenedReports = readerReports();
   await reopenedReports.getByRole('button', { name: 'Structured scopes', exact: true }).click();
   await expect(reopenedReports.getByRole('article', { name: 'Saved source evidence report', exact: true })).toBeVisible();
   await reopenedReports.getByRole('button', { name: `Open recorded cells 0–${tableRead.end}`, exact: true }).click();
-  await expect(frame.locator(`[data-block-id="${table.id}"]`)).toHaveAttribute('data-focused', 'true');
+  await expect(frame.locator(`.pa-document-block[data-block-id="${table.id}"]`)).toHaveAttribute('data-focused', 'true');
   expect(await sourceReports({ operation: 'read', reportId: sourceReport.id })).toEqual(sourceReport);
   expect((await sourceReports({ operation: 'observations' })).observations).toHaveLength(observedIds.length);
   checks.push('Read/PDF retains page and zoom; real Desktop/backend restart reopens the same offline parse without acquisition');
@@ -265,32 +312,21 @@ try {
   await secondRow.getByRole('checkbox', { name: /^Allow official HTML for Read/ }).check();
   await frame.getByRole('checkbox', { name: /^I confirm downloading only/ }).check();
   await frame.getByRole('button', { name: 'Save and download', exact: true }).click();
-  await expect(frame.getByRole('region', { name: 'PDF reading sources', exact: true })).toBeVisible();
+  await expect(frame.locator('.pa-research-bundle').getByRole('region', { name: 'PDF', exact: true })).toBeVisible();
   const secondBundle = (await api('/api/library')).bundles.find(b => b.seedUrl === seed + '-second');
   expect(secondBundle.id).not.toBe(bundle.id);
   await expect.poll(async () => (await status(secondBundle, secondResource)).status, { timeout: 60000 }).toBe('completed');
   expect((await status(secondBundle, secondResource)).receipt.paperId).toBe(paperId);
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   await frame.getByRole('button', { name: 'Read', exact: true }).click();
-  await frame.getByText('Source and parsing details', { exact: true }).click();
+  await openParsingDetails();
   await expect(frame.getByRole('button', { name: 'Prepare fresh parse · v2', exact: true })).toHaveCount(2);
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toHaveValue(identity);
+  await expectReadVersion(identity);
   expect(await sourceReports({ operation: 'read', reportId: sourceReport.id })).toEqual(sourceReport);
+  await selectOriginalTable();
   // Hold only the real refreshed overview after B preparation. The old overview
   // still contains A; no original read may silently fall back to that scope.
-  await frame.locator('body').evaluate(() => {
-    const original = window.fetch; let release;
-    const held = new Promise(resolve => { release = resolve; });
-    window.paperScopeOverviewGate = { arrived: false, error: '', release, restore() { window.fetch = original; release(); } };
-    window.fetch = async (...args) => {
-      const response = await original.apply(window, args);
-      if (new URL(typeof args[0] === 'string' ? args[0] : args[0].url, location.href).pathname === '/api/paper-documents') {
-        if (!response.ok) window.paperScopeOverviewGate.error = `Overview failed: ${response.status}`;
-        await response.clone().arrayBuffer(); window.paperScopeOverviewGate.arrived = true; await held;
-      }
-      return response;
-    };
-  });
+  await frame.locator('body').evaluate(deferScopeOverview);
   try {
     await frame.getByRole('button', { name: 'Use saved Read · v2', exact: true }).click();
     await expect.poll(() => frame.locator('body').evaluate(() => {
@@ -298,14 +334,14 @@ try {
       return window.paperScopeOverviewGate.arrived;
     })).toBe(true);
     await expect(frame.getByRole('button', { name: 'Original HTML', exact: true })).toBeDisabled();
-    await expect(frame.getByRole('button', { name: 'Reveal original', exact: true }).first()).toBeDisabled();
+    await expect(frame.locator(`.pa-original-block-actions[data-block-id="${table.id}"]`).getByRole('button', { name: 'Reveal original', exact: true })).toBeDisabled();
     expect((await api('/api/research/source-report', { operation: 'observations', bundleId: secondBundle.id })).observations).toEqual([]);
     expect((await sourceReports({ operation: 'observations' })).observations).toHaveLength(observedIds.length);
     await frame.locator('body').evaluate(() => window.paperScopeOverviewGate.release());
     await expect(frame.getByRole('button', { name: 'Original HTML', exact: true })).toBeEnabled();
   } finally { await frame.locator('body').evaluate(() => { window.paperScopeOverviewGate.restore(); delete window.paperScopeOverviewGate; }); }
   const selectedEvidence = `${secondBundle.id}:${secondResource.id}`;
-  await expect(frame.getByRole('combobox', { name: 'Evidence bundle', exact: true })).toHaveValue(selectedEvidence);
+  await expect(frame.getByRole('button', { name: 'Evidence bundle', exact: true })).toHaveAttribute('data-value', selectedEvidence);
   expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   await frame.getByRole('button', { name: 'Original HTML', exact: true }).click();
   await expect(frame.getByRole('complementary', { name: 'Original HTML source', exact: true })).toBeVisible();
@@ -317,13 +353,13 @@ try {
   expect(secondReport.observations.every(o => o.bundleId === secondBundle.id && o.resourceId === secondResource.id)).toBe(true);
   expect(await sourceReports({ operation: 'read', reportId: sourceReport.id })).toEqual(sourceReport);
   await backToLibrary(frame); await app.close(); app = await launch(); await ready(); await openPaper();
-  await frame.getByRole('region', { name: 'Research bundles', exact: true }).getByRole('button', { name: secondBundle.title, exact: true }).click();
+  await frame.getByRole('navigation', { name: 'Papers', exact: true }).getByRole('button', { name: secondBundle.title, exact: true }).click();
   await frame.getByRole('button', { name: 'Open saved PDF', exact: true }).click();
   await frame.getByRole('button', { name: 'Read', exact: true }).click();
-  await expect(frame.getByRole('combobox', { name: 'Evidence bundle', exact: true })).toHaveValue(selectedEvidence);
-  await frame.getByText('Recorded evidence', { exact: true }).click();
-  await frame.getByRole('button', { name: 'Second scoped report', exact: true }).click();
-  await frame.getByRole('button', { name: 'Open recorded original-html 13–30', exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'Evidence bundle', exact: true })).toHaveAttribute('data-value', selectedEvidence);
+  await openRecordedEvidence();
+  await readerReports().getByRole('button', { name: 'Second scoped report', exact: true }).click();
+  await readerReports().getByRole('button', { name: 'Open recorded original-html 13–30', exact: true }).click();
   await expect(frame.getByRole('complementary', { name: 'Original HTML source', exact: true }).locator('pre')).toHaveText(secondRaw.content);
   expect((await requests()).filter(r => r.url === htmlUrl)).toHaveLength(3);
   expect(await api('/api/research/source-report', { operation: 'read', bundleId: secondBundle.id, reportId: secondReport.id })).toEqual(secondReport);
@@ -361,7 +397,8 @@ try {
   await page.screenshot({ path: resolve(out, 'toolbar-format-error.png') });
   await toolbarBar.getByRole('button', { name: 'Read', exact: true }).click();
   await frame.getByRole('button', { name: 'Retry v2', exact: true }).click();
-  await expect(frame.getByRole('combobox', { name: 'Read version', exact: true })).toBeVisible({ timeout: 60000 });
+  await openParsingDetails();
+  await expect(frame.getByRole('button', { name: 'Read version', exact: true })).toBeVisible();
   await expect(toolbarViewer).not.toBeVisible();
   await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
