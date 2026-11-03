@@ -43,6 +43,7 @@ type Component struct {
 	Tools           []string             `json:"tools,omitempty"`
 	DisallowedTools []string             `json:"disallowedTools,omitempty"`
 	Skills          []string             `json:"skills,omitempty"`
+	Memory          string               `json:"memory,omitempty"`
 	Model           string               `json:"model,omitempty"`
 	Effort          string               `json:"effort,omitempty"`
 	Isolation       string               `json:"isolation,omitempty"`
@@ -61,6 +62,7 @@ type componentHeader struct {
 	Tools                  componentTools `yaml:"tools"`
 	DisallowedTools        componentTools `yaml:"disallowedTools"`
 	Skills                 componentTools `yaml:"skills"`
+	Memory                 componentText  `yaml:"memory"`
 	Model                  componentText  `yaml:"model"`
 	Effort                 componentText  `yaml:"effort"`
 	Isolation              componentText  `yaml:"isolation"`
@@ -273,6 +275,10 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 				break
 			}
 		}
+		component.Memory = strings.TrimSpace(string(header.Memory))
+		if component.Memory != "" && component.Memory != "user" && component.Memory != "project" && component.Memory != "local" {
+			add(SeverityError, "INVALID_COMPONENT_FIELD", "memory", "Agent memory must be user, project, or local.")
+		}
 		if header.MaxTurns != nil {
 			if *header.MaxTurns < 1 {
 				add(SeverityError, "INVALID_COMPONENT_FIELD", "maxTurns", "Agent maxTurns must be a positive integer.")
@@ -373,7 +379,7 @@ func knownComponentField(kind ComponentKind, key string) bool {
 		return kind != ComponentAgent
 	case "background":
 		return true
-	case "tools", "disallowedTools", "skills", "color", "isolation", "maxTurns":
+	case "tools", "disallowedTools", "skills", "memory", "color", "isolation", "maxTurns":
 		return kind == ComponentAgent
 	}
 	return false

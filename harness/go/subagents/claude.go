@@ -23,6 +23,7 @@ type AgentDefinition struct {
 	Tools                                                     []string
 	DisallowedTools                                           []string
 	Skills                                                    []string
+	Memory                                                    string
 }
 
 func requestedBackground(value *bool) bool {
@@ -171,6 +172,9 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		}
 		if definition.Skills != nil {
 			definition.Skills = append([]string{}, definition.Skills...)
+		}
+		if definition.Memory != "" && definition.Memory != "user" && definition.Memory != "project" && definition.Memory != "local" {
+			return nil, fmt.Errorf("subagents: agent %q memory must be user, project, or local", definition.Name)
 		}
 		service.definitions[definition.Name] = definition
 	}

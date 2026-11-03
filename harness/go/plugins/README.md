@@ -106,6 +106,7 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   `disallowedTools` removes those tools from the agent.
   `background: true` starts the agent in the background unless the call sets `run_in_background` to false.
   `skills` preloads those skill bodies into the agent prompt and does not grant tools.
+  `memory` is `user`, `project`, or `local`. The agent sees and can update that scope's MEMORY.md. User memory stays in the plugin data directory.
   Custom/general-purpose agents retain their ID and history across completed
   turns and, with explicit persistence, JSONL reload. Explore/Plan and temporary
   ConfigureChild compositions remain one-shot. See the [agent profiles](../subagents/README.md).

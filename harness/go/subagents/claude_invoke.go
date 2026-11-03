@@ -108,6 +108,22 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if err != nil {
 		return nil, err
 	}
+	memoryNote, releaseMemory, err := prepareAgentMemory(parent, definition)
+	if err != nil {
+		return nil, err
+	}
+	if memoryNote != "" {
+		if instructions != "" {
+			instructions += "\n\n"
+		}
+		instructions += memoryNote
+	}
+	keepMemory := false
+	defer func() {
+		if !keepMemory && releaseMemory != nil {
+			releaseMemory()
+		}
+	}()
 	effort := input.Effort
 	if effort == "" {
 		effort = definition.Effort
@@ -194,6 +210,17 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if err != nil {
 		return nil, err
 	}
+	if releaseMemory != nil {
+		if cleanup == nil {
+			cleanup = releaseMemory
+		} else {
+			previous := cleanup
+			cleanup = func() {
+				previous()
+				releaseMemory()
+			}
+		}
+	}
 	task := &claudeTask{parent: parent, activation: activation, done: make(chan struct{}), cleanup: cleanup}
 	task.notifyParent.Store(input.Background && (s.backgroundNotices || input.ReportCompletion))
 	s.mu.Lock()
@@ -208,6 +235,7 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 		return nil, errors.Join(err, cleanupErr)
 	}
 	releaseWorktree = false
+	keepMemory = true
 	return task, nil
 }
 

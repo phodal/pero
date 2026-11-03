@@ -197,6 +197,78 @@ func TestClaudeTrustedInvocationCancellationJoinsChild(t *testing.T) {
 	}
 }
 
+func TestAgentProjectMemoryIsShownAndKeptInTheWorkspace(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, ".claude", "agent-memory", "reviewer")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "MEMORY.md"), []byte("remember the port\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var saw bool
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		saw = strings.Contains(request.System, "remember the port") && strings.Contains(request.System, filepath.Join(directory, "MEMORY.md"))
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	})
+	ctx := t.Context()
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = h.Dispose(cleanup)
+		_ = h.Drain(cleanup)
+	})
+	claude, err := MountClaude(ctx, h, []AgentDefinition{{Name: "reviewer", Description: "Review", Instructions: "Review.", Memory: "project"}}, ClaudeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "memory-parent", CWD: root, Provider: "fixture", Model: "parent-model", MaxSteps: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := claude.Invoke(ctx, parent, ClaudeInvocation{Definition: "reviewer", Prompt: "look"})
+	if err != nil || result.Status != harness.SubagentCompleted || !saw {
+		t.Fatalf("result=%+v err=%v saw=%v", result, err, saw)
+	}
+}
+
+func TestAgentUserMemoryStaysInThePluginDataDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("PERO_PLUGIN_DATA_HOME", home)
+	var saw bool
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		saw = strings.Contains(request.System, filepath.Join(home, "agent-memory", "reviewer", "MEMORY.md")) && strings.Contains(request.System, "Current memory is empty.")
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	})
+	ctx := t.Context()
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = h.Dispose(cleanup)
+		_ = h.Drain(cleanup)
+	})
+	claude, err := MountClaude(ctx, h, []AgentDefinition{{Name: "reviewer", Description: "Review", Instructions: "Review.", Memory: "user"}}, ClaudeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "user-memory-parent", CWD: t.TempDir(), Provider: "fixture", Model: "parent-model", MaxSteps: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := claude.Invoke(ctx, parent, ClaudeInvocation{Definition: "reviewer", Prompt: "look"})
+	if err != nil || result.Status != harness.SubagentCompleted || !saw {
+		t.Fatalf("result=%+v err=%v saw=%v", result, err, saw)
+	}
+}
+
 func TestAgentSkillsArePreloadedIntoThePrompt(t *testing.T) {
 	var saw bool
 	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {

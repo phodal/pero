@@ -6,6 +6,7 @@ go_library(
         "builtins.go",
         "claude.go",
         "claude_invoke.go",
+        "claude_memory.go",
         "claude_names.go",
         "inprocess.go",
         "managed.go",
