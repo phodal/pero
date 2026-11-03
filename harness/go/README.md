@@ -25,6 +25,11 @@ flags enable the explicit Claude plugin profile in ACP sessions, including
 qualified skills, package resources, hooks, MCP, agents and task tools.
 Do not publish raw sessions.
 
+The opt-in native [engineering profile](engineeringprofile/README.md) adds short
+root guidance, explicit host-bound verification contracts, settled check
+evidence and bounded stop feedback. Enable it with `--engineering-profile
+observe` or `feedback`; it keeps tool execution and approvals separate.
+
 An [isolated Bazel build](BAZEL.md) is available from `harness/go`. Its build
 graph is separate from the root server pilot; the server Go version and
 dependencies are unchanged. Native Go commands above remain supported.
