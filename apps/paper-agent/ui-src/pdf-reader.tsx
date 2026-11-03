@@ -93,8 +93,8 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   </div>;
 }
 
-export function PdfViewer({ document, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel, fileUrl, readOnly = false }: {
-  document: PdfDocument; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void; active: boolean; readLabel: string; fileUrl?: string; readOnly?: boolean;
+export function PdfViewer({ document, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel, fileUrl, readOnly = false, trailingActions }: {
+  document: PdfDocument; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void; active: boolean; readLabel: string; fileUrl?: string; readOnly?: boolean; trailingActions?: React.ReactNode;
   onSaved(annotation: PdfAnnotation): void; onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
 }) {
@@ -107,13 +107,13 @@ export function PdfViewer({ document, annotations, api, focus, t, onSaved, onDis
     createPluginRegistration(SelectionPluginPackage), createPluginRegistration(ZoomPluginPackage, { defaultZoomLevel: ZoomMode.FitPage }),
     createPluginRegistration(CapturePluginPackage, { scale: 2, withAnnotations: false }),
   ], [document.id, document.fileDigest, fileUrl]);
-  if (error) return <Feedback kind="error">{error.message}</Feedback>;
-  if (isLoading || !engine) return <p role="status">{t('loading')}</p>;
-  return <EmbedPDF engine={engine} plugins={plugins}>{({ activeDocumentId }) => activeDocumentId && <DocumentContent documentId={activeDocumentId}>{({ isLoaded, isError }) => isError ? <Feedback kind="error">{t('pdfLoadError')}</Feedback> : isLoaded ? <PdfPages chrome={chrome} onText={onText} active={active} readLabel={readLabel} initial={initial} document={document} documentId={activeDocumentId} annotations={annotations} api={api} focus={focus} t={t} onSaved={onSaved} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} readOnly={readOnly}/> : <p role="status">{t('loading')}</p>}</DocumentContent>}</EmbedPDF>;
+  if (error) return <Feedback kind="error">{error.message}{trailingActions}</Feedback>;
+  if (isLoading || !engine) return <><p role="status">{t('loading')}</p>{trailingActions}</>;
+  return <EmbedPDF engine={engine} plugins={plugins}>{({ activeDocumentId }) => activeDocumentId && <DocumentContent documentId={activeDocumentId}>{({ isLoaded, isError }) => isError ? <Feedback kind="error">{t('pdfLoadError')}{trailingActions}</Feedback> : isLoaded ? <PdfPages chrome={chrome} onText={onText} active={active} readLabel={readLabel} initial={initial} document={document} documentId={activeDocumentId} annotations={annotations} api={api} focus={focus} t={t} onSaved={onSaved} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} readOnly={readOnly} trailingActions={trailingActions}/> : <><p role="status">{t('loading')}</p>{trailingActions}</>}</DocumentContent>}</EmbedPDF>;
 }
 
-function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel, initial, readOnly }: {
-  readOnly?: boolean; initial: PdfReaderState | null; document: PdfDocument; documentId: string; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void; active: boolean; readLabel: string;
+function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel, initial, readOnly, trailingActions }: {
+  readOnly?: boolean; trailingActions?: React.ReactNode; initial: PdfReaderState | null; document: PdfDocument; documentId: string; annotations: PdfAnnotation[]; api: Api; focus?: PdfFocus | null; t: Translator; chrome: ReaderChrome; onText(): void; active: boolean; readLabel: string;
   onSaved(annotation: PdfAnnotation): void; onDiscuss?(text: string, source?: PdfSource): void;
   onMatrixAdded(): Promise<void>;
 }) {
@@ -255,6 +255,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button variant="ghost" aria-label={t('pdfNext')} disabled={!scroll || scrollState.currentPage >= document.pages.length} onClick={() => scroll?.scrollToNextPage('instant')}>›</Button>
       <Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfFitPage')} onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{Math.round((zoomState.currentZoomLevel || 1) * 100)}%</Button><Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button>
       <Popover className="pa-pdf-zoom-menu" label={t('pdfZoom')} trigger={`${Math.round((zoomState.currentZoomLevel || 1) * 100)}%`} triggerVariant="ghost" contentClassName="pa-pdf-zoom-panel">{() => <><Button variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button variant="ghost" onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{t('pdfFitPage')}</Button><Button variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button></>}</Popover>
+      {trailingActions}
     </div>;
   return <section className="pa-pdf-viewer" aria-label={readOnly ? 'TeX preview' : t('pdfReader')} tabIndex={0} onContextMenu={event => { if (readOnly) return; event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setMenu({ x: Math.max(0, Math.min(event.clientX - box.left, box.width - 200)), y: Math.max(0, Math.min(event.clientY - box.top, box.height - 190)) }); }} onKeyDown={event => { if (!readOnly && event.key === 'F10' && event.shiftKey) { event.preventDefault(); setMenu({ x: 16, y: 16 }); } }}>
     {chrome.toolbar ? createPortal(pager, chrome.toolbar) : <div className="pa-pdf-inline-toolbar">{pager}</div>}

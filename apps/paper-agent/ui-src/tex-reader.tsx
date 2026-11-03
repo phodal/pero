@@ -18,7 +18,7 @@ export function TexReader({ api, paper, active, openToken, chrome, t, onReview }
   api: Api; paper: Paper; active: boolean; openToken: number; chrome: ReaderChrome; t: Translator; onReview(): void;
 }) {
   const { t: copy } = useAppI18n({
-    files: { zh: '源码', en: 'Source files' }, close: { zh: '关闭源码', en: 'Close source files' },
+    files: { zh: '查看源码', en: 'View source files' }, close: { zh: '关闭源码', en: 'Close source files' },
     loading: { zh: '正在检查 TeX 源码…', en: 'Checking TeX source…' },
     compiling: { zh: '正在编译 TeX…首次运行需要下载排版依赖。', en: 'Compiling TeX… The first run downloads typesetting packages.' },
     retry: { zh: '重试编译', en: 'Retry compilation' }, compile: { zh: '编译预览', en: 'Compile preview' },
@@ -92,9 +92,9 @@ export function TexReader({ api, paper, active, openToken, chrome, t, onReview }
     } catch (error) { if (mounted.current) setError(error instanceof Error ? error.message : String(error)); }
   }
   const working = busy || compilation?.status === 'running';
-  const controls = <div className="pa-tex-controls">{source && <Button className="pa-tex-files-action" variant="ghost" aria-label={copy('files')} title={copy('files')} onClick={() => void files()}><Icon name="file-code" size={14}/><span>{copy('files')}</span></Button>}</div>;
+  const controls = <div className="pa-tex-controls">{source && <Button className="pa-tex-files-action" variant="ghost" aria-label={copy('files')} title={copy('files')} onClick={() => void files()}><Icon name="file-code" size={14}/></Button>}</div>;
   return <div className="pa-tex-reader" aria-busy={working}>
-    {active && (chrome.toolbar ? createPortal(controls, chrome.toolbar) : controls)}
+    {active && !preview && (chrome.toolbar ? createPortal(controls, chrome.toolbar) : controls)}
     {working && <p className="pa-loading" role="status">{overview ? copy('compiling') : copy('loading')}</p>}
     {error && <Feedback kind="error"><div><p>{error}</p><Button disabled={busy} onClick={() => source && entry ? void compile() : void load()}>{copy('retry')}</Button></div></Feedback>}
     {!busy && overview && !overview.sources.length && <div className="pa-tex-empty"><p>{copy('empty')}</p><Button onClick={onReview}>{copy('review')}</Button></div>}
@@ -104,7 +104,7 @@ export function TexReader({ api, paper, active, openToken, chrome, t, onReview }
         <Select label={copy('main')} value={entry} onChange={setEntry} options={source.entries.map(f => ({ value: f.id, label: f.path }))}/><Button onClick={() => void compile()}>{copy('compile')}</Button>
       </>}
     </div>}
-    {preview && <><PdfViewer key={preview.id} readOnly document={preview.document} fileUrl={`/api/tex-previews/${preview.id}/file`} annotations={[]} api={api} chrome={{ ...chrome, toolbar: active ? chrome.toolbar : null }} active={active} readLabel="Read" onText={() => {}} onSaved={() => {}} onMatrixAdded={async () => {}} t={t}/><span className="pa-tex-provenance">{copy('derived', { file: preview.entryPath })}{preview.diagnostics.includes('warning:') && ` / ${copy('warnings')}`}</span></>}
+    {preview && <><PdfViewer key={preview.id} readOnly document={preview.document} fileUrl={`/api/tex-previews/${preview.id}/file`} annotations={[]} api={api} chrome={{ ...chrome, toolbar: active ? chrome.toolbar : null }} active={active} readLabel="Read" onText={() => {}} onSaved={() => {}} onMatrixAdded={async () => {}} trailingActions={controls} t={t}/><span className="pa-tex-provenance">{copy('derived', { file: preview.entryPath })}{preview.diagnostics.includes('warning:') && ` / ${copy('warnings')}`}</span></>}
     {filesOpen && <Dialog title={`${copy('files')} — ${source?.revision ?? ''}`} size="lg" className="pa-tex-source-dialog" closeLabel={copy('close')} onClose={() => setFilesOpen(false)}>
       {!bundle ? <p role="status">{copy('loading')}</p> : source?.available && receipt ? <><p className="pa-muted">{preview?.engine ?? 'TeX'} / {preview?.entryPath ?? source.entries?.find(f => f.id === entry)?.path}</p>{preview && <details className="pa-tex-diagnostics"><summary>{copy('diagnostics')}</summary><p>{preview.archiveDigest}</p><pre>{preview.diagnostics}</pre></details>}<SourceBrowser inspectionOnly initialMemberId={entry} api={api} bundle={bundle} resourceId={source.resourceId} receipt={receipt} onRead={() => {}}/></> : source && <ResearchSources api={api} bundle={bundle} startSourceIds={[]} scopedIds={[source.resourceId]} onRead={() => {}} onState={state => { if (state.available && !source.available) { setFilesOpen(false); void load(); } }}/>} 
     </Dialog>}
