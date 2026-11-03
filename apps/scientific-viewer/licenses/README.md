@@ -8,4 +8,4 @@ Host-managed App environment. Its JavaScript/WASM distribution is not shipped:
 it requires dynamic JavaScript generation incompatible with the App CSP.
 The builder retains this notice and copies LICENSE files from pinned Mol*,
 PDF.js and fflate into dist/licenses.
-The twelve independently authored fixtures are CC0-1.0 synthetic data, not measurements.
+The thirteen independently authored fixtures are CC0-1.0 synthetic data, not measurements.

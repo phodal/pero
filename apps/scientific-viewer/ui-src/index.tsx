@@ -8,6 +8,7 @@ import { Molecules, Structure } from './molecular';
 import { Literature } from './literature';
 import { MolecularExplorer } from './explorer';
 import { TablePreview } from './table-preview';
+import { NotebookPreview } from './notebook-preview';
 import './styles.css';
 class PreviewBoundary extends React.Component<{children: React.ReactNode}, {error: string}> {
   state = { error: '' }; static getDerivedStateFromError(error: Error) { return { error: error.message }; }
@@ -19,6 +20,7 @@ function Preview({ asset }: { asset: Asset }) {
     case 'structure': return <Structure asset={asset} />;
     case 'molecule': return <Molecules asset={asset} />;
     case 'pdf': return <Literature file={asset} />;
+    case 'notebook': return <NotebookPreview asset={asset} />;
     case 'json': return <section className="metadata-preview" aria-label="JSON preview"><h2>Metadata</h2><pre>{JSON.stringify(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(asset.bytes)), null, 2)}</pre></section>;
     default: return <section className="preview-empty"><h2>Metadata only</h2><p className="muted">This format has no preview. Open Source details to inspect the file.</p></section>;
   }

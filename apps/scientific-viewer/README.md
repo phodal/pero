@@ -41,14 +41,19 @@ deletes the original disk file. No background import or model execution occurs.
 - Actual public PDF.js renders PDF evidence. Quotations/crops and explicit
   quotation review use Pero's existing Host Agent authority, never App credentials.
 - JSON displays escaped metadata. Unsupported formats and model weights remain opaque.
-- Twelve independently authored CC0-1.0 synthetic examples are not Point's sample
+- `.ipynb` opens a read-only Datalayer Viewer (`@datalayer/jupyter-react`) for
+  stored cells and outputs. No kernel starts and imported notebook bytes are not
+  executed as code. Complex MIME outputs follow JupyterLab rendermime; scientific
+  validity remains unverified.
+- Thirteen independently authored CC0-1.0 synthetic examples are not Point's sample
   set, experimental observations or scientific benchmarks.
 
 Browser engines are pinned in package-lock.json: Mol* MIT, PDF.js Apache-2.0,
-fflate MIT, Three.js MIT. RDKit BSD-3-Clause is pinned in the App Python environment, not npm.
+fflate MIT, Three.js MIT, `@datalayer/jupyter-react` MIT (with JupyterLab/Lumino
+runtime). RDKit BSD-3-Clause is pinned in the App Python environment, not npm.
 Build retains notices and public-engines.json. Molecule records go only to this
 App’s local authenticated backend, never a remote provider. No model weights or
-user scripts are loaded or executed.
+user scripts are loaded or executed; notebook preview does not start a kernel.
 
 Structure text containing `<`, `>`, or `&` is deliberately rejected before Mol*
 creation because its stock labels interpret metadata as HTML. Original bytes

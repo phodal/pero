@@ -13,7 +13,8 @@ test('production viewer replaces stale outputs and ships its pinned local engine
     await assert.rejects(stat(resolve(outdir, 'RDKit_minimal.js')), { code: 'ENOENT' });
     await assert.rejects(stat(resolve(outdir, 'RDKit_minimal.wasm')), { code: 'ENOENT' });
     for (const name of ['index.html', 'index.js', 'molstar.css', 'pdf.worker.mjs', 'licenses/RDKit.txt']) assert.ok((await stat(resolve(outdir, name))).size > 0);
-    assert.deepEqual(JSON.parse(await readFile(resolve(outdir, 'public-engines.json'))).map(item => item.name), ['molstar', 'pdfjs-dist', 'fflate', 'three', 'rdkit']);
+    assert.deepEqual(JSON.parse(await readFile(resolve(outdir, 'public-engines.json'))).map(item => item.name), ['molstar', 'pdfjs-dist', 'fflate', 'three', 'jupyter-react', 'rdkit']);
+    assert.ok((await stat(resolve(outdir, 'licenses/jupyter-react.txt'))).size > 0);
   } finally { await rm(outdir, { recursive: true, force: true }); }
 });
 

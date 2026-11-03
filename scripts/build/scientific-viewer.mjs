@@ -9,26 +9,36 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(import.meta.dirname, '../..');
 export async function buildScientificViewer({ outdir = resolve(root, 'apps/scientific-viewer/dist') } = {}) {
   const app = resolve(root, 'apps/scientific-viewer'), dist = outdir, modules = resolve(app, 'node_modules');
-  if (!['react', 'react-dom', 'molstar', 'pdfjs-dist', 'fflate', 'three'].every(name => existsSync(resolve(modules, name, 'package.json')))) {
+  if (!['react', 'react-dom', 'molstar', 'pdfjs-dist', 'fflate', 'three', '@datalayer/jupyter-react'].every(name => existsSync(resolve(modules, name, 'package.json')))) {
     const windows = process.platform === 'win32';
     if (windows && !process.env.npm_execpath) throw new Error('Run the build through npm on Windows');
     execFileSync(windows ? process.execPath : 'npm', [...(windows ? [process.env.npm_execpath] : []), 'ci', '--prefix', app, '--ignore-scripts'], { stdio: 'inherit' });
   }
   await rm(dist, { recursive: true, force: true });
   await mkdir(dist, { recursive: true });
+  // JupyterLab icons import SVG as source text; raster assets stay as data URLs.
+  // Webpack-style `~pkg/...` CSS imports are rewritten to package paths under node_modules.
+  const jupyterAssetPlugin = {
+    name: 'jupyter-asset-resolve',
+    setup(build) {
+      build.onResolve({ filter: /^~/ }, args => ({ path: resolve(modules, args.path.slice(1)) }));
+    },
+  };
   await build({ entryPoints: [resolve(app, 'ui-src/frame.tsx')], outfile: resolve(dist, 'index.js'), bundle: true, format: 'esm', platform: 'browser', target: 'chrome140', jsx: 'automatic', minify: true,
-    alias: { react: resolve(modules, 'react'), 'react-dom': resolve(modules, 'react-dom'), ...appSdkAliases(root) }, nodePaths: [modules], loader: { '.wasm': 'file', '.woff2':'file', '.woff':'file', '.ttf':'file' } });
+    alias: { react: resolve(modules, 'react'), 'react-dom': resolve(modules, 'react-dom'), ...appSdkAliases(root) }, nodePaths: [modules], plugins: [jupyterAssetPlugin],
+    loader: { '.wasm': 'file', '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.svg': 'text', '.png': 'dataurl', '.gif': 'dataurl', '.jpg': 'dataurl', '.jpeg': 'dataurl' } });
   for (const [source, target] of [
     ['molstar/build/viewer/molstar.css', 'molstar.css'],
     ['pdfjs-dist/build/pdf.worker.mjs', 'pdf.worker.mjs'], ['pdfjs-dist/standard_fonts', 'pdfjs-fonts'], ['pdfjs-dist/cmaps', 'pdfjs-cmaps'], ['pdfjs-dist/wasm', 'pdfjs-wasm'],
   ]) await cp(resolve(modules, source), resolve(dist, target), { recursive: true });
   await mkdir(resolve(dist, 'licenses'), { recursive: true });
   for (const name of ['molstar', 'pdfjs-dist', 'fflate', 'three']) await cp(resolve(modules, name, 'LICENSE'), resolve(dist, 'licenses', `${name}.txt`));
+  await cp(resolve(modules, '@datalayer/jupyter-react/LICENSE'), resolve(dist, 'licenses/jupyter-react.txt'));
   await cp(resolve(app, 'licenses/RDKit.txt'), resolve(dist, 'licenses/RDKit.txt'));
   const licenses = [];
-  for (const name of ['molstar', 'pdfjs-dist', 'fflate', 'three']) {
+  for (const name of ['molstar', 'pdfjs-dist', 'fflate', 'three', '@datalayer/jupyter-react']) {
     const pkg = JSON.parse(await readFile(resolve(modules, name, 'package.json'), 'utf8'));
-    licenses.push({ name, version: pkg.version, license: pkg.license });
+    licenses.push({ name: name === '@datalayer/jupyter-react' ? 'jupyter-react' : name, version: pkg.version, license: pkg.license });
   }
   licenses.push({ name: 'rdkit', version: '2026.9.1', license: 'BSD-3-Clause', runtime: 'Host Python backend' });
   await writeFile(resolve(dist, 'public-engines.json'), JSON.stringify(licenses, null, 2));

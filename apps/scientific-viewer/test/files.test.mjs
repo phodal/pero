@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseTable, spectrum, defaultNumericColumns, numericSeries, inspect, assetFrom, MAX_FILE, structureText, moleculeRecords } from '../ui-src/files.ts';
+import { parseNotebook } from '../ui-src/notebook.ts';
 import { examples } from '../ui-src/examples.ts';
+
 test('quoted CSV, missing values and spectrum gaps retain original rows', () => {
   const table = parseTable('x,y,note\n0,1,"a,b"\n1,,"two ""quotes"""\n2,3,end');
   assert.equal(table.rows[0][2], 'a,b'); assert.equal(table.rows[1][2], 'two "quotes"');
@@ -35,11 +37,26 @@ test('bounded opaque imports are hashed, not parsed or executed', async () => {
   await assert.rejects(assetFrom(new File([new Uint8Array(MAX_FILE + 1)], 'large')), /10 MiB/);
   assert.equal(inspect('unsafe.html'), 'opaque');
 });
-test('twelve independent synthetic examples include invalid and real engine inputs', () => {
-  assert.equal(examples.length, 12); assert.equal(new Set(examples.map(x => x.name)).size, 12);
+test('thirteen independent synthetic examples include invalid and real engine inputs', () => {
+  assert.equal(examples.length, 13); assert.equal(new Set(examples.map(x => x.name)).size, 13);
   for (const example of examples.filter(x => x.name.endsWith('.csv'))) assert.ok(parseTable(example.text).rows.length);
   assert.match(examples.find(x => x.name.endsWith('.pdf')).text, /^%PDF-1.4/);
   assert.ok(spectrum(parseTable(examples.find(x => x.name === 'invalid-spectrum.csv').text)).includes(null));
+  const notebook = parseNotebook(new TextEncoder().encode(examples.find(x => x.name === 'demo.ipynb').text));
+  assert.equal(inspect('demo.ipynb'), 'notebook');
+  assert.equal(notebook.nbformat, 4);
+  assert.equal(notebook.cells.length, 3);
+  assert.equal(notebook.cells[1].outputs?.length, 1);
+});
+test('notebook preview rejects non-nbformat payloads without executing cells', () => {
+  const bytes = text => new TextEncoder().encode(text);
+  assert.throws(() => parseNotebook(bytes('{')), /valid JSON/);
+  assert.throws(() => parseNotebook(bytes('[]')), /nbformat object/);
+  assert.throws(() => parseNotebook(bytes('{"nbformat":3,"cells":[]}')), /nbformat 4/);
+  assert.throws(() => parseNotebook(bytes('{"nbformat":4}')), /cells array/);
+  assert.throws(() => parseNotebook(bytes('{"nbformat":4,"cells":[null]}')), /objects/);
+  assert.throws(() => parseNotebook(bytes('{"nbformat":4,"cells":[{}]}')), /cell_type/);
+  assert.throws(() => parseNotebook(bytes(JSON.stringify({ nbformat: 4, cells: Array.from({ length: 501 }, () => ({ cell_type: 'markdown', source: [] })) }))), /500 cells/);
 });
 test('structure metadata cannot reach any Mol* HTML label sink', () => {
   const bytes = text => new TextEncoder().encode(text);

@@ -22,12 +22,13 @@ export function parseTable(text: string): Table {
   if (!headers.length || rows.some(row => row.length !== headers.length)) throw new Error('Inconsistent table columns');
   return { headers, rows, missing: rows.flat().filter(value => !value.trim()).length };
 }
-export function inspect(name: string): 'table' | 'structure' | 'molecule' | 'pdf' | 'json' | 'opaque' {
+export function inspect(name: string): 'table' | 'structure' | 'molecule' | 'pdf' | 'json' | 'notebook' | 'opaque' {
   const ext = name.split('.').at(-1)?.toLowerCase();
   if (['csv', 'tsv'].includes(ext ?? '')) return 'table';
   if (['pdb', 'cif', 'mmcif'].includes(ext ?? '')) return 'structure';
   if (['smi', 'smiles', 'mol', 'sdf'].includes(ext ?? '')) return 'molecule';
   if (ext === 'pdf') return 'pdf';
+  if (ext === 'ipynb') return 'notebook';
   if (ext === 'json') return 'json';
   return 'opaque';
 }
