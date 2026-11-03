@@ -151,7 +151,8 @@ def run_pipeline(config: TrialConfig) -> dict:
               "sessions": [asdict(item) for item in receipts], "runtime": "pero-agent-acp", "receipt_version": 1,
               "usage": asdict(sum_usage(tuple(item.usage for item in receipts))), "usage_source": "committed provider-reported completion usage",
               "cost_usd": None, "http_attempts": sum(item.http_attempts for item in receipts),
-              "unattended_questions": config.questions, "shell_policy": "allow-unsandboxed" if config.enable_shell else "disabled"}
+              "unattended_questions": config.questions, "shell_policy": "allow-unsandboxed" if config.enable_shell else "disabled",
+              "permission_mode": config.permission_mode}
     if artifact_error:
         output["artifact_error"] = artifact_error
     # Existing analysis tools consume session-shaped fields. Project the actual

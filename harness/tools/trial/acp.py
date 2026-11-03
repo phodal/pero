@@ -73,7 +73,7 @@ class ACPClient:
         result = self.call("session/new", {"cwd": str(self.workspace), "mcpServers": []})
         self.session_id = result["sessionId"]
         self.call("session/set_config_option", {"sessionId": self.session_id, "configId": "permission",
-                                                 "value": "full-access" if config.enable_shell else "workspace-write"})
+                                                 "value": config.permission_mode})
 
     def _read(self) -> None:
         try:

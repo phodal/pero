@@ -90,12 +90,13 @@ class TrialConfig:
     questions: str
     enable_shell: bool
     context_source: Path | None
+    permission_mode: str
 
     @staticmethod
     def parse(raw: object) -> TrialConfig:
         allowed = {"runtime", "harness_runner", "plugin_path", "workspace", "agent_binary", "endpoint", "model", "api_key_env",
                    "sessions", "prompt", "success_patterns", "max_continuations", "session_timeout", "timeout", "idle_timeout",
-                   "max_requests", "max_tokens", "budget", "max_retries", "unattended_questions", "enable_shell", "shell_policy", "context_source", "plugin_models"}
+                   "max_requests", "max_tokens", "budget", "max_retries", "unattended_questions", "enable_shell", "shell_policy", "context_source", "plugin_models", "permission_mode"}
         if not isinstance(raw, dict) or set(raw) - allowed:
             raise TrialError("unknown or invalid trial fields")
         if raw.get("runtime", "harness") != "harness":
@@ -148,6 +149,9 @@ class TrialConfig:
             raise TrialError("enabling shell requires explicit shell_policy allow-unsandboxed")
         if not enable_shell and "shell_policy" in raw:
             raise TrialError("shell_policy requires enable_shell")
+        permission = raw.get("permission_mode", "full-access" if enable_shell else "workspace-write")
+        if not isinstance(permission, str) or permission not in {"read-only", "workspace-write", "full-access", "auto-review"}:
+            raise TrialError("permission_mode must select an existing ACP permission mode")
         context = raw.get("context_source")
         return TrialConfig(plugin, workspace, binary, endpoint,
                            text(raw.get("model"), "model"), key, models, sessions, final_patterns,
@@ -155,7 +159,7 @@ class TrialConfig:
                            seconds(raw.get("idle_timeout", 600), "idle_timeout"),
                            integer(raw.get("max_requests", 64), "max_requests", 1, 100000),
                            integer(raw.get("max_tokens", 4096), "max_tokens", 1, 1048576), questions, enable_shell,
-                           Path(text(context, "context_source")) if context is not None else None)
+                           Path(text(context, "context_source")) if context is not None else None, permission)
 
     @property
     def required_patterns(self) -> tuple[str, ...]:

@@ -99,6 +99,21 @@ explicitly. The runtime then uses full-access permission mode and grants Bash
 requests; no OS sandbox is implied. Plugins remain trusted code: hooks and
 declared dynamic skill commands have their own existing execution paths.
 
+`permission_mode` explicitly selects an existing ACP mode: read-only,
+workspace-write, full-access or auto-review. The default remains full-access
+with shell enabled, otherwise workspace-write. The chosen mode is recorded in
+the receipt. Harness auto-review allows ordinary scoped tool operations without
+a client permission question; it is not Claude's automatic risk classifier.
+Shell still requires the explicit enable_shell/shell_policy settings above.
+
+Injected skill commands cannot display a permission question while rendering.
+In manual modes a command without a matching preapproval aborts rendering,
+even when later Bash requests could be approved by the client. A caller can
+explicitly choose auto-review for trusted fixture execution. The CLI regression
+checks that the same dynamic skill fails before any model request in full-access
+and runs in explicitly selected auto-review. No runtime permission bypass is
+added. See the [official injected-command permission contract](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands).
+
 An explicit context_source, or the base workspace's .context directory, can be
 copied into the isolated workspace. Symlinks and special files are refused.
 Timeout and closure cancel the ACP session, join its process and reclaim the

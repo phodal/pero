@@ -101,6 +101,37 @@ class RuntimeTrial(unittest.TestCase):
         with self.assertRaises(ProcessLookupError):
             os.kill(result["sessions"][0]["agent_pid"], 0)
 
+    def test_explicit_auto_review_renders_unmatched_skill_commands(self):
+        skill = self.plugin / "skills/report/SKILL.md"
+        skill.write_text('---\nname: report\ndescription: Dynamic context\ndisable-model-invocation: true\n---\nsnapshot !`printf trial-inline-context`\n')
+        for permission in ("full-access", "auto-review"):
+            with self.subTest(permission=permission):
+                calls = []
+
+                def dispatch(request):
+                    calls.append(request)
+                    if len(calls) == 1:
+                        self.assertIn("trial-inline-context", str(request["messages"]))
+                        self.assertNotIn("!`printf", str(request["messages"]))
+                        return [tool("Write", {"file_path": "reports/one.md", "content": "one"})]
+                    if len(calls) == 2:
+                        return [tool("Write", {"file_path": "reports/two.md", "content": "two"})]
+                    return [answer()]
+
+                with provider(dispatch) as endpoint:
+                    result = run_pipeline(self.config(endpoint, permission_mode=permission, enable_shell=True,
+                                                      shell_policy="allow-unsandboxed", max_continuations=0))
+                self.assertEqual(result["permission_mode"], permission)
+                if permission == "auto-review":
+                    self.assertTrue(result["pipeline_complete"])
+                    self.assertEqual(len(calls), 3)
+                else:
+                    self.assertFalse(result["pipeline_complete"])
+                    self.assertEqual(len(calls), 0)
+                events = [json.loads(line) for line in Path(result["journal_path"]).read_text().splitlines()]
+                self.assertFalse(any(row.get("type") == "PermissionDecision" for row in events))
+                self.assert_reclaimed(result)
+
     def test_real_plugin_questions_continuation_write_and_usage(self):
         calls = []
         def dispatch(request):

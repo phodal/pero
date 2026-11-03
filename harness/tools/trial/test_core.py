@@ -26,7 +26,8 @@ class TrialRules(unittest.TestCase):
     def test_unsupported_configuration_fails_before_execution(self):
         for change in ({"budget": 1}, {"budget": float("nan")}, {"max_retries": 1}, {"max_retries": False},
                        {"sessions": []}, {"enable_shell": True}, {"unattended_questions": "auto"},
-                       {"idle_timeout": 0}, {"max_requests": 0}, {"success_patterns": ["../outside"]}):
+                       {"idle_timeout": 0}, {"max_requests": 0}, {"success_patterns": ["../outside"]},
+                       {"permission_mode": "bypassPermissions"}, {"permission_mode": True}):
             with self.subTest(change=change):
                 with self.assertRaises(TrialError):
                     TrialConfig.parse(config_input() | change)
