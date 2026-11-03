@@ -12,7 +12,7 @@ import (
 )
 
 func TestCurrentSkillModelReceipts(t *testing.T) {
-	models := map[skillModelKey]skillModel{{"sample:first", "digest"}: {"fixture", "first"}, {"sample:second", "digest"}: {"fixture", "second"}}
+	models := map[skillModelKey]skillModel{{"sample:first", "digest"}: {provider: "fixture", model: "first"}, {"sample:second", "digest"}: {provider: "fixture", model: "second"}}
 	message := func(name, form, id string, turn int) harness.Message {
 		source, _ := json.Marshal(skillInvocation{Kind: "skill-invocation", Form: form, Name: name, Digest: "digest", Turn: turn, ID: id})
 		return harness.Message{Role: harness.RoleUser, Source: source}
@@ -99,6 +99,50 @@ func TestSkillModelToolInvocationTurnLifecycle(t *testing.T) {
 	}
 	if calls.Load() != 6 || agent.ModelSelection().Model != "primary" {
 		t.Fatalf("model leaked across turns: calls=%d selection=%+v", calls.Load(), agent.ModelSelection())
+	}
+}
+
+func TestSkillEffortAppliesForTheInvocationTurn(t *testing.T) {
+	requireCatalogPlatform(t)
+	root := canonicalTempDir(t)
+	selection := selectedFixture(t, root, "sample:focused")
+	selection.Definition.Effort = "high"
+	catalog, err := OpenSelected(t.Context(), nil, []FileSelection{selection})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer catalog.Close()
+	var calls atomic.Int32
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		index := int(calls.Add(1)) - 1
+		want := []harness.ReasoningEffort{"", "high", ""}
+		if index >= len(want) || request.ReasoningEffort != want[index] || request.Model != "primary" {
+			t.Errorf("request %d effort=%q model=%s", index+1, request.ReasoningEffort, request.Model)
+		}
+		if index == 0 {
+			return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: "Skill", ToolCallID: "effort-skill", Arguments: json.RawMessage(`{"skill":"sample:focused"}`)}}}}, nil
+		}
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	})
+	h, err := harness.Boot(t.Context(), harness.Options{Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
+	if err := MountCatalog(t.Context(), h, catalog, MountOptions{Claude: true}); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "skill-effort", CWD: root, Provider: "fixture", Model: "primary", MaxSteps: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"use the skill", "continue"} {
+		if _, err := agent.Prompt(t.Context(), harness.Message{Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if calls.Load() != 3 {
+		t.Fatalf("calls=%d", calls.Load())
 	}
 }
 

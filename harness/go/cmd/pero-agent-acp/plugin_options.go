@@ -57,7 +57,7 @@ func pluginSelections(packages []plugins.Package) ([]skills.FileSelection, []sub
 			}
 			selection := skills.FileSelection{
 				Root: pkg.Root, Path: component.Path,
-				Definition:    skills.Definition{Summary: skills.Summary{Name: component.QualifiedName, Description: component.Description, Digest: component.Digest}, Content: component.Content, AllowedTools: component.AllowedTools, Model: component.Model, Context: component.Context, Agent: component.Agent, Background: component.Background, Hooks: component.Hooks},
+				Definition:    skills.Definition{Summary: skills.Summary{Name: component.QualifiedName, Description: component.Description, Digest: component.Digest}, Content: component.Content, AllowedTools: component.AllowedTools, Model: component.Model, Effort: component.Effort, Context: component.Context, Agent: component.Agent, Background: component.Background, Hooks: component.Hooks},
 				UserInvocable: component.Visibility.User, ModelInvocable: component.Visibility.Model, ResourcePaths: pkg.Resources,
 			}
 			if index, exists := positions[component.QualifiedName]; exists {

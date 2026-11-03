@@ -42,6 +42,7 @@ type Component struct {
 	AllowedTools  []string             `json:"allowedTools,omitempty"`
 	Tools         []string             `json:"tools,omitempty"`
 	Model         string               `json:"model,omitempty"`
+	Effort        string               `json:"effort,omitempty"`
 	Context       string               `json:"context,omitempty"`
 	Agent         string               `json:"agent,omitempty"`
 	Background    *bool                `json:"background,omitempty"`
@@ -55,6 +56,7 @@ type componentHeader struct {
 	AllowedTools           componentTools `yaml:"allowed-tools"`
 	Tools                  componentTools `yaml:"tools"`
 	Model                  componentText  `yaml:"model"`
+	Effort                 componentText  `yaml:"effort"`
 	Context                componentText  `yaml:"context"`
 	Agent                  componentText  `yaml:"agent"`
 	Background             *componentBool `yaml:"background"`
@@ -216,6 +218,11 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 	component.AllowedTools = []string(header.AllowedTools)
 	component.Tools = []string(header.Tools)
 	component.Model = strings.TrimSpace(string(header.Model))
+	if effort := strings.TrimSpace(string(header.Effort)); effort != "" && !validSkillEffort(effort) {
+		add(SeverityError, "INVALID_COMPONENT_FIELD", "effort", "Skill effort must be low, medium, high, xhigh, or max.")
+	} else {
+		component.Effort = effort
+	}
 	component.Context = strings.TrimSpace(string(header.Context))
 	component.Agent = strings.TrimSpace(string(header.Agent))
 	if header.Background != nil {
@@ -322,11 +329,20 @@ func validComponentName(name string) bool {
 	return name != ""
 }
 
+func validSkillEffort(effort string) bool {
+	switch effort {
+	case "low", "medium", "high", "xhigh", "max":
+		return true
+	default:
+		return false
+	}
+}
+
 func knownComponentField(kind ComponentKind, key string) bool {
 	switch key {
 	case "name", "description", "model", "version", "license", "compatibility", "metadata", "homepage", "platforms":
 		return true
-	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background":
+	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background", "effort":
 		return kind != ComponentAgent
 	case "tools", "color":
 		return kind == ComponentAgent

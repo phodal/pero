@@ -36,6 +36,7 @@ type Definition struct {
 	Resources    []string           `json:"resources,omitempty"`
 	AllowedTools []string           `json:"allowedTools,omitempty"`
 	Model        string             `json:"model,omitempty"`
+	Effort       string             `json:"effort,omitempty"`
 	Context      string             `json:"context,omitempty"`
 	Agent        string             `json:"agent,omitempty"`
 	Background   *bool              `json:"background,omitempty"`

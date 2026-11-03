@@ -16,6 +16,7 @@ func TestComponentDefinitions(t *testing.T) {
 		wantTools           []string
 		wantAllowedTools    []string
 		wantBody            string
+		wantEffort          string
 		wantCodes           []string
 	}{
 		{name: "skill directory default", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "Review this change.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantBody: "Review this change."},
@@ -34,7 +35,9 @@ func TestComponentDefinitions(t *testing.T) {
 		{name: "agent ignored permission field", kind: ComponentAgent, path: "agents/review.md", content: "---\nname: review\ndescription: Analyze.\npermissionMode: bypassPermissions\n---\nPrompt.", wantName: "review", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"IGNORED_PLUGIN_AGENT_FIELD"}},
 		{name: "agent display fallback", kind: ComponentAgent, path: "agents/review.md", content: "---\nname: review\ndescription: Analyze.\ncolor: magenta\n---\nPrompt.", wantName: "review", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"INVALID_AGENT_COLOR"}},
 		{name: "skill visibility does not configure agent", kind: ComponentAgent, path: "agents/review.md", content: "---\nname: review\ndescription: Analyze.\nuser-invocable: false\n---\nPrompt.", wantName: "review", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"UNSUPPORTED_COMPONENT_FIELD"}},
-		{name: "unsupported behavior diagnosed", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\neffort: high\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantBody: "Inspect.", wantCodes: []string{"UNSUPPORTED_COMPONENT_FIELD"}},
+		{name: "unsupported behavior diagnosed", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\ntemperature: 0\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantBody: "Inspect.", wantCodes: []string{"UNSUPPORTED_COMPONENT_FIELD"}},
+		{name: "skill effort", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\neffort: high\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantBody: "Inspect.", wantEffort: "high"},
+		{name: "invalid skill effort", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\neffort: turbo\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantBody: "Inspect.", wantCodes: []string{"INVALID_COMPONENT_FIELD"}},
 		{name: "invalid logical name", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\nname: bad:name\n---\nInspect.", wantName: "bad:name", wantVisibility: InvocationVisibility{true, true}, wantBody: "Inspect.", wantCodes: []string{"INVALID_COMPONENT_NAME"}},
 		{name: "unclosed frontmatter", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\nname: review\nInspect.", wantVisibility: InvocationVisibility{true, true}, wantCodes: []string{"INVALID_FRONTMATTER"}},
 		{name: "frontmatter must be mapping", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\n- review\n---\nInspect.", wantVisibility: InvocationVisibility{true, true}, wantCodes: []string{"INVALID_FRONTMATTER"}},
@@ -47,7 +50,7 @@ func TestComponentDefinitions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, diagnostics := ParseComponent("example", tt.kind, tt.path, []byte(tt.content))
-			if got.Name != tt.wantName || got.Description != tt.wantDescription || got.Content != tt.wantBody || got.Visibility != tt.wantVisibility {
+			if got.Name != tt.wantName || got.Description != tt.wantDescription || got.Content != tt.wantBody || got.Visibility != tt.wantVisibility || got.Effort != tt.wantEffort {
 				t.Fatalf("component = %+v, want name=%q description=%q body=%q visibility=%+v", got, tt.wantName, tt.wantDescription, tt.wantBody, tt.wantVisibility)
 			}
 			if tt.wantName != "" && got.QualifiedName != "example:"+tt.wantName {

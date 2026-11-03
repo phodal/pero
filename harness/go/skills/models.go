@@ -10,7 +10,10 @@ import (
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
-type skillModel struct{ provider, model string }
+type skillModel struct {
+	provider, model string
+	effort          harness.ReasoningEffort
+}
 type skillModelKey struct{ name, digest string }
 
 // Model aliases are resolved once from trusted launch configuration. Invocation
@@ -20,23 +23,27 @@ func mountSkillModels(run *point.Run, hooks *harness.AgentHooks, catalog *Catalo
 	catalog.mu.Lock()
 	var definitions []Definition
 	for _, entry := range catalog.entries {
-		if entry.definition.Claude && entry.definition.Context != "fork" && entry.definition.Model != "" && entry.definition.Model != "inherit" {
+		if entry.definition.Claude && entry.definition.Context != "fork" && (entry.definition.Model != "" && entry.definition.Model != "inherit" || entry.definition.Effort != "") {
 			definitions = append(definitions, entry.definition)
 		}
 	}
 	catalog.mu.Unlock()
 	for _, definition := range definitions {
-		if options.ResolveModel == nil {
-			return errors.New("skills: model overrides require explicitly configured model aliases")
+		selected := skillModel{effort: harness.ReasoningEffort(definition.Effort)}
+		if definition.Model != "" && definition.Model != "inherit" {
+			if options.ResolveModel == nil {
+				return errors.New("skills: model overrides require explicitly configured model aliases")
+			}
+			provider, model, err := options.ResolveModel(definition.Model)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(provider) == "" || strings.TrimSpace(model) == "" {
+				return errors.New("skills: model alias resolved to an empty route")
+			}
+			selected.provider, selected.model = provider, model
 		}
-		provider, model, err := options.ResolveModel(definition.Model)
-		if err != nil {
-			return err
-		}
-		if strings.TrimSpace(provider) == "" || strings.TrimSpace(model) == "" {
-			return errors.New("skills: model alias resolved to an empty route")
-		}
-		models[skillModelKey{definition.Name, definition.Digest}] = skillModel{provider, model}
+		models[skillModelKey{definition.Name, definition.Digest}] = selected
 	}
 	if len(models) == 0 {
 		return nil
@@ -49,7 +56,12 @@ func mountSkillModels(run *point.Run, hooks *harness.AgentHooks, catalog *Catalo
 		if model, found, err := currentSkillModel(request.Agent.Session().Events(), request.Messages, request.Turn, models); err != nil {
 			return request, err
 		} else if found {
-			request.Provider, request.Model, request.TransientModel = model.provider, model.model, true
+			if model.provider != "" {
+				request.Provider, request.Model, request.TransientModel = model.provider, model.model, true
+			}
+			if model.effort != "" {
+				request.ReasoningEffort = model.effort
+			}
 		}
 		return request, nil
 	})

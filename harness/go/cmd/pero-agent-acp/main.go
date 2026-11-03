@@ -237,7 +237,7 @@ func run() (resultErr error) {
 				origin, _, _ := strings.Cut(definition.Name, ":")
 				background := definition.Background != nil && *definition.Background
 				invocation := subagents.ClaudeInvocation{
-					Definition: definition.Agent, Prompt: definition.Content, Description: "Run " + definition.Name, Model: definition.Model, Origin: origin, Background: background, ReportCompletion: background,
+					Definition: definition.Agent, Prompt: definition.Content, Description: "Run " + definition.Name, Model: definition.Model, Effort: definition.Effort, Origin: origin, Background: background, ReportCompletion: background,
 					ConfigureChild: func(ctx context.Context, run *point.Run, child *harness.Agent) error {
 						return skills.ConfigureFork(ctx, h, run, child, definition)
 					},

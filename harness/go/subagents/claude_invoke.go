@@ -18,9 +18,9 @@ import (
 // scoped workflow policy before the child's first turn; it cannot replace the
 // provider's workspace, route, budget, depth or inherited approval checks.
 type ClaudeInvocation struct {
-	Definition, Prompt, Description, Model, Origin, Isolation string
-	OutputSchema                                              json.RawMessage
-	Background                                                bool
+	Definition, Prompt, Description, Model, Effort, Origin, Isolation string
+	OutputSchema                                                      json.RawMessage
+	Background                                                        bool
 	// ReportCompletion posts the terminal result to the parent after a
 	// background run. The caller does not wait for that result.
 	ReportCompletion bool
@@ -104,7 +104,7 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if strings.TrimSpace(input.Description) == "" {
 		input.Description = definition.Description
 	}
-	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, MaxSteps: input.MaxSteps, OutputSchema: input.OutputSchema}
+	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, MaxSteps: input.MaxSteps, OutputSchema: input.OutputSchema, ReasoningEffort: harness.ReasoningEffort(input.Effort)}
 	var cleanup func()
 	if input.Isolation != "" {
 		if input.Isolation != "worktree" {

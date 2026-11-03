@@ -358,8 +358,11 @@ func (p *inProcessProvider) childAgentOptions(request harness.SubagentRequest, s
 		}
 		provider, model, effort = request.Provider, request.Model, ""
 	}
-	if request.ReasoningEffort != "" && request.ReasoningEffort != effort {
+	if request.ReasoningEffort != "" && effort != "" && request.ReasoningEffort != effort {
 		return harness.AgentOptions{}, errors.New("subagents: child reasoning effort must match the inherited route")
+	}
+	if request.ReasoningEffort != "" {
+		effort = request.ReasoningEffort
 	}
 	if request.MaxSteps < 0 || request.MaxTokens < 0 {
 		return harness.AgentOptions{}, errors.New("subagents: negative child budget")
