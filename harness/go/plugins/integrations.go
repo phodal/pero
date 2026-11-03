@@ -134,8 +134,29 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 				summary := HookSummary{Event: event, Matcher: matcher}
 				if !integrationDecode(handler["type"], &summary.Type) || summary.Type == "" {
 					add(SeverityError, "HOOK_TYPE_REQUIRED", base+".type", "A hook handler requires a string type.")
+				} else if summary.Type == "http" {
+					summary.CommandForm = "http"
+					var endpoint string
+					if !integrationDecode(handler["url"], &endpoint) || !validHookURL(endpoint) {
+						add(SeverityError, "HOOK_URL_REQUIRED", base+".url", "An HTTP hook requires an http or https URL.")
+					}
+					if raw, present := handler["headers"]; present {
+						var headers map[string]string
+						if !integrationDecode(raw, &headers) {
+							add(SeverityError, "INVALID_HOOK_FIELD", base+".headers", "HTTP hook headers must be an object of strings.")
+						}
+					}
+					if raw, present := handler["allowedEnvVars"]; present {
+						var names []string
+						if !integrationDecode(raw, &names) {
+							add(SeverityError, "INVALID_HOOK_FIELD", base+".allowedEnvVars", "HTTP hook allowedEnvVars must be an array of strings.")
+						}
+					}
+					if summary.Async {
+						add(SeverityError, "INVALID_HOOK_FIELD", base+".async", "HTTP hooks cannot be asynchronous.")
+					}
 				} else if summary.Type != "command" {
-					add(SeverityWarning, "UNSUPPORTED_HOOK_HANDLER", base+".type", "Only command handler configuration is inspected by this profile; no handler is executed.")
+					add(SeverityWarning, "UNSUPPORTED_HOOK_HANDLER", base+".type", "Only command and HTTP handler configuration is executed.")
 				}
 				if raw, present := handler["timeout"]; present {
 					var timeout float64
@@ -202,7 +223,11 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 								add(SeverityError, "INVALID_HOOK_FIELD", base+".shell", "Hook shell must be bash or powershell.")
 							}
 						}
-					case "url", "headers", "allowedEnvVars", "model", "prompt", "toolName", "input":
+					case "url", "headers", "allowedEnvVars":
+						if summary.Type != "http" {
+							add(SeverityWarning, "UNSUPPORTED_HOOK_FIELD", base+"."+key, "This handler field is recognized but its execution semantics are not implemented.")
+						}
+					case "model", "prompt", "toolName", "input":
 						add(SeverityWarning, "UNSUPPORTED_HOOK_FIELD", base+"."+key, "This handler field is recognized but its execution semantics are not implemented.")
 					default:
 						add(SeverityWarning, "UNKNOWN_HOOK_FIELD", base+"."+key, "Unrecognized hook handler field is not applied.")
@@ -388,6 +413,11 @@ func bareHookEvents(root map[string]json.RawMessage) (map[string]json.RawMessage
 		events[key] = raw
 	}
 	return events, len(events) > 0
+}
+
+func validHookURL(raw string) bool {
+	parsed, err := url.Parse(raw)
+	return err == nil && parsed.Host != "" && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Fragment == ""
 }
 
 func knownHookEvent(event string) bool {

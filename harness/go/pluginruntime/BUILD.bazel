@@ -49,6 +49,7 @@ go_test(
         "hooks_tasks_test.go",
         "hooks_batch_test.go",
         "hooks_files_test.go",
+        "hooks_http_test.go",
         "hooks_model_test.go",
         "hooks_notify_test.go",
         "hooks_output_test.go",

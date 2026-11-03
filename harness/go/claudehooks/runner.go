@@ -54,17 +54,9 @@ func (runner Runner) Run(ctx context.Context, hook Hook, input Input) (Decision,
 			return Decision{}, errors.New("claudehooks: invalid explicit environment binding")
 		}
 	}
-	timeout := hook.Timeout
-	if timeout == 0 {
-		timeout = 600 * time.Second
-		if hook.Event == "UserPromptSubmit" || hook.Event == "PreModelSwitch" {
-			timeout = 30 * time.Second
-		} else if hook.Event == "SessionEnd" {
-			timeout = 1500 * time.Millisecond
-		}
-	}
-	if timeout < 0 {
-		return Decision{}, errors.New("claudehooks: timeout must be positive")
+	timeout, err := hookTimeout(hook)
+	if err != nil {
+		return Decision{}, err
 	}
 	deadline, cancelDeadline := context.WithTimeout(ctx, timeout)
 	defer cancelDeadline()

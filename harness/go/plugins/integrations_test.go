@@ -20,6 +20,12 @@ func TestHookInspection(t *testing.T) {
 		errorCodes []string
 	}{
 		{
+			name:    "http hook is executable configuration",
+			content: `{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"http","url":"http://127.0.0.1/hooks","headers":{"Authorization":"Bearer hidden-token"},"allowedEnvVars":["TOKEN"]}]}]}}`,
+			count:   1, form: "http",
+			codes: []string{"HOOK_RUNTIME_UNSUPPORTED"},
+		},
+		{
 			name:    "shell command remains inert",
 			content: `{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"node /private/check.mjs --secret hidden-argument","timeout":5}]}]}}`,
 			count:   1, form: "shell", timeout: 5,

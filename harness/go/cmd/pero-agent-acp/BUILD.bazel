@@ -68,6 +68,7 @@ go_test(
         "plugin_stop_failure_test.go",
         "plugin_expansion_test.go",
         "plugin_fork_test.go",
+        "plugin_http_test.go",
         "plugin_init_test.go",
         "plugin_model_switch_test.go",
         "plugin_runtime_test.go",

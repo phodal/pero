@@ -90,7 +90,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 			if _, err := claudehooks.Match(hook.Matcher, ""); err != nil {
 				return nil, err
 			}
-			if !hook.ExecForm && !filepath.IsAbs(options.Shell) {
+			if hook.URL == "" && !hook.ExecForm && !filepath.IsAbs(options.Shell) {
 				return nil, errors.New("plugin-runtime: command hooks require an explicit absolute shell")
 			}
 		}
@@ -652,7 +652,13 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			}
 			continue
 		}
-		decision, err := (claudehooks.Runner{Shell: app.options.Shell, Environment: environment}).Run(ctx, hook, input)
+		runner := claudehooks.Runner{Shell: app.options.Shell, Environment: environment}
+		var decision claudehooks.Decision
+		if hook.URL != "" {
+			decision, err = runner.Post(ctx, hook, input)
+		} else {
+			decision, err = runner.Run(ctx, hook, input)
+		}
 		if selected.onceID != "" && hook.Once && err == nil && !decision.Block {
 			app.retireSkillHook(selected.onceID)
 		}

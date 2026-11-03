@@ -144,6 +144,22 @@ func TestSettingsHookOnceDoesNotLimitExecution(t *testing.T) {
 	}
 }
 
+func TestLoadPackageAcceptsHTTPHooks(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "sample")
+	writePluginFiles(t, root, map[string]string{
+		".claude-plugin/plugin.json": `{"name":"sample"}`,
+		"hooks/hooks.json":           `{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"http","url":"http://127.0.0.1/hooks","headers":{"Authorization":"Bearer $TOKEN"},"allowedEnvVars":["TOKEN"]}]}]}}`,
+	})
+	packages, err := LoadPackages(t.Context(), []string{root})
+	if err != nil || len(packages) != 1 || len(packages[0].Hooks) != 1 {
+		t.Fatalf("packages=%v error=%v", packages, err)
+	}
+	hook := packages[0].Hooks[0]
+	if hook.URL != "http://127.0.0.1/hooks" || hook.Headers["Authorization"] != "Bearer $TOKEN" || len(hook.AllowedEnvVars) != 1 || hook.AllowedEnvVars[0] != "TOKEN" || hook.Command != "" {
+		t.Fatalf("http hook = %+v", hook)
+	}
+}
+
 func TestLoadPackageResourceBoundsAndCancellation(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "sample")
 	writePluginFiles(t, root, map[string]string{"skills/draft/SKILL.md": "Draft."})
