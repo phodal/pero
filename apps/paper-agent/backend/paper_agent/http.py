@@ -100,6 +100,11 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
                     if self.command == 'POST': return self.reply(201, store.edit_matrix(matrix_match[1], data, now()))
                 if self.command == "GET":
+                    figure_reference = re.fullmatch(r'/api/research/figure-reference/([a-f0-9]{64})/([a-f0-9]{64})', path)
+                    if figure_reference:
+                        from .figure_references import FigureReference
+                        reference = FigureReference.parse(*figure_reference.groups())
+                        return self.reply(200, reference.resolve(store, parse_qs(parsed.query).get('paperId', [None])[0]))
                     tex_compilation = re.fullmatch(r'/api/tex-compilations/([a-f0-9]{64})', path)
                     if tex_compilation:
                         return self.reply(200, tex.status(tex_compilation[1]))

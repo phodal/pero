@@ -16,6 +16,9 @@ def source_read(store, value):
 
 
 def read_source(store, value):
+    if value.get('operation') == 'reference':
+        from .figure_references import FigureReference
+        return FigureReference.from_document(value).resolve(store, value.get('paperId'))
     if value.get('operation') == 'figures':
         from .source_figures import FigureQuery, paper_figures
         return paper_figures(store, FigureQuery.parse(value))

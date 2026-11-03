@@ -9,6 +9,7 @@ from test_pdf import image_pdf_fixture, pdf_fixture
 from paper_agent.model import Invalid, PaperSnapshot, digest
 from paper_agent.source_archive import SourceArchive
 from paper_agent.source_figures import SourceFigure
+from paper_agent.figure_references import FigureReference
 from paper_agent.source_reading import source_read
 from paper_agent.source_reports import source_report
 from paper_agent.store import ResearchStore
@@ -63,6 +64,16 @@ class SourceFiguresTest(unittest.TestCase):
             self.assertTrue(figure['resolved'])
             self.assertEqual(figure['members'][0]['path'], 'figures/ablation.pdf')
             self.assertEqual(figures['links'], [dict(label='Local fixture', location=f'paper/{paper_v1.id}')])
+            reference = FigureReference.parse(figure['archiveDigest'], figure['members'][0]['id'])
+            target = reference.resolve(store)
+            self.assertEqual(source_read(store, dict(operation='reference', archiveDigest=reference.archive_digest, memberId=reference.member_id)), target)
+            self.assertEqual(target['memberPath'], 'figures/ablation.pdf')
+            self.assertEqual(target['figures'][0]['startLine'], 3)
+            self.assertIsNone(target['preview'])
+            with self.assertRaises(Invalid):
+                FigureReference.parse('0' * 64, reference.member_id).resolve(store)
+            with self.assertRaises(Invalid):
+                FigureReference.parse(reference.archive_digest, '0' * 64).resolve(store)
             self.assertEqual(source_read(store, dict(query, paperId=paper('v2').id))['sources'], [])
             self.assertEqual(source_report(store, dict(operation='observations', bundleId=selection['bundleId']), NOW)['observations'], [])
             image_request = dict(operation='image', **selection, memberId=figure['members'][0]['id'])
@@ -88,3 +99,18 @@ class SourceFiguresTest(unittest.TestCase):
             path.write_bytes(b'changed preview')
             with self.assertRaisesRegex(Invalid, 'integrity'):
                 source_read(store, image_request)
+
+    def test_caption_navigation_requires_one_literal_page(self):
+        from types import SimpleNamespace
+        from paper_agent.pdf import PdfDocument, PdfPage
+        caption = 'DeepSeek task outcomes; labels rounded.'
+        for text, expected in (
+            ((caption, 'Other results'), 1),
+            (('Other results', caption), 2),
+            ((caption, caption), None),
+            (('No corresponding caption', 'Other results'), None),
+        ):
+            document = PdfDocument('doc', 'paper', 'hash', '', tuple(PdfPage(i + 1, 100, 100, t) for i, t in enumerate(text)), '')
+            self.assertEqual(FigureReference.caption_page(document, [SimpleNamespace(caption=caption)]), expected)
+        document = PdfDocument('doc', 'paper', 'hash', '', (PdfPage(1, 100, 100, 'Results of Model: original evidence supports this sufficiently long literal caption.'),), '')
+        self.assertEqual(FigureReference.caption_page(document, [SimpleNamespace(caption=r'Results of \method{}: original evidence supports this sufficiently long literal caption.')]), 1)
