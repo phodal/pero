@@ -258,6 +258,7 @@ impl Workbench {
                         this.command(json!({"action":"app_context_preview","reference":reference,"thread_id":thread_id}),cx);
                     }
                 }
+                ChatAction::OpenContext { reference } => this.open_context_reference(&reference, window, cx),
                 ChatAction::Selected { thread_id } => {
                     if cfg!(target_family = "wasm") {
                         this.command(json!({"action":"app_use_selection","thread_id":thread_id}),cx);

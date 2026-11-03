@@ -513,4 +513,55 @@ impl crate::app::Workbench {
         }
         cx.notify();
     }
+
+    /// Composer chips jump to their source App, like a side-chat file reference.
+    pub(crate) fn open_context_reference(
+        &mut self,
+        reference: &pero_contracts::context::ContextReference,
+        _window: &mut gpui_kit::Window,
+        cx: &mut gpui_kit::Context<Self>,
+    ) {
+        use pero_contracts::context::{ContextContent, ContextKind};
+        let (app, panel) = match reference.kind {
+            ContextKind::AppObject => match &reference.content {
+                ContextContent::Text { text } => {
+                    let value: serde_json::Value = serde_json::from_str(text).unwrap_or_default();
+                    let scope = &value["scope"];
+                    (
+                        scope["app"].as_str().unwrap_or("").to_string(),
+                        scope["panel"].as_str().unwrap_or("main").to_string(),
+                    )
+                }
+                ContextContent::Image { .. } => (String::new(), String::new()),
+            },
+            _ => {
+                if reference.source.starts_with("http://") || reference.source.starts_with("https://")
+                {
+                    cx.open_url(&reference.source);
+                }
+                return;
+            }
+        };
+        let (app, panel) = if !app.is_empty() {
+            (app, panel)
+        } else if let Some(host) = reference
+            .source
+            .strip_prefix("pero-app://")
+            .and_then(|rest| rest.split(['/', '#']).next())
+            .filter(|host| !host.is_empty())
+        {
+            (host.to_string(), "main".into())
+        } else {
+            return;
+        };
+        if self.apps.contains_panel(&app, &panel) {
+            // Dock the float so the App is visible, the same way a side chat
+            // reveals the file it just opened.
+            if self.floating_chat {
+                self.floating_chat = false;
+            }
+            self.open_app(app, panel, cx);
+            cx.notify();
+        }
+    }
 }

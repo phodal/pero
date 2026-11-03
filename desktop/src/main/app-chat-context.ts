@@ -55,10 +55,13 @@ export class AppChatContext {
         selection: ref.selection ?? null,
         capturedAt,
       });
+      // Chip label is the object name only. Revision and App id stay in source
+      // and frozen content so stale selections are still refused; the chip can
+      // open the App like a side-chat file reference.
       contexts.push({
         id: `app-object-${randomUUID()}`,
         kind: 'app_object',
-        label: `${object.label} · r${object.revision} · ${scope.app}`,
+        label: object.label.trim() || object.id,
         source: `pero-app://${scope.app}/#${encodeURIComponent(object.id)}@${object.revision}`,
         content: { type: 'text', text },
       });
@@ -108,14 +111,14 @@ export class AppChatContext {
       contexts.push({
         id: `app-snapshot-${id}`,
         kind: 'image',
-        label: `${scope.app} · ${capturedAt}`,
+        label: `${scope.app} snapshot ${capturedAt}`,
         source: `pero-evidence:${id}`,
         content: { type: 'image', data: image.png.toString('base64'), mime_type: 'image/png' },
       });
       contexts.push({
         id: `app-annotation-${id}`,
         kind: 'app_object',
-        label: `${scope.app} · snapshot context`,
+        label: `${scope.app} snapshot context`,
         source: `pero-evidence:${id}`,
         content: {
           type: 'text',

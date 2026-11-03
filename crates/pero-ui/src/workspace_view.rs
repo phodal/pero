@@ -115,6 +115,11 @@ impl Workbench {
                     .child(
                         div()
                             .flex_1()
+                            .text_size(
+                                pero_theme::UiAppearance::global(cx)
+                                    .text(pero_theme::TextRole::Body),
+                            )
+                            .font_weight(FontWeight::SEMIBOLD)
                             .when(expanded, |el| el.child(self.t("chat.panel_title"))),
                     )
                     .child(
@@ -170,6 +175,9 @@ impl Workbench {
                 el.child(
                     div()
                         .px(px(8.))
+                        .text_size(
+                            pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body),
+                        )
                         .text_color(p.text_muted)
                         .child(self.t("chat.float_covered")),
                 )

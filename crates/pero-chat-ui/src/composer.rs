@@ -80,7 +80,7 @@ impl ChatPanel {
             let thread = id.clone();
             let workbench = cx.entity().downgrade();
             let open_workbench = workbench.clone();
-            Button::new("model-picker").ghost().small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+            W::chat_control(Button::new("model-picker").ghost(), cx)
                 .label(label).max_w(px(if self.compact { 100. } else { 220. })).dropdown_caret(false)
                 .loading(model_pending).loading_icon(Icon::default().path("icons/clock.svg"))
                 .disabled(busy || model_pending || chat.state != SessionState::Idle)
@@ -113,9 +113,7 @@ impl ChatPanel {
                     });
                 })
         });
-        let context_button = Button::new("attach-context")
-            .ghost()
-            .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+        let context_button = W::chat_control(Button::new("attach-context").ghost(), cx)
             .icon(IconName::Plus)
             .accessibility_label(self.t("composer.context"))
             .tooltip(self.t("composer.context"))
@@ -254,20 +252,42 @@ impl ChatPanel {
             .when(!self.attachments.is_empty(), |el| {
                 el.child(div().flex().flex_wrap().gap(px(6.)).mb(px(6.)).children(
                     self.attachments.iter().enumerate().map(|(i, file)| {
+                        let open=file.clone();
                         let preview=file.clone();
                         let thread_id=self.active_chat.and_then(|index|self.chats.get(index)).map(|chat|chat.id.clone()).unwrap_or_default();
-                        div().flex().items_center().child(
-                        Button::new(("attached-file", i))
-                            .ghost()
-                            .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                        let can_open = matches!(
+                            file.kind,
+                            ContextKind::AppObject
+                                | ContextKind::File
+                                | ContextKind::Directory
+                                | ContextKind::Selection
+                        );
+                        div().flex().items_center().gap(px(2.)).child(
+                        W::chat_control(Button::new(("attached-file", i)).ghost(), cx)
                             .icon(IconName::File)
-                            .label(format!("{} ×", file.label))
-                            .tooltip(format!("{}: {}", self.t("composer.remove"), file.source))
+                            .label(file.label.clone())
+                            .tooltip(if can_open {
+                                file.source.clone()
+                            } else {
+                                format!("{}: {}", self.t("composer.remove"), file.source)
+                            })
                             .on_click(cx.listener(move |this, _, window, cx| {
-                                this.remove_composer_context(i, window, cx);
+                                if can_open {
+                                    cx.emit(crate::ChatAction::OpenContext { reference: open.clone() });
+                                } else {
+                                    this.remove_composer_context(i, window, cx);
+                                }
                             }))
+                        ).child(
+                            W::chat_control(Button::new(("remove-context", i)).ghost(), cx)
+                                .label("×")
+                                .accessibility_label(self.t("composer.remove"))
+                                .tooltip(self.t("composer.remove"))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.remove_composer_context(i, window, cx);
+                                }))
                         ).when(cfg!(target_family="wasm"), |row| row.child(
-                            Button::new(("preview-context",i)).relative().children(self.context_preview_bounds.get(&file.id).map(|bounds|bounds.probe())).ghost().small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height())).label(self.t("composer.preview"))
+                            W::chat_control(Button::new(("preview-context",i)).relative().children(self.context_preview_bounds.get(&file.id).map(|bounds|bounds.probe())).ghost(), cx).label(self.t("composer.preview"))
                                 .on_click(cx.listener(move|_,_,_,cx|cx.emit(crate::ChatAction::PreviewContext{reference:preview.clone(),thread_id:thread_id.clone()})))
                         ))
                     }),
@@ -313,9 +333,7 @@ impl ChatPanel {
                         }))
                         .child(div().flex_1())
                     .child(
-                        Button::new("agent-picker")
-                            .ghost()
-                            .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                        W::chat_control(Button::new("agent-picker").ghost(), cx)
                             .icon(Icon::default().path("icons/terminal.svg"))
                             .label(agent.clone())
                             .tooltip(self.t("composer.acp"))
@@ -345,9 +363,7 @@ impl ChatPanel {
                     .when(!self.compact, |el| el.children(self.session_setting_controls("thought_level", cx)))
                     .when(!self.compact && chat.is_none_or(|chat| chat.can_retarget()), |el| {
                         el.child(
-                            Button::new("workspace-picker")
-                                .ghost()
-                                .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                            W::chat_control(Button::new("workspace-picker").ghost(), cx)
                                 .icon(IconName::Folder)
                                 .label(workspace)
                                 .on_click(cx.listener(|this, _, _, cx| {
@@ -357,9 +373,7 @@ impl ChatPanel {
                     })
                     .when(chat.is_some_and(|c| c.state == SessionState::Closed && c.can_retarget()), |el| {
                         el.child(
-                            Button::new("retry-chat")
-                                .outline()
-                                .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                            W::chat_control(Button::new("retry-chat").outline(), cx)
                                 .label(self.t("chat.retry"))
                                 .disabled(!self.connected)
                                 .on_click(cx.listener(|this, _, _, cx| this.retry_chat(cx))),
@@ -367,10 +381,9 @@ impl ChatPanel {
                     })
                     .when(chat.is_some_and(|c| c.state == SessionState::Running || c.state == SessionState::Stopping || c.queued.is_some()), |el| {
                         el.child(
-                            Button::new("stop-agent")
+                            W::chat_control(Button::new("stop-agent")
                                 .relative().children([self.stop_button_bounds.probe()])
-                                .outline()
-                                .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                                .outline(), cx)
                                 .icon(IconName::Square)
                                 .accessibility_label(self.t("chat.stop"))
                                 .when(!self.compact, |button| button.label(self.t("chat.stop")))
@@ -385,9 +398,7 @@ impl ChatPanel {
                     })
                     .when(chat.is_none_or(|c| !matches!(c.state, SessionState::Running | SessionState::Stopping) && c.queued.is_none()), |el| {
                         el.child(
-                            Button::new("send-chat")
-                                .primary()
-                                .small().h(px(pero_theme::UiAppearance::global(cx).typography.control_height()))
+                            W::chat_control(Button::new("send-chat").primary(), cx)
                                 .icon(IconName::ArrowRight)
                                 .accessibility_label(self.t("probe.send"))
                                 .when(!self.compact, |button| button.label(self.t("probe.send")))

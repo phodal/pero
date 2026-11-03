@@ -103,6 +103,8 @@ test('App contexts freeze object revisions, selections and screenshot receipts i
       assert.equal(value.revision, 3);
       assert.deepEqual(value.selection, { cell: 'A' });
       assert.equal(refs[0].kind, 'app_object');
+      assert.equal(refs[0].label, 'Results');
+      assert.match(refs[0].source, /^pero-app:\/\/demo\/#/);
     }
   }
   for (const bad of [
