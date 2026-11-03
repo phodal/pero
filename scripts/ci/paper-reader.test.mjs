@@ -443,3 +443,60 @@ test('PDF wheel waits for pending zoom DOM alignment and clamps the native bound
   assert.equal((await pending).position.y, 40); // Only20px fit before the bottom.
   assert.equal(calls, 1);
 });
+
+import { createRequire } from 'node:module';
+const paperRequire = createRequire(new URL('../../apps/paper-agent/package.json', import.meta.url));
+
+test('cached EmbedPDF restoration emits before a late observer; reader subscribes and snapshots first', async () => {
+  const { SelectionPlugin } = await import(paperRequire.resolve('@embedpdf/plugin-selection'));
+  const { PdfTaskHelper } = await import(paperRequire.resolve('@embedpdf/models'));
+  const range = { start: { page: 0, index: 1 }, end: { page: 0, index: 3 } };
+  const state = { selection: null, rects: {}, geometry: { 0: {} } }, listeners = new Set();
+  const plugin = Object.create(SelectionPlugin.prototype);
+  Object.defineProperty(plugin, 'state', { value: { documents: { doc: state } } });
+  Object.assign(plugin, {
+    validateRange: () => null, normalizeRange: value => value,
+    getOrLoadGeometry: () => PdfTaskHelper.resolve(state.geometry[0]),
+    clampRangeToGeometry: (_id, value) => value,
+    selecting: new Map(), anchor: new Map(), getDocumentState: () => state,
+    dispatch: action => { if (action.payload?.selection) state.selection = action.payload.selection; },
+    updateRectsAndSlices() {}, notifyPage() {}, recalculateMenuPlacement() {},
+    selChange$: { emit: (_id, value) => { for (const listener of listeners) listener(value); } },
+  });
+  // Use the real plugin applySelection and Task implementation, not an assumed
+  // async Promise substitute. The old listener-only effect misses this event.
+  let lateSeen = false;
+  const restored = plugin.applySelection('doc', range);
+  listeners.add(() => { lateSeen = true; });
+  await restored.toPromise();
+  assert.equal(lateSeen, false);
+  assert.deepEqual(state.selection, range);
+  listeners.clear();
+
+  const source = readFileSync(new URL('../../apps/paper-agent/ui-src/pdf-reader.tsx', import.meta.url), 'utf8');
+  const start = source.indexOf('  // Subscribe before restoration:');
+  const end = source.indexOf('  const activeNow', start);
+  assert.ok(start >= 0 && end > start, 'selection observer must precede restoration');
+  const effect = source.slice(start, end).replace(': unknown', '');
+  const text = { current: '' }, values = [], pending = [];
+  const scope = {
+    getState: () => state,
+    onSelectionChange: fn => { listeners.add(fn); return () => listeners.delete(fn); },
+    getSelectedText: () => ({ toPromise: () => new Promise(resolve => pending.push(resolve)) }),
+  };
+  let stop;
+  Function('useEffect', 'selection', 'documentId', 'setHasSelection', 'selectedText', effect)(
+    callback => { stop = callback(); }, { forDocument: id => { assert.equal(id, 'doc'); return scope; } }, 'doc', value => values.push(value), text);
+  assert.equal(values.at(-1), true, 'existing selection initializes toolbar');
+  state.selection = null; for (const listener of listeners) listener(null);
+  pending.shift()(['stale selection']); await Promise.resolve();
+  assert.equal(text.current, '', 'late text must not repopulate a cleared selection');
+  await plugin.applySelection('doc', range).toPromise();
+  assert.equal(values.at(-1), true, 'cached restore is observed');
+  pending.shift()(['current selection']); await Promise.resolve();
+  assert.equal(text.current, 'current selection');
+  await plugin.applySelection('doc', range).toPromise();
+  stop(); pending.shift()(['unmounted selection']); await Promise.resolve();
+  assert.equal(text.current, '', 'old scope cannot update text after unmount');
+  assert.equal(listeners.size, 0);
+});
