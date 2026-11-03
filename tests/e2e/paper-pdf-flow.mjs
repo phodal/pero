@@ -328,20 +328,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
 export async function reopenPdf({ frame, saved, page }) {
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).click();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
-  try {
-    await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
-  } catch (error) {
-    // Distinguish persistence loss from a restored selection whose toolbar missed
-    // its notification. Capture before any retry or navigation changes the state.
-    const detail = await viewer.evaluate((element, key) => ({
-      persisted: localStorage.getItem(key),
-      selectionToolbar: element.querySelector('.pa-pdf-selection')?.outerHTML ?? null,
-      selectionReady: [...element.querySelectorAll('[data-selection-ready]')].map(node => ({ page: node.getAttribute('data-page-number'), ready: node.getAttribute('data-selection-ready') })),
-      html: element.outerHTML,
-    }), `pero.paper.pdf-view:${saved.readerState.documentId}:${saved.fileDigest}`);
-    console.error('PDF restart selection failure', JSON.stringify({ expected: saved.readerState, ...detail }));
-    throw error;
-  }
+  await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
   await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue(String(saved.readerState.page));
   await expect(frame.locator('.pa-reader-tools').getByRole('button', { name: 'Fit page', exact: true })).toHaveText(`${Math.round(saved.readerState.zoom * 100)}%`);
   const restored = await frame.locator('body').evaluate((_element, key) => JSON.parse(localStorage.getItem(key)), `pero.paper.pdf-view:${saved.readerState.documentId}:${saved.fileDigest}`);
