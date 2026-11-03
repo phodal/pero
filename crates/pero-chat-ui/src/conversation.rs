@@ -26,7 +26,7 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn new(role: impl Into<String>, text: impl Into<String>, cx: &mut App) -> Self {
+    pub fn new(role: impl Into<String>, text: impl Into<String>, images: crate::inline_images::ConversationImages, cx: &mut App) -> Self {
         let role = role.into();
         let text = text.into();
         let streamed = matches!(role.as_str(), "assistant" | "thought");
@@ -55,7 +55,7 @@ impl Message {
                     .collect()
             })
             .unwrap_or_default();
-        let view = cx.new(|cx| StreamText::new(if streamed { "" } else { display }, cx));
+        let view = cx.new(|cx| { let mut view = StreamText::new(if streamed { "" } else { display }, cx); view.images = Some(images); view });
         view.update(cx, |view, _| view.appearance = if role == "thought" { crate::stream::StreamAppearance::Thought } else { crate::stream::StreamAppearance::Answer });
         if streamed {
             view.update(cx, |view, cx| view.append(&text, cx));
@@ -161,6 +161,8 @@ impl ComposerDraft {
 
 #[derive(Clone, Serialize)]
 pub struct Conversation {
+    #[serde(skip)]
+    pub(crate) images: crate::inline_images::ConversationImages,
     pub workspace: String,
     pub scope: Option<pero_contracts::AppChatScope>,
     pub usage: Option<pero_contracts::usage::SessionUsage>,
@@ -200,6 +202,7 @@ pub struct Conversation {
 impl Conversation {
     pub fn new(id: String, agent: String, title: String) -> Self {
         Self {
+            images: Default::default(),
             workspace: String::new(),
             scope: None,
             usage: None,
@@ -248,7 +251,7 @@ impl Conversation {
         self.thinking.streaming(None);
         self.flush(cx);
         let index = self.messages.len();
-        self.messages.push(Message::new("user", text, cx));
+        self.messages.push(Message::new("user", text, self.images.clone(), cx));
         self.timeline.push(StreamItem::Message(index));
     }
 
@@ -287,7 +290,7 @@ impl Conversation {
                 self.flush(cx);
                 let index = self.messages.len();
                 self.thinking.streaming((role == "thought").then_some(index));
-                self.messages.push(Message::new(role, text, cx));
+                self.messages.push(Message::new(role, text, self.images.clone(), cx));
                 self.timeline.push(StreamItem::Message(index));
                 true
             }
@@ -360,6 +363,7 @@ impl Conversation {
                 };
                 tool.transcript.apply(patch);
                 tool.output = tool.transcript.output();
+                if tool.status == "completed" && !tool.cancelled { self.images.observe(&tool.output); }
                 if let Some(view) = &tool.input_view {
                     let text = tool.transcript.input_text().unwrap_or_default();
                     view.update(cx, |view, cx| view.replace(&format!("```json\n{text}\n```"), cx));

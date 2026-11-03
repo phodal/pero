@@ -21,6 +21,7 @@ mod panel;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod session_controls;
 pub mod stream;
+pub mod inline_images;
 pub mod artifact_read;
 #[cfg(target_family = "wasm")]
 pub mod web_platform;

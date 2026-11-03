@@ -119,6 +119,7 @@ pub enum StreamAppearance {
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub struct StreamText {
     pub capture_links: bool,
+    pub(crate) images: Option<crate::inline_images::ConversationImages>,
     pub appearance: StreamAppearance,
     document: Entity<TextViewState>,
     pending: PendingText,
@@ -159,6 +160,7 @@ impl StreamText {
         });
         Self {
             capture_links: false,
+            images: None,
             appearance: StreamAppearance::Answer,
             document,
             pending: PendingText::default(),
@@ -368,6 +370,10 @@ impl Render for StreamText {
                     .px(px(10.)),
             );
         let mut view = TextView::new(&self.document).selectable(true).style(style);
+        if let Some(images) = &self.images {
+            let images = images.clone();
+            view = view.image_source(move |uri| images.resolve(uri));
+        }
         if let Some(scroll) = &self.reveal_scroll {
             let scroll = scroll.clone();
             view = view.on_reveal(move |bounds, window, _| {
