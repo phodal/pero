@@ -95,7 +95,7 @@ func PlanningToolAllowed(agent *Agent, name string) bool {
 		return true
 	}
 	switch name {
-	case "Read", "read_file", "Glob", "glob_files", "Grep", "regex_search", "search_files", "list_directory", "ToolSearch", "tool_search", "NotebookRead", "notebook_read", "AskUserQuestion", "TaskOutput", "TaskStop", "list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource", "list_mcp_prompts", "get_mcp_prompt":
+	case "Read", "read_file", "Glob", "glob_files", "Grep", "regex_search", "search_files", "list_directory", "ToolSearch", "tool_search", "AgentList", "NotebookRead", "notebook_read", "PDFRead", "pdf_read", "NotebookImage", "notebook_image", "AskUserQuestion", "TaskOutput", "TaskStop", "list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource", "read_mcp_instructions", "list_mcp_prompts", "get_mcp_prompt":
 		return true
 	default:
 		return false

@@ -55,6 +55,7 @@ go_test(
         "deferred_tools_test.go",
         "discovery_test.go",
         "document_test.go",
+        "guidance_eval_test.go",
         "media_test.go",
         "notebook_test.go",
         "notice_recovery_test.go",
@@ -77,6 +78,7 @@ go_test(
     deps = [
         "//fstools",
         "//harness",
+        "//llm",
         "//media",
         "//providers/openai",
         "//runtime",

@@ -46,7 +46,13 @@ func TestBuiltinExploreAndPlanReallyReadWithoutWriting(t *testing.T) {
 					names = append(names, tool.Function.Name)
 				}
 				sort.Strings(names)
-				if body.Model != "parent-model" || !reflect.DeepEqual(names, []string{"Glob", "Grep", "NotebookRead", "Read", "ToolSearch"}) {
+				expected := []string{"AgentList", "Glob", "Grep", "NotebookImage", "NotebookRead", "Read", "ToolSearch"}
+				// PDF rendering is a probed host capability and may be absent in CI.
+				if containsName(names, "PDFRead") {
+					expected = append(expected, "PDFRead")
+					sort.Strings(expected)
+				}
+				if body.Model != "parent-model" || !reflect.DeepEqual(names, expected) {
 					t.Errorf("builtin route or tools: model=%s tools=%v", body.Model, names)
 				}
 				if calls.Add(1) == 1 {
