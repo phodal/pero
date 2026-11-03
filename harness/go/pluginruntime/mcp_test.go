@@ -36,7 +36,7 @@ func TestMCPServerBindings(t *testing.T) {
 		t.Fatalf("servers = %d", len(configs))
 	}
 	config := configs[0]
-	if config.Name != "plugin_sample_memory" || config.Command != executable || config.CWD != cwd || config.Transport != harness.MCPStdio || config.ToolCallTimeoutMS != 0 || !config.FailOnStartupError {
+	if config.Name != "plugin_sample_memory" || config.Command != executable || config.CWD != cwd || config.Transport != harness.MCPStdio || config.ToolCallTimeoutMS != 0 || config.FailOnStartupError {
 		t.Fatal("MCP identity, executable or default timeout differs")
 	}
 	if !reflect.DeepEqual(config.Args, []string{filepath.Join(root, "server.py"), cwd, "", "fallback", "$(literal)"}) || config.Env["TOKEN"] != "private-canary" || config.Env["CLAUDE_PLUGIN_ROOT"] != root || config.Env["CLAUDE_PROJECT_DIR"] != cwd {
@@ -47,21 +47,51 @@ func TestMCPServerBindings(t *testing.T) {
 		declaration plugins.MCPServerDefinition
 		environment []string
 		cwd         string
+		skip        bool
 	}{
-		{"missing binding", plugins.MCPServerDefinition{Name: "memory", Transport: "http", URL: "${MISSING}"}, nil, cwd},
-		{"bad URL does not echo secret", plugins.MCPServerDefinition{Name: "memory", Transport: "http", URL: "private-canary://wrong"}, nil, cwd},
-		{"missing executable", plugins.MCPServerDefinition{Name: "memory", Command: "private-canary"}, nil, cwd},
-		{"ambient PATH is not used", plugins.MCPServerDefinition{Name: "memory", Command: "server"}, nil, cwd},
-		{"relative cwd", pkg.MCP[0], nil, "relative"},
-		{"malformed binding", plugins.MCPServerDefinition{Name: "memory", Transport: "http", URL: "${UNCLOSED"}, nil, cwd},
+		{"missing binding", plugins.MCPServerDefinition{Name: "memory", Transport: "http", URL: "${MISSING}"}, nil, cwd, true},
+		{"bad URL does not echo secret", plugins.MCPServerDefinition{Name: "memory", Transport: "http", URL: "private-canary://wrong"}, nil, cwd, false},
+		{"missing executable", plugins.MCPServerDefinition{Name: "memory", Command: "private-canary"}, nil, cwd, true},
+		{"ambient PATH is not used", plugins.MCPServerDefinition{Name: "memory", Command: "server"}, nil, cwd, true},
+		{"relative cwd", pkg.MCP[0], nil, "relative", false},
+		{"malformed binding", plugins.MCPServerDefinition{Name: "memory", Transport: "http", URL: "${UNCLOSED"}, nil, cwd, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bad := pkg
 			bad.MCP = []plugins.MCPServerDefinition{tc.declaration}
-			if _, err := MCPServers([]plugins.Package{bad}, tc.cwd, tc.environment); err == nil || strings.Contains(err.Error(), "private-canary") {
+			servers, err := MCPServers([]plugins.Package{bad}, tc.cwd, tc.environment)
+			if tc.skip {
+				if err != nil || len(servers) != 0 {
+					t.Fatalf("missing dependency should omit the server, got %d %v", len(servers), err)
+				}
+				return
+			}
+			if err == nil || strings.Contains(err.Error(), "private-canary") {
 				t.Fatalf("expected a non-secret rejection, got %v", err)
 			}
 		})
+	}
+}
+
+func TestBrokenPluginMCPDoesNotBlockAgent(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	root, cwd := t.TempDir(), t.TempDir()
+	script := filepath.Join(root, "broken-server")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nexit 1\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	h, err := harness.Boot(ctx, harness.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
+	pkg := plugins.Package{Root: root, Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "broken", Transport: "stdio", Command: script}}}
+	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "continues", CWD: cwd}); err != nil {
+		t.Fatal(err)
 	}
 }
 

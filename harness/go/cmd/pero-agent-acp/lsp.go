@@ -39,7 +39,11 @@ func mountLSP(ctx context.Context, h *harness.Harness, workspace string, package
 		for _, pkg := range packages {
 			for _, server := range pkg.LSP {
 				server.Name = "plugin:" + pkg.Definition.Name + ":" + server.Name
-				selections = append(selections, lsp.Selection{Server: server, PluginRoot: pkg.Root})
+				data, err := plugins.EnsurePluginDataDirectory(pkg.Definition.Name)
+				if err != nil {
+					return nil, err
+				}
+				selections = append(selections, lsp.Selection{Server: server, PluginRoot: pkg.Root, PluginData: data})
 			}
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
 	harnessmcp "github.com/phodal/pero/harness/go/mcp"
@@ -69,7 +70,7 @@ func MountMCP(ctx context.Context, h *harness.Harness, packages []plugins.Packag
 			}
 			defer prepared()
 			sessionDefinition := point.Define(point.Descriptor{ID: "pluginruntime/mcp/session"}, point.DecodeJSON[struct{}], func(ownerRun *point.Run, _ struct{}) (point.Dispose, error) {
-				startup, cancelStartup := context.WithCancel(ownerRun.Context)
+				startup, cancelStartup := context.WithTimeout(ownerRun.Context, 15*time.Second)
 				stopAdmission := context.AfterFunc(ctx, cancelStartup)
 				defer stopAdmission()
 				defer cancelStartup()
@@ -165,6 +166,17 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 		}
 		bindings["CLAUDE_PLUGIN_ROOT"], bindings["CLAUDE_PROJECT_DIR"] = pkg.Root, cwd
 		for _, declaration := range pkg.MCP {
+			if declaration.Transport == "" || declaration.Transport == "stdio" {
+				directory, err := plugins.EnsurePluginDataDirectory(pkg.Definition.Name)
+				if err != nil {
+					return nil, err
+				}
+				bindings["CLAUDE_PLUGIN_DATA"] = directory
+				break
+			}
+		}
+	nextServer:
+		for _, declaration := range pkg.MCP {
 			if declaration.Name == "" {
 				return nil, errors.New("pluginruntime: MCP declaration requires a server name")
 			}
@@ -172,8 +184,16 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 			if seen[name] {
 				return nil, errors.New("pluginruntime: plugin MCP server identities collide")
 			}
-			seen[name] = true
-			config := harness.MCPServerConfig{Name: name, CWD: cwd, FailOnStartupError: true, Env: make(map[string]string), Headers: make(map[string]string)}
+			serverBindings := bindings
+			if declaration.Transport == "http" || declaration.Transport == "streamable-http" || declaration.Transport == "sse" {
+				serverBindings = make(map[string]string, len(bindings))
+				for key, value := range bindings {
+					if key != "CLAUDE_PLUGIN_DATA" {
+						serverBindings[key] = value
+					}
+				}
+			}
+			config := harness.MCPServerConfig{Name: name, CWD: cwd, Env: make(map[string]string), Headers: make(map[string]string)}
 			if path, present := base["PATH"]; present {
 				config.Env["PATH"] = path
 			}
@@ -181,13 +201,19 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 				if key == "" || strings.ContainsAny(key, "=\x00") {
 					return nil, errors.New("pluginruntime: invalid MCP environment binding")
 				}
-				expanded, err := expandMCPValue(value, bindings)
+				expanded, err := expandMCPValue(value, serverBindings)
+				if errors.Is(err, errMCPDependencyMissing) {
+					continue nextServer
+				}
 				if err != nil {
 					return nil, err
 				}
 				config.Env[key] = expanded
 			}
 			config.Env["CLAUDE_PLUGIN_ROOT"], config.Env["CLAUDE_PROJECT_DIR"] = pkg.Root, cwd
+			if declaration.Transport == "" || declaration.Transport == "stdio" {
+				config.Env["CLAUDE_PLUGIN_DATA"] = bindings["CLAUDE_PLUGIN_DATA"]
+			}
 			if declaration.TimeoutMilliseconds >= 1000 {
 				if declaration.TimeoutMilliseconds > 2_147_483_647 {
 					return nil, errors.New("pluginruntime: MCP timeout exceeds the supported timer range")
@@ -200,26 +226,42 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 			case "stdio", "":
 				config.Transport = harness.MCPStdio
 				command, err := expandMCPValue(declaration.Command, bindings)
+				if errors.Is(err, errMCPDependencyMissing) {
+					continue
+				}
 				if err != nil {
 					return nil, err
 				}
 				config.Command, err = resolveMCPExecutable(command, cwd, config.Env["PATH"])
+				if errors.Is(err, errMCPDependencyMissing) {
+					continue
+				}
 				if err != nil {
 					return nil, err
 				}
 				for _, argument := range declaration.Args {
 					expanded, err := expandMCPValue(argument, bindings)
+					if errors.Is(err, errMCPDependencyMissing) {
+						config.Command = ""
+						break
+					}
 					if err != nil {
 						return nil, err
 					}
 					config.Args = append(config.Args, expanded)
+				}
+				if config.Command == "" {
+					continue
 				}
 			case "http", "streamable-http", "sse":
 				config.Transport = harness.MCPStreamableHTTP
 				if declaration.Transport == "sse" {
 					config.Transport = harness.MCPSSE
 				}
-				endpoint, err := expandMCPValue(declaration.URL, bindings)
+				endpoint, err := expandMCPValue(declaration.URL, serverBindings)
+				if errors.Is(err, errMCPDependencyMissing) {
+					continue
+				}
 				if err != nil {
 					return nil, err
 				}
@@ -229,7 +271,11 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 				}
 				config.URL = endpoint
 				for key, value := range declaration.Headers {
-					expanded, err := expandMCPValue(value, bindings)
+					expanded, err := expandMCPValue(value, serverBindings)
+					if errors.Is(err, errMCPDependencyMissing) {
+						config.URL = ""
+						break
+					}
 					if err != nil {
 						return nil, err
 					}
@@ -238,6 +284,10 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 			default:
 				return nil, errors.New("pluginruntime: unsupported MCP transport")
 			}
+			if config.URL == "" && (declaration.Transport == "http" || declaration.Transport == "streamable-http" || declaration.Transport == "sse") {
+				continue
+			}
+			seen[name] = true
 			servers = append(servers, config)
 		}
 	}
@@ -270,7 +320,7 @@ func expandMCPValue(input string, bindings map[string]string) (string, error) {
 		value, exists := bindings[name]
 		if !exists {
 			if !hasDefault {
-				return "", errors.New("pluginruntime: required MCP environment variable is unset")
+				return "", fmt.Errorf("%w: required MCP environment variable is unset", errMCPDependencyMissing)
 			}
 			value = fallback
 		}
@@ -306,5 +356,7 @@ func resolveMCPExecutable(command, cwd, pathValue string) (string, error) {
 			return filepath.Clean(candidate), nil
 		}
 	}
-	return "", errors.New("pluginruntime: MCP executable is unavailable in the explicit environment")
+	return "", fmt.Errorf("%w: MCP executable is unavailable in the explicit environment", errMCPDependencyMissing)
 }
+
+var errMCPDependencyMissing = errors.New("pluginruntime: MCP server dependency is missing")

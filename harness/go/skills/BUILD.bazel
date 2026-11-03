@@ -19,6 +19,7 @@ go_library(
     deps = [
         "//fstools",
         "//harness",
+        "//plugins",
         "//runtime",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ],

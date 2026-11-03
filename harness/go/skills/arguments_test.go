@@ -1,6 +1,10 @@
 package skills
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestInvocationArguments(t *testing.T) {
 	for _, test := range []struct {
@@ -25,5 +29,19 @@ func TestInvocationArguments(t *testing.T) {
 				t.Fatalf("content=%q want=%q", got.Content, test.want)
 			}
 		})
+	}
+}
+
+func TestSkillBodySubstitutesPluginDataDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("PERO_PLUGIN_DATA_HOME", home)
+	got, err := RenderInvocation(Definition{Summary: Summary{Name: "sample:draft"}, Content: "data=${CLAUDE_PLUGIN_DATA}", Claude: true, ResourceBase: "/plugin"}, "", "session", "/project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := filepath.Join(home, "sample")
+	info, statErr := os.Stat(directory)
+	if statErr != nil || !info.IsDir() || got.Content != "data="+directory {
+		t.Fatalf("content=%q directory=%v", got.Content, statErr)
 	}
 }

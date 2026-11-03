@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/phodal/pero/harness/go/plugins"
 )
 
 var argumentToken = regexp.MustCompile(`\$ARGUMENTS\[([0-9]+)\]|\$([0-9]+)\b|\$ARGUMENTS\b`)
@@ -34,8 +36,21 @@ func RenderInvocationFragment(definition Definition, arguments, sessionID, proje
 	if !definition.Claude || definition.Rendered {
 		return definition, false, nil
 	}
+	pluginName, _, _ := strings.Cut(definition.Name, ":")
+	if pluginName == "" {
+		pluginName = definition.Name
+	}
+	dataDirectory := ""
+	if strings.Contains(definition.Content, "${CLAUDE_PLUGIN_DATA}") {
+		var err error
+		dataDirectory, err = plugins.EnsurePluginDataDirectory(pluginName)
+		if err != nil {
+			return Definition{}, false, err
+		}
+	}
 	content := strings.NewReplacer(
 		"${CLAUDE_PLUGIN_ROOT}", definition.ResourceBase,
+		"${CLAUDE_PLUGIN_DATA}", dataDirectory,
 		"${CLAUDE_SKILL_DIR}", filepath.Join(definition.ResourceBase, filepath.FromSlash(definition.Directory)),
 		"${CLAUDE_PROJECT_DIR}", projectDirectory,
 		"${CLAUDE_SESSION_ID}", sessionID,
