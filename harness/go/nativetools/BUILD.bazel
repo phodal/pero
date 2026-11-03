@@ -26,6 +26,7 @@ go_library(
     deps = [
         "//fstools",
         "//harness",
+        "//media",
         "//runtime",
         "//sandbox",
         "//shell",
@@ -57,6 +58,7 @@ go_test(
     deps = [
         "//fstools",
         "//harness",
+        "//providers/openai",
         "//runtime",
         "//sandbox",
         "//shell",

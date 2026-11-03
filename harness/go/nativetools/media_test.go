@@ -1,13 +1,83 @@
 package nativetools
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"image"
+	"image/color"
+	"image/gif"
+	"image/png"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/providers/openai"
 )
+
+func TestClaudeReadImageContinuation(t *testing.T) {
+	var gifData, largePNG bytes.Buffer
+	if err := gif.Encode(&gifData, image.NewPaletted(image.Rect(0, 0, 2, 2), color.Palette{color.Black, color.White}), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(&largePNG, image.NewRGBA(image.Rect(0, 0, 3000, 1))); err != nil {
+		t.Fatal(err)
+	}
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Messages []struct{ Content json.RawMessage }
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Error(err)
+		}
+		wire := string(request.Messages[len(request.Messages)-1].Content)
+		if !strings.Contains(wire, "data:image/") || strings.Contains(wire, "image/gif") {
+			t.Errorf("Read result was not usable raster content: %s", wire)
+		}
+		requests++
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"observed\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+	}))
+	defer server.Close()
+	adapter, err := openai.New(openai.Config{Endpoint: server.URL, APIKey: "fixture", ProviderName: "fixture", Models: []openai.ModelConfig{{ID: "vision", InputModalities: []string{"text", "image"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := newClaudeFixture(t, Options{})
+	for name, data := range map[string][]byte{"first-frame.gif": gifData.Bytes(), "wide.png": largePNG.Bytes(), "broken.png": []byte("broken")} {
+		t.Run(name, func(t *testing.T) {
+			if err := os.WriteFile(filepath.Join(f.root, name), data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			result := f.call(t, f.denied, "Read", map[string]any{"file_path": name})
+			if name == "broken.png" {
+				if !result.IsError {
+					t.Fatal("malformed image entered successful history")
+				}
+				return
+			}
+			if result.IsError {
+				t.Fatalf("read failed: %+v", result)
+			}
+			config, _, err := image.DecodeConfig(bytes.NewReader(result.Content[0].Data))
+			if err != nil || config.Width > openai.MaxInputImageDimension {
+				t.Fatalf("image was not resized: %+v %v", config, err)
+			}
+			_, err = adapter.Generate(t.Context(), harness.GenerateRequest{Provider: "fixture", Model: "vision", Messages: []harness.Message{{Role: harness.RoleTool, Content: []harness.ContentBlock{{Type: harness.BlockToolResult, ToolCallID: "read-image", Content: result.Content}}}}}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	if requests != 2 {
+		t.Fatalf("provider continuations = %d", requests)
+	}
+}
 
 func TestClaudeReadReturnsImageContent(t *testing.T) {
 	f := newClaudeFixture(t, Options{})

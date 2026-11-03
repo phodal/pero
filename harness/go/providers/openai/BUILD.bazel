@@ -15,6 +15,7 @@ go_library(
     deps = [
         "//harness",
         "//llm",
+        "//media",
         "@com_github_openai_openai_go_v3//:openai-go",
         "@com_github_openai_openai_go_v3//option",
         "@com_github_openai_openai_go_v3//packages/param",

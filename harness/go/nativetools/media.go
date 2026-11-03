@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/phodal/pero/harness/go/fstools"
+	"github.com/phodal/pero/harness/go/media"
 )
 
 type mediaReadResult struct {
@@ -33,7 +34,11 @@ func imageMIME(path string) (string, bool) {
 func readClaudeFile(ctx context.Context, files *fstools.Workspace, resourceReader func(context.Context, string) (fstools.ScopedText, error), input arguments) (any, error) {
 	if input.ResourcePath == "" {
 		if mime, ok := imageMIME(input.Path); ok {
-			data, err := files.ReadBytes(ctx, input.Path, fstools.MaxMediaBytes)
+			data, err := files.ReadBytes(ctx, input.Path, media.DefaultMaxImageBytes)
+			if err != nil {
+				return nil, err
+			}
+			data, mime, err = media.NormalizeToolImage(data, mime)
 			if err != nil {
 				return nil, err
 			}
