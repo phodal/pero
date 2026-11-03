@@ -195,7 +195,14 @@ func approvalPolicyPrompt(policy ApprovalPolicy, session *Session) string {
 		return approvalNeverPrompt
 	}
 	if session != nil {
-		if mode, found, err := PermissionModeOverride(session.Events()); err == nil && found {
+		events := session.Events()
+		if mode, found, err := latestClaudePermissionMode(events); err == nil && found {
+			if extra := claudePermissionPrompt(mode); extra != "" {
+				return extra
+			}
+			return approvalAskPrompt
+		}
+		if mode, found, err := PermissionModeOverride(events); err == nil && found {
 			if extra := permissionModePrompt(mode); extra != "" {
 				return extra
 			}

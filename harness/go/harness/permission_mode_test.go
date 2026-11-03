@@ -107,4 +107,75 @@ func TestPermissionModePromptFollowsTheRecordedMode(t *testing.T) {
 	if _, err := SetPermissionMode(session, PermissionMode("auto")); err == nil {
 		t.Fatal("accepted an unadvertised mode")
 	}
+	if _, err := SetClaudePermissionMode(session, "plan"); err != nil {
+		t.Fatal(err)
+	}
+	if approvalPolicyPrompt(ApprovalAsk, session) != claudePermissionPrompt("plan") {
+		t.Fatal(approvalPolicyPrompt(ApprovalAsk, session))
+	}
+	if _, err := SetPermissionMode(session, PermissionReadOnly); err != nil {
+		t.Fatal(err)
+	}
+	if approvalPolicyPrompt(ApprovalAsk, session) != permissionModePrompt(PermissionReadOnly) {
+		t.Fatal("composer preset did not replace the hook mode")
+	}
+}
+
+func TestClaudePermissionModeDecidesTheNextAsk(t *testing.T) {
+	ctx := testContext(t)
+	h, err := Boot(ctx, Options{Adapter: AdapterFunc(func(context.Context, GenerateRequest, func(StreamChunk) error) (Completion, error) {
+		return Completion{Message: Message{Role: RoleAssistant}, Finish: FinishStop}, nil
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Dispose(context.Background())
+	var consulted atomic.Int32
+	agent, err := h.Agents().Create(ctx, AgentOptions{ID: "claude-mode", Configure: func(_ context.Context, run *point.Run, _ *Agent) error {
+		_, err := h.Approvals().Register(run, func(context.Context, ApprovalRequest) (ApprovalOutcome, error) {
+			consulted.Add(1)
+			return ApprovalAllowedOnce, nil
+		})
+		return err
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agent.Session().Append("turn/start", struct {
+		Turn int `json:"turn"`
+	}{1}); err != nil {
+		t.Fatal(err)
+	}
+	ask := func(tool string, preapproved bool) ApprovalOutcome {
+		t.Helper()
+		outcome, err := h.Approvals().Request(ctx, ApprovalRequest{Agent: agent, ToolName: tool, Preapproved: preapproved})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return outcome
+	}
+	if _, err := SetClaudePermissionMode(agent.Session(), "acceptEdits"); err != nil {
+		t.Fatal(err)
+	}
+	if ask("Write", false) != ApprovalAllowedOnce || consulted.Load() != 0 || ask("Bash", false) != ApprovalAllowedOnce || consulted.Load() != 1 {
+		t.Fatalf("acceptEdits consulted=%d", consulted.Load())
+	}
+	if _, err := SetClaudePermissionMode(agent.Session(), "dontAsk"); err != nil {
+		t.Fatal(err)
+	}
+	if ask("Bash", true) != ApprovalAllowedOnce || ask("Bash", false) != ApprovalRejected || consulted.Load() != 1 {
+		t.Fatalf("dontAsk consulted=%d", consulted.Load())
+	}
+	if _, err := SetClaudePermissionMode(agent.Session(), "plan"); err != nil {
+		t.Fatal(err)
+	}
+	if ask("Write", true) != ApprovalRejected {
+		t.Fatal("plan allowed a write")
+	}
+	if _, err := SetClaudePermissionMode(agent.Session(), "default"); err != nil {
+		t.Fatal(err)
+	}
+	if ask("Write", false) != ApprovalAllowedOnce || consulted.Load() != 2 {
+		t.Fatalf("default consulted=%d", consulted.Load())
+	}
 }

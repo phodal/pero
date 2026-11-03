@@ -145,12 +145,12 @@ type Decision struct {
 }
 
 // PermissionUpdate is one session change from updatedPermissions.
-// Op is add, replace, remove, addDir, or removeDir. Behavior is allow, deny,
-// or ask for rule updates. Directories are session working directories.
+// Op is add, replace, remove, addDir, removeDir, or setMode. Behavior is
+// allow, deny, or ask for rule updates. Mode is the session permission mode.
 type PermissionUpdate struct {
-	Op, Behavior string
-	Rules        []string
-	Directories  []string
+	Op, Behavior, Mode string
+	Rules              []string
+	Directories        []string
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
@@ -499,6 +499,7 @@ func sessionPermissionUpdates(raw json.RawMessage) ([]PermissionUpdate, error) {
 	var updates []struct {
 		Type        string   `json:"type"`
 		Behavior    string   `json:"behavior"`
+		Mode        string   `json:"mode"`
 		Destination string   `json:"destination"`
 		Directories []string `json:"directories"`
 		Rules       []struct {
@@ -512,13 +513,21 @@ func sessionPermissionUpdates(raw json.RawMessage) ([]PermissionUpdate, error) {
 	var parsed []PermissionUpdate
 	for _, update := range updates {
 		switch update.Type {
-		case "setMode":
-			continue
-		case "addRules", "replaceRules", "removeRules", "addDirectories", "removeDirectories":
+		case "addRules", "replaceRules", "removeRules", "addDirectories", "removeDirectories", "setMode":
 		default:
 			return nil, fmt.Errorf("claudehooks: updatedPermissions type %q is unsupported", update.Type)
 		}
 		if update.Destination != "" && update.Destination != "session" {
+			continue
+		}
+		if update.Type == "setMode" {
+			mode, ok := sessionPermissionMode(update.Mode)
+			if !ok {
+				return nil, fmt.Errorf("claudehooks: updatedPermissions mode %q is unsupported", update.Mode)
+			}
+			if mode != "" {
+				parsed = append(parsed, PermissionUpdate{Op: "setMode", Mode: mode})
+			}
 			continue
 		}
 		if update.Type == "addDirectories" || update.Type == "removeDirectories" {
@@ -554,6 +563,22 @@ func sessionPermissionUpdates(raw json.RawMessage) ([]PermissionUpdate, error) {
 		parsed = append(parsed, item)
 	}
 	return parsed, nil
+}
+
+// sessionPermissionMode accepts a session setMode value. An empty result is a
+// documented no-op: bypassPermissions is unavailable unless the process was
+// launched with it, and auto has no classifier here.
+func sessionPermissionMode(mode string) (string, bool) {
+	switch mode {
+	case "manual":
+		return "default", true
+	case "default", "plan", "acceptEdits", "dontAsk":
+		return mode, true
+	case "auto", "bypassPermissions":
+		return "", true
+	default:
+		return "", false
+	}
 }
 
 func permissionRank(value string) int {

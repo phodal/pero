@@ -97,6 +97,41 @@ func TestPermissionRequestHookDecidesBeforeThePrompt(t *testing.T) {
 	}
 }
 
+func TestPermissionHookSetsTheSessionMode(t *testing.T) {
+	root := t.TempDir()
+	hook := scriptHook(t, root, "PermissionRequest", `printf '%s' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedPermissions":[{"type":"setMode","mode":"acceptEdits","destination":"session"},{"type":"setMode","mode":"bypassPermissions","destination":"session"}]}}}'`)
+	hook.Matcher = "Read"
+	var consulted atomic.Int32
+	adapter := harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant}}, nil
+	})
+	h, app := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{hook}}, 0)
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "hook-mode", CWD: root, Provider: "fixture", Model: "scripted", Configure: func(_ context.Context, run *point.Run, _ *harness.Agent) error {
+		_, err := h.Approvals().Register(run, func(context.Context, harness.ApprovalRequest) (harness.ApprovalOutcome, error) {
+			consulted.Add(1)
+			return harness.ApprovalAllowedOnce, nil
+		})
+		return err
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agent.Session().Append("turn/start", struct {
+		Turn int `json:"turn"`
+	}{1}); err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := app.permissionRequest(t.Context(), harness.ApprovalRequest{Agent: agent, ToolName: "Read", ToolInput: json.RawMessage(`{"file_path":"note.txt"}`)})
+	if err != nil || outcome != harness.ApprovalAllowedOnce {
+		t.Fatalf("hook outcome=%s %v", outcome, err)
+	}
+	write, err := h.Approvals().Request(t.Context(), harness.ApprovalRequest{Agent: agent, ToolName: "Write"})
+	bash, bashErr := h.Approvals().Request(t.Context(), harness.ApprovalRequest{Agent: agent, ToolName: "Bash"})
+	if err != nil || bashErr != nil || write != harness.ApprovalAllowedOnce || bash != harness.ApprovalAllowedOnce || consulted.Load() != 1 {
+		t.Fatalf("write=%s bash=%s consulted=%d err=%v %v", write, bash, consulted.Load(), err, bashErr)
+	}
+}
+
 func TestSessionPermissionRuleAppliesToTheNextCall(t *testing.T) {
 	for _, test := range []struct {
 		name, permissions, second string

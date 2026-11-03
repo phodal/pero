@@ -69,6 +69,10 @@ func (app *HookApp) rememberSessionPermissions(agent *harness.Agent, updates []c
 					return err
 				}
 			}
+		case "setMode":
+			if _, err := harness.SetClaudePermissionMode(agent.Session(), update.Mode); err != nil {
+				return err
+			}
 		}
 	}
 	app.mu.Lock()
