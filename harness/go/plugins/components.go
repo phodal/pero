@@ -39,6 +39,7 @@ type Component struct {
 	Digest            string               `json:"digest"`
 	Visibility        InvocationVisibility `json:"visibility"`
 	ArgumentHint      string               `json:"argumentHint,omitempty"`
+	Paths             []string             `json:"paths,omitempty"`
 	AllowedTools      []string             `json:"allowedTools,omitempty"`
 	Tools             []string             `json:"tools,omitempty"`
 	DisallowedTools   []string             `json:"disallowedTools,omitempty"`
@@ -59,6 +60,7 @@ type componentHeader struct {
 	Name                   componentText  `yaml:"name"`
 	Description            componentText  `yaml:"description"`
 	ArgumentHint           componentText  `yaml:"argument-hint"`
+	Paths                  componentTools `yaml:"paths"`
 	AllowedTools           componentTools `yaml:"allowed-tools"`
 	Tools                  componentTools `yaml:"tools"`
 	DisallowedTools        componentTools `yaml:"disallowedTools"`
@@ -230,6 +232,18 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 	if len(component.ArgumentHint) > 256 {
 		add(SeverityError, "INVALID_COMPONENT_FIELD", "argument-hint", "Argument hint must be at most 256 bytes.")
 	}
+	if kind != ComponentAgent {
+		component.Paths = append([]string(nil), header.Paths...)
+		if len(component.Paths) > 32 {
+			add(SeverityError, "INVALID_COMPONENT_FIELD", "paths", "A skill can declare at most 32 paths.")
+		}
+		for _, pattern := range component.Paths {
+			if !validSkillPath(pattern) {
+				add(SeverityError, "INVALID_COMPONENT_FIELD", "paths", "Skill paths must be relative glob patterns.")
+				break
+			}
+		}
+	}
 	component.AllowedTools = []string(header.AllowedTools)
 	component.Tools = []string(header.Tools)
 	component.DisallowedTools = []string(header.DisallowedTools)
@@ -374,6 +388,13 @@ func validComponentName(name string) bool {
 	return name != ""
 }
 
+func validSkillPath(pattern string) bool {
+	if pattern == "" || len(pattern) > 256 || strings.HasPrefix(pattern, "/") || strings.Contains(pattern, "\\") || strings.Contains(pattern, "..") {
+		return false
+	}
+	return true
+}
+
 func validSkillEffort(effort string) bool {
 	switch effort {
 	case "low", "medium", "high", "xhigh", "max":
@@ -387,7 +408,7 @@ func knownComponentField(kind ComponentKind, key string) bool {
 	switch key {
 	case "name", "description", "model", "effort", "version", "license", "compatibility", "metadata", "homepage", "platforms":
 		return true
-	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent":
+	case "hooks", "argument-hint", "paths", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent":
 		return kind != ComponentAgent
 	case "background":
 		return true

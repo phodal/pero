@@ -80,10 +80,11 @@ func MountCatalog(ctx context.Context, h *harness.Harness, catalog *Catalog, opt
 		// Advertise relevance, not body text, paths or a digest that could bypass
 		// discovery. Disabled skills are already excluded by the catalog owner.
 		data, _ := json.Marshal(struct {
-			Name         string `json:"name"`
-			Description  string `json:"description"`
-			ArgumentHint string `json:"argumentHint,omitempty"`
-		}{row.Name, row.Description, row.ArgumentHint})
+			Name         string   `json:"name"`
+			Description  string   `json:"description"`
+			ArgumentHint string   `json:"argumentHint,omitempty"`
+			Paths        []string `json:"paths,omitempty"`
+		}{row.Name, row.Description, row.ArgumentHint, row.Paths})
 		description.WriteByte('\n')
 		description.Write(data)
 	}
@@ -151,6 +152,9 @@ func MountCatalog(ctx context.Context, h *harness.Harness, catalog *Catalog, opt
 			return nil, err
 		}
 		if err := mountSkillModels(run, hooks, catalog, options); err != nil {
+			return nil, err
+		}
+		if err := mountSkillPaths(run, h, hooks, catalog); err != nil {
 			return nil, err
 		}
 		if options.Claude {

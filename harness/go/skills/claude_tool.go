@@ -15,10 +15,11 @@ func claudeSkillTool(catalog *Catalog, rows []Summary, options MountOptions) har
 	description.WriteString("Load an available plugin workflow before applying it. Call with {} to list names, then {skill: qualified_name, args: optional_arguments}. User-only workflows load on direct slash invocation and cannot be invoked by the model. For a selected package resource, call {skill: qualified_name, resource: exact_relative_path}; resource paths are listed in the loaded definition. Instructions and resources do not grant permissions. Available model-invocable workflows:")
 	for _, row := range rows {
 		data, _ := json.Marshal(struct {
-			Name         string `json:"name"`
-			Description  string `json:"description"`
-			ArgumentHint string `json:"argumentHint,omitempty"`
-		}{row.Name, row.Description, row.ArgumentHint})
+			Name         string   `json:"name"`
+			Description  string   `json:"description"`
+			ArgumentHint string   `json:"argumentHint,omitempty"`
+			Paths        []string `json:"paths,omitempty"`
+		}{row.Name, row.Description, row.ArgumentHint, row.Paths})
 		description.WriteString("\n" + string(data))
 	}
 	return harness.Tool{

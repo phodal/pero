@@ -73,6 +73,17 @@ func TestComponentDefinitions(t *testing.T) {
 	}
 }
 
+func TestSkillPathsField(t *testing.T) {
+	component, diagnostics := ParseComponent("sample", ComponentSkill, "skills/notes/SKILL.md", []byte("---\nname: notes\ndescription: Notes.\npaths:\n  - notes/*.txt\n  - src/**/*.go\n---\nRead."))
+	if len(diagnostics) != 0 || len(component.Paths) != 2 || component.Paths[0] != "notes/*.txt" {
+		t.Fatalf("component=%+v diagnostics=%v", component, diagnostics)
+	}
+	_, diagnostics = ParseComponent("sample", ComponentSkill, "skills/notes/SKILL.md", []byte("---\nname: notes\ndescription: Notes.\npaths: [../secret]\n---\nRead."))
+	if len(diagnostics) != 1 || diagnostics[0].Code != "INVALID_COMPONENT_FIELD" {
+		t.Fatalf("diagnostics=%v", diagnostics)
+	}
+}
+
 func TestArgumentHintIsKept(t *testing.T) {
 	component, diagnostics := ParseComponent("sample", ComponentCommand, "commands/deploy.md", []byte("---\nargument-hint: <target>\n---\nDeploy."))
 	if len(diagnostics) != 0 || component.ArgumentHint != "<target>" {

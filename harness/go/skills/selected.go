@@ -97,6 +97,7 @@ func OpenSelected(ctx context.Context, roots []string, selected []FileSelection)
 			definition.Background = &background
 		}
 		definition.AllowedTools = append([]string(nil), definition.AllowedTools...)
+		definition.Paths = append([]string(nil), definition.Paths...)
 		definition.Claude = true
 		definition.ResourceBase = selection.Root
 		definition.Directory = filepath.ToSlash(filepath.Dir(selection.Path))

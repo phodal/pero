@@ -24,10 +24,11 @@ const MaxSkills = 64
 const MaxFileBytes = 64 << 10
 
 type Summary struct {
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	Digest       string `json:"digest"`
-	ArgumentHint string `json:"argumentHint,omitempty"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Digest       string   `json:"digest"`
+	ArgumentHint string   `json:"argumentHint,omitempty"`
+	Paths        []string `json:"paths,omitempty"`
 }
 type Definition struct {
 	Summary
@@ -333,6 +334,7 @@ func (c *Catalog) definition(ctx context.Context, e entry) (Definition, error) {
 	definition := e.definition
 	definition.Resources = append([]string(nil), definition.Resources...)
 	definition.AllowedTools = append([]string(nil), definition.AllowedTools...)
+	definition.Paths = append([]string(nil), definition.Paths...)
 	if definition.Background != nil {
 		background := *definition.Background
 		definition.Background = &background
