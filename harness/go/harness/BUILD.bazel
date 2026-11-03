@@ -156,6 +156,7 @@ go_test(
         "retry_test.go",
         "subagent_descriptor_test.go",
         "subagent_provider_descriptors_test.go",
+        "subagent_result_test.go",
         "subagents_activation_announcement_test.go",
         "subagents_activation_cwd_test.go",
         "subagents_activation_messages_test.go",

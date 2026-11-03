@@ -538,7 +538,7 @@ func (r *SubagentRegistry) watchContinuation(record *subagentRecord, epoch uint6
 		}
 		text := fmt.Sprintf("Background subagent %s finished with status %s.", child.ID(), status)
 		content := []ContentBlock{{Type: BlockText, Text: text}}
-		content = append(content, lastAssistantBlocks(child.Session())...)
+		content = append(content, (SubagentResult{Output: lastAssistantBlocks(child.Session())}).ParentContent()...)
 		messageID, idErr := newMessageID()
 		source, sourceErr := json.Marshal(map[string]any{
 			"kind": "subagent-settled", "form": "notice", "summary": text, "senderSessionId": child.ID(),
@@ -614,7 +614,7 @@ func DeliverParentNotice(parent *Agent, childID SessionID, status SubagentStatus
 	}
 	text := fmt.Sprintf("Background subagent %s finished with status %s.", childID, status)
 	content := []ContentBlock{{Type: BlockText, Text: text}}
-	content = append(content, output...)
+	content = append(content, (SubagentResult{Output: output}).ParentContent()...)
 	if structured != nil {
 		encoded, err := json.Marshal(structured)
 		if err != nil {

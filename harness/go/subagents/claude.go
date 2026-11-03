@@ -327,7 +327,7 @@ func claudeTaskResult(task *claudeTask, retrieval string) harness.ToolResult {
 	select {
 	case <-task.done:
 		status = task.result.Status
-		content = task.result.Output
+		content = task.result.ParentContent()
 		diagnostic = task.result.Diagnostic
 		retrieval = "success"
 		if task.err != nil {

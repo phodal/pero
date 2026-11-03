@@ -240,6 +240,19 @@ type SubagentResult struct {
 	Diagnostic string
 }
 
+// ParentContent projects child assistant output into a parent message or tool
+// result. Tool calls and private reasoning stay in the child's transcript,
+// even on failure.
+func (r SubagentResult) ParentContent() []ContentBlock {
+	var content []ContentBlock
+	for _, block := range r.Output {
+		if block.Type == BlockText || block.Type == BlockImage {
+			content = append(content, cloneContentBlock(block))
+		}
+	}
+	return content
+}
+
 // SubagentReport is an optional, non-terminal progress message from a child.
 // Reports are advisory: the terminal SubagentResult remains authoritative.
 type SubagentReport struct {
