@@ -12,16 +12,34 @@ import (
 
 // PromptPresentation binds instructions and dynamic context from one assembly.
 type PromptPresentation struct {
-	System                string
+	System string
+	// Guidance is rendered after request middleware and adapter preparation,
+	// using the exact tools and model metadata admitted for this call.
+	Guidance              func(context.Context, PromptCapabilities) (string, error)
 	RuntimeContext        *RuntimeContextSnapshot
 	RefreshRuntimeContext func(context.Context) (*RuntimeContextSnapshot, error)
 	Release               func(context.Context) error
 }
 
+type PromptCapabilities struct {
+	Tools []ToolSchema
+	Model ModelInfo
+}
+
+func (c PromptCapabilities) HasTool(name string) bool {
+	for _, tool := range c.Tools {
+		if tool.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 type PromptSection struct {
-	ID      string
-	Order   int
-	Content func(context.Context, *Agent) (string, error)
+	ID       string
+	Order    int
+	Content  func(context.Context, *Agent) (string, error)
+	Guidance func(context.Context, *Agent, PromptCapabilities) (string, error)
 	// Presentation is an alternative to Content for providers of dynamic context.
 	Presentation func(context.Context, *Agent) (PromptPresentation, error)
 }
@@ -44,7 +62,17 @@ func (r *PromptRegistry) Register(run *point.Run, section PromptSection) (point.
 	if run == nil || !run.Active() {
 		return nil, point.ErrInactiveRun
 	}
-	if section.ID == "" || (section.Content == nil) == (section.Presentation == nil) {
+	providers := 0
+	if section.Content != nil {
+		providers++
+	}
+	if section.Presentation != nil {
+		providers++
+	}
+	if section.Guidance != nil {
+		providers++
+	}
+	if section.ID == "" || providers != 1 {
 		return nil, errors.New("harness: prompt section requires id and exactly one content provider")
 	}
 	r.mu.Lock()
@@ -82,6 +110,15 @@ func (r *PromptRegistry) Register(run *point.Run, section PromptSection) (point.
 
 func (r *PromptRegistry) Assemble(ctx context.Context, agent *Agent) (string, error) {
 	value, err := r.AssemblePresentation(ctx, agent)
+	if err == nil && value.Guidance != nil {
+		var tools []ToolSchema
+		tools, err = agent.tools.SchemasForAgent(ctx, agent)
+		if err == nil {
+			var guidance string
+			guidance, err = value.Guidance(ctx, PromptCapabilities{Tools: tools})
+			value.System = strings.TrimSpace(value.System + "\n\n" + guidance)
+		}
+	}
 	if value.Release != nil {
 		err = errors.Join(err, value.Release(context.WithoutCancel(ctx)))
 	}
@@ -102,6 +139,7 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 	var runtime *RuntimeContextSnapshot
 	var runtimeTexts []string
 	var providers []PromptPresentation
+	var guidanceSections []PromptSection
 	release := func(ctx context.Context) error {
 		var errs []error
 		for _, p := range providers {
@@ -117,7 +155,10 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 		}
 		var content string
 		var err error
-		if entry.section.Presentation != nil {
+		if entry.section.Guidance != nil {
+			guidanceSections = append(guidanceSections, entry.section)
+			continue
+		} else if entry.section.Presentation != nil {
 			var value PromptPresentation
 			value, err = entry.section.Presentation(ctx, agent)
 			providers = append(providers, value)
@@ -145,6 +186,26 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 		runtime.Text = strings.Join(runtimeTexts, "\n\n")
 	}
 	value := PromptPresentation{System: strings.Join(sections, "\n\n"), RuntimeContext: runtime, Release: release}
+	if len(guidanceSections) > 0 {
+		value.Guidance = func(ctx context.Context, capabilities PromptCapabilities) (string, error) {
+			var parts []string
+			for _, section := range guidanceSections {
+				// Contributions receive values, never mutable request slices.
+				captured := PromptCapabilities{Model: cloneModelInfo(capabilities.Model)}
+				for _, schema := range capabilities.Tools {
+					captured.Tools = append(captured.Tools, cloneToolSchema(schema))
+				}
+				text, err := section.Guidance(ctx, agent, captured)
+				if err != nil {
+					return "", err
+				}
+				if text = strings.TrimSpace(text); text != "" {
+					parts = append(parts, text)
+				}
+			}
+			return strings.Join(parts, "\n\n"), nil
+		}
+	}
 	for _, provider := range providers {
 		if provider.RefreshRuntimeContext != nil {
 			value.RefreshRuntimeContext = func(ctx context.Context) (*RuntimeContextSnapshot, error) {

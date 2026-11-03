@@ -469,6 +469,15 @@ func (a *Agent) generateStepWithRuntime(ctx context.Context, turn, step int, pre
 		if err != nil {
 			return Completion{}, fmt.Errorf("harness: prepare model call for %s/%s: %w", request.Provider, request.Model, err)
 		}
+		if presentation.Guidance != nil {
+			guidance, err := presentation.Guidance(ctx, PromptCapabilities{Tools: request.Tools, Model: prepared.ModelInfo})
+			if err != nil {
+				return Completion{}, err
+			}
+			if guidance != "" {
+				request.System = strings.TrimSpace(request.System + "\n\n" + guidance)
+			}
+		}
 		if presentation.RefreshRuntimeContext != nil {
 			request.RuntimeContext, err = presentation.RefreshRuntimeContext(ctx)
 			if err != nil {

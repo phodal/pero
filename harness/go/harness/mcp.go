@@ -255,17 +255,13 @@ func registerMCPResourceTools(run *point.Run, registry *ToolRegistry, directory 
 func registerMCPResourcePrompt(run *point.Run, registry *ToolRegistry, prompts *PromptRegistry, directory *harnessmcp.ResourceDirectory) error {
 	_, err := prompts.Register(run, PromptSection{
 		ID: fmt.Sprintf("mcp-resource-servers:%p", run.Scope), Order: 3100,
-		Content: func(ctx context.Context, agent *Agent) (string, error) {
+		Guidance: func(ctx context.Context, agent *Agent, capabilities PromptCapabilities) (string, error) {
 			names := directory.Names()
 			if len(names) == 0 {
 				return "", nil
 			}
-			schemas, err := registry.SchemasForAgent(ctx, agent)
-			if err != nil {
-				return "", err
-			}
 			var tools []string
-			for _, schema := range schemas {
+			for _, schema := range capabilities.Tools {
 				switch schema.Name {
 				case "list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource", "list_mcp_prompts", "get_mcp_prompt":
 					tools = append(tools, schema.Name)

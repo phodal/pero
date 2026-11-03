@@ -108,7 +108,12 @@ func attachStructuredCapture(h *harness.Harness, run *point.Run, agent *harness.
 	}
 	if _, err := h.Prompts().Register(run, harness.PromptSection{
 		ID: "subagent/structured-output/" + string(agent.ID()), Order: 8_900,
-		Content: func(context.Context, *harness.Agent) (string, error) { return structuredOutputInstruction, nil },
+		Guidance: func(_ context.Context, _ *harness.Agent, capabilities harness.PromptCapabilities) (string, error) {
+			if !capabilities.HasTool(structuredOutputToolName) {
+				return "", nil
+			}
+			return structuredOutputInstruction, nil
+		},
 	}); err != nil {
 		return nil, err
 	}

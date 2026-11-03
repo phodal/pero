@@ -75,6 +75,7 @@ func TestMCPResourceGuidanceMatchesAgentTools(t *testing.T) {
 		{Message: Message{Role: RoleAssistant}, Finish: FinishStop},
 		{Message: Message{Role: RoleAssistant}, Finish: FinishStop},
 		{Message: Message{Role: RoleAssistant}, Finish: FinishStop},
+		{Message: Message{Role: RoleAssistant}, Finish: FinishStop},
 	}}
 	h, err := Boot(ctx, Options{Adapter: adapter})
 	if err != nil {
@@ -91,16 +92,25 @@ func TestMCPResourceGuidanceMatchesAgentTools(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		allow []string
+		strip bool
 	}{
 		{name: "root", allow: all},
 		{name: "read-only child", allow: []string{"read_mcp_resource"}},
 		{name: "child without MCP tools", allow: []string{}},
+		{name: "request middleware strips tools", allow: all, strip: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			agent := root
 			if tc.name != "root" {
 				agent, err = h.Agents().Create(ctx, AgentOptions{Parent: root, Configure: func(ctx context.Context, run *point.Run, child *Agent) error {
 					_, err := h.Tools().Restrict(ctx, run, child, ToolRestriction{Allow: tc.allow})
+					if err == nil && tc.strip {
+						_, err = h.Hooks().Request.Use(run, func(ctx context.Context, value GenerateRequest, next point.Next[GenerateRequest]) (GenerateRequest, error) {
+							value, err := next(value)
+							value.Tools = []ToolSchema{}
+							return value, err
+						})
+					}
 					return err
 				}})
 				if err != nil {
@@ -117,12 +127,16 @@ func TestMCPResourceGuidanceMatchesAgentTools(t *testing.T) {
 			for _, tool := range request.Tools {
 				gotNames = append(gotNames, tool.Name)
 			}
-			if !reflect.DeepEqual(gotNames, tc.allow) {
-				t.Fatalf("provider tools = %v, want %v", gotNames, tc.allow)
+			want := tc.allow
+			if tc.strip {
+				want = []string{}
+			}
+			if !reflect.DeepEqual(gotNames, want) {
+				t.Fatalf("provider tools = %v, want %v", gotNames, want)
 			}
 			for _, name := range all {
 				visible := false
-				for _, allowed := range tc.allow {
+				for _, allowed := range want {
 					visible = visible || allowed == name
 				}
 				if strings.Contains(request.System, name) != visible {
@@ -130,7 +144,7 @@ func TestMCPResourceGuidanceMatchesAgentTools(t *testing.T) {
 				}
 			}
 			for _, text := range []string{"## MCP resource servers", instructions} {
-				if strings.Contains(request.System, text) != (len(tc.allow) > 0) {
+				if strings.Contains(request.System, text) != (len(want) > 0) {
 					t.Fatalf("provider guidance %q must follow resource tool visibility: %s", text, request.System)
 				}
 			}

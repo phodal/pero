@@ -87,11 +87,7 @@ func MountMCP(ctx context.Context, h *harness.Harness, packages []plugins.Packag
 				}
 				_, err := h.Prompts().Register(ownerRun, harness.PromptSection{
 					ID: fmt.Sprintf("plugin-mcp-identities:%p", agent), Order: 3110,
-					Content: func(ctx context.Context, target *harness.Agent) (string, error) {
-						schemas, err := h.Tools().SchemasForAgent(ctx, target)
-						if err != nil {
-							return "", err
-						}
+					Guidance: func(ctx context.Context, target *harness.Agent, capabilities harness.PromptCapabilities) (string, error) {
 						type identity struct {
 							LogicalServer string   `json:"logicalServer"`
 							RuntimeServer string   `json:"runtimeServer"`
@@ -102,13 +98,18 @@ func MountMCP(ctx context.Context, h *harness.Harness, packages []plugins.Packag
 							for _, server := range pkg.MCP {
 								name := pluginMCPName(pkg.Definition.Name, server.Name)
 								value := identity{LogicalServer: "plugin:" + pkg.Definition.Name + ":" + server.Name, RuntimeServer: name, Tools: []string{}}
-								for _, schema := range schemas {
+								for _, schema := range capabilities.Tools {
 									if strings.HasPrefix(schema.Name, "mcp__"+name+"__") {
 										value.Tools = append(value.Tools, schema.Name)
 									}
 								}
-								identities = append(identities, value)
+								if len(value.Tools) > 0 {
+									identities = append(identities, value)
+								}
 							}
+						}
+						if len(identities) == 0 {
+							return "", nil
 						}
 						encoded, err := json.Marshal(identities)
 						return "## Plugin MCP identities\n\nUse the advertised tools below. Runtime server and tool names may be normalized and digest-suffixed to meet provider limits; they are not literal Claude names.\n" + string(encoded), err
