@@ -34,7 +34,7 @@ func TestInspectLocalDefinitions(t *testing.T) {
 			".claude-plugin/plugin.json": `{"name":"sample","skills":["./skills","./skills/draft"]}`,
 			"skills/draft/SKILL.md":      "---\ndescription: Draft\n---\nbody",
 		}, []string{"sample:draft"}, ""},
-		{"agent-directory", map[string]string{".claude-plugin/plugin.json": `{"name":"sample","agents":["./agents/"]}`, "agents/reviewer.md": "body"}, nil, "INVALID_AGENT_PATH"},
+		{"agent-directory", map[string]string{".claude-plugin/plugin.json": `{"name":"sample","agents":["./agents/"]}`, "agents/reviewer.md": "body"}, []string{"sample:reviewer"}, "AGENT_DIRECTORY_EXPANDED"},
 		{"missing-explicit", map[string]string{".claude-plugin/plugin.json": `{"name":"sample","skills":["./skills"]}`}, nil, "UNREADABLE_CONFIGURATION"},
 		{"escaping-path", map[string]string{".claude-plugin/plugin.json": `{"name":"sample","commands":"./../outside.md"}`}, nil, "INVALID_COMPONENT_PATH"},
 		{"invalid-manifest", map[string]string{".claude-plugin/plugin.json": `{"name":27}`}, nil, "INVALID_MANIFEST"},
@@ -43,7 +43,7 @@ func TestInspectLocalDefinitions(t *testing.T) {
 		{"plugin-id-characters", map[string]string{".claude-plugin/plugin.json": `{"name":"Sample.Plugin_v1"}`}, nil, ""},
 		{"root-skill", map[string]string{".claude-plugin/plugin.json": `{"name":"sample","skills":"."}`, "SKILL.md": "Root skill."}, []string{"sample:sample"}, ""},
 		{"explicit-skill-file", map[string]string{".claude-plugin/plugin.json": `{"name":"sample","skills":"./extra/SKILL.md"}`, "extra/SKILL.md": "Prompt"}, nil, "INVALID_COMPONENT_PATH"},
-		{"missing-agent-fields", map[string]string{"agents/reviewer.md": "Prompt only"}, []string{""}, "MISSING_AGENT_NAME"},
+		{"missing-agent-fields", map[string]string{"agents/reviewer.md": "Prompt only"}, []string{"sample:reviewer"}, "AGENT_NAME_DEFAULTED"},
 		{"duplicate-logical-name", map[string]string{"skills/a/SKILL.md": "---\nname: same\ndescription: A\n---\na", "skills/b/SKILL.md": "---\nname: same\ndescription: B\n---\nb"}, []string{"sample:same", "sample:same"}, "DUPLICATE_COMPONENT"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

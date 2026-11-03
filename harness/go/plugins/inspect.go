@@ -223,8 +223,7 @@ func discoverComponents(ctx context.Context, root *os.Root, plugin *Plugin, diag
 		return
 	}
 	if selection.Kind == ComponentAgent && selection.Explicit {
-		*diagnostics = append(*diagnostics, Diagnostic{SeverityError, "INVALID_AGENT_PATH", joined(prefix, path), "agents", "Explicit agent paths must reference Markdown files; omit the field to discover the default agents directory."})
-		return
+		*diagnostics = append(*diagnostics, Diagnostic{SeverityWarning, "AGENT_DIRECTORY_EXPANDED", joined(prefix, path), "agents", "An explicit agent directory is expanded to its Markdown files."})
 	}
 	// Skills may name one skill directory or a directory of skill directories.
 	if selection.Kind == ComponentSkill {

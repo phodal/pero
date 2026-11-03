@@ -190,19 +190,38 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 	if err := packageDiagnostics(diagnostics); err != nil {
 		return nil, err
 	}
+	var root map[string]json.RawMessage
+	if json.Unmarshal(raw, &root) != nil {
+		return nil, errors.New("plugins: invalid runtime hook declaration")
+	}
+	encoded := root["hooks"]
+	if encoded == nil {
+		if bare, ok := bareHookEvents(root); ok {
+			rawBare, err := json.Marshal(bare)
+			if err != nil {
+				return nil, err
+			}
+			encoded = rawBare
+		}
+	}
 	var wire struct {
 		Hooks map[string][]struct {
 			Matcher string `json:"matcher"`
 			Hooks   []struct {
-				Command string    `json:"command"`
-				Args    *[]string `json:"args"`
-				Timeout *float64  `json:"timeout"`
-				Async   bool      `json:"async"`
+				Command   string    `json:"command"`
+				Args      *[]string `json:"args"`
+				Timeout   *float64  `json:"timeout"`
+				Async     bool      `json:"async"`
+				If        string    `json:"if"`
+				Once      bool      `json:"once"`
+				OnFailure string    `json:"onFailure"`
 			} `json:"hooks"`
 		} `json:"hooks"`
 	}
-	if json.Unmarshal(raw, &wire) != nil {
-		return nil, errors.New("plugins: invalid runtime hook declaration")
+	if encoded != nil {
+		if json.Unmarshal(encoded, &wire.Hooks) != nil && json.Unmarshal(raw, &wire) != nil {
+			return nil, errors.New("plugins: invalid runtime hook declaration")
+		}
 	}
 	var events []string
 	for event := range wire.Hooks {
@@ -213,11 +232,14 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 	for _, event := range events {
 		for _, group := range wire.Hooks[event] {
 			for _, handler := range group.Hooks {
-				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async}
+				if handler.OnFailure != "" && handler.OnFailure != "continue" && handler.OnFailure != "block" {
+					return nil, errors.New("plugins: hook onFailure must be continue or block")
+				}
+				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure}
 				if event == "Stop" {
 					hook.Matcher = ""
 				}
-				if handler.Args != nil {
+				if handler.Args != nil && !(len(*handler.Args) == 0 && len(strings.Fields(handler.Command)) > 1) {
 					hook.ExecForm = true
 					hook.Args = append([]string{}, (*handler.Args)...)
 				}

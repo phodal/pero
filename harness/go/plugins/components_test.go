@@ -29,8 +29,8 @@ func TestComponentDefinitions(t *testing.T) {
 		{name: "tool yaml list", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\nallowed-tools:\n  - Read\n  - Bash(npm test:*)\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantAllowedTools: []string{"Read", "Bash(npm test:*)"}, wantBody: "Inspect."},
 		{name: "empty tool grant", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\nallowed-tools: []\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantAllowedTools: []string{}, wantBody: "Inspect."},
 		{name: "windows newlines", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "\ufeff---\r\nname: review\r\n---\r\nInspect.\r\n", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantBody: "Inspect."},
-		{name: "agent required metadata", kind: ComponentAgent, path: "agents/empty.md", content: "Prompt only.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt only.", wantCodes: []string{"MISSING_AGENT_NAME", "MISSING_AGENT_DESCRIPTION"}},
-		{name: "missing agent name", kind: ComponentAgent, path: "agents/empty.md", content: "---\ndescription: Analyze.\n---\nPrompt.", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"MISSING_AGENT_NAME"}},
+		{name: "agent required metadata", kind: ComponentAgent, path: "agents/empty.md", content: "Prompt only.", wantName: "empty", wantDescription: "Prompt only.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt only.", wantCodes: []string{"AGENT_NAME_DEFAULTED", "AGENT_DESCRIPTION_DEFAULTED"}},
+		{name: "missing agent name", kind: ComponentAgent, path: "agents/empty.md", content: "---\ndescription: Analyze.\n---\nPrompt.", wantName: "empty", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"AGENT_NAME_DEFAULTED"}},
 		{name: "agent ignored permission field", kind: ComponentAgent, path: "agents/review.md", content: "---\nname: review\ndescription: Analyze.\npermissionMode: bypassPermissions\n---\nPrompt.", wantName: "review", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"IGNORED_PLUGIN_AGENT_FIELD"}},
 		{name: "agent display fallback", kind: ComponentAgent, path: "agents/review.md", content: "---\nname: review\ndescription: Analyze.\ncolor: magenta\n---\nPrompt.", wantName: "review", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"INVALID_AGENT_COLOR"}},
 		{name: "skill visibility does not configure agent", kind: ComponentAgent, path: "agents/review.md", content: "---\nname: review\ndescription: Analyze.\nuser-invocable: false\n---\nPrompt.", wantName: "review", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"UNSUPPORTED_COMPONENT_FIELD"}},
@@ -103,6 +103,17 @@ func TestForkComponentFields(t *testing.T) {
 				t.Fatalf("diagnostics=%v want=%v", codes, test.codes)
 			}
 		})
+	}
+}
+
+func TestComponentHooksParseCommandFrontmatter(t *testing.T) {
+	component, diagnostics := ParseComponent("sample", ComponentSkill, "skills/secure/SKILL.md", []byte("---\nname: secure\ndescription: Check commands.\nhooks:\n  PreToolUse:\n    - matcher: Bash\n      hooks:\n        - type: command\n          command: ./scripts/check.sh\n          once: true\n---\nCheck.\n"))
+	if len(diagnostics) != 0 || len(component.Hooks) != 1 || component.Hooks[0].Event != "PreToolUse" || component.Hooks[0].Matcher != "Bash" || component.Hooks[0].Command != "./scripts/check.sh" || !component.Hooks[0].Once {
+		t.Fatalf("hooks=%+v diagnostics=%v", component.Hooks, diagnostics)
+	}
+	agent, diagnostics := ParseComponent("sample", ComponentAgent, "agents/reviewer.md", []byte("---\nname: reviewer\ndescription: Review.\nhooks:\n  Stop:\n    - hooks:\n        - type: command\n          command: ./scripts/stop.sh\n---\nReview.\n"))
+	if len(diagnostics) != 0 || len(agent.Hooks) != 1 || agent.Hooks[0].Event != "Stop" || agent.Hooks[0].Command != "./scripts/stop.sh" {
+		t.Fatalf("agent hooks=%+v diagnostics=%v", agent.Hooks, diagnostics)
 	}
 }
 

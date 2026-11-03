@@ -5,10 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/phodal/pero/harness/go/claudehooks"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,6 +45,7 @@ type Component struct {
 	Context       string               `json:"context,omitempty"`
 	Agent         string               `json:"agent,omitempty"`
 	Background    *bool                `json:"background,omitempty"`
+	Hooks         []claudehooks.Hook   `json:"hooks,omitempty"`
 }
 
 type componentHeader struct {
@@ -243,10 +247,12 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 	}
 	if kind == ComponentAgent {
 		if component.Name == "" {
-			add(SeverityError, "MISSING_AGENT_NAME", "name", "Agent frontmatter requires a name.")
+			component.Name = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+			add(SeverityWarning, "AGENT_NAME_DEFAULTED", "name", "Agent name defaults to the filename.")
 		}
 		if component.Description == "" {
-			add(SeverityError, "MISSING_AGENT_DESCRIPTION", "description", "Agent frontmatter requires a description.")
+			component.Description = defaultAgentDescription(component.Name, component.Content)
+			add(SeverityWarning, "AGENT_DESCRIPTION_DEFAULTED", "description", "Agent description defaults to the first body line.")
 		}
 	}
 	if component.Name != "" && !validComponentName(component.Name) {
@@ -267,13 +273,17 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 			switch {
 			case kind == ComponentCommand && key == "name":
 				add(SeverityWarning, "IGNORED_COMMAND_NAME", key, "Command names come from their filename; frontmatter name does not rename a command.")
-			case kind == ComponentAgent && (key == "permissionMode" || key == "mcpServers" || key == "hooks" || key == "initialPrompt"):
+			case kind == ComponentAgent && (key == "permissionMode" || key == "mcpServers" || key == "initialPrompt"):
 				add(SeverityWarning, "IGNORED_PLUGIN_AGENT_FIELD", key, "Claude ignores this field on plugin agents.")
 			case kind == ComponentAgent && key == "color":
 				color := fields.Content[i+1]
 				if color.Kind != yaml.ScalarNode || color.Tag != "!!str" || !validAgentColor(color.Value) {
 					add(SeverityWarning, "INVALID_AGENT_COLOR", key, "Agent color is not one of the supported display colors.")
 				}
+			case key == "hooks":
+				parsed, hookDiagnostics := parseComponentHooks(path, fields.Content[i+1])
+				diagnostics = append(diagnostics, hookDiagnostics...)
+				component.Hooks = append(component.Hooks, parsed...)
 			case knownComponentField(kind, key):
 				// Parsed behavior and inert descriptive metadata are recognized.
 			default:
@@ -282,6 +292,22 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 		}
 	}
 	return component, diagnostics
+}
+
+func defaultAgentDescription(name, body string) string {
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(strings.TrimLeft(line, "#"))
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		runes := []rune(line)
+		if len(runes) > 200 {
+			return string(runes[:200])
+		}
+		return line
+	}
+	return "Agent " + name
 }
 
 func validComponentName(name string) bool {
@@ -300,12 +326,71 @@ func knownComponentField(kind ComponentKind, key string) bool {
 	switch key {
 	case "name", "description", "model", "version", "license", "compatibility", "metadata", "homepage", "platforms":
 		return true
-	case "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background":
+	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background":
 		return kind != ComponentAgent
 	case "tools", "color":
 		return kind == ComponentAgent
 	}
 	return false
+}
+
+func parseComponentHooks(path string, node *yaml.Node) ([]claudehooks.Hook, []Diagnostic) {
+	var groups map[string][]struct {
+		Matcher string `yaml:"matcher"`
+		Hooks   []struct {
+			Type      string   `yaml:"type"`
+			Command   string   `yaml:"command"`
+			Args      []string `yaml:"args"`
+			Timeout   *float64 `yaml:"timeout"`
+			Async     bool     `yaml:"async"`
+			If        string   `yaml:"if"`
+			Once      bool     `yaml:"once"`
+			OnFailure string   `yaml:"onFailure"`
+		} `yaml:"hooks"`
+	}
+	if node == nil || node.Decode(&groups) != nil {
+		return nil, []Diagnostic{{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks", Message: "Skill and agent hooks must use the Claude hook mapping."}}
+	}
+	events := make([]string, 0, len(groups))
+	for event := range groups {
+		events = append(events, event)
+	}
+	sort.Strings(events)
+	var hooks []claudehooks.Hook
+	var diagnostics []Diagnostic
+	for _, event := range events {
+		for _, group := range groups[event] {
+			for _, handler := range group.Hooks {
+				if handler.Type != "" && handler.Type != "command" {
+					diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "UNSUPPORTED_HOOK_HANDLER", Path: path, Field: "hooks", Message: "Only command hooks in skill and agent frontmatter are executed."})
+					continue
+				}
+				if strings.TrimSpace(handler.Command) == "" {
+					diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks", Message: "A command hook requires a nonempty command."})
+					continue
+				}
+				if handler.OnFailure != "" && handler.OnFailure != "continue" && handler.OnFailure != "block" {
+					diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks.onFailure", Message: "Hook onFailure must be continue or block."})
+					continue
+				}
+				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure}
+				if len(handler.Args) > 0 {
+					hook.ExecForm = true
+					hook.Args = append([]string{}, handler.Args...)
+				}
+				if handler.Timeout != nil {
+					duration := *handler.Timeout * float64(time.Second)
+					if duration < 1 {
+						diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks.timeout", Message: "Hook timeout must be positive."})
+						continue
+					}
+					hook.Timeout = time.Duration(duration)
+				}
+				hooks = append(hooks, hook)
+			}
+		}
+	}
+	return hooks, diagnostics
 }
 
 func validAgentColor(color string) bool {

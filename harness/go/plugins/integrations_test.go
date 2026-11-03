@@ -38,22 +38,34 @@ func TestHookInspection(t *testing.T) {
 		},
 		{
 			name:    "inline arguments are invalid in argv form",
-			content: `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"python3 /private/check.py","args":[]}]}]}}`,
+			content: `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"python3 /private/check.py","args":["hidden-argument"]}]}]}}`,
 			count:   1, form: "argv", args: true,
 			codes:      []string{"HOOK_COMMAND_WITH_ARGS", "HOOK_RUNTIME_UNSUPPORTED"},
 			errorCodes: []string{"HOOK_COMMAND_WITH_ARGS"},
 		},
 		{
 			name:    "absolute interpreter cannot include inline arguments",
-			content: `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"/usr/bin/python3 /private/check.py","args":[]}]}]}}`,
+			content: `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"/usr/bin/python3 /private/check.py","args":["hidden-argument"]}]}]}}`,
 			count:   1, form: "argv", args: true,
 			codes:      []string{"HOOK_COMMAND_WITH_ARGS", "HOOK_RUNTIME_UNSUPPORTED"},
 			errorCodes: []string{"HOOK_COMMAND_WITH_ARGS"},
 		},
 		{
+			name:    "bare event map is accepted",
+			content: `{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"true"}]}]}`,
+			count:   1, form: "shell",
+			codes: []string{"HOOKS_WRAPPER_IMPLIED", "HOOK_RUNTIME_UNSUPPORTED"},
+		},
+		{
+			name:    "empty args stays shell form",
+			content: `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"python3 /private/check.py","args":[]}]}]}}`,
+			count:   1, form: "shell",
+			codes: []string{"HOOK_EMPTY_ARGS_IGNORED", "HOOK_RUNTIME_UNSUPPORTED"},
+		},
+		{
 			name:       "wrapper is required",
-			content:    `{"PreToolUse":[{"hooks":[]}]}`,
-			codes:      []string{"UNKNOWN_HOOK_FIELD", "HOOKS_WRAPPER_REQUIRED"},
+			content:    `{"description":"notes"}`,
+			codes:      []string{"HOOKS_WRAPPER_REQUIRED"},
 			errorCodes: []string{"HOOKS_WRAPPER_REQUIRED"},
 		},
 		{

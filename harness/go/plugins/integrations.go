@@ -75,15 +75,22 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 		add(SeverityError, "INVALID_HOOKS", "", "Hook configuration must be a JSON object.")
 		return result, diagnostics
 	}
+	_, wrapped := root["hooks"]
 	for _, key := range sortedIntegrationKeys(root) {
-		if key != "hooks" && key != "description" {
-			add(SeverityWarning, "UNKNOWN_HOOK_FIELD", key, "Unrecognized top-level hook field is not applied.")
+		if key == "hooks" || key == "description" || (!wrapped && knownHookEvent(key)) {
+			continue
 		}
+		add(SeverityWarning, "UNKNOWN_HOOK_FIELD", key, "Unrecognized top-level hook field is not applied.")
 	}
 	rules, ok := integrationObject(root["hooks"])
 	if !ok {
-		add(SeverityError, "HOOKS_WRAPPER_REQUIRED", "hooks", "Hook configuration requires a top-level hooks object.")
-		return result, diagnostics
+		if bare, bareOK := bareHookEvents(root); bareOK {
+			rules = bare
+			add(SeverityWarning, "HOOKS_WRAPPER_IMPLIED", "hooks", "A bare event map is accepted. Settings files should wrap events in a hooks object.")
+		} else {
+			add(SeverityError, "HOOKS_WRAPPER_REQUIRED", "hooks", "Hook configuration requires a top-level hooks object.")
+			return result, diagnostics
+		}
 	}
 	for _, event := range sortedIntegrationKeys(rules) {
 		base := "hooks." + event
@@ -148,25 +155,38 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 					}
 					summary.CommandForm = "shell"
 					if raw, present := handler["args"]; present {
-						summary.ArgsPresent = true
-						summary.CommandForm = "argv"
 						var args []string
 						if !integrationDecode(raw, &args) {
+							summary.ArgsPresent = true
+							summary.CommandForm = "argv"
 							add(SeverityError, "INVALID_HOOK_ARGS", base+".args", "Hook args must be an array of strings.")
-						}
-						parts := strings.Fields(command)
-						if len(parts) > 1 {
-							switch filepath.Base(parts[0]) {
-							case "python", "python3", "node", "nodejs", "bash", "sh", "zsh", "pwsh", "powershell", "ruby", "perl", "php", "bun", "deno":
-								add(SeverityError, "HOOK_COMMAND_WITH_ARGS", base+".command", "When args is present, command must name one executable rather than an interpreter with inline arguments.")
+						} else if len(args) == 0 && len(strings.Fields(command)) > 1 {
+							add(SeverityWarning, "HOOK_EMPTY_ARGS_IGNORED", base+".args", "Empty args on a multi-word command keeps shell form.")
+						} else {
+							summary.ArgsPresent = true
+							summary.CommandForm = "argv"
+							if len(args) > 0 {
+								parts := strings.Fields(command)
+								if len(parts) > 1 {
+									switch filepath.Base(parts[0]) {
+									case "python", "python3", "node", "nodejs", "bash", "sh", "zsh", "pwsh", "powershell", "ruby", "perl", "php", "bun", "deno":
+										add(SeverityError, "HOOK_COMMAND_WITH_ARGS", base+".command", "When args is present, command must name one executable rather than an interpreter with inline arguments.")
+									}
+								}
 							}
 						}
 					}
 				}
 				for _, key := range sortedIntegrationKeys(handler) {
 					switch key {
-					case "type", "command", "args", "timeout", "async":
-					case "once", "statusMessage", "if", "onFailure", "shell", "url", "headers", "allowedEnvVars", "model", "prompt", "toolName", "input":
+					case "type", "command", "args", "timeout", "async", "if", "onFailure":
+						if key == "onFailure" {
+							var value string
+							if !integrationDecode(handler[key], &value) || value != "continue" && value != "block" {
+								add(SeverityError, "INVALID_HOOK_FIELD", base+".onFailure", "Hook onFailure must be continue or block.")
+							}
+						}
+					case "once", "statusMessage", "shell", "url", "headers", "allowedEnvVars", "model", "prompt", "toolName", "input":
 						add(SeverityWarning, "UNSUPPORTED_HOOK_FIELD", base+"."+key, "This handler field is recognized but its execution semantics are not implemented.")
 					default:
 						add(SeverityWarning, "UNKNOWN_HOOK_FIELD", base+"."+key, "Unrecognized hook handler field is not applied.")
@@ -337,6 +357,21 @@ func credentialBinding(name string) bool {
 		}
 	}
 	return false
+}
+
+func bareHookEvents(root map[string]json.RawMessage) (map[string]json.RawMessage, bool) {
+	events := map[string]json.RawMessage{}
+	for key, raw := range root {
+		if !knownHookEvent(key) {
+			continue
+		}
+		var groups []json.RawMessage
+		if !integrationDecode(raw, &groups) {
+			return nil, false
+		}
+		events[key] = raw
+	}
+	return events, len(events) > 0
 }
 
 func knownHookEvent(event string) bool {

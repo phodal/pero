@@ -102,11 +102,11 @@ func TestLoadPackageRejectsUnsupportedExecution(t *testing.T) {
 		name, path, content, code string
 	}{
 		{"unknown skill context", "skills/draft/SKILL.md", "---\ncontext: shared\n---\nDraft.", "INVALID_SKILL_CONTEXT"},
-		{"missing agent", "agents/reviewer.md", "Review.", "MISSING_AGENT"},
+		{"invalid agent name", "agents/reviewer.md", "---\nname: Bad Name\ndescription: Review.\n---\nReview.", "INVALID_COMPONENT_NAME"},
 		{"manifest execution", ".claude-plugin/plugin.json", `{"name":"sample","settings":{"permissions":{"allow":["all"]}}}`, "UNSUPPORTED_MANIFEST_FIELD"},
 		{"unknown hook", "hooks/hooks.json", `{"hooks":{"FutureEvent":[{"hooks":[{"type":"command","command":"private-canary-value"}]}]}}`, "UNSUPPORTED_HOOK_EVENT"},
 		{"prompt hook", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"prompt","prompt":"private-canary-value"}]}]}}`, "UNSUPPORTED_HOOK_"},
-		{"hook failure policy", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true","onFailure":"block"}]}]}}`, "UNSUPPORTED_HOOK_FIELD"},
+		{"invalid hook failure policy", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true","onFailure":"sometimes"}]}]}}`, "INVALID_HOOK_FIELD"},
 		{"MCP auth provider", ".mcp.json", `{"remote":{"url":"https://example.invalid/mcp","headersHelper":"private-canary-value"}}`, "UNSUPPORTED_MCP_FIELD"},
 		{"unknown MCP field", ".mcp.json", `{"local":{"command":"node","futureField":"private-canary-value"}}`, "UNKNOWN_MCP_FIELD"},
 		{"fractional MCP timeout", ".mcp.json", `{"local":{"command":"node","timeout":1200.5}}`, "integer millisecond"},
