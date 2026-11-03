@@ -71,12 +71,12 @@ func (s *claudeDelegation) invocationPlugin(agent *harness.Agent) (string, error
 			return origin, nil
 		}
 	}
-	identity, _, err := selectedClaudeDefinition(agent)
+	identity, _, err := selectedClaudeDefinition(agent.Session())
 	return identity.Origin, err
 }
 
-func selectedClaudeDefinition(agent *harness.Agent) (claudeDefinitionIdentity, bool, error) {
-	events := agent.Session().Events()
+func selectedClaudeDefinition(session *harness.Session) (claudeDefinitionIdentity, bool, error) {
+	events := session.Events()
 	for index := len(events) - 1; index >= 0; index-- {
 		if events[index].Type != claudeDefinitionEvent {
 			continue
@@ -113,7 +113,7 @@ func HookAttribution(agent *harness.Agent) (ClaudeHookAttribution, error) {
 		return result, nil
 	}
 	result.AgentID = agent.ID()
-	identity, _, err := selectedClaudeDefinition(agent)
+	identity, _, err := selectedClaudeDefinition(agent.Session())
 	result.AgentType = identity.Name
 	return result, err
 }

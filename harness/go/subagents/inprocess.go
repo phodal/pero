@@ -39,6 +39,8 @@ type inProcessProvider struct {
 	name            string
 	fork            bool
 	persistence     harness.SessionPersistence
+	managed         bool
+	definitions     map[string]AgentDefinition
 	prepareSeed     func(context.Context, harness.SubagentRequest) (*harness.Session, error)
 	next            atomic.Uint64
 	persistenceMu   sync.Mutex
@@ -48,16 +50,16 @@ type inProcessProvider struct {
 }
 
 func MountInProcess(ctx context.Context, h *harness.Harness, options InProcessOptions) (*point.Instance, error) {
-	return mountInProcess(ctx, h, options, false)
+	return mountInProcess(ctx, h, options, false, nil)
 }
 
 // MountForkInProcess registers the DSH-compatible fork provider. Its seed is
 // captured once through the parent's last completed turn.
 func MountForkInProcess(ctx context.Context, h *harness.Harness, options InProcessOptions) (*point.Instance, error) {
-	return mountInProcess(ctx, h, options, true)
+	return mountInProcess(ctx, h, options, true, nil)
 }
 
-func mountInProcess(ctx context.Context, h *harness.Harness, options InProcessOptions, fork bool) (*point.Instance, error) {
+func mountInProcess(ctx context.Context, h *harness.Harness, options InProcessOptions, fork bool, definitions map[string]AgentDefinition) (*point.Instance, error) {
 	if h == nil || h.Runtime() == nil || h.Subagents() == nil {
 		return nil, errors.New("subagents: in-process provider requires a running harness")
 	}
@@ -81,7 +83,7 @@ func mountInProcess(ctx context.Context, h *harness.Harness, options InProcessOp
 		compaction = &copied
 	}
 	provider := &inProcessProvider{compaction: compaction,
-		h: h, name: options.Name, fork: fork, persistence: options.Persistence,
+		h: h, name: options.Name, fork: fork, managed: definitions != nil, definitions: definitions, persistence: options.Persistence,
 		detachSessions:  make(map[*harness.Session]func() error),
 		inheritApproval: options.InheritApproval, modelRoutes: append([]ModelRoute(nil), options.ModelRoutes...),
 	}
@@ -94,7 +96,11 @@ func mountInProcess(ctx context.Context, h *harness.Harness, options InProcessOp
 				return nil, err
 			}
 			provider.registry = registry
-			_, err = registry.RegisterProvider(run, provider)
+			var registered harness.SubagentProvider = provider
+			if provider.managed {
+				registered = &managedClaudeProvider{provider}
+			}
+			_, err = registry.RegisterProvider(run, registered)
 			return nil, err
 		},
 	)
@@ -208,25 +214,8 @@ func (p *inProcessProvider) createChild(ctx context.Context, request harness.Sub
 			return configure(setup, run, child)
 		}
 	}
-	// Resolve an explicit or inherited route before publishing a child Session.
-	// Adapters own exact-model validity; a failed lookup must leave neither a
-	// live child nor a durable catalog entry behind.
-	if options.Provider != "" || options.Model != "" {
-		if options.Provider == "" || options.Model == "" {
-			return nil, nil, errors.New("subagents: effective child provider and model must be supplied together")
-		}
-		info, err := p.h.Providers().ResolveModelInfo(ctx, options.Provider, options.Model)
-		if err != nil {
-			return nil, nil, fmt.Errorf("subagents: resolve child model route %s/%s: %w", options.Provider, options.Model, err)
-		}
-		// Reuse the already-resolved exact route metadata after all existing
-		// preparation gates. Do not invoke a second resolver or move admission.
-		if request.DSHModelSelection() && options.ReasoningEffort != "" && info.Reasoning == nil {
-			return nil, nil, harness.NewProviderError(fmt.Sprintf("provider %q model %q does not support reasoning effort %q", options.Provider, options.Model, options.ReasoningEffort), "UNSUPPORTED_REASONING_EFFORT", nil)
-		}
-		if err := harness.ValidateReasoningEffort(info, options.ReasoningEffort); err != nil {
-			return nil, nil, fmt.Errorf("subagents: resolve child model route %s/%s: %w", options.Provider, options.Model, err)
-		}
+	if err := p.resolveChildRoute(ctx, request, options); err != nil {
+		return nil, nil, err
 	}
 	options.ID = childID
 	var seed *harness.Session
@@ -275,7 +264,10 @@ func (p *inProcessProvider) createChild(ctx context.Context, request harness.Sub
 		return nil, nil, err
 	}
 	descriptorRequest := request
-	descriptor, err := harness.SnapshotSubagentDescriptor(p.name, descriptorRequest, false)
+	if p.managed {
+		descriptorRequest.Provider, descriptorRequest.Model, descriptorRequest.ReasoningEffort = options.Provider, options.Model, options.ReasoningEffort
+	}
+	descriptor, err := harness.SnapshotSubagentDescriptor(p.name, descriptorRequest, p.managed)
 	if err != nil {
 		p.rollbackChild(child)
 		return nil, nil, err
@@ -347,7 +339,7 @@ func (p *inProcessProvider) rollbackChild(child *harness.Agent) {
 }
 
 // childAgentOptions narrows native inheritance for the explicitly enabled, trusted
-// one-shot surface. No request may change its parent's route or enlarge a budget.
+// native surface. No request may invent a route or enlarge a parent budget.
 func (p *inProcessProvider) childAgentOptions(request harness.SubagentRequest, structured **structuredCapture) (harness.AgentOptions, error) {
 	provider, model, effort, err := parentAgentRoute(request.Parent)
 	if err != nil {
@@ -442,7 +434,15 @@ func (p *inProcessProvider) childAgentOptions(request harness.SubagentRequest, s
 				}
 			}
 			if len(request.OutputSchema) != 0 {
-				capture, err := attachStructuredCapture(p.h, run, agent, request.OutputSchema)
+				var gates []*harness.SubagentStructuredAdmission
+				if p.managed {
+					gate, err := harness.NewSubagentStructuredAdmission(p.registry, agent, request.InitialPromptMessage().ID)
+					if err != nil {
+						return err
+					}
+					gates = append(gates, gate)
+				}
+				capture, err := attachStructuredCapture(p.h, run, agent, request.OutputSchema, gates...)
 				if err != nil {
 					return err
 				}
@@ -534,4 +534,26 @@ func persistedSubagentIdentityExists(ctx context.Context, persistence harness.Se
 		return false, errors.New("subagents: persistence returned a nil Session without not-found")
 	}
 	return true, nil
+}
+
+// Route validation precedes both initial publication and resumed publication.
+func (p *inProcessProvider) resolveChildRoute(ctx context.Context, request harness.SubagentRequest, options harness.AgentOptions) error {
+	if options.Provider != "" || options.Model != "" {
+		if options.Provider == "" || options.Model == "" {
+			return errors.New("subagents: effective child provider and model must be supplied together")
+		}
+		info, err := p.h.Providers().ResolveModelInfo(ctx, options.Provider, options.Model)
+		if err != nil {
+			return fmt.Errorf("subagents: resolve child model route %s/%s: %w", options.Provider, options.Model, err)
+		}
+		// Reuse the already-resolved exact route metadata after all existing
+		// preparation gates. Do not invoke a second resolver or move admission.
+		if request.DSHModelSelection() && options.ReasoningEffort != "" && info.Reasoning == nil {
+			return harness.NewProviderError(fmt.Sprintf("provider %q model %q does not support reasoning effort %q", options.Provider, options.Model, options.ReasoningEffort), "UNSUPPORTED_REASONING_EFFORT", nil)
+		}
+		if err := harness.ValidateReasoningEffort(info, options.ReasoningEffort); err != nil {
+			return fmt.Errorf("subagents: resolve child model route %s/%s: %w", options.Provider, options.Model, err)
+		}
+	}
+	return nil
 }

@@ -8,6 +8,7 @@ go_library(
         "claude_invoke.go",
         "claude_names.go",
         "inprocess.go",
+        "managed.go",
         "structured.go",
         "tool.go",
     ],
