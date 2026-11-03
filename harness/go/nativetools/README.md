@@ -65,6 +65,11 @@ reads without cancelling on a read timeout; `TaskStop` cancels and joins the
 exact owner's task. Completed output survives session reload. A previously
 running process is recorded as interrupted on recovery and is never replayed.
 
+Ordinary Bash calls retain their last observed shell directory. Trusted Go hosts
+can wrap an execution context with `WithSessionWorkingDirectory(ctx)` to run a
+check in the session workspace without reading or changing that persistent
+directory. The exact command, approval policy and execution ownership are kept.
+
 Successful native Bash output defaults to 30,000 Unicode characters inline.
 Larger output returns a private artifact of at most 64 MiB and a preview of up
 to 2,000 characters. Failed output returns at most 10,000 characters from the

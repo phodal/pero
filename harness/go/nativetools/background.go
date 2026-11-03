@@ -310,11 +310,14 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 	}
 	task.executor = executor
 	workdir := request.Agent.Session().WorkingDirectory()
-	s.mu.Lock()
-	if saved := s.shellCWD[request.Agent.ID()]; saved != "" {
-		workdir = saved
+	sessionDirectory, _ := ctx.Value(sessionWorkingDirectoryKey{}).(bool)
+	if !sessionDirectory {
+		s.mu.Lock()
+		if saved := s.shellCWD[request.Agent.ID()]; saved != "" {
+			workdir = saved
+		}
+		s.mu.Unlock()
 	}
-	s.mu.Unlock()
 	spec, err := executor.Resolve(shell.ExecRequest{Command: input.Command, Workdir: workdir, Timeout: selection.resolveTimeout, OnExpiry: shell.ExpiryNone})
 	if err != nil {
 		return harness.ToolResult{}, err
@@ -418,9 +421,13 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 		stop := context.AfterFunc(runCtx, func() { cancel(context.Canceled) })
 		defer stop()
 		runSpec := spec
-		runSpec.Command, task.pwdMarker = commandWithDirectoryMarker(options.Shell, spec.Command, task.intent.OutputFile)
+		if !sessionDirectory {
+			runSpec.Command, task.pwdMarker = commandWithDirectoryMarker(options.Shell, spec.Command, task.intent.OutputFile)
+		}
 		result, runErr := executor.Run(taskCtx, runSpec)
-		s.observeShellDirectory(task, spec.Workdir)
+		if !sessionDirectory {
+			s.observeShellDirectory(task, spec.Workdir)
+		}
 		close(task.processDone)
 		status := shellTaskCompleted
 		if errors.Is(context.Cause(taskCtx), errShellTaskStopped) {

@@ -1,10 +1,21 @@
 package nativetools
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+type sessionWorkingDirectoryKey struct{}
+
+// WithSessionWorkingDirectory anchors a native Bash invocation to its agent's
+// session workspace instead of the user's persistent shell directory. This is
+// trusted host composition, never a model argument. The invocation cannot
+// change the persistent directory used by subsequent ordinary Bash calls.
+func WithSessionWorkingDirectory(ctx context.Context) context.Context {
+	return context.WithValue(ctx, sessionWorkingDirectoryKey{}, true)
+}
 
 func commandWithDirectoryMarker(shellPath, command, outputFile string) (string, string) {
 	base := strings.ToLower(filepath.Base(shellPath))
