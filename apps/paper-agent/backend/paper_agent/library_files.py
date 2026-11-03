@@ -10,7 +10,7 @@ from .pdf import PdfDocument
 from .research_resources import ArxivPaper, ImportDraft, PublicURL, ResearchResource
 
 
-def paper_directory(root=None):
+def paper_directory(root=None, *, create=True):
     if root is None:
         configured = os.environ.get('PERO_PAPER_DIR', '').strip()
         if configured:
@@ -22,7 +22,8 @@ def paper_directory(root=None):
         path = Path(root)
     if path.is_symlink():
         raise Invalid('Paper directory must not be a symbolic link', 409)
-    path.mkdir(parents=True, exist_ok=True)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 
