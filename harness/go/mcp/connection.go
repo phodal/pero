@@ -117,7 +117,7 @@ func MountConnection(ctx context.Context, run *point.Run, options ConnectionOpti
 		changes: make(chan uint64, 8), down: make(chan mcpDownEvent, 8), stop: make(chan struct{}),
 	}
 	retrySafe, initialErr := supervisor.connect(ctx)
-	if initialErr != nil && options.FailOnStartupError {
+	if initialErr != nil && (options.FailOnStartupError || errors.Is(ctx.Err(), context.Canceled)) {
 		return SafeError(errors.Join(initialErr, supervisor.shutdown()))
 	}
 	if err := run.Go("mcp:"+options.ServerName+":connection-supervisor", func(workerCtx context.Context) error {
