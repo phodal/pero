@@ -59,6 +59,7 @@ go_test(
         "hooks_batch_test.go",
         "hooks_cwd_test.go",
         "hooks_dirs_test.go",
+        "hooks_watch_test.go",
         "hooks_display_test.go",
         "hooks_elicit_test.go",
         "hooks_files_test.go",

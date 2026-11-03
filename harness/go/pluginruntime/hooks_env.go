@@ -89,10 +89,5 @@ func (app *HookApp) ShellDirectoryChanged(agent *harness.Agent, old, next string
 	if err != nil || decision.WatchPaths == nil {
 		return
 	}
-	app.mu.Lock()
-	if app.dynamicWatches == nil {
-		app.dynamicWatches = map[*harness.Agent][]string{}
-	}
-	app.dynamicWatches[agent] = append([]string(nil), decision.WatchPaths...)
-	app.mu.Unlock()
+	app.setDynamicWatches(agent, decision.WatchPaths)
 }

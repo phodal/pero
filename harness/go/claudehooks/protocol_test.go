@@ -143,6 +143,19 @@ func TestDecisionAggregation(t *testing.T) {
 	}
 }
 
+func TestSessionStartAndCwdChangedKeepWatchPaths(t *testing.T) {
+	for _, event := range []string{"SessionStart", "CwdChanged", "FileChanged"} {
+		got, err := ParseDecision(event, []byte(`{"hookSpecificOutput":{"hookEventName":"`+event+`","watchPaths":[]}}`), nil, 0)
+		if err != nil || got.WatchPaths == nil || len(got.WatchPaths) != 0 {
+			t.Fatalf("%s empty = %+v %v", event, got.WatchPaths, err)
+		}
+		got, err = ParseDecision(event, []byte(`{"hookSpecificOutput":{"hookEventName":"`+event+`","watchPaths":["/tmp/a"]}}`), nil, 0)
+		if err != nil || len(got.WatchPaths) != 1 || got.WatchPaths[0] != "/tmp/a" {
+			t.Fatalf("%s paths = %+v %v", event, got.WatchPaths, err)
+		}
+	}
+}
+
 func TestElicitationDecisions(t *testing.T) {
 	for _, test := range []struct {
 		name, stdout, action, content string

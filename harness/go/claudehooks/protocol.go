@@ -307,8 +307,9 @@ func (wire output) decision(event string) (Decision, error) {
 			}
 			result.UpdatedInput = append(json.RawMessage(nil), specific.UpdatedInput...)
 		}
-		if event == "FileChanged" && specific.WatchPaths != nil {
-			result.WatchPaths = append([]string(nil), specific.WatchPaths...)
+		if (event == "FileChanged" || event == "CwdChanged" || event == "SessionStart") && specific.WatchPaths != nil {
+			result.WatchPaths = make([]string, len(specific.WatchPaths))
+			copy(result.WatchPaths, specific.WatchPaths)
 		}
 		if len(specific.UpdatedToolOutput) > 0 && string(specific.UpdatedToolOutput) != "null" {
 			if event != "PostToolUse" || !json.Valid(specific.UpdatedToolOutput) {
@@ -396,7 +397,8 @@ func Merge(decisions []Decision) (Decision, error) {
 			merged.WorktreePath = decision.WorktreePath
 		}
 		if decision.WatchPaths != nil {
-			merged.WatchPaths = append([]string(nil), decision.WatchPaths...)
+			merged.WatchPaths = make([]string, len(decision.WatchPaths))
+			copy(merged.WatchPaths, decision.WatchPaths)
 		}
 		if len(decision.UpdatedToolOutput) > 0 {
 			if len(merged.UpdatedToolOutput) > 0 && !equalJSON(merged.UpdatedToolOutput, decision.UpdatedToolOutput) {

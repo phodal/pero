@@ -83,15 +83,22 @@ func (app *HookApp) pollFiles(ctx context.Context, agent *harness.Agent, cwd str
 				if err != nil || decision.WatchPaths == nil {
 					continue
 				}
-				app.mu.Lock()
-				if app.dynamicWatches == nil {
-					app.dynamicWatches = map[*harness.Agent][]string{}
-				}
-				app.dynamicWatches[agent] = append([]string(nil), decision.WatchPaths...)
-				app.mu.Unlock()
+				app.setDynamicWatches(agent, decision.WatchPaths)
 			}
 		}
 	}
+}
+
+func (app *HookApp) setDynamicWatches(agent *harness.Agent, paths []string) {
+	if app == nil || agent == nil || paths == nil {
+		return
+	}
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.dynamicWatches == nil {
+		app.dynamicWatches = map[*harness.Agent][]string{}
+	}
+	app.dynamicWatches[agent] = append([]string(nil), paths...)
 }
 
 func (app *HookApp) watchedFiles(agent *harness.Agent, cwd string) []string {

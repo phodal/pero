@@ -425,6 +425,9 @@ func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state
 		if decision.AdditionalContext != "" {
 			input.Messages = append(input.Messages, hookMessage("SessionStart", decision.AdditionalContext))
 		}
+		if decision.WatchPaths != nil {
+			app.setDynamicWatches(input.Agent, decision.WatchPaths)
+		}
 		state.started = true
 	}
 	var userIDs, prompts []string
