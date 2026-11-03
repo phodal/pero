@@ -301,7 +301,11 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		}
 		openStep = 0
 		if concluded || len(calls) == 0 {
-			if err := a.hooks.TurnStopping.Emit(ctx, TurnStoppingInput{Agent: a, Turn: turn}); err != nil {
+			canContinue := ctx.Err() == nil && step < a.maxSteps &&
+				(completion.Finish == "" || completion.Finish == FinishStop || completion.Finish == FinishToolCalls)
+			if err := a.hooks.TurnStopping.Emit(ctx, TurnStoppingInput{
+				Agent: a, Turn: turn, Step: step, Finish: completion.Finish, Concluded: concluded, CanContinue: canContinue,
+			}); err != nil {
 				return result, err
 			}
 			if injected := a.finishOrTakeInjected(ctx, turn); len(injected) != 0 {
