@@ -140,6 +140,15 @@ type Decision struct {
 	SuppressOriginalPrompt bool
 	// TerminalSequence is raw terminal bytes, such as a bell, written by the host.
 	TerminalSequence string
+	// SessionPermissions are rules kept for this session. Settings files are not written.
+	SessionPermissions []PermissionUpdate
+}
+
+// PermissionUpdate is one session rule change from updatedPermissions.
+// Op is add, replace, or remove. Behavior is allow, deny, or ask.
+type PermissionUpdate struct {
+	Op, Behavior string
+	Rules        []string
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
@@ -182,8 +191,8 @@ type specificOutput struct {
 }
 
 // permissionRequestDecision is the PermissionRequest allow or deny object.
-// updatedPermissions is accepted so a hook can echo a suggestion; this harness
-// does not write Claude settings rules from it.
+// updatedPermissions can add session rules. Other destinations are ignored and
+// are not written to Claude settings files.
 type permissionRequestDecision struct {
 	Behavior           string          `json:"behavior"`
 	UpdatedInput       json.RawMessage `json:"updatedInput"`
@@ -383,6 +392,11 @@ func (wire output) decision(event string) (Decision, error) {
 			default:
 				return Decision{}, errors.New("claudehooks: permission request behavior must be allow or deny")
 			}
+			updates, err := sessionPermissionUpdates(specific.RequestDecision.UpdatedPermissions)
+			if err != nil {
+				return Decision{}, err
+			}
+			result.SessionPermissions = updates
 		}
 	}
 	if wire.Continue != nil && !*wire.Continue && runControlEvent(event) {
@@ -442,6 +456,7 @@ func Merge(decisions []Decision) (Decision, error) {
 		}
 		merged.SuppressOriginalPrompt = merged.SuppressOriginalPrompt || decision.SuppressOriginalPrompt
 		merged.TerminalSequence += decision.TerminalSequence
+		merged.SessionPermissions = append(merged.SessionPermissions, decision.SessionPermissions...)
 		if len(decision.UpdatedToolOutput) > 0 {
 			if len(merged.UpdatedToolOutput) > 0 && !equalJSON(merged.UpdatedToolOutput, decision.UpdatedToolOutput) {
 				return Decision{}, errors.New("claudehooks: conflicting updatedToolOutput from multiple hooks")
@@ -473,6 +488,55 @@ func Merge(decisions []Decision) (Decision, error) {
 		merged.Block = true
 	}
 	return merged, nil
+}
+
+func sessionPermissionUpdates(raw json.RawMessage) ([]PermissionUpdate, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var updates []struct {
+		Type        string `json:"type"`
+		Behavior    string `json:"behavior"`
+		Destination string `json:"destination"`
+		Rules       []struct {
+			ToolName    string `json:"toolName"`
+			RuleContent string `json:"ruleContent"`
+		} `json:"rules"`
+	}
+	if err := json.Unmarshal(raw, &updates); err != nil {
+		return nil, errors.New("claudehooks: updatedPermissions must be an array")
+	}
+	var parsed []PermissionUpdate
+	for _, update := range updates {
+		switch update.Type {
+		case "setMode", "addDirectories", "removeDirectories":
+			continue
+		case "addRules", "replaceRules", "removeRules":
+		default:
+			return nil, fmt.Errorf("claudehooks: updatedPermissions type %q is unsupported", update.Type)
+		}
+		if update.Destination != "" && update.Destination != "session" {
+			continue
+		}
+		switch update.Behavior {
+		case "allow", "deny", "ask":
+		default:
+			return nil, errors.New("claudehooks: updatedPermissions behavior must be allow, deny, or ask")
+		}
+		item := PermissionUpdate{Op: strings.TrimSuffix(update.Type, "Rules"), Behavior: update.Behavior}
+		for _, rule := range update.Rules {
+			if rule.ToolName == "" || strings.ContainsAny(rule.ToolName+rule.RuleContent, "()\n\r") {
+				return nil, errors.New("claudehooks: updatedPermissions rule is invalid")
+			}
+			text := rule.ToolName
+			if rule.RuleContent != "" {
+				text += "(" + rule.RuleContent + ")"
+			}
+			item.Rules = append(item.Rules, text)
+		}
+		parsed = append(parsed, item)
+	}
+	return parsed, nil
 }
 
 func permissionRank(value string) int {

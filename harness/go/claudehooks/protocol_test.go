@@ -170,6 +170,16 @@ func TestSessionStartAndCwdChangedKeepWatchPaths(t *testing.T) {
 	}
 }
 
+func TestSessionPermissionUpdatesKeepOnlySessionRules(t *testing.T) {
+	got, err := ParseDecision("PermissionRequest", []byte(`{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedPermissions":[{"type":"addRules","behavior":"allow","destination":"session","rules":[{"toolName":"Bash","ruleContent":"printf *"}]},{"type":"addRules","behavior":"allow","destination":"userSettings","rules":[{"toolName":"Write"}]},{"type":"setMode","mode":"acceptEdits","destination":"localSettings"}]}}}`), nil, 0)
+	if err != nil || len(got.SessionPermissions) != 1 || got.SessionPermissions[0].Op != "add" || got.SessionPermissions[0].Behavior != "allow" || len(got.SessionPermissions[0].Rules) != 1 || got.SessionPermissions[0].Rules[0] != "Bash(printf *)" {
+		t.Fatalf("updates = %+v %v", got.SessionPermissions, err)
+	}
+	if _, err := ParseDecision("PermissionRequest", []byte(`{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedPermissions":[{"type":"invented"}]}}}`), nil, 0); err == nil || !strings.Contains(err.Error(), "unsupported") {
+		t.Fatal(err)
+	}
+}
+
 func TestElicitationDecisions(t *testing.T) {
 	for _, test := range []struct {
 		name, stdout, action, content string

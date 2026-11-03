@@ -97,6 +97,7 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   the main session identity and the actual child identity. Stop defaults to
   eight consecutive continuations and resets after ordinary tool work.
   Structured answer submissions also pass the stop gate and can be revised.
+  A PermissionRequest `updatedPermissions` entry with destination `session` applies to later calls in that session. Other destinations are ignored and are not written to settings files.
 - MCP stdio, streamable HTTP and legacy SSE connections belong to root-agent lifetimes.
   Each package gets a server namespace; children inherit the parent connection.
   `list_mcp_prompts` and `get_mcp_prompt` read prompts from those servers.

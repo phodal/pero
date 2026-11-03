@@ -67,6 +67,7 @@ type HookApp struct {
 	idleCancels         map[*harness.Agent]context.CancelFunc
 	modelNotes          map[*harness.Agent]modelNote
 	elicitationAgents   map[string]*harness.Agent
+	sessionRules        map[harness.SessionID][]sessionPermissionRule
 	addedDirs           map[*harness.Agent]map[string]bool
 	pendingContext      map[*harness.Agent][]string
 }
@@ -471,6 +472,9 @@ func legacyHookPaths(raw json.RawMessage) (filePath, notebookPath string) {
 }
 
 func (app *HookApp) beforeTool(ctx context.Context, request *harness.ToolRequest) error {
+	if app.sessionDenies(request) {
+		return nil
+	}
 	filePath, notebookPath := legacyHookPaths(request.Arguments)
 	decision, err := app.event(ctx, request.Agent, claudehooks.Input{Event: "PreToolUse", ToolName: request.Name, ToolUseID: string(request.CallID), ToolInput: request.Arguments, FilePath: filePath, NotebookPath: notebookPath})
 	if err != nil {
@@ -503,6 +507,7 @@ func (app *HookApp) beforeTool(ctx context.Context, request *harness.ToolRequest
 	} else if decision.Permission == "allow" && !request.RequestApproval {
 		request.Preapproved = true
 	}
+	app.applySessionPermission(request, decision)
 	if decision.AdditionalContext != "" {
 		return request.Agent.Inject(hookMessage("PreToolUse", decision.AdditionalContext))
 	}
