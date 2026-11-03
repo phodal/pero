@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "engineeringprofile",
+    srcs = ["contract.go", "journal.go"],
+    importpath = "github.com/phodal/pero/harness/go/engineeringprofile",
+    visibility = ["//visibility:public"],
+    deps = ["//harness", "//session", "//tasks"],
+)
+
+go_test(
+    name = "engineeringprofile_test",
+    srcs = ["contract_test.go"],
+    embed = [":engineeringprofile"],
+    deps = ["//tasks"],
+)
