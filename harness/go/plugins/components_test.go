@@ -73,6 +73,21 @@ func TestComponentDefinitions(t *testing.T) {
 	}
 }
 
+func TestAgentIsolationField(t *testing.T) {
+	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nisolation: worktree\n---\nReview."))
+	if component.Isolation != "worktree" || len(diagnostics) != 0 {
+		t.Fatalf("component=%+v diagnostics=%v", component, diagnostics)
+	}
+	_, diagnostics = ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nisolation: remote\n---\nReview."))
+	if len(diagnostics) != 1 || diagnostics[0].Code != "INVALID_COMPONENT_FIELD" {
+		t.Fatalf("diagnostics=%v", diagnostics)
+	}
+	_, diagnostics = ParseComponent("sample", ComponentSkill, "skills/review/SKILL.md", []byte("---\nisolation: worktree\n---\nReview."))
+	if len(diagnostics) != 1 || diagnostics[0].Code != "UNSUPPORTED_COMPONENT_FIELD" {
+		t.Fatalf("skill diagnostics=%v", diagnostics)
+	}
+}
+
 func TestForkComponentFields(t *testing.T) {
 	for _, test := range []struct {
 		name, frontmatter, context, agent string

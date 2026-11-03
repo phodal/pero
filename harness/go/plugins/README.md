@@ -101,6 +101,7 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   Each package gets a server namespace; children inherit the parent connection.
 - Agent, SendMessage, TaskOutput and TaskStop run, continue and cancel actual harness children.
   An agent `effort` of low, medium, high, xhigh, or max is sent on that child's requests.
+  `isolation: worktree` runs that agent in a separate Git worktree.
   Custom/general-purpose agents retain their ID and history across completed
   turns and, with explicit persistence, JSONL reload. Explore/Plan and temporary
   ConfigureChild compositions remain one-shot. See the [agent profiles](../subagents/README.md).

@@ -196,6 +196,48 @@ func TestClaudeTrustedInvocationCancellationJoinsChild(t *testing.T) {
 	}
 }
 
+func TestAgentDefinitionIsolationUsesTheConfiguredWorktree(t *testing.T) {
+	workspace := t.TempDir()
+	isolated := t.TempDir()
+	var called bool
+	var child string
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		if request.Agent != nil && request.Agent.Session() != nil {
+			child = request.Agent.Session().WorkingDirectory()
+		}
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	})
+	ctx := t.Context()
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = h.Dispose(cleanup)
+		_ = h.Drain(cleanup)
+	})
+	claude, err := MountClaude(ctx, h, []AgentDefinition{{Name: "reviewer", Description: "Review", Instructions: "Review.", Isolation: "worktree"}}, ClaudeOptions{IsolatedWorktree: func(context.Context, *harness.Agent) (string, func(), error) {
+		called = true
+		return isolated, func() {}, nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "isolation-parent", CWD: workspace, Provider: "fixture", Model: "parent-model", MaxSteps: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := claude.Invoke(ctx, parent, ClaudeInvocation{Definition: "reviewer", Prompt: "look"})
+	parentDir, _ := filepath.EvalSymlinks(workspace)
+	childDir, _ := filepath.EvalSymlinks(child)
+	isolatedDir, _ := filepath.EvalSymlinks(isolated)
+	if err != nil || result.Status != harness.SubagentCompleted || !called || childDir == "" || childDir == parentDir || childDir != isolatedDir {
+		t.Fatalf("result=%+v err=%v called=%v child=%q parent=%q", result, err, called, child, workspace)
+	}
+}
+
 func TestAgentDefinitionEffortReachesTheChildRequest(t *testing.T) {
 	var saw harness.ReasoningEffort
 	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {

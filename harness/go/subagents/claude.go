@@ -17,8 +17,8 @@ import (
 // AgentDefinition is trusted composition compiled from a selected plugin.
 // Tools is an exact allowlist intersected with the parent's existing tools.
 type AgentDefinition struct {
-	Name, Description, Instructions, Model, Effort string
-	Tools                                          []string
+	Name, Description, Instructions, Model, Effort, Isolation string
+	Tools                                                     []string
 }
 
 func validAgentEffort(effort string) bool {
@@ -126,6 +126,9 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		}
 		if definition.Effort != "" && !validAgentEffort(definition.Effort) {
 			return nil, fmt.Errorf("subagents: agent %q effort must be low, medium, high, xhigh, or max", definition.Name)
+		}
+		if definition.Isolation != "" && definition.Isolation != "worktree" {
+			return nil, fmt.Errorf("subagents: agent %q isolation must be worktree", definition.Name)
 		}
 		if _, exists := service.definitions[definition.Name]; exists {
 			return nil, fmt.Errorf("subagents: duplicate Claude agent %q", definition.Name)

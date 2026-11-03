@@ -43,6 +43,7 @@ type Component struct {
 	Tools         []string             `json:"tools,omitempty"`
 	Model         string               `json:"model,omitempty"`
 	Effort        string               `json:"effort,omitempty"`
+	Isolation     string               `json:"isolation,omitempty"`
 	Context       string               `json:"context,omitempty"`
 	Agent         string               `json:"agent,omitempty"`
 	Background    *bool                `json:"background,omitempty"`
@@ -57,6 +58,7 @@ type componentHeader struct {
 	Tools                  componentTools `yaml:"tools"`
 	Model                  componentText  `yaml:"model"`
 	Effort                 componentText  `yaml:"effort"`
+	Isolation              componentText  `yaml:"isolation"`
 	Context                componentText  `yaml:"context"`
 	Agent                  componentText  `yaml:"agent"`
 	Background             *componentBool `yaml:"background"`
@@ -253,6 +255,10 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 		}
 	}
 	if kind == ComponentAgent {
+		component.Isolation = strings.TrimSpace(string(header.Isolation))
+		if component.Isolation != "" && component.Isolation != "worktree" {
+			add(SeverityError, "INVALID_COMPONENT_FIELD", "isolation", "Agent isolation must be worktree or omitted.")
+		}
 		if component.Name == "" {
 			component.Name = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 			add(SeverityWarning, "AGENT_NAME_DEFAULTED", "name", "Agent name defaults to the filename.")
@@ -344,7 +350,7 @@ func knownComponentField(kind ComponentKind, key string) bool {
 		return true
 	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background":
 		return kind != ComponentAgent
-	case "tools", "color":
+	case "tools", "color", "isolation":
 		return kind == ComponentAgent
 	}
 	return false
