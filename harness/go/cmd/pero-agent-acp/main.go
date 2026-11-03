@@ -68,6 +68,7 @@ func run() (resultErr error) {
 	sandboxOptions := bindSandbox(flag.CommandLine)
 	selectable := bindSelectableModels(flag.CommandLine)
 	coding := bindCodingOptions(flag.CommandLine)
+	engineeringFlags := bindEngineeringOptions(flag.CommandLine)
 	delegation := bindSubagents(flag.CommandLine)
 	web := bindWebOptions(flag.CommandLine)
 	lspConfig := bindLSPOptions(flag.CommandLine)
@@ -114,6 +115,10 @@ func run() (resultErr error) {
 		pluginShell = "/bin/bash"
 	}
 	if err := coding.validate(*workspace); err != nil {
+		return err
+	}
+	engineering, err := engineeringFlags.config()
+	if err != nil {
 		return err
 	}
 	if err := delegation.validate(); err != nil {
@@ -177,7 +182,12 @@ func run() (resultErr error) {
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		resultErr = errors.Join(resultErr, h.Dispose(cleanup), h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), webApp.Close(), lspApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
+		disposeErr := h.Dispose(cleanup)
+		if disposeErr == harness.ErrHarnessDisposalInProgress {
+			// Drain supplies the final receipt for asynchronous disposal.
+			disposeErr = nil
+		}
+		resultErr = errors.Join(resultErr, disposeErr, h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), webApp.Close(), lspApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
 	skillCatalog, err = skills.OpenSelected(ctx, *skillRoots, selections)
 	if err != nil {
@@ -214,8 +224,15 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
+	engineeringApp, err := engineering.mount(ctx, h)
+	if err != nil {
+		return err
+	}
 	if skillCatalog != nil {
 		mountOptions := skills.MountOptions{Claude: len(packages) > 0}
+		if engineering != nil {
+			mountOptions.SummaryBudget = skills.SummaryBudget{AdvertisementBytes: 8192, PageBytes: 8192}
+		}
 		if len(packages) > 0 {
 			mountOptions.ActivateHooks = func(_ context.Context, agent *harness.Agent, definition skills.Definition) error {
 				if pluginHooks == nil {
@@ -315,7 +332,11 @@ func run() (resultErr error) {
 		if _, err := tasks.Mount(ctx, h); err != nil {
 			return err
 		}
-		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{SkillText: func(ctx context.Context, name string) (string, error) {
+		memoryPresentation := subagents.MemoryPresentation("")
+		if engineering != nil {
+			memoryPresentation = subagents.MemoryAsContext
+		}
+		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{MemoryPresentation: memoryPresentation, SkillText: func(ctx context.Context, name string) (string, error) {
 			if skillCatalog == nil {
 				return "", errors.New("agent skills require a selected skill catalog")
 			}
@@ -374,9 +395,10 @@ func run() (resultErr error) {
 		return nil
 	}
 	if *printMode {
-		return runPrint(ctx, h, pluginHooks, *model, *workspace, printPrompt)
+		return runPrintPrepared(ctx, h, pluginHooks, *model, *workspace, printPrompt, engineering.preparePrompt(engineeringApp))
 	}
 	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, Name: "pero-agent-acp", Version: "0.1"}
+	serverOptions.PreparePrompt = engineering.preparePrompt(engineeringApp)
 	if pluginHooks != nil {
 		serverOptions.HoldAssistantText = func(*harness.Agent) bool { return pluginHooks.HoldsAssistantText() }
 		serverOptions.RenderAssistantText = pluginHooks.DisplayedAssistantText
