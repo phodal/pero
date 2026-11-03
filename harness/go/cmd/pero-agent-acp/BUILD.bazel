@@ -61,6 +61,7 @@ go_test(
         "lsp_test.go",
         "main_test.go",
         "models_test.go",
+        "new_code_cli_test.go",
         "plugin_execution_test.go",
         "plugin_fork_test.go",
         "plugin_runtime_test.go",
