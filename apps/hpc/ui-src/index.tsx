@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { appObjectProps, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from "@pero/app-sdk";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pero/app-sdk/ui";
+import { Button, Icon, Input, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from "@pero/app-sdk/ui";
 import { messages, type Message } from "./messages";
 import { ComparisonTable, RunEvidence, RunTable } from "./results";
 import { MethodSpec } from "./method";
@@ -26,6 +26,7 @@ export default function HpcBenchmarks() {
   const [notice, setNotice] = useState<Message | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
   const [comparison, setComparison] = useState<Comparison | null>(null);
+  const [query, setQuery] = useState("");
   const selectedBenchmark = data?.benchmarks.find(item => item.id === benchmarkId) ?? data?.benchmarks[0];
   const latestRun = data?.runs.find(item => item.benchmarkId === selectedBenchmark?.id);
   const selectedRun = data?.runs.find(item => item.id === selectedRunId) ?? latestRun;
@@ -33,6 +34,7 @@ export default function HpcBenchmarks() {
   const comparedRuns = data?.runs.filter(run => chosen.includes(run.id)) ?? [];
   const differentSpecs = new Set(comparedRuns.map(run => run.specDigest)).size > 1;
   const canCompare = chosen.length >= 2 && !differentSpecs && !busy;
+  const filteredBenchmarks = data?.benchmarks.filter(item => `${item.name} ${item.version}`.toLowerCase().includes(query.trim().toLowerCase())) ?? [];
 
   const onError = (value: unknown) => { setError(value instanceof Error ? value.message : String(value)); setNotice(null); };
   const refresh = useCallback(async () => {
@@ -146,43 +148,47 @@ export default function HpcBenchmarks() {
   });
 
   return <div className="hpc-app" {...appObjectProps("hpc-benchmarks")}>
-    <header className="app-header"><h1>{t("title")}</h1><span className="runtime-label">{t("local")}</span>
-      <div className="toolbar">{notice && <span className="muted" role="status">{t(notice)}</span>}<button disabled={loading || busy} onClick={() => void refresh().catch(onError)}>{t("refresh")}</button>
-        <button disabled={loading || !selectedBenchmark} onClick={() => void discuss().catch(onError)}>{t("discuss")}</button>
-        <button className="primary" disabled={loading || busy || Boolean(active) || !selectedBenchmark?.available || !data?.runtime.reframeAvailable} onClick={() => void startRun()}>{t(selectedBenchmark?.available ? "run" : "runBenchmark")}</button></div>
+    <header className="app-header"><Icon name="circuit" size={18} /><h1>{t("title")}</h1>
+      <div className="toolbar"><Button variant="ghost" className="icon-button" aria-label={t("refresh")} title={t("refresh")} disabled={loading || busy} onClick={() => void refresh().catch(onError)}><Icon name="sync" size={14} /></Button>
+        <Button className="discuss-button" aria-label={t("discuss")} title={t("discuss")} disabled={loading || !selectedBenchmark} onClick={() => void discuss().catch(onError)}><Icon name="agent" size={14} /><span>{t("discuss")}</span></Button>
+        <Button variant="primary" disabled={loading || busy || Boolean(active) || !selectedBenchmark?.available || !data?.runtime.reframeAvailable} onClick={() => void startRun()}><Icon name="play" size={14} />{t(selectedBenchmark?.available ? "run" : "runBenchmark")}</Button></div>
     </header>
-    {error && <div className="feedback feedback-error" role="alert"><span>{error}</span><button onClick={() => void initialize()}>{t("reload")}</button></div>}
-    {data && !data.runtime.reframeAvailable && <div className="feedback feedback-warning" role="status"><span>{data.runtime.message}</span><button onClick={() => void initialize()}>{t("reload")}</button></div>}
-    {loading ? <main className="loading" role="status">{t("loading")}</main> : <main className="content">
-        <div className="method-picker">
-          <label htmlFor="benchmark-method" className="visually-hidden">{t("method")}</label>
-          <select id="benchmark-method" aria-label={t("methods")} value={selectedBenchmark?.id ?? ""} disabled={!data?.benchmarks.length} onChange={event => {
-            const benchmark = data?.benchmarks.find(item => item.id === event.target.value);
-            if (benchmark) chooseBenchmark(benchmark);
-          }}>{data?.benchmarks.map(benchmark => <option key={benchmark.id} value={benchmark.id}>{benchmark.name}{!benchmark.available ? ` (${t("unavailable")})` : ""}</option>)}</select>
-          {selectedBenchmark && <span className="muted">{selectedBenchmark.version}</span>}
-        </div>
+    {notice && <div className="app-notice" role="status">{t(notice)}</div>}
+    {error && <div className="feedback feedback-error" role="alert"><span>{error}</span><Button onClick={() => void initialize()}>{t("reload")}</Button></div>}
+    {data && !data.runtime.reframeAvailable && <div className="feedback feedback-warning" role="status"><span>{data.runtime.message}</span><Button onClick={() => void initialize()}>{t("reload")}</Button></div>}
+    {loading ? <main className="loading" role="status">{t("loading")}</main> : <Split storageKey="hpc:benchmark-explorer-width" collapseBelow={760} className="workbench">
+      <SplitPane id="hpc-benchmarks" size={232} min={210} stackedBasis="auto" resizeLabel={t("methods")} as="aside" className="benchmark-explorer">
+        <div className="explorer-header"><h2>{t("methods")}</h2><div className="benchmark-search"><Icon name="search" size={14} /><Input type="search" aria-label={t("search")} placeholder={t("search")} value={query} onChange={event => setQuery(event.target.value)} /></div></div>
+        <nav className="benchmark-list" aria-label={t("methods")}>
+          {filteredBenchmarks.map(benchmark => <Button key={benchmark.id} variant="unstyled" className="benchmark-item" aria-label={benchmark.name} aria-current={selectedBenchmark?.id === benchmark.id ? "page" : undefined} onClick={() => chooseBenchmark(benchmark)}>
+            <span className="benchmark-name">{benchmark.name}</span><span className="benchmark-meta"><span>{benchmark.version}</span>{!benchmark.available && <span className="unavailable-label">{t("unavailable")}</span>}</span>
+          </Button>)}
+          {!filteredBenchmarks.length && <p className="empty">{t(data?.benchmarks.length ? "noMatch" : "noMethods")}</p>}
+        </nav>
+        {data && <div className="explorer-runtime"><span><Icon name="local" size={14} />{t("local")}</span><span className="runtime-version">ReFrame {data.runtime.reframeVersion ?? "—"}<span className={data.runtime.reframeAvailable ? "status-pass" : "status-incomplete"}>{t(data.runtime.reframeAvailable ? "ready" : "unavailable")}</span></span></div>}
+      </SplitPane>
+      <SplitPane id="hpc-workspace" min={360} as="section" role="main" className="content">
+        <div className="workspace-heading"><h2>{selectedBenchmark?.name ?? t("methods")}</h2>{selectedBenchmark && <span className="method-version">{selectedBenchmark.version}</span>}</div>
         <Tabs value={tab} onValueChange={setTab} className="content-tabs"><TabsList><TabsTrigger value="method">{t("method")}</TabsTrigger><TabsTrigger value="runs">{t("results")}</TabsTrigger><TabsTrigger value="compare">{t("compare")}{chosen.length ? ` (${chosen.length})` : ""}</TabsTrigger></TabsList>
           <TabsContent value="method" className="method-content">
-            {selectedBenchmark && data ? <MethodSpec benchmark={selectedBenchmark} runtime={data.runtime} latestRun={latestRun} t={t} onOpen={run => void openRun(run).catch(onError)} /> : <p className="empty">{t("noMethods")}</p>}
+            {selectedBenchmark && data ? <MethodSpec benchmark={selectedBenchmark} latestRun={latestRun} t={t} onOpen={run => void openRun(run).catch(onError)} /> : <p className="empty">{t("noMethods")}</p>}
           </TabsContent>
           <TabsContent value="runs" className="runs-content">
-            {selectedRun && <>
-              <div className="run-picker"><label htmlFor="saved-run" className="visually-hidden">{t("savedRun")}</label><select id="saved-run" value={selectedRun.id} onChange={event => {
-                const run = data?.runs.find(item => item.id === event.target.value);
-                if (run) void openRun(run).catch(onError);
-              }}>{data?.runs.map(run => <option key={run.id} value={run.id}>{new Date(run.createdAt).toLocaleString()} — {run.benchmarkName}</option>)}</select></div>
-              <RunEvidence run={selectedRun} t={t} busy={busy} exporting={exporting} onVerify={() => void act("verify")} onCancel={() => void act("cancel")} onExport={() => void exportEvidence()} />
-            </>}
-            <div className="section-heading history-heading"><h2>{t("history")}</h2><button disabled={!canCompare} onClick={() => void compareRuns()}>{t("compareSelected")}{chosen.length ? ` (${chosen.length})` : ""}</button></div>
+            {selectedRun && <RunEvidence run={selectedRun} t={t} busy={busy} exporting={exporting} onVerify={() => void act("verify")} onCancel={() => void act("cancel")} onExport={() => void exportEvidence()} />}
+            {!selectedRun && <p className="empty">{t("noRuns")}</p>}
+            <details className="run-history"><summary>{t("history")}</summary>
+            <div className="section-heading"><h3>{t("history")}</h3><Button disabled={!canCompare} onClick={() => void compareRuns()}><Icon name="changes" size={14} />{t("compareSelected")}{chosen.length ? ` (${chosen.length})` : ""}</Button></div>
             {differentSpecs && <p className="error-text" role="alert">{t("differentSpecs")}</p>}
             {data?.runs.length ? <RunTable runs={data.runs} selectedId={selectedRun?.id ?? ""} chosen={chosen} t={t} onOpen={run => void openRun(run).catch(onError)} onChoose={chooseRun} /> : <p className="empty">{t("noRuns")}</p>}
+            </details>
           </TabsContent>
-          <TabsContent value="compare" className="compare-content"><div className="section-heading"><h2>{t("compare")}</h2><button disabled={!canCompare} onClick={() => void compareRuns()}>{busy ? t("comparing") : t("compareSelected")}</button></div>
+          <TabsContent value="compare" className="compare-content"><div className="section-heading"><h3>{t("compare")}</h3><Button disabled={!canCompare} onClick={() => void compareRuns()}><Icon name="changes" size={14} />{busy ? t("comparing") : t("compareSelected")}</Button></div>
             <p className="muted">{t("comparisonHint")}</p>{differentSpecs && <p className="error-text" role="alert">{t("differentSpecs")}</p>}
-            {comparison ? <ComparisonTable comparison={comparison} t={t} /> : <button onClick={() => setTab("runs")}>{t("chooseComparison")}</button>}
+            {comparison && <ComparisonTable comparison={comparison} t={t} />}
+            <h3 className="history-heading">{t("history")}</h3>{data?.runs.length ? <RunTable runs={data.runs} selectedId={selectedRun?.id ?? ""} chosen={chosen} t={t} onOpen={run => void openRun(run).catch(onError)} onChoose={chooseRun} /> : <p className="empty">{t("noRuns")}</p>}
           </TabsContent>
         </Tabs>
-    </main>}
+      </SplitPane>
+    </Split>}
   </div>;
 }
