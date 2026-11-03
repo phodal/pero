@@ -57,6 +57,20 @@ func ExpandSkill(ctx context.Context, h *harness.Harness, agent *harness.Agent, 
 	if h == nil || agent == nil {
 		return skills.Definition{}, errors.New("plugin-runtime: executable skill context requires its harness and agent")
 	}
+	schemas, err := h.Tools().SchemasForAgent(ctx, agent)
+	if err != nil {
+		return skills.Definition{}, fmt.Errorf("plugin-runtime: resolve skill shell availability: %w", err)
+	}
+	shellAvailable := false
+	for _, schema := range schemas {
+		if schema.Name == "Bash" {
+			shellAvailable = true
+			break
+		}
+	}
+	if !shellAvailable {
+		return skills.Definition{}, fmt.Errorf("%w: Bash is unavailable to the invoking agent", ErrSkillCommandDenied)
+	}
 	project := agent.Session().Header().CWD
 	if project == "" {
 		project = agent.Session().WorkingDirectory()

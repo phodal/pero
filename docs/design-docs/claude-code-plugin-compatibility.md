@@ -658,7 +658,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 | 插件装配 | 默认/显式组件、namespace、同名 skill 覆盖 command、安装目录与工作目录分离 | 临时目录与真实 CLI fixture；无远程安装/更新入口 |
 | 调用可见性 | 用户与模型入口分别枚举；用户专用 slash 能加载，模型 Skill 无法绕过 | 首个真实 provider 请求检查正文、参数与隐藏目录 |
 | 参数与资源 | 完整/位置参数、路径和 session 变量；Read 能读取所选包模板；Write 创建工作区父目录 | digest 固定、包路径拒写、父目录/symlink 测试 |
-| 动态上下文 | 原始正文只扫描一次，执行已声明命令，通过既有 shell executor 与审批策略；stdout 不再次解释为模板 | 无交互权限检查、拒绝/取消/持久化失败测试；成功输出超过 64 KiB 保留私有文件并给首尾预览；与 Bash 复用文件捕获和 5 GB 输出上限，呈现策略仍有差异 |
+| 动态上下文 | 原始正文只扫描一次，要求调用代理实际可见 Bash，通过既有 shell executor 与审批策略；stdout 不再次解释为模板 | 无工具/受限工具、无交互权限、拒绝/取消/持久化失败测试；成功输出超过 64 KiB 保留私有文件并给首尾预览；与 Bash 复用文件捕获和 5 GB 输出上限，呈现策略仍有差异 |
 | 工具预批准 | allowed-tools 在调用 turn 生效，下一直接用户输入清除；hook ask 与部署拒绝优先 | 普通工具名、限定 server 的 MCP wildcard、简单 Bash pattern；复杂 shell syntax 不自动批准 |
 | 原生工具 | Read/Write/Edit/Glob/Grep/Bash 的 Claude 名称和参数 | 真实工作区效果；Grep 用 RE2，图片/PDF/NotebookEdit、完整 ripgrep 行为仍待补 |
 | 后台 Bash | `run_in_background`、真实 task_id、TaskOutput 等待/轮询、TaskStop、超时及进程回收 | 启动前持久化 intent；同一调用者拥有任务；JSONL 冷恢复保留终态，未知运行标记 interrupted，不重放副作用 |
@@ -678,7 +678,7 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 | LSP | `--lsp-config`、所选插件 `.lsp.json`/manifest 声明默认装配；9 类 query、UTF-16 坐标、能力协商、取消与进程生命周期 | 实际 `/usr/bin/clangd` hover、operator/bundled 两种真实 CLI 路径通过；不安装服务器，不应用编辑；Write/Edit 后有界诊断已接通；连续异步诊断与动态注册仍缺 |
 | WebSearch/WebFetch | 显式 DeepSeek Search/Fetch provider；域名过滤、引用、offset 分片及无工具子代理提取 | CLI loopback 验证审批、共享预算、取消和拒绝写文件；真实 API 两次请求通过；缓存与跨域 redirect handoff 尚未实现，搜索后端不同 |
 | 同步 Workflow | 原始 scriptPath、export const meta、args、嵌套 workflow、agent/parallel/pipeline/phase/log；RPC 复用 ClaudeContribution.Invoke | 原始 3 个审查脚本实际运行；9 次 agent()、10 次 loopback HTTP、峰值并发 3；同步检查点见 16.4；后台任务接入见 16.10 |
-| Trial runner | 显式选择 Harness ACP 或原 Claude runner；工作区/session/续跑/问答策略/审批/真实 usage/进程回收 | 15 项本地测试通过；所有 session 与最终产物复核，取消/关闭失败/非零退出不伪成功；不估算 USD，不重试已提交 prompt |
+| Trial runner | 显式选择 Harness ACP 或原 Claude runner；工作区/session/续跑/问答策略/权限模式/真实 usage/进程回收 | 16 项本地测试通过；所有 session 与最终产物复核，取消/关闭失败/非零退出不伪成功；不估算 USD，不重试已提交 prompt |
 | 显式研究依赖 | 选定固定来源后生成内容寻址 package view；原 research → research-deep → research-report 留在 root，保留人工 gate | 原链 CLI loopback 已通过：6 次问答、2 个后台研究代理、10 Search、2 Fetch、2 次无工具提取、16 次审批、原 validator 和 raw 字节归档；不宣称真实研究质量 |
 
 ### 16.1 真实模型结果
@@ -902,3 +902,9 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 首轮手动 full-access 模式中，未预授权的动态 skill 命令被 noninteractive unavailable 拒绝。这符合动态注入不能弹出审批问题的手动权限契约，不作为运行时缺陷绕过。Trial 现可通过 permission_mode 显式选择已有 ACP 模式，默认仍为开启 shell 时 full-access、否则 workspace-write，回执记录实际选择。Harness auto-review 允许普通 scoped 操作，语义不等于 Claude 的自动风险分类器；开启 shell 仍需明确 enable_shell 和 allow-unsandboxed。[官方注入权限说明](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)、[Trial 使用契约](../../harness/tools/trial/README.md)
 
 真实 CLI/loopback 回归验证同一动态 skill 在 full-access 下于首次模型请求之前失败，显式 auto-review 下完成动态上下文展开及两次原生 Write，没有额外审批问题；没有修改运行时审批规则。Trial 十六项测试与迁移五项测试通过。恢复验收显式提高单次输出上限到 16384、选择 auto-review，继续原 session 和 batch-labels。确认由 first-option 测试客户端回答，记录为机器策略，不是真人验收；最终仍以原编排状态、实际测试、审查结果和合并快照为准。
+
+### 16.19 动态命令要求实际可见的 Bash
+
+权限核对进一步复现：没有启用 shell 的实际 CLI 在显式 auto-review 下仍能执行动态 skill 命令。原因是预处理器直接构造 shell executor，只询问权限而未查询工具可见性。现复用 ToolRegistry.SchemasForAgent 的实际 scope/catalog 视图，缺少 Bash 就在审批和命令副作用前中止；allowed-tools 和 auto-review 都不能制造缺失的工具，静态 skill 不受影响。没有另建工具可见性或审批规则。[官方契约](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)、[问题与回归](../issues/2026-11-03-skill-command-shell-visibility.md)
+
+真实 CLI 测试覆盖 shell 未启用、手动模式拒绝和显式 auto-review 成功三条路径；scope 测试覆盖被限制的 Bash 在 full-access/auto-review 下均不能执行，即使 skill 声明 Bash 预批准。修复后 Trial 十六项、Go 全量 race/vet、Bazel pluginruntime 与完整 CLI 两个目标通过。正在运行的完整 coder 验证保持其已启动二进制，不中途替换验收对象。

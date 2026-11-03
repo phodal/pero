@@ -41,6 +41,14 @@ func expansionFixture(t *testing.T) (*harness.Harness, *harness.Agent, skills.De
 			t.Errorf("cleanup: %v", err)
 		}
 	})
+	if _, err := h.RegisterTool(t.Context(), "expansion/bash", harness.Tool{
+		Schema: harness.ToolSchema{Name: "Bash", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+			return harness.ToolResult{}, errors.New("dynamic commands use the dedicated foreground executor")
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	root := t.TempDir()
 	var answerers atomic.Int32
 	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "expansion", CWD: root, Configure: func(_ context.Context, run *point.Run, _ *harness.Agent) error {
@@ -119,6 +127,34 @@ func TestOriginalSkillCommandsExpandOnce(t *testing.T) {
 				}
 			}
 			assertNoSkillOutputs(t, agent.Session().Header().CWD)
+		})
+	}
+}
+
+func TestSkillCommandsRequireScopedBashBeforePermission(t *testing.T) {
+	for _, mode := range []harness.PermissionMode{harness.PermissionFullAccess, harness.PermissionAutoReview} {
+		t.Run(string(mode), func(t *testing.T) {
+			h, agent, definition, options, answerers := expansionFixture(t)
+			if _, err := h.RegisterToolRestrictionAt(t.Context(), agent, "expansion/no-bash", harness.ToolRestriction{Deny: []string{"Bash"}}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.SetPermissionMode(agent.Session(), mode); err != nil {
+				t.Fatal(err)
+			}
+			definition.Content = "!`touch forbidden`"
+			if got, err := ExpandSkill(t.Context(), h, agent, definition, "", options); !errors.Is(err, ErrSkillCommandDenied) || got.Content != "" {
+				t.Fatalf("unavailable Bash expanded despite its allowed-tools grant: %q %v", got.Content, err)
+			}
+			if answerers.Load() != 0 {
+				t.Fatal("missing tool incorrectly reached a permission answerer")
+			}
+			if _, err := os.Stat(filepath.Join(agent.Session().Header().CWD, "forbidden")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("unavailable shell created a side effect: %v", err)
+			}
+			definition.Content = "static skill"
+			if got, err := ExpandSkill(t.Context(), h, agent, definition, "", options); err != nil || got.Content != definition.Content {
+				t.Fatalf("static skill incorrectly requires Bash: %q %v", got.Content, err)
+			}
 		})
 	}
 }

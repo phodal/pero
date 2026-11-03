@@ -113,6 +113,9 @@ explicitly choose auto-review for trusted fixture execution. The CLI regression
 checks that the same dynamic skill fails before any model request in full-access
 and runs in explicitly selected auto-review. No runtime permission bypass is
 added. See the [official injected-command permission contract](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands).
+The invoking agent must also have Bash in its actual tool view. Neither
+allowed-tools nor auto-review supplies a missing or restricted tool; rendering
+aborts before a model request when shell is disabled.
 
 An explicit context_source, or the base workspace's .context directory, can be
 copied into the isolated workspace. Symlinks and special files are refused.

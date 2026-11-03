@@ -104,8 +104,8 @@ class RuntimeTrial(unittest.TestCase):
     def test_explicit_auto_review_renders_unmatched_skill_commands(self):
         skill = self.plugin / "skills/report/SKILL.md"
         skill.write_text('---\nname: report\ndescription: Dynamic context\ndisable-model-invocation: true\n---\nsnapshot !`printf trial-inline-context`\n')
-        for permission in ("full-access", "auto-review"):
-            with self.subTest(permission=permission):
+        for permission, shell_enabled in (("full-access", True), ("auto-review", True), ("auto-review", False)):
+            with self.subTest(permission=permission, shell_enabled=shell_enabled):
                 calls = []
 
                 def dispatch(request):
@@ -119,10 +119,12 @@ class RuntimeTrial(unittest.TestCase):
                     return [answer()]
 
                 with provider(dispatch) as endpoint:
-                    result = run_pipeline(self.config(endpoint, permission_mode=permission, enable_shell=True,
-                                                      shell_policy="allow-unsandboxed", max_continuations=0))
+                    options = {"permission_mode": permission, "enable_shell": shell_enabled, "max_continuations": 0}
+                    if shell_enabled:
+                        options["shell_policy"] = "allow-unsandboxed"
+                    result = run_pipeline(self.config(endpoint, **options))
                 self.assertEqual(result["permission_mode"], permission)
-                if permission == "auto-review":
+                if permission == "auto-review" and shell_enabled:
                     self.assertTrue(result["pipeline_complete"])
                     self.assertEqual(len(calls), 3)
                 else:
