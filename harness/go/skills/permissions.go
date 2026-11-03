@@ -3,15 +3,24 @@ package skills
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/shell"
 )
 
 // AllowsTool interprets a skill's allowed-tools pre-approval. The caller still
 // applies the session's approval policy and explicit denials. A specifier that
 // this matcher cannot interpret never grants permission.
 func AllowsTool(rules []string, name string, arguments json.RawMessage) bool {
+	if name == "Bash" {
+		return allowsBash(rules, arguments)
+	}
+	// Claude permission rules treat NotebookEdit under the Edit family.
+	if name == "NotebookEdit" && AllowsTool(rules, "Edit", arguments) {
+		return true
+	}
 	for _, rule := range rules {
 		tool, pattern, specified := strings.Cut(rule, "(")
 		if tool != name {
@@ -22,6 +31,7 @@ func AllowsTool(rules []string, name string, arguments json.RawMessage) bool {
 			if len(parts) != 3 || strings.Contains(parts[1], "*") || !wildcard(tool, name) {
 				continue
 			}
+			return true
 		}
 		if !specified {
 			return true
@@ -29,32 +39,104 @@ func AllowsTool(rules []string, name string, arguments json.RawMessage) bool {
 		if !strings.HasSuffix(pattern, ")") {
 			continue
 		}
+	}
+	return false
+}
+
+func allowsBash(rules []string, arguments json.RawMessage) bool {
+	var input struct {
+		Command string `json:"command"`
+	}
+	if json.Unmarshal(arguments, &input) != nil || input.Command == "" {
+		return false
+	}
+	patterns, unrestricted := bashAllowPatterns(rules)
+	if unrestricted {
+		return true
+	}
+	if len(patterns) == 0 {
+		return false
+	}
+	commands, ok := shell.ClaudeAllowCommands(input.Command)
+	if !ok {
+		return false
+	}
+	for _, command := range commands {
+		if !bashCommandAllowed(patterns, command) {
+			return false
+		}
+	}
+	return true
+}
+
+func bashAllowPatterns(rules []string) (patterns []string, unrestricted bool) {
+	for _, rule := range rules {
+		tool, pattern, specified := strings.Cut(rule, "(")
+		if tool != "Bash" {
+			continue
+		}
+		if !specified {
+			return nil, true
+		}
+		if !strings.HasSuffix(pattern, ")") {
+			continue
+		}
 		pattern = strings.TrimSuffix(pattern, ")")
-		if name != "Bash" {
-			continue
-		}
-		var input struct {
-			Command string `json:"command"`
-		}
-		if json.Unmarshal(arguments, &input) != nil || input.Command == "" {
-			continue
-		}
 		if pattern == "*" {
-			return true
-		}
-		// Conditional grants cannot match past shell syntax that may execute
-		// another program. Bare Bash grants cover all syntax explicitly.
-		if strings.ContainsAny(input.Command, ";&|\n\r`$()<>\\") {
-			continue
+			return nil, true
 		}
 		if strings.HasSuffix(pattern, ":*") {
 			pattern = strings.TrimSuffix(pattern, ":*") + " *"
 		}
-		if strings.Count(pattern, "*") == 1 && strings.HasSuffix(pattern, " *") && input.Command == strings.TrimSuffix(pattern, " *") {
-			return true
+		patterns = append(patterns, pattern)
+	}
+	return patterns, false
+}
+
+func bashCommandAllowed(patterns []string, command string) bool {
+	stripped, ok := shell.ClaudeStripAllowWrappers(command)
+	if !ok {
+		return false
+	}
+	if shell.ClaudeReadOnlyAllowCommand(stripped) {
+		return true
+	}
+	blocked := prefixRuleBlocked(stripped)
+	for _, pattern := range patterns {
+		if !bashPatternMatches(pattern, stripped) {
+			continue
 		}
-		if wildcard(pattern, input.Command) {
-			return true
+		if blocked && strings.Contains(pattern, "*") {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func bashPatternMatches(pattern, command string) bool {
+	if strings.Count(pattern, "*") == 1 && strings.HasSuffix(pattern, " *") && command == strings.TrimSuffix(pattern, " *") {
+		return true
+	}
+	return wildcard(pattern, command)
+}
+
+// prefixRuleBlocked mirrors Claude's Manual-mode refusal to auto-approve prefix
+// rules for exec wrappers and find actions that run or delete files.
+func prefixRuleBlocked(command string) bool {
+	words, ok := shell.SimpleCommandWords(command)
+	if !ok || len(words) == 0 {
+		return false
+	}
+	switch filepath.Base(words[0]) {
+	case "watch", "setsid", "ionice", "flock":
+		return true
+	case "find":
+		for _, word := range words[1:] {
+			switch word {
+			case "-delete", "-exec", "-execdir", "-ok", "-okdir", "-fls", "-fprint", "-fprint0", "-fprintf", "-files0-from", "-rm":
+				return true
+			}
 		}
 	}
 	return false

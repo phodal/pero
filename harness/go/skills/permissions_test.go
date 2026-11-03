@@ -15,27 +15,42 @@ func TestAllowedToolGrants(t *testing.T) {
 	}{
 		{"exact tool", "Write", "Write", "", true},
 		{"other tool", "Write", "Edit", "", false},
+		{"edit covers notebook edit", "Edit", "NotebookEdit", "", true},
 		{"global glob is not an allow rule", "*", "Write", "", false},
 		{"mcp server wildcard", "mcp__issues__get_*", "mcp__issues__get_issue", "", true},
 		{"mcp server identity", "mcp__*__get_*", "mcp__issues__get_issue", "", false},
 		{"bare shell", "Bash", "Bash", "printf ok; date", true},
 		{"all shell syntax", "Bash(*)", "Bash", "printf ok; date", true},
-		{"exact command", "Bash(git status)", "Bash", "git status", true},
-		{"exact command rejects extra", "Bash(git status)", "Bash", "git status --short", false},
-		{"prefix", "Bash(git status:*)", "Bash", "git status --short", true},
-		{"bare prefix", "Bash(git status *)", "Bash", "git status", true},
+		{"exact command", "Bash(npm test)", "Bash", "npm test", true},
+		{"exact command rejects extra", "Bash(npm test)", "Bash", "npm test --watch", false},
+		{"prefix", "Bash(npm test:*)", "Bash", "npm test --watch", true},
+		{"bare prefix", "Bash(npm test *)", "Bash", "npm test", true},
 		{"prefix boundary", "Bash(ls *)", "Bash", "lsof", false},
 		{"literal wildcard", "Bash(ls*)", "Bash", "lsof", true},
 		{"middle wildcard", "Bash(git log * main)", "Bash", "git log -5 main", true},
-		{"compound does not inherit first grant", "Bash(git status *)", "Bash", "git status && rm file", false},
+		{"compound does not inherit first grant", "Bash(npm test *)", "Bash", "npm test && rm file", false},
 		{"substitution does not inherit grant", "Bash(printf *)", "Bash", "printf $(touch file)", false},
-		{"specifier must close", "Bash(git status", "Bash", "git status", false},
+		{"specifier must close", "Bash(npm test", "Bash", "npm test", false},
+		{"compound both granted", "Bash(npm test *)", "Bash", "npm test && npm run lint", true},
+		{"trailing and refused", "Bash(npm *)", "Bash", "npm test &&", false},
+		{"wrapper stripped", "Bash(npm test *)", "Bash", "timeout 30 npm test", true},
+		{"safe env stripped", "Bash(npm test *)", "Bash", "NODE_ENV=test npm test", true},
+		{"unknown env refused", "Bash(npm test *)", "Bash", "SECRET=1 npm test", false},
+		{"find delete prefix blocked", "Bash(find *)", "Bash", "find . -delete", false},
+		{"find delete exact allowed", "Bash(find . -delete)", "Bash", "find . -delete", true},
+		{"readonly second part", "Bash(npm test *)", "Bash", "cd packages && npm test", true},
+		{"readonly alone with bash grant", "Bash(npm test *)", "Bash", "git status --short", true},
+		{"readonly without bash grant", "Write", "Bash", "git status", false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			arguments, _ := json.Marshal(struct {
 				Command string `json:"command"`
 			}{test.command})
-			if got := AllowsTool([]string{test.rule}, test.tool, arguments); got != test.want {
+			rules := []string{test.rule}
+			if test.name == "compound both granted" {
+				rules = []string{"Bash(npm test *)", "Bash(npm run lint *)"}
+			}
+			if got := AllowsTool(rules, test.tool, arguments); got != test.want {
 				t.Fatalf("allowed=%t want=%t", got, test.want)
 			}
 		})

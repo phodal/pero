@@ -49,9 +49,13 @@ func ClaudeCommandSucceeded(command string, exitCode *int) bool {
 	return false
 }
 
-// simpleCommandWords recognizes literal shell words with quoting and escaping.
+// SimpleCommandWords recognizes literal shell words with quoting and escaping.
 // It is deliberately not a shell evaluator: expansions, control operators and
 // redirections are outside the subset whose exit status can be classified.
+func SimpleCommandWords(command string) ([]string, bool) {
+	return simpleCommandWords(command)
+}
+
 func simpleCommandWords(command string) ([]string, bool) {
 	command = strings.Trim(command, " \t\r\n")
 	if strings.IndexByte(command, 0) >= 0 {
