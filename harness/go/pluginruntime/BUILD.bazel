@@ -7,6 +7,7 @@ go_library(
         "hook_failure.go",
         "hooks.go",
         "hooks_subagent_start.go",
+        "hooks_tasks.go",
         "mcp.go",
         "preprocess.go",
         "transcript.go",
@@ -23,6 +24,7 @@ go_library(
         "//shell",
         "//skills",
         "//subagents",
+        "//tasks",
     ],
 )
 
@@ -34,6 +36,7 @@ go_test(
         "data_home_test.go",
         "hooks_subagent_lifecycle_test.go",
         "hooks_subagents_test.go",
+        "hooks_tasks_test.go",
         "hooks_test.go",
         "mcp_sse_test.go",
         "mcp_test.go",
@@ -44,6 +47,7 @@ go_test(
     deps = [
         "//harness",
         "//plugins",
+        "//tasks",
         "@com_github_modelcontextprotocol_go_sdk//jsonrpc",
         "@com_github_modelcontextprotocol_go_sdk//mcp",
     ] + select({

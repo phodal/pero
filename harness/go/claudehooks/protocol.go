@@ -48,6 +48,9 @@ type Input struct {
 	Prompt               string          `json:"prompt,omitempty"`
 	LastAssistantMessage string          `json:"last_assistant_message,omitempty"`
 	Reason               string          `json:"reason,omitempty"`
+	TaskID               string          `json:"task_id,omitempty"`
+	TaskSubject          string          `json:"task_subject,omitempty"`
+	TaskDescription      string          `json:"task_description,omitempty"`
 }
 
 type Decision struct {
