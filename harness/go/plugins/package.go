@@ -224,6 +224,9 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 				Prompt          string            `json:"prompt"`
 				Model           string            `json:"model"`
 				ContinueOnBlock bool              `json:"continueOnBlock"`
+				Server          string            `json:"server"`
+				Tool            string            `json:"tool"`
+				Input           json.RawMessage   `json:"input"`
 			} `json:"hooks"`
 		} `json:"hooks"`
 	}
@@ -253,8 +256,11 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 				if handler.Type == "prompt" && strings.TrimSpace(handler.Prompt) == "" {
 					return nil, errors.New("plugins: prompt hook requires a nonempty prompt")
 				}
+				if handler.Type == "mcp_tool" && (strings.TrimSpace(handler.Server) == "" || strings.TrimSpace(handler.Tool) == "") {
+					return nil, errors.New("plugins: MCP tool hook requires a server and tool")
+				}
 				// Settings hooks ignore once. Skill and agent frontmatter honor it.
-				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, If: handler.If, Shell: handler.Shell, OnFailure: handler.OnFailure, URL: handler.URL, Headers: handler.Headers, AllowedEnvVars: append([]string(nil), handler.AllowedEnvVars...), Prompt: handler.Prompt, Model: handler.Model, ContinueOnBlock: handler.ContinueOnBlock}
+				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, If: handler.If, Shell: handler.Shell, OnFailure: handler.OnFailure, URL: handler.URL, Headers: handler.Headers, AllowedEnvVars: append([]string(nil), handler.AllowedEnvVars...), Prompt: handler.Prompt, Model: handler.Model, ContinueOnBlock: handler.ContinueOnBlock, MCPServer: handler.Server, MCPTool: handler.Tool, MCPInput: append(json.RawMessage(nil), handler.Input...)}
 				if event == "Stop" {
 					hook.Matcher = ""
 				}

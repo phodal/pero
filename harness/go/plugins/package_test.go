@@ -144,6 +144,22 @@ func TestSettingsHookOnceDoesNotLimitExecution(t *testing.T) {
 	}
 }
 
+func TestLoadPackageAcceptsMCPToolHooks(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "sample")
+	writePluginFiles(t, root, map[string]string{
+		".claude-plugin/plugin.json": `{"name":"sample"}`,
+		"hooks/hooks.json":           `{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"mcp_tool","server":"plugin:sample:memory","tool":"guard","input":{"path":"${tool_input.file_path}"}}]}]}}`,
+	})
+	packages, err := LoadPackages(t.Context(), []string{root})
+	if err != nil || len(packages) != 1 || len(packages[0].Hooks) != 1 {
+		t.Fatalf("packages=%v error=%v", packages, err)
+	}
+	hook := packages[0].Hooks[0]
+	if hook.MCPServer != "plugin:sample:memory" || hook.MCPTool != "guard" || !strings.Contains(string(hook.MCPInput), "tool_input.file_path") {
+		t.Fatalf("mcp hook = %+v", hook)
+	}
+}
+
 func TestLoadPackageAcceptsPromptHooks(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "sample")
 	writePluginFiles(t, root, map[string]string{

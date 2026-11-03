@@ -176,8 +176,23 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 					if summary.Async {
 						add(SeverityError, "INVALID_HOOK_FIELD", base+".async", "Prompt hooks cannot be asynchronous.")
 					}
+				} else if summary.Type == "mcp_tool" {
+					summary.CommandForm = "mcp_tool"
+					var server, tool string
+					if !integrationDecode(handler["server"], &server) || strings.TrimSpace(server) == "" {
+						add(SeverityError, "HOOK_MCP_SERVER_REQUIRED", base+".server", "An MCP tool hook requires a server name.")
+					}
+					if !integrationDecode(handler["tool"], &tool) || strings.TrimSpace(tool) == "" {
+						add(SeverityError, "HOOK_MCP_TOOL_REQUIRED", base+".tool", "An MCP tool hook requires a tool name.")
+					}
+					if raw, present := handler["input"]; present {
+						var object map[string]json.RawMessage
+						if !integrationDecode(raw, &object) {
+							add(SeverityError, "INVALID_HOOK_FIELD", base+".input", "MCP tool hook input must be an object.")
+						}
+					}
 				} else if summary.Type != "command" {
-					add(SeverityWarning, "UNSUPPORTED_HOOK_HANDLER", base+".type", "Only command, HTTP, and prompt handler configuration is executed.")
+					add(SeverityWarning, "UNSUPPORTED_HOOK_HANDLER", base+".type", "Only command, HTTP, prompt, and MCP tool handler configuration is executed.")
 				}
 				if raw, present := handler["timeout"]; present {
 					var timeout float64
@@ -190,8 +205,8 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 				if raw, present := handler["async"]; present && !integrationDecode(raw, &summary.Async) {
 					add(SeverityError, "INVALID_HOOK_ASYNC", base+".async", "Hook async must be a boolean.")
 				}
-				if summary.Async && (summary.Type == "http" || summary.Type == "prompt") {
-					add(SeverityError, "INVALID_HOOK_FIELD", base+".async", "HTTP and prompt hooks cannot be asynchronous.")
+				if summary.Async && (summary.Type == "http" || summary.Type == "prompt" || summary.Type == "mcp_tool") {
+					add(SeverityError, "INVALID_HOOK_FIELD", base+".async", "HTTP, prompt, and MCP tool hooks cannot be asynchronous.")
 				}
 				if summary.Type == "command" {
 					var command string
@@ -255,7 +270,11 @@ func ParseHooks(path string, content []byte) (HooksDefinition, []Diagnostic) {
 						if summary.Type != "prompt" {
 							add(SeverityWarning, "UNSUPPORTED_HOOK_FIELD", base+"."+key, "This handler field is recognized but its execution semantics are not implemented.")
 						}
-					case "toolName", "input":
+					case "server", "tool", "input":
+						if summary.Type != "mcp_tool" {
+							add(SeverityWarning, "UNSUPPORTED_HOOK_FIELD", base+"."+key, "This handler field is recognized but its execution semantics are not implemented.")
+						}
+					case "toolName":
 						add(SeverityWarning, "UNSUPPORTED_HOOK_FIELD", base+"."+key, "This handler field is recognized but its execution semantics are not implemented.")
 					default:
 						add(SeverityWarning, "UNKNOWN_HOOK_FIELD", base+"."+key, "Unrecognized hook handler field is not applied.")

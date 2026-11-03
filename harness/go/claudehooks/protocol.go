@@ -37,6 +37,10 @@ type Hook struct {
 	Prompt          string
 	Model           string
 	ContinueOnBlock bool
+	// MCPServer and MCPTool select an MCP tool hook.
+	MCPServer string
+	MCPTool   string
+	MCPInput  json.RawMessage
 }
 
 type Input struct {

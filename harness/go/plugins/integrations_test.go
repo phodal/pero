@@ -20,6 +20,12 @@ func TestHookInspection(t *testing.T) {
 		errorCodes []string
 	}{
 		{
+			name:    "mcp tool hook is executable configuration",
+			content: `{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"mcp_tool","server":"plugin:sample:memory","tool":"guard","input":{"path":"${tool_input.file_path}"}}]}]}}`,
+			count:   1, form: "mcp_tool",
+			codes: []string{"HOOK_RUNTIME_UNSUPPORTED"},
+		},
+		{
 			name:    "prompt hook is executable configuration",
 			content: `{"hooks":{"Stop":[{"hooks":[{"type":"prompt","prompt":"Check $ARGUMENTS","model":"fixture","continueOnBlock":true}]}]}}`,
 			count:   1, form: "prompt",

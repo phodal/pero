@@ -90,7 +90,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 			if _, err := claudehooks.Match(hook.Matcher, ""); err != nil {
 				return nil, err
 			}
-			if hook.URL == "" && hook.Prompt == "" && !hook.ExecForm && !filepath.IsAbs(options.Shell) {
+			if hook.URL == "" && hook.Prompt == "" && hook.MCPTool == "" && !hook.ExecForm && !filepath.IsAbs(options.Shell) {
 				return nil, errors.New("plugin-runtime: command hooks require an explicit absolute shell")
 			}
 		}
@@ -174,6 +174,9 @@ func (app *HookApp) register(run *point.Run) error {
 		}
 	}
 	if _, err := tools.Before.Use(run, func(ctx context.Context, request harness.ToolRequest, next point.Next[harness.ToolRequest]) (harness.ToolRequest, error) {
+		if ctx.Value(mcpHookCall{}) != nil {
+			return next(request)
+		}
 		err := app.withAgent(ctx, request.Agent, func(ctx context.Context, state *hookAgentState) error {
 			return app.beforeTool(ctx, &request)
 		})
@@ -185,6 +188,9 @@ func (app *HookApp) register(run *point.Run) error {
 		return err
 	}
 	if _, err := hooks.PostToolBatch.Use(run, func(ctx context.Context, input harness.ToolBatchInput, next point.Next[harness.ToolBatchInput]) (harness.ToolBatchInput, error) {
+		if ctx.Value(mcpHookCall{}) != nil {
+			return next(input)
+		}
 		err := app.withAgent(ctx, input.Agent, func(ctx context.Context, _ *hookAgentState) error {
 			return app.afterToolBatch(ctx, &input)
 		})
@@ -196,6 +202,9 @@ func (app *HookApp) register(run *point.Run) error {
 		return err
 	}
 	if _, err := tools.After.Use(run, func(ctx context.Context, outcome harness.ToolOutcome, next point.Next[harness.ToolOutcome]) (harness.ToolOutcome, error) {
+		if ctx.Value(mcpHookCall{}) != nil {
+			return next(outcome)
+		}
 		err := app.withAgent(ctx, outcome.Request.Agent, func(ctx context.Context, state *hookAgentState) error {
 			if !outcome.Result.ConcludesTurn {
 				state.stopBlocks = 0
@@ -588,6 +597,9 @@ type runnableHook struct {
 }
 
 func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claudehooks.Input) (claudehooks.Decision, error) {
+	if ctx.Value(mcpHookCall{}) != nil {
+		return claudehooks.Decision{}, nil
+	}
 	var decisions []claudehooks.Decision
 	identity, err := subagents.HookAttribution(agent)
 	if err != nil {
@@ -670,7 +682,12 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 		}
 		runner := claudehooks.Runner{Shell: app.options.Shell, Environment: environment}
 		var decision claudehooks.Decision
-		if hook.Prompt != "" {
+		if hook.MCPTool != "" {
+			if input.Event == "Setup" || input.Event == "SessionStart" && input.Source != "compact" {
+				continue
+			}
+			decision, err = app.runMCPHook(ctx, agent, selected.plugin, hook, input)
+		} else if hook.Prompt != "" {
 			if !claudehooks.PromptHookAllowed(input.Event) {
 				continue
 			}
