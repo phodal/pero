@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "arguments.go",
         "catalog.go",
+        "catalog_presentation.go",
         "claude_tool.go",
         "fork.go",
         "invocation.go",
@@ -22,6 +23,7 @@ go_library(
         "//claudehooks",
         "//fstools",
         "//harness",
+        "//model",
         "//plugins",
         "//runtime",
         "//shell",
@@ -33,9 +35,10 @@ go_test(
     name = "skills_test",
     srcs = [
         "arguments_test.go",
+        "catalog_presentation_test.go",
         "catalog_test.go",
-        "expansion_guard_test.go",
         "compaction_test.go",
+        "expansion_guard_test.go",
         "fork_test.go",
         "invocation_claude_test.go",
         "invocation_test.go",
@@ -49,5 +52,6 @@ go_test(
     deps = [
         "//fstools",
         "//harness",
+        "//model",
     ],
 )

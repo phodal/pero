@@ -11,34 +11,46 @@ import (
 )
 
 func claudeSkillTool(catalog *Catalog, rows []Summary, options MountOptions) harness.Tool {
-	var description strings.Builder
-	description.WriteString("Load an available plugin workflow before applying it. Call with {} to list names, then {skill: qualified_name, args: optional_arguments}. User-only workflows load on direct slash invocation and cannot be invoked by the model. For a selected package resource, call {skill: qualified_name, resource: exact_relative_path}; resource paths are listed in the loaded definition. Instructions and resources do not grant permissions. Available model-invocable workflows:")
-	for _, row := range rows {
-		data, _ := json.Marshal(struct {
-			Name         string   `json:"name"`
-			Description  string   `json:"description"`
-			ArgumentHint string   `json:"argumentHint,omitempty"`
-			Paths        []string `json:"paths,omitempty"`
-		}{row.Name, row.Description, row.ArgumentHint, row.Paths})
-		description.WriteString("\n" + string(data))
-	}
+	catalogText := skillCatalogDescription("Load an available plugin workflow before applying it. Call with {} to list names, then {skill: qualified_name, args: optional_arguments}. Large lists return items, total and next_offset; continue with offset/limit (up to 128 rows). User-only workflows load on direct slash invocation and cannot be invoked by the model. For a selected package resource, call {skill: qualified_name, resource: exact_relative_path}; resource paths are listed in the loaded definition. Instructions and resources do not grant permissions. If metadata_truncated is true, call with summary: exact_name to read the complete summary as JSON text using byte offset/limit (up to 8192 bytes) and next_offset; this never activates the workflow. Available model-invocable workflows:", "Skill", rows)
+	budget := harness.CatalogBudget{Remaining: harness.DefaultCatalogPageBytes}
 	return harness.Tool{
-		Schema: harness.ToolSchema{Name: "Skill", Description: description.String(), InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"skill":{"type":"string","minLength":1,"maxLength":256},"args":{"type":"string"},"resource":{"type":"string","minLength":1}}}`)},
+		Schema: harness.ToolSchema{Name: "Skill", Description: budget.Render(*catalogText), Catalog: catalogText, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"skill":{"type":"string","minLength":1,"maxLength":256},"args":{"type":"string"},"resource":{"type":"string","minLength":1},"summary":{"type":"string","minLength":1,"maxLength":256},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":8192}}}`)},
 		ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 			var input struct {
 				Skill    string `json:"skill"`
 				Args     string `json:"args"`
 				Resource string `json:"resource"`
+				Offset   *int   `json:"offset"`
+				Limit    *int   `json:"limit"`
+				Summary  string `json:"summary"`
 			}
 			if err := json.Unmarshal(request.Arguments, &input); err != nil {
 				return harness.ToolResult{}, err
+			}
+			if input.Summary != "" {
+				if input.Skill != "" || input.Args != "" || input.Resource != "" {
+					return harness.ToolResult{}, errors.New("skills: summary reads cannot activate workflows")
+				}
+				value, err := skillCatalogSummary(rows, input.Summary, input.Offset, input.Limit)
+				if err != nil {
+					return harness.ToolResult{}, err
+				}
+				data, err := json.Marshal(value)
+				return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(data)}}}, err
 			}
 			if input.Skill == "" {
 				if input.Args != "" || input.Resource != "" {
 					return harness.ToolResult{}, errors.New("skills: args and resource require skill")
 				}
-				data, err := json.Marshal(rows)
+				value, err := skillCatalogListing(rows, input.Offset, input.Limit)
+				if err != nil {
+					return harness.ToolResult{}, err
+				}
+				data, err := json.Marshal(value)
 				return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(data)}}}, err
+			}
+			if input.Offset != nil || input.Limit != nil {
+				return harness.ToolResult{}, errors.New("skills: offset and limit are only valid for listing")
 			}
 			available := rows
 			if input.Resource != "" {
