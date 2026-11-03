@@ -149,6 +149,13 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         if scientific[2]:
                             return self.binary(200, original, 'text/plain; charset=utf-8')
                         return self.reply(200, document.to_dict())
+                    html_images = re.fullmatch(r'/api/paper-documents/([a-f0-9]{64})/images(?:/([a-f0-9]{64}))?', path)
+                    if html_images:
+                        from .html_images import acquire_images, read_image
+                        if html_images[2]:
+                            data, mime = read_image(store, html_images[1], html_images[2])
+                            return self.binary(200, data, mime)
+                        return self.reply(200, acquire_images(documents, html_images[1], now()))
                     if path == '/api/pdf':
                         document = store.paper_pdf(parse_qs(parsed.query).get('paperId', [''])[0])
                         return self.reply(200, dict(document=document.to_dict() if document else None,

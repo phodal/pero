@@ -8,5 +8,17 @@
 .pa-html-review .pero-ui-button{height:24px;min-height:24px;padding:0 4px;font-size:12px;font-weight:500}
 
 .pa-reading-review-dialog.pero-ui-dialog{border:0.5px solid var(--pero-border);border-radius:6px;box-shadow:none}.pa-reading-review-dialog label{display:flex;align-items:flex-start;gap:6px;font-size:14px}.pa-reading-review-dialog .pero-ui-dialog-head{border-bottom:0.5px solid var(--pero-border)}
-.pa-html-reading{min-width:0}.pa-html-reading>.pero-ui-disclosure{margin-bottom:12px}.pa-html-selection{position:sticky;top:0;z-index:2;display:flex;justify-content:flex-end;pointer-events:none}.pa-html-selection button{pointer-events:auto}.pa-html-reading iframe{color-scheme:normal}
-.pa-reading-column>.pero-ui-disclosure,.pa-html-reading>.pero-ui-disclosure{margin:0 0 8px;padding:4px 0;border:0;border-radius:0;background:transparent}.pa-reading-column>.pero-ui-disclosure>summary,.pa-html-reading>.pero-ui-disclosure>summary{min-height:24px;padding:2px 0;font-size:14px}
+.pa-html-reading{position:relative;min-width:0}.pa-html-reading iframe{color-scheme:normal}
+.pa-html-chrome{position:sticky;top:0;z-index:3;display:flex;justify-content:flex-end;align-items:center;gap:8px;min-height:0;pointer-events:none}
+.pa-html-chrome>.pero-ui-popover,.pa-html-chrome>.pa-html-selection,.pa-html-chrome>.pa-html-image-status{pointer-events:auto}
+.pa-html-toc.pero-ui-popover{margin:4px 0 8px}
+.pa-html-toc .pero-ui-popover-trigger{height:24px;min-height:24px;padding:0 8px;gap:4px;font-size:12px;font-weight:500}
+.pa-html-toc-panel{min-width:220px;max-width:min(360px,80vw);padding:6px;overflow:auto}
+.pa-html-toc-panel nav{display:flex;flex-direction:column;gap:2px}
+.pa-html-toc-panel .pa-text-contents-item{width:100%}
+.pa-html-toc-panel .pa-text-contents-item[data-level="3"]{padding-inline-start:16px}
+.pa-html-toc-panel .pa-text-contents-item[data-level="4"],
+.pa-html-toc-panel .pa-text-contents-item[data-level="5"],
+.pa-html-toc-panel .pa-text-contents-item[data-level="6"]{padding-inline-start:24px}
+.pa-html-image-status{margin:0;padding:4px 0;font-size:12px;color:var(--pero-text-muted)}
+.pa-html-selection{display:flex;justify-content:flex-end;gap:4px}
