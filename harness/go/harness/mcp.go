@@ -83,7 +83,7 @@ func MountMCPServers(ctx context.Context, run *point.Run, registry *ToolRegistry
 		if err := registerMCPResourceTools(run, registry, directory); err != nil {
 			return err
 		}
-		if err := registerMCPResourcePrompt(run, prompts, directory); err != nil {
+		if err := registerMCPResourcePrompt(run, registry, prompts, directory); err != nil {
 			return err
 		}
 	}
@@ -252,19 +252,33 @@ func registerMCPResourceTools(run *point.Run, registry *ToolRegistry, directory 
 	return err
 }
 
-func registerMCPResourcePrompt(run *point.Run, prompts *PromptRegistry, directory *harnessmcp.ResourceDirectory) error {
+func registerMCPResourcePrompt(run *point.Run, registry *ToolRegistry, prompts *PromptRegistry, directory *harnessmcp.ResourceDirectory) error {
 	_, err := prompts.Register(run, PromptSection{
 		ID: fmt.Sprintf("mcp-resource-servers:%p", run.Scope), Order: 3100,
-		Content: func(context.Context, *Agent) (string, error) {
+		Content: func(ctx context.Context, agent *Agent) (string, error) {
 			names := directory.Names()
 			if len(names) == 0 {
+				return "", nil
+			}
+			schemas, err := registry.SchemasForAgent(ctx, agent)
+			if err != nil {
+				return "", err
+			}
+			var tools []string
+			for _, schema := range schemas {
+				switch schema.Name {
+				case "list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource", "list_mcp_prompts", "get_mcp_prompt":
+					tools = append(tools, schema.Name)
+				}
+			}
+			if len(tools) == 0 {
 				return "", nil
 			}
 			encoded, marshalErr := json.Marshal(names)
 			if marshalErr != nil {
 				return "", marshalErr
 			}
-			text := "## MCP resource servers\n\nUse list_mcp_resources, list_mcp_resource_templates, read_mcp_resource, list_mcp_prompts, or get_mcp_prompt with one of these names as the server argument: " + string(encoded) + "."
+			text := "## MCP resource servers\n\nUse " + strings.Join(tools, ", ") + " with one of these names as the server argument: " + string(encoded) + "."
 			if instructions := directory.Instructions(); instructions != "" {
 				text += "\n\n" + instructions
 			}

@@ -60,6 +60,84 @@ func TestMCPToolListChangedUpdatesRegisteredTools(t *testing.T) {
 	}
 }
 
+func TestMCPResourceGuidanceMatchesAgentTools(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	const instructions = "Use fixture documentation."
+	server := mcp.NewServer(&mcp.Implementation{Name: "guidance-fixture", Version: "1"}, &mcp.ServerOptions{Instructions: instructions})
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	session, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+	adapter := &scriptedAdapter{responses: []Completion{
+		{Message: Message{Role: RoleAssistant}, Finish: FinishStop},
+		{Message: Message{Role: RoleAssistant}, Finish: FinishStop},
+		{Message: Message{Role: RoleAssistant}, Finish: FinishStop},
+	}}
+	h, err := Boot(ctx, Options{Adapter: adapter})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = h.Dispose(context.Background()) })
+	root, err := h.Agents().Create(ctx, AgentOptions{ID: "mcp-guidance-root", Configure: func(ctx context.Context, run *point.Run, _ *Agent) error {
+		return MountMCPServers(ctx, run, h.Tools(), h.Prompts(), []MCPServerConfig{{Name: "fixture", TestTransport: clientTransport, FailOnStartupError: true}})
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := []string{"get_mcp_prompt", "list_mcp_prompts", "list_mcp_resource_templates", "list_mcp_resources", "read_mcp_resource"}
+	for _, tc := range []struct {
+		name  string
+		allow []string
+	}{
+		{name: "root", allow: all},
+		{name: "read-only child", allow: []string{"read_mcp_resource"}},
+		{name: "child without MCP tools", allow: []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			agent := root
+			if tc.name != "root" {
+				agent, err = h.Agents().Create(ctx, AgentOptions{Parent: root, Configure: func(ctx context.Context, run *point.Run, child *Agent) error {
+					_, err := h.Tools().Restrict(ctx, run, child, ToolRestriction{Allow: tc.allow})
+					return err
+				}})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := agent.Prompt(ctx, Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: "Describe the available documentation."}}}); err != nil {
+				t.Fatal(err)
+			}
+			adapter.mu.Lock()
+			request := adapter.requests[len(adapter.requests)-1]
+			adapter.mu.Unlock()
+			gotNames := make([]string, 0, len(request.Tools))
+			for _, tool := range request.Tools {
+				gotNames = append(gotNames, tool.Name)
+			}
+			if !reflect.DeepEqual(gotNames, tc.allow) {
+				t.Fatalf("provider tools = %v, want %v", gotNames, tc.allow)
+			}
+			for _, name := range all {
+				visible := false
+				for _, allowed := range tc.allow {
+					visible = visible || allowed == name
+				}
+				if strings.Contains(request.System, name) != visible {
+					t.Fatalf("provider guidance for %q does not match tool visibility: %s", name, request.System)
+				}
+			}
+			for _, text := range []string{"## MCP resource servers", instructions} {
+				if strings.Contains(request.System, text) != (len(tc.allow) > 0) {
+					t.Fatalf("provider guidance %q must follow resource tool visibility: %s", text, request.System)
+				}
+			}
+		})
+	}
+}
+
 func fixtureMCPTools(registry *ToolRegistry, scope *point.Scope, prefix string) map[string]string {
 	got := map[string]string{}
 	for _, schema := range registry.Schemas(scope) {
