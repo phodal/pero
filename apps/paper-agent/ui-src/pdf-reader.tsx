@@ -38,7 +38,9 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   useEffect(() => { if (chrome.figure?.preview?.paperId === paper.id) { setVisitedTex(true); setMode('tex'); } }, [chrome.figure?.token]);
   useEffect(() => {
     if (lockText) return;
-    if (focus && reading.document?.id === focus.documentId) return;
+    // Clearing a citation reveal is reader input, not a document switch.
+    // Retain the mounted viewer, including its current page and selection.
+    if (reading.document && (!focus || reading.document.id === focus.documentId)) return;
     let alive = true; const version = ++pdfLoadEpoch.current;
     setReading({ document: null, annotations: [] }); setMode(chrome.figure?.preview?.paperId === paper.id ? 'tex' : 'text'); setError('');
     setBusy(!!paper.pdfUrl);
