@@ -1,0 +1,28 @@
+{
+  "name": "@pero/paper-reader",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./frame.html": "./frame.html"
+  },
+  "scripts": {
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "dompurify": "3.4.17"
+  },
+  "devDependencies": {
+    "jsdom": "29.1.1",
+    "tsx": "4.21.0",
+    "@types/jsdom": "^28.0.0"
+  },
+  "files": [
+    "src",
+    "frame.html",
+    "reader.css",
+    "vendor",
+    "README.md"
+  ]
+}
