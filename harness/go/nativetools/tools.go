@@ -25,6 +25,9 @@ type Options struct {
 	EnableResearchClone bool
 	Shell               string
 	ClaudeTools         bool
+	// DeferToolLoading starts with ToolSearch and declares authorized tool
+	// schemas on subsequent requests after a successful catalog search.
+	DeferToolLoading bool
 	// PDFRendererPath selects a probed Poppler pdftoppm/pdfinfo pair. Empty
 	// discovers an installed pair; "-" disables PDF page rendering.
 	PDFRendererPath string
@@ -350,7 +353,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 	if err := mountPlanTools(ctx, h); err != nil {
 		return nil, err
 	}
-	if err := mountToolSearch(ctx, h, opts.ClaudeTools); err != nil {
+	if err := mountToolSearch(ctx, h, opts.ClaudeTools, opts.DeferToolLoading); err != nil {
 		return nil, err
 	}
 	if err := mountDocumentTools(ctx, h, app, opts.PDFRendererPath, opts.ClaudeTools); err != nil {

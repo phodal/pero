@@ -52,6 +52,7 @@ go_test(
         "background_restart_test.go",
         "background_test.go",
         "claude_test.go",
+        "deferred_tools_test.go",
         "discovery_test.go",
         "document_test.go",
         "media_test.go",
