@@ -1,3 +1,10 @@
 .pa-structured-reading{min-width:0}.pa-structured-reading code{overflow-wrap:anywhere}.pa-structured-reading nav{display:flex;flex-direction:column;align-items:flex-start}.pa-document-block{position:relative;white-space:pre-wrap;scroll-margin-block:2rem;margin-block:1rem;outline:none}.pa-document-block[data-focused=true],.pa-document-block:focus-visible{outline:2px solid var(--pero-focus);outline-offset:4px}.pa-document-block>.pero-ui-button{font-size:var(--pero-font-caption);margin-top:.25rem}.pa-document-block table{white-space:pre-wrap}.pa-document-block figure{margin:0}.pa-block-equation,.pa-document-block pre{overflow-x:auto}.pa-original-html{position:sticky;bottom:0;max-height:55vh;overflow:auto;background:var(--pero-surface);border:1px solid var(--pero-border);padding:var(--pero-space-4)}.pa-original-html pre{white-space:pre-wrap;overflow-wrap:anywhere}.pa-structured-reading math[display=block]{overflow-x:auto;max-width:100%}
 
+.pa-text-reading{container-type:inline-size;container-name:pa-reading}
+.pa-structured-reading{display:block;min-height:100%;background:var(--pero-surface)}
+.pa-reading-column{box-sizing:border-box;width:100%;max-width:none;min-width:0;margin:0;padding:0}
+.pa-text-document{min-width:0}
+
 .pa-reading-review-dialog.pero-ui-dialog{border:0.5px solid var(--pero-border);border-radius:6px;box-shadow:none}.pa-reading-review-dialog label{display:flex;align-items:flex-start;gap:6px;font-size:14px}.pa-reading-review-dialog .pero-ui-dialog-head{border-bottom:0.5px solid var(--pero-border)}
+.pa-html-reading{min-width:0}.pa-html-reading>.pero-ui-disclosure{margin-bottom:12px}.pa-html-selection{position:sticky;top:0;z-index:2;display:flex;justify-content:flex-end;pointer-events:none}.pa-html-selection button{pointer-events:auto}.pa-html-reading iframe{color-scheme:normal}
+.pa-reading-column>.pero-ui-disclosure,.pa-html-reading>.pero-ui-disclosure{margin:0 0 8px;padding:4px 0;border:0;border-radius:0;background:transparent}.pa-reading-column>.pero-ui-disclosure>summary,.pa-html-reading>.pero-ui-disclosure>summary{min-height:24px;padding:2px 0;font-size:14px}

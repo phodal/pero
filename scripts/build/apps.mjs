@@ -52,6 +52,13 @@ await build({
     builder.onLoad({ filter: /virtual-cell[\\/]ui-src[\\/]styles\.css$/ }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' }));
   } }],
 });
+if (appName === 'paper-agent') {
+  const reader = resolve(root, 'packages/paper-reader');
+  const target = resolve(outdir, '_paper-reader');
+  await mkdir(resolve(target, 'vendor'), { recursive: true });
+  for (const path of ['frame.html', 'reader.css', 'vendor/ar5iv.min.css'])
+    await cp(resolve(reader, path), resolve(target, path));
+}
 const manifest = JSON.parse(await readFile(resolve(appRoot, 'app.json'), 'utf8'));
 const title = manifest.displayName.replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 await writeFile(resolve(outdir, 'index.html'), `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="./index.css"></head><body><div id="app"></div><script type="module" src="./index.js"></script></body></html>\n`);
