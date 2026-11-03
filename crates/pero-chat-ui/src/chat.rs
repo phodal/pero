@@ -645,12 +645,8 @@ impl ChatPanel {
                 }
                 chat.push_user(event.text.clone(), cx);
                 if let Some(message) = chat.messages.last_mut() {
-                    message.attached_files = event.data["contexts"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|r| r["label"].as_str().map(str::to_string))
-                        .collect();
+                    let contexts = event.data["contexts"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+                    message.attached_files = crate::message_attachments::attachment_labels(&event.text, contexts);
                 }
             }
             "session_connecting" => chat.state = SessionState::Connecting,
