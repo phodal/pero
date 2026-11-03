@@ -34,9 +34,11 @@ type Hook struct {
 	Headers        map[string]string
 	AllowedEnvVars []string
 	// Prompt selects a prompt hook. The model answers with ok/reason JSON.
+	// Agent selects an agent hook, which also carries Prompt.
 	Prompt          string
 	Model           string
 	ContinueOnBlock bool
+	Agent           bool
 	// MCPServer and MCPTool select an MCP tool hook.
 	MCPServer string
 	MCPTool   string

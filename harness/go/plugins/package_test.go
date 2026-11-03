@@ -105,7 +105,7 @@ func TestLoadPackageRejectsUnsupportedExecution(t *testing.T) {
 		{"invalid agent name", "agents/reviewer.md", "---\nname: Bad Name\ndescription: Review.\n---\nReview.", "INVALID_COMPONENT_NAME"},
 		{"manifest execution", ".claude-plugin/plugin.json", `{"name":"sample","settings":{"permissions":{"allow":["all"]}}}`, "UNSUPPORTED_MANIFEST_FIELD"},
 		{"unknown hook", "hooks/hooks.json", `{"hooks":{"FutureEvent":[{"hooks":[{"type":"command","command":"private-canary-value"}]}]}}`, "UNSUPPORTED_HOOK_EVENT"},
-		{"agent hook", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"agent","prompt":"private-canary-value"}]}]}}`, "UNSUPPORTED_HOOK_"},
+		{"unknown hook handler", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"function","prompt":"private-canary-value"}]}]}}`, "UNSUPPORTED_HOOK_"},
 		{"invalid hook failure policy", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true","onFailure":"sometimes"}]}]}}`, "INVALID_HOOK_FIELD"},
 		{"unsupported hook shell", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true","shell":"zsh"}]}]}}`, "INVALID_HOOK_FIELD"},
 		{"MCP auth provider", ".mcp.json", `{"remote":{"url":"https://example.invalid/mcp","headersHelper":"private-canary-value"}}`, "UNSUPPORTED_MCP_FIELD"},

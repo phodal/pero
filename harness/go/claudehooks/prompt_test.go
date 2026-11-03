@@ -31,4 +31,12 @@ func TestPromptDecisionFollowsTheEvent(t *testing.T) {
 	if _, err = PromptDecision("Stop", false, "not json"); err == nil {
 		t.Fatal("invalid response was accepted")
 	}
+	decision, err = AgentDecision("Stop", `{"ok":false,"reason":"still going","impossible":true}`)
+	if err != nil || !decision.Block || decision.Reason != "still going" {
+		t.Fatalf("agent stop %+v %v", decision, err)
+	}
+	decision, err = AgentDecision("PreToolUse", `{"ok":false,"reason":"no"}`)
+	if err != nil || decision.EndTurn || decision.Permission != "deny" {
+		t.Fatalf("agent pretool %+v %v", decision, err)
+	}
 }

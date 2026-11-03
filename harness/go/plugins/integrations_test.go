@@ -20,6 +20,12 @@ func TestHookInspection(t *testing.T) {
 		errorCodes []string
 	}{
 		{
+			name:    "agent hook is executable configuration",
+			content: `{"hooks":{"Stop":[{"hooks":[{"type":"agent","prompt":"Check the files. $ARGUMENTS","model":"fixture"}]}]}}`,
+			count:   1, form: "agent",
+			codes: []string{"HOOK_RUNTIME_UNSUPPORTED"},
+		},
+		{
 			name:    "mcp tool hook is executable configuration",
 			content: `{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"mcp_tool","server":"plugin:sample:memory","tool":"guard","input":{"path":"${tool_input.file_path}"}}]}]}}`,
 			count:   1, form: "mcp_tool",
@@ -93,7 +99,7 @@ func TestHookInspection(t *testing.T) {
 		},
 		{
 			name:    "unsupported handler is not represented as executable",
-			content: `{"hooks":{"Stop":[{"hooks":[{"type":"agent","prompt":"sensitive-handler-content"}]}]}}`,
+			content: `{"hooks":{"Stop":[{"hooks":[{"type":"function","prompt":"sensitive-handler-content"}]}]}}`,
 			count:   1, codes: []string{"UNSUPPORTED_HOOK_HANDLER", "UNSUPPORTED_HOOK_FIELD", "HOOK_RUNTIME_UNSUPPORTED"},
 		},
 		{

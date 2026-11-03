@@ -46,12 +46,27 @@ func RenderPrompt(template, arguments string) string {
 	return builder.String()
 }
 
+// AgentDecision maps an agent hook response. It always continues on block, and
+// it ignores the prompt-hook impossible field.
+func AgentDecision(event, response string) (Decision, error) {
+	parsed, err := parsePromptResponse(response)
+	if err != nil {
+		return Decision{}, err
+	}
+	parsed.impossible = false
+	return promptDecision(event, true, parsed)
+}
+
 // PromptDecision maps a model response onto the event's prompt-hook behavior.
 func PromptDecision(event string, continueOnBlock bool, response string) (Decision, error) {
 	parsed, err := parsePromptResponse(response)
 	if err != nil {
 		return Decision{}, err
 	}
+	return promptDecision(event, continueOnBlock, parsed)
+}
+
+func promptDecision(event string, continueOnBlock bool, parsed promptResponse) (Decision, error) {
 	if parsed.ok {
 		return Decision{}, nil
 	}

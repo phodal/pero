@@ -33,6 +33,8 @@ type HookOptions struct {
 	// Retain keeps the hook runtime when a package has no settings hooks, so
 	// skill and agent frontmatter hooks can register later.
 	Retain bool
+	// RunAgent executes an agent hook through the mounted subagent runtime.
+	RunAgent func(context.Context, *harness.Agent, string, string) (string, error)
 }
 
 type HookApp struct {
@@ -682,7 +684,12 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 		}
 		runner := claudehooks.Runner{Shell: app.options.Shell, Environment: environment}
 		var decision claudehooks.Decision
-		if hook.MCPTool != "" {
+		if hook.Agent {
+			if !claudehooks.PromptHookAllowed(input.Event) || input.Event == "PermissionRequest" {
+				continue
+			}
+			decision, err = app.runAgentHook(ctx, agent, hook, input)
+		} else if hook.MCPTool != "" {
 			if input.Event == "Setup" || input.Event == "SessionStart" && input.Source != "compact" {
 				continue
 			}
