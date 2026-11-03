@@ -3,7 +3,7 @@ use crate::{
     app::Workbench,
     workspace::{WorkspaceItem, WorkspaceRoute},
 };
-use gpui_kit::{component::{button::*, notification::Notification, WindowExt}, prelude::*, *};
+use gpui_kit::{component::{button::*, notification::Notification, Sizable, WindowExt}, prelude::*, *};
 use gpui_webview::WebView;
 use pero_contracts::HostEvent;
 use serde_json::{Value, json};
@@ -229,13 +229,13 @@ impl Render for NativeAppPage {
                     "apps.loading_panel",
                 ))
             })
-            .when_some(self.error.clone(), |el, error| el.child(error))
             .children(self.view.clone().filter(|_| self.error.is_none()))
     }
 }
 pub(crate) struct RetainedApp {
     pub view: Entity<NativeAppPage>,
     _subscription: Subscription,
+    _observation: Subscription,
 }
 impl Workbench {
     pub(crate) fn paste_app_text(&self, cx: &App) -> bool {
@@ -330,6 +330,8 @@ impl Workbench {
             return;
         }
         let view = cx.new(|cx| NativeAppPage::new(key.0.clone(), open.entry, open.frame_origins, window, cx));
+        // The parent owns the failure view, including a WebView's loading timeout.
+        let observation = cx.observe(&view, |_, _, cx| cx.notify());
         let scope = pero_contracts::AppChatScope {
             app: key.0.clone(),
             panel: key.1.clone(),
@@ -429,6 +431,7 @@ impl Workbench {
             RetainedApp {
                 view,
                 _subscription: subscription,
+                _observation: observation,
             },
         );
         cx.notify();
@@ -476,6 +479,7 @@ impl Workbench {
         let key = (name.to_owned(), panel.to_owned());
         let name = name.to_owned();
         let panel = panel.to_owned();
+        let chrome = pero_theme::Chrome::from_app(cx);
         div()
             .flex()
             .flex_col()
@@ -484,14 +488,43 @@ impl Workbench {
             .min_w_0()
             .h_full()
             .when_some(error.clone(), |el, error| {
-                el.child(error).child(
-                    Button::new("native-app-retry")
-                        .label(self.t("apps.open"))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.native_app_pages.remove(&(name.clone(), panel.clone()));
-                            this.pending_app=Some((name.clone(),panel.clone()));
-                            this.refresh_apps(cx);
-                        })),
+                let diagnostics = format!("App: {name}\nPanel: {panel}\n{error}");
+                el.child(
+                    div().flex().flex_col().gap(px(12.)).p(px(12.)).min_w_0()
+                        .max_w(px(680.)).text_size(chrome.text(14.))
+                        .text_color(chrome.palette.text)
+                        .child(div().font_weight(FontWeight::SEMIBOLD).text_size(chrome.text(18.))
+                            .child(self.t("apps.open_failed")))
+                        .child(div().whitespace_normal().text_color(chrome.palette.text_muted)
+                            .child(self.t("apps.open_failed_hint")))
+                        .child(div().flex().flex_wrap().items_center().gap(px(8.))
+                            .child(Button::new("native-app-retry").small().outline()
+                                .label(self.t("apps.retry_open"))
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.native_app_pages.remove(&(name.clone(), panel.clone()));
+                                    this.pending_app=Some((name.clone(),panel.clone()));
+                                    this.refresh_apps(cx);
+                                })))
+                            .child(Button::new("native-app-error-details").small().ghost()
+                                .label(self.t(if self.apps.error_details_open {
+                                    "apps.hide_diagnostics"
+                                } else { "apps.show_diagnostics" }))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.apps.error_details_open = !this.apps.error_details_open;
+                                    cx.notify();
+                                }))))
+                        .when(self.apps.error_details_open, |el| el.child(
+                            div().flex().flex_col().gap(px(8.)).min_w_0()
+                                .child(div().id("native-app-diagnostics").max_h(px(240.))
+                                    .overflow_y_scroll().text_size(chrome.text(12.))
+                                    .whitespace_normal().child(error))
+                                .child(div().flex().child(
+                                    Button::new("native-app-copy-diagnostics").small().ghost()
+                                        .label(self.t("apps.copy_diagnostics"))
+                                        .on_click(cx.listener(move |this, _, window, cx| {
+                                            cx.write_to_clipboard(ClipboardItem::new_string(diagnostics.clone()));
+                                            window.push_notification(Notification::success(this.t("content.copied")), cx);
+                                        }))))))
                 )
             })
             .when(

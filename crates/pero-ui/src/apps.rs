@@ -80,6 +80,7 @@ pub(crate) struct AppCatalog {
     pub category: AppCategory,
     pub loading: bool,
     pub error: Option<String>,
+    pub error_details_open: bool,
     pub removing: Option<String>,
     pub preparation: Option<AppPreparationView>,
 }
@@ -89,6 +90,7 @@ impl AppCatalog {
         self.entries = entries;
         self.loading = false;
         self.error = None;
+        self.error_details_open = false;
         self.removing = None;
     }
 
@@ -164,6 +166,7 @@ mod surface {
 
         pub(crate) fn refresh_apps(&mut self, cx: &mut Context<Self>) {
             self.apps.error = None;
+            self.apps.error_details_open = false;
             self.apps.loading = true;
             self.command(json!({"action":"apps_list"}), cx);
         }

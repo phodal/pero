@@ -102,3 +102,39 @@ WebKit child, cross-display scaling, Windows/Linux runtime and portable signed
 packages remain outside this acceptance. These Apps still require their declared
 Python dependencies. A successful synthetic calculation does not establish
 scientific acceptance or real-provider research.
+
+
+## Native App failure recovery (2026-11-03)
+
+The failure surface presents a compact Retry action and optional technical
+details, with a bounded scroll area and diagnostic-copy feedback. Refreshing
+resets disclosure state. A retained WebView notifies its parent when its
+loading state changes, so the parent also owns timeout failures.
+
+Unpackaged debug previews select `target/debug/pero-host`; release previews
+select `target/release/pero-host`. Portable installations still use
+`bin/pero-host`, and an explicit `PERO_NATIVE_HOST` remains authoritative.
+The relaunched local debug preview was observed running the debug Host.
+
+Checks:
+
+- Native build with `--features native --bin pero-native` passed.
+- `cargo +nightly-2026-10-28 test -p pero-ui --features native --lib apps::tests`
+  passed (one catalog behavior test).
+- Wasm `cargo check -p pero-ui --target wasm32-unknown-unknown` passed.
+- `node scripts/check/locales.mjs` and `git diff --check` passed.
+- An isolated Native profile replayed the reported schema error through the
+  stdio Host seam. Light/dark, a narrow window and split pane, details toggle,
+  copy notification, a 60-line diagnostic scroll, Tab focus, keyboard disclosure
+  and keyboard Retry were inspected. Repeated failures reset disclosure; removing
+  the injected failure let Retry mount the real Paper App and its empty library.
+- A static fixture without the SDK ready signal reached the real 30-second
+  WebView timeout. The parent immediately displayed the same failure surface
+  and its technical timeout message (`timeout.jpg`). Removing the fixture and
+  retrying mounted the real Paper library again.
+
+Local screenshots are in `test-results/native-app-error/`: `light.jpg`,
+`dark.jpg`, `details-copy.jpg`, `narrow.jpg`, `long-diagnostics.jpg`,
+`diagnostics-scroll.jpg`, `keyboard-retry.jpg` and `recovered.jpg`.
+The injected error and long diagnostic are fixtures, not new production failures.
+The isolated library contains no user papers. No packaged release was tested.
