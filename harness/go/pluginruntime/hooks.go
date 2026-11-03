@@ -415,7 +415,7 @@ func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state
 		if !input.Agent.FreshSession() {
 			source = "resume"
 		}
-		decision, err := app.event(ctx, input.Agent, claudehooks.Input{Event: "SessionStart", Source: source})
+		decision, err := app.event(ctx, input.Agent, claudehooks.Input{Event: "SessionStart", Source: source, SessionTitle: customSessionTitle(input.Agent)})
 		if err != nil {
 			return err
 		}
@@ -427,6 +427,9 @@ func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state
 		}
 		if decision.WatchPaths != nil {
 			app.setDynamicWatches(input.Agent, decision.WatchPaths)
+		}
+		if err := app.storeSessionTitle(input.Agent, source, decision.SessionTitle); err != nil {
+			return err
 		}
 		state.started = true
 	}

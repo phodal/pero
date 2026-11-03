@@ -143,6 +143,13 @@ func TestDecisionAggregation(t *testing.T) {
 	}
 }
 
+func TestSessionStartTitleParsesAlongsideTheOtherFields(t *testing.T) {
+	got, err := ParseDecision("SessionStart", []byte(`{"hookSpecificOutput":{"hookEventName":"SessionStart","sessionTitle":"auth-refactor","initialUserMessage":"begin","reloadSkills":true,"additionalContext":"branch"}}`), nil, 0)
+	if err != nil || got.SessionTitle != "auth-refactor" || got.AdditionalContext != "branch" {
+		t.Fatalf("title = %+v %v", got, err)
+	}
+}
+
 func TestSessionStartAndCwdChangedKeepWatchPaths(t *testing.T) {
 	for _, event := range []string{"SessionStart", "CwdChanged", "FileChanged"} {
 		got, err := ParseDecision(event, []byte(`{"hookSpecificOutput":{"hookEventName":"`+event+`","watchPaths":[]}}`), nil, 0)

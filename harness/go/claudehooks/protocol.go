@@ -103,6 +103,8 @@ type Input struct {
 	OldCWD               string          `json:"old_cwd,omitempty"`
 	NewCWD               string          `json:"new_cwd,omitempty"`
 	Directory            string          `json:"directory,omitempty"`
+	// SessionTitle is the custom title already stored for this session.
+	SessionTitle string `json:"session_title,omitempty"`
 }
 
 type Decision struct {
@@ -124,6 +126,8 @@ type Decision struct {
 	// the hook left the request unanswered.
 	Action  string
 	Content json.RawMessage
+	// SessionTitle is the title a SessionStart hook asked to store.
+	SessionTitle string
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
@@ -146,18 +150,23 @@ type output struct {
 }
 
 type specificOutput struct {
-	Event             string                     `json:"hookEventName"`
-	Permission        string                     `json:"permissionDecision"`
-	Reason            string                     `json:"permissionDecisionReason"`
-	UpdatedInput      json.RawMessage            `json:"updatedInput"`
-	AdditionalContext string                     `json:"additionalContext"`
-	RequestDecision   *permissionRequestDecision `json:"decision"`
-	WorktreePath      string                     `json:"worktreePath"`
-	UpdatedToolOutput json.RawMessage            `json:"updatedToolOutput"`
-	WatchPaths        []string                   `json:"watchPaths"`
-	DisplayContent    *string                    `json:"displayContent,omitempty"`
-	Action            string                     `json:"action,omitempty"`
-	Content           json.RawMessage            `json:"content,omitempty"`
+	Event              string                     `json:"hookEventName"`
+	Permission         string                     `json:"permissionDecision"`
+	Reason             string                     `json:"permissionDecisionReason"`
+	UpdatedInput       json.RawMessage            `json:"updatedInput"`
+	AdditionalContext  string                     `json:"additionalContext"`
+	RequestDecision    *permissionRequestDecision `json:"decision"`
+	WorktreePath       string                     `json:"worktreePath"`
+	UpdatedToolOutput  json.RawMessage            `json:"updatedToolOutput"`
+	WatchPaths         []string                   `json:"watchPaths"`
+	DisplayContent     *string                    `json:"displayContent,omitempty"`
+	Action             string                     `json:"action,omitempty"`
+	Content            json.RawMessage            `json:"content,omitempty"`
+	SessionTitle       string                     `json:"sessionTitle,omitempty"`
+	InitialUserMessage string                     `json:"initialUserMessage,omitempty"`
+	// ReloadSkills is accepted so a SessionStart hook can request a skill
+	// rescan. The catalog stays fixed for this process.
+	ReloadSkills *bool `json:"reloadSkills,omitempty"`
 }
 
 // permissionRequestDecision is the PermissionRequest allow or deny object.
@@ -307,6 +316,9 @@ func (wire output) decision(event string) (Decision, error) {
 			}
 			result.UpdatedInput = append(json.RawMessage(nil), specific.UpdatedInput...)
 		}
+		if event == "SessionStart" && specific.SessionTitle != "" {
+			result.SessionTitle = specific.SessionTitle
+		}
 		if (event == "FileChanged" || event == "CwdChanged" || event == "SessionStart") && specific.WatchPaths != nil {
 			result.WatchPaths = make([]string, len(specific.WatchPaths))
 			copy(result.WatchPaths, specific.WatchPaths)
@@ -399,6 +411,9 @@ func Merge(decisions []Decision) (Decision, error) {
 		if decision.WatchPaths != nil {
 			merged.WatchPaths = make([]string, len(decision.WatchPaths))
 			copy(merged.WatchPaths, decision.WatchPaths)
+		}
+		if decision.SessionTitle != "" {
+			merged.SessionTitle = decision.SessionTitle
 		}
 		if len(decision.UpdatedToolOutput) > 0 {
 			if len(merged.UpdatedToolOutput) > 0 && !equalJSON(merged.UpdatedToolOutput, decision.UpdatedToolOutput) {
