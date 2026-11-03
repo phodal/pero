@@ -40,6 +40,8 @@ type HookOptions struct {
 	AnswerElicitation func(context.Context, claudehooks.Input) (claudehooks.Decision, error)
 	// ReloadSkills re-reads the authorized skill roots after SessionStart.
 	ReloadSkills func(context.Context) error
+	// EmitTerminal writes one hook terminalSequence to the controlling terminal.
+	EmitTerminal func(string)
 }
 
 type HookApp struct {
@@ -754,6 +756,7 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 		if decision.SystemMessage != "" {
 			app.h.Runtime().Logger().Warn("Claude command hook message", "plugin", selected.plugin, "event", input.Event, "message", decision.SystemMessage)
 		}
+		app.writeTerminal(decision.TerminalSequence)
 		decisions = append(decisions, decision)
 	}
 	if input.Event == "Elicitation" || input.Event == "ElicitationResult" {
@@ -891,6 +894,9 @@ func (app *HookApp) startAsyncHook(agent *harness.Agent, selected runnableHook, 
 			}
 		}
 		decision, parseErr := claudehooks.ParseDecision(hook.Event, started.Stdout.Bytes(), started.Stderr.Bytes(), started.ExitCode(err))
+		if parseErr == nil {
+			app.writeTerminal(decision.TerminalSequence)
+		}
 		if parseErr != nil || decision.AdditionalContext == "" && decision.SystemMessage == "" {
 			return
 		}

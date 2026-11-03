@@ -136,6 +136,8 @@ type Decision struct {
 	ReloadSkills bool
 	// SuppressOriginalPrompt leaves the submitted text out of a blocked prompt message.
 	SuppressOriginalPrompt bool
+	// TerminalSequence is raw terminal bytes, such as a bell, written by the host.
+	TerminalSequence string
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
@@ -151,8 +153,7 @@ type output struct {
 	AdditionalContext  string          `json:"additionalContext"`
 	SuppressOutput     bool            `json:"suppressOutput"`
 	HookSpecificOutput *specificOutput `json:"hookSpecificOutput"`
-	// TerminalSequence is accepted so a hook can request a bell or title.
-	// This harness has no terminal write path, so the value is not emitted.
+	// TerminalSequence is raw bytes the host writes to the controlling terminal.
 	TerminalSequence string  `json:"terminalSequence,omitempty"`
 	DisplayContent   *string `json:"displayContent,omitempty"`
 }
@@ -289,7 +290,7 @@ func (wire output) decision(event string) (Decision, error) {
 	if event == "Elicitation" || event == "ElicitationResult" {
 		return wire.elicitationDecision(event)
 	}
-	result := Decision{Reason: wire.Reason, SystemMessage: wire.SystemMessage, AdditionalContext: wire.AdditionalContext}
+	result := Decision{Reason: wire.Reason, SystemMessage: wire.SystemMessage, AdditionalContext: wire.AdditionalContext, TerminalSequence: wire.TerminalSequence}
 	if wire.Decision != "" && wire.Decision != "block" && wire.Decision != "approve" {
 		return Decision{}, errors.New("claudehooks: unsupported top-level hook decision")
 	}
@@ -438,6 +439,7 @@ func Merge(decisions []Decision) (Decision, error) {
 			merged.InitialUserMessage = decision.InitialUserMessage
 		}
 		merged.SuppressOriginalPrompt = merged.SuppressOriginalPrompt || decision.SuppressOriginalPrompt
+		merged.TerminalSequence += decision.TerminalSequence
 		if len(decision.UpdatedToolOutput) > 0 {
 			if len(merged.UpdatedToolOutput) > 0 && !equalJSON(merged.UpdatedToolOutput, decision.UpdatedToolOutput) {
 				return Decision{}, errors.New("claudehooks: conflicting updatedToolOutput from multiple hooks")

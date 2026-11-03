@@ -143,6 +143,13 @@ func TestDecisionAggregation(t *testing.T) {
 	}
 }
 
+func TestTerminalSequenceStaysOnTheDecision(t *testing.T) {
+	got, err := ParseDecision("Stop", []byte(`{"terminalSequence":"\u0007"}`), nil, 0)
+	if err != nil || got.TerminalSequence != "\a" {
+		t.Fatalf("sequence = %q %v", got.TerminalSequence, err)
+	}
+}
+
 func TestSessionStartTitleParsesAlongsideTheOtherFields(t *testing.T) {
 	got, err := ParseDecision("SessionStart", []byte(`{"hookSpecificOutput":{"hookEventName":"SessionStart","sessionTitle":"auth-refactor","initialUserMessage":"begin","reloadSkills":true,"additionalContext":"branch"}}`), nil, 0)
 	if err != nil || got.SessionTitle != "auth-refactor" || got.InitialUserMessage != "begin" || !got.ReloadSkills || got.AdditionalContext != "branch" {

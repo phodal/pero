@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -39,6 +40,22 @@ func runPrint(ctx context.Context, h *harness.Harness, hooks *pluginruntime.Hook
 		fmt.Fprintln(os.Stdout, lastAssistantText(agent))
 	}
 	return nil
+}
+
+func writeControllingTerminal(sequence string) {
+	if sequence == "" {
+		return
+	}
+	file, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+	if err != nil {
+		info, statErr := os.Stderr.Stat()
+		if statErr == nil && info.Mode()&os.ModeCharDevice != 0 {
+			_, _ = io.WriteString(os.Stderr, sequence)
+		}
+		return
+	}
+	defer file.Close()
+	_, _ = io.WriteString(file, sequence)
 }
 
 func lastAssistantText(agent *harness.Agent) string {

@@ -266,7 +266,7 @@ func run() (resultErr error) {
 		}
 		// Command hooks stay host processes (Claude parity). The Bash sandbox
 		// still confines model shell calls independently.
-		pluginHooks, err = pluginruntime.MountHooks(ctx, h, packages, pluginruntime.HookOptions{Shell: pluginShell, Environment: pluginEnvironment, StateDirectory: stateRoot, Retain: true, ReloadSkills: func(ctx context.Context) error {
+		pluginHooks, err = pluginruntime.MountHooks(ctx, h, packages, pluginruntime.HookOptions{Shell: pluginShell, Environment: pluginEnvironment, StateDirectory: stateRoot, Retain: true, EmitTerminal: writeControllingTerminal, ReloadSkills: func(ctx context.Context) error {
 			if skillCatalog == nil {
 				return nil
 			}
