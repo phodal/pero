@@ -15,6 +15,7 @@ func TestComponentDefinitions(t *testing.T) {
 		wantVisibility      InvocationVisibility
 		wantTools           []string
 		wantAllowedTools    []string
+		wantDeniedTools     []string
 		wantBody            string
 		wantEffort          string
 		wantCodes           []string
@@ -29,6 +30,7 @@ func TestComponentDefinitions(t *testing.T) {
 		{name: "tool expressions keep inner separators", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\nallowed-tools: Read, Bash(git log --format=a,b:*), Grep Read\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantAllowedTools: []string{"Read", "Bash(git log --format=a,b:*)", "Grep"}, wantBody: "Inspect."},
 		{name: "tool yaml list", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\nallowed-tools:\n  - Read\n  - Bash(npm test:*)\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantAllowedTools: []string{"Read", "Bash(npm test:*)"}, wantBody: "Inspect."},
 		{name: "empty tool grant", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\nallowed-tools: []\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantAllowedTools: []string{}, wantBody: "Inspect."},
+		{name: "skill tool denials", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "---\ndisallowed-tools: [Write, 'mcp__files__*']\n---\nInspect.", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantDeniedTools: []string{"Write", "mcp__files__*"}, wantBody: "Inspect."},
 		{name: "windows newlines", kind: ComponentSkill, path: "skills/review/SKILL.md", content: "\ufeff---\r\nname: review\r\n---\r\nInspect.\r\n", wantName: "review", wantVisibility: InvocationVisibility{true, true}, wantBody: "Inspect."},
 		{name: "agent required metadata", kind: ComponentAgent, path: "agents/empty.md", content: "Prompt only.", wantName: "empty", wantDescription: "Prompt only.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt only.", wantCodes: []string{"AGENT_NAME_DEFAULTED", "AGENT_DESCRIPTION_DEFAULTED"}},
 		{name: "missing agent name", kind: ComponentAgent, path: "agents/empty.md", content: "---\ndescription: Analyze.\n---\nPrompt.", wantName: "empty", wantDescription: "Analyze.", wantVisibility: InvocationVisibility{true, true}, wantBody: "Prompt.", wantCodes: []string{"AGENT_NAME_DEFAULTED"}},
@@ -58,6 +60,9 @@ func TestComponentDefinitions(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got.Tools, tt.wantTools) || !reflect.DeepEqual(got.AllowedTools, tt.wantAllowedTools) {
 				t.Errorf("tools = %v allowed = %v; want tools = %v allowed = %v", got.Tools, got.AllowedTools, tt.wantTools, tt.wantAllowedTools)
+			}
+			if !reflect.DeepEqual(got.DisallowedTools, tt.wantDeniedTools) {
+				t.Errorf("denied tools = %v, want %v", got.DisallowedTools, tt.wantDeniedTools)
 			}
 			var codes []string
 			for _, diagnostic := range diagnostics {

@@ -32,19 +32,20 @@ type Summary struct {
 }
 type Definition struct {
 	Summary
-	Content      string             `json:"content"`
-	ResourceBase string             `json:"resourceBase,omitempty"`
-	Directory    string             `json:"directory,omitempty"`
-	Resources    []string           `json:"resources,omitempty"`
-	AllowedTools []string           `json:"allowedTools,omitempty"`
-	Model        string             `json:"model,omitempty"`
-	Effort       string             `json:"effort,omitempty"`
-	Context      string             `json:"context,omitempty"`
-	Agent        string             `json:"agent,omitempty"`
-	Background   *bool              `json:"background,omitempty"`
-	Claude       bool               `json:"-"`
-	Shell        string             `json:"shell,omitempty"`
-	Hooks        []claudehooks.Hook `json:"-"`
+	Content         string             `json:"content"`
+	ResourceBase    string             `json:"resourceBase,omitempty"`
+	Directory       string             `json:"directory,omitempty"`
+	Resources       []string           `json:"resources,omitempty"`
+	AllowedTools    []string           `json:"allowedTools,omitempty"`
+	DisallowedTools []string           `json:"disallowedTools,omitempty"`
+	Model           string             `json:"model,omitempty"`
+	Effort          string             `json:"effort,omitempty"`
+	Context         string             `json:"context,omitempty"`
+	Agent           string             `json:"agent,omitempty"`
+	Background      *bool              `json:"background,omitempty"`
+	Claude          bool               `json:"-"`
+	Shell           string             `json:"shell,omitempty"`
+	Hooks           []claudehooks.Hook `json:"-"`
 	// Rendered marks trusted invocation output, never model-supplied content.
 	Rendered bool `json:"-"`
 }
@@ -335,6 +336,7 @@ func (c *Catalog) definition(ctx context.Context, e entry) (Definition, error) {
 	definition := e.definition
 	definition.Resources = append([]string(nil), definition.Resources...)
 	definition.AllowedTools = append([]string(nil), definition.AllowedTools...)
+	definition.DisallowedTools = append([]string(nil), definition.DisallowedTools...)
 	definition.Paths = append([]string(nil), definition.Paths...)
 	if definition.Background != nil {
 		background := *definition.Background

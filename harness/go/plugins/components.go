@@ -66,6 +66,7 @@ type componentHeader struct {
 	AllowedTools           componentTools `yaml:"allowed-tools"`
 	Tools                  componentTools `yaml:"tools"`
 	DisallowedTools        componentTools `yaml:"disallowedTools"`
+	SkillDisallowedTools   componentTools `yaml:"disallowed-tools"`
 	Skills                 componentTools `yaml:"skills"`
 	Memory                 componentText  `yaml:"memory"`
 	AutoCompactWindow      *int           `yaml:"autoCompactWindow"`
@@ -253,6 +254,18 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 	component.AllowedTools = []string(header.AllowedTools)
 	component.Tools = []string(header.Tools)
 	component.DisallowedTools = []string(header.DisallowedTools)
+	if kind != ComponentAgent {
+		component.DisallowedTools = []string(header.SkillDisallowedTools)
+		for _, rule := range component.DisallowedTools {
+			if rule == "" || len(rule) > 256 || strings.ContainsAny(rule, "() \t\r\n") {
+				add(SeverityError, "INVALID_COMPONENT_FIELD", "disallowed-tools", "Disallowed tools must be tool names or wildcard names, without argument specifiers.")
+				break
+			}
+		}
+		if len(component.DisallowedTools) > 64 {
+			add(SeverityError, "INVALID_COMPONENT_FIELD", "disallowed-tools", "At most 64 denied tools are supported.")
+		}
+	}
 	component.Model = strings.TrimSpace(string(header.Model))
 	if effort := strings.TrimSpace(string(header.Effort)); effort != "" && !validSkillEffort(effort) {
 		add(SeverityError, "INVALID_COMPONENT_FIELD", "effort", "Skill effort must be low, medium, high, xhigh, or max.")
@@ -414,7 +427,7 @@ func knownComponentField(kind ComponentKind, key string) bool {
 	switch key {
 	case "name", "description", "model", "effort", "version", "license", "compatibility", "metadata", "homepage", "platforms":
 		return true
-	case "hooks", "argument-hint", "paths", "shell", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent":
+	case "hooks", "argument-hint", "paths", "shell", "allowed-tools", "disallowed-tools", "user-invocable", "disable-model-invocation", "context", "agent":
 		return kind != ComponentAgent
 	case "background":
 		return true
