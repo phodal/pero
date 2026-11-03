@@ -201,7 +201,15 @@ export function StructuredReading({ api, paperId, openToken, onReady, onPrepared
       {recordedScope && <p role="status">Recorded {recordedScope.unit} {recordedScope.start}–{recordedScope.end} {recordedScope.unit === 'original-html' ? ' · Raw markup only; not structured scientific understanding.' : ` · ${recordedScope.blockId}. Showing the surrounding block; other content is not marked observed.`}</p>}
       {targetError && <Feedback>{targetError}</Feedback>}{candidates.length > 0 && <Feedback>Multiple source targets. {candidates.map(b => <Button key={b.id} onClick={() => reveal(b.id)}>{b.id}</Button>)}</Feedback>}
       {recordedScope && <Button onClick={() => { setRecordedScope(null); setOriginal(null); }}>{t('backReading')}</Button>}
-      <HtmlReading recorded={!!recordedScope} id={document.id} sourceUrl={document.source.url} onDiscuss={onDiscuss}>
+      <HtmlReading recorded={!!recordedScope} id={document.id} sourceUrl={document.source.url} onDiscuss={onDiscuss} renderSelection={selection => {
+        if (selection.sourceId !== document.id || !selection.anchors.length) return null;
+        // A selection can identify a block, never an observed text/byte range.
+        // Every reported source anchor must resolve to the same unique block.
+        const matches = selection.anchors.map(anchor => document.blocks.filter(block => block.anchors.includes(anchor)));
+        const block = matches[0][0];
+        if (!block || matches.some(values => values.length !== 1 || values[0] !== block)) return null;
+        return <span className="pa-original-block-actions" data-block-id={block.id}><Button variant="ghost" disabled={busy || !activeRevision} onClick={() => void source(block)}>Reveal original</Button></span>;
+      }}>
       {document.blocks.map(block => {
         const content = <Contents tokens={block.content} onTarget={followTarget}/>;
         const rows = new Map<number, Cell[]>(); block.cells.forEach(c => rows.set(c.row, [...rows.get(c.row) ?? [], c]));

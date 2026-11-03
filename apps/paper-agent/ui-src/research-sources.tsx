@@ -44,14 +44,16 @@ const labels = {
 };
 
 export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQueueComplete, onState, scopedIds, dialog = false }: {
-  api: Api; bundle: ResearchBundle; startSourceIds: string[]; dialog?: boolean; scopedIds?: string[]; onState?(state: { settled: boolean; available: boolean }): void; onAutoQueueComplete?(): void; onRead(id: string, focus?: PdfFocus): void;
+  api: Api; bundle: ResearchBundle; startSourceIds: string[]; dialog?: boolean; scopedIds?: string[]; onState?(state: { settled: boolean; available: boolean }): void; onAutoQueueComplete?(): void; onRead(id: string, focus?: PdfFocus): void | boolean | Promise<void | boolean>;
 }) {
   const { t } = useAppI18n(labels);
   const resources = bundle.resources.filter(r => r.kind === 'source_archive' && bundle.sourceDownloadIds?.includes(r.id) && (scopedIds === undefined || scopedIds.includes(r.id)));
-  const [values, setValues] = useState<Record<string, SourceDownload>>({}), [open, setOpen] = useState<string | null>(null);
+  const [values, setValues] = useState<Record<string, SourceDownload>>({}), [open, setOpenState] = useState<string | null>(null);
   const [queue, setQueue] = useState(() => startSourceIds.filter(id => resources.some(r => r.id === id)));
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const mounted = useRef(true), pending = useRef(false), epoch = useRef(0);
+  const openingEpoch = useRef(0);
+  function setOpen(resourceId: string | null) { openingEpoch.current++; setOpenState(resourceId); }
   const running = resources.find(r => values[r.id]?.status === 'running');
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; epoch.current++; }; }, []);
   const request = (operation: 'start' | 'status' | 'cancel', resourceId: string) => api.post<SourceDownload>('/api/research/source', { operation, bundleId: bundle.id, resourceId });
@@ -129,7 +131,12 @@ export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQue
           <p className="pa-muted">{t('discovery')}</p><p>{resource.title}</p><a href={resource.url} target="_blank" rel="noreferrer">{resource.url}</a>
           {!!resource.unresolved?.length && <ul>{resource.unresolved.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
         </details>
-        {open === resource.id && receipt && (dialog ? <Dialog title={`${t('title')} ${receipt.revision ?? ''}`} size="lg" className="pa-tex-source-dialog" closeLabel={t('dialogClose')} onClose={() => setOpen(null)}><SourceBrowser api={api} bundle={bundle} resourceId={resource.id} receipt={receipt} available={available} onRead={onRead}/></Dialog> : <SourceBrowser api={api} bundle={bundle} resourceId={resource.id} receipt={receipt} available={available} onRead={onRead}/>)}
+        {open === resource.id && receipt && (dialog ? <Dialog title={`${t('title')} ${receipt.revision ?? ''}`} size="lg" className="pa-tex-source-dialog" closeLabel={t('dialogClose')} onClose={() => setOpen(null)}><SourceBrowser api={api} bundle={bundle} resourceId={resource.id} receipt={receipt} available={available} onRead={async (id, focus) => {
+          const opening = openingEpoch.current;
+          const opened = await onRead(id, focus);
+          if (opened === true && mounted.current && opening === openingEpoch.current) setOpen(null);
+          return opened;
+        }}/></Dialog> : <SourceBrowser api={api} bundle={bundle} resourceId={resource.id} receipt={receipt} available={available} onRead={onRead}/>)}
       </li>;
     })}</ul>
     <p className="pa-muted pa-source-scope">{t('scope')}</p>
