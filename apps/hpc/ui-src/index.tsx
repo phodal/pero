@@ -28,7 +28,7 @@ export default function HpcBenchmarks() {
   const [comparison, setComparison] = useState<Comparison | null>(null);
   const [query, setQuery] = useState("");
   const selectedBenchmark = data?.benchmarks.find(item => item.id === benchmarkId) ?? data?.benchmarks[0];
-  const latestRun = data?.runs.find(item => item.benchmarkId === selectedBenchmark?.id);
+  const latestRun = data?.runs.find(item => item.benchmarkId === selectedBenchmark?.id && item.specDigest === selectedBenchmark?.specDigest);
   const selectedRun = data?.runs.find(item => item.id === selectedRunId) ?? latestRun;
   const active = data?.runs.some(run => run.status === "running" || run.operation);
   const comparedRuns = data?.runs.filter(run => chosen.includes(run.id)) ?? [];
@@ -175,17 +175,17 @@ export default function HpcBenchmarks() {
           </TabsContent>
           <TabsContent value="runs" className="runs-content">
             {selectedRun && <RunEvidence run={selectedRun} t={t} busy={busy} exporting={exporting} onVerify={() => void act("verify")} onCancel={() => void act("cancel")} onExport={() => void exportEvidence()} />}
-            {!selectedRun && <p className="empty">{t("noRuns")}</p>}
+            {!selectedRun && <p className="empty">{t(data?.runs.length ? "selectRun" : "noRuns")}</p>}
             <details className="run-history"><summary>{t("history")}</summary>
             <div className="section-heading"><h3>{t("history")}</h3><Button disabled={!canCompare} onClick={() => void compareRuns()}><Icon name="changes" size={14} />{t("compareSelected")}{chosen.length ? ` (${chosen.length})` : ""}</Button></div>
             {differentSpecs && <p className="error-text" role="alert">{t("differentSpecs")}</p>}
-            {data?.runs.length ? <RunTable runs={data.runs} selectedId={selectedRun?.id ?? ""} chosen={chosen} t={t} onOpen={run => void openRun(run).catch(onError)} onChoose={chooseRun} /> : <p className="empty">{t("noRuns")}</p>}
+            {data?.runs.length ? <RunTable benchmarks={data.benchmarks} runs={data.runs} selectedId={selectedRun?.id ?? ""} chosen={chosen} t={t} onOpen={run => void openRun(run).catch(onError)} onChoose={chooseRun} /> : <p className="empty">{t("noRuns")}</p>}
             </details>
           </TabsContent>
           <TabsContent value="compare" className="compare-content"><div className="section-heading"><h3>{t("compare")}</h3><Button disabled={!canCompare} onClick={() => void compareRuns()}><Icon name="changes" size={14} />{busy ? t("comparing") : t("compareSelected")}</Button></div>
             <p className="muted">{t("comparisonHint")}</p>{differentSpecs && <p className="error-text" role="alert">{t("differentSpecs")}</p>}
             {comparison && <ComparisonTable comparison={comparison} t={t} />}
-            <h3 className="history-heading">{t("history")}</h3>{data?.runs.length ? <RunTable runs={data.runs} selectedId={selectedRun?.id ?? ""} chosen={chosen} t={t} onOpen={run => void openRun(run).catch(onError)} onChoose={chooseRun} /> : <p className="empty">{t("noRuns")}</p>}
+            <h3 className="history-heading">{t("history")}</h3>{data?.runs.length ? <RunTable benchmarks={data.benchmarks} runs={data.runs} selectedId={selectedRun?.id ?? ""} chosen={chosen} t={t} onOpen={run => void openRun(run).catch(onError)} onChoose={chooseRun} /> : <p className="empty">{t("noRuns")}</p>}
           </TabsContent>
         </Tabs>
       </SplitPane>

@@ -17,12 +17,13 @@ h2, h3 { font-size: 14px; font-weight: 600; }
 .hpc-app button, .hpc-app summary { cursor: pointer; }
 .hpc-app button:focus-visible, .hpc-app input:focus-visible, .hpc-app summary:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
 input[type=checkbox] { accent-color: var(--pero-action); width: 16px; height: 16px; margin: 2px 0; }
-.app-header { display: flex; flex: none; height: 44px; gap: 8px; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--pero-border); }
+.app-header { display: flex; flex: none; flex-wrap: wrap; min-height: 44px; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--pero-border); }
 .app-header > svg { flex-shrink: 0; color: var(--pero-text-muted); }
-.app-header > h1 { white-space: nowrap; }
+.app-header > h1 { min-width: 0; overflow-wrap: anywhere; }
 .app-header > .toolbar { margin-left: auto; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.app-header .toolbar { flex-wrap: nowrap; }
+.app-header .toolbar { max-width: 100%; }
+.prior-specification { display: block; color: var(--pero-text-muted); font-size: 12px; }
 .app-notice { padding: 4px 12px; border-bottom: 1px solid var(--pero-border); font-size: 12px; color: var(--pero-text-muted); }
 .feedback { display: flex; justify-content: space-between; align-items: center; flex: none; gap: 12px; padding: 8px 12px; background: var(--pero-info-bg); overflow-wrap: anywhere; font-size: 12px; }
 .feedback-error { background: var(--pero-error-bg); }

@@ -67,6 +67,13 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'npm --prefix apps/data run test:ui', 'node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs',
     'tests/fixtures/owned-electron-close.test.mjs', 'node tests/runtime/automation.mjs']) assert.ok(commands.includes(command), command);
   const core = workflow.jobs.core.steps.map(step => step.run || '').join('\n');
+  const appContracts = workflow.jobs.core.steps.find(step => step.name === 'Independent App contracts with frozen dependencies');
+  assert.equal(workflow.jobs.core.if, undefined);
+  assert.equal(appContracts.if, undefined);
+  assert.equal(appContracts['continue-on-error'], undefined);
+  assert.ok(appContracts.run.includes('npm ci --prefix apps/hpc --ignore-scripts'));
+  assert.ok(appContracts.run.includes('npm --prefix apps/hpc run test:ui'));
+  assert.ok(appContracts.run.indexOf('npm ci --prefix apps/hpc --ignore-scripts') < appContracts.run.indexOf('npm --prefix apps/hpc run test:ui'));
   for (const command of ['node --test tests/runtime/lab/*.test.mjs', 'npx tsc -p scripts/ci/tsconfig.core.json',
     'node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker',
     'node scripts/cargo.mjs build --locked -p pero-host -p pero-worker',

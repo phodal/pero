@@ -15,6 +15,35 @@ from pylabrobot_adapter import ChatterboxAdapter
 from test_domain import protocol
 
 
+class ProposalTests(unittest.TestCase):
+    def test_invalid_sequence_leaves_no_candidate_and_can_be_corrected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = ExperimentStore(directory)
+            self.addCleanup(store.close)
+            record = store.create({})
+            identity = record['id']
+            path = Path(directory) / (identity + '.json')
+            persisted = path.read_bytes()
+            invalid = protocol().to_dict()
+            del invalid['steps'][1]  # Dispense now follows pickup with an empty pipette.
+            with self.assertRaises(ValueError) as caught:
+                store.propose(identity, invalid)
+            self.assertEqual(caught.exception.code, 'pipette_depletion')
+            self.assertEqual(caught.exception.step_index, 1)
+            self.assertEqual(store.read(identity), record)
+            self.assertEqual(path.read_bytes(), persisted)
+            self.assertEqual(list(Path(directory).iterdir()), [path])
+            reopened = ExperimentStore(directory)
+            self.addCleanup(reopened.close)
+            self.assertEqual(reopened.read(identity), record)
+            corrected = reopened.propose(identity, protocol().to_dict())
+            trial = corrected['trials'][0]
+            self.assertEqual(trial['status'], 'proposed')
+            self.assertEqual(trial['initial_state'], record['initial_state'])
+            self.assertEqual(trial['final_state'], record['initial_state'])
+            self.assertEqual(reopened.validate(identity, trial['id'])['trials'][0]['status'], 'validated')
+
+
 @unittest.skipUnless(capability()['available'], 'requires CPython 3.12 and pinned real pylabrobot==0.2.2')
 class StoreTests(unittest.TestCase):
     def setUp(self):
@@ -92,19 +121,6 @@ class StoreTests(unittest.TestCase):
                 self.assertEqual((Path(self.directory.name) / observation['asset_ref']).read_bytes(), raw)
                 self.assertEqual(base64.b64decode(self.store.export(identity)['assets'][sha]), raw)
                 self.assertEqual(self.store.evaluate(identity, trial_id)['trials'][0]['verification']['verdict'], 'PASS')
-
-    def test_invalid_validation_does_not_commit_resource_state(self):
-        identity = self.store.create({})['id']
-        candidate = protocol().to_dict()
-        candidate['steps'][1]['resource'] = 'B1'
-        record = self.store.propose(identity, candidate)
-        trial = record['trials'][0]
-        with self.assertRaises(ValueError) as caught:
-            self.store.validate(identity, trial['id'])
-        self.assertEqual(caught.exception.step_index, 1)
-        self.assertEqual(self.store.read(identity), record)
-        with self.assertRaises(ValueError):
-            self.store.start(identity, trial['id'])
 
     def test_cancel_and_uncertain_command_preserve_partial_evidence_without_replay(self):
         actual_execute = ChatterboxAdapter.execute

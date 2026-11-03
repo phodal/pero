@@ -27,7 +27,7 @@ export function MethodSpec({ benchmark, latestRun, t, onOpen }: {
         </div>}
         <h3>{t("parameters")}</h3>
         <Facts values={inputs} />
-        {latestRun && <div className="latest-run"><Icon name="automation" size={14} /><div><strong>{t("latestRun")}</strong><time dateTime={latestRun.createdAt}>{new Date(latestRun.createdAt).toLocaleString()}</time></div><Status value={latestRun.verification?.status ?? latestRun.status} t={t} /><Button variant="ghost" className="icon-button" aria-label={t("openLatest")} title={t("openLatest")} onClick={() => onOpen(latestRun)}><Icon name="arrow" size={14} /></Button></div>}
+        {latestRun && <div className="latest-run"><Icon name="automation" size={14} /><div><strong>{t("latestRun")}</strong><time dateTime={latestRun.createdAt}>{new Date(latestRun.createdAt).toLocaleString()}</time></div><Status value={latestRun.verification?.status ?? (latestRun.status === "completed" ? null : latestRun.status)} t={t} /><Button variant="ghost" className="icon-button" aria-label={t("openLatest")} title={t("openLatest")} onClick={() => onOpen(latestRun)}><Icon name="arrow" size={14} /></Button></div>}
       </SplitPane>
       <SplitPane id="hpc-rules" size={320} min={280} stackedBasis="auto" resizeLabel={t("criteria")} as="aside" className="acceptance-rules">
         <div className="inspector-heading"><Icon name="shield" size={14} /><h3>{t("criteria")}</h3></div><Facts values={benchmark.criteria} />

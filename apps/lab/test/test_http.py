@@ -85,6 +85,22 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(result['step_index'], 1)
         self.assertEqual(self.store.read(other)['trials'], [])
 
+        invalid_sequence = protocol().to_dict()
+        del invalid_sequence['steps'][1]
+        for route, body in (
+            (f'/api/experiments/{other}/propose', {'protocol': invalid_sequence}),
+            ('/api/agent-step', dict(request, experimentId=other, protocol=invalid_sequence, specHash=other_record['spec_hash'])),
+        ):
+            with self.subTest(route=route):
+                status, result = self.request('POST', route, body)
+                self.assertEqual(status, 400)
+                self.assertEqual(result['step_index'], 1)
+                self.assertIn('Pipette contains only', result['error'])
+                self.assertEqual(self.store.read(other), other_record)
+        status, repaired = self.request('POST', f'/api/experiments/{other}/propose', {'protocol': protocol().to_dict()})
+        self.assertEqual(status, 200)
+        self.assertEqual(repaired['trials'][0]['status'], 'proposed')
+
     def test_initial_preview_matches_frozen_state_without_creating_an_experiment(self):
         status, preview = self.request('GET', '/api/state')
         self.assertEqual(status, 200)

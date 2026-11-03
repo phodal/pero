@@ -36,6 +36,7 @@ export const messages = {
   created: { en: "Started", zh: "开始时间" },
   history: { en: "Run history", zh: "运行记录" },
   savedRun: { en: "Saved run", zh: "已保存运行" },
+  priorSpecification: { en: "Prior specification", zh: "旧版规格" },
   latestRun: { en: "Latest run", zh: "最近运行" },
   openLatest: { en: "Inspect latest run", zh: "查看最近运行" },
   samplesLoading: { en: "Loading recorded samples…", zh: "正在加载原始采样…" },

@@ -1,7 +1,7 @@
 import React from "react";
 import { useAppContext } from "@pero/app-sdk";
 import { Button, Icon } from "@pero/app-sdk/ui";
-import type { Comparison, Run, Value, Verification } from "./types";
+import type { Benchmark, Comparison, Run, Value, Verification } from "./types";
 import type { Message } from "./messages";
 import { RunPlots } from "./plots";
 import { propertyLabel } from "./labels";
@@ -87,8 +87,8 @@ export function RunEvidence({ run, t, busy, exporting, onVerify, onCancel, onExp
   </section>;
 }
 
-export function RunTable({ runs, selectedId, chosen, t, onOpen, onChoose }: {
-  runs: Run[]; selectedId: string; chosen: string[]; t: Translate;
+export function RunTable({ benchmarks, runs, selectedId, chosen, t, onOpen, onChoose }: {
+  benchmarks: Benchmark[]; runs: Run[]; selectedId: string; chosen: string[]; t: Translate;
   onOpen(run: Run): void; onChoose(run: Run, selected: boolean): void;
 }) {
   return <div className="table-scroll"><table className="run-table"><thead><tr>
@@ -98,7 +98,7 @@ export function RunTable({ runs, selectedId, chosen, t, onOpen, onChoose }: {
     <td><input type="checkbox" aria-label={`${t("chooseComparison")}: ${run.id}`} checked={chosen.includes(run.id)}
       disabled={run.status !== "completed" || Boolean(run.operation) || chosen.length >= 8 && !chosen.includes(run.id)} onChange={event => onChoose(run, event.target.checked)} /></td>
     <td><Button variant="unstyled" className="text-button" aria-label={`${t("select")}: ${run.id}`} onClick={() => onOpen(run)}>{new Date(run.createdAt).toLocaleString()}</Button></td>
-    <td>{run.benchmarkName}</td><td><Status value={run.status} t={t} /></td><td><Status value={run.verification?.status} t={t} /></td><td>{number(run.elapsedSeconds)}</td>
+    <td>{run.benchmarkName}{!benchmarks.some(benchmark => benchmark.id === run.benchmarkId && benchmark.specDigest === run.specDigest) && <span className="prior-specification">{t("priorSpecification")}</span>}</td><td><Status value={run.status} t={t} /></td><td><Status value={run.verification?.status} t={t} /></td><td>{number(run.elapsedSeconds)}</td>
   </tr>)}</tbody></table></div>;
 }
 
