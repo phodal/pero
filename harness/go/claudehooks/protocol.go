@@ -50,6 +50,9 @@ type Input struct {
 	Source               string          `json:"source,omitempty"`
 	Trigger              string          `json:"trigger,omitempty"`
 	Prompt               string          `json:"prompt,omitempty"`
+	Message              string          `json:"message,omitempty"`
+	Title                string          `json:"title,omitempty"`
+	NotificationType     string          `json:"notification_type,omitempty"`
 	LastAssistantMessage string          `json:"last_assistant_message,omitempty"`
 	Reason               string          `json:"reason,omitempty"`
 	Name                 string          `json:"name,omitempty"`

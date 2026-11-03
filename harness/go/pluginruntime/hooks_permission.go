@@ -34,6 +34,9 @@ func (app *HookApp) permissionRequest(ctx context.Context, request harness.Appro
 	case decision.Permission == "allow":
 		return harness.ApprovalAllowedOnce, nil
 	default:
+		if !request.NonInteractive {
+			app.schedulePermissionNotification(request)
+		}
 		return harness.ApprovalUnavailable, nil
 	}
 }
