@@ -859,6 +859,18 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 
 真实 FIFO 阻塞命令验证七条路径：后台完成、前台提升后的同 PID 完成、SendMessage 续跑后的后台完成、前台代理结束清理、TaskStop、归档停止及父会话退役。完成路径包含两次 child turn、实际输出通知、最终父会话自动唤醒；已结束会话续跑的用例额外保留之前的 conversation。各路径均只执行一次命令、经过一次审批。活动还验证结构化结束门、等待、失败呈现与精确 generation 释放。模型为本地 HTTP fixture，无付费请求。[真实进程测试](../../harness/go/subagents/background_activity_test.go)、[活动边界测试](../../harness/go/harness/subagents_background_activity_test.go)
 
-这一步只提供当前运行时的活动驻留，不恢复重启前的 PID、模型请求或 JavaScript 执行栈；丢失所有者的命令仍标 interrupted，不重跑。根会话 Bash 的自动完成通知、普通文本 `-p` 退出等待策略也不包含在此次接线内。
+这一步只提供当前运行时的活动驻留，不恢复重启前的 PID、模型请求或 JavaScript 执行栈；丢失所有者的命令仍标 interrupted，不重跑。根会话 Bash 的自动完成通知后来已接通，见 16.15；普通文本 `-p` 退出等待策略仍不包含在此次接线内。
 
 本批通过 Go 全量 race/vet，Bazel harness、subagents、nativetools、workflow、pluginruntime 和完整 CLI 六个目标通过。新增七路径真实进程用例在最终调整后连续十次通过；全量回归曾发现测试的 PID 就绪文件早于副作用写入，现将就绪信号放到副作用之后，停止用例不再依赖两个命令之间的调度时机。
+
+### 16.15 根会话 Bash 完成通知与恢复对账
+
+所选插件 CLI 默认启用根会话 Bash 通知；库宿主显式选择 `Options.BackgroundNotifications`。后台命令或已提升命令完成后，实际终态先 Append/Flush，再以稳定 `bash-notice-<task_id>` 身份提交既有 inbox，原 root 无需第二次用户输入或 TaskOutput 即可进入后续 turn，读取有界真实结果。前台普通命令不额外通知；失败命令携实际失败/退出结果。任务 receipt 先发布，完成通知不会与同步 TaskOutput/TaskStop 形成循环等待。未确认的终态持久化不唤醒模型；通知失败在 TaskOutput 的 notification_error 中呈现，后续成功接收清除该状态。[在线实现](../../harness/go/nativetools/notifications.go)、[运行契约](../../harness/go/nativetools/README.md)
+
+恢复时沿用 BeforeInboxResume，在控制器、订阅和持久化就绪后按终态日志顺序 staging，随后由原 FIFO driver 消费，每条 next-turn notice 保持各自的 turn。PreStep 对账遗漏消息；源终态与已接受 inbox 身份构成 outbox，不增加通知数据库。仍有本进程所有者的运行任务不误判失主；丢失所有者标 interrupted，不重启进程。最后控制轮被用户停止时不自动入队/唤醒，后续明确用户输入才允许对账。恢复有五秒预算。通知始终按原始持久终态呈现，日志文件后来不可用时仅改变 TaskOutput 的当前可用性，不改变已接受消息的内容。[恢复实现](../../harness/go/nativetools/notice_recovery.go)
+
+真实 FIFO 进程验证根轮结束后存活、成功/失败通知、同 PID 提升、一次命令/审批、前台不额外唤醒，以及中断和实际退役回收。JSONL 故障注入在真实命令终态处暂时 fence 在线通知，全新 runtime 补发实际结果；第二次全新加载不再请求模型，也不重放命令，删除原 working log 后仍保持 notice 身份和内容一致。另有终态 FIFO、失主、中断延迟和持久化失败门测试；故障注入不是实际 SIGKILL 压测。[在线测试](../../harness/go/nativetools/notifications_test.go)、[磁盘恢复测试](../../harness/go/nativetools/notice_recovery_test.go)
+
+实际 CLI/ACP/HTTP fixture 验证先完成根 session/prompt，再释放真实 Bash，随后在没有第二次 prompt 或 TaskOutput 的情况下生成并持久化后续 turn；既有 TaskOutput 路径也接收一次完成通知，审批仍只有一次。模型为 loopback fixture，无付费请求。本步骤不实现普通文本 `-p` 退出等待或运行中 PID 冷恢复。[CLI 验证](../../harness/go/cmd/pero-agent-acp/plugin_execution_test.go)
+
+本批通过 Go 全量 race/vet 和六个相关 Bazel 目标。通知/恢复用例连续五次、实际 CLI 三路径连续三次通过；最后的通知状态清理调整另通过 native/完整 CLI race、全量 vet 及两个 Bazel 目标。

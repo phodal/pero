@@ -124,9 +124,25 @@ exceptions, TaskStop, owner retirement and cold interrupted recovery. Selected
 managed background subagents now retain their native Bash activities across
 turns and receive actual completion notices in the same child, including
 foreground-to-background promotion. Foreground children still stop commands
-when their run ends. Root command notification behavior and running-process cold
-recovery remain outside this addition; task lookup stays exact-owner scoped.
+when their run ends. The selected plugin CLI also enables root command
+completion notices; library hosts choose Options.BackgroundNotifications.
+Root notices carry the bounded actual result and use the existing inbox, with
+stable task IDs deduplicated across pending/consumed history. Root interruption,
+retirement, and unconfirmed terminal persistence do not trigger automatic model
+work. TaskOutput reports notification_error when online delivery was not confirmed.
+Running-process cold recovery remains outside this addition; task lookup stays exact-owner scoped.
 See [background activity ownership](../subagents/README.md#background-bash-activity).
+
+With attached persistence, root recovery reconciles terminal facts at controller
+readiness and before subsequent model steps. It stages missing notices in
+terminal-log order before resuming the existing FIFO inbox driver; it does not
+re-execute commands. Lost owners become interrupted. A stopped controlling turn
+is not automatically resumed; later explicit input allows reconciliation.
+The recovery budget is five seconds. Saved-file availability changes affect
+current TaskOutput, without changing an already accepted completion message.
+Real process/JSONL tests cover terminal-to-inbox fault injection, two fresh
+runtime reloads without replay, missing logs, terminal FIFO and stopped roots.
+The ordinary plain-text -p waiting/exit policy remains unimplemented.
 
 ## Selected language servers
 

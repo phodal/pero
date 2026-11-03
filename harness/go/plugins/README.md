@@ -150,6 +150,10 @@ their own acceptance.
 Selected managed background agents retain native Bash across their current turn
 and receive command-completion continuations before final parent settlement;
 foreground and one-shot child cleanup stays scoped to their original run.
+The selected CLI also delivers root Bash completion notices automatically,
+reconciling persisted terminal facts into the original inbox after controller
+readiness. Notice recovery never restarts the historical command or clears a
+user interrupt. Library native-tool hosts enable BackgroundNotifications explicitly.
 See [background activity ownership](../subagents/README.md#background-bash-activity).
 See the design's implementation matrix for the remaining work.
 
