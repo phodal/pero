@@ -78,11 +78,12 @@ type sessionHook struct {
 }
 
 type hookAgentState struct {
-	mu           sync.Mutex
-	started      bool
-	turn         int
-	stopBlocks   int
-	userMessages map[string]bool
+	displayOriginal, displayText string
+	mu                           sync.Mutex
+	started                      bool
+	turn                         int
+	stopBlocks                   int
+	userMessages                 map[string]bool
 }
 
 // MountHooks is an explicit execution grant supplied by the composition root.
@@ -160,6 +161,9 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 
 func (app *HookApp) register(run *point.Run) error {
 	hooks, tools := app.h.Hooks(), app.h.Tools()
+	if err := app.mountAssistantDisplay(run, hooks); err != nil {
+		return err
+	}
 	if registry := app.h.Subagents(); registry != nil {
 		if _, err := registry.Started.On(run, func(ctx context.Context, info harness.SubagentLifecycle) error {
 			if info.Child == nil {

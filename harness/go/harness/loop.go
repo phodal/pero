@@ -273,6 +273,9 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 			}
 			completion.Message.Content = safe
 		}
+		if err := a.hooks.AssistantReady.Emit(ctx, AssistantReadyInput{Agent: a, Turn: turn, Step: step, Message: cloneMessages([]Message{completion.Message})[0]}); err != nil {
+			return result, err
+		}
 		if _, err := a.session.Append("assistant/message", struct {
 			Turn    int         `json:"turn"`
 			Step    int         `json:"step"`

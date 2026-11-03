@@ -150,7 +150,16 @@ type ToolBatchInput struct {
 	Stop    bool
 }
 
+type AssistantReadyInput struct {
+	Agent      *Agent
+	Turn, Step int
+	Message    Message
+}
+
 type AgentHooks struct {
+	// AssistantReady runs outside the session notification lane, before the
+	// completed message is committed. Presentation effects may append events.
+	AssistantReady *point.Signal[AssistantReadyInput]
 	// MainRequest observes only an admitted, prepared loop dispatch after its
 	// durable header fold. Its receipt is valid only during this notification.
 	MainRequest     *point.Signal[MainRequestInput]
@@ -188,6 +197,7 @@ type AgentHooks struct {
 
 func NewAgentHooks(runtime *point.Runtime) *AgentHooks {
 	return &AgentHooks{
+		AssistantReady:    point.NewSignal[AssistantReadyInput](runtime, "harness/agent/assistant-ready"),
 		MainRequest:       point.NewSignal[MainRequestInput](runtime, "harness/agent/main-request"),
 		PreStep:           point.NewPipeline[StepInput](runtime, "harness/agent/pre-step"),
 		Request:           point.NewPipeline[GenerateRequest](runtime, "harness/agent/request"),
