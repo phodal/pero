@@ -109,3 +109,68 @@ func TestAddDirGrantsTheDirectoryAndNotifies(t *testing.T) {
 		t.Fatalf("shell stayed at %q, want %s (%v)", got, resolved, err)
 	}
 }
+
+func TestPermissionHookAddsASessionDirectoryWithoutNotifying(t *testing.T) {
+	root := t.TempDir()
+	other := t.TempDir()
+	if err := os.WriteFile(filepath.Join(other, "note.txt"), []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ := json.Marshal(other)
+	added := scriptHook(t, root, "DirectoryAdded", `printf fired > "$CLAUDE_PLUGIN_ROOT/added"`)
+	permission := scriptHook(t, root, "PermissionRequest", `if [ -f "$CLAUDE_PLUGIN_ROOT/twice" ]; then printf '%s' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedPermissions":[{"type":"addDirectories","directories":[`+string(encoded)+`],"destination":"userSettings"}]}}}'; exit 0; fi; if [ -f "$CLAUDE_PLUGIN_ROOT/once" ]; then touch "$CLAUDE_PLUGIN_ROOT/twice"; printf '%s' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedPermissions":[{"type":"removeDirectories","directories":[`+string(encoded)+`],"destination":"session"}]}}}'; exit 0; fi; touch "$CLAUDE_PLUGIN_ROOT/once"; printf '%s' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedPermissions":[{"type":"addDirectories","directories":[`+string(encoded)+`],"destination":"session"}]}}}'`)
+	h, err := harness.Boot(t.Context(), harness.Options{Adapter: harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		return harness.Completion{}, nil
+	}), AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := MountHooks(t.Context(), h, []plugins.Package{{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{added, permission}}}, HookOptions{Shell: "/bin/sh", Environment: []string{"PATH=/usr/bin:/bin"}, StateDirectory: root})
+	if err != nil || app == nil {
+		t.Fatal(err)
+	}
+	native, err := nativetools.Mount(t.Context(), h, nativetools.Options{Workspace: root, ClaudeTools: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_ = h.Dispose(ctx)
+		_ = h.Drain(ctx)
+		_ = native.Close()
+		_ = app.Close()
+	})
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "permission-dir", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := harness.ApprovalRequest{Agent: agent, ToolName: "Bash", ToolInput: json.RawMessage(`{"command":"printf"}`)}
+	if outcome, err := app.permissionRequest(t.Context(), request); err != nil || outcome != harness.ApprovalAllowedOnce {
+		t.Fatalf("add outcome=%s %v", outcome, err)
+	}
+	resolved, err := filepath.EvalSymlinks(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read, err := h.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, Name: "Read", Arguments: json.RawMessage(`{"file_path":"` + filepath.Join(resolved, "note.txt") + `"}`)})
+	if err != nil || read.Result.IsError || !strings.Contains(toolResultText(read.Result), "outside") {
+		t.Fatalf("read %+v %v", read.Result, err)
+	}
+	if _, statErr := os.Stat(filepath.Join(root, "added")); !os.IsNotExist(statErr) {
+		t.Fatal("DirectoryAdded fired for a permission update")
+	}
+	if outcome, err := app.permissionRequest(t.Context(), request); err != nil || outcome != harness.ApprovalAllowedOnce {
+		t.Fatalf("remove outcome=%s %v", outcome, err)
+	}
+	read, err = h.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, Name: "Read", Arguments: json.RawMessage(`{"file_path":"` + filepath.Join(resolved, "note.txt") + `"}`)})
+	if err != nil || !read.Result.IsError {
+		t.Fatalf("removed directory stayed readable: %+v %v", read.Result, err)
+	}
+	if outcome, err := app.permissionRequest(t.Context(), request); err != nil || outcome != harness.ApprovalAllowedOnce {
+		t.Fatalf("settings outcome=%s %v", outcome, err)
+	}
+	read, err = h.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, Name: "Read", Arguments: json.RawMessage(`{"file_path":"` + filepath.Join(resolved, "note.txt") + `"}`)})
+	if err != nil || !read.Result.IsError {
+		t.Fatalf("settings directory was granted: %+v %v", read.Result, err)
+	}
+}

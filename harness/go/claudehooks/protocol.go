@@ -144,11 +144,13 @@ type Decision struct {
 	SessionPermissions []PermissionUpdate
 }
 
-// PermissionUpdate is one session rule change from updatedPermissions.
-// Op is add, replace, or remove. Behavior is allow, deny, or ask.
+// PermissionUpdate is one session change from updatedPermissions.
+// Op is add, replace, remove, addDir, or removeDir. Behavior is allow, deny,
+// or ask for rule updates. Directories are session working directories.
 type PermissionUpdate struct {
 	Op, Behavior string
 	Rules        []string
+	Directories  []string
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
@@ -495,9 +497,10 @@ func sessionPermissionUpdates(raw json.RawMessage) ([]PermissionUpdate, error) {
 		return nil, nil
 	}
 	var updates []struct {
-		Type        string `json:"type"`
-		Behavior    string `json:"behavior"`
-		Destination string `json:"destination"`
+		Type        string   `json:"type"`
+		Behavior    string   `json:"behavior"`
+		Destination string   `json:"destination"`
+		Directories []string `json:"directories"`
 		Rules       []struct {
 			ToolName    string `json:"toolName"`
 			RuleContent string `json:"ruleContent"`
@@ -509,13 +512,27 @@ func sessionPermissionUpdates(raw json.RawMessage) ([]PermissionUpdate, error) {
 	var parsed []PermissionUpdate
 	for _, update := range updates {
 		switch update.Type {
-		case "setMode", "addDirectories", "removeDirectories":
+		case "setMode":
 			continue
-		case "addRules", "replaceRules", "removeRules":
+		case "addRules", "replaceRules", "removeRules", "addDirectories", "removeDirectories":
 		default:
 			return nil, fmt.Errorf("claudehooks: updatedPermissions type %q is unsupported", update.Type)
 		}
 		if update.Destination != "" && update.Destination != "session" {
+			continue
+		}
+		if update.Type == "addDirectories" || update.Type == "removeDirectories" {
+			item := PermissionUpdate{Op: "addDir"}
+			if update.Type == "removeDirectories" {
+				item.Op = "removeDir"
+			}
+			for _, directory := range update.Directories {
+				if strings.TrimSpace(directory) == "" || strings.ContainsAny(directory, "\r\n") {
+					return nil, errors.New("claudehooks: updatedPermissions directory is invalid")
+				}
+				item.Directories = append(item.Directories, directory)
+			}
+			parsed = append(parsed, item)
 			continue
 		}
 		switch update.Behavior {

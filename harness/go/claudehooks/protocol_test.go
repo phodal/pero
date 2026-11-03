@@ -171,8 +171,8 @@ func TestSessionStartAndCwdChangedKeepWatchPaths(t *testing.T) {
 }
 
 func TestSessionPermissionUpdatesKeepOnlySessionRules(t *testing.T) {
-	got, err := ParseDecision("PermissionRequest", []byte(`{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedPermissions":[{"type":"addRules","behavior":"allow","destination":"session","rules":[{"toolName":"Bash","ruleContent":"printf *"}]},{"type":"addRules","behavior":"allow","destination":"userSettings","rules":[{"toolName":"Write"}]},{"type":"setMode","mode":"acceptEdits","destination":"localSettings"}]}}}`), nil, 0)
-	if err != nil || len(got.SessionPermissions) != 1 || got.SessionPermissions[0].Op != "add" || got.SessionPermissions[0].Behavior != "allow" || len(got.SessionPermissions[0].Rules) != 1 || got.SessionPermissions[0].Rules[0] != "Bash(printf *)" {
+	got, err := ParseDecision("PermissionRequest", []byte(`{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedPermissions":[{"type":"addRules","behavior":"allow","destination":"session","rules":[{"toolName":"Bash","ruleContent":"printf *"}]},{"type":"addRules","behavior":"allow","destination":"userSettings","rules":[{"toolName":"Write"}]},{"type":"setMode","mode":"acceptEdits","destination":"localSettings"},{"type":"addDirectories","directories":["/tmp/outside"],"destination":"session"},{"type":"addDirectories","directories":["/tmp/settings"],"destination":"userSettings"}]}}}`), nil, 0)
+	if err != nil || len(got.SessionPermissions) != 2 || got.SessionPermissions[0].Rules[0] != "Bash(printf *)" || got.SessionPermissions[1].Op != "addDir" || len(got.SessionPermissions[1].Directories) != 1 || got.SessionPermissions[1].Directories[0] != "/tmp/outside" {
 		t.Fatalf("updates = %+v %v", got.SessionPermissions, err)
 	}
 	if _, err := ParseDecision("PermissionRequest", []byte(`{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedPermissions":[{"type":"invented"}]}}}`), nil, 0); err == nil || !strings.Contains(err.Error(), "unsupported") {

@@ -3,6 +3,7 @@ package pluginruntime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/phodal/pero/harness/go/claudehooks"
 	"github.com/phodal/pero/harness/go/harness"
@@ -25,7 +26,6 @@ func (app *HookApp) permissionRequest(ctx context.Context, request harness.Appro
 	if err != nil {
 		return harness.ApprovalUnavailable, err
 	}
-	app.rememberSessionPermissions(request.Agent, decision.SessionPermissions)
 	if request.HookResult != nil {
 		if decision.Permission == "allow" {
 			request.HookResult.UpdatedInput = append(json.RawMessage(nil), decision.UpdatedInput...)
@@ -39,6 +39,9 @@ func (app *HookApp) permissionRequest(ctx context.Context, request harness.Appro
 	case decision.Permission == "deny" || decision.Block:
 		return harness.ApprovalRejected, nil
 	case decision.Permission == "allow":
+		if err := app.rememberSessionPermissions(request.Agent, decision.SessionPermissions); err != nil {
+			return harness.ApprovalUnavailable, err
+		}
 		return harness.ApprovalAllowedOnce, nil
 	default:
 		if !request.NonInteractive {
@@ -48,9 +51,25 @@ func (app *HookApp) permissionRequest(ctx context.Context, request harness.Appro
 	}
 }
 
-func (app *HookApp) rememberSessionPermissions(agent *harness.Agent, updates []claudehooks.PermissionUpdate) {
+func (app *HookApp) rememberSessionPermissions(agent *harness.Agent, updates []claudehooks.PermissionUpdate) error {
 	if app == nil || agent == nil || len(updates) == 0 {
-		return
+		return nil
+	}
+	for _, update := range updates {
+		switch update.Op {
+		case "addDir":
+			for _, directory := range update.Directories {
+				if _, err := app.bindAddedDirectory(agent, directory); err != nil && !errors.Is(err, errDirectoryAlreadyAdded) {
+					return err
+				}
+			}
+		case "removeDir":
+			for _, directory := range update.Directories {
+				if err := app.releaseAddedDirectory(agent, directory); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	app.mu.Lock()
 	defer app.mu.Unlock()
@@ -80,6 +99,7 @@ func (app *HookApp) rememberSessionPermissions(agent *harness.Agent, updates []c
 		}
 	}
 	app.sessionRules[agent.ID()] = rules
+	return nil
 }
 
 func dropSessionRules(rules []sessionPermissionRule, behavior string, names []string) []sessionPermissionRule {
