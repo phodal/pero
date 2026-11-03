@@ -245,6 +245,42 @@ func (c *Catalog) list(ctx context.Context, user bool) ([]Summary, error) {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
 	return rows, nil
 }
+
+// Preload returns one selected skill body for a trusted agent. An exact name
+// wins. A bare name matches one plugin-qualified skill. The text does not
+// grant tools.
+func (c *Catalog) Preload(ctx context.Context, name string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return "", errors.New("skills: catalog closed")
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	var exact, suffix []entry
+	for _, candidate := range c.entries {
+		switch {
+		case candidate.definition.Name == name:
+			exact = append(exact, candidate)
+		case strings.HasSuffix(candidate.definition.Name, ":"+name):
+			suffix = append(suffix, candidate)
+		}
+	}
+	chosen := exact
+	if len(chosen) == 0 {
+		chosen = suffix
+	}
+	if len(chosen) != 1 {
+		return "", fmt.Errorf("skills: skill %q must match one selected skill", name)
+	}
+	definition, err := c.definition(ctx, chosen[0])
+	if err != nil {
+		return "", err
+	}
+	return definition.Content, nil
+}
+
 func (c *Catalog) Read(ctx context.Context, name, digest string) (Definition, error) {
 	return c.read(ctx, name, digest, false)
 }

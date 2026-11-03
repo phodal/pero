@@ -73,6 +73,17 @@ func TestComponentDefinitions(t *testing.T) {
 	}
 }
 
+func TestAgentSkillsField(t *testing.T) {
+	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nskills: [checks, sample:extra]\n---\nReview."))
+	if len(diagnostics) != 0 || !reflect.DeepEqual(component.Skills, []string{"checks", "sample:extra"}) {
+		t.Fatalf("component=%+v diagnostics=%v", component, diagnostics)
+	}
+	_, diagnostics = ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nskills: [../outside]\n---\nReview."))
+	if len(diagnostics) != 1 || diagnostics[0].Code != "INVALID_COMPONENT_FIELD" {
+		t.Fatalf("diagnostics=%v", diagnostics)
+	}
+}
+
 func TestAgentBackgroundField(t *testing.T) {
 	component, diagnostics := ParseComponent("sample", ComponentAgent, "agents/review.md", []byte("---\nname: review\ndescription: Review.\nbackground: true\n---\nReview."))
 	if len(diagnostics) != 0 || component.Background == nil || !*component.Background {

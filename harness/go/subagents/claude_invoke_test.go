@@ -197,6 +197,39 @@ func TestClaudeTrustedInvocationCancellationJoinsChild(t *testing.T) {
 	}
 }
 
+func TestAgentSkillsArePreloadedIntoThePrompt(t *testing.T) {
+	var saw bool
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		saw = strings.Contains(request.System, "preloaded-skill-body") && strings.Contains(request.System, "Review the change.")
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	})
+	ctx := t.Context()
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = h.Dispose(cleanup)
+		_ = h.Drain(cleanup)
+	})
+	claude, err := MountClaude(ctx, h, []AgentDefinition{{Name: "reviewer", Description: "Review", Instructions: "Review the change.", Skills: []string{"checks"}}}, ClaudeOptions{SkillText: func(context.Context, string) (string, error) {
+		return "preloaded-skill-body", nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "skill-parent", CWD: t.TempDir(), Provider: "fixture", Model: "parent-model", MaxSteps: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := claude.Invoke(ctx, parent, ClaudeInvocation{Definition: "reviewer", Prompt: "look"})
+	if err != nil || result.Status != harness.SubagentCompleted || !saw {
+		t.Fatalf("result=%+v err=%v saw=%v system missing skill", result, err, saw)
+	}
+}
+
 func TestAgentBackgroundDefaultsToABackgroundRun(t *testing.T) {
 	release := make(chan struct{})
 	adapter := harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {

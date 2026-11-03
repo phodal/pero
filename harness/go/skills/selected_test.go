@@ -26,6 +26,26 @@ func selectedFixture(t *testing.T, root, name string) FileSelection {
 	return FileSelection{Root: root, Path: path, Definition: Definition{Summary: Summary{Name: name, Description: "compiled description", Digest: fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(source)))}, Content: "Compiled $ARGUMENTS."}, UserInvocable: true, ModelInvocable: true}
 }
 
+func TestCatalogPreloadFindsAQualifiedOrBareName(t *testing.T) {
+	requireCatalogPlatform(t)
+	root := canonicalTempDir(t)
+	selection := selectedFixture(t, root, "sample:source")
+	catalog, err := OpenSelected(t.Context(), nil, []FileSelection{selection})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer catalog.Close()
+	for _, name := range []string{"sample:source", "source"} {
+		body, err := catalog.Preload(t.Context(), name)
+		if err != nil || body != "Compiled $ARGUMENTS." {
+			t.Fatalf("preload %s = %q %v", name, body, err)
+		}
+	}
+	if _, err := catalog.Preload(t.Context(), "missing"); err == nil {
+		t.Fatal("missing skill was preloaded")
+	}
+}
+
 func TestSelectedVisibilityAndFrozenDefinition(t *testing.T) {
 	requireCatalogPlatform(t)
 	for _, tc := range []struct {

@@ -42,6 +42,7 @@ type Component struct {
 	AllowedTools    []string             `json:"allowedTools,omitempty"`
 	Tools           []string             `json:"tools,omitempty"`
 	DisallowedTools []string             `json:"disallowedTools,omitempty"`
+	Skills          []string             `json:"skills,omitempty"`
 	Model           string               `json:"model,omitempty"`
 	Effort          string               `json:"effort,omitempty"`
 	Isolation       string               `json:"isolation,omitempty"`
@@ -59,6 +60,7 @@ type componentHeader struct {
 	AllowedTools           componentTools `yaml:"allowed-tools"`
 	Tools                  componentTools `yaml:"tools"`
 	DisallowedTools        componentTools `yaml:"disallowedTools"`
+	Skills                 componentTools `yaml:"skills"`
 	Model                  componentText  `yaml:"model"`
 	Effort                 componentText  `yaml:"effort"`
 	Isolation              componentText  `yaml:"isolation"`
@@ -264,6 +266,13 @@ func ParseComponent(pluginName string, kind ComponentKind, path string, content 
 		if component.Isolation != "" && component.Isolation != "worktree" {
 			add(SeverityError, "INVALID_COMPONENT_FIELD", "isolation", "Agent isolation must be worktree or omitted.")
 		}
+		component.Skills = append([]string(nil), header.Skills...)
+		for _, name := range component.Skills {
+			if !validForkAgent(name) {
+				add(SeverityError, "INVALID_COMPONENT_FIELD", "skills", "Agent skills must be skill names.")
+				break
+			}
+		}
 		if header.MaxTurns != nil {
 			if *header.MaxTurns < 1 {
 				add(SeverityError, "INVALID_COMPONENT_FIELD", "maxTurns", "Agent maxTurns must be a positive integer.")
@@ -364,7 +373,7 @@ func knownComponentField(kind ComponentKind, key string) bool {
 		return kind != ComponentAgent
 	case "background":
 		return true
-	case "tools", "disallowedTools", "color", "isolation", "maxTurns":
+	case "tools", "disallowedTools", "skills", "color", "isolation", "maxTurns":
 		return kind == ComponentAgent
 	}
 	return false

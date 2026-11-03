@@ -22,6 +22,7 @@ type AgentDefinition struct {
 	Background                                                bool
 	Tools                                                     []string
 	DisallowedTools                                           []string
+	Skills                                                    []string
 }
 
 func requestedBackground(value *bool) bool {
@@ -72,6 +73,9 @@ type ClaudeOptions struct {
 	// ErrDefaultWorktree keeps the Git worktree. A nil cleanup leaves a
 	// hook-created directory in place when the child finishes.
 	IsolatedWorktree func(context.Context, *harness.Agent) (string, func(), error)
+	// SkillText supplies the body of a skill named by an agent. The text is
+	// context only and does not grant tools.
+	SkillText func(context.Context, string) (string, error)
 }
 
 // ErrDefaultWorktree asks the caller to create the Git worktree itself.
@@ -120,6 +124,7 @@ type claudeDelegation struct {
 	taskLookup        harness.TaskLookup
 	backgroundNotices bool
 	isolatedWorktree  func(context.Context, *harness.Agent) (string, func(), error)
+	skillText         func(context.Context, string) (string, error)
 	mu                sync.Mutex
 	tasks             map[harness.SessionID]*claudeTask
 }
@@ -141,7 +146,7 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	service := &claudeDelegation{h: h, maxDepth: options.MaxDepth, invocationOrigin: options.InvocationOrigin, taskLookup: options.TaskLookup, backgroundNotices: options.BackgroundNotifications, isolatedWorktree: options.IsolatedWorktree, definitions: make(map[string]AgentDefinition), readOnlyBuiltins: make(map[string]bool), routes: make(map[string]ModelRoute), tasks: make(map[harness.SessionID]*claudeTask)}
+	service := &claudeDelegation{h: h, maxDepth: options.MaxDepth, invocationOrigin: options.InvocationOrigin, taskLookup: options.TaskLookup, backgroundNotices: options.BackgroundNotifications, isolatedWorktree: options.IsolatedWorktree, skillText: options.SkillText, definitions: make(map[string]AgentDefinition), readOnlyBuiltins: make(map[string]bool), routes: make(map[string]ModelRoute), tasks: make(map[harness.SessionID]*claudeTask)}
 	for _, definition := range definitions {
 		if strings.TrimSpace(definition.Name) == "" || strings.TrimSpace(definition.Description) == "" || strings.TrimSpace(definition.Instructions) == "" {
 			return nil, errors.New("subagents: Claude agent requires name, description and instructions")
@@ -163,6 +168,9 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		}
 		if definition.DisallowedTools != nil {
 			definition.DisallowedTools = append([]string{}, definition.DisallowedTools...)
+		}
+		if definition.Skills != nil {
+			definition.Skills = append([]string{}, definition.Skills...)
 		}
 		service.definitions[definition.Name] = definition
 	}

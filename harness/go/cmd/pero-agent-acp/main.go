@@ -310,7 +310,12 @@ func run() (resultErr error) {
 		if _, err := tasks.Mount(ctx, h); err != nil {
 			return err
 		}
-		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{IsolatedWorktree: func(ctx context.Context, parent *harness.Agent) (string, func(), error) {
+		pluginAgents, err = subagents.MountClaude(ctx, h, agentDefinitions, subagents.ClaudeOptions{SkillText: func(ctx context.Context, name string) (string, error) {
+			if skillCatalog == nil {
+				return "", errors.New("agent skills require a selected skill catalog")
+			}
+			return skillCatalog.Preload(ctx, name)
+		}, IsolatedWorktree: func(ctx context.Context, parent *harness.Agent) (string, func(), error) {
 			if pluginHooks == nil {
 				return "", nil, subagents.ErrDefaultWorktree
 			}

@@ -104,6 +104,10 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if strings.TrimSpace(input.Description) == "" {
 		input.Description = definition.Description
 	}
+	instructions, err := s.agentInstructions(ctx, definition)
+	if err != nil {
+		return nil, err
+	}
 	effort := input.Effort
 	if effort == "" {
 		effort = definition.Effort
@@ -115,7 +119,7 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if definition.MaxTurns > 0 && (steps == 0 || definition.MaxTurns < steps) {
 		steps = definition.MaxTurns
 	}
-	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, MaxSteps: steps, OutputSchema: input.OutputSchema, ReasoningEffort: harness.ReasoningEffort(effort)}
+	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: instructions, MaxDepth: s.maxDepth, MaxSteps: steps, OutputSchema: input.OutputSchema, ReasoningEffort: harness.ReasoningEffort(effort)}
 	var cleanup func()
 	if input.Isolation != "" {
 		if input.Isolation != "worktree" {
@@ -205,6 +209,31 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	}
 	releaseWorktree = false
 	return task, nil
+}
+
+func (s *claudeDelegation) agentInstructions(ctx context.Context, definition AgentDefinition) (string, error) {
+	if len(definition.Skills) == 0 {
+		return definition.Instructions, nil
+	}
+	if s.skillText == nil {
+		return "", fmt.Errorf("subagents: agent %q skills require a skill resolver", definition.Name)
+	}
+	var text strings.Builder
+	text.WriteString(definition.Instructions)
+	for _, name := range definition.Skills {
+		body, err := s.skillText(ctx, name)
+		if err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(body) == "" {
+			return "", fmt.Errorf("subagents: skill %q has no text", name)
+		}
+		text.WriteString("\n\nSkill ")
+		text.WriteString(name)
+		text.WriteString(":\n")
+		text.WriteString(body)
+	}
+	return text.String(), nil
 }
 
 func availableToolAllow(ctx context.Context, h *harness.Harness, agent *harness.Agent, allow []string) ([]string, error) {
