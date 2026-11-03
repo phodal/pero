@@ -4,7 +4,7 @@ import { exerciseImageOnly, reopenImageOnly, isImageOnlyStudyRejectionConsole } 
 import { paperBackendFixture } from './paper-backend-fixture.mjs';
 import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
 import { clickAppShortcut } from './sidebar-controls.mjs';
-import { exerciseLocalSearch } from './paper-search-flow.mjs';
+import { exerciseLocalSearch, exerciseTextSearchLocations } from './paper-search-flow.mjs';
 // Real Electron -> Rust Host -> Python App; Agent output is a labelled ACP fixture.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
@@ -327,6 +327,8 @@ try {
   checks.push('reading-only default at 1440x900, retained viewer/zoom/selection across Ask, selected-text question context');
   checks.push('PDF pointer highlight, contextual crop, native image copy, inline manual matrix, source navigation and PDF failure recovery');
   checks.push('full-text retrieval -> Host ACP answer -> exact PDF quotation highlight');
+  await backToLibrary(frame);
+  const savedTextSearch = await exerciseTextSearchLocations({ frame, page, out });
   const beforeRestart=(await fixtureTurns()).length;
   await app.close();app=await launch();page=await app.firstWindow();
   await page.addInitScript(installPaperFetchObserver);
@@ -334,6 +336,8 @@ try {
   observe(page);
   await app.evaluate(({Menu,BrowserWindow})=>{Menu.getApplicationMenu().getMenuItemById('locale-en').click();BrowserWindow.getAllWindows()[0].setSize(1440,900);});
   frame=await openPaper(page);
+  await exerciseTextSearchLocations({ frame, page, out, saved: savedTextSearch });
+  checks.push('local text-search highlights preserve exact Unicode passages and source lines before and after restart');
   await reopenPdf({frame,page,saved:savedPdf});
   const state=await library(frame),pdfIntent=state.reports.find(report=>report.title==='PDF answer fixture').intentId;
   await frame.locator(`[data-turn-id="${pdfIntent}"]>summary`).click();
