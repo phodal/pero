@@ -47,6 +47,8 @@ func run() (resultErr error) {
 	chartPython := flag.String("chart-python", "python3", "Python 3.9+ executable for shared chart/data core")
 	workflowNode := flag.String("workflow-node", "node", "Node executable for explicitly selected plugin workflows")
 	recoverTail := flag.Bool("recover-complete-session-tail", false, "opt in to lossless final JSONL delimiter recovery with a private backup")
+	initOnly := flag.Bool("init-only", false, "run Setup init and SessionStart startup, then exit without a conversation")
+	maintenance := flag.Bool("maintenance", false, "run Setup maintenance, then exit without a conversation")
 	sessions := flag.String("session-dir", "", "private directory for durable JSONL sessions (required)")
 	keyEnv := flag.String("api-key-env", "AGENT_PROVIDER_API_KEY", "environment variable containing the provider credential")
 	auditPath := flag.String("http-attempt-audit", "", "optional absolute existing private file to durably record each provider HTTP attempt")
@@ -75,6 +77,12 @@ func run() (resultErr error) {
 	}
 	if *approval != "never" && *approval != "ask" {
 		return errors.New("--approval must be never or ask")
+	}
+	if *initOnly && *maintenance {
+		return errors.New("--init-only and --maintenance are mutually exclusive")
+	}
+	if (*initOnly || *maintenance) && *workspace == "" {
+		return errors.New("--init-only and --maintenance require --workspace")
 	}
 	if (*enableShell || *enableResearchClone) && *workspace == "" {
 		return errors.New("--enable-shell / --enable-research-clone requires --workspace")
@@ -286,6 +294,22 @@ func run() (resultErr error) {
 	lspApp, err = mountLSP(ctx, h, *workspace, packages, pluginEnvironment, *lspConfig)
 	if err != nil {
 		return err
+	}
+	if *initOnly || *maintenance {
+		trigger := "init"
+		if *maintenance {
+			trigger = "maintenance"
+		}
+		agent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "plugin-init", CWD: *workspace, Provider: "configured", Model: *model})
+		if err != nil {
+			return err
+		}
+		if pluginHooks != nil {
+			if err := pluginHooks.RunSetup(ctx, agent, trigger); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, Name: "pero-agent-acp", Version: "0.1"}
 	if native != nil {

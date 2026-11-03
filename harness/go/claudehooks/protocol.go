@@ -377,7 +377,7 @@ func blockingEvent(event string) bool {
 
 func runControlEvent(event string) bool {
 	switch event {
-	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart", "FileChanged":
+	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart", "FileChanged", "Setup":
 		return false
 	}
 	return true

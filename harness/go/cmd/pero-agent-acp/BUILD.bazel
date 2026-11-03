@@ -66,6 +66,7 @@ go_test(
         "plugin_data_home_test.go",
         "plugin_execution_test.go",
         "plugin_fork_test.go",
+        "plugin_init_test.go",
         "plugin_runtime_test.go",
         "plugins_test.go",
         "research_cli_test.go",
