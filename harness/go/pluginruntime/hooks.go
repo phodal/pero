@@ -211,7 +211,15 @@ func (app *HookApp) register(run *point.Run) error {
 	}
 	if _, err := hooks.PreCompact.Use(run, func(ctx context.Context, input harness.CompactionHookInput, next point.Next[harness.CompactionHookInput]) (harness.CompactionHookInput, error) {
 		err := app.withAgent(ctx, input.Agent, func(ctx context.Context, state *hookAgentState) error {
-			decision, err := app.event(ctx, input.Agent, claudehooks.Input{Event: "PreCompact", Trigger: input.Trigger})
+			hookInput := claudehooks.Input{Event: "PreCompact", Trigger: input.Trigger, CustomInstructions: []byte("null")}
+			if input.CustomInstructions != "" {
+				encoded, err := json.Marshal(input.CustomInstructions)
+				if err != nil {
+					return err
+				}
+				hookInput.CustomInstructions = encoded
+			}
+			decision, err := app.event(ctx, input.Agent, hookInput)
 			if err != nil {
 				return err
 			}
@@ -231,7 +239,7 @@ func (app *HookApp) register(run *point.Run) error {
 	}
 	if _, err := hooks.PostCompact.Use(run, func(ctx context.Context, input harness.CompactionHookInput, next point.Next[harness.CompactionHookInput]) (harness.CompactionHookInput, error) {
 		err := app.withAgent(ctx, input.Agent, func(ctx context.Context, state *hookAgentState) error {
-			events := []claudehooks.Input{{Event: "PostCompact", Trigger: input.Trigger}}
+			events := []claudehooks.Input{{Event: "PostCompact", Trigger: input.Trigger, CompactSummary: input.CompactSummary}}
 			if input.Agent.Parent() == nil {
 				events = append(events, claudehooks.Input{Event: "SessionStart", Source: "compact"})
 			}

@@ -65,7 +65,7 @@ func (e *ManualCompactionError) Unwrap() error {
 
 type CompactionEngine interface {
 	CompactIfNeeded(context.Context, *Agent, CompactionTrigger) (*CompactionResult, error)
-	CompactNow(context.Context, *Agent, *CommandID) (*CompactionResult, error)
+	CompactNow(context.Context, *Agent, *CommandID, string) (*CompactionResult, error)
 }
 
 // CompactionRegionEngine is the optional capability behind DSH's explicit
@@ -177,6 +177,12 @@ func (a *Agent) CompactIfNeeded(ctx context.Context, trigger CompactionTrigger) 
 // CompactNow reserves this agent while it is idle, compacts one useful older
 // span below pressure thresholds, and admits later prompts behind the operation.
 func (a *Agent) CompactNow(ctx context.Context, sourceCommandID ...CommandID) (*CompactionResult, error) {
+	return a.CompactWithInstructions(ctx, "", sourceCommandID...)
+}
+
+// CompactWithInstructions is CompactNow plus the text supplied to /compact.
+// PreCompact hooks receive that text as custom_instructions.
+func (a *Agent) CompactWithInstructions(ctx context.Context, instructions string, sourceCommandID ...CommandID) (*CompactionResult, error) {
 	if a == nil {
 		return nil, errors.New("harness: compaction requires an agent")
 	}
@@ -198,7 +204,7 @@ func (a *Agent) CompactNow(ctx context.Context, sourceCommandID ...CommandID) (*
 		source = &value
 	}
 	result, err := a.runMaintenance(ctx, func(operationContext context.Context) (*CompactionResult, error) {
-		return engine.CompactNow(operationContext, a, source)
+		return engine.CompactNow(operationContext, a, source, instructions)
 	})
 	if err != nil && ctx.Err() == nil && errors.Is(err, context.Canceled) {
 		return nil, newManualCompactionError(ManualCompactionCancelled, "manual compaction was cancelled", err)

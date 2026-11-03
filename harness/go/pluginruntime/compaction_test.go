@@ -50,6 +50,34 @@ func TestPreCompactPlainTextSurvivesCompaction(t *testing.T) {
 	}
 }
 
+func TestCompactionHooksReceiveInstructionsAndSummary(t *testing.T) {
+	root := t.TempDir()
+	pre := scriptHook(t, root, "PreCompact", `cat > "$CLAUDE_PLUGIN_ROOT/pre.json"`)
+	post := scriptHook(t, root, "PostCompact", `cat > "$CLAUDE_PLUGIN_ROOT/post.json"`)
+	h, _ := testHookHarness(t, harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		text := "done"
+		if request.Purpose == "compaction" {
+			text = "short checkpoint"
+		}
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}}}, nil
+	}), plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{pre, post}}, 0)
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "compact-fields", CWD: root, Provider: "fixture", Model: "scripted", Compaction: &harness.BasicCompactionConfig{ContextWindow: 8192, MaxTokens: 128}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prompt(t, agent, strings.Repeat("historical requirements detail ", 200)); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := agent.CompactWithInstructions(t.Context(), "focus on the goal"); err != nil || result == nil {
+		t.Fatalf("manual compaction: %+v %v", result, err)
+	}
+	preInput, err := os.ReadFile(filepath.Join(root, "pre.json"))
+	postInput, postErr := os.ReadFile(filepath.Join(root, "post.json"))
+	if err != nil || postErr != nil || !strings.Contains(string(preInput), `"custom_instructions":"focus on the goal"`) || !strings.Contains(string(postInput), `"compact_summary":"short checkpoint"`) {
+		t.Fatalf("pre=%s post=%s errors=%v %v", preInput, postInput, err, postErr)
+	}
+}
+
 func TestCompactionSessionStartContextPrecedesNextRequest(t *testing.T) {
 	for _, trigger := range []string{"manual", "overflow"} {
 		t.Run(trigger, func(t *testing.T) {

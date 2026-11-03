@@ -132,7 +132,7 @@ func toolPairsBalanced(nodes []TokenNode) bool {
 	return len(pending) == 0
 }
 
-func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measurement TokenMeasurement, selection compactionSelection, turn *int, sourceCommandID *CommandID, policy resolvedTargetCompactionPolicy) (result *CompactionResult, err error) {
+func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measurement TokenMeasurement, selection compactionSelection, turn *int, sourceCommandID *CommandID, instructions string, policy resolvedTargetCompactionPolicy) (result *CompactionResult, err error) {
 	session := agent.session
 	releaseCompaction, acquired := session.TryLockCompaction()
 	if !acquired {
@@ -165,7 +165,7 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 	if turn != nil && (openTurn == nil || *openTurn != *turn) {
 		return nil, errors.New("harness: automatic compaction requires its current open turn")
 	}
-	hookInput := CompactionHookInput{Agent: agent, Trigger: "auto"}
+	hookInput := CompactionHookInput{Agent: agent, Trigger: "auto", CustomInstructions: strings.TrimSpace(instructions)}
 	if turn == nil {
 		hookInput.Trigger = "manual"
 	}
@@ -329,6 +329,7 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 		return nil, err
 	}
 	closed = true
+	hookInput.CompactSummary = compactionSummaryText(summary)
 	hookInput, hookErr = agent.hooks.PostCompact.Run(ctx, hookInput, func(_ context.Context, input CompactionHookInput) (CompactionHookInput, error) { return input, nil })
 	if hookErr != nil {
 		return nil, hookErr
@@ -480,6 +481,20 @@ func commandIDValue(value *CommandID) CommandID {
 		return ""
 	}
 	return *value
+}
+
+func compactionSummaryText(blocks []ContentBlock) string {
+	var text strings.Builder
+	for _, block := range blocks {
+		if block.Type != BlockText || block.Text == "" {
+			continue
+		}
+		if text.Len() > 0 {
+			text.WriteByte('\n')
+		}
+		text.WriteString(block.Text)
+	}
+	return text.String()
 }
 
 func frameCompactionSummary(summary []ContentBlock) []ContentBlock {

@@ -53,6 +53,8 @@ type Input struct {
 	Reason               string          `json:"reason,omitempty"`
 	Name                 string          `json:"name,omitempty"`
 	ToolCalls            json.RawMessage `json:"tool_calls,omitempty"`
+	CustomInstructions   json.RawMessage `json:"custom_instructions,omitempty"`
+	CompactSummary       string          `json:"compact_summary,omitempty"`
 	TaskID               string          `json:"task_id,omitempty"`
 	TaskSubject          string          `json:"task_subject,omitempty"`
 	TaskDescription      string          `json:"task_description,omitempty"`

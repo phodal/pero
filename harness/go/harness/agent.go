@@ -81,7 +81,9 @@ type CompactionHookInput struct {
 	Reason  string
 	// Messages contains synthetic user context to append durably after a
 	// successful compaction, before the next provider request is assembled.
-	Messages []Message
+	Messages           []Message
+	CustomInstructions string
+	CompactSummary     string
 }
 
 type AgentErrorInput struct {

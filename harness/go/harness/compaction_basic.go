@@ -142,7 +142,7 @@ func (b *BasicCompactor) CompactIfNeeded(ctx context.Context, agent *Agent, trig
 			return nil, nil
 		}
 		turn := agent.currentTurn()
-		return b.compactRange(ctx, agent, measurement, *selection, &turn, nil, policy)
+		return b.compactRange(ctx, agent, measurement, *selection, &turn, nil, "", policy)
 	}
 	contextWindow := target.ContextWindow
 	if b.config.dshSourcePolicy {
@@ -207,7 +207,7 @@ func (b *BasicCompactor) CompactIfNeeded(ctx context.Context, agent *Agent, trig
 			return result, nil
 		}
 		turn := agent.currentTurn()
-		result, err = b.compactRange(ctx, agent, measurement, *selection, &turn, nil, policy)
+		result, err = b.compactRange(ctx, agent, measurement, *selection, &turn, nil, "", policy)
 		if err != nil {
 			return nil, err
 		}
@@ -223,7 +223,7 @@ func (b *BasicCompactor) CompactIfNeeded(ctx context.Context, agent *Agent, trig
 		spec.compactionRetries+1, measurement.TotalTokens, spec.thresholdTokens)
 }
 
-func (b *BasicCompactor) CompactNow(ctx context.Context, agent *Agent, sourceCommandID *CommandID) (*CompactionResult, error) {
+func (b *BasicCompactor) CompactNow(ctx context.Context, agent *Agent, sourceCommandID *CommandID, instructions string) (*CompactionResult, error) {
 	if agent == nil || agent.session == nil {
 		return nil, errors.New("harness: compaction requires an agent session")
 	}
@@ -243,7 +243,7 @@ func (b *BasicCompactor) CompactNow(ctx context.Context, agent *Agent, sourceCom
 		policy = b.config.defaults
 		policy.provider, policy.model = agent.provider, agent.model
 	}
-	return b.compactRange(ctx, agent, measurement, *selection, nil, sourceCommandID, policy)
+	return b.compactRange(ctx, agent, measurement, *selection, nil, sourceCommandID, instructions, policy)
 }
 
 // CompactRegion implements the DSH explicit-region capability inside the
@@ -270,7 +270,7 @@ func (b *BasicCompactor) CompactRegion(ctx context.Context, agent *Agent, start,
 		policy.provider, policy.model = agent.provider, agent.model
 	}
 	turn := agent.currentTurn()
-	return b.compactRange(ctx, agent, measurement, *selection, &turn, nil, policy)
+	return b.compactRange(ctx, agent, measurement, *selection, &turn, nil, "", policy)
 }
 
 func (b *BasicCompactor) routedPolicy(agent *Agent) (resolvedTargetCompactionPolicy, RequestContext, bool, error) {
