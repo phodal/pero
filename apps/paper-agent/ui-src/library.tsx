@@ -140,7 +140,7 @@ const statusLabel: Record<ShelfStatus, 'statusReading' | 'statusToRead' | 'statu
 export function PaperList({ papers, selecting, selected, readingId, locked, savingId, shelf, shelfFilter, onShelfFilter, onCycleStatus, onFindMore, onSelect, onRead, onDiscover, onDownload, t }: {
   papers: Paper[]; selecting: boolean; selected: string[]; readingId: string; locked: boolean; savingId?: string;
   shelf: Shelf; shelfFilter: ShelfFilter; onShelfFilter(filter: ShelfFilter): void; onCycleStatus(id: string): void; onFindMore(): void;
-  onSelect(id: string, checked: boolean): void; onRead(paper: Paper): void; onDiscover?(paper: Paper): void; onDownload?(paper: Paper): void; t: Translator;
+  onSelect(id: string, checked: boolean): void; onRead(paper: Paper): void; onDiscover?(paper: Paper): void; onDownload?(paper: Paper, format?: 'pdf' | 'tex'): void; t: Translator;
 }) {
   const [sort, setSort] = useState<'recent' | 'title'>('recent');
   const rows = [...papers].sort((left, right) => sort === 'title' ? left.title.localeCompare(right.title) : right.fetchedAt.localeCompare(left.fetchedAt))
@@ -184,7 +184,7 @@ export function PaperList({ papers, selecting, selected, readingId, locked, savi
           {t(statusLabel[status])}
         </Button>
         <span className="pa-paper-added">{addedText(paper.fetchedAt, t)}</span>
-        <span className="pa-actions">{onDownload && <Button variant="ghost" busy={savingId === paper.id} disabled={!!savingId || !(paper.pdfUrl || paper.pdfCandidateUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper)}>{savingId === paper.id ? t('saveCopies') : t('downloadPaper')}</Button>}{onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}</span>
+        <span className="pa-actions">{onDownload && <><Button variant="ghost" aria-label={t('downloadPdf')} disabled={!!savingId || !(paper.pdfUrl || paper.pdfCandidateUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper, 'pdf')}>PDF</Button>{paper.arxivUrl && <Button variant="ghost" aria-label={t('downloadTex')} disabled={!!savingId} onClick={() => onDownload(paper, 'tex')}>TeX</Button>}</>}{onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}</span>
       </li>;
     })}</ul>
     {!rows.length && <p className="pa-filter-empty">{t('noPapersFilter')}</p>}

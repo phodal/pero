@@ -97,7 +97,7 @@ export function TexReader({ api, paper, active, openToken, reloadToken = 0, chro
     {active && !preview && (chrome.toolbar ? createPortal(controls, chrome.toolbar) : controls)}
     {working && <p className="pa-loading" role="status">{overview ? copy('compiling') : copy('loading')}</p>}
     {error && <Feedback kind="error"><div><p>{error}</p><Button disabled={busy} onClick={() => source && entry ? void compile() : void load()}>{copy('retry')}</Button></div></Feedback>}
-    {!busy && overview && !overview.sources.length && <div className="pa-tex-empty"><p>{copy('empty')}</p><Button onClick={() => chrome.onSave()}>{copy('review')}</Button></div>}
+    {!busy && overview && !overview.sources.length && <div className="pa-tex-empty"><p>{copy('empty')}</p><Button onClick={() => chrome.onSave('tex')}>{copy('review')}</Button></div>}
     {!busy && source && !source.available && <div className="pa-tex-empty"><p>{copy('empty')}</p><Button onClick={() => void files()}>{copy('review')}</Button></div>}
     {!working && !error && source?.available && !preview && <div className="pa-tex-empty">
       {!overview?.engineAvailable ? <p>{copy('engine')} <code>brew install tectonic</code></p> : !source.entries?.length ? <p>{copy('noMain')}</p> : <>

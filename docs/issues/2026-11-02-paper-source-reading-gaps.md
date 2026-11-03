@@ -220,3 +220,33 @@ Current remaining source/API gaps, verified against owning adapters:
   (`best_oa_location.url_for_pdf`), [OpenReview](https://docs.openreview.net/reference/api-v2/openapi-definition)
   (PDF attachments), and [DataCite](https://support.datacite.org/docs/rest-api)
   (DOI metadata; notably arXiv DOIs). None implies a general TeX download service.
+
+## Direct download and original-paper association (2026-11-03)
+
+Follow-up user screenshots showed the internal source-review dialog and a second
+Library row titled `2609`. The downloader treated the extensionless arXiv ID as a
+filename with a suffix, and its child "Open saved PDF" action opened the
+acquisition snapshot before Library export associated those bytes with the
+selected paper.
+
+The Library now offers PDF/TeX download actions directly. One click prepares the
+version internally, grants only that selection through existing confirmation,
+downloads through the existing owners and automatically exports/associates the
+PDF with the original paper before offering reading or fetching optional TeX.
+Progress, failure, cancel and explicit retry stay inline; no Save/Confirm/Export
+dialog or general implementation explanations remain. Adding/opening metadata
+alone does not start acquisition. Actual extraction warnings remain visible.
+
+Extensionless PDF names keep the complete arXiv ID. Default Library rendering
+shows the explicitly associated metadata paper once; the receipt-owned snapshot
+remains addressable with its existing document, annotations and evidence. No
+immutable records or receipts are rewritten or deleted.
+
+Verification: 261 Python tests (260 passed, one platform skip), then 35 focused
+Library/PDF tests after the filename assertion; typecheck/production build; five
+deterministic download-workflow checks; real browser component interactions for
+PDF, original-paper reading, TeX failure/manual retry, light/dark, 360px layout and
+keyboard focus. Browser sources are authored fixtures, not live acquisition.
+Screenshots: `test-results/paper-library-save/download-{light,dark}-narrow.png`.
+The user's already running Electron uses the older installed App; refreshing its
+managed package and full Desktop/live-file acceptance have not been performed.

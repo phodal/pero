@@ -28,12 +28,10 @@ export async function exerciseImageOnly({ frame, page, profile, out }) {
     contentKind: 'abstract', content: 'This metadata abstract must never become selectable PDF full text.' });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
   await expect(libraryRow(frame, article.title)).toHaveCount(1);
-  await expect(libraryRow(frame, article.title).getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await expect(libraryRow(frame, article.title).getByRole('button', { name: 'Download PDF', exact: true })).toBeDisabled();
   const dialog = await saveLibraryCopies(frame, paper.title);
-  const pdfStatus = dialog.getByRole('region', { name: 'PDF', exact: true });
-  await expect(pdfStatus.locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Downloaded');
-  await expect(pdfStatus.getByText('No selectable text. OCR unavailable.', { exact: true })).toBeVisible();
-  await expect(pdfStatus.getByText('Text on 0 pages', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('status')).toHaveText('Downloaded');
+  await expect(dialog).toContainText('OCR is not available');
   const library = await api(frame, '/api/library');
   const bundle = library.bundles.find(item => item.seedUrl === paper.pdfUrl);
   expect(bundle.pdfDownloadIds).toHaveLength(1); expect(bundle.sourceDownloadIds).toEqual([]);
@@ -72,7 +70,7 @@ export async function exerciseImageOnly({ frame, page, profile, out }) {
   expect(cached.source).toBe('local-pdf'); expect(cached.pdfUrl).toBeUndefined();
   expect(cached.hasCachedPdf).toBe(true);
   await expect(libraryRow(frame, cached.title)).toHaveCount(1);
-  await expect(libraryRow(frame, cached.title).getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+  await expect(libraryRow(frame, cached.title).getByRole('button', { name: 'Download PDF', exact: true })).toBeEnabled();
   const cachedDialog = await saveLibraryCopies(frame, cached.title);
   await cachedDialog.getByRole('button', { name: 'Close', exact: true }).click();
   await libraryRow(frame, cached.title).locator('.pero-list-open').click();

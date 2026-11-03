@@ -31,18 +31,12 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   const row = () => frame.locator('.pa-library-list > li').filter({ hasText: paper.title });
   const acquisitions = async () => (await requests()).filter(item => item.kind !== 'metadata');
   const before = await acquisitions();
-  await row().getByRole('button', { name: 'Save', exact: true }).click();
-  let dialog = frame.getByRole('dialog', { name: 'Save copies', exact: true });
-  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
-  await expect(dialog.getByRole('checkbox', { name: 'TeX', exact: true })).not.toBeChecked();
-  await page.screenshot({ path: resolve(out, 'library-save-review.png') });
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await row().locator('.pero-list-open').click();
   await expect(frame.locator('.pa-source-text')).toContainText(paper.content);
   expect((await api(`/api/pdf?paperId=${paper.id}`)).document).toBeNull();
   expect(await acquisitions()).toEqual(before);
   await backToLibrary(frame);
-  dialog = await saveLibraryCopies(frame, paper.title, { tex: true });
+  let dialog = await saveLibraryCopies(frame, paper.title, { tex: true });
   const bundle = (await api('/api/library')).bundles.find(item => item.seedUrl === paper.pdfUrl);
   expect(bundle.pdfDownloadIds).toHaveLength(1); expect(bundle.sourceDownloadIds).toHaveLength(1);
   const pdfRequest = { operation: 'status', bundleId: bundle.id, resourceId: bundle.pdfDownloadIds[0] };
@@ -63,7 +57,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   // identity/provenance, rather than assuming the newest receipt owns its URL.
   expect(pdf.receipt.documentId).toBe(priorDocumentId);
   expect(await api(`/api/pdf/${priorDocumentId}`)).toEqual(priorPdf);
-  expect((await api(`/api/papers/${paper.id}`))).toEqual(paper);
+  expect((await api(`/api/papers/${paper.id}`))).toMatchObject(paper);
   const digest = bytes => createHash('sha256').update(bytes).digest('hex');
   const exported = resolve(profile, 'desktop/app-data/paper-agent/library-export-fixture');
   expect(digest(await readFile(resolve(exported, '2610.00004v1.pdf')))).toBe(reading.document.fileDigest);
@@ -147,6 +141,6 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   await writeFile(resolve(out, 'library-save-result.json'), JSON.stringify({ paperId: paper.id, documentId: reading.document.id,
     pdfReceipt: pdf.receipt, sourceReceipt: source.receipt, annotationId: annotation.id,
     scope: 'Real Desktop → Rust Host → Paper owners; authored offline bytes only. No live-provider acceptance.',
-    checks: ['cancel and metadata Reader acquire nothing', 'explicit PDF + TeX consent and export copies',
+    checks: ['metadata Reader acquires nothing', 'one click downloads and attaches PDF + TeX without a dialog',
       'original paper/document/annotation preserved', 'save creates no observation; source read does', 'restart retains receipts without reacquisition'] }, null, 2));
 }

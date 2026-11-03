@@ -1,6 +1,3 @@
-.pa-library-save{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;box-sizing:border-box;padding:12px;color:var(--pero-text);background:var(--pero-material-reading);border:0.5px solid var(--pero-border);border-radius:var(--pero-radius-selection);font:inherit}
-.pa-library-save::backdrop{background:rgb(0 0 0 / 30%)}
-.pa-library-save header{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.pa-library-save h2{font-size:18px}.pa-library-save p{margin:12px 0;overflow-wrap:anywhere}
-.pa-save-options{list-style:none;padding:0;margin:12px 0}.pa-save-options li{padding:8px 0;border-bottom:0.5px solid var(--pero-border)}
-.pa-save-options label{display:flex;align-items:center;gap:8px}.pa-save-options span{display:block;margin-top:4px;color:var(--pero-text-muted);font-size:12px}
+.pa-library-download{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 12px;border-bottom:0.5px solid var(--pero-border);background:var(--pero-material-reading);font-size:14px}
+.pa-download-title{min-width:0;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:600px){.pa-download-title{flex-basis:100%;max-width:100%}}
