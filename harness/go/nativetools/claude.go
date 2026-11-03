@@ -128,7 +128,7 @@ func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, r
 		definition.required = `"notebook_path"`
 	case "read_file":
 		definition.name = "Read"
-		definition.description = "Read bounded UTF-8 text with line numbers, or PNG/JPEG/GIF/WebP images (at most 20 MiB source, 64 million pixels), normalized to PNG/JPEG at most 2048 pixels per side and 4 MiB. Animated images show the first frame only. Text-only models receive an explicit unread-pixels limitation. file_path may be absolute inside the configured workspace or workspace-relative; offset is 1-based for text. PDF page reads are unavailable."
+		definition.description = "Read bounded UTF-8 text with line numbers, or PNG/JPEG/GIF/WebP images (at most 20 MiB source, 64 million pixels), normalized to PNG/JPEG at most 2048 pixels per side and 4 MiB. Animated images show the first frame only. Text-only models receive an explicit unread-pixels limitation. file_path may be absolute inside the configured workspace or workspace-relative; offset is 1-based for text. This tool does not render PDFs."
 		if resourceReader != nil {
 			definition.description += " Explicitly selected read-only plugin resource files can also be read as text."
 		}

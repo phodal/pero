@@ -25,6 +25,9 @@ type Options struct {
 	EnableResearchClone bool
 	Shell               string
 	ClaudeTools         bool
+	// PDFRendererPath selects a probed Poppler pdftoppm/pdfinfo pair. Empty
+	// discovers an installed pair; "-" disables PDF page rendering.
+	PDFRendererPath string
 	// BackgroundNotifications enables root Bash completion delivery and recovery.
 	// The selected plugin CLI enables it; library hosts opt in explicitly.
 	BackgroundNotifications bool
@@ -348,6 +351,9 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 		return nil, err
 	}
 	if err := mountToolSearch(ctx, h, opts.ClaudeTools); err != nil {
+		return nil, err
+	}
+	if err := mountDocumentTools(ctx, h, app, opts.PDFRendererPath, opts.ClaudeTools); err != nil {
 		return nil, err
 	}
 	return app, nil
