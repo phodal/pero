@@ -66,6 +66,7 @@ type Decision struct {
 	AdditionalContext string
 	SystemMessage     string
 	UpdatedInput      json.RawMessage
+	UpdatedToolOutput json.RawMessage
 	WorktreePath      string
 	Block, Stop       bool
 }
@@ -93,6 +94,7 @@ type specificOutput struct {
 	AdditionalContext string                     `json:"additionalContext"`
 	RequestDecision   *permissionRequestDecision `json:"decision"`
 	WorktreePath      string                     `json:"worktreePath"`
+	UpdatedToolOutput json.RawMessage            `json:"updatedToolOutput"`
 }
 
 // permissionRequestDecision is the PermissionRequest allow or deny object.
@@ -236,6 +238,12 @@ func (wire output) decision(event string) (Decision, error) {
 			}
 			result.UpdatedInput = append(json.RawMessage(nil), specific.UpdatedInput...)
 		}
+		if len(specific.UpdatedToolOutput) > 0 && string(specific.UpdatedToolOutput) != "null" {
+			if event != "PostToolUse" || !json.Valid(specific.UpdatedToolOutput) {
+				return Decision{}, errors.New("claudehooks: updatedToolOutput requires PostToolUse JSON")
+			}
+			result.UpdatedToolOutput = append(json.RawMessage(nil), specific.UpdatedToolOutput...)
+		}
 		if specific.WorktreePath != "" {
 			if event != "WorktreeCreate" {
 				return Decision{}, errors.New("claudehooks: worktreePath is unsupported for this event")
@@ -299,6 +307,12 @@ func Merge(decisions []Decision) (Decision, error) {
 		merged.SystemMessage = joinContext(merged.SystemMessage, decision.SystemMessage)
 		if merged.WorktreePath == "" {
 			merged.WorktreePath = decision.WorktreePath
+		}
+		if len(decision.UpdatedToolOutput) > 0 {
+			if len(merged.UpdatedToolOutput) > 0 && !equalJSON(merged.UpdatedToolOutput, decision.UpdatedToolOutput) {
+				return Decision{}, errors.New("claudehooks: conflicting updatedToolOutput from multiple hooks")
+			}
+			merged.UpdatedToolOutput = append(json.RawMessage(nil), decision.UpdatedToolOutput...)
 		}
 		if len(decision.UpdatedInput) > 0 {
 			if !jsonObject(decision.UpdatedInput) {

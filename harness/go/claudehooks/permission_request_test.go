@@ -5,6 +5,16 @@ import (
 	"testing"
 )
 
+func TestPostToolUseUpdatedOutputParses(t *testing.T) {
+	decision, err := ParseDecision("PostToolUse", []byte(`{"hookSpecificOutput":{"hookEventName":"PostToolUse","updatedToolOutput":{"stdout":"[redacted]"}}}`), nil, 0)
+	if err != nil || !strings.Contains(string(decision.UpdatedToolOutput), "[redacted]") {
+		t.Fatalf("output=%s error=%v", decision.UpdatedToolOutput, err)
+	}
+	if _, err := ParseDecision("PreToolUse", []byte(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedToolOutput":{"stdout":"x"}}}`), nil, 0); err == nil {
+		t.Fatal("updatedToolOutput was accepted for PreToolUse")
+	}
+}
+
 func TestCompactHooksKeepPlainStdoutAsContext(t *testing.T) {
 	for _, event := range []string{"PreCompact", "PostCompact"} {
 		decision, err := ParseDecision(event, []byte("keep-this-checkpoint\n"), nil, 0)

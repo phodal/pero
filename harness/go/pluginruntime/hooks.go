@@ -1,6 +1,7 @@
 package pluginruntime
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -428,6 +429,11 @@ func (app *HookApp) afterTool(ctx context.Context, outcome *harness.ToolOutcome)
 	if decision.Stop {
 		return fmt.Errorf("%w: %s", ErrHookStopped, decision.Reason)
 	}
+	if event == "PostToolUse" && len(decision.UpdatedToolOutput) > 0 {
+		if err := replaceToolOutput(&outcome.Result, decision.UpdatedToolOutput); err != nil {
+			return err
+		}
+	}
 	text := decision.AdditionalContext
 	if decision.Block && decision.Reason != "" {
 		text = strings.TrimSpace(text + "\n" + decision.Reason)
@@ -436,6 +442,25 @@ func (app *HookApp) afterTool(ctx context.Context, outcome *harness.ToolOutcome)
 		message := hookMessage(event, text)
 		outcome.Result.AdditionalContexts = append(outcome.Result.AdditionalContexts, harness.DeferredContext{Role: message.Role, Content: message.Content, Source: message.Source})
 	}
+	return nil
+}
+
+func replaceToolOutput(result *harness.ToolResult, raw json.RawMessage) error {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || !json.Valid(raw) {
+		return errors.New("plugin-runtime: updatedToolOutput must be JSON")
+	}
+	if raw[0] == '"' {
+		var text string
+		if err := json.Unmarshal(raw, &text); err != nil {
+			return err
+		}
+		result.Content = []harness.ContentBlock{{Type: harness.BlockText, Text: text}}
+		result.Value = append(json.RawMessage(nil), raw...)
+		return nil
+	}
+	result.Content = []harness.ContentBlock{{Type: harness.BlockText, Text: string(raw)}}
+	result.Value = append(json.RawMessage(nil), raw...)
 	return nil
 }
 
