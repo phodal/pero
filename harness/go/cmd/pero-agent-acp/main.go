@@ -176,6 +176,7 @@ func run() (resultErr error) {
 	if *workspace != "" {
 		nativeOptions := nativetools.Options{Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: len(packages) > 0}
 		if len(packages) > 0 {
+			nativeOptions.BackgroundNotifications = true
 			nativeOptions.ReadOnlyResource = pluginResourceReader(skillCatalog, selections)
 			nativeOptions.PluginEnvironment = pluginEnvironment
 			nativeOptions.BashOutput.BashOutputMaxChars = *bashOutputMaxChars

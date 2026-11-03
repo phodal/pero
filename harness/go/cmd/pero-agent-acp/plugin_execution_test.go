@@ -63,7 +63,7 @@ func executionTool(w http.ResponseWriter, name string, arguments any, stage int3
 // runtimes alone cannot prove automatic Workflow registration or the shell
 // provider's participation in the CLI's shared TaskOutput dispatch.
 func TestPluginCLIWorkflowAndBackgroundTaskExecution(t *testing.T) {
-	for _, mode := range []string{"workflow", "background shell"} {
+	for _, mode := range []string{"workflow", "background shell", "background notification"} {
 		t.Run(mode, func(t *testing.T) {
 			base, err := filepath.EvalSymlinks(t.TempDir())
 			if err != nil {
@@ -178,9 +178,20 @@ func TestPluginCLIWorkflowAndBackgroundTaskExecution(t *testing.T) {
 							t.Errorf("CLI Bash did not return a real task: %s error=%v", receipt, err)
 						}
 						taskID.Store(task.ID)
+						if mode == "background notification" {
+							w.Header().Set("Content-Type", "text/event-stream")
+							fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"CLI waiting for command\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+							return
+						}
 						executionTool(w, "TaskOutput", map[string]any{"task_id": task.ID, "block": false}, stage)
 						return
 					case 3:
+						if mode == "background notification" {
+							if !strings.Contains(text, "Background Bash") || !strings.Contains(text, "background-result") || !strings.Contains(text, "finished with status completed") {
+								t.Errorf("CLI automatic notice omitted actual command result: %s", text)
+							}
+							break
+						}
 						if !strings.Contains(receipt, `"status":"running"`) || !strings.Contains(receipt, `"retrieval_status":"not_ready"`) {
 							t.Errorf("CLI TaskLookup did not find the running shell task: %s", receipt)
 						}
@@ -193,9 +204,13 @@ func TestPluginCLIWorkflowAndBackgroundTaskExecution(t *testing.T) {
 						if !strings.Contains(receipt, `"status":"completed"`) || !strings.Contains(receipt, "background-result") {
 							t.Errorf("CLI TaskOutput lost the actual terminal shell result: %s", receipt)
 						}
+					case 5:
+						if mode != "background shell" || !strings.Contains(text, "Background Bash") || !strings.Contains(text, "background-result") {
+							t.Errorf("CLI completion after TaskOutput omitted actual result: %s", text)
+						}
 					}
 				}
-				if stage > 4 {
+				if stage > 5 || stage > 4 && mode != "background shell" || stage > 3 && mode == "background notification" {
 					t.Errorf("unexpected execution continuation %d", stage)
 				}
 				w.Header().Set("Content-Type", "text/event-stream")
@@ -273,18 +288,47 @@ func TestPluginCLIWorkflowAndBackgroundTaskExecution(t *testing.T) {
 			id := rpc("session/new", map[string]any{"cwd": workspace, "mcpServers": []any{}})["sessionId"].(string)
 			sessionID = id
 			permission := "workspace-write"
-			if mode == "background shell" {
+			if mode != "workflow" {
 				permission = "full-access"
 			}
 			rpc("session/set_config_option", map[string]any{"sessionId": id, "configId": "permission", "value": permission})
 			if result := rpc("session/prompt", map[string]any{"sessionId": id, "prompt": []any{map[string]any{"type": "text", "text": "CLI_PARENT_INPUT"}}}); result["stopReason"] != "end_turn" {
 				t.Fatal(result)
 			}
-			if calls.Load() != 4 || approvals != 1 {
+			wantCalls := int32(4)
+			if mode != "workflow" {
+				wantCalls = 5
+				if mode == "background notification" {
+					wantCalls = 3
+					if calls.Load() != 2 {
+						t.Fatal("root prompt did not return before background completion")
+					}
+					if _, err := io.WriteString(gate, "continue\n"); err != nil {
+						t.Fatal(err)
+					}
+				}
+				// Observe the actual follow-up turn's durable end, without sending a
+				// second prompt or closing the process at its first text chunk.
+				tick := time.NewTicker(5 * time.Millisecond)
+				defer tick.Stop()
+				for {
+					data, _ := os.ReadFile(filepath.Join(sessions, id+".jsonl"))
+					turns := bytes.Count(data, []byte(`"type":"turn/end"`))
+					if calls.Load() == wantCalls && turns == 2 {
+						break
+					}
+					select {
+					case <-ctx.Done():
+						t.Fatal("CLI background completion did not finish its follow-up turn")
+					case <-tick.C:
+					}
+				}
+			}
+			if calls.Load() != wantCalls || approvals != 1 {
 				t.Fatalf("calls=%d approvals=%d", calls.Load(), approvals)
 			}
 			want := "workflow-child-artifact"
-			if mode == "background shell" {
+			if mode != "workflow" {
 				want = "background-artifact"
 			} else if _, err := os.Stat(nodeMarker); err != nil {
 				t.Fatalf("--workflow-node was not used: %v", err)
@@ -301,7 +345,7 @@ func TestPluginCLIWorkflowAndBackgroundTaskExecution(t *testing.T) {
 			}
 			journal, err := os.ReadFile(filepath.Join(sessions, id+".jsonl"))
 			fact := "workflow/end"
-			if mode == "background shell" {
+			if mode != "workflow" {
 				fact = "shell-task/ended"
 			}
 			if err != nil || !bytes.Contains(journal, []byte(fact)) {
