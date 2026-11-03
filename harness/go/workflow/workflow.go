@@ -50,9 +50,13 @@ type Call struct {
 	Meta            *Meta           `json:"meta,omitempty"`
 	Args            json.RawMessage `json:"args,omitempty"`
 	RunInBackground bool            `json:"run_in_background,omitempty"`
+	// ResumeFrom continues one recorded run. It is not a background admission
+	// and it does not restore a JavaScript stack.
+	ResumeFrom string `json:"resumeFrom,omitempty"`
 }
 
 type Result struct {
+	RunID      string          `json:"runId,omitempty"`
 	Value      json.RawMessage `json:"value"`
 	StopReason string          `json:"stopReason"`
 	Error      string          `json:"error,omitempty"`
@@ -69,6 +73,7 @@ type App struct {
 	mu         sync.Mutex
 	closed     bool
 	calls      sync.WaitGroup
+	live       map[string]struct{}
 	background map[string]*backgroundTask
 	fenced     map[*harness.Agent]bool
 }
@@ -99,7 +104,7 @@ func Mount(ctx context.Context, h *harness.Harness, packages []plugins.Package, 
 	if err != nil {
 		return nil, err
 	}
-	app := &App{h: h, options: options, catalog: catalog}
+	app := &App{h: h, options: options, catalog: catalog, live: map[string]struct{}{}}
 	defer func() {
 		if err != nil {
 			_ = catalog.close()
@@ -116,7 +121,7 @@ func Mount(ctx context.Context, h *harness.Harness, packages []plugins.Package, 
 		if err := run.BeforeCleanup("workflow/drain", app.drain); err != nil {
 			return nil, err
 		}
-		_, _, err := h.Tools().RegisterWithIdentity(run, harness.Tool{Schema: harness.ToolSchema{Name: "Workflow", Description: "Run an original JavaScript workflow from an explicitly selected plugin workflows directory. Pass its absolute scriptPath and JSON args (or a JSON string when the script expects one). Its export const meta is authoritative. agent(prompt,{label,phase,model,schema}) delegates through the existing agent service; parallel and pipeline preserve input order. phase/log record progress. The concurrency and total call limits count script agent() calls across this run and nested workflow({scriptPath},args) calls; descendant delegation uses existing agent and provider policies. completed means the script returned; unfinished member agents are cancelled, recorded and joined before execution settles. run_in_background=true returns a durable task_id immediately; TaskOutput/TaskStop query or cancel and join this exact parent's workflow. Completed and failed runs deliver an automatic completion notice through the parent inbox after terminal persistence. Parent interruption or retirement cancels accepted work without waking the stopped parent. Lost process ownership becomes interrupted after restart, never replayed. Scripts are trusted package code: the Node VM is not an OS sandbox.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["scriptPath"],"properties":{"scriptPath":{"type":"string","minLength":1},"meta":{"type":"object","additionalProperties":false,"required":["name","description"],"properties":{"name":{"type":"string"},"description":{"type":"string"},"whenToUse":{"type":"string"},"phases":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["title"],"properties":{"title":{"type":"string"},"detail":{"type":"string"},"provider":{"type":"string"},"model":{"type":"string"}}}}}},"args":{},"run_in_background":{"type":"boolean"}}}`)}, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+		_, _, err := h.Tools().RegisterWithIdentity(run, harness.Tool{Schema: harness.ToolSchema{Name: "Workflow", Description: "Run an original JavaScript workflow from an explicitly selected plugin workflows directory. Pass its absolute scriptPath and JSON args (or a JSON string when the script expects one). Its export const meta is authoritative. agent(prompt,{label,phase,model,schema}) delegates through the existing agent service; parallel and pipeline preserve input order. phase/log record progress. The concurrency and total call limits count script agent() calls across this run and nested workflow({scriptPath},args) calls; descendant delegation uses existing agent and provider policies. completed means the script returned; unfinished member agents are cancelled, recorded and joined before execution settles. run_in_background=true returns a durable task_id immediately; TaskOutput/TaskStop query or cancel and join this exact parent's workflow. Completed and failed runs deliver an automatic completion notice through the parent inbox after terminal persistence. Parent interruption or retirement cancels accepted work without waking the stopped parent. Lost process ownership becomes interrupted after restart and is not replayed. resumeFrom continues that recorded run in the foreground: completed agent() results are returned without invoking those children, a start without a terminal record is closed without invoking it, and only later calls run. A completed run cannot resume. Scripts are trusted package code: the Node VM is not an OS sandbox.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["scriptPath"],"properties":{"scriptPath":{"type":"string","minLength":1},"meta":{"type":"object","additionalProperties":false,"required":["name","description"],"properties":{"name":{"type":"string"},"description":{"type":"string"},"whenToUse":{"type":"string"},"phases":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["title"],"properties":{"title":{"type":"string"},"detail":{"type":"string"},"provider":{"type":"string"},"model":{"type":"string"}}}}}},"args":{},"run_in_background":{"type":"boolean"},"resumeFrom":{"type":"string","minLength":1}}}`)}, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 			var call Call
 			if err := decodeWire(request.Arguments, &call); err != nil {
 				return harness.ToolResult{}, err

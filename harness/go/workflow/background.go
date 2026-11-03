@@ -135,6 +135,9 @@ func (app *App) StartBackground(ctx context.Context, request harness.ToolRequest
 	if request.Agent == nil || request.CallID == "" {
 		return harness.ToolResult{}, errors.New("workflow: background execution requires an owning agent and call identity")
 	}
+	if call.ResumeFrom != "" {
+		return harness.ToolResult{}, errors.New("workflow: resumeFrom continues in the foreground and cannot start another background task")
+	}
 	call.RunInBackground = false
 	if err := app.validate(ctx, call); err != nil {
 		return harness.ToolResult{}, err

@@ -52,17 +52,21 @@ type wireResponse struct {
 }
 
 type progress struct {
-	RunID      string                 `json:"runId"`
-	ScriptPath string                 `json:"scriptPath,omitempty"`
-	Meta       *Meta                  `json:"meta,omitempty"`
-	Phase      string                 `json:"phase,omitempty"`
-	Message    string                 `json:"message,omitempty"`
-	Sequence   int                    `json:"sequence,omitempty"`
-	Label      string                 `json:"label,omitempty"`
-	ChildID    harness.SessionID      `json:"childId,omitempty"`
-	Status     harness.SubagentStatus `json:"status,omitempty"`
-	Outcome    string                 `json:"outcome,omitempty"`
-	StopReason string                 `json:"stopReason,omitempty"`
+	RunID       string                 `json:"runId"`
+	ScriptPath  string                 `json:"scriptPath,omitempty"`
+	Meta        *Meta                  `json:"meta,omitempty"`
+	Phase       string                 `json:"phase,omitempty"`
+	Message     string                 `json:"message,omitempty"`
+	Sequence    int                    `json:"sequence,omitempty"`
+	Label       string                 `json:"label,omitempty"`
+	ChildID     harness.SessionID      `json:"childId,omitempty"`
+	Status      harness.SubagentStatus `json:"status,omitempty"`
+	Outcome     string                 `json:"outcome,omitempty"`
+	StopReason  string                 `json:"stopReason,omitempty"`
+	Fingerprint string                 `json:"fingerprint,omitempty"`
+	ArgsHash    string                 `json:"argsHash,omitempty"`
+	Text        string                 `json:"text,omitempty"`
+	Structured  json.RawMessage        `json:"structured,omitempty"`
 }
 
 type execution struct {
@@ -79,6 +83,7 @@ type execution struct {
 	writes   sync.Mutex
 	output   *json.Encoder
 	children sync.WaitGroup
+	ledger   map[int]resumeStep
 }
 
 func decodeWire(raw []byte, target any) error {
@@ -102,7 +107,11 @@ func (app *App) Execute(ctx context.Context, parent *harness.Agent, call Call) (
 	if call.RunInBackground {
 		return Result{}, errors.New("workflow: background execution requires StartBackground with a tool call identity")
 	}
-	return app.execute(ctx, parent, call, rand.Text())
+	runID := rand.Text()
+	if call.ResumeFrom != "" {
+		runID = call.ResumeFrom
+	}
+	return app.execute(ctx, parent, call, runID)
 }
 
 func (app *App) validate(ctx context.Context, call Call) error {
@@ -119,25 +128,53 @@ func (app *App) execute(ctx context.Context, parent *harness.Agent, call Call, r
 	if err := app.validate(ctx, call); err != nil {
 		return Result{}, err
 	}
+	var ledger map[int]resumeStep
+	if call.ResumeFrom != "" {
+		if call.ResumeFrom != runID {
+			return Result{}, errors.New("workflow: resumeFrom does not match the execution identity")
+		}
+		var err error
+		ledger, err = loadResume(parent, call)
+		if err != nil {
+			return Result{}, err
+		}
+	}
 	app.mu.Lock()
 	if app.closed {
 		app.mu.Unlock()
 		return Result{}, point.ErrInactiveRun
 	}
+	if _, busy := app.live[runID]; busy {
+		app.mu.Unlock()
+		return Result{}, errors.New("workflow: that run is still executing")
+	}
+	if app.live == nil {
+		app.live = map[string]struct{}{}
+	}
+	app.live[runID] = struct{}{}
 	app.calls.Add(1)
 	app.mu.Unlock()
-	defer app.calls.Done()
+	defer func() {
+		app.mu.Lock()
+		delete(app.live, runID)
+		app.mu.Unlock()
+		app.calls.Done()
+	}()
 	operation, cancel := context.WithCancel(ctx)
 	stop := context.AfterFunc(app.owner, cancel)
 	defer func() { stop(); cancel() }()
-	run := &execution{app: app, parent: parent, ctx: operation, runID: runID, slots: make(chan struct{}, app.options.MaxConcurrentAgents), loaded: make(map[string]selectedScript)}
-	if err := run.record("start", progress{ScriptPath: call.ScriptPath}); err != nil {
+	run := &execution{app: app, parent: parent, ctx: operation, runID: runID, slots: make(chan struct{}, app.options.MaxConcurrentAgents), loaded: make(map[string]selectedScript), ledger: ledger}
+	if call.ResumeFrom == "" {
+		if err := run.record("start", progress{ScriptPath: call.ScriptPath, ArgsHash: hashArgs(call.Args)}); err != nil {
+			return Result{}, err
+		}
+	} else if err := run.record("resume", progress{ScriptPath: call.ScriptPath, ArgsHash: hashArgs(call.Args)}); err != nil {
 		return Result{}, err
 	}
 	result, err := run.process(call)
 	if operation.Err() != nil {
 		_, _ = app.h.Agents().AppendAgentLogExactAndFlush(context.WithoutCancel(ctx), parent, "workflow/end", progress{RunID: run.runID, StopReason: "cancelled"})
-		return Result{}, operation.Err()
+		return Result{RunID: run.runID}, operation.Err()
 	}
 	if err != nil {
 		result = Result{Value: json.RawMessage(`null`), StopReason: "error", Error: err.Error()}
@@ -151,8 +188,9 @@ func (app *App) execute(ctx context.Context, parent *harness.Agent, call Call, r
 	if len(result.Value) == 0 {
 		result.Value = json.RawMessage(`null`)
 	}
+	result.RunID = run.runID
 	if err := run.record("end", progress{StopReason: result.StopReason}); err != nil {
-		return Result{}, err
+		return Result{RunID: run.runID}, err
 	}
 	return result, nil
 }
@@ -277,7 +315,15 @@ func (run *execution) dispatch(ctx context.Context, request wireRequest) error {
 func (run *execution) agent(ctx context.Context, request wireRequest) {
 	response := wireResponse{ID: request.ID}
 	member := progress{RunID: run.runID, Sequence: request.sequence, Label: request.Label, Phase: request.Phase, Status: harness.SubagentRunning}
-	defer func() {
+	var recorded, writeEnd bool
+	recordEnd := func() {
+		if recorded {
+			return
+		}
+		recorded = true
+		if !writeEnd {
+			return
+		}
 		recordContext := run.ctx
 		if ctx.Err() != nil {
 			recordContext = context.WithoutCancel(run.ctx)
@@ -294,11 +340,13 @@ func (run *execution) agent(ctx context.Context, request wireRequest) {
 		} else if member.Status == harness.SubagentAborted {
 			member.Outcome = "cancelled"
 		}
-		if _, err := run.app.h.Agents().AppendAgentLogExact(recordContext, run.parent, "workflow/agent-end", member); err != nil {
+		if _, err := run.app.h.Agents().AppendAgentLogExactAndFlush(recordContext, run.parent, "workflow/agent-end", member); err != nil {
 			run.fail(err)
 		}
-	}()
+	}
+	defer recordEnd()
 	respond := func(err error) {
+		recordEnd()
 		if err != nil {
 			if ctx.Err() == nil || run.ctx.Err() != nil {
 				run.fail(err)
@@ -306,6 +354,16 @@ func (run *execution) agent(ctx context.Context, request wireRequest) {
 			response.Error = err.Error()
 		}
 		_ = run.respond(response)
+	}
+	fingerprint, err := callFingerprint(request)
+	if err != nil {
+		respond(err)
+		return
+	}
+	member.Fingerprint = fingerprint
+	if handled, err := run.replay(request, fingerprint, &response, &member, &recorded, &writeEnd); handled {
+		respond(err)
+		return
 	}
 	run.mu.Lock()
 	selected, loaded := run.loaded[request.ScriptPath]
@@ -318,6 +376,11 @@ func (run *execution) agent(ctx context.Context, request wireRequest) {
 		respond(errors.New("workflow: provider override is not configured; use a declared model alias"))
 		return
 	}
+	if _, err := run.app.h.Agents().AppendAgentLogExactAndFlush(ctx, run.parent, "workflow/agent-start", member); err != nil {
+		respond(err)
+		return
+	}
+	writeEnd = true
 	select {
 	case run.slots <- struct{}{}:
 		defer func() { <-run.slots }()
@@ -336,7 +399,10 @@ func (run *execution) agent(ctx context.Context, request wireRequest) {
 	if result.Status != "" {
 		member.Status = result.Status
 	}
-	if err != nil {
+	if err != nil || ctx.Err() != nil {
+		if err == nil {
+			err = ctx.Err()
+		}
 		respond(err)
 		return
 	}
@@ -348,12 +414,15 @@ func (run *execution) agent(ctx context.Context, request wireRequest) {
 		}
 	}
 	response.Text = text.String()
+	member.Text = response.Text
 	if result.Structured != nil {
 		response.Structured, err = json.Marshal(result.Structured)
 		if err != nil {
+			member.Status = harness.SubagentFailed
 			respond(errors.New("workflow: child structured output is not JSON"))
 			return
 		}
+		member.Structured = response.Structured
 	}
 	respond(nil)
 }

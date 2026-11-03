@@ -65,8 +65,10 @@ disposal also reclaim Node and child activations before returning.
 ## Scope and remaining differences
 
 `run_in_background: true` returns an owned task handle as described below.
-There is no execution-resume protocol, arbitrary module loader or claim of
-general JavaScript application compatibility. Scripts run as trusted selected
+There is no JavaScript-stack resume, arbitrary module loader or claim of
+general JavaScript application compatibility. An explicit `resumeFrom` run id
+re-enters the same script without repeating recorded agent() effects, as
+described below. Scripts run as trusted selected
 package code. The Node VM restricts available globals but **is not an OS
 sandbox**; deployment isolation remains the host's responsibility.
 
@@ -116,8 +118,8 @@ is reported as failure, never as durable success.
 
 Lookup reconstructs terminal results from the owning Session's journal. An
 unfinished intent with no live process owner becomes interrupted once; it
-never launches Node, repeats members or retries file effects. This is terminal
-recovery, not workflow execution resumption. External storage durability still
+never launches Node, repeats members or retries file effects. Restart does
+not resume a JavaScript stack. External storage durability still
 requires the existing Session persistence configuration; in-memory Sessions
 do not acquire disk durability from this API.
 
@@ -130,8 +132,23 @@ Real integration tests exercise two background stages, a member Write and its
 approval after the parent turn ends, shared polling/waiting/stopping, exact
 parent isolation, cancellation, disposal, actual parent retirement, terminal
 restoration and lost-owner interruption without replay. The actual model seam
-is a fixture. Online parent completion notices are described below. Resumable workflow
-continuations remain separate work; TaskOutput remains available for retrieval.
+is a fixture. Online parent completion notices are described below. Explicit
+continuation is separate from this restart behavior; TaskOutput remains
+available for retrieval.
+
+## Explicit continuation
+
+`resumeFrom` continues one recorded run id in the foreground. Node starts
+again and re-enters the same script and args. Each `agent()` call is matched
+in admission order to the journal by a fingerprint of the script, prompt,
+label, phase and schema. A completed record supplies its stored text or
+structured result and does not invoke a child. A start without a terminal
+record, and any terminal record that is not completed, is returned as not
+completed and does not invoke a child. Only calls after that prefix invoke
+new children. A fingerprint, script or args mismatch fails before a new
+child. A completed run, a run that is still executing, and
+`run_in_background` cannot resume. This does not restore a JavaScript stack
+or in-flight process memory.
 
 ## Completion notifications
 
@@ -163,7 +180,8 @@ external model quality or replace the earlier ACP stream visibility check.
 
 Persisted pending inbox messages use existing resume behavior. The terminal-to-
 inbox crash window is reconciled at the resume boundary described below.
-Execution continuation remains unsupported.
+Explicit resumeFrom continues a recorded run from its journal. Restart still
+does not resume a lost process.
 
 ## Recovery reconciliation
 
