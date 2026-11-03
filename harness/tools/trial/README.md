@@ -5,6 +5,44 @@ This independent Python standard-library tool runs trials through an explicit
 this directory and its optional package launcher migration to remove the
 adapter; no Go composition or provider implementation depends on it.
 
+## Original coder review acceptance
+
+`verify_coder.py --plugin /absolute/coder` prepares a fresh isolated Git project
+without model requests. It copies the selected package, creates a small batch
+label utility change and six real Python tests, then runs the package's original
+task provenance, scope-check, cr-prepare and review-selector scripts. The selector's
+complete workflow input is retained; dimensions are not substituted for easier ones.
+Original package files are not modified by this verifier.
+
+To execute a model acceptance explicitly:
+
+```sh
+python3 verify_coder.py --plugin /absolute/coder --execute \
+  --agent-binary /absolute/pero-agent-acp \
+  --endpoint https://api.deepseek.com/v1 --model deepseek-flash \
+  --api-key-env DEEPSEEK_API_KEY --disable-thinking --max-requests 80
+```
+
+The credential must already exist in the named environment variable. Git,
+Node, Python and the ACP executable must be available. `--execute` authorizes
+the existing trial client's approved Bash/file operations in this disposable
+fixture; it does not add an OS sandbox. It uses the same specified model for
+the plugin's opus/sonnet aliases, rather than claiming those are Claude models.
+The existing CLI thinking option is passed through an exec launcher when
+requested. There are no automatic HTTP retries or prompt continuations.
+
+Acceptance requires a normal session and clean shutdown, one actual Workflow
+call with the exact selector input, an approved source-journal result matching
+the saved result, all selected report parser results and required headings,
+unchanged tracked source/commit/plugin contents, and passing post-review tests.
+`acceptance.json` records actual requests and provider-reported usage; unknown
+cost is not estimated. A needs_rework or incomplete result is reported as failure
+for this positive fixture, without automatically repairing or replaying it.
+This covers the original review subflow, not the entire development/worktree/
+human decision/merge orchestration. Apply any explicit source repair before
+selection; the [quoted-output hook migration](../../go/plugins/migrations/README.md#selected-review-hook-repair)
+is separate from the verifier.
+
 Pass JSON on stdin and receive one JSON receipt on stdout:
 
 ```json
