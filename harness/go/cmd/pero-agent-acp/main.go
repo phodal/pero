@@ -197,6 +197,21 @@ func run() (resultErr error) {
 	if skillCatalog != nil {
 		mountOptions := skills.MountOptions{Claude: len(packages) > 0}
 		if len(packages) > 0 {
+			mountOptions.ActivateHooks = func(_ context.Context, agent *harness.Agent, definition skills.Definition) error {
+				if pluginHooks == nil {
+					return nil
+				}
+				origin, _, _ := strings.Cut(definition.Name, ":")
+				var root string
+				for _, pkg := range packages {
+					if pkg.Definition.Name == origin {
+						root = pkg.Root
+						break
+					}
+				}
+				pluginHooks.ActivateSkillHooks(agent, origin, root, definition.Name, definition.Hooks)
+				return nil
+			}
 			mountOptions.ResolveModel = pluginModelResolver(pluginConfig.Models)
 			mountOptions.Fork = func(ctx context.Context, parent *harness.Agent, definition skills.Definition) (harness.SubagentResult, error) {
 				origin, _, _ := strings.Cut(definition.Name, ":")
@@ -223,14 +238,9 @@ func run() (resultErr error) {
 		if err != nil {
 			return err
 		}
-		if sandboxConfig != nil {
-			for _, pkg := range packages {
-				if len(pkg.Hooks) > 0 {
-					return errors.New("plugin command hooks do not yet support the selected sandbox backend")
-				}
-			}
-		}
-		pluginHooks, err = pluginruntime.MountHooks(ctx, h, packages, pluginruntime.HookOptions{Shell: pluginShell, Environment: pluginEnvironment, StateDirectory: stateRoot})
+		// Command hooks stay host processes (Claude parity). The Bash sandbox
+		// still confines model shell calls independently.
+		pluginHooks, err = pluginruntime.MountHooks(ctx, h, packages, pluginruntime.HookOptions{Shell: pluginShell, Environment: pluginEnvironment, StateDirectory: stateRoot, Retain: true})
 		if err != nil {
 			return err
 		}

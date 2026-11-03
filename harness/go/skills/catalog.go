@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/phodal/pero/harness/go/claudehooks"
 	"github.com/phodal/pero/harness/go/fstools"
 	"gopkg.in/yaml.v3"
 )
@@ -29,16 +30,17 @@ type Summary struct {
 }
 type Definition struct {
 	Summary
-	Content      string   `json:"content"`
-	ResourceBase string   `json:"resourceBase,omitempty"`
-	Directory    string   `json:"directory,omitempty"`
-	Resources    []string `json:"resources,omitempty"`
-	AllowedTools []string `json:"allowedTools,omitempty"`
-	Model        string   `json:"model,omitempty"`
-	Context      string   `json:"context,omitempty"`
-	Agent        string   `json:"agent,omitempty"`
-	Background   *bool    `json:"background,omitempty"`
-	Claude       bool     `json:"-"`
+	Content      string             `json:"content"`
+	ResourceBase string             `json:"resourceBase,omitempty"`
+	Directory    string             `json:"directory,omitempty"`
+	Resources    []string           `json:"resources,omitempty"`
+	AllowedTools []string           `json:"allowedTools,omitempty"`
+	Model        string             `json:"model,omitempty"`
+	Context      string             `json:"context,omitempty"`
+	Agent        string             `json:"agent,omitempty"`
+	Background   *bool              `json:"background,omitempty"`
+	Claude       bool               `json:"-"`
+	Hooks        []claudehooks.Hook `json:"-"`
 	// Rendered marks trusted invocation output, never model-supplied content.
 	Rendered bool `json:"-"`
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/plugins"
 	point "github.com/phodal/pero/harness/go/runtime"
+	"github.com/phodal/pero/harness/go/subagents"
 )
 
 func scriptHook(t *testing.T, root, event, body string) claudehooks.Hook {
@@ -199,7 +200,7 @@ func TestHookToolAdmissionAndResult(t *testing.T) {
 				t.Fatalf("body=%d approvals=%d", bodies.Load(), approvals.Load())
 			}
 			data, err := os.ReadFile(filepath.Join(root, "tool-input.json"))
-			if err != nil || !strings.Contains(string(data), `"tool_name":"Write"`) || !strings.Contains(string(data), `"tool_input":{"file_path":"original.md"`) {
+			if err != nil || !strings.Contains(string(data), `"tool_name":"Write"`) || !strings.Contains(string(data), `"tool_input":{"file_path":"original.md"`) || strings.Count(string(data), `"file_path":"original.md"`) < 2 {
 				t.Fatalf("standard tool payload missing: %s %v", data, err)
 			}
 		})
@@ -414,4 +415,241 @@ func TestNonBlockingHookFailureAllowsProviderDispatch(t *testing.T) {
 	if err := prompt(t, agent, "continue"); err != nil || calls.Load() != 1 {
 		t.Fatalf("non-blocking hook prevented dispatch: calls=%d error=%v", calls.Load(), err)
 	}
+}
+
+func TestHookIfSelectsMatchingBashCommand(t *testing.T) {
+	root := t.TempDir()
+	pre := scriptHook(t, root, "PreToolUse", `body=$(cat); printf '%s\n' "$body" >> "$CLAUDE_PLUGIN_ROOT/ran"`)
+	pre.If = "Bash(git *)"
+	session := scriptHook(t, root, "SessionStart", `printf SESSION_RAN >> "$CLAUDE_PLUGIN_ROOT/ran"`)
+	session.If = "Bash(git *)"
+	var calls atomic.Int32
+	adapter := harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		switch calls.Add(1) {
+		case 1:
+			return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: "Bash", ToolCallID: "npm", Arguments: json.RawMessage(`{"command":"npm test"}`)}}}}, nil
+		case 2:
+			return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: "Bash", ToolCallID: "git", Arguments: json.RawMessage(`{"command":"git status"}`)}}}}, nil
+		default:
+			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+		}
+	})
+	h, _ := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{session, pre}}, 0)
+	if _, err := h.RegisterTool(t.Context(), "fixture-bash", harness.Tool{Schema: harness.ToolSchema{Name: "Bash", InputSchema: json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`)}, Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+		return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "ran"}}}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "hook-if", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prompt(t, agent, "check git"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "ran"))
+	if err != nil || !strings.Contains(string(data), `"command":"git status"`) || strings.Contains(string(data), `"command":"npm test"`) || strings.Contains(string(data), "SESSION_RAN") {
+		t.Fatalf("if filter selected the wrong commands: %s %v", data, err)
+	}
+}
+
+func TestSkillFrontmatterHookRunsOnce(t *testing.T) {
+	root := t.TempDir()
+	hook := scriptHook(t, root, "PreToolUse", `printf ran >> "$CLAUDE_PLUGIN_ROOT/ran"`)
+	hook.Once = true
+	var calls atomic.Int32
+	adapter := harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		if calls.Add(1) > 2 {
+			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+		}
+		return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: "Bash", ToolCallID: harness.ToolCallID("bash"), Arguments: json.RawMessage(`{"command":"printf ok"}`)}}}}, nil
+	})
+	keepalive := scriptHook(t, root, "SessionStart", "true")
+	h, app := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{keepalive}}, 0)
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "skill-hooks", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.ActivateSkillHooks(agent, "fixture", root, "fixture:secure", []claudehooks.Hook{hook})
+	if _, err := h.RegisterTool(t.Context(), "fixture-bash", harness.Tool{Schema: harness.ToolSchema{Name: "Bash", InputSchema: json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`)}, Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+		return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "ok"}}}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := prompt(t, agent, "run twice"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "ran"))
+	if err != nil || string(data) != "ran" {
+		t.Fatalf("once hook ran %q: %v", data, err)
+	}
+}
+
+func TestAgentFrontmatterStopBecomesSubagentStop(t *testing.T) {
+	root := t.TempDir()
+	var calls atomic.Int32
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		if request.Agent.Parent() == nil {
+			calls.Add(1)
+		}
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "child done"}}}}, nil
+	})
+	h, err := harness.Boot(t.Context(), harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	component, diagnostics := plugins.ParseComponent("sample", plugins.ComponentAgent, "agents/reviewer.md", []byte("---\nname: reviewer\ndescription: Review.\nhooks:\n  Stop:\n    - hooks:\n        - type: command\n          command: printf frontmatter > stop\n---\nReview.\n"))
+	if len(diagnostics) != 0 || len(component.Hooks) != 1 || component.QualifiedName != "sample:reviewer" {
+		t.Fatalf("hooks=%+v name=%s diagnostics=%v", component.Hooks, component.QualifiedName, diagnostics)
+	}
+	app, err := MountHooks(t.Context(), h, []plugins.Package{{Root: root, Definition: plugins.Plugin{Name: "sample", Components: []plugins.Component{component}}}}, HookOptions{Shell: "/bin/sh", Environment: []string{"PATH=/usr/bin:/bin"}, StateDirectory: t.TempDir(), MaxStopBlocks: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()); _ = app.Close() }()
+	selected := app.hooksFor(nil, claudehooks.Input{Event: "SubagentStop", AgentType: "sample:reviewer"})
+	if len(selected) != 1 || selected[0].hook.Event != "SubagentStop" {
+		t.Fatalf("frontmatter stop was not rewritten: %+v", selected)
+	}
+	agents, err := subagents.MountClaude(t.Context(), h, []subagents.AgentDefinition{{Name: "sample:reviewer", Description: "review", Instructions: "Review."}}, subagents.ClaudeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "frontmatter-parent", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agents.Invoke(t.Context(), parent, subagents.ClaudeInvocation{Definition: "sample:reviewer", Prompt: "check"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "stop"))
+	if err != nil || string(data) != "frontmatter" || calls.Load() != 0 {
+		t.Fatalf("frontmatter stop hook=%q parentCalls=%d error=%v", data, calls.Load(), err)
+	}
+}
+
+func TestAsyncHookDeliversContextOnTheNextTurn(t *testing.T) {
+	root := t.TempDir()
+	hook := scriptHook(t, root, "PostToolUse", `while [ ! -f "$CLAUDE_PLUGIN_ROOT/release-async" ]; do sleep 0.05; done
+printf '%s' '{"additionalContext":"async result"}'
+printf done > "$CLAUDE_PLUGIN_ROOT/async-finished"`)
+	hook.Async = true
+	var calls, bodies atomic.Int32
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		call := calls.Add(1)
+		raw, _ := json.Marshal(request.Messages)
+		if call == 1 {
+			return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: "Bash", ToolCallID: "bash", Arguments: json.RawMessage(`{"command":"printf ok"}`)}}}}, nil
+		}
+		if call == 2 && strings.Contains(string(raw), "async result") {
+			t.Error("async hook context arrived before the hook finished")
+		}
+		if call >= 3 && !strings.Contains(string(raw), "async result") {
+			t.Errorf("next turn missed async context: %s", raw)
+		}
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	})
+	h, _ := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{hook}}, 0)
+	if _, err := h.RegisterTool(t.Context(), "fixture-bash", harness.Tool{Schema: harness.ToolSchema{Name: "Bash", InputSchema: json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`)}, Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+		bodies.Add(1)
+		return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "ok"}}}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "async-hook", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prompt(t, agent, "run"); err != nil || bodies.Load() != 1 {
+		t.Fatalf("async hook blocked the tool: bodies=%d error=%v", bodies.Load(), err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "release-async"), []byte("go"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if _, err := os.Stat(filepath.Join(root, "async-finished")); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("async hook did not finish")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err := prompt(t, agent, "next"); err != nil || calls.Load() < 3 {
+		t.Fatalf("next turn failed: calls=%d error=%v", calls.Load(), err)
+	}
+}
+
+func TestHookReceivesPluginDataDirectory(t *testing.T) {
+	root := t.TempDir()
+	hook := scriptHook(t, root, "SessionStart", `printf '%s' "$CLAUDE_PLUGIN_DATA" > "$CLAUDE_PLUGIN_ROOT/data-path"`)
+	var calls atomic.Int32
+	adapter := harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		calls.Add(1)
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant}}, nil
+	})
+	h, _ := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "sample.plugin"}, Hooks: []claudehooks.Hook{hook}}, 0)
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "plugin-data", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prompt(t, agent, "start"); err != nil || calls.Load() != 1 {
+		t.Fatalf("hook prevented dispatch: calls=%d error=%v", calls.Load(), err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "data-path"))
+	want, wantErr := plugins.EnsurePluginDataDirectory("sample.plugin")
+	if err != nil || wantErr != nil || string(data) != want || filepath.Base(want) != "sample-plugin" {
+		t.Fatalf("data=%q want=%q error=%v %v", data, want, err, wantErr)
+	}
+}
+
+func TestHookOnFailureChoosesWhetherTheToolRuns(t *testing.T) {
+	for _, test := range []struct {
+		name, policy string
+		runs         bool
+	}{
+		{name: "missing hook continues", runs: true},
+		{name: "missing hook blocks", policy: "block"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			hook := claudehooks.Hook{Event: "PreToolUse", Matcher: "Bash", Command: "/no/such/pero-hook", Args: []string{"check"}, ExecForm: true, OnFailure: test.policy}
+			var calls, bodies atomic.Int32
+			var followed string
+			adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+				if calls.Add(1) == 1 {
+					return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: "Bash", ToolCallID: "bash", Arguments: json.RawMessage(`{"command":"printf ok"}`)}}}}, nil
+				}
+				raw, _ := json.Marshal(request.Messages)
+				followed = string(raw)
+				return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+			})
+			h, _ := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{hook}}, 0)
+			if _, err := h.RegisterTool(t.Context(), "fixture-bash", harness.Tool{Schema: harness.ToolSchema{Name: "Bash", InputSchema: json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`)}, Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+				bodies.Add(1)
+				return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "ok"}}}, nil
+			}}); err != nil {
+				t.Fatal(err)
+			}
+			agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "hook-failure", CWD: root, Provider: "fixture", Model: "scripted"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := prompt(t, agent, "run"); err != nil {
+				t.Fatal(err)
+			}
+			if (bodies.Load() == 1) != test.runs {
+				t.Fatalf("tool ran=%d want run=%v", bodies.Load(), test.runs)
+			}
+			if !test.runs && !strings.Contains(followed, `blocking because onFailure is`) {
+				t.Fatalf("block notice missing: %s", followed)
+			}
+		})
+	}
+}
+
+func jsonString(value string) string {
+	encoded, _ := json.Marshal(value)
+	return string(encoded)
 }

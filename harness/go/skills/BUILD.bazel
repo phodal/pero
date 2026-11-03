@@ -17,6 +17,7 @@ go_library(
     importpath = "github.com/phodal/pero/harness/go/skills",
     visibility = ["//visibility:public"],
     deps = [
+        "//claudehooks",
         "//fstools",
         "//harness",
         "//plugins",

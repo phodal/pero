@@ -4,6 +4,7 @@ go_library(
     name = "pluginruntime",
     srcs = [
         "command_output.go",
+        "hook_failure.go",
         "hooks.go",
         "hooks_subagent_start.go",
         "mcp.go",

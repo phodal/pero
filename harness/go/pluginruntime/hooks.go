@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,9 @@ type HookOptions struct {
 	Environment    []string
 	StateDirectory string
 	MaxStopBlocks  int
+	// Retain keeps the hook runtime when a package has no settings hooks, so
+	// skill and agent frontmatter hooks can register later.
+	Retain bool
 }
 
 type HookApp struct {
@@ -41,6 +45,15 @@ type HookApp struct {
 	closed              bool
 	states              map[*harness.Agent]*hookAgentState
 	calls               sync.WaitGroup
+	skillHooks          map[*harness.Agent][]sessionHook
+	retired             map[string]bool
+	asyncNotes          map[*harness.Agent][]string
+	asyncCancels        []context.CancelFunc
+}
+
+type sessionHook struct {
+	id, root, plugin string
+	hook             claudehooks.Hook
 }
 
 type hookAgentState struct {
@@ -59,15 +72,15 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 	}
 	count := 0
 	for _, pkg := range packages {
+		for _, component := range pkg.Definition.Components {
+			count += len(component.Hooks)
+		}
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
 			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
-			}
-			if hook.Async {
-				return nil, errors.New("plugin-runtime: async hook execution is not implemented")
 			}
 			if _, err := claudehooks.Match(hook.Matcher, ""); err != nil {
 				return nil, err
@@ -77,7 +90,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 			}
 		}
 	}
-	if count == 0 {
+	if count == 0 && !options.Retain {
 		return nil, nil
 	}
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
@@ -141,6 +154,7 @@ func (app *HookApp) register(run *point.Run) error {
 		}
 	}
 	if _, err := hooks.PreStep.Use(run, func(ctx context.Context, input harness.StepInput, next point.Next[harness.StepInput]) (harness.StepInput, error) {
+		app.deliverAsyncNotes(&input)
 		err := app.withAgent(ctx, input.Agent, func(ctx context.Context, state *hookAgentState) error { return app.prepare(ctx, &input, state) })
 		if err != nil {
 			return input, err
@@ -322,8 +336,18 @@ func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state
 	return nil
 }
 
+func legacyHookPaths(raw json.RawMessage) (filePath, notebookPath string) {
+	var fields struct {
+		FilePath     string `json:"file_path"`
+		NotebookPath string `json:"notebook_path"`
+	}
+	_ = json.Unmarshal(raw, &fields)
+	return fields.FilePath, fields.NotebookPath
+}
+
 func (app *HookApp) beforeTool(ctx context.Context, request *harness.ToolRequest) error {
-	decision, err := app.event(ctx, request.Agent, claudehooks.Input{Event: "PreToolUse", ToolName: request.Name, ToolUseID: string(request.CallID), ToolInput: request.Arguments})
+	filePath, notebookPath := legacyHookPaths(request.Arguments)
+	decision, err := app.event(ctx, request.Agent, claudehooks.Input{Event: "PreToolUse", ToolName: request.Name, ToolUseID: string(request.CallID), ToolInput: request.Arguments, FilePath: filePath, NotebookPath: notebookPath})
 	if err != nil {
 		return err
 	}
@@ -420,6 +444,13 @@ func (app *HookApp) stopping(ctx context.Context, agent *harness.Agent, state *h
 	return agent.Inject(hookMessage(event, text))
 }
 
+type runnableHook struct {
+	hook   claudehooks.Hook
+	root   string
+	plugin string
+	onceID string
+}
+
 func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claudehooks.Input) (claudehooks.Decision, error) {
 	var decisions []claudehooks.Decision
 	identity, err := subagents.HookAttribution(agent)
@@ -428,74 +459,233 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 	}
 	input.SessionID, input.CWD = string(identity.Session.ID()), agent.Session().WorkingDirectory()
 	input.AgentID, input.AgentType = string(identity.AgentID), identity.AgentType
-	for _, pkg := range app.packages {
-		for _, hook := range pkg.Hooks {
-			if hook.Event != input.Event {
-				continue
-			}
-			matcherValue, filter, matches := "", false, true
-			switch input.Event {
-			case "SessionStart":
-				matcherValue, filter = input.Source, true
-			case "PreToolUse", "PostToolUse", "PostToolUseFailure":
-				matcherValue, filter = input.ToolName, true
-			case "SubagentStart", "SubagentStop":
-				matcherValue, filter = input.AgentType, true
-			case "PreCompact", "PostCompact":
-				matcherValue, filter = input.Trigger, true
-			}
-			if filter {
-				var err error
-				matches, err = claudehooks.Match(hook.Matcher, matcherValue)
-				if err != nil {
-					return claudehooks.Decision{}, err
-				}
-			}
-			if !matches {
-				continue
-			}
-			if input.TranscriptPath == "" {
-				var err error
-				input.TranscriptPath, err = app.writeTranscript(identity.Session)
-				if err != nil {
-					return claudehooks.Decision{}, err
-				}
-			}
-			if input.Event == "SubagentStop" && input.AgentTranscriptPath == "" {
-				input.AgentTranscriptPath, err = app.writeTranscript(agent)
-				if err != nil {
-					return claudehooks.Decision{}, err
-				}
-			}
-			project := identity.Session.Session().Header().CWD
-			if project == "" {
-				project = input.CWD
-			}
-			environment := append([]string{}, app.options.Environment...)
-			environment = append(environment, "CLAUDE_PLUGIN_ROOT="+pkg.Root, "CLAUDE_PROJECT_DIR="+project, "CLAUDE_SESSION_ID="+input.SessionID)
-			if hook.ExecForm {
-				expand := strings.NewReplacer("${CLAUDE_PLUGIN_ROOT}", pkg.Root, "${CLAUDE_PROJECT_DIR}", project, "${CLAUDE_SESSION_ID}", input.SessionID)
-				hook.Command = expand.Replace(hook.Command)
-				hook.Args = append([]string(nil), hook.Args...)
-				for index := range hook.Args {
-					hook.Args[index] = expand.Replace(hook.Args[index])
-				}
-			}
-			decision, err := (claudehooks.Runner{Shell: app.options.Shell, Environment: environment}).Run(ctx, hook, input)
-			if errors.Is(err, claudehooks.ErrNonBlocking) {
-				app.h.Runtime().Logger().Warn("Claude command hook failed without blocking", "plugin", pkg.Definition.Name, "event", input.Event, "error", err)
-				continue
-			}
-			if err != nil {
-				return claudehooks.Decision{}, fmt.Errorf("plugin-runtime: %s %s hook: %w", pkg.Definition.Name, input.Event, err)
-			}
-			if decision.SystemMessage != "" {
-				app.h.Runtime().Logger().Warn("Claude command hook message", "plugin", pkg.Definition.Name, "event", input.Event, "message", decision.SystemMessage)
-			}
-			decisions = append(decisions, decision)
+	for _, selected := range app.hooksFor(agent, input) {
+		hook := selected.hook
+		if hook.Event != input.Event {
+			continue
 		}
+		matcherValue, filter, matches := "", false, true
+		switch input.Event {
+		case "SessionStart":
+			matcherValue, filter = input.Source, true
+		case "PreToolUse", "PostToolUse", "PostToolUseFailure":
+			matcherValue, filter = input.ToolName, true
+		case "SubagentStart", "SubagentStop":
+			matcherValue, filter = input.AgentType, true
+		case "PreCompact", "PostCompact":
+			matcherValue, filter = input.Trigger, true
+		}
+		if filter {
+			var err error
+			matches, err = claudehooks.Match(hook.Matcher, matcherValue)
+			if err != nil {
+				return claudehooks.Decision{}, err
+			}
+		}
+		if !matches || !claudehooks.IfMatches(hook.If, input) {
+			continue
+		}
+		if input.TranscriptPath == "" {
+			var err error
+			input.TranscriptPath, err = app.writeTranscript(identity.Session)
+			if err != nil {
+				return claudehooks.Decision{}, err
+			}
+		}
+		if input.Event == "SubagentStop" && input.AgentTranscriptPath == "" {
+			input.AgentTranscriptPath, err = app.writeTranscript(agent)
+			if err != nil {
+				return claudehooks.Decision{}, err
+			}
+		}
+		project := identity.Session.Session().Header().CWD
+		if project == "" {
+			project = input.CWD
+		}
+		dataDirectory, err := plugins.EnsurePluginDataDirectory(selected.plugin)
+		if err != nil {
+			return claudehooks.Decision{}, err
+		}
+		environment := append([]string{}, app.options.Environment...)
+		environment = append(environment, "CLAUDE_PLUGIN_ROOT="+selected.root, "CLAUDE_PLUGIN_DATA="+dataDirectory, "CLAUDE_PROJECT_DIR="+project, "CLAUDE_SESSION_ID="+input.SessionID)
+		if hook.ExecForm {
+			expand := strings.NewReplacer("${CLAUDE_PLUGIN_ROOT}", selected.root, "${CLAUDE_PLUGIN_DATA}", dataDirectory, "${CLAUDE_PROJECT_DIR}", project, "${CLAUDE_SESSION_ID}", input.SessionID)
+			hook.Command = expand.Replace(hook.Command)
+			hook.Args = append([]string(nil), hook.Args...)
+			for index := range hook.Args {
+				hook.Args[index] = expand.Replace(hook.Args[index])
+			}
+		}
+		if hook.Async {
+			if err := app.startAsyncHook(agent, selected, hook, input, environment); err != nil {
+				app.h.Runtime().Logger().Warn("Claude async hook failed to start", "plugin", selected.plugin, "event", input.Event, "error", err)
+			}
+			continue
+		}
+		decision, err := (claudehooks.Runner{Shell: app.options.Shell, Environment: environment}).Run(ctx, hook, input)
+		if selected.onceID != "" && hook.Once && err == nil && !decision.Block {
+			app.retireSkillHook(selected.onceID)
+		}
+		if err != nil {
+			if errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				return claudehooks.Decision{}, err
+			}
+			if failureBlocks(hook, input.Event) {
+				decisions = append(decisions, blockedHookFailure(hook, input, err))
+				continue
+			}
+			app.h.Runtime().Logger().Warn("Claude command hook failed without blocking", "plugin", selected.plugin, "event", input.Event, "error", err)
+			continue
+		}
+		if decision.SystemMessage != "" {
+			app.h.Runtime().Logger().Warn("Claude command hook message", "plugin", selected.plugin, "event", input.Event, "message", decision.SystemMessage)
+		}
+		decisions = append(decisions, decision)
 	}
 	return claudehooks.Merge(decisions)
+}
+
+func (app *HookApp) hooksFor(agent *harness.Agent, input claudehooks.Input) []runnableHook {
+	var hooks []runnableHook
+	for _, pkg := range app.packages {
+		for _, hook := range pkg.Hooks {
+			hooks = append(hooks, runnableHook{hook: hook, root: pkg.Root, plugin: pkg.Definition.Name})
+		}
+		if input.AgentType == "" {
+			continue
+		}
+		for _, component := range pkg.Definition.Components {
+			if component.Kind != plugins.ComponentAgent || component.QualifiedName != input.AgentType {
+				continue
+			}
+			for _, hook := range component.Hooks {
+				copied := hook
+				copied.Once = false
+				if copied.Event == "Stop" {
+					copied.Event = "SubagentStop"
+				}
+				hooks = append(hooks, runnableHook{hook: copied, root: pkg.Root, plugin: pkg.Definition.Name})
+			}
+		}
+	}
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	for _, hook := range app.skillHooks[agent] {
+		if app.retired[hook.id] {
+			continue
+		}
+		hooks = append(hooks, runnableHook{hook: hook.hook, root: hook.root, plugin: hook.plugin, onceID: hook.id})
+	}
+	return hooks
+}
+
+// ActivateSkillHooks keeps skill frontmatter hooks for the rest of this agent session.
+// once hooks leave after their first successful run.
+func (app *HookApp) ActivateSkillHooks(agent *harness.Agent, pluginName, root, skill string, hooks []claudehooks.Hook) {
+	if app == nil || agent == nil || len(hooks) == 0 {
+		return
+	}
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.skillHooks == nil {
+		app.skillHooks = map[*harness.Agent][]sessionHook{}
+	}
+	current := app.skillHooks[agent]
+	for index, hook := range hooks {
+		id := skill + "#" + hook.Event + "#" + strconv.Itoa(index)
+		if app.retired[id] {
+			continue
+		}
+		exists := false
+		for _, saved := range current {
+			if saved.id == id {
+				exists = true
+				break
+			}
+		}
+		if exists {
+			continue
+		}
+		current = append(current, sessionHook{id: id, root: root, plugin: pluginName, hook: hook})
+	}
+	app.skillHooks[agent] = current
+}
+
+func (app *HookApp) startAsyncHook(agent *harness.Agent, selected runnableHook, hook claudehooks.Hook, input claudehooks.Input, environment []string) error {
+	parent := app.owner
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	started, err := (claudehooks.Runner{Shell: app.options.Shell, Environment: environment}).StartDetached(ctx, hook, input)
+	if err != nil {
+		cancel()
+		return err
+	}
+	app.mu.Lock()
+	if app.closed {
+		app.mu.Unlock()
+		cancel()
+		_ = started.Wait()
+		return errors.New("plugin-runtime: async hook started after shutdown")
+	}
+	app.asyncCancels = append(app.asyncCancels, cancel)
+	app.calls.Add(1)
+	app.mu.Unlock()
+	go func() {
+		defer app.calls.Done()
+		defer cancel()
+		err := started.Wait()
+		if app.closing() {
+			return
+		}
+		decision, parseErr := claudehooks.ParseDecision(hook.Event, started.Stdout.Bytes(), started.Stderr.Bytes(), started.ExitCode(err))
+		if parseErr != nil || decision.AdditionalContext == "" && decision.SystemMessage == "" {
+			return
+		}
+		text := strings.TrimSpace(decision.SystemMessage + "\n" + decision.AdditionalContext)
+		app.mu.Lock()
+		if app.asyncNotes == nil {
+			app.asyncNotes = map[*harness.Agent][]string{}
+		}
+		app.asyncNotes[agent] = append(app.asyncNotes[agent], text)
+		if selected.onceID != "" && hook.Once && err == nil {
+			if app.retired == nil {
+				app.retired = map[string]bool{}
+			}
+			app.retired[selected.onceID] = true
+		}
+		app.mu.Unlock()
+	}()
+	return nil
+}
+
+func (app *HookApp) closing() bool {
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	return app.closed
+}
+
+func (app *HookApp) deliverAsyncNotes(input *harness.StepInput) {
+	if input.Agent == nil {
+		return
+	}
+	app.mu.Lock()
+	notes := app.asyncNotes[input.Agent]
+	delete(app.asyncNotes, input.Agent)
+	app.mu.Unlock()
+	for _, text := range notes {
+		input.Messages = append(input.Messages, hookMessage("async-hook", text))
+	}
+}
+
+func (app *HookApp) retireSkillHook(id string) {
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.retired == nil {
+		app.retired = map[string]bool{}
+	}
+	app.retired[id] = true
 }
 
 func hookMessage(event, text string) harness.Message {
@@ -509,7 +699,12 @@ func hookMessage(event, text string) harness.Message {
 func (app *HookApp) drain(ctx context.Context) error {
 	app.mu.Lock()
 	app.closed = true
+	cancels := app.asyncCancels
+	app.asyncCancels = nil
 	app.mu.Unlock()
+	for _, cancel := range cancels {
+		cancel()
+	}
 	done := make(chan struct{})
 	go func() { app.calls.Wait(); close(done) }()
 	select {

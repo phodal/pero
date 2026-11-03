@@ -40,6 +40,8 @@ type MountOptions struct {
 	// Fork executes rendered context:fork instructions through the trusted
 	// existing subagent service. ACP callers synchronously await its result.
 	Fork func(context.Context, *harness.Agent, Definition) (harness.SubagentResult, error)
+	// ActivateHooks registers skill frontmatter hooks for the rest of this session.
+	ActivateHooks func(context.Context, *harness.Agent, Definition) error
 }
 
 // MountCatalog uses the same registry and admission hooks for legacy roots and
@@ -169,6 +171,11 @@ func MountCatalog(ctx context.Context, h *harness.Harness, catalog *Catalog, opt
 				skill, err = RenderInvocation(skill, row.Arguments, string(input.Agent.ID()), input.Agent.Session().Header().CWD)
 				if err != nil {
 					return decision, err
+				}
+				if options.ActivateHooks != nil {
+					if err := options.ActivateHooks(ctx, input.Agent, skill); err != nil {
+						return decision, err
+					}
 				}
 				if skill.Context == "fork" {
 					messages, err := forkInvocation(ctx, options, input.Agent, skill, row.Arguments, fmt.Sprintf("slash:%d:%d:%s", input.Turn, input.Step, skill.Name))

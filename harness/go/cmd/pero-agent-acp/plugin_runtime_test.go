@@ -343,3 +343,271 @@ func TestPluginRuntimeCLIResourceWriteAndRestore(t *testing.T) {
 		t.Fatalf("CLI process failed: %v; %s", err, diagnostics.String())
 	}
 }
+
+// A synthetic package exercises bare hook config, shell-form commands, a
+// top-level path guard, and a missing MCP executable in one CLI process.
+func TestClaudePluginCLICompatibilityFixture(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("command hooks require Unix")
+	}
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pluginRoot, workspace, sessions := filepath.Join(base, "plugin"), filepath.Join(base, "workspace"), filepath.Join(base, "sessions")
+	for _, path := range []string{filepath.Join(pluginRoot, ".claude-plugin"), filepath.Join(pluginRoot, "hooks"), workspace, sessions, filepath.Join(workspace, ".memory")} {
+		if err := os.MkdirAll(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files := map[string]string{
+		".claude-plugin/plugin.json": `{"name":"sample"}`,
+		"hooks/hooks.json": `{
+			"SessionStart":[{"hooks":[{"type":"command","command":"printf 'session-marker\n'","timeout":5}]}],
+			"PreToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"python3 ${CLAUDE_PLUGIN_ROOT}/hooks/guard.py","args":[],"timeout":5}]}]
+		}`,
+		"hooks/guard.py": "import json,sys\n" +
+			"data=json.load(sys.stdin)\n" +
+			"path=data.get('file_path') or ''\n" +
+			"if '/.memory/' in path:\n" +
+			"    sys.exit(0)\n" +
+			"print('write denied')\n" +
+			"sys.exit(2)\n",
+		".mcp.json": `{"mcpServers":{"missing":{"command":"missing-plugin-mcp-binary"}}}`,
+	}
+	for path, content := range files {
+		if err := os.WriteFile(filepath.Join(pluginRoot, filepath.FromSlash(path)), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sourcePath := filepath.Join(workspace, "main.go")
+	memoryPath := filepath.Join(workspace, ".memory", "note.md")
+	var calls atomic.Int32
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		var request struct {
+			Messages []struct {
+				Role    string          `json:"role"`
+				Content json.RawMessage `json:"content"`
+			} `json:"messages"`
+		}
+		_ = json.Unmarshal(raw, &request)
+		var text, lastTool strings.Builder
+		for _, message := range request.Messages {
+			var body string
+			if json.Unmarshal(message.Content, &body) != nil {
+				var blocks []struct{ Text string }
+				_ = json.Unmarshal(message.Content, &blocks)
+				for _, block := range blocks {
+					body += block.Text
+				}
+			}
+			text.WriteString(body + "\n")
+			if message.Role == "tool" {
+				lastTool.Reset()
+				lastTool.WriteString(body)
+			}
+		}
+		stage := calls.Add(1)
+		w.Header().Set("Content-Type", "text/event-stream")
+		write := func(id, path, content string) {
+			arguments, _ := json.Marshal(map[string]string{"file_path": path, "content": content})
+			chunk := map[string]any{"choices": []any{map[string]any{"index": 0, "delta": map[string]any{"tool_calls": []any{map[string]any{"index": 0, "id": id, "type": "function", "function": map[string]any{"name": "Write", "arguments": string(arguments)}}}}, "finish_reason": "tool_calls"}}}
+			encoded, _ := json.Marshal(chunk)
+			fmt.Fprintf(w, "data: %s\n\ndata: [DONE]\n\n", encoded)
+		}
+		switch stage {
+		case 1:
+			if !strings.Contains(text.String(), "session-marker") {
+				t.Errorf("session hook context missing: %s", text.String())
+			}
+			write("deny-write", sourcePath, "package main\n")
+		case 2:
+			if !strings.Contains(lastTool.String(), "write denied") {
+				t.Errorf("guard reason missing: %s", lastTool.String())
+			}
+			write("allow-write", memoryPath, "kept\n")
+		default:
+			if stage == 3 && !strings.Contains(lastTool.String(), "applied") {
+				t.Errorf("allowed write receipt missing: %s", lastTool.String())
+			}
+			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"done\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+		}
+	}))
+	defer provider.Close()
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
+	defer cancel()
+	child := exec.CommandContext(ctx, executable, "-test.run=^TestPluginRuntimeAgentProcess$")
+	child.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + base, "TMPDIR=" + base, "LANG=C.UTF-8", "PERO_PLUGIN_RUNTIME_CHILD=1", "PERO_PLUGIN_RUNTIME_ENDPOINT=" + provider.URL + "/v1", "PERO_PLUGIN_RUNTIME_SESSIONS=" + sessions, "PERO_PLUGIN_RUNTIME_WORKSPACE=" + workspace, "PERO_PLUGIN_RUNTIME_DIRECTORY=" + pluginRoot, "PERO_PLUGIN_RUNTIME_CREDENTIAL=local-fixture-placeholder"}
+	input, err := child.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := child.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var diagnostics bytes.Buffer
+	child.Stderr = &diagnostics
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = input.Close(); _ = child.Process.Kill() }()
+	encoder, scanner := json.NewEncoder(input), bufio.NewScanner(output)
+	scanner.Buffer(make([]byte, 4096), 4<<20)
+	sequence := 0
+	rpc := func(method string, params any) map[string]any {
+		t.Helper()
+		sequence++
+		if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": sequence, "method": method, "params": params}); err != nil {
+			t.Fatal(err)
+		}
+		for scanner.Scan() {
+			var reply map[string]any
+			if json.Unmarshal(scanner.Bytes(), &reply) != nil {
+				t.Fatal(scanner.Text())
+			}
+			if reply["method"] == "session/request_permission" {
+				if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": reply["id"], "result": map[string]any{"outcome": map[string]any{"outcome": "selected", "optionId": "allow-once"}}}); err != nil {
+					t.Fatal(err)
+				}
+				continue
+			}
+			if reply["id"] == float64(sequence) {
+				if reply["error"] != nil {
+					t.Fatalf("%s failed: %v\n%s", method, reply["error"], diagnostics.String())
+				}
+				result, _ := reply["result"].(map[string]any)
+				return result
+			}
+		}
+		t.Fatalf("%s EOF: %v; %s", method, scanner.Err(), diagnostics.String())
+		return nil
+	}
+	rpc("initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{}})
+	created := rpc("session/new", map[string]any{"cwd": workspace, "mcpServers": []any{}})
+	id, _ := created["sessionId"].(string)
+	rpc("session/set_config_option", map[string]any{"sessionId": id, "configId": "permission", "value": "workspace-write"})
+	rpc("session/prompt", map[string]any{"sessionId": id, "prompt": []any{map[string]any{"type": "text", "text": "record a note"}}})
+	if _, err := os.Stat(sourcePath); !os.IsNotExist(err) {
+		t.Fatalf("denied write escaped: %v", err)
+	}
+	body, err := os.ReadFile(memoryPath)
+	if err != nil || string(body) != "kept\n" || calls.Load() != 3 {
+		t.Fatalf("compatibility fixture failed: calls=%d err=%v body=%q\n%s", calls.Load(), err, body, diagnostics.String())
+	}
+}
+
+func TestClaudePluginCLIStopGateContinues(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("command hooks require Unix")
+	}
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pluginRoot, workspace, sessions := filepath.Join(base, "plugin"), filepath.Join(base, "workspace"), filepath.Join(base, "sessions")
+	for _, path := range []string{filepath.Join(pluginRoot, ".claude-plugin"), filepath.Join(pluginRoot, "hooks"), workspace, sessions} {
+		if err := os.MkdirAll(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(pluginRoot, ".claude-plugin", "plugin.json"), []byte(`{"name":"sample"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginRoot, "hooks", "hooks.json"), []byte(`{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"python3 ${CLAUDE_PLUGIN_ROOT}/hooks/stop.py","timeout":5}]}]}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	stopScript := "import json,sys\ndata=json.load(sys.stdin)\nif data.get('stop_hook_active'):\n    raise SystemExit(0)\nprint('finish the gate')\nraise SystemExit(2)\n"
+	if err := os.WriteFile(filepath.Join(pluginRoot, "hooks", "stop.py"), []byte(stopScript), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int32
+	var sawGate atomic.Bool
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		var request struct {
+			Messages []struct {
+				Content json.RawMessage `json:"content"`
+			} `json:"messages"`
+		}
+		_ = json.Unmarshal(raw, &request)
+		var text strings.Builder
+		for _, message := range request.Messages {
+			var body string
+			if json.Unmarshal(message.Content, &body) != nil {
+				var blocks []struct{ Text string }
+				_ = json.Unmarshal(message.Content, &blocks)
+				for _, block := range blocks {
+					body += block.Text
+				}
+			}
+			text.WriteString(body)
+		}
+		if strings.Contains(text.String(), "finish the gate") {
+			sawGate.Store(true)
+		}
+		calls.Add(1)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"answer\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+	}))
+	defer provider.Close()
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
+	defer cancel()
+	child := exec.CommandContext(ctx, executable, "-test.run=^TestPluginRuntimeAgentProcess$")
+	child.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + base, "TMPDIR=" + base, "LANG=C.UTF-8", "PERO_PLUGIN_RUNTIME_CHILD=1", "PERO_PLUGIN_RUNTIME_ENDPOINT=" + provider.URL + "/v1", "PERO_PLUGIN_RUNTIME_SESSIONS=" + sessions, "PERO_PLUGIN_RUNTIME_WORKSPACE=" + workspace, "PERO_PLUGIN_RUNTIME_DIRECTORY=" + pluginRoot, "PERO_PLUGIN_RUNTIME_CREDENTIAL=local-fixture-placeholder"}
+	input, err := child.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := child.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var diagnostics bytes.Buffer
+	child.Stderr = &diagnostics
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = input.Close(); _ = child.Process.Kill() }()
+	encoder, scanner := json.NewEncoder(input), bufio.NewScanner(output)
+	scanner.Buffer(make([]byte, 4096), 4<<20)
+	sequence := 0
+	rpc := func(method string, params any) map[string]any {
+		t.Helper()
+		sequence++
+		if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": sequence, "method": method, "params": params}); err != nil {
+			t.Fatal(err)
+		}
+		for scanner.Scan() {
+			var reply map[string]any
+			if json.Unmarshal(scanner.Bytes(), &reply) != nil {
+				t.Fatal(scanner.Text())
+			}
+			if reply["id"] == float64(sequence) {
+				if reply["error"] != nil {
+					t.Fatalf("%s failed: %v\n%s", method, reply["error"], diagnostics.String())
+				}
+				result, _ := reply["result"].(map[string]any)
+				return result
+			}
+		}
+		t.Fatalf("%s EOF: %v; %s", method, scanner.Err(), diagnostics.String())
+		return nil
+	}
+	rpc("initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{}})
+	created := rpc("session/new", map[string]any{"cwd": workspace, "mcpServers": []any{}})
+	id, _ := created["sessionId"].(string)
+	rpc("session/prompt", map[string]any{"sessionId": id, "prompt": []any{map[string]any{"type": "text", "text": "finish when the gate allows"}}})
+	if calls.Load() != 2 || !sawGate.Load() {
+		t.Fatalf("stop gate did not continue the same prompt: calls=%d saw=%v\n%s", calls.Load(), sawGate.Load(), diagnostics.String())
+	}
+}

@@ -75,6 +75,11 @@ func claudeSkillTool(catalog *Catalog, rows []Summary, options MountOptions) har
 			if err != nil {
 				return harness.ToolResult{}, err
 			}
+			if options.ActivateHooks != nil {
+				if err := options.ActivateHooks(ctx, request.Agent, definition); err != nil {
+					return harness.ToolResult{}, err
+				}
+			}
 			if definition.Context == "fork" {
 				messages, err := forkInvocation(ctx, options, request.Agent, definition, input.Args, string(request.CallID))
 				if err != nil {
