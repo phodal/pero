@@ -417,3 +417,10 @@ PDF and TeX preserve separate page/zoom states when switching. This is reading
 downloaded source projects; author manuscript editing and build routes remain
 the separate planned workflow described above. Verification and current limits:
 [Paper reading views](../../docs/fitness/paper-reading-views.md).
+
+For a saved paper's TeX or figure files, the resource import, reproduction, code
+audit and build skills share [source location guidance](skills/research-resource-import/references/tex-source-locations.md).
+The bundled `tools/locate-source.py --arxiv <id>vN` checks approved managed data
+and existing export copies offline; `--cache` selects an explicit profile. It
+does not download or move data. Actual skill, source and figure checks are in
+[source discovery verification](../../docs/fitness/paper-source-locations.md).
