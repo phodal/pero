@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(import.meta.dirname, '../..');
 export async function buildScientificViewer({ outdir = resolve(root, 'apps/scientific-viewer/dist') } = {}) {
   const app = resolve(root, 'apps/scientific-viewer'), dist = outdir, modules = resolve(app, 'node_modules');
-  if (!['react', 'react-dom', 'molstar', 'pdfjs-dist', 'fflate'].every(name => existsSync(resolve(modules, name, 'package.json')))) {
+  if (!['react', 'react-dom', 'molstar', 'pdfjs-dist', 'fflate', 'three'].every(name => existsSync(resolve(modules, name, 'package.json')))) {
     const windows = process.platform === 'win32';
     if (windows && !process.env.npm_execpath) throw new Error('Run the build through npm on Windows');
     execFileSync(windows ? process.execPath : 'npm', [...(windows ? [process.env.npm_execpath] : []), 'ci', '--prefix', app, '--ignore-scripts'], { stdio: 'inherit' });
@@ -23,10 +23,10 @@ export async function buildScientificViewer({ outdir = resolve(root, 'apps/scien
     ['pdfjs-dist/build/pdf.worker.mjs', 'pdf.worker.mjs'], ['pdfjs-dist/standard_fonts', 'pdfjs-fonts'], ['pdfjs-dist/cmaps', 'pdfjs-cmaps'], ['pdfjs-dist/wasm', 'pdfjs-wasm'],
   ]) await cp(resolve(modules, source), resolve(dist, target), { recursive: true });
   await mkdir(resolve(dist, 'licenses'), { recursive: true });
-  for (const name of ['molstar', 'pdfjs-dist', 'fflate']) await cp(resolve(modules, name, 'LICENSE'), resolve(dist, 'licenses', `${name}.txt`));
+  for (const name of ['molstar', 'pdfjs-dist', 'fflate', 'three']) await cp(resolve(modules, name, 'LICENSE'), resolve(dist, 'licenses', `${name}.txt`));
   await cp(resolve(app, 'licenses/RDKit.txt'), resolve(dist, 'licenses/RDKit.txt'));
   const licenses = [];
-  for (const name of ['molstar', 'pdfjs-dist', 'fflate']) {
+  for (const name of ['molstar', 'pdfjs-dist', 'fflate', 'three']) {
     const pkg = JSON.parse(await readFile(resolve(modules, name, 'package.json'), 'utf8'));
     licenses.push({ name, version: pkg.version, license: pkg.license });
   }
