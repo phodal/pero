@@ -62,6 +62,10 @@ type Input struct {
 	TaskID               string          `json:"task_id,omitempty"`
 	TaskSubject          string          `json:"task_subject,omitempty"`
 	TaskDescription      string          `json:"task_description,omitempty"`
+	ExpansionType        string          `json:"expansion_type,omitempty"`
+	CommandName          string          `json:"command_name,omitempty"`
+	CommandArgs          string          `json:"command_args,omitempty"`
+	CommandSource        string          `json:"command_source,omitempty"`
 }
 
 type Decision struct {

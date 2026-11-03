@@ -42,6 +42,19 @@ type MountOptions struct {
 	Fork func(context.Context, *harness.Agent, Definition) (harness.SubagentResult, error)
 	// ActivateHooks registers skill frontmatter hooks for the rest of this session.
 	ActivateHooks func(context.Context, *harness.Agent, Definition) error
+	// GuardSlash runs before a typed slash command expands. SlashBlockedError
+	// rejects that turn. Any other error fails the step.
+	GuardSlash func(context.Context, *harness.Agent, string, string, string) (string, error)
+}
+
+// SlashBlockedError is the user-visible reason a slash command did not expand.
+type SlashBlockedError struct{ Reason string }
+
+func (e *SlashBlockedError) Error() string {
+	if e == nil || e.Reason == "" {
+		return "Claude command hook blocked this slash command."
+	}
+	return e.Reason
 }
 
 // MountCatalog uses the same registry and admission hooks for legacy roots and
@@ -158,6 +171,20 @@ func MountCatalog(ctx context.Context, h *harness.Harness, catalog *Catalog, opt
 				return decision, err
 			}
 			for _, row := range selected {
+				var expansionContext string
+				if options.GuardSlash != nil {
+					extra, err := options.GuardSlash(ctx, input.Agent, row.Name, row.Arguments, row.Prompt)
+					if err != nil {
+						var blocked *SlashBlockedError
+						if errors.As(err, &blocked) {
+							decision.Reject = true
+							decision.RejectReason = blocked.Error()
+							return decision, nil
+						}
+						return decision, err
+					}
+					expansionContext = extra
+				}
 				skill, err := catalog.ReadUser(ctx, row.Name, row.Digest)
 				if err != nil {
 					return decision, err
@@ -191,6 +218,13 @@ func MountCatalog(ctx context.Context, h *harness.Harness, catalog *Catalog, opt
 					content = "Base directory for this skill: " + filepath.Join(skill.ResourceBase, filepath.FromSlash(skill.Directory)) + "\nPlugin root: " + skill.ResourceBase + "\n\n" + content
 				}
 				decision.Messages = append(decision.Messages, harness.Message{Role: harness.RoleUser, Source: source, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "<skill_content name=\"" + skill.Name + "\">\n" + content + "\n</skill_content>"}}})
+				if expansionContext != "" {
+					note, _ := json.Marshal(struct {
+						Kind  string `json:"kind"`
+						Event string `json:"event"`
+					}{Kind: "claude-hook", Event: "UserPromptExpansion"})
+					decision.Messages = append(decision.Messages, harness.Message{Role: harness.RoleUser, Source: note, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: expansionContext}}})
+				}
 			}
 			return decision, nil
 		})

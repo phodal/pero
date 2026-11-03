@@ -6,6 +6,7 @@ go_library(
         "command_output.go",
         "hook_failure.go",
         "hooks.go",
+        "hooks_expansion.go",
         "hooks_setup.go",
         "hooks_notify.go",
         "hooks_files.go",

@@ -233,6 +233,12 @@ func run() (resultErr error) {
 			mountOptions.Expand = func(ctx context.Context, agent *harness.Agent, definition skills.Definition, args string) (skills.Definition, error) {
 				return pluginruntime.ExpandSkill(ctx, h, agent, definition, args, pluginruntime.ExpansionOptions{Shell: pluginShell, Environment: pluginEnvironment, Sandbox: sandboxConfig})
 			}
+			mountOptions.GuardSlash = func(ctx context.Context, agent *harness.Agent, name, arguments, prompt string) (string, error) {
+				if pluginHooks == nil {
+					return "", nil
+				}
+				return pluginHooks.GuardSlash(ctx, agent, name, arguments, prompt)
+			}
 		}
 		if err := skills.MountCatalog(ctx, h, skillCatalog, mountOptions); err != nil {
 			return err

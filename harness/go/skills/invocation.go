@@ -25,6 +25,7 @@ type skillInvocation struct {
 type explicitInvocation struct {
 	Summary
 	Arguments string
+	Prompt    string
 }
 
 // explicitInvocations recognizes claimed direct-user text. Claude's ACP/SDK
@@ -54,7 +55,7 @@ func explicitInvocations(messages []harness.Message, rows []Summary, claude bool
 				for _, row := range rows {
 					if token == "/"+row.Name && !seen[row.Name] {
 						arguments := strings.TrimSpace(block.Text[cursor:])
-						selected = append(selected, explicitInvocation{Summary: row, Arguments: arguments})
+						selected = append(selected, explicitInvocation{Summary: row, Arguments: arguments, Prompt: block.Text})
 						seen[row.Name] = true
 					}
 				}

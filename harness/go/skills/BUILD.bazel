@@ -31,6 +31,7 @@ go_test(
     srcs = [
         "arguments_test.go",
         "catalog_test.go",
+        "expansion_guard_test.go",
         "compaction_test.go",
         "fork_test.go",
         "invocation_claude_test.go",
