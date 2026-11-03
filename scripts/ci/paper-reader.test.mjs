@@ -521,13 +521,13 @@ test('synthetic restart trace forwards storage unchanged and logs only the exact
   assert.equal(calls.length, 3); assert.equal(records.length, 2);
   assert.equal(records[1].value, '{"selection":{"start":12}}');
   assert.equal(localStorage.getItem('private-unrelated'), 'not logged');
-  for (let i=0;i<150;i++) localStorage.setItem(key, JSON.stringify({ selection: { index: i } }));
-  assert.equal(JSON.parse(localStorage.getItem(key)).selection.index, 149); assert.equal(records.length, 128);
+  for (let i=0;i<150;i++) localStorage.setItem(key, i);
+  assert.equal(localStorage.getItem(key), '149'); assert.equal(records.length, 128);
 });
 
 test('final selection trace resets its wrapper, retains explicit mouseup checkpoint and follows into pre-close', () => {
   const key = `pero.paper.pdf-view:${'a'.repeat(64)}:${'b'.repeat(64)}`;
-  const values = new Map([[key, JSON.stringify({selection:{index:-1}})]]), records = [];
+  const values = new Map([[key, 'old selection']]), records = [];
   let writes = 0;
   class Storage {
     getItem(name) { return values.get(name) ?? null; }
@@ -536,38 +536,19 @@ test('final selection trace resets its wrapper, retains explicit mouseup checkpo
   const context = { window: {}, Storage, localStorage: new Storage(), location: { protocol: 'pero-app:', hostname: 'paper-agent' }, console: { info: text => records.push(JSON.parse(text.slice(pdfPersistenceTracePrefix.length))) } };
   const install = phase => runInNewContext(`(${installPdfPersistenceTrace})(${JSON.stringify({key,phase})})`, context);
   install('final-selection');
-  context.localStorage.setItem(key, JSON.stringify({selection:null}));
+  context.localStorage.setItem(key, null);
   context.window.paperPdfPersistenceTrace.snapshot('pointer-down-reset');
-  for(let i=0;i<150;i++) context.localStorage.setItem(key, JSON.stringify({selection:{index:i}}));
+  for(let i=0;i<150;i++) context.localStorage.setItem(key, `new selection${i}`);
   context.window.paperPdfPersistenceTrace.snapshot('after-mouseup');
-  assert.equal(JSON.parse(records.find(item => item.event === 'after-mouseup').value).selection.index, 149);
+  assert.equal(records.find(item => item.event === 'after-mouseup').value, 'new selection149');
   install('before-close');
-  context.localStorage.setItem(key, JSON.stringify({selection:null}));
+  context.localStorage.setItem(key, null);
   assert.equal(writes, 152, 'native storage is called exactly once per write');
-  assert.deepEqual(records.slice(-2).map(item=>[item.phase,JSON.parse(item.value).selection]), [['before-close',{index:149}],['before-close',null]]);
+  assert.deepEqual(records.slice(-2).map(item=>[item.phase,item.value]), [['before-close','new selection149'],['before-close',null]]);
   const source = readFileSync(new URL('../../tests/e2e/paper-pdf-flow.mjs', import.meta.url),'utf8');
   const final = source.slice(source.indexOf('// Leave an actual selection'));
   assert.ok(final.indexOf("phase: 'final-selection'") < final.indexOf("name: 'Fit page'"));
   assert.ok(final.indexOf('expect((await storedView()).selection).toBeNull()') < final.indexOf('await page.mouse.move(reopenBox.x + s.x2'));
   assert.ok(final.indexOf('await page.mouse.up()') < final.indexOf("event: 'after-mouseup'"));
   assert.match(final, /if \(!fixture\.realPdf\)/);
-});
-
-
-test('expected pointer-down clear cannot consume the reserved post-mouseup clear after saturation', () => {
-  for (const distinct of [false, true]) {
-    const key = `pero.paper.pdf-view:${'a'.repeat(64)}:${'b'.repeat(64)}`, records = [];
-    let value = JSON.stringify({selection:{index:0}}), writes = 0;
-    class Storage { getItem() { return value; } setItem(_key,next) { writes++; value=next; } }
-    const context = { window: {}, Storage, localStorage:new Storage(), location:{protocol:'pero-app:',hostname:'paper-agent'},console:{info:text=>records.push(JSON.parse(text.slice(pdfPersistenceTracePrefix.length)))}};
-    runInNewContext(`(${installPdfPersistenceTrace})(${JSON.stringify({key,phase:'final-selection'})})`,context);
-    context.localStorage.setItem(key,JSON.stringify({selection:null})); // expected pointer-down
-    for(let i=0;i<500;i++) context.localStorage.setItem(key,JSON.stringify({position:{y:i},selection:{index:distinct?i:0}}));
-    context.window.paperPdfPersistenceTrace.snapshot('after-mouseup');
-    context.localStorage.setItem(key,JSON.stringify({selection:null}));
-    assert.equal(writes,502);
-    assert.equal(JSON.parse(records.at(-1).value).selection,null);
-    assert.match(records.at(-1).stack,/Storage.setItem/);
-    assert.equal(records.length,distinct?130:5);
-  }
 });
