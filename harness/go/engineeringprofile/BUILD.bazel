@@ -2,10 +2,24 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "engineeringprofile",
-    srcs = ["contract.go", "journal.go"],
+    srcs = [
+        "app.go",
+        "checks.go",
+        "contract.go",
+        "journal.go",
+        "prompt.go",
+    ],
     importpath = "github.com/phodal/pero/harness/go/engineeringprofile",
     visibility = ["//visibility:public"],
-    deps = ["//harness", "//session", "//tasks"],
+    deps = [
+        "//fstools",
+        "//harness",
+        "//nativetools",
+        "//runtime",
+        "//session",
+        "//shell",
+        "//tasks",
+    ],
 )
 
 go_test(
