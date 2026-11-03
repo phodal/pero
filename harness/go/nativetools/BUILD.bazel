@@ -9,6 +9,7 @@ go_library(
         "claude.go",
         "claude_search.go",
         "foreground.go",
+        "guidance.go",
         "media.go",
         "notebook.go",
         "notice_recovery.go",
