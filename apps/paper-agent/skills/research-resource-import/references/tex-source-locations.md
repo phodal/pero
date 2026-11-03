@@ -74,21 +74,31 @@ in the same archive. Resolve omitted extensions only when the member list makes
 the target unambiguous. TeX line numbers and figure labels are not PDF page
 coordinates; macro-dependent associations remain unresolved.
 
-`imageAvailable=true` identifies a safe raster preview. An image-capable session
-can request `research-source-read` with `operation=image`, the same bundle/source
+`imageAvailable=true` identifies a safe raster preview. A session can request
+`research-source-read` with `operation=image`, the same bundle/source
 IDs and the member ID; the App MCP adapter returns image content and provenance.
 `source-previews/<member-id>.png` is a derived preview, not the original figure.
 
-PDF/EPS/SVG members may be downloaded while `imageAvailable=false`. The current
-source tool lists these files but does not render them. If an authorized local
-viewer/renderer is available, inspect the selected original PDF figure there and
-retain its source filename/hash. Otherwise report the missing visual read; a
-typeset TeX preview does not itself mean the Agent saw those figures.
+Single-page PDF figure members can now be inspected through `operation=image`;
+Paper renders a bounded PNG locally, preserving the original PDF hash separately
+from its derived preview hash. It does not compile TeX. Multi-page PDFs and
+EPS/SVG conversion remain unsupported; report their missing visual read.
 
-To include an observed figure in an answer, use the session's actual image or
-artifact attachment mechanism with its provided path/URL, caption and source
-locator. Seeing an image and publishing one in a response are separate abilities.
-Do not emit base64 prose or invent chat-loadable URLs from App-private `/api`
-paths. If attachment delivery is unavailable, return the exact figure locator and
-state that inline display is unavailable. A plotted curve is not raw experiment
-data and does not establish a successful reproduction.
+For a saved paper question, `research-source-read` with `operation=figures`,
+`paperId` and an optional short source-language `query` finds approved matching
+source scopes and literal figure captions/labels. Use a uniquely resolved member
+with its returned bundle/source IDs for the image read. Missing or ambiguous
+associations stay explicit; discovery does not count as an image observation.
+
+Successful image reads return `answerImage.markdown` alongside the actual MCP
+image content. Include that exact Markdown in the final chat answer when the
+figure helps explain the result, with its caption and source lines. The compact
+`pero-image://` reference resolves only to image bytes actually delivered in that
+conversation, including history replay. Do not invent App-private `/api` image
+URLs, external URLs or base64 prose. A plotted curve is not raw experiment data
+and does not establish a successful reproduction.
+
+Text-only models receive the image reference and an explicit unread-pixels
+notice while the chat retains the actual image for display. Base interpretation
+on the returned caption/source text and disclose that limitation; displaying a
+figure does not mean the model inspected its pixels.
