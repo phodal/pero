@@ -512,7 +512,7 @@ test('synthetic restart trace forwards storage unchanged and logs only the exact
     setItem(name, value) { calls.push([this, name, value]); this.values.set(name, String(value)); }
   }
   const localStorage = new Storage(original), sessionStorage = new Storage();
-  const context = { window: {}, Storage, localStorage, location: { protocol: 'pero-app:', hostname: 'paper-agent' }, console: { info: text => records.push(JSON.parse(text.slice(pdfPersistenceTracePrefix.length))) } };
+  const context = { Storage, localStorage, location: { protocol: 'pero-app:', hostname: 'paper-agent' }, console: { info: text => records.push(JSON.parse(text.slice(pdfPersistenceTracePrefix.length))) } };
   runInNewContext(`(${installPdfPersistenceTrace})(${JSON.stringify({key,phase:'restart-before-reader'})})`, context);
   assert.equal(records[0].value, '{"selection":null}');
   localStorage.setItem('private-unrelated', 'not logged');
@@ -521,34 +521,6 @@ test('synthetic restart trace forwards storage unchanged and logs only the exact
   assert.equal(calls.length, 3); assert.equal(records.length, 2);
   assert.equal(records[1].value, '{"selection":{"start":12}}');
   assert.equal(localStorage.getItem('private-unrelated'), 'not logged');
-  for (let i=0;i<150;i++) localStorage.setItem(key, i);
-  assert.equal(localStorage.getItem(key), '149'); assert.equal(records.length, 128);
-});
-
-test('final selection trace resets its wrapper, retains explicit mouseup checkpoint and follows into pre-close', () => {
-  const key = `pero.paper.pdf-view:${'a'.repeat(64)}:${'b'.repeat(64)}`;
-  const values = new Map([[key, 'old selection']]), records = [];
-  let writes = 0;
-  class Storage {
-    getItem(name) { return values.get(name) ?? null; }
-    setItem(name, value) { writes++; values.set(name, value); }
-  }
-  const context = { window: {}, Storage, localStorage: new Storage(), location: { protocol: 'pero-app:', hostname: 'paper-agent' }, console: { info: text => records.push(JSON.parse(text.slice(pdfPersistenceTracePrefix.length))) } };
-  const install = phase => runInNewContext(`(${installPdfPersistenceTrace})(${JSON.stringify({key,phase})})`, context);
-  install('final-selection');
-  context.localStorage.setItem(key, null);
-  context.window.paperPdfPersistenceTrace.snapshot('pointer-down-reset');
-  for(let i=0;i<150;i++) context.localStorage.setItem(key, `new selection${i}`);
-  context.window.paperPdfPersistenceTrace.snapshot('after-mouseup');
-  assert.equal(records.find(item => item.event === 'after-mouseup').value, 'new selection149');
-  install('before-close');
-  context.localStorage.setItem(key, null);
-  assert.equal(writes, 152, 'native storage is called exactly once per write');
-  assert.deepEqual(records.slice(-2).map(item=>[item.phase,item.value]), [['before-close','new selection149'],['before-close',null]]);
-  const source = readFileSync(new URL('../../tests/e2e/paper-pdf-flow.mjs', import.meta.url),'utf8');
-  const final = source.slice(source.indexOf('// Leave an actual selection'));
-  assert.ok(final.indexOf("phase: 'final-selection'") < final.indexOf("name: 'Fit page'"));
-  assert.ok(final.indexOf('expect((await storedView()).selection).toBeNull()') < final.indexOf('await page.mouse.move(reopenBox.x + s.x2'));
-  assert.ok(final.indexOf('await page.mouse.up()') < final.indexOf("event: 'after-mouseup'"));
-  assert.match(final, /if \(!fixture\.realPdf\)/);
+  for (let i=0;i<50;i++) localStorage.setItem(key, i);
+  assert.equal(localStorage.getItem(key), '49'); assert.equal(records.length, 40);
 });

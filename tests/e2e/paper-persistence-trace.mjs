@@ -5,20 +5,11 @@ export function installPdfPersistenceTrace(options, locatorOptions) {
   const { key, phase } = locatorOptions ?? options;
   if (location.protocol !== 'pero-app:' || location.hostname !== 'paper-agent') return;
   if (!/^pero\.paper\.pdf-view:[a-f0-9]{64}:[a-f0-9]{64}$/.test(key)) throw Error('Invalid synthetic PDF state key');
-  window.paperPdfPersistenceTrace?.restore();
   const native = Storage.prototype.setItem;
-  let count = 0, snapshots = 0;
+  let count = 0;
   const emit = (event, value, stack = '') => {
-    if (count++ >= 128) return;
+    if (count++ >= 40) return;
     console.info('Synthetic PDF persistence trace ' + JSON.stringify({ phase, event, key, value, stack }));
-  };
-  window.paperPdfPersistenceTrace = {
-    key,
-    restore: () => { Storage.prototype.setItem = native; },
-    snapshot: event => {
-      if (snapshots++ >= 8) return;
-      console.info('Synthetic PDF persistence trace ' + JSON.stringify({ phase, event, key, value: localStorage.getItem(key) }));
-    },
   };
   emit('initial', localStorage.getItem(key));
   Storage.prototype.setItem = function (name, value) {
@@ -26,9 +17,4 @@ export function installPdfPersistenceTrace(options, locatorOptions) {
     if (this === localStorage && name === key) emit('setItem', localStorage.getItem(key), new Error().stack);
     return result;
   };
-}
-
-export function snapshotPdfPersistenceTrace(_element, { key, event }) {
-  if (window.paperPdfPersistenceTrace?.key !== key) throw Error('Synthetic PDF trace owner mismatch');
-  window.paperPdfPersistenceTrace.snapshot(event);
 }

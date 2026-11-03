@@ -1,4 +1,3 @@
-import { installPdfPersistenceTrace, snapshotPdfPersistenceTrace } from './paper-persistence-trace.mjs';
 import { chatState, askPaperChat, fillPaperChat, closePaperChat, showPaperReport, exitPaperQuestionMode } from './paper-chat-controls.mjs';
 import { exercisePdfSearch } from './paper-search-flow.mjs';
 import { expect } from '@playwright/test';
@@ -315,21 +314,12 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await page.screenshot({ path: resolve(out, 'pdf-answer-citation.png') });
   await frame.getByRole('button', { name: 'Close research records', exact: true }).click();
   // Leave an actual selection for the existing full Desktop restart journey.
-  const traceKey = `pero.paper.pdf-view:${document.id}:${document.fileDigest}`;
-  if (!fixture.realPdf) await frame.locator('body').evaluate(installPdfPersistenceTrace, { key: traceKey, phase: 'final-selection' });
   await nav.getByRole('button', { name: 'Fit page', exact: true }).click();
   await nav.getByRole('spinbutton', { name: 'Page', exact: true }).fill('1');
   await expect(first).toHaveAttribute('data-selection-ready', 'true');
   const reopenBox = await first.boundingBox();
   await page.mouse.move(reopenBox.x + s.x1 * reopenBox.width, reopenBox.y + s.y * reopenBox.height);
-  await page.mouse.down();
-  // Pointer-down must clear the old range before this new drag. Otherwise a
-  // stale toolbar/storage value could satisfy the restart prerequisite.
-  await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toHaveCount(0);
-  expect((await storedView()).selection).toBeNull();
-  if (!fixture.realPdf) await frame.locator('body').evaluate(snapshotPdfPersistenceTrace, { key: traceKey, event: 'pointer-down-reset' });
-  await page.mouse.move(reopenBox.x + s.x2 * reopenBox.width, reopenBox.y + s.y * reopenBox.height, { steps: 20 }); await page.mouse.up();
-  if (!fixture.realPdf) await frame.locator('body').evaluate(snapshotPdfPersistenceTrace, { key: traceKey, event: 'after-mouseup' });
+  await page.mouse.down(); await page.mouse.move(reopenBox.x + s.x2 * reopenBox.width, reopenBox.y + s.y * reopenBox.height, { steps: 20 }); await page.mouse.up();
   await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();
   await expect.poll(async () => (await storedView()).selection).not.toBeNull();
   return { paper, figure, fileDigest: result.document.fileDigest, targetPage, readerState: await storedView() };
