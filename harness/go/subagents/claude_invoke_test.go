@@ -17,6 +17,22 @@ import (
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
+func TestClaudeInvocationHonorsAChildStepCap(t *testing.T) {
+	f := newClaudeHTTPFixture(t, t.TempDir(), func(w http.ResponseWriter, _ *http.Request) {
+		claudeTextAnswer(w, "done")
+	}, true, nil, ClaudeOptions{})
+	var steps int
+	if _, err := f.claude.Invoke(f.ctx, f.parent, ClaudeInvocation{Prompt: "cap", MaxSteps: 3, ConfigureChild: func(_ context.Context, _ *point.Run, child *harness.Agent) error {
+		steps = child.MaxSteps()
+		return nil
+	}}); err != nil || steps != 3 {
+		t.Fatalf("steps=%d err=%v", steps, err)
+	}
+	if _, err := f.claude.Invoke(f.ctx, f.parent, ClaudeInvocation{Prompt: "too many", MaxSteps: 50}); err == nil || !strings.Contains(err.Error(), "exceeds parent") {
+		t.Fatalf("over-cap err=%v", err)
+	}
+}
+
 func TestClaudeTrustedInvocationUsesExistingChildAuthority(t *testing.T) {
 	for _, allowed := range []bool{true, false} {
 		t.Run(fmt.Sprintf("allowed=%v", allowed), func(t *testing.T) {

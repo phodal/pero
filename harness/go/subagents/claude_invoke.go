@@ -21,7 +21,10 @@ type ClaudeInvocation struct {
 	Definition, Prompt, Description, Model, Origin, Isolation string
 	OutputSchema                                              json.RawMessage
 	Background                                                bool
-	ConfigureChild                                            func(context.Context, *point.Run, *harness.Agent) error
+	// MaxSteps caps the child. Zero inherits the parent budget. A positive
+	// value cannot exceed the parent budget.
+	MaxSteps       int
+	ConfigureChild func(context.Context, *point.Run, *harness.Agent) error
 }
 
 type claudeChildConfigurationKey struct{}
@@ -80,7 +83,7 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if strings.TrimSpace(input.Description) == "" {
 		input.Description = definition.Description
 	}
-	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, OutputSchema: input.OutputSchema}
+	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, MaxSteps: input.MaxSteps, OutputSchema: input.OutputSchema}
 	var cleanup func()
 	if input.Isolation != "" {
 		if input.Isolation != "worktree" {

@@ -258,8 +258,12 @@ func run() (resultErr error) {
 			if pluginAgents == nil {
 				return "", errors.New("agent hooks require mounted subagents")
 			}
+			steps := 50
+			if limit := parent.MaxSteps(); limit > 0 && limit < steps {
+				steps = limit
+			}
 			result, err := pluginAgents.Invoke(ctx, parent, subagents.ClaudeInvocation{
-				Definition: "Explore", Prompt: prompt, Description: "Agent hook", Model: model,
+				Definition: "Explore", Prompt: prompt, Description: "Agent hook", Model: model, MaxSteps: steps,
 			})
 			if err != nil {
 				return "", err
