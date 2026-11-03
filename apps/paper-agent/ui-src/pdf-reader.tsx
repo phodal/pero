@@ -18,10 +18,11 @@ import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
 import { loadReaderState, persistedSelection, saveReaderState, type PdfReaderState } from './reader-state';
 import { TexReader } from './tex-reader';
+import type { FigureTarget } from './figure-reference';
 
 type ReadingView = 'text' | 'pdf' | 'tex' | 'original';
 
-export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; onSave(format?: 'pdf' | 'tex'): void; back?: () => void };
+export type ReaderChrome = { figure?: FigureTarget | null; toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; onSave(format?: 'pdf' | 'tex'): void; back?: () => void };
 
 export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel, readRequest = 0, pdfReloadToken = 0, sourceUrl, openToken = 0 }: {
   paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string; readRequest?: number; pdfReloadToken?: number;
@@ -34,17 +35,18 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   const [lookupAttempt, setLookupAttempt] = useState(0);
   const [mode, setMode] = useState<ReadingView>('text'), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [visitedTex, setVisitedTex] = useState(false);
+  useEffect(() => { if (chrome.figure?.preview?.paperId === paper.id) { setVisitedTex(true); setMode('tex'); } }, [chrome.figure?.token]);
   useEffect(() => {
     if (lockText) return;
     if (focus && reading.document?.id === focus.documentId) return;
     let alive = true; const version = ++pdfLoadEpoch.current;
-    setReading({ document: null, annotations: [] }); setMode('text'); setError('');
+    setReading({ document: null, annotations: [] }); setMode(chrome.figure?.preview?.paperId === paper.id ? 'tex' : 'text'); setError('');
     setBusy(!!paper.pdfUrl);
     api.get<PdfReading>(focus ? `/api/pdf/${focus.documentId}` : `/api/pdf?paperId=${paper.id}`).then(value => {
-      if (alive && version === pdfLoadEpoch.current) { setReading(value); if (value.document) setMode(focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf'); }
+      if (alive && version === pdfLoadEpoch.current) { setReading(value); if (value.document) setMode(chrome.figure?.preview?.paperId === paper.id ? 'tex' : focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf'); }
     }).catch(e => { if (alive && version === pdfLoadEpoch.current) setError(String(e.message ?? e)); }).finally(() => { if (alive && version === pdfLoadEpoch.current) setBusy(false); });
     return () => { alive = false; };
-  }, [api, paper.id, focus?.documentId, lockText, lookupAttempt]);
+  }, [api, paper.id, focus?.documentId, lockText, lookupAttempt, chrome.figure?.token]);
   // Export may attach a PDF to a metadata paper. Refresh that missing document
   // only; existing PDF/Read views and annotations keep their mounted owners.
   const seenPdfReload = useRef(pdfReloadToken);
@@ -192,7 +194,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       restored.current = true;
       // Numeric plugin defaults never release EmbedPDF's initial viewport gate.
       // Boot with FitPage, then restore the saved scale through its public API.
-      if (initial) zoom.requestZoom(initial.zoom);
+      if (initial && !focusNow.current) zoom.requestZoom(initial.zoom);
       if (!initial || focusNow.current) { stateReady.current = true; persist(); return; }
       scroll.scrollToPage({ pageNumber: initial.page, pageCoordinates: initial.position, alignX: 0, alignY: 0, behavior: 'auto' });
       const focusAtRestore = focusNow.current;
@@ -244,7 +246,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   useEffect(() => {
     if (!scrollCapability || !focus || focus.documentId !== document.id) return;
     const apply = () => {
-      if (appliedFocus.current === focus) return;
+      if (appliedFocus.current === focus || !scrollCapability.forDocument(documentId).getMetrics().pageVisibilityMetrics.length) return;
       appliedFocus.current = focus;
       const rect = focus.rects?.[0], page = document.pages[focus.page - 1];
       scrollCapability.forDocument(documentId).scrollToPage({ pageNumber: focus.page, behavior: 'auto', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });

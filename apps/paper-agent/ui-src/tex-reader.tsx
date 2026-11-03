@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, Feedback, Icon, Select } from '@pero/app-sdk/ui';
@@ -36,7 +36,7 @@ export function TexReader({ api, paper, active, openToken, reloadToken = 0, chro
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [compilation, setCompilation] = useState<TexCompilation | null>(null);
   const [filesOpen, setFilesOpen] = useState(false), [bundle, setBundle] = useState<ResearchBundle | null>(null), [receipt, setReceipt] = useState<SourceReceipt | null>(null);
-  const mounted = useRef(true), loadedToken = useRef<number | null>(null), loadedReload = useRef(reloadToken);
+  const mounted = useRef(true), loadedToken = useRef<number | null>(null), loadedReload = useRef(reloadToken), loadedFigure = useRef<number | undefined>(undefined);
   const endpoint = `/api/papers/${paper.id}/tex`;
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   async function compile(selected = source, main = entry) {
@@ -66,20 +66,22 @@ export function TexReader({ api, paper, active, openToken, reloadToken = 0, chro
       const value = await api.get<TexOverview>(endpoint);
       if (!mounted.current) return;
       setOverview(value);
-      const selected = value.sources.find(s => s.available) ?? value.sources[0] ?? null;
+      const target = chrome.figure;
+      const selected = (target && value.sources.find(s => s.bundleId === target.bundleId && s.resourceId === target.resourceId)) ?? value.sources.find(s => s.available) ?? value.sources[0] ?? null;
       setSource(selected); setBundle(null); setReceipt(null);
-      const main = selected?.entries?.[0]?.id ?? '';
+      const referenced = target?.preview && selected?.previews?.find(p => p.id === target.preview!.previewId);
+      const main = referenced?.entryId ?? selected?.entries?.[0]?.id ?? '';
       setEntry(main);
-      const cached = selected?.previews?.find(p => p.entryId === main);
+      const cached = referenced ?? selected?.previews?.find(p => p.entryId === main);
       setPreview(cached ?? null);
       if (!cached && value.engineAvailable && selected?.available && selected.entries?.length === 1) await compile(selected, main);
     } catch (error) { if (mounted.current) setError(error instanceof Error ? error.message : String(error)); }
     finally { if (mounted.current) setBusy(false); }
   }
   useEffect(() => {
-    if (!active || (loadedToken.current === openToken && loadedReload.current === reloadToken)) return;
-    loadedToken.current = openToken; loadedReload.current = reloadToken; void load();
-  }, [active, openToken, reloadToken]);
+    if (!active || (loadedToken.current === openToken && loadedReload.current === reloadToken && loadedFigure.current === chrome.figure?.token)) return;
+    loadedToken.current = openToken; loadedReload.current = reloadToken; loadedFigure.current = chrome.figure?.token; void load();
+  }, [active, openToken, reloadToken, chrome.figure?.token]);
   async function files() {
     if (!source) return;
     setFilesOpen(true); setError('');
@@ -92,6 +94,10 @@ export function TexReader({ api, paper, active, openToken, reloadToken = 0, chro
     } catch (error) { if (mounted.current) setError(error instanceof Error ? error.message : String(error)); }
   }
   const working = busy || compilation?.status === 'running';
+  const figureFocus = useMemo(() => {
+    const target = chrome.figure?.preview;
+    return preview && target?.previewId === preview.id ? { documentId: preview.document.id, page: target.page } : null;
+  }, [chrome.figure?.token, preview?.id]);
   const controls = <div className="pa-tex-controls">{source && <Button className="pa-tex-files-action" variant="ghost" aria-label={copy('files')} title={copy('files')} onClick={() => void files()}><Icon name="file-code" size={14}/></Button>}</div>;
   return <div className="pa-tex-reader" aria-busy={working}>
     {active && !preview && (chrome.toolbar ? createPortal(controls, chrome.toolbar) : controls)}
@@ -104,7 +110,7 @@ export function TexReader({ api, paper, active, openToken, reloadToken = 0, chro
         <Select label={copy('main')} value={entry} onChange={setEntry} options={source.entries.map(f => ({ value: f.id, label: f.path }))}/><Button onClick={() => void compile()}>{copy('compile')}</Button>
       </>}
     </div>}
-    {preview && <><PdfViewer key={preview.id} readOnly document={preview.document} fileUrl={`/api/tex-previews/${preview.id}/file`} annotations={[]} api={api} chrome={{ ...chrome, toolbar: active ? chrome.toolbar : null }} active={active} readLabel="Read" onText={() => {}} onSaved={() => {}} onMatrixAdded={async () => {}} trailingActions={controls} t={t}/><span className="pa-tex-provenance">{copy('derived', { file: preview.entryPath })}{preview.diagnostics.includes('warning:') && ` / ${copy('warnings')}`}</span></>}
+    {preview && <><PdfViewer key={preview.id} focus={figureFocus} readOnly document={preview.document} fileUrl={`/api/tex-previews/${preview.id}/file`} annotations={[]} api={api} chrome={{ ...chrome, toolbar: active ? chrome.toolbar : null }} active={active} readLabel="Read" onText={() => {}} onSaved={() => {}} onMatrixAdded={async () => {}} trailingActions={controls} t={t}/><span className="pa-tex-provenance">{copy('derived', { file: preview.entryPath })}{preview.diagnostics.includes('warning:') && ` / ${copy('warnings')}`}</span></>}
     {filesOpen && <Dialog title={`${copy('files')} — ${source?.revision ?? ''}`} size="lg" className="pa-tex-source-dialog" closeLabel={copy('close')} onClose={() => setFilesOpen(false)}>
       {!bundle ? <p role="status">{copy('loading')}</p> : source?.available && receipt ? <><p className="pa-muted">{preview?.engine ?? 'TeX'} / {preview?.entryPath ?? source.entries?.find(f => f.id === entry)?.path}</p>{preview && <details className="pa-tex-diagnostics"><summary>{copy('diagnostics')}</summary><p>{preview.archiveDigest}</p><pre>{preview.diagnostics}</pre></details>}<SourceBrowser inspectionOnly initialMemberId={entry} api={api} bundle={bundle} resourceId={source.resourceId} receipt={receipt} onRead={() => {}}/></> : source && <ResearchSources api={api} bundle={bundle} startSourceIds={[]} scopedIds={[source.resourceId]} onRead={() => {}} onState={state => { if (state.available && !source.available) { setFilesOpen(false); void load(); } }}/>} 
     </Dialog>}

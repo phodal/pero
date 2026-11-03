@@ -8,6 +8,7 @@ import { LibrarySearch } from './library-search';
 import { ResearchBundleList, ResearchBundleView } from './research-bundles';
 import type { ResearchBundle } from './research-types';
 import { Reader, EvidencePanel, type Citation } from './documents';
+import { FigureSourceDialog, type FigureReference, type FigureTarget } from './figure-reference';
 import { ResearchRecords } from './research-records';
 import { Discovery, type DiscoveryOpening } from './discovery';
 import { DiscoverSearch } from './discover-search';
@@ -56,6 +57,8 @@ export default function PaperAgent() {
   const [recordOpening, setRecordOpening] = useState<{ studyId: string; intentId: string | null; token: number } | null>(null);
   const [savingPaper, setSavingPaper] = useState<Paper | null>(null), [saveFormat, setSaveFormat] = useState<'pdf' | 'tex'>('pdf'), [saveRevision, setSaveRevision] = useState(0);
   const [chatRequest, setChatRequest] = useState<ResearchDraft | null>(null);
+  const [figureTarget, setFigureTarget] = useState<FigureTarget | null>(null), [figureDialog, setFigureDialog] = useState<FigureReference | null>(null);
+  const figureToken = useRef(0);
   const pendingAsk = useRef<ResearchDraft | null>(null);
   const [discoveryOpening, setDiscoveryOpening] = useState<DiscoveryOpening | null>(null), [matrixOpen, setMatrixOpen] = useState(false);
   const [pdfFocus, setPdfFocus] = useState<PdfFocus | null>(null), [pdfToolbar, setPdfToolbar] = useState<HTMLDivElement | null>(null);
@@ -153,6 +156,7 @@ export default function PaperAgent() {
     setLibraryScreen('bundle');
   }
   async function read(paper: Paper, keepRecords = false, propagate = false, fromSearch = false) {
+    setFigureTarget(null); setFigureDialog(null);
     const version = ++readVersion.current; readerOpenToken.current++; setShelf(current => openPaper(current, paper.id)); setReadingBusy(true); setScreen('reading'); setCitation(null); setError('');
     setHitPreview(fromSearch);
     if (!fromSearch) setOpenHit(null);
@@ -294,8 +298,17 @@ export default function PaperAgent() {
       if(event.source!==window.parent || event.data?.type!=='pero:app:location' || typeof event.data.location!=='string')return;
       const resource=/^(paper|study)\/([a-f0-9]{64})$/.exec(event.data.location);
       const match=/^report\/([a-f0-9]{64})\/citation\/(\d+)$/.exec(event.data.location);
-      if(!resource&&!match)return;
+      const figure=/^figure\/([a-f0-9]{64})\/([a-f0-9]{64})$/.exec(event.data.location);
+      if(!resource&&!match&&!figure)return;
       void (async()=>{
+        if(figure){
+          const reference=await api.get<FigureReference>(`/api/research/figure-reference/${figure[1]}/${figure[2]}${reading ? `?paperId=${reading.id}` : ''}`);
+          if(reference.preview){
+            await read(await api.get<Paper>(`/api/papers/${reference.preview.paperId}`),false,true);
+            setFigureTarget({...reference,token:++figureToken.current});
+          }else setFigureDialog(reference);
+          return;
+        }
         if(resource){
           setQuestionMode(false);setSavingPaper(null);
           if(resource[1]==='paper'){
@@ -355,6 +368,7 @@ export default function PaperAgent() {
   const bundles = library.bundles ?? [];
   return <div onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { if (!event.dataTransfer.files.length) return; event.preventDefault(); void importPdf(event.dataTransfer.files[0]); }} className="pa-workbench pa-reading-first" data-screen={screen} data-research={showResearch} {...appObjectProps('paper-agent')}>
     {sdkContext.permissions && <ChatClosed onClose={() => setQuestionMode(false)}/>}
+    {figureDialog && <FigureSourceDialog api={api} reference={figureDialog} onClose={() => setFigureDialog(null)}/>}
     {importingPdf && <p className="pa-loading" role="status">{t('pdfImporting')}</p>}
     {error && <div className="pa-global-error"><Feedback kind="error"><span>{error}</span><Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback></div>}
     {savingPaper && <LibrarySave key={savingPaper.id} api={api} paper={savingPaper} format={saveFormat} t={t} onRead={id => { pendingAsk.current = null; setSavingPaper(null); void api.get<Paper>(`/api/papers/${id}`).then(paper => read(paper)).catch(onError); }} onClose={() => { pendingAsk.current = null; setSavingPaper(null); }} onSaved={async () => { setSaveRevision(value => value + 1); await refresh().catch(error => onError(`${t('savedRefreshFailed')} ${error instanceof Error ? error.message : String(error)}`)); const queued = pendingAsk.current; pendingAsk.current = null; if (queued) { setSavingPaper(null); await ask(queued.selection, queued.message); } }}/>}
@@ -382,7 +396,7 @@ export default function PaperAgent() {
     <section className="pa-reading-screen" hidden={screen !== 'reading'} data-agent={showResearch}>
       <div className="pa-reading-main" inert={narrow && showResearch}>
         <header className="pa-reading-bar pero-reader-header"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={back}><Icon family="shell" name="back" size={16}/></Button><div className="pa-reader-crumb"><Button variant="ghost" onClick={back}>{t('library')}</Button><Icon name="chevron-right" size={13}/><h1 title={reading?.title}>{reading?.title ?? t('loading')}</h1></div><div className="pa-reader-tools" ref={setPdfToolbar}/>{!questionMode && <><Button className="pa-records-toggle" variant="ghost" aria-label={t('researchProgress')} title={t('researchProgress')} aria-expanded={showResearch} onClick={() => { preserveView.current?.(); setShowResearch(value => !value); }}><Icon name="history" size={14}/></Button><div ref={askButton}><Button className="pa-ask" variant="primary" disabled={!reading || readingBusy || !!chatRequest} onMouseDown={event => event.preventDefault()} onClick={() => void ask()} aria-keyshortcuts="Control+j Meta+j">{t('ask')}</Button></div></>}</header>
-        <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} openToken={readerOpenToken.current} pdfReloadToken={saveRevision} chrome={{ onSave: (format = 'pdf') => { if (reading) { setSaveFormat(format); setSavingPaper(reading); } }, toolbar: pdfToolbar, preserveView, onNavigate: () => { focusVersion.current++; setPdfFocus(null); } }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onReview={() => { setScreen('library'); setLibraryScreen('import'); }} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
+        <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} openToken={readerOpenToken.current} pdfReloadToken={saveRevision} chrome={{ figure: figureTarget, onSave: (format = 'pdf') => { if (reading) { setSaveFormat(format); setSavingPaper(reading); } }, toolbar: pdfToolbar, preserveView, onNavigate: () => { focusVersion.current++; setPdfFocus(null); } }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onReview={() => { setScreen('library'); setLibraryScreen('import'); }} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
       </div>
       {screen === 'reading' && showResearch && <aside className="pa-records" aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
         <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}>×</Button></header>

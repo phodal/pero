@@ -84,3 +84,39 @@ Local ignored evidence is in `test-results/paper-answer-figures/`:
 committed. This pass does not certify Electron rendering, other operating
 systems or a real image-capable provider. Macro-dependent mappings, multi-page
 PDFs, EPS and SVG conversion remain unresolved.
+
+## Figure source navigation and readable side-chat figures
+
+Follow-up verified on 2026-11-03 against master `8fb38958` plus this change.
+Actual delivered image bytes bind to `pero-app-location` archive/member links.
+The same projection upgrades historical unlinked Markdown images during journal
+replay. Research images receive separate paragraphs: mixed text/image flow
+otherwise reduces unsized images to line-height icons. Other web images and
+code samples retain their existing representation.
+
+An immutable `FigureReference` finds literal TeX caption anchors in an existing
+PDF compiled from the same approved archive. A unique page is returned with its
+preview/document/file hashes and up to 4800 characters of page text through
+`research-source-read operation=reference`. It does not download or compile,
+assert vision, or turn derived TeX PDF text into independent original-PDF evidence.
+Missing or ambiguous page anchors open the original figure and TeX lines.
+
+The isolated Native profile used the real saved archive and real MCP reads. Its
+ACP fixture emitted an old unlinked image embedded within caption prose; Chat
+displayed a readable standalone plot at 320px and 420px panel widths. Clicking
+the restored answer opened TeX page 10/38 and visibly showed Figure 5 and its
+body explanation. The reference operation returned 2975 characters from that
+exact PDF page. Temporarily withholding only the QA profile's cached TeX index
+opened the original plot and `rsi_harness.tex` lines 813–815 instead; the index
+was restored after the check. Light/dark themes and keyboard Escape dismissal
+were inspected. No model inference, source download or experiment was performed
+in this follow-up; the earlier real-provider run remains separate evidence.
+
+Local screenshots and source-reference JSON are in the ignored directory
+`test-results/paper-figure-references/`: `native-reference.png`,
+`native-narrow.png`, `native-light.png`, `native-inline-figure.png`, and
+`native-fallback.png`. Source tests cover missing members, exact archives,
+literal/TeX-fragment captions, duplicate page anchors and the reference read
+route. The Python suite ran 263 cases (262 passed, one existing skip);
+App-use passed nine tests and Chat passed 20 pure tests. Paper typechecking,
+the native build and the shared WASM Chat check pass.
