@@ -6,6 +6,21 @@ import (
 	"testing"
 )
 
+func TestMessageDisplayReadsNestedDisplayContent(t *testing.T) {
+	got, err := ParseDecision("MessageDisplay", []byte(`{"hookSpecificOutput":{"hookEventName":"MessageDisplay","displayContent":"shown"}}`), nil, 0)
+	if err != nil || got.DisplayContent == nil || *got.DisplayContent != "shown" || got.AdditionalContext != "" || got.SystemMessage != "" {
+		t.Fatalf("nested = %+v %v", got, err)
+	}
+	got, err = ParseDecision("MessageDisplay", []byte(`{"displayContent":""}`), nil, 0)
+	if err != nil || got.DisplayContent == nil || *got.DisplayContent != "" {
+		t.Fatalf("empty = %+v %v", got, err)
+	}
+	got, err = ParseDecision("MessageDisplay", []byte(`{"systemMessage":"hidden","continue":false}`), nil, 0)
+	if err != nil || got.DisplayContent != nil || got.SystemMessage != "" || got.Stop {
+		t.Fatalf("discarded = %+v %v", got, err)
+	}
+}
+
 func TestMatcher(t *testing.T) {
 	for _, test := range []struct {
 		pattern, value string

@@ -139,6 +139,7 @@ type specificOutput struct {
 	WorktreePath      string                     `json:"worktreePath"`
 	UpdatedToolOutput json.RawMessage            `json:"updatedToolOutput"`
 	WatchPaths        []string                   `json:"watchPaths"`
+	DisplayContent    *string                    `json:"displayContent,omitempty"`
 }
 
 // permissionRequestDecision is the PermissionRequest allow or deny object.
@@ -297,6 +298,9 @@ func (wire output) decision(event string) (Decision, error) {
 			}
 			result.WorktreePath = specific.WorktreePath
 		}
+		if event == "MessageDisplay" && specific.DisplayContent != nil {
+			result.DisplayContent = specific.DisplayContent
+		}
 		if specific.RequestDecision != nil {
 			if event != "PermissionRequest" {
 				return Decision{}, errors.New("claudehooks: permission request decision is unsupported for this event")
@@ -328,7 +332,9 @@ func (wire output) decision(event string) (Decision, error) {
 		result.Reason = wire.StopReason
 	}
 	if event == "MessageDisplay" {
-		result.DisplayContent = wire.DisplayContent
+		if result.DisplayContent == nil {
+			result.DisplayContent = wire.DisplayContent
+		}
 		result.SystemMessage = ""
 		result.Stop = false
 		result.AdditionalContext = ""
