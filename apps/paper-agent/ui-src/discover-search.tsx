@@ -8,6 +8,7 @@ import './discover-search.css';
 const messages = {
   heading: { zh: '发现', en: 'Discover' },
   subtitle: { zh: '为你的研究找到下一篇论文。', en: 'Find the next paper for your research.' },
+  idle: { zh: '搜索主题、作者或标题，把下一篇论文加入文库。', en: 'Search a topic, author, or title to add the next paper.' },
   addByLink: { zh: '通过链接添加', en: 'Add by link' },
   searchLabel: { zh: '检索文献', en: 'Search literature' },
   placeholder: { zh: '搜索论文、主题或作者…', en: 'Search papers, topics, or authors…' },
@@ -178,11 +179,8 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
   const retry = () => { void run(attempted.current || submitted || query, source, sort); };
 
   return <section className="pa-discover" aria-label={t('heading')} aria-busy={busy}>
-    <header className="pa-discover-head">
-      <div>
-        <h1>{t('heading')}</h1>
-        <p>{t('subtitle')}</p>
-      </div>
+    <header className="pa-discover-toolbar">
+      <p>{t('subtitle')}</p>
       <button type="button" className="pa-discover-secondary" onClick={onAddByLink}><Icon name="link" size={16}/>{t('addByLink')}</button>
     </header>
     <form className="pa-discover-search" role="search" aria-label={t('searchLabel')} onSubmit={event => { event.preventDefault(); submitQuery(); }}>
@@ -223,6 +221,7 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
       const paper = saved[key] ?? papers.find(candidate => (candidate.source === item.source && candidate.sourceId === item.id) || (!!item.url && candidate.url === item.url));
       return <DiscoverHit key={key} item={item} paper={paper} adding={adding === key} locked={!!adding} error={addError?.key === key ? addError.message : ''} open={!!open[key]} onOpenChange={next => setOpen(current => current[key] === next ? current : { ...current, [key]: next })} onAdd={() => void add(item)} onOpen={onOpenSaved} t={t}/>;
     })}</ul>}
+    {!error && !busy && !results && <div className="pa-discover-empty"><p>{t('idle')}</p></div>}
     {!error && results && visible.length === 0 && <div className="pa-discover-empty"><p>{t('empty')}</p>{canClear && <button type="button" className="pa-discover-secondary" onClick={clearFilters}>{t('clear')}</button>}</div>}
   </section>;
 }

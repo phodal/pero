@@ -28,6 +28,9 @@ column after layout churn.
 - Deduplicate Host context posts when only geometry changed.
 - Skip AppProvider state updates when locale/dark/active/appearance are equal.
 - Prefer `height: 100%` for the Paper Agent shell inside the iframe.
+- Target `#app` (the real mount), not `#root`, so short library/find screens fill
+  the iframe instead of leaving a white Host slab under the content.
+- Host App panel background uses `--pero-material-chrome`, not `--pero-surface`.
 - Render a single-column shell outside hit-preview instead of a hidden Split pane.
 - Keep inactive iframes with `visibility` instead of `display:none` so a resize
   flicker does not blank Chromium's compositor.

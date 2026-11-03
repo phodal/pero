@@ -183,7 +183,9 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     if(surface.appearance)applyAppearance(surface.appearance,region);
     for(const slot of mounts.values()) {
       const value=slot.surface;slot.region.hidden=!value.visible;
-      slot.region.style.cssText=`position:absolute;left:${(value.left||0)-left}px;top:${(value.top||0)-top}px;width:${value.width||0}px;height:${value.height||0}px;overflow:hidden;pointer-events:auto;color-scheme:${value.dark?'dark':'light'};background:var(--pero-surface)`;
+      // Page chrome, not reading surface: short App documents must not flash a
+      // white slab through the iframe when their height chain is incomplete.
+      slot.region.style.cssText=`position:absolute;left:${(value.left||0)-left}px;top:${(value.top||0)-top}px;width:${value.width||0}px;height:${value.height||0}px;overflow:hidden;pointer-events:auto;color-scheme:${value.dark?'dark':'light'};background:var(--pero-material-chrome)`;
       const frame = active(slot);
       const x = value.left || 0, y = value.top || 0, w = value.width || 0, h = value.height || 0;
       const overlay = chatOverlaySuspended ? null : chatOverlay;

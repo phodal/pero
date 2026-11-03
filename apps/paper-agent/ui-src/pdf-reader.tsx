@@ -83,12 +83,12 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => setLookupAttempt(value => value + 1)} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('loading')}</p>}
     <div className="pa-reader-views" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', flex: 1, minHeight: 0, minWidth: 0 }}>
-      {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, minWidth: 0, visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
+      {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%', visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
         <PdfViewer chrome={{ ...chrome, toolbar: view === 'pdf' ? chrome.toolbar : null }} active={view === 'pdf'} readLabel={textLabel} onText={() => setMode('text')} key={`${reading.document.id}:${reading.document.fileDigest}`} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/>
       </div>}
-      <div className="pa-text-view-slot" aria-hidden={view !== 'text'} inert={view !== 'text'} style={{ gridArea: '1 / 1', display: view === 'text' ? 'flex' : 'none', minHeight: 0, minWidth: 0 }}>{children}</div>
-      {visitedTex && <div className="pa-tex-view-slot" aria-hidden={view !== 'tex'} inert={view !== 'tex'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, minWidth: 0, visibility: view === 'tex' ? 'visible' : 'hidden' }}><TexReader api={api} paper={paper} active={view === 'tex'} openToken={openToken} reloadToken={pdfReloadToken} chrome={chrome} t={t}/></div>}
-      {view === 'original' && originalUrl?.startsWith('https://') && <section className="pa-original-view" style={{ gridArea: '1 / 1' }} aria-label={t('readerOriginal')}><div className="pa-original-location"><a href={originalUrl} target="_blank" rel="noreferrer"><Icon name="external-link"/>{originalUrl}</a></div><iframe title={t('readerOriginal')} src={originalUrl} sandbox="allow-same-origin allow-popups" referrerPolicy="no-referrer"/></section>}
+      <div className="pa-text-view-slot" aria-hidden={view !== 'text'} inert={view !== 'text'} style={{ gridArea: '1 / 1', display: view === 'text' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%' }}>{children}</div>
+      {visitedTex && <div className="pa-tex-view-slot" aria-hidden={view !== 'tex'} inert={view !== 'tex'} style={{ gridArea: '1 / 1', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%', visibility: view === 'tex' ? 'visible' : 'hidden' }}><TexReader api={api} paper={paper} active={view === 'tex'} openToken={openToken} reloadToken={pdfReloadToken} chrome={chrome} t={t}/></div>}
+      {view === 'original' && originalUrl?.startsWith('https://') && <section className="pa-original-view" style={{ gridArea: '1 / 1', minHeight: 0, height: '100%' }} aria-label={t('readerOriginal')}><div className="pa-original-location"><a href={originalUrl} target="_blank" rel="noreferrer"><Icon name="external-link"/>{originalUrl}</a></div><iframe title={t('readerOriginal')} src={originalUrl} sandbox="allow-same-origin allow-popups" referrerPolicy="no-referrer"/></section>}
     </div>
   </div>;
 }
@@ -118,6 +118,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   onMatrixAdded(): Promise<void>;
 }) {
   const { state: scrollState } = useScroll(documentId), { provides: scrollCapability } = useScrollCapability();
+  // Memoize: forDocument() returns a fresh object each call and would retrigger restore.
   const scroll = useMemo(() => scrollCapability?.forDocument(documentId) ?? null, [scrollCapability, documentId]);
   const { provides: zoom, state: zoomState } = useZoom(documentId);
   const { provides: selection } = useSelectionCapability(), { provides: capture, state: captureState } = useCapture(documentId);
@@ -193,7 +194,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       // Boot with FitPage, then restore the saved scale through its public API.
       if (initial) zoom.requestZoom(initial.zoom);
       if (!initial || focusNow.current) { stateReady.current = true; persist(); return; }
-      scroll.scrollToPage({ pageNumber: initial.page, pageCoordinates: initial.position, alignX: 0, alignY: 0, behavior: 'instant' });
+      scroll.scrollToPage({ pageNumber: initial.page, pageCoordinates: initial.position, alignX: 0, alignY: 0, behavior: 'auto' });
       const focusAtRestore = focusNow.current;
       void selected.setSelection(initial.selection).toPromise().then(() => {
         if (!alive) return;
@@ -246,7 +247,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       if (appliedFocus.current === focus) return;
       appliedFocus.current = focus;
       const rect = focus.rects?.[0], page = document.pages[focus.page - 1];
-      scrollCapability.forDocument(documentId).scrollToPage({ pageNumber: focus.page, behavior: 'instant', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
+      scrollCapability.forDocument(documentId).scrollToPage({ pageNumber: focus.page, behavior: 'auto', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
       setTarget(focus.annotationId ?? '');
     };
     if (layoutReady.current) apply();
@@ -277,7 +278,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       await save({ kind: 'highlight', page: part.pageIndex + 1, quote, rects });
     } catch (e) { fail(e); }
   }
-  function go(annotation: PdfAnnotation) { scroll?.scrollToPage({ pageNumber: annotation.page, behavior: 'instant' }); setTarget(annotation.id); }
+  function go(annotation: PdfAnnotation) { chrome.onNavigate(); scroll?.scrollToPage({ pageNumber: annotation.page, behavior: 'auto' }); setTarget(annotation.id); }
   async function copyImage(annotation: PdfAnnotation) {
     try {
       const blob = await (await fetch(`/api/annotations/${annotation.id}/image`)).blob();
@@ -290,11 +291,16 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     catch (e) { fail(e); }
     finally { setBusy(false); }
   }
-  const pager = <div className="pa-reader-pager">
+  const jump = (pageNumber: number) => {
+    if (!scroll || pageNumber < 1 || pageNumber > document.pages.length) return;
+    chrome.onNavigate();
+    scroll.scrollToPage({ pageNumber, behavior: 'auto' });
+  };
+  const pager = <div className="pa-reader-pager" onPointerDownCapture={chrome.onNavigate} onClickCapture={chrome.onNavigate} onKeyDownCapture={chrome.onNavigate} onChangeCapture={chrome.onNavigate}>
       {chrome.back && <Button variant="ghost" aria-label={t('backToLibrary')} onClick={chrome.back}>‹</Button>}
-      <Button variant="ghost" aria-label={t('pdfPrevious')} disabled={!scroll || scrollState.currentPage <= 1} onClick={() => scroll?.scrollToPreviousPage('instant')}>‹</Button>
-      <label className="pa-pdf-page-input"><span className="pa-sr-only">{t('pdfPage')}</span><input aria-label={t('pdfPage')} type="number" min={1} max={document.pages.length} value={scrollState.currentPage || 1} onChange={event => { const pageNumber = Number(event.target.value); if (pageNumber >= 1 && pageNumber <= document.pages.length) scroll?.scrollToPage({ pageNumber, behavior: 'instant' }); }}/><span>/ {document.pages.length}</span></label>
-      <Button variant="ghost" aria-label={t('pdfNext')} disabled={!scroll || scrollState.currentPage >= document.pages.length} onClick={() => scroll?.scrollToNextPage('instant')}>›</Button>
+      <Button variant="ghost" aria-label={t('pdfPrevious')} disabled={!scroll || scrollState.currentPage <= 1} onClick={() => { chrome.onNavigate(); scroll?.scrollToPreviousPage('auto'); }}>‹</Button>
+      <label className="pa-pdf-page-input"><span className="pa-sr-only">{t('pdfPage')}</span><input aria-label={t('pdfPage')} type="number" min={1} max={document.pages.length} value={scrollState.currentPage || 1} onChange={event => jump(Number(event.target.value))}/><span>/ {document.pages.length}</span></label>
+      <Button variant="ghost" aria-label={t('pdfNext')} disabled={!scroll || scrollState.currentPage >= document.pages.length} onClick={() => { chrome.onNavigate(); scroll?.scrollToNextPage('auto'); }}>›</Button>
       <Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfFitPage')} onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{Math.round((zoomState.currentZoomLevel || 1) * 100)}%</Button><Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button>
       <Popover className="pa-pdf-zoom-menu" label={t('pdfZoom')} trigger={`${Math.round((zoomState.currentZoomLevel || 1) * 100)}%`} triggerVariant="ghost" contentClassName="pa-pdf-zoom-panel">{() => <><Button variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button variant="ghost" onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{t('pdfFitPage')}</Button><Button variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button></>}</Popover>
       {trailingActions}

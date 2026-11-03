@@ -21,7 +21,6 @@ export function WorkspaceNav({ t, paperCount, readingCount, toReadCount, bundles
 }) {
   const onPapers = libraryScreen === 'papers';
   return <nav className="pa-workspace-nav" aria-label={t('papers')}>
-    <div className="pa-nav-heading">{t('papers')}</div>
     <SidebarRow label={t('library')} count={paperCount} lead={<Icon name="list" size={18}/>} selected={(libraryScreen === 'papers' || libraryScreen === 'import') && shelfFilter === 'all'} onClick={onLibrary}/>
     <SidebarRow label={t('discoverNav')} lead={<Icon name="drafting-compass" size={18}/>} selected={libraryScreen === 'find' || libraryScreen === 'discovery'} onClick={onDiscover}/>
     <p className="pa-nav-label">{t('yourLibrary')}</p>
