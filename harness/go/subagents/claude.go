@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -236,11 +235,12 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 		}); err != nil {
 			return nil, err
 		}
-		tools := []harness.Tool{service.agentTool(), service.sendMessageTool(), service.outputTool(), service.stopTool()}
+		tools := []harness.Tool{service.agentTool(), service.agentListTool(), service.sendMessageTool(), service.outputTool(), service.stopTool()}
 		if options.LegacyTaskAlias {
 			alias := service.agentTool()
 			alias.Schema.Name = "Task"
 			alias.Schema.Description = "Legacy spelling of Agent for the selected compatibility profile. " + alias.Schema.Description
+			alias.Schema.Catalog.Header = "Legacy spelling of Agent for the selected compatibility profile. " + alias.Schema.Catalog.Header
 			tools = append(tools, alias)
 		}
 		for _, tool := range tools {
@@ -271,20 +271,17 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 }
 
 func (s *claudeDelegation) agentTool() harness.Tool {
-	names := make([]string, 0, len(s.definitions))
-	for name := range s.definitions {
-		names = append(names, name)
+	catalog := &harness.CatalogText{RecoveryTool: "AgentList", Continuation: "Call AgentList with offset/limit to discover all selected subagent types; follow next_offset."}
+	for _, name := range s.catalogNames() {
+		data, _ := json.Marshal(struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}{name, s.definitions[name].Description})
+		catalog.Rows = append(catalog.Rows, string(data))
 	}
-	sort.Strings(names)
-	var available strings.Builder
-	for _, name := range names {
-		description := []rune(s.definitions[name].Description)
-		if len(description) > 256 {
-			description = description[:256]
-		}
-		fmt.Fprintf(&available, "\n- %s: %s", name, string(description))
-	}
-	return harness.Tool{Schema: harness.ToolSchema{Name: "Agent", Description: "Run an independent agent with selected instructions, tools and an explicitly mapped model. subagent_type defaults to general-purpose. Bare names resolve within the current plugin first, then by a unique scoped suffix; use the full name if ambiguous. Exact names, including builtins, take precedence. Explore/Plan use mounted read-only file/search/web/LSP tools and, when the parent mounted shell, read-only Bash only; Write/Edit, Skill and arbitrary MCP stay unavailable. isolation=worktree runs the child in a detached Git worktree that is removed when the child finishes. Background runs return a real task_id for TaskOutput/TaskStop. Resume custom/general-purpose agents with their ID and a new prompt; Explore/Plan remain one-shot. Available subagent_type values:" + available.String(), InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"subagent_type":{"type":"string","minLength":1},"description":{"type":"string","minLength":1},"prompt":{"type":"string","minLength":1},"model":{"type":"string"},"isolation":{"type":"string","enum":["worktree"]},"run_in_background":{"type":"boolean"},"resume":{"type":"string"}},"required":["description","prompt"]}`)}, IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+	catalog.Header = "Run an independent agent with selected instructions, tools and an explicitly mapped model. subagent_type defaults to general-purpose. Bare names resolve within the current plugin first, then by a unique scoped suffix; use the full name if ambiguous. Exact names, including builtins, take precedence. Explore/Plan use mounted read-only file/search/web/LSP tools and, when the parent mounted shell, read-only Bash only; Write/Edit, Skill and arbitrary MCP stay unavailable. isolation=worktree runs the child in a detached Git worktree that is removed when the child finishes. Background runs return a real task_id for TaskOutput/TaskStop. Resume custom/general-purpose agents with their ID and a new prompt; Explore/Plan remain one-shot. Available subagent_type values:"
+	budget := harness.CatalogBudget{Remaining: harness.DefaultCatalogPageBytes}
+	return harness.Tool{Schema: harness.ToolSchema{Name: "Agent", Description: budget.Render(*catalog), Catalog: catalog, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"subagent_type":{"type":"string","minLength":1},"description":{"type":"string","minLength":1},"prompt":{"type":"string","minLength":1},"model":{"type":"string"},"isolation":{"type":"string","enum":["worktree"]},"run_in_background":{"type":"boolean"},"resume":{"type":"string"}},"required":["description","prompt"]}`)}, IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 		var input struct {
 			Type        string `json:"subagent_type"`
 			Description string `json:"description"`

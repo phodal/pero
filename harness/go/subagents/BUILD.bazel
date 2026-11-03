@@ -4,6 +4,7 @@ go_library(
     name = "subagents",
     srcs = [
         "builtins.go",
+        "catalog.go",
         "claude.go",
         "claude_invoke.go",
         "claude_memory.go",
@@ -31,6 +32,7 @@ go_test(
     srcs = [
         "background_activity_test.go",
         "builtins_test.go",
+        "catalog_test.go",
         "claude_invoke_test.go",
         "claude_legacy_task_test.go",
         "claude_names_test.go",
@@ -41,13 +43,14 @@ go_test(
         "restart_test.go",
         "resume_disk_test.go",
         "resume_test.go",
-        "tool_availability_test.go",
         "shared_budget_review_test.go",
+        "tool_availability_test.go",
         "worktree_isolation_test.go",
     ],
     embed = [":subagents"],
     deps = [
         "//harness",
+        "//model",
         "//nativetools",
         "//providers/openai",
         "//runtime",
