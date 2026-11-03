@@ -695,9 +695,9 @@ P0 检查命令不执行远程获取、marketplace entry 组件合并或 Workflo
 
 ### 16.2 继续实现的出口
 
-完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的执行续跑；动态模板的精确呈现；后台子代理的活动驻留、运行中任务的 cold-resume、turn/run 区分及命令完成通知/自动唤醒；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
+完整目标仍未达成。接下来按第 11 节验收出口推进：Workflow 的执行续跑；动态模板的精确呈现；运行中任务的 cold-resume；LSP 连续异步 diagnostics 与动态能力注册；研究技能的真实模型/真实语料质量；外部依赖和实际服务连接。后台子代理的 Bash 活动驻留、turn/run 区分及完成通知已接通，见 16.14。任务生命周期和其他附加 hook 事件也未全部装配。条件 Bash 权限和 search/comparison 的 exit 1 例外当前只处理能明确解析的 simple command，复合语法还未达到官方能力。配置结构错误已有可重放迁移；版本漂移、外部认证、脚本依赖与实际流程缺口继续保留，不能由配置编译通过代替验收。Trial 的最终产物复核、关闭失败和进程退出处理已完成独立回归，真实优化效果仍需另行验收。
 
-任务归属也需区分目标契约：当前任务查询限定创建者，子代理退出时取消并等待其命令，这与 pinned DSH 的 owner 隔离及 disposal 语义相符。Claude 官方要求前台子代理结束时停止命令，但允许后台子代理在当前 turn 结束后继续持有后台命令，并接收完成通知；run 真正退出时才停止。现有 one-shot 子代理在结果返回后回收，尚未实现后一种驻留。不能把它写成所有子代理命令都应无限存活，或已经支持根会话接管所有子任务。当前 Claude 文档还注明 TaskOutput 自 v2.1.277 移除、改为 Read 输出文件；本批插件所用旧 TaskOutput 接口作为显式兼容接口保留。
+任务归属也需区分目标契约：当前任务查询限定创建者。前台及 one-shot 子代理退出时取消并等待其命令，这与 pinned DSH 的 owner 隔离及 disposal 语义相符。Claude 官方要求前台子代理结束时停止命令，但允许后台子代理在当前 turn 结束后继续持有后台命令，并接收完成通知；run 真正退出时才停止。所选 managed 后台代理现已接通后一种驻留。不能把它写成所有子代理命令都应无限存活，或已经支持根会话接管所有子任务。当前 Claude 文档还注明 TaskOutput 自 v2.1.277 移除、改为 Read 输出文件；本批插件所用旧 TaskOutput 接口作为显式兼容接口保留。
 
 官方行为依据：[技能动态命令和权限](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)、[Bash pattern 和 compound command](https://code.claude.com/docs/en/permissions#bash)、[工具输出与 exit 1 例外](https://code.claude.com/docs/en/tools-reference#output-limits)、[后台命令停止条件](https://code.claude.com/docs/en/tools-reference#when-a-background-command-stops)、[后台子代理的工具与结果](https://code.claude.com/docs/en/sub-agents#tools-permissions-and-results-of-background-subagents)、[工具可用性与 TaskOutput 版本变化](https://code.claude.com/docs/en/tools-reference#available-tools)、[CLI 运行限制](https://code.claude.com/docs/en/cli-reference)。
 
@@ -847,6 +847,18 @@ Workflow 的 run_in_background:true 已接入同一个 Node/Claude 子代理执�
 
 初始执行冻结实际 route、persona 和声明的工具过滤器，恢复时保留原历史，并重做当前父会话、模型有效性、预算、层级、容量和审批检查；当前所选定义的工具与原声明过滤器相交，继承工具仍由当前精确父 scope 决定。已结束 child 可从内存恢复，显式 Persistence 可在全新 runtime 读取 JSONL 恢复。运行中的 SendMessage 则入原 activation 队列，结果只观察一次并向父会话通知。Explore/Plan 以及带任意 ConfigureChild 回调的内部调用走独立一次性 provider，防止 Web 提取、Skill fork、Workflow helper 恢复后丢失临时约束。managed structured_output 使用原 admission gate。[续跑与边界测试](../../harness/go/subagents/resume_test.go)
 
-真实 HTTP loopback 测试验证同一 ID 三轮、完整先前工具结果/回复、父模式改只读后拒写、SendMessage 排队与完成通知。JSONL 测试先真实 Write 与一次审批，关闭原 runtime 后由全新实例加载同一 child；新定义只允许 Read，恢复模型仍看到旧历史与真实原文件，没有第二次 Write/审批，并拒绝无 live-cache 时的其他父会话续跑。[磁盘测试](../../harness/go/subagents/resume_disk_test.go)。此处模型是本地 HTTP fixture；证明已结束会话续跑，不宣称恢复运行中的进程、后台 Bash 或 JavaScript 执行栈。常驻活动 lease 和运行中任务冷恢复继续保留。
+真实 HTTP loopback 测试验证同一 ID 三轮、完整先前工具结果/回复、父模式改只读后拒写、SendMessage 排队与完成通知。JSONL 测试先真实 Write 与一次审批，关闭原 runtime 后由全新实例加载同一 child；新定义只允许 Read，恢复模型仍看到旧历史与真实原文件，没有第二次 Write/审批，并拒绝无 live-cache 时的其他父会话续跑。[磁盘测试](../../harness/go/subagents/resume_disk_test.go)。此处模型是本地 HTTP fixture；证明已结束会话续跑，不宣称恢复运行中的进程、后台 Bash 或 JavaScript 执行栈。后台活动驻留见 16.14；运行中任务冷恢复继续保留。
 
 本批通过 Go 全量 race/vet；后续工具过滤与 fresh-parent 拒绝补测通过对应包 race，subagents race 连续两次通过。Bazel harness、subagents、workflow、pluginruntime 和完整 CLI 五个目标通过。无付费模型请求。
+
+### 16.14 后台子代理的 Bash 活动驻留
+
+所选 managed 后台代理在启动原生后台 Bash、或将已启动命令提升到后台前，取得绑定精确 activation 的活动所有权。当前 turn 结束后仍有活动时，不提前发布最终结果或回收 child；TaskOutput 继续显示 running。前台代理、Explore/Plan 和带临时 ConfigureChild 的内部调用继续按原 run 结束条件清理命令，不统一放宽存活范围。[官方停止条件](https://code.claude.com/docs/en/tools-reference#when-a-background-command-stops)、[运行契约](../../harness/go/subagents/README.md#background-bash-activity)
+
+命令终态先写日志并 Flush，随后发布实际 task receipt，再通过原 managed admission 路径把带稳定 ID 的有界 Bash 结果通知原 child。活动保留到通知接收入账后才释放：活跃 child 在下一步处理，idle child 进入后续 turn。该轮处理完真实命令结果后，父会话才收到最终子代理结果。structured_output 拒绝未完成活动和待处理输入；完成结果的持久化或通知失败使 activation 失败，不返回之前的成功回答掩盖缺口。归档活动快照能识别持有进程的 idle child，停止、归档和父会话退役均回收原进程。[活动实现](../../harness/go/harness/subagents_background_activity.go)、[命令通知](../../harness/go/nativetools/activity.go)
+
+真实 FIFO 阻塞命令验证七条路径：后台完成、前台提升后的同 PID 完成、SendMessage 续跑后的后台完成、前台代理结束清理、TaskStop、归档停止及父会话退役。完成路径包含两次 child turn、实际输出通知、最终父会话自动唤醒；已结束会话续跑的用例额外保留之前的 conversation。各路径均只执行一次命令、经过一次审批。活动还验证结构化结束门、等待、失败呈现与精确 generation 释放。模型为本地 HTTP fixture，无付费请求。[真实进程测试](../../harness/go/subagents/background_activity_test.go)、[活动边界测试](../../harness/go/harness/subagents_background_activity_test.go)
+
+这一步只提供当前运行时的活动驻留，不恢复重启前的 PID、模型请求或 JavaScript 执行栈；丢失所有者的命令仍标 interrupted，不重跑。根会话 Bash 的自动完成通知、普通文本 `-p` 退出等待策略也不包含在此次接线内。
+
+本批通过 Go 全量 race/vet，Bazel harness、subagents、nativetools、workflow、pluginruntime 和完整 CLI 六个目标通过。新增七路径真实进程用例在最终调整后连续十次通过；全量回归曾发现测试的 PID 就绪文件早于副作用写入，现将就绪信号放到副作用之后，停止用例不再依赖两个命令之间的调度时机。

@@ -141,12 +141,16 @@ of inspection output. Unknown execution fields and invalid declarations stop
 runtime loading instead of silently changing their meaning.
 
 This profile is still incomplete. Conditional Bash grants and exit-1
-interpretation for compound syntax, resumable Workflow continuations, resident
-background agents, running-task cold recovery and several additional hook/configuration features remain
+interpretation for compound syntax, resumable Workflow continuations,
+running-task cold recovery and several additional hook/configuration features remain
 open. Hooks do not yet use the sandbox backend; selecting both command hooks
 and a sandbox currently returns an error. Explore/Plan use a narrower read-only
 tool set. Full external-service and per-plugin business workflows still require
 their own acceptance.
+Selected managed background agents retain native Bash across their current turn
+and receive command-completion continuations before final parent settlement;
+foreground and one-shot child cleanup stays scoped to their original run.
+See [background activity ownership](../subagents/README.md#background-bash-activity).
 See the design's implementation matrix for the remaining work.
 
 The user-selected

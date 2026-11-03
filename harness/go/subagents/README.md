@@ -56,7 +56,33 @@ tools. It reads the existing file without another Write or approval. Unrelated
 parents cannot resume the child, including when no task is in the live cache.
 No paid model request was made. This proves completed-conversation continuation,
 not revival of an in-flight model request, detached process or JavaScript stack.
-Background command activity leases and resident/cold task ownership remain
-separate work.
+Running-task cold recovery remains separate work.
+
+## Background Bash activity
+
+Selected managed background agents retain an explicit activity for each native
+background Bash command, including an already-started foreground command that
+promotes. An idle turn does not settle that activation while its activity is
+unfinished. Its task remains running and the same child may receive messages.
+Foreground children still stop their commands when their run ends.
+
+After persisting the actual terminal result, Bash publishes its task receipt
+before admitting a bounded completion notice into the original child's inbox.
+The activity stays retained through admission, then releases once. A running
+child receives next-step input; an idle child starts a continuation turn. Only
+after that work settles can the parent's task receive the final child result.
+Structured output refuses unfinished activities and unprocessed messages.
+Completion persistence/delivery failure fails the activation rather than
+silently returning its earlier answer. Task lookup remains exact-owner scoped.
+
+TaskStop, archive stop and parent retirement revoke the original activation and
+join command cleanup. Shutdown does not preserve or relaunch its processes.
+The selected profile opts into retention per activation, including SendMessage
+continuations; one-shot/internal configured children do not acquire it.
+Real FIFO-blocked process tests cover turn residency, completion/history,
+same-PID promotion, resumed background conversations, one command/approval,
+foreground cleanup, TaskStop, archive stop and parent retirement. Models use
+loopback HTTP. This is live-process residency, not process cold recovery.
 
 Official behavior reference: [resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents).
+Command ownership reference: [when a background command stops](https://code.claude.com/docs/en/tools-reference#when-a-background-command-stops).

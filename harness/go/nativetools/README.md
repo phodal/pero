@@ -120,9 +120,13 @@ runtime does not implement Claude's separate plain-text `-p` waiting policy.
 Real-process tests verify one PID and one set of effects across promotion,
 durable handoff, cancellation after a returned tool call, promotion flush
 failure, background deadlines, explicit interactive mode, sleep/disable/bare
-exceptions, TaskStop, owner retirement and cold interrupted recovery. Resident
-background subagents and command-completion notifications/automatic wakeups
-remain separate work; exact-owner task lookup is unchanged.
+exceptions, TaskStop, owner retirement and cold interrupted recovery. Selected
+managed background subagents now retain their native Bash activities across
+turns and receive actual completion notices in the same child, including
+foreground-to-background promotion. Foreground children still stop commands
+when their run ends. Root command notification behavior and running-process cold
+recovery remain outside this addition; task lookup stays exact-owner scoped.
+See [background activity ownership](../subagents/README.md#background-bash-activity).
 
 ## Selected language servers
 
