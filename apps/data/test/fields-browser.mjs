@@ -101,7 +101,7 @@ test('field controls retain keyboard focus, drafts and latest selections during 
   await expect(showTime).not.toBeChecked();
   await fourth.reply(); await third.reply(); await second.reply();
   await expect(time).toHaveValue('ms'); await expect(showTime).not.toBeChecked();
-  await page.getByRole('tab', { name: 'Preview', exact: true }).click();
+  await page.getByRole('tab', { name: 'Table', exact: true }).click();
   await expect(page.getByRole('columnheader', { name: 'voltage (V)', exact: true })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'time (ms)', exact: true })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Fields', exact: true }).click();
@@ -125,7 +125,7 @@ test('switching version isolates fields and ignores a late response from the pre
   await current.reply();
   await expect(page.getByRole('textbox', { name: 'Unit for voltage', exact: true })).toHaveValue('');
   await old.reply();
-  await page.getByRole('tab', { name: 'Preview', exact: true }).click();
+  await page.getByRole('tab', { name: 'Table', exact: true }).click();
   await expect(page.getByRole('cell', { name: '222', exact: true })).toHaveCount(3);
   await expect(page.getByRole('cell', { name: '111', exact: true })).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: 'voltage (old-unit)', exact: true })).toHaveCount(0);
@@ -141,5 +141,5 @@ for (const failure of ['changed', 'transport']) test(`${failure} failure removes
   await expect(input).toHaveCount(0);
   await expect(page.getByText('Bytes matched', { exact: false })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Checks', exact: true }).click();
-  await expect(page.getByText('No current checks. Open Preview for the file status.', { exact: true })).toBeVisible();
+  await expect(page.getByText('No current checks. Open Table for the file status.', { exact: true })).toBeVisible();
 });

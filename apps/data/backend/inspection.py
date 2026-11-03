@@ -3,7 +3,8 @@ from dataclasses import dataclass, asdict
 import csv
 from hashlib import sha256
 from io import StringIO
-from dataset import Cell, Dataset as Records, Field, Filter, Kind, Query, Record
+from dataset import Cell, Dataset as Records, Field, Invalid, Kind, Record
+from view import DatasetView
 from datasets import (Duplicate, FieldProfile, MAX_FIELDS, MAX_ROWS, PARSER_VERSION,
                       PREVIEW_BYTES, PreviewRequest, QualityReport)
 
@@ -76,11 +77,15 @@ class Inspection:
 
     def page(self, request: PreviewRequest):
         columns = request.view.admitted_columns([field.name for field in self.records.fields])
-        query = Query(Filter(request.view.filterField, 'contains', request.view.contains)
-                      if request.view.filterField else None)
-        rows = query.apply(self.records)
+        try:
+            view = DatasetView.admit(request.view.query_body(columns, request.offset, request.limit), self.records)
+            rows = view.query.apply(self.records)
+            selected = view.selection.apply(rows)
+        except Invalid as error:
+            raise ValueError(str(error)) from error
         page = rows[request.offset:request.offset + request.limit]
-        return dict(report=asdict(self.report), columns=columns, matched=len(rows), offset=request.offset,
+        return dict(report=asdict(self.report), columns=list(columns), matched=len(rows), selected=len(selected),
+                    offset=request.offset, viewId=view.identity(self.records),
                     nextOffset=request.offset + request.limit if request.offset + request.limit < len(rows) else None,
                     rows=[dict(row=row.ordinal + 1, pointer=row.pointer, line=row.line,
                                cells=[dict(kind=cell.kind.value, text=cell.display)

@@ -17,6 +17,8 @@ from datasets import (Dataset, DatasetEdit, MAX_COLUMNS, MAX_FIELDS, MAX_ROWS, P
 from inspection import Inspection
 
 IMPORT_LIMIT = 10 * 1024 * 1024
+SCHEMA = 3
+TABULAR = ('csv', 'tsv', 'json', 'jsonl', 'ndjson')
 
 
 @dataclass(frozen=True)
@@ -91,11 +93,14 @@ class Catalog:
         path = self.directory / 'catalog.json'
         raw = json.loads(path.read_text(encoding='utf-8')) if path.exists() else []
         self.legacy = raw if isinstance(raw, list) and path.exists() else None
+        self.prior = None
         if isinstance(raw, list):
             self.assets = [Asset(**item) for item in raw]
             self.datasets = [Dataset.for_asset(a.id, a.name, a.kind) for a in self.assets]
             self.views = []
-        elif isinstance(raw, dict) and raw.get('schemaVersion') == 2:
+        elif isinstance(raw, dict) and raw.get('schemaVersion') in (2, 3):
+            # Schema 2 views use the contains-filter shape. The next mutation writes schema 3.
+            self.prior = raw if raw['schemaVersion'] == 2 else None
             self.assets = [Asset(**item) for item in raw['assets']]
             self.datasets = [Dataset.restore(item) for item in raw['datasets']]
             self.views = [SavedView.restore(item) for item in raw['views']]
@@ -122,10 +127,13 @@ class Catalog:
         # A single replacement publishes files' metadata and logical references together.
         if self.legacy is not None and not (self.directory / 'catalog.v1.backup.json').exists():
             self.atomic('catalog.v1.backup.json', self.legacy)
-        self.atomic('catalog.json', dict(schemaVersion=2, assets=[asdict(a) for a in assets],
+        if self.prior is not None and not (self.directory / 'catalog.v2.backup.json').exists():
+            self.atomic('catalog.v2.backup.json', self.prior)
+        self.atomic('catalog.json', dict(schemaVersion=SCHEMA, assets=[asdict(a) for a in assets],
                                         datasets=[asdict(d) for d in datasets], views=[v.public() for v in views]))
         self.assets, self.datasets, self.views = assets, datasets, views
         self.legacy = None
+        self.prior = None
 
     def availability(self, asset):
         path = self.files / asset.id
@@ -216,7 +224,7 @@ class Catalog:
             content = stream.read(PREVIEW_BYTES + 1)
         if len(content) != asset.size or hashlib.sha256(content).hexdigest() != asset.sha256:
             raise InspectionUnavailable('changed', 'Original bytes no longer match the stored SHA-256')
-        if asset.format not in ('csv', 'tsv', 'json', 'jsonl', 'ndjson'):
+        if asset.kind == 'model' or asset.format not in TABULAR:
             raise InspectionUnavailable('unsupported', 'Stored opaque file; tabular preview is unavailable')
         return asset, Inspection.parse(content, asset.name, asset.format)
 
