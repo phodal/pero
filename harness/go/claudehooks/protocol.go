@@ -66,6 +66,8 @@ type Input struct {
 	CommandName          string          `json:"command_name,omitempty"`
 	CommandArgs          string          `json:"command_args,omitempty"`
 	CommandSource        string          `json:"command_source,omitempty"`
+	ErrorKind            string          `json:"error,omitempty"`
+	ErrorDetails         string          `json:"error_details,omitempty"`
 }
 
 type Decision struct {
@@ -93,6 +95,9 @@ type output struct {
 	AdditionalContext  string          `json:"additionalContext"`
 	SuppressOutput     bool            `json:"suppressOutput"`
 	HookSpecificOutput *specificOutput `json:"hookSpecificOutput"`
+	// TerminalSequence is accepted so a hook can request a bell or title.
+	// This harness has no terminal write path, so the value is not emitted.
+	TerminalSequence string `json:"terminalSequence,omitempty"`
 }
 
 type specificOutput struct {

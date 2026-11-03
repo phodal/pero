@@ -82,7 +82,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup":
+			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}
@@ -210,6 +210,13 @@ func (app *HookApp) register(run *point.Run) error {
 	}
 	if _, err := hooks.TurnStopping.On(run, func(ctx context.Context, input harness.TurnStoppingInput) error {
 		return app.withAgent(ctx, input.Agent, func(ctx context.Context, state *hookAgentState) error { return app.stopping(ctx, input.Agent, state) })
+	}); err != nil {
+		return err
+	}
+	if _, err := hooks.Error.On(run, func(ctx context.Context, input harness.AgentErrorInput) error {
+		return app.withAgent(ctx, input.Agent, func(ctx context.Context, _ *hookAgentState) error {
+			return app.stopFailure(ctx, input.Agent, input.Error)
+		})
 	}); err != nil {
 		return err
 	}
@@ -552,6 +559,8 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			matcherValue, filter = input.NotificationType, true
 		case "UserPromptExpansion":
 			matcherValue, filter = input.CommandName, true
+		case "StopFailure":
+			matcherValue, filter = input.ErrorKind, true
 		case "SubagentStart", "SubagentStop":
 			matcherValue, filter = input.AgentType, true
 		case "PreCompact", "PostCompact", "Setup":
