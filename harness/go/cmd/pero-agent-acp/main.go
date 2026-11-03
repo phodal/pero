@@ -57,6 +57,8 @@ func run() (resultErr error) {
 	enableResearchClone := flag.Bool("enable-research-clone", false, "enable approved pinned GitHub acquisition without checkout; requires --workspace; Unix only")
 	enableShell := flag.Bool("enable-shell", false, "enable approved shell execution (Unix unsandboxed unless --sandbox supplied; Windows requires windows-acl; requires --workspace)")
 	shellPath := flag.String("shell", "", "absolute shell executable; defaults to /bin/bash on Unix; Windows requires explicit pwsh.exe")
+	pdfRenderer := flag.String("pdf-renderer", "", "absolute Poppler pdftoppm path with adjacent pdfinfo; empty auto-detects, '-' disables PDF page rendering")
+	deferToolLoading := flag.Bool("defer-tool-loading", false, "declare caller-authorized tools after ToolSearch returns their schemas")
 	bashOutputMaxChars := flag.Int("bash-output-max-chars", 0, "plugin Bash inline/readback character override, 1..128000; zero uses Claude defaults and BASH_MAX_OUTPUT_LENGTH")
 	bashHostMode := flag.String("bash-host-mode", "unattended", "plugin Bash background deadlines: unattended or explicit interactive")
 	disableBashBackground := flag.Bool("disable-bash-background", false, "disable plugin Bash background starts and automatic promotion")
@@ -184,7 +186,7 @@ func run() (resultErr error) {
 		return err
 	}
 	if *workspace != "" {
-		nativeOptions := nativetools.Options{Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: len(packages) > 0, BashEnvFile: func(agent *harness.Agent) string {
+		nativeOptions := nativetools.Options{Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: len(packages) > 0, PDFRendererPath: *pdfRenderer, DeferToolLoading: *deferToolLoading, BashEnvFile: func(agent *harness.Agent) string {
 			if pluginHooks == nil {
 				return ""
 			}
