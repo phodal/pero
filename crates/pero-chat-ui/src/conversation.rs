@@ -438,12 +438,13 @@ impl Conversation {
     }
 
     /// Flush the final pending chunks at completion/cancellation/error. This
-    /// does not rebuild completed messages or reparse their existing source.
+    /// projects delivered image references once per changed message.
     pub fn flush(&self, cx: &mut App) {
         for message in &self.messages {
             if message.view.read(cx).has_pending() {
                 message.view.update(cx, |view, cx| view.flush(cx));
             }
+            message.view.update(cx, |view, cx| view.link_images(&message.text, cx));
         }
         for tool in &self.tools {
             if let Some(view) = &tool.view {

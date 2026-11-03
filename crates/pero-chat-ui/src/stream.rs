@@ -119,6 +119,7 @@ pub enum StreamAppearance {
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub struct StreamText {
     pub capture_links: bool,
+    image_links_current: bool,
     pub(crate) images: Option<crate::inline_images::ConversationImages>,
     pub appearance: StreamAppearance,
     document: Entity<TextViewState>,
@@ -160,6 +161,7 @@ impl StreamText {
         });
         Self {
             capture_links: false,
+            image_links_current: false,
             images: None,
             appearance: StreamAppearance::Answer,
             document,
@@ -273,6 +275,7 @@ impl StreamText {
     }
 
     pub fn append(&mut self, delta: &str, cx: &mut Context<Self>) {
+        self.image_links_current = false;
         if !self.pending.append(delta) {
             return;
         }
@@ -301,12 +304,23 @@ impl StreamText {
     }
 
     pub fn flush(&mut self, cx: &mut Context<Self>) {
-        let Some(delta) = self.pending.take() else {
-            return;
-        };
-        self.document
-            .update(cx, |document, cx| document.push_str(&delta, cx));
+        if let Some(delta) = self.pending.take() {
+            self.document.update(cx, |document, cx| document.push_str(&delta, cx));
+        }
         cx.notify();
+    }
+
+    pub fn link_images(&mut self, source: &str, cx: &mut Context<Self>) {
+        if self.image_links_current { return; }
+        if let Some(images) = &self.images {
+            // The rendered document may still be parsing its last append.
+            // Project the completed message source, never a stale parsed prefix.
+            let linked = images.link_markdown(source);
+            if linked != source {
+                self.replace(&linked, cx);
+            }
+        }
+        self.image_links_current = true;
     }
 
     /// Tool updates may replace prior output. TextViewState recognizes prefix

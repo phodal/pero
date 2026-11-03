@@ -5921,6 +5921,7 @@ dependencies = [
  "data-url",
  "gpui-kit",
  "js-sys",
+ "markdown",
  "pero-contracts",
  "pero-theme",
  "serde",

@@ -58,8 +58,9 @@ export class PaperSourceImage {
   }
   metadata() {
     const uri = `pero-image://${this.provenance.previewSha256}`;
+    const reference = `pero-app-location://paper-agent/main/figure/${this.provenance.archiveDigest}/${this.provenance.memberId}`;
     return { type: 'source_image', mimeType: 'image/png', provenance: this.provenance,
-    answerImage: { uri, markdown: `![Source image](${uri})` },
+    answerImage: { uri, reference, markdown: `\n\n[![Source image](${uri})](${reference})\n\n` },
     ...(this.observationId ? { observationId: this.observationId } : {}),
     ...(this.observationWarning ? { observationWarning: this.observationWarning } : {}) }; }
   content() { return { type: 'image' as const, mimeType: 'image/png', data: this.data }; }

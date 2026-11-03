@@ -24,6 +24,7 @@ mod panel;
 mod session_controls;
 pub mod stream;
 pub mod inline_images;
+pub mod image_references;
 pub mod artifact_read;
 #[cfg(target_family = "wasm")]
 pub mod web_platform;

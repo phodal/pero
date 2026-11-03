@@ -741,6 +741,8 @@ test('Only declared version-bound Paper image reads become MCP image content', a
     assert.equal(result.content[1].data, data); assert.equal(result.content[1].mimeType, 'image/png');
     assert.deepEqual(JSON.parse(result.content[0].text).result.provenance, image.provenance);
     assert.equal(JSON.parse(result.content[0].text).result.answerImage.uri, `pero-image://${image.provenance.previewSha256}`);
+    const reference = `pero-app-location://paper-agent/main/figure/${image.provenance.archiveDigest}/${image.provenance.memberId}`;
+    assert.equal(JSON.parse(result.content[0].text).result.answerImage.markdown, `\n\n[![Source image](pero-image://${image.provenance.previewSha256})](${reference})\n\n`);
     assert.equal(result.content[0].text.includes(data), false, 'base64 never becomes text or an artifact reference');
     assert.equal(Object.hasOwn(JSON.parse(result.content[0].text).result, 'observationId'), false, 'legacy image remains supported without invented observation');
     for (const observation of [{ observationId: 'e'.repeat(64) }, { observationWarning: 'Observation capacity reached; preview is not reportable.' }]) {
@@ -750,7 +752,7 @@ test('Only declared version-bound Paper image reads become MCP image content', a
       assert.equal(observed.content[1].data, data, 'typed image survives observation metadata');
       assert.deepEqual(JSON.parse(observed.content[0].text).result, {
         type: 'source_image', mimeType: 'image/png', provenance: image.provenance,
-        answerImage: { uri: `pero-image://${image.provenance.previewSha256}`, markdown: `![Source image](pero-image://${image.provenance.previewSha256})` }, ...observation,
+        answerImage: { uri: `pero-image://${image.provenance.previewSha256}`, reference, markdown: `\n\n[![Source image](pero-image://${image.provenance.previewSha256})](${reference})\n\n` }, ...observation,
       });
       assert.equal(observed.content[0].text.includes(data), false);
     }
