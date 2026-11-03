@@ -16,7 +16,7 @@ type SourceComparison = { observationId?: string; observationWarning?: string; s
 }[] };
 
 export function SourceBrowser({ api, bundle, resourceId, receipt, available = true, onRead, inspectionOnly = false, initialMemberId }: {
-  api: Api; bundle: ResearchBundle; resourceId: string; receipt: SourceReceipt; available?: boolean; inspectionOnly?: boolean; initialMemberId?: string; onRead(id: string, focus?: PdfFocus): void;
+  api: Api; bundle: ResearchBundle; resourceId: string; receipt: SourceReceipt; available?: boolean; inspectionOnly?: boolean; initialMemberId?: string; onRead(id: string, focus?: PdfFocus): void | boolean | Promise<void | boolean>;
 }) {
   const { t: copy } = useAppI18n({
     files: { zh: '文件', en: 'Files' }, loading: { zh: '正在读取源码…', en: 'Reading saved source…' },
@@ -94,7 +94,7 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
     try {
       const value = await api.post<{ localAvailable: boolean; receipt: null | { paperId: string; documentId: string; fileDigest: string } }>('/api/research/pdf', { operation: 'status', bundleId: bundle.id, resourceId: resource });
       if (!value.localAvailable || value.receipt?.documentId !== match.pdf.documentId || value.receipt.fileDigest !== match.pdf.fileDigest) throw new Error('The compared PDF version is unavailable. Restore that exact PDF before opening the match.');
-      if (mounted.current && version === epoch.current) onRead(value.receipt.paperId, { documentId: match.pdf.documentId, page: match.pdf.page });
+      if (mounted.current && version === epoch.current && await onRead(value.receipt.paperId, { documentId: match.pdf.documentId, page: match.pdf.page }) === false) throw new Error('Could not open the saved PDF. Try opening the match again.');
     } catch (error) { if (mounted.current && version === epoch.current) setError(String(error)); }
     finally { if (mounted.current && version === epoch.current) setBusy(false); }
   }
