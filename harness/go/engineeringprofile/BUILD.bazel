@@ -24,7 +24,30 @@ go_library(
 
 go_test(
     name = "engineeringprofile_test",
-    srcs = ["contract_test.go"],
+    srcs = [
+        "app_test.go",
+        "contract_test.go",
+        "native_check_test.go",
+        "recovery_test.go",
+    ],
     embed = [":engineeringprofile"],
-    deps = ["//tasks"],
+    deps = [
+        "//harness",
+        "//runtime",
+        "//tasks",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//nativetools",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//nativetools",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//nativetools",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//nativetools",
+        ],
+        "//conditions:default": [],
+    }),
 )
