@@ -2,10 +2,7 @@ package nativetools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-
-	"github.com/phodal/pero/harness/go/harness"
 )
 
 // Only a managed background child opts into this activity. Roots and
@@ -25,17 +22,9 @@ func (s *shellTasks) completeActivity(ctx context.Context, task *shellTask, laun
 		return
 	}
 	task.mu.Lock()
-	status := task.terminal.Status
+	history := shellTaskHistory{intent: task.intent, terminal: task.terminal, promotion: task.promotion}
 	task.mu.Unlock()
-	summary := fmt.Sprintf("Background Bash %s finished with status %s.", task.intent.ID, status)
-	source, _ := json.Marshal(struct {
-		Kind   string `json:"kind"`
-		TaskID string `json:"taskId"`
-	}{"bash-settled", task.intent.ID})
-	content := []harness.ContentBlock{{Type: harness.BlockText, Text: summary}}
-	content = append(content, task.snapshot(harness.TaskRetrieved).Content...)
-	message := harness.Message{ID: "bash-notice-" + task.intent.ID, Role: harness.RoleUser, Source: source, Content: content}
-	if err := task.activity.Deliver(ctx, message); err != nil {
+	if err := task.activity.Deliver(ctx, bashNotice(history)); err != nil {
 		durabilityErr = fmt.Errorf("Bash completion notice was not confirmed; do not replay the command: %w", err)
 	}
 }

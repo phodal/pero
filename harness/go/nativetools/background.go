@@ -66,24 +66,26 @@ type shellTaskTerminal struct {
 }
 
 type shellTask struct {
-	parent      *harness.Agent
-	intent      shellTaskIntent
-	cancel      context.CancelCauseFunc
-	done        chan struct{}
-	mu          sync.Mutex
-	terminal    *shellTaskTerminal
-	output      []byte
-	lossy       bool
-	capture     *shell.FileCapture
-	executor    *shell.LocalExecutor
-	fileReady   bool
-	timing      bashTimingSelection
-	started     chan struct{}
-	processDone chan struct{}
-	lifecycle   sync.Mutex
-	deadline    *time.Timer
-	promotion   *shellTaskPromotion
-	activity    *harness.SubagentBackgroundActivity
+	parent            *harness.Agent
+	intent            shellTaskIntent
+	cancel            context.CancelCauseFunc
+	done              chan struct{}
+	mu                sync.Mutex
+	terminal          *shellTaskTerminal
+	terminalPersisted bool
+	noticeError       string
+	output            []byte
+	lossy             bool
+	capture           *shell.FileCapture
+	executor          *shell.LocalExecutor
+	fileReady         bool
+	timing            bashTimingSelection
+	started           chan struct{}
+	processDone       chan struct{}
+	lifecycle         sync.Mutex
+	deadline          *time.Timer
+	promotion         *shellTaskPromotion
+	activity          *harness.SubagentBackgroundActivity
 }
 
 func (t *shellTask) Write(data []byte) (int, error) {
@@ -117,6 +119,7 @@ func (t *shellTask) snapshot(retrieval harness.TaskRetrieval) harness.ToolResult
 	var presentation *bashPresentation
 	var result *shell.RunResult
 	var output *shell.CollectedOutput
+	noticeError := t.noticeError
 	promotion := t.promotion
 	if t.terminal != nil {
 		status, diagnostic, result = t.terminal.Status, t.terminal.Diagnostic, t.terminal.Result
@@ -164,7 +167,8 @@ func (t *shellTask) snapshot(retrieval harness.TaskRetrieval) harness.ToolResult
 		Message           string                 `json:"message,omitempty"`
 		BackgroundTimeout int64                  `json:"background_timeout_ms,omitempty"`
 		NoDeadline        bool                   `json:"no_deadline,omitempty"`
-	}{t.intent.ID, harness.TaskKindShell, status, retrieval, boundedText(diagnostic, 1024), output, presentedResult, outputFile, partial, workingLog, workingLogPartial, promotion != nil, message, backgroundTimeout, noDeadline})
+		NoticeError       string                 `json:"notification_error,omitempty"`
+	}{t.intent.ID, harness.TaskKindShell, status, retrieval, boundedText(diagnostic, 1024), output, presentedResult, outputFile, partial, workingLog, workingLogPartial, promotion != nil, message, backgroundTimeout, noDeadline, noticeError})
 	return harness.ToolResult{IsError: status == shellTaskFailed || status == shellTaskInterrupted || diagnostic != "", Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(raw)}}}
 }
 
@@ -185,27 +189,33 @@ func (t *shellTask) handle() harness.TaskHandle {
 // shellTasks owns only native shell execution. Agent activation ownership stays
 // in SubagentRegistry; TaskHandle shares their read/stop dispatch surface.
 type shellTasks struct {
-	instance     *point.Instance
-	run          *point.Run
-	options      shell.LocalOptions
-	foreground   shell.LocalOptions
-	outputPolicy bashOutputPolicy
-	timingPolicy bashTimingPolicy
-	subagents    *harness.SubagentRegistry
-	mu           sync.Mutex
-	closed       bool
-	fenced       map[*harness.Agent]bool
-	tasks        map[string]*shellTask
-	recovery     sync.Mutex
-	admission    sync.Mutex
+	instance      *point.Instance
+	run           *point.Run
+	options       shell.LocalOptions
+	foreground    shell.LocalOptions
+	outputPolicy  bashOutputPolicy
+	timingPolicy  bashTimingPolicy
+	subagents     *harness.SubagentRegistry
+	notifications bool
+	mu            sync.Mutex
+	closed        bool
+	fenced        map[*harness.Agent]bool
+	tasks         map[string]*shellTask
+	recovery      sync.Mutex
+	admission     sync.Mutex
 }
 
-func mountShellTasks(ctx context.Context, h *harness.Harness, options shell.LocalOptions, policy bashOutputPolicy, timing bashTimingPolicy) (*shellTasks, error) {
+func mountShellTasks(ctx context.Context, h *harness.Harness, options shell.LocalOptions, policy bashOutputPolicy, timing bashTimingPolicy, notifications bool) (*shellTasks, error) {
 	foreground := options
 	options.Timeout, options.MaxTimeout = timing.backgroundDefault, timing.backgroundMaximum
-	owner := &shellTasks{options: options, foreground: foreground, outputPolicy: policy, timingPolicy: timing, subagents: h.Subagents(), tasks: make(map[string]*shellTask), fenced: make(map[*harness.Agent]bool)}
+	owner := &shellTasks{options: options, foreground: foreground, outputPolicy: policy, timingPolicy: timing, subagents: h.Subagents(), notifications: notifications, tasks: make(map[string]*shellTask), fenced: make(map[*harness.Agent]bool)}
 	definition := point.Define(point.Descriptor{ID: "harness/contribution/background-shell", Requires: []point.Requirement{point.Require(harness.AgentHooksKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		owner.run = run
+		if notifications {
+			if err := owner.registerNoticeRecovery(h, run); err != nil {
+				return nil, err
+			}
+		}
 		if _, err := h.Hooks().Activated.On(run, func(ctx context.Context, agent *harness.Agent) error {
 			history, err := foldShellTasks(agent.Session().Events(), agent.ID())
 			if err != nil {
@@ -483,12 +493,14 @@ func (s *shellTasks) finish(task *shellTask, result *shell.RunResult, operationE
 	}
 	task.mu.Lock()
 	task.terminal = &terminal
+	task.terminalPersisted = err == nil
 	task.mu.Unlock()
 	close(task.done)
 	// TaskOutput/TaskStop may be called by synchronous inbox observers. Publish
 	// the terminal receipt before admitting the notice, while retention still
 	// prevents the managed activation from settling.
 	s.completeActivity(ctx, task, result != nil, err)
+	s.notifyRoot(ctx, task, result != nil, err)
 }
 
 func (s *shellTasks) stop(ctx context.Context, parent *harness.Agent, all, fence bool) error {

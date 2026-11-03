@@ -13,9 +13,11 @@ import (
 )
 
 type shellTaskHistory struct {
-	intent    shellTaskIntent
-	terminal  *shellTaskTerminal
-	promotion *shellTaskPromotion
+	intent     shellTaskIntent
+	terminal   *shellTaskTerminal
+	promotion  *shellTaskPromotion
+	startedSeq uint64
+	settledSeq uint64
 }
 
 func foldShellTasks(events []harness.Event, owner harness.SessionID) (map[string]shellTaskHistory, error) {
@@ -41,7 +43,7 @@ func foldShellTasks(events []harness.Event, owner harness.SessionID) (map[string
 			if _, exists := tasks[intent.ID]; exists {
 				return nil, errors.New("shell task journal repeats a task identity")
 			}
-			tasks[intent.ID] = shellTaskHistory{intent: intent}
+			tasks[intent.ID] = shellTaskHistory{intent: intent, startedSeq: event.Seq}
 		case shellTaskPromoted:
 			var promotion shellTaskPromotion
 			decoder := json.NewDecoder(bytes.NewReader(event.Data))
@@ -96,6 +98,7 @@ func foldShellTasks(events []harness.Event, owner harness.SessionID) (map[string
 				return nil, errors.New("failed shell task advertises a success artifact")
 			}
 			previous.terminal = &terminal
+			previous.settledSeq = event.Seq
 			tasks[terminal.ID] = previous
 		}
 	}
@@ -174,7 +177,7 @@ func (s *shellTasks) lookup(ctx context.Context, parent *harness.Agent, id strin
 			stored.terminal = &copy
 		}
 	}
-	task = &shellTask{parent: parent, intent: stored.intent, terminal: stored.terminal, promotion: stored.promotion, done: make(chan struct{})}
+	task = &shellTask{parent: parent, intent: stored.intent, terminal: stored.terminal, terminalPersisted: true, promotion: stored.promotion, done: make(chan struct{})}
 	close(task.done)
 	s.mu.Lock()
 	s.tasks[id] = task

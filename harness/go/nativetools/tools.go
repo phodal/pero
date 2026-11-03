@@ -25,10 +25,13 @@ type Options struct {
 	EnableResearchClone bool
 	Shell               string
 	ClaudeTools         bool
-	ReadOnlyResource    func(context.Context, string) (fstools.ScopedText, error)
-	PluginEnvironment   []string
-	BashOutput          BashOutputOptions
-	BashTiming          BashTimingOptions
+	// BackgroundNotifications enables root Bash completion delivery and recovery.
+	// The selected plugin CLI enables it; library hosts opt in explicitly.
+	BackgroundNotifications bool
+	ReadOnlyResource        func(context.Context, string) (fstools.ScopedText, error)
+	PluginEnvironment       []string
+	BashOutput              BashOutputOptions
+	BashTiming              BashTimingOptions
 }
 type App struct {
 	files      *fstools.Workspace
@@ -161,7 +164,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 				if policyErr != nil {
 					return nil, policyErr
 				}
-				app.background, err = mountShellTasks(ctx, h, shellOptions, policy, timing)
+				app.background, err = mountShellTasks(ctx, h, shellOptions, policy, timing, opts.BackgroundNotifications)
 				if err != nil {
 					return nil, err
 				}
