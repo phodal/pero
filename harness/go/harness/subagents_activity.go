@@ -105,7 +105,7 @@ func (r *SubagentRegistry) CaptureSessionActivity(id SessionID) SubagentActivity
 	}
 	seen := make(map[SessionID]bool)
 	for _, record := range records {
-		active := record.child == nil || record.child.Status() != AgentIdle || record.activation != nil && record.activation.closing.Load()
+		active := record.child == nil || record.child.Status() != AgentIdle || record.activation != nil && (record.activation.closing.Load() || record.activation.hasOwnedWorkLocked())
 		if active {
 			snapshot.Active = true
 			if !seen[record.snapshot.ID] {
@@ -124,13 +124,15 @@ func (r *SubagentRegistry) CaptureSessionActivity(id SessionID) SubagentActivity
 			token.cancel(ErrSubagentAdmissionClosed)
 		}
 		for _, record := range current {
+			if record.activation != nil {
+				r.beginActivationCleanup(record)
+				continue
+			}
 			if record.child != nil {
 				record.child.Cancel(ErrSubagentAdmissionClosed)
 				continue
 			}
-			if record.activation != nil {
-				r.beginActivationCleanup(record)
-			} else if record.run.Cancel != nil {
+			if record.run.Cancel != nil {
 				go func(record *subagentRecord) {
 					_ = callSubagentCleanup(func() error { record.run.Cancel(ErrSubagentAdmissionClosed); return nil })
 				}(record)

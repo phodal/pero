@@ -160,6 +160,7 @@ go_test(
         "subagents_activation_cwd_test.go",
         "subagents_activation_messages_test.go",
         "subagents_activation_test.go",
+        "subagents_background_activity_test.go",
         "subagents_capacity_test.go",
         "subagents_catalog_commit_test.go",
         "subagents_catalog_projection_test.go",
