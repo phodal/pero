@@ -43,13 +43,13 @@
   --pero-prose-table-scale: calc(1 / 1);
   --pero-prose-inline-code: calc(9 / 10);
   --pero-prose-code-size: calc(6 / 7);
-  --pero-prose-h1-scale: calc(3 / 2);
+  --pero-prose-h1-scale: calc(9 / 7);
   --pero-prose-h1-line: calc(71 / 50);
-  --pero-prose-h1-gap: calc(11 / 10);
-  --pero-prose-h2-scale: calc(4 / 3);
+  --pero-prose-h1-gap: calc(1 / 1);
+  --pero-prose-h2-scale: calc(8 / 7);
   --pero-prose-h2-line: calc(71 / 50);
-  --pero-prose-h2-gap: calc(11 / 10);
-  --pero-prose-h3-scale: calc(8 / 7);
+  --pero-prose-h2-gap: calc(1 / 1);
+  --pero-prose-h3-scale: calc(1 / 1);
   --pero-prose-h3-line: calc(71 / 50);
   --pero-prose-h3-gap: calc(1 / 1);
   --pero-prose-h4-scale: calc(1 / 1);

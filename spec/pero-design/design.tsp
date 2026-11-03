@@ -64,13 +64,14 @@ model ChatProse {
   inlineCode: "9/10";
   /** 12px fenced code. */
   codeSize: "6/7";
-  h1Scale: "3/2";
+  /** Chat body is 14px; keep headings inside the 14/16/18 interface scale. */
+  h1Scale: "9/7";
   h1Line: "71/50";
-  h1Gap: "11/10";
-  h2Scale: "4/3";
+  h1Gap: "1/1";
+  h2Scale: "8/7";
   h2Line: "71/50";
-  h2Gap: "11/10";
-  h3Scale: "8/7";
+  h2Gap: "1/1";
+  h3Scale: "1/1";
   h3Line: "71/50";
   h3Gap: "1/1";
   h4Scale: "1/1";
