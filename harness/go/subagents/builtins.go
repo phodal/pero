@@ -27,7 +27,7 @@ func (s *claudeDelegation) readOnlyTools(ctx context.Context, parent *harness.Ag
 		available[schema.Name] = true
 	}
 	result := []string{}
-	for _, name := range []string{"Read", "Glob", "Grep", "Bash", "shell", "WebSearch", "WebFetch", "LSP", "read_file", "list_directory", "search_files"} {
+	for _, name := range []string{"Read", "Glob", "Grep", "NotebookRead", "ToolSearch", "Bash", "shell", "WebSearch", "WebFetch", "LSP", "read_file", "list_directory", "search_files", "regex_search", "glob_files", "notebook_read", "tool_search"} {
 		if available[name] {
 			result = append(result, name)
 		}

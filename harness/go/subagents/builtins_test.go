@@ -46,7 +46,7 @@ func TestBuiltinExploreAndPlanReallyReadWithoutWriting(t *testing.T) {
 					names = append(names, tool.Function.Name)
 				}
 				sort.Strings(names)
-				if body.Model != "parent-model" || !reflect.DeepEqual(names, []string{"Glob", "Grep", "Read"}) {
+				if body.Model != "parent-model" || !reflect.DeepEqual(names, []string{"Glob", "Grep", "NotebookRead", "Read", "ToolSearch"}) {
 					t.Errorf("builtin route or tools: model=%s tools=%v", body.Model, names)
 				}
 				if calls.Add(1) == 1 {
