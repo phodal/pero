@@ -52,6 +52,7 @@ go_test(
     name = "pero-agent-acp_test",
     srcs = [
         "attempt_audit_test.go",
+        "coder_worktree_test.go",
         "coding_model_wire_test.go",
         "coding_test.go",
         "compaction_test.go",
