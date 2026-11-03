@@ -324,9 +324,7 @@ export class DesktopApps {
       if (!file.startsWith(assets + sep) || !(await stat(file)).isFile()) return new Response('Not found', { status: 404 });
       const response = await net.fetch(pathToFileURL(file).href);
       const headers = new Headers(response.headers);
-      const nestedReader = file === resolve(assets, '_reader/reader.html') ||
-        url.hostname === 'paper-agent' && file === resolve(assets, '_paper-reader/frame.html');
-      const ancestors = nestedReader ? "'self' pero://workbench" : 'pero://workbench';
+      const ancestors = file === resolve(assets, '_reader/reader.html') ? "'self' pero://workbench" : 'pero://workbench';
       headers.set('Content-Security-Policy', `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self' ${(access.frameOrigins ?? []).join(' ')}; object-src 'none'; base-uri 'none'; frame-ancestors ${ancestors}`);
       headers.set('Cache-Control', 'no-store');
       headers.set('X-Content-Type-Options', 'nosniff');
