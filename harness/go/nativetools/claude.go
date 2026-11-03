@@ -122,6 +122,10 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, resourceReader func(context.Context, string) (fstools.ScopedText, error)) toolDefinition {
 	filePath := `"file_path":{"type":"string","minLength":1}`
 	switch definition.name {
+	case "notebook_read":
+		definition.name = "NotebookRead"
+		definition.properties = `"notebook_path":{"type":"string","minLength":1},"offset":{"type":"integer","minimum":1},"limit":{"type":"integer","minimum":1,"maximum":100}`
+		definition.required = `"notebook_path"`
 	case "read_file":
 		definition.name = "Read"
 		definition.description = "Read bounded UTF-8 text with line numbers, or PNG/JPEG/GIF/WebP images (at most 20 MiB source, 64 million pixels), normalized to PNG/JPEG at most 2048 pixels per side and 4 MiB. Animated images show the first frame only. Text-only models receive an explicit unread-pixels limitation. file_path may be absolute inside the configured workspace or workspace-relative; offset is 1-based for text. PDF page reads are unavailable."

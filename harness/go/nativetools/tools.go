@@ -140,6 +140,9 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 	}()
 	var shellAdmission func(context.Context, harness.ToolRequest) (*harness.NativeApprovalDescriptor, error)
 	definitions := []toolDefinition{
+		{"notebook_read", "Read saved Jupyter nbformat 4 cell source, IDs, execution counts, outputs and attachments from a workspace .ipynb file. offset is a 1-based cell number (default 1), limit defaults to 20. Results have a 48 KiB cell budget, explicit truncation and next_offset. No code execution or image/HTML rendering; large cells omit outputs and shorten source.", `"path":{"type":"string","minLength":1},"offset":{"type":"integer","minimum":1},"limit":{"type":"integer","minimum":1,"maximum":100}`, `"path"`, false, func(c context.Context, a arguments) (any, error) {
+			return readNotebook(c, workspaceFrom(c, files), a)
+		}},
 		{"read_file", "Read bounded UTF-8 text from an existing workspace-relative file. offset is a 1-based line number.", `"path":{"type":"string"},"offset":{"type":"integer","minimum":1},"limit":{"type":"integer","minimum":1,"maximum":2000}`, `"path"`, false, func(c context.Context, a arguments) (any, error) {
 			v, e := workspaceFrom(c, files).Read(c, a.Path)
 			if e != nil {

@@ -115,3 +115,45 @@ func TestClaudeNotebookEditReplaceInsertDelete(t *testing.T) {
 		t.Fatal("NotebookEdit escaped workspace")
 	}
 }
+
+func TestNotebookReadPreservesSavedCellsAndBounds(t *testing.T) {
+	f := newClaudeFixture(t, Options{})
+	path := filepath.Join(f.root, "saved.ipynb")
+	for _, large := range []bool{false, true} {
+		output := "saved-output"
+		if large {
+			output = strings.Repeat("x", 70000)
+		}
+		body, _ := json.Marshal(map[string]any{"nbformat": 4, "cells": []any{
+			map[string]any{"id": "code-a", "cell_type": "code", "source": []string{"print(1)", "\n"}, "execution_count": 7, "outputs": []any{map[string]any{"output_type": "stream", "text": output}}},
+			map[string]any{"id": "md-b", "cell_type": "markdown", "source": "# saved note"},
+		}})
+		if err := os.WriteFile(path, body, 0600); err != nil {
+			t.Fatal(err)
+		}
+		result := f.call(t, f.denied, "NotebookRead", map[string]any{"notebook_path": path, "limit": 1})
+		var read notebookReadResult
+		if result.IsError || json.Unmarshal([]byte(result.Content[0].Text), &read) != nil {
+			t.Fatal(result)
+		}
+		if read.Total != 2 || len(read.Cells) != 1 || read.Cells[0].ID != "code-a" || read.Cells[0].Index != 1 || read.Cells[0].Source != "print(1)\n" || string(read.Cells[0].ExecutionCount) != "7" || read.NextOffset == nil || *read.NextOffset != 2 {
+			t.Fatalf("lost saved provenance: %+v", read)
+		}
+		if read.Cells[0].Truncated != large || (!large && !strings.Contains(string(read.Cells[0].Outputs), "saved-output")) || (large && len(read.Cells[0].Outputs) != 0) {
+			t.Fatalf("output budget: %+v", read)
+		}
+		if len(result.Content[0].Text) > 64<<10 {
+			t.Fatal("unbounded notebook output")
+		}
+		next := f.call(t, f.denied, "NotebookRead", map[string]any{"notebook_path": path, "offset": *read.NextOffset})
+		if next.IsError || !strings.Contains(next.Content[0].Text, "# saved note") {
+			t.Fatal(next)
+		}
+	}
+	if escaped := f.call(t, f.denied, "NotebookRead", map[string]any{"notebook_path": filepath.Join(t.TempDir(), "outside.ipynb")}); !escaped.IsError {
+		t.Fatal("escaped workspace")
+	}
+	if f.approvals.Load() != 0 {
+		t.Fatal("read requested write approval")
+	}
+}
