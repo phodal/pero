@@ -39,6 +39,7 @@ type Input struct {
 	ToolUseID            string          `json:"tool_use_id,omitempty"`
 	ToolInput            json.RawMessage `json:"tool_input,omitempty"`
 	FilePath             string          `json:"file_path,omitempty"`
+	FileChange           string          `json:"event,omitempty"`
 	NotebookPath         string          `json:"notebook_path,omitempty"`
 	ToolResponse         json.RawMessage `json:"tool_response,omitempty"`
 	TranscriptPath       string          `json:"transcript_path,omitempty"`
@@ -67,6 +68,7 @@ type Decision struct {
 	SystemMessage     string
 	UpdatedInput      json.RawMessage
 	UpdatedToolOutput json.RawMessage
+	WatchPaths        []string
 	WorktreePath      string
 	Block, Stop       bool
 }
@@ -95,6 +97,7 @@ type specificOutput struct {
 	RequestDecision   *permissionRequestDecision `json:"decision"`
 	WorktreePath      string                     `json:"worktreePath"`
 	UpdatedToolOutput json.RawMessage            `json:"updatedToolOutput"`
+	WatchPaths        []string                   `json:"watchPaths"`
 }
 
 // permissionRequestDecision is the PermissionRequest allow or deny object.
@@ -238,6 +241,9 @@ func (wire output) decision(event string) (Decision, error) {
 			}
 			result.UpdatedInput = append(json.RawMessage(nil), specific.UpdatedInput...)
 		}
+		if event == "FileChanged" && specific.WatchPaths != nil {
+			result.WatchPaths = append([]string(nil), specific.WatchPaths...)
+		}
 		if len(specific.UpdatedToolOutput) > 0 && string(specific.UpdatedToolOutput) != "null" {
 			if event != "PostToolUse" || !json.Valid(specific.UpdatedToolOutput) {
 				return Decision{}, errors.New("claudehooks: updatedToolOutput requires PostToolUse JSON")
@@ -308,6 +314,9 @@ func Merge(decisions []Decision) (Decision, error) {
 		if merged.WorktreePath == "" {
 			merged.WorktreePath = decision.WorktreePath
 		}
+		if decision.WatchPaths != nil {
+			merged.WatchPaths = append([]string(nil), decision.WatchPaths...)
+		}
 		if len(decision.UpdatedToolOutput) > 0 {
 			if len(merged.UpdatedToolOutput) > 0 && !equalJSON(merged.UpdatedToolOutput, decision.UpdatedToolOutput) {
 				return Decision{}, errors.New("claudehooks: conflicting updatedToolOutput from multiple hooks")
@@ -365,7 +374,7 @@ func blockingEvent(event string) bool {
 
 func runControlEvent(event string) bool {
 	switch event {
-	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart":
+	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart", "FileChanged":
 		return false
 	}
 	return true

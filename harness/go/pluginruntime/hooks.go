@@ -50,6 +50,8 @@ type HookApp struct {
 	retired             map[string]bool
 	asyncNotes          map[*harness.Agent][]string
 	asyncCancels        []context.CancelFunc
+	fileWatchCancels    map[*harness.Agent]context.CancelFunc
+	dynamicWatches      map[*harness.Agent][]string
 }
 
 type sessionHook struct {
@@ -79,7 +81,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove":
+			case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}
@@ -277,6 +279,11 @@ func (app *HookApp) register(run *point.Run) error {
 		}
 		app.mu.Lock()
 		delete(app.states, agent)
+		if cancelWatch := app.fileWatchCancels[agent]; cancelWatch != nil {
+			delete(app.fileWatchCancels, agent)
+			cancelWatch()
+		}
+		delete(app.dynamicWatches, agent)
 		app.mu.Unlock()
 		return err
 	})
@@ -319,6 +326,7 @@ func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state
 		return nil
 	}
 	if !state.started {
+		app.ensureFileWatch(input.Agent)
 		source := "startup"
 		if !input.Agent.FreshSession() {
 			source = "resume"
@@ -527,6 +535,8 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 			matcherValue, filter = input.Source, true
 		case "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest":
 			matcherValue, filter = input.ToolName, true
+		case "FileChanged":
+			matcherValue, filter = filepath.Base(input.FilePath), true
 		case "SubagentStart", "SubagentStop":
 			matcherValue, filter = input.AgentType, true
 		case "PreCompact", "PostCompact":
