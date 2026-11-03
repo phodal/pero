@@ -1,6 +1,7 @@
 // Actual Electron, Virtual Cell and ACP -> MCP -> App Use. No model login.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { closeOwnedElectron } from './owned-electron-close.mjs';
 import { productShellStyle } from '../../scripts/build/shell-style.mjs';
 import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
 import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
@@ -44,12 +45,31 @@ await mkdir(join(temp,'profile'), {recursive:true});
 await writeFile(join(temp,'profile/runtime-settings.json'),JSON.stringify({chat_agent:'codex'}));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: join(temp, 'profile'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en' };
 delete env.ELECTRON_RUN_AS_NODE;
-let app;
+let app, electronProcess, testFailure;
+const shutdownEvents = [];
 const errors = [];const runtimeLog=[];
 const checks = [];
 try {
   app = await electron.launch({ requiresNativeWindow: true, args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), distribution], env });
-  app.process().stderr.on('data',chunk=>runtimeLog.push(String(chunk)));
+  electronProcess = app.process();
+  electronProcess.stderr.on('data',chunk=>runtimeLog.push(String(chunk)));
+  const shutdownEvent = (event, detail = {}) => shutdownEvents.push({ event, at: new Date().toISOString(), ...detail });
+  app.on('close', () => shutdownEvent('playwright-close'));
+  electronProcess.on('exit', (code, signal) => shutdownEvent('process-exit', { code, signal }));
+  electronProcess.on('close', (code, signal) => shutdownEvent('process-close', { code, signal }));
+  // Observe normal quit without changing its listeners, decisions or deadlines.
+  await app.evaluate(({ app, BrowserWindow }) => {
+    const record = (event, detail = {}) => console.error('APP_USE_SHUTDOWN ' + JSON.stringify({ event,
+      at: new Date().toISOString(), resources: process.getActiveResourcesInfo(), ...detail }));
+    for (const event of ['before-quit', 'will-quit']) app.on(event, value => record(event, { prevented: value.defaultPrevented }));
+    app.on('quit', (_event, code) => record('quit', { code }));
+    process.on('exit', code => record('node-exit', { code }));
+    process.on('uncaughtExceptionMonitor', error => record('uncaught-exception', { message: error.message, stack: error.stack }));
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.on('close', event => record('window-close', { id: window.id, prevented: event.defaultPrevented }));
+      const id = window.id; window.on('closed', () => record('window-closed', { id }));
+    }
+  });
   const page = await app.firstWindow();
   await page.evaluate(()=>{window.approvalEvents=[];window.product.onEvent(event=>{if(event.kind==='permission')window.approvalEvents.push(event.data.permission_id);});});
   page.on('pageerror', error => errors.push(error.message));
@@ -104,6 +124,7 @@ try {
     await expect.poll(async()=>(await active()).state).toBe('idle');
     const prepared = await active();
     expect(prepared.id).toBe(startingDraft);
+    expect((await state()).chats.map(chat => chat.id)).toEqual([startingDraft]);
     expect(prepared.session_id).toBe('app-use-fixture');
     expect(prepared.error).toBeNull();
     expect(prepared.messages).toEqual([]);
@@ -288,8 +309,8 @@ try {
   await expect.poll(async () => (await state()).dark).toBe(false);
   await expect.poll(appStatus).toMatchObject({ visible: true, active: true, capturable: false, operable: false });
   const selectedInput = async () => ({
-    mode: await frame.getByRole('combobox', { name: 'Data view', exact: true }).inputValue(),
-    revision: await frame.getByRole('combobox', { name: 'Input revision', exact: true }).inputValue(),
+    mode: await frame.getByRole('button', { name: 'Data view', exact: true }).getAttribute('data-value'),
+    revision: await frame.getByRole('button', { name: 'Input revision', exact: true }).getAttribute('data-value'),
   });
   const beforeCovered = await selectedInput();
   expect(beforeCovered).toEqual({ mode: 'perturbation', revision: imported.inputId });
@@ -325,22 +346,51 @@ try {
   checks.push('Durable receipt JSONs match the actual PNG SHA-256 and preserve conversation, agent, task, App, instance, crop and time');
   const permissionIds=await page.evaluate(()=>window.approvalEvents);expect(permissionIds).toHaveLength(2);expect(permissionIds.every(id=>id.startsWith('permission-'))).toBe(true);checks.push('All App operations, captures, file transfers and writes finish without an additional Desktop approval; only explicit Agent policy questions appear');
   expect(errors).toEqual([]);
-  for(const file of ['failure-state.json','failure-bootstrap.json','failure.png','runtime.log'])await rm(join(output,file),{force:true});
+  for(const file of ['failure-state.json','failure-bootstrap.json','failure.png'])await rm(join(output,file),{force:true});
   await writeFile(join(output, 'result.json'), JSON.stringify({ checks, errors, denied, fullProgress, full, frozen, imported, written, writeDenied, standing, revoked, beforeCovered, covered, state: await state() }, null, 2));
 } catch (error) {
-  await writeFile(join(output,'runtime.log'),runtimeLog.join(''));
-  if (app) {
-    const page = await app.firstWindow();
-    const chat = page.frames().find(frame => frame.url().startsWith('pero://chat/'));
-    if (chat) await writeFile(join(output, 'failure-state.json'), await chat.evaluate(() => window.peroChatDiagnostics?.snapshot() || '{}'));
-    await writeFile(join(output, 'failure-bootstrap.json'), JSON.stringify({ errors,
-      shell: await page.evaluate(() => ({ chatHidden: document.getElementById('product-chat')?.hidden, toggle: document.getElementById('product-chat-toggle')?.textContent })),
-      chat: chat && await chat.evaluate(() => ({ url: location.href, loading: document.getElementById('loading')?.textContent, diagnostics: Boolean(window.peroChatDiagnostics) })),
-    }, null, 2));
-    await page.screenshot({ path: join(output, 'failure.png') });
+  testFailure = error;
+  try {
+    await writeFile(join(output,'runtime.log'),runtimeLog.join(''));
+    if (app) {
+      const page = await app.firstWindow();
+      const chat = page.frames().find(frame => frame.url().startsWith('pero://chat/'));
+      if (chat) await writeFile(join(output, 'failure-state.json'), await chat.evaluate(() => window.peroChatDiagnostics?.snapshot() || '{}'));
+      await writeFile(join(output, 'failure-bootstrap.json'), JSON.stringify({ errors,
+        shell: await page.evaluate(() => ({ chatHidden: document.getElementById('product-chat')?.hidden, toggle: document.getElementById('product-chat-toggle')?.textContent })),
+        chat: chat && await chat.evaluate(() => ({ url: location.href, loading: document.getElementById('loading')?.textContent, diagnostics: Boolean(window.peroChatDiagnostics) })),
+      }, null, 2));
+      await page.screenshot({ path: join(output, 'failure.png') });
+    }
+  } catch (diagnosticError) {
+    testFailure = new AggregateError([error, diagnosticError], 'App Use acceptance and failure diagnostics both failed');
   }
-  throw error;
+  throw testFailure;
 } finally {
-  if (app) await app.close();
-  await rm(temp, { recursive: true, force: true });
+  let cleanupFailure;
+  const finalizationErrors = [];
+  shutdownEvents.push({ event: 'cleanup-start', at: new Date().toISOString() });
+  try {
+    await writeFile(join(output, 'runtime.log'), runtimeLog.join(''));
+    await writeFile(join(output, 'shutdown.json'), JSON.stringify({ events: shutdownEvents }, null, 2));
+  } catch (error) { finalizationErrors.push(error); }
+  // Diagnostics must never prevent normal close or removal of the owned fixture.
+  try { if (app) await closeOwnedElectron(app); }
+  catch (error) { cleanupFailure = error; finalizationErrors.push(error); }
+  shutdownEvents.push({ event: 'cleanup-finished', at: new Date().toISOString() });
+  try {
+    await writeFile(join(output, 'runtime.log'), runtimeLog.join(''));
+    await writeFile(join(output, 'shutdown.json'), JSON.stringify({ events: shutdownEvents,
+      error: cleanupFailure && { message: cleanupFailure.message, stack: cleanupFailure.stack },
+      pid: electronProcess?.pid, exitCode: electronProcess?.exitCode, signalCode: electronProcess?.signalCode,
+      pipes: electronProcess && Object.fromEntries(['stdout', 'stderr'].map(name => [name, { destroyed: electronProcess[name]?.destroyed, ended: electronProcess[name]?.readableEnded }])),
+    }, null, 2));
+  } catch (error) { finalizationErrors.push(error); }
+  try { await rm(temp, { recursive: true, force: true }); }
+  catch (error) { finalizationErrors.push(error); }
+  if (finalizationErrors.length) {
+    if (testFailure) finalizationErrors.unshift(testFailure);
+    throw finalizationErrors.length === 1 ? finalizationErrors[0]
+      : new AggregateError(finalizationErrors, 'App Use acceptance, diagnostics or cleanup failed');
+  }
 }

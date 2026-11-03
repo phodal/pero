@@ -7,7 +7,7 @@ import { openResearchImport, researchUiState } from './paper-research-ui-control
 import { clickAppShortcut } from './sidebar-controls.mjs';
 import { setPaperAppearance, backToLibrary } from './paper-pdf-flow.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const root = resolve(import.meta.dirname, '../..'), live = process.env.PERO_SOURCE_STUDY_LIVE === '1';
@@ -15,7 +15,7 @@ const out = resolve(root, `test-results/paper-source-study/${live ? 'live-networ
 await mkdir(out, { recursive: true });
 const profile = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-source-study-')));
 const settings = resolve(profile, 'settings.json'), agents = resolve(profile, 'agents.json');
-await writeFile(settings, '{}');
+await writeFile(settings, JSON.stringify(process.env.PERO_APP_PYTHON ? { app_python: { apps: { 'paper-agent': dirname(dirname(process.env.PERO_APP_PYTHON)) } } } : {}));
 await writeFile(agents, JSON.stringify(['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(profile, `unavailable-${id}`) }))));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_SETTINGS_PATH: settings,
   PERO_HISTORY_PATH: resolve(profile, 'history.jsonl'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en', PERO_BUILTIN_APPS: 'paper-agent', PERO_REQUIRED_APPS: 'paper-agent', PERO_APP_INFRA_EMBED: '0' };
@@ -217,7 +217,7 @@ try {
     await compare.getByRole('button', { name: 'Open matched PDF page 1', exact: true }).first().click();
     const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
     await expect(viewer.locator('[data-page-number="1"] img,[data-page-number="1"] canvas').first()).toBeVisible({ timeout: 30000 });
-    await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
+    await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
     await page.screenshot({ path: resolve(out, 'source-caption-pdf-page.png') });
     checks.push('Separately approved PDF literal caption comparison resolves source lines and opens the matching version/page');
     await backToLibrary(frame); await inspect();
@@ -228,7 +228,8 @@ try {
     checks.push('Cancellation interrupts source acquisition; explicit retry accepts gzip single TeX; PDF-only response never claims TeX');
   }
   if (!live) {
-    await exerciseLibrarySave({ frame, page, api, requests, out, profile, restart: async () => {
+    const priorPdf = await api('/api/research/pdf', { operation: 'status', bundleId: bundle.id, resourceId: bundle.pdfDownloadIds[0] });
+    await exerciseLibrarySave({ frame, page, api, requests, out, profile, priorDocumentId: priorPdf.receipt.documentId, restart: async () => {
       await app.close(); app = await launch(); await ready(); await openPaper(); return { frame, page };
     } });
     checks.push('Library explicit fixed-version copies, cancellation, original identity/annotations, evidence ledger and Desktop restart');

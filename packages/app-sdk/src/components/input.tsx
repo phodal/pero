@@ -1,21 +1,42 @@
-// Adapted from Point App SDK components/input.tsx.
+// Upstream attribution and license: packages/app-sdk/NOTICE.md.
 import React, { forwardRef, useRef, useState } from 'react';
 import { Button } from './button';
+import { ensureUiStyles } from './ui-styles';
 
 export type InputProps = Omit<React.ComponentPropsWithoutRef<'input'>, 'type'> & {
   type?: 'text' | 'search' | 'url' | 'tel' | 'email' | 'password' | 'number' | 'date' | 'datetime-local' | 'month' | 'week' | 'time';
+  unstyled?: boolean;
 };
-export type TextareaProps = React.ComponentPropsWithoutRef<'textarea'>;
+export type TextareaProps = React.ComponentPropsWithoutRef<'textarea'> & { unstyled?: boolean };
 
-/** Text-like native inputs; checkbox, radio and other control families keep their own semantics. */
-export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ className, ...props }, ref) {
-  return <input {...props} className={['pero-ui-input', props.type === 'search' ? 'pero-search' : '', className].filter(Boolean).join(' ')}
-    ref={ref} />;
+/** Native multi-selection retains selectedOptions, form validation and platform keyboard semantics. */
+export type MultiSelectProps = Omit<React.ComponentPropsWithoutRef<'select'>, 'multiple'>;
+export const MultiSelect = forwardRef<HTMLSelectElement, MultiSelectProps>(function MultiSelect({ className, ...props }, ref) {
+  return <select {...props} multiple className={['pero-ui-input', className].filter(Boolean).join(' ')}
+    ref={node => {
+      if (node) ensureUiStyles(node.ownerDocument);
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    }} />;
 });
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea({ className, ...props }, ref) {
-  return <textarea {...props} className={['pero-ui-input', className].filter(Boolean).join(' ')}
-    ref={ref} />;
+/** Text-like native inputs; checkbox, radio and other control families keep their own semantics. */
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ unstyled, className, ...props }, ref) {
+  return <input {...props} className={['pero-ui-input', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined}
+    ref={node => {
+      if (node) ensureUiStyles(node.ownerDocument);
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    }} />;
+});
+
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea({ unstyled, className, ...props }, ref) {
+  return <textarea {...props} className={['pero-ui-textarea', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined}
+    ref={node => {
+      if (node) ensureUiStyles(node.ownerDocument);
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    }} />;
 });
 
 export type FilePickerProps = {

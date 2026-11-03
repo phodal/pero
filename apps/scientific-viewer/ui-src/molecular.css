@@ -1,0 +1,47 @@
+.sv-molecule-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+.sv-molecule-section-heading { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.sv-molecule-section-heading h2 { margin: 0; }
+.sv-molecule-section-heading .sv-molecule-count { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; color: var(--pero-text-muted, #596b7d); font-size: var(--pero-font-caption, 12px); }
+.sv-molecule-invalid-count { color: var(--pero-error, #b54445); }
+.sv-molecule-load-state { display: flex; align-items: center; gap: 12px; padding-block: 24px; }
+.sv-molecule-load-state p { margin: 0; }
+.sv-molecule-gallery { overflow-y: auto; padding: 2px 12px 12px 2px; }
+.sv-molecule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 12px; align-items: start; }
+.sv-molecule-card { min-width: 0; border: 1px solid var(--pero-border, #dce4ed); border-radius: 6px; overflow: hidden; background: var(--pero-surface, #fff); }
+.sv-molecule-card[data-selected] { border-color: var(--pero-focus, #007f86); }
+.sv-molecule-card .sv-molecule-select { display: flex; flex-direction: column; width: 100%; min-width: 0; text-align: left; padding: 0; border: 0; border-radius: 5px; background: transparent; }
+.sv-molecule-card .sv-molecule-select:focus-visible { outline-offset: -2px; }
+.sv-molecule-card-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-weight: 600; }
+.sv-molecule-selected-label { color: var(--pero-accent-text, #00777d); font-size: var(--pero-font-caption, 12px); font-weight: 400; }
+.sv-molecule-canvas { display: flex; align-items: center; justify-content: center; width: 100%; height: 180px; padding: 8px; background: #fff; }
+.sv-molecule-canvas img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.sv-molecule-card[data-status=invalid] .sv-molecule-canvas { background: var(--pero-surface-muted, #eef3f8); }
+.sv-molecule-unavailable { color: var(--pero-text-muted, #596b7d); font-size: var(--pero-font-caption, 12px); }
+.sv-molecule-input-preview { display: block; max-width: 100%; width: 100%; padding: 8px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--pero-font-caption, 12px); font-weight: 400; border-top: .5px solid var(--pero-border, #dce4ed); }
+.sv-molecule-record-error { padding: 0 12px 12px; margin: 0; font-size: var(--pero-font-caption, 12px); overflow-wrap: anywhere; }
+.sv-molecule-inspector { overflow: auto; padding: 0 0 12px 16px; }
+.sv-molecule-inspector h3 { font-size: calc(var(--pero-font-ui, 14px) * 18 / 14); font-weight: 600; margin: 0 0 16px; }
+.sv-molecule-inspector h4 { font-size: var(--pero-font-ui, 14px); font-weight: 600; margin: 0 0 12px; }
+.sv-molecule-inspector .sv-molecule-source { display: block; margin-bottom: 24px; }
+.sv-molecule-source dt { font-size: var(--pero-font-caption, 12px); margin-bottom: 4px; }
+.sv-molecule-source code { font-size: var(--pero-font-ui, 14px); overflow-wrap: anywhere; }
+.sv-molecule-source-record { margin-bottom: 24px; }
+.sv-molecule-source-record summary { font-size: var(--pero-font-caption, 12px); }
+.sv-molecule-source-record pre { max-height: 240px; font-size: var(--pero-font-caption, 12px); }
+.sv-molecule-properties dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 12px; margin: 0; font-size: var(--pero-font-caption, 12px); }
+.sv-molecule-properties dt, .sv-molecule-properties dd { padding-block: 8px; border-bottom: .5px solid var(--pero-border, #dce4ed); }
+.sv-molecule-properties dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.sv-molecule-unit { color: var(--pero-text-muted, #596b7d); }
+.sv-molecule-calculation-note { margin-top: 24px; color: var(--pero-text-muted, #596b7d); font-size: var(--pero-font-caption, 12px); }
+.sv-molecule-calculation-note p { margin: 0 0 4px; }
+.sv-molecule-invalid-details { color: var(--pero-text-muted, #596b7d); font-size: var(--pero-font-caption, 12px); }
+.sv-molecule-layout[data-stacked] { flex: 0 0 auto; }
+.sv-molecule-layout[data-stacked] > .sv-molecule-gallery { overflow: visible; padding-right: 2px; }
+.sv-molecule-layout[data-stacked] > .sv-molecule-inspector { flex: none; overflow: visible; padding: 16px 0 12px; }
+@media (max-width: 420px) { .sv-molecule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .sv-molecule-card-title { flex-wrap: wrap; gap: 4px; padding: 8px; } .sv-molecule-canvas { height: 140px; } .sv-molecule-input-preview { padding: 8px; } }

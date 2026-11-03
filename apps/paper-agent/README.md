@@ -1,5 +1,15 @@
 # Paper Agent
 
+论文生命周期能力统一属于本 App：资料与证据、规划、写作、TeX 构建/PDF
+预览、审阅和交付共享现有 Paper 数据与 Host Chat。接入范围和实施顺序见
+[稿件写作设计](../../docs/design-docs/paper-manuscript-authoring.md)。
+
+本 App 自带四个阶段技能：[规划](skills/paper-plan/SKILL.md)、
+[写作与修订](skills/paper-write/SKILL.md)、[构建与预览](skills/paper-build/SKILL.md)、
+[审阅](skills/paper-review/SKILL.md)。它们及共享参考文件随 builtin payload
+交付，可指导已有授权工作区中的操作；作者稿件持久化、受管 TeX 编译和作者 PDF
+预览的 App 路由/UI 尚待实现。文件打包不代表 Desktop 自动发现或工具已接通。
+
 端到端 [Paper Reproduction Skill](skills/paper-reproduction/SKILL.md) 串起结果提取、
 代码审计、协议冻结、获准执行、独立重算与结果包交接；支持只做计划、重分析和新实验，
 分别报告来源一致性、执行状态、数值核验与科学结论。它复用当前可用执行入口，
@@ -36,8 +46,13 @@ This builds and opens an isolated development profile at
 OpenAlex, bioRxiv or PubMed, read a supported ID/URL, or import text/Markdown or a local PDF. A PDF can also
 be dropped into the App; importing opens the saved original in reading mode. Identical
 PDF bytes reuse the existing paper, regardless of filename.
-Open a paper to enter reading mode. The top bar contains Back, title, PDF
-navigation, zoom and **Ask**. Opening the App never starts research.
+Open a paper to enter reading mode. One top bar contains Back, title,
+**Read / PDF / TeX / Original**, the active preview's navigation and zoom,
+and **Ask**. Opening the App never starts research.
+
+**Original** embeds the official arXiv page in an iframe and retains an
+external-open link. Paper declares only arXiv as an external frame origin;
+embedding preserves the source site's own layout and conversion limitations.
 
 Existing profiles discover new bundled Apps at startup and when entering or
 refreshing Apps. A bundled App already in the managed directory is replaced
@@ -358,9 +373,54 @@ The paper verdict remains `INCONCLUSIVE`; no new scientific run accompanies this
 
 ## Structured Read
 
+Hugging Face/arXiv imports keep available alphaXiv text. If that text is missing
+or unavailable, the official arXiv abstract can be saved instead, clearly marked
+**Abstract**; it can then enter the same reading preparation below. Saving that
+abstract does not claim a full-text read or download the PDF/HTML. bioRxiv imports
+retain an explicit `vN` URL revision; an unavailable requested version is an
+error, while an unversioned request selects the latest returned metadata version.
+
+For a saved arXiv/alphaXiv search result, **Prepare formatted reading** reviews
+the current paper's fixed arXiv version without leaving the reader. **Download
+and format** grants that official HTML representation and prepares Read; the
+optional TeX checkbox acquires the same version's inert source archive. A failed
+review can refresh metadata, and failed HTML preparation can retry while PDF
+remains available. Official HTML supplies Read's structure. Unversioned search
+text remains immutable, and HTML never supplies
+page coordinates for the saved PDF.
+
 For an explicitly selected arXiv vN, review **Allow official HTML for Read**
 separately from PDF permission, then choose **Prepare Read** in the saved paper.
 Tables, equations and figure metadata retain source structure; **Reveal original**
 shows the actual inert HTML bytes. Read/PDF keeps the existing PDF viewer state.
 Images are not downloaded, and parsed content is not automatically study evidence.
 See [scope and verification](../../docs/fitness/paper-structured-reading.md).
+
+## Typeset TeX reading
+
+**TeX** compiles an approved source archive for the selected paper/version and
+shows its generated PDF in the existing viewer. The full source project,
+including custom classes, bibliography and figures, is staged together. A unique
+main file containing `\documentclass` is compiled automatically; multiple main
+files require a selection. **Source files** opens a separate resizable inspector;
+closing it restores the reading view without moving the toolbar.
+
+The current runner requires macOS and Tectonic (`brew install tectonic`). It runs
+with shell escape disabled and filesystem restrictions, retains a package cache,
+and limits each attempt to 180 seconds. The first attempt can need package
+downloads; failed attempts expose diagnostics and a retry. Compiler warnings stay
+visible and their details are available in the source inspector.
+
+Generated PDFs and their source archive/entry/engine identities are stored under
+`tex-previews` and `tex-preview-files`, separately from original PDF evidence.
+PDF and TeX preserve separate page/zoom states when switching. This is reading
+downloaded source projects; author manuscript editing and build routes remain
+the separate planned workflow described above. Verification and current limits:
+[Paper reading views](../../docs/fitness/paper-reading-views.md).
+
+For a saved paper's TeX or figure files, the resource import, reproduction, code
+audit and build skills share [source location guidance](skills/research-resource-import/references/tex-source-locations.md).
+The bundled `tools/locate-source.py --arxiv <id>vN` checks approved managed data
+and existing export copies offline; `--cache` selects an explicit profile. It
+does not download or move data. Actual skill, source and figure checks are in
+[source discovery verification](../../docs/fitness/paper-source-locations.md).

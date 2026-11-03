@@ -90,10 +90,14 @@ Builtin payload tests verify the exact Skill plus three public references, rejec
 missing files, and do not include undeclared extras. Current master's complete
 Paper discovery and source/PDF gates are retained unchanged. No UI was changed.
 
-The installed App can audit and read evidence through its declared tool, but its
-server does not configure a trusted checkout or compute permission. Frozen local
-execution remains an explicitly authorized CLI path; constructor-seam tests are
-not a shipped Desktop execution approval flow. No new training, scientific
+At that consolidation, the installed App could audit/read evidence but did not
+configure computation. Current master additionally has opt-in Host deployment
+wiring: `crates/pero-runtime/src/apps/process.rs` resolves a trusted checkout and
+creates a private compute token; `apps/paper-agent/backend/server.py` enables the
+backend only with that configuration. Desktop owns per-run native approval.
+Unconfigured execution remains disabled. This implementation is not evidence
+that native Run once, Host-to-worker or forced-destroy acceptance passed; the
+CLI path and constructor-seam tests do not establish those Desktop gates. No new training, scientific
 package installation, model download, real-provider run or Desktop acceptance
 was performed for this consolidation. Earlier author's smoke evidence remains
 separate and does not become a new run or a Table 6 replication.

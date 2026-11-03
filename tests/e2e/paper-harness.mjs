@@ -101,7 +101,7 @@ async function ask(question, parent) {
   if (parent) {
     const turn = await showPaperReport(frame, page, parent.intent.id);
     await turn.getByRole('button', { name: 'Continue from here', exact: true }).click();
-  } else await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+  } else await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask AI', exact: true }).click();
   await fillPaperChat(page, question);
   const thread = (await active()).id;
   await page.keyboard.press('Enter');
@@ -178,7 +178,7 @@ try {
   }
   let continuation;
   if (!realAgent) {
-    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask AI', exact: true }).click();
     await fillPaperChat(page, 'paper-fixture-pause: Read the methods before continuation.');
     await page.keyboard.press('Enter');
     let paused;

@@ -1,12 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseTable, spectrum, inspect, assetFrom, MAX_FILE, structureText, moleculeRecords } from '../ui-src/files.ts';
+import { parseTable, spectrum, defaultNumericColumns, numericSeries, inspect, assetFrom, MAX_FILE, structureText, moleculeRecords } from '../ui-src/files.ts';
 import { examples } from '../ui-src/examples.ts';
 test('quoted CSV, missing values and spectrum gaps retain original rows', () => {
   const table = parseTable('x,y,note\n0,1,"a,b"\n1,,"two ""quotes"""\n2,3,end');
   assert.equal(table.rows[0][2], 'a,b'); assert.equal(table.rows[1][2], 'two "quotes"');
   assert.equal(table.missing, 1); assert.deepEqual(spectrum(table), [{ x: 0, y: 1, row: 2 }, null, { x: 2, y: 3, row: 4 }]);
   assert.throws(() => parseTable('a,b\n1'), /columns/); assert.throws(() => parseTable('a\n"unclosed'), /Unterminated/);
+});
+test('numeric column selection preserves gaps, finite values and original row order', () => {
+  const cases = [
+    { text: 'label,time[s],voltage[V]\na,2,4.2\nb,1, \nc,0,3.9', columns: [1, 2], expected: [{ x: 2, y: 4.2, row: 2 }, null, { x: 0, y: 3.9, row: 4 }] },
+    { text: 'x,y\n0,NaN\n1,Infinity\n2,-Infinity\n3,text\n4,0', columns: [0, 1], expected: [null, null, null, null, { x: 4, y: 0, row: 6 }] },
+    { text: 'x,y\n1e308,-1e308\n-1e308,1e308', columns: [0, 1], expected: [{ x: 1e308, y: -1e308, row: 2 }, { x: -1e308, y: 1e308, row: 3 }] },
+    { text: 'x,y\n1,2\n1,3', columns: [0, 1], expected: [{ x: 1, y: 2, row: 2 }, { x: 1, y: 3, row: 3 }] },
+    { text: 'sample,x,y\na,1,2', columns: [2, 1], expected: [{ x: 2, y: 1, row: 2 }] },
+  ];
+  for (const { text, columns, expected } of cases) assert.deepEqual(numericSeries(parseTable(text), ...columns), expected);
+  const defaults = [
+    ['label,time,voltage\na,0,4.2\nb,1,4.1', [1, 2]],
+    ['x,y,z\n1,,3\n,2,4', [0, 2]],
+    ['x,y\n1,\n,2', null],
+    ['label,value\na,1\nb,2', null],
+    ['x,y\nNaN,Infinity', null],
+    ['x,y', null],
+  ];
+  for (const [text, expected] of defaults) assert.deepEqual(defaultNumericColumns(parseTable(text)), expected);
+  assert.throws(() => numericSeries(parseTable('x,y\n1,2'), 0, 2), /Choose two columns/);
 });
 test('bounded opaque imports are hashed, not parsed or executed', async () => {
   const asset = await assetFrom(new File(['<script>throw new Error("never execute")</script>'], 'weights.pkl'));

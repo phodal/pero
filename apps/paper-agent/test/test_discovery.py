@@ -62,6 +62,34 @@ class DiscoveryTest(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(Invalid):
                 DiscoveryQuery.parse({**dict(seedId=seed.id, relation='related'), **change})
 
+    def test_representation_links_survive_discovery_collection_and_restart(self):
+        seed = PaperSnapshot.from_reading(reading(source='openalex', sourceId='W1'), NOW)
+        graph = work('W1', related_works=['https://openalex.org/W2'])
+        for locations, expected in [
+            ({'best_oa_location': {'pdf_url': 'https://repository.example/paper.pdf', 'landing_page_url': 'https://repository.example/paper'}}, 'https://repository.example/paper.pdf'),
+            ({'best_oa_location': {'landing_page_url': 'https://publisher.example/full'}, 'locations': [{'pdf_url': 'https://repository.example/paper.pdf'}]}, 'https://repository.example/paper.pdf'),
+            ({}, None),
+        ]:
+            with self.subTest(locations=locations), tempfile.TemporaryDirectory() as root:
+                def fetch(url, **_options):
+                    return Response(dict(results=[work('W2', **locations)])) if urlsplit(url).path == '/works' else Response(graph)
+                batch = LiteratureClient(fetch, lambda: NOW).discover(DiscoveryQuery(seed.id, 'related'), seed)
+                store = ResearchStore(root)
+                store.save_paper(seed)
+                store.save_discovery(batch)
+                favorite = store.save_favorite(batch.id, 'W2')
+                reopened = ResearchStore(root)
+                saved = reopened.discovery(batch.id)
+                paper = reopened.save_paper(saved.paper('W2').reading(NOW))
+                self.assertEqual(paper.pdf_url, expected)
+                self.assertEqual(reopened.favorite(favorite.id).paper.pdf_url, expected)
+                self.assertEqual(ResearchStore(root).paper(paper.id), paper)
+                self.assertEqual(paper.full_text_url, locations.get('best_oa_location', {}).get('landing_page_url'))
+                self.assertEqual(paper.content_kind, 'abstract')
+                if expected is None:
+                    self.assertNotIn('pdfUrl', saved.paper('W2').to_dict())
+                    self.assertNotIn('fullTextUrl', paper.to_record())
+
     def test_saved_candidates_preserve_discovery_without_changing_research(self):
         seed = PaperSnapshot.from_reading(reading(source='openalex', sourceId='W1'), NOW)
         graph = work('W1', referenced_works=[], related_works=['https://openalex.org/W2'])

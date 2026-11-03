@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "pi-midpoint-v1",
+  "name": "Pi midpoint integration",
+  "version": "1.0.0",
+  "description": "Single-process CPU numerical reference using two fixed midpoint quadratures; not an MPI, Slurm, scalability or production performance benchmark.",
+  "availability": "available",
+  "executionKind": "local-reference",
+  "reframeVersion": "4.10.4",
+  "defaultRanks": 1,
+  "minRanks": 1,
+  "maxRanks": 1,
+  "spec": {
+    "method": "pi-midpoint",
+    "integrand": "4 / (1 + x*x)",
+    "lowerBound": 0.0,
+    "upperBound": 1.0,
+    "intervals": [1024, 2048],
+    "reference": "math.pi"
+  },
+  "thresholds": {
+    "absoluteErrorMax": 0.0000001,
+    "convergenceRatioMin": 3.9,
+    "convergenceRatioMax": 4.1,
+    "sampleConsistencyMax": 0.0000000000001,
+    "estimateConsistencyMax": 0.0000000000001
+  }
+}

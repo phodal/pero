@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('product', {
   connect: () => ipcRenderer.invoke('product:connect'),
-  open: (name?: string) => ipcRenderer.invoke('product:open', name),
+  open: (name?: string, panel?: string) => ipcRenderer.invoke('product:open', name, panel),
   readContent: (request: object) => ipcRenderer.invoke('product:content-read', request),
   appUseCommand: (command: object) => ipcRenderer.invoke('product:app-use', command),
   sessionCommand: (command: object) => ipcRenderer.invoke('product:session', command),

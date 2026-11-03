@@ -76,9 +76,11 @@ pub(crate) struct AppPreparationView {
 #[derive(Default)]
 pub(crate) struct AppCatalog {
     pub entries: Vec<InstalledApp>,
+    pub badges: std::collections::BTreeMap<String, u32>,
     pub category: AppCategory,
     pub loading: bool,
     pub error: Option<String>,
+    pub error_details_open: bool,
     pub removing: Option<String>,
     pub preparation: Option<AppPreparationView>,
 }
@@ -88,6 +90,7 @@ impl AppCatalog {
         self.entries = entries;
         self.loading = false;
         self.error = None;
+        self.error_details_open = false;
         self.removing = None;
     }
 
@@ -131,18 +134,20 @@ mod surface {
                 "creating" => self.t("apps.env_creating"),
                 "installing" => self.t("apps.env_installing"),
                 "ready" => self.t("apps.env_ready"),
+                "required" => self.t("apps.env_required"),
                 _ => self.t("apps.env_failed"),
             };
             div().flex().flex_col().gap(px(12.)).p(px(12.))
                 .child(format!("{}: {}", value.name, phase))
                 .children(value.log.iter().map(|line| div().text_sm().child(line.clone())))
-                .when(value.phase == "failed", |el| el.child(Button::new("app-env-retry")
-                    .label(self.t("apps.env_retry"))
+                .when(value.phase == "required", |el| el.child(self.t("apps.env_notice")))
+                .when(value.phase == "failed" || value.phase == "required", |el| el.child(Button::new("app-env-retry")
+                    .label(self.t(if value.phase == "required" { "apps.env_prepare" } else { "apps.env_retry" }))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         if let Some(WorkspaceItem::App { name: active, panel }) = this.navigation.current() {
                             if active == &name { this.pending_app = Some((active.clone(), panel.clone())); }
                         }
-                        this.command(json!({"action":"apps_enable","name":name}), cx);
+                        this.command(json!({"action":"apps_prepare","name":name}), cx);
                     }))))
                 .into_any_element()
         }
@@ -161,12 +166,23 @@ mod surface {
 
         pub(crate) fn refresh_apps(&mut self, cx: &mut Context<Self>) {
             self.apps.error = None;
+            self.apps.error_details_open = false;
             self.apps.loading = true;
             self.command(json!({"action":"apps_list"}), cx);
         }
 
         pub(crate) fn receive_apps(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
             match event.kind.as_str() {
+                "app_sdk_page" => {
+                    if let Ok(page) = serde_json::from_value(event.data["page"].clone()) { self.navigate(page, cx); }
+                }
+                "app_sdk_badge" => {
+                    if let (Some(name), Some(count)) = (event.data["name"].as_str(), event.data["count"].as_u64()) {
+                        if self.apps.entries.iter().any(|app| app.name == name && app.enabled) {
+                            if count == 0 { self.apps.badges.remove(name); } else { self.apps.badges.insert(name.into(), count as u32); }
+                        }
+                    }
+                }
                 "app_chat_slot" => {
                     let slot = serde_json::from_value::<Option<AppChatSlot>>(event.data.clone()).ok().flatten();
                     let slot = slot.filter(|slot| {
@@ -181,7 +197,7 @@ mod surface {
                 "app_examples" => {
                     if let Ok(scope)=serde_json::from_value::<pero_contracts::AppChatScope>(event.data["scope"].clone()){self.receive_app_examples(scope,event.data["state"].clone(),cx);}
                 }
-                "point_app_session_open" => {
+                "app_agent_session_open" => {
                     if let (Ok(scope),Some(id))=(serde_json::from_value::<pero_contracts::AppChatScope>(event.data["scope"].clone()),event.data["sessionId"].as_str()) {
                         if self.apps.contains_panel(&scope.app,&scope.panel) {
                             let index=self.chat.read(cx).chats.iter().position(|chat|chat.id==id && chat.scope.as_ref()==Some(&scope));

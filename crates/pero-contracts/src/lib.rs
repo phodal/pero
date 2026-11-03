@@ -322,3 +322,6 @@ pub mod pane_tabs;
 pub mod text_edit_anchor;
 
 pub mod mcp_runtime;
+pub mod project_resources;
+
+pub mod research_project;

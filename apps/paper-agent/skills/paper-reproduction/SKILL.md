@@ -23,6 +23,14 @@ an unchanged, authorized retry needs a distinct attempt after reconciliation.
 
 ## Extract and audit one target
 
+When the result depends on a TeX passage or figure, first use
+[TeX source locations](../research-resource-import/references/tex-source-locations.md)
+to find the exact approved version and its members. Existing `~/.pero/paper`
+copies and the active App cache have different roles; read available source
+before proposing another download or experiment.
+For a locate-only request, return these source findings without preparing a
+reproduction protocol.
+
 Identify the requested result: paper revision, passage/table/figure, reported
 value, metric, units, population/split and experimental conditions. Do useful
 source reading before asking about execution. If the target is ambiguous, narrow

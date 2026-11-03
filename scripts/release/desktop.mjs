@@ -10,19 +10,21 @@ const root = resolve(import.meta.dirname, '../..');
 const taskCenter = 'https://app.openpero.com';
 const kitRevision = 'ec89cfc36404667b7947aeb3d40b1c2859d729dd';
 const tag = process.env.RELEASE_TAG || '';
+const operation = process.argv[2];
+const localSmoke = operation === 'smoke' && process.env.GITHUB_ACTIONS !== 'true';
 const standalone = process.env.RELEASE_PRODUCT === 'virtual-cell';
 const native = process.env.RELEASE_PRODUCT === 'pero-native';
 const platform = { darwin: 'macos', linux: 'linux', win32: 'windows' }[process.platform];
 const product = Product.parse(JSON.parse(readFileSync(resolve(root, standalone ? 'products/virtual-cell/product.json' : 'products/pero.json'), 'utf8')));
 const productId = native ? 'com.openpero.native' : product.id;
 const asset = `${native ? 'Pero-Native' : product.artifactStem()}-${platform}-${process.arch}`;
-if (process.env.GITHUB_ACTIONS !== 'true' || !platform || ((standalone || native) && process.platform !== 'darwin')) {
+if ((!localSmoke && process.env.GITHUB_ACTIONS !== 'true') || !platform || ((standalone || native) && process.platform !== 'darwin')) {
   throw new Error('Release packages require a native GitHub Actions runner; Virtual Cell requires macOS.');
 }
-if (!/^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(tag)) throw new Error('RELEASE_TAG must identify an existing version tag.');
+if (!localSmoke && !/^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(tag)) throw new Error('RELEASE_TAG must identify an existing version tag.');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const revision = git('rev-parse', 'HEAD');
-if (git('rev-parse', `refs/tags/${tag}^{commit}`) !== revision) throw new Error('The release tag must match the checked out source.');
+if (!localSmoke && git('rev-parse', `refs/tags/${tag}^{commit}`) !== revision) throw new Error('The release tag must match the checked out source.');
 const packageDir = resolve(root, native ? 'target/native-package' : standalone ? 'target/products/package-com.openpero.virtualcell' : 'target/package');
 const app = join(packageDir, process.platform === 'darwin' ? `${native ? 'Pero Native' : product.name}.app` : asset);
 const executable = process.platform === 'darwin' ? join(app, native ? 'Contents/MacOS/pero-native' : 'Contents/MacOS/Pero') : join(app, process.platform === 'win32' ? 'Pero.exe' : 'pero');
@@ -31,7 +33,6 @@ const archive = join(packageDir, asset + (process.platform === 'darwin' ? '.dmg'
 const metadataPath = resolve(root, 'desktop/dist/release.json');
 const outputDir = resolve(root, 'test-results/release');
 mkdirSync(outputDir, { recursive: true });
-const operation = process.argv[2];
 
 if (operation === 'prepare') {
   if (!standalone) {
@@ -106,8 +107,8 @@ if (operation === 'prepare') {
     const snapshot = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
     await expect.poll(async () => (await snapshot()).ready, { timeout: 60_000 }).toBe(true);
     await expect.poll(async () => (await snapshot()).connected, { timeout: 60_000 }).toBe(true);
+    await expect.poll(async () => (await snapshot()).remote.state.connection?.url, { timeout: 60_000 }).toBe(taskCenter);
     const state = await snapshot();
-    expect(state.remote.state.connection.url).toBe(taskCenter);
     expect(state.remote.state.configured).toBe(false);
     // The packaged Host must be executable outside the source checkout.
     expect(state.connected).toBe(true);

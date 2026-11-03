@@ -4,12 +4,12 @@ import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const electron = 'data:text/javascript,export const net = { fetch() { throw new Error("Unexpected backend proxy"); } }; export const dialog = { showMessageBox(...args) { return globalThis.__reproductionDialog(...args); } };';
+const electron = 'data:text/javascript,export const BrowserWindow = class {}; export const ipcMain = {}; export const nativeTheme = { shouldUseDarkColors: false }; export const session = {}; export const net = { fetch() { throw new Error("Unexpected backend proxy"); } }; export const dialog = { showMessageBox(...args) { return globalThis.__reproductionDialog(...args); } };';
 registerHooks({ resolve(specifier, context, nextResolve) {
   return specifier === 'electron' ? { url: electron, shortCircuit: true } : nextResolve(specifier, context);
 } });
 const { DesktopApps } = await import('./apps.ts');
-const { confirmReproduction } = await import('./reproduction-approval.ts');
+const { confirmNativeReproduction: confirmReproduction } = await import('./reproduction-approval.ts');
 const ids = { itemId: 'a'.repeat(64), specId: 'b'.repeat(64), requestId: 'run-1' };
 const ticket = 'c'.repeat(64), bindingDigest = 'd'.repeat(64);
 const prepared = { state: 'requires-approval', ticket, bindingDigest, summary: 'Fixed fixture; 2 seconds; CPU only. Not a paper reproduction.' };
@@ -24,9 +24,22 @@ function deferred<T>() {
 
 function harness(confirm?: Confirm, respond?: (request: HostRequest) => unknown | Promise<unknown>) {
   const commands: HostRequest[] = [];
+  const apiAdmissions: string[] = [];
   let outcome: unknown;
   const apps = new DesktopApps(command => {
-    const raw = command as { id: string; action: string; name: string; request: HostRequest };
+    const raw = command as { id: string; action: string; name: string; path?: string; request: HostRequest };
+    if (raw.action === 'apiaccess') {
+      // Paper's backend declares the default /api grant. Keep the real Host
+      // admission hop separate from private reproduction execution requests.
+      assert.equal(raw.name, 'paper-agent');
+      if (typeof raw.path !== 'string') throw new Error('API admission requires a path');
+      assert.ok(raw.path.startsWith('/api/'));
+      assert.equal(raw.request, undefined);
+      apiAdmissions.push(raw.path);
+      apps.accept({ version: 1, kind: 'apps_result', request_id: raw.id,
+        text: '', data: { ok: true, value: null } });
+      return;
+    }
     assert.equal(raw.action, 'reproduction'); assert.equal(raw.name, 'paper-agent');
     commands.push(raw.request);
     Promise.resolve().then(() => respond ? respond(raw.request) : (() => {
@@ -41,7 +54,7 @@ function harness(confirm?: Confirm, respond?: (request: HostRequest) => unknown 
   const post = (operation = 'request', extra: Record<string, unknown> = {}) => apps.serve(new Request('pero-app://paper-agent/host/reproduction', {
     method: 'POST', headers: { Origin: 'pero-app://paper-agent' }, body: JSON.stringify({ operation, ...ids, ...extra }),
   }));
-  return { apps, commands, post };
+  return { apps, commands, apiAdmissions, post };
 }
 
 test('direct numerical approval needs no Agent and preserves private ticket and frozen decision', async () => {
@@ -143,6 +156,7 @@ test('unknown remains a status and caller approval or execution fields cannot cr
     for (const path of ['/api/reproduction/start', '/api/reproduction/host', '/api/reproduction/%68ost', '/api/reproduction/a/../start']) {
       assert.equal((await h.apps.serve(new Request(`pero-app://paper-agent${path}`, { method: 'POST', body: '{}' }))).status, 403);
     }
+    assert.deepEqual(h.apiAdmissions, ['/api/reproduction/start', '/api/reproduction/host', '/api/reproduction/%68ost', '/api/reproduction/start']);
     assert.equal((await h.apps.serve(new Request('pero-app://other/host/reproduction', { method: 'POST', body: '{}' }))).status, 403);
     assert.equal((await h.apps.serve(new Request('pero-app://paper-agent/host/reproduction'))).status, 405);
     assert.equal((await h.apps.serve(new Request('pero-app://paper-agent/host/reproduction', {
@@ -218,17 +232,44 @@ test('both renderer session IPC handlers cannot select the private Apps reproduc
 
 test('public Apps IPC refuses private actions and swallows unmatched private replies', async () => {
   const writes: object[] = [], events: unknown[] = [];
-  const apps = new DesktopApps(value => writes.push(value), value => events.push(value), async () => undefined);
-  for (const action of ['reproduction', 'apps_reproduction', 'prepare', 'decide']) {
-    await apps.command({ action, method: 'apps', name: 'paper-agent', request: { operation: 'prepare', ...ids } });
-  }
-  assert.equal(writes.length, 0);
-  assert.equal(events.length, 4);
-  assert.ok(events.every(value => (value as {kind: string}).kind === 'apps_error'));
-  assert.equal(apps.accept({ version: 1, kind: 'apps_result', request_id: 'renderer-forged', text: '',
-    data: { ok: true, value: prepared } }), true);
-  assert.equal(events.length, 4);
-  apps.close();
+  const apps = new DesktopApps(value => {
+    writes.push(value);
+    throw new Error('Unexpected Host write in denial test');
+  }, value => events.push(value), async () => undefined);
+  try {
+    for (const action of ['reproduction', 'apps_reproduction', 'decide', 'apps_decide']) {
+      await apps.command({ action, method: 'apps', name: 'paper-agent', request: { operation: 'prepare', ...ids } });
+    }
+    assert.equal(writes.length, 0);
+    assert.equal(events.length, 4);
+    assert.ok(events.every(value => (value as {kind: string}).kind === 'apps_error'));
+    assert.equal(apps.accept({ version: 1, kind: 'apps_result', request_id: 'renderer-forged', text: '',
+      data: { ok: true, value: prepared } }), true);
+    assert.equal(events.length, 4);
+  } finally { apps.close(); }
+});
+
+test('public App environment preparation forwards no private reproduction request', async () => {
+  const writes: Record<string, unknown>[] = [], events: unknown[] = [];
+  const apps = new DesktopApps(value => {
+    const command = value as Record<string, unknown>;
+    writes.push(command);
+    assert.deepEqual(Object.keys(command).sort(), ['action', 'id', 'method', 'name']);
+    assert.equal(command.action, 'prepare');
+    assert.equal(command.method, 'apps');
+    assert.equal(command.name, 'paper-agent');
+    apps.accept({ version: 1, kind: 'apps_result', request_id: command.id as string, text: '',
+      data: { ok: true, value: [] } });
+  }, value => events.push(value), async () => undefined);
+  try {
+    for (const action of ['prepare', 'apps_prepare']) {
+      await apps.command({ action, method: 'apps', name: 'paper-agent',
+        request: { operation: 'decide', ...ids, ticket, bindingDigest, decision: 'allow' } });
+    }
+    assert.equal(writes.length, 2);
+    assert.equal(events.length, 2);
+    assert.ok(events.every(value => (value as {kind: string}).kind === 'apps_catalog'));
+  } finally { apps.close(); }
 });
 
 

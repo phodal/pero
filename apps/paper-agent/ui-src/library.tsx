@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Checkbox, EmptyState, Feedback, Field, FilePicker, Input, ListRow, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
+import { Button, Checkbox, Feedback, Field, FilePicker, Icon, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
 import type { Api, Paper, SearchItem } from './types';
 import type { Translator } from './i18n';
 import { ResearchImport } from './research-import';
 import type { ResearchBundle } from './research-types';
+import { addedWhen, isShelfFilter, statusOf, type Shelf, type ShelfFilter, type ShelfStatus } from './shelf';
 
 const sourceNames: Record<string, string> = { huggingface: 'Hugging Face', alphaxiv: 'alphaXiv', openalex: 'OpenAlex', biorxiv: 'bioRxiv', pubmed: 'PubMed' };
 
@@ -56,7 +57,7 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
   }
   return <section className="pa-import" ref={panel} aria-label={t('add')}>
     <Tabs value={tab} onValueChange={setTab}>
-      <TabsList aria-label={t('add')}><TabsTrigger value="search">{t('search')}</TabsTrigger><TabsTrigger value="pdf">PDF</TabsTrigger><TabsTrigger value="import">{t('import')}</TabsTrigger><TabsTrigger value="research">Research URL</TabsTrigger></TabsList>
+      <TabsList aria-label={t('add')}><TabsTrigger value="search">{t('search')}</TabsTrigger><TabsTrigger value="pdf">PDF</TabsTrigger><TabsTrigger value="import">{t('import')}</TabsTrigger><TabsTrigger value="research">{t('researchUrl')}</TabsTrigger></TabsList>
       <TabsContent value="search" forceMount>
         <div className="pa-search-form" role="search" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target instanceof HTMLInputElement) { event.preventDefault(); void search(); } }}>
           <Field label={t('findLabel')}>{props => <Input {...props} value={query} onChange={event => setQuery(event.target.value)} placeholder={t('searchPlaceholder')} maxLength={500}/>}</Field>
@@ -115,12 +116,78 @@ export function LiteratureHits({ results, resultPriority, adding, addError, onAd
   </>;
 }
 
-export function PaperList({ papers, selecting, selected, readingId, locked, savingId, onSelect, onRead, onDiscover, onDownload, t }: { papers: Paper[]; selecting: boolean; selected: string[]; readingId: string; locked: boolean; savingId?: string; onSelect(id: string, checked: boolean): void; onRead(paper: Paper): void; onDiscover?(paper: Paper): void; onDownload?(paper: Paper): void; t: Translator }) {
-  return <>
-    <ul className="pa-library-list">{papers.map(paper => <li key={paper.id}>
-      {selecting && <Checkbox checked={selected.includes(paper.id)} disabled={locked || selected.length >= 5 && !selected.includes(paper.id)} aria-label={`${t('usePaper')}: ${paper.title}`} onCheckedChange={checked => onSelect(paper.id, checked)}/>}
-      <ListRow title={paper.title} meta={paper.source === 'local-pdf' ? t('localPdfFile') : paper.resourceKind === 'web_article' ? 'Article excerpt' : t(paper.contentKind === 'abstract' ? 'abstract' : paper.contentKind === 'report' ? 'sourceReport' : 'fullText')} current={readingId === paper.id} onOpen={() => onRead(paper)}
-        trailing={<span className="pa-actions">{onDownload && <Button variant="ghost" busy={savingId === paper.id} disabled={!!savingId || !(paper.pdfUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper)}>{savingId === paper.id ? t('saveCopies') : t('downloadPaper')}</Button>}{onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}</span>}/>
-    </li>)}</ul>
-  </>;
+function contentKind(paper: Paper, t: Translator) {
+  if (paper.resourceKind === 'web_article') return 'Article excerpt';
+  return t(paper.contentKind === 'abstract' ? 'abstract' : paper.contentKind === 'report' ? 'sourceReport' : 'fullText');
+}
+
+function addedText(fetchedAt: string, t: Translator) {
+  const now = new Date();
+  const when = addedWhen(fetchedAt, now);
+  if (when === 'today') return t('addedToday');
+  if (when === 'yesterday') return t('addedYesterday');
+  if (!when) return '';
+  if (when.getFullYear() === now.getFullYear()) return when.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const month = String(when.getMonth() + 1).padStart(2, '0');
+  const day = String(when.getDate()).padStart(2, '0');
+  return `${when.getFullYear()}-${month}-${day}`;
+}
+
+const statusLabel: Record<ShelfStatus, 'statusReading' | 'statusToRead' | 'statusReviewed'> = {
+  reading: 'statusReading', 'to-read': 'statusToRead', reviewed: 'statusReviewed',
+};
+
+export function PaperList({ papers, selecting, selected, readingId, locked, savingId, shelf, shelfFilter, onShelfFilter, onCycleStatus, onFindMore, onSelect, onRead, onDiscover, onDownload, t }: {
+  papers: Paper[]; selecting: boolean; selected: string[]; readingId: string; locked: boolean; savingId?: string;
+  shelf: Shelf; shelfFilter: ShelfFilter; onShelfFilter(filter: ShelfFilter): void; onCycleStatus(id: string): void; onFindMore(): void;
+  onSelect(id: string, checked: boolean): void; onRead(paper: Paper): void; onDiscover?(paper: Paper): void; onDownload?(paper: Paper): void; t: Translator;
+}) {
+  const [sort, setSort] = useState<'recent' | 'title'>('recent');
+  const rows = [...papers].sort((left, right) => sort === 'title' ? left.title.localeCompare(right.title) : right.fetchedAt.localeCompare(left.fetchedAt))
+    .filter(paper => shelfFilter === 'all' || statusOf(shelf, paper.id) === shelfFilter);
+  return <div className="pa-library-table">
+    <div className="pa-library-toolbar">
+      <label className="pa-filter-control"><Icon name="filter" size={15}/>
+        <select aria-label={t('readingStatus')} value={shelfFilter} onChange={event => { if (isShelfFilter(event.target.value)) onShelfFilter(event.target.value); }}>
+          <option value="all">{t('allStatuses')}</option>
+          <option value="reading">{t('statusReading')}</option>
+          <option value="to-read">{t('statusToRead')}</option>
+          <option value="reviewed">{t('statusReviewed')}</option>
+        </select>
+      </label>
+      <label className="pa-sort-control">
+        <select aria-label={t('searchOrder')} value={sort} onChange={event => setSort(event.target.value === 'title' ? 'title' : 'recent')}>
+          <option value="recent">{t('recentlyAdded')}</option>
+          <option value="title">{t('titleSort')}</option>
+        </select>
+      </label>
+    </div>
+    <div className="pa-library-head" aria-hidden="true"><span>{t('paperColumn')}</span><span>{t('readingStatus')}</span><span>{t('added')}</span><span/></div>
+    <ul className="pa-library-list">{rows.map(paper => {
+      const status = statusOf(shelf, paper.id);
+      const authors = paper.authors.slice(0, 4).join(', ');
+      const source = paper.source === 'local-pdf' ? t('localPdfFile') : paper.source;
+      return <li key={paper.id} className="pa-paper-row" data-current={readingId === paper.id ? 'true' : undefined}>
+        <div className="pa-paper-main">
+          {selecting && <Checkbox checked={selected.includes(paper.id)} disabled={locked || selected.length >= 5 && !selected.includes(paper.id)} aria-label={`${t('usePaper')}: ${paper.title}`} onCheckedChange={checked => onSelect(paper.id, checked === true)}/>}
+          <button type="button" className="pero-list-open" onClick={() => onRead(paper)}>
+            <span className="pa-paper-file" aria-hidden="true"><Icon name="document" size={18}/></span>
+            <span className="pa-paper-name">
+              <span className="pero-list-title">{paper.title}</span>
+              <span className="pa-meta-line">{[authors, source].filter(Boolean).map((part, index) => <span key={`${index}:${part}`}>{part}</span>)}</span>
+              <span className="pa-paper-kind">{contentKind(paper, t)}</span>
+            </span>
+          </button>
+        </div>
+        <Button variant="ghost" className="pa-status" data-status={status} onClick={() => onCycleStatus(paper.id)}>
+          {status === 'to-read' ? <Icon family="shell" name="clock" size={13}/> : <Icon name={status === 'reading' ? 'skill' : 'check'} size={13}/>}
+          {t(statusLabel[status])}
+        </Button>
+        <span className="pa-paper-added">{addedText(paper.fetchedAt, t)}</span>
+        <span className="pa-actions">{onDownload && <Button variant="ghost" busy={savingId === paper.id} disabled={!!savingId || !(paper.pdfUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper)}>{savingId === paper.id ? t('saveCopies') : t('downloadPaper')}</Button>}{onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}</span>
+      </li>;
+    })}</ul>
+    {!rows.length && <p className="pa-filter-empty">{t('noPapersFilter')}</p>}
+    <div className="pa-library-footer"><Button variant="ghost" onClick={onFindMore}>{t('findMore')}<Icon name="open" size={14}/></Button></div>
+  </div>;
 }

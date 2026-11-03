@@ -2,7 +2,7 @@
 """One JSON request on stdin, one JSON result on stdout. Never executes source.
 
 Use a dedicated --cache directory (not the concurrently running App profile).
-Actions: inspect, commit, analysis, source, source-read, document, source-report, pdf, export.
+Actions: inspect, commit, analysis, source, source-read, document, source-report, record, pdf, export.
 Exit: 0 success, 2 invalid input, 3 permission, 4 unavailable, 5 acquisition
 failure, 6 interrupted. Inspect/start wait for bounded workers to finish.
 """

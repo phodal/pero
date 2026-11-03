@@ -10,6 +10,8 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "paths": {
+      "three": ["./node_modules/@types/three/index.d.ts"],
+      "three/*": ["./node_modules/@types/three/*"],
       "react": [
         "./node_modules/@types/react/index.d.ts"
       ],

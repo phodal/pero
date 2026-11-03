@@ -176,6 +176,38 @@ class ResourceIdentityTest(unittest.TestCase):
 
 
 class MetadataSafetyTest(unittest.TestCase):
+    def test_official_arxiv_system_proxy_keeps_other_destinations_pinned(self):
+        from unittest.mock import patch
+        tunnels, targets = [], []
+        class ProxyConnection:
+            sock = None
+            def __init__(self, host, port, **options):
+                self.host, self.port = host, port
+                self.context = options['context']
+            def set_tunnel(self, host, port): tunnels.append((self.host, self.port, host, port))
+            def request(self, method, target, **_options): targets.append(target)
+            def getresponse(self):
+                response = io.BytesIO(b'<html>official</html>')
+                response.status = 200
+                response.getheader = lambda name, default=None: 'text/html' if name == 'Content-Type' else default
+                return response
+            def close(self): pass
+        def fake_dns(*_args, **_kwargs):
+            return [(None, None, None, None, ('198.18.1.200', 443))]
+        with patch('paper_agent.resource_fetch.getproxies', return_value={'https': 'http://127.0.0.1:7897'}), \
+             patch('paper_agent.resource_fetch.HTTPSConnection', ProxyConnection):
+            transport = PublicMetadata(resolve=fake_dns)
+            for path in ('/html/2610.24007v1', '/abs/2610.24007', '/api/query?id_list=2610.24007'):
+                self.assertEqual(transport.fetch('https://arxiv.org' + path).text, '<html>official</html>')
+            self.assertEqual(tunnels, [('127.0.0.1', 7897, 'arxiv.org', 443)] * 3)
+            self.assertEqual(set(targets), {'/html/2610.24007v1', '/abs/2610.24007', '/api/query?id_list=2610.24007'})
+            for url in ('https://research.example/paper', 'https://private.example/',
+                        'https://arxiv.org/html/not-an-id', 'https://arxiv.org/html/2610.24007v1?url=private',
+                        'https://arxiv.org/api/query?id_list=2610.24007&url=private'):
+                with self.subTest(url=url), self.assertRaisesRegex(Invalid, 'Private'):
+                    transport.fetch(url)
+            self.assertEqual(len(tunnels), 3)
+
     def test_public_address_pin_redirect_size_and_type(self):
         opened = []
         replies = []

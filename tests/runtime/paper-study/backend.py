@@ -10,7 +10,6 @@ from paper_agent.store import ResearchStore
 from source_fixture import install
 from paper_agent.model import Invalid
 from paper_agent.literature import LiteratureClient
-from paper_agent.pdf_files import PdfFiles
 from paper_agent.thumbnails import PaperThumbnails
 
 
@@ -20,7 +19,7 @@ def denied_external(*_args, **_kwargs):
 
 def campaign_handler(store, token):
     return handler(store, token, literature=LiteratureClient(fetch=denied_external),
-        pdf_files=PdfFiles(fetch=denied_external), thumbnails=PaperThumbnails(fetch=denied_external))
+        thumbnails=PaperThumbnails(fetch=denied_external))
 
 
 def main():

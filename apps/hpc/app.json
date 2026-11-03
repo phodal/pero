@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "name": "hpc",
+  "version": "0.1.0",
+  "displayName": "HPC Benchmarks",
+  "description": "Run fixed scientific benchmarks and independently verify their saved evidence. Local CPU references are separate from unavailable Slurm/OpenFOAM execution.",
+  "permissions": { "host": ["agent"] },
+  "contributes": {
+    "panels": [{ "id": "main", "title": "HPC Benchmarks", "entry": "dist/index.html" }],
+    "writes": [{
+      "name": "benchmark-step",
+      "description": "Read benchmarks and runs first to obtain their current specDigest. Supply that returned specDigest when executing run, verify or cancel. Execute only a fixed available local reference, independently verify saved evidence, cancel a local run or compare runs with the same specification. Inputs and verification thresholds are frozen. Does not provision compute resources, change thresholds, or submit Slurm/OpenFOAM jobs.",
+      "path": "/api/agent-step",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "action": { "type": "string", "enum": ["read", "run", "verify", "cancel", "compare"] },
+          "benchmarkId": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "runId": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "specDigest": { "type": "string", "minLength": 64, "maxLength": 64 },
+          "runIds": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 100 }, "minItems": 2, "maxItems": 8 }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      }
+    }]
+  },
+  "backend": {
+    "type": "python",
+    "entry": "backend/server.py",
+    "dependencies": ["reframe-hpc==4.10.4"]
+  }
+}

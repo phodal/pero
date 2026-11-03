@@ -377,6 +377,10 @@ async fn run(
             }
             config.validate_mcp_capabilities(&initialized.agent_capabilities.mcp_capabilities)
                 .map_err(|message| failure(&message))?;
+            if app_use.as_ref().is_some_and(|endpoint| endpoint.required)
+                && !initialized.agent_capabilities.mcp_capabilities.http {
+                return Err(failure("This Agent cannot mount the App Agent Plugin: MCP HTTP support is required"));
+            }
             if resume_id.is_some() && !initialized.agent_capabilities.load_session { return Err(failure("This Harness cannot resume existing ACP Sessions; no new Session was started")); }
             let auth_methods = initialized.auth_methods.clone();
             event(&tx, &thread, "agent_info", "", serde_json::to_value(&initialized).unwrap_or_default());
@@ -501,6 +505,9 @@ async fn run(
                         };
                         if app_use.is_some() && initialized.agent_capabilities.mcp_capabilities.http {
                             blocks.push(ContentBlock::Text(TextContent::new(format!("Host-provided App Use workflow:\n{}",super::APP_USE_SKILL))));
+                        }
+                        if !config.session_instructions.is_empty() {
+                            blocks.push(ContentBlock::Text(TextContent::new(format!("Host-mounted App Agent Plugin instructions:\n{}", config.session_instructions))));
                         }
                         event(&tx, &thread, "turn_started", "正在思考", Value::Null);
                         let prompt = connection.send_request(PromptRequest::new(

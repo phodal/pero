@@ -16,6 +16,7 @@ from .pdf_files import PdfFiles
 from .paper_documents import PaperDocuments
 from .scientific_document import DocumentError
 from .library_files import LibraryFiles, locate_passage
+from .paper_reading import reading_command
 from .retrieval import SearchQuery
 from .local_pdf import LocalPdf, MAX_PDF_BYTES
 from .source_text import SourceText
@@ -23,6 +24,7 @@ from .context_file import ContextSelection, ContextRead
 from .research import ResearchPlan
 from .thumbnails import PaperThumbnails
 from .source_reading import source_read, source_image
+from .tex_preview import TexPreviews
 from .pcgym_domain import Invalid as PcgymInvalid, fields as reproduction_fields
 
 MAX_BODY = 1024 * 1024
@@ -45,6 +47,7 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
     pdf_files = pdf_files if pdf_files is not None else PdfFiles()
     thumbnails = thumbnails if thumbnails is not None else PaperThumbnails()
     documents = documents if documents is not None else PaperDocuments(store)
+    tex = TexPreviews(store, pdf_files)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -96,6 +99,15 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
                     if self.command == 'POST': return self.reply(201, store.edit_matrix(matrix_match[1], data, now()))
                 if self.command == "GET":
+                    tex_compilation = re.fullmatch(r'/api/tex-compilations/([a-f0-9]{64})', path)
+                    if tex_compilation:
+                        return self.reply(200, tex.status(tex_compilation[1]))
+                    tex_file = re.fullmatch(r'/api/tex-previews/([a-f0-9]{64})/file', path)
+                    if tex_file:
+                        return self.binary(200, tex.file(tex_file[1]), 'application/pdf')
+                    tex_paper = re.fullmatch(r'/api/papers/([a-f0-9]{64})/tex', path)
+                    if tex_paper:
+                        return self.reply(200, tex.overview(tex_paper[1]))
                     source_image_match = re.fullmatch(r'/api/research/source-image/([a-f0-9]{64})/([a-f0-9]{64})', path)
                     if source_image_match:
                         return self.binary(200, source_image(store, *source_image_match.groups()), 'image/png')
@@ -139,11 +151,12 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if path == '/api/pdf':
                         document = store.paper_pdf(parse_qs(parsed.query).get('paperId', [''])[0])
                         return self.reply(200, dict(document=document.to_dict() if document else None,
+                                                    originalUrl=store.pdf_downloads.original_url(document) if document else None,
                                                     annotations=[item.to_dict() for item in store.annotations(document.id)] if document else []))
                     document_match = re.fullmatch(r'/api/pdf/([a-f0-9]{64})', path)
                     if document_match:
                         document = store.pdf(document_match[1])
-                        return self.reply(200, dict(document=document.to_dict(), annotations=[item.to_dict() for item in store.annotations(document.id)]))
+                        return self.reply(200, dict(document=document.to_dict(), originalUrl=store.pdf_downloads.original_url(document), annotations=[item.to_dict() for item in store.annotations(document.id)]))
                     pdf_match = re.fullmatch(r'/api/pdf/([a-f0-9]{64})/file', path)
                     if pdf_match:
                         return self.binary(200, store.pdf_bytes(store.pdf(pdf_match[1])), 'application/pdf')
@@ -174,6 +187,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, record.to_dict())
                 if self.command == "POST":
+                    tex_paper = re.fullmatch(r'/api/papers/([a-f0-9]{64})/tex', path)
+                    if tex_paper:
+                        return self.reply(202, tex.start(tex_paper[1], data, now()))
                     if path == '/api/reproduction/host':
                         if not compute_secret or not hmac.compare_digest(compute_secret, self.headers.get('X-Pero-Compute-Token', '')):
                             raise Invalid('Private Host computation authority required', 403)
@@ -193,6 +209,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         return self.reply(200, store.imports.analysis(data))
                     if path == '/api/research/source':
                         return self.reply(200, store.source_downloads.request(data))
+                    if path == '/api/research/record':
+                        from .research_commands import execute
+                        return self.reply(200, execute(store, 'record', data, now=now()))
                     if path == '/api/research/source-report':
                         from .research_commands import execute
                         return self.reply(200, execute(store, 'source-report', data))
@@ -207,10 +226,7 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                                    if path.endswith('/followup') else ResearchRequest.parse(data))
                         if request.full_text:
                             for identity in request.paper_ids:
-                                paper = store.paper(identity)
-                                if store.paper_pdf(identity) is None:
-                                    content = pdf_files.download(paper)
-                                    store.save_pdf(pdf_files.inspect(paper, content, now()), content)
+                                LibraryFiles(store).reading_pdf(store.paper(identity))
                             return self.reply(201, dict(mode='study', **store.create_study(request, now()).to_dict()))
                         return self.reply(201, dict(mode='answer', **store.prepare(request, now()).to_dict()))
                     if path == '/api/contexts/read':
@@ -234,10 +250,7 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         return self.reply(201, store.add_reading_cell(data.get('annotationId'), data.get('column'), now()).to_dict())
                     if path == '/api/pdf':
                         paper = store.paper(data.get('paperId'))
-                        document = store.paper_pdf(paper.id)
-                        if document is None:
-                            content = pdf_files.download(paper)
-                            document = store.save_pdf(pdf_files.inspect(paper, content, now()), content)
+                        document = LibraryFiles(store).reading_pdf(paper)
                         return self.reply(200, dict(document=document.to_dict(), annotations=[item.to_dict() for item in store.annotations(document.id)]))
                     if path == '/api/pdf/locate':
                         document = store.pdf(data.get('documentId'))
@@ -268,6 +281,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     files_match = re.fullmatch(r'/api/papers/([a-f0-9]{64})/files', path)
                     if files_match:
                         return self.reply(200, LibraryFiles(store).command(store.paper(files_match[1]), data, now()))
+                    reading_match = re.fullmatch(r'/api/papers/([a-f0-9]{64})/reading', path)
+                    if reading_match:
+                        return self.reply(200, reading_command(store, store.paper(reading_match[1]), data, now()))
                     if path == "/api/papers":
                         paper = PaperSnapshot.from_reading(literature.read(data), now())
                         return self.reply(201, store.save_paper(paper).to_dict())

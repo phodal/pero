@@ -6,11 +6,20 @@ import { ScientificContent } from './scientific-content';
 import { StructuredReading } from './structured-reading';
 import { EvidenceMatrix } from './evidence-matrix';
 import type { Translator } from './i18n';
+import './reader-workspace.css';
 
 function SourceLines({ content, focus, label }: { content: string; focus: TextFocus; label: string }) {
   const mark = useRef<HTMLElement>(null);
-  const from = Math.max(0, Math.min(focus.start, content.length));
-  const to = Math.max(from, Math.min(focus.end, content.length));
+  // Search offsets count Python code points; String.slice counts UTF-16 units.
+  // Convert at the rendering boundary to preserve stored source coordinates.
+  const start = Math.max(0, focus.start), end = Math.max(start, focus.end);
+  let from = 0, to = 0, position = 0;
+  for (const character of content) {
+    if (position >= end) break;
+    to += character.length;
+    if (position < start) from = to;
+    position++;
+  }
   const line = content.slice(0, from).split('\n').length;
   useEffect(() => { mark.current?.scrollIntoView({ block: 'center' }); }, [content, from, to, focus.token]);
   return <>
@@ -24,6 +33,8 @@ export function Reader({ paper, busy, openToken, pdfReloadToken, api, pdfFocus, 
 }) {
   const source = useRef<HTMLDivElement>(null);
   const [excerpt, setExcerpt] = useState(''), [structured, setStructured] = useState(false);
+  const [sourceUrl, setSourceUrl] = useState<string>();
+  const [readRequest, setReadRequest] = useState(0);
   useEffect(() => { setExcerpt(''); }, [paper.id]);
   function capture() {
     const selection = window.getSelection();
@@ -32,9 +43,9 @@ export function Reader({ paper, busy, openToken, pdfReloadToken, api, pdfFocus, 
     setExcerpt(value);
   }
   return <article className="pa-document pa-reading-document" data-paper-id={paper.id} aria-label={paper.title}>
-    <PdfReader key={paper.id} pdfReloadToken={pdfReloadToken} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} readLabel={structured && !textFocus ? 'Read' : undefined} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
+    <PdfReader key={paper.id} sourceUrl={sourceUrl} openToken={openToken} readRequest={readRequest} pdfReloadToken={pdfReloadToken} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} readLabel={structured && !textFocus ? 'Read' : undefined} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
       <div className="pa-text-reading pero-reader-body"><div className="pero-reader-content">
-        <StructuredReading openToken={openToken} showText={!!textFocus} api={api} paperId={paper.id} onReady={setStructured} onReview={onReview}>
+        <StructuredReading onDiscuss={onDiscuss} onSourceUrl={setSourceUrl} toolbar={chrome.toolbar} openToken={openToken} showText={!!textFocus} api={api} paperId={paper.id} onReady={setStructured} onPrepared={() => setReadRequest(value => value + 1)} onReview={onReview}>
         {paper.contentKind !== 'full-text' && !textFocus && <p className="pa-document-meta">{paper.resourceKind === 'web_article' ? 'Article excerpt' : t(paper.contentKind === 'abstract' ? 'abstract' : 'sourceReport')}</p>}
         {paper.limitation && <p className="pa-document-meta">{paper.limitation}</p>}
         <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content != null ? textFocus ? <SourceLines content={paper.content} focus={textFocus} label={t('sourceLine')}/> : paper.resourceKind ? <p className="pa-resource-excerpt">{paper.content}</p> : <ScientificContent content={paper.content}/> : t('loading')}</div>

@@ -21,6 +21,7 @@
     "@embedpdf/plugin-selection": "2.15.1",
     "@embedpdf/plugin-viewport": "2.15.1",
     "@embedpdf/plugin-zoom": "2.15.1",
+    "@pero/paper-reader": "file:../../packages/paper-reader",
     "katex": "0.16.25",
     "react": "19.2.8",
     "react-dom": "19.2.8",

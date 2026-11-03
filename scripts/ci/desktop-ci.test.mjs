@@ -67,6 +67,13 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'npm --prefix apps/data run test:ui', 'node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs',
     'tests/fixtures/owned-electron-close.test.mjs', 'node tests/runtime/automation.mjs']) assert.ok(commands.includes(command), command);
   const core = workflow.jobs.core.steps.map(step => step.run || '').join('\n');
+  const appContracts = workflow.jobs.core.steps.find(step => step.name === 'Independent App contracts with frozen dependencies');
+  assert.equal(workflow.jobs.core.if, undefined);
+  assert.equal(appContracts.if, undefined);
+  assert.equal(appContracts['continue-on-error'], undefined);
+  assert.ok(appContracts.run.includes('npm ci --prefix apps/hpc --ignore-scripts'));
+  assert.ok(appContracts.run.includes('npm --prefix apps/hpc run test:ui'));
+  assert.ok(appContracts.run.indexOf('npm ci --prefix apps/hpc --ignore-scripts') < appContracts.run.indexOf('npm --prefix apps/hpc run test:ui'));
   for (const command of ['node --test tests/runtime/lab/*.test.mjs', 'npx tsc -p scripts/ci/tsconfig.core.json',
     'node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker',
     'node scripts/cargo.mjs build --locked -p pero-host -p pero-worker',
@@ -78,11 +85,12 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.ok(core.includes('npm run typecheck --prefix apps/paper-agent'));
   assert.ok(core.includes('node --test tests/e2e/paper-library-availability.test.mjs'));
   assert.ok(core.indexOf('npm ci --prefix apps/paper-agent --ignore-scripts') < core.indexOf('node --test tests/e2e/paper-library-availability.test.mjs'));
+  assert.ok(core.indexOf('npm ci --prefix apps/paper-agent --ignore-scripts') < core.indexOf('node --experimental-transform-types --test tests/e2e/paper-manual-evidence.test.ts'));
   assert.doesNotMatch(core, /npm run build|xvfb-run|build:wasm|scripts\/build\/(?:apps|wasm|reader|automation-app|scientific-viewer)\.mjs/);
   for (const command of ['ec89cfc36404667b7947aeb3d40b1c2859d729dd', 'https://github.com/longbridge/gpui-kit.git',
     'npm ci --prefix apps/automations --ignore-scripts', 'npm ci --prefix apps/scientific-viewer --ignore-scripts',
     'npm test --prefix apps/automations', 'npm test --prefix apps/scientific-viewer',
-    'node tests/runtime/automation-app.mjs', 'node tests/contracts/point-agent.mjs',
+    'node tests/runtime/automation-app.mjs', 'node tests/contracts/app-agent-runs.mjs',
     'python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt',
     "python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'"]) assert.ok(core.includes(command), command);
   assert.ok(commands.includes("python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'"));
@@ -96,7 +104,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
 test('independent Paper aggregates cover every offline journey once and restore scoped PDF mode', () => {
   const temp = mkdtempSync(resolve(tmpdir(), 'pero-paper-wiring-'));
   const groups = {
-    'paper-research-import': ['paper-research-import', 'paper-research-import-host', 'paper-pdf-study', 'paper-source-study', 'paper-library-save', 'paper-reproduction-component', 'paper-reproduction-native'],
+    'paper-research-import': ['paper-research-import', 'paper-research-import-host', 'paper-pdf-study', 'paper-source-study', 'paper-library-save', 'paper-manual-records', 'paper-reproduction-component', 'paper-reproduction-native'],
     'paper-reading': ['paper-structured-reading', 'paper-agent'],
   };
   const entries = Object.values(groups).flat();
@@ -222,5 +230,46 @@ test('native reproduction fixture dispatches cancellation modes outside Electron
   } finally {
     if (previous === undefined) delete globalThis.paperNative;
     else globalThis.paperNative = previous;
+  }
+});
+
+
+test('ordinary core runs source campaign contracts after dependencies without provider or Host launch', () => {
+  const { steps } = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.core;
+  const install = steps.findIndex(step => step.run === 'npm ci');
+  const contracts = steps.findIndex(step => step.name === 'Permission, cancellation and fixture contracts');
+  assert(install >= 0 && contracts > install);
+  const command = 'node --experimental-transform-types --test tests/runtime/paper-study/*.test.mjs tests/runtime/research-import/cleanup.test.mjs';
+  assert(steps[contracts].run.split('\n').includes(command));
+  assert.equal(steps[contracts].if, undefined);
+  assert.equal(steps[contracts]['continue-on-error'], undefined);
+  assert(!steps[contracts].run.includes('paper-study/run.mjs'));
+});
+
+test('public HTML corpus requires its own opt-in and exports only per-case summaries', () => {
+  const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
+  assert.equal(workflow.on.workflow_dispatch.inputs.paper_html_live.default, false);
+  const job = workflow.jobs['paper-html-live'];
+  const condition = "${{ (github.event_name == 'workflow_dispatch' && inputs.paper_html_live) || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-html-live')) }}";
+  assert.equal(job.if, condition);
+  assert.equal(workflow.jobs.complete.steps.at(-1).env.PAPER_HTML_LIVE, condition);
+  assert.deepEqual(job.permissions, { contents: 'read' });
+  assert.deepEqual(job.strategy.matrix.corpus, ['d5', 'pc-gym', 'controlgym']);
+  assert.equal(job.strategy['fail-fast'], false);
+  assert.equal(job['timeout-minutes'], 5);
+  assert.equal(job['continue-on-error'], undefined);
+  const run = job.steps.find(step => step.run);
+  assert.equal(run.run, 'python apps/paper-agent/test/manual/scientific_html.py --allow-official-html --case ${{ matrix.corpus }} --output test-results/paper-html-live/${{ matrix.corpus }}.json');
+  const upload = job.steps.at(-1);
+  assert.equal(upload.if, 'always()');
+  assert.equal(upload.with.path, 'test-results/paper-html-live/${{ matrix.corpus }}.json');
+  assert.equal(upload.with['if-no-files-found'], 'error');
+  for (const full of [false, true]) {
+    assert.deepEqual(failures({ 'paper-html-live': { result: 'skipped' } }, full, false), []);
+    for (const result of ['skipped', 'failure', 'cancelled']) {
+      assert.deepEqual(failures({ 'paper-html-live': { result } }, full, true), ['paper-html-live']);
+    }
+    assert.deepEqual(failures({ 'paper-html-live': { result: 'failure' } }, full, false), ['paper-html-live']);
+    assert.deepEqual(failures({ 'paper-html-live': { result: 'success' } }, full, true), []);
   }
 });

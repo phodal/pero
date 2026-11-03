@@ -27,6 +27,6 @@ test('evidence tables use readable labels without substituting verification valu
   assert.equal(checkLabel('observed_fraction'), 'Observed fraction');
   assert.equal(checkLabel('future_check'), 'future check');
   const trials = [{ id: 'a'.repeat(32), parent_trial_id: null }, { id: 'b'.repeat(32), parent_trial_id: 'a'.repeat(32) }];
-  assert.equal(trialLabel(trials, trials[0].id), 'Trial 1 · Baseline');
-  assert.equal(trialLabel(trials, trials[1].id), 'Trial 2 · Revision');
+  assert.equal(trialLabel(trials, trials[0].id), 'Trial 1 (Baseline)');
+  assert.equal(trialLabel(trials, trials[1].id), 'Trial 2 (Revision)');
 });

@@ -1,5 +1,5 @@
 //! Host-owned Python preparation, shared by every Desktop shell.
-use super::{AppName, PythonEnvironment, definition::PythonDependency};
+use super::{definition::PythonDependency, python::PythonPreparation, AppName, PythonEnvironment};
 use serde::Serialize;
 use std::{
     io::{BufRead, BufReader},
@@ -11,6 +11,7 @@ use std::{
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PreparationPhase {
+    Required,
     Checking,
     Creating,
     Installing,
@@ -27,10 +28,11 @@ pub struct AppPreparation {
 
 pub(super) fn prepare(
     name: &AppName,
-    environment: &PythonEnvironment,
+    selected: Option<&PythonEnvironment>,
+    managed: PythonEnvironment,
     dependencies: &[PythonDependency],
     progress: &mut impl FnMut(AppPreparation),
-) -> Result<(), String> {
+) -> Result<PythonPreparation, String> {
     let mut report = |phase, message: String| {
         progress(AppPreparation {
             name: name.clone(),
@@ -42,7 +44,9 @@ pub(super) fn prepare(
         PreparationPhase::Checking,
         "Checking Python dependencies".into(),
     );
-    let result: Result<(), String> = (|| {
+    let result: Result<PythonPreparation, String> = (|| {
+        let target = selection(name, selected, managed, dependencies)?;
+        let environment = target.environment();
         if !environment.executable().is_file() {
             report(
                 PreparationPhase::Creating,
@@ -70,9 +74,11 @@ pub(super) fn prepare(
                 report(PreparationPhase::Creating, line)
             })?;
         }
-        let config = std::fs::read_to_string(environment.root().join("pyvenv.cfg"))
-            .map_err(|e| e.to_string())?;
-        environment.validate_config(&config)?;
+        if matches!(target, PythonPreparation::Managed(_)) {
+            let config = std::fs::read_to_string(environment.root().join("pyvenv.cfg"))
+                .map_err(|e| e.to_string())?;
+            environment.validate_config(&config)?;
+        }
         let requirements: Vec<&str> = dependencies.iter().map(PythonDependency::as_str).collect();
         // Check installed distribution versions, rather than trusting a receipt
         // left behind before an environment was edited or removed.
@@ -95,19 +101,76 @@ pub(super) fn prepare(
                 report(PreparationPhase::Installing, line)
             })?;
             if !check()? {
-                return Err("Installed Python dependencies could not be verified. Enable the App again to retry the locked requirements. ngspice is not downloaded.".into());
+                return Err("Installed Python dependencies could not be verified. Choose Prepare environment to retry the locked requirements. ngspice is not downloaded.".into());
             }
         }
-        Ok(())
+        Ok(target)
     })();
     match &result {
-        Ok(()) => report(
+        Ok(_) => report(
             PreparationPhase::Ready,
             "Python environment is ready".into(),
         ),
         Err(error) => report(PreparationPhase::Failed, error.clone()),
     }
     result
+}
+
+/// Read-only admission for opening an App. Acquisition belongs to `prepare`.
+pub(super) fn check(
+    name: &AppName,
+    selected: Option<&PythonEnvironment>,
+    managed: PythonEnvironment,
+    dependencies: &[PythonDependency],
+) -> Result<PythonEnvironment, String> {
+    let target = selection(name, selected, managed, dependencies)?;
+    let environment = target.environment();
+    if selected.is_some_and(|selected| selected.root() != environment.root()) {
+        return Err("This App needs a compatible Python environment. Choose Prepare environment to update its binding.".into());
+    }
+    if !environment.executable().is_file() {
+        return Err("Prepare the App environment before opening it. Python will only be installed when you choose Prepare environment.".into());
+    }
+    if matches!(target, PythonPreparation::Managed(_)) {
+        let config = std::fs::read_to_string(environment.root().join("pyvenv.cfg"))
+            .map_err(|error| error.to_string())?;
+        environment.validate_config(&config)?;
+    }
+    let requirements: Vec<&str> = dependencies.iter().map(PythonDependency::as_str).collect();
+    if !locked_packages_ready(environment, &requirements)? {
+        return Err("The App's locked dependencies are missing. Choose Prepare environment to install them.".into());
+    }
+    Ok(environment.clone())
+}
+
+fn selection(
+    name: &AppName,
+    selected: Option<&PythonEnvironment>,
+    managed: PythonEnvironment,
+    dependencies: &[PythonDependency],
+) -> Result<PythonPreparation, String> {
+    let config = selected
+        .map(|environment| {
+            let path = environment.root().join("pyvenv.cfg");
+            match std::fs::read_to_string(&path) {
+                Ok(config) => Ok(Some(config)),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(error) => Err(format!(
+                    "Cannot read Python environment {}: {error}",
+                    path.display()
+                )),
+            }
+        })
+        .transpose()?
+        .flatten();
+    PythonPreparation::for_app(
+        name,
+        selected,
+        managed,
+        config.as_deref(),
+        selected.is_some_and(|environment| environment.executable().is_file()),
+        !dependencies.is_empty(),
+    )
 }
 
 /// Missing pins are not ready. Pins that are installed but cannot be imported
@@ -120,7 +183,7 @@ fn locked_packages_ready(
         return Ok(true);
     }
     let output = Command::new(environment.executable())
-        .args(["-I", "-c", "import importlib, importlib.metadata as m, sys\nreqs=sys.argv[1:]\ntry:\n ok=all(m.version(n)==v for n,v in (r.split('==') for r in reqs))\nexcept m.PackageNotFoundError:\n sys.exit(1)\nif not ok:\n sys.exit(1)\ntry:\n for req in reqs:\n  name=req.split('==',1)[0]\n  dist=m.distribution(name)\n  for top in (dist.read_text('top_level.txt') or '').split():\n   if top: importlib.import_module(top)\n  if name=='scipy': importlib.import_module('scipy.linalg')\nexcept Exception as exc:\n print(exc, file=sys.stderr)\n sys.exit(2)"])
+        .args(["-I", "-B", "-c", "import importlib, importlib.metadata as m, sys\nreqs=sys.argv[1:]\ntry:\n ok=all(m.version(n)==v for n,v in (r.split('==') for r in reqs))\nexcept m.PackageNotFoundError:\n sys.exit(1)\nif not ok:\n sys.exit(1)\ntry:\n for req in reqs:\n  name=req.split('==',1)[0]\n  dist=m.distribution(name)\n  for top in (dist.read_text('top_level.txt') or '').split():\n   if top: importlib.import_module(top)\n  if name=='scipy': importlib.import_module('scipy.linalg')\nexcept Exception as exc:\n print(exc, file=sys.stderr)\n sys.exit(2)"])
         .args(requirements)
         .output()
         .map_err(|error| error.to_string())?;
@@ -136,7 +199,7 @@ fn locked_packages_ready(
             detail
         };
         return Err(format!(
-            "{detail} Enable the App again to retry the locked requirements. ngspice is not downloaded."
+            "{detail} Choose Prepare environment to retry the locked requirements. ngspice is not downloaded."
         ));
     }
     Ok(false)

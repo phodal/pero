@@ -1,0 +1,298 @@
+/* Reader, PDF canvas, and research record panel. Pero tokens only. */
+
+.pa-workbench .pa-reader-crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--pero-text-muted);
+}
+.pa-workbench .pa-crumb-library {
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pero-text-muted);
+  font: inherit;
+  font-size: 12px;
+}
+.pa-workbench .pa-reader-crumb h1 {
+  flex: 1 1 auto;
+  max-width: none;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pa-workbench .pa-reading-bar .pero-ui-button[data-variant=primary] {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--pero-action);
+  color: var(--pero-on-action);
+  font-size: 14px;
+  font-weight: 600;
+}
+.pa-workbench .pa-reading-bar .pero-ui-button[data-variant=primary]:hover:not(:disabled) {
+  background: var(--pero-action-hover);
+  color: var(--pero-on-action);
+}
+
+.pa-workbench .pa-reader-tools .pa-reader-modes {
+  align-self: center;
+  gap: 0;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--pero-surface-muted);
+}
+.pa-workbench .pa-reader-tools .pa-reader-modes > .pero-ui-button[data-variant=ghost] {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--pero-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+.pa-workbench .pa-reader-tools .pa-reader-modes > .pero-ui-button[data-variant=ghost]:hover:not(:disabled) {
+  background: var(--pero-surface);
+  color: var(--pero-text);
+}
+.pa-workbench .pa-reader-tools .pa-reader-modes > .pero-ui-button[data-variant=ghost][aria-pressed=true],
+.pa-workbench .pa-reader-tools .pa-reader-modes > .pero-ui-button[data-variant=ghost][aria-pressed=true]:hover:not(:disabled) {
+  background: var(--pero-surface);
+  color: var(--pero-accent-text);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--pero-action);
+}
+.pa-workbench .pa-reader-tools .pa-reader-pager {
+  align-items: center;
+}
+.pa-workbench .pa-reader-tools .pa-reader-pager > .pero-ui-button {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  line-height: 1;
+}
+.pa-workbench .pa-reader-tools .pa-reader-pager > .pero-ui-button:hover:not(:disabled) {
+  background: var(--pero-surface-muted);
+}
+.pa-workbench .pa-reader-tools .pa-pdf-page-input {
+  height: 28px;
+}
+.pa-workbench .pa-reader-tools .pa-pdf-page-input input {
+  height: 28px;
+  min-height: 0;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--pero-border);
+  border-radius: 4px;
+  font-size: 12px;
+}
+@container (max-width: 760px) {
+  .pa-workbench .pa-reader-tools .pa-reader-modes > .pero-ui-button[data-variant=ghost] {
+    padding-inline: 8px;
+  }
+}
+
+.pa-workbench .pa-pdf-viewer,
+.pa-workbench .pa-pdf-body,
+.pa-workbench .pa-pdf-viewport {
+  background: var(--pero-surface-muted);
+}
+.pa-workbench .pa-pdf-page {
+  background: var(--pero-surface);
+  outline: 0.5px solid var(--pero-border);
+  box-shadow: none;
+}
+.pa-workbench .pa-pdf-notes blockquote,
+.pa-workbench .pa-evidence-context,
+.pa-workbench .pa-printed-quote,
+.pa-workbench .pa-question-context blockquote,
+.pa-workbench .pa-records blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 0;
+  border-inline-start: 2px solid var(--pero-action);
+  border-radius: 0;
+  background: var(--pero-surface-muted);
+  box-shadow: none;
+  color: var(--pero-text-muted);
+}
+.pa-workbench .pa-evidence-context mark,
+.pa-workbench .pa-evidence mark {
+  background: transparent;
+  color: var(--pero-text);
+}
+.pa-workbench .pa-pdf-selection {
+  box-shadow: none;
+  border: var(--pero-hairline);
+  border-radius: 6px;
+  background: var(--pero-surface);
+}
+
+.pa-workbench .pa-records {
+  background: var(--pero-surface);
+  color: var(--pero-text);
+  border-inline-start: var(--pero-hairline);
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  box-shadow: none;
+}
+.pa-workbench .pa-records-header {
+  height: auto;
+  min-height: 48px;
+  padding: 0 20px;
+  background: var(--pero-surface);
+  border-bottom: var(--pero-hairline);
+}
+.pa-workbench .pa-records-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.pa-workbench .pa-records-header .pero-ui-button {
+  height: 28px;
+  min-height: 28px;
+  padding-inline: 8px;
+  color: var(--pero-text-muted);
+  font-size: 16px;
+}
+.pa-workbench .pa-records-scroll {
+  padding: 20px 24px 28px;
+  background: var(--pero-surface);
+}
+.pa-workbench .pa-records .pa-record-note {
+  margin: 0;
+  padding: 20px 0;
+  border-bottom: var(--pero-hairline);
+  background: transparent;
+  box-shadow: none;
+}
+.pa-workbench .pa-records .pa-record-note > summary {
+  padding: 0;
+  color: var(--pero-text);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.pa-workbench .pa-records .pa-record-note[open] > summary {
+  margin-bottom: 12px;
+}
+.pa-workbench .pa-records .pa-answer,
+.pa-workbench .pa-records .pa-prose,
+.pa-workbench .pa-records .pa-study-record,
+.pa-workbench .pa-records .pa-report-section {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--pero-text);
+}
+.pa-workbench .pa-records .pa-report-section > h2,
+.pa-workbench .pa-records .pa-study-record h3,
+.pa-workbench .pa-records .pa-answer .pa-document-heading h1 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.pa-workbench .pa-records .pa-citations {
+  gap: 6px;
+  margin-top: 12px;
+}
+.pa-workbench .pa-records .pa-citations .pero-ui-button {
+  height: auto;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--pero-accent-soft);
+  color: var(--pero-accent-text);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: none;
+}
+.pa-workbench .pa-records .pa-citations .pero-ui-button:hover:not(:disabled) {
+  background: var(--pero-accent-soft);
+  color: var(--pero-action);
+}
+.pa-workbench .pa-records .pero-ui-empty-state {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pa-workbench .pa-text-reading > .pero-reader-content {
+  width: min(100%, var(--pero-reading-width));
+  margin-inline: auto;
+  padding: 36px 32px 56px;
+}
+.pa-workbench .pa-source-text,
+.pa-workbench .pa-scientific,
+.pa-workbench .pa-reading-column {
+  font-size: var(--pero-font-body);
+  line-height: 1.7;
+}
+.pa-workbench .pa-reading-column h1,
+.pa-workbench .pa-reading-column h2,
+.pa-workbench .pa-reading-column h3 {
+  font-size: var(--pero-font-body);
+  font-weight: 600;
+  line-height: 1.6;
+}
+.pa-workbench .pa-text-contents {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  margin: 0 0 20px;
+  padding: 0 0 12px;
+  border-bottom: var(--pero-hairline);
+}
+.pa-workbench .pa-text-contents-item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--pero-text-muted);
+  font: 500 var(--pero-font-caption)/1.4 system-ui, sans-serif;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.pa-workbench .pa-text-contents-item:hover {
+  background: var(--pero-surface-muted);
+  color: var(--pero-text);
+}
+.pa-workbench .pa-text-contents-item[aria-current="location"] {
+  background: var(--pero-accent-soft);
+  color: var(--pero-accent-text);
+}
+.pa-workbench .pa-text-contents-item:focus-visible {
+  outline: 2px solid var(--pero-focus);
+  outline-offset: 2px;
+}
+@container (max-width: 760px) {
+  .pa-workbench .pa-records-scroll {
+    padding: 16px;
+  }
+  .pa-workbench .pa-text-reading > .pero-reader-content {
+    padding: 24px 16px 36px;
+  }
+}

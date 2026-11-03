@@ -4,13 +4,21 @@ import { join, resolve, sep } from 'node:path';
 
 const APP_ENTRIES = ['app.json', 'dist', 'backend', 'examples', 'evidence', 'THIRD_PARTY_NOTICES.md', 'README.md', 'licenses'];
 const PAPER_ENTRIES = [
-  'tools/research.py', 'skills/research-resource-import/SKILL.md',
+  'tools/research.py', 'tools/locate-source.py', 'skills/research-resource-import/SKILL.md',
+  'skills/research-resource-import/references/tex-source-locations.md',
   'skills/paper-code-audit/SKILL.md',
   'skills/paper-code-audit/references/audit-contract.md',
   'skills/paper-code-audit/references/other-cases.md',
   'skills/paper-code-audit/references/pcgym-table6.md',
   'skills/paper-reproduction/SKILL.md',
   'skills/paper-reproduction/references/reproduction-protocol.md',
+  'skills/paper-plan/SKILL.md',
+  'skills/paper-write/SKILL.md',
+  'skills/paper-write/references/evidence-contract.md',
+  'skills/paper-write/references/paper-types.md',
+  'skills/paper-write/references/paper-agent-integration.md',
+  'skills/paper-build/SKILL.md',
+  'skills/paper-review/SKILL.md',
 ];
 
 /** Equal assets share storage in the distribution while keeping their original URLs. */

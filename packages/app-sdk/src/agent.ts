@@ -1,3 +1,5 @@
+import { useHostCapability, type AppAgent } from './host';
+import { createAppAgent } from './agent.mjs';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type Info = { available: boolean; agents: { id: string; name: string; available: boolean }[]; workspace: string };
@@ -10,7 +12,18 @@ async function request<T>(body: object): Promise<T> {
 }
 
 /** App documents receive only their own Host session projection, never credentials. */
-export function useAppAgent() {
+type LegacyStart = { requestId: string; prompt: string; agentId: string };
+type LegacyRef = { sessionId: string };
+type LegacyAgent = Info & {
+  refresh(): Promise<Info>;
+  start(input: LegacyStart): Promise<{sessionId: string}>;
+  events(input: LegacyRef & {after: number}): Promise<AppTranscript>;
+  cancel(input: LegacyRef): Promise<void>;
+};
+
+export function useAppAgent(): AppAgent & LegacyAgent {
+  const capability = useHostCapability('agent');
+  const modern = useMemo(() => createAppAgent(capability), [capability]);
   const [info, setInfo] = useState<Info>({ available: false, agents: [], workspace: '' });
   const refresh = useCallback(async () => {
     try {
@@ -24,9 +37,23 @@ export function useAppAgent() {
     }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
-  return useMemo(() => ({ ...info, refresh,
-    start: (input: { requestId: string; prompt: string; agentId: string }) => request<{ sessionId: string }>({ operation: 'start', ...input }),
-    events: (input: { sessionId: string; after: number }) => request<AppTranscript>({ operation: 'events', ...input }),
-    cancel: async (input: { sessionId: string }) => { await request({ operation: 'cancel', ...input }); },
-  }), [info, refresh]);
+  return useMemo(() => {
+    const supported = () => {
+      if (!modern) throw new Error('This App has no agent Host capability');
+      return modern;
+    };
+    return { ...info, refresh,
+      prepare: input => supported().prepare(input),
+      lookup: input => supported().lookup(input),
+      status: input => supported().status(input),
+      retry: input => supported().retry(input),
+      terminal: input => supported().terminal(input),
+      start: ((input: LegacyStart | Parameters<AppAgent['start']>[0]) => 'scope' in input
+        ? supported().start(input) : request<{sessionId: string}>({operation:'start', ...input})) as AppAgent['start'] & LegacyAgent['start'],
+      events: ((input: LegacyRef & {after: number} | Parameters<AppAgent['events']>[0]) => 'scope' in input
+        ? supported().events(input) : request<AppTranscript>({operation:'events', ...input})) as AppAgent['events'] & LegacyAgent['events'],
+      cancel: ((input: LegacyRef | Parameters<AppAgent['cancel']>[0]) => 'scope' in input
+        ? supported().cancel(input) : request<void>({operation:'cancel', ...input})) as AppAgent['cancel'] & LegacyAgent['cancel'],
+    } satisfies AppAgent & LegacyAgent;
+  }, [info, refresh, modern]);
 }

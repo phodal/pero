@@ -16,8 +16,10 @@ backend is required.
 The main example is a small ball-and-stick molecule explorer with water, ethanol
 and benzene. Coordinates are idealized illustrations, not measured structures,
 optimized conformers or AI predictions. Rotation is pointer- and keyboard-driven;
-there is no automatic animation. The viewer uses the existing pinned Three.js
-dependency from Virtual Cell without changing the App.
+there is no automatic animation. The website and Scientific Viewer App mount the
+same component from `packages/molecule-viewer`, including the default ethanol
+illustration, controls, theme and language. The website build resolves the pinned
+Three.js dependency from Virtual Cell; Scientific Viewer declares the same version.
 
 The page follows the README: Architecture, then Distributed collaboration,
 then Tasks, then Apps. The collaboration studio and the perturbation

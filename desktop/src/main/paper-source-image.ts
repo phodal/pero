@@ -56,7 +56,10 @@ export class PaperSourceImage {
     return new PaperSourceImage(value.data, Object.freeze({ ...provenance }) as ImageProvenance,
       value.observationId as string | undefined, value.observationWarning as string | undefined);
   }
-  metadata() { return { type: 'source_image', mimeType: 'image/png', provenance: this.provenance,
+  metadata() {
+    const uri = `pero-image://${this.provenance.previewSha256}`;
+    return { type: 'source_image', mimeType: 'image/png', provenance: this.provenance,
+    answerImage: { uri, markdown: `![Source image](${uri})` },
     ...(this.observationId ? { observationId: this.observationId } : {}),
     ...(this.observationWarning ? { observationWarning: this.observationWarning } : {}) }; }
   content() { return { type: 'image' as const, mimeType: 'image/png', data: this.data }; }

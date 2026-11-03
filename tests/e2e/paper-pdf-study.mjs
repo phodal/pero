@@ -6,7 +6,7 @@ import { clickAppShortcut } from './sidebar-controls.mjs';
 import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
 import { setPaperAppearance, backToLibrary } from './paper-pdf-flow.mjs';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 
@@ -21,7 +21,9 @@ await writeFile(agents, JSON.stringify([
   ...['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(profile, `unavailable-${id}`) })),
   { id: 'paper-fixture', name: 'Scripted PDF study', command: process.execPath, args: [resolve(root, 'tests/fixtures/paper-agent.mjs'), `--capture=${capture}`] },
 ]));
-await writeFile(resolve(profile, 'settings.json'), JSON.stringify({ chat_agent: 'paper-fixture' }));
+await writeFile(resolve(profile, 'settings.json'), JSON.stringify({ chat_agent: 'paper-fixture',
+  ...(process.env.PERO_APP_PYTHON ? { app_python: { apps: { 'paper-agent': dirname(dirname(process.env.PERO_APP_PYTHON)) } } } : {}),
+}));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(profile, 'desktop'), PERO_SETTINGS_PATH: resolve(profile, 'settings.json'),
   PERO_HISTORY_PATH: resolve(profile, 'history.jsonl'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en',
   PERO_BUILTIN_APPS: 'paper-agent', PERO_REQUIRED_APPS: 'paper-agent', PERO_APP_INFRA_EMBED: '0' };
@@ -115,7 +117,7 @@ try {
   expect(reading.document.id).toBe(acquired.receipt.documentId); expect(reading.document.fileDigest).toBe(acquired.receipt.fileDigest);
   checks.push('Only explicitly selected PDF acquired via Host/Paper, immutable receipt and real PDFium reader; download is not study');
   if (!live) await page.screenshot({ path: resolve(out, 'saved-pdf-light.png') });
-  await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+  await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask AI', exact: true }).click();
   await fillPaperChat(page, 'Read the saved PDF original page and cite its evidence. This is a scripted transport verification, not a scientific finding.');
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await api('/api/library')).reports.length, { timeout: 45000 }).toBe(1);
@@ -130,7 +132,7 @@ try {
   const turn = await showPaperReport(frame, page, report.intentId);
   await turn.locator('.pa-inline-citation').first().click();
   await expect(viewer.locator('[data-citation-region="true"]').first()).toBeVisible();
-  await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
+  await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
   if (!live) await page.screenshot({ path: resolve(out, 'study-citation.png') });
   checks.push('Scripted ACP uses actual Host MCP prepare/read/search/note/finalize; saved citation reveals the same PDF version/page');
   await closePaperChat(page, frame); await setPaperAppearance(page, 'dark');

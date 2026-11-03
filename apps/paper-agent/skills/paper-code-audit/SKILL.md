@@ -5,6 +5,11 @@ description: Compare a paper claim with versioned code and supplied numerical ev
 
 # Paper-Code Audit
 
+For TeX passages or figures, use
+[TeX source locations](../research-resource-import/references/tex-source-locations.md)
+to recover the approved version, actual member paths and image availability
+before searching unrelated directories or fetching another copy.
+
 Inspect the requested claim and implementation; recompute supplied observations
 or use a discriminating input when that resolves a specific mismatch. Missing
 training assets need not prevent a formula or implementation audit.

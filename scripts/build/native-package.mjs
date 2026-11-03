@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { Product } from '../../packages/product/product.ts';
 import { stageWorkbenchRuntime } from './workbench-payload.mjs';
 import { writeIcns } from '../lib/macos-icon.mjs';
+import { createMacOSDmg } from '../lib/macos-dmg.mjs';
 const root = resolve(import.meta.dirname, '../..');
 if (process.platform !== 'darwin') throw new Error('Native packaging requires macOS.');
 const runtime = process.env.PERO_NATIVE_NODE_ROOT;
@@ -43,6 +44,6 @@ execFileSync('/usr/bin/plutil', ['-lint', join(app, 'Contents/Info.plist')], { s
 execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', app], { stdio: 'pipe' });
 execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', app], { stdio: 'pipe' });
 const archive = join(directory, `Pero-Native-macos-${process.arch}.dmg`);
-execFileSync('/usr/bin/hdiutil', ['create', '-volname', 'Pero Native', '-srcfolder', app, '-format', 'ULMO', '-ov', archive], { stdio: 'inherit' });
+createMacOSDmg(app, 'Pero Native', archive);
 writeFileSync(join(directory, 'size.json'), JSON.stringify({ app, dmg: archive, dmgBytes: statSync(archive).size, bundledNode: '22.23.4', bundledAgentCLIs: false }, null, 2) + '\n');
 console.log(archive);

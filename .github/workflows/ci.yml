@@ -17,6 +17,10 @@ on:
     - cron: "0 20 * * *" # 04:00 UTC+08; GitHub runs schedules on the default branch.
   workflow_dispatch:
     inputs:
+      paper_html_live:
+        description: "Opt in to three fixed public arXiv HTML parser checks (no PDF, images or model)"
+        type: boolean
+        default: false
       paper_pdf_live:
         description: "Opt in to public arXiv source and Google PDF journeys (no real model)"
         type: boolean
@@ -34,6 +38,38 @@ defaults:
     shell: bash
 
 jobs:
+  scientific-viewer:
+    name: Scientific Viewer browser inspection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/scientific-viewer/requirements.txt
+      - name: Prepare pinned App and actual molecular engine
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/scientific-viewer --ignore-scripts
+          python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt
+          npx playwright install --with-deps chromium
+          npm run build --prefix apps/scientific-viewer
+      - name: Verify imported files, charts, molecules and responsive themes
+        run: node tests/e2e/scientific-viewer-browser.mjs
+      - name: Viewer screenshots and exact bundle evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scientific-viewer-browser-${{ github.sha }}
+          path: test-results/scientific-viewer-browser/
+          if-no-files-found: warn
+
   data:
     name: Data local catalog and download contracts
     runs-on: ubuntu-latest
@@ -47,6 +83,30 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python -m unittest discover -s apps/data/test -p 'test_*.py' -v
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/data/package-lock.json
+      - name: Install Data browser test dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/data --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Check Data types and keyboard behavior in the real App frame
+        run: |
+          npm --prefix apps/data run typecheck
+          npm --prefix apps/data run test:ui
+          npm --prefix apps/data run test:browser
+      - name: Upload Data browser evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: data-fields-browser
+          path: test-results/data-fields/
+          if-no-files-found: ignore
 
   lab:
     name: Lab real Chatterbox and evidence contracts
@@ -385,7 +445,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/codegen/contracts.mjs --check
-      - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs
+      - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs tests/build/product-chat-startup.test.mjs
 
   core:
     name: Linux core types, permissions and durable runtime
@@ -435,10 +495,13 @@ jobs:
           python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'
       - name: Independent App contracts with frozen dependencies
         run: |
+          npm ci --prefix apps/hpc --ignore-scripts
+          npm --prefix apps/hpc run test:ui
           npm ci --prefix apps/automations --ignore-scripts
           npm ci --prefix apps/paper-agent --ignore-scripts
           npm run typecheck --prefix apps/paper-agent
           node --test tests/e2e/paper-library-availability.test.mjs
+          node --experimental-transform-types --test tests/e2e/paper-manual-evidence.test.ts
           node --test scripts/build/apps.test.mjs
           npm ci --prefix apps/scientific-viewer --ignore-scripts
           npm test --prefix apps/automations
@@ -466,6 +529,7 @@ jobs:
           node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
           node --test tests/runtime/control-lab/*.test.mjs tests/runtime/control-lab/host-goal.test.ts
           node --test tests/runtime/lab/*.test.mjs
+          node --experimental-transform-types --test tests/runtime/paper-study/*.test.mjs tests/runtime/research-import/cleanup.test.mjs
           node tests/e2e/computer-transport.mjs
       - name: Build the actual Host MCP sidecar and HTTP assets
         run: node scripts/build/mcp.mjs
@@ -477,7 +541,7 @@ jobs:
           node tests/contracts/mcp-ownership.mjs
           node tests/runtime/automation.mjs
           node tests/runtime/automation-app.mjs
-          PERO_HOST_EXECUTABLE="$PWD/target/debug/pero-host" node tests/contracts/point-agent.mjs
+          PERO_HOST_EXECUTABLE="$PWD/target/debug/pero-host" node tests/contracts/app-agent-runs.mjs
       - name: Core failure and recovery evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -608,15 +672,45 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  paper-html-live:
+    name: Paper fixed HTML (${{ matrix.corpus }})
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.paper_html_live) || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-html-live')) }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        corpus: [d5, pc-gym, controlgym]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Acquire and parse only the selected fixed official HTML
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python apps/paper-agent/test/manual/scientific_html.py --allow-official-html --case ${{ matrix.corpus }} --output test-results/paper-html-live/${{ matrix.corpus }}.json
+      - name: Upload metadata-only corpus result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: paper-html-live-${{ matrix.corpus }}-${{ github.sha }}
+          path: test-results/paper-html-live/${{ matrix.corpus }}.json
+          if-no-files-found: error
+          retention-days: 7
+
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [core, data, lab, control-lab, virtual-cell, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [paper-html-live, core, data, lab, control-lab, virtual-cell, scientific-viewer, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - name: Require every contract and acceptance shard for this mode
         env:
           RESULTS: ${{ toJSON(needs) }}
+          PAPER_HTML_LIVE: ${{ (github.event_name == 'workflow_dispatch' && inputs.paper_html_live) || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-html-live')) }}
           FULL_MATRIX: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full') }}
         run: node scripts/ci/gate.mjs

@@ -1,3 +1,4 @@
+import { selectPaperOption } from './paper-research-ui-controls.mjs';
 // Opt-in: real public sources, real PDF and authenticated Codex through the Host.
 import { saveLibraryCopies } from './paper-pdf-flow.mjs';
 import { electron } from './electron.mjs';
@@ -71,7 +72,7 @@ async function ask(question) {
     await frame.getByRole('button', { name: 'Close Agent', exact: true }).click();
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
     await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText('Harness Learning Enables Generalizable Test-Time Adaptation', { exact: true }) }).click();
-    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask AI', exact: true }).click();
     await frame.getByRole('button', { name: 'Research settings', exact: true }).click();
     await frame.getByText('Choose papers', { exact: true }).click();
     await expect(frame.getByRole('checkbox', { name: 'Use for research: Harness Learning Enables Generalizable Test-Time Adaptation', exact: true })).toBeChecked();
@@ -129,7 +130,7 @@ async function ask(question) {
     await frame.getByRole('button', { name: 'Close Agent', exact: true }).click();
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
     await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText('Harness^2: Recursive Agent Harnessing for an Open World', { exact: true }) }).click();
-    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+    await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask AI', exact: true }).click();
   }
   await expect(frame.getByRole('textbox', { name: 'Research question', exact: true })).toBeEnabled({ timeout: 30000 });
   result.readyMs = Date.now() - startedAt;
@@ -144,17 +145,17 @@ try {
       await frame.getByRole('button', { name: 'Add papers', exact: true }).first().click();
       await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('2609.35738');
       await frame.getByRole('button', { name: 'Read ID / URL', exact: true }).click();
-      await expect(frame.locator('.pa-reading-bar').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '36', { timeout: 90000 });
+      await expect(frame.locator('.pa-reader-tools').getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '36', { timeout: 90000 });
       await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
     }
     const paper = library.papers.find(p => p.sourceId === '2610.14224');
     const sortedReports = [...library.reports].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     const previous = process.env.PERO_PAPER_LIVE_BRANCH ? sortedReports.at(-1) : sortedReports[0];
     await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
-    const nav = frame.locator('.pa-reading-bar');
+    const nav = frame.locator('.pa-reading-main');
     await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '37', { timeout: 30000 });
     await expect(frame.locator('.pa-pdf-page img,.pa-pdf-page canvas').first()).toBeVisible({ timeout: 30000 });
-    await nav.getByRole('button', { name: 'Ask', exact: true }).click();
+    await nav.getByRole('button', { name: 'Ask AI', exact: true }).click();
     const turn = frame.locator(`[data-turn-id="${previous.intentId}"]`);
     await turn.locator('summary').first().click();
     await expect(turn.locator('.pa-report')).toBeVisible({ timeout: 30000 });
@@ -185,7 +186,7 @@ try {
     }
     if (process.env.PERO_PAPER_LIVE_CONTEXT) {
       await frame.getByRole('button', { name: 'Close Agent', exact: true }).click();
-      await expect(nav.getByRole('button', { name: 'Ask', exact: true })).toBeFocused();
+      await expect(nav.getByRole('button', { name: 'Ask AI', exact: true })).toBeFocused();
       await nav.getByRole('spinbutton', { name: 'Page', exact: true }).fill('1');
       const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
       await viewer.focus(); await viewer.press('Shift+F10');
@@ -234,8 +235,8 @@ try {
     checks.push(process.env.PERO_PAPER_LIVE_RESTORE_ONLY ? 'restored real report opens a fully rendered PDF page and exact quotation highlight' : 'real follow-up reuses unchanged PDF evidence and retains exact source highlighting');
   } else {
   await frame.getByRole('button', { name: 'Add papers', exact: true }).first().click();
-  await frame.getByLabel('Literature source', { exact: true }).selectOption('alphaxiv');
-  await expect(frame.getByLabel('Sort', { exact: true })).toHaveValue('recency');
+  await selectPaperOption(frame, 'Literature source', 'alphaXiv', 'alphaxiv');
+  await expect(frame.getByRole('button', { name: 'Sort', exact: true })).toHaveAttribute('data-value', 'recency');
   await frame.getByLabel('Keywords, paper ID or URL', { exact: true }).fill('Harness^2: Recursive Agent Harnessing for an Open World');
   await frame.getByRole('button', { name: 'Search papers', exact: true }).click();
   const result = frame.locator('.pa-search-results>li').filter({ has: frame.getByRole('heading', { name: 'Harness^2: Recursive Agent Harnessing for an Open World', exact: true }) });
@@ -251,13 +252,13 @@ try {
   const save = await saveLibraryCopies(frame, paper.title, { timeout: 90000 });
   await save.getByRole('button', { name: 'Close', exact: true }).click();
   // Export refreshes the missing PDF in this same reader; no implicit fetch.
-  const nav = frame.locator('.pa-reading-bar');
+  const nav = frame.locator('.pa-reading-main');
   await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '37', { timeout: 90000 });
   await expect(frame.locator('.pa-pdf-page img,.pa-pdf-page canvas').first()).toBeVisible({ timeout: 30000 });
   const reading = await api(`/api/pdf?paperId=${paper.id}`);
   await page.screenshot({ path: resolve(out, '02-real-pdf.png') });
   checks.push('live title search, add from results, explicit Save/Confirm/Export, complete 37-page PDF rendered');
-  await nav.getByRole('button', { name: 'Ask', exact: true }).click();
+  await nav.getByRole('button', { name: 'Ask AI', exact: true }).click();
   await frame.getByRole('button', { name: 'Research settings', exact: true }).click();
   await frame.getByLabel('Agent', { exact: true }).selectOption('codex');
   await frame.getByRole('button', { name: 'Research settings', exact: true }).click();
@@ -271,7 +272,7 @@ try {
   checks.push('real follow-up retains conversation, reads evidence and saves cited answer');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 800));
   await citeReport(frame.locator('.pa-turn .pa-report'));
-  await expect(frame.getByRole('complementary', { name: 'Ask', exact: true })).toHaveCount(0);
+  await expect(frame.getByRole('complementary', { name: 'Ask AI', exact: true })).toHaveCount(0);
   await expect(frame.locator('[data-citation-region="true"]').first()).toBeVisible();
   await page.screenshot({ path: resolve(out, '04-narrow-original.png') });
   checks.push('narrow-window citation reveals the PDF instead of leaving it behind the conversation');
@@ -282,7 +283,7 @@ try {
   const saved = await api('/api/library');
   expect(saved.reports.some(r => r.id === first.report.id)).toBe(true);
   expect(saved.reports.some(r => r.id === second.report.id)).toBe(true);
-  await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask', exact: true }).click();
+  await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask AI', exact: true }).click();
   const savedTurn = frame.locator('.pa-turn-history').filter({ hasText: first.question });
   await savedTurn.locator('summary').click();
   await expect(savedTurn.locator('.pa-report')).toBeVisible({ timeout: 30000 });

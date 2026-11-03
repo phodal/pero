@@ -78,6 +78,7 @@ pub(crate) struct Workbench {
     pub settings_subscriptions: Vec<Subscription>,
     pub recent_tasks: Vec<String>,
     pub selected_project: Option<String>,
+    pub(crate) research: crate::research_projects::ResearchProjectsView,
     pub project_binding: Entity<InputState>,
     pub collapsed_projects: std::collections::HashSet<String>,
     pub revealed_sessions: std::collections::HashMap<String, usize>,
@@ -365,6 +366,7 @@ impl Workbench {
             settings_subscriptions: Vec::new(),
             recent_tasks: Vec::new(),
             selected_project: None,
+            research: Default::default(),
             project_binding,
             collapsed_projects: Default::default(),
             revealed_sessions: Default::default(),
@@ -544,6 +546,7 @@ impl Workbench {
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, window, cx)
             || self.receive_contribution(&event, cx)
+            || self.receive_research_resources(&event, cx)
             || self.receive_apps(&event, cx)
             || self.receive_remote(&event, cx);
         if !feature_handled {
@@ -553,6 +556,7 @@ impl Workbench {
             }
             if event.kind == "workspace" {
                 self.workspace = event.text.clone();
+                self.research_workspace_ready(&event.text,cx);
                 if let Ok(identity) = serde_json::from_value::<
                     pero_contracts::workbench::WorkspaceIdentity,
                 >(event.data.clone())
@@ -590,6 +594,7 @@ impl Workbench {
                         >(event.data.clone())
                         {
                             self.preferences = preferences;
+                            self.research_saved(window, cx);
                             if self.preferences_status
                                 == crate::settings_menu::PreferenceSaveState::Saving
                             {
@@ -808,6 +813,8 @@ pub fn snapshot() -> String {
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });
+        value["researchProjects"] = ui.research.snapshot(cx);
+        value["projectControls"] = ui.view_bounds.projects.snapshot();
         value["terminal"] = ui.terminal.snapshot(cx);
         value["terminalControls"] = ui.view_bounds.terminal.snapshot();
         value["sidebarButtonBounds"] = ui.view_bounds.sidebar.snapshot();

@@ -1,7 +1,12 @@
 ---
 name: research-resource-import
-description: Collect a research URL and its linked paper, code, model, dataset and benchmark references in Paper, including nonstandard websites through observed-link Agent proposals, version-pinned read-only TeX source, PDF comparison and optional Data downloads.
+description: Locate a saved paper's versioned TeX and figure files, or collect a research URL and linked paper, code, model, dataset and benchmark references in Paper. Supports source/PDF inspection and optional Data downloads; does not run experiments.
 ---
+
+For an already saved paper's TeX or figures, start with
+[TeX source locations](references/tex-source-locations.md). Reuse its approved
+source scope and offline locator before inspecting a new URL. That reference
+distinguishes `~/.pero/paper` export copies from profile-local managed members.
 
 Use Paper's declared App tools through the existing Host App Use session. Prefer
 advertised `app__paper-agent__<tool>` tools and their schemas; only when using the
@@ -61,6 +66,13 @@ questions in the existing conversation.
    source work/version. Inspect longtable/tabularx,
    caption* and embedded bibitem even without labels. Nearby textbf is context,
    not an inferred caption. Unknown macros remain unresolved; no LaTeX execution.
+   Source/PDF acquisition shares one bounded worker: wait for the source job to
+   settle before starting the separately approved PDF. A busy refusal is not
+   extra authority or a reason to launch an alternate downloader.
+   When image input is disabled or unknown, do not call operation=image. Continue
+   with literal source/caption and PDF-text evidence, explicitly stating that the
+   image was not visually observed; a successful image tool response cannot enable
+   model vision.
    With an image-capable authorized session, use operation=image for an approved
    raster member. Its bounded preview carries original and preview hashes. Keep
    originalWidth/originalHeight, size and sha256 separate from previewWidth/
@@ -204,3 +216,26 @@ originals. Restore missing originals only with explicit approved acquisition;
 changed bytes cannot update historical evidence. The existing CLI `source-report`
 action and export use the same core. Verification certifies hashes/scopes only,
 not scientific correctness, completeness, reproducibility or model vision.
+
+## Manual question, scope and revisions
+
+When asked to preserve a research question or screening decisions, use
+`research-record` with existing saved Paper IDs. `create` requires question,
+scope, inclusion/exclusion conditions, and one reasoned include/exclude/pending
+decision per paper. Link existing ordinary research reports for support or
+counterevidence; a gap may have no report. The server validates report/source
+ownership and digests. These labels and notes are interpretations, not newly
+observed evidence. This route does not substitute for `research-source-report`.
+
+A revision supplies parentId and new explicit fields. Old records/reports remain
+unchanged. A local review is self-declared, never independent peer review or a
+scientific PASS. list/read are safe reopen operations. impact compares actual
+retained snapshots with the same exact provider identity; changed means different
+saved bytes, not a proven later upstream version. Unknown identity/freshness stays
+unknown. No data/method update or scheduler is implemented here.
+
+select records the user's chosen paper IDs for rereading; it does not start an
+Agent, create observations, or authorize execution. read also returns retained
+selections after restart. export is a references-only index: notes, paper/report
+text, data and paths are omitted. It is not a full handoff or no-Agent
+recomputation package. The JSON CLI action `record` uses the same core.

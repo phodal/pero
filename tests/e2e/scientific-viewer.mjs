@@ -21,7 +21,8 @@ expect(engine.version).toBe('2026.09.1');
 expect(engine.paperRenderer).toBe('5.0.0');
 await writeFile(env.PERO_SETTINGS_PATH,JSON.stringify({app_python:{apps:{'scientific-viewer':engine.root,'paper-agent':engine.root}}}));
 delete env.ELECTRON_RUN_AS_NODE;delete env.POINT_ROOT;delete env.PERO_POINT_ROOT;delete env.PERO_APPS_ROOT;
-let app,page,frame;
+let app,page,frame,phase='startup';
+const recordPageError=error=>errors.push({phase,name:error.name,message:error.message,stack:error.stack,completedChecks:[...checks]});
 async function open(){
  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(app=>app.name==='scientific-viewer'&&app.enabled))).toBe(true);
@@ -30,14 +31,19 @@ async function open(){
  await clickAppShortcut(page,'scientific-viewer');
  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).activeApp)).toMatchObject({name:'scientific-viewer',panel:'viewer'});
  frame=page.frameLocator('iframe[title="scientific-viewer"]');
- await expect(frame.getByRole('heading',{name:'Scientific Viewer',exact:true})).toBeVisible();
+ await expect(frame.getByRole('combobox',{name:'Current file',exact:true})).toBeVisible();
 }
 try{
- app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));await open();
+ app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',recordPageError);await open();
+ await expect(frame.getByRole('img',{name:'Ethanol. 3D molecule. Drag or use arrow keys to rotate.',exact:true})).toBeVisible();
+ await frame.getByRole('button',{name:'Water',exact:true}).click();await expect(frame.getByText('3 atoms, 2 bonds',{exact:true})).toBeVisible();
+ await frame.getByRole('button',{name:'Benzene',exact:true}).click();await expect(frame.getByText('12 atoms, 12 bonds',{exact:true})).toBeVisible();
+ checks.push('shared molecular illustrations default to ethanol; water and benzene switch');
  for(const example of examples){
-  await frame.getByLabel('Example',{exact:true}).selectOption(example.name);await expect(frame.getByRole('heading',{name:example.name,exact:true})).toBeVisible();await expect(frame.getByText('Synthetic example · Unverified',{exact:true})).toBeVisible();
+  phase=`example:${example.name}`;
+  await frame.getByLabel('Example',{exact:true}).selectOption(example.name);await expect(frame.getByRole('combobox',{name:'Current file',exact:true}).locator('option:checked')).toHaveText(example.name);await expect(frame.getByText('Synthetic example, unverified',{exact:true})).toBeVisible();
   if(example.name.endsWith('.csv')){
-   await expect(frame.getByRole('table')).toBeVisible();if(example.name!=='quoted-table.csv'){await frame.getByRole('button',{name:'Spectrum',exact:true}).click();await expect(frame.getByRole('img',{name:'Spectrum from first two columns'})).toBeVisible();}
+   await frame.getByRole('button',{name:'Table',exact:true}).click();await expect(frame.getByRole('table')).toBeVisible();if(example.name!=='quoted-table.csv'){await frame.getByRole('button',{name:'Chart',exact:true}).click();await expect(frame.getByRole('img',{name:/^Chart of /})).toBeVisible();}
    if(example.name==='invalid-spectrum.csv')await expect(frame.getByRole('alert')).toContainText('2 missing or nonnumeric pairs');
   }
   if(example.name.endsWith('.pdb')){await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();}
@@ -64,49 +70,54 @@ try{
    const archive=unzipSync(await readFile(exportPath));expect(Buffer.from(archive['source/document.pdf'])).toEqual(Buffer.from(example.text));const manifest=JSON.parse(new TextDecoder().decode(archive['manifest.json']));expect(manifest.quotes).toHaveLength(1);expect(manifest.crops).toHaveLength(1);expect(manifest.review.status).toBe('completed');expect(manifest.review.text).toContain('Synthetic transport review.');
   }checks.push(example.name);
  }
+ phase='structure-input-isolation';
  // Harmless markup markers prove that user structure text never becomes DOM.
  const marker="data_marker\n_struct.title '<b id=viewer-marker>untrusted</b>'\n";
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'marker.cif',mimeType:'text/plain',buffer:Buffer.from(marker)});
  await expect(frame.getByRole('alert')).toContainText('preview blocked');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
- await frame.getByRole('button',{name:'water.pdb',exact:true}).click();await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});
+ await frame.getByRole('combobox',{name:'Current file',exact:true}).selectOption({label:'water.pdb'});await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});
  const transfer=await frame.locator('.molecule-view').evaluateHandle((_node,text)=>{const data=new DataTransfer();data.items.add(new File([text],'marker.cif',{type:'text/plain'}));return data;},marker);
  await frame.locator('.msp-layout-standard').dispatchEvent('dragenter',{dataTransfer:transfer});
  await expect(frame.locator('.msp-drag-drop-overlay')).toBeVisible();
  await frame.locator('.msp-drag-drop-overlay').dispatchEvent('drop',{dataTransfer:transfer});await transfer.dispose();
- await expect(frame.getByRole('heading',{name:'water.pdb',exact:true})).toBeVisible();
+ await expect(frame.getByRole('combobox',{name:'Current file',exact:true}).locator('option:checked')).toHaveText('water.pdb');
  await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();
  await expect(frame.getByRole('alert')).toContainText('Import file');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'empty.smi',mimeType:'text/plain',buffer:Buffer.from(' \n\t\n')});
  await expect(frame.getByRole('alert')).toContainText('No molecule records');await expect(frame.getByText('Preparing molecule preview…',{exact:true})).toHaveCount(0);
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'model.weights',mimeType:'application/octet-stream',buffer:Buffer.from('opaque synthetic model')});await expect(frame.getByText(/Metadata only/)).toBeVisible();
  // Removal is explicit, defaults to Cancel, and affects only the App copy.
+ phase='local-copy-removal';
  const removalPath=resolve(temp,'removal-check.json'),removalBytes=Buffer.from('{"synthetic":"local copy removal"}');
  await writeFile(removalPath,removalBytes);
  await frame.getByLabel('Import file',{exact:true}).setInputFiles(removalPath);
- await expect(frame.getByRole('heading',{name:'removal-check.json',exact:true})).toBeVisible();
+ await expect(frame.getByRole('combobox',{name:'Current file',exact:true}).locator('option:checked')).toHaveText('removal-check.json');
+ await frame.getByLabel('Source details',{exact:true}).click();
  const removal=frame.getByRole('group',{name:'Confirm local copy removal',exact:true});
  await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();
  await expect(removal).toContainText('removal-check.json');await expect(removal.getByRole('button',{name:'Cancel',exact:true})).toBeFocused();
  await removal.getByRole('button',{name:'Cancel',exact:true}).click();await expect(removal).toHaveCount(0);
- await expect(frame.getByRole('button',{name:'removal-check.json',exact:true})).toBeVisible();
+ await expect(frame.getByRole('option',{name:'removal-check.json',exact:true})).toHaveCount(1);
  await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();await page.keyboard.press('Escape');await expect(removal).toHaveCount(0);
  await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();
- await frame.getByRole('button',{name:'model.weights',exact:true}).click();await expect(removal).toHaveCount(0);
- await frame.getByRole('button',{name:'removal-check.json',exact:true}).click();
+ await frame.getByRole('combobox',{name:'Current file',exact:true}).selectOption({label:'model.weights'});await expect(removal).toHaveCount(0);
+ await frame.getByRole('combobox',{name:'Current file',exact:true}).selectOption({label:'removal-check.json'});await frame.getByLabel('Source details',{exact:true}).click();
  await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();await removal.getByRole('button',{name:'Confirm removal',exact:true}).click();
- await expect(frame.getByRole('button',{name:'removal-check.json',exact:true})).toHaveCount(0);
- await expect(frame.getByRole('button',{name:'model.weights',exact:true})).toBeVisible();expect(await readFile(removalPath)).toEqual(removalBytes);
+ await expect(frame.getByRole('option',{name:'removal-check.json',exact:true})).toHaveCount(0);
+ await expect(frame.getByRole('option',{name:'model.weights',exact:true})).toHaveCount(1);expect(await readFile(removalPath)).toEqual(removalBytes);
  checks.push('confirmed local-copy removal; original disk file retained');
- await closeOwnedElectron(app);app=undefined;app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));await open();await frame.getByRole('button',{name:'sample.pdf',exact:true}).click();await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible();expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(1);
- await expect(frame.getByRole('button',{name:'removal-check.json',exact:true})).toHaveCount(0);expect(await readFile(removalPath)).toEqual(removalBytes);
- await frame.getByRole('button',{name:'model.weights',exact:true}).click();await expect(frame.getByText(/Metadata only/)).toBeVisible();await setAppearance(page,'dark');const narrowSize=await app.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.setSize(800,700);return window.getContentSize();});
+ phase='restart-and-restore';
+ await closeOwnedElectron(app);app=undefined;app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',recordPageError);await open();await frame.getByRole('combobox',{name:'Current file',exact:true}).selectOption({label:'sample.pdf'});await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible();expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(1);
+ await expect(frame.getByRole('option',{name:'removal-check.json',exact:true})).toHaveCount(0);expect(await readFile(removalPath)).toEqual(removalBytes);
+ await frame.getByRole('combobox',{name:'Current file',exact:true}).selectOption({label:'model.weights'});await expect(frame.getByText(/Metadata only/)).toBeVisible();await setAppearance(page,'dark');const narrowSize=await app.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.setSize(800,700);return window.getContentSize();});
  await page.waitForFunction(([width,height])=>{const canvas=document.querySelector('canvas');return innerWidth===width&&innerHeight===height&&canvas?.width===Math.round(width*devicePixelRatio)&&canvas.height===Math.round(height*devicePixelRatio);},narrowSize);
  await expect.poll(()=>frame.locator('html').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+ phase='open-paper-app';
  await frame.getByRole('button',{name:'Open Paper App',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).activeApp)).toMatchObject({name:'paper-agent',panel:'main'});
  const paper=page.frameLocator('iframe[title="paper-agent"]');
  await expect(paper.locator('.pa-library-screen')).toBeVisible();
  await expect(paper.getByRole('button',{name:'Add papers',exact:true})).toBeVisible();await open();
  await page.screenshot({path:resolve(out,'viewer.png')});expect(errors).toEqual([]);await writeFile(resolve(out,'result.json'),JSON.stringify({checks,errors,synthetic:true,independentPublicEngines:true,scope:'local scientific previews and evidence; no physical validity claim'},null,2));
-}catch(error){if(page)await page.screenshot({path:resolve(out,'failure.png')}).catch(()=>{});throw error;}
+}catch(error){await writeFile(resolve(out,'failure.json'),JSON.stringify({phase,checks,errors,failure:{name:error.name,message:error.message,stack:error.stack}},null,2));if(page)await page.screenshot({path:resolve(out,'failure.png')}).catch(()=>{});throw error;}
 finally{if(app)await closeOwnedElectron(app);await rm(temp,{recursive:true,force:true});}

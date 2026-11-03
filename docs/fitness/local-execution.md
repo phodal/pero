@@ -8,11 +8,12 @@ date: 2026-10-29
 Scope: [canonical local-execution tracker](../issues/2026-10-29-local-worker-onboarding.md)
 and [device enrollment](../adr/0010-desktop-worker-enrollment.md).
 
-A fresh profile shows Cloud connection in first-run setup. It does not open a
-browser or authorize execution automatically. Users may skip and start local
-chats. After sign-in, enabling this device requires an explicit granted Project,
-workspace key/directory and installed ACP Agent. Existing configured profiles keep
-normal navigation and can enable local execution from execution resources.
+A fresh profile opens local Projects without an account or a first-run gate.
+The sidebar footer offers Sign in (登录账户); connected profiles show the account
+name there. It opens the existing connection settings. Restoring a saved account
+does not replace the local Projects page with Cloud tasks. After sign-in, enabling
+this device still requires an explicit granted Project, workspace key/directory
+and installed ACP Agent through execution resources.
 
 The shell persists Cloud/device credentials in OS storage. Local execution uses
 a separate Worker identity. A pending enrollment receipt and secret are durable
@@ -91,3 +92,16 @@ HTTPS health returned 200 and migration 014 plus both empty tables were verified
 A pre-deployment backup was present. This makes the enrollment API available for
 the user's saved pending request; verification did not register a real device or
 dispatch a task. See the [deployment receipt](task-center-deployment.md).
+
+## Local-first navigation — 2026-11-02
+
+`tests/e2e/local-project-start.mjs` passed against actual Electron with a fresh,
+isolated profile and fixture-only Agent configuration. It opened the local
+workspace and ROADMAP without credentials or completing onboarding, opened the
+existing account settings from the sidebar footer, and restarted without a
+login gate. Light, dark and narrow screenshots were inspected under
+`test-results/local-project-start/`. Renderer page errors: zero.
+
+Wasm/web builds, `npm run check`, and all 17 `pero-ui` library tests passed.
+This verifies the development Electron UI; no installed release was rebuilt,
+no real OAuth login was performed, and device enrollment was not changed.

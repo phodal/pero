@@ -24,7 +24,7 @@ ORIGINS = frozenset(("api.alphaxiv.org", "www.alphaxiv.org", "api.openalex.org",
                      "api.biorxiv.org", "eutils.ncbi.nlm.nih.gov", "arxiv.org", "huggingface.co"))
 LIMIT_BYTES = 1024 * 1024
 ARXIV = re.compile(r"(?:\d{4}\.\d{4,5}|[a-z][a-z.-]*/\d{7})(?:v\d+)?", re.I)
-MERGED_METADATA = ('publicationDate', 'citations', 'citationSource', 'authors', 'pdfUrl', 'doi',
+MERGED_METADATA = ('publicationDate', 'citations', 'citationSource', 'authors', 'pdfUrl', 'fullTextUrl', 'doi',
                    'paperUrl', 'hfVotes', 'thumbnailUrl', 'thumbnailId', 'githubUrl', 'githubStars', 'projectUrl')
 
 
@@ -87,6 +87,7 @@ class PaperIdentity:
     source: str
     id: str
     full: bool = False
+    revision: str | None = None
 
     @classmethod
     def parse(cls, value):
@@ -115,7 +116,6 @@ class PaperIdentity:
                     source = 'huggingface'
             elif url.hostname in ("doi.org", "www.biorxiv.org", "biorxiv.org"):
                 paper_id = re.sub(r"^/(?:content/)?", "", url.path)
-                paper_id = re.sub(r"v\d+(?:\.full(?:\.pdf)?)?$", "", paper_id)
             elif url.hostname in ("openalex.org", "pubmed.ncbi.nlm.nih.gov"):
                 paper_id = url.path.strip("/")
             else:
@@ -127,6 +127,13 @@ class PaperIdentity:
             source = ("pubmed" if re.fullmatch(r"\d{1,9}", paper_id) else
                       "biorxiv" if paper_id.startswith("10.1101/") else
                       "openalex" if re.match(r"^(?:W\d+|10\.\d{4,9}/)", paper_id, re.I) else "alphaxiv")
+        revision = None
+        if source == 'biorxiv':
+            versioned = re.fullmatch(r'(.+?)(v\d+)(?:\.full(?:\.pdf)?)?', paper_id, re.I)
+            if versioned:
+                paper_id, revision = versioned[1], versioned[2].lower()
+                if not re.fullmatch(r'v[1-9]\d*', revision):
+                    raise Invalid('Choose a positive bioRxiv version')
         patterns = {"alphaxiv": ARXIV, "pubmed": re.compile(r"\d{1,9}"),
                     "biorxiv": re.compile(r"10\.1101/[a-z0-9][a-z0-9._()-]*", re.I),
                     "openalex": re.compile(r"(?:W\d+|10\.\d{4,9}/[a-z0-9][a-z0-9._();:/-]*)", re.I)}
@@ -134,7 +141,37 @@ class PaperIdentity:
             raise Invalid("Unsupported literature source")
         if not patterns[source].fullmatch(paper_id) or any(part in (".", "..") for part in paper_id.split("/")):
             raise Invalid("Invalid paper ID")
-        return cls(source, paper_id, full)
+        return cls(source, paper_id, full, revision)
+
+
+@dataclass(frozen=True)
+class BioRxivVersion:
+    number: int
+    title: str
+    authors: tuple[str, ...]
+    abstract: str
+    date: str | None
+
+    @classmethod
+    def parse(cls, record):
+        if not isinstance(record, dict) or not re.fullmatch(r'[1-9]\d*', str(record.get('version', ''))):
+            raise Invalid('bioRxiv metadata did not supply a valid version')
+        return cls(int(record['version']), _clean(record.get('title')),
+                   tuple(name.strip() for name in _text(record.get('authors')).split(';') if name.strip()),
+                   _clean(record.get('abstract')), _text(record.get('date')) or None)
+
+    @property
+    def revision(self):
+        return 'v' + str(self.number)
+
+    @staticmethod
+    def select(versions, revision):
+        if revision is None:
+            return max(versions, key=lambda version: version.number)
+        selected = next((version for version in versions if version.revision == revision), None)
+        if selected is None:
+            raise Invalid(f'bioRxiv version {revision} is unavailable; choose an available version explicitly', 404)
+        return selected
 
 
 def _scalars(value):
@@ -234,7 +271,8 @@ def _abstract(work):
 
 def _openalex(work, source):
     doi = re.sub(r"^https://doi.org/", "", _text(work.get("doi")))
-    location = work.get("best_oa_location") or work.get("primary_location") or {}
+    locations = [location for location in (work.get("best_oa_location"), work.get("primary_location"),
+                 *(work.get("locations") or [])) if isinstance(location, dict)]
     authors = []
     for authorship in work.get("authorships") or []:
         author = authorship.get("author") if isinstance(authorship, dict) else None
@@ -251,9 +289,12 @@ def _openalex(work, source):
     citations = work.get("cited_by_count")
     if type(citations) is int and citations >= 0:
         hit.update(citations=citations, citationSource="openalex")
-    pdf = _link(location.get("pdf_url"))
+    pdf = next((url for location in locations if (url := _link(location.get("pdf_url")))), None)
     if pdf:
         hit["pdfUrl"] = pdf
+    landing = next((url for location in locations if (url := _link(location.get("landing_page_url")))), None)
+    if landing:
+        hit["fullTextUrl"] = landing
     return hit
 
 
@@ -281,9 +322,34 @@ class _CitationMetadata(HTMLParser):
         if tag != "meta":
             return
         attrs = dict(attributes)
-        name, content = _text(attrs.get("name")), _text(attrs.get("content"))
-        if name.startswith("citation_") and content and content.strip():
+        name, content = _text(attrs.get("name") or attrs.get('property')), _text(attrs.get("content"))
+        if (name.startswith("citation_") or name == 'og:description') and content and content.strip():
             self.fields.setdefault(name, []).append(content.strip())
+
+
+@dataclass(frozen=True)
+class ArxivMetadata:
+    title: str
+    authors: tuple[str, ...]
+    abstract: str
+    revision: str | None
+
+    @classmethod
+    def parse(cls, document, requested_id):
+        parser = _CitationMetadata()
+        parser.feed(document)
+        declared = parser.fields.get('citation_arxiv_id', [''])[0]
+        requested = re.fullmatch(r'(.+?)(v\d+)?', requested_id)
+        actual = re.fullmatch(r'(.+?)(v\d+)?', declared) if ARXIV.fullmatch(declared) else None
+        if declared and (not actual or requested[1].lower() != actual[1].lower()
+                         or requested[2] and actual[2] and requested[2] != actual[2]):
+            raise Invalid('Official arXiv metadata identifies a different paper or version')
+        title = parser.fields.get('citation_title', [''])[0]
+        if not title or len(title) > 1000:
+            raise Invalid('Official arXiv metadata has no usable paper title')
+        return cls(title, tuple(name for name in parser.fields.get('citation_author', [])[:100] if len(name) <= 300),
+                   parser.fields.get('citation_abstract', parser.fields.get('og:description', ['']))[0],
+                   requested[2] or (actual[2] if actual else None))
 
 
 class LiteratureClient:
@@ -505,24 +571,30 @@ class LiteratureClient:
         if source == "alphaxiv":
             encoded = quote(paper_id, safe="/")
             kind = "full-text" if identity.full else "report"
-            content = self._request(f"https://www.alphaxiv.org/{'abs' if identity.full else 'overview'}/{encoded}.md", optional=True, json_body=False)
-            if content is None and not identity.full:
-                kind = "full-text"
-                content = self._request(f"https://www.alphaxiv.org/abs/{encoded}.md", optional=True, json_body=False)
-            if not content or not content.strip():
-                raise Invalid("No report or extracted full text is available")
+            try:
+                content = self._request(f"https://www.alphaxiv.org/{'abs' if identity.full else 'overview'}/{encoded}.md", optional=True, json_body=False)
+                if (not content or not content.strip()) and not identity.full:
+                    kind = "full-text"
+                    content = self._request(f"https://www.alphaxiv.org/abs/{encoded}.md", optional=True, json_body=False)
+            except Invalid:
+                content = None
             metadata = {"title": paper_id, "url": f"https://www.alphaxiv.org/abs/{encoded}",
                         "pdfUrl": f"https://arxiv.org/pdf/{encoded}", "authors": []}
             metadata_url = f"https://arxiv.org/abs/{encoded}"
+            official = None
             try:
-                parser = _CitationMetadata()
-                parser.feed(self._request(metadata_url, json_body=False, timeout=6, limit=262144))
-                title = parser.fields.get("citation_title", [""])[0]
-                if title and len(title) <= 1000:
-                    metadata.update(title=title, metadataUrl=metadata_url,
-                                    authors=[name for name in parser.fields.get("citation_author", [])[:100] if len(name) <= 300])
+                official = ArxivMetadata.parse(self._request(metadata_url, json_body=False, timeout=6, limit=262144), paper_id)
+                metadata.update(title=official.title, metadataUrl=metadata_url, authors=list(official.authors))
             except Invalid:
                 pass  # Optional publisher metadata cannot erase usable source text.
+            if not content or not content.strip():
+                if official is None or not official.abstract.strip():
+                    raise Invalid('No alphaXiv text or official arXiv abstract is available. Retry the source or import a local PDF.', 502)
+                source, kind, content = 'arxiv', 'abstract', official.abstract
+                metadata.update(url=metadata_url,
+                                limitation='alphaXiv text is unavailable. Saved the official arXiv abstract only; prepare formatted reading or save the PDF for full text.')
+                if official.revision:
+                    metadata['sourceRevision'] = official.revision
         elif source == "pubmed":
             records = self._pubmed([paper_id])
             if not records:
@@ -534,12 +606,13 @@ class LiteratureClient:
             records = data.get("collection")
             if not isinstance(records, list) or not records:
                 raise Invalid("bioRxiv record not found")
-            work = max(records, key=lambda item: int(item.get("version", 0)))
-            version = _text(work.get("version"))
-            metadata = {"title": _clean(work.get("title")), "authors": [name.strip() for name in _text(work.get("authors")).split(";") if name.strip()],
-                        "publicationDate": work.get("date"), "doi": paper_id, "url": f"https://doi.org/{paper_id}",
-                        "fullTextUrl": f"https://www.biorxiv.org/content/{paper_id}v{version if version.isdigit() else '1'}.full"}
-            content, kind = _clean(work.get("abstract")), "abstract"
+            versions = tuple(BioRxivVersion.parse(record) for record in records)
+            work = BioRxivVersion.select(versions, identity.revision)
+            url = f'https://www.biorxiv.org/content/{paper_id}{work.revision}'
+            metadata = {"title": work.title, "authors": list(work.authors),
+                        "publicationDate": work.date, "doi": paper_id, "url": url,
+                        "fullTextUrl": url + '.full', "sourceRevision": work.revision}
+            content, kind = work.abstract, "abstract"
         else:
             selector = paper_id if re.fullmatch(r"W\d+", paper_id, re.I) else "doi:" + paper_id
             metadata = _openalex(self._request("https://api.openalex.org/works/" + quote(selector, safe="")), source)
@@ -548,6 +621,6 @@ class LiteratureClient:
                   "authors": metadata.get("authors", []), "content": content, "contentKind": kind,
                   "contentDigest": "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest(),
                   "fetchedAt": self._now(), "verification": "unverified"}
-        if identity.full and kind == "abstract":
+        if identity.full and kind == "abstract" and 'limitation' not in result:
             result["limitation"] = "This source supplies metadata and abstract only; open the original link for full text."
         return result

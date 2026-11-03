@@ -200,7 +200,9 @@ model TypographyPreferences {
   @minValue(12) @maxValue(24) code_size?: uint8 | null;
   ...Closed
 }
-model WorkbenchPreferences { accent?: "teal" | "blue" | "neutral"; typography?: TypographyPreferences; appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; layout?: LayoutPreferences; ...Closed }
+model ProjectResourceRef { app: "paper-agent" | "control-lab" | "lab"; kind: "paper" | "study" | "experiment"; @minLength(1) @maxLength(128) id: string; @minLength(1) @maxLength(128) revision: string; ...Closed }
+model ResearchProject { @minLength(1) @maxLength(128) id: string; @minLength(1) @maxLength(200) title: string; @maxLength(4000) goal: string; workspace: string | null; @maxItems(256) resources: ProjectResourceRef[]; ...Closed }
+model WorkbenchPreferences { accent?: "teal" | "blue" | "neutral"; typography?: TypographyPreferences; appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; @maxItems(128) research_projects?: ResearchProject[]; layout?: LayoutPreferences; ...Closed }
 model GetWorkbenchSettingsRequest { method: "settings.workbench.get"; ...Closed }
 model SetWorkbenchSettingsRequest { method: "settings.workbench"; preferences: WorkbenchPreferences; ...Closed }
 
@@ -401,17 +403,18 @@ model AutomationErrorEvent { kind:"automation_error"; ...EventBase }
 model AppsPreparationEvent { kind: "apps_preparation"; ...EventBase; data: Pero.Apps.AppPreparation }
 model AppsResultEvent { kind: "apps_result"; ...EventBase; data: Pero.Apps.AppResult }
 model AppsCatalogEvent { kind: "apps_catalog"; ...EventBase; data: Pero.Apps.AppRecord[] }
+model ProjectResourcesEvent { kind: "project_resources"; ...EventBase; data: Pero.Apps.ProjectResourceCatalog }
 model AppsErrorEvent { kind: "apps_error"; ...EventBase }
 model AppOpenedData { name: string; panel: string; url: string; ...Closed; }
 model AppsOpenedEvent { kind: "apps_opened"; ...EventBase; data: AppOpenedData }
 
-model PointSessionOpenData {scope:AppChatScope;sessionId:string;...Closed}
-model PointSessionOpenEvent {kind:"point_app_session_open";...EventBase;data:PointSessionOpenData}
-model PointAttemptData {attempt:Pero.Apps.PointAttempt;pointTime?:string;...Closed}
-model PointAttemptEvent {kind:"app_agent_attempt";...ThreadEventBase;data:PointAttemptData}
-model PointCancelData {pointTime?:string;...Closed}
-model PointCancelEvent {kind:"app_agent_cancel";...ThreadEventBase;data:PointCancelData}
-model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; ...Closed }
+model AppAgentSessionOpenData {scope:AppChatScope;sessionId:string;...Closed}
+model AppAgentSessionOpenEvent {kind:"app_agent_session_open";...EventBase;data:AppAgentSessionOpenData}
+model AppAgentAttemptData {attempt:Pero.Apps.AgentRunAttempt;runTime?:string;...Closed}
+model AppAgentAttemptEvent {kind:"app_agent_attempt";...ThreadEventBase;data:AppAgentAttemptData}
+model AppAgentCancelData {runTime?:string;...Closed}
+model AppAgentCancelEvent {kind:"app_agent_cancel";...ThreadEventBase;data:AppAgentCancelData}
+model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; appPlugin?: Pero.Apps.AppPluginAssembly; agentPlugins?: Pero.Apps.AgentPluginRevision[]; ...Closed }
 model SessionCreatedEvent { kind: "session_created"; ...ThreadEventBase; data: SessionCreatedData }
 model UserMessageContext {contexts: ContextReference[]; ...Closed}
 model UserMessageEvent { kind: "user_message"; ...ThreadEventBase; data?: UserMessageContext }
@@ -495,9 +498,9 @@ model InsightsEvent { kind: "insights"; ...ThreadEventBase; data: InsightsSummar
 @oneOf
 union ThreadEvent {
   TurnStartedEvent,
-  PointSessionOpenEvent,
-  PointAttemptEvent,
-  PointCancelEvent,
+  AppAgentSessionOpenEvent,
+  AppAgentAttemptEvent,
+  AppAgentCancelEvent,
   SessionCreatedEvent,
   UserMessageEvent,
   SessionUpdateEvent,
@@ -558,6 +561,7 @@ union HostEvent {
   AppsResultEvent,
   AppsPreparationEvent,
   AppsCatalogEvent,
+  ProjectResourcesEvent,
   AppsErrorEvent,
   AppsOpenedEvent,
   ThreadEvent,

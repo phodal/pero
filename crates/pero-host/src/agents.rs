@@ -7,8 +7,8 @@ use pero_runtime::apps::agent::AppSessionBinding;
 use pero_runtime::context::ContextSources;
 #[path = "app_agent.rs"]
 mod app_agent;
-#[path = "point_app_agent.rs"]
-mod point_app_agent;
+#[path = "app_agent_run.rs"]
+mod app_agent_run;
 #[path = "automation_agent.rs"]
 pub mod automation_agent;
 #[path = "mcp_settings.rs"]
@@ -30,8 +30,10 @@ pub struct Manager {
     tx: Sender<HostEvent>,
     history: Arc<Mutex<Vec<HostEvent>>>,
     app_bindings: HashMap<String, AppSessionBinding>,
-    point_journal: point_app_agent::Journal,
+    run_journal: app_agent_run::Journal,
     app_use: Option<acp::AppUseEndpoint>,
+    pub(crate) apps: Option<crate::apps::Apps>,
+    app_plugins: HashMap<String, pero_runtime::apps::AppSessionPlugins>,
     connectors: Option<acp::ConnectorsEndpoint>,
     settings_path: Option<PathBuf>,
     history_path: PathBuf,
@@ -62,9 +64,9 @@ impl Manager {
                 Some((event.thread_id.clone()?, binding))
             })
             .collect();
-        let point_journal=point_app_agent::Journal::default();
-        point_journal.restore(&app_bindings);
-        let point_writer=point_journal.clone();
+        let run_journal=app_agent_run::Journal::default();
+        run_journal.restore(&app_bindings);
+        let run_writer=run_journal.clone();
         let history = Arc::new(Mutex::new(stored.into_iter().rev().collect::<Vec<_>>()));
         let saved = history.clone();
         if let Some(parent) = history_file.parent() {
@@ -79,7 +81,7 @@ impl Manager {
         let (tx, rx) = mpsc::channel::<HostEvent>();
         std::thread::spawn(move || {
             for mut event in rx {
-                point_writer.stamp(&mut event);
+                run_writer.stamp(&mut event);
                 let ack_id=event.request_id.clone();
                 let mut persistence=None;
                 if event.thread_id.is_some()
@@ -129,7 +131,7 @@ impl Manager {
                 if super::emit(event).is_err() {
                     break;
                 }
-                if let Some(result)=persistence {point_writer.recorded(ack_id.as_deref(),result);}
+                if let Some(result)=persistence {run_writer.recorded(ack_id.as_deref(),result);}
             }
         });
         let mut agents = acp::registry(&root).unwrap_or_else(|error| {
@@ -158,8 +160,10 @@ impl Manager {
             tx,
             history,
             app_bindings,
-            point_journal,
+            run_journal,
             app_use: acp::AppUseEndpoint::from_environment(),
+            apps: None,
+            app_plugins: HashMap::new(),
             connectors: acp::ConnectorsEndpoint::from_environment(),
             settings_path,
             history_path,
@@ -439,6 +443,7 @@ impl Manager {
             }
             HostCommand::Insights { thread_id } => self.publish_insights(thread_id),
             HostCommand::Delete { thread_id } => {
+                self.app_plugins.remove(&thread_id);
                 if thread_id.is_empty() || thread_id.len() > 128 {
                     self.send("error", "Invalid session request", serde_json::Value::Null);
                     return;
@@ -500,6 +505,7 @@ impl Manager {
                         method_id,
                     } => (thread_id, SessionCommand::Authenticate(method_id)),
                     HostCommand::Close { thread_id } => {
+                        self.app_plugins.remove(&thread_id);
                         if let Some(session) = self.sessions.remove(&thread_id) {
                             session.user_questions.clear();
                             session.permissions.lock().unwrap().clear();

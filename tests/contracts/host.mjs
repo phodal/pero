@@ -2,7 +2,7 @@
 // line in both directions against protocol/generated/host.schema.json.
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdtempSync, writeFileSync, readFileSync, statSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, statSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -38,13 +38,21 @@ const explain = (name, value) => {
 };
 
 const temp = mkdtempSync(`${tmpdir()}/pero-contract-`);
+// Scoped ACP sessions require a genuinely installed App/panel.
+const builtins = resolve(temp, 'builtins'), app = resolve(builtins, 'fixture');
+mkdirSync(resolve(app, 'dist'), { recursive: true });
+writeFileSync(resolve(app, 'app.json'), JSON.stringify({ schemaVersion: 1, name: 'fixture',
+  version: '0.1.0', displayName: 'Host contract fixture',
+  contributes: { panels: [{ id: 'main', title: 'Fixture', entry: 'dist/index.html' }] } }));
+writeFileSync(resolve(app, 'dist/index.html'), '<title>Host contract fixture</title>');
 const agents = resolve(temp, 'agents.json');
 writeFileSync(agents, JSON.stringify([
  { id: 'fixture', name: 'ACP test fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] },
  { id: 'settings-fixture', name: 'ACP settings fixture', command: process.execPath, args: [resolve(root, 'tests/runtime/lifecycle-agent.mjs')], env: {PERO_FIXTURE_SCENARIO:'settings'} },
 ]));
 writeFileSync(resolve(temp, 'notes.txt'), 'Context file for the contract test.\n');
-const env = { ...process.env, PERO_LOCALE: 'en', PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'sessions.jsonl'), PERO_AGENTS_FILE: agents };
+const env = { ...process.env, PERO_APPS_ROOT: resolve(temp, 'installed'), PERO_BUILTIN_APPS_ROOT: builtins,
+  PERO_BUILTIN_APPS: 'fixture', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en', PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'sessions.jsonl'), PERO_AGENTS_FILE: agents };
 
 const failures = [];
 const seen = new Set();
@@ -119,7 +127,7 @@ try {
   const legacyWorkbench = {appearance:'dark',projects:[{workspace:temp,project_id:'pero'}]};
   host.send({method:'settings.workbench',preferences:legacyWorkbench});
   const migrated = await host.next('workbench_settings');
-  const expectedLegacy={...legacyWorkbench,accent:'teal',typography:{ui_size:14,chat_size:14,code_size:null},layout:{chat_width:420,chat_open:false,sidebar_width:260}};
+  const expectedLegacy={...legacyWorkbench,research_projects:[],accent:'teal',typography:{ui_size:14,chat_size:14,code_size:null},layout:{chat_width:420,chat_open:false,sidebar_width:260}};
   if (!isDeepStrictEqual(migrated.data,expectedLegacy)) failures.push('Legacy workbench preferences did not restore default layout');
   const workbench = {...expectedLegacy,accent:'blue',typography:{ui_size:18,chat_size:20,code_size:null},layout:{chat_width:512,chat_open:true,sidebar_width:260}};
   host.send({method:'settings.workbench',preferences:workbench});

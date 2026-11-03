@@ -398,6 +398,16 @@ impl Workbench {
         }
         self.preferences.layout.chat_open = open;
         self.save_preferences(self.preferences.clone(), cx);
+        // The close control lives on the host dock, outside the App webview.
+        #[cfg(not(target_family = "wasm"))]
+        if !open {
+            if let Some(WorkspaceItem::App { name, panel }) = self.navigation.current() {
+                let key = (name.clone(), panel.clone());
+                if let Some(page) = self.native_app_pages.get(&key) {
+                    page.view.read(cx).send(json!({"type":"pero:app:event","event":"chat:closed"}), cx);
+                }
+            }
+        }
         self.sync_follow(cx);
     }
 

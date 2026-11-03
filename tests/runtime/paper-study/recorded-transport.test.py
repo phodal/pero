@@ -10,7 +10,6 @@ import socket
 import sys
 import tempfile
 import threading
-from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 from urllib.request import OpenerDirector
@@ -31,7 +30,6 @@ replay = load('source_fixture', 'recorded-transport.py')
 backend = load('study_fixture', 'backend.py')
 from paper_agent.store import ResearchStore
 from paper_agent.model import Invalid, PaperSnapshot
-from paper_agent.pdf_files import PdfFiles
 from paper_agent.literature import LiteratureClient, ORIGINS
 from paper_agent.thumbnails import PaperThumbnails
 
@@ -91,8 +89,8 @@ class ReplayBoundary(unittest.TestCase):
                         response = connection.getresponse()
                         value = json.loads(response.read())
                         connection.close()
-                        self.assertEqual(response.status, 403, value)
-                        self.assertIn('does not authorize', value['detail'])
+                        self.assertEqual(response.status, 403 if not body else 409, value)
+                        self.assertIn('does not authorize' if not body else 'source review', value['detail'])
                     live.assert_not_called()
             finally:
                 server.shutdown(); thread.join(5); server.server_close()
@@ -111,7 +109,6 @@ class ReplayBoundary(unittest.TestCase):
                         with self.assertRaises(AssertionError):
                             transport.fetch_source(url)
                 for operation in (
-                    lambda: PdfFiles(fetch=backend.denied_external).download(SimpleNamespace(pdf_url='https://arxiv.org/pdf/2610.33195v1')),
                     lambda: LiteratureClient(fetch=backend.denied_external)._request('https://' + next(iter(ORIGINS)) + '/'),
                     lambda: PaperThumbnails(fetch=backend.denied_external).read('2610.33195'),
                 ):

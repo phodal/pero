@@ -1,3 +1,4 @@
+import { appSdkAliases } from './app-sdk.mjs';
 import { build } from 'esbuild';
 import { buildScientificViewer } from './scientific-viewer.mjs';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -23,12 +24,12 @@ if (!existsSync(resolve(appRoot, 'node_modules/react/package.json'))) {
   if (installed.error) throw installed.error;
   if (installed.status !== 0) throw new Error(`App ${appName} dependencies could not be installed`);
 }
-if (appName === 'data-agent') {
+if (appName === 'data-agent' || appName === 'data') {
   await mkdir(resolve(appRoot, 'backend/_core'), { recursive: true });
-  for (const name of ['dataset.py', 'view.py', 'chart_document.py'])
+  const modules = appName === 'data' ? ['dataset.py'] : ['dataset.py', 'view.py', 'chart_document.py'];
+  for (const name of modules)
     await cp(resolve(root, 'harness/go/charts/python', name), resolve(appRoot, 'backend/_core', name));
 }
-const sdk = resolve(root, 'packages/app-sdk/src');
 const outdir = resolve(appRoot, 'dist');
 await mkdir(outdir, { recursive: true });
 await build({
@@ -38,7 +39,7 @@ await build({
   loader: { '.png': 'dataurl', '.svg': 'dataurl', '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.wasm': 'file' },
   minify: true, target: 'chrome140', jsx: 'automatic',
   nodePaths: [resolve(appRoot, 'node_modules')],
-  alias: { '@pero/app-sdk/ui': resolve(sdk, 'ui.tsx'), '@pero/app-sdk/chart': resolve(sdk, 'chart.ts'), '@pero/app-sdk': resolve(sdk, 'index.tsx') },
+  alias: appSdkAliases(root),
   plugins: [{ name: 'app-react-runtime', setup(builder) {
     // SDK source lives outside the App tree; nodePaths is only a fallback.
     // Resolve from the App while preserving package exports/browser conditions
@@ -51,6 +52,13 @@ await build({
     builder.onLoad({ filter: /virtual-cell[\\/]ui-src[\\/]styles\.css$/ }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' }));
   } }],
 });
+if (appName === 'paper-agent') {
+  const reader = resolve(root, 'packages/paper-reader');
+  const target = resolve(outdir, '_paper-reader');
+  await mkdir(resolve(target, 'vendor'), { recursive: true });
+  for (const path of ['frame.html', 'reader.css', 'vendor/ar5iv.min.css'])
+    await cp(resolve(reader, path), resolve(target, path));
+}
 const manifest = JSON.parse(await readFile(resolve(appRoot, 'app.json'), 'utf8'));
 const title = manifest.displayName.replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 await writeFile(resolve(outdir, 'index.html'), `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="./index.css"></head><body><div id="app"></div><script type="module" src="./index.js"></script></body></html>\n`);

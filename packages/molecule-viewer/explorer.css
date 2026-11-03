@@ -1,0 +1,28 @@
+.molecule-explorer { --mol-bg:var(--pero-surface,#fff); --mol-scene:var(--pero-surface-muted,#eef3f8); --mol-text:var(--pero-text,#172536); --mol-muted:var(--pero-text-muted,#596b7d); --mol-border:var(--pero-border,#dce4ed); --mol-input:var(--pero-input-border,#748599); --mol-action:var(--pero-action,#007f86); --mol-on-action:var(--pero-on-action,#fff); --mol-error:var(--pero-error,#b54445); font:14px/1.4 system-ui,sans-serif; color:var(--mol-text); background:var(--mol-bg); display:flex; flex-direction:column; min-width:0; min-height:360px; height:100%; }
+.molecule-explorer[data-theme=dark] { color-scheme:dark; --mol-bg:var(--pero-surface,#121f2e); --mol-scene:var(--pero-surface-muted,#192a3b); --mol-text:var(--pero-text,#eaf1f8); --mol-muted:var(--pero-text-muted,#acbbcb); --mol-border:var(--pero-border,#34485d); --mol-input:var(--pero-input-border,#6b849d); --mol-action:var(--pero-action,#55d5dd); --mol-on-action:var(--pero-on-action,#0b1420); --mol-error:var(--pero-error,#f1a4a4); }
+.molecule-explorer * { box-sizing:border-box; }
+.molecule-explorer button { font:inherit; line-height:20px; color:inherit; background:transparent; border:1px solid var(--mol-input); border-radius:4px; padding:1px 12px; min-height:24px; cursor:pointer; margin:0; }
+.molecule-explorer button:focus-visible,.molecule-canvas:focus-visible { outline:2px solid var(--mol-action); outline-offset:2px; }
+.molecule-explorer button:disabled { opacity:.5; cursor:default; }
+.molecule-explorer [hidden] { display:none!important; }
+.molecule-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; }
+.molecule-title { font-weight:600; }
+.molecule-explorer .molecule-reset { border-color:transparent; padding-inline:6px; color:var(--mol-muted); }
+.molecule-scene { position:relative; flex:1; min-height:260px; background:radial-gradient(ellipse at center,var(--mol-scene),var(--mol-bg) 70%); }
+.molecule-canvas { position:absolute; inset:0; touch-action:none; outline-offset:-3px; }
+.molecule-canvas canvas { display:block; width:100%; height:100%; }
+.molecule-caption { position:absolute; left:12px; bottom:12px; pointer-events:none; display:flex; flex-direction:column; gap:4px; }
+.molecule-formula { font-size:24px; font-weight:400; }
+.molecule-count { font-size:12px; color:var(--mol-muted); }
+.element-legend { position:absolute; right:12px; bottom:12px; display:flex; gap:12px; font-size:12px; color:var(--mol-muted); pointer-events:none; }
+.element-legend span { display:flex; align-items:center; gap:6px; }
+.element-legend i { width:8px; height:8px; background:#596b7d; border:1px solid var(--mol-input); border-radius:50%; }
+.element-legend .element-h { background:#eaf1f8; }
+.element-legend .element-o { background:#d9535f; border-color:#d9535f; }
+.molecule-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:12px; border-top:.5px solid var(--mol-border); }
+.molecule-choices { display:flex; gap:8px; }
+.molecule-explorer button[aria-pressed=true] { background:var(--mol-action); border-color:var(--mol-action); color:var(--mol-on-action); }
+.molecule-note { color:var(--mol-muted); font-size:12px; margin:0; }
+.molecule-error { position:absolute; inset:20% 12px auto; text-align:center; color:var(--mol-error); background:var(--mol-bg); padding:12px; }
+.molecule-error p { margin:0 0 12px; }
+@media(max-width:480px) { .molecule-footer { align-items:flex-start; } .molecule-note { flex-basis:100%; } .element-legend { bottom:60px; } }

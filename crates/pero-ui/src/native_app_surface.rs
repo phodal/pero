@@ -3,7 +3,7 @@ use crate::{
     app::Workbench,
     workspace::{WorkspaceItem, WorkspaceRoute},
 };
-use gpui_kit::{component::button::*, prelude::*, *};
+use gpui_kit::{component::{button::*, notification::Notification, Sizable, WindowExt}, prelude::*, *};
 use gpui_webview::WebView;
 use pero_contracts::HostEvent;
 use serde_json::{Value, json};
@@ -23,13 +23,13 @@ addEventListener('message',event=>{
  if(event.source!==window)return;
  const message=event.data;
  if(!message||typeof message.type!=='string')return;
- if(message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
+ if(message.type==='pero:app:sdk'||message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
  if(message.type==='pero:app:chat-slot')window.postMessage({type:'pero:app:chat-slot-result',id:message.id,active:false},'*');
 });
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);
 "#;
 impl NativeAppPage {
-    fn new(name: String, entry: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(name: String, entry: String, frame_origins: Vec<String>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (sender, receiver) = async_channel::unbounded();
         let loads = sender.clone();
         let links = sender.clone();
@@ -37,6 +37,7 @@ impl NativeAppPage {
         let client = crate::native::apps();
         let owner = name.clone();
         let allowed = format!("pero-app://{name}/");
+        let ipc_origin = allowed.clone();
         let builder = wry::WebViewBuilder::new()
             .with_url(format!("pero-app://{name}/{entry}"))
             .with_initialization_script_for_main_only(BRIDGE, true)
@@ -46,7 +47,7 @@ impl NativeAppPage {
                 std::thread::spawn(move || responder.respond(client.serve(&name, request)));
             })
             .with_navigation_handler(move |uri| {
-                if uri.starts_with(&allowed) {
+                if uri.starts_with(&allowed) || frame_origins.iter().any(|origin| uri == *origin || uri.strip_prefix(origin).is_some_and(|tail| tail.starts_with('/'))) {
                     return true;
                 }
                 let _ = links.try_send(json!({"type":"link","url":uri}));
@@ -62,6 +63,7 @@ impl NativeAppPage {
                 }
             })
             .with_ipc_handler(move |request| {
+                if !request.uri().to_string().starts_with(&ipc_origin) { return; }
                 if request.body().len() <= 256_000 {
                     if let Ok(message) = serde_json::from_str::<Value>(request.body()) {
                         let _ = sender.try_send(message);
@@ -227,13 +229,13 @@ impl Render for NativeAppPage {
                     "apps.loading_panel",
                 ))
             })
-            .when_some(self.error.clone(), |el, error| el.child(error))
             .children(self.view.clone().filter(|_| self.error.is_none()))
     }
 }
 pub(crate) struct RetainedApp {
     pub view: Entity<NativeAppPage>,
     _subscription: Subscription,
+    _observation: Subscription,
 }
 impl Workbench {
     pub(crate) fn paste_app_text(&self, cx: &App) -> bool {
@@ -271,7 +273,7 @@ impl Workbench {
                 }
                 Some("written")=>{
                     let app=input["event"]["data"]["app"].as_str().unwrap_or_default();
-                    for ((name,_),view) in &self.native_app_pages { if name==app { view.view.read(cx).send(json!({"type":"pero:app:data-changed"}),cx); } }
+                    for ((name,_),view) in &self.native_app_pages { if name==app { view.view.read(cx).send(json!({"type":"pero:app:data-changed"}),cx); view.view.read(cx).send(json!({"type":"pero:app:event","event":"app:written","value":{"app":app}}),cx); } }
                     Ok(Some(Value::Null))
                 }
                 Some("page")=>{
@@ -308,6 +310,8 @@ impl Workbench {
             name: String,
             panel: String,
             entry: String,
+            #[serde(default, rename = "frameOrigins")]
+            frame_origins: Vec<String>,
         }
         let Ok(open) = serde_json::from_value::<Open>(event.data.clone()) else {
             return;
@@ -325,7 +329,9 @@ impl Workbench {
         if self.native_app_pages.contains_key(&key) {
             return;
         }
-        let view = cx.new(|cx| NativeAppPage::new(key.0.clone(), open.entry, window, cx));
+        let view = cx.new(|cx| NativeAppPage::new(key.0.clone(), open.entry, open.frame_origins, window, cx));
+        // The parent owns the failure view, including a WebView's loading timeout.
+        let observation = cx.observe(&view, |_, _, cx| cx.notify());
         let scope = pero_contracts::AppChatScope {
             app: key.0.clone(),
             panel: key.1.clone(),
@@ -337,6 +343,38 @@ impl Workbench {
         let subscription = cx.subscribe_in(&view, window, move |this, view, event: &NativeAppMessage, window, cx| {
             let message = &event.0;
             let item = WorkspaceItem::App { name: scope.app.clone(), panel: scope.panel.clone() };
+            if message["type"] == "pero:app:sdk" {
+                let result = (|| -> anyhow::Result<()> {
+                    anyhow::ensure!(this.navigation.current()==Some(&item), "Open the App before using Host presentation");
+                    let input = &message["input"];
+                    match message["operation"].as_str() {
+                        Some("navigate") => {
+                            let path=input["path"].as_str().ok_or_else(||anyhow::anyhow!("Choose a Pero page"))?;
+                            if let Some(target)=path.strip_prefix("/apps/") {
+                                let mut parts=target.split('/');let app=parts.next().unwrap_or_default();let panel=parts.next().unwrap_or("main");
+                                anyhow::ensure!(parts.next().is_none() && this.apps.contains_panel(app,panel), "App panel is unavailable");
+                                this.open_app(app.into(),panel.into(),cx);
+                            } else {
+                                let page=if path=="/" {"projects"} else {path.strip_prefix('/').ok_or_else(||anyhow::anyhow!("Choose a local Pero page"))?};
+                                this.navigate(serde_json::from_value(json!(page))?,cx);
+                            }
+                        }
+                        Some("notify") => {
+                            let text=input["message"].as_str().filter(|text|!text.is_empty() && text.len()<=4000).ok_or_else(||anyhow::anyhow!("Invalid notification"))?.to_owned();
+                            let note=match input["type"].as_str().unwrap_or("info") { "info"=>Notification::info(text),"success"=>Notification::success(text),"error"=>Notification::error(text),_=>anyhow::bail!("Invalid notification type") };
+                            window.push_notification(note,cx);
+                        }
+                        Some("badge") => {
+                            let count=input["count"].as_u64().filter(|count|*count<=999999).ok_or_else(||anyhow::anyhow!("Invalid App count"))? as u32;
+                            if count==0 {this.apps.badges.remove(&scope.app);}else{this.apps.badges.insert(scope.app.clone(),count);}
+                        }
+                        _ => anyhow::bail!("Host presentation unavailable"),
+                    }
+                    Ok(())
+                })();
+                let reply=match result {Ok(())=>json!({"type":"pero:app:sdk-result","id":message["id"],"ok":true}),Err(error)=>json!({"type":"pero:app:sdk-result","id":message["id"],"ok":false,"error":error.to_string()})};
+                view.read(cx).send(reply,cx);cx.notify();
+            }
             if message["type"] == "pero:app:examples" {this.receive_app_examples(scope.clone(),message["state"].clone(),cx);}
             if message["type"] == "focus" { this.focus_surface_item(&item, window, cx); }
             if message["type"] == "link" {this.web_command(json!({"action":"web_open","url":message["url"]}),window,cx);}
@@ -393,6 +431,7 @@ impl Workbench {
             RetainedApp {
                 view,
                 _subscription: subscription,
+                _observation: observation,
             },
         );
         cx.notify();
@@ -440,6 +479,7 @@ impl Workbench {
         let key = (name.to_owned(), panel.to_owned());
         let name = name.to_owned();
         let panel = panel.to_owned();
+        let chrome = pero_theme::Chrome::from_app(cx);
         div()
             .flex()
             .flex_col()
@@ -448,14 +488,43 @@ impl Workbench {
             .min_w_0()
             .h_full()
             .when_some(error.clone(), |el, error| {
-                el.child(error).child(
-                    Button::new("native-app-retry")
-                        .label(self.t("apps.open"))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.native_app_pages.remove(&(name.clone(), panel.clone()));
-                            this.pending_app=Some((name.clone(),panel.clone()));
-                            this.refresh_apps(cx);
-                        })),
+                let diagnostics = format!("App: {name}\nPanel: {panel}\n{error}");
+                el.child(
+                    div().flex().flex_col().gap(px(12.)).p(px(12.)).min_w_0()
+                        .max_w(px(680.)).text_size(chrome.text(14.))
+                        .text_color(chrome.palette.text)
+                        .child(div().font_weight(FontWeight::SEMIBOLD).text_size(chrome.text(18.))
+                            .child(self.t("apps.open_failed")))
+                        .child(div().whitespace_normal().text_color(chrome.palette.text_muted)
+                            .child(self.t("apps.open_failed_hint")))
+                        .child(div().flex().flex_wrap().items_center().gap(px(8.))
+                            .child(Button::new("native-app-retry").small().outline()
+                                .label(self.t("apps.retry_open"))
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.native_app_pages.remove(&(name.clone(), panel.clone()));
+                                    this.pending_app=Some((name.clone(),panel.clone()));
+                                    this.refresh_apps(cx);
+                                })))
+                            .child(Button::new("native-app-error-details").small().ghost()
+                                .label(self.t(if self.apps.error_details_open {
+                                    "apps.hide_diagnostics"
+                                } else { "apps.show_diagnostics" }))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.apps.error_details_open = !this.apps.error_details_open;
+                                    cx.notify();
+                                }))))
+                        .when(self.apps.error_details_open, |el| el.child(
+                            div().flex().flex_col().gap(px(8.)).min_w_0()
+                                .child(div().id("native-app-diagnostics").max_h(px(240.))
+                                    .overflow_y_scroll().text_size(chrome.text(12.))
+                                    .whitespace_normal().child(error))
+                                .child(div().flex().child(
+                                    Button::new("native-app-copy-diagnostics").small().ghost()
+                                        .label(self.t("apps.copy_diagnostics"))
+                                        .on_click(cx.listener(move |this, _, window, cx| {
+                                            cx.write_to_clipboard(ClipboardItem::new_string(diagnostics.clone()));
+                                            window.push_notification(Notification::success(this.t("content.copied")), cx);
+                                        }))))))
                 )
             })
             .when(

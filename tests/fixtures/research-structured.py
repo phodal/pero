@@ -26,7 +26,7 @@ def record(url):
 
 
 def resolve(host, *_args, **_options):
-    if host not in ('research.example.org', 'arxiv.org'):
+    if host not in ('research.example.org', 'arxiv.org', 'www.alphaxiv.org'):
         raise AssertionError('Offline structured fixture refuses unexpected hostname: ' + host)
     return [(None, None, None, None, ('93.184.216.34', 443))]
 
@@ -41,6 +41,7 @@ class Connection:
 
     def getresponse(self):
         record(self.url)
+        status = 200
         if self.url in (SEED, SECOND_SEED):
             data = ('<title>Synthetic structured reading</title><main><h1>Synthetic structured reading</h1>'
                     f'<a href="{PDF}">Fixed v2 synthetic paper PDF</a></main>').encode()
@@ -52,10 +53,22 @@ class Connection:
         elif self.url == HTML:
             data = Path(__file__).with_name('scientific-document.html').read_bytes()
             mime = 'text/html'
+            failure = Path(os.environ['PERO_APP_DATA']) / 'fail-next-html'
+            if failure.exists():
+                failure.unlink()
+                data, status = b'Synthetic HTML unavailable', 503
+        elif self.url == 'https://arxiv.org/abs/2606.03979v2':
+            data = (b'<meta name="citation_title" content="Toolbar reading fixture">'
+                    b'<meta name="citation_arxiv_id" content="2606.03979v2">'
+                    b'<meta name="citation_abstract" content="Official abstract fixture.">')
+            mime = 'text/html'
+        elif self.url in ('https://www.alphaxiv.org/overview/2606.03979v2.md',
+                          'https://www.alphaxiv.org/abs/2606.03979v2.md'):
+            data, mime, status = b'Unavailable', 'text/plain', 404
         else:
             raise AssertionError('Offline structured fixture refuses unexpected URL: ' + self.url)
         response = io.BytesIO(data)
-        response.status = 200
+        response.status = status
         headers = {'Content-Type': mime, 'Content-Length': str(len(data))}
         response.getheader = lambda name, default=None: headers.get(name, default)
         return response

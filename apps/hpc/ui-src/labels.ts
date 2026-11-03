@@ -1,0 +1,37 @@
+const labels: Record<string, [string, string]> = {
+  method: ["Method", "计算方法"],
+  intervals: ["Grid intervals (count)", "网格区间数"],
+  integrand: ["Integrand f(x)", "被积函数 f(x)"],
+  lowerBound: ["Domain start x", "计算域起点 x"],
+  upperBound: ["Domain end x", "计算域终点 x"],
+  reference: ["Analytical reference", "解析参考"],
+  equation: ["Governing equation", "控制方程"],
+  boundaryValues: ["Boundary values", "边界值"],
+  runner: ["Runner", "运行工具"],
+  runnerVersion: ["Runner version", "运行工具版本"],
+  scheduler: ["Execution backend", "执行环境"],
+  ranks: ["Processes (count)", "进程数"],
+  solver: ["Solver", "求解器"],
+  absoluteErrorMax: ["Maximum absolute error", "绝对误差上限"],
+  convergenceRatioMin: ["Minimum convergence ratio", "收敛比下限"],
+  convergenceRatioMax: ["Maximum convergence ratio", "收敛比上限"],
+  sampleConsistencyMax: ["Maximum raw sample discrepancy", "原始采样差异上限"],
+  estimateConsistencyMax: ["Maximum estimate discrepancy", "估计值差异上限"],
+  residualMax: ["Equation residual", "方程残差"],
+  coarseEstimate: ["Coarse-grid estimate", "粗网格估计值"],
+  fineEstimate: ["Fine-grid estimate", "细网格估计值"],
+  coarseAbsoluteError: ["Coarse-grid absolute error", "粗网格绝对误差"],
+  fineAbsoluteError: ["Fine-grid absolute error", "细网格绝对误差"],
+  convergenceRatio: ["Convergence ratio", "收敛比"],
+  sampleConsistency: ["Raw sample discrepancy", "原始采样差异"],
+  estimateConsistency: ["Estimate discrepancy", "估计值差异"],
+  accuracy: ["Fine-grid absolute error", "细网格绝对误差"],
+  convergence: ["Second-order convergence ratio", "二阶收敛比"],
+  "raw-samples": ["Raw sample discrepancy", "原始采样差异"],
+  estimate: ["Estimate vs. raw samples", "估计值与原始采样差异"],
+  residual: ["Discrete equation residual", "离散方程残差"],
+};
+
+export function propertyLabel(key: string, chinese: boolean, fallback?: string) {
+  return labels[key]?.[chinese ? 1 : 0] ?? fallback ?? key.replace(/([a-z\d])([A-Z])/g, "$1 $2").replaceAll("_", " ");
+}

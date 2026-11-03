@@ -30,6 +30,12 @@ permission. User images and standard MCP tool-result images become typed
 `image_url` content parts with canonical base64 **data URIs**, never plain text.
 Text-only message wire shapes remain unchanged.
 
+For text-only models, tool-result images stay intact in the journal and ACP
+conversation for display. The provider projects each image to an explicit
+unread-pixels notice alongside the tool's text metadata and display reference.
+This permits caption-based answers with inline figures without claiming a visual
+read. User image attachments still fail when image input is not declared.
+
 Only in-memory PNG/JPEG bytes are accepted: full decode, exact MIME match,
 at most 4 MiB each, maximum width/height 2048, and 16 MiB of image bytes per request.
 Remote URLs, local paths, SVG, audio, file uploads, incomplete images and missing

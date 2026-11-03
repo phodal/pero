@@ -130,12 +130,15 @@ pub struct WorkbenchPreferences {
     #[serde(default)]
     pub projects: Vec<ProjectBinding>,
     #[serde(default)]
+    pub research_projects: Vec<crate::research_project::ResearchProject>,
+    #[serde(default)]
     pub layout: LayoutPreferences,
 }
 
 impl WorkbenchPreferences {
     pub fn valid(&self) -> bool {
-        self.projects.len() <= 128
+        crate::research_project::ResearchProject::collection_valid(&self.research_projects)
+            && self.projects.len() <= 128
             && self.projects.iter().enumerate().all(|(i, binding)| {
                 !binding.workspace.trim().is_empty()
                     && binding.workspace.len() <= 4096

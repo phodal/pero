@@ -7,7 +7,7 @@ import { AppWriteRoutes } from './app-write-routes.ts';
 import { PreparedAppWrite, type AppWriteDefinition } from './app-write.ts';
 
 // These are transport values, generated from the same contract as the Rust Host.
-import type { AppAccess, AppRecord } from '../../../protocol/generated/host';
+import type { AppAccess, AppRecord, ProjectResourceCatalog } from '../../../protocol/generated/host';
 
 type Event = { version: number; kind: string; request_id: string | null; text: string; data?: unknown };
 type Pending = { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
@@ -151,10 +151,23 @@ export class DesktopApps {
   }
 
   async command(value: unknown): Promise<void> {
+    const command = value as { action?: string; name?: string; panel?: string; request_id?: string };
+    if (command?.action === 'apps_project_resources') {
+      const app = typeof command.name === 'string' ? command.name : '';
+      const request_id = typeof command.request_id === 'string' ? command.request_id : null;
+      let catalog: ProjectResourceCatalog;
+      try {
+        if (!['paper-agent', 'control-lab', 'lab'].includes(app)) throw new Error('This App has no project resource catalog');
+        catalog = await this.request<ProjectResourceCatalog>('projectresources', { name: app });
+      } catch (error) {
+        catalog = { app, resources: [], error: (error as Error).message };
+      }
+      this.send({ version: 1, kind: 'project_resources', request_id, text: '', data: catalog });
+      return;
+    }
     try {
-      const command = value as { action?: string; name?: string; panel?: string };
       const action = command?.action?.replace(/^apps_/, '');
-      if (!['list', 'install', 'enable', 'disable', 'uninstall', 'open'].includes(action || '')) throw new Error('Unsupported App action');
+      if (!['list', 'install', 'prepare', 'enable', 'disable', 'uninstall', 'open'].includes(action || '')) throw new Error('Unsupported App action');
       if (command.name !== undefined && (command.name.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(command.name))) throw new Error('Invalid App name');
       if (action === 'open') {
         if (!command.name) throw new Error('Choose an App first');
@@ -198,6 +211,25 @@ export class DesktopApps {
       if (caller && caller !== origin) return new Response('App origin refused', { status: 403 });
       if ((url.hostname === 'control-lab' || url.hostname === 'lab') && decodeURIComponent(url.pathname) === '/api/agent-step')
         return new Response('Agent route is reserved for the Host', { status: 403 });
+      if (url.pathname === '/host/sdk') {
+        if (request.method !== 'GET') return new Response('Method refused', {status:405});
+        return Response.json({...await this.request<Record<string,unknown>>('sdkcontext', {name:url.hostname}),slots:['conversation']}, {headers:{'Cache-Control':'no-store'}});
+      }
+      if (url.pathname === '/host/capability') {
+        if (request.method !== 'POST') return new Response('Method refused', {status:405});
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 256000) return new Response('Host request too large', {status:413});
+        const {capability, operation, input} = JSON.parse(body);
+        const routes: Record<string,string> = {agent:'app-agent',insights:'insights',connectors:'connectors',automation:'automation','research-assets':'research-assets'};
+        if (!Object.hasOwn(routes, capability) || typeof operation !== 'string' || !input || typeof input !== 'object' || Array.isArray(input)) return new Response('Host capability unavailable', {status:403});
+        const target = new URL(`/host/${routes[capability]}`, request.url);
+        return this.serve(new Request(target, {method:'POST',headers:request.headers,body:JSON.stringify({...input,operation})}));
+      }
+      if (url.pathname.startsWith('/api/')) await this.request('apiaccess', {name:url.hostname,path:url.pathname});
+      const sdkInputPrefix = `/api/apps/${url.hostname}/inputs/`;
+      if (url.pathname.startsWith(sdkInputPrefix)) {
+        return this.serve(new Request(new URL(`/host/inputs/${url.pathname.slice(sdkInputPrefix.length)}`, request.url), request));
+      }
       if(url.pathname.startsWith('/host/inputs/')){
         if(request.method!=='GET'||!this.input||!/^\/host\/inputs\/[a-f0-9]{64}$/.test(url.pathname))return new Response('App input unavailable',{status:404});
         const file=await this.input(url.hostname,url.pathname.split('/').at(-1)!);
@@ -249,11 +281,13 @@ export class DesktopApps {
         if (operation.threadId) fields.threadId = operation.threadId;
         return Response.json(await this.request('insights', fields), { headers: { 'Cache-Control': 'no-store' } });
       }
-      if (url.pathname === '/host/point-agent') {
+      if (url.pathname === '/host/app-agent') {
         if (request.method !== 'POST') return new Response('Method refused', {status:405});
         const body = await request.text();
-        if (Buffer.byteLength(body) > 256_000) return new Response('Point Agent request too large', {status:413});
-        return Response.json(await this.request('pointagent', {name:url.hostname,request:JSON.parse(body)}), {headers:{'Cache-Control':'no-store'}});
+        if (Buffer.byteLength(body) > 256_000) return new Response('Pero Agent request too large', {status:413});
+        const operation = JSON.parse(body);
+        const value = await this.request<{context?: unknown}>('agentrun', {name:url.hostname,request:operation});
+        return Response.json(operation.operation === 'prepare' ? value.context : value, {headers:{'Cache-Control':'no-store'}});
       }
       if (url.pathname === '/host/agent') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
@@ -268,7 +302,7 @@ export class DesktopApps {
       const access = await this.request<AppAccess>('resolve', { name: url.hostname });
       if (['/api/workspaces','/api/harnesses'].includes(url.pathname)) {
         if (request.method !== 'GET' || url.search) return new Response('Method refused', {status:405});
-        return Response.json(await this.request('pointcatalog', {name:url.hostname,path:url.pathname}), {headers:{'Cache-Control':'no-store'}});
+        return Response.json(await this.request('agentcatalog', {name:url.hostname,path:url.pathname}), {headers:{'Cache-Control':'no-store'}});
       }
       if (url.pathname.startsWith('/api/')) {
         if (!access.backend) return new Response('This App has no backend', { status: 503 });
@@ -291,7 +325,7 @@ export class DesktopApps {
       const response = await net.fetch(pathToFileURL(file).href);
       const headers = new Headers(response.headers);
       const ancestors = file === resolve(assets, '_reader/reader.html') ? "'self' pero://workbench" : 'pero://workbench';
-      headers.set('Content-Security-Policy', `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors ${ancestors}`);
+      headers.set('Content-Security-Policy', `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self' ${(access.frameOrigins ?? []).join(' ')}; object-src 'none'; base-uri 'none'; frame-ancestors ${ancestors}`);
       headers.set('Cache-Control', 'no-store');
       headers.set('X-Content-Type-Options', 'nosniff');
       return new Response(response.body, { status: response.status, headers });

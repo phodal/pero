@@ -1,6 +1,6 @@
 import { HarnessPreferences } from './harness-settings';
 import {ConversationContentRead} from '../../../packages/content-source/index.ts';
-import { app, BrowserWindow, ipcMain, Menu, protocol, net, dialog, shell, globalShortcut, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, shell, globalShortcut, safeStorage } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
@@ -271,6 +271,10 @@ app.whenReady().then(async () => {
       if(message.kind==='workspace_saved'||message.kind==='workspace_error') {
         const pending=preferenceWrites.get(message.request_id);
         if(pending){clearTimeout(pending.timer);preferenceWrites.delete(message.request_id);if(message.kind==='workspace_saved')pending.resolve();else pending.reject(new Error(message.text||t('workspace.save_failed')));}
+      }
+      if (message.kind === 'workbench_settings') {
+        const appearance = message.data?.appearance;
+        if (appearance === 'light' || appearance === 'dark' || appearance === 'system') nativeTheme.themeSource = appearance;
       }
       if (message.kind === 'settings') { locale = normalizeLocale(message.text); updateMenus(); }
       if (message.kind === 'ready') ready = true;

@@ -40,7 +40,6 @@ await writeFile(agents, JSON.stringify([
   ...['pero', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(temp, `unavailable-${id}`) })),
   { id: 'codex', name: 'Lab scripted transport fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/lab-acp.mjs')] },
 ]));
-await writeFile(settings, JSON.stringify({ chat_agent: 'codex' }));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'profile'), PERO_SETTINGS_PATH: settings,
   PERO_HISTORY_PATH: resolve(temp, 'history.jsonl'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en',
   PERO_BUILTIN_APPS: 'lab', PERO_REQUIRED_APPS: 'lab', PERO_APP_INFRA_EMBED: '0' };
@@ -76,7 +75,9 @@ const readExperiment = id => frame.locator('body').evaluate(async (_body, id) =>
 }, id);
 try {
   if (!['linux', 'darwin'].includes(process.platform)) throw Error('This lifecycle process gate requires Unix.');
-  await execute(process.env.PERO_APP_PYTHON || 'python3', ['-E', '-s', '-c', "import sys, importlib.metadata; assert sys.version_info[:2] == (3,12); assert importlib.metadata.version('pylabrobot') == '0.2.2'"], { timeout: 30000 });
+  const { stdout: pythonRoot } = await execute(process.env.PERO_APP_PYTHON || 'python3', ['-E', '-s', '-c', "import sys, importlib.metadata; assert sys.version_info[:2] == (3,12); assert importlib.metadata.version('pylabrobot') == '0.2.2'; print(sys.prefix)"], { encoding: 'utf8', timeout: 30000 });
+  // Bind the interpreter just validated, not a new implicitly prepared environment.
+  await writeFile(settings, JSON.stringify({ chat_agent: 'codex', app_python: { apps: { lab: pythonRoot.trim() } } }));
   await launch();
   await page.screenshot({ path: resolve(out, 'empty-light.png') });
   const created = page.waitForResponse(response => new URL(response.url()).pathname === '/api/experiments' && response.request().method() === 'POST');

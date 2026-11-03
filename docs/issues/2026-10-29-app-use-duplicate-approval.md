@@ -32,3 +32,16 @@ Desktop suites passed. Product completed eleven checks and recorded exactly two
 explicit Agent-originated permission questions. Operations, captures, file input
 and allowed persistent writes completed without a Desktop permission request.
 The Host protocol check and embedded workflow test also passed.
+
+## 2026-11-02 Harness approval wiring
+
+Real-Harness approval validation found that MCP registration discarded explicit
+mutation annotations. Changing the ACP permission mode alone could not ask for
+approval because the registry had no approval requirement. App data write tools
+now explicitly declare mutation; Harness carries that declaration into its
+existing approval broker. Unannotated legacy MCP behavior remains unchanged.
+Scripted and real `deepseek-flash` runs now pass full-access with allow-once
+(one App write) and reject-once (zero App writes). Each observed exactly one
+Agent-originated question. The test driver supplies the operator's response;
+this is protocol acceptance, not a human UI-click claim. Go race and App Use/SDK
+regressions pass. No second Desktop approval owner is introduced.

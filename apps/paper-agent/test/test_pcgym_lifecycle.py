@@ -68,6 +68,11 @@ class PreflightLifecycle(unittest.TestCase):
                 self.assertEqual(receipt['status'], expected)
                 self.assertEqual(receipt['phase'], 'preflight')
                 self.assertFalse(receipt['worker_started'])
+                # P1 observation is optional evidence, not a new admission or scientific result.
+                metadata = receipt['environment_observation']['observation']
+                self.assertEqual(metadata['method'], 'paper-agent.pcgym')
+                self.assertEqual(metadata['evidence'], 'metadata_only')
+                self.assertEqual(receipt['environment_observation']['scope'], 'parent-preflight-metadata')
                 if expected == 'failed':
                     self.assertEqual(receipt['error_code'], code)
                 self.assertLessEqual(len(receipt['error']), 4096)

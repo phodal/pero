@@ -31,6 +31,7 @@ impl ViewBounds {
 #[derive(Default)]
 pub(crate) struct WorkbenchBounds {
     pub sidebar: ViewBounds,
+    pub projects: ViewBounds,
     pub settings: ViewBounds,
     pub terminal: ViewBounds,
     pub new_chat: ViewBounds,
@@ -43,6 +44,7 @@ impl WorkbenchBounds {
     // A hidden, collapsed, filtered, or removed control must not retain its old target.
     pub fn clear(&self) {
         self.sidebar.clear();
+        self.projects.clear();
         self.settings.clear();
         self.terminal.clear();
         self.new_chat.clear();
@@ -54,7 +56,8 @@ impl WorkbenchBounds {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::WorkbenchBounds;
+    use gpui_kit::{Bounds, point, px, size};
 
     #[test]
     fn hidden_chat_control_does_not_retain_its_last_paint() {
