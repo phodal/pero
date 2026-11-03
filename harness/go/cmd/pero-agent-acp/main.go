@@ -182,7 +182,17 @@ func run() (resultErr error) {
 		return err
 	}
 	if *workspace != "" {
-		nativeOptions := nativetools.Options{Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: len(packages) > 0}
+		nativeOptions := nativetools.Options{Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: len(packages) > 0, BashEnvFile: func(agent *harness.Agent) string {
+			if pluginHooks == nil {
+				return ""
+			}
+			return pluginHooks.BashEnvironmentFile(agent)
+		}, OnShellDirectory: func(agent *harness.Agent, old, next string) {
+			if pluginHooks == nil {
+				return
+			}
+			pluginHooks.ShellDirectoryChanged(agent, old, next)
+		}}
 		if len(packages) > 0 {
 			nativeOptions.BackgroundNotifications = true
 			nativeOptions.ReadOnlyResource = pluginResourceReader(skillCatalog, selections)

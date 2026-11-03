@@ -89,7 +89,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay", "Elicitation", "ElicitationResult":
+			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay", "Elicitation", "ElicitationResult", "CwdChanged":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}
@@ -620,6 +620,9 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 		return claudehooks.Decision{}, err
 	}
 	input.SessionID, input.CWD = string(identity.Session.ID()), agent.Session().WorkingDirectory()
+	if input.Event == "CwdChanged" && input.NewCWD != "" {
+		input.CWD = input.NewCWD
+	}
 	input.AgentID, input.AgentType = string(identity.AgentID), identity.AgentType
 	for _, selected := range app.hooksFor(agent, input) {
 		hook := selected.hook
@@ -682,6 +685,11 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 		}
 		environment := append([]string{}, app.options.Environment...)
 		environment = append(environment, "CLAUDE_PLUGIN_ROOT="+selected.root, "CLAUDE_PLUGIN_DATA="+dataDirectory, "CLAUDE_PROJECT_DIR="+project, "CLAUDE_SESSION_ID="+input.SessionID)
+		if envFile, err := app.prepareEnvFile(agent, input.Event); err != nil {
+			return claudehooks.Decision{}, err
+		} else if envFile != "" {
+			environment = append(environment, "CLAUDE_ENV_FILE="+envFile)
+		}
 		if hook.ExecForm {
 			expand := strings.NewReplacer("${CLAUDE_PLUGIN_ROOT}", selected.root, "${CLAUDE_PLUGIN_DATA}", dataDirectory, "${CLAUDE_PROJECT_DIR}", project, "${CLAUDE_SESSION_ID}", input.SessionID)
 			hook.Command = expand.Replace(hook.Command)

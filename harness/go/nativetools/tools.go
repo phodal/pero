@@ -32,6 +32,10 @@ type Options struct {
 	PluginEnvironment       []string
 	BashOutput              BashOutputOptions
 	BashTiming              BashTimingOptions
+	// BashEnvFile is sourced before each Bash command when it has content.
+	BashEnvFile func(*harness.Agent) string
+	// OnShellDirectory runs after a Bash command leaves the shell in another directory.
+	OnShellDirectory func(*harness.Agent, string, string)
 }
 type App struct {
 	files      *fstools.Workspace
@@ -187,7 +191,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 				if policyErr != nil {
 					return nil, policyErr
 				}
-				app.background, err = mountShellTasks(ctx, h, shellOptions, policy, timing, opts.BackgroundNotifications)
+				app.background, err = mountShellTasks(ctx, h, shellOptions, policy, timing, opts.BackgroundNotifications, opts.BashEnvFile, opts.OnShellDirectory)
 				if err != nil {
 					return nil, err
 				}

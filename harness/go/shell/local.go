@@ -243,11 +243,13 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	resolved, err := e.Resolve(ExecRequest(spec))
+	envFile := spec.EnvFile
+	resolved, err := e.Resolve(ExecRequest{Command: spec.Command, Workdir: spec.Workdir, Timeout: spec.Timeout, StdoutMaxBytes: spec.StdoutMaxBytes, OnExpiry: spec.OnExpiry})
 	if err != nil {
 		return RunResult{}, err
 	}
 	spec = resolved
+	spec.EnvFile = envFile
 	result := RunResult{Timeout: spec.Timeout}
 	callerCause := func() error {
 		if spec.OnExpiry == ExpiryNone {
@@ -274,7 +276,7 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 		}
 		cancel(nil)
 	}()
-	argv := shellCommand(e.shell, spec.Command, runtime.GOOS)
+	argv := shellCommand(e.shell, commandWithEnvFile(spec), runtime.GOOS)
 	env := append([]string(nil), e.baseEnv...)
 	if e.sandbox != nil {
 		confined, err := e.sandbox.Confine(argv)
@@ -408,6 +410,21 @@ func (e *LocalExecutor) CheckConfinement(ctx context.Context) error {
 		return err
 	}
 	return ctx.Err()
+}
+
+func commandWithEnvFile(spec ExecSpec) string {
+	if spec.EnvFile == "" {
+		return spec.Command
+	}
+	info, err := os.Stat(spec.EnvFile)
+	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+		return spec.Command
+	}
+	return "set -a; . " + shellQuote(spec.EnvFile) + "; set +a\n" + spec.Command
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
 
 // Startup arguments are fixed; a tool request only supplies the command body.

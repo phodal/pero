@@ -34,6 +34,8 @@ type ExecSpec struct {
 	Timeout        time.Duration
 	StdoutMaxBytes int
 	OnExpiry       ExpiryPolicy
+	// EnvFile is sourced before Command. It is not part of the recorded command.
+	EnvFile string
 }
 
 type RunResult struct {

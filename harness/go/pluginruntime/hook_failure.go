@@ -16,7 +16,7 @@ func failureBlocks(hook claudehooks.Hook, event string) bool {
 		return true
 	}
 	switch event {
-	case "Stop", "SubagentStop", "TaskCompleted", "TeammateIdle", "Setup", "StopFailure", "PostModelSwitch", "MessageDisplay":
+	case "Stop", "SubagentStop", "TaskCompleted", "TeammateIdle", "Setup", "StopFailure", "PostModelSwitch", "MessageDisplay", "CwdChanged":
 		return false
 	}
 	if hook.Async {

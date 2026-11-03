@@ -16,6 +16,7 @@ go_library(
         "presenter.go",
         "promotion.go",
         "research_clone.go",
+        "shell_directory.go",
         "timing.go",
         "tools.go",
         "workspace_bind.go",

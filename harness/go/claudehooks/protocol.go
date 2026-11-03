@@ -100,6 +100,8 @@ type Input struct {
 	RequestedSchema      json.RawMessage `json:"requested_schema,omitempty"`
 	Action               string          `json:"action,omitempty"`
 	Content              json.RawMessage `json:"content,omitempty"`
+	OldCWD               string          `json:"old_cwd,omitempty"`
+	NewCWD               string          `json:"new_cwd,omitempty"`
 }
 
 type Decision struct {
@@ -452,7 +454,7 @@ func blockingEvent(event string) bool {
 
 func runControlEvent(event string) bool {
 	switch event {
-	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart", "FileChanged", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay":
+	case "PreCompact", "PostCompact", "SessionEnd", "Notification", "StopFailure", "InstructionsLoaded", "DirectoryAdded", "TaskCreated", "SubagentStart", "FileChanged", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay", "CwdChanged":
 		return false
 	}
 	return true

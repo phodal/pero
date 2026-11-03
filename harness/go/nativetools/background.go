@@ -82,6 +82,7 @@ type shellTask struct {
 	timing            bashTimingSelection
 	started           chan struct{}
 	processDone       chan struct{}
+	pwdMarker         string
 	lifecycle         sync.Mutex
 	deadline          *time.Timer
 	promotion         *shellTaskPromotion
@@ -197,6 +198,9 @@ type shellTasks struct {
 	timingPolicy  bashTimingPolicy
 	subagents     *harness.SubagentRegistry
 	notifications bool
+	envFile       func(*harness.Agent) string
+	onDirectory   func(*harness.Agent, string, string)
+	shellCWD      map[harness.SessionID]string
 	mu            sync.Mutex
 	closed        bool
 	fenced        map[*harness.Agent]bool
@@ -205,10 +209,10 @@ type shellTasks struct {
 	admission     sync.Mutex
 }
 
-func mountShellTasks(ctx context.Context, h *harness.Harness, options shell.LocalOptions, policy bashOutputPolicy, timing bashTimingPolicy, notifications bool) (*shellTasks, error) {
+func mountShellTasks(ctx context.Context, h *harness.Harness, options shell.LocalOptions, policy bashOutputPolicy, timing bashTimingPolicy, notifications bool, envFile func(*harness.Agent) string, onDirectory func(*harness.Agent, string, string)) (*shellTasks, error) {
 	foreground := options
 	options.Timeout, options.MaxTimeout = timing.backgroundDefault, timing.backgroundMaximum
-	owner := &shellTasks{options: options, foreground: foreground, outputPolicy: policy, timingPolicy: timing, subagents: h.Subagents(), notifications: notifications, tasks: make(map[string]*shellTask), fenced: make(map[*harness.Agent]bool)}
+	owner := &shellTasks{options: options, foreground: foreground, outputPolicy: policy, timingPolicy: timing, subagents: h.Subagents(), notifications: notifications, envFile: envFile, onDirectory: onDirectory, shellCWD: map[harness.SessionID]string{}, tasks: make(map[string]*shellTask), fenced: make(map[*harness.Agent]bool)}
 	definition := point.Define(point.Descriptor{ID: "harness/contribution/background-shell", Requires: []point.Requirement{point.Require(harness.AgentHooksKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		owner.run = run
 		if notifications {
@@ -305,7 +309,13 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 		return harness.ToolResult{}, err
 	}
 	task.executor = executor
-	spec, err := executor.Resolve(shell.ExecRequest{Command: input.Command, Workdir: request.Agent.Session().WorkingDirectory(), Timeout: selection.resolveTimeout, OnExpiry: shell.ExpiryNone})
+	workdir := request.Agent.Session().WorkingDirectory()
+	s.mu.Lock()
+	if saved := s.shellCWD[request.Agent.ID()]; saved != "" {
+		workdir = saved
+	}
+	s.mu.Unlock()
+	spec, err := executor.Resolve(shell.ExecRequest{Command: input.Command, Workdir: workdir, Timeout: selection.resolveTimeout, OnExpiry: shell.ExpiryNone})
 	if err != nil {
 		return harness.ToolResult{}, err
 	}
@@ -337,6 +347,9 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 			return s.waitForeground(ctx, request.Agent, id, handle)
 		}
 		return handle.Snapshot(harness.TaskNotReady), nil
+	}
+	if s.envFile != nil {
+		spec.EnvFile = s.envFile(request.Agent)
 	}
 	task.intent = shellTaskIntent{Version: 1, ID: "bash-" + rand.Text(), Owner: request.Agent.ID(), CallID: request.CallID, Turn: turn, Command: spec.Command, Workdir: spec.Workdir, Description: input.Description, TimeoutMS: intentTimeout.Milliseconds(), Background: input.RunInBackground, HostMode: s.timingPolicy.mode, NoDeadline: selection.noDeadline}
 	plan, err := shell.PlanOutputFile(options.CWD, ".pero/bash-output", task.intent.ID+".log", 0)
@@ -404,7 +417,10 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 		defer cancel(nil)
 		stop := context.AfterFunc(runCtx, func() { cancel(context.Canceled) })
 		defer stop()
-		result, runErr := executor.Run(taskCtx, spec)
+		runSpec := spec
+		runSpec.Command, task.pwdMarker = commandWithDirectoryMarker(options.Shell, spec.Command, task.intent.OutputFile)
+		result, runErr := executor.Run(taskCtx, runSpec)
+		s.observeShellDirectory(task, spec.Workdir)
 		close(task.processDone)
 		status := shellTaskCompleted
 		if errors.Is(context.Cause(taskCtx), errShellTaskStopped) {
