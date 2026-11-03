@@ -205,6 +205,15 @@ func (p *inProcessProvider) createChild(ctx context.Context, request harness.Sub
 	if err != nil {
 		return nil, nil, err
 	}
+	if memory, ok := ctx.Value(agentMemoryContextKey{}).(preparedAgentMemory); ok {
+		base := options.Configure
+		options.Configure = func(setup context.Context, run *point.Run, child *harness.Agent) error {
+			if err := base(setup, run, child); err != nil {
+				return err
+			}
+			return mountAgentMemory(setup, p.h, run, child, memory, true)
+		}
+	}
 	if configure, _ := ctx.Value(claudeChildConfigurationKey{}).(func(context.Context, *point.Run, *harness.Agent) error); configure != nil {
 		base := options.Configure
 		options.Configure = func(setup context.Context, run *point.Run, child *harness.Agent) error {

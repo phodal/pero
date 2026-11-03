@@ -48,6 +48,18 @@ They are explicitly non-resumable rather than restored without their policy.
 Managed structured output uses a fresh exact-child admission gate; its schema
 and capture belong to that activation, not a later resumed turn.
 
+Trusted `ClaudeOptions.MemoryPresentation: subagents.MemoryAsContext` keeps
+MEMORY.md text out of the system persona. Only memory usage rules remain there;
+the bounded UTF-8 body enters an attributed runtime user context with scope,
+path and a digest of the rendered body. Context refreshes from the selected
+memory file on requests and is restored after compaction. New children journal
+the typed binding, so managed continuation and JSONL reload preserve this mode
+even when the later launcher uses legacy defaults. Resume revalidates the
+binding against the current selected scope and path. A changed binding requires
+a new child. Existing children without this marker retain their original
+persona; no string-based migration is attempted. The zero option preserves
+legacy rendering for newly created children.
+
 Tests use real loopback HTTP, native Write/Read, permission denial, a queued
 message on an active child, managed structured output and one-shot boundaries.
 A JSONL test creates a file with one approval, destroys the original runtime,

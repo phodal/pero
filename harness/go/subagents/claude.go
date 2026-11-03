@@ -60,6 +60,9 @@ type ClaudeOptions struct {
 	MaxDepth, MaxActive int
 	Persistence         harness.SessionPersistence
 	Compaction          *harness.BasicCompactionConfig
+	// MemoryPresentation selects how newly created agent memory enters context.
+	// Zero preserves legacy persona rendering; MemoryAsContext is retained on resume.
+	MemoryPresentation MemoryPresentation
 	// InvocationOrigin supplies the current workflow's plugin namespace. It is
 	// trusted composition; model arguments cannot choose a resolution namespace.
 	InvocationOrigin func(*harness.Agent) string
@@ -115,20 +118,21 @@ type claudeTask struct {
 }
 
 type claudeDelegation struct {
-	h                 *harness.Harness
-	run               *point.Run
-	facade            *harness.SubagentFacade
-	definitions       map[string]AgentDefinition
-	readOnlyBuiltins  map[string]bool
-	routes            map[string]ModelRoute
-	maxDepth          int
-	invocationOrigin  func(*harness.Agent) string
-	taskLookup        harness.TaskLookup
-	backgroundNotices bool
-	isolatedWorktree  func(context.Context, *harness.Agent) (string, func(), error)
-	skillText         func(context.Context, string) (string, error)
-	mu                sync.Mutex
-	tasks             map[harness.SessionID]*claudeTask
+	h                  *harness.Harness
+	run                *point.Run
+	facade             *harness.SubagentFacade
+	definitions        map[string]AgentDefinition
+	readOnlyBuiltins   map[string]bool
+	routes             map[string]ModelRoute
+	maxDepth           int
+	invocationOrigin   func(*harness.Agent) string
+	taskLookup         harness.TaskLookup
+	backgroundNotices  bool
+	isolatedWorktree   func(context.Context, *harness.Agent) (string, func(), error)
+	skillText          func(context.Context, string) (string, error)
+	memoryPresentation MemoryPresentation
+	mu                 sync.Mutex
+	tasks              map[harness.SessionID]*claudeTask
 }
 
 // MountClaude mounts real Agent/TaskOutput/TaskStop calls over the existing
@@ -137,6 +141,9 @@ type claudeDelegation struct {
 func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDefinition, options ClaudeOptions) (*ClaudeContribution, error) {
 	if h == nil || h.Subagents() == nil {
 		return nil, errors.New("subagents: Claude delegation requires enabled subagents")
+	}
+	if options.MemoryPresentation != "" && options.MemoryPresentation != MemoryAsContext {
+		return nil, errors.New("subagents: unsupported memory presentation")
 	}
 	if options.MaxDepth == 0 {
 		options.MaxDepth = 1
@@ -148,7 +155,7 @@ func MountClaude(ctx context.Context, h *harness.Harness, definitions []AgentDef
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	service := &claudeDelegation{h: h, maxDepth: options.MaxDepth, invocationOrigin: options.InvocationOrigin, taskLookup: options.TaskLookup, backgroundNotices: options.BackgroundNotifications, isolatedWorktree: options.IsolatedWorktree, skillText: options.SkillText, definitions: make(map[string]AgentDefinition), readOnlyBuiltins: make(map[string]bool), routes: make(map[string]ModelRoute), tasks: make(map[harness.SessionID]*claudeTask)}
+	service := &claudeDelegation{h: h, maxDepth: options.MaxDepth, invocationOrigin: options.InvocationOrigin, taskLookup: options.TaskLookup, backgroundNotices: options.BackgroundNotifications, isolatedWorktree: options.IsolatedWorktree, skillText: options.SkillText, memoryPresentation: options.MemoryPresentation, definitions: make(map[string]AgentDefinition), readOnlyBuiltins: make(map[string]bool), routes: make(map[string]ModelRoute), tasks: make(map[harness.SessionID]*claudeTask)}
 	for _, definition := range definitions {
 		if strings.TrimSpace(definition.Name) == "" || strings.TrimSpace(definition.Description) == "" || strings.TrimSpace(definition.Instructions) == "" {
 			return nil, errors.New("subagents: Claude agent requires name, description and instructions")
