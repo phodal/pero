@@ -13,6 +13,10 @@ import (
 type workspaceKey struct{}
 
 var boundWorkspaces sync.Map
+var boundWorkspaceReferences = struct {
+	sync.Mutex
+	counts map[string]int
+}{counts: make(map[string]int)}
 
 // BindIsolatedWorkspace opens a workspace for one detached Git worktree.
 // The returned path is the canonical root sessions must use as their cwd.
@@ -21,12 +25,29 @@ func BindIsolatedWorkspace(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	boundWorkspaces.Store(files.Path(), files)
+	boundWorkspaceReferences.Lock()
+	defer boundWorkspaceReferences.Unlock()
+	if existing, ok := boundWorkspaces.Load(files.Path()); ok {
+		_ = files.Close()
+		if err := existing.(*fstools.Workspace).CheckCWD(files.Path()); err != nil {
+			return "", err
+		}
+	} else {
+		boundWorkspaces.Store(files.Path(), files)
+	}
+	boundWorkspaceReferences.counts[files.Path()]++
 	return files.Path(), nil
 }
 
 // ReleaseIsolatedWorkspace closes a workspace opened by BindIsolatedWorkspace.
 func ReleaseIsolatedWorkspace(path string) {
+	boundWorkspaceReferences.Lock()
+	defer boundWorkspaceReferences.Unlock()
+	if count := boundWorkspaceReferences.counts[path]; count > 1 {
+		boundWorkspaceReferences.counts[path] = count - 1
+		return
+	}
+	delete(boundWorkspaceReferences.counts, path)
 	value, ok := boundWorkspaces.LoadAndDelete(path)
 	if !ok {
 		return

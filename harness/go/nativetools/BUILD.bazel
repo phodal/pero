@@ -31,6 +31,7 @@ go_library(
         "timing.go",
         "tools.go",
         "workspace_bind.go",
+        "worktree.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/nativetools",
     visibility = ["//visibility:public"],
@@ -69,6 +70,7 @@ go_test(
         "timing_test.go",
         "tools_test.go",
         "windows_runtime_test.go",
+        "worktree_test.go",
     ],
     embed = [":nativetools"],
     deps = [

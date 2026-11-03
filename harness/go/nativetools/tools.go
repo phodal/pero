@@ -356,6 +356,9 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 	if err := mountDocumentTools(ctx, h, app, opts.PDFRendererPath, opts.ClaudeTools); err != nil {
 		return nil, err
 	}
+	if err := mountRootWorktreeTools(ctx, h, app, opts); err != nil {
+		return nil, err
+	}
 	if err := MountTerminals(ctx, h, app, opts); err != nil {
 		return nil, err
 	}
