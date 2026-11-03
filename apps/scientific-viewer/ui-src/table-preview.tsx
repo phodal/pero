@@ -107,8 +107,8 @@ export function TablePreview({ asset }: { asset: Asset }) {
     </div>
     {mode === 'chart' ? <>
       <div className="numeric-fields">
-        <label htmlFor={`${fieldId}-x`}>X axis<select id={`${fieldId}-x`} value={xColumn} onChange={event => setXColumn(Number(event.target.value))}>{table.headers.map((_, index) => <option key={index} value={index}>{header(index)}</option>)}</select></label>
-        <label htmlFor={`${fieldId}-y`}>Y axis<select id={`${fieldId}-y`} value={yColumn} onChange={event => setYColumn(Number(event.target.value))}>{table.headers.map((_, index) => <option key={index} value={index}>{header(index)}</option>)}</select></label>
+        <label htmlFor={`${fieldId}-x`}>X axis<select id={`${fieldId}-x`} aria-label="X axis" value={xColumn} onChange={event => setXColumn(Number(event.target.value))}>{table.headers.map((_, index) => <option key={index} value={index}>{header(index)}</option>)}</select></label>
+        <label htmlFor={`${fieldId}-y`}>Y axis<select id={`${fieldId}-y`} aria-label="Y axis" value={yColumn} onChange={event => setYColumn(Number(event.target.value))}>{table.headers.map((_, index) => <option key={index} value={index}>{header(index)}</option>)}</select></label>
       </div>
       <NumericChart points={points} xLabel={header(xColumn)} yLabel={header(yColumn)} />
     </> : <>
