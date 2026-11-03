@@ -38,6 +38,8 @@ type HookOptions struct {
 	// AnswerElicitation is the user dialog. It runs only when no Elicitation
 	// hook already answered. Nil declines the request.
 	AnswerElicitation func(context.Context, claudehooks.Input) (claudehooks.Decision, error)
+	// ReloadSkills re-reads the authorized skill roots after SessionStart.
+	ReloadSkills func(context.Context) error
 }
 
 type HookApp struct {
@@ -425,10 +427,7 @@ func (app *HookApp) prepare(ctx context.Context, input *harness.StepInput, state
 		if decision.AdditionalContext != "" {
 			input.Messages = append(input.Messages, hookMessage("SessionStart", decision.AdditionalContext))
 		}
-		if decision.WatchPaths != nil {
-			app.setDynamicWatches(input.Agent, decision.WatchPaths)
-		}
-		if err := app.storeSessionTitle(input.Agent, source, decision.SessionTitle); err != nil {
+		if err := app.finishSessionStart(ctx, input.Agent, source, decision); err != nil {
 			return err
 		}
 		state.started = true

@@ -59,6 +59,8 @@ type Catalog struct {
 	openFiles  func(string, []string, int64) (*fstools.ScopedTextFiles, error)
 	afterRead  func()
 	mu         sync.Mutex
+	roots      []string
+	rescanning bool
 	entries    map[string]entry
 	resources  map[selectedSource]selectedResource
 	ownedFiles []*fstools.ScopedTextFiles
@@ -98,11 +100,35 @@ func Open(ctx context.Context, roots []string) (_ *Catalog, err error) {
 			return nil, errors.New("skills: duplicate root")
 		}
 		seen[absolute] = true
+		c.roots = append(c.roots, absolute)
 		if err := c.scan(ctx, absolute, &visited); err != nil {
 			return nil, err
 		}
 	}
 	return c, nil
+}
+
+// Rescan reads the same authorized roots again and adds skill directories that
+// were not present at launch. Definitions already in the catalog stay as they
+// were authorized.
+func (c *Catalog) Rescan(ctx context.Context) error {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return errors.New("skills: catalog is closed")
+	}
+	c.rescanning = true
+	defer func() { c.rescanning = false }()
+	visited := 0
+	for _, root := range c.roots {
+		if err := c.scan(ctx, root, &visited); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func (c *Catalog) scan(ctx context.Context, path string, visited *int) error {
 	before, err := os.Lstat(path)
@@ -175,6 +201,9 @@ func (c *Catalog) scan(ctx context.Context, path string, visited *int) error {
 		}
 		if _, exists := c.entries[definition.Name]; exists {
 			files.Close()
+			if c.rescanning {
+				continue
+			}
 			return fmt.Errorf("skills: duplicate name %q; no root takes precedence", definition.Name)
 		}
 		definition.Digest = text.Digest

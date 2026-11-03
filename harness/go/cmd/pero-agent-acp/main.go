@@ -264,7 +264,12 @@ func run() (resultErr error) {
 		}
 		// Command hooks stay host processes (Claude parity). The Bash sandbox
 		// still confines model shell calls independently.
-		pluginHooks, err = pluginruntime.MountHooks(ctx, h, packages, pluginruntime.HookOptions{Shell: pluginShell, Environment: pluginEnvironment, StateDirectory: stateRoot, Retain: true, RunAgent: func(ctx context.Context, parent *harness.Agent, prompt, model string) (string, error) {
+		pluginHooks, err = pluginruntime.MountHooks(ctx, h, packages, pluginruntime.HookOptions{Shell: pluginShell, Environment: pluginEnvironment, StateDirectory: stateRoot, Retain: true, ReloadSkills: func(ctx context.Context) error {
+			if skillCatalog == nil {
+				return nil
+			}
+			return skillCatalog.Rescan(ctx)
+		}, RunAgent: func(ctx context.Context, parent *harness.Agent, prompt, model string) (string, error) {
 			if pluginAgents == nil {
 				return "", errors.New("agent hooks require mounted subagents")
 			}

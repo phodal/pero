@@ -48,6 +48,33 @@ func fixture(t *testing.T, root, name, text string) string {
 	}
 	return path
 }
+func TestCatalogRescanAddsANewSkillAndKeepsTheAuthorizedOne(t *testing.T) {
+	requireCatalogPlatform(t)
+	root := canonicalTempDir(t)
+	fixture(t, root, "alpha", "")
+	catalog, err := Open(t.Context(), []string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer catalog.Close()
+	rows, err := catalog.List(t.Context())
+	if err != nil || len(rows) != 1 || rows[0].Name != "alpha" {
+		t.Fatalf("launch catalog %+v %v", rows, err)
+	}
+	authorized := rows[0].Digest
+	if err := os.WriteFile(filepath.Join(root, "alpha", "SKILL.md"), []byte("---\nname: alpha\ndescription: Replaced\n---\nchanged\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fixture(t, root, "beta", "")
+	if err := catalog.Rescan(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = catalog.List(t.Context())
+	if err != nil || len(rows) != 2 || rows[0].Name != "alpha" || rows[0].Digest != authorized || rows[1].Name != "beta" {
+		t.Fatalf("rescanned catalog %+v %v", rows, err)
+	}
+}
+
 func TestCatalogReadAndChange(t *testing.T) {
 	requireCatalogPlatform(t)
 	root := canonicalTempDir(t)

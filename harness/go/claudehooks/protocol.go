@@ -128,6 +128,8 @@ type Decision struct {
 	Content json.RawMessage
 	// SessionTitle is the title a SessionStart hook asked to store.
 	SessionTitle string
+	// ReloadSkills asks the host to re-read its authorized skill roots.
+	ReloadSkills bool
 }
 
 var ErrNonBlocking = errors.New("claudehooks: non-blocking hook error")
@@ -319,6 +321,9 @@ func (wire output) decision(event string) (Decision, error) {
 		if event == "SessionStart" && specific.SessionTitle != "" {
 			result.SessionTitle = specific.SessionTitle
 		}
+		if event == "SessionStart" && specific.ReloadSkills != nil && *specific.ReloadSkills {
+			result.ReloadSkills = true
+		}
 		if (event == "FileChanged" || event == "CwdChanged" || event == "SessionStart") && specific.WatchPaths != nil {
 			result.WatchPaths = make([]string, len(specific.WatchPaths))
 			copy(result.WatchPaths, specific.WatchPaths)
@@ -415,6 +420,7 @@ func Merge(decisions []Decision) (Decision, error) {
 		if decision.SessionTitle != "" {
 			merged.SessionTitle = decision.SessionTitle
 		}
+		merged.ReloadSkills = merged.ReloadSkills || decision.ReloadSkills
 		if len(decision.UpdatedToolOutput) > 0 {
 			if len(merged.UpdatedToolOutput) > 0 && !equalJSON(merged.UpdatedToolOutput, decision.UpdatedToolOutput) {
 				return Decision{}, errors.New("claudehooks: conflicting updatedToolOutput from multiple hooks")
