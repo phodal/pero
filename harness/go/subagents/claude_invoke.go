@@ -104,7 +104,11 @@ func (s *claudeDelegation) start(ctx context.Context, parent *harness.Agent, inp
 	if strings.TrimSpace(input.Description) == "" {
 		input.Description = definition.Description
 	}
-	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, MaxSteps: input.MaxSteps, OutputSchema: input.OutputSchema, ReasoningEffort: harness.ReasoningEffort(input.Effort)}
+	effort := input.Effort
+	if effort == "" {
+		effort = definition.Effort
+	}
+	child := harness.SubagentRequest{Parent: parent, Prompt: input.Prompt, Label: input.Description, Persona: definition.Instructions, MaxDepth: s.maxDepth, MaxSteps: input.MaxSteps, OutputSchema: input.OutputSchema, ReasoningEffort: harness.ReasoningEffort(effort)}
 	var cleanup func()
 	if input.Isolation != "" {
 		if input.Isolation != "worktree" {

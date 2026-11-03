@@ -195,3 +195,37 @@ func TestClaudeTrustedInvocationCancellationJoinsChild(t *testing.T) {
 		t.Fatal("trusted invocation did not cancel and join its child")
 	}
 }
+
+func TestAgentDefinitionEffortReachesTheChildRequest(t *testing.T) {
+	var saw harness.ReasoningEffort
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		saw = request.ReasoningEffort
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+	})
+	ctx := t.Context()
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = h.Dispose(cleanup)
+		_ = h.Drain(cleanup)
+	})
+	if _, err := MountClaude(ctx, h, []AgentDefinition{{Name: "reviewer", Description: "Review", Instructions: "Review.", Effort: "turbo"}}, ClaudeOptions{}); err == nil || !strings.Contains(err.Error(), "effort") {
+		t.Fatalf("invalid effort err=%v", err)
+	}
+	claude, err := MountClaude(ctx, h, []AgentDefinition{{Name: "reviewer", Description: "Review", Instructions: "Review.", Effort: "high"}}, ClaudeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "effort-parent", CWD: t.TempDir(), Provider: "fixture", Model: "parent-model", MaxSteps: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := claude.Invoke(ctx, parent, ClaudeInvocation{Definition: "reviewer", Prompt: "look"})
+	if err != nil || result.Status != harness.SubagentCompleted || saw != "high" {
+		t.Fatalf("result=%+v err=%v effort=%q", result, err, saw)
+	}
+}

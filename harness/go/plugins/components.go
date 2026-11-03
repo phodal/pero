@@ -340,9 +340,9 @@ func validSkillEffort(effort string) bool {
 
 func knownComponentField(kind ComponentKind, key string) bool {
 	switch key {
-	case "name", "description", "model", "version", "license", "compatibility", "metadata", "homepage", "platforms":
+	case "name", "description", "model", "effort", "version", "license", "compatibility", "metadata", "homepage", "platforms":
 		return true
-	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background", "effort":
+	case "hooks", "argument-hint", "allowed-tools", "user-invocable", "disable-model-invocation", "context", "agent", "background":
 		return kind != ComponentAgent
 	case "tools", "color":
 		return kind == ComponentAgent
