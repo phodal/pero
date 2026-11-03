@@ -130,3 +130,10 @@ func TestConnectionObservationsReconnectAndCleanup(t *testing.T) {
 		t.Fatalf("duplicate connect: %d", attempts)
 	}
 }
+
+func TestWorkspaceRootURISkipsRelativeDirectories(t *testing.T) {
+	roots := workspaceRoots([]string{"/tmp/workspace", "relative", ""})
+	if len(roots) != 1 || roots[0].URI != "file:///tmp/workspace" || roots[0].Name != "workspace" {
+		t.Fatalf("roots = %+v", roots)
+	}
+}

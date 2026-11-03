@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,6 +32,8 @@ type ConnectionOptions struct {
 	Elicit func(context.Context, ElicitationRequest, any) (ElicitationReply, error)
 	// ElicitationCompleted receives notifications/elicitation/complete.
 	ElicitationCompleted func(context.Context, string, any)
+	// Roots are absolute workspace directories advertised to the server.
+	Roots []string
 }
 
 type mcpGeneration struct {
@@ -98,6 +102,7 @@ type mcpConnectionSupervisor struct {
 	elicit           func(context.Context, ElicitationRequest, any) (ElicitationReply, error)
 	completed        func(context.Context, string, any)
 	calls            callStack
+	roots            []string
 
 	nextGeneration   uint64
 	activeGeneration atomic.Uint64
@@ -120,7 +125,7 @@ func MountConnection(ctx context.Context, run *point.Run, options ConnectionOpti
 	supervisor := &mcpConnectionSupervisor{
 		ownerRun: run, replaceTools: replaceTools, serverName: options.ServerName,
 		policy: options.Reconnect, toolCallTimeout: options.ToolCallTimeout,
-		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources, observe: options.Observe, elicit: options.Elicit, completed: options.ElicitationCompleted,
+		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources, observe: options.Observe, elicit: options.Elicit, completed: options.ElicitationCompleted, roots: append([]string(nil), options.Roots...),
 		changes: make(chan uint64, 8), down: make(chan mcpDownEvent, 8), stop: make(chan struct{}),
 	}
 	retrySafe, initialErr := supervisor.connect(ctx)
@@ -187,6 +192,14 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 			return elicit(ctx, s.elicit, request.Params, caller)
 		}
 	}
+	if len(s.roots) > 0 {
+		if clientOptions.Capabilities == nil {
+			clientOptions.Capabilities = &mcp.ClientCapabilities{}
+		}
+		if clientOptions.Capabilities.RootsV2 == nil {
+			clientOptions.Capabilities.RootsV2 = &mcp.RootCapabilities{}
+		}
+	}
 	if s.completed != nil {
 		clientOptions.ElicitationCompleteHandler = func(ctx context.Context, request *mcp.ElicitationCompleteNotificationRequest) {
 			caller := ToolCaller(ctx)
@@ -201,6 +214,9 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 		}
 	}
 	client := mcp.NewClient(&mcp.Implementation{Name: "point-harness", Version: "0.1.0"}, clientOptions)
+	if roots := workspaceRoots(s.roots); len(roots) > 0 {
+		client.AddRoots(roots...)
+	}
 	session, err := client.Connect(connectionCtx, trackedTransport, nil)
 	if err != nil {
 		cancelConnection()
@@ -223,6 +239,17 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 	s.publishResourceSession(generation.session)
 	s.connectedAt = time.Now()
 	return true, nil
+}
+
+func workspaceRoots(directories []string) []*mcp.Root {
+	var roots []*mcp.Root
+	for _, directory := range directories {
+		if directory == "" || !filepath.IsAbs(directory) {
+			continue
+		}
+		roots = append(roots, &mcp.Root{URI: (&url.URL{Scheme: "file", Path: filepath.ToSlash(directory)}).String(), Name: "workspace"})
+	}
+	return roots
 }
 
 func (s *mcpConnectionSupervisor) publishResourceSession(session *mcp.ClientSession) {

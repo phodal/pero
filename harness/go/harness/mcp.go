@@ -112,10 +112,15 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 		Enabled: config.resolvedReconnect.enabled, InitialDelay: config.resolvedReconnect.initialDelay,
 		MaxDelay: config.resolvedReconnect.maxDelay, MaxAttempts: config.resolvedReconnect.maxAttempts,
 	}
+	var roots []string
+	if filepath.IsAbs(config.CWD) {
+		roots = []string{config.CWD}
+	}
 	return harnessmcp.MountConnection(ctx, run, harnessmcp.ConnectionOptions{
 		ServerName: config.Name, Reconnect: policy, ToolCallTimeout: config.resolvedToolCallTimeout,
 		FailOnStartupError: config.FailOnStartupError, TransportFactory: transportFactory, ListTools: config.testListTools,
 		Resources: directory, Observe: config.Observe, Elicit: config.Elicit, ElicitationCompleted: config.ElicitationCompleted,
+		Roots: roots,
 	}, func(owner *point.Run, generation string, definitions []harnessmcp.Tool) (point.Dispose, error) {
 		tools := make([]Tool, len(definitions))
 		for i, definition := range definitions {
