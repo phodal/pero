@@ -1,5 +1,31 @@
 # Scientific Viewer and website molecular illustrations
 
+## Imported-file inspection redesign (2026-11-03)
+
+This change replaces the imported molecule stack with a selectable structure
+grid and SDK Split property inspector. Numeric files open a labeled Chart when
+possible, retain missing-value discontinuities and individual points, and expose
+every source row through Table pagination. Imports, source hashes, local-copy
+removal and the real RDKit backend retain their existing ownership.
+
+Local checks: 16 App tests, 8 Python backend tests, 2 production-build checks and
+the App typecheck pass. A real HTTP fixture also returned RDKit 2026.09.1 SVGs
+for all three solvent records; no scientific responses were mocked.
+
+The focused browser acceptance is `tests/e2e/scientific-viewer-browser.mjs`.
+It uses the production bundle and SDK with real IndexedDB and RDKit; only the
+Desktop HTTP/context transport is replaced. CI saves screenshots, the engine
+version, bundle SHA and check results under `test-results/scientific-viewer-browser/`.
+Browser visual acceptance is pending that run: the current cloud browser blocked
+the local preview URL and the local Chromium download did not produce a valid
+archive. No local browser pass is claimed.
+
+The full Electron/GPUI, PDF/Agent/export flow and signed package have not been
+rerun for this change. The earlier Native/browser evidence below concerns the
+default illustrative molecular explorer, not this imported-file redesign.
+
+## Earlier default-explorer verification
+
 2026-11-03, macOS development checkout based on `b2d35d24` with the scoped
 working-tree changes. L0 build/unit checks and L1 Native/browser inspection;
 no signed release, remote publication or scientific-validity claim.
