@@ -285,3 +285,17 @@ test('ordinary fast contracts cover Product shutdown without native Electron', (
   assert.equal(job.steps[regression]['continue-on-error'], undefined);
   assert.match(job.steps[regression].run, /^node --test /);
 });
+
+
+test('fast reader contracts install their locked Paper runtime before testing', () => {
+  const steps = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.generated.steps;
+  const rootInstall = steps.findIndex(step => step.run === 'npm ci');
+  const paperInstall = steps.findIndex(step => step.run === 'npm ci --prefix apps/paper-agent --ignore-scripts');
+  const contracts = steps.findIndex(step => step.run?.includes('node --test scripts/ci/*.test.mjs'));
+  assert.ok(rootInstall >= 0 && paperInstall > rootInstall && contracts > paperInstall);
+  const pkg = JSON.parse(readFileSync('apps/paper-agent/package.json', 'utf8'));
+  const lock = JSON.parse(readFileSync('apps/paper-agent/package-lock.json', 'utf8'));
+  for (const name of ['@embedpdf/plugin-selection', '@embedpdf/models']) {
+    assert.equal(lock.packages[`node_modules/${name}`].version, pkg.dependencies[name]);
+  }
+});
