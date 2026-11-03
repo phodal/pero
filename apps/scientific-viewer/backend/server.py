@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import signal
+import socket
+import time
 import subprocess
 import sys
 import threading
@@ -112,11 +114,33 @@ def handler(runner, secret):
             self.end_headers()
             self.wfile.write(body)
 
+        def reject(self, status, value):
+            # Send the response and a FIN before discarding any unread request
+            # bytes. Closing a socket with unread data can reset the response,
+            # especially on Windows. Neither the drain nor its wait is unbounded.
+            self.reply(status, value)
+            try:
+                self.wfile.flush()
+                self.connection.shutdown(socket.SHUT_WR)
+                deadline = time.monotonic() + 1
+                remaining = MAX_REQUEST
+                while remaining:
+                    timeout = deadline - time.monotonic()
+                    if timeout <= 0:
+                        break
+                    self.connection.settimeout(timeout)
+                    chunk = self.rfile.read1(min(65536, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+            except (OSError, ValueError):
+                pass
+
         def do_POST(self):
             if not secret or not hmac.compare_digest(secret.encode(), self.headers.get('X-Pero-App-Token', '').encode()):
-                return self.reply(401, {'error': 'Host authentication required'})
+                return self.reject(401, {'error': 'Host authentication required'})
             if self.path != '/api/molecules':
-                return self.reply(404, {'error': 'Route not found'})
+                return self.reject(404, {'error': 'Route not found'})
             try:
                 self.connection.settimeout(20)
                 if self.headers.get('Transfer-Encoding') or self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
@@ -129,7 +153,7 @@ def handler(runner, secret):
                     raise ValueError('Incomplete request')
                 return self.reply(*runner.run(raw))
             except (ValueError, TimeoutError) as error:
-                return self.reply(400, {'error': str(error)})
+                return self.reject(400, {'error': str(error)})
     return Handler
 
 
