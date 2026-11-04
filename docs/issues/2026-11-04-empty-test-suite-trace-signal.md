@@ -36,3 +36,19 @@ heuristic evidence; the external judge owns benchmark acceptance.
 Verification: one acceptance table launches real unittest processes for a
 passing, failing, erroneous, empty and skipped suite. Only the passing nonempty
 suite is accepted; test counts and actual process status remain recorded.
+
+## Follow-up: uppercase printed exit marker
+
+The DSH-guided React rerun printed `EXIT=1` after a local script's
+IndentationError, while the trailing echo made the Bash invocation exit zero.
+The existing `printed_nonzero_exit` signal recognized only lowercase `exit=`;
+without a standard traceback this call was absent from automatic candidates.
+Match the marker's name without case sensitivity, retain the nonzero-only and
+whole-line bounds, and keep it a review candidate. No tool status or benchmark
+verdict changes. Preserve the original run's report and produce a separate
+offline reanalysis.
+
+All 18 Session reporter tests pass. The existing evidence table now covers
+lowercase, uppercase and mixed-case nonzero markers, plus successful and quoted
+controls; successful tool status is preserved. The new offline analysis finds
+the previously missed React call, with the exact original command/output.
