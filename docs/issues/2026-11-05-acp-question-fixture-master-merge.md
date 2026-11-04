@@ -24,4 +24,11 @@ ignored test and no failures. This includes the real Node-process question
 and ACP lifecycle cases. An initial filename-based filter selected zero tests
 and is not counted as verification. The compiler also reports a local
 `rust-objcopy` debug-stripping warning; it does not prevent compilation or
-execution. Hosted Linux verification remains separate.
+execution.
+
+Hosted Linux run `41904997858`, job `126837511823`, confirms the same 109
+runtime tests pass with one ignored and no failures at `1de9c25f`. The other
+Rust package and remote test groups also pass. The containing core job remains
+red because the Paper PDF fixtures lack `scope.onBeginSelection` and the
+research import backend cannot import `view`; this repair does not address
+those separate failures.
