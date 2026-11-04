@@ -14,7 +14,8 @@
     "hpc",
     "scientific-viewer",
     "connectors",
-    "automations"
+    "automations",
+    "environments"
   ],
   "required": [
     "insights",
