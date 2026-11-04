@@ -44,11 +44,15 @@ pub(crate) struct NativeApps {
     next: Arc<AtomicU64>,
     events: async_channel::Sender<HostEvent>,
     client: reqwest::blocking::Client,
+    #[cfg(feature = "native-probe")]
+    docling_probe_origins: Arc<Mutex<Vec<Value>>>,
 }
 impl NativeApps {
     pub fn new(host: mpsc::Sender<String>, events: async_channel::Sender<HostEvent>, connectors: Option<std::sync::Weak<crate::native_connectors::NativeConnectors>>) -> Self {
         Self {
             docling: Default::default(),
+            #[cfg(feature = "native-probe")]
+            docling_probe_origins: Default::default(),
             connectors,
             host,
             events,
@@ -215,6 +219,66 @@ impl NativeApps {
             let _ = this.events.send_blocking(event);
         });
     }
+    // WKURLSchemeTask does not supply reliable frame provenance. macOS IPC does:
+    // Wry derives request.uri from WKScriptMessage.frameInfo().request().URL.
+    // Never use a page-supplied origin/name, or this fallback on Linux/Android,
+    // where Wry documents that iframe IPC instead carries the main-frame URL.
+    #[cfg(any(target_os = "macos", test))]
+    pub(super) fn docling_from_frame(&self, owner: &str, request: Request<String>, is_live: impl Fn() -> bool, cancel_queued: impl Fn()) -> Option<Value> {
+        if request.body().len() > 16000 { return None; }
+        let value: Value = serde_json::from_str(request.body()).ok()?;
+        let id = value["id"].as_str().filter(|id| !id.is_empty() && id.len() <= 80 && id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-'))?.to_owned();
+        let result = (|| -> anyhow::Result<Response<Vec<u8>>> {
+            let uri = url::Url::parse(&request.uri().to_string())?;
+            if owner != "paper-agent" || uri.scheme() != "pero-app" || uri.host_str() != Some("paper-agent")
+                || !uri.username().is_empty() || uri.password().is_some() || uri.port().is_some() {
+                return Ok(Response::builder().status(403).body(b"Paper frame required".to_vec())?);
+            }
+            #[derive(Deserialize)]
+            #[serde(tag = "type", deny_unknown_fields)]
+            enum Call {
+                #[serde(rename = "pero:docling:request")]
+                Request { #[serde(rename = "id")] _id: String, body: String },
+            }
+            let Ok(Call::Request { _id: _, body }) = serde_json::from_value::<Call>(value) else {
+                return Ok(Response::builder().status(400).body(b"Invalid Docling request".to_vec())?);
+            };
+            self.docling_response("POST", body.as_bytes(), is_live, cancel_queued)
+        })();
+        let response = result.unwrap_or_else(|_| Response::builder().status(503).body(b"Optional OCR setup unavailable".to_vec()).unwrap());
+        Some(json!({"type":"pero:docling:result","id":id,"status":response.status().as_u16(),"body":String::from_utf8_lossy(response.body())}))
+    }
+    #[cfg(feature = "native-probe")]
+    pub(super) fn docling_probe_origins(&self) -> Value {
+        json!(self.docling_probe_origins.lock().unwrap().clone())
+    }
+    fn docling_response(&self, method: &str, body: &[u8], is_live: impl Fn() -> bool, cancel_queued: impl Fn()) -> anyhow::Result<Response<Vec<u8>>> {
+        if method != "POST" { return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?); }
+        if body.len() > 4096 { return Ok(Response::builder().status(413).body(b"Request too large".to_vec())?); }
+        let input = match serde_json::from_slice::<crate::native_docling::Input>(body) {
+            Ok(input) => input,
+            Err(_) => return Ok(Response::builder().status(400).body(b"Invalid Docling component request".to_vec())?),
+        };
+        if matches!(input, crate::native_docling::Input::Cancel {}) {
+            cancel_queued();
+        } else if !is_live() {
+            return Ok(Response::builder().status(410).body(b"Paper document closed".to_vec())?);
+        }
+        let result = self.docling.apply(input,
+            |operation| self.request::<Value>("doclingruntime", json!({"name":"paper-agent","request":operation})).map_err(|error| error.to_string()),
+            |prompt| {
+                if !is_live() { return Err("Paper document closed".into()); }
+                let mut event = HostEvent::new("native_docling_confirmation", None, String::new());
+                event.data = serde_json::to_value(prompt).expect("Native confirmation");
+                self.events.send_blocking(event).map_err(|error| error.to_string())
+            },
+            |id| self.dismiss_docling(id),
+        );
+        return Ok(match result {
+            Ok(value) => Response::builder().header("Content-Type", "application/json").header("Cache-Control", "no-store").body(serde_json::to_vec(&value)?)?,
+            Err(_) => Response::builder().status(503).body(b"Optional OCR setup unavailable. Check status or continue manually.".to_vec())?,
+        });
+    }
     pub fn serve(&self, name: &str, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
         match self.respond(name, request) {
             Ok(response) => response,
@@ -251,28 +315,18 @@ impl NativeApps {
         let method = request.method();
         let body = request.body();
         if path == "/host/docling-runtime" {
+            #[cfg(feature = "native-probe")]
+            {
+                let origin = request.headers().get("Origin");
+                let mut observations = self.docling_probe_origins.lock().unwrap();
+                if observations.len() < 8 {
+                    observations.push(json!({"present":origin.is_some(),"value":origin.and_then(|value| value.to_str().ok())}));
+                }
+            }
             if name != "paper-agent" || request.headers().get("Origin").is_none_or(|origin| origin != "pero-app://paper-agent") {
                 return Ok(Response::builder().status(403).body(b"Paper origin required".to_vec())?);
             }
-            if method != "POST" { return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?); }
-            if body.len() > 4096 { return Ok(Response::builder().status(413).body(b"Request too large".to_vec())?); }
-            let input = match serde_json::from_slice::<crate::native_docling::Input>(body) {
-                Ok(input) => input,
-                Err(_) => return Ok(Response::builder().status(400).body(b"Invalid Docling component request".to_vec())?),
-            };
-            let result = self.docling.apply(input,
-                |operation| self.request::<Value>("doclingruntime", json!({"name":"paper-agent","request":operation})).map_err(|error| error.to_string()),
-                |prompt| {
-                    let mut event = HostEvent::new("native_docling_confirmation", None, String::new());
-                    event.data = serde_json::to_value(prompt).expect("Native confirmation");
-                    self.events.send_blocking(event).map_err(|error| error.to_string())
-                },
-                |id| self.dismiss_docling(id),
-            );
-            return Ok(match result {
-                Ok(value) => Response::builder().header("Content-Type", "application/json").header("Cache-Control", "no-store").body(serde_json::to_vec(&value)?)?,
-                Err(_) => Response::builder().status(503).body(b"Optional OCR setup unavailable. Check status or continue manually.".to_vec())?,
-            });
+            return self.docling_response(method.as_str(), body, || true, || {});
         }
         if path == "/host/environment" {
             if method != "POST" {
@@ -486,6 +540,95 @@ mod docling_tests {
             if let Some(origin) = origin { request = request.header("Origin", origin); }
             assert_eq!(apps.serve(name, request.body(body).unwrap()).status(), status);
             assert!(requests.try_recv().is_err());
+        }
+    }
+
+    fn ipc_request(uri: &str, body: Value) -> Request<String> {
+        Request::builder().uri(uri).body(json!({"type":"pero:docling:request","id":"request-1","body":body.to_string()}).to_string()).unwrap()
+    }
+
+    #[test]
+    fn frame_transport_checks_native_owner_and_webkit_frame_not_body_claims() {
+        let (host, requests) = mpsc::channel();
+        let (events, _) = async_channel::unbounded();
+        let apps = NativeApps::new(host, events, None);
+        let live = AtomicBool::new(true);
+        for (owner, uri, body, status) in [
+            ("other-app", "pero-app://paper-agent/dist/index.html", json!({"operation":"status"}), 403),
+            ("paper-agent", "https://arxiv.org/", json!({"operation":"status"}), 403),
+            ("paper-agent", "about:blank", json!({"operation":"status"}), 403),
+            ("paper-agent", "pero-app://other-app/index.html", json!({"operation":"status"}), 403),
+            ("paper-agent", "pero-app://paper-agent.evil/index.html", json!({"operation":"status"}), 403),
+            ("paper-agent", "pero-app://paper-agent/dist/index.html", json!({"operation":"install","ticket":"forged"}), 400),
+            ("paper-agent", "pero-app://paper-agent/dist/index.html", json!({"operation":"request","component":"software","approved":true}), 400),
+            ("paper-agent", "pero-app://paper-agent/dist/index.html", json!({"operation":"status","origin":"pero-app://paper-agent"}), 400),
+        ] {
+            assert_eq!(apps.docling_from_frame(owner, ipc_request(uri, body), || live.load(Ordering::Acquire), || {}).unwrap()["status"], status);
+            assert!(requests.try_recv().is_err());
+        }
+        let mut forged = ipc_request("pero-app://paper-agent/dist/index.html", json!({"operation":"status"}));
+        let mut envelope: Value = serde_json::from_str(forged.body()).unwrap();
+        envelope["approved"] = json!(true);
+        *forged.body_mut() = envelope.to_string();
+        assert_eq!(apps.docling_from_frame("paper-agent", forged, || live.load(Ordering::Acquire), || {}).unwrap()["status"], 400);
+        live.store(false, Ordering::Release);
+        assert_eq!(apps.docling_from_frame("paper-agent", ipc_request("pero-app://paper-agent/dist/index.html", json!({"operation":"status"})), || live.load(Ordering::Acquire), || {}).unwrap()["status"], 410);
+        assert!(requests.try_recv().is_err());
+    }
+
+    #[test]
+    fn frame_cancel_invalidates_an_earlier_request_that_has_not_started_yet() {
+        let (host, requests) = mpsc::channel();
+        let (events, _) = async_channel::unbounded();
+        let apps = NativeApps::new(host, events, None);
+        let generation = Arc::new(AtomicU64::new(0));
+        let received_before_cancel = generation.load(Ordering::Acquire);
+        let serving = apps.clone();
+        let cancelling = generation.clone();
+        let response = std::thread::spawn(move || serving.docling_from_frame("paper-agent",
+            ipc_request("pero-app://paper-agent/dist/index.html", json!({"operation":"cancel"})),
+            || true, || { cancelling.fetch_add(1, Ordering::AcqRel); }).unwrap());
+        let cancel: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+        assert_eq!(cancel["request"], json!({"operation":"cancel"}));
+        reply(&apps, &cancel, json!({"state":"cancelled"}));
+        assert_eq!(response.join().unwrap()["status"], 200);
+        let queued = apps.docling_from_frame("paper-agent",
+            ipc_request("pero-app://paper-agent/dist/index.html", json!({"operation":"request","component":"software"})),
+            || generation.load(Ordering::Acquire) == received_before_cancel, || {}).unwrap();
+        assert_eq!(queued["status"], 410);
+        assert!(requests.try_recv().is_err());
+        assert!(!apps.docling.pending(1));
+    }
+
+    #[test]
+    fn frame_transport_uses_native_consent_and_refuses_a_closed_owner_after_prepare() {
+        for closed in [false, true] {
+            let (host, requests) = mpsc::channel();
+            let (events, prompts) = async_channel::unbounded();
+            let apps = NativeApps::new(host, events, None);
+            let serving = apps.clone();
+            let live = Arc::new(AtomicBool::new(true));
+            let request_live = live.clone();
+            let response = std::thread::spawn(move || serving.docling_from_frame("paper-agent",
+                ipc_request("pero-app://paper-agent/dist/index.html", json!({"operation":"request","component":"software"})), || request_live.load(Ordering::Acquire), || {}).unwrap());
+            let prepare: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+            assert_eq!(prepare["request"], json!({"operation":"prepare","component":"software"}));
+            if closed { live.store(false, Ordering::Release); }
+            reply(&apps, &prepare, json!({"state":"requires-approval","component":"software","ticket":"private-ticket","summary":"Fixed software download"}));
+            if !closed {
+                let prompt = prompts.recv_blocking().unwrap();
+                assert_eq!(prompt.kind, "native_docling_confirmation");
+                assert!(!prompt.data.to_string().contains("private-ticket"));
+                apps.docling.answer(prompt.data["id"].as_u64().unwrap(), false);
+            }
+            let cancel: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+            assert_eq!(cancel["request"], json!({"operation":"cancel"}));
+            reply(&apps, &cancel, json!({"software":"missing","ticket":"private-ticket"}));
+            let response = response.join().unwrap();
+            assert_eq!(response["status"], 200);
+            assert_eq!(serde_json::from_str::<Value>(response["body"].as_str().unwrap()).unwrap(), json!({"software":"missing"}));
+            assert!(requests.try_recv().is_err());
+            if closed { assert!(prompts.try_recv().is_ok_and(|event| event.kind == "native_docling_dismiss")); }
         }
     }
 

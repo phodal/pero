@@ -62,8 +62,11 @@ async fn verify_docling_origin(root: &Entity<Workbench>, cx: &mut AsyncApp) -> a
                 if(window.nativeDoclingProbe)return window.nativeDoclingProbe;
                 window.nativeDoclingProbe={pending:true};
                 (async()=>{
+                    if(typeof window.__peroNativeDoclingRequest!=='function')throw Error('Native frame transport missing');
+                    const protocolResponse=await fetch('/host/docling-runtime',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"operation":"status"}'});
+                    const protocol={status:protocolResponse.status,body:await protocolResponse.text()};
                     const post=async body=>{
-                        const response=await fetch('/host/docling-runtime',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+                        const response=await window.__peroNativeDoclingRequest(JSON.stringify(body));
                         const text=await response.text();
                         let value;try{value=JSON.parse(text);}catch{value=text;}
                         return {status:response.status,value};
@@ -71,11 +74,12 @@ async fn verify_docling_origin(root: &Entity<Workbench>, cx: &mut AsyncApp) -> a
                     const before=await post({operation:'status'});
                     const forged=await post({operation:'request',component:'software',approved:true});
                     const after=await post({operation:'status'});
-                    window.nativeDoclingProbe={origin:location.origin,url:location.href,before,forged,after};
+                    window.nativeDoclingProbe={origin:location.origin,url:location.href,transport:"webkit-frame-ipc",protocol,before,forged,after};
                 })().catch(error=>window.nativeDoclingProbe={error:String(error),origin:location.origin,url:location.href});
                 return window.nativeDoclingProbe;
             })()"#, cx).await.unwrap_or_else(|error| json!({"queryError":error.to_string()}));
             if last.get("before").is_some() {
+                last["protocolOriginHeaders"] = crate::native::apps().docling_probe_origins();
                 anyhow::ensure!(last["before"]["status"] == 200 && last["after"]["status"] == 200,
                     "Native Docling status was not admitted from the real WebView: {last}");
                 anyhow::ensure!(last["forged"]["status"] == 400,
@@ -88,7 +92,7 @@ async fn verify_docling_origin(root: &Entity<Workbench>, cx: &mut AsyncApp) -> a
                     anyhow::ensure!(status.get("ticket").is_none() && status.get("summary").is_none(),
                         "Native Docling response exposed private approval data");
                 }
-                return Ok(json!({"passed":true,"fixture":"backend-free Paper manifest with unmodified Paper dist assets", "checks":["real WKWebView status POST admitted","forged approval rejected","software and model remain missing and unapproved"],"observation":last,"native_approval_exercised":false,"visual_acceptance":false}));
+                return Ok(json!({"passed":true,"fixture":"backend-free Paper manifest with unmodified Paper dist assets", "checks":["real WKWebView frame IPC status admitted","forged approval rejected","software and model remain missing and unapproved"],"observation":last,"native_approval_exercised":false,"visual_acceptance":false}));
             }
             anyhow::ensure!(last.get("error").is_none(), "Native Docling WebView request failed: {last}");
         }
