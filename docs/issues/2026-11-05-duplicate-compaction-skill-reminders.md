@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: active
+status: resolved
 date: 2026-11-05
 ---
 
@@ -36,4 +36,12 @@ The stopped native fixture records 29 HTTP attempts, 28 responses, 18 accepted
 compactions, 10 tool calls and six identical repeat calls, with no explicit tool
 failure. It records 513,570 tokens; the cancelled final compaction has unknown
 usage. Process cleanup exits zero. These are diagnostic failure receipts, not a
-successful task or token-saving comparison. A fresh combined acceptance follows.
+successful task or token-saving comparison.
+
+The fresh `long-fixed-02/` fixture at source `39b408e8` completes all five
+phases, restores the same Session across two clean processes, passes all 20
+unchanged independent tests and preserves the checkpoint sentinel. One original
+skill invocation requires six restorations when its content leaves the active
+surface. It records 68 responses with complete reported usage and no explicit
+failed tool calls. Eleven repeated calls remain observations, not proof of
+avoidable work. The synthetic pressure fixture is separate from Terminal-Bench.

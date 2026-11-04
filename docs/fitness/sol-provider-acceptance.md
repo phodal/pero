@@ -1,6 +1,6 @@
 ---
 kind: verification_report
-status: running
+status: verified
 date: 2026-11-05
 ---
 
@@ -8,8 +8,10 @@ date: 2026-11-05
 
 These are real requests to the operator's explicitly configured custom provider,
 not an official OpenAI endpoint, benchmark score or complete Claude Code parity
-claim. Private receipts and native Sessions are under
-`/tmp/pero-provider-compat-20261104/`; credentials are excluded from evidence.
+claim. Private receipts and native Sessions originate under
+`/tmp/pero-provider-compat-20261104/` and are preserved, with source hashes, under
+`/Users/phodal/workforce/openstar-agents/reports/coding-benchmark-2026-11-04/provider-compatibility/`;
+credentials and binaries are excluded from the evidence export.
 
 ## Protocol and model access
 
@@ -90,9 +92,27 @@ source `9c9f9e47` and binary SHA-256
 The surface-visibility fix restores only missing exact skill content. A short
 activation notice does not count as a full body, and reminders explicitly
 continue checkpoint progress. The multi-compaction runtime regression passes.
-A fresh combined fixture will run in `long-fixed-02/`, with an independent
-source/binary freeze and unchanged original inputs. No saving claim is made
-before its acceptance and coverage are checked.
+The fresh combined fixture in `long-fixed-02/` now completes five normal phases
+and passes all 20 unchanged independent tests. Two processes exit zero and
+restore Session `cb7af306-99ff-4684-a429-fa8dd7fb31a1` across the restart after
+phase three. Checkpoint sentinel `LGR-20261104-7F19` survives through phase five.
+The frozen source is `39b408e89cdd40313a1b92e700ebcb1ccd7da1f4`; binary SHA-256 is
+`40b2b04e76558e8420465ba9b0da58c470baa9c7009baa1d2214ae77d803217c`.
+
+All 68 HTTP requests have completed response usage: 42 main responses record
+732,166 tokens and 26 compaction responses record 302,178 tokens. The total is
+1,034,344: 380,477 uncached input, 613,760 cache read and 40,107 output tokens.
+Twenty summaries apply; six fail to shrink but retain their usage and exact
+error evidence. Twenty-seven identical pressure attempts are skipped. The trace
+has no explicit failed tool calls or native turn errors; 11 identical calls
+remain review observations. One original skill invocation requires six
+restorations as content leaves the active surface. Receipts are
+`long-receipt.json`, `native-freeze.json`, `independent-verification.json` and
+`summary/summary.json` in the fresh fixture directory.
+
+This establishes acceptance and complete recorded response usage for this
+fixture. The older fixture has incomplete usage and lacks deferred slash skill
+content, so these runs do not establish a token-saving comparison.
 
 The synthetic capacity and archive pressure do not establish the custom
 provider's real context limit. All provider fixtures remain excluded from the

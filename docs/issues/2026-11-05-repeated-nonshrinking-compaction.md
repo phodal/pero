@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: active
+status: resolved
 date: 2026-11-05
 ---
 
@@ -25,5 +25,12 @@ The loop regression proves repeated identical pressure checks consume no new
 summary request; changed selected history retries; explicit and overflow
 compaction bypass the pressure backoff. Actual JSONL response usage survives
 restoration for rejected summaries. CLI and core/skills/plugin-runtime race
-tests, standalone Bazel and vet pass. A fresh real five-phase fixture is needed
-to measure observed skips and acceptance; no token-saving percentage is claimed.
+tests, standalone Bazel and vet pass.
+
+The fresh real five-phase `long-fixed-02/` fixture at source `39b408e8` passes
+all 20 unchanged independent tests across a process restart. Its trace records
+20 accepted summaries, six nonshrinking failures with reported usage and 27
+skipped pressure attempts. All 68 completed HTTP requests have response usage;
+the six failed summaries are included. The old fixture lacks rejected-summary
+usage and predates deferred skill loading, so it is not a valid token-saving
+comparison. The synthetic pressure fixture is separate from Terminal-Bench.

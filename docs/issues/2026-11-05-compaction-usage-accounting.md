@@ -34,3 +34,10 @@ nonshrinking failures; its missing rejected-response usage cannot be recovered
 retroactively. It is retained with incomplete coverage, not treated as zero cost.
 Known compaction failures also retain their exact native error and seq/line
 reference as findings, even when their usage is complete.
+
+The fresh real `long-fixed-02/` fixture verifies complete usage for 68 completed
+HTTP requests: 42 main responses (732,166 tokens) and 26 compaction responses
+(302,178 tokens). The latter include all six rejected nonshrinking summaries.
+The independent 20-test acceptance and same-Session process restoration pass.
+This is complete recorded response usage, not an invoice or a recovery of old
+missing usage.
