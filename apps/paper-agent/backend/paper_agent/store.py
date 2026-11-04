@@ -103,7 +103,15 @@ class ResearchStore:
     def save_context(self, selection: ContextSelection):
         self.paper(selection.paper_id)
         if selection.document_id:
-            document = self.pdf(selection.document_id)
+            if selection.tex_preview_id:
+                from .tex_preview import TexPreviews
+                from .pdf_files import PdfFiles
+                previews = TexPreviews(self, PdfFiles())
+                preview = previews.record(selection.tex_preview_id)
+                previews.file(preview.id)
+                document = preview.document
+            else:
+                document = self.pdf(selection.document_id)
             if document.paper_id != selection.paper_id:
                 raise Invalid('Context PDF does not belong to the source')
             document.page(selection.page)
@@ -113,7 +121,7 @@ class ResearchStore:
         path = (self.root / 'context-files' / (identity + '.txt')).resolve()
         data = selection.content.encode('utf-8')
         record = ContextFile(identity, str(path), digest(data), selection.paper_id,
-                             selection.document_id, selection.page, selection.anchor)
+                             selection.document_id, selection.page, selection.anchor, selection.tex_preview_id)
         with self.lock:
             path.parent.mkdir(parents=True, exist_ok=True)
             if not path.exists():

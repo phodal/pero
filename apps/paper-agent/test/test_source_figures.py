@@ -136,3 +136,12 @@ class SourceFiguresTest(unittest.TestCase):
                 self.assertEqual((target['page'], target['documentId']), (expected_page, expected_id))
                 self.assertTrue(target['rects'])
                 self.assertTrue(all(0 <= rect['x'] < 1 and 0 <= rect['y'] < 1 for rect in target['rects']))
+            from paper_agent.context_file import ContextSelection
+            selection = dict(content=preview_document.page(2).text, paperId=paper.id, documentId=preview_document.id,
+                             fileDigest=preview_document.file_digest, page=2, texPreviewId=preview.id)
+            context = store.save_context(ContextSelection.parse(selection))
+            self.assertEqual(store.stored_context(context.id).to_dict()['representation'], 'tex-preview')
+            self.assertIn('not an original-PDF passage', context.prompt())
+            for patch in (dict(documentId=document.id), dict(fileDigest='0' * 64), dict(content='Invented text')):
+                with self.subTest(context=patch), self.assertRaises(Invalid):
+                    store.save_context(ContextSelection.parse(dict(selection, **patch)))
