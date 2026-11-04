@@ -5,6 +5,22 @@ status: resolved
 
 # Deferred ToolSearch cannot reliably find known tool names
 
+## Follow-up: explicit selection truncated by keyword default
+
+The live React rerun selected `Read,Write,Edit,Bash,Glob,Grep`. All six
+matched, but the shared default page size returned only five and omitted
+Write. The model did not request the continuation and repeatedly used Bash
+to write source. Exact selection should default to the existing maximum of
+20 schemas; keyword queries keep their five-result default. Explicit limits,
+the 32 KiB schema budget and activation checks still apply. This removes an
+observed discovery obstacle; it does not by itself prove token savings.
+
+Verification: the matching table now includes seven exact names. Page-size
+cases cover the unchanged keyword default of five, the exact-selection cap of
+20 and an explicit limit of two. Existing oversized-schema and continuation
+cases still cover both query modes. `go test -race ./nativetools` and
+`go vet ./nativetools` pass.
+
 An opt-in coding benchmark using the existing deferred tool profile searched for
 `files terminal list read write` and `read file contents`. Both searches returned
 zero tools because keyword discovery requires every literal word to occur in one

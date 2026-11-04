@@ -72,6 +72,7 @@ func TestToolSearchMatching(t *testing.T) {
 		{"bounded UTF-8", []string{"Read", "Write"}, 2},
 		{"select:Write, read,Read,missing,self", []string{"Read", "Write"}, 2},
 		{"select:Read", []string{"Read"}, 1},
+		{"select:a,b,c,d,e,Read,Write", []string{"Read", "Write", "a", "b", "c", "d", "e"}, 7},
 		{"select:", []string{}, 0},
 		{"files terminal list read write", []string{}, 0},
 		{"read file contents", []string{}, 0},
@@ -93,6 +94,26 @@ func TestToolSearchMatching(t *testing.T) {
 }
 
 func TestToolSearchBudgetAndPagination(t *testing.T) {
+	var smallSchemas []harness.ToolSchema
+	var names []string
+	for _, name := range strings.Fields("a b c d e f g h i j k l m n o p q r s t u") {
+		smallSchemas = append(smallSchemas, harness.ToolSchema{Name: name, Description: "probe"})
+		names = append(names, name)
+	}
+	for _, tc := range []struct {
+		query string
+		limit int
+		want  int
+	}{
+		{"probe", 0, 5},
+		{"select:" + strings.Join(names, ","), 0, 20},
+		{"select:" + strings.Join(names, ","), 2, 2},
+	} {
+		page := searchToolSchemas(smallSchemas, "self", tc.query, 0, tc.limit)
+		if len(page.Tools) != tc.want || page.NextOffset == nil || *page.NextOffset != tc.want {
+			t.Fatalf("page size for %q limit=%d: %+v", tc.query, tc.limit, page)
+		}
+	}
 	schemas := []harness.ToolSchema{
 		{Name: "b", Description: "probe", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "a", Description: "probe", InputSchema: json.RawMessage(`{"type":"object","description":"` + strings.Repeat("x", 40000) + `"}`)},

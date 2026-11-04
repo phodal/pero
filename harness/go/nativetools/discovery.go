@@ -33,7 +33,7 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 	if claude {
 		name = "ToolSearch"
 	}
-	description := "Find caller-authorized tools. For known names use select:Name1,Name2 (comma-separated exact names, case-insensitive). Otherwise search literal name/description substrings: all whitespace-separated words must match one tool. Use one capability per query; a full tool name ranks first. Returns current schemas, hashes and bounded pagination."
+	description := "Find caller-authorized tools. For known names use select:Name1,Name2 (comma-separated exact names, case-insensitive; returns up to 20 by default). Otherwise search literal name/description substrings: all whitespace-separated words must match one tool. Use one capability per query; a full tool name ranks first. Keyword searches return up to 5 by default. Returns current schemas, hashes and bounded pagination."
 	if deferLoading {
 		description += " Complete returned schemas activate their exact versions for the next model request. Omitted schemas are not activated; narrow the query or continue pagination."
 	} else {
@@ -120,12 +120,15 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 }
 
 func searchToolSchemas(schemas []harness.ToolSchema, self, query string, offset, limit int) toolSearchResult {
-	if limit == 0 {
-		limit = 5
-	}
 	query = strings.TrimSpace(query)
 	words := strings.Fields(strings.ToLower(query))
 	selection, exactSelection := strings.CutPrefix(query, "select:")
+	if limit == 0 {
+		limit = 5
+		if exactSelection {
+			limit = 20
+		}
+	}
 	var names []string
 	if exactSelection {
 		for _, name := range strings.Split(selection, ",") {
