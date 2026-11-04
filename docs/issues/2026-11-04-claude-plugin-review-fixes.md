@@ -136,3 +136,13 @@ the complete Go module passes another race run (35 packages). A temporary Go
 overlay that admits the image before returning the same rejection code makes
 the new assertion fail with `rejected-image` / `next-step`, confirming it
 detects the rejected message reaching the inbox. The overlay was not committed.
+
+## Subsequent macOS fixture repair
+
+After syncing remote head `6d0b348e`, the harness race suite exposed one
+macOS-only fixture failure in `TestHostPrivateDirectoryIsOutsideFileAuthority`.
+The test passed a temporary directory through the `/var` symlink to an API that
+explicitly requires a canonical root. It now resolves the fixture root before
+creating both the scoped grant and the protected path, matching the existing
+scoped-file fixtures. Production file authority checks remain unchanged.
+`go test -race ./fstools` passed on macOS after this repair.

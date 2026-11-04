@@ -9,7 +9,10 @@ import (
 )
 
 func TestHostPrivateDirectoryIsOutsideFileAuthority(t *testing.T) {
-	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	directory := filepath.Join(root, "private")
 	if err := os.Mkdir(directory, 0700); err != nil {
 		t.Fatal(err)
