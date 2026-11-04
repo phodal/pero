@@ -399,6 +399,11 @@ func TestAgentDisallowedToolsRemoveWrite(t *testing.T) {
 	if err != nil || result.Status != harness.SubagentCompleted || !sawRead || sawWrite {
 		t.Fatalf("result=%+v err=%v read=%v write=%v", result, err, sawRead, sawWrite)
 	}
+	sawRead, sawWrite = false, false
+	resumed, err := h.Tools().Execute(ctx, harness.ToolRequest{Agent: parent, Name: "Agent", CallID: "resume-denied-tools", Arguments: json.RawMessage(fmt.Sprintf(`{"resume":%q,"description":"continue review","prompt":"continue reviewing"}`, result.ChildID))})
+	if err != nil || resumed.Result.IsError || !sawRead || sawWrite {
+		t.Fatalf("resumed result=%+v err=%v read=%v write=%v", resumed.Result, err, sawRead, sawWrite)
+	}
 	if _, err := claude.Invoke(ctx, parent, ClaudeInvocation{Definition: "broken", Prompt: "look"}); err == nil || !strings.Contains(err.Error(), "Nope") {
 		t.Fatalf("unknown disallowed tool err=%v", err)
 	}

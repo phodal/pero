@@ -86,7 +86,7 @@ func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent
 			memory.release()
 		}
 	}()
-	request := harness.SubagentRequest{Parent: parent, ChildID: id, Depth: header.DelegationDepth, CWD: session.WorkingDirectory(), Provider: descriptor.AgentProvider, Model: descriptor.AgentModel, ReasoningEffort: descriptor.AgentReasoningEffort, Persona: descriptor.Persona, ToolFilter: descriptor.ToolFilter}
+	request := harness.SubagentRequest{Parent: parent, ChildID: id, Depth: header.DelegationDepth, CWD: session.WorkingDirectory(), Provider: descriptor.AgentProvider, Model: descriptor.AgentModel, ReasoningEffort: descriptor.AgentReasoningEffort, Persona: descriptor.Persona, ToolFilter: descriptor.ToolFilter, MaxSteps: definition.MaxTurns}
 	var capture *structuredCapture
 	options, err := p.childAgentOptions(request, &capture)
 	if err != nil {
@@ -103,12 +103,16 @@ func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent
 		if err := mountAgentMemory(ctx, p.h, run, child, memory, false); err != nil {
 			return err
 		}
-		if definition.Tools != nil {
-			allow, err := availableToolAllow(ctx, p.h, child, definition.Tools)
-			if err != nil {
-				return err
+		if definition.Tools != nil || len(definition.DisallowedTools) > 0 {
+			filter := harness.ToolRestriction{Deny: definition.DisallowedTools}
+			if definition.Tools != nil {
+				allow, err := availableToolAllow(ctx, p.h, child, definition.Tools)
+				if err != nil {
+					return err
+				}
+				filter.Allow = allow
 			}
-			_, err = p.h.Tools().Restrict(ctx, run, child, harness.ToolRestriction{Allow: allow})
+			_, err = p.h.Tools().Restrict(ctx, run, child, filter)
 			return err
 		}
 		return nil

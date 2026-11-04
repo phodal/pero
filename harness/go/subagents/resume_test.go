@@ -199,3 +199,28 @@ func TestSendMessageQueuesOnRunningManagedAgent(t *testing.T) {
 		t.Fatalf("unexpected running continuation turns: %d/%d", children.Load(), parents.Load())
 	}
 }
+
+func TestClaudeResumeRetainsDefinitionTurnLimit(t *testing.T) {
+	var calls atomic.Int32
+	f := newClaudeHTTPFixture(t, t.TempDir(), func(w http.ResponseWriter, r *http.Request) {
+		call := calls.Add(1)
+		if call == 1 {
+			claudeTextAnswer(w, "initial complete")
+			return
+		}
+		// Keep asking for a tool so completion depends on the definition's
+		// two-step cap, rather than the parent's five-step budget.
+		claudeHTTPAnswer(w, fmt.Sprintf(`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"repeat-read-%d","type":"function","function":{"name":"Read","arguments":"{\"file_path\":\"missing.txt\"}"}}]},"finish_reason":"tool_calls"}]}`, call))
+	}, true, []AgentDefinition{{Name: "sample:worker", Description: "Bounded worker", Instructions: "Read files.", Model: "sonnet", Tools: []string{"Read"}, MaxTurns: 2}}, ClaudeOptions{})
+	initial := taskReceipt(t, f.call(t, f.parent, "Agent", `{"subagent_type":"sample:worker","description":"initial","prompt":"begin"}`))
+	if initial.Status != harness.SubagentCompleted {
+		t.Fatal(initial)
+	}
+	result := f.call(t, f.parent, "Agent", fmt.Sprintf(`{"resume":%q,"description":"continue reading","prompt":"keep reading"}`, initial.ID))
+	if calls.Load() != 3 {
+		t.Fatalf("resume exceeded definition maxTurns: calls=%d, result=%+v", calls.Load(), result)
+	}
+	if !strings.Contains(fmt.Sprint(result.Content), "exceeded 2 steps") {
+		t.Fatalf("resume did not report the definition's turn limit: %+v", result)
+	}
+}
