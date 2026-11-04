@@ -138,3 +138,81 @@ func TestNativePromptPreparationAndCleanup(t *testing.T) {
 		})
 	}
 }
+
+func TestTurnStepLimit(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		limit, calls   int
+		resume, cancel bool
+	}{
+		{name: "explicit bound", limit: 2, calls: 2},
+		{name: "resumed bound", limit: 2, calls: 2, resume: true},
+		{name: "unlimited passes former ceiling", limit: harness.UnlimitedMaxSteps, calls: harness.DefaultMaxSteps + 2},
+		{name: "resumed unlimited still cancels", limit: harness.UnlimitedMaxSteps, calls: 3, resume: true, cancel: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			calls := 0
+			h, err := harness.Boot(t.Context(), harness.Options{AdapterProviders: []string{"fixture"}, Adapter: harness.AdapterFunc(func(requestCtx context.Context, _ harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+				calls++
+				if test.cancel && calls == test.calls {
+					cancel()
+					return harness.Completion{}, requestCtx.Err()
+				}
+				if calls == harness.DefaultMaxSteps+2 {
+					return harness.Completion{Finish: harness.FinishStop}, nil
+				}
+				return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: "tick", ToolCallID: harness.ToolCallID(fmt.Sprintf("tick-%d", calls)), Arguments: json.RawMessage(`{}`)}}}}, nil
+			})})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { h.Dispose(context.Background()); h.Drain(context.Background()) }()
+			if _, err := h.RegisterTool(t.Context(), "fixture/tick", harness.Tool{Schema: harness.ToolSchema{Name: "tick", InputSchema: json.RawMessage(`{"type":"object"}`)}, Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) { return harness.ToolResult{}, nil }}); err != nil {
+				t.Fatal(err)
+			}
+			disk, err := harness.NewJSONLSessionPersistence(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture", MaxSteps: test.limit})
+			if err != nil {
+				t.Fatal(err)
+			}
+			server.writer = &wireWriter{encoder: json.NewEncoder(io.Discard)}
+			defer server.closeAll(context.Background())
+			cwd := t.TempDir()
+			id, err := server.newSession(t.Context(), NewSessionParams{CWD: cwd})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.resume {
+				if err := server.closeSession(t.Context(), id); err != nil {
+					t.Fatal(err)
+				}
+				if err := server.resumeSession(t.Context(), ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			stop, err := server.prompt(ctx, PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "run"}}})
+			if calls != test.calls {
+				t.Fatalf("provider calls=%d, want %d; stop=%q error=%v", calls, test.calls, stop, err)
+			}
+			switch {
+			case test.cancel:
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("unlimited turn ignored cancellation: %v", err)
+				}
+			case test.limit == harness.UnlimitedMaxSteps:
+				if err != nil || stop != "end_turn" {
+					t.Fatalf("unlimited turn: stop=%q error=%v", stop, err)
+				}
+			default:
+				if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("exceeded %d steps", test.calls)) {
+					t.Fatalf("bounded turn: %v", err)
+				}
+			}
+		})
+	}
+}

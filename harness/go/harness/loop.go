@@ -171,7 +171,7 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		reason, err = a.externalTurn(ctx, a, turn, externalMessages)
 		return result, err
 	}
-	for step := 1; step <= a.maxSteps; step++ {
+	for step := 1; a.maxSteps == UnlimitedMaxSteps || step <= a.maxSteps; step++ {
 		// DSH's checkpoint policy makes the preceding durable prefix a hard
 		// boundary before any pre-step plugin can construct the next request.
 		if err := a.checkpoint(ctx); err != nil {

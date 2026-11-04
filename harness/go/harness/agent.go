@@ -319,10 +319,14 @@ type Agent struct {
 // retaining a finite circuit breaker for callers that do not choose a budget.
 const DefaultMaxSteps = 512
 
+// UnlimitedMaxSteps explicitly delegates turn termination to cancellation,
+// provider budgets and the model. Zero continues to select DefaultMaxSteps.
+const UnlimitedMaxSteps = -1
+
 func newAgent(session *Session, scope *point.Scope, adapter Adapter, modelInfo ModelInfoResolver, attachments AttachmentStore, prompts *PromptRegistry, tools *ToolRegistry, hooks *AgentHooks, provider, model string, reasoningEffort ReasoningEffort, maxSteps, maxTokens, maxParallelToolCalls int, delegated bool, parent *Agent, freshSession bool) *Agent {
 	idle := make(chan struct{})
 	close(idle)
-	if maxSteps <= 0 {
+	if maxSteps <= 0 && maxSteps != UnlimitedMaxSteps {
 		maxSteps = DefaultMaxSteps
 	}
 	return &Agent{

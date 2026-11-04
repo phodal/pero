@@ -35,11 +35,14 @@ type Options struct {
 	Persistence              harness.SessionPersistence
 	Provider                 string
 	Model                    string
-	Compaction               *harness.BasicCompactionConfig
-	ToolResultPruner         *harness.ToolResultPruneConfig
-	Name                     string
-	Version                  string
-	SessionListPageSize      int
+	// MaxSteps is host configuration: zero keeps the harness default and
+	// harness.UnlimitedMaxSteps delegates termination to external cancellation.
+	MaxSteps            int
+	Compaction          *harness.BasicCompactionConfig
+	ToolResultPruner    *harness.ToolResultPruneConfig
+	Name                string
+	Version             string
+	SessionListPageSize int
 	// HoldAssistantText and RenderAssistantText let a MessageDisplay hook
 	// replace one completed assistant message on the wire. Nil leaves streaming
 	// unchanged. The stored message stays the original text.
@@ -60,6 +63,7 @@ type Server struct {
 	persistence              harness.SessionPersistence
 	provider                 string
 	model                    string
+	maxSteps                 int
 	compaction               *harness.BasicCompactionConfig
 	toolResultPruner         *harness.ToolResultPruneConfig
 	name                     string
@@ -146,7 +150,7 @@ func NewServer(options Options) (*Server, error) {
 	return &Server{
 		modelChoices: choices, modelCapacity: capacity, modelOutput: output,
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
-		provider: options.Provider, model: options.Model, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
+		provider: options.Provider, model: options.Model, maxSteps: options.MaxSteps, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
 		name: options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
 		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
 		sessions: make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
@@ -455,7 +459,7 @@ func (s *Server) newSession(ctx context.Context, params NewSessionParams) (harne
 		return "", err
 	}
 	agent, err := s.h.Agents().Create(ctx, harness.AgentOptions{
-		ID: id, CWD: params.CWD, Provider: s.provider, Model: s.model, Compaction: s.compaction,
+		ID: id, CWD: params.CWD, Provider: s.provider, Model: s.model, MaxSteps: s.maxSteps, Compaction: s.compaction,
 		ToolResultPruner: s.toolResultPruner,
 		Configure: func(setup context.Context, run *point.Run, owner *harness.Agent) error {
 			if err := s.registerUserQuestions(run, owner); err != nil {
@@ -668,7 +672,7 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 		return err
 	}
 	agent, err := s.h.Agents().Resume(ctx, session, harness.AgentOptions{
-		Provider: s.provider, Model: s.model, Compaction: s.compaction, ToolResultPruner: s.toolResultPruner,
+		Provider: s.provider, Model: s.model, MaxSteps: s.maxSteps, Compaction: s.compaction, ToolResultPruner: s.toolResultPruner,
 		Configure: func(setup context.Context, run *point.Run, owner *harness.Agent) error {
 			if err := s.registerUserQuestions(run, owner); err != nil {
 				return err
