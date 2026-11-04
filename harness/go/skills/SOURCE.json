@@ -34,7 +34,8 @@
     "Fixed descriptor-owned manifest and digest reads use existing fstools.OpenScopedTextFiles; catalog is not a second runtime registry or permission engine.",
     "Existing Harness runtime, ToolRegistry and PreStep own registration/generation and admission; one exact-key skill tool lists or reads. Explicit gestures reuse the same frozen catalog read.",
     "Only direct child SKILL.md files. Duplicate names and invalid files fail closed. Bounded UTF-8 text; model-disabled skills remain unavailable.",
-    "Explicit slash invocation and reattachment use exact authorized registration availability before deferred discovery; denied or shadowed skills remain unavailable. This is a local integration fix, not a claim of upstream equivalence."
+    "Explicit slash invocation and reattachment use exact authorized registration availability before deferred discovery; denied or shadowed skills remain unavailable. This is a local integration fix, not a claim of upstream equivalence.",
+    "Post-compaction restoration filters exact activated instruction content already present on the current surface, correlating successful Skill results separately from short activation notices. Restored text continues checkpoint progress instead of implying a fresh invocation; preprocessing and turn grants are not rerun."
   ],
   "license": "No new blanket license assigned. Source files have no embedded third-party notice. Existing dependency-specific notices and ownership decisions remain unchanged.",
   "behavioral_audit": {

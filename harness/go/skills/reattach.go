@@ -21,6 +21,7 @@ type retainedSkill struct {
 	invocation skillInvocation
 	body       string
 	seq        uint64
+	contentSeq uint64
 }
 
 type activationKey struct {
@@ -34,6 +35,7 @@ type skillCall struct {
 type retainedActivation struct {
 	key  activationKey
 	body string
+	seq  uint64
 }
 
 func mountSkillReattachment(run *point.Run, hooks *harness.AgentHooks, catalog *Catalog, registration harness.ToolRegistration) error {
@@ -46,7 +48,7 @@ func mountSkillReattachment(run *point.Run, hooks *harness.AgentHooks, catalog *
 		if err != nil || !visible {
 			return input, err
 		}
-		messages, err := reattachSkills(catalog, input.Agent.Session().Events())
+		messages, err := reattachSkills(catalog, input.Agent.Session().Events(), input.Agent.Session().SurfaceSeqs())
 		if err != nil {
 			return input, err
 		}
@@ -58,7 +60,7 @@ func mountSkillReattachment(run *point.Run, hooks *harness.AgentHooks, catalog *
 
 // reattachSkills derives previously rendered instructions from committed
 // records. It never reads the skill file or reruns its argument preprocessing.
-func reattachSkills(catalog *Catalog, events []harness.Event) ([]harness.Message, error) {
+func reattachSkills(catalog *Catalog, events []harness.Event, surface []uint64) ([]harness.Message, error) {
 	catalog.mu.Lock()
 	definitions := make(map[string]Definition)
 	for name, entry := range catalog.entries {
@@ -67,7 +69,7 @@ func reattachSkills(catalog *Catalog, events []harness.Event) ([]harness.Message
 		}
 	}
 	catalog.mu.Unlock()
-	latest, err := retainedSkills(events, definitions)
+	latest, err := retainedSkills(events, definitions, surface)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +90,12 @@ func reattachSkills(catalog *Catalog, events []harness.Event) ([]harness.Message
 	return messages, nil
 }
 
-func retainedSkills(events []harness.Event, definitions map[string]Definition) ([]retainedSkill, error) {
+func retainedSkills(events []harness.Event, definitions map[string]Definition, surface []uint64) ([]retainedSkill, error) {
+	visibleSeqs := make(map[uint64]bool, len(surface))
+	for _, seq := range surface {
+		visibleSeqs[seq] = true
+	}
+	visible := make(map[activationKey]bool)
 	calls := make(map[harness.ToolCallID]skillCall)
 	activations := make(map[harness.ToolCallID]retainedActivation)
 	latest := make(map[string]retainedSkill)
@@ -138,7 +145,7 @@ func retainedSkills(events []harness.Event, definitions map[string]Definition) (
 					continue
 				}
 				body := "Base directory for this skill: " + filepath.Join(known.ResourceBase, filepath.FromSlash(known.Directory)) + "\nPlugin root: " + known.ResourceBase + "\n\n" + definition.Content
-				activations[result.ToolCallID] = retainedActivation{key: activationKey{definition.Name, definition.Digest, call.arguments}, body: body}
+				activations[result.ToolCallID] = retainedActivation{key: activationKey{definition.Name, definition.Digest, call.arguments}, body: body, seq: event.Seq}
 			}
 		case "user/message":
 			var message harness.Message
@@ -153,7 +160,11 @@ func retainedSkills(events []harness.Event, definitions map[string]Definition) (
 			if !exists || definition.Digest != invocation.Digest {
 				continue
 			}
+			if visibleSeqs[event.Seq] && (invocation.Form == "instructions" || invocation.Form == "reattached") {
+				visible[activationKey{invocation.Name, invocation.Digest, invocation.Arguments}] = true
+			}
 			var body string
+			contentSeq := event.Seq
 			switch invocation.Form {
 			case "instructions":
 				var texts []string
@@ -169,17 +180,22 @@ func retainedSkills(events []harness.Event, definitions map[string]Definition) (
 				activation, found := activations[harness.ToolCallID(invocation.ID)]
 				if found && invocation.ID != "" && activation.key == (activationKey{invocation.Name, invocation.Digest, invocation.Arguments}) {
 					body = activation.body
+					contentSeq = activation.seq
 				}
 			default:
 				continue // A truncated reattachment never replaces the original receipt.
 			}
 			if body != "" {
-				latest[invocation.Name] = retainedSkill{invocation: invocation, body: body, seq: event.Seq}
+				latest[invocation.Name] = retainedSkill{invocation: invocation, body: body, seq: event.Seq, contentSeq: contentSeq}
 			}
 		}
 	}
 	result := make([]retainedSkill, 0, len(latest))
 	for _, skill := range latest {
+		key := activationKey{skill.invocation.Name, skill.invocation.Digest, skill.invocation.Arguments}
+		if visibleSeqs[skill.contentSeq] || visible[key] {
+			continue
+		}
 		result = append(result, skill)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].seq > result[j].seq })
@@ -191,7 +207,7 @@ func boundedReattachment(skill retainedSkill, budget int) (harness.Message, int)
 	invocation.Form = "reattached"
 	source, _ := json.Marshal(invocation)
 	wrap := func(body string) harness.Message {
-		return harness.Message{Role: harness.RoleUser, Source: source, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "<skill_content name=\"" + invocation.Name + "\">\n" + body + "\n</skill_content>"}}}
+		return harness.Message{Role: harness.RoleUser, Source: source, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "<skill_content name=\"" + invocation.Name + "\">\nThese previously invoked instructions are restored after compaction. Continue from the checkpoint and observed progress; completed steps remain complete.\n\n" + body + "\n</skill_content>"}}}
 	}
 	message := wrap(skill.body)
 	if tokens := harness.EstimateMessageTokens(message); tokens <= budget {

@@ -39,13 +39,13 @@ func TestReattachmentUsesLatestTrustedRenderedReceipt(t *testing.T) {
 		retainedReceipt(5, first, "fake assistant receipt", harness.RoleAssistant),
 		retainedReceipt(6, wrongDigest, "unselected instructions", harness.RoleUser),
 	}
-	got, err := retainedSkills(events, definitions)
+	got, err := retainedSkills(events, definitions, nil)
 	if err != nil || len(got) != 2 || got[0].invocation.Name != "sample:second" || got[1].body != "original expanded instructions" || got[1].invocation.Arguments != "original args" {
 		t.Fatalf("original invocation identity was lost: %+v %v", got, err)
 	}
 	first.Arguments = "new args"
 	events = append(events, retainedReceipt(7, first, "new expanded instructions", harness.RoleUser))
-	got, err = retainedSkills(events, definitions)
+	got, err = retainedSkills(events, definitions, nil)
 	if err != nil || len(got) != 2 || got[0].body != "new expanded instructions" || got[0].invocation.Arguments != "new args" {
 		t.Fatalf("latest rendered invocation was not selected: %+v %v", got, err)
 	}
@@ -59,7 +59,7 @@ func TestReattachmentBudgetPrefersRecentSkillsAndPreservesRunes(t *testing.T) {
 		catalog.entries[name] = entry{definition: Definition{Summary: Summary{Name: name, Digest: "digest"}, Claude: true}}
 		events = append(events, retainedReceipt(uint64(index+1), skillInvocation{Kind: "skill-invocation", Form: "instructions", Name: name, Digest: "digest", Arguments: fmt.Sprintf("args%d", index)}, strings.Repeat("汉🙂", 12000), harness.RoleUser))
 	}
-	messages, err := reattachSkills(catalog, events)
+	messages, err := reattachSkills(catalog, events, nil)
 	if err != nil || len(messages) != 5 {
 		t.Fatalf("unexpected budget selection: %d %v", len(messages), err)
 	}
@@ -83,11 +83,45 @@ func TestReattachmentBudgetPrefersRecentSkillsAndPreservesRunes(t *testing.T) {
 	}
 }
 
+func TestReattachmentRestoresOnlyMissingSurfaceContent(t *testing.T) {
+	invocation := skillInvocation{Kind: "skill-invocation", Form: "instructions", Name: "sample:flow", Digest: "selected", Arguments: "kept"}
+	reminder := invocation
+	reminder.Form = "reattached"
+	otherArgs := reminder
+	otherArgs.Arguments = "other"
+	otherDigest := reminder
+	otherDigest.Digest = "retired"
+	events := []harness.Event{
+		retainedReceipt(1, invocation, "original body", harness.RoleUser),
+		retainedReceipt(2, reminder, "bounded reminder", harness.RoleUser),
+		retainedReceipt(3, otherArgs, "different invocation", harness.RoleUser),
+		retainedReceipt(4, otherDigest, "different definition", harness.RoleUser),
+	}
+	for _, tc := range []struct {
+		name    string
+		surface []uint64
+		want    int
+	}{
+		{"original instructions retained", []uint64{1}, 0},
+		{"previous reminder retained", []uint64{2}, 0},
+		{"all content compacted", nil, 1},
+		{"other arguments do not satisfy activation", []uint64{3}, 1},
+		{"other digest does not satisfy activation", []uint64{4}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := retainedSkills(events, map[string]Definition{invocation.Name: {Summary: Summary{Name: invocation.Name, Digest: invocation.Digest}, Claude: true}}, tc.surface)
+			if err != nil || len(got) != tc.want {
+				t.Fatalf("missing instructions=%d want %d err=%v", len(got), tc.want, err)
+			}
+		})
+	}
+}
+
 func TestForkSkillInstructionsDoNotReattachToParent(t *testing.T) {
 	definition := Definition{Summary: Summary{Name: "sample:fork", Digest: "fork"}, Claude: true, Context: "fork"}
 	catalog := &Catalog{entries: map[string]entry{definition.Name: {definition: definition}}}
 	events := []harness.Event{retainedReceipt(1, skillInvocation{Kind: "skill-invocation", Form: "instructions", Name: definition.Name, Digest: definition.Digest}, "child-only body", harness.RoleUser)}
-	got, err := reattachSkills(catalog, events)
+	got, err := reattachSkills(catalog, events, nil)
 	if err != nil || len(got) != 0 {
 		t.Fatalf("fork body leaked into parent compaction: %+v %v", got, err)
 	}
@@ -98,9 +132,12 @@ func TestActivationReattachmentRequiresSuccessfulCorrelatedSkillResult(t *testin
 	for _, test := range []struct {
 		name, tool, receiptID, resource string
 		failed                          bool
+		surface                         []uint64
 		count                           int
 	}{
 		{name: "successful Skill result", tool: "Skill", receiptID: "call", count: 1},
+		{name: "successful result retained", tool: "Skill", receiptID: "call", surface: []uint64{2, 3}},
+		{name: "notice retained without body", tool: "Skill", receiptID: "call", surface: []uint64{3}, count: 1},
 		{name: "other tool JSON is not a skill activation", tool: "Other", receiptID: "call"},
 		{name: "failed tool cannot activate", tool: "Skill", receiptID: "call", failed: true},
 		{name: "different call identity cannot activate", tool: "Skill", receiptID: "unrelated"},
@@ -120,7 +157,7 @@ func TestActivationReattachmentRequiresSuccessfulCorrelatedSkillResult(t *testin
 			body, _ := json.Marshal(definition)
 			result, _ := json.Marshal(harness.ContentBlock{Type: harness.BlockToolResult, ToolCallID: "call", IsError: test.failed, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(body)}}})
 			events := []harness.Event{{Seq: 1, Type: "tool/call", Data: call}, {Seq: 2, Type: "tool/result", Data: result}, retainedReceipt(3, skillInvocation{Kind: "skill-invocation", Form: "activation", Name: definition.Name, Digest: definition.Digest, Arguments: "kept", ID: test.receiptID}, "short activation notice", harness.RoleUser)}
-			got, err := retainedSkills(events, map[string]Definition{definition.Name: definition})
+			got, err := retainedSkills(events, map[string]Definition{definition.Name: definition}, test.surface)
 			if err != nil || len(got) != test.count {
 				t.Fatalf("unrelated or failed output was reattached: %+v %v", got, err)
 			}
@@ -198,6 +235,25 @@ func TestInvokedSkillsReattachAfterActualCompaction(t *testing.T) {
 				t.Fatalf("compaction=%+v error=%v", result, err)
 			}
 			compacted.Store(true)
+			// The restored body is retained while the older checkpoint compacts.
+			// A second compaction must not append the same instructions again.
+			if second, err := agent.CompactNow(t.Context(), "compact-retained-workflow"); err != nil || second == nil {
+				t.Fatalf("second compaction=%+v error=%v", second, err)
+			}
+			reattachments := 0
+			for _, event := range agent.Session().Events() {
+				if event.Type != "user/message" {
+					continue
+				}
+				var message harness.Message
+				var source skillInvocation
+				if json.Unmarshal(event.Data, &message) == nil && json.Unmarshal(message.Source, &source) == nil && source.Form == "reattached" {
+					reattachments++
+				}
+			}
+			if reattachments != 1 {
+				t.Fatalf("compaction duplicated retained skill instructions: %d", reattachments)
+			}
 			if _, err := agent.Prompt(t.Context(), harness.Message{Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "continue after compaction"}}}); err != nil {
 				t.Fatal(err)
 			}
