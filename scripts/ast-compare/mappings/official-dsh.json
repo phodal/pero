@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "c1effcef40ff98ac25c299abdd6ecf338cececc9",
+  "right_ref": "561febe78c6a3234d9f74923ff890a8c836709f4",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -16,7 +16,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "af3f5ad6102914cb258cb00b33729ecb93cf24006c333a556d2fffec56cb9394"
+        "sha256": "c55517e324c55ca5224a89a63b798b3f9d52dc08a74c6d9f45070028f87e8db4"
       },
       "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence.",
       "landmarks": [
@@ -55,7 +55,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "af3f5ad6102914cb258cb00b33729ecb93cf24006c333a556d2fffec56cb9394"
+        "sha256": "c55517e324c55ca5224a89a63b798b3f9d52dc08a74c6d9f45070028f87e8db4"
       },
       "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests.",
       "landmarks": [
@@ -239,7 +239,7 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "317077e0d0c2279bab7763894db70e662e7f288f325b6d90c626fd57e12b91c8"
+        "sha256": "8ba03260fc563fb1c1af69225c879d9f55525328b808d7087032f1adf71b19b1"
       },
       "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement.",
       "landmarks": [
@@ -278,7 +278,7 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "98a1e78eef1bead1d2bf8eca808b1bb4fa91f569b3d266e8f8a31c23636aec97"
+        "sha256": "0f6ac54a6cf598082110772b9ca920c513f7d4720edf9daed7bf66d8c0008e53"
       },
       "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity.",
       "landmarks": [
@@ -307,7 +307,7 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "317077e0d0c2279bab7763894db70e662e7f288f325b6d90c626fd57e12b91c8"
+        "sha256": "8ba03260fc563fb1c1af69225c879d9f55525328b808d7087032f1adf71b19b1"
       },
       "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates.",
       "landmarks": [
