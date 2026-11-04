@@ -240,6 +240,11 @@ class ACPClient:
                     process.wait(timeout=3)
                 except (subprocess.TimeoutExpired, OSError):
                     failures.append("agent termination could not be confirmed")
+                if process.stdin and not process.stdin.closed:
+                    try:
+                        process.stdin.close()
+                    except OSError:
+                        failures.append("ACP process input cleanup failed")
                 if self.reader:
                     self.reader.join(timeout=3)
                     if self.reader.is_alive():

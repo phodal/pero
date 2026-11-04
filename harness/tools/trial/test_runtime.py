@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import gc
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
@@ -10,6 +11,7 @@ import tempfile
 import threading
 import time
 import unittest
+import warnings
 
 from core import TrialError
 from run_trial import artifact_matches, copy_context, parse_config, run_pipeline
@@ -113,9 +115,13 @@ class RuntimeTrial(unittest.TestCase):
                         return [tool("Write", {"file_path": f"reports/{name}.md", "content": name})]
                     return [answer()]
 
-                with provider(dispatch) as endpoint:
-                    endpoint = endpoint.replace("127.0.0.1", "localhost")
-                    result = run_pipeline(self.config(endpoint, allow_http=allow_http, max_continuations=0))
+                with warnings.catch_warnings(record=True) as resources:
+                    warnings.simplefilter("always", ResourceWarning)
+                    with provider(dispatch) as endpoint:
+                        endpoint = endpoint.replace("127.0.0.1", "localhost")
+                        result = run_pipeline(self.config(endpoint, allow_http=allow_http, max_continuations=0))
+                    gc.collect()
+                self.assertFalse([item for item in resources if issubclass(item.category, ResourceWarning)], resources)
                 self.assertEqual(result["pipeline_complete"], allow_http)
                 self.assertEqual(result["allow_http"], allow_http)
                 self.assertEqual(len(calls), 3 if allow_http else 0)
