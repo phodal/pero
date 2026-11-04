@@ -56,6 +56,7 @@ go_test(
         "discovery_test.go",
         "document_test.go",
         "guidance_eval_test.go",
+        "guidance_test.go",
         "media_test.go",
         "notebook_test.go",
         "notice_recovery_test.go",

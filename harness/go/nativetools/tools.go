@@ -343,7 +343,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			return nil, err
 		}
 	}
-	if err := mountNativeGuidance(ctx, h); err != nil {
+	if err := mountNativeGuidance(ctx, h, app, opts.Shell); err != nil {
 		return nil, err
 	}
 	if err := mountPlanTools(ctx, h); err != nil {
