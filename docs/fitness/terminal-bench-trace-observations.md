@@ -46,6 +46,16 @@ no-incorrect-address condition. One explicit failed call is a scratch C link
 with duplicate globals; that failure does not establish the cause of the
 submitted extraction mismatch.
 
+`polyglot-c-py` ends normally after 15 requests. Its own Python/C checks
+succeed, but it leaves the self-test binary `cmain` next to `main.py.c`.
+The official verifier rejects the extra file before reaching functional checks.
+The required single-file output set needs a final directory-content check or
+scratch compilation outside that output directory. This is an artifact-set
+failure, not a failed compiler invocation. The original reward remains zero;
+removing the binary alone has not been shown to pass the remaining checks.
+Source/result/instruction/verifier hashes and the relevant call seqs are in
+`analysis-polyglot-output-set.json` under the artifact root.
+
 ## Sanitizer correctness and verifier assumptions
 
 `filter-js-from-html` ends normally but fails both official tests. Its XSS
