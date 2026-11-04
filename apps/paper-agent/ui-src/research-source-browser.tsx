@@ -88,13 +88,16 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
     catch (error) { if (mounted.current && version === epoch.current) setError(String(error)); }
     finally { if (mounted.current && version === epoch.current) setBusy(false); }
   }
-  async function reveal(match: { pdf: { documentId: string; fileDigest: string; page: number } }, resource = pdfId) {
+  async function reveal(match: { pdf: { documentId: string; fileDigest: string; page: number; start?: number; end?: number } }, resource = pdfId) {
     if (busy) return;
     const version = ++epoch.current; setBusy(true); setError(''); setObservationWarning('');
     try {
       const value = await api.post<{ localAvailable: boolean; receipt: null | { paperId: string; documentId: string; fileDigest: string } }>('/api/research/pdf', { operation: 'status', bundleId: bundle.id, resourceId: resource });
       if (!value.localAvailable || value.receipt?.documentId !== match.pdf.documentId || value.receipt.fileDigest !== match.pdf.fileDigest) throw new Error('The compared PDF version is unavailable. Restore that exact PDF before opening the match.');
-      if (mounted.current && version === epoch.current && await onRead(value.receipt.paperId, { documentId: match.pdf.documentId, page: match.pdf.page }) === false) throw new Error('Could not open the saved PDF. Try opening the match again.');
+      const focus = match.pdf.start != null && match.pdf.end != null
+        ? await api.post<PdfFocus>('/api/pdf/locate', match.pdf)
+        : { documentId: match.pdf.documentId, page: match.pdf.page };
+      if (mounted.current && version === epoch.current && await onRead(value.receipt.paperId, focus) === false) throw new Error('Could not open the saved PDF. Try opening the match again.');
     } catch (error) { if (mounted.current && version === epoch.current) setError(String(error)); }
     finally { if (mounted.current && version === epoch.current) setBusy(false); }
   }

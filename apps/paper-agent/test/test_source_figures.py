@@ -9,7 +9,7 @@ from test_pdf import image_pdf_fixture, pdf_fixture
 from paper_agent.model import Invalid, PaperSnapshot, digest
 from paper_agent.source_archive import SourceArchive
 from paper_agent.source_figures import SourceFigure
-from paper_agent.figure_references import FigureCaptionLocation, FigureReference
+from paper_agent.figure_references import FigureReference
 from paper_agent.tex_preview import TexPreview
 from paper_agent.pdf import PdfDocument
 from paper_agent.pdf_files import PdfFiles
@@ -136,28 +136,3 @@ class SourceFiguresTest(unittest.TestCase):
                 self.assertEqual((target['page'], target['documentId']), (expected_page, expected_id))
                 self.assertTrue(target['rects'])
                 self.assertTrue(all(0 <= rect['x'] < 1 and 0 <= rect['y'] < 1 for rect in target['rects']))
-
-    def test_caption_navigation_requires_one_literal_page(self):
-        from types import SimpleNamespace
-        from paper_agent.pdf import PdfDocument, PdfPage
-        caption = 'DeepSeek task outcomes; labels rounded.'
-        for text, expected in (
-            ((caption, 'Other results'), 1),
-            (('Other results', caption), 2),
-            ((caption, caption), None),
-            (('No corresponding caption', 'Other results'), None),
-        ):
-            document = PdfDocument('doc', 'paper', 'hash', '', tuple(PdfPage(i + 1, 100, 100, t) for i, t in enumerate(text)), '')
-            match = FigureCaptionLocation.match(document, [SimpleNamespace(caption=caption)])
-            self.assertEqual(match.page if match else None, expected)
-            if match:
-                self.assertEqual(document.page(match.page).text[match.start:match.end], caption)
-        document = PdfDocument('doc', 'paper', 'hash', '', (PdfPage(1, 100, 100, 'Results of Model: original evidence supports this sufficiently long literal caption.'),), '')
-        self.assertEqual(FigureCaptionLocation.match(document, [SimpleNamespace(caption=r'Results of \method{}: original evidence supports this sufficiently long literal caption.')]).page, 1)
-        for text, expected in ((f'Intro\r\n{caption.replace(" ", chr(10))}\r\nEnd', True),
-                               (f'{caption}\n{caption}', False)):
-            document = PdfDocument('doc', 'paper', 'hash', '', (PdfPage(1, 100, 100, text),), '')
-            match = FigureCaptionLocation.match(document, [SimpleNamespace(caption=caption)])
-            self.assertEqual(match is not None, expected)
-            if match:
-                self.assertEqual(''.join(text[match.start:match.end].split()), ''.join(caption.split()))

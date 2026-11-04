@@ -1,6 +1,5 @@
 """Navigation from an immutable source image to its original figure location."""
 from dataclasses import asdict, dataclass, replace
-import re
 
 from .model import ID, Invalid
 from .source_archive import SourceArchive
@@ -8,36 +7,7 @@ from .source_figures import SourceFigure
 from .tex_preview import TexPreview, TexPreviews
 from .pdf_files import PdfFiles
 from .research_resources import ArxivPaper
-
-
-@dataclass(frozen=True)
-class FigureCaptionLocation:
-    """A unique literal caption window in one document's own text coordinates."""
-    page: int
-    start: int
-    end: int
-
-    @classmethod
-    def match(cls, document, figures):
-        fragments = set()
-        for figure in figures:
-            if not re.search(r'[\\{}$]', figure.caption) and len(figure.caption) >= 24:
-                fragments.add(figure.caption)
-            fragments.update(f.strip() for f in re.split(r'\\[a-zA-Z@]+\*?|[{}$]|(?<=[.;])\s+', figure.caption) if len(f.strip()) >= 40)
-        matches = set()
-        for page in document.pages:
-            offsets = [i for i, character in enumerate(page.text) if not character.isspace()]
-            compact = ''.join(page.text[i] for i in offsets)
-            for fragment in fragments:
-                needle = re.sub(r'\s+', '', fragment)
-                start = compact.find(needle)
-                if start >= 0 and compact.find(needle, start + 1) < 0:
-                    matches.add(cls(page.number, offsets[start], offsets[start + len(needle) - 1] + 1))
-        if len({match.page for match in matches}) != 1:
-            return None
-        # Prefer the longest literal window, retaining the source offsets even
-        # when PDF line wrapping differs. Other fragments may surround TeX macros.
-        return max(matches, key=lambda match: (match.end - match.start, -match.start))
+from .source_captions import SourceCaption
 
 
 @dataclass(frozen=True)
@@ -72,12 +42,13 @@ class FigureReference:
             if member is None:
                 continue
             figures = tuple(f for f in SourceFigure.in_archive(archive) if f.memberIds == (member.id,))
+            captions = tuple(SourceCaption(f.caption) for f in figures)
             previews = [TexPreview.from_record(store._read('tex-previews', i)) for i in store._list('tex-previews')]
             previews = [p for p in previews if (p.bundle_id, p.resource_id, p.archive_digest) == (job.bundleId, job.resourceId, archive.sha256)]
             previews.sort(key=lambda p: p.paper_id != preferred_paper)
             target = None
             for preview in previews:
-                location = FigureCaptionLocation.match(preview.document, figures)
+                location = SourceCaption.unique(preview.document, captions)
                 if location is not None:
                     anchor = pdf_files.locate_anchors(tex.file(preview.id), preview.document, preview.document.file_digest,
                                                      location.page, [(location.start, location.end)])[0]
@@ -97,7 +68,7 @@ class FigureReference:
                     continue
                 if (f'arxiv:{work.work}', work.revision) != (resource.workIdentity, resource.revision):
                     continue
-                location = FigureCaptionLocation.match(document, figures)
+                location = SourceCaption.unique(document, captions)
                 if location is not None:
                     anchor = pdf_files.locate_anchors(store.pdf_bytes(document), document, document.file_digest,
                                                      location.page, [(location.start, location.end)])[0]
