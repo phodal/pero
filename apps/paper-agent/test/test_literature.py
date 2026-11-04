@@ -75,6 +75,11 @@ class LiteratureTest(unittest.TestCase):
                 self.assertEqual(parse_qs(parsed.query)["publishedAfter"], ["2026-01-01"])
                 return Response([{"paperId": "2601.12345", "title": "A research paper", "abstract": "Original"}])
             if parsed.hostname == "api.openalex.org":
+                selected = parse_qs(parsed.query)["select"][0]
+                self.assertIn("abstract_inverted_index", selected)
+                self.assertIn("authorships", selected)
+                self.assertNotIn("referenced_works", selected)
+                self.assertEqual(parse_qs(parsed.query)["per_page"], ["10"])
                 return Response({"results": [WORK]})
             return Response(status=503)
         result = LiteratureClient(fetch, lambda: NOW).search({"query": "Graph RAG", "sources": ["alphaxiv", "openalex", "pubmed"], "publishedAfter": "2026-01-01"})
@@ -115,6 +120,8 @@ class LiteratureTest(unittest.TestCase):
         self.assertEqual(popular[0]['citations'], 3)
         self.assertNotIn('citations', popular[1])
         self.assertNotIn('citations', popular[2])
+        mixed = client.search({'query': 'x', 'sources': ['alphaxiv', 'openalex'], 'priority': 'default'})['items']
+        self.assertEqual([item['source'] for item in mixed[:2]], ['alphaxiv', 'openalex'])
 
     def test_huggingface_search_merges_paper_versions_and_keeps_observed_links(self):
         def fetch(url, **_options):
@@ -223,6 +230,7 @@ class LiteratureTest(unittest.TestCase):
             if parsed.path.endswith("esummary.fcgi"):
                 return Response({"result": {"123": {"title": "Medical paper", "sortpubdate": "2025/02/01 00:00", "authors": [{"name": "A"}], "articleids": [{"idtype": "pmc", "value": "PMC123"}]}}})
             if parsed.path.endswith("efetch.fcgi"):
+                self.assertEqual(parse_qs(parsed.query).get("rettype"), ["abstract"])
                 return Response('<PubmedArticleSet><PubmedArticle><PMID Version="1">123</PMID><Abstract><AbstractText Label="METHODS">A <i>real</i> method &amp; result.</AbstractText></Abstract></PubmedArticle></PubmedArticleSet>')
             return Response({"esearchresult": {"idlist": ["123"]}})
         client = LiteratureClient(fetch)

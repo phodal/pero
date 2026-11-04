@@ -67,9 +67,9 @@ export function SettingsRow({ children, className = '', ...props }: React.HTMLAt
   return <div {...props} className={`pero-settings-row ${className}`}>{children}</div>;
 }
 
-export function SearchField({ className = '', ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} type="search" className={`pero-search-field ${className}`} />;
-}
+export const SearchField = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(function SearchField({ className = '', ...props }, ref) {
+  return <input {...props} ref={ref} type="search" className={`pero-search-field ${className}`} />;
+});
 
 /** Session markdown. Headings, lists, code, quotes, and tables use the chat contract. */
 export function ChatMarkdown({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
