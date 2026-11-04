@@ -34,7 +34,8 @@
     "Official DSH behavioral review restores ACP admission cancellation, bounded physical read windows, max-token tool suppression and explicit context-overflow classification; see upstream_behavior_review record.",
     "Existing-module behavioral review restores inherited common-loop/storage contracts, fail-closed JSONL tails, precise usage/settings conversion, MCP capability discovery and shell tails; CLI explicitly selects existing DSH todo options. See module_behavior_review; not full cross-language parity.",
     "Explicit JSON Chat/Responses protocol selection reuses provider transport/budgets; stateless Responses retains assistant phase, item/call IDs and encrypted reasoning. Compaction materializes a plain-text user checkpoint while retaining provider metadata in original audit events; these are local adaptations, not upstream equivalence.",
-    "Direct user skill invocation and post-compaction reattachment check exact authorized registration before deferred discovery while retaining scoped restrictions, shadows and owner lifetime; model tool activation is unchanged."
+    "Direct user skill invocation and post-compaction reattachment check exact authorized registration before deferred discovery while retaining scoped restrictions, shadows and owner lifetime; model tool activation is unchanged.",
+    "Every completed compaction request appends provider usage before summary validation, including truncated or nonshrinking responses. Offline reports deduplicate by compaction ID and preserve legacy coverage gaps; frozen benchmark binaries are not changed."
   ],
   "excluded_features": [
     "Projects",
@@ -286,7 +287,7 @@
     },
     {
       "destination": "harness/compaction_range.go",
-      "sha256": "19f9a1a37f47e5cfab77f16939594c265264d5e9ffd78739e8380e95ac895638",
+      "sha256": "4f47d268b20c99d1cec66a8353273c98b957bd39c7ededfdbece18f35a829b13",
       "source_path": "go/harness/compaction_range.go",
       "source_blob_sha1": "ab26074a189db061f4907256928c7ffe61216a0f",
       "change": "adapted; plain-text user checkpoint materialization strips assistant-owned provider metadata; see docs/issues/2026-11-05-compaction-summary-provider-metadata.md"

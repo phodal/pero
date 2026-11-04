@@ -231,7 +231,7 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 		}
 	}()
 
-	summary, rawOutput, usage, provider, model, err := b.summarize(ctx, agent, measurement, selection, policy)
+	summary, rawOutput, usage, provider, model, err := b.summarize(ctx, agent, compactionID, measurement, selection, policy)
 	if err != nil {
 		if turn == nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			return nil, newManualCompactionError(ManualCompactionSummary, "manual compaction summary failed", err)
@@ -354,7 +354,7 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 	}, nil
 }
 
-func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, measurement TokenMeasurement, selection compactionSelection, policy resolvedTargetCompactionPolicy) (
+func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, compactionID string, measurement TokenMeasurement, selection compactionSelection, policy resolvedTargetCompactionPolicy) (
 	summary []ContentBlock, raw []ContentBlock, usage *TokenUsage, provider string, model string, err error,
 ) {
 	header, _, err := agent.session.RequestHeader()
@@ -422,6 +422,18 @@ func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, measuremen
 			return nil, nil, nil, "", "", refreshErr
 		}
 		request.Messages = append(refreshed, Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: compactionInstruction}}})
+	}
+	// Provider usage belongs to the completed request even when its summary is
+	// truncated, rejected or too large to replace the selected history.
+	if _, err := agent.session.Append("compaction/response", struct {
+		CompactionID string      `json:"compactionId"`
+		Provider     string      `json:"provider"`
+		Model        string      `json:"model"`
+		Finish       FinishKind  `json:"finish"`
+		Usage        *TokenUsage `json:"usage"`
+		ToolCount    int         `json:"toolCount"`
+	}{compactionID, provider, model, completion.Finish, completion.Usage, len(request.Tools)}); err != nil {
+		return nil, nil, nil, "", "", err
 	}
 	if completion.Finish == FinishMaxTokens {
 		return nil, nil, nil, "", "", errors.New("harness: compaction summary was truncated at max tokens")

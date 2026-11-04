@@ -201,6 +201,7 @@ class Usage:
     reasoning_tokens: int = 0
     reported_completions: int = 0
     unreported_completions: int = 0
+    unreported_attempts: int = 0
 
 
 def sum_usage(values: tuple[Usage, ...]) -> Usage:

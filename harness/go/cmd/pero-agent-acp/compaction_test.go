@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"math"
@@ -118,7 +119,7 @@ func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
 						return harness.Completion{}, harness.NewProviderErrorWithFailure(harness.ProviderFailure{Code: harness.ContextWindowExceededCode, Message: "synthetic overflow"}, errors.New("synthetic overflow"))
 					}
 				}
-				return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}}}, nil
+				return harness.Completion{Finish: harness.FinishStop, Usage: &harness.TokenUsage{InputTokens: 4, OutputTokens: 2, TotalTokens: 6}, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}}}, nil
 			})
 			h, err := harness.Boot(ctx, harness.Options{Adapter: compactionSyntheticAdapter{adapter, metadata}, AdapterProviders: []string{"configured"}, ModelInfo: metadata})
 			if err != nil {
@@ -245,13 +246,31 @@ func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
 			defer func() { _ = detach() }()
 			prompt(a, "resume checkpoint")
 			found := false
+			var responseCount int32
 			for _, event := range a.Session().Events() {
 				if event.Type == "compaction/end" {
 					found = true
 				}
+				if event.Type == "compaction/response" {
+					var response struct {
+						CompactionID string             `json:"compactionId"`
+						Usage        harness.TokenUsage `json:"usage"`
+					}
+					if err := json.Unmarshal(event.Data, &response); err != nil || response.CompactionID == "" || response.Usage.TotalTokens != 6 {
+						t.Fatalf("invalid durable compaction usage: %s err=%v", event.Data, err)
+					}
+					responseCount++
+				}
 			}
 			if !found {
 				t.Fatal("missing durable compaction bracket")
+			}
+			want := summaries.Load()
+			if scenario == "cancel" {
+				want-- // A cancelled provider request has no completed usage receipt.
+			}
+			if responseCount != want {
+				t.Fatalf("durable compaction responses=%d want %d including rejected summaries", responseCount, want)
 			}
 		})
 	}

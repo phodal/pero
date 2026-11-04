@@ -267,17 +267,34 @@ class ACPClient:
 def read_usage(directory: Path) -> Usage:
     values = []
     for path in (directory / "sessions").glob("*.jsonl"):
+        compactions = set()
+        failed_compactions = set()
         for line in path.read_bytes().splitlines():
             event = json.loads(line).get("event", {})
-            if event.get("type") != "assistant/message":
+            kind, data = event.get("type"), event.get("data", {})
+            if kind == "assistant/attempt":
+                values.append(Usage(unreported_attempts=1))
+            if kind == "compaction/end" and data.get("error"):
+                failed_compactions.add(data.get("compactionId"))
+            if kind not in ("assistant/message", "compaction/response", "compaction/summary"):
                 continue
-            usage = event.get("data", {}).get("usage")
+            if kind.startswith("compaction/"):
+                identity = data.get("compactionId")
+                if not isinstance(identity, str) or not identity:
+                    raise TrialError("persisted compaction ID is invalid")
+                if identity in compactions:
+                    continue
+                compactions.add(identity)
+            usage = data.get("usage")
             if usage is None:
                 values.append(Usage(unreported_completions=1))
                 continue
+            if not isinstance(usage, dict):
+                raise TrialError("persisted provider usage is invalid")
             keys = ("inputTokens", "outputTokens", "totalTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens")
             numbers = tuple(usage.get(key, None if key == "totalTokens" else 0) for key in keys)
             if any((value is None and index != 2) or value is not None and (type(value) is not int or value < 0) for index, value in enumerate(numbers)):
                 raise TrialError("persisted provider usage is invalid")
             values.append(Usage(*numbers, reported_completions=1))
+        values.extend(Usage(unreported_attempts=1) for _ in failed_compactions - compactions)
     return sum_usage(tuple(values))

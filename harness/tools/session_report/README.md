@@ -28,8 +28,10 @@ is recorded separately and does not overwrite the original acceptance result.
 
 ## Token accounting
 
-- Count only committed `assistant/message.data.usage`. Streaming chunks,
-  tool lanes, JSON receipts and failed attempts are not added again.
+- Count committed `assistant/message.data.usage` and `compaction/response`
+  usage, including rejected or truncated summaries. Legacy `compaction/summary`
+  usage is a fallback, deduplicated by compaction ID. Streaming chunks,
+  tool lanes and JSON receipts are not added again.
 - Pero normalizes cached reads separately: prompt tokens are `input_tokens +
   cache_read_tokens`. Cache writes are descriptive subsets; reasoning is included
   in output. Neither is an additional lane.
@@ -39,7 +41,8 @@ is recorded separately and does not overwrite the original acceptance result.
   estimate for missing responses.
 - `committed_response_usage_complete` describes the committed response records.
   `usage_complete` also becomes false when failed/interrupted `assistant/attempt`
-  records expose a usage gap. Even a complete trace is not an invoice.
+  records or compaction failures without a response expose a usage gap. Older
+  rejected summaries have unknown consumption. Even a complete trace is not an invoice.
 - Exact per-tool, system/schema/history token attribution is not present in the
   native trace. Recorded compact UTF-8 bytes are **not** provider tokens or exact
   HTTP wire bytes. Costs remain null; no pricing is assumed.

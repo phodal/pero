@@ -197,6 +197,8 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
     processes: dict[int, str] = {}
     process_ends: dict[str, tuple[dict, dict]] = {}
     responses = []
+    compaction_ids = set()
+    compaction_failures = []
     contexts = []
     wire_measurements, batch_budgets = [], []
     pending_wire = None
@@ -252,20 +254,32 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
                 wire_measurements.append(pending_wire)
             elif kind == "tool/batch-budget":
                 batch_budgets.append({**ref, **data})
-            elif kind == "assistant/message":
+            elif kind in ("assistant/message", "compaction/response", "compaction/summary"):
+                compaction = kind != "assistant/message"
+                if compaction:
+                    identity = data.get("compactionId")
+                    if not isinstance(identity, str) or not identity:
+                        raise ValueError(f"invalid compaction ID at {path}:{line_number}")
+                    if identity in compaction_ids:
+                        continue
+                    compaction_ids.add(identity)
                 observed_usage = data.get("usage")
                 if observed_usage is not None and not isinstance(observed_usage, dict):
                     raise ValueError(f"invalid usage at {path}:{line_number}")
                 usage.add(observed_usage)
                 responses.append({**ref, "time": last_time, "turn": data.get("turn"), "step": data.get("step"),
-                    "provider": current_header.get("provider"), "model": current_header.get("model"),
+                    "provider": data.get("provider", current_header.get("provider")), "model": data.get("model", current_header.get("model")),
                     "finish": data.get("finish"), "usage": observed_usage,
-                    "header_seq": contexts[-1]["seq"] if contexts else None,
-                    "tool_count": len(current_header.get("tools", []))})
-                if pending_wire and pending_wire.get("turn") == data.get("turn") and pending_wire.get("step") == data.get("step"):
+                    "purpose": "compaction" if compaction else "agent", "compaction_id": data.get("compactionId"),
+                    "header_seq": contexts[-1]["seq"] if contexts and not compaction else None,
+                    "tool_count": data.get("toolCount") if compaction else len(current_header.get("tools", []))})
+                if pending_wire and ((compaction and pending_wire.get("purpose") == "compaction") or
+                        (not compaction and pending_wire.get("turn") == data.get("turn") and pending_wire.get("step") == data.get("step"))):
                     responses[-1]["wire_seq"] = pending_wire["seq"]
                     pending_wire["response_seq"] = seq
                 pending_wire = None
+            elif kind == "compaction/end" and data.get("error"):
+                compaction_failures.append((data.get("compactionId"), ref))
             elif kind == "tool/call":
                 call_id, name, arguments = data.get("callId"), data.get("name"), data.get("arguments", {})
                 if not isinstance(call_id, str) or not isinstance(name, str) or not isinstance(arguments, dict) or call_id in pending:
@@ -445,12 +459,13 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
         findings.append(Finding("unused_tool_declarations", "opportunity",
             f"{len(advertised - used)}/{len(advertised)} advertised tools unused; evaluate deferred loading separately",
             [{"seq": context["seq"], "line": context["line"]} for context in contexts]))
-    if usage.unreported_completions or counts["assistant/attempt"]:
+    unknown_compactions = [ref for identity, ref in compaction_failures if identity not in compaction_ids]
+    if usage.unreported_completions or counts["assistant/attempt"] or unknown_compactions:
         findings.append(Finding("usage_coverage_gap", "warning",
             "Some completions or failed/interrupted attempts have no complete provider usage; totals cover recorded usage only"))
     call_values = [asdict(call) for call in calls.values()]
     usage_summary = usage.summary()
-    usage_summary["usage_complete"] = usage_summary["usage_complete"] and counts["assistant/attempt"] == 0
+    usage_summary["usage_complete"] = usage_summary["usage_complete"] and counts["assistant/attempt"] == 0 and not unknown_compactions
     label = label_for(path)
     if header.get("parentSession"):
         label += "/subagent:" + header["id"][-8:]
@@ -462,7 +477,8 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
         "raw_events": event_count, "event_counts": dict(counts), "usage": usage_summary,
         "responses": responses, "contexts": contexts, "wire_measurements": wire_measurements, "batch_budgets": batch_budgets, "calls": call_values, "turns": turns,
         "findings": [asdict(finding) for finding in findings], "counts": count_calls(call_values),
-        "failed_or_interrupted_attempt_records": counts["assistant/attempt"]}
+        "failed_or_interrupted_attempt_records": counts["assistant/attempt"],
+        "unreported_compaction_failures": len(unknown_compactions)}
 
 
 def count_calls(calls: list[dict]) -> dict:
@@ -511,16 +527,16 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
         for call in session["calls"]:
             tools.setdefault(call["name"], []).append(call)
     usage_summary = usage.summary()
-    usage_summary["usage_complete"] = usage_summary["usage_complete"] and not any(s["failed_or_interrupted_attempt_records"] for s in sessions)
+    usage_summary["usage_complete"] = usage_summary["usage_complete"] and all(s["usage"]["usage_complete"] for s in sessions)
     return {"schema_version": 1, "kind": "pero-session-report",
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "semantics": {"usage_source": "committed assistant/message.data.usage only; chunks, receipts and attempts are not added; totals are recorded usage, not a complete invoice",
+        "semantics": {"usage_source": "committed assistant/message and compaction/response usage; legacy compaction/summary fallback counted once by compaction ID; chunks and duplicate receipts excluded; not a complete invoice",
             "input_tokens": "Pero normalized uncached input; add cache_read_tokens to obtain prompt tokens",
             "cache_write_tokens": "descriptive subfield; not an additional prompt token lane",
             "reasoning_tokens": "included in output_tokens; do not add twice",
             "bytes": "compact UTF-8 JSON/text sizes, not provider tokens; request/wire-size fields alone measure actual serialized provider body bytes",
             "wire_measurements": "prepared_for_http, not proof of sending or billing; each record is a separate preparation, including failed attempts; tool-result message bytes use the actual selected request after compaction/replacement",
-            "schema_exposure": "compact declared tool JSON bytes per committed response; unused means never called in that Session; not provider tokens or causal waste",
+            "schema_exposure": "compact declared tool JSON bytes per main response; compaction schema exposure is unknown; unused means never called in that Session; not provider tokens or causal waste",
             "repeated_result": "same arguments classified by returned observation; missing, spilled or truncated evidence is unknown, not unchanged",
             "validation_signals": "heuristic review candidates, not confirmed failures; raw output may quote source or expected errors",
             "task_outcome": "not inferred from stop or tool success; use an external judge/acceptance receipt",
@@ -536,7 +552,8 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
             **count_calls(all_calls), "turn_errors": sum(bool(t.get("error")) for s in sessions for t in s["turns"]),
             "turn_errors_by_source": dict(Counter(t.get("source") or "unknown"
                 for s in sessions for t in s["turns"] if t.get("error"))),
-            "failed_or_interrupted_attempt_records": sum(s["failed_or_interrupted_attempt_records"] for s in sessions)},
+            "failed_or_interrupted_attempt_records": sum(s["failed_or_interrupted_attempt_records"] for s in sessions),
+            "unreported_compaction_failures": sum(s["unreported_compaction_failures"] for s in sessions)},
         "tools": [{"name": name, **count_calls(calls)} for name, calls in sorted(tools.items())],
         "duplicates_skipped": duplicates, "sessions": sessions}
 
@@ -556,6 +573,9 @@ def markdown(report: dict) -> str:
         'These are separate from an external benchmark verdict.', "",
         f'Provider-reported total tokens: **{total}**. Uncached input: {usage["input_tokens"]:,}; '
         f'cache read: {usage["cache_read_tokens"]:,}; output: {usage["output_tokens"]:,}.', "",
+        f'Usage coverage complete: {usage["usage_complete"]}. Failed/interrupted attempt records: '
+        f'{summary["failed_or_interrupted_attempt_records"]}; compaction failures without response usage: '
+        f'{summary["unreported_compaction_failures"]}. Missing usage is unknown.', "",
         f'Explicit tool/process failures: **{summary["failed_calls"]}** '
         f'(isError={summary["protocol_errors"]}; nonzero exit={summary["execution_failures"]}; owner failure={summary["lifecycle_failures"]}; overlapping counts). '
         f'Interrupted: {summary["interrupted_calls"]}; running: {summary["running_calls"]}; missing returns: {summary["missing_results"]}.', "",

@@ -148,6 +148,46 @@ class SessionReportRules(unittest.TestCase):
         self.assertEqual(report["summary"]["failed_or_interrupted_attempt_records"], 1)
         self.assertIn("usage_coverage_gap", {f["kind"] for f in report["sessions"][0]["findings"]})
 
+    def test_compaction_usage_counts_completed_requests_once_even_when_rejected(self):
+        known = {"inputTokens": 4, "outputTokens": 2, "totalTokens": 6}
+        events = [
+            ("request/header", {"tools": [{"name": "Read"}]}),
+            ("assistant/message", {"usage": known}),
+            ("request/wire-size", {"purpose": "compaction", "payload_bytes": 90}),
+            ("compaction/response", {"compactionId": "accepted", "usage": known, "toolCount": 0}),
+            ("compaction/summary", {"compactionId": "accepted", "usage": known}),
+            ("compaction/response", {"compactionId": "rejected", "usage": known}),
+            ("compaction/end", {"compactionId": "rejected", "error": "did not shrink"}),
+            ("compaction/summary", {"compactionId": "legacy", "usage": known}),
+        ]
+        report = build_report([self.session(events)])
+        session = report["sessions"][0]
+        self.assertEqual(report["summary"]["usage"]["known_total_tokens"], 24)
+        self.assertEqual(session["usage"]["reported_completions"], 4)
+        self.assertTrue(session["usage"]["usage_complete"])
+        self.assertEqual([r["purpose"] for r in session["responses"]], ["agent"] + ["compaction"] * 3)
+        self.assertEqual([r["header_seq"] for r in session["responses"]], [1, None, None, None])
+        self.assertEqual(session["responses"][1]["wire_seq"], 3)
+        self.assertEqual(report["summary"]["schema_exposure_bytes"], session["contexts"][0]["schema_bytes"])
+
+    def test_legacy_compaction_failure_keeps_usage_coverage_unknown(self):
+        report = build_report([self.session([
+            ("assistant/message", {"usage": {"inputTokens": 4, "outputTokens": 2, "totalTokens": 6}}),
+            ("compaction/end", {"compactionId": "legacy-failed", "error": "did not shrink"}),
+        ])])
+        self.assertEqual(report["summary"]["unreported_compaction_failures"], 1)
+        for usage in (report["summary"]["usage"], report["sessions"][0]["usage"]):
+            self.assertEqual(usage["known_total_tokens"], 6)
+            self.assertTrue(usage["committed_response_usage_complete"])
+            self.assertFalse(usage["usage_complete"])
+        self.assertIn("usage_coverage_gap", {f["kind"] for f in report["sessions"][0]["findings"]})
+
+    def test_compaction_receipts_require_nonempty_identity(self):
+        for kind in ("compaction/response", "compaction/summary"):
+            for identity in (None, "", 1):
+                with self.subTest(kind=kind, identity=identity), self.assertRaisesRegex(ValueError, "compaction ID"):
+                    inspect_session(self.session([(kind, {"compactionId": identity})]))
+
     def test_final_shell_lifecycle_supersedes_running_receipt(self):
         for label, terminal, status, execution_failure in [
             ("nonzero", {"exitCode": 7, "stdout": {"text": "failed"}}, "failed", True),

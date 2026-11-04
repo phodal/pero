@@ -63,6 +63,38 @@ class TrialRules(unittest.TestCase):
             with self.subTest(label):
                 self.assertEqual(session_succeeded(matches, stop, fatal), want)
 
+    def test_usage_includes_compactions_once_and_marks_unknown_attempts(self):
+        known = {"inputTokens": 4, "outputTokens": 2, "totalTokens": 6}
+        events = [
+            ("assistant/message", {"usage": known}),
+            ("compaction/response", {"compactionId": "one", "usage": known}),
+            ("compaction/summary", {"compactionId": "one", "usage": known}),
+            ("compaction/response", {"compactionId": "two", "usage": known}),
+            ("compaction/end", {"compactionId": "two", "error": "rejected"}),
+            ("compaction/summary", {"compactionId": "legacy", "usage": known}),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sessions").mkdir()
+            path = root / "sessions/one.jsonl"
+
+            def write():
+                path.write_text("".join(json.dumps({"event": {"type": kind, "data": data}}) + "\n"
+                                        for kind, data in events))
+
+            write()
+            self.assertEqual(read_usage(root), Usage(16, 8, 24, reported_completions=4))
+            events += [("compaction/end", {"compactionId": "old-failed", "error": "rejected"}),
+                       ("assistant/attempt", {})]
+            write()
+            self.assertEqual(read_usage(root), Usage(16, 8, None, reported_completions=4, unreported_attempts=2))
+            for identity in (None, "", 1):
+                events.append(("compaction/response", {"compactionId": identity, "usage": known}))
+                write()
+                with self.subTest(identity=identity), self.assertRaises(TrialError):
+                    read_usage(root)
+                events.pop()
+
     def test_unsupported_configuration_fails_before_execution(self):
         for change in ({"budget": 1}, {"budget": float("nan")}, {"max_retries": 1}, {"max_retries": False},
                        {"sessions": []}, {"enable_shell": True}, {"unattended_questions": "auto"},
