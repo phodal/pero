@@ -34,6 +34,8 @@ type Config struct {
 	DisableThinking bool
 	// Explicit opt-in to the process environment HTTP(S) proxy; TLS verification is unchanged.
 	UseEnvironmentProxy bool
+	// Explicit opt-in to plaintext HTTP for this configured endpoint only.
+	AllowHTTP bool
 	// Optional audit gate called before each HTTP attempt. An error prevents it.
 	BeforeHTTPAttempt func() error
 	// Optional adapter-lifetime hard limits. Zero preserves unlimited behavior.
@@ -67,8 +69,8 @@ func New(c Config) (*Adapter, error) {
 	}
 	if u.Scheme != "https" {
 		ip := net.ParseIP(u.Hostname())
-		if u.Scheme != "http" || ip == nil || !ip.IsLoopback() {
-			return nil, errors.New("openai adapter: HTTPS required except loopback fixtures")
+		if u.Scheme != "http" || (!c.AllowHTTP && (ip == nil || !ip.IsLoopback())) {
+			return nil, errors.New("openai adapter: HTTPS required except loopback fixtures; explicit HTTP requires allow-http")
 		}
 	}
 	if strings.TrimSpace(c.APIKey) == "" || strings.TrimSpace(c.ProviderName) == "" || len(c.Models) == 0 {

@@ -457,6 +457,7 @@ func takeProviderCredential(name string) (string, error) {
 type providerBudget struct {
 	DisableThinking     bool
 	UseEnvironmentProxy bool
+	AllowHTTP           bool
 	ImageInput          bool
 	MaxRequests         int
 	MaxTokens           int
@@ -468,6 +469,7 @@ func bindProviderBudget(flags *flag.FlagSet) *providerBudget {
 	budget := &providerBudget{}
 	flags.BoolVar(&budget.DisableThinking, "disable-thinking", false, "explicitly send thinking.type=disabled to a compatible provider")
 	flags.BoolVar(&budget.UseEnvironmentProxy, "use-env-proxy", false, "opt in to standard HTTP(S)_PROXY/NO_PROXY routing; TLS verification remains enabled")
+	flags.BoolVar(&budget.AllowHTTP, "allow-http", false, "allow plaintext HTTP for the explicitly configured provider endpoint")
 	flags.BoolVar(&budget.ImageInput, "image-input", false, "declare this model supports bounded in-memory PNG/JPEG input; never fetch remote image URLs or local paths")
 	flags.IntVar(&budget.MaxRequests, "max-requests", 0, "hard provider HTTP attempt cap for this process (0 keeps unlimited)")
 	flags.IntVar(&budget.MaxTokens, "max-tokens", 0, "hard per-request output token cap (0 keeps provider default)")
@@ -490,7 +492,7 @@ func configuredProvider(endpoint, model, credential string, budget providerBudge
 		effort := harness.ReasoningEffort(budget.ReasoningEffort)
 		declared.Reasoning = &harness.ModelReasoningInfo{DefaultEffort: effort, Efforts: []harness.ReasoningEffortInfo{{ID: effort, Name: budget.ReasoningEffort}}}
 	}
-	config := openai.Config{Endpoint: endpoint, APIKey: credential, ProviderName: "configured", Models: []openai.ModelConfig{declared}, MaxRequests: budget.MaxRequests, MaxOutputTokens: budget.MaxTokens, UseEnvironmentProxy: budget.UseEnvironmentProxy, DisableThinking: budget.DisableThinking}
+	config := openai.Config{Endpoint: endpoint, APIKey: credential, ProviderName: "configured", Models: []openai.ModelConfig{declared}, MaxRequests: budget.MaxRequests, MaxOutputTokens: budget.MaxTokens, UseEnvironmentProxy: budget.UseEnvironmentProxy, AllowHTTP: budget.AllowHTTP, DisableThinking: budget.DisableThinking}
 	if budget.MaxRetries >= 0 {
 		count := budget.MaxRetries
 		config.RetryPolicy = &harness.RetryPolicyConfig{Mode: harness.RetryNormal, MaxRetries: &count}

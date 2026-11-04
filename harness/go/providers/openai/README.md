@@ -4,7 +4,9 @@ This is the text/tool-call slice of the pinned DSH Go port. Configure endpoint,
 credential, provider ID and exact model catalog explicitly. No default provider,
 model discovery, credential lookup, anonymous identity, session-log telemetry,
 Files API upload, UI, or Point service is included. HTTP is accepted only for
-numeric loopback fixture servers; deployment endpoints require HTTPS. Redirects
+numeric loopback fixture servers by default. An operator can explicitly set
+`Config.AllowHTTP` (CLI: `--allow-http`) for a supplied plaintext provider endpoint;
+this does not change TLS verification or other services' endpoints. Redirects
 and SDK retries are disabled. Retry decisions remain owned by the harness.
 
 Unknown model/provider, unsupported media, content extensions, request extensions and

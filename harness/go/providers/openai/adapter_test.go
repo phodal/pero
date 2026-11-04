@@ -96,6 +96,26 @@ func TestExplicitConfiguration(t *testing.T) {
 			t.Fatalf("accepted unsafe/implicit configuration %+v", c)
 		}
 	}
+	for _, test := range []struct {
+		endpoint string
+		allow    bool
+		accepted bool
+	}{
+		{"https://provider.invalid/v1", false, true},
+		{"http://provider.invalid/v1", false, false},
+		{"http://provider.invalid/v1", true, true},
+		{"http://127.0.0.1/v1", false, true},
+		{"http://[::1]/v1", false, true},
+		{"ftp://provider.invalid/v1", true, false},
+		{"http://u:p@provider.invalid/v1", true, false},
+		{"http://provider.invalid/v1?key=fixture", true, false},
+		{"http://provider.invalid/v1#fragment", true, false},
+	} {
+		c := Config{Endpoint: test.endpoint, AllowHTTP: test.allow, APIKey: "fixture", ProviderName: "fixture", Models: []ModelConfig{{ID: "fixture"}}}
+		if _, err := New(c); (err == nil) != test.accepted {
+			t.Errorf("endpoint=%s allowHTTP=%v accepted=%v error=%v", test.endpoint, test.allow, test.accepted, err)
+		}
+	}
 }
 func TestTextStreamNoProductHeadersOrPayload(t *testing.T) {
 	a, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
