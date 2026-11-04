@@ -65,6 +65,11 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 		return "cancelled", nil
 	}
 	if promptErr != nil {
+		// The native Session retains the budget failure. ACP represents this
+		// expected execution limit as a stop reason, not a transport failure.
+		if harness.ProviderFailureFromError(promptErr).Code == harness.RequestBudgetExhaustedCode {
+			return "max_turn_requests", nil
+		}
 		return "", promptErr
 	}
 	return promptStopReason(result.Reason), nil

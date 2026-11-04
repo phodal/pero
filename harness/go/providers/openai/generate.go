@@ -119,7 +119,7 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 	// Consume budget immediately before any HTTP generation; failed requests count.
 	// The SDK has retries disabled, and exhaustion is not a retryable error.
 	if a.maxRequests > 0 && a.requests.Add(1) > a.maxRequests {
-		return harness.Completion{}, harness.NewProviderError("provider request budget exhausted", "BUDGET_EXHAUSTED", nil)
+		return harness.Completion{}, harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
 	}
 	if request.Agent != nil {
 		tools, _ := json.Marshal(wire.Tools)
