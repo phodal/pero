@@ -250,7 +250,7 @@ impl ChatPanel {
                 )
             })
             .when(!self.attachments.is_empty(), |el| {
-                el.child(div().flex().flex_wrap().gap(px(6.)).mb(px(6.)).children(
+                el.child(div().min_w_0().w_full().flex().flex_wrap().gap(px(6.)).mb(px(6.)).children(
                     self.attachments.iter().enumerate().map(|(i, file)| {
                         let open=file.clone();
                         let preview=file.clone();
@@ -262,12 +262,13 @@ impl ChatPanel {
                                 | ContextKind::Directory
                                 | ContextKind::Selection
                         );
-                        div().flex().items_center().gap(px(2.)).child(
+                        div().min_w_0().max_w_full().flex().items_center().gap(px(2.)).child(
                         W::chat_control(Button::new(("attached-file", i)).ghost(), cx)
+                            .flex_1().min_w_0()
                             .icon(IconName::File)
                             .label(file.label.clone())
                             .tooltip(if can_open {
-                                file.source.clone()
+                                format!("{}\n{}", file.label, file.source)
                             } else {
                                 format!("{}: {}", self.t("composer.remove"), file.source)
                             })

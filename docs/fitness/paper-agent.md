@@ -221,3 +221,21 @@ and Enter activation. The real Electron installed App matched JS SHA-256
 Evidence: `test-results/paper-chat-context/ask-*-focus.png`,
 `ask-dark-toolbar.png` and `desktop-ask-light.png`. An existing user window and
 packaged Native release were not updated or verified by these disposable checks.
+
+## Long draft attachment labels — 2026-11-04
+
+On base `d91af8f4`, the shared Chat Composer bounds each attachment row to its
+container and lets its label shrink using the existing Button ellipsis. Remove
+and Preview retain their space; full titles remain in the reference, accessible
+label, hover text and frozen-content preview.
+
+Wasm builds for the Workbench and standalone Chat, the Web production build,
+and all 20 `pero-chat-ui` tests passed. The disposable real Electron check used
+`Harness as an Asset: Enforcing Determinism via the Convergent AI Agent Framework
+(CAAF)` at a 1000px window width in light/dark: Preview remained inside the
+window, opening it retained the exact title, clicking Remove cleared the
+reference and preserved the user's question. No prompt was submitted.
+Evidence and the repeatable check script remain in ignored
+`test-results/paper-chat-context/desktop-long-title-{light,dark}.png` and
+`desktop-check.mjs`. This does not establish installed Native or real-model
+acceptance.
