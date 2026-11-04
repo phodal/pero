@@ -94,6 +94,7 @@ type arguments struct {
 	Offset                                         int    `json:"offset"`
 	Limit                                          int    `json:"limit"`
 	Command                                        string `json:"command"`
+	Workdir                                        string `json:"workdir"`
 	TimeoutMS                                      int    `json:"timeout_ms"`
 	Pattern                                        string `json:"pattern"`
 	Glob                                           string `json:"glob"`
@@ -240,7 +241,9 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 					}
 					admissionExecutor := executor
 					selectedTimeout := time.Duration(a.TimeoutMS) * time.Millisecond
+					workdir := workspace
 					if opts.ClaudeTools && app.background != nil {
+						workdir, _ = app.background.directoryForCommand(c, request.Agent, a.Workdir)
 						selection, timingErr := app.background.timingPolicy.selectTimeout(a.Command, a.TimeoutMS, a.RunInBackground)
 						if timingErr != nil {
 							return nil, timingErr
@@ -254,7 +257,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 							return nil, err
 						}
 					}
-					if _, err := admissionExecutor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workspace, Timeout: selectedTimeout}); err != nil {
+					if _, err := admissionExecutor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: workdir, Timeout: selectedTimeout}); err != nil {
 						return nil, err
 					}
 					if err := admissionExecutor.CheckConfinement(c); err != nil {

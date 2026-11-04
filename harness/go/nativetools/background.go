@@ -312,15 +312,7 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 		return harness.ToolResult{}, err
 	}
 	task.executor = executor
-	workdir := request.Agent.Session().WorkingDirectory()
-	sessionDirectory, _ := ctx.Value(sessionWorkingDirectoryKey{}).(bool)
-	if !sessionDirectory {
-		s.mu.Lock()
-		if saved := s.shellCWD[request.Agent.ID()]; saved != "" {
-			workdir = saved
-		}
-		s.mu.Unlock()
-	}
+	workdir, rememberDirectory := s.directoryForCommand(ctx, request.Agent, input.Workdir)
 	spec, err := executor.Resolve(shell.ExecRequest{Command: input.Command, Workdir: workdir, Timeout: selection.resolveTimeout, OnExpiry: shell.ExpiryNone})
 	if err != nil {
 		return harness.ToolResult{}, err
@@ -424,11 +416,11 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 		stop := context.AfterFunc(runCtx, func() { cancel(context.Canceled) })
 		defer stop()
 		runSpec := spec
-		if !sessionDirectory {
+		if rememberDirectory {
 			runSpec.Command, task.pwdMarker = commandWithDirectoryMarker(options.Shell, spec.Command, task.intent.OutputFile)
 		}
 		result, runErr := executor.Run(taskCtx, runSpec)
-		if !sessionDirectory {
+		if rememberDirectory {
 			s.observeShellDirectory(task, spec.Workdir)
 		}
 		close(task.processDone)

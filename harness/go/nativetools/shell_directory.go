@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/phodal/pero/harness/go/harness"
 )
 
 type sessionWorkingDirectoryKey struct{}
@@ -15,6 +17,27 @@ type sessionWorkingDirectoryKey struct{}
 // change the persistent directory used by subsequent ordinary Bash calls.
 func WithSessionWorkingDirectory(ctx context.Context) context.Context {
 	return context.WithValue(ctx, sessionWorkingDirectoryKey{}, true)
+}
+
+// Explicit invocation paths are session-relative and do not inherit or mutate
+// the interactive directory. The executor still owns directory admission.
+func (s *shellTasks) directoryForCommand(ctx context.Context, agent *harness.Agent, requested string) (string, bool) {
+	workspace := agent.Session().WorkingDirectory()
+	if anchored, _ := ctx.Value(sessionWorkingDirectoryKey{}).(bool); anchored {
+		return workspace, false
+	}
+	if requested != "" {
+		if !filepath.IsAbs(requested) {
+			requested = filepath.Join(workspace, requested)
+		}
+		return requested, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if saved := s.shellCWD[agent.ID()]; saved != "" {
+		return saved, true
+	}
+	return workspace, true
 }
 
 func commandWithDirectoryMarker(shellPath, command, outputFile string) (string, string) {

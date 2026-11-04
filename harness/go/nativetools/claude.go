@@ -25,6 +25,7 @@ type claudeArguments struct {
 	Offset          int    `json:"offset"`
 	Limit           int    `json:"limit"`
 	Command         string `json:"command"`
+	Workdir         string `json:"workdir"`
 	Description     string `json:"description"`
 	Timeout         int    `json:"timeout"`
 	Pattern         string `json:"pattern"`
@@ -107,7 +108,7 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 		Patch: value.Patch,
 		Path:  selectedPath, Content: content, OldText: value.OldString,
 		NewText: value.NewString, ReplaceAll: value.ReplaceAll, Offset: value.Offset,
-		Limit: value.Limit, Command: value.Command, TimeoutMS: value.Timeout,
+		Limit: value.Limit, Command: value.Command, Workdir: value.Workdir, TimeoutMS: value.Timeout,
 		Pattern: value.Pattern, Glob: value.Glob, FileType: value.FileType,
 		OutputMode: value.OutputMode, IgnoreCase: value.IgnoreCase, Multiline: value.Multiline,
 		LineNumbers: value.LineNumbers, Before: value.Before, After: value.After,
@@ -178,7 +179,8 @@ func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, r
 		definition.name = "Bash"
 		definition.description = "Run an approved shell command. Foreground timeout defaults to 120000ms; host timeout configuration sets the default and cap. A live command reaching its foreground timeout moves to the background, except sleep commands or when background execution is disabled. run_in_background starts detached immediately. Both return a durable task_id for TaskOutput/TaskStop. Unattended background runs default to 1800000ms and cap at 7200000ms, measured from entering the background; trusted host configuration may raise them. Interactive background runs have no deadline. Parent cancellation and retirement stop owned jobs; cold recovery never replays commands. The configured sandbox and existing approval policy apply to both forms."
 		definition.description += " Output merges stdout/stderr: valid results inline up to 30000 characters by default, then output_file names a capped 64 MiB artifact with a 2000-character preview. Failure output is a bounded head/tail excerpt. TaskOutput separately exposes working_log_file for the original background log."
-		definition.properties = `"command":{"type":"string","minLength":1,"maxLength":16384},"timeout":{"type":"integer","minimum":1},"description":{"type":"string"},"run_in_background":{"type":"boolean"}`
+		definition.description += " Set workdir instead of using cd: relative paths resolve against the session workspace. Explicit workdir applies only to this invocation and does not change the remembered Bash directory."
+		definition.properties = `"command":{"type":"string","minLength":1,"maxLength":16384},"workdir":{"type":"string","minLength":1},"timeout":{"type":"integer","minimum":1},"description":{"type":"string"},"run_in_background":{"type":"boolean"}`
 		definition.required = `"command"`
 	}
 	return definition

@@ -228,36 +228,46 @@ func TestBackgroundShellApprovalAndDurabilityBeforeEffect(t *testing.T) {
 
 func TestBackgroundShellIntentSurvivesRepeatedCallIdentity(t *testing.T) {
 	f := newBackgroundFixture(t)
+	if err := os.Mkdir(filepath.Join(f.root, "other"), 0700); err != nil {
+		t.Fatal(err)
+	}
 	command := "printf x >> effects; printf once"
-	call := func(command string) harness.ToolResult {
+	call := func(command, workdir string) harness.ToolResult {
 		raw, _ := json.Marshal(struct {
 			Command    string `json:"command"`
+			Workdir    string `json:"workdir,omitempty"`
 			Background bool   `json:"run_in_background"`
-		}{command, true})
+		}{command, workdir, true})
 		out, err := f.harness.Tools().Execute(t.Context(), harness.ToolRequest{Agent: f.allowed, Name: "Bash", CallID: "same-admitted-call", Arguments: raw})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return out.Result
 	}
-	first := shellReceipt(t, call(command))
+	first := shellReceipt(t, call(command, "other"))
 	if result := f.call(t, f.allowed, "TaskOutput", taskQuery(first.ID, true, 2000)); result.IsError {
 		t.Fatal(result)
 	}
-	repeated := shellReceipt(t, call(command))
+	repeated := shellReceipt(t, call(command, filepath.Join(f.root, "other")))
 	if repeated.ID != first.ID || repeated.Status != shellTaskCompleted {
 		t.Fatalf("repeated call lost its durable task: %+v %+v", first, repeated)
 	}
-	conflict := call("touch forbidden")
+	conflict := call("touch forbidden", "other")
 	if !conflict.IsError {
 		t.Fatal("same call identity replaced its durable command")
 	}
-	effects, err := os.ReadFile(filepath.Join(f.root, "effects"))
+	if conflict := call(command, "."); !conflict.IsError {
+		t.Fatal("same call identity replaced its durable workdir")
+	}
+	effects, err := os.ReadFile(filepath.Join(f.root, "other", "effects"))
 	if err != nil || string(effects) != "x" {
 		t.Fatalf("same admitted call replayed effects: %q %v", effects, err)
 	}
-	if _, err := os.Stat(filepath.Join(f.root, "forbidden")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(f.root, "other", "forbidden")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("conflicting intent executed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(f.root, "effects")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("conflicting workdir executed: %v", err)
 	}
 }
 
