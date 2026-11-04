@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "coordinateSpace": "unrotated-top-left-normalized",
+  "verification": "AI visual inspection of original page pixels on 2026-11-04, not human verification. Rectangles are approximate review guides, not pixel-perfect detection truth.",
+  "samples": [
+    {
+      "id": "naca-tn-2825-negative-linear",
+      "page": 28,
+      "selectedFigure": "10",
+      "figures": [
+        {"label": "10", "region": [0.27, 0.12, 0.46, 0.63], "captionRegion": [0.28, 0.76, 0.49, 0.085], "captionStartsWith": "Figure 10.- Variation with free-stream Mach", "childTextExamples": ["Upper surface", "Lower surface", "NACA airfoil section", "Free-stream Mach number"]}
+      ],
+      "reviewRisks": ["Legend identifiers are not axis values.", "Rotated vertical axis text may not become child text.", "No pre-existing automatic figure-caption links in PDFium/Tesseract baseline."]
+    },
+    {
+      "id": "naca-tm-768-log-scientific",
+      "page": 17,
+      "selectedFigure": "5a",
+      "figures": [
+        {"label": "5a", "region": [0.075, 0.125, 0.395, 0.115], "captionRegion": [0.21, 0.228, 0.13, 0.023], "captionStartsWith": "Figure 5a", "groupLabel": "5", "childTextExamples": ["Airfoil 429"]},
+        {"label": "5", "region": [0.07, 0.125, 0.84, 0.385], "captionRegion": [0.10, 0.515, 0.78, 0.03], "captionStartsWith": "Figure 5 (a-f).- Logarithmic plotting", "childPanelLabels": ["5a", "5b", "5c", "5d", "5e", "5f"]},
+        {"label": "6", "region": [0.07, 0.55, 0.84, 0.385], "captionRegion": [0.10, 0.93, 0.78, 0.035], "captionStartsWith": "Figure 6 (a-f).- Logarithmic plotting", "childPanelLabels": ["6a", "6b", "6c", "6d", "6e", "6f"]}
+      ],
+      "reviewRisks": ["Twelve small panels with panel captions and two shared group captions.", "A group-level picture enclosing 5a is useful but not a correct exact 5a localization.", "Do not call a neighboring panel caption the selected figure caption."]
+    },
+    {
+      "id": "naca-tm-842-degraded-log",
+      "page": 67,
+      "selectedFigure": "11",
+      "figures": [
+        {"label": "10", "region": [0.17, 0.14, 0.37, 0.43], "captionRegion": [0.17, 0.58, 0.37, 0.06], "captionStartsWith": "Figure 10.- Shearing stress distribution"},
+        {"label": "12", "region": [0.55, 0.14, 0.34, 0.43], "captionRegion": [0.54, 0.58, 0.37, 0.075], "captionStartsWith": "Figure 12.- Variation of relative boundary-layer thickness"},
+        {"label": "11", "region": [0.17, 0.66, 0.72, 0.205], "captionRegion": [0.21, 0.88, 0.65, 0.045], "captionStartsWith": "Figure 11.- Theoretical and experimental variation of frictional", "childTextExamples": ["V.D.T. metal model", "V.D.T. wood model", "N.B. Moore", "Millikan"]}
+      ],
+      "reviewRisks": ["Spatial figure order is 10,12,11, not numerical order.", "Curve labels may be read as independent text rather than children.", "The archival OCR layer largely misses the figure interiors."]
+    }
+  ]
+}

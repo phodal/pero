@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, sep, delimiter } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DesktopApps } from './apps';
+import { confirmDoclingSetup } from './docling-runtime-dialog.ts';
 import { confirmReproduction } from './reproduction-approval.ts';
 import { DesktopAppUse } from './app-use-mcp';
 import { DesktopComputer } from './computer';
@@ -41,7 +42,8 @@ const apps = new DesktopApps(request => {
   host.stdin.write(JSON.stringify(request) + '\n');
 }, event => send('product:event', event), async () => undefined,async(name,token)=>{if(!appUse)throw new Error('App input unavailable');return appUse.input(name,token);},
 sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId }),
-(summary, signal) => confirmReproduction(window, summary, signal));
+(summary, signal) => confirmReproduction(window, summary, signal),
+(summary, signal, operation) => confirmDoclingSetup(window, summary, signal, operation));
 let locale: 'en' | 'zh-CN' = 'en';
 function context() { return { product, locale, dark: nativeTheme.shouldUseDarkColors, connected: ready }; }
 function menus() {

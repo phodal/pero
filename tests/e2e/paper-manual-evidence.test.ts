@@ -107,3 +107,27 @@ test('installed source-report writes accept observed references but not nullable
       { operation: 'read', bundleId: id, reportId: value },
     ])]) assert.throws(() => new PreparedAppWrite(definition, document));
 });
+
+test('installed numeric proposals support nullable observations without granting review authority', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../apps/paper-agent/app.json', import.meta.url), 'utf8'));
+  const write = manifest.contributes.writes.find((route: { name: string }) => route.name === 'numeric-propose');
+  assert.ok(write);
+  const definition = { app: manifest.name, panel: 'main', version: manifest.version, ...write };
+  const evidence = { identity: { metric: '', condition: '', series: '', statistic: '', unit: '' },
+    sourceKind: 'figure', method: 'visual', rawText: 'unresolved source', value: null };
+  const proposal = { annotationId: 'a'.repeat(64), extractionId: 'b'.repeat(64), evidence: [evidence] };
+  const axis = { ticks: [{ pixel: 0, rawText: '0', value: 0 }, { pixel: 100, rawText: '10', value: 10 }],
+    scale: 'linear', multiplier: 1, pixel: null };
+  for (const item of [evidence, { ...evidence, value: 12, rawText: '12' },
+    { ...evidence, axis }, { ...evidence, axis: { ...axis, pixel: 50 } }]) {
+    const document = { ...proposal, evidence: [item] };
+    assert.deepEqual(new PreparedAppWrite(definition, document).document, document);
+  }
+  for (const item of [{ ...evidence, value: '12' }, { ...evidence, semanticConfirmed: true },
+    { ...evidence, reviewer: 'Agent' }, { ...evidence, previousId: 'c'.repeat(64) },
+    { ...evidence, axis: { ...axis, pixel: '50' } },
+    { ...evidence, axis: { ...axis, scaleConfirmed: true } },
+    ...[0, -1].map(multiplier => ({ ...evidence, axis: { ...axis, multiplier } }))]) {
+    assert.throws(() => new PreparedAppWrite(definition, { ...proposal, evidence: [item] }));
+  }
+});

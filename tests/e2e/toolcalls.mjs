@@ -43,7 +43,10 @@ try{
  const chat=(await state()).chats[0];
  expect(chat.tools.length).toBe(9);
  expect(chat.title).toContain('toolmatrix');
- expect(chat.messages.find(m=>m.role==='user').attached_files).toContain('context.txt');
+ // Selected files are inline mentions; do not require a duplicate attachment chip.
+ const userMessage=chat.messages.find(m=>m.role==='user');
+ expect(userMessage.text).toContain('@context.txt');
+ expect(userMessage.attached_files).toEqual([]);
  expect(chat.tools.find(t=>t.kind==='edit').output.some(item=>item.type==='diff')).toBe(true);
  expect(chat.tools.find(t=>t.title.includes('endpoint')).content).toContain('503');
  expect(chat.tools.at(-1).cancelled).toBe(true);

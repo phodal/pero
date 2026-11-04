@@ -29,9 +29,11 @@ for (const scenario of ['event-timeout', 'cleanup-error', 'stdin-error']) {
       temp = options.cwd;
       // Remains alive until the contract owner ends stdin, with cwd in its temp.
       child = spawn(process.execPath, ['-e', stdinFailure ? `
-        require('node:fs').closeSync(0);
         for (const event of [{kind:'settings',text:'en'}, {kind:'ready'}, {kind:'computer_settings',data:{enabled:false}}])
           console.log(JSON.stringify({version:1,request_id:null,text:'',...event}));
+        // Close after the readiness lines. Closing fd 0 before Node polls stdin
+        // aborts on macOS Node 22 (libuv refuses to close a stdio descriptor).
+        require('node:fs').closeSync(0);
         process.on('message', () => process.disconnect());
       ` : 'process.stdin.resume();'], stdinFailure ? { ...options, stdio: ['pipe', 'pipe', 'inherit', 'ipc'] } : options);
       if (stdinFailure) child.stdin.once('error', () => child.send('release'));

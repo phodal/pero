@@ -55,11 +55,11 @@ test('explicit same-paper read forwards a new token while preserving PDF identit
   components.storage.set('paper-agent.shelf', JSON.stringify({ [paper.id]: 'to-read' }));
   const app = components.mount(components.PaperAgent);
   await drain(); app.render();
-  assert.equal(find(app, node => node.type === 'PaperList').props.shelf[paper.id], 'to-read');
-  find(app, node => node.type === 'PaperList').props.onRead(paper); await drain(); app.render();
+  assert.equal(find(app, node => node.type === 'LibraryPapers').props.shelf[paper.id], 'to-read');
+  find(app, node => node.type === 'LibraryPapers').props.onRead(paper); await drain(); app.render();
   assert.equal(JSON.parse(components.storage.get('paper-agent.shelf'))[paper.id], 'reading');
   const first = find(app, node => node.type === components.Reader);
-  find(app, node => node.type === 'PaperList').props.onRead(paper); await drain(); app.render();
+  find(app, node => node.type === 'LibraryPapers').props.onRead(paper); await drain(); app.render();
   const second = find(app, node => node.type === components.Reader);
   assert.ok(second.props.openToken > first.props.openToken);
   assert.equal(second.key, first.key);
@@ -69,7 +69,7 @@ test('explicit same-paper read forwards a new token while preserving PDF identit
   const secondPdf = find(reader, node => node.type === components.PdfReader);
   assert.equal(secondPdf.key, firstPdf.key);
   assert.equal(find(reader, node => node.type === components.StructuredReading).props.openToken, second.props.openToken);
-  assert.equal(find(reader, node => node.type === 'ScientificContent').props.content, paper.content);
+  assert.equal(find(reader, node => node.type === 'SavedTextReading').props.paper.content, paper.content);
   app.unmount(); reader.unmount();
 });
 
@@ -120,9 +120,9 @@ test('successful export still refreshes the Reader when Library refresh fails', 
   const api = { async get() { if (offline) throw Error('Library offline'); return { papers: [paper], intents: [], reports: [] }; } };
   const components = paperComponents(api), app = components.mount(components.PaperAgent);
   await drain(); app.render();
-  find(app, node => node.type === 'PaperList').props.onRead(paper); await drain(); app.render();
+  find(app, node => node.type === 'LibraryPapers').props.onRead(paper); await drain(); app.render();
   const before = find(app, node => node.type === components.Reader).props.pdfReloadToken;
-  find(app, node => node.type === 'PaperList').props.onDownload(paper); app.render(); offline = true;
+  find(app, node => node.type === 'LibraryPapers').props.onDownload(paper, 'pdf'); app.render(); offline = true;
   await find(app, node => node.type === 'LibrarySave').props.onSaved(); app.render();
   assert.equal(find(app, node => node.type === components.Reader).props.pdfReloadToken, before + 1);
   assert.ok(JSON.stringify(errors(app)).includes('Library offline')); app.unmount();

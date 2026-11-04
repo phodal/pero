@@ -449,24 +449,56 @@ jobs:
       - run: node scripts/codegen/contracts.mjs --check
       - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs tests/build/product-chat-startup.test.mjs tests/build/product-shutdown.test.mjs
 
+  # Keep one runner and one install per dependency set. Each check depends only
+  # on its setup/build inputs, so assertion failures stay red without hiding peers.
+  # !cancelled() overrides implicit success() while still honoring cancellation.
   core:
     name: Linux core types, permissions and durable runtime
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        id: checkout
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
-      - run: npm ci
+        id: node
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+      - name: Install root dependencies
+        id: npm
+        if: ${{ !cancelled() && steps.node.outcome == 'success' }}
+        run: npm ci
+      - name: Core TypeScript
+        id: core_types
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: npx tsc -p scripts/ci/tsconfig.core.json
+      - name: Generated protocol contracts
+        id: generated_protocol
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node scripts/codegen/contracts.mjs --check
+      - name: Generated theme
+        id: generated_theme
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node scripts/codegen/theme.mjs --check
+      - name: Generated design
+        id: generated_design
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node scripts/codegen/design.mjs --check
+      - name: Locale contracts
+        id: locales
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node scripts/check/locales.mjs
       - uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
+        id: rust
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      # Public path patches are manifest inputs, not a GPUI/Wasm compilation.
+        id: cargo_cache
+        if: ${{ !cancelled() && steps.rust.outcome == 'success' }}
       - name: Checkout pinned GPUI manifest inputs
         run: |
           kit="$RUNNER_TEMP/gpui-kit"
@@ -476,74 +508,199 @@ jobs:
           git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
           git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
           git -C "$kit" checkout --detach FETCH_HEAD
+        id: gpui
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: apps/scientific-viewer/requirements.txt
-      - name: Research references and Data download contracts
+        id: python
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+      - name: Install pinned Paper backend dependencies
+        id: paper_python
+        if: ${{ !cancelled() && steps.python.outcome == 'success' }}
+        run: python -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
+      - name: Paper backend contracts
+        id: paper_backend
+        if: ${{ !cancelled() && steps.paper_python.outcome == 'success' }}
         env:
-          PYTHONDONTWRITEBYTECODE: '1'
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v
+      - name: Paper PDF HTTP contracts
+        id: paper_pdf_http
+        if: ${{ !cancelled() && steps.paper_python.outcome == 'success' }}
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python tests/e2e/paper-pdf-http.py --output test-results/paper-pdf-http/fixture.json
+      - name: Paper source HTTP contracts
+        id: paper_source_http
+        if: ${{ !cancelled() && steps.paper_python.outcome == 'success' }}
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python tests/e2e/paper-source-http.py --output test-results/paper-source-http/fixture.json
+      - name: Paper source CLI contracts
+        id: paper_source_cli
+        if: ${{ !cancelled() && steps.paper_python.outcome == 'success' }}
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python tests/e2e/paper-source-cli.py --output test-results/paper-source-cli/fixture.json
+      - name: Data backend contracts
+        id: data_backend
+        if: ${{ !cancelled() && steps.python.outcome == 'success' }}
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python -m unittest discover -s apps/data/test -v
+      - name: Install pinned molecular backend
+        id: viewer_python
+        if: ${{ !cancelled() && steps.python.outcome == 'success' }}
+        run: "python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt"
+      - name: Molecular backend contracts
+        id: viewer_backend
+        if: ${{ !cancelled() && steps.viewer_python.outcome == 'success' }}
+        run: python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'
+      - name: Install locked hpc dependencies
+        id: hpc_npm
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: npm ci --prefix apps/hpc --ignore-scripts
+      - name: Install locked automations dependencies
+        id: automations_npm
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: npm ci --prefix apps/automations --ignore-scripts
+      - name: Install locked paper-agent dependencies
+        id: paper_npm
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: npm ci --prefix apps/paper-agent --ignore-scripts
+      - name: Install locked scientific-viewer dependencies
+        id: viewer_npm
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: npm ci --prefix apps/scientific-viewer --ignore-scripts
+      - name: HPC UI contracts
+        id: hpc_ui
+        if: ${{ !cancelled() && steps.hpc_npm.outcome == 'success' }}
+        run: npm --prefix apps/hpc run test:ui
+      - name: Paper setup and numeric component contracts
+        id: paper_components
+        if: ${{ !cancelled() && steps.paper_npm.outcome == 'success' }}
+        run: node --test apps/paper-agent/test/docling-runtime.test.mjs apps/paper-agent/test/numeric-values.test.mjs
+      - name: Paper TypeScript
+        id: paper_types
+        if: ${{ !cancelled() && steps.paper_npm.outcome == 'success' }}
+        run: npm run typecheck --prefix apps/paper-agent
+      - name: Paper availability contracts
+        id: paper_availability
+        if: ${{ !cancelled() && steps.paper_npm.outcome == 'success' }}
+        run: node --test tests/e2e/paper-library-availability.test.mjs
+      - name: Paper manual evidence contracts
+        id: paper_manual
+        if: ${{ !cancelled() && steps.paper_npm.outcome == 'success' }}
+        run: node --experimental-transform-types --test tests/e2e/paper-manual-evidence.test.ts
+      - name: App build contracts
+        id: app_build_contracts
+        if: ${{ !cancelled() && steps.paper_npm.outcome == 'success' }}
+        run: node --test scripts/build/apps.test.mjs
+      - name: Automations unit contracts
+        id: automations_unit
+        if: ${{ !cancelled() && steps.automations_npm.outcome == 'success' }}
+        run: npm test --prefix apps/automations
+      - name: Viewer unit contracts
+        id: viewer_unit
+        if: ${{ !cancelled() && steps.viewer_npm.outcome == 'success' }}
+        run: npm test --prefix apps/scientific-viewer
+      - name: Automations TypeScript
+        id: automations_types
+        if: ${{ !cancelled() && steps.automations_npm.outcome == 'success' }}
+        run: npm run typecheck --prefix apps/automations
+      - name: Viewer TypeScript
+        id: viewer_types
+        if: ${{ !cancelled() && steps.viewer_npm.outcome == 'success' }}
+        run: npm run typecheck --prefix apps/scientific-viewer
+      - name: Core Rust tests without GPUI or WASM compilation
+        id: rust_tests
+        if: ${{ !cancelled() && steps.node.outcome == 'success' && steps.rust.outcome == 'success' && steps.gpui.outcome == 'success' }}
+        run: node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker
+      - name: Build Host and Worker binaries
+        id: host_build
+        if: ${{ !cancelled() && steps.node.outcome == 'success' && steps.rust.outcome == 'success' && steps.gpui.outcome == 'success' }}
+        run: node scripts/cargo.mjs build --locked -p pero-host -p pero-worker
+      - name: App use authorization contracts
+        id: app_use
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: npm run test:app-use:unit
+      - name: Research asset authorization contracts
+        id: research_assets
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node --experimental-transform-types --test desktop/src/main/apps-research-assets.test.ts desktop/src/main/app-write-research-assets.test.ts desktop/src/main/apps-reproduction.test.ts
+      - name: Automation model contracts
+        id: automation_model
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
+      - name: Host connection contracts
+        id: host_connection
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node --test web/src/host-connection.test.ts
+      - name: Desktop content and connector contracts
+        id: desktop_content
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node --test desktop/src/main/{connector-secrets,content-artifacts,harness-environment,home,mcp-sources}.test.ts web/src/content-results.test.ts
+      - name: ACP and lifecycle fixture contracts
+        id: fixtures
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
+      - name: Control Lab runtime contracts
+        id: control_lab
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
         run: |
-          python -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
-          python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v
-          python tests/e2e/paper-pdf-http.py --output test-results/paper-pdf-http/fixture.json
-          python tests/e2e/paper-source-http.py --output test-results/paper-source-http/fixture.json
-          python tests/e2e/paper-source-cli.py --output test-results/paper-source-cli/fixture.json
-          python -m unittest discover -s apps/data/test -v
-      - name: Real local molecular backend contracts
-        run: |
-          python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt
-          python -m unittest discover -s apps/scientific-viewer/test -p 'test_*.py'
-      - name: Independent App contracts with frozen dependencies
-        run: |
-          npm ci --prefix apps/hpc --ignore-scripts
-          npm --prefix apps/hpc run test:ui
-          npm ci --prefix apps/automations --ignore-scripts
-          npm ci --prefix apps/paper-agent --ignore-scripts
-          npm run typecheck --prefix apps/paper-agent
-          node --test tests/e2e/paper-library-availability.test.mjs
-          node --experimental-transform-types --test tests/e2e/paper-manual-evidence.test.ts
-          node --test scripts/build/apps.test.mjs
-          npm ci --prefix apps/scientific-viewer --ignore-scripts
-          npm test --prefix apps/automations
-          npm test --prefix apps/scientific-viewer
-          npm run typecheck --prefix apps/automations
-          npm run typecheck --prefix apps/scientific-viewer
-      - name: Independent TypeScript and generated contracts
-        run: |
-          npx tsc -p scripts/ci/tsconfig.core.json
-          node scripts/codegen/contracts.mjs --check
-          node scripts/codegen/theme.mjs --check
-          node scripts/codegen/design.mjs --check
-          node scripts/check/locales.mjs
-      - name: Core Rust without GPUI or WASM compilation
-        run: |
-          node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker
-          node scripts/cargo.mjs build --locked -p pero-host -p pero-worker
-      - name: Permission, cancellation and fixture contracts
-        run: |
-          npm run test:app-use:unit
-          node --experimental-transform-types --test desktop/src/main/apps-research-assets.test.ts desktop/src/main/app-write-research-assets.test.ts desktop/src/main/apps-reproduction.test.ts
-          node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
-          node --test web/src/host-connection.test.ts
-          node --test desktop/src/main/{app-context,app-use,connector-secrets,content-artifacts,control-lab-goal,harness-environment,home,mcp-sources}.test.ts web/src/{automation-model,content-results}.test.ts
-          node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
-          node --test tests/runtime/control-lab/*.test.mjs tests/runtime/control-lab/host-goal.test.ts
-          node --test tests/runtime/lab/*.test.mjs
-          node --experimental-transform-types --test tests/runtime/paper-study/*.test.mjs tests/runtime/research-import/cleanup.test.mjs
-          node tests/e2e/computer-transport.mjs
+          shopt -s extglob
+          node --test tests/runtime/control-lab/!(host-*).test.mjs
+      - name: Control Lab Host launch and goal contracts
+        id: control_lab_host
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' }}
+        run: node --test tests/runtime/control-lab/host-*.test.mjs tests/runtime/control-lab/host-goal.test.ts
+      - name: Lab runtime contracts
+        id: lab_runtime
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node --test tests/runtime/lab/*.test.mjs
+      - name: Paper source campaign contracts
+        id: paper_campaign
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node --experimental-transform-types --test tests/runtime/paper-study/*.test.mjs tests/runtime/research-import/cleanup.test.mjs
+      - name: Computer transport contracts
+        id: computer_transport
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
+        run: node tests/e2e/computer-transport.mjs
       - name: Build the actual Host MCP sidecar and HTTP assets
+        id: mcp_build
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
         run: node scripts/build/mcp.mjs
-      - name: Actual Host stdio and durable ownership
-        run: |
-          node tests/contracts/host.mjs
-          node tests/contracts/research-import.mjs
-          node tests/contracts/mcp-settings.mjs
-          node tests/contracts/mcp-ownership.mjs
-          node tests/runtime/automation.mjs
-          node tests/runtime/automation-app.mjs
-          PERO_HOST_EXECUTABLE="$PWD/target/debug/pero-host" node tests/contracts/app-agent-runs.mjs
+      - name: Host stdio contracts
+        id: host_stdio
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' }}
+        run: node tests/contracts/host.mjs
+      - name: Host research import contracts
+        id: host_research
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' && steps.paper_python.outcome == 'success' }}
+        run: node tests/contracts/research-import.mjs
+      - name: Host MCP settings contracts
+        id: host_mcp_settings
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' && steps.mcp_build.outcome == 'success' }}
+        run: node tests/contracts/mcp-settings.mjs
+      - name: Host MCP ownership contracts
+        id: host_mcp_ownership
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' && steps.mcp_build.outcome == 'success' }}
+        run: node tests/contracts/mcp-ownership.mjs
+      - name: Host automation contracts
+        id: host_automation
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' }}
+        run: node tests/runtime/automation.mjs
+      - name: Host App automation contracts
+        id: host_app_automation
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' }}
+        run: node tests/runtime/automation-app.mjs
+      - name: Host App agent run contracts
+        id: host_app_agent
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' }}
+        run: PERO_HOST_EXECUTABLE="$PWD/target/debug/pero-host" node tests/contracts/app-agent-runs.mjs
       - name: Core failure and recovery evidence
         if: always()
         uses: actions/upload-artifact@v7

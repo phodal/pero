@@ -27,6 +27,7 @@ from .thumbnails import PaperThumbnails
 from .source_reading import source_read, source_image
 from .tex_preview import TexPreviews
 from .pcgym_domain import Invalid as PcgymInvalid, fields as reproduction_fields
+from .numeric_records import NumericRecords
 
 MAX_BODY = 1024 * 1024
 
@@ -49,6 +50,7 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
     thumbnails = thumbnails if thumbnails is not None else PaperThumbnails()
     documents = documents if documents is not None else PaperDocuments(store)
     tex = TexPreviews(store, pdf_files)
+    numeric = NumericRecords(store)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -104,6 +106,25 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
                     if self.command == 'POST': return self.reply(201, store.edit_matrix(matrix_match[1], data, now()))
                 if self.command == "GET":
+                    if path == '/api/numeric/layout/status':
+                        return self.reply(200, numeric.layout_status())
+                    if path == '/api/numeric':
+                        return self.reply(200, numeric.overview(parse_qs(parsed.query).get('annotationId', [''])[0]))
+                    numeric_image = re.fullmatch(r'/api/numeric/extractions/([a-f0-9]{64})/image', path)
+                    if numeric_image:
+                        return self.binary(200, numeric.image(numeric_image[1]), 'image/png')
+                    numeric_extraction = re.fullmatch(r'/api/numeric/extractions/([a-f0-9]{64})', path)
+                    if numeric_extraction:
+                        return self.reply(200, store._read('numeric-extractions', numeric_extraction[1]))
+                    numeric_layout = re.fullmatch(r'/api/numeric/layouts/([a-f0-9]{64})', path)
+                    if numeric_layout:
+                        return self.reply(200, store._read('numeric-layouts', numeric_layout[1]))
+                    numeric_report = re.fullmatch(r'/api/numeric/(assessments|references)/([a-f0-9]{64})/report', path)
+                    if numeric_report:
+                        return self.reply(200, numeric.report(numeric_report[2], numeric_report[1] == 'references'))
+                    numeric_reference = re.fullmatch(r'/api/numeric/references/([a-f0-9]{64})', path)
+                    if numeric_reference:
+                        return self.reply(200, numeric.reference(numeric_reference[1]))
                     figure_reference = re.fullmatch(r'/api/research/figure-reference/([a-f0-9]{64})/([a-f0-9]{64})', path)
                     if figure_reference:
                         from .figure_references import FigureReference
@@ -204,6 +225,22 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         record = {"papers": store.paper, "intents": store.intent, "reports": store.report}[kind](identity)
                         return self.reply(200, ArxivPaper.reading_view(record) if kind == 'papers' else record.to_dict())
                 if self.command == "POST":
+                    if path == '/api/numeric/extract':
+                        return self.reply(201, numeric.extract(data, now()))
+                    if path == '/api/numeric/layout':
+                        return self.reply(201, numeric.layout(data, now()))
+                    if path == '/api/numeric/propose':
+                        return self.reply(201, numeric.propose(data, now()))
+                    if path == '/api/numeric/assess':
+                        return self.reply(201, numeric.assess(data, now()))
+                    if path == '/api/numeric/freeze':
+                        return self.reply(201, numeric.freeze(data, now()))
+                    if path == '/api/numeric/read':
+                        if data.get('operation') == 'report':
+                            return self.reply(200, numeric.report(data.get('assessmentId')))
+                        if data.get('operation') == 'list':
+                            return self.reply(200, numeric.overview(data.get('annotationId')))
+                        raise Invalid('Choose list or report for numeric reading')
                     tex_paper = re.fullmatch(r'/api/papers/([a-f0-9]{64})/tex', path)
                     if tex_paper:
                         return self.reply(202, tex.start(tex_paper[1], data, now()))

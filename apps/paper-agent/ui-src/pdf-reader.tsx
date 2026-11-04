@@ -20,6 +20,7 @@ import { Reproduction, reproductionPolicy } from './reproduction';
 import { loadReaderState, persistedSelection, saveReaderState, type PdfReaderState } from './reader-state';
 import { TexReader } from './tex-reader';
 import { FigureSourceDialog, type FigureTarget } from './figure-reference';
+import { NumericValues } from './numeric-values';
 
 type ReadingView = 'text' | 'pdf' | 'tex' | 'original';
 
@@ -148,7 +149,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   const { provides: zoom, state: zoomState } = useZoom(documentId);
   const { provides: selection } = useSelectionCapability(), { provides: capture, state: captureState } = useCapture(documentId);
   const selectionState = useStoreState()?.plugins.selection as SelectionState | undefined;
-  const [hasSelection, setHasSelection] = useState(false), [note, setNote] = useState(''), [busy, setBusy] = useState(false);
+  const [hasSelection, setHasSelection] = useState(false), [selecting, setSelecting] = useState(false), [note, setNote] = useState(''), [busy, setBusy] = useState(false);
   const selectedText = useRef('');
   useEffect(() => {
     if (!active) return;
@@ -165,6 +166,9 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   useEffect(() => { if (menu) menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus(); }, [menu]);
   const [matrixAnnotation, setMatrixAnnotation] = useState(''), [column, setColumn] = useState(t('pdfEvidenceColumn'));
   const [verificationAnnotation, setVerificationAnnotation] = useState('');
+  const [numericAnnotation, setNumericAnnotation] = useState('');
+  const [layoutSource, setLayoutSource] = useState<PdfSource | null>(null);
+  const { t: numericT } = useAppI18n({ values: { zh: '数值', en: 'Values' } });
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   useEffect(() => scrollCapability?.onLayoutReady(event => { if (event.documentId === documentId) layoutReady.current = true; }), [scrollCapability, documentId]);
   // Subscribe before restoration: cached geometry can emit synchronously.
@@ -175,15 +179,21 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     let alive = true, revision = 0;
     const update = (value: unknown) => {
       const current = ++revision;
-      setHasSelection(!!value); selectedText.current = '';
+      setHasSelection(!!value);
+      if (!value) setSelecting(false);
+      selectedText.current = '';
       if (!value) return;
       void scope.getSelectedText().toPromise().then(parts => {
         if (alive && current === revision) selectedText.current = parts.join('\n');
       }).catch(() => { if (alive && current === revision) selectedText.current = ''; });
     };
     const stop = scope.onSelectionChange(update);
+    // The selection bar is in normal flow. Mounting it on the first pointer
+    // move shifts the page and the rest of the drag misses the line.
+    const stopBegin = scope.onBeginSelection(() => setSelecting(true));
+    const stopEnd = scope.onEndSelection(() => setSelecting(false));
     update(scope.getState().selection);
-    return () => { alive = false; stop(); };
+    return () => { alive = false; stop(); stopBegin(); stopEnd(); };
   }, [selection, documentId]);
 
   const activeNow = useRef(active), focusNow = useRef(focus), restored = useRef(false), stateReady = useRef(false);
@@ -286,6 +296,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       const rect = focus.rects?.[0], page = document.pages[focus.page - 1];
       scroll.scrollToPage({ pageNumber: focus.page, behavior: 'auto', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
       setTarget(focus.annotationId ?? '');
+      setLayoutSource(null);
     };
     const stopLayout = scrollCapability.onLayoutReady(event => { if (event.documentId === documentId) apply(); });
     const stopViewport = viewport.onViewportChange(apply);
@@ -317,7 +328,21 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       await save({ kind: 'highlight', page: part.pageIndex + 1, quote, rects });
     } catch (e) { fail(e); }
   }
-  function go(annotation: PdfAnnotation) { chrome.onNavigate(); scroll?.scrollToPage({ pageNumber: annotation.page, behavior: 'auto' }); setTarget(annotation.id); }
+  function go(annotation: PdfAnnotation) {
+    setLayoutSource(null);
+    chrome.onNavigate();
+    const rect = annotation.rects[0], page = document.pages[annotation.page - 1];
+    scroll?.scrollToPage({ pageNumber: annotation.page, behavior: 'auto', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
+    setTarget(annotation.id);
+  }
+  function goLayout(source: PdfSource) {
+    const page = document.pages[source.page - 1], rect = source.rects?.[0];
+    if (source.documentId !== document.id || source.fileDigest !== document.fileDigest || !page || !rect) return;
+    chrome.onNavigate();
+    scroll?.scrollToPage({ pageNumber: source.page, behavior: 'auto', pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 });
+    setTarget('');
+    setLayoutSource(source);
+  }
   async function copyImage(annotation: PdfAnnotation) {
     try {
       const blob = await (await fetch(`/api/annotations/${annotation.id}/image`)).blob();
@@ -358,7 +383,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button role="menuitem" onClick={() => { setMenu(null); chrome.onSave(); }}>{t('downloadPaper')}</Button>
       <Button role="menuitem" onClick={() => { setMenu(null); onText(); }}>{readLabel}</Button>
     </div>}
-    {active && hasSelection && (!readOnly || onDiscuss) && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') discardSelection(); }}>{!readOnly && <Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/>}<div className="pa-pdf-selection-actions">{!readOnly && <Button className="pa-pdf-selection-save" variant="ghost" disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>}{onDiscuss && <Button variant="ghost" disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button className="pa-pdf-selection-close" variant="ghost" onClick={() => discardSelection()}>{t('close')}</Button></div></div>}
+    {active && hasSelection && !selecting && (!readOnly || onDiscuss) && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') discardSelection(); }}>{!readOnly && <Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/>}<div className="pa-pdf-selection-actions">{!readOnly && <Button className="pa-pdf-selection-save" variant="ghost" disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>}{onDiscuss && <Button variant="ghost" disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button className="pa-pdf-selection-close" variant="ghost" onClick={() => discardSelection()}>{t('close')}</Button></div></div>}
     {error && <Feedback kind="error">{error}<Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback>}
     {(busy || status) && <div role="status" className="pa-pdf-status">{busy ? t('pdfSaving') : status}</div>}
     <div className="pa-pdf-body" data-notes={notes}>
@@ -370,12 +395,12 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
         }}>
           <PagePointerProvider documentId={documentId} pageIndex={pageIndex}>
             <RenderLayer documentId={documentId} pageIndex={pageIndex} draggable={false}/>
-            <div className="pa-pdf-marks" aria-hidden="true">{focus?.page === pageIndex + 1 && focus.rects?.map((rect, i) => <span key={`citation:${i}`} data-citation-region="true" data-focused="true" style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>) }{annotations.filter(item => item.page === pageIndex + 1).flatMap(item => item.rects.map((rect, i) => <span key={`${item.id}:${i}`} data-annotation-id={item.id} data-kind={item.kind} data-focused={target === item.id} style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>))}</div>
+            <div className="pa-pdf-marks" aria-hidden="true">{layoutSource?.page === pageIndex + 1 && layoutSource.rects?.map((rect, i) => <span key={`layout:${i}`} data-layout-region="true" data-focused="true" style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>)}{focus?.page === pageIndex + 1 && focus.rects?.map((rect, i) => <span key={`citation:${i}`} data-citation-region="true" data-focused="true" style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>) }{annotations.filter(item => item.page === pageIndex + 1).flatMap(item => item.rects.map((rect, i) => <span key={`${item.id}:${i}`} data-annotation-id={item.id} data-kind={item.kind} data-focused={target === item.id} style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>))}</div>
             <SelectionLayer documentId={documentId} pageIndex={pageIndex}/><MarqueeCapture documentId={documentId} pageIndex={pageIndex}/>
           </PagePointerProvider>
         </div>}/>
       </Viewport>
-      {notes && <aside className="pa-pdf-notes" aria-label={t('pdfNotes')}><Toolbar><h2>{t('pdfNotes')}</h2><Button variant="ghost" aria-label={t('closeAnnotations')} onClick={() => setNotes(false)}>×</Button></Toolbar>{!annotations.length && <p>{t('pdfNoNotes')}</p>}{annotations.map(annotation => <article key={annotation.id} data-note-id={annotation.id}><Button variant="ghost" onClick={() => go(annotation)}>{t('pdfPage')} {annotation.page} ↗</Button>{annotation.kind === 'figure' ? <><img src={`/api/annotations/${annotation.id}/image`} alt={`${t('pdfFigure')} · ${t('pdfPage')} ${annotation.page}`}/><div className="pa-actions"><Button onClick={() => void copyImage(annotation)}>{t('pdfCopyImage')}</Button><a href={`/api/annotations/${annotation.id}/image`} download={`figure-${annotation.page}.png`}>{t('pdfDownload')}</a></div></> : <blockquote>{annotation.quote}</blockquote>}{annotation.note && <p>{annotation.note}</p>}<div className="pa-actions"><Button variant="ghost" onClick={() => setMatrixAnnotation(annotation.id)}>{t('pdfAddMatrix')}</Button>{annotation.kind === 'highlight' && reproductionPolicy(annotation.quote) && <Button variant="ghost" aria-expanded={verificationAnnotation === annotation.id} onClick={() => setVerificationAnnotation(current => current === annotation.id ? '' : annotation.id)}>{t('reproductionVerify')}</Button>}</div>{verificationAnnotation === annotation.id && <Reproduction key={annotation.id} api={api} annotation={annotation} t={t}/>} {matrixAnnotation === annotation.id && <div className="pa-pdf-matrix-field" role="group" aria-label={t('pdfColumn')} onKeyDown={event => { if (event.key === 'Enter' && column.trim() && !busy) { event.preventDefault(); void addToMatrix(); } if (event.key === 'Escape') setMatrixAnnotation(''); }}><Input aria-label={t('pdfColumn')} value={column} maxLength={80} onChange={event => setColumn(event.target.value)}/><Button onClick={() => void addToMatrix()} disabled={busy || !column.trim()}>{t('pdfAddMatrix')}</Button></div>}</article>)}</aside>}
+      {notes && <aside className="pa-pdf-notes" aria-label={t('pdfNotes')}><Toolbar><h2>{t('pdfNotes')}</h2><Button variant="ghost" aria-label={t('closeAnnotations')} onClick={() => setNotes(false)}>×</Button></Toolbar>{!annotations.length && <p>{t('pdfNoNotes')}</p>}{annotations.map(annotation => <article key={annotation.id} data-note-id={annotation.id}><Button variant="ghost" onClick={() => go(annotation)}>{t('pdfPage')} {annotation.page} ↗</Button>{annotation.kind === 'figure' ? <><img src={`/api/annotations/${annotation.id}/image`} alt={`${t('pdfFigure')} · ${t('pdfPage')} ${annotation.page}`}/><div className="pa-actions"><Button onClick={() => void copyImage(annotation)}>{t('pdfCopyImage')}</Button><a href={`/api/annotations/${annotation.id}/image`} download={`figure-${annotation.page}.png`}>{t('pdfDownload')}</a></div></> : <blockquote>{annotation.quote}</blockquote>}{annotation.note && <p>{annotation.note}</p>}<div className="pa-actions"><Button variant="ghost" onClick={() => setMatrixAnnotation(annotation.id)}>{t('pdfAddMatrix')}</Button>{annotation.kind === 'figure' && <Button variant="ghost" aria-expanded={numericAnnotation === annotation.id} onClick={() => { go(annotation); setNumericAnnotation(current => current === annotation.id ? '' : annotation.id); }}>{numericT('values')}</Button>}{annotation.kind === 'highlight' && reproductionPolicy(annotation.quote) && <Button variant="ghost" aria-expanded={verificationAnnotation === annotation.id} onClick={() => setVerificationAnnotation(current => current === annotation.id ? '' : annotation.id)}>{t('reproductionVerify')}</Button>}</div>{numericAnnotation === annotation.id && <NumericValues key={annotation.id} api={api} annotation={annotation} onSource={() => go(annotation)} onLayoutSource={goLayout}/>} {verificationAnnotation === annotation.id && <Reproduction key={annotation.id} api={api} annotation={annotation} t={t}/>} {matrixAnnotation === annotation.id && <div className="pa-pdf-matrix-field" role="group" aria-label={t('pdfColumn')} onKeyDown={event => { if (event.key === 'Enter' && column.trim() && !busy) { event.preventDefault(); void addToMatrix(); } if (event.key === 'Escape') setMatrixAnnotation(''); }}><Input aria-label={t('pdfColumn')} value={column} maxLength={80} onChange={event => setColumn(event.target.value)}/><Button onClick={() => void addToMatrix()} disabled={busy || !column.trim()}>{t('pdfAddMatrix')}</Button></div>}</article>)}</aside>}
     </div>
     {pageText && <div className="pa-pdf-page-text"><Toolbar><h2>{t('pdfPageText')}</h2>{onDiscuss && <Button onClick={() => { const page = document.pages[(scrollState.currentPage || 1) - 1]; setPageText(false); onDiscuss(page.text, { documentId: document.id, fileDigest: document.fileDigest, page: page.number }); }}>{t('discussPage')}</Button>}<Button onClick={() => setPageText(false)}>{t('close')}</Button></Toolbar><pre tabIndex={0}>{document.pages[(scrollState.currentPage || 1) - 1]?.text}</pre></div>}
   </section>;
