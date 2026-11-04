@@ -1,15 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-  <!-- Original Pero artwork: two softly rounded four-point stars. -->
+  <!-- Pero Discovery Spectrum: Orbit Blue, teal/ion, toasted/apricot. -->
   <defs>
     <linearGradient id="pero-ai-main" x1="2" y1="14" x2="18" y2="6" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F2A65A"/>
-      <stop offset=".3" stop-color="#E57C8D"/>
-      <stop offset=".62" stop-color="#6696E8"/>
-      <stop offset="1" stop-color="#1EACCF"/>
+      <stop stop-color="#3B6FD8"/>
+      <stop offset=".5" stop-color="#007F86"/>
+      <stop offset="1" stop-color="#55D5DD"/>
     </linearGradient>
     <linearGradient id="pero-ai-small" x1="1.5" y1="1.5" x2="18.5" y2="18.5" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#3B82D0"/>
-      <stop offset=".55" stop-color="#E57C8D"/>
+      <stop stop-color="#D88245"/>
       <stop offset="1" stop-color="#F2A65A"/>
     </linearGradient>
   </defs>

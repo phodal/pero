@@ -56,7 +56,7 @@ export const messages = {
   savedStudy: { zh: '打开研究记录', en: 'Open research record' }, continueStudy: { zh: '继续研究', en: 'Continue research' },
   readingSource: { zh: '读取原文', en: 'Read source' }, searchingSource: { zh: '检索原文', en: 'Search source' },
   recordingFinding: { zh: '保存发现', en: 'Save finding' }, submittingReport: { zh: '提交报告', en: 'Submit report' },
-  ask: { zh: '询问 AI', en: 'Ask AI' }, askShort: { zh: '提问', en: 'Ask' }, closeAgent: { zh: '关闭 Agent', en: 'Close Agent' },
+  ask: { zh: '询问 AI', en: 'Ask AI' }, closeAgent: { zh: '关闭 Agent', en: 'Close Agent' },
   backToLibrary: { zh: '返回文库', en: 'Back to library' }, sendQuestion: { zh: '发送问题', en: 'Send question' },
   askPlaceholder: { zh: '询问这篇论文…', en: 'Ask about this paper…' },
   reportActions: { zh: '导出', en: 'Export' }, chooseSources: { zh: '选择论文', en: 'Choose papers' },

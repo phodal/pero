@@ -50,6 +50,9 @@ try {
   // Change persisted content while the reader retains its opening snapshot.
   savedPdf = true;
   papers[0] = { ...papers[0], contentKind: 'full-text', contentDigest: 'c'.repeat(64), content: 'Newly saved full text.', pdfUrl: 'https://example.invalid/a.pdf' };
+  await page.getByRole('button', { name: 'Ask AI', exact: true }).hover();
+  await expect(page.getByRole('tooltip')).toHaveText('Ask AI');
+  await expect(page.locator('.pa-ask')).toHaveText('');
   await page.getByRole('button', { name: 'Ask AI', exact: true }).focus();
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
@@ -73,8 +76,10 @@ try {
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   await expect(askButton).toBeFocused();
+  await expect(page.getByRole('tooltip')).toHaveText('询问 AI');
   await page.screenshot({ path: resolve(out, 'ask-dark-narrow-focus.png') });
   await page.locator('.pa-reading-bar').screenshot({ path: resolve(out, 'ask-dark-toolbar.png') });
+  await page.screenshot({ path: resolve(out, 'ask-dark-tooltip.png'), clip: { x: 0, y: 0, width: 390, height: 90 } });
   await askButton.press('Enter');
   await expect.poll(() => page.evaluate(() => window.researchChatFixture.snapshots.length)).toBe(2);
   context = await page.evaluate(() => ({ snapshot: window.researchChatFixture.snapshots.at(-1),
