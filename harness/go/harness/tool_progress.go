@@ -20,16 +20,24 @@ type toolProgress struct {
 // Only transport timing is omitted from shell receipts. Actual stdout/stderr,
 // exit state, failures and owned task identity remain part of the observation.
 type toolProgressShell struct {
-	Stdout     json.RawMessage    `json:"stdout,omitempty"`
-	Stderr     json.RawMessage    `json:"stderr,omitempty"`
-	ExitCode   *int               `json:"exitCode,omitempty"`
-	TimedOut   bool               `json:"timedOut,omitempty"`
-	Aborted    bool               `json:"aborted,omitempty"`
-	Status     string             `json:"status,omitempty"`
-	TaskID     string             `json:"task_id,omitempty"`
-	Error      string             `json:"error,omitempty"`
-	Diagnostic string             `json:"diagnostic,omitempty"`
-	Result     *toolProgressShell `json:"result,omitempty"`
+	Signal            string             `json:"signal,omitempty"`
+	CleanupUncertain  bool               `json:"cleanupUncertain,omitempty"`
+	OutputFile        string             `json:"output_file,omitempty"`
+	OutputBytes       int64              `json:"output_bytes,omitempty"`
+	OutputFilePartial bool               `json:"output_file_partial,omitempty"`
+	Enforcement       json.RawMessage    `json:"enforcement,omitempty"`
+	ReadIsolated      bool               `json:"readIsolated,omitempty"`
+	NetworkIsolated   bool               `json:"networkIsolated,omitempty"`
+	Stdout            json.RawMessage    `json:"stdout,omitempty"`
+	Stderr            json.RawMessage    `json:"stderr,omitempty"`
+	ExitCode          *int               `json:"exitCode,omitempty"`
+	TimedOut          bool               `json:"timedOut,omitempty"`
+	Aborted           bool               `json:"aborted,omitempty"`
+	Status            string             `json:"status,omitempty"`
+	TaskID            string             `json:"task_id,omitempty"`
+	Error             string             `json:"error,omitempty"`
+	Diagnostic        string             `json:"diagnostic,omitempty"`
+	Result            *toolProgressShell `json:"result,omitempty"`
 }
 
 func (p *toolProgress) observe(turn int, call ContentBlock, result ToolResult) *DeferredContext {

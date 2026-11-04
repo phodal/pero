@@ -19,6 +19,7 @@ func TestToolProgressObservations(t *testing.T) {
 		{"polling", "TaskOutput", []string{"same", "same", "same"}, []int{1, 1, 1}, false},
 		{"mutation", "Edit", []string{"same", "same", "same"}, []int{1, 1, 1}, false},
 		{"shell timing only", "Bash", []string{`{"exitCode":1,"stdout":{"text":"failed"},"durationMs":1}`, `{"exitCode":1,"stdout":{"text":"failed"},"durationMs":2}`, `{"exitCode":1,"stdout":{"text":"failed"},"durationMs":3}`}, []int{1, 1, 1}, true},
+		{"shell effect certainty changed", "Bash", []string{`{"exitCode":1,"cleanupUncertain":true}`, `{"exitCode":1,"cleanupUncertain":false}`, `{"exitCode":1,"signal":"killed"}`}, []int{1, 1, 1}, false},
 		{"shell output changed", "Bash", []string{`{"exitCode":1,"stdout":{"text":"a"}}`, `{"exitCode":1,"stdout":{"text":"b"}}`, `{"exitCode":0,"stdout":{"text":"c"}}`}, []int{1, 1, 1}, false},
 	} {
 		t.Run(row.name, func(t *testing.T) {
