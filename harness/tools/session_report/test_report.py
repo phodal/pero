@@ -167,6 +167,7 @@ class SessionReportRules(unittest.TestCase):
         self.assertEqual(tuple(report["summary"][k] for k in ("compaction_responses", "compaction_failures", "compaction_skips")), (3, 1, 1))
         self.assertEqual(session["usage"]["reported_completions"], 4)
         self.assertTrue(session["usage"]["usage_complete"])
+        self.assertIn("compaction_failed", {f["kind"] for f in session["findings"]})
         self.assertEqual([r["purpose"] for r in session["responses"]], ["agent"] + ["compaction"] * 3)
         self.assertEqual([r["header_seq"] for r in session["responses"]], [1, None, None, None])
         self.assertEqual(session["responses"][1]["wire_seq"], 3)

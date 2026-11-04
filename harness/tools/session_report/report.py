@@ -280,6 +280,7 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
                 pending_wire = None
             elif kind == "compaction/end" and data.get("error"):
                 compaction_failures.append((data.get("compactionId"), ref))
+                findings.append(Finding("compaction_failed", "warning", str(data["error"])[:800], [ref]))
             elif kind == "tool/call":
                 call_id, name, arguments = data.get("callId"), data.get("name"), data.get("arguments", {})
                 if not isinstance(call_id, str) or not isinstance(name, str) or not isinstance(arguments, dict) or call_id in pending:

@@ -32,3 +32,5 @@ report tests (24), trial tests (21), CLI compaction race tests, vet and standalo
 Bazel pass. The old real long-task trace contains 15 accepted summaries and 20
 nonshrinking failures; its missing rejected-response usage cannot be recovered
 retroactively. It is retained with incomplete coverage, not treated as zero cost.
+Known compaction failures also retain their exact native error and seq/line
+reference as findings, even when their usage is complete.
