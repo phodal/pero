@@ -453,7 +453,7 @@ impl NativeApps {
                         .map(|query| format!("?{query}"))
                         .unwrap_or_default()
                 );
-                let response = self
+                let mut backend_request = self
                     .client
                     .request(
                         reqwest::Method::from_bytes(method.as_str().as_bytes())?,
@@ -468,8 +468,14 @@ impl NativeApps {
                             .and_then(|value| value.to_str().ok())
                             .unwrap_or("application/json"),
                     )
-                    .body(body.clone())
-                    .send()?;
+                    .body(body.clone());
+                // The isolated page converter has a 180-second deadline. Keep
+                // the transport alive until it can return its persisted result
+                // or error, rather than reporting a 503 after only 30 seconds.
+                if name == "paper-agent" && method == "POST" && path == "/api/numeric/layout" {
+                    backend_request = backend_request.timeout(Duration::from_secs(210));
+                }
+                let response = backend_request.send()?;
                 let status = response.status().as_u16();
                 let content_type = response
                     .headers()
@@ -520,6 +526,63 @@ mod docling_tests {
         let mut event = HostEvent::new("apps_result", request["id"].as_str().map(str::to_owned), String::new());
         event.data = json!({"ok":true,"value":value});
         assert!(apps.accept(&event));
+    }
+
+    #[test]
+    fn selected_page_layout_outlives_default_proxy_deadline_only_on_its_route() {
+        use std::io::{Read, Write};
+        for (name, method, path, extended) in [
+            ("paper-agent", "POST", "/api/numeric/layout", true),
+            ("paper-agent", "GET", "/api/numeric/layout", false),
+            ("paper-agent", "POST", "/api/numeric/extract", false),
+            ("other-app", "POST", "/api/numeric/layout", false),
+        ] {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let (received, incoming) = mpsc::channel();
+            let (release, finish) = mpsc::channel();
+            let backend = std::thread::spawn(move || {
+                let (mut socket, _) = listener.accept().unwrap();
+                socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+                let mut bytes = [0; 4096];
+                assert!(socket.read(&mut bytes).unwrap() > 0);
+                received.send(()).unwrap();
+                finish.recv_timeout(Duration::from_secs(2)).unwrap();
+                // Ordinary routes may already have closed their timed-out socket.
+                let _ = socket.write_all(b"HTTP/1.1 201 Created\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}");
+            });
+            let (host, requests) = mpsc::channel();
+            let (events, _) = async_channel::unbounded();
+            let mut apps = NativeApps::new(host, events, None);
+            apps.client = reqwest::blocking::Client::builder().no_proxy()
+                .timeout(Duration::from_millis(50)).build().unwrap();
+            let worker = apps.clone();
+            let (completed, outcome) = mpsc::channel();
+            let request = std::thread::spawn(move || {
+                let result = worker.serve(name, Request::builder().method(method)
+                    .uri(format!("pero-app://{name}{path}")).body(b"{}".to_vec()).unwrap());
+                completed.send(result.status()).unwrap();
+            });
+            let access: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+            assert_eq!(access["action"], "apiaccess");
+            reply(&apps, &access, json!({}));
+            let resolve: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+            reply(&apps, &resolve, json!({"root":"/unused","entry":"dist/index.html",
+                "backend":{"url":format!("http://{address}"),"token":"test-token"}}));
+            incoming.recv_timeout(Duration::from_secs(2)).unwrap();
+            if extended {
+                // Observe the request across the default deadline, without
+                // relying on a sleep to arrange the server/client ordering.
+                assert!(matches!(outcome.recv_timeout(Duration::from_millis(100)), Err(mpsc::RecvTimeoutError::Timeout)));
+                release.send(()).unwrap();
+                assert_eq!(outcome.recv_timeout(Duration::from_secs(2)).unwrap(), 201);
+            } else {
+                assert_eq!(outcome.recv_timeout(Duration::from_secs(2)).unwrap(), 503);
+                release.send(()).unwrap();
+            }
+            request.join().unwrap();
+            backend.join().unwrap();
+        }
     }
 
     #[test]
