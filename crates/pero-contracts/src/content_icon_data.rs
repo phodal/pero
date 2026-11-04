@@ -38,6 +38,7 @@ pub fn canonical(name: &str) -> Option<&'static str> {
         "shield" => Some("shield"),
         "image" => Some("image"),
         "sparkles" => Some("sparkles"),
+        "ai-sparkles" => Some("ai-sparkles"),
         "code" => Some("code"),
         "message-circle" => Some("message-circle"),
         "chat" => Some("message-circle"),

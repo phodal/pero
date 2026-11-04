@@ -81,6 +81,7 @@ pub enum UiIcon {
     Shield,
     Image,
     Sparkles,
+    AiSparkles,
     Code,
     MessageCircle,
     TextCursor,
@@ -166,6 +167,7 @@ impl UiIcon {
             "shield" => Some(Self::Shield),
             "image" => Some(Self::Image),
             "sparkles" => Some(Self::Sparkles),
+            "ai-sparkles" => Some(Self::AiSparkles),
             "code" => Some(Self::Code),
             "message-circle" | "chat" => Some(Self::MessageCircle),
             "text-cursor" => Some(Self::TextCursor),
@@ -248,6 +250,7 @@ impl UiIcon {
             Self::Shield => "shield",
             Self::Image => "image",
             Self::Sparkles => "sparkles",
+            Self::AiSparkles => "ai-sparkles",
             Self::Code => "code",
             Self::MessageCircle => "message-circle",
             Self::TextCursor => "text-cursor",
@@ -361,6 +364,7 @@ impl UiIcon {
             Self::Shield => "icons/shield.svg",
             Self::Image => "icons/image.svg",
             Self::Sparkles => "icons/sparkles.svg",
+            Self::AiSparkles => "icons/ai-sparkles.svg",
             Self::Code => "icons/code.svg",
             Self::MessageCircle => "icons/message-circle.svg",
             Self::TextCursor => "icons/text-cursor.svg",
@@ -521,6 +525,9 @@ impl AssetSource for UiAssets {
             Some(UiIcon::Sparkles) => Some(Cow::Borrowed(include_bytes!(
                 "../../../web/public/icons/sparkles.svg"
             ))),
+            Some(UiIcon::AiSparkles) => Some(Cow::Borrowed(include_bytes!(
+                "../../../web/public/icons/ai-sparkles.svg"
+            ))),
             Some(UiIcon::Code) => Some(Cow::Borrowed(include_bytes!(
                 "../../../web/public/icons/code.svg"
             ))),
@@ -623,6 +630,7 @@ impl AssetSource for UiAssets {
             UiIcon::Shield,
             UiIcon::Image,
             UiIcon::Sparkles,
+            UiIcon::AiSparkles,
             UiIcon::Code,
             UiIcon::MessageCircle,
             UiIcon::TextCursor,
