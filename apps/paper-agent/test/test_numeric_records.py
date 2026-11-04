@@ -101,14 +101,28 @@ class NumericRecordsHttpTests(unittest.TestCase):
         self.assertEqual(digest(original), 'd03f1dabbc5fecbc8333443794ba9c33fb6632c2af9efd0237d76a96528829b8')
         with tempfile.TemporaryDirectory() as directory:
             isolated_python = os.environ.get('PAPER_AGENT_DOCLING_PYTHON')
-            if isolated_python:
-                configuration = Path(directory) / 'research-v1' / 'docling-runtime.json'
+            host_config = os.environ.get('PAPER_AGENT_DOCLING_CONFIG')
+            configuration = Path(directory) / 'research-v1' / 'docling-runtime.json'
+            if host_config:
+                # Exercise the Host's exact activation bytes, including profile,
+                # rather than manufacturing a second unprofiled configuration.
+                activation_bytes = Path(host_config).read_bytes()
+                activation = json.loads(activation_bytes)
+                activation_sha256 = digest(activation_bytes)
+                isolated_python = activation['python']
+                self.assertTrue(activation['profile'])
+                configuration.parent.mkdir(parents=True)
+                configuration.write_bytes(activation_bytes)
+                self.assertEqual(digest(configuration.read_bytes()), activation_sha256)
+            elif isolated_python:
                 configuration.parent.mkdir(parents=True)
                 configuration.write_text(json.dumps(dict(
                     python=isolated_python, artifactsPath=os.environ['PERO_DOCLING_ARTIFACTS_PATH'])))
             with serve(directory) as address:
                 status = self.request(address, 'GET', '/api/numeric/layout/status')
                 self.assertTrue(status['available'], status['reasons'])
+                if host_config:
+                    self.assertEqual(status['profile'], activation['profile'])
                 paper = self.request(address, 'POST', '/api/pdf/import?filename=TN2825-original.pdf', original, 201)
                 pdf = self.request(address, 'GET', '/api/pdf?paperId=' + paper['id'])['document']
                 figure = self.request(address, 'POST', '/api/annotations', dict(documentId=pdf['id'],
@@ -116,6 +130,8 @@ class NumericRecordsHttpTests(unittest.TestCase):
                     rects=[dict(x=.27, y=.12, width=.46, height=.63)]), 201)
                 saved = self.request(address, 'POST', '/api/numeric/layout', dict(annotationId=figure['id']), 201)
                 result = saved['result']
+                if host_config:
+                    self.assertEqual(result['profile'], activation['profile'])
                 self.assertEqual(result['sourceSha256'], pdf['fileDigest'])
                 self.assertEqual(result['nativePageText'], pdf['pages'][27]['text'])
                 self.assertEqual(result['layout']['textKind'], 'full_page_ocr_docling')
@@ -137,6 +153,9 @@ class NumericRecordsHttpTests(unittest.TestCase):
                 self.assertEqual(overview['assessments'], [])
                 self.assertEqual(overview['references'], [])
                 self.assertEqual(self.request(address, 'GET', '/api/pdf/' + pdf['id'] + '/file'), original)
+            if host_config:
+                self.assertEqual(digest(configuration.read_bytes()), activation_sha256)
+                self.assertEqual(digest(Path(host_config).read_bytes()), activation_sha256)
 
     def test_scan_review_correction_freeze_and_restart_preserve_audit(self):
         original = scan_fixture()
