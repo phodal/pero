@@ -46,7 +46,11 @@ export type PdfAnnotation = { id: string; documentId: string; paperId: string; p
 export type PdfReading = { document: PdfDocument | null; annotations: PdfAnnotation[]; originalUrl?: string | null };
 export type PdfFocus = { documentId: string; page: number; annotationId?: string; rects?: PdfRect[] };
 export type TextFocus = { start: number; end: number; token: number };
-export type PdfSource = { documentId: string; page: number; fileDigest: string; rects?: PdfRect[] };
+export type PdfSource = { documentId: string; page: number; fileDigest: string; rects?: PdfRect[]; paperId?: string; texPreviewId?: string };
+export type ReaderLocation = { representation: 'read' | 'original'; paperId: string } | (PdfSource & {
+  representation: 'pdf' | 'tex-preview'; paperId: string; excerpt: string;
+});
+export type SourceFocus = { memberId: string; line: number };
 export type Api = { get<T>(path: string): Promise<T>; post<T>(path: string, body: unknown): Promise<T> };
 export type DiscoveryRelation = 'related' | 'references' | 'citing';
 export type DiscoveryPaper = SearchItem & { url: string; authors: string[]; abstract: string; publicationDate: string | null; citations: number | null; doi: string };

@@ -14,7 +14,7 @@ import { SelectionLayer, SelectionPluginPackage, useSelectionCapability, type Se
 import { ZoomPluginPackage, ZoomMode, useZoom } from '@embedpdf/plugin-zoom/react';
 import { CapturePluginPackage, MarqueeCapture, useCapture } from '@embedpdf/plugin-capture/react';
 import wasmUrl from '@embedpdf/pdfium/pdfium.wasm';
-import type { Api, Paper, PdfAnnotation, PdfDocument, PdfFocus, PdfReading, PdfSource } from './types';
+import type { Api, Paper, PdfAnnotation, PdfDocument, PdfFocus, PdfReading, PdfSource, ReaderLocation } from './types';
 import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
 import { loadReaderState, persistedSelection, saveReaderState, type PdfReaderState } from './reader-state';
@@ -23,7 +23,7 @@ import { FigureSourceDialog, type FigureTarget } from './figure-reference';
 
 type ReadingView = 'text' | 'pdf' | 'tex' | 'original';
 
-export type ReaderChrome = { figure?: FigureTarget | null; toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; onSave(format?: 'pdf' | 'tex'): void; back?: () => void };
+export type ReaderChrome = { figure?: FigureTarget | null; texPreviewId?: string; onSourcePoint?(page: number, x: number, y: number): void; onLocation?(value: ReaderLocation): void; toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; onSave(format?: 'pdf' | 'tex'): void; back?: () => void };
 
 export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel, readRequest = 0, pdfReloadToken = 0, sourceUrl, openToken = 0 }: {
   paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string; readRequest?: number; pdfReloadToken?: number;
@@ -36,7 +36,9 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     source: { zh: '查看图片与源码', en: 'View figure and source' },
   });
   const [figureSourceOpen, setFigureSourceOpen] = useState(false);
-  const figurePdf = chrome.figure?.pdf?.paperId === paper.id ? chrome.figure.pdf : null;
+  // The resolver binds both targets to the same explicit source revision.
+  // Separate saved snapshots of that revision need not share a paperId.
+  const figurePdf = chrome.figure?.pdf ?? null;
   const pdfFocus = focus ?? figurePdf;
   const figureView = chrome.figure?.preview?.paperId === paper.id ? 'tex' : figurePdf ? 'pdf' : null;
   const [reading, setReading] = useState<PdfReading>({ document: null, annotations: [] });
@@ -80,6 +82,9 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   useEffect(() => { if (lockText) setMode('text'); else if (focus) setMode('pdf'); }, [focus, lockText]);
   useEffect(() => { if (readRequest) setMode('text'); }, [readRequest]);
   const view = lockText ? 'text' : mode;
+  useEffect(() => {
+    if (view === 'text' || view === 'original') chrome.onLocation?.({ representation: view === 'text' ? 'read' : 'original', paperId: paper.id });
+  }, [view, paper.id, chrome.onLocation]);
   const textLabel = readLabel ?? 'Read';
   const originalUrl = sourceUrl ?? paper.arxivUrl ?? paper.fullTextUrl ?? paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
   const modes = <div className="pa-reader-modes" role="group" aria-label={t('readerView')}>
@@ -104,7 +109,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
         <PdfViewer chrome={{ ...chrome, toolbar: view === 'pdf' ? chrome.toolbar : null }} active={view === 'pdf'} readLabel={textLabel} onText={() => setMode('text')} key={`${reading.document.id}:${reading.document.fileDigest}`} document={reading.document} annotations={reading.annotations} api={api} focus={pdfFocus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/>
       </div>}
       <div className="pa-text-view-slot" aria-hidden={view !== 'text'} inert={view !== 'text'} style={{ gridArea: '1 / 1', display: view === 'text' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%' }}>{children}</div>
-      {visitedTex && <div className="pa-tex-view-slot" aria-hidden={view !== 'tex'} inert={view !== 'tex'} style={{ gridArea: '1 / 1', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%', visibility: view === 'tex' ? 'visible' : 'hidden' }}><TexReader api={api} paper={paper} active={view === 'tex'} openToken={openToken} reloadToken={pdfReloadToken} chrome={chrome} t={t}/></div>}
+      {visitedTex && <div className="pa-tex-view-slot" aria-hidden={view !== 'tex'} inert={view !== 'tex'} style={{ gridArea: '1 / 1', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%', visibility: view === 'tex' ? 'visible' : 'hidden' }}><TexReader api={api} paper={paper} active={view === 'tex'} openToken={openToken} reloadToken={pdfReloadToken} onDiscuss={onDiscuss} chrome={chrome} t={t}/></div>}
       {view === 'original' && originalUrl?.startsWith('https://') && <section className="pa-original-view" style={{ gridArea: '1 / 1', minHeight: 0, height: '100%' }} aria-label={t('readerOriginal')}><div className="pa-original-location"><a href={originalUrl} target="_blank" rel="noreferrer"><Icon name="external-link"/>{originalUrl}</a></div><iframe title={t('readerOriginal')} src={originalUrl} sandbox="allow-same-origin allow-popups" referrerPolicy="no-referrer"/></section>}
     </div>
     {chrome.figure && ((view === 'pdf' && !figurePdf) || (view === 'tex' && !chrome.figure.preview)) && <Feedback kind="status"><span>{copy('unmatched')}</span><Button onClick={() => setFigureSourceOpen(true)}>{copy('source')}</Button></Feedback>}
@@ -144,6 +149,13 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   const selectionState = useStoreState()?.plugins.selection as SelectionState | undefined;
   const [hasSelection, setHasSelection] = useState(false), [note, setNote] = useState(''), [busy, setBusy] = useState(false);
   const selectedText = useRef('');
+  useEffect(() => {
+    if (!active) return;
+    const page = document.pages[(scrollState.currentPage || 1) - 1];
+    if (page) chrome.onLocation?.({ representation: chrome.texPreviewId ? 'tex-preview' : 'pdf', paperId: document.paperId,
+      documentId: document.id, fileDigest: document.fileDigest, page: page.number,
+      ...(chrome.texPreviewId ? { texPreviewId: chrome.texPreviewId } : {}), excerpt: page.text.slice(0, 4800) });
+  }, [active, scrollState.currentPage, document, chrome.texPreviewId, chrome.onLocation]);
   const [error, setError] = useState(''), [status, setStatus] = useState(''), [notes, setNotes] = useState(false), [target, setTarget] = useState('');
   const [menu, setMenu] = useState<{x: number; y: number} | null>(null), [pageText, setPageText] = useState(false);
   const layoutReady = useRef(false);
@@ -294,7 +306,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       const quote = (await scope!.getSelectedText().toPromise()).join('\n');
       const part = parts[0], page = document.pages[part.pageIndex];
       const rects = part.segmentRects.map(rect => ({ x: Math.max(0, rect.origin.x / page.width), y: Math.max(0, rect.origin.y / page.height), width: rect.size.width / page.width, height: rect.size.height / page.height }));
-      if (action === 'discuss') { onDiscuss?.(quote, { documentId: document.id, fileDigest: document.fileDigest, page: part.pageIndex + 1, rects }); return; }
+      if (action === 'discuss') { onDiscuss?.(quote, { documentId: document.id, fileDigest: document.fileDigest, paperId: document.paperId, page: part.pageIndex + 1, rects, ...(chrome.texPreviewId ? { texPreviewId: chrome.texPreviewId } : {}) }); return; }
       await save({ kind: 'highlight', page: part.pageIndex + 1, quote, rects });
     } catch (e) { fail(e); }
   }
@@ -339,12 +351,16 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button role="menuitem" onClick={() => { setMenu(null); chrome.onSave(); }}>{t('downloadPaper')}</Button>
       <Button role="menuitem" onClick={() => { setMenu(null); onText(); }}>{readLabel}</Button>
     </div>}
-    {hasSelection && !readOnly && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') discardSelection(); }}><Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/><Button disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>{onDiscuss && <Button disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button variant="ghost" onClick={() => discardSelection()}>{t('close')}</Button></div>}
+    {hasSelection && (!readOnly || onDiscuss) && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') discardSelection(); }}>{!readOnly && <><Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/><Button disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button></>}{onDiscuss && <Button disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button variant="ghost" onClick={() => discardSelection()}>{t('close')}</Button></div>}
     {error && <Feedback kind="error">{error}<Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback>}
     {(busy || status) && <div role="status" className="pa-pdf-status">{busy ? t('pdfSaving') : status}</div>}
     <div className="pa-pdf-body" data-notes={notes}>
       <Viewport documentId={documentId} className="pa-pdf-viewport" style={{ height: '100%', minHeight: 0, background: 'var(--pero-surface-muted)' }}>
-        <Scroller documentId={documentId} renderPage={({ width, height, pageIndex }) => <div className="pa-pdf-page" data-page-number={pageIndex + 1} data-selection-ready={!!selectionState?.documents[documentId]?.geometry[pageIndex]} style={{ width, height, position: 'relative', background: 'white' }}>
+        <Scroller documentId={documentId} renderPage={({ width, height, pageIndex }) => <div className="pa-pdf-page" data-page-number={pageIndex + 1} data-selection-ready={!!selectionState?.documents[documentId]?.geometry[pageIndex]} style={{ width, height, position: 'relative', background: 'white' }} onClick={event => {
+          if (!chrome.onSourcePoint || !(event.metaKey || event.ctrlKey)) return;
+          event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect();
+          chrome.onSourcePoint(pageIndex + 1, (event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
+        }}>
           <PagePointerProvider documentId={documentId} pageIndex={pageIndex}>
             <RenderLayer documentId={documentId} pageIndex={pageIndex} draggable={false}/>
             <div className="pa-pdf-marks" aria-hidden="true">{focus?.page === pageIndex + 1 && focus.rects?.map((rect, i) => <span key={`citation:${i}`} data-citation-region="true" data-focused="true" style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>) }{annotations.filter(item => item.page === pageIndex + 1).flatMap(item => item.rects.map((rect, i) => <span key={`${item.id}:${i}`} data-annotation-id={item.id} data-kind={item.kind} data-focused={target === item.id} style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>))}</div>

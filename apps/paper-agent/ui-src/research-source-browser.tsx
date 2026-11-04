@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Feedback, Split, SplitPane } from '@pero/app-sdk/ui';
-import type { Api, PdfFocus } from './types';
+import type { Api, PdfFocus, SourceFocus } from './types';
 import type { ResearchBundle, SourceObservation, SourceEvidenceLocation } from './research-types';
 import { SourceReports } from './research-source-reports';
 import type { SourceReceipt } from './research-sources';
@@ -15,8 +15,9 @@ type SourceComparison = { observationId?: string; observationWarning?: string; s
   pdf: { paperId?: string; documentId: string; fileDigest: string; page: number; start: number; end: number; quote: string };
 }[] };
 
-export function SourceBrowser({ api, bundle, resourceId, receipt, available = true, onRead, inspectionOnly = false, initialMemberId }: {
-  api: Api; bundle: ResearchBundle; resourceId: string; receipt: SourceReceipt; available?: boolean; inspectionOnly?: boolean; initialMemberId?: string; onRead(id: string, focus?: PdfFocus): void | boolean | Promise<void | boolean>;
+export function SourceBrowser({ api, bundle, resourceId, receipt, available = true, onRead, inspectionOnly = false, initialMemberId, initialFocus, onPreview }: {
+  api: Api; bundle: ResearchBundle; resourceId: string; receipt: SourceReceipt; available?: boolean; inspectionOnly?: boolean; initialMemberId?: string; initialFocus?: SourceFocus | null;
+  onPreview?(focus: SourceFocus): Promise<void>; onRead(id: string, focus?: PdfFocus): void | boolean | Promise<void | boolean>;
 }) {
   const { t: copy } = useAppI18n({
     files: { zh: '文件', en: 'Files' }, loading: { zh: '正在读取源码…', en: 'Reading saved source…' },
@@ -36,6 +37,7 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
     noPdf: { zh: '尚未保存用于对照的 PDF。请先下载相同版本的 PDF。', en: 'No PDF saved for comparison. Download a fixed-version PDF first.' },
     resize: { zh: '调整文件列表宽度', en: 'Resize source file list' },
     source: { zh: '只读源码', en: 'Read-only source file' },
+    previewLine: { zh: '定位第 {line} 行的排版位置', en: 'Show typeset position of line {line}' },
     unavailable: { zh: '此文件没有可用预览。', en: 'No preview is available for this file.' },
   });
   const [listing, setListing] = useState<SourceList | null>(null), [member, setMember] = useState<SourceMember | null>(null);
@@ -50,10 +52,11 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
   const previewDimensions = previewWidth != null && previewHeight != null ? `${previewWidth} × ${previewHeight} px` : 'Unknown (not recorded)';
   const request = <T,>(value: Record<string, unknown>) => api.post<T>('/api/research/source-read', { bundleId: bundle.id, resourceId, ...value });
   useEffect(() => {
-    if (!initialMemberId || member || !listing) return;
-    const initial = listing.members.find(item => item.id === initialMemberId);
-    if (initial) void readMember(initial);
-  }, [listing, initialMemberId]);
+    const identity = initialFocus?.memberId ?? initialMemberId;
+    if (!identity || !listing) return;
+    const initial = listing.members.find(item => item.id === identity);
+    if (initial) void readMember(initial, 0, undefined, initialFocus?.line);
+  }, [listing, initialMemberId, initialFocus]);
   function clearImage() { if (imageURL.current) URL.revokeObjectURL(imageURL.current); imageURL.current = null; setImage(null); }
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; epoch.current++; if (imageURL.current) URL.revokeObjectURL(imageURL.current); }; }, []);
   useEffect(() => {
@@ -62,12 +65,14 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
     request<SourceList>({ operation: 'list' }).then(value => { if (alive) setListing(value); }, error => { if (alive) setError(String(error)); }).finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
   }, [api, resourceId, attempt, available]);
-  async function readMember(item: SourceMember, start = 0, end?: number) {
+  async function readMember(item: SourceMember, start = 0, end?: number, line?: number) {
     if (!available) return;
     const version = ++epoch.current; setMember(item); setReading(null); clearImage(); setBusy(true); setError(''); setObservationWarning('');
     try {
       if (item.kind === 'tex' || item.kind === 'text') {
-        const value = await request<SourceRead>({ operation: 'read', memberId: item.id, start, ...(end == null ? {} : { end }) });
+        const value = await request<SourceRead>({ operation: 'read', memberId: item.id, ...(line == null
+          ? { start, ...(end == null ? {} : { end }) }
+          : { startLine: line, endLine: Math.min(line + 19, item.lineCount ?? line) }) });
         if (mounted.current && version === epoch.current) { setReading(value); setObservationWarning(value.observationWarning || ''); if (value.observationId) setReportRefresh(n => n + 1); }
       } else if (item.kind === 'image' && item.previewUrl) {
         // The same bounded image operation used by App tools records the supplied
@@ -87,6 +92,13 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
     try { const value = await request<SourceComparison>({ operation: 'compare', pdfResourceId: pdfId }); if (mounted.current && version === epoch.current) { setComparison(value); setObservationWarning(value.observationWarning || ''); if (value.observationId) setReportRefresh(n => n + 1); } }
     catch (error) { if (mounted.current && version === epoch.current) setError(String(error)); }
     finally { if (mounted.current && version === epoch.current) setBusy(false); }
+  }
+  async function previewLine(focus: SourceFocus) {
+    if (!onPreview || busy) return;
+    setBusy(true); setError('');
+    try { await onPreview(focus); }
+    catch (error) { setError(error instanceof Error ? error.message : String(error)); }
+    finally { if (mounted.current) setBusy(false); }
   }
   async function reveal(match: { pdf: { documentId: string; fileDigest: string; page: number; start?: number; end?: number } }, resource = pdfId) {
     if (busy) return;
@@ -117,7 +129,10 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
         {!member ? <p>{copy('choose')}</p> : <><h4>{member.path}</h4>
           {member.warning && <Feedback>{member.warning}</Feedback>}<details><summary>{copy('identity')}</summary><dl className="pa-resource-provenance"><dt>Archive SHA-256</dt><dd>{receipt.archiveDigest}</dd><dt>Original member SHA-256</dt><dd>{member.sha256}</dd><dt>Original size</dt><dd>{member.size.toLocaleString()} B</dd>{member.previewSha256 && <><dt>Preview SHA-256</dt><dd>{member.previewSha256}</dd></>}<dt>Member</dt><dd>{member.id}</dd></dl></details>
           {member.kind === 'image' && <p>Original image: {originalDimensions}. Preview: {previewDimensions}.</p>}
-          {reading && <><p>{copy('lines', { start: reading.startLine, end: reading.endLine, total: reading.totalLines })}</p><pre className="pa-source-text" tabIndex={0} aria-label={`Original source: ${reading.memberPath}`}>{reading.content}</pre><div className="pa-actions"><Button disabled={busy || reading.start === 0} onClick={() => void readMember(member)}>{copy('start')}</Button><Button disabled={busy || reading.nextStart == null} onClick={() => void readMember(member, reading.nextStart!)}>{copy('next')}</Button></div></>}
+          {reading && <><p>{copy('lines', { start: reading.startLine, end: reading.endLine, total: reading.totalLines })}</p><pre className="pa-source-text" tabIndex={0} aria-label={`Original source: ${reading.memberPath}`}>{onPreview ? (reading.content.match(/[^\r\n]*(?:\r\n|\r|\n|$)/g) ?? []).filter(Boolean).map((text, index) => {
+            const line = reading.startLine + index;
+            return <span className="pa-source-line" key={line}><button type="button" disabled={busy} aria-label={copy('previewLine', { line })} onClick={() => void previewLine({ memberId: reading.memberId, line })}>{line}</button>{initialFocus?.memberId === reading.memberId && initialFocus.line === line ? <mark>{text}</mark> : text}</span>;
+          }) : reading.content}</pre><div className="pa-actions"><Button disabled={busy || reading.start === 0} onClick={() => void readMember(member)}>{copy('start')}</Button><Button disabled={busy || reading.nextStart == null} onClick={() => void readMember(member, reading.nextStart!)}>{copy('next')}</Button></div></>}
           {image && <figure><img className="pa-source-image" src={image} alt={`Source image ${member.path}`}/><figcaption>Validated raster preview. Its dimensions and SHA-256 describe the preview, not the original file. Not experiment code or data.</figcaption></figure>}
           {!busy && !reading && !image && <p>{member.kind === 'unknown_encoding' ? copy('encoding') : copy('unavailable')}</p>}
           {!!member.structures.length && <details className="pa-source-structures"><summary>{copy('structures')} ({member.structures.length})</summary><p>These are source locations, not compiled numbering or complete TeX interpretation. Nearby text is context only.</p><ul>{member.structures.map((item, i) => <li key={i}><Button variant="ghost" disabled={busy} onClick={() => void readMember(member, item.start)}>{item.kind}{item.name ? `: ${item.name}` : ''} / lines {item.startLine}–{item.endLine}</Button>{item.caption && <p>{item.caption}</p>}{item.reference && <p>Reference: {item.reference}</p>}{item.context && <p className="pa-muted">Context: {item.context}</p>}</li>)}</ul></details>}

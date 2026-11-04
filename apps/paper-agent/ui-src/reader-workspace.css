@@ -309,3 +309,11 @@
     padding: 24px 16px 36px;
   }
 }
+
+.pa-source-line { display: block; white-space: pre-wrap; }
+.pa-source-line > button { color: var(--pero-text-muted); background: none; border: 0; border-right: .5px solid var(--pero-border); min-width: 36px; padding: 0 8px 0 0; margin-right: 8px; font: inherit; cursor: pointer; }
+.pa-source-line > button:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
+.pa-source-line mark { background: var(--pero-accent-soft); color: var(--pero-text); }
+@media (max-width: 660px) {
+  .pa-tex-source-dialog .pa-source-files { max-height: 160px; overflow-y: auto; }
+}

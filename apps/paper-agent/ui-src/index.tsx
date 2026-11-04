@@ -14,7 +14,7 @@ import { Discovery, type DiscoveryOpening } from './discovery';
 import { DiscoverSearch } from './discover-search';
 import { WorkspaceNav } from './workspace-nav';
 import { cycleStatus, loadShelf, openPaper, saveShelf, statusOf, withStatus, type Shelf, type ShelfFilter } from './shelf';
-import type { EvidenceLocation, Intent, Library, LocalSearchHit, Paper, PdfAnnotation, PdfFocus, PdfSource, SavedDiscovery, StudySummary, PaperResearchSelection, TextFocus } from './types';
+import type { EvidenceLocation, Intent, Library, LocalSearchHit, Paper, PdfAnnotation, PdfFocus, PdfSource, SavedDiscovery, StudySummary, PaperResearchSelection, TextFocus, ReaderLocation } from './types';
 import './styles.css';
 import './workspace.css';
 
@@ -58,6 +58,7 @@ export default function PaperAgent() {
   const [savingPaper, setSavingPaper] = useState<Paper | null>(null), [saveFormat, setSaveFormat] = useState<'pdf' | 'tex'>('pdf'), [saveRevision, setSaveRevision] = useState(0);
   const [chatRequest, setChatRequest] = useState<ResearchDraft | null>(null);
   const [figureTarget, setFigureTarget] = useState<FigureTarget | null>(null), [figureDialog, setFigureDialog] = useState<FigureReference | null>(null);
+  const [readerLocation, setReaderLocation] = useState<ReaderLocation | null>(null);
   const figureToken = useRef(0);
   const pendingAsk = useRef<ResearchDraft | null>(null);
   const [discoveryOpening, setDiscoveryOpening] = useState<DiscoveryOpening | null>(null), [matrixOpen, setMatrixOpen] = useState(false);
@@ -100,7 +101,14 @@ export default function PaperAgent() {
       const paper = reading ? await api.get<Paper>(`/api/papers/${reading.id}`) : null;
       if (!mounted.current || version !== readVersion.current) return;
       if (paper) setReading(paper);
-      const selected = { paperIds: paper ? [paper.id] : [], fullText: !!paper && (!!paper.pdfUrl || paper.source === 'local-pdf'), ...selection };
+      const location = readerLocation;
+      const selected = { paperIds: paper ? [location?.paperId ?? paper.id] : [], fullText: !!paper && (!!paper.pdfUrl || paper.source === 'local-pdf'), ...selection };
+      if (!selected.contextId && location && 'documentId' in location && location.excerpt && selected.paperIds.includes(location.paperId)) {
+        const context = await api.post<{ id: string }>('/api/contexts', { content: location.excerpt,
+          paperId: location.paperId, documentId: location.documentId, fileDigest: location.fileDigest, page: location.page,
+          ...(location.texPreviewId ? { texPreviewId: location.texPreviewId } : {}) });
+        selected.contextId = context.id;
+      }
       if (selected.fullText) {
         for (const id of selected.paperIds) {
           const saved = await api.get<import('./types').PdfReading>(`/api/pdf?paperId=${id}`);
@@ -163,7 +171,7 @@ export default function PaperAgent() {
     setLibraryScreen('bundle');
   }
   async function read(paper: Paper, keepRecords = false, propagate = false, fromSearch = false) {
-    setFigureTarget(null); setFigureDialog(null);
+    setFigureTarget(null); setFigureDialog(null); if (paper.id !== reading?.id) setReaderLocation(null);
     const version = ++readVersion.current; readerOpenToken.current++; setShelf(current => openPaper(current, paper.id)); setReadingBusy(true); setScreen('reading'); setCitation(null); setError('');
     setHitPreview(fromSearch);
     if (!fromSearch) setOpenHit(null);
@@ -286,9 +294,10 @@ export default function PaperAgent() {
     if (!text || !reading) return;
     try {
       const context = await api.post<{ id: string }>('/api/contexts', {
-        content: text, paperId: reading.id, ...(pdf ? { documentId: pdf.documentId, fileDigest: pdf.fileDigest, page: pdf.page, rects: pdf.rects } : {}),
+        content: text, paperId: pdf?.paperId ?? reading.id, ...(pdf ? { documentId: pdf.documentId, fileDigest: pdf.fileDigest, page: pdf.page, rects: pdf.rects,
+          ...(pdf.texPreviewId ? { texPreviewId: pdf.texPreviewId } : {}) } : {}),
       });
-      await ask({ paperIds: [reading.id], contextId: context.id, fullText: !!pdf || !!reading.pdfUrl || reading.source === 'local-pdf' });
+      await ask({ paperIds: [pdf?.paperId ?? reading.id], contextId: context.id, fullText: !!reading.pdfUrl || reading.source === 'local-pdf' || (!!pdf && !pdf.texPreviewId) });
     } catch (error) { onError(error); }
   }
   function followUp(intent: Intent) {
@@ -346,10 +355,13 @@ export default function PaperAgent() {
     window.addEventListener('message',receive);return()=>window.removeEventListener('message',receive);
   },[api,reading]);
   useAppDataChanged(() => refresh().catch(onError));
+  const figureInView = figureTarget && readerLocation && 'documentId' in readerLocation
+    && [figureTarget.preview, figureTarget.pdf].some(target => target?.documentId === readerLocation.documentId && target.page === readerLocation.page);
   useAppObject({id:'paper-agent',kind:'research-library',label:reading?.title.slice(0,300)||'Paper Agent',state:{
     paperCount:library.papers.length,reportCount:library.reports.length,selected:reading ? [reading.id] : [],
     readingId:reading?.id??null,title:reading?.title??null,contentDigest:reading?.contentDigest??null,url:reading?.url??null,sourceId:reading?.sourceId??null,
     sourceExcerpt:reading?.content?.slice(0,4000)??null,sourceTruncated:(reading?.content?.length??0)>4000,
+    readingLocation:readerLocation,figure:figureInView && figureTarget ? { archiveDigest:figureTarget.archiveDigest,memberId:figureTarget.memberId,memberPath:figureTarget.memberPath } : null,
     loading:loading||readingBusy,acceptance:'unverified',
     sources:(reading ? [reading] : []).map(p => ({ id:p.id, title:p.title, contentKind:p.contentKind, contentDigest:p.contentDigest, hasPdf:!!p.pdfUrl || p.source==='local-pdf' })),
     research:{ prepare:'prepare-research', followup:'follow-up-research', step:'research-step', continue:'continue-research', submit:'submit-report',
@@ -406,7 +418,7 @@ export default function PaperAgent() {
     <section className="pa-reading-screen" hidden={screen !== 'reading'} data-agent={showResearch}>
       <div className="pa-reading-main" inert={narrow && showResearch}>
         <header className="pa-reading-bar pero-reader-header"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={back}><Icon family="shell" name="back" size={16}/></Button><div className="pa-reader-crumb"><Button variant="ghost" onClick={back}>{t('library')}</Button><Icon name="chevron-right" size={13}/><h1 title={reading?.title}>{reading?.title ?? t('loading')}</h1></div><div className="pa-reader-tools" ref={setPdfToolbar}/>{!questionMode && <><Button className="pa-records-toggle" variant="ghost" aria-label={t('researchProgress')} title={t('researchProgress')} aria-expanded={showResearch} onClick={() => { preserveView.current?.(); setShowResearch(value => !value); }}><Icon name="history" size={14}/></Button><div ref={askButton}><Tooltip label={t('ask')} side="bottom"><IconButton className="pa-ask" label={t('ask')} disabled={!reading || readingBusy || !!chatRequest} onMouseDown={event => event.preventDefault()} onClick={() => void ask()} aria-keyshortcuts="Control+j Meta+j"><Icon name="ai-sparkles" size={18}/></IconButton></Tooltip></div></>}</header>
-        <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} openToken={readerOpenToken.current} pdfReloadToken={saveRevision} chrome={{ figure: figureTarget, onSave: (format = 'pdf') => { if (reading) { setSaveFormat(format); setSavingPaper(reading); } }, toolbar: pdfToolbar, preserveView, onNavigate: () => { focusVersion.current++; setPdfFocus(null); } }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onReview={openImport} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
+        <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} openToken={readerOpenToken.current} pdfReloadToken={saveRevision} chrome={{ figure: figureTarget, onLocation: setReaderLocation, onSave: (format = 'pdf') => { if (reading) { setSaveFormat(format); setSavingPaper(reading); } }, toolbar: pdfToolbar, preserveView, onNavigate: () => { focusVersion.current++; setPdfFocus(null); } }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onReview={openImport} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
       </div>
       {screen === 'reading' && showResearch && <aside className="pa-records" aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
         <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}>×</Button></header>
