@@ -22,6 +22,12 @@ class TexInput:
     path: str
     data: bytes
 
+    def contains_line(self, line):
+        try:
+            return 1 <= line <= len(self.data.decode('utf-8').splitlines())
+        except UnicodeDecodeError:
+            return False
+
 
 @dataclass(frozen=True)
 class TexProject:
@@ -93,17 +99,20 @@ class TexPreview:
     document: PdfDocument
     diagnostics: str
     created_at: str
+    source_map_digest: str | None = None
+    source_root: str | None = None
 
     def to_dict(self):
         return dict(id=self.id, paperId=self.paper_id, bundleId=self.bundle_id, resourceId=self.resource_id,
             archiveDigest=self.archive_digest, entryId=self.entry_id, entryPath=self.entry_path, engine=self.engine,
-            document=self.document.to_dict(), diagnostics=self.diagnostics, createdAt=self.created_at)
+            document=self.document.to_dict(), diagnostics=self.diagnostics, createdAt=self.created_at,
+            sourceMapDigest=self.source_map_digest, sourceRoot=self.source_root)
 
     @classmethod
     def from_record(cls, value):
         return cls(value['id'], value['paperId'], value['bundleId'], value['resourceId'], value['archiveDigest'],
             value['entryId'], value['entryPath'], value['engine'], PdfDocument.from_record(value['document']),
-            value['diagnostics'], value['createdAt'])
+            value['diagnostics'], value['createdAt'], value.get('sourceMapDigest'), value.get('sourceRoot'))
 
 
 def tectonic_binary():
@@ -172,8 +181,10 @@ class TexPreviews:
             (self.store.root / 'source-members' / (m.sha256 + '.bin')).read_bytes()) for m in archive.members))
 
     def overview(self, paper_id):
+        from .tex_navigation import synctex_binary
         sources = self.sources(paper_id)
         previews = [TexPreview.from_record(self.store._read('tex-previews', identity)) for identity in self.store._list('tex-previews')]
+        previews.sort(key=lambda p: (p.source_map_digest is not None, p.created_at), reverse=True)
         rows = []
         for source in sources:
             row = dict(bundleId=source.bundle_id, resourceId=source.resource_id, revision=source.revision,
@@ -186,7 +197,7 @@ class TexPreviews:
                     and p.archive_digest == project.archive_digest
                     and (p.bundle_id, p.resource_id) == (source.bundle_id, source.resource_id)]
             rows.append(row)
-        return dict(sources=rows, engineAvailable=bool(tectonic_binary() and sys.platform == 'darwin'))
+        return dict(sources=rows, engineAvailable=bool(tectonic_binary() and sys.platform == 'darwin'), sourceNavigationAvailable=bool(synctex_binary()))
 
     def compile(self, paper_id, request: TexRequest, now):
         bundle_id, resource_id = request.bundle_id, request.resource_id
@@ -198,7 +209,7 @@ class TexPreviews:
         if not binary or sys.platform != 'darwin':
             raise Invalid('Install Tectonic to enable TeX previews. This preview runner requires macOS sandbox-exec.', 422)
         engine = subprocess.check_output([binary, '--version'], text=True, timeout=5).strip()
-        identity = digest(dict(paperId=paper_id, bundleId=bundle_id, resourceId=resource_id, archive=project.archive_digest, entry=entry.id, engine=engine, runner='sandbox-tectonic.v1'))
+        identity = digest(dict(paperId=paper_id, bundleId=bundle_id, resourceId=resource_id, archive=project.archive_digest, entry=entry.id, engine=engine, runner='sandbox-tectonic.v2-synctex'))
         if identity in self.store._list('tex-previews'):
             record = TexPreview.from_record(self.store._read('tex-previews', identity))
             self.file(identity)
@@ -226,7 +237,7 @@ class TexPreviews:
             with (root / 'compiler.log').open('w+b') as log:
                 try:
                     result = subprocess.run(['/usr/bin/sandbox-exec', '-p', profile, binary,
-                        '--untrusted', '--keep-logs', '--outdir', str(output), Path(entry.path).name],
+                        '--untrusted', '--synctex', '--keep-logs', '--outdir', str(output), Path(entry.path).name],
                         cwd=root / Path(entry.path).parent, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=180)
                 except subprocess.TimeoutExpired as error:
                     raise Invalid('TeX compilation exceeded 180 seconds. Inspect the source and retry.', 422) from error
@@ -238,13 +249,18 @@ class TexPreviews:
             if pdf.stat().st_size > 32 * 1024 * 1024:
                 raise Invalid('Compiled TeX PDF exceeds 32 MiB.', 413)
             data = pdf.read_bytes()
+            source_map = pdf.with_suffix('.synctex.gz')
+            mapping = source_map.read_bytes() if source_map.is_file() else None
             document = PdfDocument.create(paper_id, digest(data), 'urn:pero:tex:' + project.archive_digest,
                                           self.pdf_files.pages(data), now)
         record = TexPreview(identity, paper_id, bundle_id, resource_id, project.archive_digest,
-                            entry.id, entry.path, engine, document, diagnostics[-2000:], now)
+                            entry.id, entry.path, engine, document, diagnostics[-2000:], now,
+                            digest(mapping) if mapping else None, str(root) if mapping else None)
         directory = self.store.root / 'tex-preview-files'
         directory.mkdir(parents=True, exist_ok=True)
         (directory / (identity + '.pdf')).write_bytes(data)
+        if mapping:
+            (directory / (identity + '.synctex.gz')).write_bytes(mapping)
         self.store._write('tex-previews', identity, record.to_dict())
         return record
 

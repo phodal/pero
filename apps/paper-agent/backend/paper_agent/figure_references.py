@@ -45,6 +45,7 @@ class FigureReference:
             captions = tuple(SourceCaption(f.caption) for f in figures)
             previews = [TexPreview.from_record(store._read('tex-previews', i)) for i in store._list('tex-previews')]
             previews = [p for p in previews if (p.bundle_id, p.resource_id, p.archive_digest) == (job.bundleId, job.resourceId, archive.sha256)]
+            previews.sort(key=lambda p: (p.source_map_digest is not None, p.created_at), reverse=True)
             previews.sort(key=lambda p: p.paper_id != preferred_paper)
             target = None
             for preview in previews:

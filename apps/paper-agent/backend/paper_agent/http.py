@@ -95,6 +95,10 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if not self.headers.get("Content-Type", "").startswith("application/json"):
                         raise Invalid("JSON is required", 415)
                     data = mapping(json.loads(body), "request")
+                    tex_location = re.fullmatch(r'/api/tex-previews/([a-f0-9]{64})/locate', path)
+                    if tex_location:
+                        from .tex_navigation import TexNavigation, locate_tex
+                        return self.reply(200, locate_tex(tex, tex_location[1], TexNavigation.parse(data)))
                 matrix_match = re.fullmatch(r'/api/reports/([a-f0-9]{64})/matrix', path)
                 if matrix_match:
                     if self.command == 'GET': return self.reply(200, store.report_matrix(matrix_match[1]))
