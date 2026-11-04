@@ -152,6 +152,7 @@ def validation_signals(output: str) -> list[dict]:
         ("python_traceback", r"^Traceback \(most recent call last\):[\s\S]*?^[\w.]+(?:Error|Exception)(?::[^\n]*)?$"),
         ("printed_nonzero_exit", r"^exit=[1-9][0-9]*\s*$"),
         ("pytest_failed", r"^=+[^\n]*\b[1-9][0-9]* failed\b[^\n]*=+\s*$"),
+        ("empty_test_suite", r"^\s*(?:Ran 0 tests?\b|0 tests? in\b|collected 0 items\b|(?:=+\s*)?no tests ran\b)[^\n]*$"),
     ]
     signals = []
     for kind, pattern in patterns:

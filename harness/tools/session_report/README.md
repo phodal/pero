@@ -73,6 +73,11 @@ source and expected exceptions can produce false positives. No regex establishes
 an independent test verdict or root cause; original tool status is preserved.
 Final benchmark acceptance still belongs to the external judge.
 
+Empty unittest, doctest and pytest suites also produce review candidates.
+An exit of zero after running zero tests supplies no validation coverage; it
+does not itself establish an implementation defect. These candidates retain
+the `empty_test_suite` kind and never change the tool's successful status.
+
 Optionally provide reviewed annotations:
 
 ```json

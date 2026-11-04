@@ -347,6 +347,12 @@ class SessionReportRules(unittest.TestCase):
             ("traceback", 'Traceback (most recent call last):\n  File "check.py", line 1\nAssertionError: mismatch\n', "python_traceback"),
             ("printed source", '    raise SyntaxError("invalid input")\n', None),
             ("caught expected error", "caught ValueError: expected\nok\n", None),
+            ("empty unittest", "Ran 0 tests in 0.000s\n\nOK\n", "empty_test_suite"),
+            ("empty doctest", "0 tests in 2 items.\n0 passed and 0 failed.\nTest passed.\n", "empty_test_suite"),
+            ("empty pytest", "collected 0 items\n\nno tests ran in 0.01s\n", "empty_test_suite"),
+            ("pytest summary", "========= no tests ran in 0.01s =========\n", "empty_test_suite"),
+            ("nonempty suite", "Ran 10 tests in 0.001s\n\nOK\n", None),
+            ("zero failures", "10 passed and 0 failed.\n", None),
             # Quoted or expected tracebacks may look real; candidates still cannot confirm a failure.
             ("quoted traceback", 'Traceback (most recent call last):\nValueError: expected\nok\n', "python_traceback"),
         ]:
