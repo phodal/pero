@@ -55,8 +55,11 @@ func TestDeferredChildDiscoversAuthorizedUnactivatedTools(t *testing.T) {
 					if !slices.Equal(names, []string{"ToolSearch"}) {
 						t.Errorf("initial child declarations=%v", names)
 					}
-					claudeHTTPAnswer(w, `{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"discover","type":"function","function":{"name":"ToolSearch","arguments":"{\"query\":\"select:Read,Write,Bash\"}"}}]},"finish_reason":"tool_calls"}]}`)
+					claudeHTTPAnswer(w, `{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"discover","type":"function","function":{"name":"ToolSearch","arguments":"{\"query\":\"select:Read,Write,Bash,ReadToolOutput\"}"}}]},"finish_reason":"tool_calls"}]}`)
 				case 2:
+					if (kind != "worker") != slices.Contains(names, "ReadToolOutput") {
+						t.Errorf("readback did not follow child tool policy: %v", names)
+					}
 					if slices.Contains(names, "Write") {
 						t.Error("child discovered forbidden Write")
 					}
@@ -83,7 +86,7 @@ func TestDeferredChildDiscoversAuthorizedUnactivatedTools(t *testing.T) {
 					t.Error("unexpected provider continuation")
 					w.WriteHeader(400)
 				}
-			}, true, []AgentDefinition{{Name: "worker", Description: "Read only", Instructions: "Read the existing file.", Tools: allowed}}, ClaudeOptions{}, nativetools.Options{Workspace: root, ClaudeTools: true, EnableShell: true, DeferToolLoading: true})
+			}, true, []AgentDefinition{{Name: "worker", Description: "Read only", Instructions: "Read the existing file.", Tools: allowed}}, ClaudeOptions{}, nativetools.Options{Workspace: root, ClaudeTools: true, EnableShell: true, DeferToolLoading: true, SpillStore: harness.NewLocalSpillStore(t.TempDir() + "/saved")})
 			if kind == "parent-denied" {
 				parent, err := f.h.Agents().Create(f.ctx, harness.AgentOptions{CWD: root, Provider: "fixture", Model: "parent-model", MaxSteps: 5, DisableCompaction: true, Configure: func(ctx context.Context, run *point.Run, agent *harness.Agent) error {
 					_, err := f.h.Tools().Restrict(ctx, run, agent, harness.ToolRestriction{Deny: []string{"Read"}})

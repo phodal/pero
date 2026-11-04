@@ -27,3 +27,12 @@ a custom Read-only child, inherited parent denial and explicit no-tools.
 The child starts with discovery only, receives exact permitted declarations
 after discovery and reads real workspace content. Full Go race/vet pass;
 standalone Bazel subagents and the complete 35-target suite pass.
+
+The read-only builtin pool also retains Session-owned ReadToolOutput, allowing
+recovery of its saved output. Explicit custom allowlists still exclude it unless
+selected. The discovery HTTP table verifies both choices.
+
+Live source `8f0b02fa` confirmed Explore can discover and invoke Bash in three
+responses with no empty search. Its parent then exhausted the shared budget in
+further delegated implementation/checks; no official submission was recorded.
+That preserved failure motivates the direct-native-tool guidance follow-up.
