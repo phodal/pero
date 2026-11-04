@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, writeFile, rm, cp, readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../protocol/generated/host.schema.json' with { type: 'json' };
@@ -70,12 +70,13 @@ async function stage(name) {
   const source = resolve(temp, 'source-' + name);
   await mkdir(resolve(source, 'dist'), { recursive: true });
   await cp(resolve(root, 'apps', name, 'backend'), resolve(source, 'backend'), {
-    recursive: true, filter: path => !path.includes('__pycache__') && !path.endsWith('.pyc'),
+    recursive: true, filter: path => !['__pycache__', '_core'].includes(basename(path)) && !path.endsWith('.pyc'),
   });
   // Mirror scripts/build/apps.mjs: installed Data Apps carry the shared exact-value core.
   if (name === 'data') {
     await mkdir(resolve(source, 'backend/_core'), { recursive: true });
-    await cp(resolve(root, 'harness/go/charts/python/dataset.py'), resolve(source, 'backend/_core/dataset.py'));
+    for (const module of ['dataset.py', 'view.py', 'chart_document.py'])
+      await cp(resolve(root, 'harness/go/charts/python', module), resolve(source, 'backend/_core', module));
   }
   for (const [from, to] of [['research-import-backend.py', 'research_fixture_server.py'],
                            ['research-resources.py', 'research_resources_fixture.py']])
