@@ -56,7 +56,38 @@ removing the binary alone has not been shown to pass the remaining checks.
 Source/result/instruction/verifier hashes and the relevant call seqs are in
 `analysis-polyglot-output-set.json` under the artifact root.
 
+`password-recovery` observes two password fragments but labels the suffix a
+decoy. It submits an 11-character prefix despite the explicit 23-character,
+prefix/suffix constraints and permission to submit multiple guesses. Inspection
+of the unchanged environment setup after this attempt confirms a fragmented
+ZIP. Tool observations were available; the candidate's hypothesis and final
+constraint check fail. This does not establish a tool protocol defect.
+
+`count-dataset-tokens` submits a count that includes system/user/chat-template
+overhead. The requested measure is DeepSeek reasoning and solution tokens; the
+reference solution tokenizes those two metadata fields independently. Its
+numeric official check fails. The trace shows alternative counts, but does not
+validate that its chosen measure matches the requested quantity.
+
+`feal-differential-cryptanalysis` ends normally after 331 responses and explicitly
+reports an unimplemented skeleton. The official invocation reaches
+`NotImplementedError`. Its 34,712,781 recorded tokens identify expensive
+unsuccessful exploration; that alone does not establish provider or tool
+malfunction. Source hashes and final native seq/line evidence for these three
+cases are in `analysis-normal-end-followup.json`. Reference/setup inspection is
+post-run analysis; no task-specific answers are added to runtime prompts.
+
 ## Sanitizer correctness and verifier assumptions
+
+`configure-git-webserver` has a separate login-fixture assumption. The instruction
+uses `user@server` and says the operator will arrange login. The candidate
+configures the literal `user` account and reports its own successful real-SSH
+end-to-end check. The unchanged verifier instead hardcodes `git@localhost` with
+password authentication, without creating that account. Its retained output
+reports HTTP 404. This exposes an unstated account requirement; truncated
+verifier output does not independently establish the precise SSH failure or
+prove the whole deployment correct. Reward zero remains unchanged. Evidence is
+in `analysis-git-webserver-login-assumption.json`.
 
 `filter-js-from-html` ends normally but fails both official tests. Its XSS
 failure remains a correctness failure. Its clean-HTML failure also exposes a
