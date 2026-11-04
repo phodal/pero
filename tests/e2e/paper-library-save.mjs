@@ -32,8 +32,8 @@ const server = createServer(async (req, res) => {
     else value={pdf:'/copies/2610.02858v1.pdf',...(body.sourceResourceId?{tex:'/copies/2610.02858v1-src.tar.gz'}:{})};
   } else {
     const kind=req.url.endsWith('/pdf')?'pdf':'source';
-    if(body.operation==='start') {states[kind]=kind==='source'&&failSource?'failed':'completed';if(kind==='source')failSource=false;}
-    value={status:states[kind],localAvailable:states[kind]==='completed',error:states[kind]==='failed'?'Source denied':''};
+    if(body.operation==='start') {states[kind]=kind==='source'?(failSource?'failed':'source_available'):'completed';if(kind==='source')failSource=false;}
+    value={status:states[kind],localAvailable:states[kind]===(kind==='source'?'source_available':'completed'),error:states[kind]==='failed'?'Source denied':''};
   }
   res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));
 });
