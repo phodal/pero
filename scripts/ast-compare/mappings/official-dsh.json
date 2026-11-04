@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "561febe78c6a3234d9f74923ff890a8c836709f4",
+  "right_ref": "16489131f78220690498c7a3cc0ad9002bf550d8",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -84,7 +84,7 @@
         "path": "harness/go/providers/openai/stream.go",
         "language": "go",
         "symbol": "streamAssembly.completion",
-        "sha256": "2cecfaf622dcebbb5400207ddeadd95d2b24ed3c9ece466d82fa8d42288aae8f"
+        "sha256": "5c12b239a3d2283adffd9f07b0f41467e4348aa3d78dc4cb09cb9cccae9d5cda"
       },
       "notes": "Official neutral assembler and Go Chat Completions assembler have different roles. Both must discard unsafe tool calls at output truncation; replay-envelope support remains a separate capability.",
       "landmarks": [
@@ -152,7 +152,7 @@
         "path": "harness/go/providers/openai/stream.go",
         "language": "go",
         "symbol": "mapUsage",
-        "sha256": "2cecfaf622dcebbb5400207ddeadd95d2b24ed3c9ece466d82fa8d42288aae8f"
+        "sha256": "5c12b239a3d2283adffd9f07b0f41467e4348aa3d78dc4cb09cb9cccae9d5cda"
       },
       "notes": "Official component counts are exclusive Messages values. Cached<=prompt in Go is a separate Chat Completions conversion invariant, not a literal upstream rule.",
       "landmarks": [
