@@ -58,6 +58,13 @@ tokens, not an invoice. Full-01/full-02 QEMU attempts and the user-stopped cappe
 full-03 cohort remain separate from the new score and are included in a separate
 all-attempt usage report. Earlier single-task smoke is excluded from that total.
 
+A later timestamp audit finds continued ACP activity after Harbor's agent
+timeout in the COBOL trial. Its raw reward 1 is not a proven deadline snapshot.
+Timeout trials without observed late activity also lack termination receipts.
+The original running cohort stays intact; per-result timing audits retain
+these limits. A [corrected adapter and actual Harbor control](../issues/2026-11-04-harbor-acp-timeout-cleanup.md)
+confirm termination before verification, for separately recorded follow-up.
+
 The first uncapped launch accidentally retained full-03's output directory.
 It was stopped during setup; both additional trials made zero model requests.
 All prior result hashes remain unchanged. Its disposition and original logs
