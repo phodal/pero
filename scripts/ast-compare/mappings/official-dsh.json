@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "16489131f78220690498c7a3cc0ad9002bf550d8",
+  "right_ref": "64d203bec2dd69ac8d5aae82cfdb151ac914009c",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -113,7 +113,7 @@
         "path": "harness/go/providers/openai/provider_errors.go",
         "language": "go",
         "symbol": "httpErrorCode",
-        "sha256": "20ce09a75aa29b167c5e680dd14643ebd60593a5866451f22ba12f3b198ba8ab"
+        "sha256": "87fb195455876733167b922e90d08edabdc234a3ea022c471a52f2567fe7ffa3"
       },
       "notes": "Official Messages and Go Chat Completions are different transports. Compare category precedence, not exact field/schema equality.",
       "landmarks": [

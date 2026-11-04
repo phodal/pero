@@ -35,3 +35,15 @@ invented completion usage.
 The complete OpenAI provider race suite, provider vet, standalone provider Bazel
 target and Gazelle diff pass. This resolves future safe diagnostic loss for
 these error types; the cause of the historical C4 request remains unknown.
+
+## Reference receipt follow-up
+
+CI run `41902835870` extracts 16 official DSH pairs and rejects the provider
+classification pair because this fix changes its containing file. The selected
+`httpErrorCode` callable is unchanged; the diagnostic labels are in
+`normalizeStreamError`. Refresh the exact source receipt and verify all 17
+pairs with the pinned official source and parser, retaining every landmark and
+hash check. The unchanged mapping reproduces 16 extracted / 1 unavailable;
+the updated receipt extracts all 17, with both classification landmarks
+observed on each side. All 18 AST tests pass without skips. This is source
+admission for review, not semantic equivalence.

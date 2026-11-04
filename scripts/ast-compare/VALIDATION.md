@@ -1,5 +1,21 @@
 # Validated reference snapshot
 
+## Provider diagnostic source receipt — 2026-11-05
+
+The mapping records published Pero source `64d203bec2dd69ac8d5aae82cfdb151ac914009c`.
+CI run `41902835870` and a local unchanged-mapping run both report 16 extracted
+pairs and one `source_hash_mismatch`, exit 2. Only the containing-file hash for
+`provider-error-classification` is stale after the stream diagnostic change in
+`98057b6c`; its selected `httpErrorCode` callable is unchanged.
+
+Refreshing that hash restores all 17 extracted pairs, zero unavailable, exit 0
+against official DSH `f3803c96974ad4a94195fb97e5c637e9c2a3afe3` with the pinned
+parsers and extended TypeScript grammar. All 18 parser tests pass without skips.
+Both classification landmarks remain observed on each side. No pair, landmark,
+parser check or source-hash check is removed. This validates extraction for
+review; the new stream diagnostics have their separate provider behavior tests
+and this does not establish semantic equivalence.
+
 ## MCP source-receipt refresh — 2026-11-01
 
 The mapping now selects published Pero source
