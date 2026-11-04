@@ -47,9 +47,18 @@ pub fn match_profile(
     {
         return Err(EnvironmentError::ObservationMissing);
     }
-    let profile = binding.profile.observation();
+    match_software(requirements, &binding.profile)
+}
+
+/// Match software metadata without fabricating a resource binding or a Use.
+/// This result does not assert importability, allocation or execution permission.
+pub fn match_software(
+    requirements: &EnvironmentRequirements,
+    software: &SoftwareProfile,
+) -> Result<EnvironmentMatch, EnvironmentError> {
+    let profile = software.observation();
     let satisfied = |rule: &Requirement| match rule {
-        Requirement::Profile { digest } => binding.profile.id() == digest,
+        Requirement::Profile { digest } => software.id() == digest,
         Requirement::Python {
             major,
             minor,

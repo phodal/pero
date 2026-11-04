@@ -1,18 +1,21 @@
-//! Private, read-only inspection of an already configured scientific interpreter.
-//! No public Host command, install, backend startup, Use grant or calculation.
+//! Read-only inspection of an already configured scientific interpreter.
+//! Host projection adds no install, backend startup, Use grant or calculation.
 use super::{AppName, AppStore, PythonEnvironment};
 use crate::environments::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum ScientificMethod {
+    #[serde(rename = "control-lab.python-control")]
     Control,
+    #[serde(rename = "control-lab.ngspice")]
     Circuit,
+    #[serde(rename = "paper-agent.pcgym")]
     Pcgym,
 }
 impl ScientificMethod {
-    fn target(
+    pub(super) fn target(
         self,
     ) -> (
         &'static str,
