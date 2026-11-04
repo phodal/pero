@@ -3,10 +3,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, writeFile, rm, cp, readdir, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { stageResearchImportApp } from '../fixtures/research-import-app.mjs';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../protocol/generated/host.schema.json' with { type: 'json' };
 
@@ -67,26 +68,7 @@ async function launch() {
 }
 
 async function stage(name) {
-  const source = resolve(temp, 'source-' + name);
-  await mkdir(resolve(source, 'dist'), { recursive: true });
-  await cp(resolve(root, 'apps', name, 'backend'), resolve(source, 'backend'), {
-    recursive: true, filter: path => !path.includes('__pycache__') && !path.endsWith('.pyc'),
-  });
-  // Mirror scripts/build/apps.mjs: installed Data Apps carry the shared exact-value core.
-  if (name === 'data') {
-    await mkdir(resolve(source, 'backend/_core'), { recursive: true });
-    await cp(resolve(root, 'harness/go/charts/python/dataset.py'), resolve(source, 'backend/_core/dataset.py'));
-  }
-  for (const [from, to] of [['research-import-backend.py', 'research_fixture_server.py'],
-                           ['research-resources.py', 'research_resources_fixture.py']])
-    await cp(resolve(root, 'tests/fixtures', from), resolve(source, 'backend', to));
-  await writeFile(resolve(source, 'dist/index.html'), '<h1>Offline research integration fixture</h1>');
-  // Production manifests carry unrelated UI/dependency declarations; this fixture
-  // changes only the composition root, declared permission, and tiny static panel.
-  await writeFile(resolve(source, 'app.json'), JSON.stringify({ schemaVersion: 1, name, version: 'fixture', displayName: name,
-    permissions: { host: name === 'paper-agent' ? ['research-assets'] : [] },
-    contributes: { panels: [{ id: 'main', title: name, entry: 'dist/index.html' }] },
-    backend: { type: 'python', entry: 'backend/research_fixture_server.py' } }));
+  const source = await stageResearchImportApp(temp, name);
   let reply = await host.request('install', { path: source }); assert(reply.ok, reply.error);
   reply = await host.request('enable', { name }); assert(reply.ok, reply.error);
 }
