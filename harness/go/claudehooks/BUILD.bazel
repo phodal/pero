@@ -21,6 +21,7 @@ go_test(
     name = "claudehooks_test",
     srcs = [
         "if_test.go",
+        "permission_request_test.go",
         "prompt_test.go",
         "protocol_test.go",
         "runner_test.go",
