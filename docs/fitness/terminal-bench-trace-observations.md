@@ -97,6 +97,10 @@ files. The next provider request ends with a generic stream transport error;
 the underlying transport cause is unrecorded. There are 75 HTTP attempts and
 74 committed responses, totaling 2,533,077 recorded tokens. The unfinished
 request has unknown usage.
+The current adapter now preserves fixed safe labels for standard typed network
+failures in future turn errors. Provider race/Bazel and real loopback truncated
+HTTP checks pass; the historical error remains unclassified. See
+[the diagnostic fix](../issues/2026-11-05-provider-stream-failure-diagnostics.md).
 
 The official test then errors during fixture setup: Hugging Face network/TLS
 requests fail, and held-out shard 00009 has no cache. Functional assertions

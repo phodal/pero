@@ -16,6 +16,10 @@ usage, cancellation and structured provider failures. It rejects truncated SSE,
 missing terminal finish reasons and incomplete tool calls. Limits are 1 MiB per
 SSE line/buffer and 16 MiB per response. Error bodies and remote request IDs are
 not copied into public diagnostics.
+Typed DNS failures, transport timeouts, premature EOF and connection reset/refusal
+receive fixed public labels under the existing TRANSPORT code. Their original
+causes remain available in memory; URLs, private hostnames and arbitrary transport
+error strings are not copied into the public failure or native turn error.
 
 The transport/assembly and error taxonomy are adapted from the source recorded
 in SOURCE.json; the explicit constructor and bounded request encoder are a
