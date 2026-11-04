@@ -84,9 +84,11 @@ def judge(source: Path, solutions: dict[str, bytes], tests: list[str], directory
     failures = re.search(r"failures=(\d+)", output)
     errors = re.search(r"errors=(\d+)", output)
     skipped = re.search(r"skipped=(\d+)", output)
-    return {"passed": exit_code == 0 and count is not None, "exit_code": exit_code, "timed_out": timed_out,
-            "tests": int(count[1]) if count else None, "failures": int(failures[1]) if failures else 0,
-            "errors": int(errors[1]) if errors else 0, "skipped": int(skipped[1]) if skipped else 0,
+    counts = {"tests": int(count[1]) if count else None, "failures": int(failures[1]) if failures else 0,
+              "errors": int(errors[1]) if errors else 0, "skipped": int(skipped[1]) if skipped else 0}
+    return {"passed": exit_code == 0 and bool(counts["tests"]) and not any(
+                counts[name] for name in ("failures", "errors", "skipped")),
+            "exit_code": exit_code, "timed_out": timed_out, **counts,
             "duration_seconds": round(time.monotonic() - started, 3), "output": output,
             "command": command, "directory": str(directory)}
 
