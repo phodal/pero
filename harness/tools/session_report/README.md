@@ -68,7 +68,8 @@ the parent's Agent tool receipt again. Empty ToolSearch results are warnings,
 not protocol failures.
 
 Zero-exit output containing unittest failures, an uncaught Python traceback,
-pytest failures or a printed nonzero exit creates **review candidates**.
+pytest failures, GNU Make error summaries or a printed nonzero exit creates
+**review candidates**. Recursive `make[n]` and `gmake` summaries are included.
 `exit=N` markers are recognized without case sensitivity (`EXIT=1` also matches).
 Quoted source and expected exceptions can produce false positives. No regex establishes
 an independent test verdict or root cause; original tool status is preserved.

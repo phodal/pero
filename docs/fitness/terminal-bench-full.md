@@ -85,10 +85,30 @@ starts at the first task with its own corrected directory.
 - `cancel-async-tasks`: 6/6, normal end after 56 requests and 1,291,775 recorded
   tokens, with no explicit tool failure. The capped attempt stopped at 32 and
   passed 4/6. The uncapped attempt remains independent of the earlier smoke.
+- `chess-best-move`: normal end after 65 requests, reward 0, with no required
+  `move.txt`. This cohort's launcher does not declare image input. The model
+  attempts pixel-to-ASCII reconstruction and ultimately requests a FEN instead
+  of submitting a move. The ACP CLI already provides `--image-input`; the
+  provider's API documents image content parts. Neither establishes an actual
+  visual success in this run. A separate capability diagnostic is needed;
+  this failure cannot be attributed only to coding prompts.
+- `caffe-cifar-10`: 1/6 after the official 1,200-second timeout. Dependency
+  installation takes about 406 seconds; a foreground dataset download takes
+  about 600 seconds before curl times out. Two `make -j8` attempts print fatal
+  build errors while `tail` returns zero. Task metadata specifies one CPU and
+  2,048 MiB, while `nproc` reports eight visible CPUs. One compiler is killed,
+  but there is no retained cgroup OOM receipt establishing the cause. The last
+  TaskOutput is incomplete at agent timeout; it is not evidence of an invalid
+  tool schema.
 
 Six Cython scratch failures masked by `tail` or trailing successful commands
 have source/output-hash-bound reviews. An intentional BN dependency-availability
 probe is marked separately. Neither changes shell exits or final judge results.
+Two Caffe builds have the same kind of hash-bound review. The offline analyzer
+now flags terminal GNU Make error summaries as review candidates; reanalysis
+adds two candidates while preserving the 35 responses, 380,379 recorded tokens
+and two explicit failed tool invocations. See the
+[build evidence fix](../issues/2026-11-04-build-failure-trace-signal.md).
 
 Two offline fixes are pushed separately from the pinned agent binary:
 [ACP request-limit termination](../issues/2026-11-04-acp-request-budget-stop.md)
