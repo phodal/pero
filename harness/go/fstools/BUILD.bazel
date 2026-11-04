@@ -27,8 +27,8 @@ go_library(
 go_test(
     name = "fstools_test",
     srcs = [
-        "parents_test.go",
         "directory_page_test.go",
+        "parents_test.go",
         "patch_test.go",
         "private_test.go",
         "review_race_test.go",

@@ -105,6 +105,31 @@ measure smaller tool declarations and changed guidance, discovery calls, token
 usage and acceptance together. Preserve critical check exit codes when filtering
 output or doing cleanup.
 
+## Tool efficiency measurements
+
+Repeated arguments now include `repeated_result`: `changed`, `unchanged`, or
+`unknown` when a return is missing, spilled or truncated. This compares the
+returned observation, including errors; a later process terminal fact does not
+rewrite the original observation. It does not classify repeated calls as waste.
+
+Each committed response inherits its actual declaration header. Schema exposure
+sums compact declared JSON bytes per response, with a separate contribution from
+tools never invoked in that Session. These bytes are not provider tokens.
+
+New OpenAI Sessions include `request/wire-size`: the actual serialized payload
+length/digest, declared tools size, and serialized tool-result message bytes in
+the selected request, after replacement/compaction. These are **prepared for
+HTTP**, not confirmation of sending, provider acceptance or billing. Failed
+preparations are kept separately from committed usage. Historical Sessions
+without boundary records have unobserved wire/history cost; raw results are
+never summed as if they had all remained in subsequent requests.
+
+`tool/batch-budget` records combined text before/after projection, saved-result
+count and whether the budget was met. Storage failure preserves evidence and
+reports `met: false`. Native CLI output is saved privately under the configured
+Session directory's `tool-output/`; discover `ReadToolOutput` for Session-owned
+byte pagination. Ordinary workspace Read authority does not expand.
+
 ## Better Harness UI
 
 [inspector.mjs](inspector.md) optionally renders the summary using the existing

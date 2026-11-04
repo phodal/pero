@@ -118,6 +118,8 @@ class Call:
     process_end_seq: int | None = None
     process_end_line: int | None = None
     repeated_from_seq: int | None = None
+    repeated_result: str | None = None
+    result_sha256: str | None = None
     validation_signals: list[dict] = field(default_factory=list)
     reviewed_validation_failure: bool = False
     review: dict | None = None
@@ -195,6 +197,8 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
     process_ends: dict[str, tuple[dict, dict]] = {}
     responses = []
     contexts = []
+    wire_measurements, batch_budgets = [], []
+    pending_wire = None
     turns = []
     findings = []
     usage = Usage()
@@ -238,8 +242,14 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
                 tools = data.get("tools", [])
                 contexts.append({**ref, "provider": data.get("provider"), "model": data.get("model"),
                     "time": last_time, "tool_count": len(tools), "tool_names": [t["name"] for t in tools],
-                    "schema_bytes": len(encoded(tools)), "system_bytes": len(current_system.encode()),
+                    "schema_bytes": len(encoded(tools)),
+                    "tool_schema_bytes": {t["name"]: len(encoded(t)) for t in tools}, "system_bytes": len(current_system.encode()),
                     "system_sha256": digest(current_system.encode())})
+            elif kind == "request/wire-size":
+                pending_wire = {**ref, **data}
+                wire_measurements.append(pending_wire)
+            elif kind == "tool/batch-budget":
+                batch_budgets.append({**ref, **data})
             elif kind == "assistant/message":
                 observed_usage = data.get("usage")
                 if observed_usage is not None and not isinstance(observed_usage, dict):
@@ -250,6 +260,10 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
                     "finish": data.get("finish"), "usage": observed_usage,
                     "header_seq": contexts[-1]["seq"] if contexts else None,
                     "tool_count": len(current_header.get("tools", []))})
+                if pending_wire and pending_wire.get("turn") == data.get("turn") and pending_wire.get("step") == data.get("step"):
+                    responses[-1]["wire_seq"] = pending_wire["seq"]
+                    pending_wire["response_seq"] = seq
+                pending_wire = None
             elif kind == "tool/call":
                 call_id, name, arguments = data.get("callId"), data.get("name"), data.get("arguments", {})
                 if not isinstance(call_id, str) or not isinstance(name, str) or not isinstance(arguments, dict) or call_id in pending:
@@ -303,6 +317,20 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
         call.result_seq, call.result_line, call.end_time = result_ref["seq"], result_ref["line"], result_ref["time"]
         call.result_bytes = len(encoded(data.get("content", [])))
         call.protocol_error = data.get("isError") is True
+        observed = payload_of(data)
+        # Compare the returned observation, not a later lifecycle fact. Preserve
+        # all shell fields except known timing noise; polling remains observable.
+        if call.name in ("Bash", "shell") and observed:
+            observed = {key: value for key, value in observed.items() if key not in ("durationMs", "elapsed_ms")}
+            if isinstance(observed.get("result"), dict):
+                observed["result"] = {key: value for key, value in observed["result"].items() if key not in ("durationMs", "elapsed_ms")}
+        else:
+            observed = data.get("content", [])
+        # A pointer or truncated preview cannot establish equality of full results.
+        partial = "Full formatted result stored at:" in text_blocks(data) or any(
+            isinstance(value, dict) and value.get("truncated") is True
+            for value in payload_of(data).values())
+        call.result_sha256 = None if partial else digest(encoded([call.protocol_error, observed]))
         body = payload_of(data)
         payload = body.get("result", body)
         payload = payload if isinstance(payload, dict) else {}
@@ -389,8 +417,21 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
         start, end = timestamp(call.time), timestamp(call.end_time)
         if start and end and end >= start:
             call.duration_ms = round((end - start).total_seconds() * 1000, 3)
+    for call in calls.values():
+        if call.repeated_from_seq is not None:
+            previous = calls[call.repeated_from_seq]
+            call.repeated_result = ("unknown" if call.result_sha256 is None or previous.result_sha256 is None
+                                    else "unchanged" if call.result_sha256 == previous.result_sha256 else "changed")
     advertised = set(name for context in contexts for name in context["tool_names"])
     used = set(call.name for call in calls.values())
+    context_by_seq = {context["seq"]: context for context in contexts}
+    for context in contexts:
+        context["unused_in_session"] = sorted(set(context["tool_names"]) - used)
+        context["unused_schema_bytes"] = sum(context["tool_schema_bytes"][name] for name in context["unused_in_session"])
+    for response in responses:
+        context = context_by_seq.get(response["header_seq"])
+        response["schema_bytes"] = context["schema_bytes"] if context else None
+        response["unused_schema_bytes"] = context["unused_schema_bytes"] if context else None
     if advertised - used:
         findings.append(Finding("unused_tool_declarations", "opportunity",
             f"{len(advertised - used)}/{len(advertised)} advertised tools unused; evaluate deferred loading separately",
@@ -410,7 +451,7 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
         "source": {"path": source_path, "sha256": source_hash, "bytes": size}, "workspace": header.get("cwd"),
         "started_at": header.get("createdAt"), "ended_at": last_time,
         "raw_events": event_count, "event_counts": dict(counts), "usage": usage_summary,
-        "responses": responses, "contexts": contexts, "calls": call_values, "turns": turns,
+        "responses": responses, "contexts": contexts, "wire_measurements": wire_measurements, "batch_budgets": batch_budgets, "calls": call_values, "turns": turns,
         "findings": [asdict(finding) for finding in findings], "counts": count_calls(call_values),
         "failed_or_interrupted_attempt_records": counts["assistant/attempt"]}
 
@@ -429,6 +470,9 @@ def count_calls(calls: list[dict]) -> dict:
         "reviewed_validation_failures": sum(c["reviewed_validation_failure"] for c in calls),
         "empty_tool_searches": sum(c["discovery_total"] == 0 for c in calls),
         "repeated_identical_calls": sum(c["repeated_from_seq"] is not None for c in calls),
+        "repeated_changed_results": sum(c["repeated_result"] == "changed" for c in calls),
+        "repeated_unchanged_results": sum(c["repeated_result"] == "unchanged" for c in calls),
+        "repeated_unknown_results": sum(c["repeated_result"] == "unknown" for c in calls),
         "truncated_results": sum(c["truncated"] for c in calls),
         "argument_bytes": sum(c["argument_bytes"] for c in calls),
         "result_bytes": sum(c["result_bytes"] for c in calls)}
@@ -465,12 +509,21 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
             "input_tokens": "Pero normalized uncached input; add cache_read_tokens to obtain prompt tokens",
             "cache_write_tokens": "descriptive subfield; not an additional prompt token lane",
             "reasoning_tokens": "included in output_tokens; do not add twice",
-            "bytes": "compact UTF-8 JSON/text sizes, not provider tokens or exact HTTP wire bytes",
+            "bytes": "compact UTF-8 JSON/text sizes, not provider tokens; request/wire-size fields alone measure actual serialized provider body bytes",
+            "wire_measurements": "prepared_for_http, not proof of sending or billing; each record is a separate preparation, including failed attempts; tool-result message bytes use the actual selected request after compaction/replacement",
+            "schema_exposure": "compact declared tool JSON bytes per committed response; unused means never called in that Session; not provider tokens or causal waste",
+            "repeated_result": "same arguments classified by returned observation; missing, spilled or truncated evidence is unknown, not unchanged",
             "validation_signals": "heuristic review candidates, not confirmed failures; raw output may quote source or expected errors",
             "task_outcome": "not inferred from stop or tool success; use an external judge/acceptance receipt",
             "cost_usd": "unknown; no authoritative pricing or missing-usage estimate"},
         "summary": {"sessions": len(sessions), "raw_events": sum(s["raw_events"] for s in sessions),
             "responses": sum(len(s["responses"]) for s in sessions), "usage": usage_summary,
+            "schema_exposure_bytes": sum(r["schema_bytes"] or 0 for s in sessions for r in s["responses"]),
+            "unused_schema_exposure_bytes": sum(r["unused_schema_bytes"] or 0 for s in sessions for r in s["responses"]),
+            "prepared_requests_measured": sum(len(s["wire_measurements"]) for s in sessions),
+            "prepared_payload_bytes": sum(w.get("payload_bytes", 0) for s in sessions for w in s["wire_measurements"]),
+            "retained_tool_result_message_bytes": sum(w.get("tool_result_message_bytes", 0) for s in sessions for w in s["wire_measurements"]),
+            "batch_budget_misses": sum(b.get("met") is False for s in sessions for b in s["batch_budgets"]),
             **count_calls(all_calls), "turn_errors": sum(bool(t.get("error")) for s in sessions for t in s["turns"]),
             "failed_or_interrupted_attempt_records": sum(s["failed_or_interrupted_attempt_records"] for s in sessions)},
         "tools": [{"name": name, **count_calls(calls)} for name, calls in sorted(tools.items())],
@@ -496,6 +549,12 @@ def markdown(report: dict) -> str:
         f'hash-bound reviewed failures: {summary["reviewed_validation_failures"]}. These are separate from explicit tool failures.', "",
         f'Empty tool searches: **{summary["empty_tool_searches"]}**; repeated identical calls: {summary["repeated_identical_calls"]}. '
         'These are recovery/optimization signals, not additional failed invocations.', "",
+        f'Repeated results: {summary["repeated_changed_results"]} changed; {summary["repeated_unchanged_results"]} unchanged; '
+        f'{summary["repeated_unknown_results"]} unknown. Declared schema exposure: {summary["schema_exposure_bytes"]:,} compact JSON bytes; '
+        f'{summary["unused_schema_exposure_bytes"]:,} from tools never called in that Session.', "",
+        f'Prepared requests measured: {summary["prepared_requests_measured"]}; serialized payload bytes: {summary["prepared_payload_bytes"]:,}; '
+        f'retained tool-result message bytes across those requests: {summary["retained_tool_result_message_bytes"]:,}; '
+        f'batch budget misses: {summary["batch_budget_misses"]}. Missing boundary records are unobserved, not zero-cost requests.', "",
         "Usage covers committed provider reports. Failed requests may have unknown usage. Reasoning is included in output; "
         "cache writes are not an additional token lane. Byte measurements below are not token estimates. Task acceptance comes from the external judge.", "",
         "## Sessions", "", "| Session | Tokens | Calls | Failed | Interrupted | Validation signals |",

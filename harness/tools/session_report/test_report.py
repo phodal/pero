@@ -38,6 +38,43 @@ class SessionReportRules(unittest.TestCase):
         return "tool/result", {"type": "tool-result", "toolCallId": call_id, "isError": is_error,
                                "content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}]}
 
+    def test_repeat_results_are_changed_unchanged_or_unknown(self):
+        events = []
+        for i, value in enumerate(("one", "two", "two", "Full formatted result stored at: /saved/output")):
+            events += [self.call(str(i), "Read", "same"), self.result({"text": value}, str(i))]
+        events.append(self.call("missing", "Read", "same"))
+        report = build_report([self.session(events)])
+        calls = report["sessions"][0]["calls"]
+        self.assertEqual([c["repeated_result"] for c in calls], [None, "changed", "unchanged", "unknown", "unknown"])
+        self.assertEqual(tuple(report["summary"][name] for name in (
+            "repeated_changed_results", "repeated_unchanged_results", "repeated_unknown_results")), (1, 1, 2))
+
+    def test_boundary_measurements_use_selected_wire_not_raw_result_history(self):
+        tools = [{"name": "Read", "inputSchema": {"type": "object"}},
+                 {"name": "Agent", "inputSchema": {"type": "object"}}]
+        path = self.session([
+            ("request/header", {"tools": tools}),
+            ("request/wire-size", {"stage": "prepared_for_http", "turn": 1, "step": 1,
+                                   "payload_bytes": 500, "tool_result_message_bytes": 0}),
+            ("assistant/message", {"step": 1}),
+            self.call("read", "Read", "same"), self.result({"text": "x" * 10000}, "read"),
+            # The actual next request may replace or compact the raw result.
+            ("request/wire-size", {"stage": "prepared_for_http", "turn": 1, "step": 2,
+                                   "payload_bytes": 600, "tool_result_message_bytes": 120}),
+            ("assistant/message", {"step": 2}),
+            ("tool/batch-budget", {"met": False, "before_bytes": 10000, "after_bytes": 10000}),
+        ])
+        report = build_report([path])
+        summary = report["summary"]
+        self.assertEqual((summary["prepared_requests_measured"], summary["prepared_payload_bytes"],
+                          summary["retained_tool_result_message_bytes"], summary["batch_budget_misses"]), (2, 1100, 120, 1))
+        session = report["sessions"][0]
+        self.assertEqual([w["response_seq"] for w in session["wire_measurements"]], [3, 7])
+        self.assertEqual([r["wire_seq"] for r in session["responses"]], [2, 6])
+        self.assertEqual(session["contexts"][0]["unused_in_session"], ["Agent"])
+        self.assertEqual(summary["schema_exposure_bytes"], session["contexts"][0]["schema_bytes"] * 2)
+        self.assertEqual(summary["unused_schema_exposure_bytes"], session["contexts"][0]["tool_schema_bytes"]["Agent"] * 2)
+
     def test_only_committed_messages_count_usage_and_inherit_header(self):
         first = {"inputTokens": 7, "cacheReadTokens": 11, "cacheWriteTokens": 13,
                  "outputTokens": 17, "reasoningTokens": 5, "totalTokens": 35}
