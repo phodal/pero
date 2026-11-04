@@ -1,6 +1,6 @@
 // Debug GPUI preview. Closing the window ends this process.
 import { spawn } from 'node:child_process';
-import { watch } from 'node:fs';
+import { cpSync, mkdirSync, watch } from 'node:fs';
 import { resolve } from 'node:path';
 import { cargoArgs, ensureGpuiLock } from '../lib/cargo.mjs';
 import { writeIcns } from '../lib/macos-icon.mjs';
@@ -91,6 +91,11 @@ watch(sources, { recursive: true }, (_event, filename) => {
 });
 
 console.log('Building the debug Host and native preview. Secrets stay in this process; the login keychain is not opened.');
+// The installed profile has no checkout harness/ tree. Package the chart core before the Host seeds Data.
+const dataCore = resolve(root, 'apps/data/backend/_core');
+mkdirSync(dataCore, { recursive: true });
+for (const name of ['dataset.py', 'view.py', 'chart_document.py'])
+  cpSync(resolve(root, 'harness/go/charts/python', name), resolve(dataCore, name));
 writeIcns(resolve(root, 'resources/app-icon.svg'), icon);
 await ensureGpuiLock();
 await run(process.execPath, ['scripts/build/connectors.mjs']);
