@@ -81,12 +81,12 @@ func TestCompactionLaunchDefaultsAndValidation(t *testing.T) {
 }
 
 func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
-	for _, scenario := range []string{"pressure", "overflow", "overflow-bound", "empty-summary", "cancel"} {
+	for _, scenario := range []string{"pressure", "overflow", "overflow-bound", "empty-summary", "cancel", "nonshrinking"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			window := "1024"
-			if scenario != "pressure" {
+			if scenario != "pressure" && scenario != "nonshrinking" {
 				window = "32768"
 			}
 			p, cfg := compactionLaunch(t, "--context-window="+window)
@@ -95,6 +95,7 @@ func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
 				t.Fatal(err)
 			}
 			var summaries, normals atomic.Int32
+			var checkedRejection atomic.Bool
 			var overflow, block, alwaysOverflow, emptySummary atomic.Bool
 			entered := make(chan struct{}, 1)
 			adapter := harness.AdapterFunc(func(ctx context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
@@ -113,8 +114,30 @@ func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
 					if emptySummary.Load() {
 						text = ""
 					}
+					if scenario == "nonshrinking" {
+						text = strings.Repeat("nonshrinking ", 10000)
+					}
 				} else {
 					normals.Add(1)
+					if scenario == "nonshrinking" && summaries.Load() > 0 && !checkedRejection.Swap(true) {
+						// The main request header can change the resolved policy
+						// after PreStep. Establish this exact selection first.
+						if _, err := req.Agent.CompactIfNeeded(ctx, harness.CompactionPressure); err != nil && !strings.Contains(err.Error(), "did not shrink") {
+							t.Fatal(err)
+						}
+						before := summaries.Load()
+						for i := 0; i < 2; i++ {
+							if _, err := req.Agent.CompactIfNeeded(ctx, harness.CompactionPressure); err != nil {
+								t.Fatal(err)
+							}
+						}
+						if summaries.Load() != before {
+							t.Fatal("unchanged nonshrinking selection consumed another pressure request")
+						}
+						if _, err := req.Agent.CompactIfNeeded(ctx, harness.CompactionContextOverflow); err == nil || summaries.Load() != before+1 {
+							t.Fatal("pressure rejection suppressed real overflow recovery")
+						}
+					}
 					if overflow.Swap(false) || alwaysOverflow.Load() {
 						return harness.Completion{}, harness.NewProviderErrorWithFailure(harness.ProviderFailure{Code: harness.ContextWindowExceededCode, Message: "synthetic overflow"}, errors.New("synthetic overflow"))
 					}
@@ -151,6 +174,15 @@ func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
 			if scenario == "pressure" && summaries.Load() == 0 {
 				_, e := a.CompactIfNeeded(ctx, harness.CompactionPressure)
 				t.Fatalf("pressure hook never activated: err=%v", e)
+			}
+			if scenario == "nonshrinking" {
+				if !checkedRejection.Load() || summaries.Load() < 3 {
+					t.Fatal("changed selection was not retried after pressure rejection")
+				}
+				before := summaries.Load()
+				if _, err := a.CompactNow(ctx); err == nil || summaries.Load() != before+1 {
+					t.Fatal("pressure rejection suppressed explicit compaction")
+				}
 			}
 			if scenario == "overflow" {
 				before := normals.Load()

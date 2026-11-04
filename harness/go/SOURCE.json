@@ -35,7 +35,8 @@
     "Existing-module behavioral review restores inherited common-loop/storage contracts, fail-closed JSONL tails, precise usage/settings conversion, MCP capability discovery and shell tails; CLI explicitly selects existing DSH todo options. See module_behavior_review; not full cross-language parity.",
     "Explicit JSON Chat/Responses protocol selection reuses provider transport/budgets; stateless Responses retains assistant phase, item/call IDs and encrypted reasoning. Compaction materializes a plain-text user checkpoint while retaining provider metadata in original audit events; these are local adaptations, not upstream equivalence.",
     "Direct user skill invocation and post-compaction reattachment check exact authorized registration before deferred discovery while retaining scoped restrictions, shadows and owner lifetime; model tool activation is unchanged.",
-    "Every completed compaction request appends provider usage before summary validation, including truncated or nonshrinking responses. Offline reports deduplicate by compaction ID and preserve legacy coverage gaps; frozen benchmark binaries are not changed."
+    "Every completed compaction request appends provider usage before summary validation, including truncated or nonshrinking responses. Offline reports deduplicate by compaction ID and preserve legacy coverage gaps; frozen benchmark binaries are not changed.",
+    "Agent-local pressure backoff skips only the last identical selected content and resolved policy after a nonshrinking summary; changed selections, explicit compaction and provider context-overflow recovery can retry. Session records expose skips; this local adaptation is separate from upstream extraction parity."
   ],
   "excluded_features": [
     "Projects",
@@ -252,14 +253,14 @@
     },
     {
       "destination": "harness/compaction.go",
-      "sha256": "f2da1c3d9e33e5446ddc2e8927295ba19e22ba04a4c0a0da6df968cbc8fc6bf0",
+      "sha256": "59502861aebfd4f05d848c05e3326144b70155f4abdd62aec9121f66b13cb334",
       "source_path": "go/harness/compaction.go",
       "source_blob_sha1": "d9abb49027e62052ac0f986f87586386b52e58ea",
       "change": "imports only"
     },
     {
       "destination": "harness/compaction_basic.go",
-      "sha256": "6a0295035e02d07b1061e5d147ddddab5a14f3bf1dc5346d1be2a923cd15e52b",
+      "sha256": "d0744d97097818881942a22f333119194a6ff954fdf5aebe8f884b6c3603754d",
       "source_path": "go/harness/compaction_basic.go",
       "source_blob_sha1": "2381801e8a009146c2288f14c50182c518f24c0d",
       "change": "imports only"
@@ -287,7 +288,7 @@
     },
     {
       "destination": "harness/compaction_range.go",
-      "sha256": "4f47d268b20c99d1cec66a8353273c98b957bd39c7ededfdbece18f35a829b13",
+      "sha256": "d572e87aab17bbc55f80067501d89d132a41fe5cb49546b439b980dc0bdbc206",
       "source_path": "go/harness/compaction_range.go",
       "source_blob_sha1": "ab26074a189db061f4907256928c7ffe61216a0f",
       "change": "adapted; plain-text user checkpoint materialization strips assistant-owned provider metadata; see docs/issues/2026-11-05-compaction-summary-provider-metadata.md"

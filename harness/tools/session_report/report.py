@@ -478,6 +478,7 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
         "responses": responses, "contexts": contexts, "wire_measurements": wire_measurements, "batch_budgets": batch_budgets, "calls": call_values, "turns": turns,
         "findings": [asdict(finding) for finding in findings], "counts": count_calls(call_values),
         "failed_or_interrupted_attempt_records": counts["assistant/attempt"],
+        "compaction_failures": len(compaction_failures),
         "unreported_compaction_failures": len(unknown_compactions)}
 
 
@@ -553,6 +554,9 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
             "turn_errors_by_source": dict(Counter(t.get("source") or "unknown"
                 for s in sessions for t in s["turns"] if t.get("error"))),
             "failed_or_interrupted_attempt_records": sum(s["failed_or_interrupted_attempt_records"] for s in sessions),
+            "compaction_responses": sum(r["purpose"] == "compaction" for s in sessions for r in s["responses"]),
+            "compaction_failures": sum(s["compaction_failures"] for s in sessions),
+            "compaction_skips": sum(s["event_counts"].get("compaction/skipped", 0) for s in sessions),
             "unreported_compaction_failures": sum(s["unreported_compaction_failures"] for s in sessions)},
         "tools": [{"name": name, **count_calls(calls)} for name, calls in sorted(tools.items())],
         "duplicates_skipped": duplicates, "sessions": sessions}
@@ -576,6 +580,8 @@ def markdown(report: dict) -> str:
         f'Usage coverage complete: {usage["usage_complete"]}. Failed/interrupted attempt records: '
         f'{summary["failed_or_interrupted_attempt_records"]}; compaction failures without response usage: '
         f'{summary["unreported_compaction_failures"]}. Missing usage is unknown.', "",
+        f'Compaction response records: {summary["compaction_responses"]}; failures: '
+        f'{summary["compaction_failures"]}; skipped pressure attempts: {summary["compaction_skips"]}.', "",
         f'Explicit tool/process failures: **{summary["failed_calls"]}** '
         f'(isError={summary["protocol_errors"]}; nonzero exit={summary["execution_failures"]}; owner failure={summary["lifecycle_failures"]}; overlapping counts). '
         f'Interrupted: {summary["interrupted_calls"]}; running: {summary["running_calls"]}; missing returns: {summary["missing_results"]}.', "",

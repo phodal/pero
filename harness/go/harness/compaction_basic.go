@@ -2,6 +2,8 @@ package harness
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -206,8 +208,29 @@ func (b *BasicCompactor) CompactIfNeeded(ctx context.Context, agent *Agent, trig
 		if selection == nil {
 			return result, nil
 		}
+		selected, encodeErr := json.Marshal(measurement.Nodes[selection.startIndex : selection.endIndex+1])
+		if encodeErr != nil {
+			return nil, encodeErr
+		}
+		candidate := compactionPressureRejection{selection: sha256.Sum256(selected), policy: spec}
+		b.pressureMu.Lock()
+		rejected := b.pressureRejected != nil && reflect.DeepEqual(*b.pressureRejected, candidate)
+		b.pressureMu.Unlock()
+		if rejected {
+			_, err := agent.session.Append("compaction/skipped", struct {
+				Reason string       `json:"reason"`
+				Range  SurfaceRange `json:"range"`
+			}{"unchanged nonshrinking pressure selection", selection.rangeValue})
+			return result, err
+		}
 		turn := agent.currentTurn()
 		result, err = b.compactRange(ctx, agent, measurement, *selection, &turn, nil, "", policy)
+		b.pressureMu.Lock()
+		b.pressureRejected = nil
+		if errors.Is(err, errCompactionNoReduction) {
+			b.pressureRejected = &candidate
+		}
+		b.pressureMu.Unlock()
 		if err != nil {
 			return nil, err
 		}

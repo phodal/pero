@@ -159,10 +159,12 @@ class SessionReportRules(unittest.TestCase):
             ("compaction/response", {"compactionId": "rejected", "usage": known}),
             ("compaction/end", {"compactionId": "rejected", "error": "did not shrink"}),
             ("compaction/summary", {"compactionId": "legacy", "usage": known}),
+            ("compaction/skipped", {"reason": "unchanged nonshrinking pressure selection"}),
         ]
         report = build_report([self.session(events)])
         session = report["sessions"][0]
         self.assertEqual(report["summary"]["usage"]["known_total_tokens"], 24)
+        self.assertEqual(tuple(report["summary"][k] for k in ("compaction_responses", "compaction_failures", "compaction_skips")), (3, 1, 1))
         self.assertEqual(session["usage"]["reported_completions"], 4)
         self.assertTrue(session["usage"]["usage_complete"])
         self.assertEqual([r["purpose"] for r in session["responses"]], ["agent"] + ["compaction"] * 3)

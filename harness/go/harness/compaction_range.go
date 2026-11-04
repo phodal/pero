@@ -18,6 +18,8 @@ type compactionSelection struct {
 	tokens     int
 }
 
+var errCompactionNoReduction = errors.New("harness: compaction summary did not shrink the selected history")
+
 func selectCompactionRange(measurement TokenMeasurement, retainTokens int) *compactionSelection {
 	nodes := measurement.Nodes
 	startIndex := 0
@@ -268,7 +270,7 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 		if turn == nil {
 			return nil, newManualCompactionError(ManualCompactionSummary, "manual compaction summary did not shrink history", nil)
 		}
-		return nil, errors.New("harness: compaction summary did not shrink the selected history")
+		return nil, errCompactionNoReduction
 	}
 	summaryEvent, err := session.Append("compaction/summary", struct {
 		CompactionID       string         `json:"compactionId"`

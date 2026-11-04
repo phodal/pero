@@ -156,6 +156,13 @@ type BasicCompactor struct {
 	overflowMu       sync.Mutex
 	overflowRetries  int
 	pressureWarnings compactionPressureWarnings
+	pressureMu       sync.Mutex
+	pressureRejected *compactionPressureRejection
+}
+
+type compactionPressureRejection struct {
+	selection [32]byte
+	policy    resolvedCompactSpec
 }
 
 // CompactIfNeeded invokes the effect-owned compactor mounted for this agent.
