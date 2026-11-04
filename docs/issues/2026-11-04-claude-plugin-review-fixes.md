@@ -8,8 +8,10 @@ pull_request: https://github.com/phodal/pero/pull/116
 # Claude plugin review fixes and local verification
 
 The repair starts at PR #116 head `6c9b97cd60d7ea55633c23b50f3d0cf71ce4c09e`.
-The remote head was unchanged when rechecked after implementation. No remote
-commit, review, PR update, merge or model request was made by this work.
+The remote head was unchanged when rechecked after implementation. The initial
+verification below was local. After explicit publication approval, the equivalent
+repair tree was pushed as `878b6beac5553e2abb2e0a3134201385febd27f5`.
+The PR was not merged and no model request was made by this work.
 
 ## Fixed behavior
 
@@ -72,7 +74,7 @@ resolution. No live-provider credentials or opt-in model flags were supplied.
 - Independent static review covered the repairs and drove additional fixes
   for LSP workspace selection, owner cleanup and instance-specific cursors.
 
-## Explicit limits
+## Initial local verification limits
 
 The 15 skips include unsupported-platform contracts; real clangd/model and
 original external plugin-source opt-ins; an existing shell-selection fixture
@@ -83,7 +85,38 @@ openstar external-service acceptance, Windows/macOS runtime test, Bazel run,
 or Electron UI test is claimed. Product verification is syntax plus merge
 review, not live desktop acceptance.
 
-All repairs and the master merge are local on
-`repair/pr116-review-20261104`. The GitHub PR itself remains unchanged until an
-authorized push. Existing added-directory launch-root alias compatibility is
-not expanded by this repair.
+Existing added-directory launch-root alias compatibility is not expanded by
+this repair.
+
+## Post-publication CI findings
+
+The first published repair head was `878b6beac5553e2abb2e0a3134201385febd27f5`.
+[CI run 41756076586](https://github.com/phodal/pero/actions/runs/41756076586)
+tested GitHub's synthetic merge `b6aa9bc253740f9c5fb95d649fe2ba08d5a4508c`
+against master `ddd3650454de1fea7a35a46200756bec4fe71754`.
+
+- The standalone harness Bazel job stopped at Gazelle's generated-file diff.
+  The correction includes the previously unlisted permission-request test,
+  canonical source/dependency ordering, and Unix-specific test dependencies.
+  The corrected files match the exact Gazelle diff emitted by CI. Both changed
+  packages pass `go test -race -count=1 ./claudehooks ./pluginruntime` locally;
+  that command is not a replacement for the full Bazel CI job.
+- The official DSH reference job stopped because ten right-side source hashes
+  were stale after the PR's Go changes, including two prompt mappings whose
+  function moved to another source file. The refreshed mapping retains all
+  17 pairs and their semantic landmarks. The original mapping reproduces the
+  CI result (7 extracted, 10 unavailable, exit 2). With the pinned official DSH
+  source and documented TypeScript grammar extension, the repaired mapping
+  reports 17 `cross_language_review_required`, zero unavailable, exit 0 on
+  both the PR head and the synthetic merge. All 18 AST unit tests pass without
+  skips. This is successful extraction for review, not semantic equivalence.
+- Generated-contracts and Linux core-contracts jobs also failed in Paper
+  tests. The failing tests, their helpers and relevant Paper UI sources have
+  identical Git blobs in master and the synthetic merge. These are upstream
+  test/UI drift, not changes introduced by the plugin branch: revision/parse
+  tests seek removed controls, while Library tests expect a text Save button
+  or old locator flow instead of the current Download PDF icon action.
+  No Paper assertions, skip conditions or production behavior were changed.
+
+This follow-up corrects the branch-owned Bazel and DSH metadata. The upstream
+Paper failures remain explicit CI blockers; it does not claim all CI is green.
