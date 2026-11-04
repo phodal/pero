@@ -156,7 +156,7 @@ func TestHarnessRunsToolContinuationAndLogsModelVisibleState(t *testing.T) {
 		types = append(types, event.Type)
 	}
 	wantTypes := []string{
-		"agent/inbox/spliced", "turn/start", "agent/inbox/spliced", "step/start", "system/message", "user/message", "request/header", "request/context", "assistant/message", "tool/call", "tool/result", "step/end",
+		"agent/inbox/spliced", "turn/start", "agent/inbox/spliced", "step/start", "system/message", "user/message", "request/header", "request/context", "assistant/message", "tool/call", "tool/batch-budget", "tool/result", "step/end",
 		"step/start", "assistant/chunk", "assistant/message", "step/end", "turn/end",
 	}
 	if !reflect.DeepEqual(types, wantTypes) {

@@ -349,6 +349,10 @@ func (r *SpillRegistry) project(ctx context.Context, request ToolRequest, result
 	if err != nil || !found {
 		return result, err
 	}
+	return projectToolResult(ctx, request, result, label, suggestedName, entry)
+}
+
+func projectToolResult(ctx context.Context, request ToolRequest, result ToolResult, label, suggestedName string, entry spillEntry) (ToolResult, error) {
 	text, ok := flattenToolText(result.Content)
 	if !ok || len(text) <= entry.options.MaxInlineBytes {
 		return result, nil
