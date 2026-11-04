@@ -96,7 +96,13 @@ Enter, Escape and dismissal deny, and only its explicit Install action approves.
 
 The App-facing `POST /host/docling-runtime` accepts only `status`,
 `request` with component `software` or `model`, `cancel`, and `revoke`.
-It requires the exact Paper origin. Installation tickets are held only by the
+Paper uses a fixed-purpose Host caller, not its `/api`-scoped backend client.
+Electron uses this fixed HTTP endpoint. On macOS Native/Wry, a main-document
+request-only function sends the same intent over IPC; Rust checks the immutable
+Paper WebView owner and the frame URL supplied by WebKit itself. It does not
+trust an App-supplied origin or approval. The HTTP route still requires the
+exact Paper Origin header and rejects missing or opaque origins.
+Installation tickets are held only by the
 trusted shell; App-supplied approval, ticket, command, path or source fields are
 rejected. The private Host `prepare`/`install` protocol is not forwarded through
 public renderer IPC. Cancelled or closed confirmations cannot dispatch a late
@@ -373,6 +379,13 @@ The receipt distinguishes the checkout/merge SHA from the PR head and records
 OS, executable/UI hashes, status responses and the absence of installation
 files. The fixture does not establish a complete Paper journey or a user click.
 Its actual Mac execution result must be checked separately from adding the test.
+The first real probe at `e939bcdd` found a genuine integration failure: the
+correct Paper page received HTTP 403 from that strict header gate. Independent
+component testing also found that the panel's original scoped backend client
+refused `/host` before transport. The dedicated caller and macOS frame-verified
+IPC path address those separate boundaries without broadening backend API
+permissions. Component tests use the real `/api`-scoped context and actual bridge
+script; a newly published head must still pass the real WKWebView probe.
 
 `Paper optional Docling on macOS` is a separate, explicitly opted-in hosted
 workflow: relevant-path, same-repository PRs require `ci:full`; a manual run
