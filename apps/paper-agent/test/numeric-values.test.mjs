@@ -55,6 +55,8 @@ test('candidate preparation keeps manual fields collapsed and only prepares an e
   assert.deepEqual(state.source, history.extractions[0].result.anchor);
   assert.match(f.chats[0].message, /numeric-propose/);
   assert.match(f.chats[0].message, /Do not review or freeze/);
+  assert.match(f.chats[0].message, /missing or still needs review, say there is insufficient evidence to determine the result yet/);
+  assert.match(f.chats[0].message, /Do not evaluate the tolerance or give a pass or fail, even provisionally/);
   assert.deepEqual(f.writes, []);
   assert.match(document.body.textContent, /Send it to start extraction/);
 });
