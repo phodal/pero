@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/phodal/pero/harness/go/harness"
@@ -269,12 +270,12 @@ func (s *claudeDelegation) agentInstructions(ctx context.Context, definition Age
 }
 
 func availableToolAllow(ctx context.Context, h *harness.Harness, agent *harness.Agent, allow []string) ([]string, error) {
-	schemas, err := h.Tools().SchemasForAgent(ctx, agent)
+	pool, err := h.Tools().DelegationPool(ctx, agent)
 	if err != nil {
 		return nil, err
 	}
-	known := make(map[string]bool, len(schemas))
-	for _, schema := range schemas {
+	known := make(map[string]bool, len(pool.Schemas))
+	for _, schema := range pool.Schemas {
 		known[schema.Name] = true
 	}
 	kept := make([]string, 0, len(allow))
@@ -285,6 +286,16 @@ func availableToolAllow(ctx context.Context, h *harness.Harness, agent *harness.
 	}
 	if len(allow) > 0 && len(kept) == 0 {
 		return nil, fmt.Errorf("subagents: none of the declared tools are available")
+	}
+	if len(kept) == 0 {
+		return kept, nil
+	}
+	// Discovery is only a presentation mechanism: child candidate filtering
+	// still applies the admitted allow/deny restrictions to every discovered tool.
+	for _, name := range pool.Discovery {
+		if known[name] && !slices.Contains(kept, name) {
+			kept = append(kept, name)
+		}
 	}
 	return kept, nil
 }

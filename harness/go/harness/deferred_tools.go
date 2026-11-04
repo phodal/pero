@@ -75,7 +75,7 @@ func (r *ToolRegistry) RegisterDeferredTools(run *point.Run, generation string, 
 }
 
 // Candidates is the complete current caller-authorized pool, before deferred
-// presentation. It is intentionally available only to the discovery owner.
+// presentation. It never activates tools or grants permission.
 func (d *DeferredTools) Candidates(ctx context.Context, agent *Agent) ([]ToolSchema, error) {
 	return d.base.Schemas(ctx, agent)
 }
@@ -330,11 +330,43 @@ func (r *ToolRegistry) boundDeferredRequest(ctx context.Context, agent *Agent, r
 }
 
 func (r *ToolRegistry) deferredForAgent(agent *Agent) bool {
+	return r.deferredViewForAgent(agent) != nil
+}
+
+// ToolDelegationPool separates authorized capabilities from the discovery
+// declarations a restricted child needs to activate them.
+type ToolDelegationPool struct {
+	Schemas   []ToolSchema
+	Discovery []string
+}
+
+// DelegationPool is for trusted child restriction setup, independent of the
+// parent's activation state. Model requests still use SchemasForAgent.
+func (r *ToolRegistry) DelegationPool(ctx context.Context, agent *Agent) (ToolDelegationPool, error) {
+	if deferred := r.deferredViewForAgent(agent); deferred != nil {
+		schemas, err := deferred.Candidates(ctx, agent)
+		pool := ToolDelegationPool{Schemas: schemas}
+		for _, schema := range schemas {
+			if deferred.eager[schema.Name] {
+				pool.Discovery = append(pool.Discovery, schema.Name)
+			}
+		}
+		return pool, err
+	}
+	schemas, err := r.SchemasForAgent(ctx, agent)
+	return ToolDelegationPool{Schemas: schemas}, err
+}
+
+func (r *ToolRegistry) deferredViewForAgent(agent *Agent) *DeferredTools {
+	if agent == nil {
+		return nil
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	enabled := false
 	for _, catalog := range r.catalogs {
-		enabled = enabled || catalog.provider.deferred != nil && catalog.scope.Contains(agent.Scope())
+		if catalog.provider.deferred != nil && catalog.scope.Contains(agent.Scope()) {
+			return catalog.provider.deferred
+		}
 	}
-	return enabled
+	return nil
 }

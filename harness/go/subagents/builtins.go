@@ -18,12 +18,12 @@ func builtinClaudeAgents() []AgentDefinition {
 }
 
 func (s *claudeDelegation) readOnlyTools(ctx context.Context, parent *harness.Agent) ([]string, error) {
-	schemas, err := s.h.Tools().SchemasForAgent(ctx, parent)
+	pool, err := s.h.Tools().DelegationPool(ctx, parent)
 	if err != nil {
 		return nil, err
 	}
-	available := make(map[string]bool, len(schemas))
-	for _, schema := range schemas {
+	available := make(map[string]bool, len(pool.Schemas))
+	for _, schema := range pool.Schemas {
 		available[schema.Name] = true
 	}
 	result := []string{}

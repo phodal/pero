@@ -40,6 +40,7 @@ go_test(
         "claude_names_test.go",
         "claude_notice_test.go",
         "claude_test.go",
+        "deferred_pool_test.go",
         "inprocess_test.go",
         "mcp_scope_review_test.go",
         "restart_test.go",
