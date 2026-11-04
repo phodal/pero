@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: resolved
+status: in_progress
 ---
 
 # Native guidance omitted execution facts and check status preservation
@@ -98,3 +98,14 @@ The deferred Bash-only guidance and explicit terminate_on_timeout contract are
 now verified independently of TaskOutput/TaskStop activation. Real-process tests
 confirm terminal ownership, PID termination, durable completion and no promotion.
 Default job promotion and exact-handle recovery retain their existing semantics.
+
+## Follow-up: vague discovery encourages delegation for tiny native tasks
+
+The child-pool repair was verified live: Explore successfully discovered and
+used Bash. The same 32-request mergesort spot check then spent 27 responses in
+three children and exhausted its shared request budget before submission.
+Initial broad file queries exposed Agent while leaving Edit/Bash unactivated.
+Give the Claude discovery declaration concrete native-name selection examples
+and advise direct reads/edits/checks for small local tasks. Preserve delegated
+capabilities, existing permissions and shared budgets; this is guidance, not a
+new scheduler or an automatic rewrite of model tool choices.

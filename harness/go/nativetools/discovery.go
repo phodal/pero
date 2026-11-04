@@ -36,6 +36,9 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 		name = "ToolSearch"
 	}
 	description := "Find caller-authorized tools. A full tool name selects only that tool, case-insensitively. For multiple known names use select:Name1,Name2 (up to 20 by default). Otherwise search literal name/description keywords, preferring tools matching every word. If none do, return explicitly marked partial matches ranked by keyword coverage and name matches. Use one capability per query. Keyword searches return up to 5 by default, with bounded pagination."
+	if claude {
+		description += " For native workspace coding, use select:Read,Write,Edit,Bash,Glob,Grep to find the standard file and shell tools; unavailable names are omitted. Read, edit and run focused checks directly for small local tasks. Reserve Agent for substantial independent work: children consume the same shared request budget."
+	}
 	if deferLoading {
 		description += " Returns compact activation receipts and hashes; complete schemas are declared in the next model request. Omitted schemas are not activated; narrow the query or continue pagination."
 	} else {
