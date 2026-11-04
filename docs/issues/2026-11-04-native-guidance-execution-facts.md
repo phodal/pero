@@ -1,9 +1,29 @@
 ---
 kind: incident
-status: resolved
+status: in_progress
 ---
 
 # Native guidance omitted execution facts and check status preservation
+
+## Follow-up: short-check advice disappears with deferred lifecycle tools
+
+The React self-check waited 120 seconds in an infinite loop before promotion.
+The short-check instruction required Bash, TaskOutput and TaskStop to be
+declared together, which never happened in that deferred Session. Provide
+bounded-check advice whenever Bash is available; expose lifecycle operations
+only when declared or with an exact discovery instruction. Make the distinction
+between promotion and terminating a check explicit, keeping the existing owned
+process and cancellation paths.
+
+Bash now accepts `terminate_on_timeout=true` for a bounded foreground check.
+It uses the existing exact process owner and cancellation/join path, records the
+choice in its durable intent, and rejects explicit background execution with
+this option. Running receipts provide an exact TaskOutput/TaskStop discovery
+hint without eagerly declaring those tools.
+
+Focused race checks passed for bounded process termination, one-effect durable
+receipts, invalid-combination rejection and existing promotion/owner cleanup.
+Capability/guidance and full-suite checks are recorded in the active plan.
 
 Native tool guidance did not show the host OS, configured shell, session
 workspace or remembered Bash directory. Local coding traces consequently

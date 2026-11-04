@@ -106,6 +106,9 @@ func TestNativeGuidancePreservesCheckStatusOnlyForDeclaredExecution(t *testing.T
 			if strings.Contains(text, "Prefer Bash's workdir parameter") != (row.name == "Bash") {
 				t.Error("Bash workdir guidance differs from the declared tool")
 			}
+			if strings.Contains(text, "terminate_on_timeout=true") != (row.name == "Bash") {
+				t.Error("bounded-check guidance differs from the declared Bash capability")
+			}
 			if strings.Contains(text, "TaskStop to cancel") {
 				t.Error("background guidance advertised undeclared lifecycle tools")
 			}
@@ -114,5 +117,9 @@ func TestNativeGuidancePreservesCheckStatusOnlyForDeclaredExecution(t *testing.T
 	text := nativeGuidance(harness.PromptCapabilities{Tools: []harness.ToolSchema{{Name: "Bash"}, {Name: "TaskOutput"}, {Name: "TaskStop"}}})
 	if !strings.Contains(text, "TaskStop to cancel the exact owned job") {
 		t.Fatal("owned job control guidance missing")
+	}
+	text = nativeGuidance(harness.PromptCapabilities{Tools: []harness.ToolSchema{{Name: "Bash"}, {Name: "ToolSearch"}}})
+	if !strings.Contains(text, "terminate_on_timeout=true") || !strings.Contains(text, "Discover select:TaskOutput,TaskStop") || strings.Contains(text, "use TaskOutput to collect") {
+		t.Fatal("deferred Bash lost bounded checks or advertised undeclared execution")
 	}
 }
