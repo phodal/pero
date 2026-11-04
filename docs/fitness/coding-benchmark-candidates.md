@@ -12,6 +12,10 @@ add SWE-bench Verified or Lite for real repository repairs. The existing
 local controls. This note records source research and a proposed bounded
 sample; no new benchmark agent run or score was produced by this research.
 
+The subsequent [Terminal-Bench cancellation smoke run](terminal-bench-smoke.md)
+verifies the ACP integration and records a failed one-task provider submission,
+its controls, usage and reviewed trajectory separately from this research.
+
 ## Candidates
 
 | Benchmark | Verified scope | What it adds to Pero's current sample | Integration / execution condition |

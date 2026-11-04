@@ -15,6 +15,9 @@ measurements: [Tool-call efficiency](tool-call-efficiency.md).
 Further task suites, Harbor ACP integration and current execution prerequisites:
 [Coding benchmark candidates](coding-benchmark-candidates.md).
 
+First Harbor ACP execution, official failure verdict and reviewed Session:
+[Terminal-Bench cancellation smoke run](terminal-bench-smoke.md).
+
 AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
 managed execution admission remains planned: [Environments P1](ai4s-environments.md).
 
