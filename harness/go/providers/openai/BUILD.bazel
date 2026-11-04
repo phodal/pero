@@ -9,6 +9,8 @@ go_library(
         "image_input.go",
         "provider_errors.go",
         "request_encode.go",
+        "responses_decode.go",
+        "responses_encode.go",
         "stream.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/providers/openai",
@@ -22,6 +24,7 @@ go_library(
         "@com_github_openai_openai_go_v3//packages/param",
         "@com_github_openai_openai_go_v3//packages/respjson",
         "@com_github_openai_openai_go_v3//packages/ssestream",
+        "@com_github_openai_openai_go_v3//responses",
     ],
 )
 
@@ -31,11 +34,13 @@ go_test(
         "adapter_test.go",
         "completion_test.go",
         "image_input_test.go",
+        "responses_test.go",
         "wire_size_test.go",
     ],
     embed = [":openai"],
     deps = [
         "//harness",
         "//llm",
+        "@com_github_openai_openai_go_v3//responses",
     ],
 )

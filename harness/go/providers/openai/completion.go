@@ -39,6 +39,7 @@ func (a *Adapter) pumpCompletion(ctx context.Context, params openaisdk.ChatCompl
 	event := openAIStreamEvent{err: err}
 	if err == nil {
 		event.chunk, event.err = completionChunk(response)
+		event.decoded = true
 	}
 	select {
 	case events <- event:

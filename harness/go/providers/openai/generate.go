@@ -99,17 +99,50 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 	if a.maxOutputTokens > 0 && (request.MaxTokens == 0 || request.MaxTokens > a.maxOutputTokens) {
 		request.MaxTokens = a.maxOutputTokens
 	}
-	wire, err := encodeRequest(request, slices.Contains(a.models[request.Model].InputModalities, "image"))
-	if err != nil {
-		return harness.Completion{}, err
+	var body any
+	var toolsPayload []byte
+	toolResultBytes, toolResults := 0, 0
+	imagesAllowed := slices.Contains(a.models[request.Model].InputModalities, "image")
+	if a.apiFormat == Responses {
+		wire, err := encodeResponses(request, imagesAllowed)
+		if err != nil {
+			return harness.Completion{}, err
+		}
+		body = wire
+		if len(wire.Tools) > 0 {
+			toolsPayload, _ = json.Marshal(wire.Tools)
+		}
+		for _, item := range wire.Input {
+			if item.Type == "function_call_output" {
+				encoded, _ := json.Marshal(item)
+				toolResultBytes += len(encoded)
+				toolResults++
+			}
+		}
+	} else {
+		wire, err := encodeRequest(request, imagesAllowed)
+		if err != nil {
+			return harness.Completion{}, err
+		}
+		if a.disableThinking {
+			wire.Thinking = &wireThinking{Type: "disabled"}
+		}
+		if a.disableStreaming {
+			wire.Stream, wire.StreamOptions = false, nil
+		}
+		body = wire
+		if len(wire.Tools) > 0 {
+			toolsPayload, _ = json.Marshal(wire.Tools)
+		}
+		for _, message := range wire.Messages {
+			if message.Role == "tool" {
+				encoded, _ := json.Marshal(message)
+				toolResultBytes += len(encoded)
+				toolResults++
+			}
+		}
 	}
-	if a.disableThinking {
-		wire.Thinking = &wireThinking{Type: "disabled"}
-	}
-	if a.disableStreaming {
-		wire.Stream, wire.StreamOptions = false, nil
-	}
-	payload, err := json.Marshal(wire)
+	payload, err := json.Marshal(body)
 	if err != nil {
 		return harness.Completion{}, err
 	}
@@ -125,18 +158,6 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 		return harness.Completion{}, harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
 	}
 	if request.Agent != nil {
-		tools, _ := json.Marshal(wire.Tools)
-		if len(wire.Tools) == 0 {
-			tools = nil
-		}
-		toolResultBytes, toolResults := 0, 0
-		for _, message := range wire.Messages {
-			if message.Role == "tool" {
-				encoded, _ := json.Marshal(message)
-				toolResultBytes += len(encoded)
-				toolResults++
-			}
-		}
 		hash := sha256.Sum256(payload)
 		_, err := request.Agent.Session().Append("request/wire-size", struct {
 			Stage                  string `json:"stage"`
@@ -148,7 +169,7 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 			ToolResultMessageBytes int    `json:"tool_result_message_bytes"`
 			ToolResults            int    `json:"tool_results"`
 			SHA256                 string `json:"payload_sha256"`
-		}{"prepared_for_http", request.Purpose, request.Turn, request.Step, len(payload), len(tools), toolResultBytes, toolResults, hex.EncodeToString(hash[:])})
+		}{"prepared_for_http", request.Purpose, request.Turn, request.Step, len(payload), len(toolsPayload), toolResultBytes, toolResults, hex.EncodeToString(hash[:])})
 		if err != nil {
 			return harness.Completion{}, err
 		}
@@ -156,7 +177,9 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 			return harness.Completion{}, err
 		}
 	}
-	if a.disableStreaming {
+	if a.apiFormat == Responses {
+		go a.pumpResponses(streamCtx, payload, events)
+	} else if a.disableStreaming {
 		go a.pumpCompletion(streamCtx, params, events)
 	} else {
 		go a.pumpStream(streamCtx, params, events)
@@ -174,7 +197,30 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 				return assembly.completion()
 			}
 			if event.err != nil {
+				if event.decoded {
+					return harness.Completion{}, event.err
+				}
 				return harness.Completion{}, normalizeStreamError(ctx, event.err)
+			}
+			if event.completion != nil {
+				if emit != nil {
+					chunk := harness.StreamChunk{Usage: event.completion.Usage}
+					for _, block := range event.completion.Message.Content {
+						block.Extensions = nil
+						if block.Type == harness.BlockToolCall {
+							block.ArgumentsDelta = string(block.Arguments)
+							block.Arguments = nil
+						}
+						chunk.Content = append(chunk.Content, block)
+					}
+					if err := emit(chunk); err != nil {
+						return harness.Completion{}, err
+					}
+				}
+				if err := ctx.Err(); err != nil {
+					return harness.Completion{}, err
+				}
+				return *event.completion, nil
 			}
 			resetTimer(timer, a.streamIdleTimeout)
 			chunk, consumeErr := assembly.consume(event.chunk)
@@ -210,6 +256,8 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 }
 
 type openAIStreamEvent struct {
-	chunk openaisdk.ChatCompletionChunk
-	err   error
+	decoded    bool
+	completion *harness.Completion
+	chunk      openaisdk.ChatCompletionChunk
+	err        error
 }
