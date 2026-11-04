@@ -33,7 +33,8 @@
     "Concept-based file-size split only; declarations and var/init order preserved by AST equivalence checks. Output files are adapted/split, not raw upstream blob copies.",
     "Official DSH behavioral review restores ACP admission cancellation, bounded physical read windows, max-token tool suppression and explicit context-overflow classification; see upstream_behavior_review record.",
     "Existing-module behavioral review restores inherited common-loop/storage contracts, fail-closed JSONL tails, precise usage/settings conversion, MCP capability discovery and shell tails; CLI explicitly selects existing DSH todo options. See module_behavior_review; not full cross-language parity.",
-    "Explicit JSON Chat/Responses protocol selection reuses provider transport/budgets; stateless Responses retains assistant phase, item/call IDs and encrypted reasoning. Compaction materializes a plain-text user checkpoint while retaining provider metadata in original audit events; these are local adaptations, not upstream equivalence."
+    "Explicit JSON Chat/Responses protocol selection reuses provider transport/budgets; stateless Responses retains assistant phase, item/call IDs and encrypted reasoning. Compaction materializes a plain-text user checkpoint while retaining provider metadata in original audit events; these are local adaptations, not upstream equivalence.",
+    "Direct user skill invocation and post-compaction reattachment check exact authorized registration before deferred discovery while retaining scoped restrictions, shadows and owner lifetime; model tool activation is unchanged."
   ],
   "excluded_features": [
     "Projects",
@@ -739,7 +740,7 @@
     },
     {
       "destination": "harness/tools_identity.go",
-      "sha256": "d817bd635e5423025c11e88e8470acfaa962eca982b6585a71eb31c36a1283f9",
+      "sha256": "458e959427bd18f2f6fbf4ed51fcfee06afc3b15756c27eac1c60aa68e724537",
       "source_path": "go/harness/tools_identity.go",
       "source_blob_sha1": "3a651936d9b86f391d49b12c893daf35deb0a4b6",
       "change": "imports only"

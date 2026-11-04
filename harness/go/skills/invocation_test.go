@@ -9,16 +9,20 @@ import (
 	"testing"
 
 	"github.com/phodal/pero/harness/go/harness"
+	point "github.com/phodal/pero/harness/go/runtime"
 )
 
 func TestExplicitSkillProviderRequest(t *testing.T) {
 	requireCatalogPlatform(t)
 	for _, tc := range []struct {
-		name, text, secondText, source               string
-		disabled, changed, noRoots, masked, shadowed bool
-		want                                         int
+		name, text, secondText, source                         string
+		disabled, changed, noRoots, masked, shadowed, deferred bool
+		want                                                   int
 	}{
 		{name: "direct", text: "please /demo now", want: 1},
+		{name: "deferred direct", text: "/demo", deferred: true, want: 1},
+		{name: "deferred denied", text: "/demo", deferred: true, masked: true},
+		{name: "deferred shadowed", text: "/demo", deferred: true, shadowed: true},
 		{name: "repeated", text: "/demo\n/demo\t/demo", want: 1},
 		{name: "multiple text blocks", text: "first block", secondText: "/demo", want: 1},
 		{name: "unknown", text: "/unknown"},
@@ -83,6 +87,19 @@ func TestExplicitSkillProviderRequest(t *testing.T) {
 				}
 				if len(rows) > 0 {
 					expectedDigest = rows[0].Digest
+				}
+			}
+			if tc.deferred {
+				definition := point.Define(point.Descriptor{ID: "skill-deferred-fixture", Requires: []point.Requirement{point.Require(harness.ToolRegistryKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
+					_, dispose, err := h.Tools().RegisterDeferredTools(run, "skill-deferred", "search")
+					return dispose, err
+				})
+				instance, err := h.Runtime().Mount(nil, "skill-deferred-fixture", definition, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := instance.WaitStable(t.Context()); err != nil {
+					t.Fatal(err)
 				}
 			}
 			if tc.changed {

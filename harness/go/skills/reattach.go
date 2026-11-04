@@ -42,7 +42,7 @@ func mountSkillReattachment(run *point.Run, hooks *harness.AgentHooks, catalog *
 		if err != nil || input.Agent == nil {
 			return input, err
 		}
-		visible, err := registration.Visible(ctx, input.Agent)
+		visible, err := registration.Available(ctx, input.Agent)
 		if err != nil || !visible {
 			return input, err
 		}

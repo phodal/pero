@@ -192,7 +192,7 @@ func MountCatalog(ctx context.Context, h *harness.Harness, catalog *Catalog, opt
 			if len(selected) == 0 {
 				return decision, nil
 			}
-			visible, err := registration.Visible(ctx, input.Agent)
+			visible, err := registration.Available(ctx, input.Agent)
 			if err != nil || !visible {
 				return decision, err
 			}

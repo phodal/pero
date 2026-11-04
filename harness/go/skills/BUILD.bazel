@@ -53,5 +53,6 @@ go_test(
         "//fstools",
         "//harness",
         "//model",
+        "//runtime",
     ],
 )
