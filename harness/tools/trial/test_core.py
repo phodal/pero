@@ -15,6 +15,26 @@ def config_input():
 
 
 class TrialRules(unittest.TestCase):
+    def test_endpoint_requires_an_explicit_http_opt_in(self):
+        for endpoint, allow_http, accepted in (
+            ("https://provider.invalid/v1", False, True),
+            ("http://provider.invalid/v1", False, False),
+            ("http://provider.invalid/v1", True, True),
+            ("http://127.0.0.1/v1", False, True),
+            ("ftp://provider.invalid/v1", True, False),
+            ("http://u:p@provider.invalid/v1", True, False),
+            ("http://provider.invalid/v1?key=fixture", True, False),
+            ("http://provider.invalid/v1#fragment", True, False),
+            ("https://provider.invalid/v1", "true", False),
+        ):
+            with self.subTest(endpoint=endpoint, allow_http=allow_http):
+                supplied = config_input() | {"endpoint": endpoint, "allow_http": allow_http}
+                if accepted:
+                    TrialConfig.parse(supplied)
+                else:
+                    with self.assertRaises(TrialError):
+                        TrialConfig.parse(supplied)
+
     def test_usage_jsonl_preserves_unicode_and_rejects_broken_records(self):
         event = {"event": {"type": "assistant/message", "data": {
             "message": "legal\u0085NEL\u2028line\u2029paragraph",

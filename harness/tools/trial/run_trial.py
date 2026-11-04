@@ -153,7 +153,7 @@ def run_pipeline(config: TrialConfig) -> dict:
               "usage": asdict(sum_usage(tuple(item.usage for item in receipts))), "usage_source": "committed provider-reported completion usage",
               "cost_usd": None, "http_attempts": sum(item.http_attempts for item in receipts),
               "unattended_questions": config.questions, "shell_policy": "allow-unsandboxed" if config.enable_shell else "disabled",
-              "permission_mode": config.permission_mode}
+              "permission_mode": config.permission_mode, "allow_http": config.allow_http}
     if artifact_error:
         output["artifact_error"] = artifact_error
     # Existing analysis tools consume session-shaped fields. Project the actual

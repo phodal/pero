@@ -78,6 +78,7 @@ class TrialConfig:
     base_workspace: Path
     binary: Path
     endpoint: str
+    allow_http: bool
     model: str
     api_key_env: str
     plugin_models: tuple[ModelRoute, ...]
@@ -96,7 +97,7 @@ class TrialConfig:
     def parse(raw: object) -> TrialConfig:
         allowed = {"runtime", "harness_runner", "plugin_path", "workspace", "agent_binary", "endpoint", "model", "api_key_env",
                    "sessions", "prompt", "success_patterns", "max_continuations", "session_timeout", "timeout", "idle_timeout",
-                   "max_requests", "max_tokens", "budget", "max_retries", "unattended_questions", "enable_shell", "shell_policy", "context_source", "plugin_models", "permission_mode"}
+                   "max_requests", "max_tokens", "budget", "max_retries", "unattended_questions", "enable_shell", "shell_policy", "context_source", "plugin_models", "permission_mode", "allow_http"}
         if not isinstance(raw, dict) or set(raw) - allowed:
             raise TrialError("unknown or invalid trial fields")
         if raw.get("runtime", "harness") != "harness":
@@ -109,10 +110,13 @@ class TrialConfig:
             raise TrialError("use session_timeout or timeout, not both")
         endpoint = text(raw.get("endpoint"), "endpoint")
         parsed = urlparse(endpoint)
+        allow_http = raw.get("allow_http", False)
+        if type(allow_http) is not bool:
+            raise TrialError("allow_http must be an explicit boolean")
         if parsed.username or parsed.password or parsed.query or parsed.fragment or not parsed.hostname:
             raise TrialError("endpoint must not contain credentials, query or fragment")
-        if parsed.scheme != "https" and not (parsed.scheme == "http" and parsed.hostname in ("localhost", "127.0.0.1", "::1")):
-            raise TrialError("endpoint requires HTTPS or loopback HTTP")
+        if parsed.scheme != "https" and not (parsed.scheme == "http" and (allow_http or parsed.hostname in ("localhost", "127.0.0.1", "::1"))):
+            raise TrialError("endpoint requires HTTPS or loopback HTTP; explicit HTTP requires allow_http")
         key = text(raw.get("api_key_env"), "api_key_env")
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
             raise TrialError("api_key_env must name an environment variable")
@@ -153,7 +157,7 @@ class TrialConfig:
         if not isinstance(permission, str) or permission not in {"read-only", "workspace-write", "full-access", "auto-review"}:
             raise TrialError("permission_mode must select an existing ACP permission mode")
         context = raw.get("context_source")
-        return TrialConfig(plugin, workspace, binary, endpoint,
+        return TrialConfig(plugin, workspace, binary, endpoint, allow_http,
                            text(raw.get("model"), "model"), key, models, sessions, final_patterns,
                            seconds(raw.get("session_timeout", raw.get("timeout", 3600)), "session_timeout"),
                            seconds(raw.get("idle_timeout", 600), "idle_timeout"),

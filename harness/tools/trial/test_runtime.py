@@ -101,6 +101,26 @@ class RuntimeTrial(unittest.TestCase):
         with self.assertRaises(ProcessLookupError):
             os.kill(result["sessions"][0]["agent_pid"], 0)
 
+    def test_http_opt_in_reaches_the_actual_cli(self):
+        for allow_http in (False, True):
+            with self.subTest(allow_http=allow_http):
+                calls = []
+
+                def dispatch(request):
+                    calls.append(request)
+                    if len(calls) <= 2:
+                        name = "one" if len(calls) == 1 else "two"
+                        return [tool("Write", {"file_path": f"reports/{name}.md", "content": name})]
+                    return [answer()]
+
+                with provider(dispatch) as endpoint:
+                    endpoint = endpoint.replace("127.0.0.1", "localhost")
+                    result = run_pipeline(self.config(endpoint, allow_http=allow_http, max_continuations=0))
+                self.assertEqual(result["pipeline_complete"], allow_http)
+                self.assertEqual(result["allow_http"], allow_http)
+                self.assertEqual(len(calls), 3 if allow_http else 0)
+                self.assert_reclaimed(result)
+
     def test_explicit_auto_review_renders_unmatched_skill_commands(self):
         skill = self.plugin / "skills/report/SKILL.md"
         skill.write_text('---\nname: report\ndescription: Dynamic context\ndisable-model-invocation: true\n---\nsnapshot !`printf trial-inline-context`\n')

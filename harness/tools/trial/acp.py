@@ -58,6 +58,8 @@ class ACPClient:
                      "--max-requests", str(config.max_requests), "--max-tokens", str(config.max_tokens), "--max-retries", "0", "--approval", "ask"]
         if config.enable_shell:
             arguments.append("--enable-shell")
+        if config.allow_http:
+            arguments.append("--allow-http")
         for route in config.plugin_models:
             arguments.extend(["--plugin-model", route.alias + "=" + route.model])
         self.process = subprocess.Popen(arguments, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.stderr, start_new_session=True)

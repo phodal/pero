@@ -70,7 +70,11 @@ Pass JSON on stdin and receive one JSON receipt on stdout:
 
 Run `python3 run_trial.py < config.json`. The credential must already be set in
 the named environment variable; its value is not a JSON field. HTTPS endpoints
-and loopback HTTP fixtures are accepted. Each trial uses a fresh workspace and
+and loopback HTTP fixtures are accepted by default. An explicitly supplied
+plaintext provider endpoint additionally requires `allow_http: true`, which
+passes `--allow-http` to the native agent and is recorded in the receipt.
+This setting does not change TLS verification or other service endpoints.
+Each trial uses a fresh workspace and
 private records directory. Ordered `sessions` entries can replace `prompt`;
 each has name, prompt, success_artifact or success_patterns, and an optional
 max_continuations. Sessions share the trial workspace but each owns a separate
