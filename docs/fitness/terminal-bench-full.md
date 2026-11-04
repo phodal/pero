@@ -224,3 +224,28 @@ first with the separately frozen v2 bootstrap, unlimited requests/steps and
 official 900-second agent deadlines. The later correction queue reuses these
 attempts rather than paying to run them again. Their original raw-zero results
 remain intact. At launch, no new QEMU verdict or full-suite completion is claimed.
+
+All 30 aliases subsequently finish staging and verification. The first mirror
+completes 19 images before a manifest-content-type failure and rate limiting;
+the remaining 11 resume through a second mirror whose manifest bytes match the
+frozen digests exactly. The first failure is preserved. The original 30-task
+configuration is admitted at 22:40 UTC, with actual image-ID receipts recorded
+before agent execution. This recovers transport readiness; full results remain
+pending.
+
+The image audit incorrectly derives the dotted Windows trial's container name,
+causing a zero-request diagnostic failure. A real Compose control verifies the
+correct project/service-label lookup. The other 29 slots continue; Windows is
+queued separately with the original binary/configuration and deduplicated by
+the completion guard. See the [canonical incident](../issues/2026-11-05-benchmark-compose-container-identity.md).
+
+Both early QEMU corrections finish with raw zero. Alpine ends normally but its
+verifier cannot download the exact pinned uv 0.9.5 asset, so no functional
+assertion runs. Startup reaches its official 900-second deadline with confirmed
+process cleanup, then its unchanged verifier executes and fails 0/1. Together
+they retain 382 responses, 25,513,649 recorded tokens and 36 explicit failed
+tools in `strict-timeout-followup/bootstrap-early-results/`. These two extra
+attempts do not add baseline slots. Rosetta unsupported-syscall diagnostics
+occur in 110 tool-output observations, which may reread the same log; that is
+not a count of independent crashes or proof of the sole failure cause. The
+report and usage view are visually checked.

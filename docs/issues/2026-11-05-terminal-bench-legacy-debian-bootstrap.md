@@ -94,3 +94,13 @@ attempts; outcomes remain pending at that observation. The official 900-second
 agent deadlines are retained. The final correction queue reuses these attempts
 and preserves both original raw-zero results; they do not add new manifest task
 slots to the 59/89 baseline checkpoint.
+
+Both actual v2 corrections subsequently finish with raw zero. Alpine ends
+normally, but the exact pinned uv 0.9.5 GitHub download again returns an empty
+reply during verification: no pytest/CTRF functional assertion runs. Startup
+reaches its official 900-second agent deadline with confirmed process cleanup;
+its unchanged official verifier runs and fails its one kernel assertion. The
+earlier successful runner control does not establish reliable asset transport
+for every later candidate. Preserve both results and investigate transport
+before another paid QEMU attempt. Source-bound evidence is
+`strict-timeout-followup/bootstrap-early-results/failure-analysis.json`.
