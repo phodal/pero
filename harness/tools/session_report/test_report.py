@@ -49,6 +49,23 @@ class SessionReportRules(unittest.TestCase):
         self.assertEqual(tuple(report["summary"][name] for name in (
             "repeated_changed_results", "repeated_unchanged_results", "repeated_unknown_results")), (1, 1, 2))
 
+    def test_turn_errors_keep_human_plugin_and_unknown_sources(self):
+        report = build_report([self.session([
+            ("turn/start", {"turn": 1, "source": "human"}),
+            ("turn/end", {"turn": 1, "reason": "stop"}),
+            ("turn/start", {"turn": 2, "source": "plugin"}),
+            ("turn/end", {"turn": 2, "reason": "error", "error": "runtime: run is inactive"}),
+            ("turn/end", {"turn": 3, "reason": "error", "error": "start not retained"}),
+            ("turn/start", {"turn": 4, "source": "human"}),
+            ("turn/end", {"turn": 4, "reason": "error", "error": "provider failed"}),
+        ])])
+        turns = report["sessions"][0]["turns"]
+        self.assertEqual([turn["source"] for turn in turns], ["human", "plugin", None, "human"])
+        self.assertEqual([turn.get("error") for turn in turns],
+                         [None, "runtime: run is inactive", "start not retained", "provider failed"])
+        self.assertEqual(report["summary"]["turn_errors"], 3)
+        self.assertEqual(report["summary"]["turn_errors_by_source"], {"human": 1, "plugin": 1, "unknown": 1})
+
     def test_boundary_measurements_use_selected_wire_not_raw_result_history(self):
         tools = [{"name": "Read", "inputSchema": {"type": "object"}},
                  {"name": "Agent", "inputSchema": {"type": "object"}}]

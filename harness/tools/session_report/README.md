@@ -74,6 +74,13 @@ Quoted source and expected exceptions can produce false positives. No regex esta
 an independent test verdict or root cause; original tool status is preserved.
 Final benchmark acceptance still belongs to the external judge.
 
+Turn records retain `turn/start.source` (`human`, `plugin`, or null when its
+start is absent). `turn_errors_by_source` groups the original native errors;
+it does not infer whether a plugin error was caused by shutdown. A human
+prompt can finish normally before a queued background notice starts another
+turn. Keep these native turns separate from the ACP prompt's stop reason and
+the independent benchmark verdict.
+
 Empty unittest, doctest and pytest suites also produce review candidates.
 An exit of zero after running zero tests supplies no validation coverage; it
 does not itself establish an implementation defect. These candidates retain

@@ -200,6 +200,7 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
     wire_measurements, batch_budgets = [], []
     pending_wire = None
     turns = []
+    turn_sources = {}
     findings = []
     usage = Usage()
     current_header = {}
@@ -296,8 +297,12 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
                         {"result": state.get("result"), "status": data.get("status"),
                          "diagnostic": state.get("error"), "pty_output": state.get("output", ""),
                          "pty_truncated": state.get("truncated", False)})
+            elif kind == "turn/start":
+                if type(data.get("turn")) is int and isinstance(data.get("source"), str):
+                    turn_sources[data["turn"]] = data["source"]
             elif kind == "turn/end":
-                turns.append({**ref, "time": last_time, **data})
+                source = turn_sources.get(data.get("turn")) if type(data.get("turn")) is int else None
+                turns.append({**ref, "time": last_time, **data, "source": source})
                 if data.get("error"):
                     findings.append(Finding("turn_error", "error", str(data["error"])[:800], [ref]))
 
@@ -528,6 +533,8 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
             "retained_tool_result_message_bytes": sum(w.get("tool_result_message_bytes", 0) for s in sessions for w in s["wire_measurements"]),
             "batch_budget_misses": sum(b.get("met") is False for s in sessions for b in s["batch_budgets"]),
             **count_calls(all_calls), "turn_errors": sum(bool(t.get("error")) for s in sessions for t in s["turns"]),
+            "turn_errors_by_source": dict(Counter(t.get("source") or "unknown"
+                for s in sessions for t in s["turns"] if t.get("error"))),
             "failed_or_interrupted_attempt_records": sum(s["failed_or_interrupted_attempt_records"] for s in sessions)},
         "tools": [{"name": name, **count_calls(calls)} for name, calls in sorted(tools.items())],
         "duplicates_skipped": duplicates, "sessions": sessions}
@@ -543,6 +550,9 @@ def markdown(report: dict) -> str:
     total = f'{usage["total_tokens"]:,}' if usage["total_tokens"] is not None else f'unknown ({usage["known_total_tokens"]:,} reported)'
     lines = ["# Pero Session summary", "", f'{len(sessions)} sessions; {summary["responses"]} committed responses; '
         f'{summary["tool_calls"]} tool calls / {summary["matched_results"]} matched results.', "",
+        f'Native turn errors: {summary["turn_errors"]}; by source: '
+        f'{json.dumps(summary["turn_errors_by_source"], sort_keys=True)}. '
+        'These are separate from an external benchmark verdict.', "",
         f'Provider-reported total tokens: **{total}**. Uncached input: {usage["input_tokens"]:,}; '
         f'cache read: {usage["cache_read_tokens"]:,}; output: {usage["output_tokens"]:,}.', "",
         f'Explicit tool/process failures: **{summary["failed_calls"]}** '
