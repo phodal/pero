@@ -46,3 +46,30 @@ failed checks with output filters and cleanup. This repair supplies accurate
 facts and guidance; it does not enforce a subprocess's status through an
 arbitrary shell program. The offline Session report preserves those failures
 as review candidates, separately from the independent judge outcome.
+
+## Follow-up: explicit invocation directories and focused validation
+
+The later kth repair repeated `cd python_programs` after a previous Bash call
+had already changed the remembered directory. Execution failed before the
+proposed scratch file was created. DSH's Bash exposes an explicit workdir
+resolved against the Session workspace. Give Pero's Claude Bash the same
+per-invocation choice, using the existing executor's directory admission and
+durable workdir identity. Explicit-directory calls must neither read nor update
+the remembered directory; omitted workdir retains the existing interactive
+behavior. Foreground and background calls need the same rule.
+
+React also spent many calls repairing self-generated expectations and twice
+piped failed tests into tail with outer exit 0. Strengthen capability-scoped
+guidance with concrete status-preservation advice, project-defined checks first,
+bounded reproductions and diagnosis of implementation/environment/oracle before
+retrying. Keep actual shell status intact and do not automatically infer a
+test verdict from arbitrary printed text. Qoder G51/G54 and Qwen are behavior
+references; no third-party prompt body or model-name routing is introduced.
+
+Verification: full Harness Go race tests (35 packages), `go vet ./...` and
+`git diff --check` pass. Foreground cases cover repeated relative/absolute
+workdir, remembered-directory preservation, trusted anchor precedence and
+invalid-directory admission. Background cases verify durable workdir identity
+and exactly one effect. Guidance follows actual declared tools, including
+withdrawal and the TaskOutput/TaskStop prerequisites. These are contract checks;
+model compliance is measured separately in the [live follow-up](../fitness/dsh-native-improvements.md).

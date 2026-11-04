@@ -6,6 +6,9 @@ memory attribution: [Engineering profile](engineering-profile.md).
 Native ACP coding sample, Session usage/failure reports and observed benchmark
 procedure limits: [Coding benchmark](coding-benchmark.md).
 
+Pinned DSH/Pi/Qwen comparison, native tool changes and verification:
+[Native coding follow-up](dsh-native-improvements.md).
+
 AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
 managed execution admission remains planned: [Environments P1](ai4s-environments.md).
 

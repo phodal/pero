@@ -65,7 +65,12 @@ reads without cancelling on a read timeout; `TaskStop` cancels and joins the
 exact owner's task. Completed output survives session reload. A previously
 running process is recorded as interrupted on recovery and is never replayed.
 
-Ordinary Bash calls retain their last observed shell directory. Trusted Go hosts
+Ordinary Bash calls retain their last observed shell directory. Callers can
+choose a directory for individual commands: Bash's optional
+`workdir` resolves relative to the Session workspace, never the remembered
+directory. It applies to foreground and background calls and does not update
+the remembered directory, even if the command uses `cd`. Existing directory
+admission, approval and durable call/workdir identity still apply. Trusted hosts
 can wrap an execution context with `WithSessionWorkingDirectory(ctx)` to run a
 check in the session workspace without reading or changing that persistent
 directory. The exact command, approval policy and execution ownership are kept.
@@ -191,7 +196,12 @@ background-agent residency after parent exit or restart recovery.
 
 `ToolSearch` (`tool_search` in the generic profile) searches current caller-visible
 names/descriptions, returns current input schemas and declaration hashes, and
-paginates within a 32 KiB item budget. It changes no permissions or activation
+picks tools matching all literal keywords first. If no tool matches every word,
+it returns `partial_match: true` with partial matches ranked by keyword coverage,
+then name matches. Unknown exact `select:` names still return no matches;
+aliases are not inferred. Keyword pages default to five tools; exact selection
+defaults to twenty. Both retain their explicit page limit and paginate within
+a 32 KiB item budget. It changes no permissions or activation
 state in the default profile. With `--defer-tool-loading`, only discovery is
 initially declared. Complete search results are durably activated for the next
 request; oversized omitted schemas are not activated. Every declaration and
