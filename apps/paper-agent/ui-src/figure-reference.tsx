@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, Feedback } from '@pero/app-sdk/ui';
-import type { Api } from './types';
+import type { Api, PdfFocus } from './types';
 
 export type FigureReference = {
   archiveDigest: string; memberId: string; memberPath: string; bundleId: string; resourceId: string;
   figures: { texMemberId: string; texPath: string; startLine: number; endLine: number; caption: string }[];
-  preview: null | { previewId: string; paperId: string; documentId: string; page: number };
+  preview: null | (PdfFocus & { previewId: string; paperId: string });
+  pdf: null | (PdfFocus & { paperId: string });
 };
 export type FigureTarget = FigureReference & { token: number };
 

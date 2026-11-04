@@ -252,6 +252,7 @@ export default function PaperAgent() {
   }
   async function revealPdf(paper: Paper, focus: PdfFocus) {
     focusVersion.current++;
+    setFigureTarget(null);
     if (reading?.id !== paper.id) await read(paper, true, true);
     setPdfFocus(focus);
     if (narrow) closeRecords();
@@ -310,8 +311,10 @@ export default function PaperAgent() {
       void (async()=>{
         if(figure){
           const reference=await api.get<FigureReference>(`/api/research/figure-reference/${figure[1]}/${figure[2]}${reading ? `?paperId=${reading.id}` : ''}`);
-          if(reference.preview){
-            await read(await api.get<Paper>(`/api/papers/${reference.preview.paperId}`),false,true);
+          const target=reference.preview ?? reference.pdf;
+          if(target){
+            await read(await api.get<Paper>(`/api/papers/${target.paperId}`),false,true);
+            setPdfFocus(null);
             setFigureTarget({...reference,token:++figureToken.current});
           }else setFigureDialog(reference);
           return;

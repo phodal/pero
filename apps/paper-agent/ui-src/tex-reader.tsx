@@ -96,7 +96,7 @@ export function TexReader({ api, paper, active, openToken, reloadToken = 0, chro
   const working = busy || compilation?.status === 'running';
   const figureFocus = useMemo(() => {
     const target = chrome.figure?.preview;
-    return preview && target?.previewId === preview.id ? { documentId: preview.document.id, page: target.page } : null;
+    return preview && target?.previewId === preview.id ? { documentId: preview.document.id, page: target.page, rects: target.rects } : null;
   }, [chrome.figure?.token, preview?.id]);
   const controls = <div className="pa-tex-controls">{source && <Button className="pa-tex-files-action" variant="ghost" aria-label={copy('files')} title={copy('files')} onClick={() => void files()}><Icon name="file-code" size={14}/></Button>}</div>;
   return <div className="pa-tex-reader" aria-busy={working}>

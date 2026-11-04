@@ -9,7 +9,10 @@ from test_pdf import image_pdf_fixture, pdf_fixture
 from paper_agent.model import Invalid, PaperSnapshot, digest
 from paper_agent.source_archive import SourceArchive
 from paper_agent.source_figures import SourceFigure
-from paper_agent.figure_references import FigureReference
+from paper_agent.figure_references import FigureCaptionLocation, FigureReference
+from paper_agent.tex_preview import TexPreview
+from paper_agent.pdf import PdfDocument
+from paper_agent.pdf_files import PdfFiles
 from paper_agent.source_reading import source_read
 from paper_agent.source_reports import source_report
 from paper_agent.store import ResearchStore
@@ -70,6 +73,7 @@ class SourceFiguresTest(unittest.TestCase):
             self.assertEqual(target['memberPath'], 'figures/ablation.pdf')
             self.assertEqual(target['figures'][0]['startLine'], 3)
             self.assertIsNone(target['preview'])
+            self.assertIsNone(target['pdf'])
             with self.assertRaises(Invalid):
                 FigureReference.parse('0' * 64, reference.member_id).resolve(store)
             with self.assertRaises(Invalid):
@@ -100,6 +104,39 @@ class SourceFiguresTest(unittest.TestCase):
             with self.assertRaisesRegex(Invalid, 'integrity'):
                 source_read(store, image_request)
 
+    def test_figure_navigation_resolves_each_document_independently(self):
+        caption = 'First page. Ablation of two methods.'
+        data = archive_bytes([('main.tex', TEX.replace('Ablation of two methods.', caption).encode()),
+                              ('figures/ablation.pdf', image_pdf_fixture())])
+        with tempfile.TemporaryDirectory() as directory:
+            store = ResearchStore(directory)
+            self.addCleanup(lambda: store.source_downloads.close())
+            selection, _ = bundle(store)
+            store.source_downloads = SourceDownloads(store, SourceTransport(data))
+            store.source_downloads.request(dict(operation='start', **selection))
+            self.assertEqual(finish(store.source_downloads, selection)['status'], 'source_available')
+            paper = PaperSnapshot.from_reading(dict(source='arxiv', sourceId='2610.24806v1', title='Figure navigation',
+                url='https://arxiv.org/abs/2610.24806v1', contentKind='abstract', content='Authored fixture.'), NOW)
+            store.save_paper(paper)
+            pdf_files = PdfFiles()
+            original = pdf_fixture(phrase='Ablation of two methods.')
+            compiled = original.replace(b'/Kids [3 0 R 4 0 R]', b'/Kids [4 0 R 3 0 R]')
+            document = PdfDocument.create(paper.id, digest(original), 'https://arxiv.org/pdf/2610.24806v1', pdf_files.pages(original), NOW)
+            store.save_pdf(document, original)
+            project = source_read(store, dict(operation='figures', paperId=paper.id))['figures'][0]
+            preview_document = PdfDocument.create(paper.id, digest(compiled), 'urn:pero:tex:' + project['archiveDigest'], pdf_files.pages(compiled), NOW)
+            preview = TexPreview('e' * 64, paper.id, selection['bundleId'], selection['resourceId'], project['archiveDigest'],
+                                 project['texMemberId'], 'main.tex', 'fixture', preview_document, '', NOW)
+            store._write('tex-previews', preview.id, preview.to_dict())
+            (store.root / 'tex-preview-files').mkdir()
+            (store.root / 'tex-preview-files' / (preview.id + '.pdf')).write_bytes(compiled)
+            result = FigureReference(project['archiveDigest'], project['memberIds'][0]).resolve(store, paper.id)
+            for key, expected_page, expected_id in (('preview', 2, preview_document.id), ('pdf', 1, document.id)):
+                target = result[key]
+                self.assertEqual((target['page'], target['documentId']), (expected_page, expected_id))
+                self.assertTrue(target['rects'])
+                self.assertTrue(all(0 <= rect['x'] < 1 and 0 <= rect['y'] < 1 for rect in target['rects']))
+
     def test_caption_navigation_requires_one_literal_page(self):
         from types import SimpleNamespace
         from paper_agent.pdf import PdfDocument, PdfPage
@@ -111,6 +148,16 @@ class SourceFiguresTest(unittest.TestCase):
             (('No corresponding caption', 'Other results'), None),
         ):
             document = PdfDocument('doc', 'paper', 'hash', '', tuple(PdfPage(i + 1, 100, 100, t) for i, t in enumerate(text)), '')
-            self.assertEqual(FigureReference.caption_page(document, [SimpleNamespace(caption=caption)]), expected)
+            match = FigureCaptionLocation.match(document, [SimpleNamespace(caption=caption)])
+            self.assertEqual(match.page if match else None, expected)
+            if match:
+                self.assertEqual(document.page(match.page).text[match.start:match.end], caption)
         document = PdfDocument('doc', 'paper', 'hash', '', (PdfPage(1, 100, 100, 'Results of Model: original evidence supports this sufficiently long literal caption.'),), '')
-        self.assertEqual(FigureReference.caption_page(document, [SimpleNamespace(caption=r'Results of \method{}: original evidence supports this sufficiently long literal caption.')]), 1)
+        self.assertEqual(FigureCaptionLocation.match(document, [SimpleNamespace(caption=r'Results of \method{}: original evidence supports this sufficiently long literal caption.')]).page, 1)
+        for text, expected in ((f'Intro\r\n{caption.replace(" ", chr(10))}\r\nEnd', True),
+                               (f'{caption}\n{caption}', False)):
+            document = PdfDocument('doc', 'paper', 'hash', '', (PdfPage(1, 100, 100, text),), '')
+            match = FigureCaptionLocation.match(document, [SimpleNamespace(caption=caption)])
+            self.assertEqual(match is not None, expected)
+            if match:
+                self.assertEqual(''.join(text[match.start:match.end].split()), ''.join(caption.split()))

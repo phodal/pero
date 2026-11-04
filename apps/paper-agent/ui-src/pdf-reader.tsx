@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, Feedback, Icon, Input, Popover, Toolbar } from '@pero/app-sdk/ui';
+import { useAppI18n } from '@pero/app-sdk';
 import { createPluginRegistration } from '@embedpdf/core';
 import { EmbedPDF, useStoreState } from '@embedpdf/core/react';
 import { usePdfiumEngine } from '@embedpdf/engines/react';
@@ -18,7 +19,7 @@ import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
 import { loadReaderState, persistedSelection, saveReaderState, type PdfReaderState } from './reader-state';
 import { TexReader } from './tex-reader';
-import type { FigureTarget } from './figure-reference';
+import { FigureSourceDialog, type FigureTarget } from './figure-reference';
 
 type ReadingView = 'text' | 'pdf' | 'tex' | 'original';
 
@@ -30,25 +31,37 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   onMatrixAdded(): Promise<void>;
   sourceUrl?: string; openToken?: number;
 }) {
+  const { t: copy } = useAppI18n({
+    unmatched: { zh: '未找到此图片在当前文档中的唯一位置。', en: 'No unique location for this figure in this document.' },
+    source: { zh: '查看图片与源码', en: 'View figure and source' },
+  });
+  const [figureSourceOpen, setFigureSourceOpen] = useState(false);
+  const figurePdf = chrome.figure?.pdf?.paperId === paper.id ? chrome.figure.pdf : null;
+  const pdfFocus = focus ?? figurePdf;
+  const figureView = chrome.figure?.preview?.paperId === paper.id ? 'tex' : figurePdf ? 'pdf' : null;
   const [reading, setReading] = useState<PdfReading>({ document: null, annotations: [] });
   const pdfLoadEpoch = useRef(0);
   const [lookupAttempt, setLookupAttempt] = useState(0);
   const [mode, setMode] = useState<ReadingView>('text'), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [visitedTex, setVisitedTex] = useState(false);
-  useEffect(() => { if (chrome.figure?.preview?.paperId === paper.id) { setVisitedTex(true); setMode('tex'); } }, [chrome.figure?.token]);
+  useEffect(() => {
+    setFigureSourceOpen(false);
+    if (chrome.figure?.preview?.paperId === paper.id) { setVisitedTex(true); setMode(current => current === 'pdf' && figurePdf ? 'pdf' : 'tex'); }
+    else if (figurePdf) setMode('pdf');
+  }, [chrome.figure?.token]);
   useEffect(() => {
     if (lockText) return;
     // Clearing a citation reveal is reader input, not a document switch.
     // Retain the mounted viewer, including its current page and selection.
-    if (reading.document && (!focus || reading.document.id === focus.documentId)) return;
+    if (reading.document && (!pdfFocus || reading.document.id === pdfFocus.documentId)) return;
     let alive = true; const version = ++pdfLoadEpoch.current;
-    setReading({ document: null, annotations: [] }); setMode(chrome.figure?.preview?.paperId === paper.id ? 'tex' : 'text'); setError('');
+    setReading({ document: null, annotations: [] }); setMode(figureView ?? 'text'); setError('');
     setBusy(!!paper.pdfUrl);
-    api.get<PdfReading>(focus ? `/api/pdf/${focus.documentId}` : `/api/pdf?paperId=${paper.id}`).then(value => {
-      if (alive && version === pdfLoadEpoch.current) { setReading(value); if (value.document) setMode(chrome.figure?.preview?.paperId === paper.id ? 'tex' : focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf'); }
+    api.get<PdfReading>(pdfFocus ? `/api/pdf/${pdfFocus.documentId}` : `/api/pdf?paperId=${paper.id}`).then(value => {
+      if (alive && version === pdfLoadEpoch.current) { setReading(value); if (value.document) setMode(figureView ?? (focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf')); }
     }).catch(e => { if (alive && version === pdfLoadEpoch.current) setError(String(e.message ?? e)); }).finally(() => { if (alive && version === pdfLoadEpoch.current) setBusy(false); });
     return () => { alive = false; };
-  }, [api, paper.id, focus?.documentId, lockText, lookupAttempt, chrome.figure?.token]);
+  }, [api, paper.id, pdfFocus?.documentId, lockText, lookupAttempt, chrome.figure?.token]);
   // Export may attach a PDF to a metadata paper. Refresh that missing document
   // only; existing PDF/Read views and annotations keep their mounted owners.
   const seenPdfReload = useRef(pdfReloadToken);
@@ -88,12 +101,14 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     {busy && <p className="pa-loading" role="status">{t('loading')}</p>}
     <div className="pa-reader-views" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', flex: 1, minHeight: 0, minWidth: 0 }}>
       {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%', visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
-        <PdfViewer chrome={{ ...chrome, toolbar: view === 'pdf' ? chrome.toolbar : null }} active={view === 'pdf'} readLabel={textLabel} onText={() => setMode('text')} key={`${reading.document.id}:${reading.document.fileDigest}`} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/>
+        <PdfViewer chrome={{ ...chrome, toolbar: view === 'pdf' ? chrome.toolbar : null }} active={view === 'pdf'} readLabel={textLabel} onText={() => setMode('text')} key={`${reading.document.id}:${reading.document.fileDigest}`} document={reading.document} annotations={reading.annotations} api={api} focus={pdfFocus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/>
       </div>}
       <div className="pa-text-view-slot" aria-hidden={view !== 'text'} inert={view !== 'text'} style={{ gridArea: '1 / 1', display: view === 'text' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%' }}>{children}</div>
       {visitedTex && <div className="pa-tex-view-slot" aria-hidden={view !== 'tex'} inert={view !== 'tex'} style={{ gridArea: '1 / 1', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%', visibility: view === 'tex' ? 'visible' : 'hidden' }}><TexReader api={api} paper={paper} active={view === 'tex'} openToken={openToken} reloadToken={pdfReloadToken} chrome={chrome} t={t}/></div>}
       {view === 'original' && originalUrl?.startsWith('https://') && <section className="pa-original-view" style={{ gridArea: '1 / 1', minHeight: 0, height: '100%' }} aria-label={t('readerOriginal')}><div className="pa-original-location"><a href={originalUrl} target="_blank" rel="noreferrer"><Icon name="external-link"/>{originalUrl}</a></div><iframe title={t('readerOriginal')} src={originalUrl} sandbox="allow-same-origin allow-popups" referrerPolicy="no-referrer"/></section>}
     </div>
+    {chrome.figure && ((view === 'pdf' && !figurePdf) || (view === 'tex' && !chrome.figure.preview)) && <Feedback kind="status"><span>{copy('unmatched')}</span><Button onClick={() => setFigureSourceOpen(true)}>{copy('source')}</Button></Feedback>}
+    {figureSourceOpen && chrome.figure && <FigureSourceDialog api={api} reference={chrome.figure} onClose={() => setFigureSourceOpen(false)}/>}
   </div>;
 }
 
@@ -246,6 +261,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     return () => window.document.removeEventListener('copy', copy);
   }, []);
   useEffect(() => {
+    if (!active) { appliedFocus.current = null; return; }
     if (!scrollCapability || !focus || focus.documentId !== document.id) return;
     const apply = () => {
       if (appliedFocus.current === focus || !scrollCapability.forDocument(documentId).getMetrics().pageVisibilityMetrics.length) return;
@@ -256,7 +272,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     };
     if (layoutReady.current) apply();
     return scrollCapability.onLayoutReady(event => { if (event.documentId === documentId) apply(); });
-  }, [scrollCapability, focus, document.id, documentId]);
+  }, [active, scrollCapability, focus, document.id, documentId]);
   async function save(value: Record<string, unknown>) {
     setBusy(true); setError(''); setStatus('');
     try {
