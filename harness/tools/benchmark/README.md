@@ -71,7 +71,9 @@ The default protocol is fixed:
 
 - The four named exercises use their original docs, API skeletons and tests.
   Only README and solution skeletons enter the agent workspace. Official tests
-  and reference implementations stay in separate judge directories.
+  and reference implementations stay in separate judge directories. Each
+  workspace is an unrelated temporary directory; its parent contains no judge
+  or reference. Its exact location is retained in `*/validation.json`.
 - Thinking is disabled; sampling stays at the provider default. Each exercise
   shares a 64-request budget across its main/child requests and both attempts,
   with 8,192 maximum output tokens per request, a 900-second Session timeout,
@@ -85,7 +87,9 @@ The default protocol is fixed:
   shutdown do not pass, even when some files were written.
 - Success requires the entire exercise to pass; the two counters are first-pass
   and final-pass exercise counts. The source prompt and judging rules are
-  unchanged from the original local benchmark runner.
+  preserved, with successful acceptance now explicitly requiring a nonempty
+  suite and no skips. Unit tests exercise actual passing, failing, erroneous,
+  empty and skipped unittest suites.
 
 Each run retains metadata, binary/runner hashes, a runner source snapshot,
 baseline/reference validation, frozen attempts, diffs, raw Session records,
@@ -94,7 +98,7 @@ diagnostics after cleanup. These diagnostics do not alter the independent
 judge's verdict. The runner snapshot records provenance; rerun the tracked
 script from the matching Pero checkout to retain its sibling dependencies.
 
-## Verified preparation
+## Initial verified preparation
 
 On 2026-11-04, equivalent eager/defer preparations were executed from a temporary directory
 against benchmark commit `7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f`, with
@@ -122,3 +126,10 @@ The wrapper, judge and preparation functions remained identical to the source
 runner, and all prompt/configuration strings in the agent path were preserved.
 The relocated reporter was also exercised offline against one existing Zipper
 Session and retained its 11 tool calls.
+
+A later same-day preparation rechecked all four tasks with the stricter
+nonempty/unskipped acceptance and unrelated temporary workspaces. All 91
+reference tests still passed and every skeleton failed. Each workspace held
+only its skeleton and README; exact paths are retained in validation records.
+This closes the observed adjacent-judge exposure, while OS isolation remains
+outside this runner's current execution policy.

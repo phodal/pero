@@ -17,6 +17,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 BENCHMARK_COMMIT = "7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f"
@@ -99,8 +100,7 @@ def prepare(options, task: str) -> dict:
     skeleton = {name: (source / name).read_bytes() for name in manifest["solution"]}
     reference = dict(zip(manifest["solution"], ((source / name).read_bytes() for name in manifest["example"])))
     directory = options.output / task
-    workspace = directory / "workspace"
-    workspace.mkdir(parents=True)
+    workspace = Path(tempfile.mkdtemp(prefix="pero-polyglot-workspace-")).resolve()
     for name, content in skeleton.items():
         (workspace / name).write_bytes(content)
     documents = [source / ".docs" / name for name in ("introduction.md", "instructions.md", "instructions.append.md")]
@@ -111,7 +111,8 @@ def prepare(options, task: str) -> dict:
     (workspace / "README.md").write_text(readme)
     baseline = judge(source, skeleton, manifest["test"], directory / "judge-baseline")
     reference_result = judge(source, reference, manifest["test"], directory / "judge-reference")
-    save(directory / "validation.json", {"baseline": baseline, "reference": reference_result})
+    save(directory / "validation.json", {"baseline": baseline, "reference": reference_result,
+                                         "workspace": str(workspace)})
     if baseline["passed"] or not reference_result["passed"]:
         raise RuntimeError("judge validation failed for " + task)
     return {"name": task, "source": source, "directory": directory, "workspace": workspace,
@@ -258,7 +259,8 @@ def main() -> None:
         "plugin": "neutral manifest only; no business skills, hooks, or workflow",
         "defer_tool_loading": options.defer_tool_loading,
         "scoring": "whole exercise passes every official unittest; at most one same-session repair using test output",
-        "workspace": "solution skeleton and official docs only; judge and reference outside model workspace",
+        "workspace": "solution skeleton and official docs only; unrelated temporary workspace, no adjacent judge/reference",
+        "isolation": "no OS sandbox; separate directories do not enforce filesystem or network isolation",
         "created_at": datetime.now(timezone.utc).isoformat(), "prepare_only": options.prepare_only}
     save(options.output / "metadata.json", metadata)
     prepared = [prepare(options, task) for task in tasks]
