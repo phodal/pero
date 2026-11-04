@@ -94,6 +94,15 @@ export async function exerciseImageOnly({ frame, page, profile, out }) {
 export async function reopenImageOnly({ frame, page, profile, out, saved }) {
   await backToLibrary(frame);
   await libraryRow(frame, saved.paper.title).locator('.pero-list-open').dblclick();
+  // The first journey deliberately finishes in Read. Restore that preference
+  // before explicitly reopening the raster PDF; a hidden PDF is not a render failure.
+  const reader = frame.getByRole('article', { name: saved.paper.title, exact: true });
+  await expect(reader).toHaveAttribute('data-paper-id', saved.paper.id);
+  await expect(frame.getByRole('region', { name: 'PDF reader', exact: true, includeHidden: true })).toBeAttached({ timeout: 30000 });
+  await expect(frame.locator('.pa-reader-tools').getByRole('button', { name: 'Read', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(reader.locator('.pa-source-text')).toHaveText(saved.paper.content);
+  await expect(reader.locator('.pa-saved-heading')).toContainText('Abstract');
+  await frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(frame.getByRole('region', { name: 'PDF reader', exact: true }).locator('img,canvas').first()).toBeVisible({ timeout: 30000 });
   expect((await api(frame, `/api/pdf?paperId=${saved.paper.id}`)).document).toEqual(saved.document);
   expect((await status(frame, saved)).receipt).toEqual(saved.receipt);
