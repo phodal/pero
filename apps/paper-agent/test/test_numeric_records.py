@@ -285,6 +285,56 @@ class NumericRecordsHttpTests(unittest.TestCase):
             self.assertEqual(accepted['evidence'][0]['rawText'], '-1')
             self.assertEqual(accepted['evidence'][0]['value'], -1)
 
+    def test_agent_proposals_bind_source_and_cannot_assert_review(self):
+        original = pdf_fixture(phrase='Synthetic accuracy 12.5 percent for model A test mean')
+        with tempfile.TemporaryDirectory() as directory, serve(directory) as address:
+            paper = self.request(address, 'POST', '/api/pdf/import?filename=synthetic-agent-proposal.pdf', original, 201)
+            pdf = self.request(address, 'GET', '/api/pdf?paperId=' + paper['id'])['document']
+            selection = dict(documentId=pdf['id'], fileDigest=pdf['fileDigest'], page=1,
+                             kind='figure', rects=[dict(x=0, y=0, width=1, height=1)])
+            figure = self.request(address, 'POST', '/api/annotations', selection, 201)
+            other = self.request(address, 'POST', '/api/annotations',
+                dict(selection, rects=[dict(x=0, y=0, width=.5, height=1)]), 201)
+            observed = self.request(address, 'POST', '/api/numeric/extract', dict(annotationId=figure['id']), 201)
+            base = dict(annotationId=figure['id'], extractionId=observed['id'])
+            claimed = dict(candidate('caption', 12.5, True), method='native_text',
+                           previousId='f' * 64, extractionId='f' * 64)
+            saved = self.request(address, 'POST', '/api/numeric/propose', dict(base, evidence=[claimed]), 201)
+            item = saved['evidence'][0]
+            self.assertEqual(item['extractionId'], observed['id'])
+            self.assertEqual(item['value'], 12.5)
+            for key in ('semanticConfirmed', 'unitConfirmed', 'transcriptionConfirmed', 'seriesReliable', 'directionReliable'):
+                self.assertFalse(item[key])
+            self.assertIsNone(item['reviewer'])
+            self.assertIsNone(item['reason'])
+            self.assertIsNone(item['previousId'])
+            self.assertEqual(saved['assessment']['status'], 'needs_review')
+            self.request(address, 'POST', '/api/numeric/freeze', dict(assessmentId=saved['id']), 409)
+            self.request(address, 'POST', '/api/numeric/propose',
+                         dict(base, annotationId=other['id'], evidence=[claimed]), 409)
+            self.request(address, 'POST', '/api/numeric/propose',
+                         dict(annotationId=figure['id'], evidence=[claimed]), 400)
+            self.request(address, 'POST', '/api/numeric/propose',
+                         dict(base, evidence=[dict(claimed, rawText='9876', value=9876)]), 400)
+            self.request(address, 'POST', '/api/numeric/propose',
+                         dict(base, evidence=[dict(claimed, method='manual')]), 400)
+            unknown = dict(claimed, identity=dict(metric='accuracy', condition='', series='', statistic='', unit=''))
+            unresolved = self.request(address, 'POST', '/api/numeric/propose', dict(base, evidence=[unknown]), 201)
+            self.assertEqual(unresolved['evidence'][0]['identity']['unit'], '')
+            self.assertIn('semantic_identity_missing', unresolved['assessment']['issues'])
+            self.assertIn('unit_missing', unresolved['assessment']['issues'])
+            axes = candidate('figure', 12.5, True)
+            axes['method'] = 'pixel_calibration'
+            chart = self.request(address, 'POST', '/api/numeric/propose', dict(base, evidence=[axes]), 201)
+            axis = chart['evidence'][-1]['axis']
+            for key in ('scaleConfirmed', 'transcriptionConfirmed', 'unitConfirmed', 'multiplierConfirmed'):
+                self.assertFalse(axis[key])
+            self.request(address, 'POST', '/api/numeric/freeze', dict(assessmentId=chart['id']), 409)
+            # Proposal remains a saved result, retrievable via the existing Agent read tool.
+            reopened = self.request(address, 'POST', '/api/numeric/read',
+                                    dict(operation='list', annotationId=figure['id']))
+            self.assertIn(saved, reopened['assessments'])
+
     def test_known_conflicts_cannot_be_omitted_or_newly_frozen(self):
         with tempfile.TemporaryDirectory() as directory, serve(directory) as address:
             paper = self.request(address, 'POST', '/api/pdf/import?filename=synthetic-known-history.pdf', scan_fixture(), 201)

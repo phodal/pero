@@ -92,6 +92,35 @@ class NumericRecords:
                 known.extend(NumericEvidence.parse(item) for item in row['evidence'])
         return tuple(known)
 
+    def propose(self, value, now):
+        """Agent proposals never carry review authority, corrections or acceptance."""
+        value = mapping(value, 'numeric proposal')
+        extraction_id = value.get('extractionId')
+        if not extraction_id:
+            raise Invalid('Read the selected region before proposing values')
+        extraction = self.store._read('numeric-extractions', extraction_id)
+        if extraction['annotationId'] != value.get('annotationId'):
+            raise Invalid('Extraction belongs to another selected figure', 409)
+        proposed = []
+        for item in sequence(value.get('evidence'), 32, 'numeric proposals'):
+            item = mapping(item, 'numeric proposal')
+            if item.get('method') not in ('native_text', 'ocr', 'visual', 'pixel_calibration'):
+                raise Invalid('Agent proposals cannot assert manual review')
+            # Allowlist content, not caller-supplied review flags or old revisions.
+            candidate = {key: item.get(key) for key in
+                         ('identity', 'sourceKind', 'method', 'rawText', 'value')}
+            candidate.update(role='paper_reported', engine='agent_proposal',
+                             engineVersion='unspecified', extractionId=extraction_id)
+            if item.get('axis') is not None:
+                axis = mapping(item['axis'], 'proposed axis')
+                candidate['axis'] = {key: axis[key] for key in
+                                     ('ticks', 'scale', 'multiplier', 'pixel') if key in axis}
+            proposed.append(candidate)
+        if not proposed:
+            raise Invalid('No candidate values were proposed; keep the source unresolved')
+        return self.assess(dict(annotationId=value.get('annotationId'),
+                                extractionId=extraction_id, evidence=proposed), now)
+
     def assess(self, value, now):
         value = mapping(value, 'numeric assessment')
         annotation, document, anchor = self.selection(value.get('annotationId'))

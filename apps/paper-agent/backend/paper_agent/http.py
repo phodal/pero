@@ -229,6 +229,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         return self.reply(201, numeric.extract(data, now()))
                     if path == '/api/numeric/layout':
                         return self.reply(201, numeric.layout(data, now()))
+                    if path == '/api/numeric/propose':
+                        return self.reply(201, numeric.propose(data, now()))
                     if path == '/api/numeric/assess':
                         return self.reply(201, numeric.assess(data, now()))
                     if path == '/api/numeric/freeze':

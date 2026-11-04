@@ -26,7 +26,13 @@ class QuantityIdentity:
     @classmethod
     def parse(cls, value):
         value = mapping(value, 'quantity identity')
-        return cls(*(text(value.get(k), 1000, k) for k in ('metric', 'condition', 'series', 'statistic', 'unit')))
+        fields = []
+        for key in ('metric', 'condition', 'series', 'statistic', 'unit'):
+            field = value.get(key, '')
+            if not isinstance(field, str) or len(field) > 1000:
+                raise Invalid(f'Invalid {key}')
+            fields.append(field.strip())
+        return cls(*fields)
 
     def to_dict(self):
         return dict(metric=self.metric, condition=self.condition, series=self.series,
@@ -99,6 +105,10 @@ class NumericEvidence:
         issues = list(self.issues)
         if self.role == 'reproduction_output':
             issues.append('reproduction_output_not_reference')
+        if not all((self.identity.metric, self.identity.condition, self.identity.series, self.identity.statistic)):
+            issues.append('semantic_identity_missing')
+        if not self.identity.unit:
+            issues.append('unit_missing')
         if not self.semantic_confirmed:
             issues.append('semantic_identity_unconfirmed')
         if not self.unit_confirmed:

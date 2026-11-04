@@ -24,6 +24,8 @@ class NumericEvidenceTest(unittest.TestCase):
     def test_admission_table(self):
         cases = [({}, 'numeric_ready', None),
                  ({'semanticConfirmed': False}, 'needs_review', 'semantic_identity_unconfirmed'),
+                 ({'identity': dict(observation()['identity'], metric='')}, 'needs_review', 'semantic_identity_missing'),
+                 ({'identity': dict(observation()['identity'], unit='')}, 'needs_review', 'unit_missing'),
                  ({'unitConfirmed': False}, 'needs_review', 'unit_unconfirmed'),
                  ({'transcriptionConfirmed': False}, 'needs_review', 'transcription_unconfirmed'),
                  ({'method': 'ocr', 'recognitionScore': .999, 'reviewer': None, 'reason': None}, 'needs_review', 'explicit_review_required'),
