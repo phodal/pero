@@ -4,6 +4,10 @@ For existing-program repair rather than implementation from a skeleton, see the
 separate [QuixBugs sample](quixbugs.md). Both use the same ACP execution,
 submission snapshots, failure-feedback round and offline Session report.
 
+For additional repository and terminal task suites, see
+[benchmark candidates and Harbor ACP integration](../../../docs/fitness/coding-benchmark-candidates.md).
+That research is separate from the runnable samples in this directory.
+
 Run four fixed Python exercises through the existing Pero ACP trial client:
 `forth`, `react`, `rest-api` and `zipper`. This is a small integration sample,
 not a full Aider leaderboard result. The runner uses Python's standard library

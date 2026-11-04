@@ -12,6 +12,9 @@ Pinned DSH/Pi/Qwen comparison, native tool changes and verification:
 Deferred discovery, output budgets, continuation cursors and Session boundary
 measurements: [Tool-call efficiency](tool-call-efficiency.md).
 
+Further task suites, Harbor ACP integration and current execution prerequisites:
+[Coding benchmark candidates](coding-benchmark-candidates.md).
+
 AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
 managed execution admission remains planned: [Environments P1](ai4s-environments.md).
 
