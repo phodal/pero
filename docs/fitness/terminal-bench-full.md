@@ -84,6 +84,13 @@ tokens, not an invoice. Full-01/full-02 QEMU attempts and the user-stopped cappe
 full-03 cohort remain separate from the new score and are included in a separate
 all-attempt usage report. Earlier single-task smoke is excluded from that total.
 
+Verifier execution stages are also reported separately from raw rewards. The
+C4 trial receives raw zero after a network-dependent fixture setup error;
+its official functional assertion is unavailable. Independent failed candidate
+self-tests remain recorded. Completion of all 89 attempts and raw verdicts must
+not be described as 89 completed functional verifications. See the source-bound
+[fixture classification evidence](../issues/2026-11-05-benchmark-verifier-fixture-classification.md).
+
 A later timestamp audit finds continued ACP activity after Harbor's agent
 timeout in the COBOL trial. Its raw reward 1 is not a proven deadline snapshot.
 Timeout trials without observed late activity also lack termination receipts.

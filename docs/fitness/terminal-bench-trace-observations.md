@@ -91,6 +91,22 @@ and artifact `analysis-pypi-service-lifetime.json`.
 
 ## Sanitizer correctness and verifier assumptions
 
+`reshard-c4-data` has raw reward zero with two independent failure layers.
+Its last self-test (seq 28168) fails with `FileNotFoundError` and unequal output
+files. The next provider request ends with a generic stream transport error;
+the underlying transport cause is unrecorded. There are 75 HTTP attempts and
+74 committed responses, totaling 2,533,077 recorded tokens. The unfinished
+request has unknown usage.
+
+The official test then errors during fixture setup: Hugging Face network/TLS
+requests fail, and held-out shard 00009 has no cache. Functional assertions
+never run, although CTRF maps the error to one failed test. This does not make
+the candidate correct or change its raw zero reward. Source-bound evidence is
+in `analysis-c4-verifier-setup.json`; both final exports now expose verifier
+stages separately. The actual 51-completed-stdout control finds 50 ordinary
+pytest summaries and this one setup error. See
+[the reporting issue](../issues/2026-11-05-benchmark-verifier-fixture-classification.md).
+
 `configure-git-webserver` has a separate login-fixture assumption. The instruction
 uses `user@server` and says the operator will arrange login. The candidate
 configures the literal `user` account and reports its own successful real-SSH
