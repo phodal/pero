@@ -163,6 +163,13 @@ class RuntimeTrial(unittest.TestCase):
         self.assertIsNone(result["cost_usd"])
         self.assertEqual(result["pattern_artifacts"], {"reports/one.md": 1, "reports/two.md": 1})
         self.assertEqual(result["interactions"][0]["answers"], {"Choose format": "Markdown"})
+        self.assertEqual(result["trace_summary"]["status"], "complete", result["trace_summary"])
+        trace = json.loads((Path(result["trace_summary"]["output"]) / "summary.json").read_text())
+        self.assertEqual(trace["summary"]["responses"], 5)
+        self.assertEqual(trace["summary"]["usage"]["input_tokens"], result["usage"]["input_tokens"])
+        self.assertEqual(trace["summary"]["usage"]["unreported_completions"], 3)
+        self.assertIsNone(trace["summary"]["usage"]["total_tokens"])
+        self.assertEqual(trace["summary"]["tool_calls"], sum(result["tool_summary"].values()))
         self.assert_reclaimed(result)
 
     def test_jsonl_unicode_separators_preserve_output_and_usage(self):
@@ -291,9 +298,22 @@ class RuntimeTrial(unittest.TestCase):
                 self.assert_reclaimed(result)
 
     def test_close_error_and_nonzero_exit_fail_after_artifact_and_reclaim_job(self):
-        hooks = self.plugin / "hooks/hooks.json"
-        hooks.parent.mkdir()
-        hooks.write_text(json.dumps({"hooks": {"SessionEnd": [{"hooks": [{"type": "command", "command": "printf '{'"}]}]}}))
+        # Hook failures normally continue. Inject actual ACP/process failures
+        # while letting the real agent own and reclaim the background job.
+        binary = self.root / "close-failure-agent"
+        binary.write_text("#!" + sys.executable + "\n" +
+                          "import json, subprocess, sys\n" +
+                          "child = subprocess.Popen([" + repr(str(self.binary)) + ", *sys.argv[1:]], stdin=subprocess.PIPE, text=True)\n" +
+                          "for line in sys.stdin:\n" +
+                          "    frame = json.loads(line)\n" +
+                          "    if frame.get('method') == 'session/close':\n" +
+                          "        frame['params']['sessionId'] = 'intentionally-unknown-session'\n" +
+                          "    child.stdin.write(json.dumps(frame) + '\\n')\n" +
+                          "    child.stdin.flush()\n" +
+                          "child.stdin.close()\n" +
+                          "child.wait()\n" +
+                          "sys.exit(1)\n")
+        binary.chmod(0o700)
         pid_path = self.root / "background.pid"
         calls = []
         def dispatch(request):
@@ -310,7 +330,7 @@ class RuntimeTrial(unittest.TestCase):
             return [answer()]
         with provider(dispatch) as endpoint:
             result = run_pipeline(self.config(endpoint, success_patterns=["report.md"], max_continuations=0,
-                                              enable_shell=True, shell_policy="allow-unsandboxed"))
+                                              enable_shell=True, shell_policy="allow-unsandboxed", agent_binary=str(binary)))
         receipt = result["sessions"][0]
         self.assertFalse(result["pipeline_complete"], result)
         self.assertFalse(receipt["success"])

@@ -145,6 +145,13 @@ remain available.
 The private journal records tool names/inputs and text previews, not hidden
 reasoning. Keep trial records under the operator's own data policy.
 
+After pipeline cleanup, the runner also generates an offline
+[Session report](../session_report/README.md) in `<records>/trace-summary` and
+returns its status and location as `trace_summary`. It includes recorded token
+usage, failed tool/process calls, interrupted tasks and heuristic zero-exit
+validation signals. Report diagnostics remain separate from the trial's artifact
+acceptance. The report can optionally be rendered by Better Harness Inspector.
+
 ## Optional package migration
 
 `migrate_plugin.py --root /absolute/plugin --check` preflights the anonymous

@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import subprocess
 import sys
 import time
 import uuid
@@ -173,6 +174,17 @@ def run_pipeline(config: TrialConfig) -> dict:
     output.update(duration_ms=output["total_duration_ms"], success=complete, events=event_count,
                   continuations=sum(item.continuations for item in receipts), journal_path=str(aggregate), tool_summary=tools,
                   interactions=[asdict(interaction) for item in receipts for interaction in item.interactions])
+    # The report consumes committed native Sessions after process cleanup. Its
+    # diagnostics are additive and do not replace the artifact acceptance verdict.
+    reporter = Path(__file__).resolve().parents[1] / "session_report/report.py"
+    report_directory = records / "trace-summary"
+    try:
+        report_result = subprocess.run([sys.executable, str(reporter), str(records), "--output", str(report_directory)],
+                                       capture_output=True, text=True)
+        output["trace_summary"] = ({"status": "complete", **json.loads(report_result.stdout)} if report_result.returncode == 0
+                                   else {"status": "error", "output": str(report_directory), "diagnostic": report_result.stderr[-1000:]})
+    except (OSError, ValueError, TypeError) as error:
+        output["trace_summary"] = {"status": "error", "output": str(report_directory), "diagnostic": str(error)[-1000:]}
     return output
 
 
