@@ -108,6 +108,15 @@ explicit host selection: background commands have no execution deadline,
 including after promotion. The runtime never guesses this mode from a TTY.
 Owner interruption, TaskStop and runtime shutdown still cancel and join jobs.
 
+`run_in_background` creates a managed job whose process lifetime ends when its
+agent/session closes. A durable task ID preserves lookup and audit, not a
+persistent server. Foreground shell suffixes such as `nohup ... &` do not change
+process ownership. A requested service that must remain after ACP exit needs an
+environment-owned service manager or daemon with an independent lifetime; check
+that lifetime as part of service acceptance. The completed Terminal-Bench
+`pypi-server` trace demonstrates HTTP 200 during the turn followed by exact-task
+termination on session close and a failed later installation.
+
 `BASH_DEFAULT_TIMEOUT_MS` raises the foreground and background defaults;
 `BASH_MAX_TIMEOUT_MS` raises their ceilings. Lower nonnegative values keep the
 defaults, and each ceiling is at least its default. A default above two hours

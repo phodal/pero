@@ -77,6 +77,18 @@ malfunction. Source hashes and final native seq/line evidence for these three
 cases are in `analysis-normal-end-followup.json`. Reference/setup inspection is
 post-run analysis; no task-specific answers are added to runtime prompts.
 
+`pypi-server` exposes a process-lifetime mismatch. Its wheel and source installs
+pass in the agent's own checks; seq 2407 observes HTTP 200. After the normal
+turn ends, seq 3032 records the exact managed server task terminated with
+`aborted: true` and `context canceled`. The official later install cannot
+connect. Managed Bash jobs end with their agent/session; a durable task ID does
+not establish an independently persistent service. The current declaration now
+states that lifetime and points requested persistent services to an environment
+service manager or daemon. Original reward zero remains unchanged; a separate
+current-code acceptance is pending. See
+[the guidance issue](../issues/2026-11-05-background-service-lifetime-guidance.md)
+and artifact `analysis-pypi-service-lifetime.json`.
+
 ## Sanitizer correctness and verifier assumptions
 
 `configure-git-webserver` has a separate login-fixture assumption. The instruction
