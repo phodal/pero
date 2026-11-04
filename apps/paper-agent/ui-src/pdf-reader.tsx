@@ -149,7 +149,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   const { provides: zoom, state: zoomState } = useZoom(documentId);
   const { provides: selection } = useSelectionCapability(), { provides: capture, state: captureState } = useCapture(documentId);
   const selectionState = useStoreState()?.plugins.selection as SelectionState | undefined;
-  const [hasSelection, setHasSelection] = useState(false), [note, setNote] = useState(''), [busy, setBusy] = useState(false);
+  const [hasSelection, setHasSelection] = useState(false), [selecting, setSelecting] = useState(false), [note, setNote] = useState(''), [busy, setBusy] = useState(false);
   const selectedText = useRef('');
   useEffect(() => {
     if (!active) return;
@@ -179,15 +179,21 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     let alive = true, revision = 0;
     const update = (value: unknown) => {
       const current = ++revision;
-      setHasSelection(!!value); selectedText.current = '';
+      setHasSelection(!!value);
+      if (!value) setSelecting(false);
+      selectedText.current = '';
       if (!value) return;
       void scope.getSelectedText().toPromise().then(parts => {
         if (alive && current === revision) selectedText.current = parts.join('\n');
       }).catch(() => { if (alive && current === revision) selectedText.current = ''; });
     };
     const stop = scope.onSelectionChange(update);
+    // The selection bar is in normal flow. Mounting it on the first pointer
+    // move shifts the page and the rest of the drag misses the line.
+    const stopBegin = scope.onBeginSelection(() => setSelecting(true));
+    const stopEnd = scope.onEndSelection(() => setSelecting(false));
     update(scope.getState().selection);
-    return () => { alive = false; stop(); };
+    return () => { alive = false; stop(); stopBegin(); stopEnd(); };
   }, [selection, documentId]);
 
   const activeNow = useRef(active), focusNow = useRef(focus), restored = useRef(false), stateReady = useRef(false);
@@ -377,7 +383,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button role="menuitem" onClick={() => { setMenu(null); chrome.onSave(); }}>{t('downloadPaper')}</Button>
       <Button role="menuitem" onClick={() => { setMenu(null); onText(); }}>{readLabel}</Button>
     </div>}
-    {active && hasSelection && (!readOnly || onDiscuss) && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') discardSelection(); }}>{!readOnly && <Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/>}<div className="pa-pdf-selection-actions">{!readOnly && <Button className="pa-pdf-selection-save" variant="ghost" disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>}{onDiscuss && <Button variant="ghost" disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button className="pa-pdf-selection-close" variant="ghost" onClick={() => discardSelection()}>{t('close')}</Button></div></div>}
+    {active && hasSelection && !selecting && (!readOnly || onDiscuss) && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') discardSelection(); }}>{!readOnly && <Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/>}<div className="pa-pdf-selection-actions">{!readOnly && <Button className="pa-pdf-selection-save" variant="ghost" disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>}{onDiscuss && <Button variant="ghost" disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button className="pa-pdf-selection-close" variant="ghost" onClick={() => discardSelection()}>{t('close')}</Button></div></div>}
     {error && <Feedback kind="error">{error}<Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback>}
     {(busy || status) && <div role="status" className="pa-pdf-status">{busy ? t('pdfSaving') : status}</div>}
     <div className="pa-pdf-body" data-notes={notes}>
