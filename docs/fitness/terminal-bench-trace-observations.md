@@ -190,3 +190,29 @@ A separate receipt scans that supplementary report for the configured credential
 without printing it. Five Read calls target `/tmp` files outside `/app` and get
 a misleading plugin-only error. The denial and authority remain correct; see
 [the diagnostic repair](../issues/2026-11-05-read-scratch-scope-diagnostic.md).
+
+## Separate unlimited-step DNA correction
+
+The frozen strict binary runs `dna-assembly` for its official 1,800-second agent
+limit. It records 444 completed responses, 63,590,889 tokens and 22 explicit
+failed calls; the result remains raw zero. Its official test fails because
+`/app/primers.fasta` is absent. The exact-process SIGTERM receipt confirms the
+agent is stopped before verification, and the timing audit reports no late
+agent activity. This is an output-completion failure after a separately recorded
+correction, not another hidden step-cap stop. The original 512-response result
+and its hashes remain unchanged. Source-bound analysis is
+`strict-timeout-followup/dna-early-analysis.json`; full-suite completion and
+aggregate comparison remain unavailable.
+
+The paired Scheme correction runs for its official 2,400-second agent limit
+and reaches 686 committed responses, exceeding the former 512 ceiling. It
+records 96,524,616 tokens and nine explicit failed calls. Its aggregate official
+test still fails with `failed == 62`. Exact-process termination is confirmed
+before verification, with no late response, call or result observed. This is a
+remaining evaluator-correctness failure; cap removal does not establish a task
+success improvement. `strict-timeout-followup/scheme-early-analysis.json` binds
+the sources. The separate `early-results/` Inspector contains both corrections
+(1,130 responses, 160,115,505 recorded tokens, 31 explicit failed calls), labeled
+as two corrections while the full 89-task suite remains unfinished. Its Scheme
+view is visually checked: 686 model calls, 96.5M processed tokens, 99.8% input reuse
+and context occupancy unavailable. These metrics do not imply cost or capacity.

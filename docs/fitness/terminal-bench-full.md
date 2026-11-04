@@ -81,6 +81,14 @@ but then fails downloading the unchanged official uv installer asset. This is
 not a successful candidate verification. See
 [the bootstrap issue](../issues/2026-11-05-terminal-bench-legacy-debian-bootstrap.md).
 
+A later separate v2 control repairs signed Debian archive access and GitHub
+resolution inside a disposable container. Its exact generated ACP dependency
+command imports successfully; the unchanged official verifier then runs and
+produces CTRF (one expected failure on the unsolved bare image). This is runner
+startup evidence, not candidate acceptance. Both QEMU cases are added to the
+queued corrected follow-ups. The frozen v1 setup and original verdicts remain
+unchanged, and the v2 GitHub mapping never changes host or VM DNS settings.
+
 Official test reward, Harbor's reward-validity classification and agent stop
 reason remain separate. Usage counts committed provider records once, including
 cache reads; interrupted/unreported usage remains unknown. These are recorded
@@ -176,3 +184,22 @@ and [native turn-source attribution](../issues/2026-11-04-session-turn-error-att
 They do not retroactively change benchmark submissions or rewards. The latter
 preserves a normal human turn followed by a plugin-notice error during ACP
 shutdown; this attribution does not establish a lifecycle root-cause fix.
+
+## Separate cached corrections completed
+
+The two cached step-limit corrections finish with raw zero at the official
+1,800/2,400-second deadlines: 444 DNA and 686 Scheme responses. Both have exact
+termination receipts before verifier startup and no observed late activity.
+The original 59 unique task results stay intact; these are two additional
+attempts, not 61 completed tasks. Source hashes, usage, failed calls and a
+visually checked Better Harness report live in
+`strict-timeout-followup/early-results/`. The remaining 30 original slots are
+still blocked on uncached images.
+
+The finite registry controller now resumes readiness checks without model
+calls. After successful official-image pull, it admits the remaining task job.
+After the full baseline, queued strict/legacy-bootstrap corrections and the
+independent service acceptance finish, `verify_after_service.py` runs final
+integrity checks and failure triage before writing `FINAL-SUMMARY.md`. None of
+those full-suite completion files exist at this partial checkpoint. Registry
+wait expiry records an incomplete pipeline and stops only an idle dedicated VM.

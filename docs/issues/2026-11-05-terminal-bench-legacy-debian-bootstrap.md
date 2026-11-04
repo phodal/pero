@@ -63,3 +63,26 @@ is produced. The outer script's exit zero is not a passed verification.
 `debian-archive-control/` retains the command, copied official-test hashes and
 full control log. No archived source, baseline container, frozen adapter or
 selected result is changed; an archive-enabled rerun has not been launched.
+
+A later read-only pinned-address control reaches the exact official uv 0.9.5
+asset from both host and guest with ordinary TLS (HTTP 200). A new disposable
+archive control uses that GitHub-only address mapping inside its container;
+benchmark VMs, original trials and frozen setup adapters remain unchanged.
+Its functional runner outcome is recorded separately before any actual rerun.
+
+The GitHub-address archive control executes the unchanged official verifier and
+produces CTRF: one failed test in 0.12 seconds on the intentionally unsolved bare
+image. This proves runner startup, not candidate correctness. There are zero
+provider requests. Freeze a separate v2 adapter combining the archive setup and
+container-only GitHub mapping; verify its exact generated ACP dependency command
+and the unchanged official verifier together before any real follow-up. Retain
+the original v1 adapter and both raw-zero candidate results unchanged.
+
+The exact v2-generated dependency command now passes in another fresh official
+image: the ACP runner imports under Python 3.12, then the unchanged official
+verifier installs its pinned Python/pytest environment and executes its one
+functional test. The unsolved control image fails that test in 0.11 seconds as
+expected. `debian-bootstrap-v2-control/freeze.json` binds nine supporting files;
+all nine original v1 freeze entries remain unchanged. TLS and APT signatures
+remain enabled. Actual QEMU candidate reruns are still pending after baseline
+completion; they are explicitly included in the queued correction selection.

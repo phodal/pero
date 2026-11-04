@@ -58,3 +58,15 @@ separate Harbor job and result hashes. Pause registry-job admission until both
 finish; do not exceed two concurrent trials. Final corrected selection includes
 these results once and selects any additional affected cases after all 89
 baseline slots finish. The baseline and full-suite completion guard stay intact.
+
+## First real unlimited-step results
+
+Both cached corrections complete at their official agent deadlines with raw
+zero. DNA records 444 responses with the 1,800-second agent timeout and lacks the
+required output file. Scheme records 686 responses with the 2,400-second agent
+timeout and fails its aggregate
+functional check (`failed == 62`). Both exact owned agents receive SIGTERM and
+are confirmed stopped before their verifiers start; timing audits observe no
+late responses, calls or returns. Actual container binary hashes match the
+frozen unlimited binary. The raw original hashes remain intact. This validates
+cap removal and termination on these runs, not correctness or general gains.

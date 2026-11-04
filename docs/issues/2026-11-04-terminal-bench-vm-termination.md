@@ -96,3 +96,12 @@ checks normal guest TLS, then pulls an unchanged official image before admitting
 that job. It leaves default Docker settings and other VMs untouched. Full-suite
 completion and strict corrections remain gated on all 89 actual-started raw
 verdicts; the current checkpoint is partial.
+
+A later alternative DoH control retrieves eight fresh AWS registry addresses
+and both Docker auth addresses. All fail ordinary host and guest TLS in the
+same bounded control. No new address is installed. This shows that replacing
+the stale pinned registry address alone does not restore current connectivity;
+it does not identify the underlying network cause. GitHub's API remains usable,
+so two signed source commits are pushed through exact blob/tree/commit API
+uploads after Git HTTPS fails. Both local commit hashes and GPG signatures are
+preserved, with a non-forced ref update and verified remote head.
