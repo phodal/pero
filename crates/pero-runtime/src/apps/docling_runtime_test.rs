@@ -666,7 +666,8 @@ fn software_confirmation_describes_only_the_selected_fixed_profile() {
             assert!(summary.contains(detail), "{detail} missing from {summary}");
         }
         if profile == Profile::MacArm {
-            assert!(summary.contains("not been runtime-tested on a Mac"));
+            assert!(summary.contains("hosted macOS 26 arm64 runner"));
+            assert!(summary.contains("Desktop confirmation and interaction remain unverified"));
             assert!(!summary.contains("download.pytorch.org"));
         }
     }

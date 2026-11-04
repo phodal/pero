@@ -323,7 +323,7 @@ function OptionalDoclingRuntime({ api, onChanged }: { api: Api; onChanged(): voi
     unsupported: { zh: '此运行环境无法使用固定的自动安装配置。仍可查看原图和人工核对。', en: 'This runtime cannot use the pinned automatic installation profile. Source inspection and manual review remain available.' },
     profile: { zh: '软件和模型分别请求 Host 原生确认，不会自动下载。', en: 'Software and models each request native Host confirmation; no automatic downloads.' },
     linuxProfile: { zh: 'Linux x86_64，CPython 3.12，CPU。需已有 Tesseract English。', en: 'Linux x86_64, CPython 3.12, CPU. Requires existing Tesseract English.' },
-    macProfile: { zh: 'macOS 14+，原生 Apple Silicon，CPython 3.12，CPU / Apple Vision。无需安装 Homebrew 或 Tesseract。本版本尚未完成 Mac 实机验收。', en: 'macOS 14+, native Apple Silicon, CPython 3.12, CPU / Apple Vision. No Homebrew or Tesseract installation. This release has not been verified on a Mac.' },
+    macProfile: { zh: 'macOS 14+，原生 Apple Silicon，CPython 3.12，CPU / Apple Vision。无需安装 Homebrew 或 Tesseract。安装与 OCR 已在托管 macOS 26 arm64 验证，桌面确认与交互仍待验收。', en: 'macOS 14+, native Apple Silicon, CPython 3.12, CPU / Apple Vision. No Homebrew or Tesseract installation. Installation and OCR passed on hosted macOS 26 arm64; desktop confirmation and interaction remain unverified.' },
     software: { zh: '软件', en: 'Software' }, model: { zh: '模型', en: 'Model' }, missing: { zh: '未安装', en: 'Not installed' }, ready: { zh: '就绪', en: 'Ready' },
     installSoftware: { zh: '安装软件…', en: 'Install software…' }, installModel: { zh: '下载模型…', en: 'Download model…' },
     repairSoftware: { zh: '检查/修复软件…', en: 'Check/repair software…' }, repairModel: { zh: '检查/修复模型…', en: 'Check/repair model…' },

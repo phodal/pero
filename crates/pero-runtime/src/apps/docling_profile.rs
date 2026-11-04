@@ -74,7 +74,7 @@ impl Profile {
     pub fn validation(self) -> &'static str {
         match self {
             Self::LinuxX86 => "linux-runtime-tested",
-            Self::MacArm => "macos-runtime-not-tested",
+            Self::MacArm => "macos-hosted-runtime-tested",
         }
     }
     pub fn requirements(self) -> &'static str {
@@ -101,7 +101,7 @@ impl Profile {
         match self {
             Self::LinuxX86 => "Tesseract with English data must already be installed.",
             Self::MacArm => {
-                "OCR uses Apple's built-in Vision through pinned ocrmac/PyObjC wheels. No Homebrew or Tesseract installation is performed. This profile has not been runtime-tested on a Mac."
+                "OCR uses Apple's built-in Vision through pinned ocrmac/PyObjC wheels. No Homebrew or Tesseract installation is performed. Installation and OCR passed on a hosted macOS 26 arm64 runner. Desktop confirmation and interaction remain unverified."
             }
         }
     }
