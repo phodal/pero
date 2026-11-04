@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: active
+status: resolved
 date: 2026-11-04
 ---
 
@@ -25,10 +25,31 @@ The amd64 executable under QEMU instead aborts with `close of synctest channel
 from outside bubble`, both normally and with `GODEBUG=asyncpreemptoff=1`.
 Disabling preemption is therefore not an established workaround.
 
-Preserve the interrupted cohort in local analysis artifacts at
-`reports/coding-benchmark-2026-11-04/terminal-bench2-full-01/`. The next cohort
-will retain official amd64 images and use a static native Linux arm64 agent;
-the arm64 kernel can execute that agent while binfmt runs image commands.
-Record this mixed architecture explicitly and validate its ACP/tool lifecycle
-before continuing. Do not combine infrastructure aborts with model scores
-or overwrite them with later attempts. The precise QEMU/Go cause remains open.
+A separate 9-line program using only `fmt`, `runtime`, and `sync` repeatedly
+creates, closes and receives from fresh channels in eight goroutines. Under
+the same image, its amd64 build incorrectly panics `close of closed channel`;
+its arm64 build completes successfully. Neither binary imports Pero or its
+dependencies. This isolates the failure from Pero's tool registry; it does
+not distinguish a Go code-generation bug from an emulator bug.
+
+The intermediate cohort with a native arm64 agent avoided that abort, but
+the amd64 Chrome verifier could not start under QEMU. The official oracle also
+failed with `SessionNotCreatedException`, establishing an independent verifier
+environment failure. Its three completed model trajectories and two cancelled
+tasks remain preserved in `terminal-bench2-full-02/`; no aggregate model score
+is claimed for that interrupted cohort.
+
+## Resolution for benchmark execution
+
+Use a dedicated Colima VZ profile with Rosetta enabled and qemu-x86_64 disabled.
+The original amd64 binary's standalone channel probe and the deferred-tool
+tests repeated 20 times pass there. The same browser task's unchanged official
+oracle and verifier pass 1/1 with reward 1, without skips. This resolves the
+benchmark execution blocker without production code or prompt changes; the
+precise QEMU/Go cause remains open.
+
+The full 89-task cohort uses official amd64 images and the original clean
+amd64 binary in `terminal-bench2-full-03/`. The two interrupted cohorts remain
+separate evidence, including failures and cancelled tasks. Record emulator,
+image digests, source and binary hashes rather than treating a reward-zero
+verifier startup failure as a model implementation failure.
