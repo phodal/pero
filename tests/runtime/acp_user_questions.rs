@@ -32,6 +32,7 @@ impl Fixture {
             ],
             env: BTreeMap::from([("PERO_QUESTIONS_SCENARIO".into(), scenario.into())]),
             model: None,
+            session_instructions: String::new(),
             mcp_servers: vec![],
         };
         let (tx, events) = mpsc::channel();
