@@ -2,7 +2,7 @@
 import { ensureDesignTokens } from '../tokens/ensure-tokens.mjs';
 export const selectStyles = `
 .pero-select{display:inline-flex;min-width:0;max-width:100%;vertical-align:middle}
-.pero-select .pero-select-trigger{display:flex;align-items:center;justify-content:space-between;gap:var(--pero-space-4, 8px);box-sizing:border-box;width:100%;min-width:0;min-height:var(--pero-size-control, 30px);padding:var(--pero-space-2, 4px) var(--pero-space-4, 8px);border:var(--pero-border-width-thin, 1px) solid var(--pero-select-border,var(--pero-border-control,#d9dce2));border-radius:7px;background:var(--pero-select-bg,var(--pero-surface,#fff));color:var(--pero-select-ink,var(--pero-text,#202124));font:inherit;font-size:var(--pero-font-size-md, 13px);text-align:left;cursor:pointer;-webkit-app-region:no-drag}
+.pero-select .pero-select-trigger{display:flex;align-items:center;justify-content:space-between;gap:var(--pero-space-4, 8px);box-sizing:border-box;width:100%;min-width:0;min-height:var(--pero-size-hit-min, 24px);padding:1px 8px;border:var(--pero-border-width-thin, 1px) solid var(--pero-select-border,var(--pero-border-control,#d9dce2));border-radius:var(--pero-radius-xs, 4px);background:var(--pero-select-bg,var(--pero-surface,#fff));color:var(--pero-select-ink,var(--pero-text,#202124));font:inherit;font-size:var(--pero-font-size-md, 13px);text-align:left;cursor:pointer;-webkit-app-region:no-drag}
 .pero-select-trigger>.pero-select-value{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pero-select-trigger svg,.pero-select-trailing{flex:none}
 .pero-select-trailing{display:inline-flex;align-items:center}

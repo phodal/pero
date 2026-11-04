@@ -159,10 +159,7 @@ model ReaderFrame {
 model Badge { label: string; }
 model OutlineBadge { label: string; }
 
-model EmptyState {
-  heading: string;
-  caption?: string;
-}
+// Empty states and action buttons are SDK controls (`EmptyState`, `Button`), not chrome models.
 
 model SettingsGroup { label?: string; }
 
@@ -171,11 +168,6 @@ model SettingsRow {
   label: string;
   caption?: string;
   actions: "actions";
-}
-
-model ActionButton {
-  label: string;
-  kind: "primary" | "ghost";
 }
 
 model SearchField { placeholder?: string; }

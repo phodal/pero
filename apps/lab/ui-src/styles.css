@@ -7,10 +7,7 @@ button, input, select, textarea { font: inherit; }
 .lab h2 { font-size: 14px; margin: 0 0 8px; font-weight: 600; }
 .lab p { margin: 8px 0; }
 .lab .pero-ui-glyph { flex: none; }
-.lab .pero-ui-button:not([data-variant=unstyled]) { min-height: 24px; padding: 1px 8px; border-radius: 4px; line-height: 20px; }
-.lab .pero-ui-button.icon-button { width: 24px; padding: 2px; flex: none; }
-.lab .pero-ui-button[data-variant=primary] { background: var(--pero-action); border-color: var(--pero-action); color: var(--pero-on-action); }
-.lab .pero-ui-button[data-variant=primary]:hover:not(:disabled) { background: var(--pero-action-hover); }
+.lab .pero-ui-button.icon-button { width: 24px; padding: 0; flex: none; }
 .lab input, .lab select, .lab textarea { min-width: 0; max-width: 100%; min-height: 24px; padding: 1px 8px; border: 1px solid var(--pero-input-border); border-radius: 4px; color: var(--pero-text); background: var(--pero-surface); line-height: 20px; }
 .lab select { text-overflow: ellipsis; }
 .lab input:disabled, .lab select:disabled, .lab textarea:disabled { color: var(--pero-disabled-text); background: var(--pero-disabled); }

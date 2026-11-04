@@ -3,22 +3,22 @@ body { margin:0; font:var(--pero-font-ui,14px)/1.4 system-ui; color:var(--pero-t
 .scientific-viewer { padding:12px; min-height:100vh; height:100vh; display:flex; flex-direction:column; gap:12px; }
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 h2 { font-size:18px; font-weight:600; margin:0 0 12px; }
-button, select, input, textarea, summary { font:inherit; color:inherit; }
-button, select, input, textarea { background:var(--pero-surface,#fff); border:1px solid var(--pero-input-border,#748599); border-radius:4px; padding:1px 8px; min-height:24px; line-height:1.4; }
-button, summary { cursor:pointer; }
-button { margin:0; }
-button:not(:disabled):hover { background:var(--pero-surface-muted,#eef3f8); }
-button:disabled, select:disabled { opacity:.5; cursor:default; }
+button:not(.pero-ui-button), select, input, textarea, summary { font:inherit; color:inherit; }
+button:not(.pero-ui-button), select, input, textarea { background:var(--pero-surface,#fff); border:1px solid var(--pero-input-border,#748599); border-radius:4px; padding:1px 8px; min-height:24px; line-height:1.4; }
+button:not(.pero-ui-button), summary { cursor:pointer; }
+button:not(.pero-ui-button) { margin:0; }
+button:not(.pero-ui-button):not(:disabled):hover { background:var(--pero-surface-muted,#eef3f8); }
+button:not(.pero-ui-button):disabled, select:disabled { opacity:.5; cursor:default; }
 :focus-visible { outline:2px solid var(--pero-focus,#007f86); outline-offset:2px; }
 [aria-current=true], [aria-pressed=true] { border-color:var(--pero-focus,#007f86); }
-.button-primary { display:inline-flex; align-items:center; justify-content:center; gap:6px; color:var(--pero-on-action,#fff); background:var(--pero-action,#007f86); border-color:var(--pero-action,#007f86); }
-.button-primary:not(:disabled):hover { background:var(--pero-action-hover,#00666d); }
-.button-danger { color:var(--pero-error,#b54445); }
 .viewer-toolbar, .viewer-actions, nav, .source-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .viewer-toolbar { position:relative; flex:none; border-bottom:.5px solid var(--pero-border,#dce4ed); padding-bottom:12px; }
-.file-select { width:240px; max-width:100%; min-width:120px; font-weight:600; }
+.file-select { width:240px; max-width:100%; min-width:120px; }
+.file-select .pero-select-trigger { font-weight:600; }
+.example-select { width:auto; max-width:180px; }
+.example-select .pero-select-trigger { width:auto; }
 .viewer-actions { margin-left:auto; }
-.viewer-actions select { max-width:180px; }
+.viewer-actions .example-select { max-width:180px; }
 .viewer-tabs { gap:0; border-bottom:.5px solid var(--pero-border,#dce4ed); }
 .viewer-tabs button { min-height:30px; padding:3px 12px; border:0; border-bottom:2px solid transparent; border-radius:0; color:var(--pero-text-muted,#596b7d); }
 .viewer-tabs button[aria-pressed=true] { border-bottom-color:var(--pero-action,#007f86); color:var(--pero-text,#172536); font-weight:600; }
@@ -49,5 +49,5 @@ svg,img,canvas { max-width:100%; }
 .preview-empty h2, .preview-empty p { margin:0; }
 .metadata-preview pre { padding:12px; background:var(--pero-bg,#f7f9fc); border-radius:4px; }
 .molecule-view { position:relative; height:calc(100vh - 130px); min-height:320px; }
-@media(max-width:700px) { .viewer-toolbar { gap:8px; } .viewer-actions { width:100%; margin-left:0; } .file-select { width:auto; max-width:100%; } .viewer-actions select { min-width:0; flex:1; } }
+@media(max-width:700px) { .viewer-toolbar { gap:8px; } .viewer-actions { width:100%; margin-left:0; } .file-select { width:auto; max-width:100%; } .viewer-actions .example-select { min-width:0; flex:1; max-width:none; } }
 @media(prefers-reduced-motion:reduce) { .scientific-viewer *, .scientific-viewer *::before, .scientific-viewer *::after { scroll-behavior:auto; animation:none; transition:none; } }

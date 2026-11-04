@@ -158,20 +158,20 @@ export function PaperList({ papers, sort, onSort, selected, previewId, locked, s
   const rows = papers;
   return <div className="pa-library-table">
     <div className="pa-library-toolbar">
-      <label className="pa-filter-control"><Icon name="filter" size={15}/>
-        <select aria-label={t('readingStatus')} value={shelfFilter} onChange={event => { if (isShelfFilter(event.target.value)) onShelfFilter(event.target.value); }}>
-          <option value="all">{t('allStatuses')}</option>
-          <option value="reading">{t('statusReading')}</option>
-          <option value="to-read">{t('statusToRead')}</option>
-          <option value="reviewed">{t('statusReviewed')}</option>
-        </select>
-      </label>
-      <label className="pa-sort-control">
-        <select aria-label={t('searchOrder')} value={sort} onChange={event => onSort(event.target.value === 'title' ? 'title' : 'recent')}>
-          <option value="recent">{t('recentlyAdded')}</option>
-          <option value="title">{t('titleSort')}</option>
-        </select>
-      </label>
+      <div className="pa-filter-control"><Icon name="filter" size={15}/>
+        <Select label={t('readingStatus')} value={shelfFilter} onChange={value => { if (isShelfFilter(value)) onShelfFilter(value); }} options={[
+          { value: 'all', label: t('allStatuses') },
+          { value: 'reading', label: t('statusReading') },
+          { value: 'to-read', label: t('statusToRead') },
+          { value: 'reviewed', label: t('statusReviewed') },
+        ]}/>
+      </div>
+      <div className="pa-sort-control">
+        <Select label={t('searchOrder')} value={sort} onChange={value => onSort(value === 'title' ? 'title' : 'recent')} options={[
+          { value: 'recent', label: t('recentlyAdded') },
+          { value: 'title', label: t('titleSort') },
+        ]}/>
+      </div>
     </div>
     <div className="pa-library-head" aria-hidden="true"><span>{t('paperColumn')}</span><span>{t('source')}</span><span>{t('readingStatus')}</span></div>
     <ul className="pa-library-list">{rows.map(paper => {

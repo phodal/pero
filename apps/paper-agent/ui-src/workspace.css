@@ -230,19 +230,18 @@
 
 .pa-sort-control { margin-inline-start: auto; }
 
-.pa-library-toolbar select {
+.pa-library-toolbar .pero-select { width: auto; max-inline-size: 100%; }
+
+.pa-library-toolbar .pero-select-trigger {
+  width: auto;
   font: inherit;
   font-size: max(12px, 1em);
   color: var(--pero-text-muted);
   background: transparent;
   border: 0;
   min-block-size: 24px;
+  min-height: 24px;
   max-inline-size: 100%;
-}
-
-.pa-library-toolbar select:focus-visible {
-  outline: 2px solid var(--pero-focus);
-  outline-offset: 2px;
 }
 
 .pa-library-table {

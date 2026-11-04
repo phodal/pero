@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { Button, EmptyState, Icon, Split, SplitPane } from '@pero/app-sdk/ui';
+import { Button, EmptyState, Icon, LibraryHeader, Select, Split, SplitPane } from '@pero/app-sdk/ui';
 import { addedText, contentKind, PaperList, paperSource } from './library';
 import { LibrarySearch } from './library-search';
-import { cycleStatus, statusOf, type Shelf, type ShelfFilter, type ShelfStatus } from './shelf';
+import { cycleStatus, isShelfStatus, statusOf, type Shelf, type ShelfFilter, type ShelfStatus } from './shelf';
 import type { Api, LocalSearchHit, Paper } from './types';
 import type { Translator } from './i18n';
 
@@ -27,7 +27,7 @@ export function LibraryPapers({ api, papers, shelf, filter, loading, savingId, a
   }
   return <Split storageKey="paper-agent.library-preview" collapseBelow={940} className="pa-library-papers">
     <SplitPane id="paper-library-list" min={360} className="pa-library-list-pane">
-      <header className="pa-library-heading"><div><h1>{t(title)}</h1><span>{rows.length} {t('sourcesCount')}</span></div><div className="pa-actions"><Button variant="ghost" aria-label={t('refresh')} onClick={onRefresh}><Icon name="refresh" size={15}/></Button><Button variant="primary" onClick={onImport}><Icon name="plus" size={15}/>{t('add')}</Button></div></header>
+      <LibraryHeader className="pa-library-heading" title={t(title)} subtitle={`${rows.length} ${t('sourcesCount')}`} actions={<><Button variant="ghost" aria-label={t('refresh')} onClick={onRefresh}><Icon name="refresh" size={15}/></Button><Button variant="primary" onClick={onImport}><Icon name="plus" size={15}/>{t('add')}</Button></>}/>
       {loading ? <p role="status">{t('loading')}</p> : <LibrarySearch api={api} t={t} activeHitId={activeHitId} onOpen={onSearchHit} onQueryChange={setQuery} onFind={onFind}>
         {!papers.length ? <EmptyState heading={t('emptyLibrary')} description={t('emptyLibraryCopy')}/> : <>
           <PaperList papers={rows} sort={sort} onSort={setSort} selected={selectedIds} previewId={paper?.id ?? ''} locked={locked} shelf={shelf} shelfFilter={filter} onShelfFilter={onFilter}
@@ -41,9 +41,9 @@ export function LibraryPapers({ api, papers, shelf, filter, loading, savingId, a
       <section ref={inspector} tabIndex={-1} className="pa-paper-inspector" aria-label={t('paperDetails')}>
         <h2>{paper.title}</h2>
         {!!paper.authors.length && <p className="pa-inspector-authors">{paper.authors.join(', ')}</p>}
-        <div className="pa-inspector-state"><select aria-label={t('readingStatus')} value={statusOf(shelf, paper.id)} onChange={event => onStatus(paper.id, event.target.value as ShelfStatus)}>
-          <option value="to-read">{t('statusToRead')}</option><option value="reading">{t('statusReading')}</option><option value="reviewed">{t('statusReviewed')}</option>
-        </select><span>{contentKind(paper, t)}</span></div>
+        <div className="pa-inspector-state"><Select label={t('readingStatus')} value={statusOf(shelf, paper.id)} onChange={value => { if (isShelfStatus(value)) onStatus(paper.id, value); }} options={[
+          { value: 'to-read', label: t('statusToRead') }, { value: 'reading', label: t('statusReading') }, { value: 'reviewed', label: t('statusReviewed') },
+        ]}/><span>{contentKind(paper, t)}</span></div>
         <Button variant="primary" className="pa-inspector-read" onClick={() => onRead(paper)}><Icon name="skill" size={15}/>{t(statusOf(shelf, paper.id) === 'to-read' ? 'read' : 'continueReading')}<Icon name="arrow" size={14}/></Button>
         <dl>
           <dt>{t('source')}</dt><dd>{paperSource(paper, t)}</dd>

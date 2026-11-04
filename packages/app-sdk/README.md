@@ -37,6 +37,39 @@ App 界面、Agent 对象与宿主交互的公共契约。App 使用自己的 Re
 两个或更多并排面板使用 `Split` / `SplitPane`；一个 pane 不指定 size，其余 pane
 给出 size 和 min。storageKey 保存在 App 自己的存储中；窄窗口通过 collapseBelow 堆叠。
 
+## 组件分层
+
+`/ui` 是自有样式的控件库。不另开包，也不使用 Tailwind、`cva` 或 `cn()`。颜色、
+字号和行高来自仓库的色彩规范和 `spec/pero-design/design.tsp`。样式使用
+`--pero-*` 与 `data-variant`，由 `ensureUiStyles` 写入 App 自己的 document。
+
+行为原语只在状态机难写、且已经有真实用法时引入：
+
+- Radix：Checkbox、Switch、RadioGroup、Tabs、ToggleGroup、DropdownMenu、
+  ContextMenu，以及 Button、Toolbar、Card 的 `Slot`。键盘和 ARIA 归原语，外观归 SDK。
+- React Aria：TreeView、FileTree、TimeField。
+- 自有实现：Dialog 使用原生 `<dialog>`，保留顶层、焦点归还和表单提交。Select
+  是带搜索、分组、缩进、footer 和原生 `name` 的受控列表。Popover 把主题变量拷进
+  portal 所在 document。这三项不迁到 Radix。
+
+复合组件只在组合本身是 API 时使用：`Tabs.*`、`DropdownMenu.*`、`ContextMenu.*`。
+单一交互使用封闭 props：`Button`、`Select`、`Dialog`。主操作和次操作是 `Button`
+的 `primary` 与 `ghost`。空状态只有 `EmptyState`，包含 heading、description 和 actions。
+
+控件在 `packages/app-sdk/src/components`，一个概念一个文件。工作台 chrome 在
+`packages/pero-design`，由 `/ui` 再导出：SidebarRow、ListRow、LibraryHeader、
+ReaderFrame、SearchField、SettingsGroup、SettingsRow、Badge、Composer。
+`PageHeader` / `AppBar` 是 App 内的紧凑行；`LibraryHeader` 是栏目标题、副标题和
+尾部操作。两者密度不同，不合并。
+
+这套控件就是 App 的设计系统。14px 界面下，按钮、输入和选择器高 24px，标签高 30px，
+圆角使用 `--pero-radius-xs`，主操作使用 `--pero-action`。App 使用这些控件，不再为
+同一控件另写高度、圆角或主色。领域布局、阅读排版和科学图形留在各自的 App。
+
+PDF、TeX、发现、证据和研究包仍是领域画面。不按目录补 ScrollArea、Sheet、Command、
+Calendar、Sonner、NavigationMenu、Slider。宿主通知、`Split`、`Disclosure` 和
+`Feedback` 已经覆盖对应任务。
+
 ## 代码、高亮与差异
 
 `CodeViewer` 是只读源码视图：行号、搜索、折叠、定位、选中行、语法高亮和

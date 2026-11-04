@@ -129,21 +129,6 @@
   font: var(--pero-font-label) system-ui, sans-serif;
 }
 
-.pero-ui-empty {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: var(--pero-space-2);
-  max-width: 36rem;
-  margin-inline: auto;
-  padding: var(--pero-space-6);
-  border: 0;
-  background: transparent;
-  color: var(--pero-text);
-}
-.pero-ui-empty strong { font: 600 var(--pero-font-heading)/1.35 system-ui, sans-serif; }
-.pero-ui-empty p { margin: 0; font: var(--pero-font-caption)/1.45 system-ui, sans-serif; color: var(--pero-text-muted); }
-
 .pero-settings { min-width: 0; color: var(--pero-text); }
 .pero-settings-label { margin: 0 0 var(--pero-space-2); font: 500 var(--pero-font-label)/1.3 system-ui, sans-serif; color: var(--pero-text-muted); }
 .pero-settings-panel { border-radius: var(--pero-radius-panel); background: var(--pero-material-reading); overflow: hidden; }
@@ -157,23 +142,6 @@
   padding: var(--pero-space-2) var(--pero-space-4);
 }
 
-.pero-action {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--pero-icon-gap);
-  height: var(--pero-action-button-height);
-  padding: 0 var(--pero-action-button-padding);
-  border: 0;
-  border-radius: var(--pero-radius-button);
-  background: var(--pero-role-action);
-  color: var(--pero-role-on-action);
-  font: 500 var(--pero-font-body)/1.2 system-ui, sans-serif;
-  cursor: pointer;
-}
-.pero-action[data-kind="ghost"] { background: transparent; color: var(--pero-role-text); }
-.pero-action[data-kind="ghost"]:hover:not(:disabled) { background: var(--pero-fill-hover); }
 .pero-search-field {
   box-sizing: border-box;
   width: 100%;
@@ -320,5 +288,5 @@
 
 @media (forced-colors: active) {
   .pero-sidebar-row[aria-current="page"], .pero-list-row[data-current="true"] { background: Highlight; color: HighlightText; }
-  .pero-ui-empty, .pero-badge-outline, .pero-settings-panel, .pero-composer-field { border: 1px solid CanvasText; }
+  .pero-badge-outline, .pero-settings-panel, .pero-composer-field { border: 1px solid CanvasText; }
 }
