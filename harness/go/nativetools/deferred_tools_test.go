@@ -108,7 +108,7 @@ func TestDeferredToolsWireDiscoveryWithdrawalAndRediscovery(t *testing.T) {
 	search := []string{"ToolSearch"}
 	loaded := []string{"ToolSearch", "deferred_probe"}
 	adapter, calls := deferredWireProvider(t, []deferredWireStep{
-		{search, "ToolSearch+deferred_probe", `{"query":"deferred_unique_probe"}`},
+		{search, "ToolSearch+deferred_probe", `{"query":"select:deferred_probe"}`},
 		{loaded, "deferred_probe", `{"value":"observed"}`},
 		{loaded, "", ""},
 		{search, "", ""}, // Withdrawn.
@@ -179,6 +179,72 @@ func TestDeferredToolsWireDiscoveryWithdrawalAndRediscovery(t *testing.T) {
 	prompt()
 	if calls.Load() != 9 {
 		t.Fatalf("provider calls=%d", calls.Load())
+	}
+}
+
+func TestDeferredToolsSearchRecoveryAndBatchSelection(t *testing.T) {
+	search, loaded := []string{"ToolSearch"}, []string{"Read", "ToolSearch", "Write"}
+	adapter, calls := deferredWireProvider(t, []deferredWireStep{
+		{search, "ToolSearch", `{"query":"files terminal list read write"}`},
+		{search, "ToolSearch", `{"query":"read file contents"}`},
+		{search, "ToolSearch", `{"query":"select:Read,Write"}`},
+		{loaded, "Read", `{"file_path":"sample.txt"}`},
+		{loaded, "", ""},
+	})
+	f := newClaudeFixture(t, Options{DeferToolLoading: true}, adapter)
+	agent, err := f.harness.Agents().Create(t.Context(), harness.AgentOptions{ID: "selection-agent", CWD: f.root, Provider: "fixture", Model: "text"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(f.root, "sample.txt"), []byte("selection read evidence\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agent.Prompt(t.Context(), harness.Message{Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "read sample.txt"}}}); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, event := range agent.Session().Events() {
+		if event.Type != "tool/result" {
+			continue
+		}
+		var result harness.ContentBlock
+		if err := json.Unmarshal(event.Data, &result); err != nil {
+			t.Fatal(err)
+		}
+		for _, block := range result.Content {
+			found = found || strings.Contains(block.Text, "selection read evidence")
+		}
+	}
+	if !found || calls.Load() != 5 {
+		t.Fatalf("batch selection did not reach actual Read: found=%v requests=%d", found, calls.Load())
+	}
+}
+
+func TestDeferredToolsOmittedSelectionDoesNotActivate(t *testing.T) {
+	f := newClaudeFixture(t, Options{DeferToolLoading: true})
+	var executions atomic.Int32
+	_, err := f.harness.RegisterTool(t.Context(), "oversized-probe", harness.Tool{
+		Schema: harness.ToolSchema{Name: "oversized_probe", Description: "oversized discovery probe",
+			InputSchema: json.RawMessage(`{"type":"object","description":"` + strings.Repeat("x", 40000) + `"}`)},
+		Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+			executions.Add(1)
+			return harness.ToolResult{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := f.call(t, f.allowed, "ToolSearch", map[string]any{"query": "select:oversized_probe"})
+	var parsed toolSearchResult
+	if result.IsError || json.Unmarshal([]byte(result.Content[0].Text), &parsed) != nil || len(parsed.Tools) != 1 {
+		t.Fatal(result)
+	}
+	if !parsed.Tools[0].SchemaOmitted || parsed.Tools[0].Activated || !strings.Contains(parsed.Notice, "no tools were activated") {
+		t.Fatalf("omitted selection claimed activation: %+v", parsed)
+	}
+	out, err := f.harness.Tools().Execute(t.Context(), harness.ToolRequest{Agent: f.allowed, Name: "oversized_probe", CallID: "omitted", Arguments: json.RawMessage(`{}`)})
+	if err == nil && !out.Result.IsError || executions.Load() != 0 {
+		t.Fatalf("omitted schema dispatched: %+v %v", out, err)
 	}
 }
 

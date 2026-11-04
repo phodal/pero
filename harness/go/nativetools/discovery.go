@@ -33,11 +33,13 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 	if claude {
 		name = "ToolSearch"
 	}
-	description := "Search the caller's currently available tools by case-insensitive words in name/description (all words must match). Returns current input schemas, hashes and bounded pagination. This indexes already available tools; it does not activate hidden tools or grant permissions."
+	description := "Find caller-authorized tools. For known names use select:Name1,Name2 (comma-separated exact names, case-insensitive). Otherwise search literal name/description substrings: all whitespace-separated words must match one tool. Use one capability per query; a full tool name ranks first. Returns current schemas, hashes and bounded pagination."
 	if deferLoading {
-		description = "Discover caller-authorized tools by case-insensitive words in name/description (all words must match). Search for the capability needed, such as files, terminal, skills, agents or MCP. Returned complete schemas activate the exact versions for this agent and are declared in the next model request. Discovery never grants permissions. Omitted schemas are not activated; narrow the query or continue pagination."
+		description += " Complete returned schemas activate their exact versions for the next model request. Omitted schemas are not activated; narrow the query or continue pagination."
+	} else {
+		description += " This only indexes available tools and does not change activation."
 	}
-	description += " Availability may change: call only tools declared in the current request."
+	description += " Discovery never grants permissions. Availability may change: call only tools declared in the current request."
 	var deferred *harness.DeferredTools
 	tool := harness.Tool{
 		Schema:        harness.ToolSchema{Name: name, Description: description, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["query"],"properties":{"query":{"type":"string","minLength":1,"maxLength":512},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":20}}}`)},
@@ -81,7 +83,11 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 				if err := deferred.Activate(ctx, request.Agent, selected); err != nil {
 					return harness.ToolResult{}, err
 				}
-				result.Notice = "Complete returned schemas are activated for this agent and will be declared in the next model request. Omitted schemas are not activated. Call only current declared tools. Authorization, withdrawal and exact schema versions are rechecked at use."
+				if len(selected) > 0 {
+					result.Notice = "Complete returned schemas are activated for this agent and will be declared in the next model request. Omitted schemas are not activated. Call only current declared tools. Authorization, withdrawal and exact schema versions are rechecked at use."
+				} else if result.Total > 0 {
+					result.Notice = "No complete schemas were returned; no tools were activated by this search. Narrow the query or continue pagination. Call only current declared tools. Discovery never grants permissions."
+				}
 			}
 			return renderResult(result, nil)
 		},
@@ -117,23 +123,49 @@ func searchToolSchemas(schemas []harness.ToolSchema, self, query string, offset,
 	if limit == 0 {
 		limit = 5
 	}
+	query = strings.TrimSpace(query)
 	words := strings.Fields(strings.ToLower(query))
+	selection, exactSelection := strings.CutPrefix(query, "select:")
+	var names []string
+	if exactSelection {
+		for _, name := range strings.Split(selection, ",") {
+			if name = strings.TrimSpace(name); name != "" {
+				names = append(names, name)
+			}
+		}
+	}
 	matches := make([]harness.ToolSchema, 0)
 	for _, schema := range schemas {
 		if schema.Name == self || len(words) == 0 {
 			continue
 		}
 		haystack := strings.ToLower(schema.Name + " " + schema.Description)
-		matched := true
-		for _, word := range words {
-			matched = matched && strings.Contains(haystack, word)
+		matched := false
+		if exactSelection {
+			for _, name := range names {
+				matched = matched || strings.EqualFold(schema.Name, name)
+			}
+		} else {
+			matched = true
+			for _, word := range words {
+				matched = matched && strings.Contains(haystack, word)
+			}
 		}
 		if matched {
 			matches = append(matches, schema)
 		}
 	}
-	sort.Slice(matches, func(i, j int) bool { return matches[i].Name < matches[j].Name })
+	sort.Slice(matches, func(i, j int) bool {
+		leftExact, rightExact := strings.EqualFold(matches[i].Name, query), strings.EqualFold(matches[j].Name, query)
+		if leftExact != rightExact {
+			return leftExact
+		}
+		return matches[i].Name < matches[j].Name
+	})
 	result := toolSearchResult{Tools: []discoveredTool{}, Total: len(matches), Notice: "Current caller-visible tools only; no activation or authorization change. Recheck the current request declarations before calling. schema_sha256 hashes the current complete tool declaration."}
+	if len(matches) == 0 {
+		result.Notice = "No tools matched; no tools were activated by this search. Use fewer literal keywords (all words must match one tool), or select:Name1,Name2 for exact names. Discovery never grants permissions."
+	}
 	used := 0
 	for i := offset; i < len(matches); i++ {
 		if len(result.Tools) >= limit || used >= 32<<10 {
