@@ -191,7 +191,7 @@ func run() (resultErr error) {
 		}
 		resultErr = errors.Join(resultErr, disposeErr, h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), webApp.Close(), lspApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
-	spillStore := harness.NewLocalSpillStoreWithOptions(harness.LocalSpillStoreOptions{Root: filepath.Join(*sessions, "tool-output"), RetrievalHint: "Use ToolSearch select:ReadToolOutput if needed, then ReadToolOutput with this exact locator and bounded byte pages."})
+	spillStore := harness.NewLocalSpillStoreWithOptions(harness.LocalSpillStoreOptions{Root: filepath.Join(*sessions, "tool-output"), RetrievalHint: "Use the current discovery tool with query select:ReadToolOutput if needed, then ReadToolOutput with this exact locator and bounded byte pages."})
 	if *workspace != "" {
 		if _, err := h.RegisterSpillStore(ctx, "native/tool-output-store", spillStore, harness.SpillPolicyOptions{}); err != nil {
 			return err
