@@ -189,7 +189,6 @@ export function StructuredReading({ api, paperId, openToken, onReady, onPrepared
   const prepareSources = !document ? overview.sources.filter(item => item.authorized) : [];
   return <div ref={root} className="pa-structured-reading" data-document-id={document?.id}>
     {error && <Feedback kind="error">{error.message}<Button onClick={() => setError(null)}>Dismiss</Button>{error.source && <Button disabled={busy} onClick={() => void prepare(error.source!, true)}>Retry {error.source.revision}</Button>}</Feedback>}
-    {!document && !overview.reviewUrl && overview.sources.length === 0 && <p className="pa-document-meta">Read needs an explicitly approved, fixed-version official HTML source. Existing text and PDF remain available.</p>}
     {!document && overview.sources.some(item => !item.authorized) && <p className="pa-document-meta">HTML acquisition is not authorized. Review sources before downloading; PDF permission does not include HTML.</p>}
     {(reviewHtml || prepareSources.length > 0 || busy) && <div className="pa-html-review">
       {reviewHtml && <Button variant="ghost" disabled={busy} aria-expanded={overview.reviewUrl ? reviewing : undefined} onClick={() => overview.reviewUrl ? setReviewing(value => !value) : onReview()}>{overview.reviewUrl ? t('prepareReading') : 'Review HTML sources'}</Button>}

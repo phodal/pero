@@ -97,3 +97,18 @@ Read remains the existing official-HTML parser. Upstream conversion errors and
 partial-parse limitations remain explicit; this change does not establish
 HTML↔PDF paragraph alignment or repair arXiv's own HTML conversion. The locally
 compiled preview never becomes original-PDF annotation or research evidence.
+
+## Library and saved text layout, 2026-11-04
+
+The macOS development build based on `837a812c` was inspected in a loopback
+browser against a copy of the Native library. Six saved library entries show
+authors below titles and providers in a separate column. The reading preview
+uses actual saved text, with 18px titles and 14px paragraphs. Saved text without
+usable headings has no outline. Light, dark, Chinese, English, and 480px layouts
+were inspected. Returning from a real text hit retained all 12 results.
+Screenshots are under `test-results/paper-library-ui/`.
+
+TypeScript, bundle build, root checks and the three library availability tests
+passed. The Electron fixture run passed the initial PDF search reveal. Its
+repeated reveal with the locate response held reported page 1 while waiting
+for page 2. Full Desktop acceptance remains open for that interaction.
