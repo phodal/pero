@@ -58,6 +58,8 @@ class ACPClient:
                      "--max-requests", str(config.max_requests), "--max-tokens", str(config.max_tokens), "--max-retries", "0", "--approval", "ask"]
         if config.enable_shell:
             arguments.append("--enable-shell")
+        if config.disable_streaming:
+            arguments.append("--disable-streaming")
         if config.allow_http:
             arguments.append("--allow-http")
         for route in config.plugin_models:

@@ -218,3 +218,8 @@ The [pinned capability matrix](../../docs/fitness/harness-behavior-parity.md)
 distinguishes tested subsets, deliberate restrictions, missing Skill reminder
 semantics and unverified runtime parity. Source/AST extraction is not proof of
 complete behavior equivalence.
+
+Compatible providers can opt into `--disable-streaming` to request complete
+JSON Chat completions. SSE remains the default. JSON responses use the same
+argument, finish-reason, truncation and usage validation, shared attempt budget,
+cancellation and response bounds. There is no automatic transport fallback.

@@ -74,6 +74,10 @@ and loopback HTTP fixtures are accepted by default. An explicitly supplied
 plaintext provider endpoint additionally requires `allow_http: true`, which
 passes `--allow-http` to the native agent and is recorded in the receipt.
 This setting does not change TLS verification or other service endpoints.
+For providers with JSON Chat completions but no SSE route, explicitly set
+`disable_streaming: true` to pass `--disable-streaming`. The receipt records
+this choice. A failed streamed request is never automatically replayed with
+a different transport; request limits and cancellation apply to both.
 Each trial uses a fresh workspace and
 private records directory. Ordered `sessions` entries can replace `prompt`;
 each has name, prompt, success_artifact or success_patterns, and an optional

@@ -79,6 +79,7 @@ class TrialConfig:
     binary: Path
     endpoint: str
     allow_http: bool
+    disable_streaming: bool
     model: str
     api_key_env: str
     plugin_models: tuple[ModelRoute, ...]
@@ -97,7 +98,7 @@ class TrialConfig:
     def parse(raw: object) -> TrialConfig:
         allowed = {"runtime", "harness_runner", "plugin_path", "workspace", "agent_binary", "endpoint", "model", "api_key_env",
                    "sessions", "prompt", "success_patterns", "max_continuations", "session_timeout", "timeout", "idle_timeout",
-                   "max_requests", "max_tokens", "budget", "max_retries", "unattended_questions", "enable_shell", "shell_policy", "context_source", "plugin_models", "permission_mode", "allow_http"}
+                   "max_requests", "max_tokens", "budget", "max_retries", "unattended_questions", "enable_shell", "shell_policy", "context_source", "plugin_models", "permission_mode", "allow_http", "disable_streaming"}
         if not isinstance(raw, dict) or set(raw) - allowed:
             raise TrialError("unknown or invalid trial fields")
         if raw.get("runtime", "harness") != "harness":
@@ -110,6 +111,9 @@ class TrialConfig:
             raise TrialError("use session_timeout or timeout, not both")
         endpoint = text(raw.get("endpoint"), "endpoint")
         parsed = urlparse(endpoint)
+        disable_streaming = raw.get("disable_streaming", False)
+        if type(disable_streaming) is not bool:
+            raise TrialError("disable_streaming must be an explicit boolean")
         allow_http = raw.get("allow_http", False)
         if type(allow_http) is not bool:
             raise TrialError("allow_http must be an explicit boolean")
@@ -157,7 +161,7 @@ class TrialConfig:
         if not isinstance(permission, str) or permission not in {"read-only", "workspace-write", "full-access", "auto-review"}:
             raise TrialError("permission_mode must select an existing ACP permission mode")
         context = raw.get("context_source")
-        return TrialConfig(plugin, workspace, binary, endpoint, allow_http,
+        return TrialConfig(plugin, workspace, binary, endpoint, allow_http, disable_streaming,
                            text(raw.get("model"), "model"), key, models, sessions, final_patterns,
                            seconds(raw.get("session_timeout", raw.get("timeout", 3600)), "session_timeout"),
                            seconds(raw.get("idle_timeout", 600), "idle_timeout"),

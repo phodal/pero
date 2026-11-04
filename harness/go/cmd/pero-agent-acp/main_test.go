@@ -62,7 +62,7 @@ func TestProviderBudgetFlagsPreserveOmittedDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.DisableThinking || config.UseEnvironmentProxy || budget.ImageInput || len(config.Models[0].InputModalities) != 0 || config.MaxRequests != 0 || config.MaxOutputTokens != 0 || config.RetryPolicy != nil || config.Models[0].MaxTokens != 0 || config.Models[0].Reasoning != nil {
+	if config.DisableStreaming || config.DisableThinking || config.UseEnvironmentProxy || budget.ImageInput || len(config.Models[0].InputModalities) != 0 || config.MaxRequests != 0 || config.MaxOutputTokens != 0 || config.RetryPolicy != nil || config.Models[0].MaxTokens != 0 || config.Models[0].Reasoning != nil {
 		t.Fatal("omitted flags changed provider defaults")
 	}
 }

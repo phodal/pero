@@ -455,6 +455,7 @@ func takeProviderCredential(name string) (string, error) {
 // Zero request/token caps preserve prior behavior. -1 is only the CLI sentinel
 // for omitted retry policy; an explicit zero becomes a non-nil zero pointer.
 type providerBudget struct {
+	DisableStreaming    bool
 	DisableThinking     bool
 	UseEnvironmentProxy bool
 	AllowHTTP           bool
@@ -467,6 +468,7 @@ type providerBudget struct {
 
 func bindProviderBudget(flags *flag.FlagSet) *providerBudget {
 	budget := &providerBudget{}
+	flags.BoolVar(&budget.DisableStreaming, "disable-streaming", false, "request a complete JSON Chat response instead of SSE; no automatic transport fallback")
 	flags.BoolVar(&budget.DisableThinking, "disable-thinking", false, "explicitly send thinking.type=disabled to a compatible provider")
 	flags.BoolVar(&budget.UseEnvironmentProxy, "use-env-proxy", false, "opt in to standard HTTP(S)_PROXY/NO_PROXY routing; TLS verification remains enabled")
 	flags.BoolVar(&budget.AllowHTTP, "allow-http", false, "allow plaintext HTTP for the explicitly configured provider endpoint")
@@ -492,7 +494,7 @@ func configuredProvider(endpoint, model, credential string, budget providerBudge
 		effort := harness.ReasoningEffort(budget.ReasoningEffort)
 		declared.Reasoning = &harness.ModelReasoningInfo{DefaultEffort: effort, Efforts: []harness.ReasoningEffortInfo{{ID: effort, Name: budget.ReasoningEffort}}}
 	}
-	config := openai.Config{Endpoint: endpoint, APIKey: credential, ProviderName: "configured", Models: []openai.ModelConfig{declared}, MaxRequests: budget.MaxRequests, MaxOutputTokens: budget.MaxTokens, UseEnvironmentProxy: budget.UseEnvironmentProxy, AllowHTTP: budget.AllowHTTP, DisableThinking: budget.DisableThinking}
+	config := openai.Config{Endpoint: endpoint, APIKey: credential, ProviderName: "configured", Models: []openai.ModelConfig{declared}, MaxRequests: budget.MaxRequests, MaxOutputTokens: budget.MaxTokens, UseEnvironmentProxy: budget.UseEnvironmentProxy, AllowHTTP: budget.AllowHTTP, DisableThinking: budget.DisableThinking, DisableStreaming: budget.DisableStreaming}
 	if budget.MaxRetries >= 0 {
 		count := budget.MaxRetries
 		config.RetryPolicy = &harness.RetryPolicyConfig{Mode: harness.RetryNormal, MaxRetries: &count}
