@@ -63,4 +63,15 @@ attempts were preserved in `dns-failure-20261104T1607/`. Only this dedicated
 profile now declares those public resolvers, and the running guest resolver
 was updated. A fresh pinned amd64 container resolved both Ubuntu and DeepSeek
 successfully before the remaining queue resumed. Default Docker context and
-other profiles were not modified. Any subsequent setup failure pauses admission.
+other profiles were not modified. The updated scheduler pauses on the next
+setup failure; this hook is active only in processes started after that edit.
+
+At 16:47 UTC, the old running scheduler admitted 19 zero-request setup failures
+while direct public DNS returned inconsistent Docker Hub addresses, including
+a registry connection with a certificate for another domain. Queue admission
+was paused manually. All 34 existing verdict hashes and setup failure hashes
+were recorded in `dns-registry-failure-20261104T1647/`. The dedicated guest's
+hosts file temporarily pins registry and auth addresses obtained over HTTPS;
+certificate validation remains enabled. Pulling the unchanged official
+headless-terminal image succeeded with its saved digest before admission
+resumed. These attempts require fresh setup recovery and are not model scores.
