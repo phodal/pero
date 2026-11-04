@@ -9,6 +9,9 @@ procedure limits: [Coding benchmark](coding-benchmark.md).
 Pinned DSH/Pi/Qwen comparison, native tool changes and verification:
 [Native coding follow-up](dsh-native-improvements.md).
 
+Deferred discovery, output budgets, continuation cursors and Session boundary
+measurements: [Tool-call efficiency](tool-call-efficiency.md).
+
 AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
 managed execution admission remains planned: [Environments P1](ai4s-environments.md).
 

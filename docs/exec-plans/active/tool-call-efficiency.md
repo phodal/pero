@@ -19,7 +19,7 @@ activation authority, process owner or Session history representation.
 - [x] Ignore-aware native search can continue past directory/traversal bounds.
 - [x] Offline reports expose declaration/history contribution and distinguish
   repeated arguments with changed results from unchanged-result repetition.
-- [ ] Focused behavior tests, full Harness race/vet, standalone build checks,
+- [x] Focused behavior tests, full Harness race/vet, standalone build checks,
   and bounded live coding follow-up are recorded with source revision.
 
 The evidence baseline is four existing Sessions: 65 responses, 62 calls,
@@ -27,3 +27,8 @@ The evidence baseline is four existing Sessions: 65 responses, 62 calls,
 Source audit and reproducible evidence are in the local analysis artifact
 `/Users/phodal/workforce/openstar-agents/reports/tool-call-comparison-2026-11-04/`.
 Canonical discovery and guidance incidents are reused in `docs/issues/`.
+
+A real follow-up also exposed deferred child allowlists using the parent
+activation view. The authorized pool is now retained with inherited denials
+and explicit no-tools preserved. Evidence, limitations and the preserved
+four-task cohort are in `docs/fitness/tool-call-efficiency.md`.

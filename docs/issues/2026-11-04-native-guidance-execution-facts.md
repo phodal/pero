@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: in_progress
+status: resolved
 ---
 
 # Native guidance omitted execution facts and check status preservation
@@ -109,3 +109,10 @@ Give the Claude discovery declaration concrete native-name selection examples
 and advise direct reads/edits/checks for small local tasks. Preserve delegated
 capabilities, existing permissions and shared budgets; this is guidance, not a
 new scheduler or an automatic rewrite of model tool choices.
+
+The bounded same-budget spot check at `16d6ac9d` selected
+`select:Read,Write,Edit,Bash,Glob,Grep`, used Read/Bash/Edit directly and passed
+14/14 official tests on first submission: 9 requests, 43,641 recorded tokens,
+no children, empty discovery or masked validation candidates. Its preceding
+32-request budget failure is preserved separately. This pair does not establish
+repeatable or causal savings. The complete native package race suite passes.
