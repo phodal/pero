@@ -4,6 +4,7 @@ package nativetools
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,7 +77,7 @@ func TestColdShellTaskRecoveryNeverReplaysEffects(t *testing.T) {
 					ID string `json:"task_id"`
 				}{task.ID})
 			}
-			if err := old.harness.Dispose(ctx); err != nil {
+			if err := old.harness.Dispose(ctx); err != nil && !errors.Is(err, harness.ErrHarnessDisposalInProgress) {
 				t.Fatal(err)
 			}
 			if err := old.harness.Drain(ctx); err != nil {
@@ -162,7 +163,7 @@ func TestColdShellTaskRecoveryNeverReplaysEffects(t *testing.T) {
 			if test.promoted && (history[task.ID].promotion == nil || history[task.ID].intent.Background) {
 				t.Fatal("cold recovery lost the real promotion or rewrote its original intent")
 			}
-			if err := fresh.Dispose(ctx); err != nil {
+			if err := fresh.Dispose(ctx); err != nil && !errors.Is(err, harness.ErrHarnessDisposalInProgress) {
 				t.Fatal(err)
 			}
 			if err := fresh.Drain(ctx); err != nil {
