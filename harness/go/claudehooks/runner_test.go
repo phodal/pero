@@ -171,6 +171,28 @@ func TestLeaderExitCleansOwnedDescendant(t *testing.T) {
 	awaitProcessExit(t, pid)
 }
 
+func TestDetachedLeaderExitCleansOwnedDescendant(t *testing.T) {
+	root := t.TempDir()
+	pidPath := filepath.Join(root, "child.pid")
+	runner := Runner{Shell: "/bin/sh", Environment: []string{"PATH=/usr/bin:/bin", "PID_PATH=" + pidPath}}
+	hook, err := runner.StartDetached(t.Context(), Hook{Event: "Stop", Async: true, Command: `sleep 30 >/dev/null 2>&1 & printf '%s' "$!" > "$PID_PATH"`}, Input{CWD: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := hook.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(pidPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := strconv.Atoi(string(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitProcessExit(t, pid)
+}
+
 func readReadyPID(t *testing.T, path string, done <-chan error) int {
 	t.Helper()
 	deadline := time.NewTimer(3 * time.Second)

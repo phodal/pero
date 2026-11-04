@@ -109,6 +109,7 @@ type DetachedHook struct {
 }
 
 func (hook *DetachedHook) Wait() error {
+	defer cleanupHookProcess(hook.Command)
 	err := hook.Command.Wait()
 	if hook.cancel != nil {
 		hook.cancel()
