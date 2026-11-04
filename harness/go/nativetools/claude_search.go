@@ -19,6 +19,7 @@ type claudeGlobResult struct {
 	ScannedEntries int      `json:"scanned_entries"`
 	Truncated      bool     `json:"truncated"`
 	NextOffset     int      `json:"next_offset,omitempty"`
+	NextCursor     string   `json:"next_cursor,omitempty"`
 }
 
 type claudeGrepMatch struct {
@@ -41,59 +42,14 @@ type claudeGrepResult struct {
 	ScannedFiles int               `json:"scanned_files"`
 	SkippedFiles int               `json:"skipped_files"`
 	Truncated    bool              `json:"truncated"`
+	NextCursor   string            `json:"next_cursor,omitempty"`
+	NextOffset   int               `json:"next_offset,omitempty"`
 }
 
 type claudeTraversal struct {
-	Entries   int
-	Truncated bool
-}
-
-// Every directory and text read uses the original descriptor-rooted authority.
-// A visitor can stop after observing the first record beyond its output bound.
-func walkClaudeFiles(ctx context.Context, files *fstools.Workspace, base string, visit func(string) (bool, error)) (claudeTraversal, error) {
-	var result claudeTraversal
-	if base == "" {
-		base = "."
-	}
-	pending := []string{base}
-	for len(pending) > 0 {
-		if err := ctx.Err(); err != nil {
-			return result, err
-		}
-		directory := pending[len(pending)-1]
-		pending = pending[:len(pending)-1]
-		listing, err := files.List(ctx, directory)
-		if err != nil {
-			return result, err
-		}
-		result.Truncated = result.Truncated || listing.Truncated
-		var directories []string
-		for _, entry := range listing.Entries {
-			result.Entries++
-			if result.Entries > 512 {
-				result.Truncated = true
-				return result, nil
-			}
-			if entry.Symlink {
-				continue
-			}
-			name := path.Join(directory, entry.Name)
-			if entry.Directory {
-				if entry.Name != ".git" {
-					directories = append(directories, name)
-				}
-				continue
-			}
-			more, err := visit(name)
-			if err != nil || !more {
-				return result, err
-			}
-		}
-		for i := len(directories) - 1; i >= 0; i-- {
-			pending = append(pending, directories[i])
-		}
-	}
-	return result, nil
+	NextCursor string
+	Entries    int
+	Truncated  bool
 }
 
 func claudeGlob(ctx context.Context, files *fstools.Workspace, input arguments) (claudeGlobResult, error) {
@@ -102,33 +58,45 @@ func claudeGlob(ctx context.Context, files *fstools.Workspace, input arguments) 
 	if err != nil {
 		return result, err
 	}
+	cursor, err := openClaudeScan("glob", files, input)
+	if err != nil {
+		return result, err
+	}
 	base := input.Path
 	if base == "" {
 		base = "."
 	}
-	traversal, err := walkClaudeFiles(ctx, files, base, func(name string) (bool, error) {
-		relative := strings.TrimPrefix(name, base+"/")
-		if base == "." {
-			relative = name
-		}
-		if matchesClaudeGlobs(patterns, relative) {
-			result.Files = append(result.Files, name)
-		}
-		return true, nil
-	})
-	result.ScannedEntries, result.Truncated = traversal.Entries, traversal.Truncated
-	sort.Strings(result.Files)
 	limit := claudeResultLimit
 	if input.HeadLimit > 0 {
 		limit = min(limit, input.HeadLimit)
 	}
-	start := min(max(0, input.SearchOffset), len(result.Files))
-	end := min(start+limit, len(result.Files))
-	if end < len(result.Files) {
-		result.NextOffset = end
-		result.Truncated = true
+	if input.Limit > 0 {
+		limit = min(limit, input.Limit)
 	}
-	result.Files = result.Files[start:end]
+	seen := 0
+	traversal, err := walkClaudeFiles(ctx, files, cursor, func(name string) (bool, error) {
+		relative := strings.TrimPrefix(name, base+"/")
+		if base == "." {
+			relative = name
+		}
+		if !matchesClaudeGlobs(patterns, relative) {
+			return true, nil
+		}
+		if seen < input.SearchOffset {
+			seen++
+			return true, nil
+		}
+		if len(result.Files) >= limit {
+			return false, nil
+		}
+		result.Files = append(result.Files, name)
+		return true, nil
+	})
+	result.ScannedEntries, result.Truncated, result.NextCursor = traversal.Entries, traversal.Truncated, traversal.NextCursor
+	if result.NextCursor != "" {
+		result.NextOffset = input.SearchOffset + len(result.Files)
+	}
+	sort.Strings(result.Files)
 	return result, err
 }
 
@@ -180,14 +148,26 @@ func claudeGrep(ctx context.Context, files *fstools.Workspace, input arguments) 
 	if input.Around > 0 {
 		before, after = input.Around, input.Around
 	}
+	cursor, err := openClaudeScan("grep", files, input)
+	if err != nil {
+		return result, err
+	}
 	seen, emitted, totalBytes := 0, 0, 0
+	fileSeen, resumeRecord := 0, 0
 	admit := func() (bool, bool) {
+		if fileSeen < resumeRecord {
+			fileSeen++
+			return false, true
+		}
+		fileSeen++
 		if seen < input.SearchOffset {
 			seen++
 			return false, true
 		}
 		seen++
 		if emitted >= limit {
+			cursor.RecordOffset = fileSeen - 1
+			result.NextOffset = input.SearchOffset + emitted
 			result.Truncated = true
 			return false, false
 		}
@@ -199,6 +179,7 @@ func claudeGrep(ctx context.Context, files *fstools.Workspace, input arguments) 
 		base = "."
 	}
 	visit := func(name string, direct bool) (bool, error) {
+		fileSeen, resumeRecord = 0, cursor.RecordOffset
 		relative := strings.TrimPrefix(name, base+"/")
 		if base == "." || direct {
 			relative = name
@@ -278,8 +259,9 @@ func claudeGrep(ctx context.Context, files *fstools.Workspace, input arguments) 
 		_, readErr := visit(base, true)
 		return result, readErr
 	}
-	traversal, err := walkClaudeFiles(ctx, files, base, func(name string) (bool, error) { return visit(name, false) })
+	traversal, err := walkClaudeFiles(ctx, files, cursor, func(name string) (bool, error) { return visit(name, false) })
 	result.Truncated = result.Truncated || traversal.Truncated
+	result.NextCursor = traversal.NextCursor
 	return result, err
 }
 

@@ -91,6 +91,7 @@ type arguments struct {
 	NewText                                        string `json:"new_text"`
 	ReplaceAll                                     bool   `json:"replace_all"`
 	Query                                          string `json:"query"`
+	Cursor                                         string `json:"cursor"`
 	Offset                                         int    `json:"offset"`
 	Limit                                          int    `json:"limit"`
 	Command                                        string `json:"command"`

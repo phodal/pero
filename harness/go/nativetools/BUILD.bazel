@@ -8,6 +8,7 @@ go_library(
         "background_journal.go",
         "claude.go",
         "claude_search.go",
+        "claude_scan.go",
         "discovery.go",
         "document.go",
         "foreground.go",
@@ -42,6 +43,7 @@ go_library(
         "//runtime",
         "//sandbox",
         "//shell",
+        "@com_github_sabhiram_go_gitignore//:go-gitignore",
     ],
 )
 
@@ -52,6 +54,7 @@ go_test(
         "background_restart_test.go",
         "background_test.go",
         "claude_test.go",
+        "claude_scan_test.go",
         "deferred_tools_test.go",
         "discovery_test.go",
         "document_test.go",

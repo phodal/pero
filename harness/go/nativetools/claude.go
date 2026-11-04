@@ -30,6 +30,7 @@ type claudeArguments struct {
 	Timeout            int    `json:"timeout"`
 	TerminateOnTimeout bool   `json:"terminate_on_timeout"`
 	Pattern            string `json:"pattern"`
+	Cursor             string `json:"cursor"`
 	Glob               string `json:"glob"`
 	FileType           string `json:"type"`
 	OutputMode         string `json:"output_mode"`
@@ -111,6 +112,7 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 		NewText: value.NewString, ReplaceAll: value.ReplaceAll, Offset: value.Offset,
 		Limit: value.Limit, Command: value.Command, Workdir: value.Workdir, TimeoutMS: value.Timeout,
 		Pattern: value.Pattern, Glob: value.Glob, FileType: value.FileType,
+		Cursor:     value.Cursor,
 		OutputMode: value.OutputMode, IgnoreCase: value.IgnoreCase, Multiline: value.Multiline,
 		LineNumbers: value.LineNumbers, Before: value.Before, After: value.After,
 		Around: around, HeadLimit: value.HeadLimit, SearchOffset: value.Offset, ResourcePath: resourcePath,
@@ -163,16 +165,16 @@ func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, r
 		}
 	case "list_directory":
 		definition.name = "Glob"
-		definition.description = "Find workspace files by relative glob pattern, including **, ?, character classes and brace alternatives. path selects a workspace directory. Results are sorted by path; symlinks and .git directories are skipped. Traversal and results are bounded and truncation is explicit."
-		definition.properties = `"pattern":{"type":"string","minLength":1,"maxLength":4096},"path":{"type":"string"}`
+		definition.description = "Find workspace files by relative glob pattern, including **, ?, character classes and brace alternatives. path selects a workspace directory. Each page is sorted by path. Respects root/nested .gitignore; skips symlinks and .git. Follow next_cursor with the same query, even for an empty truncated page. Cursor resumes live enumeration; restart after directory mutations."
+		definition.properties = `"pattern":{"type":"string","minLength":1,"maxLength":4096},"path":{"type":"string"},"cursor":{"type":"string","maxLength":16384},"limit":{"type":"integer","minimum":1,"maximum":64},"offset":{"type":"integer","minimum":0}`
 		definition.required = `"pattern"`
 		definition.run = func(ctx context.Context, input arguments) (any, error) {
 			return claudeGlob(ctx, workspaceFrom(ctx, files), input)
 		}
 	case "search_files":
 		definition.name = "Grep"
-		definition.description = "Search workspace UTF-8 files with a Go/RE2 regular expression. Optional glob/type filters, case-insensitive and multiline matching, content/files_with_matches/count modes, context and pagination. Defaults to files_with_matches. At most 512 entries, 8 MiB text and 64 result records; symlinks/.git are skipped. Unsupported regex syntax returns an error."
-		definition.properties = `"pattern":{"type":"string","minLength":1,"maxLength":4096},"path":{"type":"string"},"glob":{"type":"string","maxLength":4096},"type":{"type":"string"},"output_mode":{"type":"string","enum":["content","files_with_matches","count"]},"-i":{"type":"boolean"},"-n":{"type":"boolean"},"multiline":{"type":"boolean"},"-A":{"type":"integer","minimum":0,"maximum":20},"-B":{"type":"integer","minimum":0,"maximum":20},"-C":{"type":"integer","minimum":0,"maximum":20},"context":{"type":"integer","minimum":0,"maximum":20},"head_limit":{"type":"integer","minimum":0},"offset":{"type":"integer","minimum":0}`
+		definition.description = "Search workspace UTF-8 files with a Go/RE2 regular expression. Optional glob/type filters, case-insensitive and multiline matching, content/files_with_matches/count modes, context and pagination. Defaults to files_with_matches. Respects root/nested .gitignore; skips symlinks/.git. Each call scans at most 512 entries/8 MiB and returns 64 records. Follow next_cursor with the same query, even for empty pages; offset is legacy result pagination and cannot combine with cursor. Restart after directory mutations. Unsupported regex syntax returns an error."
+		definition.properties = `"pattern":{"type":"string","minLength":1,"maxLength":4096},"path":{"type":"string"},"glob":{"type":"string","maxLength":4096},"type":{"type":"string"},"output_mode":{"type":"string","enum":["content","files_with_matches","count"]},"-i":{"type":"boolean"},"-n":{"type":"boolean"},"multiline":{"type":"boolean"},"-A":{"type":"integer","minimum":0,"maximum":20},"-B":{"type":"integer","minimum":0,"maximum":20},"-C":{"type":"integer","minimum":0,"maximum":20},"context":{"type":"integer","minimum":0,"maximum":20},"cursor":{"type":"string","maxLength":16384},"head_limit":{"type":"integer","minimum":0},"offset":{"type":"integer","minimum":0}`
 		definition.required = `"pattern"`
 		definition.run = func(ctx context.Context, input arguments) (any, error) {
 			return claudeGrep(ctx, workspaceFrom(ctx, files), input)
