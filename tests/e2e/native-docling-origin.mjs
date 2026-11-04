@@ -15,7 +15,7 @@ const receipt = resolve(out, 'result.json');
 await rm(receipt, { force: true });
 let child, timer, log = '', timedOut = false;
 const stop = () => {
-  if (child?.pid && child.exitCode === null && child.signalCode === null) {
+  if (child?.pid) {
     try { process.kill(-child.pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
   }
 };
