@@ -149,12 +149,14 @@ export async function exerciseTextSearchLocations({ frame, page, out, saved }) {
   return papers;
 }
 
-export async function exercisePdfSearch({ frame, page, out, realPdf }) {
+export async function exercisePdfSearch({ frame, page, out, realPdf, paperTitle }) {
   const search = frame.getByRole('region', { name: 'Search saved text', exact: true });
   const input = search.getByRole('searchbox', { name: 'Search saved text', exact: true });
   await input.fill(realPdf ? 'attention mechanism' : 'Second page');
   await input.press('Enter');
-  const hit = search.locator('[data-search-page]').first();
+  // The download-retry fixture contains the same passage. Open the paper
+  // whose PDF state and citations the rest of the flow verifies.
+  const hit = search.locator('[data-search-page]').filter({ has: frame.getByRole('button', { name: paperTitle, exact: true }) }).first();
   await expect(hit).toBeVisible();
   const targetPage = await hit.getAttribute('data-search-page');
   await hit.getByRole('button').click();

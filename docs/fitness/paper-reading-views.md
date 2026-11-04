@@ -109,6 +109,14 @@ were inspected. Returning from a real text hit retained all 12 results.
 Screenshots are under `test-results/paper-library-ui/`.
 
 TypeScript, bundle build, root checks and the three library availability tests
-passed. The Electron fixture run passed the initial PDF search reveal. Its
-repeated reveal with the locate response held reported page 1 while waiting
-for page 2. Full Desktop acceptance remains open for that interaction.
+passed. The initial Electron fixture run opened the first PDF result correctly
+but showed page 1 instead of page 2 on reopening with the locate response held.
+The mounted reader was treating the hidden viewport's old layout as ready.
+
+After the reader began waiting for usable viewport geometry, the full Electron
+fixture suite (`npm run test:paper`) passed. A repeated search click jumps to
+the target page before the precise anchor arrives. A delayed anchor does not
+override a subsequent page change or switch to text, and another explicit
+click still reveals the citation. The suite also covered saved research records,
+PDF selection and citations across restart. Result and screenshots are under
+`test-results/paper-search-reopen-full/`. The run used a fixture PDF and agent.

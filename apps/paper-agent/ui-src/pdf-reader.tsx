@@ -6,7 +6,7 @@ import { createPluginRegistration } from '@embedpdf/core';
 import { EmbedPDF, useStoreState } from '@embedpdf/core/react';
 import { usePdfiumEngine } from '@embedpdf/engines/react';
 import { DocumentContent, DocumentManagerPluginPackage } from '@embedpdf/plugin-document-manager/react';
-import { Viewport, ViewportPluginPackage } from '@embedpdf/plugin-viewport/react';
+import { Viewport, ViewportPluginPackage, useViewportCapability } from '@embedpdf/plugin-viewport/react';
 import { Scroller, ScrollPluginPackage, useScroll, useScrollCapability } from '@embedpdf/plugin-scroll/react';
 import { RenderLayer, RenderPluginPackage } from '@embedpdf/plugin-render/react';
 import { PagePointerProvider, InteractionManagerPluginPackage } from '@embedpdf/plugin-interaction-manager/react';
@@ -142,6 +142,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   onMatrixAdded(): Promise<void>;
 }) {
   const { state: scrollState } = useScroll(documentId), { provides: scrollCapability } = useScrollCapability();
+  const { provides: viewportCapability } = useViewportCapability();
   // Memoize: forDocument() returns a fresh object each call and would retrigger restore.
   const scroll = useMemo(() => scrollCapability?.forDocument(documentId) ?? null, [scrollCapability, documentId]);
   const { provides: zoom, state: zoomState } = useZoom(documentId);
@@ -274,17 +275,23 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   }, []);
   useEffect(() => {
     if (!active) { appliedFocus.current = null; return; }
-    if (!scrollCapability || !focus || focus.documentId !== document.id) return;
+    if (!scrollCapability || !scroll || !viewportCapability || !focus || focus.documentId !== document.id) return;
+    const viewport = viewportCapability.forDocument(documentId);
     const apply = () => {
-      if (appliedFocus.current === focus || !scrollCapability.forDocument(documentId).getMetrics().pageVisibilityMetrics.length) return;
+      // The reader stays mounted behind the library. Its previous layout can
+      // still be marked ready while the hidden viewport has no usable geometry.
+      const { clientWidth, clientHeight } = viewport.getMetrics();
+      if (appliedFocus.current === focus || !layoutReady.current || !clientWidth || !clientHeight || viewport.isGated() || !scroll.getMetrics().pageVisibilityMetrics.length) return;
       appliedFocus.current = focus;
       const rect = focus.rects?.[0], page = document.pages[focus.page - 1];
-      scrollCapability.forDocument(documentId).scrollToPage({ pageNumber: focus.page, behavior: 'auto', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
+      scroll.scrollToPage({ pageNumber: focus.page, behavior: 'auto', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
       setTarget(focus.annotationId ?? '');
     };
-    if (layoutReady.current) apply();
-    return scrollCapability.onLayoutReady(event => { if (event.documentId === documentId) apply(); });
-  }, [active, scrollCapability, focus, document.id, documentId]);
+    const stopLayout = scrollCapability.onLayoutReady(event => { if (event.documentId === documentId) apply(); });
+    const stopViewport = viewport.onViewportChange(apply);
+    apply();
+    return () => { stopLayout(); stopViewport(); };
+  }, [active, scroll, scrollCapability, viewportCapability, focus, document.id, documentId]);
   async function save(value: Record<string, unknown>) {
     setBusy(true); setError(''); setStatus('');
     try {

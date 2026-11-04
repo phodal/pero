@@ -265,7 +265,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect(frame.locator('.pa-source-text')).toContainText('Synthetic source remains readable.');
   await expect(frame.locator('.pa-pdf-reading [role="alert"]')).toHaveCount(0);
   await backToLibrary(frame);
-  await exercisePdfSearch({ frame, page, out, realPdf: fixture.realPdf });
+  await exercisePdfSearch({ frame, page, out, realPdf: fixture.realPdf, paperTitle: paper.title });
   await viewer.locator('img,canvas').first().evaluate(element => element.dataset.citationIdentity = 'retained');
   await nav.getByRole('button', { name: 'Ask AI', exact: true }).click();
   await fillPaperChat(page, fixture.realPdf ? 'attention mechanism' : 'Second page');
