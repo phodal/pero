@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -182,9 +183,13 @@ func encodeResponses(request harness.GenerateRequest, imagesAllowed bool) (respo
 }
 
 func sameJSON(text string, raw json.RawMessage) bool {
-	var left, right bytes.Buffer
-	if json.Compact(&left, []byte(text)) != nil || json.Compact(&right, raw) != nil {
-		return false
+	values := [2]any{}
+	for index, source := range [][]byte{[]byte(text), raw} {
+		decoder := json.NewDecoder(bytes.NewReader(source))
+		decoder.UseNumber()
+		if !json.Valid(source) || decoder.Decode(&values[index]) != nil {
+			return false
+		}
 	}
-	return bytes.Equal(left.Bytes(), right.Bytes())
+	return reflect.DeepEqual(values[0], values[1])
 }

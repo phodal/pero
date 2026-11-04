@@ -31,7 +31,7 @@ func TestResponsesToolReplay(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if calls.Add(1) == 1 {
-			fmt.Fprint(w, `{"status":"completed","output":[{"id":"rs_1","type":"reasoning","summary":[],"encrypted_content":"opaque-state"},{"id":"msg_1","type":"message","role":"assistant","status":"completed","phase":"commentary","content":[{"type":"output_text","text":"working","annotations":[]}]},{"id":"fc_1","type":"function_call","call_id":"call_1","name":"Write","arguments":"{\"path\":\"x\"}","status":"completed"}],"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":80},"output_tokens":10,"output_tokens_details":{"reasoning_tokens":4},"total_tokens":110}}`)
+			fmt.Fprint(w, `{"status":"completed","output":[{"id":"rs_1","type":"reasoning","summary":[],"encrypted_content":"opaque-state"},{"id":"msg_1","type":"message","role":"assistant","status":"completed","phase":"commentary","content":[{"type":"output_text","text":"working","annotations":[]}]},{"id":"fc_1","type":"function_call","call_id":"call_1","name":"Write","arguments":"{\"path\":\"<中文>&\",\"number\":9007199254740993}","status":"completed"}],"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":80},"output_tokens":10,"output_tokens_details":{"reasoning_tokens":4},"total_tokens":110}}`)
 		} else {
 			if len(wire.Input) != 5 || wire.Input[1].EncryptedContent != "opaque-state" || wire.Input[1].Summary == nil || wire.Input[2].Phase != "commentary" || wire.Input[2].Content[0].Annotations == nil || wire.Input[3].ID != "fc_1" || wire.Input[3].CallID != "call_1" || wire.Input[4].CallID != "call_1" || wire.Input[4].Output != "written" {
 				t.Errorf("lost durable replay state: %+v", wire.Input)
@@ -106,6 +106,22 @@ func TestResponsesOutputAdmission(t *testing.T) {
 		config.Endpoint, config.APIKey, config.ProviderName, config.Models = "https://fixture.invalid/v1", "fixture", "fixture", []ModelConfig{{ID: "fixture"}}
 		if _, err := New(config); err == nil {
 			t.Fatalf("unsupported protocol controls admitted: %+v", config)
+		}
+	}
+}
+
+func TestResponsesReplayArguments(t *testing.T) {
+	for _, tc := range []struct {
+		original, restored string
+		equal              bool
+	}{
+		{`{"text":"<中文>&","n":9007199254740993}`, `{"n":9007199254740993,"text":"\u003c中文\u003e\u0026"}`, true},
+		{`{"n":9007199254740993}`, `{"n":9007199254740992}`, false},
+		{`{"text":"saved"}`, `{"text":"changed"}`, false},
+		{`{}`, `{} {}`, false},
+	} {
+		if got := sameJSON(tc.original, json.RawMessage(tc.restored)); got != tc.equal {
+			t.Errorf("replay equality for %s and %s: got %v", tc.original, tc.restored, got)
 		}
 	}
 }
