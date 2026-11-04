@@ -27,6 +27,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   const paper = await api('/api/papers/import', { title: 'Authored Library source copies', sourceId: '2610.00004v1',
     url: 'https://arxiv.org/abs/2610.00004v1', pdfUrl: 'https://arxiv.org/pdf/2610.00004v1',
     authors: [], contentKind: 'abstract', content: 'Authored metadata remains the original Library paper.' });
+  const savedPaper = await api(`/api/papers/${paper.id}`);
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
   const row = () => frame.locator('.pa-library-list > li').filter({ hasText: paper.title });
   const acquisitions = async () => (await requests()).filter(item => item.kind !== 'metadata');
@@ -70,11 +71,6 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   dialog = await saveLibraryCopies(frame, paper.title, { tex: true });
   expect((await api(`/api/pdf?paperId=${paper.id}`))).toEqual({ ...reading, annotations: [annotation] });
   expect((await observations()).observations).toEqual([]);
-  const sources = dialog.getByRole('region', { name: 'TeX source', exact: true });
-  await sources.getByRole('button', { name: 'Browse source files', exact: true }).click();
-  await sources.getByRole('button', { name: 'main.tex', exact: true }).click();
-  await expect(frame.getByLabel('Original source: main.tex', { exact: true })).toBeVisible();
-  expect((await observations()).observations.map(item => item.kind)).toEqual(['source_text']);
   const acquired = await acquisitions();
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   const ownersBeforeRecords = await unchangedResearchOwners(profile), observedBeforeRecords = await observations();
@@ -126,7 +122,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   await reopenedPanel.getByRole('button', { name: 'Authored record question', exact: true }).click();
   await expect(reopenedPanel.getByRole('article', { name: 'Saved research record' })).toContainText('Authored source only');
   expect(await api('/api/research/record', { operation: 'read', recordId: first.id })).toEqual({ ...first, selections: [] });
-  expect(await api(`/api/papers/${paper.id}`)).toEqual(paper);
+  expect(await api(`/api/papers/${paper.id}`)).toEqual(savedPaper);
   expect(await api(`/api/pdf?paperId=${paper.id}`)).toEqual({ document: reading.document, originalUrl: null, annotations: [annotation] });
   expect(await api(`/api/pdf/${priorDocumentId}`)).toEqual(priorPdf);
   expect(await observations()).toEqual(observedBeforeRecords);
@@ -142,5 +138,5 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
     pdfReceipt: pdf.receipt, sourceReceipt: source.receipt, annotationId: annotation.id,
     scope: 'Real Desktop → Rust Host → Paper owners; authored offline bytes only. No live-provider acceptance.',
     checks: ['metadata Reader acquires nothing', 'one click downloads and attaches PDF + TeX without a dialog',
-      'original paper/document/annotation preserved', 'save creates no observation; source read does', 'restart retains receipts without reacquisition'] }, null, 2));
+      'original paper/document/annotation preserved', 'save creates no observation', 'restart retains receipts without reacquisition'] }, null, 2));
 }

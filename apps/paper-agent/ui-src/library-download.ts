@@ -22,11 +22,12 @@ export async function downloadPaperFiles(api: Api, paper: Paper, format: Downloa
     progress(kind);
     pending.active = { path: `/api/research/${kind === 'pdf' ? 'pdf' : 'source'}`, bundleId: selection.bundleId, resourceId };
     const { path, ...scope } = pending.active;
+    const successStatus = kind === 'pdf' ? 'completed' : 'source_available';
     check();
     // Reconcile a previous click before starting; never replay an uncertain start.
     let job = await api.post<Job>(path, { operation: 'status', ...scope });
     check();
-    if (job.status !== 'running' && !(job.status === 'completed' && job.localAvailable)) {
+    if (job.status !== 'running' && !(job.status === successStatus && job.localAvailable)) {
       job = await api.post<Job>(path, { operation: 'start', ...scope });
     }
     while (job.status === 'running') {
@@ -34,7 +35,7 @@ export async function downloadPaperFiles(api: Api, paper: Paper, format: Downloa
       job = await api.post<Job>(path, { operation: 'status', ...scope });
     }
     check();
-    if (job.status !== 'completed' || !job.localAvailable) throw Error(job.error || `Could not download ${kind === 'pdf' ? 'PDF' : 'TeX'}`);
+    if (job.status !== successStatus || !job.localAvailable) throw Error(job.error || `Could not download ${kind === 'pdf' ? 'PDF' : 'TeX'}`);
     pending.active = null;
     return job;
   }

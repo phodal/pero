@@ -17,10 +17,10 @@ function fixture({ sourceFailure = false, uncertainStart = false, scanned = fals
     }
     const kind = path.endsWith('/pdf') ? 'pdf' : 'source';
     if (body.operation === 'start') {
-      statuses[kind] = kind === 'source' && sourceFailure ? 'failed' : 'completed';
+      statuses[kind] = kind === 'source' ? (sourceFailure ? 'failed' : 'source_available') : 'completed';
       if (uncertainStart && firstStart) { firstStart = false; throw Error('Lost response'); }
     }
-    return { status: statuses[kind], localAvailable: statuses[kind] === 'completed', error: statuses[kind] === 'failed' ? 'Source denied' : '', receipt: scanned ? { extractionWarnings: ['No selectable text. OCR is not available.'] } : {} };
+    return { status: statuses[kind], localAvailable: ['completed', 'source_available'].includes(statuses[kind]), error: statuses[kind] === 'failed' ? 'Source denied' : '', receipt: scanned ? { extractionWarnings: ['No selectable text. OCR is not available.'] } : {} };
   } };
   return { api: api as any, calls };
 }
