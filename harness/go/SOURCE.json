@@ -32,7 +32,8 @@
     "Optional complete native subagent registry/lifecycle restored; one-level in-process spawn/fork reuse existing AgentManager/Session ownership. Effective child caps are restricted, request budgets shared, ApprovalNever pinned, and parent MCP grants may be inherited. The duplicate extracted callback helper is removed; original provenance is retained under removed_files.",
     "Concept-based file-size split only; declarations and var/init order preserved by AST equivalence checks. Output files are adapted/split, not raw upstream blob copies.",
     "Official DSH behavioral review restores ACP admission cancellation, bounded physical read windows, max-token tool suppression and explicit context-overflow classification; see upstream_behavior_review record.",
-    "Existing-module behavioral review restores inherited common-loop/storage contracts, fail-closed JSONL tails, precise usage/settings conversion, MCP capability discovery and shell tails; CLI explicitly selects existing DSH todo options. See module_behavior_review; not full cross-language parity."
+    "Existing-module behavioral review restores inherited common-loop/storage contracts, fail-closed JSONL tails, precise usage/settings conversion, MCP capability discovery and shell tails; CLI explicitly selects existing DSH todo options. See module_behavior_review; not full cross-language parity.",
+    "Explicit JSON Chat/Responses protocol selection reuses provider transport/budgets; stateless Responses retains assistant phase, item/call IDs and encrypted reasoning. Compaction materializes a plain-text user checkpoint while retaining provider metadata in original audit events; these are local adaptations, not upstream equivalence."
   ],
   "excluded_features": [
     "Projects",
@@ -287,7 +288,7 @@
       "sha256": "19f9a1a37f47e5cfab77f16939594c265264d5e9ffd78739e8380e95ac895638",
       "source_path": "go/harness/compaction_range.go",
       "source_blob_sha1": "ab26074a189db061f4907256928c7ffe61216a0f",
-      "change": "imports only"
+      "change": "adapted; plain-text user checkpoint materialization strips assistant-owned provider metadata; see docs/issues/2026-11-05-compaction-summary-provider-metadata.md"
     },
     {
       "destination": "harness/config_compat.go",

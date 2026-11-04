@@ -505,7 +505,11 @@ func compactionSummaryText(blocks []ContentBlock) string {
 func frameCompactionSummary(summary []ContentBlock) []ContentBlock {
 	result := make([]ContentBlock, 0, len(summary)+2)
 	result = append(result, ContentBlock{Type: BlockText, Text: compactionCheckpointPreamble + "\n\n<compacted-summary>"})
-	result = append(result, summary...)
+	// This is a new user checkpoint. Assistant protocol metadata remains in
+	// the audited summary, but cannot acquire user-message authority here.
+	for _, block := range summary {
+		result = append(result, ContentBlock{Type: BlockText, Text: block.Text})
+	}
 	result = append(result, ContentBlock{Type: BlockText, Text: "</compacted-summary>"})
 	return result
 }
