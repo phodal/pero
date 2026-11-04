@@ -37,7 +37,7 @@ try {
       contentType: ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' })[extname(asset)] || 'application/octet-stream' });
   });
   await page.goto('http://localhost/');
-  const read = title => page.locator('.pa-paper-main .pero-list-open').filter({ hasText: title }).click();
+  const read = title => page.locator('.pa-paper-main .pero-list-open').filter({ hasText: title }).dblclick();
   const ask = async () => {
     const count = await page.evaluate(() => window.researchChatFixture.snapshots.length);
     await page.getByRole('button', { name: 'Ask AI', exact: true }).click();

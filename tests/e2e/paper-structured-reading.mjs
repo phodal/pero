@@ -371,7 +371,7 @@ try {
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
   const saved = await saveLibraryCopies(frame, toolbarPaper.title);
   await saved.getByRole('button', { name: 'Close', exact: true }).click();
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(toolbarPaper.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(toolbarPaper.title, { exact: true }) }).dblclick();
   await toolbarBar.getByRole('button', { name: 'PDF', exact: true }).click();
   await expect(toolbarViewer).toBeVisible();
   const boxes = await Promise.all(['Read', 'PDF', 'TeX', 'Source', 'Zoom in'].map(name => toolbarBar.getByRole('button', { name, exact: true }).boundingBox()));

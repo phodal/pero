@@ -8,7 +8,7 @@ export async function focusPaperChat(page) {
 export async function fillPaperChat(page, text) {
   const setup = page.getByRole('region', { name: 'App environment', exact: true });
   if (await setup.isVisible()) await setup.getByRole('button', { name: 'Hide', exact: true }).click();
-  const title = await page.frameLocator('iframe[title="paper-agent"]').locator('.pa-reader-crumb h1').textContent();
+  const title = await page.frameLocator('iframe[title="paper-agent"]').locator('.pa-reader-crumb .pa-reader-title').textContent();
   const reference = `@${title.slice(0, 300)}`;
   await expect.poll(async () => { const s = await chatState(page); return s.appChatOpen && s.composer.includes(reference); }).toBe(true);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));

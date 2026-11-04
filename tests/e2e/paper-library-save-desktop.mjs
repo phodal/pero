@@ -31,7 +31,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   const row = () => frame.locator('.pa-library-list > li').filter({ hasText: paper.title });
   const acquisitions = async () => (await requests()).filter(item => item.kind !== 'metadata');
   const before = await acquisitions();
-  await row().locator('.pero-list-open').click();
+  await row().locator('.pero-list-open').dblclick();
   await expect(frame.locator('.pa-source-text')).toContainText(paper.content);
   expect((await api(`/api/pdf?paperId=${paper.id}`)).document).toBeNull();
   expect(await acquisitions()).toEqual(before);
@@ -78,7 +78,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   const acquired = await acquisitions();
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   const ownersBeforeRecords = await unchangedResearchOwners(profile), observedBeforeRecords = await observations();
-  await row().locator('.pero-list-open').click();
+  await row().locator('.pero-list-open').dblclick();
   const panel = await manualRecordPanel(frame);
   await panel.getByRole('button', { name: 'New record', exact: true }).click();
   await panel.getByRole('textbox', { name: 'Question', exact: true }).fill('Authored record question');
@@ -110,7 +110,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   expect(await acquisitions()).toEqual(acquired);
   await page.screenshot({ path: resolve(out, 'manual-record-created.png') });
   ({ frame, page } = await restart());
-  await row().locator('.pero-list-open').click();
+  await row().locator('.pero-list-open').dblclick();
   await expect(frame.getByRole('region', { name: 'PDF reader', exact: true }).locator('img,canvas').first()).toBeVisible({ timeout: 30000 });
   expect(await api(`/api/pdf?paperId=${paper.id}`)).toEqual({ ...reading, annotations: [annotation] });
   expect((await api('/api/research/pdf', pdfRequest)).receipt).toEqual(pdf.receipt);

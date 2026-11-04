@@ -8,9 +8,10 @@ export async function saveLibraryCopies(frame, title, { tex = false, timeout = 2
   if (await progress.isVisible()) await progress.getByRole('button', { name: 'Close', exact: true }).click();
   if (!await frame.locator('.pa-library-list').isVisible()) await backToLibrary(frame);
   const row = frame.locator('.pa-library-list > li').filter({ has: frame.getByText(title, { exact: true }) });
-  await row.getByRole('button', { name: tex ? 'Download TeX' : 'Download PDF', exact: true }).click();
+  await row.locator('.pero-list-open').click();
+  await frame.getByRole('region', { name: 'Paper details', exact: true }).getByRole('button', { name: tex ? 'Download TeX' : 'Download PDF', exact: true }).click();
   await expect(progress.getByText(title, { exact: true })).toBeVisible();
-  await expect(progress.getByRole('status')).toHaveText('Downloaded', { timeout });
+  await expect(progress.getByRole('status').filter({ hasText: /^Downloaded$/ })).toBeVisible({ timeout });
   await expect(frame.getByRole('dialog', { name: 'Save copies', exact: true })).toHaveCount(0);
   return progress;
 }
@@ -91,7 +92,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
     try { return (await readFile(resolve(profile, 'desktop/app-data/paper-agent/reader-approved-attempts.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse); }
     catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   };
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).dblclick();
   await frame.getByRole('button', { name: 'Ask AI', exact: true }).click();
   const save = frame.getByRole('region', { name: 'Download', exact: true });
   await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(true);
@@ -108,10 +109,10 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect(first).toHaveAttribute('data-selection-ready', 'true', { timeout: 30000 });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
   const tools = frame.locator('.pa-reader-tools');
-  await expect(tools.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', 'https://arxiv.org/html/1706.03762v1');
+  await expect(tools.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', paper.url);
   const toolBoxes = await Promise.all(['Read', 'PDF', 'Zoom out', 'Zoom in'].map(name => tools.getByRole('button', { name, exact: true }).boundingBox()));
   expect(toolBoxes.every(box => box && Math.abs(box.y - toolBoxes[0].y) <= 4)).toBe(true);
-  expect(await frame.locator('.pa-reading-bar h1').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(16);
+  expect(await frame.locator('.pa-reading-bar .pa-reader-title').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(16);
   await nav.getByRole('button', { name: 'Fit page', exact: true }).click();
   await expect.poll(async () => { const pageBox = await first.boundingBox(), viewport = await viewer.locator('.pa-pdf-viewport').boundingBox(); return pageBox.height <= viewport.height + 1 && pageBox.width <= viewport.width + 1; }).toBe(true);
   await page.screenshot({ path: resolve(out, 'reading-first-1440.png') });
@@ -223,7 +224,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await nav.getByRole('button', { name: 'Zoom in', exact: true }).click();
   const savedZoom = await nav.getByRole('button', { name: 'Fit page', exact: true }).innerText();
   await backToLibrary(frame);
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).dblclick();
   await expect(nav.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(savedZoom);
   await expect(viewer.locator('img,canvas').first()).toBeVisible();
   await expect.poll(() => viewer.locator('.pa-pdf-viewport').evaluate(element => {
@@ -234,7 +235,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await backToLibrary(frame);
   const unavailable = await post('/api/papers/import', { title: 'Synthetic unavailable PDF', sourceId: 'unavailable-pdf', url: 'https://example.invalid/source', pdfUrl: 'https://reader.example.org/retry.pdf', authors: [], contentKind: 'abstract', content: 'Synthetic source remains readable.' });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(unavailable.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(unavailable.title, { exact: true }) }).dblclick();
   // Opening metadata cannot initiate acquisition; the old implicit-download
   // error is now an explicit Save action, while its abstract stays readable.
   await frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true }).click();
@@ -250,7 +251,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect.poll(async () => (await attempts()).length).toBe(1);
   await page.screenshot({ path: resolve(out, 'pdf-download-failure.png') });
   await retry.click();
-  await expect(unavailableSave.getByRole('status')).toHaveText('Downloaded', { timeout: 30000 });
+  await expect(unavailableSave.getByRole('status').filter({ hasText: /^Downloaded$/ })).toBeVisible({ timeout: 30000 });
   const retryBundle = (await savedLibrary()).bundles.find(bundle => bundle.seedUrl === unavailable.pdfUrl);
   const recovered = await post('/api/research/pdf', { operation: 'status', bundleId: retryBundle.id, resourceId: retryBundle.pdfDownloadIds[0] });
   expect(recovered.status).toBe('completed'); expect(recovered.localAvailable).toBe(true);
@@ -293,7 +294,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
 }
 
 export async function reopenPdf({ frame, saved, page }) {
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).dblclick();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
   try {
     await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();

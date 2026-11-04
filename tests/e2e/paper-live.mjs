@@ -71,7 +71,7 @@ async function ask(question) {
   if (process.env.PERO_PAPER_LIVE_SWITCH_SOURCE) {
     await frame.getByRole('button', { name: 'Close Agent', exact: true }).click();
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
-    await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText('Harness Learning Enables Generalizable Test-Time Adaptation', { exact: true }) }).click();
+    await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText('Harness Learning Enables Generalizable Test-Time Adaptation', { exact: true }) }).dblclick();
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask AI', exact: true }).click();
     await frame.getByRole('button', { name: 'Research settings', exact: true }).click();
     await frame.getByText('Choose papers', { exact: true }).click();
@@ -124,12 +124,12 @@ async function ask(question) {
   }
   if (process.env.PERO_PAPER_LIVE_SWITCH_SOURCE) {
     await expect(frame.getByRole('checkbox', { name: 'Use for research: Harness Learning Enables Generalizable Test-Time Adaptation', exact: true })).toBeChecked();
-    await expect(frame.locator('.pa-reading-bar h1')).toHaveText('Harness Learning Enables Generalizable Test-Time Adaptation');
+    await expect(frame.locator('.pa-reading-bar .pa-reader-title')).toHaveText('Harness Learning Enables Generalizable Test-Time Adaptation');
     await expect(frame.locator('.pa-turn')).toHaveCount(0);
     checks.push('finishing research on paper A does not change the selected source or show its active turn while viewing paper B');
     await frame.getByRole('button', { name: 'Close Agent', exact: true }).click();
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
-    await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText('Harness^2: Recursive Agent Harnessing for an Open World', { exact: true }) }).click();
+    await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText('Harness^2: Recursive Agent Harnessing for an Open World', { exact: true }) }).dblclick();
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Ask AI', exact: true }).click();
   }
   await expect(frame.getByRole('textbox', { name: 'Research question', exact: true })).toBeEnabled({ timeout: 30000 });
@@ -151,7 +151,7 @@ try {
     const paper = library.papers.find(p => p.sourceId === '2610.14224');
     const sortedReports = [...library.reports].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     const previous = process.env.PERO_PAPER_LIVE_BRANCH ? sortedReports.at(-1) : sortedReports[0];
-    await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+    await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).dblclick();
     const nav = frame.locator('.pa-reading-main');
     await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '37', { timeout: 30000 });
     await expect(frame.locator('.pa-pdf-page img,.pa-pdf-page canvas').first()).toBeVisible({ timeout: 30000 });
@@ -250,7 +250,7 @@ try {
   expect(paper).toBeTruthy();
   const save = await saveLibraryCopies(frame, paper.title, { timeout: 90000 });
   await save.getByRole('button', { name: 'Close', exact: true }).click();
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).dblclick();
   const nav = frame.locator('.pa-reading-main');
   await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveAttribute('max', '37', { timeout: 90000 });
   await expect(frame.locator('.pa-pdf-page img,.pa-pdf-page canvas').first()).toBeVisible({ timeout: 30000 });
@@ -276,7 +276,7 @@ try {
   await page.screenshot({ path: resolve(out, '04-narrow-original.png') });
   checks.push('narrow-window citation reveals the PDF instead of leaving it behind the conversation');
   await app.close(); await open();
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).dblclick();
   const restored = await api(`/api/pdf?paperId=${paper.id}`);
   expect(restored.document.fileDigest).toBe(reading.document.fileDigest);
   const saved = await api('/api/library');

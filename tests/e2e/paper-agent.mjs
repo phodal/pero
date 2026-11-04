@@ -236,7 +236,8 @@ try {
     await exerciseLocalSearch({ frame, page, app, out });
     checks.push('local indexed search, digest, empty/error recovery and source opening from the library');
 
-    await frame.locator('.pa-library-list>li').first().getByRole('button', { name: 'Discover', exact: true }).click();
+    await frame.locator('.pa-library-list>li .pero-list-open').first().click();
+    await frame.getByRole('region', { name: 'Paper details', exact: true }).getByRole('button', { name: 'Discover', exact: true }).click();
     await expect(frame.getByRole('heading', { name: 'Confirm seed paper', exact: true })).toBeVisible();
     await frame.getByRole('button', { name: 'Use this match', exact: true }).click();
     const discovered = frame.locator('.pa-discovery [data-work-id="W2"]');
@@ -246,15 +247,15 @@ try {
     await metadataOnly.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(metadataOnly.getByRole('button', { name: 'Compare', exact: true })).toBeDisabled();
     expect((await library(frame)).papers).toHaveLength(1);
-    await frame.getByRole('button', { name: 'Citing papers', exact: true }).click();
+    await frame.getByRole('radio', { name: 'Citing papers', exact: true }).click();
     await expect(frame.getByRole('alert')).toContainText('429');
     await frame.getByRole('button', { name: 'Retry', exact: true }).click();
     await expect(frame.getByText('No papers found', { exact: true })).toBeVisible();
-    await frame.getByRole('button', { name: 'References', exact: true }).click();
+    await frame.getByRole('radio', { name: 'References', exact: true }).click();
     await expect(frame.locator('.pa-discovery-results>li')).toHaveCount(12);
     await frame.getByRole('button', { name: 'Next page', exact: true }).click();
     await expect(frame.locator('.pa-discovery-results>li')).toHaveCount(1);
-    await frame.getByRole('button', { name: 'Related papers', exact: true }).click();
+    await frame.getByRole('radio', { name: 'Related papers', exact: true }).click();
     await page.screenshot({ path: resolve(out, 'discovery-browse.png') });
     await discovered.getByRole('button', { name: 'Compare', exact: true }).click();
     await expect.poll(async () => (await chatState(page)).composer).toContain('Compare the selected papers');
@@ -351,7 +352,7 @@ try {
   checks.push('research records, reports, PDF bytes, annotations, matrices and exact citations survive Desktop restart without Agent replay');
   await page.screenshot({path:resolve(out,'conversation-reopened.png')});
   await reopenImageOnly({frame,page,profile,out,saved:savedImageOnly});
-  checks.push('Authored raster-only PDF explicitly saved/exported and rendered after restart; zero PDF text/OCR, metadata rejected as full text; no-PDF Save disabled and cached no-URL Save available');
+  checks.push('Raster-only PDF saved and rendered after restart; zero PDF text, metadata rejected as full text, PDF copy reused under the original Library entry');
   const other=await openPaper(page, 'virtual-cell');
   const denied=await other.locator('body').evaluate(async()=>{const response=await fetch('/host/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'info'})});return{status:response.status,text:await response.text()};});
   expect(denied.status).toBeGreaterThanOrEqual(400);expect(denied.text).toMatch(/permission|grant|Agent|agent/i);
