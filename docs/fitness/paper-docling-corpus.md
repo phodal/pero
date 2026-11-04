@@ -4,6 +4,9 @@ Issue #124, real local runs on 2026-11-04. These are the same pinned NASA origin
 and original PDF pages used by [the numeric corpus](paper-numeric-corpus.md), not
 synthetic fixtures. This compares proposed layout/evidence, not scientifically
 validated measurements or human-approved figure reading.
+The measurements below are the Linux PDFium/Tesseract and Docling/Tesseract
+pipelines. The later hosted Mac Vision run, including its missing/mixed caption
+relationships, is recorded in the [Mac runtime receipt](paper-docling-macos-runtime.md).
 
 ## Reproduce without downloading
 

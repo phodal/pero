@@ -1,8 +1,9 @@
 # Optional Docling layout: bounded offline profile
 
-Status: Linux Docling runtime verified; macOS Apple Silicon implementation,
-official wheel audit and hosted Host lifecycle tests complete. Actual Mac
-Docling installation and OCR remain unverified (2026-11-04). This is an
+Status: Linux and hosted macOS 26 arm64 Docling installation/OCR verified;
+desktop confirmation and interaction remain unverified (2026-11-04). The
+[Mac runtime receipt](paper-docling-macos-runtime.md) records the exact head,
+machine, tests and three-page quality failures. This is an
 explicit optional layout experiment, not a replacement for PDFium/Tesseract
 numeric extraction and not scientific/numeric acceptance. Real results and
 visual-review limits belong to [the corpus report](paper-docling-corpus.md).
@@ -124,8 +125,10 @@ and PyObjC 13.0. The actual downloaded wheels, dependency closure, ABI tags and
 Software is installed into a separate `venv-macos-arm64-cp312`; software readiness
 and approval from another profile are not inherited. Intel/Rosetta and older
 macOS are explicitly unsupported by this fixed profile, not silently downgraded.
-The App and native confirmation disclose that Mac runtime acceptance is still
-unperformed. No Linux result is presented as Mac execution evidence.
+The App and native confirmation distinguish hosted macOS 26 arm64 installation
+and OCR verification from unperformed desktop interaction. No Linux result is
+presented as Mac execution evidence; macOS 14 is the audited minimum deployment
+target, not an OS version exercised by this hosted run.
 
 Status exposes installation, cancellation, interruption and failure. Retry needs
 a new native confirmation. Activation occurs only after both components verify,
@@ -336,7 +339,8 @@ exercises the exact ocrmac wrapper. It writes a receipt and fails on missing
 language support, native errors or missing expected text. It never installs or
 downloads. The three-paper `docling_corpus.py --engines docling` runner also works
 with the native profile; RSS is normalized from Darwin bytes to KiB rather than
-mislabelled as Linux memory. Neither Mac script has been executed here.
+mislabelled as Linux memory. Both scripts have now run on the hosted Mac; their
+exact receipt and original-page failures are recorded separately.
 
 The hosted [macOS Desktop job](https://github.com/phodal/pero/actions/runs/41771418185/job/126381737392)
 for PR head `fc0aa5594d73380bdbff9e2b387ce2a71d2f06eb` passed on
@@ -356,6 +360,19 @@ Native compilation stopped at the missing GPUI checkout preflight. The Mac
 Desktop workflow now explicitly checks `--features native --bin pero-native`
 and tests `--features native --lib`, rather than relying on default `npm test`
 to compile feature-gated routes.
+The [exact-head Mac job](https://github.com/phodal/pero/actions/runs/41774957035/job/126393054395)
+for `46b0e30b` subsequently passed both commands on native arm64 macOS:
+the Native binary checked successfully and all 58 native library tests passed.
+This closes compilation and library-contract verification, not actual WebView
+request admission, confirmation clicks or source-jump interaction.
+The subsequent `native-docling-origin.mjs` probe uses a backend-free Paper
+manifest with the real, unmodified Paper UI assets inside an actual WKWebView.
+It only reads optional-runtime status and submits a deliberately malformed
+approval field that must be rejected; it never approves an installation.
+The receipt distinguishes the checkout/merge SHA from the PR head and records
+OS, executable/UI hashes, status responses and the absence of installation
+files. The fixture does not establish a complete Paper journey or a user click.
+Its actual Mac execution result must be checked separately from adding the test.
 
 `Paper optional Docling on macOS` is a separate, explicitly opted-in hosted
 workflow: relevant-path, same-repository PRs require `ci:full`; a manual run
@@ -382,7 +399,9 @@ workflow contracts passed. The new profile-preserving HTTP branch also passed
 against the real Linux optional runtime using a labelled synthetic activation
 file; this is not evidence that the older Host fixture emitted a profile.
 
-Required Mac acceptance remains: compile the Native/Wry shell, confirm/deny/cancel
-in each desktop shell, install both components, run the native probe and original
-three-paper corpus, persist/reopen via the Paper HTTP path and inspect source jumps.
-The existing Linux corpus results are not a substitute.
+The independent hosted Mac run passed installation/repair, the native probe,
+three original pages and Host-activation HTTP persistence; see the
+[exact runtime receipt](paper-docling-macos-runtime.md). Required desktop
+acceptance remains: verify live Native/Wry requests, confirm/deny/cancel in each
+desktop shell and inspect source jumps. The existing Linux corpus results are
+not a substitute, and hosted runtime tests do not prove those interactions.

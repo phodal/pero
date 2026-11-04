@@ -2,6 +2,8 @@
 
 Verification date: 2026-11-04. This records cross-platform artifact inspection,
 not native macOS installation, OCR, conversion, UI or signed-package acceptance.
+The subsequent actual hosted installation, Vision and original-scan results are
+recorded separately in the [Mac runtime receipt](paper-docling-macos-runtime.md).
 
 ## Fixed Apple Silicon profile
 
