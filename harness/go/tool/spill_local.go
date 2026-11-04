@@ -32,6 +32,7 @@ type LocalSpillStoreOptions struct {
 	Now              func() time.Time
 	Warn             func(string)
 	DefaultRootsBase string
+	RetrievalHint    string
 }
 
 type LocalSpillStore struct {
@@ -144,14 +145,21 @@ func (s *LocalSpillStore) SaveText(ctx context.Context, input SaveTextSpill) (Sp
 		_ = os.Remove(path)
 		return SpillRef{}, errors.Join(writeErr, closeErr)
 	}
-	return SpillRef{
-		Locator: path, Bytes: int64(len(data)),
-		RetrievalHint: "Retrieve this exact saved locator through a readback tool available in the current request; use bounded ranges and follow truncation markers.",
-	}, nil
+	hint := s.options.RetrievalHint
+	if hint == "" {
+		hint = "Retrieve this exact saved locator through a readback tool available in the current request; use bounded ranges and follow truncation markers."
+	}
+	return SpillRef{Locator: path, Bytes: int64(len(data)), RetrievalHint: hint}, nil
 }
 
 func (s *LocalSpillStore) LookupText(ctx context.Context, owner SpillOwner, locator string, maxBytes int) (SpillTextLookup, error) {
-	if owner.SessionID == "" || maxBytes <= 0 {
+	return s.ReadTextPage(ctx, owner, locator, 0, maxBytes)
+}
+
+// ReadTextPage reads a byte range from an exact Session-owned saved locator.
+// Callers continue at offset+len(Text), which stays on a UTF-8 boundary.
+func (s *LocalSpillStore) ReadTextPage(ctx context.Context, owner SpillOwner, locator string, offset int64, maxBytes int) (SpillTextLookup, error) {
+	if owner.SessionID == "" || maxBytes <= 0 || offset < 0 {
 		return SpillTextLookup{}, errors.New("spill-local: lookup requires owner and positive read limit")
 	}
 	root, err := s.Root()
@@ -194,9 +202,15 @@ func (s *LocalSpillStore) LookupText(ctx context.Context, owner SpillOwner, loca
 		return SpillTextLookup{}, err
 	}
 	defer file.Close()
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		return SpillTextLookup{}, err
+	}
 	data, err := io.ReadAll(io.LimitReader(file, int64(maxBytes)+1))
 	if err != nil {
 		return SpillTextLookup{}, err
+	}
+	if len(data) > 0 && !utf8.RuneStart(data[0]) {
+		return SpillTextLookup{}, errors.New("spill-local: offset must be a UTF-8 boundary")
 	}
 	truncated := len(data) > maxBytes
 	if truncated {

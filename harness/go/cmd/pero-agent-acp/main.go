@@ -191,12 +191,18 @@ func run() (resultErr error) {
 		}
 		resultErr = errors.Join(resultErr, disposeErr, h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), webApp.Close(), lspApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
+	spillStore := harness.NewLocalSpillStoreWithOptions(harness.LocalSpillStoreOptions{Root: filepath.Join(*sessions, "tool-output"), RetrievalHint: "Use ToolSearch select:ReadToolOutput if needed, then ReadToolOutput with this exact locator and bounded byte pages."})
+	if *workspace != "" {
+		if _, err := h.RegisterSpillStore(ctx, "native/tool-output-store", spillStore, harness.SpillPolicyOptions{}); err != nil {
+			return err
+		}
+	}
 	skillCatalog, err = skills.OpenSelected(ctx, *skillRoots, selections)
 	if err != nil {
 		return err
 	}
 	if *workspace != "" {
-		nativeOptions := nativetools.Options{Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: len(packages) > 0, PDFRendererPath: *pdfRenderer, DeferToolLoading: *deferToolLoading, BashEnvFile: func(agent *harness.Agent) string {
+		nativeOptions := nativetools.Options{SpillStore: spillStore, Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: len(packages) > 0, PDFRendererPath: *pdfRenderer, DeferToolLoading: *deferToolLoading, BashEnvFile: func(agent *harness.Agent) string {
 			if pluginHooks == nil {
 				return ""
 			}

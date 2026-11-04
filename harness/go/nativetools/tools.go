@@ -19,6 +19,8 @@ import (
 )
 
 type Options struct {
+	// SpillStore enables Session-owned readback of projected tool output.
+	SpillStore          *harness.LocalSpillStore
 	Sandbox             *sandbox.Config
 	Workspace           string
 	EnableShell         bool
@@ -350,6 +352,11 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 	}
 	if err := mountNativeGuidance(ctx, h, app, opts.Shell); err != nil {
 		return nil, err
+	}
+	if opts.SpillStore != nil {
+		if err := mountToolOutputReadback(ctx, h, opts.SpillStore); err != nil {
+			return nil, err
+		}
 	}
 	if err := mountPlanTools(ctx, h); err != nil {
 		return nil, err
