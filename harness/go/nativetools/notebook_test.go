@@ -116,6 +116,56 @@ func TestClaudeNotebookEditReplaceInsertDelete(t *testing.T) {
 	}
 }
 
+func TestNotebookReplacementCellTypes(t *testing.T) {
+	for _, tc := range []struct {
+		name, original, requested, wantType, outputs, count, attachments string
+	}{
+		{"markdown to code", `"cell_type":"markdown","attachments":{"image.png":{"image/png":"aGVsbG8="}}`, "code", "code", `[]`, `null`, ""},
+		{"code to markdown", `"cell_type":"code","outputs":[{"output_type":"stream","name":"stdout","text":["old\n"]}],"execution_count":3`, "markdown", "markdown", "", "", ""},
+		{"code retained", `"cell_type":"code","outputs":[],"execution_count":3`, "", "code", `[]`, `3`, ""},
+		{"markdown retained", `"cell_type":"markdown","attachments":{}`, "", "markdown", "", "", `{}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newClaudeFixture(t, Options{})
+			if !f.app.files.SupportsReplacement() {
+				t.Skip("notebook replacement unavailable")
+			}
+			path := filepath.Join(f.root, "replace.ipynb")
+			initial := `{"nbformat":4,"nbformat_minor":5,"metadata":{},"cells":[{"id":"cell-a","metadata":{},"source":["old"],` + tc.original + `}]}`
+			if err := os.WriteFile(path, []byte(initial), 0600); err != nil {
+				t.Fatal(err)
+			}
+			input := map[string]any{
+				"notebook_path": path, "cell_id": "cell-a", "new_source": "new\n",
+				"edit_mode": "replace",
+			}
+			if tc.requested != "" {
+				input["cell_type"] = tc.requested
+			}
+			result := f.call(t, f.allowed, "NotebookEdit", input)
+			if result.IsError {
+				t.Fatalf("replace failed: %+v", result)
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var document notebookDocument
+			if err := json.Unmarshal(raw, &document); err != nil || len(document.Cells) != 1 {
+				t.Fatalf("invalid notebook: %s, %v", raw, err)
+			}
+			cell := document.Cells[0]
+			var source []string
+			if err := json.Unmarshal(cell.Source, &source); err != nil || strings.Join(source, "") != "new\n" {
+				t.Fatalf("source was not replaced: %s, %v", cell.Source, err)
+			}
+			if cell.ID != "cell-a" || cell.CellType != tc.wantType || string(cell.Outputs) != tc.outputs || string(cell.ExecutionCount) != tc.count || string(cell.Attachments) != tc.attachments {
+				t.Fatalf("replacement left incorrect cell fields: %s", raw)
+			}
+		})
+	}
+}
+
 func TestNotebookReadPreservesSavedCellsAndBounds(t *testing.T) {
 	f := newClaudeFixture(t, Options{})
 	path := filepath.Join(f.root, "saved.ipynb")

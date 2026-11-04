@@ -114,7 +114,15 @@ func editNotebook(ctx context.Context, files *fstools.Workspace, input arguments
 			cell.CellType = "code"
 		}
 		cell.Source = encodeNotebookSource(input.Content)
-		if cell.CellType != "code" {
+		if cell.CellType == "code" {
+			if len(cell.Outputs) == 0 {
+				cell.Outputs = json.RawMessage(`[]`)
+			}
+			if len(cell.ExecutionCount) == 0 {
+				cell.ExecutionCount = json.RawMessage(`null`)
+			}
+			cell.Attachments = nil
+		} else {
 			cell.Outputs = nil
 			cell.ExecutionCount = nil
 		}
