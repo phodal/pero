@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "media.go",
         "patch.go",
+        "private.go",
         "scoped.go",
         "scoped_open_unix.go",
         "scoped_open_windows.go",
@@ -27,6 +28,7 @@ go_test(
     srcs = [
         "parents_test.go",
         "patch_test.go",
+        "private_test.go",
         "review_race_test.go",
         "scoped_test.go",
         "workspace_create_windows_test.go",

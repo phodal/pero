@@ -102,6 +102,9 @@ func (w *Workspace) checked(name string, directory bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err := checkPrivatePath(filepath.Join(w.path, name)); err != nil {
+		return "", err
+	}
 	parts := strings.Split(name, "/")
 	for i := range parts {
 		p := strings.Join(parts[:i+1], "/")
@@ -228,6 +231,9 @@ func (w *Workspace) createParents(ctx context.Context, name string) error {
 	}
 	name, err := relative(name, false)
 	if err != nil {
+		return err
+	}
+	if err := checkPrivatePath(filepath.Join(w.path, name)); err != nil {
 		return err
 	}
 	parts := strings.Split(path.Dir(name), "/")
