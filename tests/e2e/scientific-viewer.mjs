@@ -70,6 +70,13 @@ try{
    const archive=unzipSync(await readFile(exportPath));expect(Buffer.from(archive['source/document.pdf'])).toEqual(Buffer.from(example.text));const manifest=JSON.parse(new TextDecoder().decode(archive['manifest.json']));expect(manifest.quotes).toHaveLength(1);expect(manifest.crops).toHaveLength(1);expect(manifest.review.status).toBe('completed');expect(manifest.review.text).toContain('Synthetic transport review.');
   }checks.push(example.name);
  }
+ phase='notebook-math';
+ // Exercise the lazy MathJax loader in the real browser bundle. Merely selecting
+ // a notebook can move on before its asynchronous initialization fails.
+ const mathNotebook={nbformat:4,nbformat_minor:5,metadata:{},cells:[{id:'math',cell_type:'markdown',metadata:{},source:['$$1 + 1 = 2$$']}]};
+ await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'math.ipynb',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(mathNotebook))});
+ await expect(frame.locator('.notebook-viewer mjx-container')).toBeVisible({timeout:30000});
+ expect(errors).toEqual([]);checks.push('notebook mathematics rendered by the real MathJax bundle');
  phase='structure-input-isolation';
  // Harmless markup markers prove that user structure text never becomes DOM.
  const marker="data_marker\n_struct.title '<b id=viewer-marker>untrusted</b>'\n";

@@ -7,6 +7,9 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = resolve(import.meta.dirname, '../..');
+// MathJax's lazy TeX loader uses CommonJS globals even in its browser entry.
+// Match browser bundlers without exposing Node globals to the App frame.
+export const scientificViewerBrowserDefines = { global: 'globalThis', __dirname: '""' };
 export async function buildScientificViewer({ outdir = resolve(root, 'apps/scientific-viewer/dist') } = {}) {
   const app = resolve(root, 'apps/scientific-viewer'), dist = outdir, modules = resolve(app, 'node_modules');
   if (!['react', 'react-dom', 'molstar', 'pdfjs-dist', 'fflate', 'three', '@datalayer/jupyter-react'].every(name => existsSync(resolve(modules, name, 'package.json')))) {
@@ -25,6 +28,7 @@ export async function buildScientificViewer({ outdir = resolve(root, 'apps/scien
     },
   };
   await build({ entryPoints: [resolve(app, 'ui-src/frame.tsx')], outfile: resolve(dist, 'index.js'), bundle: true, format: 'esm', platform: 'browser', target: 'chrome140', jsx: 'automatic', minify: true,
+    define: scientificViewerBrowserDefines,
     alias: { react: resolve(modules, 'react'), 'react-dom': resolve(modules, 'react-dom'), ...appSdkAliases(root) }, nodePaths: [modules], plugins: [jupyterAssetPlugin],
     loader: { '.wasm': 'file', '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.svg': 'text', '.png': 'dataurl', '.gif': 'dataurl', '.jpg': 'dataurl', '.jpeg': 'dataurl' } });
   for (const [source, target] of [
