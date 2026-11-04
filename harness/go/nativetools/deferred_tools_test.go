@@ -113,7 +113,7 @@ func TestDeferredToolsWireDiscoveryWithdrawalAndRediscovery(t *testing.T) {
 		{loaded, "", ""},
 		{search, "", ""}, // Withdrawn.
 		{search, "", ""}, // An identical replacement needs rediscovery.
-		{search, "ToolSearch", `{"query":"deferred_unique_probe"}`},
+		{search, "ToolSearch", `{"query":"deferred_unique_probe nonexistent_keyword"}`},
 		{loaded, "deferred_probe", `{"value":"observed"}`},
 		{loaded, "", ""},
 		{search, "", ""}, // A different schema is also undiscovered.
@@ -185,8 +185,8 @@ func TestDeferredToolsWireDiscoveryWithdrawalAndRediscovery(t *testing.T) {
 func TestDeferredToolsSearchRecoveryAndBatchSelection(t *testing.T) {
 	search, loaded := []string{"ToolSearch"}, []string{"Read", "ToolSearch", "Write"}
 	adapter, calls := deferredWireProvider(t, []deferredWireStep{
-		{search, "ToolSearch", `{"query":"files terminal list read write"}`},
-		{search, "ToolSearch", `{"query":"read file contents"}`},
+		{search, "ToolSearch", `{"query":"nonexistent_keyword absent_capability"}`},
+		{search, "ToolSearch", `{"query":"select:missing_read,missing_write"}`},
 		{search, "ToolSearch", `{"query":"select:Read,Write"}`},
 		{loaded, "Read", `{"file_path":"sample.txt"}`},
 		{loaded, "", ""},

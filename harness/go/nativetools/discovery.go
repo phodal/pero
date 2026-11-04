@@ -22,10 +22,11 @@ type discoveredTool struct {
 }
 
 type toolSearchResult struct {
-	Tools      []discoveredTool `json:"tools"`
-	Total      int              `json:"total"`
-	NextOffset *int             `json:"next_offset,omitempty"`
-	Notice     string           `json:"notice"`
+	Tools        []discoveredTool `json:"tools"`
+	Total        int              `json:"total"`
+	PartialMatch bool             `json:"partial_match,omitempty"`
+	NextOffset   *int             `json:"next_offset,omitempty"`
+	Notice       string           `json:"notice"`
 }
 
 func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoading bool) error {
@@ -33,7 +34,7 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 	if claude {
 		name = "ToolSearch"
 	}
-	description := "Find caller-authorized tools. For known names use select:Name1,Name2 (comma-separated exact names, case-insensitive; returns up to 20 by default). Otherwise search literal name/description substrings: all whitespace-separated words must match one tool. Use one capability per query; a full tool name ranks first. Keyword searches return up to 5 by default. Returns current schemas, hashes and bounded pagination."
+	description := "Find caller-authorized tools. For known names use select:Name1,Name2 (comma-separated exact names, case-insensitive; returns up to 20 by default). Otherwise search literal name/description keywords, preferring tools matching every word. If none do, return explicitly marked partial matches ranked by keyword coverage and name matches. Use one capability per query; a full tool name ranks first. Keyword searches return up to 5 by default. Returns current schemas, hashes and bounded pagination."
 	if deferLoading {
 		description += " Complete returned schemas activate their exact versions for the next model request. Omitted schemas are not activated; narrow the query or continue pagination."
 	} else {
@@ -89,6 +90,9 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 					result.Notice = "No complete schemas were returned; no tools were activated by this search. Narrow the query or continue pagination. Call only current declared tools. Discovery never grants permissions."
 				}
 			}
+			if result.PartialMatch {
+				result.Notice = "No tool matched every keyword; these are partial keyword matches. Check their descriptions before use. " + result.Notice
+			}
 			return renderResult(result, nil)
 		},
 	}
@@ -137,37 +141,69 @@ func searchToolSchemas(schemas []harness.ToolSchema, self, query string, offset,
 			}
 		}
 	}
-	matches := make([]harness.ToolSchema, 0)
+	type keywordMatch struct {
+		harness.ToolSchema
+		words, nameWords int
+	}
+	matches := make([]keywordMatch, 0)
+	allWords := false
 	for _, schema := range schemas {
 		if schema.Name == self || len(words) == 0 {
 			continue
 		}
-		haystack := strings.ToLower(schema.Name + " " + schema.Description)
-		matched := false
+		name := strings.ToLower(schema.Name)
+		haystack := name + " " + strings.ToLower(schema.Description)
+		match := keywordMatch{ToolSchema: schema}
 		if exactSelection {
-			for _, name := range names {
-				matched = matched || strings.EqualFold(schema.Name, name)
+			for _, selected := range names {
+				if strings.EqualFold(schema.Name, selected) {
+					match.words = 1
+					break
+				}
 			}
 		} else {
-			matched = true
 			for _, word := range words {
-				matched = matched && strings.Contains(haystack, word)
+				if strings.Contains(haystack, word) {
+					match.words++
+				}
+				if strings.Contains(name, word) {
+					match.nameWords++
+				}
+			}
+			allWords = allWords || match.words == len(words)
+		}
+		if match.words > 0 {
+			matches = append(matches, match)
+		}
+	}
+	partial := !exactSelection && !allWords && len(matches) > 0
+	if !exactSelection && allWords {
+		complete := matches[:0]
+		for _, match := range matches {
+			if match.words == len(words) {
+				complete = append(complete, match)
 			}
 		}
-		if matched {
-			matches = append(matches, schema)
-		}
+		matches = complete
 	}
 	sort.Slice(matches, func(i, j int) bool {
 		leftExact, rightExact := strings.EqualFold(matches[i].Name, query), strings.EqualFold(matches[j].Name, query)
 		if leftExact != rightExact {
 			return leftExact
 		}
+		if partial {
+			if matches[i].words != matches[j].words {
+				return matches[i].words > matches[j].words
+			}
+			if matches[i].nameWords != matches[j].nameWords {
+				return matches[i].nameWords > matches[j].nameWords
+			}
+		}
 		return matches[i].Name < matches[j].Name
 	})
-	result := toolSearchResult{Tools: []discoveredTool{}, Total: len(matches), Notice: "Current caller-visible tools only; no activation or authorization change. Recheck the current request declarations before calling. schema_sha256 hashes the current complete tool declaration."}
+	result := toolSearchResult{Tools: []discoveredTool{}, Total: len(matches), PartialMatch: partial, Notice: "Current caller-visible tools only; no activation or authorization change. Recheck the current request declarations before calling. schema_sha256 hashes the current complete tool declaration."}
 	if len(matches) == 0 {
-		result.Notice = "No tools matched; no tools were activated by this search. Use fewer literal keywords (all words must match one tool), or select:Name1,Name2 for exact names. Discovery never grants permissions."
+		result.Notice = "No tools matched; no tools were activated by this search. Try a different capability keyword, or select:Name1,Name2 for exact names. Discovery never grants permissions."
 	}
 	used := 0
 	for i := offset; i < len(matches); i++ {
@@ -176,7 +212,7 @@ func searchToolSchemas(schemas []harness.ToolSchema, self, query string, offset,
 			break
 		}
 		schema := matches[i]
-		item := discoveredTool{Name: schema.Name, Description: boundedText(schema.Description, 1024), InputSchema: schema.InputSchema, Digest: harness.ToolSchemaDigest(schema)}
+		item := discoveredTool{Name: schema.Name, Description: boundedText(schema.Description, 1024), InputSchema: schema.InputSchema, Digest: harness.ToolSchemaDigest(schema.ToolSchema)}
 		encoded, _ := json.Marshal(item)
 		if used+len(encoded) > 32<<10 {
 			if len(result.Tools) > 0 {

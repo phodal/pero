@@ -66,3 +66,24 @@ The original benchmark binary, frozen runners and raw Session/results files
 were not modified. The probe scripts the recovery query; it does not prove a
 real model will choose it or improve tokens, latency or coding quality. The
 ordinary multiword queries deliberately retain their documented AND semantics.
+
+## Follow-up: live natural-language queries still return nothing
+
+Each of the three later QuixBugs tasks made an empty keyword search before
+recovering. Exact-name selection does not help a caller that describes a
+capability instead of knowing its registered name. Pi's local tool-search
+implementation ranks partial keyword coverage over authorized metadata.
+
+Prefer the existing all-word matches. Only when there are none, return bounded
+partial keyword matches ranked by coverage and name matches, with an explicit
+partial-match notice. Preserve exact selection, caller filtering, schema budget,
+pagination and exact-version activation. Do not invent aliases or add an
+embedding service. Verify recovery through actual provider declarations and
+denied/retired-tool cases before running another model sample.
+
+Verification: full Harness Go race tests (35 packages), `go vet ./...` and
+`git diff --check` pass. Matching tables cover full-match preference, partial
+ranking, exact-name misses and unchanged bounds. The real HTTP-wire rediscovery
+case now uses a partial query, then verifies the exact tool declaration and
+successful invocation on the next provider request. Restricted/retired tools
+remain absent. See [source comparison and live follow-up](../fitness/dsh-native-improvements.md).
