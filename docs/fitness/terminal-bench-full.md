@@ -51,6 +51,13 @@ Better Harness Inspector, verifies benchmark input hashes, scans artifacts for
 the configured credential value without printing it, and stops only this VM.
 An interrupted main job does not trigger automatic setup recovery.
 
+A later [VM termination](../issues/2026-11-04-terminal-bench-vm-termination.md)
+interrupts two live trials after 20 completed results. Their native Sessions
+and all 21 infrastructure-affected trial directories are retained outside the
+resumed job. All 20 result hashes remain unchanged; Harbor resumes the other
+69 tasks after the dedicated VM and Rosetta controls are restored. These
+interrupted requests contribute to all-attempt usage, not selected verdicts.
+
 Official test reward, Harbor's reward-validity classification and agent stop
 reason remain separate. Usage counts committed provider records once, including
 cache reads; interrupted/unreported usage remains unknown. These are recorded
