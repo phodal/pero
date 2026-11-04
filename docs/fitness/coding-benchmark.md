@@ -1,5 +1,8 @@
 # Native coding benchmark sample
 
+The separate [QuixBugs repair sample](quixbugs-benchmark.md) records six later
+program repairs, their usage, failed self-checks and official-test coverage gaps.
+
 2026-11-04, macOS arm64. The tracked [runner](../../harness/tools/benchmark/README.md)
 executes four fixed Aider Polyglot Python exercises through the real ACP client.
 This is a diagnostic integration sample, not a leaderboard or a controlled
