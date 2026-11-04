@@ -216,3 +216,29 @@ the sources. The separate `early-results/` Inspector contains both corrections
 as two corrections while the full 89-task suite remains unfinished. Its Scheme
 view is visually checked: 686 model calls, 96.5M processed tokens, 99.8% input reuse
 and context occupancy unavailable. These metrics do not imply cost or capacity.
+
+## Recovered HF service lifecycle
+
+The newly admitted `hf-model-inference` trial ends normally after 16 responses
+and 122,783 recorded tokens, but passes only 1/4 official tests. Its first
+nohup launch reports WaitDelay despite shell exit zero. A later managed launch
+serves the positive/negative and health self-checks with HTTP 200 and rejects
+invalid inputs with HTTP 400. That exact owned task is context-canceled at
+Session shutdown; the later official requests to localhost:5000 are refused.
+
+`hf-recovery-analysis/failure-analysis.json` binds the result and native-call
+hashes. This independently corroborates the managed-service lifetime mismatch
+already observed in PyPI; it does not prove all assertions would pass if the
+server survived. The current-code lifetime guidance and separately queued
+PyPI acceptance remain distinct from this frozen original attempt. No raw
+result is replaced, and the full suite is still unfinished.
+
+## QEMU environment control
+
+An empty-machine run of the official image's existing QEMU binary reproduces
+Rosetta's syscall-282 abort with zero model calls. A minimal signalfd probe and
+an explicit subprocess-only user-emulator control narrow the platform limit;
+the alternate mode reaches the unchanged ISO's bootloader but has no login or
+functional acceptance. See the [active environment incident](../issues/2026-11-05-rosetta-qemu-signalfd.md).
+Both current QEMU candidate corrections remain raw zero with their separate
+verifier stages. Repeated log observations are not independent crash counts.

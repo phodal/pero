@@ -104,3 +104,10 @@ earlier successful runner control does not establish reliable asset transport
 for every later candidate. Preserve both results and investigate transport
 before another paid QEMU attempt. Source-bound evidence is
 `strict-timeout-followup/bootstrap-early-results/failure-analysis.json`.
+
+The later uv download failure also affects a Debian 12 task. Its canonical
+transport/provisioning investigation now lives in
+[the pinned-verifier dependency issue](2026-11-05-benchmark-verifier-uv-transport.md).
+QEMU's independent syscall failure is tracked in
+[the Rosetta signalfd issue](2026-11-05-rosetta-qemu-signalfd.md). Neither changes
+the retained evidence that the archive-enabled ACP bootstrap itself succeeds.

@@ -249,3 +249,10 @@ attempts do not add baseline slots. Rosetta unsupported-syscall diagnostics
 occur in 110 tool-output observations, which may reread the same log; that is
 not a count of independent crashes or proof of the sole failure cause. The
 report and usage view are visually checked.
+
+A subsequent zero-model [syscall control](../issues/2026-11-05-rosetta-qemu-signalfd.md)
+reproduces the Rosetta abort with the official image's existing QEMU binary and
+an empty machine, before any candidate implementation is involved. A minimal
+amd64 signalfd-282 probe also exits 133; its native arm64 equivalent succeeds.
+This establishes an independent environment obstacle. Native x86 acceptance
+is still unavailable; original rewards and the local full queue stay intact.
