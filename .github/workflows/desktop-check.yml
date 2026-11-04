@@ -127,6 +127,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Compile and test the Native GPUI and Wry shell
+        if: runner.os == 'macOS'
+        run: |
+          node scripts/cargo.mjs +nightly-2026-10-28 check --locked -p pero-ui --features native --bin pero-native
+          node scripts/cargo.mjs +nightly-2026-10-28 test --locked -p pero-ui --features native --lib
+
       - name: Typecheck and generated sources
         run: |
           npm run check

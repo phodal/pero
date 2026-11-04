@@ -437,12 +437,16 @@ impl Workbench {
         cx.notify();
     }
     pub(crate) fn sync_native_apps(&mut self, cx: &mut Context<Self>) {
+        let paper_pages = self.native_app_pages.keys().filter(|(name, _)| name == "paper-agent").count();
         self.native_app_pages.retain(|(name, panel), _| {
             self.navigation.items().contains(&WorkspaceItem::App {
                 name: name.clone(),
                 panel: panel.clone(),
             }) && self.apps.retains_panel(name, panel)
         });
+        if self.native_app_pages.keys().filter(|(name, _)| name == "paper-agent").count() < paper_pages {
+            crate::native::apps().cancel_docling_confirmation();
+        }
         for ((name, panel), page) in &self.native_app_pages {
             let item = WorkspaceItem::App {
                 name: name.clone(),

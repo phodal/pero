@@ -306,6 +306,7 @@ pub fn run() -> anyhow::Result<()> {
                 _ => eprintln!("Invalid native Host event"),
             }
         }
+        app_client.disconnect();
         let _ = worker_states
             .send(serde_json::json!({"action":"native_host_disconnected"}).to_string());
         let _ = reader_events.send_blocking(HostEvent::message(
@@ -497,6 +498,8 @@ pub fn run() -> anyhow::Result<()> {
         let close_view=view.downgrade();
         let _=window.update(cx,|_,window,cx| {
             window.on_window_should_close(cx,move|window,cx| {
+                // Dismiss before workspace preflight can open its save dialog.
+                crate::native_docling_dialog::cancel(window, cx);
                 close_view.update(cx,|view,cx| {
                     view.request_workspace_window_close(window,cx);
                     false
@@ -507,6 +510,24 @@ pub fn run() -> anyhow::Result<()> {
         cx.spawn(async move |cx| {
             let (mut host_ready, mut harness_ready, mut apps_ready) = (false, false, false);
             while let Ok(event) = received.recv().await {
+                if event.kind == "native_docling_confirmation" {
+                    if let Ok(prompt) = serde_json::from_value::<crate::native_docling::Prompt>(event.data) {
+                        let id = prompt.id;
+                        if window.update(cx, |_, window, cx| crate::native_docling_dialog::show(prompt, window, cx)).is_err() {
+                            apps().docling.answer(id, false);
+                        }
+                    } else {
+                        apps().cancel_docling_confirmation();
+                    }
+                    continue;
+                }
+                if event.kind == "native_docling_dismiss" {
+                    if let Some(id) = event.data["id"].as_u64() {
+                        let _ = window.update(cx, |_, window, cx| crate::native_docling_dialog::dismiss(id, window, cx));
+                    }
+                    continue;
+                }
+                if event.kind == "disconnected" { apps().disconnect(); }
                 if verifying_installation {
                     match event.kind.as_str() {
                         "ready" => host_ready = true,
@@ -610,6 +631,7 @@ pub fn run() -> anyhow::Result<()> {
                     break;
                 }
             }
+            apps().cancel_docling_confirmation();
         })
         .detach();
         apps().command(serde_json::json!({"action":"apps_list"}));
@@ -618,6 +640,7 @@ pub fn run() -> anyhow::Result<()> {
         let _ = commands.send(serde_json::json!({"action":"list_agents"}).to_string());
         cx.on_window_closed(move |cx, closed| {
             if closed == window.window_id() {
+                apps().cancel_docling_confirmation();
                 cx.quit();
             }
         })

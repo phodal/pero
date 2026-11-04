@@ -7,7 +7,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc,
     },
     time::Duration,
@@ -36,9 +36,11 @@ struct Reply {
 
 #[derive(Clone)]
 pub(crate) struct NativeApps {
+    pub(super) docling: Arc<crate::native_docling::NativeDocling>,
     connectors: Option<std::sync::Weak<crate::native_connectors::NativeConnectors>>,
     host: mpsc::Sender<String>,
     pending: Arc<Mutex<BTreeMap<String, mpsc::Sender<Reply>>>>,
+    disconnected: Arc<AtomicBool>,
     next: Arc<AtomicU64>,
     events: async_channel::Sender<HostEvent>,
     client: reqwest::blocking::Client,
@@ -46,10 +48,12 @@ pub(crate) struct NativeApps {
 impl NativeApps {
     pub fn new(host: mpsc::Sender<String>, events: async_channel::Sender<HostEvent>, connectors: Option<std::sync::Weak<crate::native_connectors::NativeConnectors>>) -> Self {
         Self {
+            docling: Default::default(),
             connectors,
             host,
             events,
             pending: Default::default(),
+            disconnected: Default::default(),
             next: Default::default(),
             client: reqwest::blocking::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
@@ -62,6 +66,21 @@ impl NativeApps {
     pub fn require_connectors(&self) -> anyhow::Result<()> {
         self.request::<Value>("connectors", json!({"name":"connectors"}))?;
         Ok(())
+    }
+    fn dismiss_docling(&self, id: u64) {
+        let mut event = HostEvent::new("native_docling_dismiss", None, String::new());
+        event.data = json!({"id":id});
+        let _ = self.events.send_blocking(event);
+    }
+    pub(super) fn cancel_docling_confirmation(&self) {
+        if let Some(id) = self.docling.cancel() {
+            self.dismiss_docling(id);
+        }
+    }
+    pub(super) fn disconnect(&self) {
+        self.disconnected.store(true, Ordering::Release);
+        self.pending.lock().unwrap().clear();
+        self.cancel_docling_confirmation();
     }
     pub fn accept(&self, event: &HostEvent) -> bool {
         if event.kind != "apps_result" {
@@ -89,7 +108,11 @@ impl NativeApps {
         command["action"] = json!(action);
         command["id"] = json!(id);
         let (sender, receiver) = mpsc::channel();
-        self.pending.lock().unwrap().insert(id.clone(), sender);
+        {
+            let mut pending = self.pending.lock().unwrap();
+            anyhow::ensure!(!self.disconnected.load(Ordering::Acquire), "Native Host is unavailable");
+            pending.insert(id.clone(), sender);
+        }
         let reply = self
             .host
             .send(command.to_string())
@@ -112,7 +135,11 @@ impl NativeApps {
     pub(super) fn shell_request(&self, data: Value) -> anyhow::Result<Value> {
         let id = format!("native-surface-{}", self.next.fetch_add(1, Ordering::Relaxed));
         let (sender, receiver) = mpsc::channel();
-        self.pending.lock().unwrap().insert(id.clone(), sender);
+        {
+            let mut pending = self.pending.lock().unwrap();
+            anyhow::ensure!(!self.disconnected.load(Ordering::Acquire), "Native Host is unavailable");
+            pending.insert(id.clone(), sender);
+        }
         let mut event = HostEvent::new("native_app_rpc", Some(id.clone()), String::new());
         event.data = data;
         let result = self.events.send_blocking(event).map_err(anyhow::Error::from)
@@ -223,6 +250,30 @@ impl NativeApps {
         if path.starts_with("/api/") {self.request::<Value>("apiaccess",json!({"name":name,"path":path}))?;}
         let method = request.method();
         let body = request.body();
+        if path == "/host/docling-runtime" {
+            if name != "paper-agent" || request.headers().get("Origin").is_none_or(|origin| origin != "pero-app://paper-agent") {
+                return Ok(Response::builder().status(403).body(b"Paper origin required".to_vec())?);
+            }
+            if method != "POST" { return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?); }
+            if body.len() > 4096 { return Ok(Response::builder().status(413).body(b"Request too large".to_vec())?); }
+            let input = match serde_json::from_slice::<crate::native_docling::Input>(body) {
+                Ok(input) => input,
+                Err(_) => return Ok(Response::builder().status(400).body(b"Invalid Docling component request".to_vec())?),
+            };
+            let result = self.docling.apply(input,
+                |operation| self.request::<Value>("doclingruntime", json!({"name":"paper-agent","request":operation})).map_err(|error| error.to_string()),
+                |prompt| {
+                    let mut event = HostEvent::new("native_docling_confirmation", None, String::new());
+                    event.data = serde_json::to_value(prompt).expect("Native confirmation");
+                    self.events.send_blocking(event).map_err(|error| error.to_string())
+                },
+                |id| self.dismiss_docling(id),
+            );
+            return Ok(match result {
+                Ok(value) => Response::builder().header("Content-Type", "application/json").header("Cache-Control", "no-store").body(serde_json::to_vec(&value)?)?,
+                Err(_) => Response::builder().status(503).body(b"Optional OCR setup unavailable. Check status or continue manually.".to_vec())?,
+            });
+        }
         if path == "/host/environment" {
             if method != "POST" {
                 return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?);
@@ -404,6 +455,90 @@ impl NativeApps {
             .header("X-Content-Type-Options", "nosniff")
             .header("Content-Security-Policy", format!("default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src {frame_sources}; object-src 'none'; base-uri 'none'"))
             .body(data)?)
+    }
+}
+
+#[cfg(test)]
+mod docling_tests {
+    use super::*;
+
+    fn reply(apps: &NativeApps, request: &Value, value: Value) {
+        let mut event = HostEvent::new("apps_result", request["id"].as_str().map(str::to_owned), String::new());
+        event.data = json!({"ok":true,"value":value});
+        assert!(apps.accept(&event));
+    }
+
+    #[test]
+    fn docling_route_admits_only_bounded_paper_intent() {
+        let (host, requests) = mpsc::channel();
+        let (events, _) = async_channel::unbounded();
+        let apps = NativeApps::new(host, events, None);
+        for (name, method, origin, body, status) in [
+            ("other-app", "POST", Some("pero-app://other-app"), br#"{"operation":"status"}"#.to_vec(), 403),
+            ("paper-agent", "POST", None, br#"{"operation":"status"}"#.to_vec(), 403),
+            ("paper-agent", "POST", Some("null"), br#"{"operation":"status"}"#.to_vec(), 403),
+            ("paper-agent", "GET", Some("pero-app://paper-agent"), b"{}".to_vec(), 405),
+            ("paper-agent", "POST", Some("pero-app://paper-agent"), vec![b' '; 4097], 413),
+            ("paper-agent", "POST", Some("pero-app://paper-agent"), br#"{"operation":"install","ticket":"forged"}"#.to_vec(), 400),
+            ("paper-agent", "POST", Some("pero-app://paper-agent"), br#"{"operation":"request","component":"software","approved":true}"#.to_vec(), 400),
+        ] {
+            let mut request = Request::builder().method(method).uri(format!("pero-app://{name}/host/docling-runtime"));
+            if let Some(origin) = origin { request = request.header("Origin", origin); }
+            assert_eq!(apps.serve(name, request.body(body).unwrap()).status(), status);
+            assert!(requests.try_recv().is_err());
+        }
+    }
+
+    #[test]
+    fn private_native_confirmation_connects_the_app_route_to_host_install() {
+        for component in ["software", "model"] {
+            for allowed in [false, true] {
+                let (host, requests) = mpsc::channel();
+                let (events, prompts) = async_channel::unbounded();
+                let apps = NativeApps::new(host, events, None);
+                let serving = apps.clone();
+                let response = std::thread::spawn(move || serving.serve("paper-agent", Request::builder()
+                    .method("POST").uri("pero-app://paper-agent/host/docling-runtime")
+                    .header("Origin", "pero-app://paper-agent")
+                    .body(serde_json::to_vec(&json!({"operation":"request","component":component})).unwrap()).unwrap()));
+                let prepare: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+                assert_eq!(prepare["action"], "doclingruntime");
+                assert_eq!(prepare["name"], "paper-agent");
+                assert_eq!(prepare["request"], json!({"operation":"prepare","component":component}));
+                reply(&apps, &prepare, json!({"state":"requires-approval","component":component,"summary":"Fixed software or model download","ticket":"private-host-ticket"}));
+                let prompt = prompts.recv_blocking().unwrap();
+                assert_eq!(prompt.kind, "native_docling_confirmation");
+                assert!(!prompt.data.to_string().contains("private-host-ticket"));
+                assert!(requests.try_recv().is_err());
+                apps.docling.answer(prompt.data["id"].as_u64().unwrap(), allowed);
+                let decision: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+                assert_eq!(decision["request"], if allowed { json!({"operation":"install","ticket":"private-host-ticket"}) } else { json!({"operation":"cancel"}) });
+                reply(&apps, &decision, json!({"state":"idle","softwareApproved":false,"ticket":"private-host-ticket","root":"private-path"}));
+                let response = response.join().unwrap();
+                assert_eq!(response.status(), 200);
+                assert_eq!(response.headers()["Cache-Control"], "no-store");
+                assert_eq!(serde_json::from_slice::<Value>(response.body()).unwrap(), json!({"state":"idle","softwareApproved":false}));
+            }
+        }
+    }
+
+    #[test]
+    fn host_disconnect_releases_pending_confirmation_without_waiting_for_the_host_timeout() {
+        let (host, requests) = mpsc::channel();
+        let (events, _) = async_channel::unbounded();
+        let apps = NativeApps::new(host, events, None);
+        let serving = apps.clone();
+        let response = std::thread::spawn(move || serving.serve("paper-agent", Request::builder()
+            .method("POST").uri("pero-app://paper-agent/host/docling-runtime")
+            .header("Origin", "pero-app://paper-agent")
+            .body(br#"{"operation":"request","component":"software"}"#.to_vec()).unwrap()));
+        let prepare: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+        assert_eq!(prepare["request"]["operation"], "prepare");
+        apps.disconnect();
+        assert_eq!(response.join().unwrap().status(), 503);
+        assert!(!apps.docling.pending(1));
+        assert!(apps.request::<Value>("doclingruntime", json!({"name":"paper-agent","request":{"operation":"status"}})).is_err());
+        assert!(requests.try_recv().is_err());
     }
 }
 
