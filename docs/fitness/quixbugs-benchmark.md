@@ -5,6 +5,8 @@
 ACP agent using the [tracked runner](../../harness/tools/benchmark/quixbugs.md).
 All six first submissions passed their 46 unchanged official tests. This is a
 small algorithm-repair diagnostic, with the coverage and procedure limits below.
+Three additional repairs and a Polyglot React rerun are recorded in the separate
+[follow-up](coding-benchmark-followup.md).
 
 ## Source and protocol
 
@@ -69,7 +71,7 @@ The extended offline reporter flags empty unittest/doctest/pytest suites as
 review candidates. The original run-time summaries and raw Sessions remain
 unchanged; the reviewed export was generated separately. Its 18 behavioral
 tests pass. The exact-selection change passed native race tests and vet; trial
-tests also passed (18). The live sample selected at most four exact names and
+tests also passed (18). This six-task sample selected at most four exact names and
 does not measure the token benefit of returning more than five names.
 
 ## Coverage and procedure limits
