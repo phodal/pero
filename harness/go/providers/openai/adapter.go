@@ -32,6 +32,8 @@ type ModelConfig struct {
 type Config struct {
 	// Explicit compatible-provider extension; omitted unless requested.
 	DisableThinking bool
+	// Explicit transport choice for compatible providers without an SSE route.
+	DisableStreaming bool
 	// Explicit opt-in to the process environment HTTP(S) proxy; TLS verification is unchanged.
 	UseEnvironmentProxy bool
 	// Explicit opt-in to plaintext HTTP for this configured endpoint only.
@@ -49,6 +51,7 @@ type Config struct {
 }
 type Adapter struct {
 	disableThinking   bool
+	disableStreaming  bool
 	maxRequests       int64
 	maxOutputTokens   int
 	requests          atomic.Int64
@@ -133,12 +136,12 @@ func New(c Config) (*Adapter, error) {
 	if transport == nil {
 		transport = configuredTransport(c.UseEnvironmentProxy)
 	}
-	client.Transport = terminalCheckingTransport{next: transport}
+	client.Transport = terminalCheckingTransport{next: transport, nonStreaming: c.DisableStreaming}
 	if c.BeforeHTTPAttempt != nil {
 		client.Transport = attemptAuditTransport{next: client.Transport, before: c.BeforeHTTPAttempt}
 	}
 	sdk := openaisdk.NewChatCompletionService(option.WithAPIKey(c.APIKey), option.WithBaseURL(u.String()), option.WithHTTPClient(&client), option.WithMaxRetries(0), option.WithOrganization(""), option.WithProject(""), option.WithHeader("User-Agent", "pero-agent/0.1"))
-	return &Adapter{disableThinking: c.DisableThinking, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, client: sdk, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond}, nil
+	return &Adapter{disableThinking: c.DisableThinking, disableStreaming: c.DisableStreaming, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, client: sdk, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond}, nil
 }
 
 type attemptAuditTransport struct {

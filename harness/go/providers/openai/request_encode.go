@@ -13,7 +13,7 @@ func encodeRequest(r harness.GenerateRequest, imagesAllowed bool) (wireRequest, 
 	if r.MaxTokens < 0 || (r.Temperature != nil && (math.IsNaN(*r.Temperature) || math.IsInf(*r.Temperature, 0) || *r.Temperature < 0 || *r.Temperature > 2)) {
 		return wireRequest{}, fmt.Errorf("invalid generation controls")
 	}
-	w := wireRequest{Model: r.Model, ReasoningEffort: r.ReasoningEffort, Temperature: r.Temperature, MaxTokens: r.MaxTokens, Stop: r.Stop, Stream: true, StreamOptions: wireStreamOptions{IncludeUsage: true}}
+	w := wireRequest{Model: r.Model, ReasoningEffort: r.ReasoningEffort, Temperature: r.Temperature, MaxTokens: r.MaxTokens, Stop: r.Stop, Stream: true, StreamOptions: &wireStreamOptions{IncludeUsage: true}}
 	imageBytes := 0
 	if r.System != "" {
 		w.Messages = append(w.Messages, wireMessage{Role: "system", Content: r.System})

@@ -22,8 +22,8 @@ type wireRequest struct {
 	Tools           []wireTool              `json:"tools,omitempty"`
 	MaxTokens       int                     `json:"max_tokens,omitempty"`
 	Stop            []string                `json:"stop,omitempty"`
-	Stream          bool                    `json:"stream,omitempty"`
-	StreamOptions   wireStreamOptions       `json:"stream_options"`
+	Stream          bool                    `json:"stream"`
+	StreamOptions   *wireStreamOptions      `json:"stream_options,omitempty"`
 }
 
 type wireThinking struct {
@@ -106,6 +106,9 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 	if a.disableThinking {
 		wire.Thinking = &wireThinking{Type: "disabled"}
 	}
+	if a.disableStreaming {
+		wire.Stream, wire.StreamOptions = false, nil
+	}
 	payload, err := json.Marshal(wire)
 	if err != nil {
 		return harness.Completion{}, err
@@ -153,7 +156,11 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 			return harness.Completion{}, err
 		}
 	}
-	go a.pumpStream(streamCtx, params, events)
+	if a.disableStreaming {
+		go a.pumpCompletion(streamCtx, params, events)
+	} else {
+		go a.pumpStream(streamCtx, params, events)
+	}
 	timer := time.NewTimer(a.streamIdleTimeout)
 	defer timer.Stop()
 	assembly := newStreamAssembly()
