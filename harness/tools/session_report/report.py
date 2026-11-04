@@ -327,7 +327,8 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
         else:
             observed = data.get("content", [])
         # A pointer or truncated preview cannot establish equality of full results.
-        partial = "Full formatted result stored at:" in text_blocks(data) or any(
+        partial = observed.get("truncated") is True if isinstance(observed, dict) else False
+        partial = partial or "Full formatted result stored at:" in text_blocks(data) or any(
             isinstance(value, dict) and value.get("truncated") is True
             for value in payload_of(data).values())
         call.result_sha256 = None if partial else digest(encoded([call.protocol_error, observed]))
@@ -384,6 +385,8 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
         call.stdout_sha256 = digest(stdout.encode())
         call.truncated = any(isinstance(payload.get(key), dict) and payload[key].get("truncated") is True
                              for key in ("stdout", "stderr", "output"))
+        if call.truncated:
+            call.result_sha256 = None
         if not is_process_invocation:
             call.exit_code, call.timed_out, call.aborted = None, False, False
         if call.timed_out or call.aborted:

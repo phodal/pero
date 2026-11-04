@@ -123,6 +123,9 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 	}
 	if request.Agent != nil {
 		tools, _ := json.Marshal(wire.Tools)
+		if len(wire.Tools) == 0 {
+			tools = nil
+		}
 		toolResultBytes, toolResults := 0, 0
 		for _, message := range wire.Messages {
 			if message.Role == "tool" {
