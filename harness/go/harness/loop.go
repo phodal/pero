@@ -849,6 +849,9 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 			deferred = append(deferred, additional)
 		}
 		concluded = concluded || outcome.Result.ConcludesTurn
+		if reminder := a.toolProgress.observe(turn, calls[index], outcome.Result); reminder != nil {
+			deferred = append(deferred, *reminder)
+		}
 	}
 	if a.hooks != nil && a.hooks.PostToolBatch != nil {
 		batch := ToolBatchInput{Agent: a, Calls: make([]ToolBatchCall, len(outcomes))}

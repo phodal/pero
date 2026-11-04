@@ -256,6 +256,7 @@ type Agent struct {
 	maxTokens            int
 	maxParallelToolCalls int
 	agentLoopConfig      *AgentLoopConfig
+	toolProgress         toolProgress // ordered continuation only; reset by turn
 	delegated            bool
 	parent               *Agent
 	freshSession         bool
