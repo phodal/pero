@@ -52,6 +52,7 @@ export type OkInspection = {
   rows: InspectionRow[];
 };
 export type Inspection = OkInspection | { status: 'invalid' | 'changed' | 'missing' | 'unsupported'; datasetId: string; assetId: string; message: string };
+export type InspectionOutcome = Inspection | { status: 'rejected' | 'unavailable'; message: string };
 export type ChartDataset = {
   datasetId: string; assetId: string; sha256: string; name: string; view: ViewSpec; viewId: string;
   fields: { name: string; kinds: string[] }[];
@@ -73,7 +74,11 @@ export function retainSelection(state: CatalogState, current: Selection | null):
 
 export const formatInt = (value: number) => new Intl.NumberFormat('en-US').format(value);
 export const formatBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 ** 2 ? `${(value / 1024).toFixed(1)} KiB` : `${(value / 1024 ** 2).toFixed(1)} MiB`;
-export const availabilityLabel = (asset: Asset) => ({ present: 'Stored', missing: 'Missing', changed: 'Changed' })[asset.availability];
+export function availabilityLabel(asset: Asset, inspection?: InspectionOutcome | null) {
+  const availability = (inspection?.status === 'missing' || inspection?.status === 'changed') && inspection.assetId === asset.id
+    ? inspection.status : asset.availability;
+  return { present: 'Stored', missing: 'Missing', changed: 'Changed' }[availability];
+}
 
 export function summary(value: OkInspection) {
   return { datasetId: value.datasetId, assetId: value.assetId, sha256: value.sha256, viewId: value.viewId ?? '',
