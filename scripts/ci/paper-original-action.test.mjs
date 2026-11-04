@@ -10,9 +10,9 @@ const overview = scopes => ({ revisions: [{ ...document, parser: 'html', scopes 
 const selection = (anchors, sourceId = document.id) => ({ sourceId, anchors, text: 'Selected caption' });
 const adapter = host => find(host, node => node.type === 'HtmlReading');
 const button = node => elements(node, value => value.type === 'Button')[0];
-async function mount(scopes = [scope]) {
+async function mount(scopes = [scope], available = true) {
   const posts = [];
-  const api = { get: async path => path.includes('?') ? overview(scopes) : { ...document, id: path.split('/').at(-1) },
+  const api = { get: async path => path.includes('?') ? { ...overview(scopes), revisions: available ? overview(scopes).revisions : [] } : { ...document, id: path.split('/').at(-1) },
     post(path, body) { return new Promise(resolve => posts.push({ path, body, resolve })); } };
   const components = paperComponents(api);
   const host = components.mount(components.StructuredReading, { api, paperId: 'paper', openToken: 1, onReady() {}, onReview() {} });
@@ -61,11 +61,13 @@ test('missing bundle ownership disables selection action and a scope change inva
   assert.equal(posts[1].body.resourceId, 'resource-B');
 });
 
-test('changing revision invalidates a pending original response', async () => {
+test('reopening a changed revision invalidates a pending original response', async () => {
   const { host, posts } = await mount();
   button(adapter(host).props.renderSelection(selection(['T1']))).props.onClick();
-  find(host, node => node.props?.label === 'Read version').props.onChange('immutable-B');
+  const api = { ...host.props.api, get: async path => path.includes('?') ? { ...overview([scope]), revisions: [{ ...document, id: 'immutable-B', scopes: [scope] }] } : { ...document, id: 'immutable-B' } };
+  host.render({ ...host.props, api, openToken: 2 });
   await drain(); host.render();
+  assert.equal(host.tree.props['data-document-id'], 'immutable-B');
   posts[0].resolve({ documentId: document.id, content: 'stale revision bytes', start: 0, end: 20 });
   await drain(); host.render();
   assert.equal(find(host, node => node.props?.['aria-label'] === 'Original HTML source'), undefined);
@@ -92,10 +94,11 @@ test('HTML reader selection changes replace and clear the adapter action without
 });
 
 
-test('an ongoing parse disables the selected-block source action', async () => {
-  const { host, posts } = await mount();
-  const prepare = find(host, node => node.type === 'Button' && node.props.children.includes('Prepare fresh parse · '));
+test('an ongoing first parse exposes progress without a source action', async () => {
+  const { host, posts } = await mount([scope], false);
+  const prepare = find(host, node => node.type === 'Button' && node.props.children.includes('Prepare Read · '));
   prepare.props.onClick(); host.render();
   assert.equal(posts[0].body.operation, 'prepare');
-  assert.equal(button(adapter(host).props.renderSelection(selection(['T1']))).props.disabled, true);
+  assert.equal(adapter(host), undefined, 'no stale document/source action is exposed while the first parse is pending');
+  assert.equal(find(host, node => node.props?.role === 'status').props.children[0], 'preparing');
 });

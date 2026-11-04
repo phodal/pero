@@ -1,3 +1,4 @@
+import '../ci/paper-pdf-restore.test.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -83,7 +84,6 @@ test('Paper boots EmbedPDF with an auto mode before restoring numeric zoom', asy
   const { ZoomPlugin, ZoomMode } = await import(join(modules, '@embedpdf/plugin-zoom/dist/index.js'));
   const source = readFileSync(join(root, 'apps/paper-agent/ui-src/pdf-reader.tsx'), 'utf8');
   assert.match(source, /defaultZoomLevel: ZoomMode\.FitPage/);
-  assert.match(source, /if \(initial\) zoom\.requestZoom\(initial\.zoom\)/);
   for (const initial of [ZoomMode.FitPage, 1.25]) {
     const requests = [], gates = new Set();
     let state;

@@ -19,22 +19,36 @@ test('only the explicitly marked image-only Study HTTP 400 is expected console o
 });
 
 test('Library Save targets the exact title instead of a substring-related paper', async () => {
-  const title = 'image-only', exactTitle = {}, stop = new Error('selected exact row');
-  const frame = {
-    getByRole: () => ({ isVisible: async () => false }),
-    getByText: (value, options) => { assert.equal(value, title); assert.deepEqual(options, { exact: true }); return exactTitle; },
-    locator: selector => {
-      assert.equal(selector, '.pa-library-list > li');
-      return { filter: options => {
-        assert.deepEqual(options, { has: exactTitle });
+  for (const tex of [false, true]) {
+    const title = 'image-only', exactTitle = {}, stop = new Error('selected exact paper download');
+    let opened = false;
+    const frame = {
+      getByRole: (role, options) => {
+        assert.equal(role, 'region');
+        if (options.name === 'Download') return { isVisible: async () => false };
+        assert.deepEqual(options, { name: 'Paper details', exact: true });
+        assert.equal(opened, true, 'the exact paper must be opened before downloading');
         return { getByRole: (role, options) => {
-          assert.equal(role, 'button'); assert.deepEqual(options, { name: 'Save', exact: true });
+          assert.equal(role, 'button'); assert.deepEqual(options, { name: tex ? 'Download TeX' : 'Download PDF', exact: true });
           return { click: async () => { throw stop; } };
         } };
-      } };
-    },
-  };
-  await assert.rejects(saveLibraryCopies(frame, title), error => error === stop);
+      },
+      getByText: (value, options) => { assert.equal(value, title); assert.deepEqual(options, { exact: true }); return exactTitle; },
+      locator: selector => {
+        if (selector === '.pa-library-list') return { isVisible: async () => true };
+        assert.equal(selector, '.pa-library-list > li');
+        return { filter: options => {
+          assert.deepEqual(options, { has: exactTitle });
+          return { locator: selector => {
+            assert.equal(selector, '.pero-list-open');
+            return { click: async () => { opened = true; } };
+          } };
+        } };
+      },
+    };
+    await assert.rejects(saveLibraryCopies(frame, title, { tex }), error => error === stop);
+    assert.equal(opened, true);
+  }
 });
 
 test('return to Library handles reader and Library sub-screens without skipping the actual list', async () => {
