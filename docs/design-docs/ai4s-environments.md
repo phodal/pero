@@ -116,8 +116,9 @@ Use 状态不代替 attempt 的 running/failed/completed，也不代替 Profile 
 
 ## 5. 计划接口
 
-以下是语义合同；P1 已实现纯匹配/选择和 Rust 内部只读观察，其余按阶段接线。
-尚无对应公共 Host 命令或 HTTP endpoint；观察私有格式不承诺为 P2 wire schema。
+以下是语义合同；P1 已实现纯匹配/选择与只读观察，其余按阶段接线。
+[Environments UI](../fitness/environments-ui.md) 通过 App-origin `/host/environment`
+发布固定方法的软件观察；这不包含下表的准入/Use 操作，也不承诺为 P2 wire schema。
 适配器消费领域值；transport 在边界校验一次，并映射具名错误，不重复实现核心规则。
 
 | 操作 | 输入 → 输出 | I/O 与授权边界 |
