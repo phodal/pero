@@ -10,6 +10,10 @@ All 89 tasks are queued in a fresh run without a provider-request ceiling.
 The run is still in progress. No full-suite score or completed artifact audit
 is claimed. Individual completed results below are diagnostic observations.
 
+Additional source-bound analysis of task incompletion, masked merge failures,
+verifier assumptions and context growth is in
+[the trace observations](terminal-bench-trace-observations.md).
+
 ## Frozen execution controls
 
 - Pero source `2f02e684ccf7296e82977a9c831dd21c23b0f7dd`.
