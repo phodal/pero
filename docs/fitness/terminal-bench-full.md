@@ -67,6 +67,16 @@ resumed job. All 20 result hashes remain unchanged; Harbor resumes the other
 69 tasks after the dedicated VM and Rosetta controls are restored. These
 interrupted requests contribute to all-attempt usage, not selected verdicts.
 
+Two QEMU tasks later fail during ACP dependency installation, before agent
+execution or any provider request. The old Debian 11 package URLs return 404;
+their raw results are retained separately in
+`debian-bootstrap-failure-20261104T1847/`. A hash-bound adapter-only control
+bootstraps the supported ACP Python with the official image's existing
+wget/tar/CA prerequisites and normal TLS validation. Recovery changes only that
+setup adapter and keeps the original agent binary, task images and official
+inputs. The actual task verdicts are pending. See
+[the bootstrap issue](../issues/2026-11-05-terminal-bench-legacy-debian-bootstrap.md).
+
 Official test reward, Harbor's reward-validity classification and agent stop
 reason remain separate. Usage counts committed provider records once, including
 cache reads; interrupted/unreported usage remains unknown. These are recorded
