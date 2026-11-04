@@ -22,7 +22,18 @@ func (app *HookApp) runPromptHook(ctx context.Context, agent *harness.Agent, hoo
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	text, err := agent.CompleteOnce(ctx, hook.Model, claudehooks.RenderPrompt(hook.Prompt, string(payload)))
+	selection := agent.ModelSelection()
+	if hook.Model != "" {
+		if app.options.ResolveModel == nil {
+			return claudehooks.Decision{}, errors.New("plugin-runtime: hook model requires an explicit plugin model mapping")
+		}
+		provider, model, err := app.options.ResolveModel(hook.Model)
+		if err != nil {
+			return claudehooks.Decision{}, err
+		}
+		selection.Provider, selection.Model, selection.ReasoningEffort = provider, model, ""
+	}
+	text, err := agent.CompleteOnceWithSelection(ctx, selection, claudehooks.RenderPrompt(hook.Prompt, string(payload)))
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return claudehooks.Decision{}, context.DeadlineExceeded

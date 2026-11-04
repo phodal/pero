@@ -93,3 +93,37 @@ func TestPromptPreToolUseEndsTheTurnUnlessToldToContinue(t *testing.T) {
 		})
 	}
 }
+
+func TestPromptHookResolvesConfiguredModelRoute(t *testing.T) {
+	root := t.TempDir()
+	var selectedProvider, selectedModel string
+	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		selectedProvider, selectedModel = request.Provider, request.Model
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: `{"ok":true}`}}}}, nil
+	})
+	h, app := testHookHarness(t, adapter, plugins.Package{Root: root, Hooks: []claudehooks.Hook{{Event: "Stop", Prompt: "check"}}}, 0)
+	agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "prompt-route", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.options.ResolveModel = func(alias string) (string, string, error) {
+		if alias != "haiku" {
+			t.Fatalf("alias = %q", alias)
+		}
+		return "fixture", "deepseek-flash", nil
+	}
+	if _, err := app.runPromptHook(t.Context(), agent, claudehooks.Hook{Event: "Stop", Prompt: "check", Model: "haiku"}, claudehooks.Input{Event: "Stop"}); err != nil {
+		t.Fatal(err)
+	}
+	if selectedProvider != "fixture" || selectedModel != "deepseek-flash" {
+		t.Fatalf("route = %s/%s", selectedProvider, selectedModel)
+	}
+	if agent.ModelSelection().Model != "scripted" {
+		t.Fatal("hook changed session model")
+	}
+	selectedModel = ""
+	app.options.ResolveModel = nil
+	if _, err := app.runPromptHook(t.Context(), agent, claudehooks.Hook{Event: "Stop", Prompt: "check", Model: "haiku"}, claudehooks.Input{Event: "Stop"}); err == nil || selectedModel != "" {
+		t.Fatalf("unmapped alias reached adapter: model=%s err=%v", selectedModel, err)
+	}
+}

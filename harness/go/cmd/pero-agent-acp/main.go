@@ -290,7 +290,7 @@ func run() (resultErr error) {
 		}
 		// Command hooks stay host processes (Claude parity). The Bash sandbox
 		// still confines model shell calls independently.
-		pluginHooks, err = pluginruntime.MountHooks(ctx, h, packages, pluginruntime.HookOptions{Shell: pluginShell, Environment: pluginEnvironment, StateDirectory: stateRoot, Retain: true, EmitTerminal: writeControllingTerminal, ReportStatus: func(agent *harness.Agent, message string) {
+		pluginHooks, err = pluginruntime.MountHooks(ctx, h, packages, pluginruntime.HookOptions{ResolveModel: pluginModelResolver(pluginConfig.Models), Shell: pluginShell, Environment: pluginEnvironment, StateDirectory: stateRoot, Retain: true, EmitTerminal: writeControllingTerminal, ReportStatus: func(agent *harness.Agent, message string) {
 			if agent == nil || agent.Session() == nil {
 				return
 			}

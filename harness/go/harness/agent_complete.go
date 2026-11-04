@@ -17,6 +17,15 @@ func (a *Agent) CompleteOnce(ctx context.Context, model, prompt string) (string,
 		selection.Model = model
 		selection.ReasoningEffort = ""
 	}
+	return a.CompleteOnceWithSelection(ctx, selection, prompt)
+}
+
+// CompleteOnceWithSelection runs a one-shot call using a host-resolved route,
+// without changing the agent's model selection or recording a turn.
+func (a *Agent) CompleteOnceWithSelection(ctx context.Context, selection AgentModelSelection, prompt string) (string, error) {
+	if a == nil {
+		return "", errors.New("harness: agent is required")
+	}
 	prepared, _, _, _, err := prepareGenerateCall(ctx, a.adapter, a.modelInfo, GenerateRequest{Provider: selection.Provider, Model: selection.Model, Agent: a})
 	if err != nil {
 		return "", err
