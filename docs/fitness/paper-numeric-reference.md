@@ -25,35 +25,36 @@ is introduced.
    the original crop remains available for manual reading.
 2. Import a PDF, select a figure region including its axes, labels and legend,
    save the figure annotation, then open **Values** next to that annotation.
-3. Choose **Extract region text**. Inspect the source crop, native regional text,
-   separately retained native page context and OCR output. All numeric tokens
-   are proposals with unknown confidence, not verified measurements.
-4. Enter a single result's metric, condition, series, statistic and unit (`1` for
-   a dimensionless quantity). Use the literal numeric token for Raw text. Select
-   the actual PDF source and acquisition method. Attached author data files are
-   deliberately outside this PDF-region POC.
-5. For a figure value, enter tick **image pixel positions and literal values**,
-   select a linear or positive logarithmic scale, record the multiplier and
-   target point's coordinate on that axis. Explicitly review scale, units,
-   multiplier and transcription against the crop. The supplied value must equal
-   the interpolated point. The core never silently repairs a minus sign or
-   decimal point. Nonlinear transformed, broken, dual and symlog axes are not
-   supported by this POC.
-6. Optionally add a caption value only when it describes exactly the same
-   metric/condition/series/statistic/unit. Save and assess. Unresolved identity,
-   transcription, unit, scale, point-range and source conflicts block freezing.
-7. All sources in this POC require explicit review, including native PDF text:
-   a PDF text layer can itself be archival OCR, and the supplied semantic flags
-   are not an automatic semantic matcher. Provide a reviewer label and reason. This is recorded
-   as a client-reported local review, not authenticated independent peer review.
-   A separate checkbox is required to assert reliable series identity and axis
-   direction for a qualitative-only result.
-8. To correct an observation, choose **Use evidence for new candidate**, change
-   it, explain the correction and save a new assessment. Earlier evidence and
-   conflicts remain in the history. Other contradictory sources are not dropped.
-9. **Freeze reference** is enabled only for `numeric_ready`. Open the report and
-   return to the original figure region. Reloading the App keeps old assessments,
-   frozen references and reports; viewing history never performs OCR again.
+3. Choose **Prepare candidates with Agent**. This prepares a request in the existing
+   Host chat; send it to start. The frozen attachment identifies the saved figure,
+   paper and selected extraction. The Agent reads the actual saved region and paper
+   context, then uses `numeric-propose` to save supported, unreviewed candidates.
+   It must leave missing values, units, semantics and axes unresolved. This is not
+   an automatic measurement or a claim that a real provider has completed the task.
+4. Saved candidates appear in the panel after the Host data-change notification;
+   **Reload records** also reads them without rerunning extraction. The default view
+   shows the value, unit, identity and unresolved checks, rather than blank fields.
+   A visible candidate list retains the latest result for each known quantity;
+   older revisions remain in assessment history.
+   Raw extraction, OCR, layout setup and manual editing are disclosed on demand.
+   Without an available Agent, **Enter or correct manually** retains the original
+   workflow. **Extract region text** remains accurately labelled: it extracts text,
+   not calibrated scientific measurements.
+5. Check the displayed value, metric, condition, series, statistic and unit against
+   the source. A local review label and a description of this check are provided
+   as editable defaults; they are not authenticated reviewer identity. The explicit
+   review checkbox is initially unchecked. It alone never freezes a reference.
+   Figure measurements additionally require explicit review of the displayed scale,
+   tick pixel positions and literal values, multiplier, unit and target pixel.
+   The core checks geometry and interpolation; no missing axis is manufactured.
+6. **Enter or correct manually** opens the full candidate editor when needed.
+   Corrections preserve earlier evidence and conflicts. Changed quantity identity
+   requires a new independent candidate. Unsupported/broken/dual/symlog axes are
+   not supported by this POC; missing or conflicting scientific fields remain
+   blockers even after confirmation.
+7. **Freeze reference** is enabled only for the backend's `numeric_ready` result.
+   Open the report and return to the original figure region. Frozen references,
+   assessments and correction history survive reloads. Acceptance is still unverified.
 
 The UI lives in the existing figure annotation panel, not a new application.
 Empty, loading, disabled, failure and saved-history states are implemented with
@@ -62,12 +63,18 @@ English/Chinese copy. A source crop is a viewing aid, not proof of visual review
 ## Deterministic report and API
 
 All routes use the existing App-token authentication. The Host still owns tool
-permissions. `numeric-extract` and `numeric-read` are declared App tools; the
+permissions. `numeric-extract`, `numeric-read` and `numeric-propose` are declared App tools; the
 manual review/freeze routes are not advertised as automatic Agent approvals.
 
 - `POST /api/numeric/extract`: `{annotationId}`.
 - `GET /api/numeric?annotationId=...`: saved extraction, assessment and reference
   history. Native text and OCR are stored independently.
+- `POST /api/numeric/propose`: `{annotationId, extractionId, evidence}`. Agent
+  preparation through the existing declared App write mechanism. Requires a saved
+  extraction from this exact annotation; native/OCR literal provenance is checked.
+  The backend discards all review flags (including axis flags), reviewer identity,
+  correction links and caller provenance overrides. Proposals cannot freeze or
+  assert human approval. Unknown semantic fields stay blank and block admission.
 - `POST /api/numeric/assess`: `{annotationId, extractionId?, evidence,
   previousAssessmentId?}`. A correction names `previousId`; the shell appends
   all known same-quantity evidence automatically, so an omitted conflict cannot
@@ -176,3 +183,24 @@ light/dark visual or browser-interaction pass is claimed.
   limitation rather than treat a scalar plot reading as an exact ground truth.
 - This POC does not close #124 or #77. It supplies a runnable, conservative
   preparation path and fixed regression material for the next iteration.
+
+## Agent-first candidate UI update (2026-11-04)
+
+Cloud verification of the changed sources: Paper Python suite 331 tests,
+327 passed and four explicit platform/opt-in skips; Paper TypeScript passed.
+Actual React component tests cover collapsed manual controls, exact-source Host
+drafts, no implicit approval/freeze, persisted result refresh, explicit correction,
+unknown fields, stale reads and unavailable Host recovery. Existing Docling
+component/bridge cases also pass: 13/13 combined UI tests. New candidate cases
+run in the core CI job. The broader Paper CI contract subset remains 47/52;
+the same five failures reproduce on untouched PR head `664401f0` with the same
+dependencies (reader refresh, structured source controls and Library Save).
+They were not hidden or weakened.
+
+Remaining limits: this cloud workspace lacks Rust/Cargo and the gpui-kit reader
+WASM build, so Native compilation and the aggregate build/check were not completed.
+Chromium could not create its process-singleton socket in this environment;
+light/dark/narrow visual screenshots were blocked, not passed. No user computer
+was used, and real model-provider chart extraction has not been exercised here.
+The Native layout timeout fix is tracked separately in
+[the timeout record](../issues/2026-11-04-paper-layout-proxy-timeout.md).

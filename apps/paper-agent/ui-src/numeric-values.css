@@ -18,3 +18,8 @@
 .pa-numeric-layout .pa-layout-provenance{list-style:none;padding:0;margin:4px 0}
 .pa-numeric-layout .pa-layout-provenance li{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin:4px 0}
 .pa-numeric-layout .pa-layout-provenance li>span:last-child{overflow-wrap:anywhere}
+.pa-numeric-result{padding:8px 0;border-bottom:0.5px solid var(--pero-border)}
+.pa-numeric-result dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:8px 0}
+.pa-numeric-result dt{color:var(--pero-text-muted)}
+.pa-numeric-result dd{margin:0;overflow-wrap:anywhere}
+.pa-numeric-values img{max-width:100%;height:auto}
