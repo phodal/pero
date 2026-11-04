@@ -73,6 +73,7 @@ go_test(
         "timing_test.go",
         "tools_test.go",
         "windows_runtime_test.go",
+        "workspace_bind_test.go",
         "worktree_test.go",
     ],
     embed = [":nativetools"],

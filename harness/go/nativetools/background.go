@@ -302,6 +302,9 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 	if !input.RunInBackground {
 		options = s.foreground
 	}
+	options.AllowWorkdir = func(path string) bool {
+		return isolatedWorkdir(path) || workspaceContaining(request.Agent, path) != nil
+	}
 	options.OutputSink = task
 	options.ProcessStarted = func() { close(task.started) }
 	executor, err := shell.NewLocalExecutor(options)

@@ -3,11 +3,13 @@ package nativetools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/phodal/pero/harness/go/fstools"
+	"github.com/phodal/pero/harness/go/harness"
 )
 
 type workspaceKey struct{}
@@ -55,24 +57,47 @@ func ReleaseIsolatedWorkspace(path string) {
 	_ = value.(*fstools.Workspace).Close()
 }
 
-func (a *App) filesFor(cwd string) *fstools.Workspace {
-	if a != nil && a.files != nil && a.files.CheckCWD(cwd) == nil {
-		return a.files
+// WorkspaceForAgent selects the session's trusted workspace, including detached
+// worktrees. Additional directories are not session working directories.
+func WorkspaceForAgent(agent *harness.Agent, fallback *fstools.Workspace) *fstools.Workspace {
+	if agent == nil || agent.Session() == nil {
+		return fallback
+	}
+	return workspaceForCWD(agent.Session().WorkingDirectory(), fallback)
+}
+
+// WorkspaceForPath selects the caller's authority for an absolute tool path.
+// Relative paths remain rooted in the session workspace. Callers must still
+// validate the session cwd separately; a directory grant cannot replace it.
+func WorkspaceForPath(agent *harness.Agent, fallback *fstools.Workspace, path string) *fstools.Workspace {
+	if filepath.IsAbs(path) {
+		if added := workspaceContaining(agent, path); added != nil {
+			return added
+		}
+	}
+	return WorkspaceForAgent(agent, fallback)
+}
+
+// WorkspaceForToolRequest shares native path selection with receipt consumers.
+func WorkspaceForToolRequest(request harness.ToolRequest, fallback *fstools.Workspace) *fstools.Workspace {
+	return WorkspaceForPath(request.Agent, fallback, absoluteToolPath(request.Arguments))
+}
+
+func workspaceForCWD(cwd string, fallback *fstools.Workspace) *fstools.Workspace {
+	if fallback != nil && fallback.CheckCWD(cwd) == nil {
+		return fallback
 	}
 	if value, ok := boundWorkspaces.Load(cwd); ok {
 		return value.(*fstools.Workspace)
 	}
-	if a == nil {
-		return nil
-	}
-	return a.files
+	return fallback
 }
 
 func isolatedWorkdir(path string) bool {
-	return workspaceContaining(path) != nil
+	return isolatedWorkspaceContaining(path) != nil
 }
 
-func workspaceContaining(path string) *fstools.Workspace {
+func isolatedWorkspaceContaining(path string) *fstools.Workspace {
 	if path == "" {
 		return nil
 	}
@@ -137,4 +162,66 @@ func workspaceFrom(ctx context.Context, fallback *fstools.Workspace) *fstools.Wo
 		return files
 	}
 	return fallback
+}
+
+// Added directories belong to a live agent, not to every session using this app.
+// Only the explicit Parent chain inherits a grant; revoking the owner also
+// removes access from its children.
+var agentWorkspaces = struct {
+	sync.Mutex
+	grants map[*harness.Agent]map[string]*fstools.Workspace
+}{grants: make(map[*harness.Agent]map[string]*fstools.Workspace)}
+
+// BindAgentWorkspace grants an additional directory to an agent and its children.
+func BindAgentWorkspace(agent *harness.Agent, path string) (string, error) {
+	if agent == nil {
+		return "", errors.New("added workspace requires an agent")
+	}
+	files, err := fstools.OpenWorkspace(path)
+	if err != nil {
+		return "", err
+	}
+	agentWorkspaces.Lock()
+	defer agentWorkspaces.Unlock()
+	if agentWorkspaces.grants[agent] == nil {
+		agentWorkspaces.grants[agent] = make(map[string]*fstools.Workspace)
+	}
+	if existing := agentWorkspaces.grants[agent][files.Path()]; existing != nil {
+		_ = files.Close()
+		return existing.Path(), existing.CheckCWD(existing.Path())
+	}
+	agentWorkspaces.grants[agent][files.Path()] = files
+	return files.Path(), nil
+}
+
+// ReleaseAgentWorkspace revokes a directory, including inherited access.
+func ReleaseAgentWorkspace(agent *harness.Agent, path string) {
+	agentWorkspaces.Lock()
+	defer agentWorkspaces.Unlock()
+	if files := agentWorkspaces.grants[agent][path]; files != nil {
+		delete(agentWorkspaces.grants[agent], path)
+		if len(agentWorkspaces.grants[agent]) == 0 {
+			delete(agentWorkspaces.grants, agent)
+		}
+		_ = files.Close()
+	}
+}
+
+func workspaceContaining(agent *harness.Agent, path string) *fstools.Workspace {
+	if path == "" {
+		return nil
+	}
+	path = filepath.Clean(path)
+	agentWorkspaces.Lock()
+	defer agentWorkspaces.Unlock()
+	var selected *fstools.Workspace
+	longest := 0
+	for owner := agent; owner != nil; owner = owner.Parent() {
+		for root, files := range agentWorkspaces.grants[owner] {
+			if len(root) > longest && pathWithin(root, path) {
+				selected, longest = files, len(root)
+			}
+		}
+	}
+	return selected
 }

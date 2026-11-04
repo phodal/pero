@@ -81,10 +81,7 @@ func mountDocumentTools(ctx context.Context, h *harness.Harness, app *App, rende
 				if err := app.CheckCWD(request.Agent.Session().WorkingDirectory()); err != nil {
 					return harness.ToolResult{}, err
 				}
-				files := app.filesFor(request.Agent.Session().WorkingDirectory())
-				if added := workspaceContaining(absoluteToolPath(request.Arguments)); added != nil {
-					files = added
-				}
+				files := WorkspaceForToolRequest(request, app.files)
 				alias := files.Path()
 				if files == app.files {
 					alias = request.Agent.Session().WorkingDirectory()
