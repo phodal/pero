@@ -20,20 +20,48 @@ func TestAutomaticSavedFileDiagnostics(t *testing.T) {
 	for _, test := range []struct {
 		name, mode string
 		enabled    bool
+		isolated   bool
+		added      bool
 	}{
-		{"write then repair", "after-edit", true},
-		{"disabled", "after-edit", false},
-		{"server crash preserves effect", "after-edit-crash", true},
-		{"silent server preserves effect", "after-edit-hang", true},
+		{"write then repair", "after-edit", true, false, false},
+		{"detached worktree", "after-edit", true, true, false},
+		{"added directory", "after-edit", true, false, true},
+		{"disabled", "after-edit", false, false, false},
+		{"server crash preserves effect", "after-edit-crash", true, false, false},
+		{"silent server preserves effect", "after-edit-hang", true, false, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			app, h, agent, root := fixtureApp(t, test.mode, func(config *Config) { config.Diagnostics = test.enabled })
+			logRoot := root
+			if test.isolated {
+				bound, err := nativetools.BindIsolatedWorkspace(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { nativetools.ReleaseIsolatedWorkspace(bound) })
+				agent, err = h.Agents().Create(t.Context(), harness.AgentOptions{ID: "lsp-worktree", CWD: bound, Provider: "fixture", Model: "scripted"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				root = bound
+			}
+
+			filePath := "fixture.go"
+			if test.added {
+				bound, err := nativetools.BindAgentWorkspace(agent, t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { nativetools.ReleaseAgentWorkspace(agent, bound) })
+				root = bound
+				filePath = filepath.Join(bound, "fixture.go")
+			}
 			if _, err := agent.Session().Append("turn/start", struct {
 				Turn int `json:"turn"`
 			}{1}); err != nil {
 				t.Fatal(err)
 			}
-			native, err := nativetools.Mount(t.Context(), h, nativetools.Options{Workspace: root, ClaudeTools: true})
+			native, err := nativetools.Mount(t.Context(), h, nativetools.Options{Workspace: logRoot, ClaudeTools: true})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -47,7 +75,7 @@ func TestAutomaticSavedFileDiagnostics(t *testing.T) {
 				}
 				return out
 			}
-			written := execute("Write", map[string]string{"file_path": "fixture.go", "content": "package fixture\n// BROKEN\n"})
+			written := execute("Write", map[string]string{"file_path": filePath, "content": "package fixture\n// BROKEN\n"})
 			data, err := os.ReadFile(filepath.Join(root, "fixture.go"))
 			if err != nil || !strings.Contains(string(data), "BROKEN") {
 				t.Fatal("write did not happen")
@@ -75,10 +103,19 @@ func TestAutomaticSavedFileDiagnostics(t *testing.T) {
 				}
 				return
 			}
+			if test.isolated || test.added {
+				if !strings.Contains(text, fileURI(filepath.Join(root, "fixture.go"))) {
+					t.Fatal("diagnostic did not name the edited worktree file: " + text)
+				}
+				original, err := os.ReadFile(filepath.Join(logRoot, "fixture.go"))
+				if err != nil || strings.Contains(string(original), "BROKEN") {
+					t.Fatal("worktree edit changed original source")
+				}
+			}
 			if !strings.Contains(text, "saved file type error") {
 				t.Fatal(text)
 			}
-			repaired := execute("Edit", map[string]string{"file_path": "fixture.go", "old_string": "BROKEN", "new_string": "FIXED"})
+			repaired := execute("Edit", map[string]string{"file_path": filePath, "old_string": "BROKEN", "new_string": "FIXED"})
 			if len(repaired.Result.AdditionalContexts) != 1 || !strings.Contains(repaired.Result.AdditionalContexts[0].Content[0].Text, "empty diagnostic set") {
 				t.Fatalf("repair failed to clear diagnostic: %+v", repaired.Result)
 			}
@@ -86,7 +123,7 @@ func TestAutomaticSavedFileDiagnostics(t *testing.T) {
 				t.Fatal(err)
 			}
 			counts := map[string]int{}
-			for _, event := range readEvents(t, root) {
+			for _, event := range readEvents(t, logRoot) {
 				counts[event.Method]++
 			}
 			if counts["textDocument/didSave"] != 2 || counts["textDocument/didOpen"] != 2 || counts["textDocument/didClose"] != 2 {
@@ -238,5 +275,77 @@ func TestLaterDiagnosticPublicationReachesNextPrompt(t *testing.T) {
 	}
 	if calls != 3 {
 		t.Fatalf("calls=%d", calls)
+	}
+}
+
+func TestDiagnosticDeliveryOwnershipAndRevision(t *testing.T) {
+	owner, other := new(harness.Agent), new(harness.Agent)
+	server := &instance{gate: make(chan struct{}, 1), conn: &connection{}}
+	server.gate <- struct{}{}
+	app := &App{instances: map[instanceKey]*instance{{agent: owner, server: "fixture"}: server}}
+	for _, test := range []struct {
+		name                string
+		version, generation int
+		fresh               bool
+	}{
+		{"initial publication", 1, 1, true},
+		{"later publication", 1, 3, true},
+		{"duplicate", 1, 3, false},
+		{"reopened document", 2, 1, true},
+		{"later reopened publication", 2, 2, true},
+		{"old document", 1, 4, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			report := &DiagnosticReport{URI: "file:///fixture.go", Version: test.version, Generation: test.generation, Items: []Diagnostic{}}
+			server.conn.diagnostics = &documentDiagnostics{report: report}
+			if got := app.pendingDiagnostics(other); len(got) != 0 {
+				t.Fatal("unrelated agent received diagnostics", got)
+			}
+			got := app.pendingDiagnostics(owner)
+			if (len(got) == 1) != test.fresh {
+				t.Fatalf("fresh=%v, messages=%v", test.fresh, got)
+			}
+			if got := app.pendingDiagnostics(owner); len(got) != 0 {
+				t.Fatal("publication was delivered twice", got)
+			}
+		})
+	}
+	// A more-specific added-directory root can launch another instance for the
+	// same URI. Its first publication must not inherit the old root's cursor.
+	replacement := &instance{gate: make(chan struct{}, 1), conn: &connection{diagnostics: &documentDiagnostics{report: &DiagnosticReport{URI: "file:///fixture.go", Version: 1, Generation: 1, Items: []Diagnostic{}}}}}
+	replacement.gate <- struct{}{}
+	app.instances = map[instanceKey]*instance{{agent: owner, server: "fixture", cwd: "nested"}: replacement}
+	if got := app.pendingDiagnostics(owner); len(got) != 1 {
+		t.Fatal("new workspace instance inherited an unrelated delivery cursor", got)
+	}
+
+}
+
+func TestDiagnosticOwnerDeactivationReclaimsServer(t *testing.T) {
+	app, h, agent, _ := fixtureApp(t, "diagnostics")
+	if _, err := app.Query(t.Context(), agent, Query{Operation: Hover, FilePath: "fixture.go", Line: 2, Character: 6}); err != nil {
+		t.Fatal(err)
+	}
+	app.mu.Lock()
+	var server *instance
+	for _, current := range app.instances {
+		server = current
+	}
+	app.mu.Unlock()
+	if server == nil {
+		t.Fatal("query did not launch a server")
+	}
+	app.noteDiagnosticDelivery(agent, server, &DiagnosticReport{URI: "file:///fixture.go", Version: 1, Generation: 1})
+	if err := h.Agents().Remove(t.Context(), agent.ID()); err != nil {
+		t.Fatal(err)
+	}
+	app.mu.Lock()
+	remaining, delivered := len(app.instances), len(app.delivered)
+	app.mu.Unlock()
+	if remaining != 0 || delivered != 0 {
+		t.Fatalf("owner state retained: instances=%d delivered=%d", remaining, delivered)
+	}
+	if server.conn.live() {
+		t.Fatal("deactivated owner's language server is still live")
 	}
 }

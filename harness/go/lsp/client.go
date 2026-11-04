@@ -16,6 +16,7 @@ import (
 
 	"github.com/phodal/pero/harness/go/fstools"
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/nativetools"
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
@@ -33,6 +34,18 @@ type workspaceFolder struct {
 	URI  string `json:"uri"`
 	Name string `json:"name"`
 }
+type instanceKey struct {
+	agent       *harness.Agent
+	server, cwd string
+}
+type diagnosticKey struct {
+	agent  *harness.Agent
+	source *instance
+	uri    string
+}
+type diagnosticCursor struct {
+	version, generation int
+}
 type instance struct {
 	gate           chan struct{}
 	selected       Selection
@@ -42,14 +55,15 @@ type instance struct {
 	launches       int
 	version        int
 	save, saveText bool
+	closed         bool
 }
 type App struct {
 	mu            sync.Mutex
 	files         *fstools.Workspace
 	selections    []Selection
 	environment   []string
-	instances     map[string]*instance
-	delivered     map[string]int
+	instances     map[instanceKey]*instance
+	delivered     map[diagnosticKey]diagnosticCursor
 	owner         context.Context
 	cancel        context.CancelFunc
 	closed        bool
@@ -203,7 +217,7 @@ func fileURI(path string) string {
 }
 
 func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (Result, error) {
-	if agent == nil {
+	if agent == nil || agent.Session() == nil {
 		return Result{}, errors.New("lsp: query requires an owning agent")
 	}
 	ctx, cancel := context.WithCancel(ctx)
@@ -213,19 +227,28 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 	if err != nil {
 		return Result{}, errors.New("lsp: session working directory is unavailable")
 	}
-	relativeCWD, err := filepath.Rel(app.files.Path(), cwd)
+	files := nativetools.WorkspaceForAgent(agent, app.files)
+	if files == nil {
+		return Result{}, errors.New("lsp: session working directory is outside the selected workspace")
+	}
+	relativeCWD, err := filepath.Rel(files.Path(), cwd)
 	if err != nil || (relativeCWD != "." && !filepath.IsLocal(relativeCWD)) {
 		return Result{}, errors.New("lsp: session working directory is outside the selected workspace")
+	}
+	selectedFiles := nativetools.WorkspaceForPath(agent, app.files, query.FilePath)
+	if selectedFiles != files {
+		// An explicit added-directory grant gets its own server root.
+		files, cwd = selectedFiles, selectedFiles.Path()
 	}
 	file := query.FilePath
 	if !filepath.IsAbs(file) {
 		file = filepath.Join(cwd, file)
 	}
-	relative, err := filepath.Rel(app.files.Path(), file)
+	relative, err := filepath.Rel(files.Path(), file)
 	if err != nil || !filepath.IsLocal(relative) {
 		return Result{}, errors.New("lsp: source file is outside the selected workspace")
 	}
-	source, err := app.files.Read(ctx, filepath.ToSlash(relative))
+	source, err := files.Read(ctx, filepath.ToSlash(relative))
 	if err != nil {
 		return Result{}, err
 	}
@@ -243,7 +266,7 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 		app.mu.Unlock()
 		return Result{}, errors.New("lsp: no selected language server maps this source extension")
 	}
-	key := selected.Server.Name + "\x00" + cwd
+	key := instanceKey{agent: agent, server: selected.Server.Name, cwd: cwd}
 	session := app.instances[key]
 	if session == nil {
 		if len(app.instances) >= 32 {
@@ -261,6 +284,9 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 	case <-session.gate:
 	}
 	defer func() { session.gate <- struct{}{} }()
+	if session.closed {
+		return Result{}, errors.New("lsp: owning agent is closed")
+	}
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
@@ -278,7 +304,7 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 			longest = len(mapping.Extension)
 		}
 	}
-	uri := fileURI(filepath.Join(app.files.Path(), relative))
+	uri := fileURI(filepath.Join(files.Path(), relative))
 	requestCtx, requestCancel := context.WithTimeout(ctx, session.selected.Server.Config.RequestTimeout)
 	defer requestCancel()
 	session.version++
@@ -339,6 +365,7 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 	}
 	result, err := session.query(ctx, query.Operation, uri, position, symbol)
 	result.Diagnostics = session.conn.peekDiagnostics()
+	result.diagnosticSource = session
 	if retainDocument && err == nil {
 		return result, nil
 	}

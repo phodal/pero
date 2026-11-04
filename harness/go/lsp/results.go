@@ -56,13 +56,14 @@ type Call struct {
 	Ranges  []Range
 }
 type Result struct {
-	Operation   Operation
-	Locations   []Location
-	Hover       string
-	Symbols     []Symbol
-	Calls       []Call
-	Truncated   bool
-	Diagnostics *DiagnosticReport
+	diagnosticSource *instance
+	Operation        Operation
+	Locations        []Location
+	Hover            string
+	Symbols          []Symbol
+	Calls            []Call
+	Truncated        bool
+	Diagnostics      *DiagnosticReport
 }
 
 func (q Query) position(text string) (Position, string, error) {

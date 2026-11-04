@@ -8,6 +8,7 @@ import (
 
 	"github.com/phodal/pero/harness/go/fstools"
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/nativetools"
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
@@ -27,7 +28,7 @@ func (app *App) selectionFor(file string) *Selection {
 
 func (app *App) registerDiagnostics(run *point.Run, h *harness.Harness) error {
 	if _, err := h.Hooks().PreStep.Use(run, func(_ context.Context, input harness.StepInput, next point.Next[harness.StepInput]) (harness.StepInput, error) {
-		for _, text := range app.pendingDiagnostics() {
+		for _, text := range app.pendingDiagnostics(input.Agent) {
 			input.Messages = append(input.Messages, harness.Message{Role: harness.RoleUser, Source: json.RawMessage(`{"kind":"lsp-diagnostics"}`), Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}})
 		}
 		return next(input)
@@ -46,7 +47,8 @@ func (app *App) registerDiagnostics(run *point.Run, h *harness.Harness) error {
 				}
 				var receipt fstools.ScopedTextReceipt
 				if json.Unmarshal(raw, &receipt) == nil && receipt.State == "applied" && filepath.IsLocal(receipt.Path) {
-					file := filepath.Join(app.files.Path(), receipt.Path)
+					files := nativetools.WorkspaceForToolRequest(outcome.Request, app.files)
+					file := filepath.Join(files.Path(), receipt.Path)
 					selected := app.selectionFor(file)
 					if selected != nil && selected.Server.Config.Diagnostics {
 						wait, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -55,7 +57,7 @@ func (app *App) registerDiagnostics(run *point.Run, h *harness.Harness) error {
 						text := "LSP diagnostics unavailable for the saved file; the successful file operation is unchanged. No clean diagnostic result was observed."
 						if diagnosticErr == nil && result.Diagnostics != nil {
 							text, _ = result.Format()
-							app.noteDiagnosticDelivery(result.Diagnostics)
+							app.noteDiagnosticDelivery(outcome.Request.Agent, result.diagnosticSource, result.Diagnostics)
 						}
 						outcome.Result.AdditionalContexts = append(outcome.Result.AdditionalContexts, harness.DeferredContext{Role: harness.RoleUser, Source: json.RawMessage(`{"kind":"lsp-diagnostics"}`), Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}})
 					}
@@ -67,50 +69,53 @@ func (app *App) registerDiagnostics(run *point.Run, h *harness.Harness) error {
 	return err
 }
 
-func (app *App) noteDiagnosticDelivery(report *DiagnosticReport) {
-	if report == nil || report.URI == "" || report.Generation < 1 {
-		return
+// A publication belongs to one agent and one document revision. Generations
+// restart at one when didOpen replaces a document, so version is part of the cursor.
+func (app *App) noteDiagnosticDelivery(agent *harness.Agent, source *instance, report *DiagnosticReport) bool {
+	if agent == nil || report == nil || report.URI == "" || report.Generation < 1 {
+		return false
 	}
 	app.mu.Lock()
 	defer app.mu.Unlock()
 	if app.delivered == nil {
-		app.delivered = map[string]int{}
+		app.delivered = map[diagnosticKey]diagnosticCursor{}
 	}
-	if report.Generation > app.delivered[report.URI] {
-		app.delivered[report.URI] = report.Generation
+	key := diagnosticKey{agent: agent, source: source, uri: report.URI}
+	seen := app.delivered[key]
+	if report.Version < seen.version || (report.Version == seen.version && report.Generation <= seen.generation) {
+		return false
 	}
+	app.delivered[key] = diagnosticCursor{version: report.Version, generation: report.Generation}
+	return true
 }
 
-func (app *App) pendingDiagnostics() []string {
+func (app *App) pendingDiagnostics(agent *harness.Agent) []string {
+	if agent == nil {
+		return nil
+	}
 	app.mu.Lock()
 	instances := make([]*instance, 0, len(app.instances))
-	for _, instance := range app.instances {
-		instances = append(instances, instance)
+	for key, instance := range app.instances {
+		if key.agent == agent {
+			instances = append(instances, instance)
+		}
 	}
 	app.mu.Unlock()
 	var texts []string
 	for _, instance := range instances {
-		if instance.conn == nil {
+		// Query owns conn while launching/restarting it. A busy query will deliver
+		// its snapshot or leave the next publication for a later step.
+		select {
+		case <-instance.gate:
+		default:
 			continue
 		}
-		report := instance.conn.peekDiagnostics()
-		if report == nil || report.Generation < 1 {
-			continue
+		var report *DiagnosticReport
+		if instance.conn != nil {
+			report = instance.conn.peekDiagnostics()
 		}
-		app.mu.Lock()
-		seen := 0
-		if app.delivered != nil {
-			seen = app.delivered[report.URI]
-		}
-		fresh := report.Generation > seen
-		if fresh {
-			if app.delivered == nil {
-				app.delivered = map[string]int{}
-			}
-			app.delivered[report.URI] = report.Generation
-		}
-		app.mu.Unlock()
-		if !fresh {
+		instance.gate <- struct{}{}
+		if !app.noteDiagnosticDelivery(agent, instance, report) {
 			continue
 		}
 		text, _ := (Result{Operation: collectDiagnostics, Diagnostics: report}).Format()

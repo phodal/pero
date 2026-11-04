@@ -26,7 +26,7 @@ func Mount(ctx context.Context, h *harness.Harness, options Options) (*App, erro
 	if err != nil {
 		return nil, err
 	}
-	app := &App{files: files, environment: append([]string(nil), options.Environment...), instances: map[string]*instance{}}
+	app := &App{files: files, environment: append([]string(nil), options.Environment...), instances: map[instanceKey]*instance{}}
 	names, extensions := map[string]bool{}, map[string]bool{}
 	for _, selection := range options.Servers {
 		if names[selection.Server.Name] {
@@ -57,6 +57,12 @@ func Mount(ctx context.Context, h *harness.Harness, options Options) (*App, erro
 			return nil, err
 		}
 		if err := app.registerDiagnostics(run, h); err != nil {
+			return nil, err
+		}
+		if _, err := h.Hooks().Deactivated.On(run, func(_ context.Context, agent *harness.Agent) error {
+			app.releaseAgent(agent)
+			return nil
+		}); err != nil {
 			return nil, err
 		}
 		_, err := h.Tools().Register(run, harness.Tool{Schema: harness.ToolSchema{Name: "LSP", Description: "Query a selected, initialized language server. operation: goToDefinition, findReferences, hover, documentSymbol, workspaceSymbol, goToImplementation, prepareCallHierarchy, incomingCalls, outgoingCalls. filePath is a workspace file; line and character are positive one-based UTF-16 cursor coordinates. workspaceSymbol searches the identifier at that cursor. Call hierarchy queries prepare the item at the cursor before querying edges. findReferences includes the declaration. Unsupported server capabilities return errors. This tool does not edit files or execute server commands.", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"operation":{"type":"string","enum":["goToDefinition","findReferences","hover","documentSymbol","workspaceSymbol","goToImplementation","prepareCallHierarchy","incomingCalls","outgoingCalls"]},"filePath":{"type":"string","minLength":1},"line":{"type":"integer","minimum":1},"character":{"type":"integer","minimum":1}},"required":["operation","filePath","line","character"]}`)}, IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true }, ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
@@ -106,12 +112,19 @@ func (app *App) shutdown() error {
 		instances = append(instances, instance)
 	}
 	app.mu.Unlock()
+	closeInstances(instances)
+	return app.files.Close()
+}
+
+func closeInstances(instances []*instance) {
 	var wait sync.WaitGroup
 	for _, server := range instances {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
 			<-server.gate
+			defer func() { server.gate <- struct{}{} }()
+			server.closed = true
 			if server.conn != nil {
 				cleanup, cancel := context.WithTimeout(context.Background(), server.selected.Server.Config.ShutdownTimeout)
 				server.conn.closeOpenDocument(cleanup)
@@ -121,7 +134,6 @@ func (app *App) shutdown() error {
 		}()
 	}
 	wait.Wait()
-	return app.files.Close()
 }
 
 func (app *App) Close() error {
@@ -131,4 +143,22 @@ func (app *App) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return app.instanceOwner.Dispose(ctx)
+}
+
+func (app *App) releaseAgent(agent *harness.Agent) {
+	app.mu.Lock()
+	var instances []*instance
+	for key, server := range app.instances {
+		if key.agent == agent {
+			instances = append(instances, server)
+			delete(app.instances, key)
+		}
+	}
+	for key := range app.delivered {
+		if key.agent == agent {
+			delete(app.delivered, key)
+		}
+	}
+	app.mu.Unlock()
+	closeInstances(instances)
 }
