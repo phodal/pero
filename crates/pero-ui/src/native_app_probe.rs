@@ -32,7 +32,11 @@ pub(crate) fn attach(
     cx: &mut App,
 ) {
     cx.spawn(async move |cx| {
-        let outcome = if std::env::args().nth(3).as_deref()==Some("paper-chat") { verify_paper_chat(&root,window,cx).await } else { verify(&root, window, cx).await };
+        let outcome = match std::env::args().nth(3).as_deref() {
+            Some("paper-chat") => verify_paper_chat(&root,window,cx).await,
+            Some("docling-origin") => verify_docling_origin(&root,cx).await,
+            _ => verify(&root, window, cx).await,
+        };
         let value = match outcome {
             Ok(value) => value,
             Err(error) => json!({"passed":false,"error":error.to_string()}),
@@ -41,6 +45,56 @@ pub(crate) fn attach(
         cx.update(|cx| cx.quit());
     })
     .detach();
+}
+
+// Real WKWebView transport, deliberately without a backend or installation request.
+async fn verify_docling_origin(root: &Entity<Workbench>, cx: &mut AsyncApp) -> anyhow::Result<Value> {
+    let mut opened = false;
+    let mut last = Value::Null;
+    for _ in 0..300 {
+        if !opened && cx.update(|cx| root.read(cx).apps.contains_panel("paper-agent", "main")) {
+            cx.update(|cx| root.update(cx, |root, cx| root.open_app("paper-agent".into(), "main".into(), cx)));
+            opened = true;
+        }
+        if opened {
+            last = query(root, "paper-agent", r#"(()=>{
+                if(!location.href.startsWith('pero-app://paper-agent/') || document.readyState==='loading' || !document.querySelector('#app'))return null;
+                if(window.nativeDoclingProbe)return window.nativeDoclingProbe;
+                window.nativeDoclingProbe={pending:true};
+                (async()=>{
+                    const post=async body=>{
+                        const response=await fetch('/host/docling-runtime',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+                        const text=await response.text();
+                        let value;try{value=JSON.parse(text);}catch{value=text;}
+                        return {status:response.status,value};
+                    };
+                    const before=await post({operation:'status'});
+                    const forged=await post({operation:'request',component:'software',approved:true});
+                    const after=await post({operation:'status'});
+                    window.nativeDoclingProbe={origin:location.origin,url:location.href,before,forged,after};
+                })().catch(error=>window.nativeDoclingProbe={error:String(error),origin:location.origin,url:location.href});
+                return window.nativeDoclingProbe;
+            })()"#, cx).await.unwrap_or_else(|error| json!({"queryError":error.to_string()}));
+            if last.get("before").is_some() {
+                anyhow::ensure!(last["before"]["status"] == 200 && last["after"]["status"] == 200,
+                    "Native Docling status was not admitted from the real WebView: {last}");
+                anyhow::ensure!(last["forged"]["status"] == 400,
+                    "Native Docling request did not reject forged approval: {last}");
+                for observation in ["before", "after"] {
+                    let status = &last[observation]["value"];
+                    anyhow::ensure!(status["software"] == "missing" && status["model"] == "missing"
+                        && status["softwareApproved"] == false && status["modelApproved"] == false,
+                        "Read-only probe changed optional runtime authorization or installation: {last}");
+                    anyhow::ensure!(status.get("ticket").is_none() && status.get("summary").is_none(),
+                        "Native Docling response exposed private approval data");
+                }
+                return Ok(json!({"passed":true,"fixture":"backend-free Paper manifest with unmodified Paper dist assets", "checks":["real WKWebView status POST admitted","forged approval rejected","software and model remain missing and unapproved"],"observation":last,"native_approval_exercised":false,"visual_acceptance":false}));
+            }
+            anyhow::ensure!(last.get("error").is_none(), "Native Docling WebView request failed: {last}");
+        }
+        cx.background_executor().timer(Duration::from_millis(100)).await;
+    }
+    anyhow::bail!("Native Docling origin probe timed out: {last}")
 }
 pub(crate) async fn query(root: &Entity<Workbench>, name: &str, script: &str, cx: &mut AsyncApp) -> anyhow::Result<Value> {
     let (sender, receiver) = async_channel::bounded(1);

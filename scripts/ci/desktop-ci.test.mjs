@@ -55,10 +55,17 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   const nativeShell = platform.steps.find(step => step.name === 'Compile and test the Native GPUI and Wry shell');
   assert.equal(nativeShell.if, "runner.os == 'macOS'");
   assert.equal(nativeShell['continue-on-error'], undefined);
+  const nativeOrigin = platform.steps.find(step => step.name === 'Read-only Native Paper WebView origin probe');
+  assert.equal(nativeOrigin.if, "runner.os == 'macOS'");
+  assert.equal(nativeOrigin['continue-on-error'], undefined);
+  assert.equal(nativeOrigin.env.PERO_NATIVE_PROBE_PR_HEAD_SHA, '${{ github.event.pull_request.head.sha }}');
+  assert.equal(nativeOrigin.env.PERO_NATIVE_PROBE_RUN_ID, '${{ github.run_id }}');
   const commands = platform.steps.map(step => step.run || '').join('\n');
   for (const command of ['npm run build', 'npm run check', 'npm test', 'npm run test:contracts',
     'node scripts/cargo.mjs +nightly-2026-10-28 check --locked -p pero-ui --features native --bin pero-native',
     'node scripts/cargo.mjs +nightly-2026-10-28 test --locked -p pero-ui --features native --lib',
+    'node scripts/cargo.mjs +nightly-2026-10-28 build --locked -p pero-ui --features native-probe --bin pero-native',
+    'node tests/e2e/native-docling-origin.mjs',
     'node tests/contracts/mcp-settings.mjs', 'node tests/contracts/mcp-ownership.mjs',
     'node --test tests/runtime/control-lab/*.test.mjs', 'npm run test:app-use:unit',
     'node tests/e2e/computer-transport.mjs', 'scripts/build/fonttools.test.mjs',
