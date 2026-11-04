@@ -38,19 +38,20 @@ const (
 )
 
 type shellTaskIntent struct {
-	Version     int                `json:"version"`
-	ID          string             `json:"task_id"`
-	Owner       harness.SessionID  `json:"owner"`
-	CallID      harness.ToolCallID `json:"call_id"`
-	Turn        int                `json:"turn,omitempty"`
-	Command     string             `json:"command"`
-	Workdir     string             `json:"workdir"`
-	Description string             `json:"description,omitempty"`
-	TimeoutMS   int64              `json:"timeout_ms"`
-	Background  bool               `json:"background"`
-	OutputFile  string             `json:"output_file,omitempty"`
-	HostMode    BashHostMode       `json:"host_mode,omitempty"`
-	NoDeadline  bool               `json:"no_deadline,omitempty"`
+	Version            int                `json:"version"`
+	ID                 string             `json:"task_id"`
+	Owner              harness.SessionID  `json:"owner"`
+	CallID             harness.ToolCallID `json:"call_id"`
+	Turn               int                `json:"turn,omitempty"`
+	Command            string             `json:"command"`
+	Workdir            string             `json:"workdir"`
+	Description        string             `json:"description,omitempty"`
+	TimeoutMS          int64              `json:"timeout_ms"`
+	Background         bool               `json:"background"`
+	OutputFile         string             `json:"output_file,omitempty"`
+	HostMode           BashHostMode       `json:"host_mode,omitempty"`
+	NoDeadline         bool               `json:"no_deadline,omitempty"`
+	TerminateOnTimeout bool               `json:"terminate_on_timeout,omitempty"`
 }
 
 type shellTaskTerminal struct {
@@ -146,6 +147,12 @@ func (t *shellTask) snapshot(retrieval harness.TaskRetrieval) harness.ToolResult
 	if promotion != nil {
 		message = fmt.Sprintf("Command did not complete within its %gs timeout and was moved to the background", float64(t.intent.TimeoutMS)/1000)
 		backgroundTimeout, noDeadline = promotion.TimeoutMS, promotion.NoDeadline
+	}
+	if status == shellTaskRunning {
+		if message == "" {
+			message = "Command is running in the background"
+		}
+		message += ". Retrieve with TaskOutput or stop with TaskStop using task_id. If undeclared, discover select:TaskOutput,TaskStop first; do not rerun the command."
 	}
 	var presentedResult *bashPresentedResult
 	if result != nil {
@@ -293,7 +300,7 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 	if err := ctx.Err(); err != nil {
 		return harness.ToolResult{}, err
 	}
-	selection, err := s.timingPolicy.selectTimeout(input.Command, input.TimeoutMS, input.RunInBackground)
+	selection, err := s.timingPolicy.selectTimeout(input.Command, input.TimeoutMS, input.RunInBackground, input.TerminateOnTimeout)
 	if err != nil {
 		return harness.ToolResult{}, err
 	}
@@ -333,7 +340,7 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 		if request.CallID == "" || previous.intent.CallID != request.CallID || previous.intent.Turn != turn {
 			continue
 		}
-		if previous.intent.Command != spec.Command || previous.intent.Workdir != spec.Workdir || previous.intent.TimeoutMS != intentTimeout.Milliseconds() || previous.intent.Background != input.RunInBackground {
+		if previous.intent.Command != spec.Command || previous.intent.Workdir != spec.Workdir || previous.intent.TimeoutMS != intentTimeout.Milliseconds() || previous.intent.Background != input.RunInBackground || previous.intent.TerminateOnTimeout != input.TerminateOnTimeout {
 			return harness.ToolResult{}, errors.New("background shell call identity already has a different durable intent; do not replay it")
 		}
 		handle, _, err := s.lookup(ctx, request.Agent, id)
@@ -349,7 +356,7 @@ func (s *shellTasks) start(ctx context.Context, request harness.ToolRequest, inp
 	if s.envFile != nil {
 		spec.EnvFile = s.envFile(request.Agent)
 	}
-	task.intent = shellTaskIntent{Version: 1, ID: "bash-" + rand.Text(), Owner: request.Agent.ID(), CallID: request.CallID, Turn: turn, Command: spec.Command, Workdir: spec.Workdir, Description: input.Description, TimeoutMS: intentTimeout.Milliseconds(), Background: input.RunInBackground, HostMode: s.timingPolicy.mode, NoDeadline: selection.noDeadline}
+	task.intent = shellTaskIntent{Version: 1, ID: "bash-" + rand.Text(), Owner: request.Agent.ID(), CallID: request.CallID, Turn: turn, Command: spec.Command, Workdir: spec.Workdir, Description: input.Description, TimeoutMS: intentTimeout.Milliseconds(), Background: input.RunInBackground, HostMode: s.timingPolicy.mode, NoDeadline: selection.noDeadline, TerminateOnTimeout: input.TerminateOnTimeout}
 	plan, err := shell.PlanOutputFile(options.CWD, ".pero/bash-output", task.intent.ID+".log", 0)
 	if err != nil {
 		return harness.ToolResult{}, err

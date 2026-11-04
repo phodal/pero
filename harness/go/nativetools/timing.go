@@ -85,12 +85,15 @@ func resolveBashTimingPolicy(options BashTimingOptions, environment []string) (b
 		backgroundDefault, max(backgroundShellMaximum, backgroundDefault, maximumTimeout)}, nil
 }
 
-func (policy bashTimingPolicy) selectTimeout(command string, milliseconds int, background bool) (bashTimingSelection, error) {
+func (policy bashTimingPolicy) selectTimeout(command string, milliseconds int, background, terminate bool) (bashTimingSelection, error) {
 	if milliseconds < 0 || int64(milliseconds) > math.MaxInt64/int64(time.Millisecond) {
 		return bashTimingSelection{}, errors.New("Bash timeout is outside the supported millisecond range")
 	}
 	requested := time.Duration(milliseconds) * time.Millisecond
 	if background {
+		if terminate {
+			return bashTimingSelection{}, errors.New("terminate_on_timeout applies only to foreground checks; omit run_in_background")
+		}
 		if policy.disabled {
 			return bashTimingSelection{}, errors.New("Bash background execution is disabled by the host")
 		}
@@ -107,7 +110,7 @@ func (policy bashTimingPolicy) selectTimeout(command string, milliseconds int, b
 		requested = policy.foregroundDefault
 	}
 	wait := min(requested, policy.foregroundMaximum)
-	promote := !policy.disabled && !commandStartsWithSleep(command)
+	promote := !terminate && !policy.disabled && !commandStartsWithSleep(command)
 	return bashTimingSelection{wait: wait, runtime: wait, resolveTimeout: wait, promote: promote}, nil
 }
 

@@ -13,37 +13,38 @@ import (
 // Claude arguments are converted once at the registration boundary. The
 // original registry call still owns approval, cancellation and the tool receipt.
 type claudeArguments struct {
-	Patch           string `json:"patch"`
-	FilePath        string `json:"file_path"`
-	NotebookPath    string `json:"notebook_path"`
-	Path            string `json:"path"`
-	Content         string `json:"content"`
-	NewSource       string `json:"new_source"`
-	OldString       string `json:"old_string"`
-	NewString       string `json:"new_string"`
-	ReplaceAll      bool   `json:"replace_all"`
-	Offset          int    `json:"offset"`
-	Limit           int    `json:"limit"`
-	Command         string `json:"command"`
-	Workdir         string `json:"workdir"`
-	Description     string `json:"description"`
-	Timeout         int    `json:"timeout"`
-	Pattern         string `json:"pattern"`
-	Glob            string `json:"glob"`
-	FileType        string `json:"type"`
-	OutputMode      string `json:"output_mode"`
-	IgnoreCase      bool   `json:"-i"`
-	LineNumbers     *bool  `json:"-n"`
-	Multiline       bool   `json:"multiline"`
-	Before          int    `json:"-B"`
-	After           int    `json:"-A"`
-	Around          int    `json:"-C"`
-	Context         int    `json:"context"`
-	HeadLimit       int    `json:"head_limit"`
-	RunInBackground bool   `json:"run_in_background"`
-	CellID          string `json:"cell_id"`
-	CellType        string `json:"cell_type"`
-	EditMode        string `json:"edit_mode"`
+	Patch              string `json:"patch"`
+	FilePath           string `json:"file_path"`
+	NotebookPath       string `json:"notebook_path"`
+	Path               string `json:"path"`
+	Content            string `json:"content"`
+	NewSource          string `json:"new_source"`
+	OldString          string `json:"old_string"`
+	NewString          string `json:"new_string"`
+	ReplaceAll         bool   `json:"replace_all"`
+	Offset             int    `json:"offset"`
+	Limit              int    `json:"limit"`
+	Command            string `json:"command"`
+	Workdir            string `json:"workdir"`
+	Description        string `json:"description"`
+	Timeout            int    `json:"timeout"`
+	TerminateOnTimeout bool   `json:"terminate_on_timeout"`
+	Pattern            string `json:"pattern"`
+	Glob               string `json:"glob"`
+	FileType           string `json:"type"`
+	OutputMode         string `json:"output_mode"`
+	IgnoreCase         bool   `json:"-i"`
+	LineNumbers        *bool  `json:"-n"`
+	Multiline          bool   `json:"multiline"`
+	Before             int    `json:"-B"`
+	After              int    `json:"-A"`
+	Around             int    `json:"-C"`
+	Context            int    `json:"context"`
+	HeadLimit          int    `json:"head_limit"`
+	RunInBackground    bool   `json:"run_in_background"`
+	CellID             string `json:"cell_id"`
+	CellType           string `json:"cell_type"`
+	EditMode           string `json:"edit_mode"`
 }
 
 func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowResource bool, workspaceAliases ...string) (arguments, error) {
@@ -114,7 +115,8 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 		LineNumbers: value.LineNumbers, Before: value.Before, After: value.After,
 		Around: around, HeadLimit: value.HeadLimit, SearchOffset: value.Offset, ResourcePath: resourcePath,
 		RunInBackground: value.RunInBackground, Description: value.Description,
-		CellID: value.CellID, CellType: value.CellType, EditMode: value.EditMode,
+		TerminateOnTimeout: value.TerminateOnTimeout,
+		CellID:             value.CellID, CellType: value.CellType, EditMode: value.EditMode,
 	}, nil
 }
 
@@ -180,7 +182,8 @@ func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, r
 		definition.description = "Run an approved shell command. Foreground timeout defaults to 120000ms; host timeout configuration sets the default and cap. A live command reaching its foreground timeout moves to the background, except sleep commands or when background execution is disabled. run_in_background starts detached immediately. Both return a durable task_id for TaskOutput/TaskStop. Unattended background runs default to 1800000ms and cap at 7200000ms, measured from entering the background; trusted host configuration may raise them. Interactive background runs have no deadline. Parent cancellation and retirement stop owned jobs; cold recovery never replays commands. The configured sandbox and existing approval policy apply to both forms."
 		definition.description += " Output merges stdout/stderr: valid results inline up to 30000 characters by default, then output_file names a capped 64 MiB artifact with a 2000-character preview. Failure output is a bounded head/tail excerpt. TaskOutput separately exposes working_log_file for the original background log."
 		definition.description += " Set workdir instead of using cd: relative paths resolve against the session workspace. Explicit workdir applies only to this invocation and does not change the remembered Bash directory."
-		definition.properties = `"command":{"type":"string","minLength":1,"maxLength":16384},"workdir":{"type":"string","minLength":1},"timeout":{"type":"integer","minimum":1},"description":{"type":"string"},"run_in_background":{"type":"boolean"}`
+		definition.description += " For bounded checks set a short timeout and terminate_on_timeout=true to stop the owned process instead of promoting it; cannot combine with run_in_background."
+		definition.properties = `"command":{"type":"string","minLength":1,"maxLength":16384},"workdir":{"type":"string","minLength":1},"timeout":{"type":"integer","minimum":1},"terminate_on_timeout":{"type":"boolean"},"description":{"type":"string"},"run_in_background":{"type":"boolean"}`
 		definition.required = `"command"`
 	}
 	return definition

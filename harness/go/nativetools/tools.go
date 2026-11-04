@@ -96,6 +96,7 @@ type arguments struct {
 	Command                                        string `json:"command"`
 	Workdir                                        string `json:"workdir"`
 	TimeoutMS                                      int    `json:"timeout_ms"`
+	TerminateOnTimeout                             bool   `json:"terminate_on_timeout"`
 	Pattern                                        string `json:"pattern"`
 	Glob                                           string `json:"glob"`
 	FileType                                       string
@@ -244,7 +245,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 					workdir := workspace
 					if opts.ClaudeTools && app.background != nil {
 						workdir, _ = app.background.directoryForCommand(c, request.Agent, a.Workdir)
-						selection, timingErr := app.background.timingPolicy.selectTimeout(a.Command, a.TimeoutMS, a.RunInBackground)
+						selection, timingErr := app.background.timingPolicy.selectTimeout(a.Command, a.TimeoutMS, a.RunInBackground, a.TerminateOnTimeout)
 						if timingErr != nil {
 							return nil, timingErr
 						}

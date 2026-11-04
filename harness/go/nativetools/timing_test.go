@@ -66,7 +66,7 @@ func TestBashTimingCommandSelection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			selected, err := policy.selectTimeout(test.command, test.timeout, test.background)
+			selected, err := policy.selectTimeout(test.command, test.timeout, test.background, false)
 			if (err != nil) != test.fail || !test.fail && (selected.wait != test.wait || selected.runtime != test.runtime || selected.promote != test.promote || selected.noDeadline != test.none) {
 				t.Fatalf("selection=%+v error=%v", selected, err)
 			}

@@ -204,3 +204,38 @@ func TestBashPromotionExceptionsAndBackgroundHostModes(t *testing.T) {
 		})
 	}
 }
+
+func TestBoundedBashCheckTerminatesOwnedProcess(t *testing.T) {
+	f := newBackgroundFixture(t)
+	response := f.call(t, f.allowed, "Bash", map[string]any{
+		"command": gatedBashCommand, "timeout": 150, "terminate_on_timeout": true,
+	})
+	if !response.IsError || !strings.Contains(response.Content[0].Text, `"timedOut":true`) {
+		t.Fatalf("bounded check did not time out: %+v", response)
+	}
+	pid := waitShellPID(t, filepath.Join(f.root, "process.pid"))
+	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+		t.Fatalf("bounded check left its process alive: %v", err)
+	}
+	history, err := foldShellTasks(f.allowed.Session().Events(), f.allowed.ID())
+	if err != nil || len(history) != 1 {
+		t.Fatalf("invalid bounded check journal: %+v %v", history, err)
+	}
+	for _, task := range history {
+		if !task.intent.TerminateOnTimeout || task.promotion != nil || task.terminal == nil {
+			t.Fatalf("bounded check promoted or lost terminal receipt: %+v", task)
+		}
+	}
+	if effects, err := os.ReadFile(filepath.Join(f.root, "effects")); err != nil || string(effects) != "x" {
+		t.Fatalf("bounded check replayed effects: %q %v", effects, err)
+	}
+	response = f.call(t, f.allowed, "Bash", map[string]any{
+		"command": "printf forbidden > forbidden", "run_in_background": true, "terminate_on_timeout": true,
+	})
+	if !response.IsError {
+		t.Fatal("incompatible background check was admitted")
+	}
+	if _, err := os.Stat(filepath.Join(f.root, "forbidden")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("invalid bounded check executed")
+	}
+}

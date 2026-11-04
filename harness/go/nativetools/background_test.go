@@ -314,7 +314,7 @@ func TestClaudeShellTimeoutSelection(t *testing.T) {
 		raw := json.RawMessage(fmt.Sprintf(`{"command":"printf fixture","timeout":%d,"run_in_background":%t}`, test.requested, test.background))
 		input, err := decodeNativeArguments(raw, t.TempDir(), true, false)
 		policy, policyErr := resolveBashTimingPolicy(BashTimingOptions{}, nil)
-		selection, selectionErr := policy.selectTimeout(input.Command, input.TimeoutMS, input.RunInBackground)
+		selection, selectionErr := policy.selectTimeout(input.Command, input.TimeoutMS, input.RunInBackground, input.TerminateOnTimeout)
 		got := selection.resolveTimeout.Milliseconds()
 		if err != nil || policyErr != nil || selectionErr != nil || got != int64(test.want) {
 			t.Fatalf("timeout selection: %+v %v", input, err)

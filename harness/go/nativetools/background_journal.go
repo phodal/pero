@@ -34,6 +34,9 @@ func foldShellTasks(events []harness.Event, owner harness.SessionID) (map[string
 			if intent.Version != 1 || !strings.HasPrefix(intent.ID, "bash-") || intent.Owner == "" || intent.Command == "" || intent.Workdir == "" || intent.TimeoutMS < 0 || intent.TimeoutMS == 0 && !intent.NoDeadline {
 				return nil, errors.New("shell task journal contains an invalid intent")
 			}
+			if intent.TerminateOnTimeout && intent.Background {
+				return nil, errors.New("bounded foreground check cannot have a background intent")
+			}
 			if intent.HostMode != "" && intent.HostMode != BashUnattended && intent.HostMode != BashInteractive || intent.NoDeadline && (!intent.Background || intent.HostMode != BashInteractive || intent.TimeoutMS != 0) {
 				return nil, errors.New("shell task journal contains an invalid host deadline policy")
 			}
@@ -58,7 +61,7 @@ func foldShellTasks(events []harness.Event, owner harness.SessionID) (map[string
 				continue
 			}
 			previous, exists := tasks[promotion.ID]
-			if !exists || previous.intent.Background || previous.terminal != nil || previous.promotion != nil || promotion.NoDeadline && previous.intent.HostMode != BashInteractive {
+			if !exists || previous.intent.Background || previous.intent.TerminateOnTimeout || previous.terminal != nil || previous.promotion != nil || promotion.NoDeadline && previous.intent.HostMode != BashInteractive {
 				return nil, errors.New("shell task promotion lacks one unfinished foreground intent")
 			}
 			previous.promotion = &promotion
