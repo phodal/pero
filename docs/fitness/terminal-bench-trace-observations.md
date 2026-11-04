@@ -91,6 +91,16 @@ and artifact `analysis-pypi-service-lifetime.json`.
 
 ## Sanitizer correctness and verifier assumptions
 
+`sanitize-git-repo` ends normally after 35 responses and 1,887,041 recorded
+tokens. Both secret-removal and exact placeholder-replacement checks pass.
+The candidate also runs `git filter-branch`, expires reflogs and prunes objects;
+the instruction does not explicitly request rewriting history. The third test
+resolves a hardcoded original commit in the candidate repository, which is now
+missing, so it never compares the other paths. The comparison assumption and
+extra cleanup are separate from replacement correctness. No independent full
+comparison proves the other files unchanged, and raw reward zero is retained.
+Source hashes and call seqs are in `analysis-sanitize-history-reference.json`.
+
 `reshard-c4-data` has raw reward zero with two independent failure layers.
 Its last self-test (seq 28168) fails with `FileNotFoundError` and unequal output
 files. The next provider request ends with a generic stream transport error;
