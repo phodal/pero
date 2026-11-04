@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "fstools",
     srcs = [
+        "directory_page.go",
         "media.go",
         "patch.go",
         "private.go",
@@ -27,6 +28,7 @@ go_test(
     name = "fstools_test",
     srcs = [
         "parents_test.go",
+        "directory_page_test.go",
         "patch_test.go",
         "private_test.go",
         "review_race_test.go",
