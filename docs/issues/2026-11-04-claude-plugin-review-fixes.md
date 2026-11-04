@@ -120,3 +120,19 @@ against master `ddd3650454de1fea7a35a46200756bec4fe71754`.
 
 This follow-up corrects the branch-owned Bazel and DSH metadata. The upstream
 Paper failures remain explicit CI blockers; it does not claim all CI is green.
+
+The next CI run, [41757503467](https://github.com/phodal/pero/actions/runs/41757503467),
+passed DSH extraction and the Bazel generation/build steps, but exposed an
+intermittent subagent rejection test failure. The unmodified test failed twice
+in 500 local race runs; diagnostic-only reruns failed three times in 1,000,
+each with `pendingPrompts` decreasing from 2 to 1 as startup work was consumed.
+That counter never tracked steer inbox insertion. The test now waits for the
+child's model-entry signal and observes the exact rejected message IDs at the
+synchronous `InboxInserted` boundary. Both existing rejection-code assertions
+remain, with no production behavior change.
+
+All protocol-prompt tests pass 1,000 consecutive race-enabled repetitions, and
+the complete Go module passes another race run (35 packages). A temporary Go
+overlay that admits the image before returning the same rejection code makes
+the new assertion fail with `rejected-image` / `next-step`, confirming it
+detects the rejected message reaching the inbox. The overlay was not committed.
