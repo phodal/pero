@@ -13,6 +13,7 @@ mod tenure;
 use tenure::{StoreError, Tenure, TenureAsk, permit};
 mod python;
 mod preparation;
+pub mod docling_runtime;
 mod environment;
 mod environment_catalog;
 pub use environment::{EnvironmentInspection, ScientificMethod};
@@ -63,6 +64,7 @@ pub struct AppStore {
     builtins: BuiltinDiscovery,
     required: std::collections::BTreeSet<AppName>,
     settings: Option<PathBuf>,
+    docling_runtime: Option<docling_runtime::DoclingRuntime>,
 }
 
 impl AppStore {
@@ -148,6 +150,7 @@ impl AppStore {
             builtins,
             required,
             settings: None,
+            docling_runtime: None,
         })
     }
 
