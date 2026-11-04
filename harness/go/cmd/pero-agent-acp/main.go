@@ -64,6 +64,7 @@ func run() (resultErr error) {
 	disableBashBackground := flag.Bool("disable-bash-background", false, "disable plugin Bash background starts and automatic promotion")
 	approval := flag.String("approval", "ask", "tool approval policy: never or ask via ACP client")
 	budget := bindProviderBudget(flag.CommandLine)
+	maxTurnSteps := flag.Int("max-turn-steps", harness.DefaultMaxSteps, "maximum model/tool steps per turn; 0 disables this ceiling (cancellation and provider budgets still apply)")
 	skillRoots := bindSkillRoots(flag.CommandLine)
 	pluginConfig := bindPluginOptions(flag.CommandLine)
 	compaction := bindCompaction(flag.CommandLine)
@@ -82,6 +83,12 @@ func run() (resultErr error) {
 	}
 	if *approval != "never" && *approval != "ask" {
 		return errors.New("--approval must be never or ask")
+	}
+	if *maxTurnSteps < 0 {
+		return errors.New("--max-turn-steps must be nonnegative")
+	}
+	if *maxTurnSteps == 0 {
+		*maxTurnSteps = harness.UnlimitedMaxSteps
 	}
 	if *initOnly && *maintenance || *printMode && (*initOnly || *maintenance) {
 		return errors.New("--init-only, --maintenance, and --print are mutually exclusive")
@@ -391,7 +398,7 @@ func run() (resultErr error) {
 		if *maintenance {
 			trigger = "maintenance"
 		}
-		agent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "plugin-init", CWD: *workspace, Provider: "configured", Model: *model})
+		agent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "plugin-init", CWD: *workspace, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps})
 		if err != nil {
 			return err
 		}
@@ -403,9 +410,9 @@ func run() (resultErr error) {
 		return nil
 	}
 	if *printMode {
-		return runPrintPrepared(ctx, h, pluginHooks, *model, *workspace, printPrompt, engineering.preparePrompt(engineeringApp))
+		return runPrintPrepared(ctx, h, pluginHooks, *model, *workspace, printPrompt, *maxTurnSteps, engineering.preparePrompt(engineeringApp))
 	}
-	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, Name: "pero-agent-acp", Version: "0.1"}
+	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
 	serverOptions.PreparePrompt = engineering.preparePrompt(engineeringApp)
 	if pluginHooks != nil {
 		serverOptions.HoldAssistantText = func(*harness.Agent) bool { return pluginHooks.HoldsAssistantText() }

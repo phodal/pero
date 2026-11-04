@@ -126,7 +126,7 @@ func TestPrintCancellationSettlesPluginStartup(t *testing.T) {
 	defer cancelPrint()
 	result := make(chan error, 1)
 	go func() {
-		result <- runPrintPrepared(printCtx, h, hooks, "fixture", root, "follow", func(context.Context, *harness.Agent, *harness.Message) (func(), error) {
+		result <- runPrintPrepared(printCtx, h, hooks, "fixture", root, "follow", 0, func(context.Context, *harness.Agent, *harness.Message) (func(), error) {
 			t.Error("plugin startup or a cancelled human prompt reached trusted preparation")
 			return nil, nil
 		})
