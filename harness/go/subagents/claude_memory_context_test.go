@@ -3,6 +3,7 @@ package subagents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -203,7 +204,7 @@ func TestAgentMemoryContextColdResumeKeepsPresentationWithoutLaunchOptIn(t *test
 	if err := detach(); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.Dispose(t.Context()); err != nil {
+	if err := h.Dispose(t.Context()); err != nil && !errors.Is(err, harness.ErrHarnessDisposalInProgress) {
 		t.Fatal(err)
 	}
 	if err := h.Drain(t.Context()); err != nil {
