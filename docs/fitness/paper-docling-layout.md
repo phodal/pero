@@ -1,13 +1,14 @@
 # Optional Docling layout: bounded offline profile
 
-Status: Linux runtime verified; macOS Apple Silicon implementation and official
-wheel audit complete, native Mac execution not yet verified (2026-11-04). This is an
+Status: Linux Docling runtime verified; macOS Apple Silicon implementation,
+official wheel audit and hosted Host lifecycle tests complete. Actual Mac
+Docling installation and OCR remain unverified (2026-11-04). This is an
 explicit optional layout experiment, not a replacement for PDFium/Tesseract
 numeric extraction and not scientific/numeric acceptance. Real results and
 visual-review limits belong to [the corpus report](paper-docling-corpus.md).
 No Paper-backend installer endpoint, implicit package installation, automatic
-model download, or default-path Docling call exists. The Electron Host owns a
-bounded optional-component installer with separate native user confirmations.
+model download, or default-path Docling call exists. The Host owns a bounded
+optional-component installer with separate trusted desktop confirmations.
 Authorization for this development experiment does not authorize installations
 for future users.
 
@@ -85,18 +86,24 @@ fails. Layout does not produce calibrated values, numeric references,
 
 After a region is classified as image-based or mixed, Paper explains that
 layout is optional. It does not infer permission or start a download. Opening
-the optional panel reads status. On the Electron Host, separate actions request
-the fixed software profile and fixed Heron model. Each opens a main-process
-native dialog, defaults to Cancel, and states the source, versions, approximate
-disk use, license information and unchanged normal Paper environment.
+the optional panel reads status. Separate actions request the fixed software
+profile and fixed Heron model. Electron uses a main-process native dialog.
+The Native/Wry shell uses a Rust-owned GPUI dialog outside the Paper WebView.
+Each states the source, versions, approximate disk use, license information and
+unchanged normal Paper environment. Cancellation is the default; Native dialog
+Enter, Escape and dismissal deny, and only its explicit Install action approves.
 
 The App-facing `POST /host/docling-runtime` accepts only `status`,
 `request` with component `software` or `model`, `cancel`, and `revoke`.
 It requires the exact Paper origin. Installation tickets are held only by the
-main process; App-supplied approval, ticket, command, path or source fields are
+trusted shell; App-supplied approval, ticket, command, path or source fields are
 rejected. The private Host `prepare`/`install` protocol is not forwarded through
 public renderer IPC. Cancelled or closed confirmations cannot dispatch a late
 approval. Disabling the optional runtime has its own native confirmation.
+The Native shell invalidates pending consent when a Paper page is removed, the
+window closes, or the Host disconnects. Merely hiding the embedded WebView to
+show the modal does not cancel it. Its private dialog events and Host tickets
+are not delivered to the App or agent-facing SDK.
 
 This is deliberately **not** a general package manager. Both profiles require
 an existing release CPython 3.12 environment, verified OS/architecture/ABI, and
@@ -135,7 +142,8 @@ A fixed runtime directory lock survives exec on Unix and prevents concurrent
 writers. On macOS, a crash may leave the current fixed installation process
 running until it finishes; it retains the lock, and a new Host cannot write
 concurrently. Immediate crash termination is a Linux-only guarantee, not a Mac
-claim. The macOS-specific crash/lease test still requires a real Mac.
+claim. The macOS-specific crash/lease test passed on a hosted native arm64 Mac;
+that lifecycle test does not install or run Docling.
 Virtual environment
 creation disables automatic ensurepip subprocesses; its existing CPython-bundled
 pip is bootstrapped in the same supervised process. Reinstall uses the verified
@@ -330,7 +338,51 @@ downloads. The three-paper `docling_corpus.py --engines docling` runner also wor
 with the native profile; RSS is normalized from Darwin bytes to KiB rather than
 mislabelled as Linux memory. Neither Mac script has been executed here.
 
-Required Mac acceptance remains: build Host, confirm/deny/cancel in Electron,
-install both components, run the native probe and original three-paper corpus,
-persist/reopen via the Paper HTTP path, inspect source jumps, and exercise the
-macOS crash/lease test. The existing Linux corpus results are not a substitute.
+The hosted [macOS Desktop job](https://github.com/phodal/pero/actions/runs/41771418185/job/126381737392)
+for PR head `fc0aa5594d73380bdbff9e2b387ce2a71d2f06eb` passed on
+`macos-26-arm64`. Runtime tests were 104 passed and one ignored, including the
+Mac-specific crash/lease, inherited lock and normal shutdown cases. The default
+Desktop build, typecheck and Host tests also passed. This job did **not** enable
+the Native/Wry feature, install Docling, run Vision OCR or click a confirmation.
+Its result is evidence for that exact head, not untested later changes.
+
+The subsequent Native/Wry confirmation implementation passed all 21 default
+`pero-ui` library tests, including three consent-gate tests. A temporary Rust
+harness compiled the actual Native App route and consent modules with the real
+HTTP, reqwest and contract types; all nine tests passed, including existing
+environment/research routes. Its only stub was the unrelated connector owner.
+These prove transport and consent behavior, not a WebKit or GUI run. Local
+Native compilation stopped at the missing GPUI checkout preflight. The Mac
+Desktop workflow now explicitly checks `--features native --bin pero-native`
+and tests `--features native --lib`, rather than relying on default `npm test`
+to compile feature-gated routes.
+
+`Paper optional Docling on macOS` is a separate, explicitly opted-in hosted
+workflow: relevant-path, same-repository PRs require `ci:full`; a manual run
+requires `allow_official_downloads=true`. It checks out the exact PR head on
+the native arm64 `macos-26` runner. The ordinary Python remains separate from
+the Host-managed optional runtime. The existing ignored Host smoke installs,
+revokes and repairs the official pinned software/model in a new temporary
+directory, then the workflow runs the known-input Vision probe, the three fixed
+NASA originals and the HTTP save/reopen test. That HTTP test copies the Host's
+exact activation bytes, checks their hash before and after, and checks both
+status and conversion profile against the activation. It installs no Homebrew
+or Tesseract and performs no release or user-computer action.
+
+Evidence is uploaded from `test-results/paper-docling-macos/`: exact head,
+activation hash, stage failures, elapsed time, file bytes, per-conversion RSS,
+native OCR receipt and original conversion outputs. Runtime, model and source
+PDF directories are excluded. A failed Vision probe does not suppress later
+conversion diagnostics, but any failed stage makes the run fail. Configuring
+HF/Transformers offline mode is not an OS network-isolation proof. Merely
+adding this workflow is not a successful Mac execution receipt.
+After adding these CI and Native-shell checks, the local full Paper suite ran
+330 tests: 326 passed and four explicit opt-ins/platform cases skipped. All ten
+workflow contracts passed. The new profile-preserving HTTP branch also passed
+against the real Linux optional runtime using a labelled synthetic activation
+file; this is not evidence that the older Host fixture emitted a profile.
+
+Required Mac acceptance remains: compile the Native/Wry shell, confirm/deny/cancel
+in each desktop shell, install both components, run the native probe and original
+three-paper corpus, persist/reopen via the Paper HTTP path and inspect source jumps.
+The existing Linux corpus results are not a substitute.

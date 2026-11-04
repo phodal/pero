@@ -52,8 +52,13 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   for (const name of ['desktop-linux', 'desktop', 'desktop-acceptance', 'windows-acl-sandbox']) assert.match(workflow.jobs[name].if, /schedule.*workflow_dispatch/);
   assert.equal(workflow.on.schedule[0].cron, '0 20 * * *');
   const platform = YAML.parse(readFileSync('.github/workflows/desktop-check.yml', 'utf8')).jobs.desktop;
+  const nativeShell = platform.steps.find(step => step.name === 'Compile and test the Native GPUI and Wry shell');
+  assert.equal(nativeShell.if, "runner.os == 'macOS'");
+  assert.equal(nativeShell['continue-on-error'], undefined);
   const commands = platform.steps.map(step => step.run || '').join('\n');
   for (const command of ['npm run build', 'npm run check', 'npm test', 'npm run test:contracts',
+    'node scripts/cargo.mjs +nightly-2026-10-28 check --locked -p pero-ui --features native --bin pero-native',
+    'node scripts/cargo.mjs +nightly-2026-10-28 test --locked -p pero-ui --features native --lib',
     'node tests/contracts/mcp-settings.mjs', 'node tests/contracts/mcp-ownership.mjs',
     'node --test tests/runtime/control-lab/*.test.mjs', 'npm run test:app-use:unit',
     'node tests/e2e/computer-transport.mjs', 'scripts/build/fonttools.test.mjs',
