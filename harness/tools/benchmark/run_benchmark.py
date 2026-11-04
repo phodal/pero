@@ -116,13 +116,13 @@ def prepare(options, task: str) -> dict:
             "manifest": manifest, "skeleton": skeleton, "baseline": baseline, "reference": reference_result}
 
 
-def run_task(options, prepared: dict) -> dict:
+def run_task(options, prepared: dict, judge_function=judge) -> dict:
     from acp import ACPClient, read_usage
     from core import TrialConfig
 
     task, directory, workspace = prepared["name"], prepared["directory"], prepared["workspace"]
     filenames = prepared["manifest"]["solution"]
-    prompt = ("Implement the Python exercise in this workspace. Read README.md and the provided solution "
+    prompt = prepared.get("prompt") or ("Implement the Python exercise in this workspace. Read README.md and the provided solution "
               "skeleton first, then implement the required API in " + ", ".join(filenames) + ". "
               "You may run your own local checks. Official tests are held out and will be run after you finish. "
               "Work only in this workspace; do not search for external solutions, hidden tests, or reference code. "
@@ -155,12 +155,13 @@ def run_task(options, prepared: dict) -> dict:
             for name in filenames:
                 content = (workspace / name).read_bytes() if (workspace / name).is_file() else b""
                 solutions[name] = content
+                (snapshot / name).parent.mkdir(parents=True, exist_ok=True)
                 (snapshot / name).write_bytes(content)
             difference = "".join(line for name in filenames for line in difflib.unified_diff(
                 prepared["skeleton"][name].decode().splitlines(keepends=True),
                 solutions[name].decode().splitlines(keepends=True), fromfile="a/" + name, tofile="b/" + name))
             (snapshot / "solution.diff").write_text(difference)
-            result = judge(prepared["source"], solutions, prepared["manifest"]["test"], snapshot / "judge")
+            result = judge_function(prepared["source"], solutions, prepared["manifest"]["test"], snapshot / "judge")
             passed = result["passed"] and stop == "end_turn"
             record = {"attempt": number, "stop_reason": stop, "passed": passed, "judge": result,
                       "duration_seconds": round(time.monotonic() - round_started, 3),
