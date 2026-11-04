@@ -93,8 +93,14 @@ export default function PaperAgent() {
     media.addEventListener('change', change); return () => media.removeEventListener('change', change);
   }, []);
   async function ask(selection: Partial<PaperResearchSelection> = {}, message = '') {
-    const selected = { paperIds: reading ? [reading.id] : [], fullText: !!reading && (!!reading.pdfUrl || reading.source === 'local-pdf'), ...selection };
+    const version = readVersion.current;
     try {
+      // Downloads can update this record while the reader keeps its position.
+      // Freeze the current persisted source, rather than the opening snapshot.
+      const paper = reading ? await api.get<Paper>(`/api/papers/${reading.id}`) : null;
+      if (!mounted.current || version !== readVersion.current) return;
+      if (paper) setReading(paper);
+      const selected = { paperIds: paper ? [paper.id] : [], fullText: !!paper && (!!paper.pdfUrl || paper.source === 'local-pdf'), ...selection };
       if (selected.fullText) {
         for (const id of selected.paperIds) {
           const saved = await api.get<import('./types').PdfReading>(`/api/pdf?paperId=${id}`);
@@ -337,7 +343,7 @@ export default function PaperAgent() {
     window.addEventListener('message',receive);return()=>window.removeEventListener('message',receive);
   },[api,reading]);
   useAppDataChanged(() => refresh().catch(onError));
-  useAppObject({id:'paper-agent',kind:'research-library',label:'Paper Agent',state:{
+  useAppObject({id:'paper-agent',kind:'research-library',label:reading?.title.slice(0,300)||'Paper Agent',state:{
     paperCount:library.papers.length,reportCount:library.reports.length,selected:reading ? [reading.id] : [],
     readingId:reading?.id??null,title:reading?.title??null,contentDigest:reading?.contentDigest??null,url:reading?.url??null,sourceId:reading?.sourceId??null,
     sourceExcerpt:reading?.content?.slice(0,4000)??null,sourceTruncated:(reading?.content?.length??0)>4000,

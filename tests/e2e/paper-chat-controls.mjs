@@ -8,11 +8,13 @@ export async function focusPaperChat(page) {
 export async function fillPaperChat(page, text) {
   const setup = page.getByRole('region', { name: 'App environment', exact: true });
   if (await setup.isVisible()) await setup.getByRole('button', { name: 'Hide', exact: true }).click();
-  await expect.poll(async () => { const s = await chatState(page); return s.appChatOpen && s.composer.includes('@Paper Agent'); }).toBe(true);
+  const title = await page.frameLocator('iframe[title="paper-agent"]').locator('.pa-reader-crumb h1').textContent();
+  const reference = `@${title.slice(0, 300)}`;
+  await expect.poll(async () => { const s = await chatState(page); return s.appChatOpen && s.composer.includes(reference); }).toBe(true);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
   await focusPaperChat(page);
   const current = (await chatState(page)).composer;
-  const referenceStart = current.indexOf('@Paper Agent');
+  const referenceStart = current.indexOf(reference);
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home');
   if (referenceStart >= 0) {
     for (let i = 0; i < referenceStart; i++) await page.keyboard.press('Shift+ArrowRight');

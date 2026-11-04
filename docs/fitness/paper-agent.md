@@ -185,3 +185,26 @@ recall, answer faithfulness, OCR, semantic search, scientific correctness or a
 signed/cross-platform package. Relevance scores remain separate from exact quote
 matching and research acceptance. No public source fetch or real model request
 was performed for this acceptance run.
+
+## Current paper Chat references — 2026-11-04
+
+Tested on macOS arm64, source base `836af684` plus this scoped change. Paper Ask
+uses the current paper title for the frozen attachment and Composer reference;
+its stable semantic object ID remains `paper-agent`. Ask reloads the persisted
+paper before freezing its digest, excerpt and source availability, including
+when a download updated the record without reopening the reader.
+
+- App typecheck and production build passed; four Host context tests passed.
+- `node tests/e2e/paper-chat-context.mjs` passed in Chrome: updated full-text/PDF
+  availability, correct paper selection after switching, English/light and
+  Chinese/dark 390px views, keyboard handoff and no automatic submission.
+- A targeted real Electron → Rust Host → installed Python App check verified
+  both painted title references and an unsent draft. Installed JS matched the
+  built JS SHA-256 `3c2561ec167c58e7e7be69828e1d39d54763a93890c157800088761daba79c76`.
+  Screenshots and the disposable check script are in
+  `test-results/paper-chat-context/` (ignored).
+- The full `test:paper` suite with the existing Python 3.12 environment stopped
+  at `paper-agent.mjs:249`, waiting for `Citing papers`, before reaching its Chat
+  checks. This is an incomplete suite result; no regression attribution is made.
+  Real-model answers, an existing user session and packaged releases were not
+  verified by the targeted checks.
