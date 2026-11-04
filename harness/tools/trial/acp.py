@@ -53,7 +53,7 @@ class ACPClient:
     def start(self) -> None:
         config = self.config
         arguments = [str(config.binary), "--endpoint", config.endpoint, "--model", config.model,
-                     "--api-key-env", config.api_key_env, "--plugin-dir", str(config.plugin), "--workspace", str(self.workspace),
+                     "--api-key-env", config.api_key_env, "--api-format", config.api_format, "--plugin-dir", str(config.plugin), "--workspace", str(self.workspace),
                      "--session-dir", str(self.directory / "sessions"), "--http-attempt-audit", str(self.audit_path),
                      "--max-requests", str(config.max_requests), "--max-tokens", str(config.max_tokens), "--max-retries", "0", "--approval", "ask"]
         if config.enable_shell:

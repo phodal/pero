@@ -67,7 +67,8 @@ class TrialRules(unittest.TestCase):
         for change in ({"budget": 1}, {"budget": float("nan")}, {"max_retries": 1}, {"max_retries": False},
                        {"sessions": []}, {"enable_shell": True}, {"unattended_questions": "auto"},
                        {"idle_timeout": 0}, {"max_requests": 0}, {"success_patterns": ["../outside"]},
-                       {"permission_mode": "bypassPermissions"}, {"permission_mode": True}):
+                       {"permission_mode": "bypassPermissions"}, {"permission_mode": True},
+                       {"api_format": "unknown"}, {"api_format": "responses"}, {"disable_streaming": "true"}):
             with self.subTest(change=change):
                 with self.assertRaises(TrialError):
                     TrialConfig.parse(config_input() | change)
@@ -77,6 +78,9 @@ class TrialRules(unittest.TestCase):
                                                     "shell_policy": "allow-unsandboxed", "max_continuations": 0})
         self.assertTrue(config.enable_shell)
         self.assertEqual(config.sessions[0].max_continuations, 0)
+        responses = TrialConfig.parse(config_input() | {"api_format": "responses", "disable_streaming": True})
+        self.assertEqual(responses.api_format, "responses")
+        self.assertTrue(responses.disable_streaming)
         with self.assertRaises(TrialError):
             SessionSpec.parse({"name": "../escape", "prompt": "go", "success_artifact": "report.md"})
 

@@ -223,3 +223,12 @@ Compatible providers can opt into `--disable-streaming` to request complete
 JSON Chat completions. SSE remains the default. JSON responses use the same
 argument, finish-reason, truncation and usage validation, shared attempt budget,
 cancellation and response bounds. There is no automatic transport fallback.
+
+`--api-format responses --disable-streaming` selects stateless Responses JSON
+function calling. The default is `chat-completions`. Responses preserves call
+and item IDs, assistant phase and encrypted reasoning in native Session block
+extensions, and pairs tool outputs by call ID after cold restoration. It sets
+`store: false` and requests encrypted reasoning. This subset excludes hosted
+tools, Responses streaming, Chat stop sequences and the Chat thinking extension;
+unsupported selections or returned item kinds fail explicitly. Tool schemas
+retain existing optional-field semantics with `strict: false`.

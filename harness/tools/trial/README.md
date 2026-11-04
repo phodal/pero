@@ -78,6 +78,10 @@ For providers with JSON Chat completions but no SSE route, explicitly set
 `disable_streaming: true` to pass `--disable-streaming`. The receipt records
 this choice. A failed streamed request is never automatically replayed with
 a different transport; request limits and cancellation apply to both.
+Select `api_format: "responses"` together with `disable_streaming: true` for
+the Responses function-calling protocol. Its stateless history retains output
+item IDs, assistant phase and encrypted reasoning across process restoration.
+Hosted tools and Responses streaming are not part of this initial subset.
 Each trial uses a fresh workspace and
 private records directory. Ordered `sessions` entries can replace `prompt`;
 each has name, prompt, success_artifact or success_patterns, and an optional
