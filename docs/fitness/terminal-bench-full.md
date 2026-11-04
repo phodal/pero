@@ -24,6 +24,11 @@ is claimed. Individual completed results below are diagnostic observations.
   The published maximum is higher; see [the API contract](https://api-docs.deepseek.com/api/create-chat-completion).
 - Two concurrent trials, one coding attempt per task. Official agent/verifier
   timeouts, task instructions, images, tests and resources are retained.
+- The pinned original binary still has the default 512-step turn ceiling;
+  `dna-assembly` reaches it before the official deadline. This is independent
+  of the removed provider-request cap. The original evidence stays intact;
+  [the explicit step-limit correction](../issues/2026-11-04-acp-turn-step-limit.md)
+  is reserved for separately recorded follow-ups with a different binary.
 - Official amd64 images and amd64 agent execute in the dedicated Colima
   `pero-benchmark-rosetta` VM, using VZ and Rosetta with qemu-x86_64 disabled.
   The default Docker context is not changed.

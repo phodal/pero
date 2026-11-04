@@ -17,11 +17,15 @@ Use this agent configuration in a Harbor job:
 ```
 
 The launcher fixes DeepSeek Flash, thinking disabled, deferred tools, 8,192
-output tokens per response, zero HTTP retries and no provider-request cap.
+output tokens per response, zero HTTP retries, no provider-request cap and
+`--max-turn-steps 0`. The latter explicitly removes the otherwise independent
+512-step turn ceiling; cancellation and provider budgets remain effective.
 It uses the container's actual cwd and exports native Session JSONL and HTTP
 attempt records into the trial's agent logs. Do not request Harbor ACP model
 negotiation for this fixed route. Supply credentials through the environment,
-never command arguments. The binary must match the task container architecture.
+never command arguments. The binary must match the task container architecture
+and support `--max-turn-steps` (available from source `561febe7`). Older binaries
+retain a hidden step ceiling even when `--max-requests 0` is supplied.
 
 `image_input: true` additionally declares bounded PNG/JPEG input through the
 existing ACP CLI flag. The default is false; record this capability in reports.

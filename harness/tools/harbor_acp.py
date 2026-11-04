@@ -50,7 +50,7 @@ exec /installed-agent/pero-agent-acp \\
   --api-key-env DEEPSEEK_API_KEY --plugin-dir /installed-agent/pero-plugin \\
   --workspace "$PWD" --session-dir /logs/agent/pero-sessions \\
   --http-attempt-audit /logs/agent/pero-http-attempts.log \\
-  --max-requests 0 --max-tokens 8192 --max-retries 0 \\
+  --max-requests 0 --max-turn-steps 0 --max-tokens 8192 --max-retries 0 \\
   --disable-thinking --defer-tool-loading --enable-shell --approval ask
 """.rstrip() + image_flag + "\n")
         await environment.upload_file(launcher, "/installed-agent/pero-launch.sh")
