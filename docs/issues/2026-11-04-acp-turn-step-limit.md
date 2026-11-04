@@ -34,6 +34,10 @@ Behavioral coverage passes the former ceiling, retains positive bounds for new
 and resumed sessions, and preserves external cancellation. A real CLI process
 with a local synthetic SSE provider completes 514 requests at zero, stops at
 two with a positive limit, and rejects a negative operator value before any
-request. These synthetic requests are excluded from benchmark usage. The clean
-source `561febe7` produces the new pinned Linux amd64 binary; the original
-`2f02e684` binary and official results remain unchanged.
+request. The same controls also pass with the actual pinned Linux amd64 binary
+under Rosetta: 514 calls complete, a positive limit stops at two, and negative
+input is rejected. The isolated control has no container network, uses a local
+synthetic provider, and retains its image identity, binfmt state and result
+hashes. These synthetic requests are excluded from benchmark usage. The clean
+source `561febe7` produces that binary; the original `2f02e684` binary and official
+results remain unchanged.
