@@ -8,16 +8,16 @@ status: in_progress
 Implement the source-audit findings without creating another tool scheduler,
 activation authority, process owner or Session history representation.
 
-- [ ] Exact tool names select only that tool; compact deferred discovery receipts
+- [x] Exact tool names select only that tool; compact deferred discovery receipts
   retain complete durable metadata and existing version/permission checks.
-- [ ] Short checks remain available with deferred tools, with explicit bounded
+- [x] Short checks remain available with deferred tools, with explicit bounded
   execution and recoverable owned-job receipts.
-- [ ] Result-aware runtime no-progress reminders preserve changing reads and
+- [x] Result-aware runtime no-progress reminders preserve changing reads and
   polling, never veto or replay tool effects, and have durable attribution.
-- [ ] Bounded batch tool output uses existing spill storage, preserves recovery
+- [x] Bounded batch tool output uses existing spill storage, preserves recovery
   pointers and committed model history, and records boundary measurements.
-- [ ] Ignore-aware native search can continue past directory/traversal bounds.
-- [ ] Offline reports expose declaration/history contribution and distinguish
+- [x] Ignore-aware native search can continue past directory/traversal bounds.
+- [x] Offline reports expose declaration/history contribution and distinguish
   repeated arguments with changed results from unchanged-result repetition.
 - [ ] Focused behavior tests, full Harness race/vet, standalone build checks,
   and bounded live coding follow-up are recorded with source revision.

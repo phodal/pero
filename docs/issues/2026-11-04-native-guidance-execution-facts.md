@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: in_progress
+status: resolved
 ---
 
 # Native guidance omitted execution facts and check status preservation
@@ -93,3 +93,8 @@ invalid-directory admission. Background cases verify durable workdir identity
 and exactly one effect. Guidance follows actual declared tools, including
 withdrawal and the TaskOutput/TaskStop prerequisites. These are contract checks;
 model compliance is measured separately in the [live follow-up](../fitness/dsh-native-improvements.md).
+
+The deferred Bash-only guidance and explicit terminate_on_timeout contract are
+now verified independently of TaskOutput/TaskStop activation. Real-process tests
+confirm terminal ownership, PID termination, durable completion and no promotion.
+Default job promotion and exact-handle recovery retain their existing semantics.

@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: in_progress
+status: resolved
 ---
 
 # Native search cannot continue beyond its traversal bounds
@@ -16,6 +16,8 @@ within-file result position. Apply root and nested ignore rules before descendin
 into directories. Explicit file reads remain available; a changed query or
 mutated directory should restart the live scan.
 
-Verification will cover 600 files in one directory, traversal-only pages with
+Verification passes for 600 files in one directory, traversal-only pages with
 zero matches, a single file with more than one page of matches, nested negations,
-ignored dependencies, cancellation, bad cursors and existing path restrictions.
+ignored dependencies, cancellation, bad cursors and existing path restrictions. Search uses live directory pages,
+not a snapshot; callers restart after directory mutations. Nested ignore rules
+are tested, without claiming complete Git ignore compatibility.

@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: in_progress
+status: resolved
 ---
 
 # Deferred ToolSearch cannot reliably find known tool names
@@ -20,8 +20,9 @@ and return a compact activation receipt to the model. Preserve schema hashes,
 omitted-schema recovery, pagination and the existing activation authority.
 Non-deferred discovery continues returning tool schemas.
 
-Verification pending: matching tables, actual HTTP request declarations and
-model-visible receipts, withdrawal/rediscovery/resume, package race and vet.
+Verification: exact-name and keyword tables, actual HTTP declarations, compact
+model receipts with complete durable metadata, withdrawal/rediscovery/resume
+and package race checks pass. See the tool-call efficiency verification record.
 
 ## Follow-up: explicit selection truncated by keyword default
 

@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: in_progress
+status: resolved
 ---
 
 # Parallel tool results have no combined output budget
@@ -18,3 +18,8 @@ record actual pre-HTTP serialized byte sizes separately from usage and attempts.
 
 Verify bounded combined text, complete recovery, fail-open storage, ownership,
 UTF-8 pagination, cold readback and real provider-wire attribution.
+
+Behavior checks pass for combined text budget, full cold readback, UTF-8
+boundaries, another Session denial, missing/quota-exhausted storage, failure
+flags/metadata, actual HTTP body digest and resume after auxiliary generation.
+The budget covers text bytes, not image cost or provider tokens.
