@@ -79,3 +79,20 @@ The already-admitted overfull-hbox setup became the 21st failure. The recovery
 controller preserves all 21 directories and final judged hashes before filling
 the missing manifest slots. Fresh schedulers and the correction waiter pause
 on any subsequent pre-execution setup failure.
+
+At 20:29 UTC, the still-running old scheduler admits ten further zero-request
+image failures. Registry requests end with EOF; the same pinned registry IP
+also fails normal TLS from both host and guest. Direct DNS answers remain
+inconsistent. This does not establish the underlying routing or DNS cause.
+All 31 registry failures are archived after the initial queue ends, alongside
+56 unchanged judged result hashes. The two separately archived Debian failures
+bring the missing manifest slots to 33.
+
+Three unchanged official images are already cached and run in a separate
+setup-recovery job. The other 30 task configurations are prepared with the
+same agent binary and official inputs. They require registry connectivity;
+no model requests are made while waiting for images. A finite local controller
+checks normal guest TLS, then pulls an unchanged official image before admitting
+that job. It leaves default Docker settings and other VMs untouched. Full-suite
+completion and strict corrections remain gated on all 89 actual-started raw
+verdicts; the current checkpoint is partial.

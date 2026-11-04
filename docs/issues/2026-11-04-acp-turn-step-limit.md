@@ -41,3 +41,20 @@ synthetic provider, and retains its image identity, binfmt state and result
 hashes. These synthetic requests are excluded from benchmark usage. The clean
 source `561febe7` produces that binary; the original `2f02e684` binary and official
 results remain unchanged.
+
+The later original `schemelike-metacircular-eval` trial also stops at exactly
+512 responses, after 2,001.2 seconds of its official 2,400-second agent limit.
+It records raw reward zero and 85,891,880 committed tokens. Source-bound
+`analysis-scheme-step-limit.json` under the full-04 artifact root preserves the
+result, Session, task and report hashes. It is included in the same explicit
+follow-up selection; this second occurrence does not change the original score.
+
+## Cached-image corrections during registry outage
+
+The two observed step-limit cases have unchanged official images cached. Run
+these corrections before the remaining uncached baseline tasks, using the
+already frozen unlimited-step binary and strict termination adapter. Keep a
+separate Harbor job and result hashes. Pause registry-job admission until both
+finish; do not exceed two concurrent trials. Final corrected selection includes
+these results once and selects any additional affected cases after all 89
+baseline slots finish. The baseline and full-suite completion guard stay intact.

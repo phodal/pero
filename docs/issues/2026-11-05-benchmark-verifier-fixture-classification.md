@@ -46,3 +46,19 @@ host-resolved IP and ordinary TLS validation succeeds against the same URL.
 No DNS configuration, image or trial is changed. This narrows the observed
 reachability problem to guest name resolution/routing; it is not an official
 candidate re-verification or a correction of the original zero reward.
+
+## Verifier command missing after dependency failure
+
+The recovered `qemu-alpine-ssh` and `qemu-startup` tasks execute the agent and
+record raw zero.
+Its unchanged official shell verifier then fails to install obsolete Debian
+curl packages (404). `/tests/test.sh` reports `curl: command not found`, missing
+`/root/.local/bin/env`, then `uvx: command not found`. No pytest summary or CTRF
+is produced. The candidate's own failed calls remain independent evidence;
+the official Python functional checks were not executed.
+
+Classify a retained official-runner `uvx`/pytest/Python command-not-found receipt
+as `runner_command_missing` only when neither a pytest summary nor CTRF exists.
+Leave assertion coverage unobserved and preserve the raw zero. Keep the runner
+script, result, stdout and native Session hashes. Do not silently repair the
+official test or treat this result as an observed failed functional assertion.

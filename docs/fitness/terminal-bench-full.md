@@ -29,8 +29,8 @@ verifier assumptions and context growth is in
 - Two concurrent trials, one coding attempt per task. Official agent/verifier
   timeouts, task instructions, images, tests and resources are retained.
 - The pinned original binary still has the default 512-step turn ceiling;
-  `dna-assembly` reaches it before the official deadline. This is independent
-  of the removed provider-request cap. The original evidence stays intact;
+  `dna-assembly` and `schemelike-metacircular-eval` reach it before their official
+  deadlines. This is independent of the removed provider-request cap. The original evidence stays intact;
   [the explicit step-limit correction](../issues/2026-11-04-acp-turn-step-limit.md)
   is reserved for separately recorded follow-ups with a different binary.
 - Official amd64 images and amd64 agent execute in the dedicated Colima
@@ -74,7 +74,11 @@ their raw results are retained separately in
 bootstraps the supported ACP Python with the official image's existing
 wget/tar/CA prerequisites and normal TLS validation. Recovery changes only that
 setup adapter and keeps the original agent binary, task images and official
-inputs. The actual task verdicts are pending. See
+inputs. Both recovered agents execute and receive raw zero; their official
+verifiers subsequently fail to install curl/uvx, so no functional assertions
+run. A separate disposable-container control reaches the signed Debian archive
+but then fails downloading the unchanged official uv installer asset. This is
+not a successful candidate verification. See
 [the bootstrap issue](../issues/2026-11-05-terminal-bench-legacy-debian-bootstrap.md).
 
 Official test reward, Harbor's reward-validity classification and agent stop
@@ -103,6 +107,22 @@ It was stopped during setup; both additional trials made zero model requests.
 All prior result hashes remain unchanged. Its disposition and original logs
 are preserved under full-04's `launch-path-error/`, and the fresh full-04 job
 starts at the first task with its own corrected directory.
+
+## Partial checkpoint: 59 of 89 tasks
+
+At 20:52 UTC on November 4, 59 actual-started tasks have selected official raw
+results: 22 reward one and 37 reward zero. This is not a full-suite score.
+There are 56 pytest-reported results, one C4 fixture setup error and two QEMU
+runner bootstrap failures. The remaining 30 slots need uncached official images;
+normal Docker registry/auth TLS fails from both host and dedicated VM. The
+finite readiness controller makes no model request while waiting.
+
+The hash-bound `partial-baseline-59/` Inspector and receipt retain all 59 result
+and native Session hashes. Its 7,145 committed responses record 702,677,790
+tokens, including 695,309,943 cache-read tokens. Interrupted requests may have
+unknown usage; this is not an invoice or all-attempt accounting. Strict deadline
+and step-limit corrections and the separate service-lifetime acceptance remain
+pending. Earlier checkpoints and setup failures are preserved.
 
 ## Completed observations while the suite runs
 

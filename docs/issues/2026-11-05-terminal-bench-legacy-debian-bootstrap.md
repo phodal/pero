@@ -37,4 +37,29 @@ fresh control passes. The original Harbor source remains unchanged.
 The two zero-request results are archived under their own incident. Recovery
 uses the original agent binary and limits, changing only the dependency adapter;
 strict timeout follow-ups use the same setup correction. Both controllers are
-reloaded while idle. The two actual task verdicts remain pending.
+reloaded while idle. Both recovered agents subsequently execute and receive raw zero. Their
+official verifiers hit the same obsolete APT dependencies and never execute
+pytest; a raw verdict is therefore distinct from functional verification.
+
+## Recovery job identity
+
+The first recovery launch is rejected before creating a trial because Harbor
+requires the original job configuration. Changing only the setup adapter also
+changes each trial's configuration identity; rewriting job metadata would not
+make completed trials match and could rerun the 56 judged tasks. Preserve the
+rejected launch and original job metadata. Run missing task slots in separate
+recovery jobs, join results by manifest task, reject duplicates, and retain
+each original result hash. This affects setup admission and reporting only;
+the selected agent binary and official task inputs remain frozen.
+
+## Official verifier dependency control
+
+A disposable copy of the unchanged QEMU image uses the signed Debian archive
+for bullseye and bullseye-security, with the freshness exception scoped to those
+archived source entries. Normal TLS and repository signature checks stay enabled.
+The unchanged official test script can then install curl and sshpass, but its
+pinned uv 0.9.5 GitHub asset download ends with an empty reply. No pytest or CTRF
+is produced. The outer script's exit zero is not a passed verification.
+`debian-archive-control/` retains the command, copied official-test hashes and
+full control log. No archived source, baseline container, frozen adapter or
+selected result is changed; an archive-enabled rerun has not been launched.
