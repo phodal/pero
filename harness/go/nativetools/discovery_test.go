@@ -67,6 +67,9 @@ func TestToolSearchMatching(t *testing.T) {
 		{Name: "e", Description: "Read text"}, {Name: "NotebookRead", Description: "Read notebook text"},
 		{Name: "Read", Description: "Read bounded UTF-8 file text with line numbers"},
 		{Name: "Write", Description: "Create bounded UTF-8 text"}, {Name: "self", Description: "Read text"},
+		{Name: "TaskStop", Description: "Stop an owned job"},
+		{Name: "Agent", Description: "Use TaskStop to stop the agent"},
+		{Name: "Bash", Description: "Use TaskStop to stop a background command"},
 	}
 	for _, tc := range []struct {
 		query   string
@@ -74,8 +77,9 @@ func TestToolSearchMatching(t *testing.T) {
 		total   int
 		partial bool
 	}{
-		{"Read", []string{"Read", "NotebookRead", "a", "b", "c"}, 7, false},
-		{" read ", []string{"Read", "NotebookRead", "a", "b", "c"}, 7, false},
+		{"Read", []string{"Read"}, 1, false},
+		{" read ", []string{"Read"}, 1, false},
+		{"TaskStop", []string{"TaskStop"}, 1, false},
 		{"read text", []string{"NotebookRead", "Read", "a", "b", "c"}, 7, false},
 		{"bounded UTF-8", []string{"Read", "Write"}, 2, false},
 		{"read file", []string{"Read"}, 1, false},
@@ -101,6 +105,34 @@ func TestToolSearchMatching(t *testing.T) {
 				t.Fatalf("missing zero-result recovery: %s", result.Notice)
 			}
 		})
+	}
+}
+
+func TestDeferredDiscoveryRetainsSchemasOutsideModelContent(t *testing.T) {
+	for _, deferred := range []bool{false, true} {
+		f := newClaudeFixture(t, Options{DeferToolLoading: deferred})
+		result := f.call(t, f.allowed, "ToolSearch", map[string]any{"query": "Read"})
+		var visible toolSearchResult
+		if err := json.Unmarshal([]byte(result.Content[0].Text), &visible); err != nil || result.IsError || len(visible.Tools) != 1 {
+			t.Fatalf("discovery failed: %+v %v", result, err)
+		}
+		item := visible.Tools[0]
+		if !deferred {
+			if len(item.InputSchema) == 0 || item.Activated || len(result.Meta) != 0 {
+				t.Fatal("non-deferred schema lookup changed")
+			}
+			continue
+		}
+		var durable struct {
+			Discovery toolSearchResult `json:"discovery"`
+		}
+		if err := json.Unmarshal(result.Meta, &durable); err != nil || len(durable.Discovery.Tools) != 1 {
+			t.Fatalf("missing durable discovery: %s %v", result.Meta, err)
+		}
+		full := durable.Discovery.Tools[0]
+		if len(item.InputSchema) != 0 || !item.SchemaInDeclaration || !item.Activated || item.SchemaOmitted || len(full.InputSchema) == 0 || item.Digest != full.Digest {
+			t.Fatalf("invalid discovery projection: visible=%+v durable=%+v", item, full)
+		}
 	}
 }
 

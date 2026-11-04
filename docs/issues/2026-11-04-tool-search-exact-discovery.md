@@ -1,9 +1,27 @@
 ---
 kind: incident
-status: resolved
+status: in_progress
 ---
 
 # Deferred ToolSearch cannot reliably find known tool names
+
+## Follow-up: exact names activate unrelated tools and repeat schemas
+
+The latest React Session searched `TaskStop` and also activated Agent and Bash
+because their descriptions mention that name. Agent then remained declared for
+31 replies without being invoked. Full-name queries must return only the exact
+caller-visible tool; keyword and explicit multi-name selection retain their
+existing behavior.
+
+Five discovery receipts also repeated 20,278 UTF-8 text bytes of descriptions
+and schemas in model history, in addition to the following declarations.
+Deferred discovery will keep its complete bounded receipt in durable metadata
+and return a compact activation receipt to the model. Preserve schema hashes,
+omitted-schema recovery, pagination and the existing activation authority.
+Non-deferred discovery continues returning tool schemas.
+
+Verification pending: matching tables, actual HTTP request declarations and
+model-visible receipts, withdrawal/rediscovery/resume, package race and vet.
 
 ## Follow-up: explicit selection truncated by keyword default
 

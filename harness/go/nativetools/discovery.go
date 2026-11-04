@@ -13,12 +13,13 @@ import (
 )
 
 type discoveredTool struct {
-	Name          string          `json:"name"`
-	Description   string          `json:"description"`
-	InputSchema   json.RawMessage `json:"input_schema,omitempty"`
-	Digest        string          `json:"schema_sha256"`
-	SchemaOmitted bool            `json:"schema_omitted,omitempty"`
-	Activated     bool            `json:"activated,omitempty"`
+	Name                string          `json:"name"`
+	Description         string          `json:"description"`
+	InputSchema         json.RawMessage `json:"input_schema,omitempty"`
+	Digest              string          `json:"schema_sha256"`
+	SchemaOmitted       bool            `json:"schema_omitted,omitempty"`
+	Activated           bool            `json:"activated,omitempty"`
+	SchemaInDeclaration bool            `json:"schema_in_declaration,omitempty"`
 }
 
 type toolSearchResult struct {
@@ -34,11 +35,11 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 	if claude {
 		name = "ToolSearch"
 	}
-	description := "Find caller-authorized tools. For known names use select:Name1,Name2 (comma-separated exact names, case-insensitive; returns up to 20 by default). Otherwise search literal name/description keywords, preferring tools matching every word. If none do, return explicitly marked partial matches ranked by keyword coverage and name matches. Use one capability per query; a full tool name ranks first. Keyword searches return up to 5 by default. Returns current schemas, hashes and bounded pagination."
+	description := "Find caller-authorized tools. A full tool name selects only that tool, case-insensitively. For multiple known names use select:Name1,Name2 (up to 20 by default). Otherwise search literal name/description keywords, preferring tools matching every word. If none do, return explicitly marked partial matches ranked by keyword coverage and name matches. Use one capability per query. Keyword searches return up to 5 by default, with bounded pagination."
 	if deferLoading {
-		description += " Complete returned schemas activate their exact versions for the next model request. Omitted schemas are not activated; narrow the query or continue pagination."
+		description += " Returns compact activation receipts and hashes; complete schemas are declared in the next model request. Omitted schemas are not activated; narrow the query or continue pagination."
 	} else {
-		description += " This only indexes available tools and does not change activation."
+		description += " Returns current schemas and hashes. This only indexes available tools and does not change activation."
 	}
 	description += " Discovery never grants permissions. Availability may change: call only tools declared in the current request."
 	var deferred *harness.DeferredTools
@@ -93,6 +94,9 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 			if result.PartialMatch {
 				result.Notice = "No tool matched every keyword; these are partial keyword matches. Check their descriptions before use. " + result.Notice
 			}
+			if deferred != nil {
+				return renderDeferredDiscovery(result)
+			}
 			return renderResult(result, nil)
 		},
 	}
@@ -123,6 +127,39 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 	return nil
 }
 
+// Keep the complete bounded discovery receipt for inspection, while the next
+// request declarations carry the executable schemas to the model only once.
+func renderDeferredDiscovery(result toolSearchResult) (harness.ToolResult, error) {
+	meta, err := json.Marshal(struct {
+		Discovery toolSearchResult `json:"discovery"`
+	}{result})
+	if err != nil {
+		return harness.ToolResult{}, err
+	}
+	result.Tools = append([]discoveredTool{}, result.Tools...)
+	for i := range result.Tools {
+		item := &result.Tools[i]
+		item.InputSchema = nil
+		item.SchemaInDeclaration = item.Activated
+		item.Description = boundedText(strings.SplitN(item.Description, "\n", 2)[0], 160)
+	}
+	activated := false
+	for _, item := range result.Tools {
+		activated = activated || item.Activated
+	}
+	if activated {
+		result.Notice = "Activated tools are declared next request with full schemas. Omitted tools were not activated; narrow the query or continue pagination. Use only current declarations."
+		if result.PartialMatch {
+			result.Notice = "Partial keyword matches; check tool purposes. " + result.Notice
+		}
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return harness.ToolResult{}, err
+	}
+	return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(raw)}}, Meta: meta}, nil
+}
+
 func searchToolSchemas(schemas []harness.ToolSchema, self, query string, offset, limit int) toolSearchResult {
 	query = strings.TrimSpace(query)
 	words := strings.Fields(strings.ToLower(query))
@@ -147,9 +184,13 @@ func searchToolSchemas(schemas []harness.ToolSchema, self, query string, offset,
 	}
 	matches := make([]keywordMatch, 0)
 	allWords := false
+	exactName := ""
 	for _, schema := range schemas {
 		if schema.Name == self || len(words) == 0 {
 			continue
+		}
+		if !exactSelection && strings.EqualFold(schema.Name, query) {
+			exactName = schema.Name
 		}
 		name := strings.ToLower(schema.Name)
 		haystack := name + " " + strings.ToLower(schema.Description)
@@ -174,6 +215,14 @@ func searchToolSchemas(schemas []harness.ToolSchema, self, query string, offset,
 		}
 		if match.words > 0 {
 			matches = append(matches, match)
+		}
+	}
+	if exactName != "" {
+		for _, match := range matches {
+			if match.Name == exactName {
+				matches = []keywordMatch{match}
+				break
+			}
 		}
 	}
 	partial := !exactSelection && !allWords && len(matches) > 0

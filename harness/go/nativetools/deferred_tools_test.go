@@ -83,6 +83,24 @@ func deferredWireProvider(t *testing.T, steps []deferredWireStep) (harness.Adapt
 		if !reflect.DeepEqual(names, step.names) {
 			t.Errorf("request %d tools=%v want=%v", index, names, step.names)
 		}
+		for _, message := range request.Messages {
+			if message.Role != "tool" {
+				continue
+			}
+			var text string
+			if json.Unmarshal(message.Content, &text) != nil {
+				continue
+			}
+			var receipt toolSearchResult
+			if json.Unmarshal([]byte(text), &receipt) != nil || receipt.Tools == nil {
+				continue
+			}
+			for _, item := range receipt.Tools {
+				if len(item.InputSchema) != 0 || item.Activated && !item.SchemaInDeclaration {
+					t.Errorf("request %d repeated discovery schemas in model history: %s", index, text)
+				}
+			}
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		if step.call == "" {
 			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"observed\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
