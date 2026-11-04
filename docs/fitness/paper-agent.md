@@ -208,3 +208,16 @@ when a download updated the record without reopening the reader.
   checks. This is an incomplete suite result; no regression attribution is made.
   Real-model answers, an existing user session and packaged releases were not
   verified by the targeted checks.
+
+## Compact Ask action — 2026-11-04
+
+On source base `ddd36504`, the Paper reading toolbar uses the existing SDK
+Button/Icon with a 26px neutral action, a conversation icon and localized
+`提问` / `Ask` text. The accessible name remains explicit (`询问 AI` / `Ask AI`).
+App typecheck, production build and the existing Chrome context handoff check
+passed. Inspected English/light and Chinese/dark at 390px, including Tab focus
+and Enter activation. The real Electron installed App matched JS SHA-256
+`d7e6ab0a249cf95c22384f1fe476989409956ca8171333865898227fd80d7b21`.
+Evidence: `test-results/paper-chat-context/ask-*-focus.png`,
+`ask-dark-toolbar.png` and `desktop-ask-light.png`. An existing user window and
+packaged Native release were not updated or verified by these disposable checks.

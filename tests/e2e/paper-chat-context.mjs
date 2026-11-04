@@ -10,7 +10,7 @@ await mkdir(out, { recursive: true });
 const paper = (id, title) => ({ id: id.repeat(64), title, source: 'openalex', sourceId: id,
   url: `https://example.invalid/${id}`, authors: [], contentKind: 'abstract', contentDigest: id.repeat(64),
   fetchedAt: '2026-11-04T00:00:00Z', content: 'Synthetic abstract; no research acceptance.' });
-const papers = [paper('a', 'Harness Self-Evolution for Long-Horizon Terminal Agents'), paper('b', '另一篇论文')];
+const papers = [paper('a', 'Harness as an Asset: Enforcing Determinism via the Convergent AI Agent Framework (CAAF)'), paper('b', '另一篇论文')];
 let savedPdf = false;
 const browser = await chromium.launch({ headless: true,
   ...(process.env.PERO_CHROMIUM_PATH ? { executablePath: process.env.PERO_CHROMIUM_PATH } : {}) });
@@ -50,6 +50,10 @@ try {
   // Change persisted content while the reader retains its opening snapshot.
   savedPdf = true;
   papers[0] = { ...papers[0], contentKind: 'full-text', contentDigest: 'c'.repeat(64), content: 'Newly saved full text.', pdfUrl: 'https://example.invalid/a.pdf' };
+  await page.getByRole('button', { name: 'Ask AI', exact: true }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await page.screenshot({ path: resolve(out, 'ask-light-focus.png') });
   let context = await ask();
   expect(context.snapshot.label).toBe(papers[0].title);
   expect(context.snapshot.state).toMatchObject({ readingId: papers[0].id, title: papers[0].title,
@@ -66,7 +70,11 @@ try {
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
   const askButton = page.locator('.pa-ask');
   await askButton.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
   await expect(askButton).toBeFocused();
+  await page.screenshot({ path: resolve(out, 'ask-dark-narrow-focus.png') });
+  await page.locator('.pa-reading-bar').screenshot({ path: resolve(out, 'ask-dark-toolbar.png') });
   await askButton.press('Enter');
   await expect.poll(() => page.evaluate(() => window.researchChatFixture.snapshots.length)).toBe(2);
   context = await page.evaluate(() => ({ snapshot: window.researchChatFixture.snapshots.at(-1),

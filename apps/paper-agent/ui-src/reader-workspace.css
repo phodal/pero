@@ -46,13 +46,23 @@
   color: var(--pero-text);
 }
 .pa-workbench .pa-reading-bar .pa-ask.pero-ui-button {
-  padding: 0 10px;
-  background: var(--pero-action);
-  color: var(--pero-on-action);
+  height: 26px;
+  min-height: 26px;
+  padding: 0 8px;
+  gap: 6px;
+  border: 1px solid var(--pero-border);
+  border-radius: 4px;
+  background: var(--pero-surface);
+  color: var(--pero-text);
+  font-size: 12px;
+  white-space: nowrap;
 }
 .pa-workbench .pa-reading-bar .pa-ask.pero-ui-button:hover:not(:disabled) {
-  background: var(--pero-action-hover);
-  color: var(--pero-on-action);
+  border-color: var(--pero-input-border);
+  background: var(--pero-surface-muted);
+}
+.pa-workbench .pa-reading-bar .pa-ask .pero-ui-glyph {
+  color: var(--pero-accent-text);
 }
 
 .pa-workbench .pa-reader-tools .pa-reader-modes {
