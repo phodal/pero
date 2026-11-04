@@ -105,3 +105,26 @@ it does not identify the underlying network cause. GitHub's API remains usable,
 so two signed source commits are pushed through exact blob/tree/commit API
 uploads after Git HTTPS fails. Both local commit hashes and GPG signatures are
 preserved, with a non-forced ref update and verified remote head.
+
+## Registry mirror recovery control
+
+A later normal-TLS control reaches a public Docker Hub mirror. Its manifest for
+the already-cached `cancel-async-tasks:20251031` exactly matches the original
+Docker Hub RepoDigest. A separate exact-digest download of the 6.19 GB compressed
+`hf-model-inference` image completes after correcting the mirror CDN's resolution
+inside the dedicated benchmark VM. Host DNS, other VMs and the default Docker
+context are unchanged; no certificate verification is disabled.
+
+The remaining 30 image manifests are recorded before prefetch. Downloads use
+those exact digests, verify the downloaded RepoDigest and amd64 architecture,
+then stage the unchanged official image names as local aliases. All official
+task input hashes remain required. This changes download transport, not task
+contents. One cached transparency control cannot independently authenticate
+every new tag at the unreachable origin; retain that limitation with the
+manifest hashes in `mirror-image-recovery/plan.json`.
+
+The finite mirror controller admits the frozen recovery job only after all
+30 aliases are verified and the two early QEMU corrections release both agent
+slots. Original raw results, the two completed step corrections and the early
+QEMU attempts remain separate. Full export still requires 89 unique started
+tasks with raw verdicts. Prefetch success alone is not benchmark completion.

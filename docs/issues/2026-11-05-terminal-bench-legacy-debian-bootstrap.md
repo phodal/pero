@@ -84,5 +84,13 @@ verifier installs its pinned Python/pytest environment and executes its one
 functional test. The unsolved control image fails that test in 0.11 seconds as
 expected. `debian-bootstrap-v2-control/freeze.json` binds nine supporting files;
 all nine original v1 freeze entries remain unchanged. TLS and APT signatures
-remain enabled. Actual QEMU candidate reruns are still pending after baseline
-completion; they are explicitly included in the queued correction selection.
+remain enabled.
+
+Both actual QEMU candidates start separately at 22:14 UTC during the registry
+outage, using their cached official images, the frozen v2 adapter and the
+unlimited-step binary. Runtime controls verify the actual staged binary hash
+and both zero request/step limits inside each container. Both pass 100 HTTP
+attempts; outcomes remain pending at that observation. The official 900-second
+agent deadlines are retained. The final correction queue reuses these attempts
+and preserves both original raw-zero results; they do not add new manifest task
+slots to the 59/89 baseline checkpoint.

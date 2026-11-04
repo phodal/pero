@@ -203,3 +203,24 @@ independent service acceptance finish, `verify_after_service.py` runs final
 integrity checks and failure triage before writing `FINAL-SUMMARY.md`. None of
 those full-suite completion files exist at this partial checkpoint. Registry
 wait expiry records an incomplete pipeline and stops only an idle dedicated VM.
+
+## Mirror prefetch and early QEMU follow-up
+
+Docker Hub remains unreachable, but a public mirror passes a cached-image
+transparency check: its manifest hash equals the previously recorded original
+RepoDigest. The exact-digest HF image download then succeeds with normal TLS.
+Only the dedicated VM receives the mirror-CDN address correction; host DNS and
+default Docker settings are unchanged. The remaining 30 manifests total 26.52
+GiB of compressed layers before deduplication. Their digests are recorded before
+download; each downloaded digest and architecture is checked before staging the
+unchanged official name locally. New tag digests cannot be independently queried
+at Docker Hub during the outage. This transport limitation remains explicit.
+
+`prefetch_mirrored_images.py` and `resume_after_mirror_prefetch.py` replace the
+idle origin-only readiness wait. The original 30-task recovery configuration
+and its hash stay unchanged. Admission requires all 30 staged images, unchanged
+official inputs and no active agent containers. Two cached QEMU candidates run
+first with the separately frozen v2 bootstrap, unlimited requests/steps and
+official 900-second agent deadlines. The later correction queue reuses these
+attempts rather than paying to run them again. Their original raw-zero results
+remain intact. At launch, no new QEMU verdict or full-suite completion is claimed.
