@@ -77,10 +77,14 @@ starts at the first task with its own corrected directory.
   generation reaches the 8,192 response limit before a complete tool call can
   be committed. This is separate from request-budget exhaustion.
 - `break-filter-js-from-html`: 0/1 after the official 1,200-second agent timeout
-  and 82 requests; required `out.html` is absent. The earlier capped attempt
+  and 82 committed responses from 83 HTTP attempts; required `out.html` is
+  absent. The interrupted request has no committed usage. The earlier capped attempt
   passed, illustrating substantial attempt variance.
 - `build-pmars`: 2/4 with a normal end after 23 requests; the earlier capped
   attempt passed 4/4. No aggregate improvement is claimed.
+- `cancel-async-tasks`: 6/6, normal end after 56 requests and 1,291,775 recorded
+  tokens, with no explicit tool failure. The capped attempt stopped at 32 and
+  passed 4/6. The uncapped attempt remains independent of the earlier smoke.
 
 Six Cython scratch failures masked by `tail` or trailing successful commands
 have source/output-hash-bound reviews. An intentional BN dependency-availability
