@@ -160,3 +160,33 @@ These byte measurements identify accumulated history as a concrete candidate
 for a separate compaction evaluation. They do not measure causal token savings
 or show that smaller context preserves correctness. Recorded tokens include
 cache reads and do not constitute an invoice.
+
+## Later partial checkpoint: failure and token concentration
+
+The closed 59-task snapshot records 702,677,790 committed tokens. Its ten most
+expensive tasks account for 77.4% of that total. The largest reported input is
+367,640 tokens in `path-tracing-reverse`; context capacity was not declared, so
+these measurements do not establish context-window occupancy or a provider
+capacity limit. Cache-read tokens are 695,309,943 of 700,360,177 reported prompt
+tokens. Token volume therefore must not be presented as uncached use or cost.
+
+Across 7,150 measured prepared requests, payloads total 2,230,763,347 bytes and
+retained tool-result messages total 1,094,983,259 bytes. Repeated schema exposure
+is 48,821,390 bytes, including 17,655,851 unused-schema bytes. These are distinct
+wire/context byte measurements, not a token-savings estimate. They support
+prioritizing a separately controlled history/compaction evaluation over further
+schema trimming. The original full-suite configuration remains frozen.
+
+The report contains 473 explicit failed calls: 449 Bash, ten Write, eight Read,
+three TaskOutput, two Edit and one TaskStop. Ten separately reviewed Bash
+validation failures have shell exit zero. Nonzero diagnostics may be intentional;
+these counts do not establish 473 harness defects. Twenty-one raw-zero tasks end
+normally, including the two QEMU tasks whose verifiers do not execute functional
+checks. Neither a normal end nor a zero shell exit proves task completion.
+
+`partial-baseline-59/failure-audit.json` joins the reviewed native report with
+raw results, retains source/result hashes and excludes active correction runs.
+A separate receipt scans that supplementary report for the configured credential
+without printing it. Five Read calls target `/tmp` files outside `/app` and get
+a misleading plugin-only error. The denial and authority remain correct; see
+[the diagnostic repair](../issues/2026-11-05-read-scratch-scope-diagnostic.md).
