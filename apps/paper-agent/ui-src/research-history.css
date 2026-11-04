@@ -27,14 +27,17 @@
   color: var(--pero-text-muted);
 }
 
-.pa-workbench .pa-records .pa-history-day > .pa-record-note {
+.pa-workbench .pa-history-day > .pa-record-note {
   margin: 0;
   padding: 0;
   border: 0;
-  border-bottom: var(--pero-hairline);
 }
 
-.pa-workbench .pa-records .pa-record-note > .pa-history-summary {
+.pa-workbench .pa-history-day > .pa-record-note + .pa-record-note {
+  border-top: var(--pero-hairline);
+}
+
+.pa-workbench .pa-record-note > .pa-history-summary {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) 14px;
   align-items: start;
@@ -80,15 +83,14 @@
 .pa-history-day .pa-study-record { margin-inline: 8px; }
 .pa-history-day .pa-record-note > .pero-ui-button { margin: 8px; }
 
-.pa-history-tools .pa-manual-records,
-.pa-workbench .pa-records .pa-history-tools .pa-record-note {
+.pa-workbench .pa-records .pa-history-matrix {
   margin: 0;
   padding: 8px;
   border: 0;
   border-top: var(--pero-hairline);
 }
 
-.pa-workbench .pa-records .pa-history-tools > details > summary {
+.pa-workbench .pa-records .pa-history-matrix > summary {
   padding: 0;
   font-size: 12px;
   font-weight: 500;

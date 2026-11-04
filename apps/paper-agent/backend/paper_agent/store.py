@@ -273,7 +273,8 @@ class ResearchStore:
                 acquisition_copies.add(receipt.paperId)
         # Keep receipt-owned snapshots addressable for citations and imports, but
         # show their explicitly associated original paper once in the Library.
-        papers = [dict(ArxivPaper.reading_view(paper, False), hasCachedPdf=identity in cached)
+        papers = [dict(ArxivPaper.reading_view(paper, False), hasSavedText=bool(paper.content.strip()),
+                       hasCachedPdf=identity in cached, hasSearchablePdf=identity in cached and latest[identity].has_selectable_text)
                   for identity, paper in snapshots.items()
                   if identity not in acquisition_copies or paper.source != 'local-pdf']
         intents = []

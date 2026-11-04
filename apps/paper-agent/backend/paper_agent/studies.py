@@ -281,7 +281,7 @@ class ResearchStudy:
     def create(cls, request, papers, documents, conversation, now, parent=None, context_file=None):
         if not request.full_text or request.verify_code or any(d is None for d in documents):
             raise Invalid('Research studies require saved PDFs and reading-only mode')
-        if any(not any(page.text.strip() for page in document.pages) for document in documents):
+        if any(not document.has_selectable_text for document in documents):
             raise Invalid('A selected PDF has no selectable text. OCR is not available; use the PDF view, not a text research study.')
         if tuple(p.id for p in papers) != request.paper_ids or tuple(d.paper_id for d in documents) != request.paper_ids:
             raise Invalid('Frozen PDF versions do not match the selected papers')
