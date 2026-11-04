@@ -242,3 +242,20 @@ the alternate mode reaches the unchanged ISO's bootloader but has no login or
 functional acceptance. See the [active environment incident](../issues/2026-11-05-rosetta-qemu-signalfd.md).
 Both current QEMU candidate corrections remain raw zero with their separate
 verifier stages. Repeated log observations are not independent crash counts.
+
+## Merge task verifier bootstrap failure
+
+`merge-diff-arc-agi-task` ends normally after 20 responses and 179,968 recorded
+tokens. Four explicit Bash failures include missing Git and an unavailable
+optional Python Git library. The candidate subsequently installs Git, completes
+the merge and passes all three provided examples. Those self-checks do not
+establish hidden-test correctness: the unchanged official script cannot fetch
+uv 0.9.5 from GitHub and then cannot run uvx. No functional assertion is
+observed. Its raw zero, source hashes and call receipts are retained in
+`analysis-merge-diff-verifier-bootstrap.json`.
+
+The 69-verdict checkpoint has 63 pytest-reported results, one fixture setup
+error and five missing-runner cases. A raw reward, an agent stop reason and a
+verifier stage answer different questions. Subsequent separately frozen
+corrections provision the pinned runner dependencies before agent execution;
+the original running cohort and reported metrics remain unchanged.

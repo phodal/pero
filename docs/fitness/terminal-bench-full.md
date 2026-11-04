@@ -256,3 +256,24 @@ an empty machine, before any candidate implementation is involved. A minimal
 amd64 signalfd-282 probe also exits 133; its native arm64 equivalent succeeds.
 This establishes an independent environment obstacle. Native x86 acceptance
 is still unavailable; original rewards and the local full queue stay intact.
+
+## Pinned verifier dependency readiness
+
+The v3 setup correction now passes fresh Debian 11 and Debian 12 controls and
+an actual Harbor install/upload trial. Exact upstream uv 0.9.5 and CPython
+3.13.9 archives are staged before setup; pytest uses the official versions and
+default verifier cache. With GitHub disconnected after setup, the unchanged
+official scripts execute one and five assertions on bare images, failing as
+expected without candidate work. All three controls make zero provider
+requests. This proves runner readiness, not candidate acceptance or reliable
+network transport. See the [canonical dependency issue](../issues/2026-11-05-benchmark-verifier-uv-transport.md).
+
+The main queue currently has 69 unique actual-started official raw verdicts,
+including 25 reward one; the full 89-task run is still unfinished. One
+zero-request Windows image-audit failure remains queued for isolated recovery.
+Only idle downstream controllers are replaced with the frozen v10 pipeline.
+After baseline completion, it reuses the four completed early corrections and
+uses v3 for the remaining selected timeout/step/verifier-bootstrap corrections
+and the independent current-code service acceptance. Original results and all
+earlier freezes are retained. Final integrity checks, failure triage and the
+full summary remain gated on every required phase finishing.
