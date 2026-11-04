@@ -8,6 +8,16 @@ import './saved-text-reading.css';
 
 type Section = { title: string; level: number; element: HTMLElement };
 
+function revealSavedText(element: HTMLElement, block: 'start' | 'center') {
+  const pane = element.closest<HTMLElement>('.pa-saved-scroll');
+  if (!pane) return;
+  const target = element.getBoundingClientRect();
+  const viewport = pane.getBoundingClientRect();
+  const inset = block === 'center' ? (pane.clientHeight - target.height) / 2 : 24;
+  // Keep the reader toolbar and outline outside the scroll.
+  pane.scrollBy({ top: target.top - viewport.top - inset });
+}
+
 function SourceLines({ content, focus, label }: { content: string; focus: TextFocus; label: string }) {
   const mark = useRef<HTMLElement>(null);
   // Search offsets are Python code points; convert once at this display boundary.
@@ -20,7 +30,7 @@ function SourceLines({ content, focus, label }: { content: string; focus: TextFo
     position++;
   }
   const line = content.slice(0, from).split('\n').length;
-  useEffect(() => { mark.current?.scrollIntoView({ block: 'center' }); }, [content, from, to, focus.token]);
+  useEffect(() => { if (mark.current) revealSavedText(mark.current, 'center'); }, [content, from, to, focus.token]);
   return <><p className="pa-document-meta">{label.replace('{n}', String(line))}</p><pre className="pa-search-source">{content.slice(0, from)}<mark ref={mark} data-search-line={line}>{content.slice(from, to)}</mark>{content.slice(to)}</pre></>;
 }
 
@@ -49,7 +59,7 @@ export function SavedTextReading({ paper, busy, textFocus, onFull, onDiscuss, t 
   }
   return <Split className="pa-saved-reading" collapseBelow={680} storageKey="paper-agent.saved-text-outline">
     {!!sections.length && <SplitPane id="saved-text-outline" size={176} min={140} resizeLabel={t('resizeOutline')} className="pa-saved-outline" stackedBasis="auto">
-      <nav aria-label={t('contents')}><h2>{t('contents')}</h2>{sections.map((section, index) => <button key={index} type="button" data-level={section.level} aria-current={current === section.element ? 'location' : undefined} onClick={() => { setCurrent(section.element); section.element.scrollIntoView({ block: 'start' }); }}>{section.title}</button>)}</nav>
+      <nav aria-label={t('contents')}><h2>{t('contents')}</h2>{sections.map((section, index) => <button key={index} type="button" data-level={section.level} aria-current={current === section.element ? 'location' : undefined} onClick={() => { setCurrent(section.element); revealSavedText(section.element, 'start'); }}>{section.title}</button>)}</nav>
     </SplitPane>}
     <SplitPane id="saved-text-content" min={280} className="pa-saved-scroll"><div className="pa-saved-prose">
       <header className="pa-saved-heading"><h1>{paper.title}</h1>{!!paper.authors.length && <p className="pa-saved-authors">{paper.authors.join(', ')}</p>}<dl><div><dt>{t('source')}</dt><dd>{paperSource(paper, t)}</dd></div><div><dt>{t('contentKind')}</dt><dd>{contentKind(paper, t)}</dd></div><div><dt>{t('readingVersion')}</dt><dd>{t('savedText')}</dd></div></dl></header>
