@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "878b6beac5553e2abb2e0a3134201385febd27f5",
+  "right_ref": "c1effcef40ff98ac25c299abdd6ecf338cececc9",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -16,7 +16,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "17395d4fa7c4e1791aadb67215bf644a590035c84e9d1f05b65de21045a6d8c3"
+        "sha256": "af3f5ad6102914cb258cb00b33729ecb93cf24006c333a556d2fffec56cb9394"
       },
       "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence.",
       "landmarks": [
@@ -55,7 +55,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "17395d4fa7c4e1791aadb67215bf644a590035c84e9d1f05b65de21045a6d8c3"
+        "sha256": "af3f5ad6102914cb258cb00b33729ecb93cf24006c333a556d2fffec56cb9394"
       },
       "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests.",
       "landmarks": [

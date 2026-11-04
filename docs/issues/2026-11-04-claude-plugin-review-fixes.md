@@ -90,6 +90,23 @@ this repair.
 
 ## Post-publication CI findings
 
+### Tool-efficiency follow-up: reference hashes
+
+CI [41792335948](https://github.com/phodal/pero/actions/runs/41792335948)
+at branch head `c1effcef` extracts 15 of 17 official reference pairs and exits
+2. Both unavailable pairs select `Agent.runTurn` in `harness/loop.go`; the
+tool-efficiency changes altered that source file without updating its pinned
+right-side hash. The original mapping reproduces exactly 15 extracted, two
+`source_hash_mismatch` pairs and exit 2. Refreshing those two hashes and the
+declared right revision to `c1effcef` restores all 17 extracted pairs, zero
+unavailable and exit 0 against official source `f3803c96`. All three selected
+landmarks (output limit, tool dispatch and sticky state) remain observed on
+both sides. All 18 AST unit tests pass without skips using the pinned parser
+versions and documented TypeScript grammar extension. Successful extraction
+remains review evidence; it does not establish semantic equivalence.
+Harness Go, standalone Harness Bazel and Computer Use pass in this run. The
+fast/core jobs still fail in Paper checks; the repository-wide gate is red.
+
 The first published repair head was `878b6beac5553e2abb2e0a3134201385febd27f5`.
 [CI run 41756076586](https://github.com/phodal/pero/actions/runs/41756076586)
 tested GitHub's synthetic merge `b6aa9bc253740f9c5fb95d649fe2ba08d5a4508c`
