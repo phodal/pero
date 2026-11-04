@@ -526,13 +526,13 @@
     flex-basis: auto;
     max-inline-size: none;
   }
-  .pa-reading-bar .pa-reader-crumb h1,
+  .pa-reading-bar .pa-reader-crumb .pa-reader-title,
   .pa-reading-bar .pa-reader-crumb > .pero-ui-glyph {
     display: none;
   }
 }
 
-.pa-reading-bar .pa-reader-crumb h1 {
+.pa-reading-bar .pa-reader-crumb .pa-reader-title {
   flex: 1 1 auto;
   max-inline-size: none;
   min-inline-size: 0;
@@ -567,3 +567,19 @@
   }
   .pa-local-passage mark { background: Highlight; color: HighlightText; }
 }
+
+/* Refined reading chrome; original PDF/HTML content retains its own typography. */
+.pa-reading-first .pa-reading-bar { border-bottom: .5px solid var(--pero-border); background: var(--pero-surface); }
+.pa-reading-first .pa-reading-bar > .pero-ui-button:first-child { width: auto; flex: none; font-size: 12px; }
+.pa-reading-first .pa-reading-bar .pa-ask.pero-ui-button { width: auto; min-width: 0; height: 24px; min-height: 24px; padding: 2px 6px; font-size: 12px; }
+.pa-reading-first .pa-reading-canvas,
+.pa-reading-first .pa-text-reading { background: var(--pero-surface); }
+.pa-reading-first .pa-reader-tools .pa-reader-modes { background: transparent; }
+.pa-reading-first .pa-reader-tools .pa-reader-modes > .pero-ui-button[aria-pressed=true] { background: var(--pa-selection); color: var(--pero-text); box-shadow: none; }
+.pa-reading-first .pa-text-reading > .pero-reader-content { padding: 24px 32px 40px; }
+.pa-reading-first .pa-records-header { min-height: 36px; padding-inline: 12px; }
+.pa-reading-first .pa-records-scroll { padding: 12px; }
+.pa-reading-first .pa-reading-bar .pa-reader-crumb { flex: 0 1 300px; max-width: 28%; }
+.pa-reading-first .pa-reading-bar .pa-reader-crumb .pa-reader-title { font-size: 12px; font-weight: 400; color: var(--pero-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pa-reading-first .pa-reading-bar .pa-reader-tools { background: transparent; justify-content: center; }
+@container pa-workbench (max-width: 1100px) { .pa-reading-first .pa-reading-bar .pa-reader-crumb { display: none; } }

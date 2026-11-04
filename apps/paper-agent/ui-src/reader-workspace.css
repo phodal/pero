@@ -18,7 +18,7 @@
   font: inherit;
   font-size: 12px;
 }
-.pa-workbench .pa-reader-crumb h1 {
+.pa-workbench .pa-reader-crumb .pa-reader-title {
   flex: 1 1 auto;
   max-width: none;
   min-width: 0;
