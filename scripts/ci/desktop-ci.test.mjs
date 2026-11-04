@@ -273,3 +273,26 @@ test('public HTML corpus requires its own opt-in and exports only per-case summa
     assert.deepEqual(failures({ 'paper-html-live': { result: 'success' } }, full, true), []);
   }
 });
+test('fast reader contracts install their locked Paper runtime before testing', () => {
+  const steps = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.generated.steps;
+  const rootInstall = steps.findIndex(step => step.run === 'npm ci');
+  const paperInstall = steps.findIndex(step => step.run === 'npm ci --prefix apps/paper-agent --ignore-scripts');
+  const contracts = steps.findIndex(step => step.run?.includes('node --test scripts/ci/*.test.mjs'));
+  assert.ok(rootInstall >= 0 && paperInstall > rootInstall && contracts > paperInstall);
+  const pkg = JSON.parse(readFileSync('apps/paper-agent/package.json', 'utf8'));
+  const lock = JSON.parse(readFileSync('apps/paper-agent/package-lock.json', 'utf8'));
+  for (const name of ['@embedpdf/plugin-selection', '@embedpdf/models']) {
+    assert.equal(lock.packages[`node_modules/${name}`].version, pkg.dependencies[name]);
+  }
+});
+
+test('ordinary fast contracts cover Product shutdown without native Electron', () => {
+  const job = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.generated;
+  const install = job.steps.findIndex(step => step.run === 'npm ci');
+  const regression = job.steps.findIndex(step => step.run?.includes('tests/build/product-shutdown.test.mjs'));
+  assert(install >= 0 && regression > install);
+  assert.equal(job.if, undefined);
+  assert.equal(job.steps[regression].if, undefined);
+  assert.equal(job.steps[regression]['continue-on-error'], undefined);
+  assert.match(job.steps[regression].run, /^node --test /);
+});

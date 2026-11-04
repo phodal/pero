@@ -8,16 +8,21 @@ import { addedWhen, isShelfFilter, statusOf, type Shelf, type ShelfFilter, type 
 
 const sourceNames: Record<string, string> = { huggingface: 'Hugging Face', alphaxiv: 'alphaXiv', openalex: 'OpenAlex', biorxiv: 'bioRxiv', pubmed: 'PubMed' };
 
-export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImportPdf, importingPdf, onBundleSaved }: { onBundleSaved(bundle: ResearchBundle, startDownloadIds: string[], startPdfIds: string[], startSourceIds: string[]): Promise<void>; api: Api; active: boolean; onImportPdf(file: File): Promise<void>; importingPdf: boolean; t: Translator; onAdded(paper: Paper, focus: boolean): Promise<void>; onClose(): void; onError(error: unknown): void }) {
+export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImportPdf, importingPdf, onBundleSaved }: { onBundleSaved(bundle: ResearchBundle, startDownloadIds: string[], startPdfIds: string[], startSourceIds: string[]): Promise<void>; api: Api; active: boolean; onImportPdf(file: File): Promise<void>; importingPdf: boolean; t: Translator; onAdded(paper: Paper, focus: () => boolean): Promise<void>; onClose(): void; onError(error: unknown): void }) {
   const [tab, setTab] = useState('search'), [query, setQuery] = useState(''), [source, setSource] = useState('all'), [priority, setPriority] = useState('recency');
   const [results, setResults] = useState<SearchItem[] | null>(null), [warnings, setWarnings] = useState<string[]>([]);
   const [resultPriority, setResultPriority] = useState('default');
   const [busy, setBusy] = useState(false), [adding, setAdding] = useState('');
   const [addError, setAddError] = useState<{ key: string; message: string } | null>(null), [searchError, setSearchError] = useState('');
   const [title, setTitle] = useState(''), [url, setUrl] = useState(''), [content, setContent] = useState(''), [kind, setKind] = useState('full-text');
-  const mounted = useRef(true), epoch = useRef(0), panel = useRef<HTMLElement>(null), activeNow = useRef(active);
+  const mounted = useRef(true), epoch = useRef(0), importSession = useRef(0), panel = useRef<HTMLElement>(null), activeNow = useRef(active);
   activeNow.current = active;
-  useEffect(() => { if (active) panel.current?.querySelector<HTMLInputElement>('[role=tabpanel]:not([hidden]) input')?.focus(); }, [active]);
+  const mayOpen = (session: number) => mounted.current && activeNow.current && session === importSession.current;
+  useEffect(() => {
+    if (active) panel.current?.querySelector<HTMLInputElement>('[role=tabpanel]:not([hidden]) input')?.focus();
+    // Reopening the importer must not let a previous visit's response navigate.
+    return () => { importSession.current++; };
+  }, [active]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; epoch.current++; }; }, []);
   async function search() {
     if (!query.trim() || busy) return;
@@ -33,19 +38,21 @@ export function ImportPanel({ api, t, active, onAdded, onClose, onError, onImpor
   }
   async function add(input: { id: string; source?: string }, key = input.id) {
     if (adding) return;
+    const session = importSession.current;
     setAdding(key); setAddError(null);
     try {
       const paper = await api.post<Paper>('/api/papers', { ...input, full: true });
-      await onAdded(paper, mounted.current && activeNow.current);
+      await onAdded(paper, () => mayOpen(session));
     } catch (error) { if (mounted.current) setAddError({ key, message: error instanceof Error ? error.message : String(error) }); }
     finally { if (mounted.current) setAdding(''); }
   }
   async function importText() {
     if (adding) return;
+    const session = importSession.current;
     setAdding('text');
     try {
       const paper = await api.post<Paper>('/api/papers/import', { title, url, content, contentKind: kind, authors: [] });
-      await onAdded(paper, mounted.current && activeNow.current);
+      await onAdded(paper, () => mayOpen(session));
     } catch (error) { if (mounted.current) onError(error); }
     finally { if (mounted.current) setAdding(''); }
   }

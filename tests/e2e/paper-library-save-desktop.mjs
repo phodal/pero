@@ -76,7 +76,7 @@ export async function exerciseLibrarySave({ frame, page, api, requests, out, pro
   dialog = await saveLibraryCopies(frame, paper.title, { tex: true });
   expect((await api(`/api/pdf?paperId=${paper.id}`))).toEqual({ ...reading, annotations: [annotation] });
   expect((await observations()).observations).toEqual([]);
-  const sources = dialog.getByRole('region', { name: 'Paper source files', exact: true });
+  const sources = dialog.getByRole('region', { name: 'TeX source', exact: true });
   await sources.getByRole('button', { name: 'Browse source files', exact: true }).click();
   await sources.getByRole('button', { name: 'main.tex', exact: true }).click();
   await expect(frame.getByLabel('Original source: main.tex', { exact: true })).toBeVisible();

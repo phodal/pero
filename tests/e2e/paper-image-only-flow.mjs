@@ -30,8 +30,10 @@ export async function exerciseImageOnly({ frame, page, profile, out }) {
   await expect(libraryRow(frame, article.title)).toHaveCount(1);
   await expect(libraryRow(frame, article.title).getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
   const dialog = await saveLibraryCopies(frame, paper.title);
-  await expect(dialog.getByText('PDF saved; no selectable text. OCR unavailable.', { exact: true })).toBeVisible();
-  await expect(dialog.getByText('PDF downloaded; text extraction available', { exact: true })).toHaveCount(0);
+  const pdfStatus = dialog.getByRole('region', { name: 'PDF', exact: true });
+  await expect(pdfStatus.locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Downloaded');
+  await expect(pdfStatus.getByText('No selectable text. OCR unavailable.', { exact: true })).toBeVisible();
+  await expect(pdfStatus.getByText('Text on 0 pages', { exact: true })).toBeVisible();
   const library = await api(frame, '/api/library');
   const bundle = library.bundles.find(item => item.seedUrl === paper.pdfUrl);
   expect(bundle.pdfDownloadIds).toHaveLength(1); expect(bundle.sourceDownloadIds).toEqual([]);

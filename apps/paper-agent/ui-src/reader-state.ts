@@ -32,3 +32,10 @@ export function saveReaderState(document: PdfDocument, state: PdfReaderState): b
   try { localStorage.setItem(readerStateKey(document), JSON.stringify(state)); return true; }
   catch { return false; }
 }
+
+/** Live EmbedPDF selection, or the previous saved range unless discard is set. */
+export function persistedSelection<T>(live: T | null | undefined, discard: boolean, previous: T | null | undefined): T | null {
+  if (live != null) return live;
+  return discard ? null : previous ?? null;
+}
+
