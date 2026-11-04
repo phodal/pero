@@ -72,25 +72,18 @@ func (app *HookApp) bindAddedDirectory(agent *harness.Agent, raw string) (string
 		app.mu.Unlock()
 		return "", errDirectoryAlreadyAdded
 	}
-	app.mu.Unlock()
-	bound, err := nativetools.BindIsolatedWorkspace(canonical)
+	defer app.mu.Unlock()
+	bound, err := nativetools.BindAgentWorkspace(agent, canonical)
 	if err != nil {
 		return "", err
 	}
-	app.mu.Lock()
 	if app.addedDirs == nil {
 		app.addedDirs = map[*harness.Agent]map[string]bool{}
 	}
 	if app.addedDirs[agent] == nil {
 		app.addedDirs[agent] = map[string]bool{}
 	}
-	if app.addedDirs[agent][bound] {
-		app.mu.Unlock()
-		nativetools.ReleaseIsolatedWorkspace(bound)
-		return "", errDirectoryAlreadyAdded
-	}
 	app.addedDirs[agent][bound] = true
-	app.mu.Unlock()
 	return bound, nil
 }
 
@@ -111,7 +104,7 @@ func (app *HookApp) releaseAddedDirectory(agent *harness.Agent, raw string) erro
 	for path := range app.addedDirs[agent] {
 		if path == canonical || path == cleaned {
 			delete(app.addedDirs[agent], path)
-			nativetools.ReleaseIsolatedWorkspace(path)
+			nativetools.ReleaseAgentWorkspace(agent, path)
 			return nil
 		}
 	}
@@ -141,9 +134,9 @@ func (app *HookApp) releaseAddedDirectories() {
 	added := app.addedDirs
 	app.addedDirs = nil
 	app.mu.Unlock()
-	for _, dirs := range added {
+	for agent, dirs := range added {
 		for path := range dirs {
-			nativetools.ReleaseIsolatedWorkspace(path)
+			nativetools.ReleaseAgentWorkspace(agent, path)
 		}
 	}
 }
@@ -157,4 +150,13 @@ func pathWithin(root, path string) bool {
 	}
 	rel, err := filepath.Rel(root, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func (app *HookApp) releaseAgentDirectories(agent *harness.Agent) {
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	for path := range app.addedDirs[agent] {
+		nativetools.ReleaseAgentWorkspace(agent, path)
+	}
+	delete(app.addedDirs, agent)
 }

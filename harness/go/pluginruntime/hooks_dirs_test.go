@@ -100,6 +100,30 @@ func TestAddDirGrantsTheDirectoryAndNotifies(t *testing.T) {
 	if err != nil || read.Result.IsError || !strings.Contains(toolResultText(read.Result), "outside") {
 		t.Fatalf("read %+v %v added=%s path=%s", read.Result, err, added.Result.Text, filepath.Join(other, "note.txt"))
 	}
+	otherRoot, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "unrelated-root", CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "explicit-child", Parent: agent, CWD: root, Provider: "fixture", Model: "scripted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name    string
+		agent   *harness.Agent
+		allowed bool
+	}{
+		{"unrelated root", otherRoot, false},
+		{"explicit child", child, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			read, err := h.Tools().Execute(t.Context(), harness.ToolRequest{Agent: tc.agent, Name: "Read", Arguments: json.RawMessage(`{"file_path":"` + filepath.Join(addedRoot, "note.txt") + `"}`)})
+			allowed := err == nil && !read.Result.IsError && strings.Contains(toolResultText(read.Result), "outside")
+			if allowed != tc.allowed {
+				t.Fatalf("read allowed=%v want %v: %+v %v", allowed, tc.allowed, read.Result, err)
+			}
+		})
+	}
 	if err := prompt(t, agent, "enter the added directory"); err != nil {
 		t.Fatal(err)
 	}
@@ -108,6 +132,15 @@ func TestAddDirGrantsTheDirectoryAndNotifies(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(got)) != resolved {
 		t.Fatalf("shell stayed at %q, want %s (%v)", got, resolved, err)
 	}
+	if err := h.Agents().Remove(t.Context(), agent.ID()); err != nil {
+		t.Fatal(err)
+	}
+	// Deactivation revokes the capability immediately, before the app is drained.
+	read, err = h.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, Name: "Read", Arguments: json.RawMessage(`{"file_path":"` + filepath.Join(addedRoot, "note.txt") + `"}`)})
+	if err == nil && !read.Result.IsError {
+		t.Fatalf("deactivated owner still read the directory: %+v", read.Result)
+	}
+
 }
 
 func TestPermissionHookAddsASessionDirectoryWithoutNotifying(t *testing.T) {

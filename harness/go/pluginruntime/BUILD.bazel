@@ -20,6 +20,7 @@ go_library(
         "hooks_display.go",
         "hooks_elicit.go",
         "hooks_env.go",
+        "hooks_lifecycle.go",
         "hooks_permission.go",
         "hooks_prompt.go",
         "hooks_worktree.go",
@@ -35,6 +36,7 @@ go_library(
     deps = [
         "//claudehooks",
         "//harness",
+        "//fstools",
         "//mcp",
         "//plugins",
         "//runtime",
@@ -60,6 +62,7 @@ go_test(
         "hooks_agent_test.go",
         "hooks_batch_test.go",
         "hooks_cwd_test.go",
+        "hooks_env_test.go",
         "hooks_dirs_test.go",
         "hooks_title_test.go",
         "hooks_terminal_test.go",
@@ -89,6 +92,7 @@ go_test(
     embed = [":pluginruntime"],
     deps = [
         "//harness",
+        "//fstools",
         "//plugins",
         "//tasks",
         "@com_github_modelcontextprotocol_go_sdk//jsonrpc",

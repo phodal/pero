@@ -33,6 +33,8 @@ type HookOptions struct {
 	// Retain keeps the hook runtime when a package has no settings hooks, so
 	// skill and agent frontmatter hooks can register later.
 	Retain bool
+	// ResolveModel resolves plugin model aliases through the host registry.
+	ResolveModel func(string) (string, string, error)
 	// RunAgent executes an agent hook through the mounted subagent runtime.
 	RunAgent func(context.Context, *harness.Agent, string, string) (string, error)
 	// AnswerElicitation is the user dialog. It runs only when no Elicitation
@@ -69,6 +71,7 @@ type HookApp struct {
 	elicitationAgents   map[string]*harness.Agent
 	sessionRules        map[harness.SessionID][]sessionPermissionRule
 	addedDirs           map[*harness.Agent]map[string]bool
+	envFiles            map[*harness.Agent]*hookEnvironment
 	pendingContext      map[*harness.Agent][]string
 }
 
@@ -381,6 +384,8 @@ func (app *HookApp) register(run *point.Run) error {
 		delete(app.modelNotes, agent)
 		delete(app.dynamicWatches, agent)
 		app.mu.Unlock()
+		app.releaseAgentDirectories(agent)
+		app.cleanupEnvFile(agent)
 		return err
 	})
 	return err
@@ -958,38 +963,4 @@ func hookMessage(event, text string) harness.Message {
 		Event string `json:"event"`
 	}{Kind: "claude-hook", Event: event})
 	return harness.Message{Role: harness.RoleUser, Source: source, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}}
-}
-
-func (app *HookApp) drain(ctx context.Context) error {
-	app.mu.Lock()
-	app.closed = true
-	cancels := app.asyncCancels
-	app.asyncCancels = nil
-	app.mu.Unlock()
-	for _, cancel := range cancels {
-		cancel()
-	}
-	done := make(chan struct{})
-	go func() { app.calls.Wait(); close(done) }()
-	select {
-	case <-done:
-		app.releaseAddedDirectories()
-		return nil
-	case <-ctx.Done():
-		app.releaseAddedDirectories()
-		return ctx.Err()
-	}
-}
-
-func (app *HookApp) Dispose(ctx context.Context) error {
-	if app == nil || app.instance == nil {
-		return nil
-	}
-	return app.instance.Dispose(ctx)
-}
-
-func (app *HookApp) Close() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	return app.Dispose(ctx)
 }

@@ -2,12 +2,12 @@ package pluginruntime
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
-	"strings"
-	"unicode"
 
 	"github.com/phodal/pero/harness/go/claudehooks"
+	"github.com/phodal/pero/harness/go/fstools"
 	"github.com/phodal/pero/harness/go/harness"
 )
 
@@ -27,40 +27,74 @@ func (app *HookApp) prepareEnvFile(agent *harness.Agent, event string) (string, 
 	return app.envFilePath(agent)
 }
 
+type hookEnvironment struct {
+	path    string
+	release func()
+}
+
 func (app *HookApp) envFilePath(agent *harness.Agent) (string, error) {
 	if app == nil || agent == nil || agent.Session() == nil {
 		return "", nil
 	}
-	cwd := agent.Session().WorkingDirectory()
-	if !filepath.IsAbs(cwd) {
-		return "", nil
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.closed {
+		return "", errors.New("plugin-runtime: hooks are closed")
 	}
-	directory := filepath.Join(cwd, ".pero", "claude-env")
-	if err := os.MkdirAll(directory, 0o700); err != nil {
+	if env := app.envFiles[agent]; env != nil {
+		return env.path, nil
+	}
+	// Never reuse a workspace path or a session-ID-derived startup script.
+	directory, err := os.MkdirTemp("", "pero-hook-env-")
+	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(directory, envFileName(string(agent.ID())))
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err := os.WriteFile(path, nil, 0o600); err != nil {
-			return "", err
-		}
+	canonical, err := filepath.EvalSymlinks(directory)
+	if err != nil {
+		_ = os.RemoveAll(directory)
+		return "", err
 	}
+	workspace, err := filepath.EvalSymlinks(agent.Session().WorkingDirectory())
+	if err != nil || pathWithin(workspace, canonical) {
+		_ = os.RemoveAll(canonical)
+		return "", errors.New("plugin-runtime: hook environment must be outside the workspace")
+	}
+	release := fstools.ProtectDirectory(canonical)
+	path := filepath.Join(canonical, "environment")
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err == nil {
+		err = file.Close()
+	}
+	if err != nil {
+		_ = os.RemoveAll(canonical)
+		release()
+		return "", err
+	}
+	if app.envFiles == nil {
+		app.envFiles = make(map[*harness.Agent]*hookEnvironment)
+	}
+	app.envFiles[agent] = &hookEnvironment{path: path, release: release}
 	return path, nil
 }
 
-func envFileName(session string) string {
-	var name strings.Builder
-	for _, char := range session {
-		if char <= unicode.MaxASCII && (unicode.IsLetter(char) || unicode.IsDigit(char) || char == '-' || char == '_') {
-			name.WriteRune(char)
-			continue
-		}
-		name.WriteByte('_')
+func (app *HookApp) cleanupEnvFile(agent *harness.Agent) {
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if env := app.envFiles[agent]; env != nil {
+		_ = os.RemoveAll(filepath.Dir(env.path))
+		env.release()
+		delete(app.envFiles, agent)
 	}
-	if name.Len() == 0 {
-		return "session"
+}
+
+func (app *HookApp) cleanupEnvFiles() {
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	for agent, env := range app.envFiles {
+		_ = os.RemoveAll(filepath.Dir(env.path))
+		env.release()
+		delete(app.envFiles, agent)
 	}
-	return name.String()
 }
 
 // BashEnvironmentFile is the session environment later Bash commands source.
