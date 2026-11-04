@@ -29,6 +29,7 @@ go_test(
     srcs = [
         "adapter_test.go",
         "image_input_test.go",
+        "wire_size_test.go",
     ],
     embed = [":openai"],
     deps = [

@@ -2,6 +2,8 @@ package openai
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	openaisdk "github.com/openai/openai-go/v3"
@@ -118,6 +120,35 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 	// The SDK has retries disabled, and exhaustion is not a retryable error.
 	if a.maxRequests > 0 && a.requests.Add(1) > a.maxRequests {
 		return harness.Completion{}, harness.NewProviderError("provider request budget exhausted", "BUDGET_EXHAUSTED", nil)
+	}
+	if request.Agent != nil {
+		tools, _ := json.Marshal(wire.Tools)
+		toolResultBytes, toolResults := 0, 0
+		for _, message := range wire.Messages {
+			if message.Role == "tool" {
+				encoded, _ := json.Marshal(message)
+				toolResultBytes += len(encoded)
+				toolResults++
+			}
+		}
+		hash := sha256.Sum256(payload)
+		_, err := request.Agent.Session().Append("request/wire-size", struct {
+			Stage                  string `json:"stage"`
+			Purpose                string `json:"purpose,omitempty"`
+			Turn                   int    `json:"turn,omitempty"`
+			Step                   int    `json:"step,omitempty"`
+			PayloadBytes           int    `json:"payload_bytes"`
+			ToolsBytes             int    `json:"tools_bytes"`
+			ToolResultMessageBytes int    `json:"tool_result_message_bytes"`
+			ToolResults            int    `json:"tool_results"`
+			SHA256                 string `json:"payload_sha256"`
+		}{"prepared_for_http", request.Purpose, request.Turn, request.Step, len(payload), len(tools), toolResultBytes, toolResults, hex.EncodeToString(hash[:])})
+		if err != nil {
+			return harness.Completion{}, err
+		}
+		if err := request.Agent.Session().Flush(ctx); err != nil {
+			return harness.Completion{}, err
+		}
 	}
 	go a.pumpStream(streamCtx, params, events)
 	timer := time.NewTimer(a.streamIdleTimeout)
