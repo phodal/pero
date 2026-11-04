@@ -3,6 +3,7 @@ package plugins
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -54,7 +55,28 @@ type Component struct {
 	Context           string               `json:"context,omitempty"`
 	Agent             string               `json:"agent,omitempty"`
 	Background        *bool                `json:"background,omitempty"`
-	Hooks             []claudehooks.Hook   `json:"hooks,omitempty"`
+	Hooks             []claudehooks.Hook   `json:"-"`
+}
+
+// MarshalJSON exposes hook shape without executable payloads, matching package inspection.
+func (component Component) MarshalJSON() ([]byte, error) {
+	type metadata Component
+	summaries := make([]HookSummary, 0, len(component.Hooks))
+	for _, hook := range component.Hooks {
+		summary := HookSummary{Event: hook.Event, Matcher: hook.Matcher, Type: "command", CommandForm: "shell", ArgsPresent: len(hook.Args) > 0, Async: hook.Async}
+		if hook.ExecForm {
+			summary.CommandForm = "argv"
+		}
+		if hook.Timeout != 0 {
+			seconds := hook.Timeout.Seconds()
+			summary.TimeoutSeconds = &seconds
+		}
+		summaries = append(summaries, summary)
+	}
+	return json.Marshal(struct {
+		metadata
+		Hooks []HookSummary `json:"hooks,omitempty"`
+	}{metadata: metadata(component), Hooks: summaries})
 }
 
 type componentHeader struct {
@@ -486,7 +508,7 @@ func parseComponentHooks(path string, node *yaml.Node) ([]claudehooks.Hook, []Di
 					diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks.statusMessage", Message: "Hook statusMessage must be at most 256 bytes."})
 					continue
 				}
-				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure, Shell: handler.Shell, StatusMessage: handler.StatusMessage}
+				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure, Shell: handler.Shell, StatusMessage: handler.StatusMessage}
 				if len(handler.Args) > 0 {
 					hook.ExecForm = true
 					hook.Args = append([]string{}, handler.Args...)

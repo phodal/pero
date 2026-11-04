@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -217,10 +218,26 @@ func TestForkComponentFields(t *testing.T) {
 }
 
 func TestComponentHooksParseCommandFrontmatter(t *testing.T) {
-	component, diagnostics := ParseComponent("sample", ComponentSkill, "skills/secure/SKILL.md", []byte("---\nname: secure\ndescription: Check commands.\nhooks:\n  PreToolUse:\n    - matcher: Bash\n      hooks:\n        - type: command\n          command: ./scripts/check.sh\n          once: true\n          shell: bash\n          statusMessage: Checking\n---\nCheck.\n"))
-	if len(diagnostics) != 0 || len(component.Hooks) != 1 || component.Hooks[0].Event != "PreToolUse" || component.Hooks[0].Matcher != "Bash" || component.Hooks[0].Command != "./scripts/check.sh" || !component.Hooks[0].Once || component.Hooks[0].Shell != "bash" {
+	component, diagnostics := ParseComponent("sample", ComponentSkill, "skills/secure/SKILL.md", []byte("---\nname: secure\ndescription: Check commands.\nhooks:\n  PreToolUse:\n    - matcher: Bash\n      hooks:\n        - type: command\n          command: ./scripts/check.sh\n          once: true\n          async: true\n          args: [secret-argument]\n          shell: bash\n          statusMessage: Checking\n---\nCheck.\n"))
+	if len(diagnostics) != 0 || len(component.Hooks) != 1 || component.Hooks[0].Event != "PreToolUse" || component.Hooks[0].Matcher != "Bash" || component.Hooks[0].Command != "./scripts/check.sh" || !component.Hooks[0].Async || !component.Hooks[0].Once || component.Hooks[0].Shell != "bash" {
 		t.Fatalf("hooks=%+v diagnostics=%v", component.Hooks, diagnostics)
 	}
+	encoded, err := json.Marshal(component)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, payload := range []string{"./scripts/check.sh", "secret-argument", "Checking"} {
+		if strings.Contains(string(encoded), payload) {
+			t.Fatalf("inspection leaked hook payload: %s", encoded)
+		}
+	}
+	var metadata struct {
+		Hooks []HookSummary `json:"hooks"`
+	}
+	if err := json.Unmarshal(encoded, &metadata); err != nil || len(metadata.Hooks) != 1 || metadata.Hooks[0].Event != "PreToolUse" || metadata.Hooks[0].Type != "command" || !metadata.Hooks[0].Async || !metadata.Hooks[0].ArgsPresent {
+		t.Fatalf("hook inspection metadata = %s, err=%v", encoded, err)
+	}
+
 	agent, diagnostics := ParseComponent("sample", ComponentAgent, "agents/reviewer.md", []byte("---\nname: reviewer\ndescription: Review.\nhooks:\n  Stop:\n    - hooks:\n        - type: command\n          command: ./scripts/stop.sh\n---\nReview.\n"))
 	if len(diagnostics) != 0 || len(agent.Hooks) != 1 || agent.Hooks[0].Event != "Stop" || agent.Hooks[0].Command != "./scripts/stop.sh" {
 		t.Fatalf("agent hooks=%+v diagnostics=%v", agent.Hooks, diagnostics)
