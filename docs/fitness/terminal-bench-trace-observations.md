@@ -106,6 +106,10 @@ in `analysis-c4-verifier-setup.json`; both final exports now expose verifier
 stages separately. The actual 51-completed-stdout control finds 50 ordinary
 pytest summaries and this one setup error. See
 [the reporting issue](../issues/2026-11-05-benchmark-verifier-fixture-classification.md).
+A later read-only host/guest DNS and TLS control reproduces the guest failure
+and succeeds in the same guest with a host-resolved IP and normal TLS. Its
+hash-bound receipt is `hf-dns-control/receipt.json`; runtime configuration and
+the original reward remain unchanged.
 
 `configure-git-webserver` has a separate login-fixture assumption. The instruction
 uses `user@server` and says the operator will arrange login. The candidate

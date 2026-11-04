@@ -35,3 +35,14 @@ identifies 50 ordinary pytest reports and exactly this fixture setup error,
 with no observed assertion. The receipt is JSON round-trip stable. Final
 89-task export verification is still pending; the data retrieval error itself
 is not claimed fixed.
+
+## Network control
+
+A subsequent read-only control retains host/guest DNS, TLS command logs and
+hashes in `hf-dns-control/receipt.json`. The host resolves Hugging Face to
+CloudFront IPv4 addresses and normal HTTPS succeeds. The dedicated VM resolves
+it to a different address and normal TLS fails. In that same VM, curl with a
+host-resolved IP and ordinary TLS validation succeeds against the same URL.
+No DNS configuration, image or trial is changed. This narrows the observed
+reachability problem to guest name resolution/routing; it is not an official
+candidate re-verification or a correction of the original zero reward.
