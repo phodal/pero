@@ -39,3 +39,10 @@ cover both shell and terminal names. No paid model calls are required.
 `git diff --check` passed. The explicit Bazel test source list includes the new
 guidance tests. This verifies prompt assembly and existing directory behavior;
 it does not establish a model-quality or benchmark-score improvement.
+
+The later [four-exercise live sample](../fitness/coding-benchmark.md) observed
+the new guidance in effective system messages, but the model still masked some
+failed checks with output filters and cleanup. This repair supplies accurate
+facts and guidance; it does not enforce a subprocess's status through an
+arbitrary shell program. The offline Session report preserves those failures
+as review candidates, separately from the independent judge outcome.

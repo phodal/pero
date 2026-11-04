@@ -5,6 +5,10 @@ Harness Inspector. It imports the public report and usage builders from a local
 Better Harness checkout. No package installation, host adapter, model API, raw
 Session rewrite or Better Harness source modification is required.
 
+Verified with Better Harness revision
+`b605532fcf1014bcb48d3e6940a5bc64e80cddd5`. Other revisions must expose the same
+public builder and renderer contracts.
+
 ```sh
 node harness/tools/session_report/inspector.mjs \
   --summary /absolute/path/summary.json \
