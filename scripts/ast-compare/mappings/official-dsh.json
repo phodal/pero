@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "6a42cd30a1e445b0c319d55ee5caaf2456ced2bf",
+  "right_ref": "878b6beac5553e2abb2e0a3134201385febd27f5",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -16,7 +16,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "95113ee77a8856acf39b64319cb1db92cabc2799e8e1581796885e6daa64d798"
+        "sha256": "17395d4fa7c4e1791aadb67215bf644a590035c84e9d1f05b65de21045a6d8c3"
       },
       "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence.",
       "landmarks": [
@@ -55,7 +55,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "95113ee77a8856acf39b64319cb1db92cabc2799e8e1581796885e6daa64d798"
+        "sha256": "17395d4fa7c4e1791aadb67215bf644a590035c84e9d1f05b65de21045a6d8c3"
       },
       "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests.",
       "landmarks": [
@@ -181,7 +181,7 @@
         "path": "harness/go/fstools/workspace.go",
         "language": "go",
         "symbol": "FormatRead",
-        "sha256": "f24afcaace3efc212eac8f765d39e055032d2115b25b37690cb28298ddd6ffd6"
+        "sha256": "56829808adfbd56787a9fb129bb3ef7eb892715921f74bced5c78c6fca416805"
       },
       "notes": "Official streaming scanner and Go bounded decoded-text presentation differ in implementation. Go retains 16 KiB total cap; official default is 50 KiB. Verify empty/terminal-newline/CRLF cases by regression.",
       "landmarks": [
@@ -210,7 +210,7 @@
         "path": "harness/go/fstools/workspace.go",
         "language": "go",
         "symbol": "FormatRead",
-        "sha256": "f24afcaace3efc212eac8f765d39e055032d2115b25b37690cb28298ddd6ffd6"
+        "sha256": "56829808adfbd56787a9fb129bb3ef7eb892715921f74bced5c78c6fca416805"
       },
       "notes": "Official returns a line-numbered text envelope; Go returns a JSON ReadWindow. Compare continuation contract, not output syntax.",
       "landmarks": [
@@ -236,10 +236,10 @@
         "sha256": "e4d624d1a4d305d924ae0cff23e0f005becf9a797b02c037e45a1e86c3c17d12"
       },
       "right": {
-        "path": "harness/go/acp/server.go",
+        "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "40771e3721b9614e53dfd194e793dedbd3fb3e671a19c28c2b8f97b66f08612e"
+        "sha256": "317077e0d0c2279bab7763894db70e662e7f288f325b6d90c626fd57e12b91c8"
       },
       "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement.",
       "landmarks": [
@@ -278,7 +278,7 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "40771e3721b9614e53dfd194e793dedbd3fb3e671a19c28c2b8f97b66f08612e"
+        "sha256": "98a1e78eef1bead1d2bf8eca808b1bb4fa91f569b3d266e8f8a31c23636aec97"
       },
       "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity.",
       "landmarks": [
@@ -304,10 +304,10 @@
         "sha256": "e4d624d1a4d305d924ae0cff23e0f005becf9a797b02c037e45a1e86c3c17d12"
       },
       "right": {
-        "path": "harness/go/acp/server.go",
+        "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "40771e3721b9614e53dfd194e793dedbd3fb3e671a19c28c2b8f97b66f08612e"
+        "sha256": "317077e0d0c2279bab7763894db70e662e7f288f325b6d90c626fd57e12b91c8"
       },
       "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates.",
       "landmarks": [
@@ -472,7 +472,7 @@
         "path": "harness/go/cmd/pero-agent-acp/coding.go",
         "language": "go",
         "symbol": "mountCoding",
-        "sha256": "6898a4178c921c7683991e735c369554978162b610de0237b1728b07ab53c583"
+        "sha256": "4e6e846d366441170dfa7537559adcaa1bcaddd5dfa7171d0a067b0af339fd83"
       },
       "notes": "Official tool registration versus optional Go CLI composition. The mapping highlights policy selection; it does not equate full projection/plugin assembly.",
       "landmarks": [
@@ -501,7 +501,7 @@
         "path": "harness/go/mcp/tools.go",
         "language": "go",
         "symbol": "ListTools",
-        "sha256": "ffd57a9f63d755285d0a72487e061ee5ee8f6ff5d0f8b90599fb910565381e72"
+        "sha256": "774da244185fe853ceefdf8927e0627610198cdb9116e0b291f4e6f896451371"
       },
       "notes": "A server without tools capability need not implement tools/list. A capabilities guard should precede discovery.",
       "landmarks": [
@@ -530,7 +530,7 @@
         "path": "harness/go/mcp/tools.go",
         "language": "go",
         "symbol": "fromMCPResult",
-        "sha256": "ffd57a9f63d755285d0a72487e061ee5ee8f6ff5d0f8b90599fb910565381e72"
+        "sha256": "774da244185fe853ceefdf8927e0627610198cdb9116e0b291f4e6f896451371"
       },
       "notes": "Canonical value and supported output schema now flow through the existing tool registry. Existing Go text/image projection is retained; this does not claim complete official rich-attachment/PTC rendering parity.",
       "landmarks": [
