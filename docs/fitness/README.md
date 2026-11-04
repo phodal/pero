@@ -18,6 +18,9 @@ Further task suites, Harbor ACP integration and current execution prerequisites:
 First Harbor ACP execution, official failure verdict and reviewed Session:
 [Terminal-Bench cancellation smoke run](terminal-bench-smoke.md).
 
+All 89 tasks, uncapped request configuration and current execution evidence:
+[Terminal-Bench full-suite run](terminal-bench-full.md).
+
 AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
 managed execution admission remains planned: [Environments P1](ai4s-environments.md).
 
