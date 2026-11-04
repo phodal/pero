@@ -17,6 +17,12 @@ enum Request {
         method: Method,
         id: String,
     },
+    Environment {
+        method: Method,
+        id: String,
+        name: AppName,
+        target: pero_runtime::apps::ScientificMethod,
+    },
     Install {
         method: Method,
         id: String,
@@ -216,6 +222,10 @@ impl Apps {
                 }
                 Request::Sdkcontext { method, id, name } => {
                     let _ = (method, id); serde_json::to_value(store.sdk_context(&name)?)
+                }
+                Request::Environment { method, id, name, target } => {
+                    let _ = (method, id);
+                    serde_json::to_value(store.inspect_environment_for(&name, target)?)
                 }
                 Request::List { method, id } => {
                     let _ = (method, id);

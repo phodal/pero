@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { environmentInspectionInput } from './environment-inspection.ts';
 import { realpath, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -211,6 +212,16 @@ export class DesktopApps {
       if (caller && caller !== origin) return new Response('App origin refused', { status: 403 });
       if ((url.hostname === 'control-lab' || url.hostname === 'lab') && decodeURIComponent(url.pathname) === '/api/agent-step')
         return new Response('Agent route is reserved for the Host', { status: 403 });
+      if (url.pathname === '/host/environment') {
+        if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 4096) return new Response('Request too large', { status: 413 });
+        let input: { target: string };
+        try { input = environmentInspectionInput(JSON.parse(body)); }
+        catch { return new Response('Expected only a scientific method', { status: 400 }); }
+        const value = await this.request('environment', { name: url.hostname, target: input.target });
+        return Response.json(value, { headers: { 'Cache-Control': 'no-store' } });
+      }
       if (url.pathname === '/host/sdk') {
         if (request.method !== 'GET') return new Response('Method refused', {status:405});
         return Response.json({...await this.request<Record<string,unknown>>('sdkcontext', {name:url.hostname}),slots:['conversation']}, {headers:{'Cache-Control':'no-store'}});

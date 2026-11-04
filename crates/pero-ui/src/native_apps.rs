@@ -223,6 +223,27 @@ impl NativeApps {
         if path.starts_with("/api/") {self.request::<Value>("apiaccess",json!({"name":name,"path":path}))?;}
         let method = request.method();
         let body = request.body();
+        if path == "/host/environment" {
+            if method != "POST" {
+                return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?);
+            }
+            if body.len() > 4096 {
+                return Ok(Response::builder().status(413).body(b"Request too large".to_vec())?);
+            }
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct EnvironmentInput { target: String }
+            let input: EnvironmentInput = match serde_json::from_slice(body) {
+                Ok(value) => value,
+                Err(_) => return Ok(Response::builder().status(400).body(b"Expected only a scientific method".to_vec())?),
+            };
+            if input.target.len() > 128 {
+                return Ok(Response::builder().status(400).body(b"Invalid scientific method".to_vec())?);
+            }
+            let value: Value = self.request("environment", json!({"name":name,"target":input.target}))?;
+            return Ok(Response::builder().header("Content-Type", "application/json")
+                .header("Cache-Control", "no-store").body(serde_json::to_vec(&value)?)?);
+        }
         if path == "/host/sdk" {
             anyhow::ensure!(method == "GET", "Method refused");
             let mut info: Value = self.request("sdkcontext", json!({"name":name}))?;
@@ -445,6 +466,50 @@ mod research_assets_tests {
         ] {
             let response = apps.serve("paper-agent", Request::builder().uri("pero-app://paper-agent/host/research-assets")
                 .method(method).header("Origin", origin).body(body).unwrap());
+            assert_eq!(response.status(), status);
+            assert!(requests.try_recv().is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod environment_tests {
+    use super::*;
+
+    #[test]
+    fn environment_route_keeps_origin_and_method_in_the_host_request() {
+        let (host, requests) = mpsc::channel();
+        let (events, _) = async_channel::unbounded();
+        let apps = NativeApps::new(host, events, None);
+        let serving = apps.clone();
+        let response = std::thread::spawn(move || serving.serve("control-lab", Request::builder()
+            .uri("pero-app://control-lab/host/environment").method("POST")
+            .header("Origin", "pero-app://control-lab")
+            .body(br#"{"target":"control-lab.python-control"}"#.to_vec()).unwrap()));
+        let command: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+        assert_eq!(command["method"], "apps");
+        assert_eq!(command["action"], "environment");
+        assert_eq!(command["name"], "control-lab");
+        assert_eq!(command["target"], "control-lab.python-control");
+        let value = json!({"schema":"pero.environment.inspection.v1","evidence":"metadata_only"});
+        let mut reply = HostEvent::new("apps_result", command["id"].as_str().map(str::to_owned), String::new());
+        reply.data = json!({"ok":true,"value":value});
+        assert!(apps.accept(&reply));
+        let response = response.join().unwrap();
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.headers()["Cache-Control"], "no-store");
+        assert_eq!(serde_json::from_slice::<Value>(response.body()).unwrap(), value);
+
+        for (method, origin, body, status) in [
+            ("GET", "pero-app://control-lab", vec![], 405),
+            ("POST", "pero-app://control-lab", vec![b' '; 4097], 413),
+            ("POST", "pero-app://control-lab", br#"{"target":"control-lab.ngspice","name":"environments"}"#.to_vec(), 400),
+            ("POST", "pero-app://control-lab", b"not JSON".to_vec(), 400),
+            ("POST", "pero-app://other-app", b"{}".to_vec(), 503),
+        ] {
+            let response = apps.serve("control-lab", Request::builder()
+                .uri("pero-app://control-lab/host/environment").method(method).header("Origin", origin)
+                .body(body).unwrap());
             assert_eq!(response.status(), status);
             assert!(requests.try_recv().is_err());
         }
