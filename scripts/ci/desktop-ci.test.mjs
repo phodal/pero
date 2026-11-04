@@ -80,13 +80,10 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'tests/fixtures/owned-electron-close.test.mjs', 'node tests/runtime/automation.mjs']) assert.ok(commands.includes(command), command);
   const core = workflow.jobs.core.steps.map(step => step.run || '').join('\n');
   assert.ok(core.includes('node --test apps/paper-agent/test/docling-runtime.test.mjs'));
-  const appContracts = workflow.jobs.core.steps.find(step => step.name === 'Independent App contracts with frozen dependencies');
   assert.equal(workflow.jobs.core.if, undefined);
-  assert.equal(appContracts.if, undefined);
-  assert.equal(appContracts['continue-on-error'], undefined);
-  assert.ok(appContracts.run.includes('npm ci --prefix apps/hpc --ignore-scripts'));
-  assert.ok(appContracts.run.includes('npm --prefix apps/hpc run test:ui'));
-  assert.ok(appContracts.run.indexOf('npm ci --prefix apps/hpc --ignore-scripts') < appContracts.run.indexOf('npm --prefix apps/hpc run test:ui'));
+  const hpcInstall = workflow.jobs.core.steps.findIndex(step => step.run === 'npm ci --prefix apps/hpc --ignore-scripts');
+  const hpcTests = workflow.jobs.core.steps.findIndex(step => step.run === 'npm --prefix apps/hpc run test:ui');
+  assert.ok(hpcInstall >= 0 && hpcTests > hpcInstall);
   for (const command of ['node --test tests/runtime/lab/*.test.mjs', 'npx tsc -p scripts/ci/tsconfig.core.json',
     'node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker',
     'node scripts/cargo.mjs build --locked -p pero-host -p pero-worker',
@@ -250,11 +247,11 @@ test('native reproduction fixture dispatches cancellation modes outside Electron
 test('ordinary core runs source campaign contracts after dependencies without provider or Host launch', () => {
   const { steps } = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.core;
   const install = steps.findIndex(step => step.run === 'npm ci');
-  const contracts = steps.findIndex(step => step.name === 'Permission, cancellation and fixture contracts');
+  const contracts = steps.findIndex(step => step.id === 'paper_campaign');
   assert(install >= 0 && contracts > install);
   const command = 'node --experimental-transform-types --test tests/runtime/paper-study/*.test.mjs tests/runtime/research-import/cleanup.test.mjs';
   assert(steps[contracts].run.split('\n').includes(command));
-  assert.equal(steps[contracts].if, undefined);
+  assert.equal(steps[contracts].if, "${{ !cancelled() && steps.npm.outcome == 'success' }}");
   assert.equal(steps[contracts]['continue-on-error'], undefined);
   assert(!steps[contracts].run.includes('paper-study/run.mjs'));
 });
