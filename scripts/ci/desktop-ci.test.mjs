@@ -79,6 +79,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     'npm --prefix apps/data run test:ui', 'node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs',
     'tests/fixtures/owned-electron-close.test.mjs', 'node tests/runtime/automation.mjs']) assert.ok(commands.includes(command), command);
   const core = workflow.jobs.core.steps.map(step => step.run || '').join('\n');
+  assert.ok(core.includes('node --test apps/paper-agent/test/docling-runtime.test.mjs'));
   const appContracts = workflow.jobs.core.steps.find(step => step.name === 'Independent App contracts with frozen dependencies');
   assert.equal(workflow.jobs.core.if, undefined);
   assert.equal(appContracts.if, undefined);

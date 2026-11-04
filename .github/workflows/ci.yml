@@ -501,6 +501,7 @@ jobs:
           npm --prefix apps/hpc run test:ui
           npm ci --prefix apps/automations --ignore-scripts
           npm ci --prefix apps/paper-agent --ignore-scripts
+          node --test apps/paper-agent/test/docling-runtime.test.mjs
           npm run typecheck --prefix apps/paper-agent
           node --test tests/e2e/paper-library-availability.test.mjs
           node --experimental-transform-types --test tests/e2e/paper-manual-evidence.test.ts

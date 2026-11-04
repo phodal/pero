@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Feedback } from '@pero/app-sdk/ui';
 import type { Api, PdfAnnotation, PdfSource } from './types';
+import { requestDoclingRuntime, type RuntimeComponent, type RuntimeStatus } from './docling-runtime';
 import './numeric-values.css';
 
 type Identity = { metric: string; condition: string; series: string; statistic: string; unit: string };
@@ -284,7 +285,7 @@ function DoclingLayout({ api, annotationId, records, onSource, onSaved }: {
       {checking && <p role="status">{t('checking')}</p>}
       {status && <><p>{status.provider}{status.version ? ` ${status.version}` : ''}: {status.available ? t('available') : t('unavailable')}</p>{!!status.reasons.length && <ul>{status.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul>}</>}
       {error && <Feedback kind="error">{error}</Feedback>}
-      <OptionalDoclingRuntime api={api} onChanged={() => setStatusAttempt(n => n + 1)}/>
+      <OptionalDoclingRuntime onChanged={() => setStatusAttempt(n => n + 1)}/>
       <details><summary>{t('setup')}</summary><p>{t('setupConsent')}</p><p>{t('storage')}</p><ul><li><a href="https://pypi.org/project/docling/" target="_blank" rel="noreferrer">{t('softwareSource')}</a></li><li><a href="https://huggingface.co/docling-project/docling-layout-heron" target="_blank" rel="noreferrer">{t('modelSource')}</a></li></ul></details>
       <div className="pa-actions"><Button disabled={busy || checking} variant="ghost" onClick={() => setStatusAttempt(n => n + 1)}>{t('retry')}</Button><Button disabled={busy || checking || !status?.available} onClick={() => void readOrConvert()}>{t('convert')}</Button></div>
       {busy && <p role="status">{t(reading ? 'reading' : 'running')}</p>}
@@ -313,11 +314,8 @@ function DoclingLayout({ api, annotationId, records, onSource, onSaved }: {
   </details>;
 }
 
-type RuntimeComponent = 'software' | 'model';
-type RuntimeStatus = { state: 'idle' | 'installing' | 'ready' | 'failed' | 'cancelled' | 'revoked' | 'interrupted'; software: 'missing' | 'ready'; model: 'missing' | 'ready'; component: RuntimeComponent | null; message: string; profile?: 'linux-x86_64-cp312' | 'macos-arm64-cp312' | null; installerSupported: boolean; softwareApproved: boolean; modelApproved: boolean };
-
 /** Only the trusted Host can show approval and provision its fixed local profile. */
-function OptionalDoclingRuntime({ api, onChanged }: { api: Api; onChanged(): void }) {
+function OptionalDoclingRuntime({ onChanged }: { onChanged(): void }) {
   const { t } = useAppI18n({
     title: { zh: '可选运行环境', en: 'Optional runtime' }, checking: { zh: '正在检查安装支持…', en: 'Checking installation support…' },
     unsupported: { zh: '此运行环境无法使用固定的自动安装配置。仍可查看原图和人工核对。', en: 'This runtime cannot use the pinned automatic installation profile. Source inspection and manual review remain available.' },
@@ -342,7 +340,7 @@ function OptionalDoclingRuntime({ api, onChanged }: { api: Api; onChanged(): voi
   const alive = useRef(true), reading = useRef(false), operation = useRef(false), cancellingOperation = useRef(false), version = useRef('');
   const active = runtime?.state === 'installing';
   const recoverable = runtime?.state === 'failed' || runtime?.state === 'interrupted';
-  useEffect(() => { alive.current = true; void refresh(); return () => { alive.current = false; }; }, [api]);
+  useEffect(() => { alive.current = true; void refresh(); return () => { alive.current = false; }; }, []);
   useEffect(() => {
     if (!action && !active) return;
     const timer = setTimeout(() => { void refresh(); }, 1000);
@@ -357,7 +355,7 @@ function OptionalDoclingRuntime({ api, onChanged }: { api: Api; onChanged(): voi
   async function refresh() {
     if (reading.current) return;
     reading.current = true;
-    try { const value = await api.post<RuntimeStatus>('/host/docling-runtime', { operation: 'status' }); accept(value); }
+    try { const value = await requestDoclingRuntime({ operation: 'status' }); accept(value); }
     catch (error) { if (alive.current) { setRuntime(null); setError(error instanceof Error ? error.message : String(error)); } }
     finally { reading.current = false; if (alive.current) setChecking(false); }
   }
@@ -365,7 +363,7 @@ function OptionalDoclingRuntime({ api, onChanged }: { api: Api; onChanged(): voi
     if (operation.current) return;
     operation.current = true; setAction(kind); setError('');
     try {
-      const value = await api.post<RuntimeStatus>('/host/docling-runtime', kind === 'request' ? { operation: kind, component } : { operation: kind });
+      const value = await requestDoclingRuntime(kind === 'request' ? { operation: kind, component: component! } : { operation: kind });
       accept(value);
     } catch (error) { if (alive.current) setError(error instanceof Error ? error.message : String(error)); }
     finally { operation.current = false; if (alive.current) { setAction(null); void refresh(); } }
@@ -373,14 +371,14 @@ function OptionalDoclingRuntime({ api, onChanged }: { api: Api; onChanged(): voi
   async function cancel() {
     if (cancellingOperation.current) return;
     cancellingOperation.current = true; setCancelling(true); setError('');
-    try { accept(await api.post<RuntimeStatus>('/host/docling-runtime', { operation: 'cancel' })); }
+    try { accept(await requestDoclingRuntime({ operation: 'cancel' })); }
     catch (error) { if (alive.current) setError(error instanceof Error ? error.message : String(error)); }
     finally { cancellingOperation.current = false; if (alive.current) { setCancelling(false); void refresh(); } }
   }
   return <section className="pa-optional-runtime" aria-label={t('title')}>
     <h4>{t('title')}</h4>
     {checking && <p role="status">{t('checking')}</p>}
-    {!checking && !runtime?.installerSupported && <p>{t('unsupported')}</p>}
+    {!checking && runtime && !runtime.installerSupported && <p>{t('unsupported')}</p>}
     {runtime && !runtime.installerSupported && runtime.message && <p>{runtime.message}</p>}
     {error && <Feedback kind="error">{error}</Feedback>}
     {runtime?.installerSupported && <>
