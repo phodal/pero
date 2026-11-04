@@ -15,7 +15,7 @@ type RecordRevision = {
 type Impact = { recordId: string; items: { paperId: string; status: string; reason: string }[] };
 
 /** Manual decisions reference existing evidence; they never create observations or execute research. */
-export function ManualRecords({ api, library, paper }: { api: Api; library: Library; paper: Paper | null }) {
+export function ManualRecords({ api, library, paper, label = 'Question and scope' }: { api: Api; library: Library; paper: Paper | null; label?: string }) {
   const [reports, setReports] = useState<Report[]>([]), [reportsLoading, setReportsLoading] = useState(false), [reportsError, setReportsError] = useState(''), [reportsRetry, setReportsRetry] = useState(0);
   const [records, setRecords] = useState<RecordRevision[]>([]), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0);
   const [editing, setEditing] = useState(false), [parentId, setParentId] = useState<string | undefined>();
@@ -75,7 +75,7 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
   const visible = records.filter(record => !paper || record.paperIds.includes(paper.id));
   const title = (id: string) => library.papers.find(item => item.id === id)?.title ?? 'Unavailable paper';
   const valid = question.trim() && scope.trim() && inclusion.trim() && exclusion.trim() && decisions.length && decisions.every(item => item.reason.trim());
-  return <details className="pa-manual-records"><summary>Question and scope</summary>
+  return <details className="pa-manual-records"><summary>{label}</summary>
     <p>Manual research records. Saving or opening a record does not run research.</p>
     {loading && <p role="status">Loading records…</p>}
     {error && <Feedback kind="error">{error}<Button disabled={busy || loading} onClick={() => setRetry(value => value + 1)}>Reload records</Button></Feedback>}

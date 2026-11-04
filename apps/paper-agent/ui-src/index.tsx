@@ -68,7 +68,7 @@ export default function PaperAgent() {
   const [shelf, setShelf] = useState<Shelf>(() => loadShelf());
   const [shelfFilter, setShelfFilter] = useState<ShelfFilter>('all');
   const mounted = useRef(true), active = useRef(info.active), readVersion = useRef(0), readerOpenToken = useRef(0), libraryVersion = useRef(0), evidenceVersion = useRef(0);
-  const preserveView = useRef<(() => void) | null>(null), askButton = useRef<HTMLDivElement>(null), citationTrigger = useRef<HTMLElement | null>(null);
+  const preserveView = useRef<(() => void) | null>(null), recordsButton = useRef<HTMLElement>(null), citationTrigger = useRef<HTMLElement | null>(null);
   const libraryScreenNow = useRef(libraryScreen);
   libraryScreenNow.current = libraryScreen;
   active.current = info.active;
@@ -120,7 +120,7 @@ export default function PaperAgent() {
       preserveView.current?.(); setShowResearch(false); setChatRequest({ selection: selected, message });
     } catch (error) { onError(error); }
   }
-  function closeRecords() { preserveView.current?.(); setShowResearch(false); requestAnimationFrame(() => askButton.current?.querySelector('button')?.focus({ preventScroll: true })); }
+  function closeRecords() { preserveView.current?.(); setShowResearch(false); requestAnimationFrame(() => recordsButton.current?.focus({ preventScroll: true })); }
   function back() { preserveView.current?.(); setQuestionMode(false); setScreen('library'); setLibraryScreen('papers'); setShowResearch(false); setCitation(null); setHitPreview(false); setOpenHit(null); }
   function openImport() { back(); setLibraryScreen('import'); }
   useEffect(() => {
@@ -407,19 +407,29 @@ export default function PaperAgent() {
       <div hidden={libraryScreen !== 'discovery'}><Discovery api={api} opening={discoveryOpening} library={library} locked={false} selected={reading ? [reading.id] : []} onRefresh={refresh} onRead={async paper => { await read(paper); }} onCompare={addToComparison} onReturn={id => { const paper = library.papers.find(p => p.id === id); if (paper) void read(paper); }} onBack={() => setLibraryScreen('papers')} t={t}/></div>
       <div className="pa-find-screen" hidden={libraryScreen !== 'find'}><DiscoverSearch api={api} papers={library.papers} active={screen === 'library' && libraryScreen === 'find' && info.active} onAdded={added} onOpenSaved={paper => void read(paper)} onAddByLink={openImport}/></div>
     </section>
-    <section className="pa-reading-screen" hidden={screen !== 'reading'} data-agent={showResearch}>
-      <div className="pa-reading-main" inert={narrow && showResearch}>
-        <header className="pa-reading-bar pero-reader-header"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={back}><Icon family="shell" name="back" size={16}/>{t('library')}</Button><div className="pa-reader-crumb"><span className="pa-reader-title" title={reading?.title}>{reading?.title ?? t('loading')}</span></div><div className="pa-reader-tools" ref={setPdfToolbar}/>{!questionMode && <><Button className="pa-records-toggle" variant="ghost" aria-label={t('researchProgress')} title={t('researchProgress')} aria-expanded={showResearch} onClick={() => { preserveView.current?.(); setShowResearch(value => !value); }}><Icon name="history" size={14}/></Button><div ref={askButton}><Button variant="ghost" className="pa-ask" aria-label={t('ask')} disabled={!reading || readingBusy || !!chatRequest} onMouseDown={event => event.preventDefault()} onClick={() => void ask()} aria-keyshortcuts="Control+j Meta+j"><Icon name="ai-sparkles" size={14}/>{t('ask')}</Button></div></>}</header>
+    <Split className="pa-reading-screen" storageKey="paper-agent.research-records" collapseBelow={760} hidden={screen !== 'reading'} data-agent={showResearch}>
+      <SplitPane id="paper-reading-main" className="pa-reading-main" min={320}>
+        <header className="pa-reading-bar pero-reader-header">
+          <Button variant="ghost" aria-label={t('backToLibrary')} onClick={back}><Icon family="shell" name="back" size={16}/>{t('library')}</Button>
+          <div className="pa-reader-crumb"><span className="pa-reader-title" title={reading?.title}>{reading?.title ?? t('loading')}</span></div>
+          <div className="pa-reader-tools" ref={setPdfToolbar}/>
+          {!questionMode && <>
+            <Button ref={recordsButton} className="pa-records-toggle" variant="ghost" aria-label={t('researchProgress')} title={t('researchProgress')} aria-expanded={showResearch} aria-controls={showResearch ? 'paper-research-records' : undefined} onClick={() => { preserveView.current?.(); setShowResearch(value => !value); }}>
+              <Icon family="shell" name="clock" size={16}/>
+            </Button>
+            <div><Button variant="ghost" className="pa-ask" aria-label={t('ask')} disabled={!reading || readingBusy || !!chatRequest} onMouseDown={event => event.preventDefault()} onClick={() => void ask()} aria-keyshortcuts="Control+j Meta+j"><Icon name="ai-sparkles" size={14}/>{t('ask')}</Button></div>
+          </>}
+        </header>
         <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} openToken={readerOpenToken.current} pdfReloadToken={saveRevision} chrome={{ figure: figureTarget, onLocation: setReaderLocation, onSave: (format = 'pdf') => { if (reading) { setSaveFormat(format); setSavingPaper(reading); } }, toolbar: pdfToolbar, preserveView, onNavigate: () => { focusVersion.current++; setPdfFocus(null); } }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onReview={openImport} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
-      </div>
-      {screen === 'reading' && showResearch && <aside className="pa-records" aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
-        <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}>×</Button></header>
+      </SplitPane>
+      {screen === 'reading' && showResearch && <SplitPane as="aside" id="paper-research-records" className="pa-records" size={384} min={300} stackedBasis="55%" resizeLabel={t('resizeResearchRecords')} aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
+        <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}><Icon name="x" size={14}/></Button></header>
         <div className="pa-records-panel">
           <ResearchRecords api={api} library={library} paper={reading} onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} opening={recordOpening} t={t}/>
           {citation && <div className="pa-record-evidence"><EvidencePanel citation={citation} location={evidence} paper={citation.intent.papers.find(p => p.id === citation.paperId)} busy={evidenceBusy} onClose={closeEvidence} onRead={(page, rects) => { const paper = citation.intent.papers.find(p => p.id === citation.paperId), pdf = evidence?.pdf; if (paper && pdf) void revealPdf(paper, { documentId: pdf.documentId, page: page ?? pdf.pages[0], rects: rects ?? pdf.rects }).catch(onError); else if (paper) void read(paper, true); }} t={t}/></div>}
         </div>
-      </aside>}
-    </section>
+      </SplitPane>}
+    </Split>
     </SearchFrame>
     </div>
     </SplitPane>

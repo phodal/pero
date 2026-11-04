@@ -51,7 +51,7 @@ export function LibraryPapers({ api, papers, shelf, filter, loading, savingId, a
           {paper.source !== 'local-pdf' && <><dt>{t('originalDocument')}</dt><dd><a href={paper.url} target="_blank" rel="noreferrer">{t('openOriginal')}<Icon name="open" size={12}/></a></dd></>}
         </dl>
         <div className="pa-inspector-actions">
-          <Button variant="ghost" onClick={() => onRecords(paper)}><Icon name="history" size={14}/>{t('researchProgress')}</Button>
+          <Button variant="ghost" onClick={() => onRecords(paper)}><Icon family="shell" name="clock" size={14}/>{t('researchProgress')}</Button>
           <Button variant="ghost" onClick={() => onDiscover(paper)}><Icon name="drafting-compass" size={14}/>{t('discover')}</Button>
           <Button variant="ghost" disabled={!!savingId || !(paper.pdfUrl || paper.pdfCandidateUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper, 'pdf')}><Icon name="file-text" size={14}/>{t('downloadPdf')}</Button>
           {paper.arxivUrl && <Button variant="ghost" disabled={!!savingId} onClick={() => onDownload(paper, 'tex')}><Icon name="file-code" size={14}/>{t('downloadTex')}</Button>}
