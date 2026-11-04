@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Menu, type MenuEntry } from './components.tsx';
 import { StatusBadge } from './components.tsx';
-import { Dialog } from './components.tsx';
 import { DiscoveryPanel, JsonEditor } from './connector-editor.tsx';
 import { ConnectorCredentials, ConnectorField, ConnectorSection, ConnectorToolAccess } from './connector-detail-sections.tsx';
 import { FeishuAuthorizationPanel } from './feishu-authorization-panel.tsx';
@@ -12,7 +10,7 @@ import type { ConnectionView, ScopeGroup } from './connector-types.ts';
 import {
   STATE_LABELS, STATE_LABELS_EN, ACTION_LABELS, ACTION_LABELS_EN, cardTitle, explain,
 } from './shared/connection-copy.mjs';
-import { Button as PointButton, Feedback, InfoTip, Input, Tabs, TabsContent, TabsList, TabsTrigger } from './ui';
+import { Button, Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, InfoTip, Input, Tabs, TabsContent, TabsList, TabsTrigger } from './ui';
 
 
 export const PROVIDER_NAMES_EN: Record<string, string> = {
@@ -76,10 +74,10 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
     if (editable && references.length && !references.includes(secretReference)) setSecretReference(references[0]);
   }, [editable, references, secretReference, setSecretReference]);
   const labels = locale === 'en' ? ACTION_LABELS_EN : ACTION_LABELS;
-  const moreActions: MenuEntry[] = view ? [...view.secondary, ...view.lifecycle].map(action => ({
+  const moreActions = view ? [...view.secondary, ...view.lifecycle].map(action => ({
     label: labels[action] ?? action, danger: action === 'remove', disabled: !!busy, onSelect: () => perform(action),
   })) : [];
-  if (provider?.discovery && !quickInstall) moreActions.unshift({ label: copy('重新检测运行环境', 'Detect runtime again'), disabled: !!busy || discovery.state === 'running', onSelect: () => void discover(provider.providerId) });
+  if (provider?.discovery && !quickInstall) moreActions.unshift({ label: copy('重新检测运行环境', 'Detect runtime again'), danger: false, disabled: !!busy || discovery.state === 'running', onSelect: () => void discover(provider.providerId) });
   const errorFor = (field: string) => fieldError?.field === field ? fieldError.message : undefined;
   const text = (zh?: string, en?: string) => locale === 'en' ? en ?? zh : zh;
   // Provider description and prerequisites are reference, not steps: one help icon beside the title.
@@ -96,19 +94,24 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
         {view && !isFeishu && <StatusBadge className="point-connector-state" state={STATE_TONES[view.state] ?? 'neutral'} dotClassName="point-connector-state-dot">
           <span role="status">{(locale === 'en' ? STATE_LABELS_EN : STATE_LABELS)[view.state] ?? view.state}</span>
         </StatusBadge>}
-        <InfoTip align="start" label={copy('说明', 'About')} text={help} /></span> : name} size="lg" closeLabel={copy('关闭', 'Close')} onClose={() => closeDetail()}
-      /* Default focus would land on the ⓘ trigger and pop its tip open on every open. */
-      initialFocus=".point-dialog-foot button:not([aria-haspopup])"
+        <InfoTip align="start" label={copy('说明', 'About')} text={help} /></span> : name} size="lg" closeLabel={copy('关闭', 'Close')} dismissOnBackdrop onClose={() => closeDetail()}
+      /* Default focus would land on the help trigger and open its tip. */
+      initialFocus=".pero-ui-dialog-foot button:not([aria-haspopup])"
       footerStart={<>
-        {moreActions.length > 0 && <Menu label={copy('更多', 'More')} triggerVariant="label" items={moreActions} />}
+        {moreActions.length > 0 && <DropdownMenu>
+          <DropdownMenuTrigger>{copy('更多', 'More')}</DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {moreActions.map((action, index) => <DropdownMenuItem key={`${action.label}-${index}`} disabled={action.disabled} danger={action.danger} onSelect={action.onSelect}>{action.label}</DropdownMenuItem>)}
+          </DropdownMenuContent>
+        </DropdownMenu>}
         {isDirty ? <span className="point-connectors-hint">{copy('有未保存的更改', 'Unsaved changes')}</span>
           : view && !view.sealed && toolsChanged && <span className="point-connectors-hint">{copy(`将允许 ${toolSelection.size} 个工具`, `${toolSelection.size} tools selected`)}</span>}
       </>}
       footer={<>
-        <PointButton onClick={() => closeDetail()} disabled={!!busy}>{copy('关闭', 'Close')}</PointButton>
-        {view && !view.sealed && toolsChanged && <PointButton disabled={!!busy} onClick={saveTools}>{copy('保存工具权限', 'Save tool access')}</PointButton>}
-        {!quickInstall && (!view || isDirty) && <PointButton variant="primary" disabled={!!busy || !!view?.sealed} onClick={save}>{busy === 'put' ? copy('正在保存…', 'Saving…') : isFeishu ? copy('应用检测结果', 'Apply detected configuration') : copy('保存配置', 'Save configuration')}</PointButton>}
-        {view?.primary && <PointButton disabled={!!busy} onClick={() => perform(view.primary)}>{labels[view.primary] ?? view.primary}</PointButton>}
+        <Button onClick={() => closeDetail()} disabled={!!busy}>{copy('关闭', 'Close')}</Button>
+        {view && !view.sealed && toolsChanged && <Button disabled={!!busy} onClick={saveTools}>{copy('保存工具权限', 'Save tool access')}</Button>}
+        {!quickInstall && (!view || isDirty) && <Button variant="primary" disabled={!!busy || !!view?.sealed} onClick={save}>{busy === 'put' ? copy('正在保存…', 'Saving…') : isFeishu ? copy('应用检测结果', 'Apply detected configuration') : copy('保存配置', 'Save configuration')}</Button>}
+        {view?.primary && <Button disabled={!!busy} onClick={() => perform(view.primary)}>{labels[view.primary] ?? view.primary}</Button>}
         <div className="point-connector-action-slot" ref={setActionTarget} />
       </>}>
       {notice && <Feedback kind={noticeError ? 'error' : 'status'} unstyled className={noticeError ? 'point-error' : 'point-connectors-notice'}>{notice}</Feedback>}
@@ -169,7 +172,7 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
             </TabsContent>
             <TabsContent value="json">
               <JsonEditor locale={locale} value={definitionText} onChange={setDefinitionText} rows={12} invalid={fieldError?.field === 'json'}
-                actions={!view && <PointButton type="button" disabled={!!busy} onClick={importPasted}>{copy('导入 JSON', 'Import JSON')}</PointButton>} />
+                actions={!view && <Button type="button" disabled={!!busy} onClick={importPasted}>{copy('导入 JSON', 'Import JSON')}</Button>} />
               {errorFor('json') && <Feedback kind="error" unstyled className="point-error">{errorFor('json')}</Feedback>}
             </TabsContent>
           </fieldset>

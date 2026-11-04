@@ -22,6 +22,21 @@ expect(engine.paperRenderer).toBe('5.0.0');
 await writeFile(env.PERO_SETTINGS_PATH,JSON.stringify({app_python:{apps:{'scientific-viewer':engine.root,'paper-agent':engine.root}}}));
 delete env.ELECTRON_RUN_AS_NODE;delete env.POINT_ROOT;delete env.PERO_POINT_ROOT;delete env.PERO_APPS_ROOT;
 let app,page,frame,phase='startup';
+const fileTrigger=()=>frame.getByRole('button',{name:'Current file',exact:true});
+async function chooseFile(label){
+ await fileTrigger().click();
+ await frame.getByRole('listbox',{name:'Current file',exact:true}).getByRole('option',{name:label,exact:true}).click();
+ await expect(fileTrigger()).toContainText(label);
+}
+async function chooseExample(name){
+ await frame.getByRole('button',{name:'Example',exact:true}).click();
+ await frame.getByRole('listbox',{name:'Example',exact:true}).getByRole('option',{name,exact:true}).click();
+}
+async function expectFileOption(name,count){
+ await fileTrigger().click();
+ await expect(frame.getByRole('listbox',{name:'Current file',exact:true}).getByRole('option',{name,exact:true})).toHaveCount(count);
+ await page.keyboard.press('Escape');
+}
 const recordPageError=error=>errors.push({phase,name:error.name,message:error.message,stack:error.stack,completedChecks:[...checks]});
 async function open(){
  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
@@ -31,7 +46,7 @@ async function open(){
  await clickAppShortcut(page,'scientific-viewer');
  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).activeApp)).toMatchObject({name:'scientific-viewer',panel:'viewer'});
  frame=page.frameLocator('iframe[title="scientific-viewer"]');
- await expect(frame.getByRole('combobox',{name:'Current file',exact:true})).toBeVisible();
+ await expect(fileTrigger()).toBeVisible();
 }
 try{
  app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',recordPageError);await open();
@@ -41,7 +56,7 @@ try{
  checks.push('shared molecular illustrations default to ethanol; water and benzene switch');
  for(const example of examples){
   phase=`example:${example.name}`;
-  await frame.getByLabel('Example',{exact:true}).selectOption(example.name);await expect(frame.getByRole('combobox',{name:'Current file',exact:true}).locator('option:checked')).toHaveText(example.name);await expect(frame.getByText('Synthetic example, unverified',{exact:true})).toBeVisible();
+  await chooseExample(example.name);await expect(fileTrigger()).toContainText(example.name);await expect(frame.getByText('Synthetic example, unverified',{exact:true})).toBeVisible();
   if(example.name.endsWith('.csv')){
    await frame.getByRole('button',{name:'Table',exact:true}).click();await expect(frame.getByRole('table')).toBeVisible();if(example.name!=='quoted-table.csv'){await frame.getByRole('button',{name:'Chart',exact:true}).click();await expect(frame.getByRole('img',{name:/^Chart of /})).toBeVisible();}
    if(example.name==='invalid-spectrum.csv')await expect(frame.getByRole('alert')).toContainText('2 missing or nonnumeric pairs');
@@ -70,17 +85,24 @@ try{
    const archive=unzipSync(await readFile(exportPath));expect(Buffer.from(archive['source/document.pdf'])).toEqual(Buffer.from(example.text));const manifest=JSON.parse(new TextDecoder().decode(archive['manifest.json']));expect(manifest.quotes).toHaveLength(1);expect(manifest.crops).toHaveLength(1);expect(manifest.review.status).toBe('completed');expect(manifest.review.text).toContain('Synthetic transport review.');
   }checks.push(example.name);
  }
+ phase='notebook-math';
+ // Exercise the lazy MathJax loader in the real browser bundle. Merely selecting
+ // a notebook can move on before its asynchronous initialization fails.
+ const mathNotebook={nbformat:4,nbformat_minor:5,metadata:{},cells:[{id:'math',cell_type:'markdown',metadata:{},source:['$$1 + 1 = 2$$']}]};
+ await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'math.ipynb',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(mathNotebook))});
+ await expect(frame.locator('.notebook-viewer mjx-container')).toBeVisible({timeout:30000});
+ expect(errors).toEqual([]);checks.push('notebook mathematics rendered by the real MathJax bundle');
  phase='structure-input-isolation';
  // Harmless markup markers prove that user structure text never becomes DOM.
  const marker="data_marker\n_struct.title '<b id=viewer-marker>untrusted</b>'\n";
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'marker.cif',mimeType:'text/plain',buffer:Buffer.from(marker)});
  await expect(frame.getByRole('alert')).toContainText('preview blocked');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
- await frame.getByRole('combobox',{name:'Current file',exact:true}).selectOption({label:'water.pdb'});await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});
+ await chooseFile('water.pdb');await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});
  const transfer=await frame.locator('.molecule-view').evaluateHandle((_node,text)=>{const data=new DataTransfer();data.items.add(new File([text],'marker.cif',{type:'text/plain'}));return data;},marker);
  await frame.locator('.msp-layout-standard').dispatchEvent('dragenter',{dataTransfer:transfer});
  await expect(frame.locator('.msp-drag-drop-overlay')).toBeVisible();
  await frame.locator('.msp-drag-drop-overlay').dispatchEvent('drop',{dataTransfer:transfer});await transfer.dispose();
- await expect(frame.getByRole('combobox',{name:'Current file',exact:true}).locator('option:checked')).toHaveText('water.pdb');
+ await expect(fileTrigger()).toContainText('water.pdb');
  await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();
  await expect(frame.getByRole('alert')).toContainText('Import file');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
  await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'empty.smi',mimeType:'text/plain',buffer:Buffer.from(' \n\t\n')});
@@ -91,25 +113,25 @@ try{
  const removalPath=resolve(temp,'removal-check.json'),removalBytes=Buffer.from('{"synthetic":"local copy removal"}');
  await writeFile(removalPath,removalBytes);
  await frame.getByLabel('Import file',{exact:true}).setInputFiles(removalPath);
- await expect(frame.getByRole('combobox',{name:'Current file',exact:true}).locator('option:checked')).toHaveText('removal-check.json');
+ await expect(fileTrigger()).toContainText('removal-check.json');
  await frame.getByLabel('Source details',{exact:true}).click();
  const removal=frame.getByRole('group',{name:'Confirm local copy removal',exact:true});
  await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();
  await expect(removal).toContainText('removal-check.json');await expect(removal.getByRole('button',{name:'Cancel',exact:true})).toBeFocused();
  await removal.getByRole('button',{name:'Cancel',exact:true}).click();await expect(removal).toHaveCount(0);
- await expect(frame.getByRole('option',{name:'removal-check.json',exact:true})).toHaveCount(1);
+ await expectFileOption('removal-check.json',1);
  await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();await page.keyboard.press('Escape');await expect(removal).toHaveCount(0);
  await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();
- await frame.getByRole('combobox',{name:'Current file',exact:true}).selectOption({label:'model.weights'});await expect(removal).toHaveCount(0);
- await frame.getByRole('combobox',{name:'Current file',exact:true}).selectOption({label:'removal-check.json'});await frame.getByLabel('Source details',{exact:true}).click();
+ await chooseFile('model.weights');await expect(removal).toHaveCount(0);
+ await chooseFile('removal-check.json');await frame.getByLabel('Source details',{exact:true}).click();
  await frame.getByRole('button',{name:'Remove local copy',exact:true}).click();await removal.getByRole('button',{name:'Confirm removal',exact:true}).click();
- await expect(frame.getByRole('option',{name:'removal-check.json',exact:true})).toHaveCount(0);
- await expect(frame.getByRole('option',{name:'model.weights',exact:true})).toHaveCount(1);expect(await readFile(removalPath)).toEqual(removalBytes);
+ await expectFileOption('removal-check.json',0);
+ await expectFileOption('model.weights',1);expect(await readFile(removalPath)).toEqual(removalBytes);
  checks.push('confirmed local-copy removal; original disk file retained');
  phase='restart-and-restore';
- await closeOwnedElectron(app);app=undefined;app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',recordPageError);await open();await frame.getByRole('combobox',{name:'Current file',exact:true}).selectOption({label:'sample.pdf'});await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible();expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(1);
- await expect(frame.getByRole('option',{name:'removal-check.json',exact:true})).toHaveCount(0);expect(await readFile(removalPath)).toEqual(removalBytes);
- await frame.getByRole('combobox',{name:'Current file',exact:true}).selectOption({label:'model.weights'});await expect(frame.getByText(/Metadata only/)).toBeVisible();await setAppearance(page,'dark');const narrowSize=await app.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.setSize(800,700);return window.getContentSize();});
+ await closeOwnedElectron(app);app=undefined;app=await electron.launch({args:[resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();page.on('pageerror',recordPageError);await open();await chooseFile('sample.pdf');await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible();expect((await readFile(capture,'utf8')).trim().split('\n')).toHaveLength(1);
+ await expectFileOption('removal-check.json',0);expect(await readFile(removalPath)).toEqual(removalBytes);
+ await chooseFile('model.weights');await expect(frame.getByText(/Metadata only/)).toBeVisible();await setAppearance(page,'dark');const narrowSize=await app.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.setSize(800,700);return window.getContentSize();});
  await page.waitForFunction(([width,height])=>{const canvas=document.querySelector('canvas');return innerWidth===width&&innerHeight===height&&canvas?.width===Math.round(width*devicePixelRatio)&&canvas.height===Math.round(height*devicePixelRatio);},narrowSize);
  await expect.poll(()=>frame.locator('html').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
  phase='open-paper-app';

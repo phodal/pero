@@ -43,7 +43,8 @@ class InstalledCoreTests(unittest.TestCase):
             for source in (root / 'apps/data/backend').glob('*.py'):
                 shutil.copyfile(source, app / source.name)
             (app / '_core').mkdir()
-            shutil.copyfile(root / 'harness/go/charts/python/dataset.py', app / '_core/dataset.py')
+            for name in ('dataset.py', 'view.py', 'chart_document.py'):
+                shutil.copyfile(root / 'harness/go/charts/python' / name, app / '_core' / name)
             script = """import base64
 from catalog import Catalog, ImportFile
 from datasets import PreviewRequest
@@ -121,6 +122,20 @@ class InspectionTests(unittest.TestCase):
             with self.subTest(name=name):
                 value, page = self.preview(content, name)
                 self.assertEqual((value.report.rowCount, page['matched'], page['rows']), (0, 0, []))
+
+    def test_sort_selection_and_numeric_filters_keep_exact_tokens(self):
+        content = b'[{"id":"001","n":10},{"id":"002","n":2},{"id":"003","n":30}]'
+        _value, page = self.preview(content, filter={'field': 'n', 'operator': 'gte', 'value': '10'},
+                                    sort={'field': 'n', 'descending': True}, selection=[2])
+        self.assertEqual([row['row'] for row in page['rows']], [3, 1])
+        self.assertEqual([row['cells'][1]['text'] for row in page['rows']], ['30', '10'])
+        self.assertEqual(page['selected'], 1)
+        _csv, text_page = self.preview(b'id,n\n001,10\n002,2\n', 't.csv',
+                                       filter={'field': 'n', 'operator': 'gte', 'value': '10'})
+        self.assertEqual(text_page['matched'], 0)
+        _exact, identifiers = self.preview(b'id,n\n001,10\n', 't.csv',
+                                           filter={'field': 'id', 'operator': 'eq', 'value': '001'})
+        self.assertEqual(identifiers['rows'][0]['cells'][0]['text'], '001')
 
     def test_duplicate_examples_are_bounded_but_count_is_complete(self):
         value, _ = self.preview(b'x\n' + b'v\n' * 30, 'a.csv')
@@ -265,6 +280,35 @@ class CatalogWorkspaceTests(unittest.TestCase):
         self.assertEqual(self.catalog.datasets[0].versions, (self.catalog.assets[0].id,))
         self.assertEqual(Catalog(self.temp.name).assets[0].revision, source.revision)
         downloads.close()
+
+    def test_schema_two_view_is_read_and_backed_up_before_schema_three(self):
+        asset = import_into(self.catalog)
+        saved = self.catalog.save_view(SaveView('Legacy shape', request_for(
+            self.catalog, asset, view=dict(columns=['id'], filterField='id', contains='001', units={'value': 'V'}))))
+        raw = json.loads((self.catalog.directory / 'catalog.json').read_text())
+        raw['schemaVersion'] = 2
+        raw['views'][0]['view'] = dict(columns=['id'], filterField='id', contains='001', units={'value': 'V'})
+        self.catalog.atomic('catalog.json', raw)
+        reopened = Catalog(self.temp.name)
+        self.assertEqual((self.catalog.directory / 'catalog.json').read_text(), json.dumps(raw, ensure_ascii=False, allow_nan=False))
+        self.assertFalse((self.catalog.directory / 'catalog.v2.backup.json').exists())
+        self.assertEqual(reopened.assets[0].id, asset.id)
+        self.assertEqual(reopened.views[0].view.filter.operator, 'contains')
+        self.assertEqual(reopened.views[0].view.filter.value, '001')
+        reopened.edit_dataset(DatasetEdit(reopened.datasets[0].id, 'Measurements', '', False))
+        self.assertEqual(json.loads((reopened.directory / 'catalog.v2.backup.json').read_text())['schemaVersion'], 2)
+        migrated = json.loads((reopened.directory / 'catalog.json').read_text())
+        self.assertEqual(migrated['schemaVersion'], 3)
+        self.assertEqual(migrated['assets'][0]['id'], asset.id)
+        self.assertEqual(migrated['views'][0]['view']['filter'], dict(field='id', operator='contains', value='001'))
+        self.assertEqual(Catalog(self.temp.name).views[0].report, saved.report)
+
+    def test_model_bytes_stay_listed_and_are_not_a_table(self):
+        asset = self.catalog.import_file(ImportFile.parse(dict(
+            name='weights.json', kind='model', content=base64.b64encode(b'[{"n":1}]').decode(), source='Local import')))
+        result = self.catalog.inspect(request_for(self.catalog, asset))
+        self.assertEqual(result['status'], 'unsupported')
+        self.assertNotIn('rows', result)
 
     def test_unknown_schema_fails_closed_without_overwriting_original(self):
         raw = '{"schemaVersion":999}'

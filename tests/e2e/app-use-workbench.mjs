@@ -35,12 +35,15 @@ try{
  const parentOrigin=await page.evaluate(()=>location.origin);
  const launch=await frame.locator('body').evaluate(requestAppChat,{text:'app-use:full',parentOrigin});
  await expect.poll(async()=>(await state()).composer).toBe('app-use:full');
- // App Chat now opens as a compact float. Use its normal Dock chat control so
+ // An explicit App Chat request opens the expanded float. Use Dock chat so
  // the App is unobscured and its right edge is again the Chat's left edge.
  await expect.poll(async()=>(await state()).floatingChat).toBe(true);
- await expect.poll(async()=>(await state()).floatingChatExpanded).toBe(false);
+ await expect.poll(async()=>(await state()).floatingChatExpanded).toBe(true);
  const viewport=await page.evaluate(()=>({width:innerWidth,height:innerHeight}));
- await page.mouse.click(viewport.width-51,viewport.height-101);
+ // The painted close control shares the header row with Dock chat.
+ await expect.poll(async()=>(await state()).chatCloseButtonBounds?.height||0).toBeGreaterThan(0);
+ const closeBounds=(await state()).chatCloseButtonBounds;
+ await page.mouse.click(viewport.width-51,closeBounds.y+closeBounds.height/2);
  await expect.poll(async()=>(await state()).floatingChat).toBe(false);
  await expect.poll(()=>page.evaluate(async()=>(await window.peroAppUse({scope:{app:'virtual-cell',panel:'main'},request:{action:'status'}})).value)).toMatchObject({visible:true,active:true,capturable:true,operable:true});
  const left=await page.locator('#pero-app-surface').evaluate(element=>element.getBoundingClientRect().right);

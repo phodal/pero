@@ -94,6 +94,7 @@ export type ThreadId = string;
 export type ContextContent = TextContextContent | ImageContextContent;
 export type QuestionReply = AnsweredQuestions | CancelledQuestions;
 export type AppRequest =
+  | EnvironmentInspectionApp
   | AppApiAccess
   | AppSdkRequest
   | ListApps
@@ -1001,6 +1002,16 @@ export interface DeleteCommand {
 export interface InsightsCommand {
   action: "insights";
   thread_id: ThreadId;
+}
+/**
+ * Software observations only; does not allocate or approve scientific execution.
+ */
+export interface EnvironmentInspectionApp {
+  action: "environment";
+  name: AppName;
+  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice";
+  method: "apps";
+  id: RequestId;
 }
 export interface AppApiAccess {
   action: "apiaccess";
@@ -2340,6 +2351,7 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | EnvironmentInspectionReport
     | AgentPreparedContext
     | AgentTerminalList
     | AppSdkContext
@@ -2361,6 +2373,17 @@ export interface AppSuccess {
     | AppGrant
     | ResearchAssetReply
     | ResearchBundleReply;
+}
+export interface EnvironmentInspectionReport {
+  schema: "pero.environment.inspection.v1";
+  method: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice";
+  scope: "configured-interpreter";
+  evidence: "metadata_only";
+  observed_at_ms: string;
+  profile: AppDocumentSchema;
+  requirements: AppDocumentSchema;
+  matched: boolean;
+  missing: AppDocumentSchema[];
 }
 export interface AgentPreparedContext {
   context: AppDocumentSchema;

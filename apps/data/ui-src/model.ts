@@ -8,8 +8,23 @@ export type Asset = {
 export type Dataset = {
   id: string; name: string; kind: 'dataset' | 'model'; versions: string[]; projectRef: string; archived: boolean;
 };
-export type ViewSpec = { columns: string[]; filterField: string; contains: string; units: Record<string, string> };
-export const emptyView = (): ViewSpec => ({ columns: [], filterField: '', contains: '', units: {} });
+export type ViewFilter = { field: string; operator: string; value: string };
+export type ViewSpec = {
+  columns: string[];
+  filter: ViewFilter | null;
+  sort: { field: string; descending: boolean } | null;
+  selection: number[];
+  chart: { category: string; measure: string; aggregation: string } | null;
+  units: Record<string, string>;
+};
+export const emptyView = (): ViewSpec => ({ columns: [], filter: null, sort: null, selection: [], chart: null, units: {} });
+export const fieldRule = { type: 'string', maxLength: 300 };
+export const querySchema = { type: 'object', properties: {
+  filterField: fieldRule, operator: { type: 'string', enum: ['contains', 'eq', 'gte', 'lte', 'missing', 'null'] }, value: { type: 'string', maxLength: 4096 },
+  sortField: fieldRule, descending: { type: 'boolean' },
+  columns: { type: 'array', maxItems: 32, items: fieldRule },
+  selection: { type: 'array', maxItems: 1000, items: { type: 'integer', minimum: 0 } },
+}, additionalProperties: false };
 export type FieldProfile = { name: string; kinds: string[]; missing: number; nulls: number; empty: number };
 export type Report = {
   parserVersion: string; scope: 'full'; rowCount: number; fields: FieldProfile[];
@@ -30,11 +45,17 @@ export type CatalogState = {
   selectedDatasetId?: string; selectedAssetId?: string; savedViewId?: string;
 };
 export type Selection = { datasetId: string; assetId: string };
-export type Inspection = {
+export type InspectionRow = { row: number; pointer: string; line: number | null; cells: { kind: string; text: string }[] };
+export type OkInspection = {
   status: 'ok'; datasetId: string; assetId: string; sha256: string; report: Report;
-  columns: string[]; matched: number; offset: number; nextOffset: number | null;
-  rows: { row: number; pointer: string; line: number | null; cells: { kind: string; text: string }[] }[];
-} | { status: 'invalid' | 'changed' | 'missing' | 'unsupported'; datasetId: string; assetId: string; message: string };
+  columns: string[]; matched: number; selected?: number; offset: number; nextOffset: number | null; viewId?: string;
+  rows: InspectionRow[];
+};
+export type Inspection = OkInspection | { status: 'invalid' | 'changed' | 'missing' | 'unsupported'; datasetId: string; assetId: string; message: string };
+export type ChartDataset = {
+  datasetId: string; assetId: string; sha256: string; name: string; view: ViewSpec; viewId: string;
+  fields: { name: string; kinds: string[] }[];
+};
 
 export function visibleDatasets(state: CatalogState, query: string, project: string, archived: boolean): Dataset[] {
   const term = query.trim().toLocaleLowerCase();
@@ -53,6 +74,11 @@ export function retainSelection(state: CatalogState, current: Selection | null):
 export const formatInt = (value: number) => new Intl.NumberFormat('en-US').format(value);
 export const formatBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 ** 2 ? `${(value / 1024).toFixed(1)} KiB` : `${(value / 1024 ** 2).toFixed(1)} MiB`;
 export const availabilityLabel = (asset: Asset) => ({ present: 'Stored', missing: 'Missing', changed: 'Changed' })[asset.availability];
+
+export function summary(value: OkInspection) {
+  return { datasetId: value.datasetId, assetId: value.assetId, sha256: value.sha256, viewId: value.viewId ?? '',
+    matching: value.matched, selected: value.selected ?? 0, offset: value.offset, visibleRows: value.rows.length };
+}
 
 export function encodeBytes(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);

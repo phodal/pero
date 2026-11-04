@@ -1,6 +1,6 @@
 use crate::{AccentColor, ResolvedTypography, TextRole};
 use gpui_kit::{
-    component::{Sizable, Theme, ThemeMode, input::Input},
+    component::{Sizable, Theme, ThemeMode, button::Button, input::Input},
     *,
 };
 use pero_contracts::workbench::WorkbenchPreferences;
@@ -26,6 +26,15 @@ impl WorkbenchStyle {
         Styled::h(input.small(), px(typography.control_height()))
             .text_size(px(typography.ui))
             .line_height(relative(1.3))
+    }
+
+    /// Chat chrome keeps Body labels without Kit's Large icon (24px). Medium
+    /// icons stay at 16px, matching [`Self::ICON`].
+    pub fn chat_control(button: Button, cx: &App) -> Button {
+        let typography = UiAppearance::global(cx).typography;
+        button
+            .h(px(typography.control_height()))
+            .text_size(px(typography.ui))
     }
 }
 

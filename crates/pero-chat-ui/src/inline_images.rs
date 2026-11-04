@@ -58,10 +58,16 @@ mod view {
     };
 
     #[derive(Clone, Default)]
-    pub struct ConversationImages(Arc<Mutex<HashMap<String, Arc<Image>>>>);
+    pub struct ConversationImages(Arc<Mutex<ImageSet>>);
+    #[derive(Default)]
+    struct ImageSet {
+        images: HashMap<String, Arc<Image>>,
+        references: crate::image_references::ImageReferences,
+    }
     impl ConversationImages {
         pub fn observe(&self, output: &[Value]) {
-            let mut images = self.0.lock().expect("conversation images");
+            let mut registry = self.0.lock().expect("conversation images");
+            let mut delivered = Vec::new();
             for item in output {
                 // Only actual ACP image content is eligible. JSON prose and
                 // arbitrary document URLs cannot register a conversation image.
@@ -69,14 +75,20 @@ mod view {
                     continue;
                 }
                 if let Some(image) = InlineImage::from_content(&item["content"]) {
-                    images.entry(image.uri).or_insert_with(|| {
+                    delivered.push(image.uri.clone());
+                    registry.images.entry(image.uri).or_insert_with(|| {
                         Arc::new(Image::from_bytes(ImageFormat::Png, image.bytes))
                     });
                 }
             }
+            registry.references.observe(output, &delivered);
+        }
+        pub fn link_markdown(&self, source: &str) -> String {
+            self.0.lock().expect("conversation images").references.link_markdown(source)
         }
         pub fn resolve(&self, uri: &SharedUri) -> ImageSource {
-            let mut images = self.0.lock().expect("conversation images");
+            let mut registry = self.0.lock().expect("conversation images");
+            let images = &mut registry.images;
             if let Some(image) = images.get(uri.as_ref()) {
                 return image.clone().into();
             }

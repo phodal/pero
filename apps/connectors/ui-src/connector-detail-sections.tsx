@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button as PointButton, Field, InfoTip, Input, Select } from './ui';
+import { Button, Field, InfoTip, Input, Select } from './ui';
 import type { ConnectionView, ScopeGroup } from './connector-types.ts';
 import {
   BLOCK_REASON_LABELS, BLOCK_REASON_LABELS_EN, EFFECT_LABELS, EFFECT_LABELS_EN, toolSummary,
@@ -79,8 +79,8 @@ export function ConnectorCredentials({ references, reference, onReference, value
       <Input type="password" autoComplete="new-password" aria-label={copy('密钥值', 'Secret value')} value={value} disabled={busy}
         placeholder={placeholder ? copy(...placeholder) : copy('输入新值', 'Enter a new value')} onChange={e => onValue(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && value && !busy) { e.preventDefault(); onSave(); } }} />
-      <PointButton type="button" disabled={busy || !reference || !value} onClick={onSave}>{copy('保存', 'Save')}</PointButton>
-      <PointButton type="button" variant="ghost" className="point-connector-secret-delete" disabled={busy || !reference} onClick={onDelete}>{copy('删除', 'Delete')}</PointButton>
+      <Button type="button" disabled={busy || !reference || !value} onClick={onSave}>{copy('保存', 'Save')}</Button>
+      <Button type="button" variant="danger" disabled={busy || !reference} onClick={onDelete}>{copy('删除', 'Delete')}</Button>
     </div>
   </ConnectorSection>;
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppChat, openPaperApp } from '@pero/app-sdk';
-import { Icon } from '@pero/app-sdk/ui';
+import { Button, Feedback, Icon, Select } from '@pero/app-sdk/ui';
 import { assetFrom, inspect, type Asset } from './files';
 import { files, saveFile, removeFile } from './store';
 import { examples } from './examples';
@@ -8,10 +8,11 @@ import { Molecules, Structure } from './molecular';
 import { Literature } from './literature';
 import { MolecularExplorer } from './explorer';
 import { TablePreview } from './table-preview';
+import { NotebookPreview } from './notebook-preview';
 import './styles.css';
 class PreviewBoundary extends React.Component<{children: React.ReactNode}, {error: string}> {
   state = { error: '' }; static getDerivedStateFromError(error: Error) { return { error: error.message }; }
-  render() { return this.state.error ? <section className="preview-empty"><h2>Preview unavailable</h2><p role="alert">{this.state.error}</p><button onClick={() => document.getElementById('viewer-file')?.focus()}>Choose another file</button></section> : this.props.children; }
+  render() { return this.state.error ? <section className="preview-empty"><h2>Preview unavailable</h2><Feedback kind="error">{this.state.error}</Feedback><Button onClick={() => document.getElementById('viewer-file')?.focus()}>Choose another file</Button></section> : this.props.children; }
 }
 function Preview({ asset }: { asset: Asset }) {
   switch (inspect(asset.name)) {
@@ -19,6 +20,7 @@ function Preview({ asset }: { asset: Asset }) {
     case 'structure': return <Structure asset={asset} />;
     case 'molecule': return <Molecules asset={asset} />;
     case 'pdf': return <Literature file={asset} />;
+    case 'notebook': return <NotebookPreview asset={asset} />;
     case 'json': return <section className="metadata-preview" aria-label="JSON preview"><h2>Metadata</h2><pre>{JSON.stringify(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(asset.bytes)), null, 2)}</pre></section>;
     default: return <section className="preview-empty"><h2>Metadata only</h2><p className="muted">This format has no preview. Open Source details to inspect the file.</p></section>;
   }
@@ -28,7 +30,7 @@ export default function ScientificViewer() {
   const [pendingRemoval, setPendingRemoval] = useState<{ id: string; name: string } | null>(null), [removing, setRemoving] = useState(false);
   const [loading, setLoading] = useState(true), [importing, setImporting] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const input = useRef<HTMLInputElement>(null), removeButton = useRef<HTMLButtonElement>(null);
+  const input = useRef<HTMLInputElement>(null), removeButton = useRef<HTMLElement>(null);
   const t = { molecules: 'Molecular illustrations', paper: 'Open Paper App', import: 'Import file', importing: 'Importing…', examples: 'Examples', file: 'Current file', source: 'Source details', unverified: 'Unverified', synthetic: 'Synthetic example, unverified', size: 'Size', origin: 'Source', license: 'License', discuss: 'Discuss metadata', remove: 'Remove local copy', removing: 'Removing…', cancel: 'Cancel', confirm: 'Confirm removal', loading: 'Loading files…', retry: 'Retry', limit: 'Up to 10 MiB per file', removal: (name: string) => `Remove “${name}” from this App? The original file is unchanged.` };
   const chat = useAppChat(); const asset = assets.find(item => item.id === selected);
   const refresh = async () => setAssets(await files());
@@ -58,28 +60,26 @@ export default function ScientificViewer() {
   }
   return <main className="scientific-viewer"><h1 className="sr-only">Scientific Viewer</h1>
     <header className="viewer-toolbar">
-      <select id="viewer-file" className="file-select" aria-label={t.file} value={selected} disabled={loading || importing} onChange={event => { setPendingRemoval(null); setSelected(event.target.value); }}>
-        <option value="">{t.molecules}</option>{assets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-      </select>
+      <Select id="viewer-file" className="file-select" label={t.file} value={selected} disabled={loading || importing} onChange={value => { setPendingRemoval(null); setSelected(value); }} options={[{ value: '', label: t.molecules }, ...assets.map(item => ({ value: item.id, label: item.name }))]} />
       {asset && <details className="source-details" key={asset.id}>
         <summary aria-label={t.source} aria-describedby="source-status"><span id="source-status">{asset.synthetic ? t.synthetic : t.unverified}</span></summary><div className="source-panel">
           <h2>{t.source}</h2><dl><dt>{t.size}</dt><dd>{asset.size.toLocaleString('en-US')} bytes</dd><dt>{t.origin}</dt><dd>{asset.source}</dd><dt>{t.license}</dt><dd>{asset.license}</dd><dt>SHA-256</dt><dd className="hash">{asset.sha256}</dd></dl>
-          <div className="source-actions"><button onClick={() => void chat.compose(`Inspect metadata for ${asset.name}. SHA-256 ${asset.sha256}; source: ${asset.source}; license: ${asset.license}. Unverified. File contents have not been shared.`).catch(error => setError(String(error)))}>{t.discuss}</button>
-            <button ref={removeButton} disabled={removing} onClick={() => setPendingRemoval({ id: asset.id, name: asset.name })}>{t.remove}</button></div>
+          <div className="source-actions"><Button onClick={() => void chat.compose(`Inspect metadata for ${asset.name}. SHA-256 ${asset.sha256}; source: ${asset.source}; license: ${asset.license}. Unverified. File contents have not been shared.`).catch(error => setError(String(error)))}>{t.discuss}</Button>
+            <Button ref={removeButton} disabled={removing} onClick={() => setPendingRemoval({ id: asset.id, name: asset.name })}>{t.remove}</Button></div>
           {pendingRemoval && <div className="removal-confirmation" role="group" aria-label="Confirm local copy removal" onKeyDown={event => { if (event.key === 'Escape' && !removing) { event.preventDefault(); setPendingRemoval(null); removeButton.current?.focus(); } }}>
-            <p>{t.removal(pendingRemoval.name)}</p><div className="source-actions"><button autoFocus disabled={removing} onClick={() => { setPendingRemoval(null); removeButton.current?.focus(); }}>{t.cancel}</button>
-              <button className="button-danger" disabled={removing} onClick={() => void confirmRemoval()}>{removing ? t.removing : t.confirm}</button></div>
+            <p>{t.removal(pendingRemoval.name)}</p><div className="source-actions"><Button autoFocus disabled={removing} onClick={() => { setPendingRemoval(null); removeButton.current?.focus(); }}>{t.cancel}</Button>
+              <Button variant="danger" disabled={removing} onClick={() => void confirmRemoval()}>{removing ? t.removing : t.confirm}</Button></div>
           </div>}
         </div></details>}
-      <div className="viewer-actions"><select aria-label="Example" value="" disabled={importing} onChange={event => { const example = examples.find(item => item.name === event.target.value); if (example) void importFile(new File([example.text], example.name), true); }}><option value="">{t.examples}</option>{examples.map(item => <option key={item.name}>{item.name}</option>)}</select>
-        <button onClick={() => void openPaperApp().catch(error => setError(String(error)))}>{t.paper}</button>
-        <button className="button-primary" title={t.limit} disabled={importing} onClick={() => input.current?.click()}><Icon name="upload" size={14} />{importing ? t.importing : t.import}</button>
+      <div className="viewer-actions"><Select className="example-select" label="Example" value="" disabled={importing} onChange={value => { const example = examples.find(item => item.name === value); if (example) void importFile(new File([example.text], example.name), true); }} options={[{ value: '', label: t.examples }, ...examples.map(item => ({ value: item.name, label: item.name }))]} />
+        <Button onClick={() => void openPaperApp().catch(error => setError(String(error)))}>{t.paper}</Button>
+        <Button variant="primary" title={t.limit} disabled={importing} onClick={() => input.current?.click()}><Icon name="upload" size={14} />{importing ? t.importing : t.import}</Button>
         <input ref={input} aria-label={t.import} type="file" hidden onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }} />
       </div>
     </header>
     {loading && <p role="status">{t.loading}</p>}
-    {loadError && <div className="viewer-error"><p role="alert">{loadError}</p><button disabled={loading} onClick={() => void loadFiles()}>{t.retry}</button></div>}
-    {error && <div className="viewer-error"><p role="alert">{error}</p><button onClick={() => setError('')}>Dismiss</button></div>}
+    {loadError && <div className="viewer-error"><Feedback kind="error">{loadError}</Feedback><Button disabled={loading} onClick={() => void loadFiles()}>{t.retry}</Button></div>}
+    {error && <div className="viewer-error"><Feedback kind="error">{error}</Feedback><Button onClick={() => setError('')}>Dismiss</Button></div>}
     <article className="viewer-content">{!loading && !loadError && (asset ? <PreviewBoundary key={asset.id}><Preview asset={asset} /></PreviewBoundary> : <MolecularExplorer />)}</article>
   </main>;
 }

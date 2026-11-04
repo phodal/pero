@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- Pero Discovery Spectrum: Orbit Blue, teal/ion, toasted/apricot. -->
+  <defs>
+    <linearGradient id="pero-ai-main" x1="2" y1="14" x2="18" y2="6" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B6FD8"/>
+      <stop offset=".5" stop-color="#007F86"/>
+      <stop offset="1" stop-color="#55D5DD"/>
+    </linearGradient>
+    <linearGradient id="pero-ai-small" x1="1.5" y1="1.5" x2="18.5" y2="18.5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D88245"/>
+      <stop offset="1" stop-color="#F2A65A"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#pero-ai-main)" d="M10 1.5c.4 0 .7.25.85.65 1.35 3.95 3.05 5.65 7 7 .87.3.87 1.4 0 1.7-3.95 1.35-5.65 3.05-7 7-.3.87-1.4.87-1.7 0-1.35-3.95-3.05-5.65-7-7-.87-.3-.87-1.4 0-1.7 3.95-1.35 5.65-3.05 7-7 .15-.4.45-.65.85-.65Z"/>
+  <path fill="url(#pero-ai-small)" transform="translate(14 14) scale(.46)" d="M10 1.5c.4 0 .7.25.85.65 1.35 3.95 3.05 5.65 7 7 .87.3.87 1.4 0 1.7-3.95 1.35-5.65 3.05-7 7-.3.87-1.4.87-1.7 0-1.35-3.95-3.05-5.65-7-7-.87-.3-.87-1.4 0-1.7 3.95-1.35 5.65-3.05 7-7 .15-.4.45-.65.85-.65Z"/>
+</svg>

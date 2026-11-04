@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Feedback, Input } from '@pero/app-sdk/ui';
+import { Button, Feedback, Input, EnvironmentInspector } from '@pero/app-sdk/ui';
 import type { Api, PdfAnnotation } from './types';
 import type { Translator } from './i18n';
 
@@ -133,6 +133,7 @@ export function Reproduction({ api, annotation, t }: { api: Api; annotation: Pdf
 
   return <section className="pa-reproduction" aria-label={t('reproductionTitle')}>
     <h3>{t('reproductionTitle')}</h3>
+    <EnvironmentInspector targets={['paper-agent.pcgym']} />
     <p>{t('reproductionCaveat')}</p>
     {!desktop && <p role="status">{t('reproductionDesktop')}</p>}
     {loading && <p role="status">{t('loading')}</p>}

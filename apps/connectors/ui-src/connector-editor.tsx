@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { ActionPortal } from './components.tsx';
 import type { DirectoryEntry, Discovery } from './connector-types.ts';
 import { errorMessage } from './error-message.ts';
-import { Button as PointButton, Feedback, Textarea } from './ui';
+import { Button, Feedback, Select, Textarea } from './ui';
 
 const withArg = (args: string[] | undefined, flag: string, value: string) => (args ?? []).map(arg => arg.startsWith(`${flag}=`) ? `${flag}=${value}` : arg);
 
@@ -21,24 +21,22 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
   const rows: { key: string; label: string; ok: boolean; value?: React.ReactNode; missing: React.ReactNode }[] = [{
     key: 'command', label: isFeishu ? copy('运行环境', 'Runtime') : copy('服务程序', 'Server executable'), ok: !!command?.executable,
     value: isFeishu ? copy('已就绪', 'Ready') : discovery.command.length > 1
-      ? <select aria-label={copy('服务程序', 'Server executable')} value={definition?.command ?? ''} onChange={e => { const pick = discovery.command.find(c => c.path === e.target.value); if (pick) onPick({ command: pick.path, sha256: pick.sha256 }); }}>
-          {discovery.command.map(c => <option key={c.path} value={c.path}>{c.path}</option>)}
-        </select>
+      ? <Select label={copy('服务程序', 'Server executable')} value={definition?.command ?? ''} onChange={path => { const pick = discovery.command.find(c => c.path === path); if (pick) onPick({ command: pick.path, sha256: pick.sha256 }); }} options={discovery.command.map(c => ({ value: c.path, label: c.path }))} />
       : command && <code>{command.path}</code>,
     missing: isFeishu ? copy('Pero 运行环境不可用，请修复或更新应用。', 'Pero runtime unavailable. Repair or update the app.') : command && !command.executable
       ? <>{copy('找到', 'Found')} <code>{command.path}</code>{copy('，但没有执行权限：', ', but it is not executable: ')}<code>chmod +x "{command.path}"</code></>
       : discovery.installable
         ? <>{copy(`未找到 ${spec.executables[0]}。`, `${spec.executables[0]} was not found. `)}
-            <span className="point-connectors-discovery-note">{job?.state === 'running' ? <>{copy('正在后台安装…', 'Installing in the background…')} <PointButton type="button" className="point-connectors-link" onClick={onCancelInstall}>{copy('取消', 'Cancel')}</PointButton></> : job?.state === 'failed' ? copy('安装失败', 'Install failed') : job?.state === 'cancelled' ? copy('已取消', 'Cancelled') : <>{copy('将执行：', 'Command: ')}{discovery.installSummary}</>}</span>
+            <span className="point-connectors-discovery-note">{job?.state === 'running' ? <>{copy('正在后台安装…', 'Installing in the background…')} <Button type="button" variant="unstyled" className="point-connectors-link" onClick={onCancelInstall}>{copy('取消', 'Cancel')}</Button></> : job?.state === 'failed' ? copy('安装失败', 'Install failed') : job?.state === 'cancelled' ? copy('已取消', 'Cancelled') : <>{copy('将执行：', 'Command: ')}{discovery.installSummary}</>}</span>
             {job?.log && <details className="point-connectors-install-details" open={job.state === 'failed'}><summary>{copy('安装日志', 'Install log')}</summary><pre className="point-connectors-install-log">{job.log}</pre></details>}</>
       : provider.installHint?.startsWith('https://')
-        ? <>{copy(`未找到 ${spec.executables[0]}。`, `${spec.executables[0]} was not found. `)}<PointButton type="button" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</PointButton></>
+        ? <>{copy(`未找到 ${spec.executables[0]}。`, `${spec.executables[0]} was not found. `)}<Button type="button" variant="unstyled" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</Button></>
         : <>{copy(`未找到 ${spec.executables[0]}。在终端运行`, `${spec.executables[0]} was not found. Run in a terminal:`)} <code>{provider.installHint}</code> {copy('然后点“重新检测”。', 'Then check again.')}</>,
   }];
   if (provider.providerId.startsWith('science-')) rows.push({
     key: 'scienceRuntime', label: 'Claude Science', ok: !discovery.setupError && !!definition?.env?.POINT_SCIENCE_SOURCE_SHA256,
     value: <code>0.1.60-release</code>,
-    missing: <>{copy('未找到兼容服务或 Pero 适配器。', 'Compatible servers or the Pero adapter were not found.')} <code>{discovery.setupError}</code> <PointButton type="button" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</PointButton></>,
+    missing: <>{copy('未找到兼容服务或 Pero 适配器。', 'Compatible servers or the Pero adapter were not found.')} <code>{discovery.setupError}</code> <Button type="button" variant="unstyled" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</Button></>,
   });
   if (provider.providerId === 'feishu-workspace') {
     rows.push({ key: 'feishuCli', label: copy('飞书 CLI', 'Feishu CLI'), ok: !!discovery.nativeCli?.length,
@@ -52,9 +50,7 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
   if (spec.matlabRoot) rows.push({
     key: 'matlabRoot', label: 'MATLAB', ok: !!argValue('--matlab-root'),
     value: discovery.matlabRoot.length > 1
-      ? <select aria-label="MATLAB" value={argValue('--matlab-root')} onChange={e => onPick({ args: withArg(definition?.args, '--matlab-root', e.target.value) })}>
-          {discovery.matlabRoot.map(root => <option key={root} value={root}>{root.split('/').pop()}</option>)}
-        </select>
+      ? <Select label="MATLAB" value={argValue('--matlab-root')} onChange={root => onPick({ args: withArg(definition?.args, '--matlab-root', root) })} options={discovery.matlabRoot.map(root => ({ value: root, label: root.split('/').pop() ?? root }))} />
       : <code>{argValue('--matlab-root').split('/').pop()}</code>,
     missing: <>{copy('未在“应用程序”中找到 MATLAB（MATLAB_R20xxx.app）。', 'MATLAB (MATLAB_R20xxx.app) was not found in Applications.')}</>,
   });
@@ -75,8 +71,8 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
   }, [discovery.continueAfterInstall, ready, busy, installing, onInstall]);
   return <section className="point-connectors-discovery" aria-busy={running}>
     <h3>{running ? copy('正在检测本机环境…', 'Checking this computer…') : ready ? copy('已在本机找到所需组件', 'Required components found') : copy('还缺少以下组件', 'Missing components')}</h3>
-    {discovery.state === 'failed' && <Feedback kind="error" unstyled className="point-error">{isFeishu ? copy('检测失败，请重试。', 'Detection failed. Please retry.') : copy('检测失败，可以重试或改为手动配置。', 'Detection failed. Retry or configure manually.')}</Feedback>}
-    {discovery.installError && <Feedback kind="error" unstyled className="point-error">{discovery.installError}</Feedback>}
+    {discovery.state === 'failed' && <Feedback kind="error">{isFeishu ? copy('检测失败，请重试。', 'Detection failed. Please retry.') : copy('检测失败，可以重试或改为手动配置。', 'Detection failed. Retry or configure manually.')}</Feedback>}
+    {discovery.installError && <Feedback kind="error">{discovery.installError}</Feedback>}
     {!running && <ul>
       {rows.map(row => <li key={row.key} data-ok={row.ok}>
         <span className="point-connectors-discovery-mark" aria-hidden="true">{row.ok ? '✓' : '!'}</span>
@@ -85,9 +81,9 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
       </li>)}
     </ul>}
     <ActionPortal target={actionsTarget}><div className="point-connectors-actions">
-      <PointButton variant="primary" type="button" disabled={busy || (ready ? false : !installServerFirst || running || discovery.state === 'preparing' || job?.state === 'running')} onClick={ready ? onInstall : onInstallServer}>{installing || job?.state === 'running' || discovery.state === 'preparing' ? copy('正在安装…', 'Installing…') : job?.state === 'failed' && !ready ? copy('重试安装', 'Retry install') : copy('安装', 'Install')}</PointButton>
-      <PointButton type="button" disabled={running || busy} onClick={onRetry}>{copy('重新检测', 'Check again')}</PointButton>
-      {!isFeishu && <PointButton type="button" className="point-connectors-link" disabled={busy} onClick={onManual}>{copy('手动配置', 'Configure manually')}</PointButton>}
+      <Button variant="primary" type="button" disabled={busy || (ready ? false : !installServerFirst || running || discovery.state === 'preparing' || job?.state === 'running')} onClick={ready ? onInstall : onInstallServer}>{installing || job?.state === 'running' || discovery.state === 'preparing' ? copy('正在安装…', 'Installing…') : job?.state === 'failed' && !ready ? copy('重试安装', 'Retry install') : copy('安装', 'Install')}</Button>
+      <Button type="button" disabled={running || busy} onClick={onRetry}>{copy('重新检测', 'Check again')}</Button>
+      {!isFeishu && <Button type="button" variant="unstyled" className="point-connectors-link" disabled={busy} onClick={onManual}>{copy('手动配置', 'Configure manually')}</Button>}
     </div></ActionPortal>
     {ready && <p className="point-connectors-hint">{copy(`将允许 ${(provider.defaultTools ?? provider.operations ?? []).length} 个工具。`, `${(provider.defaultTools ?? provider.operations ?? []).length} tools will be allowed.`)}</p>}
   </section>;
@@ -139,7 +135,7 @@ export function JsonEditor({ id, value, onChange, rows = 14, invalid, placeholde
       </span>
       <span className="point-connectors-json-actions">
         {actions}
-        <PointButton type="button" disabled={!!problem || !value.trim()} onClick={format}>{copy('格式化', 'Format')}</PointButton>
+        <Button type="button" disabled={!!problem || !value.trim()} onClick={format}>{copy('格式化', 'Format')}</Button>
       </span>
     </div>
   </div>;

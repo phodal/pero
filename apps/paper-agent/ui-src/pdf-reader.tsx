@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, Feedback, Icon, Input, Popover, Toolbar } from '@pero/app-sdk/ui';
+import { useAppI18n } from '@pero/app-sdk';
 import { createPluginRegistration } from '@embedpdf/core';
 import { EmbedPDF, useStoreState } from '@embedpdf/core/react';
 import { usePdfiumEngine } from '@embedpdf/engines/react';
 import { DocumentContent, DocumentManagerPluginPackage } from '@embedpdf/plugin-document-manager/react';
-import { Viewport, ViewportPluginPackage } from '@embedpdf/plugin-viewport/react';
+import { Viewport, ViewportPluginPackage, useViewportCapability } from '@embedpdf/plugin-viewport/react';
 import { Scroller, ScrollPluginPackage, useScroll, useScrollCapability } from '@embedpdf/plugin-scroll/react';
 import { RenderLayer, RenderPluginPackage } from '@embedpdf/plugin-render/react';
 import { PagePointerProvider, InteractionManagerPluginPackage } from '@embedpdf/plugin-interaction-manager/react';
@@ -13,15 +14,17 @@ import { SelectionLayer, SelectionPluginPackage, useSelectionCapability, type Se
 import { ZoomPluginPackage, ZoomMode, useZoom } from '@embedpdf/plugin-zoom/react';
 import { CapturePluginPackage, MarqueeCapture, useCapture } from '@embedpdf/plugin-capture/react';
 import wasmUrl from '@embedpdf/pdfium/pdfium.wasm';
-import type { Api, Paper, PdfAnnotation, PdfDocument, PdfFocus, PdfReading, PdfSource } from './types';
+import type { Api, Paper, PdfAnnotation, PdfDocument, PdfFocus, PdfReading, PdfSource, ReaderLocation } from './types';
 import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
 import { loadReaderState, persistedSelection, saveReaderState, type PdfReaderState } from './reader-state';
 import { TexReader } from './tex-reader';
+import { FigureSourceDialog, type FigureTarget } from './figure-reference';
+import { NumericValues } from './numeric-values';
 
 type ReadingView = 'text' | 'pdf' | 'tex' | 'original';
 
-export type ReaderChrome = { toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; onSave(): void; back?: () => void };
+export type ReaderChrome = { figure?: FigureTarget | null; texPreviewId?: string; onSourcePoint?(page: number, x: number, y: number): void; onLocation?(value: ReaderLocation): void; toolbar: HTMLElement | null; preserveView: React.MutableRefObject<(() => void) | null>; onNavigate(): void; onSave(format?: 'pdf' | 'tex'): void; back?: () => void };
 
 export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixAdded, children, chrome, readLabel, readRequest = 0, pdfReloadToken = 0, sourceUrl, openToken = 0 }: {
   paper: Paper; api: Api; focus?: PdfFocus | null; lockText?: boolean; t: Translator; children: React.ReactNode; chrome: ReaderChrome; readLabel?: string; readRequest?: number; pdfReloadToken?: number;
@@ -29,22 +32,39 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   onMatrixAdded(): Promise<void>;
   sourceUrl?: string; openToken?: number;
 }) {
+  const { t: copy } = useAppI18n({
+    unmatched: { zh: '未找到此图片在当前文档中的唯一位置。', en: 'No unique location for this figure in this document.' },
+    source: { zh: '查看图片与源码', en: 'View figure and source' },
+  });
+  const [figureSourceOpen, setFigureSourceOpen] = useState(false);
+  // The resolver binds both targets to the same explicit source revision.
+  // Separate saved snapshots of that revision need not share a paperId.
+  const figurePdf = chrome.figure?.pdf ?? null;
+  const pdfFocus = focus ?? figurePdf;
+  const figureView = chrome.figure?.preview?.paperId === paper.id ? 'tex' : figurePdf ? 'pdf' : null;
   const [reading, setReading] = useState<PdfReading>({ document: null, annotations: [] });
   const pdfLoadEpoch = useRef(0);
   const [lookupAttempt, setLookupAttempt] = useState(0);
   const [mode, setMode] = useState<ReadingView>('text'), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [visitedTex, setVisitedTex] = useState(false);
   useEffect(() => {
+    setFigureSourceOpen(false);
+    if (chrome.figure?.preview?.paperId === paper.id) { setVisitedTex(true); setMode(current => current === 'pdf' && figurePdf ? 'pdf' : 'tex'); }
+    else if (figurePdf) setMode('pdf');
+  }, [chrome.figure?.token]);
+  useEffect(() => {
     if (lockText) return;
-    if (focus && reading.document?.id === focus.documentId) return;
+    // Clearing a citation reveal is reader input, not a document switch.
+    // Retain the mounted viewer, including its current page and selection.
+    if (reading.document && (!pdfFocus || reading.document.id === pdfFocus.documentId)) return;
     let alive = true; const version = ++pdfLoadEpoch.current;
-    setReading({ document: null, annotations: [] }); setMode('text'); setError('');
+    setReading({ document: null, annotations: [] }); setMode(figureView ?? 'text'); setError('');
     setBusy(!!paper.pdfUrl);
-    api.get<PdfReading>(focus ? `/api/pdf/${focus.documentId}` : `/api/pdf?paperId=${paper.id}`).then(value => {
-      if (alive && version === pdfLoadEpoch.current) { setReading(value); if (value.document) setMode(focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf'); }
+    api.get<PdfReading>(pdfFocus ? `/api/pdf/${pdfFocus.documentId}` : `/api/pdf?paperId=${paper.id}`).then(value => {
+      if (alive && version === pdfLoadEpoch.current) { setReading(value); if (value.document) setMode(figureView ?? (focus ? 'pdf' : loadReaderState(value.document)?.mode ?? 'pdf')); }
     }).catch(e => { if (alive && version === pdfLoadEpoch.current) setError(String(e.message ?? e)); }).finally(() => { if (alive && version === pdfLoadEpoch.current) setBusy(false); });
     return () => { alive = false; };
-  }, [api, paper.id, focus?.documentId, lockText, lookupAttempt]);
+  }, [api, paper.id, pdfFocus?.documentId, lockText, lookupAttempt, chrome.figure?.token]);
   // Export may attach a PDF to a metadata paper. Refresh that missing document
   // only; existing PDF/Read views and annotations keep their mounted owners.
   const seenPdfReload = useRef(pdfReloadToken);
@@ -63,11 +83,14 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   useEffect(() => { if (lockText) setMode('text'); else if (focus) setMode('pdf'); }, [focus, lockText]);
   useEffect(() => { if (readRequest) setMode('text'); }, [readRequest]);
   const view = lockText ? 'text' : mode;
+  useEffect(() => {
+    if (view === 'text' || view === 'original') chrome.onLocation?.({ representation: view === 'text' ? 'read' : 'original', paperId: paper.id });
+  }, [view, paper.id, chrome.onLocation]);
   const textLabel = readLabel ?? 'Read';
-  const originalUrl = sourceUrl ?? paper.fullTextUrl ?? paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
+  const originalUrl = sourceUrl ?? paper.arxivUrl ?? paper.fullTextUrl ?? paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
   const modes = <div className="pa-reader-modes" role="group" aria-label={t('readerView')}>
     <Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button>
-    <Button variant="ghost" aria-pressed={view === 'pdf'} disabled={!paper.pdfUrl && !reading.document} onClick={() => void open()}>PDF</Button>
+    <Button variant="ghost" aria-pressed={view === 'pdf'} disabled={!paper.pdfUrl && !paper.pdfCandidateUrl && !reading.document} onClick={() => void open()}>PDF</Button>
     <Button variant="ghost" aria-pressed={view === 'tex'} onClick={() => { setVisitedTex(true); setMode('tex'); }}>TeX</Button>
     <Button variant="ghost" aria-pressed={view === 'original'} title={originalUrl} disabled={!originalUrl?.startsWith('https://')} onClick={() => setMode('original')}>{t('readerOriginal')}</Button>
   </div>;
@@ -83,13 +106,15 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => setLookupAttempt(value => value + 1)} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('loading')}</p>}
     <div className="pa-reader-views" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', flex: 1, minHeight: 0, minWidth: 0 }}>
-      {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, minWidth: 0, visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
-        <PdfViewer chrome={{ ...chrome, toolbar: view === 'pdf' ? chrome.toolbar : null }} active={view === 'pdf'} readLabel={textLabel} onText={() => setMode('text')} key={`${reading.document.id}:${reading.document.fileDigest}`} document={reading.document} annotations={reading.annotations} api={api} focus={focus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/>
+      {reading.document && <div className="pa-pdf-view-slot" aria-hidden={view !== 'pdf'} inert={view !== 'pdf'} style={{ gridArea: '1 / 1', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%', visibility: view === 'pdf' ? 'visible' : 'hidden' }}>
+        <PdfViewer chrome={{ ...chrome, toolbar: view === 'pdf' ? chrome.toolbar : null }} active={view === 'pdf'} readLabel={textLabel} onText={() => setMode('text')} key={`${reading.document.id}:${reading.document.fileDigest}`} document={reading.document} annotations={reading.annotations} api={api} focus={pdfFocus} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded} onSaved={annotation => setReading(prior => ({ ...prior, annotations: [...prior.annotations.filter(item => item.id !== annotation.id), annotation] }))}/>
       </div>}
-      <div className="pa-text-view-slot" aria-hidden={view !== 'text'} inert={view !== 'text'} style={{ gridArea: '1 / 1', display: view === 'text' ? 'flex' : 'none', minHeight: 0, minWidth: 0 }}>{children}</div>
-      {visitedTex && <div className="pa-tex-view-slot" aria-hidden={view !== 'tex'} inert={view !== 'tex'} style={{ gridArea: '1 / 1', display: 'flex', minHeight: 0, minWidth: 0, visibility: view === 'tex' ? 'visible' : 'hidden' }}><TexReader api={api} paper={paper} active={view === 'tex'} openToken={openToken} reloadToken={pdfReloadToken} chrome={chrome} t={t}/></div>}
-      {view === 'original' && originalUrl?.startsWith('https://') && <section className="pa-original-view" style={{ gridArea: '1 / 1' }} aria-label={t('readerOriginal')}><div className="pa-original-location"><a href={originalUrl} target="_blank" rel="noreferrer"><Icon name="external-link"/>{originalUrl}</a></div><iframe title={t('readerOriginal')} src={originalUrl} sandbox="allow-same-origin allow-popups" referrerPolicy="no-referrer"/></section>}
+      <div className="pa-text-view-slot" aria-hidden={view !== 'text'} inert={view !== 'text'} style={{ gridArea: '1 / 1', display: view === 'text' ? 'flex' : 'none', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%' }}>{children}</div>
+      {visitedTex && <div className="pa-tex-view-slot" aria-hidden={view !== 'tex'} inert={view !== 'tex'} style={{ gridArea: '1 / 1', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%', visibility: view === 'tex' ? 'visible' : 'hidden' }}><TexReader api={api} paper={paper} active={view === 'tex'} openToken={openToken} reloadToken={pdfReloadToken} onDiscuss={onDiscuss} chrome={chrome} t={t}/></div>}
+      {view === 'original' && originalUrl?.startsWith('https://') && <section className="pa-original-view" style={{ gridArea: '1 / 1', minHeight: 0, height: '100%' }} aria-label={t('readerOriginal')}><div className="pa-original-location"><a href={originalUrl} target="_blank" rel="noreferrer"><Icon name="external-link"/>{originalUrl}</a></div><iframe title={t('readerOriginal')} src={originalUrl} sandbox="allow-same-origin allow-popups" referrerPolicy="no-referrer"/></section>}
     </div>
+    {chrome.figure && ((view === 'pdf' && !figurePdf) || (view === 'tex' && !chrome.figure.preview)) && <Feedback kind="status"><span>{copy('unmatched')}</span><Button onClick={() => setFigureSourceOpen(true)}>{copy('source')}</Button></Feedback>}
+    {figureSourceOpen && chrome.figure && <FigureSourceDialog api={api} reference={chrome.figure} onClose={() => setFigureSourceOpen(false)}/>}
   </div>;
 }
 
@@ -118,12 +143,21 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   onMatrixAdded(): Promise<void>;
 }) {
   const { state: scrollState } = useScroll(documentId), { provides: scrollCapability } = useScrollCapability();
+  const { provides: viewportCapability } = useViewportCapability();
+  // Memoize: forDocument() returns a fresh object each call and would retrigger restore.
   const scroll = useMemo(() => scrollCapability?.forDocument(documentId) ?? null, [scrollCapability, documentId]);
   const { provides: zoom, state: zoomState } = useZoom(documentId);
   const { provides: selection } = useSelectionCapability(), { provides: capture, state: captureState } = useCapture(documentId);
   const selectionState = useStoreState()?.plugins.selection as SelectionState | undefined;
-  const [hasSelection, setHasSelection] = useState(false), [note, setNote] = useState(''), [busy, setBusy] = useState(false);
+  const [hasSelection, setHasSelection] = useState(false), [selecting, setSelecting] = useState(false), [note, setNote] = useState(''), [busy, setBusy] = useState(false);
   const selectedText = useRef('');
+  useEffect(() => {
+    if (!active) return;
+    const page = document.pages[(scrollState.currentPage || 1) - 1];
+    if (page) chrome.onLocation?.({ representation: chrome.texPreviewId ? 'tex-preview' : 'pdf', paperId: document.paperId,
+      documentId: document.id, fileDigest: document.fileDigest, page: page.number,
+      ...(chrome.texPreviewId ? { texPreviewId: chrome.texPreviewId } : {}), excerpt: page.text.slice(0, 4800) });
+  }, [active, scrollState.currentPage, document, chrome.texPreviewId, chrome.onLocation]);
   const [error, setError] = useState(''), [status, setStatus] = useState(''), [notes, setNotes] = useState(false), [target, setTarget] = useState('');
   const [menu, setMenu] = useState<{x: number; y: number} | null>(null), [pageText, setPageText] = useState(false);
   const layoutReady = useRef(false);
@@ -132,6 +166,9 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
   useEffect(() => { if (menu) menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus(); }, [menu]);
   const [matrixAnnotation, setMatrixAnnotation] = useState(''), [column, setColumn] = useState(t('pdfEvidenceColumn'));
   const [verificationAnnotation, setVerificationAnnotation] = useState('');
+  const [numericAnnotation, setNumericAnnotation] = useState('');
+  const [layoutSource, setLayoutSource] = useState<PdfSource | null>(null);
+  const { t: numericT } = useAppI18n({ values: { zh: '数值', en: 'Values' } });
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   useEffect(() => scrollCapability?.onLayoutReady(event => { if (event.documentId === documentId) layoutReady.current = true; }), [scrollCapability, documentId]);
   // Subscribe before restoration: cached geometry can emit synchronously.
@@ -142,15 +179,21 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     let alive = true, revision = 0;
     const update = (value: unknown) => {
       const current = ++revision;
-      setHasSelection(!!value); selectedText.current = '';
+      setHasSelection(!!value);
+      if (!value) setSelecting(false);
+      selectedText.current = '';
       if (!value) return;
       void scope.getSelectedText().toPromise().then(parts => {
         if (alive && current === revision) selectedText.current = parts.join('\n');
       }).catch(() => { if (alive && current === revision) selectedText.current = ''; });
     };
     const stop = scope.onSelectionChange(update);
+    // The selection bar is in normal flow. Mounting it on the first pointer
+    // move shifts the page and the rest of the drag misses the line.
+    const stopBegin = scope.onBeginSelection(() => setSelecting(true));
+    const stopEnd = scope.onEndSelection(() => setSelecting(false));
     update(scope.getState().selection);
-    return () => { alive = false; stop(); };
+    return () => { alive = false; stop(); stopBegin(); stopEnd(); };
   }, [selection, documentId]);
 
   const activeNow = useRef(active), focusNow = useRef(focus), restored = useRef(false), stateReady = useRef(false);
@@ -191,9 +234,9 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       restored.current = true;
       // Numeric plugin defaults never release EmbedPDF's initial viewport gate.
       // Boot with FitPage, then restore the saved scale through its public API.
-      if (initial) zoom.requestZoom(initial.zoom);
+      if (initial && !focusNow.current) zoom.requestZoom(initial.zoom);
       if (!initial || focusNow.current) { stateReady.current = true; persist(); return; }
-      scroll.scrollToPage({ pageNumber: initial.page, pageCoordinates: initial.position, alignX: 0, alignY: 0, behavior: 'instant' });
+      scroll.scrollToPage({ pageNumber: initial.page, pageCoordinates: initial.position, alignX: 0, alignY: 0, behavior: 'auto' });
       const focusAtRestore = focusNow.current;
       void selected.setSelection(initial.selection).toPromise().then(() => {
         if (!alive) return;
@@ -241,17 +284,25 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     return () => window.document.removeEventListener('copy', copy);
   }, []);
   useEffect(() => {
-    if (!scrollCapability || !focus || focus.documentId !== document.id) return;
+    if (!active) { appliedFocus.current = null; return; }
+    if (!scrollCapability || !scroll || !viewportCapability || !focus || focus.documentId !== document.id) return;
+    const viewport = viewportCapability.forDocument(documentId);
     const apply = () => {
-      if (appliedFocus.current === focus) return;
+      // The reader stays mounted behind the library. Its previous layout can
+      // still be marked ready while the hidden viewport has no usable geometry.
+      const { clientWidth, clientHeight } = viewport.getMetrics();
+      if (appliedFocus.current === focus || !layoutReady.current || !clientWidth || !clientHeight || viewport.isGated() || !scroll.getMetrics().pageVisibilityMetrics.length) return;
       appliedFocus.current = focus;
       const rect = focus.rects?.[0], page = document.pages[focus.page - 1];
-      scrollCapability.forDocument(documentId).scrollToPage({ pageNumber: focus.page, behavior: 'instant', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
+      scroll.scrollToPage({ pageNumber: focus.page, behavior: 'auto', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
       setTarget(focus.annotationId ?? '');
+      setLayoutSource(null);
     };
-    if (layoutReady.current) apply();
-    return scrollCapability.onLayoutReady(event => { if (event.documentId === documentId) apply(); });
-  }, [scrollCapability, focus, document.id, documentId]);
+    const stopLayout = scrollCapability.onLayoutReady(event => { if (event.documentId === documentId) apply(); });
+    const stopViewport = viewport.onViewportChange(apply);
+    apply();
+    return () => { stopLayout(); stopViewport(); };
+  }, [active, scroll, scrollCapability, viewportCapability, focus, document.id, documentId]);
   async function save(value: Record<string, unknown>) {
     setBusy(true); setError(''); setStatus('');
     try {
@@ -273,11 +324,25 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       const quote = (await scope!.getSelectedText().toPromise()).join('\n');
       const part = parts[0], page = document.pages[part.pageIndex];
       const rects = part.segmentRects.map(rect => ({ x: Math.max(0, rect.origin.x / page.width), y: Math.max(0, rect.origin.y / page.height), width: rect.size.width / page.width, height: rect.size.height / page.height }));
-      if (action === 'discuss') { onDiscuss?.(quote, { documentId: document.id, fileDigest: document.fileDigest, page: part.pageIndex + 1, rects }); return; }
+      if (action === 'discuss') { onDiscuss?.(quote, { documentId: document.id, fileDigest: document.fileDigest, paperId: document.paperId, page: part.pageIndex + 1, rects, ...(chrome.texPreviewId ? { texPreviewId: chrome.texPreviewId } : {}) }); return; }
       await save({ kind: 'highlight', page: part.pageIndex + 1, quote, rects });
     } catch (e) { fail(e); }
   }
-  function go(annotation: PdfAnnotation) { scroll?.scrollToPage({ pageNumber: annotation.page, behavior: 'instant' }); setTarget(annotation.id); }
+  function go(annotation: PdfAnnotation) {
+    setLayoutSource(null);
+    chrome.onNavigate();
+    const rect = annotation.rects[0], page = document.pages[annotation.page - 1];
+    scroll?.scrollToPage({ pageNumber: annotation.page, behavior: 'auto', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
+    setTarget(annotation.id);
+  }
+  function goLayout(source: PdfSource) {
+    const page = document.pages[source.page - 1], rect = source.rects?.[0];
+    if (source.documentId !== document.id || source.fileDigest !== document.fileDigest || !page || !rect) return;
+    chrome.onNavigate();
+    scroll?.scrollToPage({ pageNumber: source.page, behavior: 'auto', pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 });
+    setTarget('');
+    setLayoutSource(source);
+  }
   async function copyImage(annotation: PdfAnnotation) {
     try {
       const blob = await (await fetch(`/api/annotations/${annotation.id}/image`)).blob();
@@ -290,11 +355,16 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     catch (e) { fail(e); }
     finally { setBusy(false); }
   }
-  const pager = <div className="pa-reader-pager">
+  const jump = (pageNumber: number) => {
+    if (!scroll || pageNumber < 1 || pageNumber > document.pages.length) return;
+    chrome.onNavigate();
+    scroll.scrollToPage({ pageNumber, behavior: 'auto' });
+  };
+  const pager = <div className="pa-reader-pager" onPointerDownCapture={chrome.onNavigate} onClickCapture={chrome.onNavigate} onKeyDownCapture={chrome.onNavigate} onChangeCapture={chrome.onNavigate}>
       {chrome.back && <Button variant="ghost" aria-label={t('backToLibrary')} onClick={chrome.back}>‹</Button>}
-      <Button variant="ghost" aria-label={t('pdfPrevious')} disabled={!scroll || scrollState.currentPage <= 1} onClick={() => scroll?.scrollToPreviousPage('instant')}>‹</Button>
-      <label className="pa-pdf-page-input"><span className="pa-sr-only">{t('pdfPage')}</span><input aria-label={t('pdfPage')} type="number" min={1} max={document.pages.length} value={scrollState.currentPage || 1} onChange={event => { const pageNumber = Number(event.target.value); if (pageNumber >= 1 && pageNumber <= document.pages.length) scroll?.scrollToPage({ pageNumber, behavior: 'instant' }); }}/><span>/ {document.pages.length}</span></label>
-      <Button variant="ghost" aria-label={t('pdfNext')} disabled={!scroll || scrollState.currentPage >= document.pages.length} onClick={() => scroll?.scrollToNextPage('instant')}>›</Button>
+      <Button variant="ghost" aria-label={t('pdfPrevious')} disabled={!scroll || scrollState.currentPage <= 1} onClick={() => { chrome.onNavigate(); scroll?.scrollToPreviousPage('auto'); }}>‹</Button>
+      <label className="pa-pdf-page-input"><span className="pa-sr-only">{t('pdfPage')}</span><input aria-label={t('pdfPage')} type="number" min={1} max={document.pages.length} value={scrollState.currentPage || 1} onChange={event => jump(Number(event.target.value))}/><span>/ {document.pages.length}</span></label>
+      <Button variant="ghost" aria-label={t('pdfNext')} disabled={!scroll || scrollState.currentPage >= document.pages.length} onClick={() => { chrome.onNavigate(); scroll?.scrollToNextPage('auto'); }}>›</Button>
       <Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfFitPage')} onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{Math.round((zoomState.currentZoomLevel || 1) * 100)}%</Button><Button className="pa-pdf-zoom-inline" variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button>
       <Popover className="pa-pdf-zoom-menu" label={t('pdfZoom')} trigger={`${Math.round((zoomState.currentZoomLevel || 1) * 100)}%`} triggerVariant="ghost" contentClassName="pa-pdf-zoom-panel">{() => <><Button variant="ghost" aria-label={t('pdfZoomOut')} onClick={() => zoom?.zoomOut()}>−</Button><Button variant="ghost" onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>{t('pdfFitPage')}</Button><Button variant="ghost" aria-label={t('pdfZoomIn')} onClick={() => zoom?.zoomIn()}>+</Button></>}</Popover>
       {trailingActions}
@@ -313,20 +383,24 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       <Button role="menuitem" onClick={() => { setMenu(null); chrome.onSave(); }}>{t('downloadPaper')}</Button>
       <Button role="menuitem" onClick={() => { setMenu(null); onText(); }}>{readLabel}</Button>
     </div>}
-    {hasSelection && !readOnly && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') discardSelection(); }}><Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/><Button disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>{onDiscuss && <Button disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button variant="ghost" onClick={() => discardSelection()}>{t('close')}</Button></div>}
+    {active && hasSelection && !selecting && (!readOnly || onDiscuss) && <div className="pa-pdf-selection" role="toolbar" aria-label={t('pdfSelection')} onKeyDown={event => { if (event.key === 'Escape') discardSelection(); }}>{!readOnly && <Input aria-label={t('pdfNote')} placeholder={t('pdfNote')} maxLength={4000} value={note} onChange={event => setNote(event.target.value)}/>}<div className="pa-pdf-selection-actions">{!readOnly && <Button className="pa-pdf-selection-save" variant="ghost" disabled={busy} onClick={() => void selected('save')}>{t('pdfHighlight')}</Button>}{onDiscuss && <Button variant="ghost" disabled={busy} onClick={() => void selected('discuss')}>{t('discussSelection')}</Button>}<Button className="pa-pdf-selection-close" variant="ghost" onClick={() => discardSelection()}>{t('close')}</Button></div></div>}
     {error && <Feedback kind="error">{error}<Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback>}
     {(busy || status) && <div role="status" className="pa-pdf-status">{busy ? t('pdfSaving') : status}</div>}
     <div className="pa-pdf-body" data-notes={notes}>
       <Viewport documentId={documentId} className="pa-pdf-viewport" style={{ height: '100%', minHeight: 0, background: 'var(--pero-surface-muted)' }}>
-        <Scroller documentId={documentId} renderPage={({ width, height, pageIndex }) => <div className="pa-pdf-page" data-page-number={pageIndex + 1} data-selection-ready={!!selectionState?.documents[documentId]?.geometry[pageIndex]} style={{ width, height, position: 'relative', background: 'white' }}>
+        <Scroller documentId={documentId} renderPage={({ width, height, pageIndex }) => <div className="pa-pdf-page" data-page-number={pageIndex + 1} data-selection-ready={!!selectionState?.documents[documentId]?.geometry[pageIndex]} style={{ width, height, position: 'relative', background: 'white' }} onClick={event => {
+          if (!chrome.onSourcePoint || !(event.metaKey || event.ctrlKey)) return;
+          event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect();
+          chrome.onSourcePoint(pageIndex + 1, (event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
+        }}>
           <PagePointerProvider documentId={documentId} pageIndex={pageIndex}>
             <RenderLayer documentId={documentId} pageIndex={pageIndex} draggable={false}/>
-            <div className="pa-pdf-marks" aria-hidden="true">{focus?.page === pageIndex + 1 && focus.rects?.map((rect, i) => <span key={`citation:${i}`} data-citation-region="true" data-focused="true" style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>) }{annotations.filter(item => item.page === pageIndex + 1).flatMap(item => item.rects.map((rect, i) => <span key={`${item.id}:${i}`} data-annotation-id={item.id} data-kind={item.kind} data-focused={target === item.id} style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>))}</div>
+            <div className="pa-pdf-marks" aria-hidden="true">{layoutSource?.page === pageIndex + 1 && layoutSource.rects?.map((rect, i) => <span key={`layout:${i}`} data-layout-region="true" data-focused="true" style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>)}{focus?.page === pageIndex + 1 && focus.rects?.map((rect, i) => <span key={`citation:${i}`} data-citation-region="true" data-focused="true" style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>) }{annotations.filter(item => item.page === pageIndex + 1).flatMap(item => item.rects.map((rect, i) => <span key={`${item.id}:${i}`} data-annotation-id={item.id} data-kind={item.kind} data-focused={target === item.id} style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }}/>))}</div>
             <SelectionLayer documentId={documentId} pageIndex={pageIndex}/><MarqueeCapture documentId={documentId} pageIndex={pageIndex}/>
           </PagePointerProvider>
         </div>}/>
       </Viewport>
-      {notes && <aside className="pa-pdf-notes" aria-label={t('pdfNotes')}><Toolbar><h2>{t('pdfNotes')}</h2><Button variant="ghost" aria-label={t('closeAnnotations')} onClick={() => setNotes(false)}>×</Button></Toolbar>{!annotations.length && <p>{t('pdfNoNotes')}</p>}{annotations.map(annotation => <article key={annotation.id} data-note-id={annotation.id}><Button variant="ghost" onClick={() => go(annotation)}>{t('pdfPage')} {annotation.page} ↗</Button>{annotation.kind === 'figure' ? <><img src={`/api/annotations/${annotation.id}/image`} alt={`${t('pdfFigure')} · ${t('pdfPage')} ${annotation.page}`}/><div className="pa-actions"><Button onClick={() => void copyImage(annotation)}>{t('pdfCopyImage')}</Button><a href={`/api/annotations/${annotation.id}/image`} download={`figure-${annotation.page}.png`}>{t('pdfDownload')}</a></div></> : <blockquote>{annotation.quote}</blockquote>}{annotation.note && <p>{annotation.note}</p>}<div className="pa-actions"><Button variant="ghost" onClick={() => setMatrixAnnotation(annotation.id)}>{t('pdfAddMatrix')}</Button>{annotation.kind === 'highlight' && reproductionPolicy(annotation.quote) && <Button variant="ghost" aria-expanded={verificationAnnotation === annotation.id} onClick={() => setVerificationAnnotation(current => current === annotation.id ? '' : annotation.id)}>{t('reproductionVerify')}</Button>}</div>{verificationAnnotation === annotation.id && <Reproduction key={annotation.id} api={api} annotation={annotation} t={t}/>} {matrixAnnotation === annotation.id && <div className="pa-pdf-matrix-field" role="group" aria-label={t('pdfColumn')} onKeyDown={event => { if (event.key === 'Enter' && column.trim() && !busy) { event.preventDefault(); void addToMatrix(); } if (event.key === 'Escape') setMatrixAnnotation(''); }}><Input aria-label={t('pdfColumn')} value={column} maxLength={80} onChange={event => setColumn(event.target.value)}/><Button onClick={() => void addToMatrix()} disabled={busy || !column.trim()}>{t('pdfAddMatrix')}</Button></div>}</article>)}</aside>}
+      {notes && <aside className="pa-pdf-notes" aria-label={t('pdfNotes')}><Toolbar><h2>{t('pdfNotes')}</h2><Button variant="ghost" aria-label={t('closeAnnotations')} onClick={() => setNotes(false)}>×</Button></Toolbar>{!annotations.length && <p>{t('pdfNoNotes')}</p>}{annotations.map(annotation => <article key={annotation.id} data-note-id={annotation.id}><Button variant="ghost" onClick={() => go(annotation)}>{t('pdfPage')} {annotation.page} ↗</Button>{annotation.kind === 'figure' ? <><img src={`/api/annotations/${annotation.id}/image`} alt={`${t('pdfFigure')} · ${t('pdfPage')} ${annotation.page}`}/><div className="pa-actions"><Button onClick={() => void copyImage(annotation)}>{t('pdfCopyImage')}</Button><a href={`/api/annotations/${annotation.id}/image`} download={`figure-${annotation.page}.png`}>{t('pdfDownload')}</a></div></> : <blockquote>{annotation.quote}</blockquote>}{annotation.note && <p>{annotation.note}</p>}<div className="pa-actions"><Button variant="ghost" onClick={() => setMatrixAnnotation(annotation.id)}>{t('pdfAddMatrix')}</Button>{annotation.kind === 'figure' && <Button variant="ghost" aria-expanded={numericAnnotation === annotation.id} onClick={() => { go(annotation); setNumericAnnotation(current => current === annotation.id ? '' : annotation.id); }}>{numericT('values')}</Button>}{annotation.kind === 'highlight' && reproductionPolicy(annotation.quote) && <Button variant="ghost" aria-expanded={verificationAnnotation === annotation.id} onClick={() => setVerificationAnnotation(current => current === annotation.id ? '' : annotation.id)}>{t('reproductionVerify')}</Button>}</div>{numericAnnotation === annotation.id && <NumericValues key={annotation.id} api={api} annotation={annotation} onSource={() => go(annotation)} onLayoutSource={goLayout}/>} {verificationAnnotation === annotation.id && <Reproduction key={annotation.id} api={api} annotation={annotation} t={t}/>} {matrixAnnotation === annotation.id && <div className="pa-pdf-matrix-field" role="group" aria-label={t('pdfColumn')} onKeyDown={event => { if (event.key === 'Enter' && column.trim() && !busy) { event.preventDefault(); void addToMatrix(); } if (event.key === 'Escape') setMatrixAnnotation(''); }}><Input aria-label={t('pdfColumn')} value={column} maxLength={80} onChange={event => setColumn(event.target.value)}/><Button onClick={() => void addToMatrix()} disabled={busy || !column.trim()}>{t('pdfAddMatrix')}</Button></div>}</article>)}</aside>}
     </div>
     {pageText && <div className="pa-pdf-page-text"><Toolbar><h2>{t('pdfPageText')}</h2>{onDiscuss && <Button onClick={() => { const page = document.pages[(scrollState.currentPage || 1) - 1]; setPageText(false); onDiscuss(page.text, { documentId: document.id, fileDigest: document.fileDigest, page: page.number }); }}>{t('discussPage')}</Button>}<Button onClick={() => setPageText(false)}>{t('close')}</Button></Toolbar><pre tabIndex={0}>{document.pages[(scrollState.currentPage || 1) - 1]?.text}</pre></div>}
   </section>;

@@ -191,7 +191,7 @@ try {
     await stop();
     const count = (await api('/api/library')).reports.length;
     await app.close(); app = await launch(); await openApp();
-    await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+    await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).dblclick();
     await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Research record', exact: true }).click();
     const saved = frame.locator(`[data-saved-study-id="${paused.id}"]`);
     await saved.locator(':scope>summary').click();

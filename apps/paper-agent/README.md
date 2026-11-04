@@ -1,5 +1,9 @@
 # Paper Agent
 
+Selected PDF figure annotations now include a **Values** proof of concept:
+local OCR, source-bound numeric candidates, explicit review, immutable reference
+freezing and deterministic reports. See [usage, verification and limits](../../docs/fitness/paper-numeric-reference.md).
+
 论文生命周期能力统一属于本 App：资料与证据、规划、写作、TeX 构建/PDF
 预览、审阅和交付共享现有 Paper 数据与 Host Chat。接入范围和实施顺序见
 [稿件写作设计](../../docs/design-docs/paper-manuscript-authoring.md)。

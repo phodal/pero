@@ -4,21 +4,16 @@ import { expect } from '@playwright/test';
 import { resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
 export async function saveLibraryCopies(frame, title, { tex = false, timeout = 20000 } = {}) {
-  const dialog = frame.getByRole('dialog', { name: 'Save copies', exact: true });
-  // Add may already have opened this review. Never dismiss it or approve a
-  // residual dialog for another paper merely to reach the Library button.
-  if (!await dialog.isVisible()) {
-    const row = frame.locator('.pa-library-list > li').filter({ has: frame.getByText(title, { exact: true }) });
-    await row.getByRole('button', { name: 'Save', exact: true }).click();
-  }
-  await expect(dialog.getByText(title, { exact: true })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled({ timeout });
-  if (tex) await dialog.getByRole('checkbox', { name: 'TeX', exact: true }).check();
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
-  await expect(dialog.getByRole('button', { name: 'Export copies', exact: true })).toBeEnabled({ timeout });
-  await dialog.getByRole('button', { name: 'Export copies', exact: true }).click();
-  await expect(dialog.getByRole('status').filter({ hasText: 'Saved the PDF' })).toBeVisible();
-  return dialog;
+  const progress = frame.getByRole('region', { name: 'Download', exact: true });
+  if (await progress.isVisible()) await progress.getByRole('button', { name: 'Close', exact: true }).click();
+  if (!await frame.locator('.pa-library-list').isVisible()) await backToLibrary(frame);
+  const row = frame.locator('.pa-library-list > li').filter({ has: frame.getByText(title, { exact: true }) });
+  await row.locator('.pero-list-open').click();
+  await frame.getByRole('region', { name: 'Paper details', exact: true }).getByRole('button', { name: tex ? 'Download TeX' : 'Download PDF', exact: true }).click();
+  await expect(progress.getByText(title, { exact: true })).toBeVisible();
+  await expect(progress.getByRole('status').filter({ hasText: /^Downloaded$/ })).toBeVisible({ timeout });
+  await expect(frame.getByRole('dialog', { name: 'Save copies', exact: true })).toHaveCount(0);
+  return progress;
 }
 
 // Electron may expose an empty clipboard as one item with no advertised types.
@@ -97,21 +92,9 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
     try { return (await readFile(resolve(profile, 'desktop/app-data/paper-agent/reader-approved-attempts.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse); }
     catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   };
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).dblclick();
   await frame.getByRole('button', { name: 'Ask AI', exact: true }).click();
-  const save = frame.getByRole('dialog', { name: 'Save copies', exact: true });
-  await expect(save).toBeVisible();
-  await expect(save.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
-  expect(await acquisitions()).toEqual([]);
-  expect((await chatState(page)).appChatOpen).toBe(false);
-  await page.screenshot({ path: resolve(out, 'pdf-research-source-review.png') });
-  await save.getByRole('button', { name: 'Close', exact: true }).click();
-  expect(await acquisitions()).toEqual([]);
-  await frame.getByRole('button', { name: 'Ask AI', exact: true }).click();
-  await expect(save.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
-  await save.getByRole('button', { name: 'Confirm', exact: true }).click();
-  await expect(save.getByRole('button', { name: 'Export copies', exact: true })).toBeEnabled();
-  await save.getByRole('button', { name: 'Export copies', exact: true }).click();
+  const save = frame.getByRole('region', { name: 'Download', exact: true });
   await expect.poll(async () => (await chatState(page)).appChatOpen).toBe(true);
   await expect(save).not.toBeVisible();
   expect(await acquisitions()).toHaveLength(1);
@@ -126,10 +109,10 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect(first).toHaveAttribute('data-selection-ready', 'true', { timeout: 30000 });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
   const tools = frame.locator('.pa-reader-tools');
-  await expect(tools.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', 'https://arxiv.org/html/1706.03762v1');
+  await expect(tools.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', paper.url);
   const toolBoxes = await Promise.all(['Read', 'PDF', 'Zoom out', 'Zoom in'].map(name => tools.getByRole('button', { name, exact: true }).boundingBox()));
   expect(toolBoxes.every(box => box && Math.abs(box.y - toolBoxes[0].y) <= 4)).toBe(true);
-  expect(await frame.locator('.pa-reading-bar h1').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(16);
+  expect(await frame.locator('.pa-reading-bar .pa-reader-title').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(16);
   await nav.getByRole('button', { name: 'Fit page', exact: true }).click();
   await expect.poll(async () => { const pageBox = await first.boundingBox(), viewport = await viewer.locator('.pa-pdf-viewport').boundingBox(); return pageBox.height <= viewport.height + 1 && pageBox.width <= viewport.width + 1; }).toBe(true);
   await page.screenshot({ path: resolve(out, 'reading-first-1440.png') });
@@ -241,7 +224,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await nav.getByRole('button', { name: 'Zoom in', exact: true }).click();
   const savedZoom = await nav.getByRole('button', { name: 'Fit page', exact: true }).innerText();
   await backToLibrary(frame);
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(paper.title, { exact: true }) }).dblclick();
   await expect(nav.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(savedZoom);
   await expect(viewer.locator('img,canvas').first()).toBeVisible();
   await expect.poll(() => viewer.locator('.pa-pdf-viewport').evaluate(element => {
@@ -252,52 +235,37 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await backToLibrary(frame);
   const unavailable = await post('/api/papers/import', { title: 'Synthetic unavailable PDF', sourceId: 'unavailable-pdf', url: 'https://example.invalid/source', pdfUrl: 'https://reader.example.org/retry.pdf', authors: [], contentKind: 'abstract', content: 'Synthetic source remains readable.' });
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(unavailable.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(unavailable.title, { exact: true }) }).dblclick();
   // Opening metadata cannot initiate acquisition; the old implicit-download
   // error is now an explicit Save action, while its abstract stays readable.
   await frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true }).click();
-  const unavailableSave = frame.getByRole('dialog', { name: 'Save copies', exact: true });
-  await expect(unavailableSave.getByText(unavailable.title, { exact: true })).toBeVisible();
-  await expect(unavailableSave.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
+  const unavailableSave = frame.getByRole('region', { name: 'Download', exact: true });
   const attempts = async () => {
     try { return (await readFile(resolve(profile, 'desktop/app-data/paper-agent/reader-retry-attempts.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse); }
     catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   };
   const savedLibrary = () => frame.locator('body').evaluate(async () => (await (await fetch('/api/library')).json()));
-  expect(await attempts()).toEqual([]);
-  expect((await savedLibrary()).bundles.some(bundle => bundle.seedUrl === unavailable.pdfUrl)).toBe(false);
-  // Direct-PDF inspection is metadata-only and succeeds without a byte probe.
-  // Confirm is the first authorization; only its real owner can report failure.
-  await unavailableSave.getByRole('button', { name: 'Confirm', exact: true }).click();
-  const retryPdfPanel = unavailableSave.getByRole('region', { name: 'PDF', exact: true });
-  await expect(retryPdfPanel.locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Download failed', { timeout: 15000 });
-  const retry = unavailableSave.getByRole('button', { name: 'Retry PDF download', exact: true });
+  await expect(unavailableSave.getByRole('button', { name: 'Retry', exact: true })).toBeVisible({ timeout: 15000 });
+  const retry = unavailableSave.getByRole('button', { name: 'Retry', exact: true });
   await expect(retry).toBeEnabled();
-  await expect(unavailableSave.getByRole('button', { name: 'Export copies', exact: true })).toBeDisabled();
-  const retryBundle = (await savedLibrary()).bundles.find(bundle => bundle.seedUrl === unavailable.pdfUrl);
-  expect(retryBundle.pdfDownloadIds).toHaveLength(1);
-  expect(retryBundle.sourceDownloadIds).toEqual([]);
-  const retryStatus = () => post('/api/research/pdf', { operation: 'status', bundleId: retryBundle.id, resourceId: retryBundle.pdfDownloadIds[0] });
-  const failed = await retryStatus();
-  expect(failed.status).toBe('failed'); expect(failed.receipt).toBeNull();
-  expect(await attempts()).toEqual([{ url: unavailable.pdfUrl }]);
+  await expect.poll(async () => (await attempts()).length).toBe(1);
+  await page.screenshot({ path: resolve(out, 'pdf-download-failure.png') });
   await retry.click();
-  await expect(retryPdfPanel.locator('.pa-bundle-resource-row > .pa-bundle-status[role="status"]')).toHaveText('Downloaded', { timeout: 15000 });
-  await expect(unavailableSave.getByRole('button', { name: 'Export copies', exact: true })).toBeEnabled();
-  const recovered = await retryStatus();
+  await expect(unavailableSave.getByRole('status').filter({ hasText: /^Downloaded$/ })).toBeVisible({ timeout: 30000 });
+  const retryBundle = (await savedLibrary()).bundles.find(bundle => bundle.seedUrl === unavailable.pdfUrl);
+  const recovered = await post('/api/research/pdf', { operation: 'status', bundleId: retryBundle.id, resourceId: retryBundle.pdfDownloadIds[0] });
   expect(recovered.status).toBe('completed'); expect(recovered.localAvailable).toBe(true);
   expect(recovered.receipt.textPages).toBeGreaterThan(0);
-  await expect(retryPdfPanel.getByText(`Text on ${recovered.receipt.textPages} pages`, { exact: true })).toBeVisible();
   expect(recovered.receipt.requestUrl).toBe(unavailable.pdfUrl);
   expect(await attempts()).toEqual([{ url: unavailable.pdfUrl }, { url: unavailable.pdfUrl }]);
-  // Deliberately do not export/associate the recovered local PDF with this
-  // metadata paper: the unchanged abstract must still be readable afterwards.
+  // The one-click action has attached these bytes to the original metadata paper.
   await unavailableSave.getByRole('button', { name: 'Close', exact: true }).click();
-  expect(await frame.locator('body').evaluate(async (_element, id) => (await (await fetch(`/api/pdf?paperId=${id}`)).json()).document, unavailable.id)).toBeNull();
+  expect((await frame.locator('body').evaluate(async (_element, id) => (await (await fetch(`/api/pdf?paperId=${id}`)).json()).document, unavailable.id)).paperId).toBe(unavailable.id);
+  await frame.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(frame.locator('.pa-source-text')).toContainText('Synthetic source remains readable.');
   await expect(frame.locator('.pa-pdf-reading [role="alert"]')).toHaveCount(0);
   await backToLibrary(frame);
-  await exercisePdfSearch({ frame, page, out, realPdf: fixture.realPdf });
+  await exercisePdfSearch({ frame, page, out, realPdf: fixture.realPdf, paperTitle: paper.title });
   await viewer.locator('img,canvas').first().evaluate(element => element.dataset.citationIdentity = 'retained');
   await nav.getByRole('button', { name: 'Ask AI', exact: true }).click();
   await fillPaperChat(page, fixture.realPdf ? 'attention mechanism' : 'Second page');
@@ -326,7 +294,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
 }
 
 export async function reopenPdf({ frame, saved, page }) {
-  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).click();
+  await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(saved.paper.title, { exact: true }) }).dblclick();
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
   try {
     await expect(viewer.getByRole('button', { name: 'Highlight', exact: true })).toBeVisible();

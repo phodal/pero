@@ -1,0 +1,5 @@
+.notebook-preview { display:flex; flex-direction:column; gap:12px; min-height:0; }
+.notebook-preview h2 { margin:0; }
+.notebook-viewer { min-height:0; overflow:auto; border:.5px solid var(--pero-border,#dce4ed); border-radius:6px; padding:8px; background:var(--pero-surface,#fff); }
+.notebook-viewer .jp-Cell { margin:0 0 12px; }
+.notebook-viewer .jp-InputArea-editor { border:.5px solid var(--pero-border,#dce4ed); border-radius:4px; }

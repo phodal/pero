@@ -1,5 +1,6 @@
 """Logical datasets, immutable version references and saved inspection views. No I/O."""
 from dataclasses import asdict, dataclass, replace
+from decimal import Decimal
 import re
 
 PARSER_VERSION = 'pero-data/1'
@@ -75,25 +76,79 @@ class Dataset:
         return replace(self, name=request.name, projectRef=request.projectRef, archived=request.archived)
 
 
+OPERATORS = ('contains', 'eq', 'gte', 'lte', 'missing', 'null')
+AGGREGATIONS = ('sum', 'count')
+
+
+def column_names(value):
+    columns = value.get('columns', [])
+    if not isinstance(columns, list) or len(columns) > MAX_COLUMNS or not all(isinstance(c, str) for c in columns):
+        raise ValueError('Choose up to 32 columns')
+    if len(set(columns)) != len(columns):
+        raise ValueError('Columns must not repeat')
+    # Field names are literal: unlike user-facing labels, whitespace is significant.
+    if any(not c or len(c) > 300 for c in columns):
+        raise ValueError('Invalid column name')
+    return tuple(columns)
+
+
+def unit_labels(value):
+    units = value.get('units', {})
+    if not isinstance(units, dict) or len(units) > MAX_FIELDS:
+        raise ValueError('Invalid field units')
+    return tuple((key, text(unit, 'unit', 60)) for key, unit in units.items())
+
+
+def literal_name(value, label):
+    if not isinstance(value, str) or not value or len(value) > 300:
+        raise ValueError(f'Invalid {label}')
+    return value
+
+
+@dataclass(frozen=True)
+class FilterChoice:
+    field: str
+    operator: str
+    value: str
+
+
+@dataclass(frozen=True)
+class SortChoice:
+    field: str
+    descending: bool
+
+
+@dataclass(frozen=True)
+class ChartChoice:
+    category: str
+    measure: str
+    aggregation: str
+
+
 @dataclass(frozen=True)
 class ViewSpec:
     columns: tuple[str, ...] = ()
-    filterField: str = ''
-    contains: str = ''
+    filter: FilterChoice | None = None
+    sort: SortChoice | None = None
+    selection: tuple[int, ...] = ()
+    chart: ChartChoice | None = None
     units: tuple[tuple[str, str], ...] = ()
 
     @classmethod
     def parse(cls, value):
-        fields(value, ('columns', 'filterField', 'contains', 'units'))
-        columns = value.get('columns', [])
-        units = value.get('units', {})
-        if not isinstance(columns, list) or len(columns) > MAX_COLUMNS or not all(isinstance(c, str) for c in columns):
-            raise ValueError('Choose up to 32 columns')
-        if len(set(columns)) != len(columns):
-            raise ValueError('Columns must not repeat')
-        # Field names are literal: unlike user-facing labels, whitespace is significant.
-        if any(not c or len(c) > 300 for c in columns):
-            raise ValueError('Invalid column name')
+        legacy = {'columns', 'filterField', 'contains', 'units'}
+        modern = {'columns', 'filter', 'sort', 'selection', 'chart', 'units'}
+        if not isinstance(value, dict) or set(value) - (legacy | modern):
+            raise ValueError('Unknown request field')
+        if {'filterField', 'contains'} & set(value) and {'filter', 'sort', 'selection', 'chart'} & set(value):
+            raise ValueError('Unknown request field')
+        if {'filter', 'sort', 'selection', 'chart'} & set(value):
+            return cls._modern(value)
+        return cls._legacy(value)
+
+    @classmethod
+    def _legacy(cls, value):
+        # Older saved views stored one contains-filter. Read them as the richer view.
         field = value.get('filterField', '')
         if not isinstance(field, str) or len(field) > 300:
             raise ValueError('Invalid filter field')
@@ -102,23 +157,76 @@ class ViewSpec:
             raise ValueError('Filter text is too long')
         if contains and not field:
             raise ValueError('Choose a field for the filter')
-        if not isinstance(units, dict) or len(units) > MAX_FIELDS:
-            raise ValueError('Invalid field units')
-        return cls(tuple(columns), field, contains,
-                   tuple((key, text(unit, 'unit', 60)) for key, unit in units.items()))
+        chosen = FilterChoice(field, 'contains', contains) if field else None
+        return cls(column_names(value), chosen, None, (), None, unit_labels(value))
+
+    @classmethod
+    def _modern(cls, value):
+        raw_filter, raw_sort, raw_chart = value.get('filter'), value.get('sort'), value.get('chart')
+        chosen = None
+        if raw_filter is not None:
+            if not isinstance(raw_filter, dict) or set(raw_filter) != {'field', 'operator', 'value'}:
+                raise ValueError('Choose a field and a valid filter value')
+            operator, text_value = raw_filter['operator'], raw_filter['value']
+            if operator not in OPERATORS or not isinstance(text_value, str) or len(text_value) > 4096:
+                raise ValueError('Choose a field and a valid filter value')
+            if operator in ('gte', 'lte'):
+                try:
+                    threshold = Decimal(text_value)
+                except ArithmeticError:
+                    raise ValueError('A numeric filter needs a finite decimal value') from None
+                if not threshold.is_finite():
+                    raise ValueError('A numeric filter needs a finite decimal value')
+            chosen = FilterChoice(literal_name(raw_filter['field'], 'filter field'), operator, text_value)
+        sort = None
+        if raw_sort is not None:
+            if not isinstance(raw_sort, dict) or set(raw_sort) != {'field', 'descending'} or type(raw_sort['descending']) is not bool:
+                raise ValueError('Choose a valid sort field and order')
+            sort = SortChoice(literal_name(raw_sort['field'], 'sort field'), raw_sort['descending'])
+        selected = value.get('selection', [])
+        if (not isinstance(selected, list) or len(selected) > 1000 or len(set(selected)) != len(selected)
+                or any(type(index) is not int or index < 0 for index in selected)):
+            raise ValueError('Choose up to 1,000 distinct record identities')
+        chart = None
+        if raw_chart is not None:
+            if (not isinstance(raw_chart, dict) or set(raw_chart) != {'category', 'measure', 'aggregation'}
+                    or raw_chart['aggregation'] not in AGGREGATIONS):
+                raise ValueError('Choose valid chart fields')
+            chart = ChartChoice(literal_name(raw_chart['category'], 'chart field'),
+                                literal_name(raw_chart['measure'], 'chart field'), raw_chart['aggregation'])
+        return cls(column_names(value), chosen, sort, tuple(selected), chart, unit_labels(value))
 
     def admitted_columns(self, names):
         chosen = self.columns or tuple(names[:MAX_COLUMNS])
         referenced = set(chosen) | {name for name, _ in self.units}
-        if self.filterField:
-            referenced.add(self.filterField)
+        if self.filter:
+            referenced.add(self.filter.field)
+        if self.sort:
+            referenced.add(self.sort.field)
+        if self.chart:
+            referenced.update((self.chart.category, self.chart.measure))
         if not referenced.issubset(names):
             raise ValueError('The view references a field absent from this version')
         return chosen
 
+    def query_body(self, columns, offset, limit):
+        body = {'columns': list(columns), 'selection': list(self.selection), 'offset': offset, 'limit': limit}
+        if self.filter:
+            body['filter'] = {'field': self.filter.field, 'operator': self.filter.operator, 'value': self.filter.value}
+        if self.sort:
+            body['sort'] = {'field': self.sort.field, 'descending': self.sort.descending}
+        if self.chart:
+            body['chart'] = {'category': self.chart.category, 'measure': self.chart.measure, 'aggregation': self.chart.aggregation}
+        return body
+
     def public(self):
-        return dict(columns=list(self.columns), filterField=self.filterField,
-                    contains=self.contains, units=dict(self.units))
+        return dict(
+            columns=list(self.columns),
+            filter=None if self.filter is None else dict(field=self.filter.field, operator=self.filter.operator, value=self.filter.value),
+            sort=None if self.sort is None else dict(field=self.sort.field, descending=self.sort.descending),
+            selection=list(self.selection),
+            chart=None if self.chart is None else dict(category=self.chart.category, measure=self.chart.measure, aggregation=self.chart.aggregation),
+            units=dict(self.units))
 
 
 @dataclass(frozen=True)

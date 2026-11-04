@@ -40,9 +40,11 @@ not recaptured in this record.
 
 On 2026-10-31 the same Electron window still drew Han larger than Latin, and
 session titles wrapped onto a second line in the sidebar and the open tab.
-PingFang SC Regular at 14px has a 12.04px cap; the macOS UI face beside SF is
-11.32, and IBM Plex caps are 9.8. The canvas fallback now draws non-emoji text
-at `11.32 / 12.04` of the requested size. Session titles are also a single
-line: metadata newlines collapse, and the sidebar row and pane tab clip with
-nowrap and an ellipsis. Rebuild with `npm run dev` so the Wasm picks up both
-the UI and the canvas scale.
+Session titles are a single line: metadata newlines collapse, and the sidebar
+row and pane tab clip with nowrap and an ellipsis.
+
+An optical shrink of `11.32 / 12.04` on every non-emoji canvas face was added
+here, then removed on 2026-11-03: it applied to all canvas text and pushed
+14px UI / Kit `text_sm` labels under the 12px floor in App chat. Keep the named
+CJK families and `document.lang`; see
+[2026-11-03-app-chat-font-size.md](2026-11-03-app-chat-font-size.md).

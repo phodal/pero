@@ -35,7 +35,9 @@ impl ChatPanel {
             .to_owned();
         Some(div().w_full().max_w(px(pero_theme::COMPOSER_MAX)).min_w_0().mx_auto().my(px(6.)).p(px(8.)).bg(p.warning_bg)
             .child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).child(self.t("chat.permission")))
-            .when(tool.is_none(), |el| el.child(permission["toolCall"]["title"].as_str().unwrap_or_default().to_owned()))
+            .when(tool.is_none(), |el| el.child(crate::tool_ui::display_tool_title(
+                permission["toolCall"]["title"].as_str().unwrap_or_default(),
+            )))
             .child(div().mt(px(6.)).flex().flex_wrap().gap(px(6.)).children(
                 permission["options"].as_array().into_iter().flatten().enumerate().map(|(i,option)| {
                     let option_id = option["optionId"].as_str().unwrap_or_default().to_owned();

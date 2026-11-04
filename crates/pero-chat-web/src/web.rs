@@ -48,6 +48,27 @@ impl ChatWindow {
                         serde_json::to_value(value).expect("typed Host command")
                     }
                     ChatAction::PreviewContext{reference,thread_id}=>json!({"action":"app_context_preview","reference":reference,"thread_id":thread_id}),
+                    ChatAction::OpenContext{reference}=>{
+                        let text=match &reference.content {
+                            pero_contracts::context::ContextContent::Text{text}=>text.as_str(),
+                            _=>"",
+                        };
+                        if let Ok(value)=serde_json::from_str::<serde_json::Value>(text) {
+                            let app=value["scope"]["app"].as_str().unwrap_or("");
+                            let panel=value["scope"]["panel"].as_str().unwrap_or("main");
+                            if !app.is_empty() {
+                                json!({"action":"app_location","app":app,"panel":panel,"location":""})
+                            } else if reference.source.starts_with("http://") || reference.source.starts_with("https://") {
+                                cx.open_url(&reference.source); return;
+                            } else {
+                                cx.notify(); return;
+                            }
+                        } else if reference.source.starts_with("http://") || reference.source.starts_with("https://") {
+                            cx.open_url(&reference.source); return;
+                        } else {
+                            cx.notify(); return;
+                        }
+                    },
                     ChatAction::Selected{thread_id}=>json!({"action":"app_use_selection","thread_id":thread_id}),
                     ChatAction::CompactNeedsSpace => json!({"action":"chat_expand"}),
                     ChatAction::Content(intent) => serde_json::to_value(intent).expect("content intent"),

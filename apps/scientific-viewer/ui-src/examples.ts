@@ -12,7 +12,53 @@ export const examples = [
   { name: 'invalid-molecules.smi', text: 'CCO\nnot-a-smiles\n' },
   { name: 'model-metadata.json', text: JSON.stringify({ kind: 'model-metadata', architecture: 'synthetic-demo', weights: 'not supplied', license: 'CC0-1.0', verified: false }) },
   { name: 'sample.pdf', text: pdf() },
+  { name: 'demo.ipynb', text: notebook() },
 ];
+function notebook() {
+  return JSON.stringify({
+    nbformat: 4,
+    nbformat_minor: 5,
+    metadata: {
+      kernelspec: { display_name: 'Python 3', language: 'python', name: 'python3' },
+      language_info: { name: 'python', mimetype: 'text/x-python', file_extension: '.py' },
+    },
+    cells: [
+      {
+        id: 'md-intro',
+        cell_type: 'markdown',
+        metadata: {},
+        source: ['# Synthetic notebook\n', '\n', 'CC0-1.0 fixture for Scientific Viewer. Stored outputs only; no kernel is started.\n'],
+      },
+      {
+        id: 'code-sum',
+        cell_type: 'code',
+        metadata: {},
+        execution_count: 1,
+        source: ['values = [20, 21, 23, 22]\n', 'print(sum(values) / len(values))\n'],
+        outputs: [
+          { output_type: 'stream', name: 'stdout', text: ['21.5\n'] },
+        ],
+      },
+      {
+        id: 'code-table',
+        cell_type: 'code',
+        metadata: {},
+        execution_count: 2,
+        source: ['from IPython.display import Markdown\n', 'Markdown("| time[s] | temperature[C] |\\n| --- | --- |\\n| 0 | 20 |\\n| 1 | 21 |")\n'],
+        outputs: [
+          {
+            output_type: 'display_data',
+            metadata: {},
+            data: {
+              'text/plain': ['<IPython.core.display.Markdown object>'],
+              'text/markdown': ['| time[s] | temperature[C] |\n| --- | --- |\n| 0 | 20 |\n| 1 | 21 |'],
+            },
+          },
+        ],
+      },
+    ],
+  });
+}
 function pdf() {
   const stream = 'BT /F1 18 Tf 40 120 Td (Synthetic scientific evidence.) Tj ET';
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 180] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`];

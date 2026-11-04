@@ -59,7 +59,7 @@ retained the draft. Evidence is local under `test-results/product-chat/`.
 
 ## App-owned conversation slot
 
-The Data Agent enables the SDK slot after a dataset is loaded. On macOS,
+Data enables the SDK slot after a tabular dataset is open. On macOS,
 `PERO_TEST_HEADED=1 node tests/e2e/data-agent.mjs` exercised the actual SDK,
 GPUI input focus and draft, light/dark, narrow layout, hidden and clipped slot
 release, return to the App, and closing and reopening the slot. The existing

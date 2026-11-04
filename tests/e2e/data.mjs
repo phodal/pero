@@ -94,10 +94,10 @@ try {
   await preview().getByRole('tab', { name: 'Checks', exact: true }).click();
   await expect(preview().locator('dt').filter({ hasText: /^Duplicate rows$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
   await expect(preview().locator('dt').filter({ hasText: /^Empty strings$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
-  await preview().getByRole('tab', { name: 'Preview', exact: true }).click();
+  await preview().getByRole('tab', { name: 'Table', exact: true }).click();
   await choose(preview(), 'Filter field', 'id');
-  await preview().getByLabel('Contains', { exact: true }).fill('001');
-  await preview().getByLabel('Contains', { exact: true }).press('Enter');
+  await preview().getByLabel('Filter value', { exact: true }).fill('001');
+  await preview().getByLabel('Filter value', { exact: true }).press('Enter');
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
   await preview().getByLabel('View name', { exact: true }).press('Enter');
   expect((await catalog()).views).toHaveLength(0);
@@ -105,7 +105,7 @@ try {
   await preview().getByLabel('View name', { exact: true }).press('Enter');
   await expect.poll(async () => (await catalog()).views.length).toBe(1);
   const saved = (await catalog()).views[0];
-  expect(saved).toMatchObject({ datasetId, assetId: v1.id, sha256: v1.sha256, view: { filterField: 'id', contains: '001', units: { value: 'V' } }, report: { rowCount: 3, duplicateRows: 1 } });
+  expect(saved).toMatchObject({ datasetId, assetId: v1.id, sha256: v1.sha256, view: { filter: { field: 'id', operator: 'contains', value: '001' }, units: { value: 'V' } }, report: { rowCount: 3, duplicateRows: 1 } });
   await preview().getByText('Source and details', { exact: true }).click();
   await preview().getByLabel('Name', { exact: true }).fill('');
   await preview().getByLabel('Name', { exact: true }).press('Enter');

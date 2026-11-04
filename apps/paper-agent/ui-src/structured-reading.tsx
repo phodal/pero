@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Disclosure, Feedback, Select, Toolbar } from '@pero/app-sdk/ui';
+import { Button, Feedback, Select, Toolbar } from '@pero/app-sdk/ui';
 import type { Api } from './types';
 import './structured-reading.css';
-import { SourceReports } from './research-source-reports';
 import type { DocumentEvidenceScope } from './research-types';
 import { HtmlReading } from './html-reading';
 import { ArxivReading, type ReadingSource } from './arxiv-reading';
@@ -60,15 +58,28 @@ function Contents({ tokens, onTarget }: { tokens: Inline[]; onTarget(target: str
 
 function readSetting(key: string) { try { return localStorage.getItem(key); } catch { return null; } }
 function saveSetting(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* Reading works without storage. */ } }
+function httpsUrl(value?: string | null): value is string {
+  return typeof value === 'string' && value.startsWith('https://');
+}
+// A local PDF, or any snapshot with no remote HTML, has nothing to review.
+// Unauthorized PDF permission is a notice, not a review target.
+function htmlReviewAvailable(overview: Overview, paperSource?: string) {
+  if (paperSource === 'local-pdf') return false;
+  const paperReview = httpsUrl(overview.reviewUrl);
+  const htmlSources = overview.sources.filter(item => httpsUrl(item.url));
+  if (!paperReview && htmlSources.length === 0) return false;
+  if (!paperReview && htmlSources.every(item => !item.authorized)) return false;
+  return true;
+}
 
-export function StructuredReading({ api, paperId, openToken, onReady, onPrepared, onReview, showText, toolbar, children, onSourceUrl, onDiscuss }: { onDiscuss?(text: string): void; api: Api; paperId: string; openToken: number; showText?: boolean; toolbar?: HTMLElement | null; onSourceUrl?(url: string): void; onReady(ready: boolean): void; onPrepared?(): void; onReview(): void; children: React.ReactNode }) {
-  const { t } = useAppI18n({ prepareReading: { zh: '排版阅读', en: 'Format' }, preparing: { zh: '排版中…', en: 'Formatting…' }, failed: { zh: '阅读失败', en: 'Reading failed' }, partialHtml: { zh: 'HTML 转换不完整；图片未下载。', en: 'Partial HTML conversion; images not downloaded.' }, missingImages: { zh: '图片未下载。', en: 'Images not downloaded.' }, official: { zh: '查看原文', en: 'Official source' }, backReading: { zh: '返回阅读', en: 'Back to reading' } });
+export function StructuredReading({ api, paperId, openToken, onReady, onPrepared, onReview, showText, paperSource, children, onSourceUrl, onDiscuss }: { onDiscuss?(text: string): void; api: Api; paperId: string; openToken: number; showText?: boolean; paperSource?: string; onSourceUrl?(url: string): void; onReady(ready: boolean): void; onPrepared?(): void; onReview(): void; children: React.ReactNode }) {
+  const { t } = useAppI18n({ prepareReading: { zh: '排版阅读', en: 'Format' }, preparing: { zh: '排版中…', en: 'Formatting…' }, failed: { zh: '阅读失败', en: 'Reading failed' }, partialHtml: { zh: 'HTML 转换不完整。', en: 'Partial HTML conversion.' }, official: { zh: '查看原文', en: 'Official source' }, backReading: { zh: '返回阅读', en: 'Back to reading' } });
   const [reviewing, setReviewing] = useState(false);
   const [overview, setOverview] = useState<Overview>({ revisions: [], sources: [] }), [document, setDocument] = useState<Document | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState<ReadingFailure | null>(null), [original, setOriginal] = useState<Original | null>(null), [originalBlock, setOriginalBlock] = useState('');
   const [target, setTarget] = useState(''), [candidates, setCandidates] = useState<Block[]>([]), [targetError, setTargetError] = useState('');
   const [evidenceScope, setEvidenceScope] = useState<EvidenceScope | null>(null);
-  const [recordedScope, setRecordedScope] = useState<DocumentEvidenceScope | null>(null), [reportRefresh, setReportRefresh] = useState(0);
+  const [recordedScope, setRecordedScope] = useState<DocumentEvidenceScope | null>(null);
   const root = useRef<HTMLDivElement>(null), epoch = useRef(0), originalEpoch = useRef(0);
   function chooseScope(identity: string, scope: EvidenceScope | null) {
     originalEpoch.current++; setOriginal(null); setRecordedScope(null); setEvidenceScope(scope);
@@ -174,30 +185,22 @@ export function StructuredReading({ api, paperId, openToken, onReady, onPrepared
     } catch (error) { if (version === originalEpoch.current) setError({ message: error instanceof Error ? error.message : String(error) }); }
   }
   if (showText) return <div className="pa-text-document">{children}</div>;
-  const controls = <div className="pa-reader-format-controls pa-reader-read-controls">
-    {!document && <><Button variant="ghost" disabled={busy} aria-expanded={reviewing} onClick={() => overview.reviewUrl ? setReviewing(value => !value) : onReview()}>{overview.reviewUrl ? t('prepareReading') : 'Review HTML sources'}</Button>{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} busy={busy} onClick={() => void prepare(s)}>Prepare Read · {s.revision}</Button>)}</>}
-    {reviewing && <ArxivReading api={api} paperId={paperId} onClose={() => setReviewing(false)} onPrepare={async source => { await prepare(source); setReviewing(false); }}/>}
-    {busy && <span role="status">{t('preparing')}</span>}
-
-  </div>;
+  const reviewHtml = !document && htmlReviewAvailable(overview, paperSource);
+  const prepareSources = !document ? overview.sources.filter(item => item.authorized) : [];
   return <div ref={root} className="pa-structured-reading" data-document-id={document?.id}>
-    {toolbar ? createPortal(controls, toolbar) : controls}
     {error && <Feedback kind="error">{error.message}<Button onClick={() => setError(null)}>Dismiss</Button>{error.source && <Button disabled={busy} onClick={() => void prepare(error.source!, true)}>Retry {error.source.revision}</Button>}</Feedback>}
-    {!document && !overview.reviewUrl && overview.sources.length === 0 && <p className="pa-document-meta">Read needs an explicitly approved, fixed-version official HTML source. Existing text and PDF remain available.</p>}
-    {!document && overview.sources.some(s => !s.authorized) && <p className="pa-document-meta">HTML acquisition is not authorized. Review sources before downloading; PDF permission does not include HTML.</p>}
+    {!document && overview.sources.some(item => !item.authorized) && <p className="pa-document-meta">HTML acquisition is not authorized. Review sources before downloading; PDF permission does not include HTML.</p>}
+    {(reviewHtml || prepareSources.length > 0 || busy) && <div className="pa-html-review">
+      {reviewHtml && <Button variant="ghost" disabled={busy} aria-expanded={overview.reviewUrl ? reviewing : undefined} onClick={() => overview.reviewUrl ? setReviewing(value => !value) : onReview()}>{overview.reviewUrl ? t('prepareReading') : 'Review HTML sources'}</Button>}
+      {prepareSources.map(item => <Button key={`${item.bundleId}:${item.resourceId}`} variant="ghost" busy={busy} onClick={() => void prepare(item)}>Prepare Read · {item.revision}</Button>)}
+      {busy && <span role="status">{t('preparing')}</span>}
+    </div>}
+    {reviewing && <ArxivReading api={api} paperId={paperId} onClose={() => setReviewing(false)} onPrepare={async item => { await prepare(item); setReviewing(false); }}/>}
     {!document ? <div className="pa-text-document"><TextContents blocks={[]} current={target} onOpen={reveal}/>{children}</div> : <div className="pa-reading-column">
       {(scopes.length > 1 || !!evidenceScope && !selectedScope) && <Select label="Evidence bundle" disabled={busy} value={selectedScope ? `${selectedScope.bundleId}:${selectedScope.resourceId}` : ''} onChange={value => {
         const scope = scopes.find(scope => `${scope.bundleId}:${scope.resourceId}` === value); chooseScope(document.id, scope ?? null);
       }} options={[{ value: '', label: 'Choose evidence bundle' }, ...scopes.map(scope => ({ value: `${scope.bundleId}:${scope.resourceId}`, label: `${scope.bundleId.slice(0, 12)} · ${scope.resourceId.slice(0, 8)}` }))]}/>}
-      <Disclosure summary="Source and parsing details"><Toolbar><Select disabled={busy} label="Read version" value={document.id} onChange={id => { const version = ++epoch.current; void load(id, version).catch(error => { if (version === epoch.current) setError({ message: String(error.message ?? error) }); }); }} options={overview.revisions.map(r => ({ value: r.id, label: `${r.source.version} · ${r.parser} · ${r.source.digest.slice(0, 10)}` }))}/><Button variant="ghost" disabled={busy || !activeRevision} onClick={() => void source()}>Original HTML</Button></Toolbar>
-
-      <a href={document.source.url} target="_blank" rel="noreferrer">Official source · {document.source.version}</a><dl><dt>Original SHA-256</dt><dd><code>{document.source.digest}</code></dd><dt>Parser</dt><dd>{document.parser}</dd><dt>Response identity</dt><dd>{document.sourceIdentity}</dd>{document.metadata.date && <><dt>Declared date</dt><dd>{document.metadata.date}</dd></>}{document.metadata.identifiers.map(([kind, value], i) => <React.Fragment key={i}><dt>{kind}</dt><dd>{value}</dd></React.Fragment>)}</dl>{document.warnings.length > 0 && <ul>{document.warnings.map(w => <li key={w}>{w}</li>)}</ul>}<a href={`/api/paper-documents/${document.id}/original`} download="source.html.txt">Download original bytes (text)</a><div>{overview.sources.filter(s => s.authorized && !scopes.some(scope => scope.bundleId === s.bundleId && scope.resourceId === s.resourceId)).map(s => <Button key={`reuse:${s.bundleId}:${s.resourceId}`} disabled={busy} onClick={() => void prepare(s)}>Use saved Read · {s.revision}</Button>)}{overview.sources.filter(s => s.authorized).map(s => <Button key={`${s.bundleId}:${s.resourceId}`} disabled={busy} onClick={() => void prepare(s, true)}>Prepare fresh parse · {s.revision}</Button>)}</div></Disclosure>
-      {activeRevision && <Disclosure summary="Recorded evidence"><Button disabled={busy} onClick={() => setReportRefresh(value => value + 1)}>Refresh recorded evidence</Button>
-        <SourceReports key={activeRevision.bundleId} api={api} bundleId={activeRevision.bundleId} refresh={reportRefresh} navigating={busy}
-          canOpenSource={() => false} openSource={() => {}} canOpenPdf={() => false} openPdf={() => {}}
-          canOpenDocument={(observation, scope) => !!recordedRevision(scope, observation.resourceId)} openDocument={(observation, scope) => void openRecorded(scope, observation.id, observation.resourceId)}/>
-      </Disclosure>}
-      <p className="pa-document-meta">{t(document.parseStatus === 'partial' ? 'partialHtml' : 'missingImages')} <a href={document.source.url} target="_blank" rel="noreferrer">{t('official')}</a></p>
+      {document.parseStatus === 'partial' && document.warnings.some(warning => warning !== 'image-bytes-not-acquired') && <p className="pa-document-meta">{t('partialHtml')} <a href={document.source.url} target="_blank" rel="noreferrer">{t('official')}</a></p>}
       {recordedScope && <p role="status">Recorded {recordedScope.unit} {recordedScope.start}–{recordedScope.end} {recordedScope.unit === 'original-html' ? ' · Raw markup only; not structured scientific understanding.' : ` · ${recordedScope.blockId}. Showing the surrounding block; other content is not marked observed.`}</p>}
       {targetError && <Feedback>{targetError}</Feedback>}{candidates.length > 0 && <Feedback>Multiple source targets. {candidates.map(b => <Button key={b.id} onClick={() => reveal(b.id)}>{b.id}</Button>)}</Feedback>}
       {recordedScope && <Button onClick={() => { setRecordedScope(null); setOriginal(null); }}>{t('backReading')}</Button>}

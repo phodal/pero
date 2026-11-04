@@ -1,24 +1,27 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppI18n, useAppInfo, useAppChat, useAppObject, useAppDataChanged, useAppContext, useAppEvents, appObjectProps } from '@pero/app-sdk';
-import { Button, EmptyState, Feedback, Icon, LibraryHeader, PageHeader, Split, SplitPane } from '@pero/app-sdk/ui';
+import { Button, Feedback, Icon, PageHeader, Split, SplitPane } from '@pero/app-sdk/ui';
 import { messages } from './i18n';
-import { ImportPanel, PaperList } from './library';
+import { ImportPanel } from './library';
+import { LibraryPapers } from './library-papers';
 import { LibrarySave } from './library-save';
-import { LibrarySearch } from './library-search';
-import { ResearchBundleList, ResearchBundleView } from './research-bundles';
+import { ComparePapers } from './compare-papers';
+import { ResearchBundleView } from './research-bundles';
 import type { ResearchBundle } from './research-types';
 import { Reader, EvidencePanel, type Citation } from './documents';
+import { FigureSourceDialog, type FigureReference, type FigureTarget } from './figure-reference';
 import { ResearchRecords } from './research-records';
 import { Discovery, type DiscoveryOpening } from './discovery';
 import { DiscoverSearch } from './discover-search';
-import { WorkspaceNav } from './workspace-nav';
-import { cycleStatus, loadShelf, openPaper, saveShelf, statusOf, withStatus, type Shelf, type ShelfFilter } from './shelf';
-import type { EvidenceLocation, Intent, Library, LocalSearchHit, Paper, PdfAnnotation, PdfFocus, PdfSource, SavedDiscovery, StudySummary, PaperResearchSelection, TextFocus } from './types';
+import { WorkspaceNav, type LibraryScreen } from './workspace-nav';
+import { loadShelf, openPaper, saveShelf, statusOf, withStatus, type Shelf, type ShelfFilter } from './shelf';
+import type { EvidenceLocation, Intent, Library, LocalSearchHit, Paper, PdfAnnotation, PdfFocus, PdfSource, SavedDiscovery, StudySummary, PaperResearchSelection, TextFocus, ReaderLocation } from './types';
 import './styles.css';
 import './workspace.css';
+import './library-papers.css';
+import './research-workspace.css';
 
 type WorkspaceScreen = 'library' | 'reading';
-type LibraryScreen = 'papers' | 'import' | 'discovery' | 'bundle' | 'find';
 
 function focusVisibleSearch() {
   const root = document.querySelector('.pa-workbench');
@@ -34,9 +37,10 @@ type ResearchDraft = { selection: Partial<PaperResearchSelection>; message: stri
 
 function SearchFrame({ preview, resizeLabel, children }: { preview: boolean; resizeLabel: string; children: React.ReactNode }) {
   const [library, reading] = React.Children.toArray(children);
-  return <Split storageKey="paper-agent.search-split" collapseBelow={preview ? 640 : 0} className="pa-search-split" data-preview={preview ? '' : undefined}>
-    <SplitPane id="paper-search-results" as="div" size={preview ? 420 : undefined} min={preview ? 280 : 0} resizeLabel={resizeLabel} className="pa-search-results-pane">{library}</SplitPane>
-    <SplitPane id="paper-search-preview" as="div" min={preview ? 320 : 0} className="pa-search-preview-pane">{reading}</SplitPane>
+  // Keep both panes mounted so a passage preview retains the search and reader.
+  return <Split storageKey="paper-agent.search-split" collapseBelow={640} className="pa-search-split" data-preview={preview ? '' : undefined} data-single={preview ? undefined : ''}>
+    <SplitPane id="paper-search-results" as="div" size={420} min={280} resizeLabel={resizeLabel} className="pa-search-results-pane">{library}</SplitPane>
+    <SplitPane id="paper-search-preview" as="div" min={320} className="pa-search-preview-pane">{reading}</SplitPane>
   </Split>;
 }
 
@@ -44,13 +48,17 @@ export default function PaperAgent() {
   const api = useAppApi(), chat = useAppChat(), info = useAppInfo(), { t } = useAppI18n(messages);
   const [library, setLibrary] = useState<Library>({ papers: [], intents: [], reports: [] });
   const [screen, setScreen] = useState<WorkspaceScreen>('library'), [libraryScreen, setLibraryScreenState] = useState<LibraryScreen>('papers');
+  const [comparison, setComparison] = useState<{ paperIds: string[]; from: 'papers' | 'discovery'; question: string } | null>(null);
   const [bundleOpening, setBundleOpening] = useState<{ id: string; startDownloadIds: string[]; startPdfIds: string[]; startSourceIds: string[]; token: number } | null>(null);
   const [importingPdf, setImportingPdf] = useState(false);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [reading, setReading] = useState<Paper | null>(null), [readingBusy, setReadingBusy] = useState(false);
   const [showResearch, setShowResearch] = useState(false), [questionMode, setQuestionMode] = useState(false);
   const [recordOpening, setRecordOpening] = useState<{ studyId: string; intentId: string | null; token: number } | null>(null);
-  const [savingPaper, setSavingPaper] = useState<Paper | null>(null), [saveRevision, setSaveRevision] = useState(0);
+  const [savingPaper, setSavingPaper] = useState<Paper | null>(null), [saveFormat, setSaveFormat] = useState<'pdf' | 'tex'>('pdf'), [saveRevision, setSaveRevision] = useState(0);
   const [chatRequest, setChatRequest] = useState<ResearchDraft | null>(null);
+  const [figureTarget, setFigureTarget] = useState<FigureTarget | null>(null), [figureDialog, setFigureDialog] = useState<FigureReference | null>(null);
+  const [readerLocation, setReaderLocation] = useState<ReaderLocation | null>(null);
+  const figureToken = useRef(0);
   const pendingAsk = useRef<ResearchDraft | null>(null);
   const [discoveryOpening, setDiscoveryOpening] = useState<DiscoveryOpening | null>(null), [matrixOpen, setMatrixOpen] = useState(false);
   const [pdfFocus, setPdfFocus] = useState<PdfFocus | null>(null), [pdfToolbar, setPdfToolbar] = useState<HTMLDivElement | null>(null);
@@ -61,9 +69,8 @@ export default function PaperAgent() {
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const [shelf, setShelf] = useState<Shelf>(() => loadShelf());
   const [shelfFilter, setShelfFilter] = useState<ShelfFilter>('all');
-  const [libraryQuery, setLibraryQuery] = useState('');
   const mounted = useRef(true), active = useRef(info.active), readVersion = useRef(0), readerOpenToken = useRef(0), libraryVersion = useRef(0), evidenceVersion = useRef(0);
-  const preserveView = useRef<(() => void) | null>(null), askButton = useRef<HTMLDivElement>(null), citationTrigger = useRef<HTMLElement | null>(null);
+  const preserveView = useRef<(() => void) | null>(null), recordsButton = useRef<HTMLElement>(null), citationTrigger = useRef<HTMLElement | null>(null);
   const libraryScreenNow = useRef(libraryScreen);
   libraryScreenNow.current = libraryScreen;
   active.current = info.active;
@@ -85,22 +92,38 @@ export default function PaperAgent() {
     media.addEventListener('change', change); return () => media.removeEventListener('change', change);
   }, []);
   async function ask(selection: Partial<PaperResearchSelection> = {}, message = '') {
-    const selected = { paperIds: reading ? [reading.id] : [], fullText: !!reading && (!!reading.pdfUrl || reading.source === 'local-pdf'), ...selection };
+    const version = readVersion.current;
     try {
+      // Downloads can update this record while the reader keeps its position.
+      // Freeze the current persisted source, rather than the opening snapshot.
+      const paper = screen === 'reading' && reading ? await api.get<Paper>(`/api/papers/${reading.id}`) : null;
+      if (!mounted.current || version !== readVersion.current) return;
+      if (paper) setReading(paper);
+      const location = paper ? readerLocation : null;
+      const selected = { paperIds: paper ? [location?.paperId ?? paper.id] : [], fullText: !!paper && (!!paper.pdfUrl || paper.source === 'local-pdf'), ...selection };
+      if (!selected.contextId && location && 'documentId' in location && location.excerpt && selected.paperIds.includes(location.paperId)) {
+        const context = await api.post<{ id: string }>('/api/contexts', { content: location.excerpt,
+          paperId: location.paperId, documentId: location.documentId, fileDigest: location.fileDigest, page: location.page,
+          ...(location.texPreviewId ? { texPreviewId: location.texPreviewId } : {}) });
+        selected.contextId = context.id;
+      }
       if (selected.fullText) {
         for (const id of selected.paperIds) {
           const saved = await api.get<import('./types').PdfReading>(`/api/pdf?paperId=${id}`);
           if (!saved.document) {
             const paper = library.papers.find(paper => paper.id === id) ?? await api.get<Paper>(`/api/papers/${id}`);
-            pendingAsk.current = { selection: selected, message }; setSavingPaper(paper); return;
+            pendingAsk.current = { selection: selected, message }; setSaveFormat('pdf'); setSavingPaper(paper); return;
           }
         }
       }
-      preserveView.current?.(); setShowResearch(false); setQuestionMode(true); setChatRequest({ selection: selected, message });
+      // Enter question mode only after Host Chat actually accepts the handoff.
+      // Otherwise a closed floating dock can swallow Ask AI while leaving the
+      // reading chrome empty (button hidden, panel still collapsed).
+      preserveView.current?.(); setShowResearch(false); setChatRequest({ selection: selected, message });
     } catch (error) { onError(error); }
   }
-  function closeRecords() { preserveView.current?.(); setShowResearch(false); requestAnimationFrame(() => askButton.current?.querySelector('button')?.focus({ preventScroll: true })); }
-  function back() { preserveView.current?.(); setQuestionMode(false); setScreen('library'); setLibraryScreen('papers'); setShowResearch(false); setCitation(null); setHitPreview(false); setOpenHit(null); }
+  function closeRecords() { preserveView.current?.(); setShowResearch(false); requestAnimationFrame(() => recordsButton.current?.focus({ preventScroll: true })); }
+  function back() { preserveView.current?.(); setQuestionMode(false); setScreen('library'); setLibraryScreen(libraryScreenNow.current === 'results' || libraryScreenNow.current === 'compare' ? libraryScreenNow.current : 'papers'); setShowResearch(false); setHitPreview(false); setOpenHit(null); }
   function openImport() { back(); setLibraryScreen('import'); }
   useEffect(() => {
     function key(event: KeyboardEvent) {
@@ -139,13 +162,14 @@ export default function PaperAgent() {
   }, [questionMode]);
 
   function setLibraryScreen(next: LibraryScreen) {
-    readVersion.current++; setReadingBusy(false); setLibraryScreenState(next);
+    readVersion.current++; evidenceVersion.current++; setCitation(null); setReadingBusy(false); setLibraryScreenState(next);
   }
   function openBundle(id: string) {
     setBundleOpening(previous => ({ id, startDownloadIds: [], startPdfIds: [], startSourceIds: [], token: (previous?.token ?? 0) + 1 }));
     setLibraryScreen('bundle');
   }
   async function read(paper: Paper, keepRecords = false, propagate = false, fromSearch = false) {
+    setFigureTarget(null); setFigureDialog(null); if (paper.id !== reading?.id) setReaderLocation(null);
     const version = ++readVersion.current; readerOpenToken.current++; setShelf(current => openPaper(current, paper.id)); setReadingBusy(true); setScreen('reading'); setCitation(null); setError('');
     setHitPreview(fromSearch);
     if (!fromSearch) setOpenHit(null);
@@ -177,7 +201,6 @@ export default function PaperAgent() {
   async function added(paper: Paper, focus: boolean | (() => boolean)) {
     await refresh();
     if (mounted.current && active.current && (typeof focus === 'function' ? focus() : focus)) {
-      if (paper.pdfUrl || paper.source === 'local-pdf') setSavingPaper(paper);
       await read(paper);
     }
   }
@@ -216,10 +239,9 @@ export default function PaperAgent() {
   }
   function discover(paper: Paper) { setDiscoveryOpening({ seed: paper }); setScreen('library'); setLibraryScreen('discovery'); setShowResearch(false); }
   function addToComparison(paper: Paper, seedId: string) {
-    const ids = Array.from(new Set([seedId, paper.id]));
-    const seed = library.papers.find(p => p.id === seedId);
-    const open = () => void ask({ paperIds: ids, fullText: ids.every(id => library.papers.some(p => p.id === id && (!!p.pdfUrl || p.source === 'local-pdf'))) }, t('matrixInstruction'));
-    if (seed) void read(seed, true).then(open); else { setScreen('reading'); open(); }
+    if (paper.id === seedId) return false;
+    setComparison({ paperIds: [seedId, paper.id], from: libraryScreen === 'discovery' ? 'discovery' : 'papers', question: t('matrixInstruction') });
+    setLibraryScreen('compare');
     return true;
   }
   async function readFavorite(favorite: SavedDiscovery, compare = false) {
@@ -235,7 +257,8 @@ export default function PaperAgent() {
   }
   async function revealPdf(paper: Paper, focus: PdfFocus) {
     focusVersion.current++;
-    if (reading?.id !== paper.id) await read(paper, true, true);
+    setFigureTarget(null);
+    if (screen !== 'reading' || reading?.id !== paper.id) await read(paper, true, true);
     setPdfFocus(focus);
     if (narrow) closeRecords();
   }
@@ -268,9 +291,10 @@ export default function PaperAgent() {
     if (!text || !reading) return;
     try {
       const context = await api.post<{ id: string }>('/api/contexts', {
-        content: text, paperId: reading.id, ...(pdf ? { documentId: pdf.documentId, fileDigest: pdf.fileDigest, page: pdf.page, rects: pdf.rects } : {}),
+        content: text, paperId: pdf?.paperId ?? reading.id, ...(pdf ? { documentId: pdf.documentId, fileDigest: pdf.fileDigest, page: pdf.page, rects: pdf.rects,
+          ...(pdf.texPreviewId ? { texPreviewId: pdf.texPreviewId } : {}) } : {}),
       });
-      await ask({ paperIds: [reading.id], contextId: context.id, fullText: !!pdf || !!reading.pdfUrl || reading.source === 'local-pdf' });
+      await ask({ paperIds: [pdf?.paperId ?? reading.id], contextId: context.id, fullText: !!reading.pdfUrl || reading.source === 'local-pdf' || (!!pdf && !pdf.texPreviewId) });
     } catch (error) { onError(error); }
   }
   function followUp(intent: Intent) {
@@ -288,8 +312,19 @@ export default function PaperAgent() {
       if(event.source!==window.parent || event.data?.type!=='pero:app:location' || typeof event.data.location!=='string')return;
       const resource=/^(paper|study)\/([a-f0-9]{64})$/.exec(event.data.location);
       const match=/^report\/([a-f0-9]{64})\/citation\/(\d+)$/.exec(event.data.location);
-      if(!resource&&!match)return;
+      const figure=/^figure\/([a-f0-9]{64})\/([a-f0-9]{64})$/.exec(event.data.location);
+      if(!resource&&!match&&!figure)return;
       void (async()=>{
+        if(figure){
+          const reference=await api.get<FigureReference>(`/api/research/figure-reference/${figure[1]}/${figure[2]}${reading ? `?paperId=${reading.id}` : ''}`);
+          const target=reference.preview ?? reference.pdf;
+          if(target){
+            await read(await api.get<Paper>(`/api/papers/${target.paperId}`),false,true);
+            setPdfFocus(null);
+            setFigureTarget({...reference,token:++figureToken.current});
+          }else setFigureDialog(reference);
+          return;
+        }
         if(resource){
           setQuestionMode(false);setSavingPaper(null);
           if(resource[1]==='paper'){
@@ -315,12 +350,15 @@ export default function PaperAgent() {
       })().catch(onError);
     };
     window.addEventListener('message',receive);return()=>window.removeEventListener('message',receive);
-  },[api,reading]);
+  },[api,reading,screen]);
   useAppDataChanged(() => refresh().catch(onError));
-  useAppObject({id:'paper-agent',kind:'research-library',label:'Paper Agent',state:{
+  const figureInView = figureTarget && readerLocation && 'documentId' in readerLocation
+    && [figureTarget.preview, figureTarget.pdf].some(target => target?.documentId === readerLocation.documentId && target.page === readerLocation.page);
+  useAppObject({id:'paper-agent',kind:'research-library',label:reading?.title.slice(0,300)||'Paper Agent',state:{
     paperCount:library.papers.length,reportCount:library.reports.length,selected:reading ? [reading.id] : [],
     readingId:reading?.id??null,title:reading?.title??null,contentDigest:reading?.contentDigest??null,url:reading?.url??null,sourceId:reading?.sourceId??null,
     sourceExcerpt:reading?.content?.slice(0,4000)??null,sourceTruncated:(reading?.content?.length??0)>4000,
+    readingLocation:readerLocation,figure:figureInView && figureTarget ? { archiveDigest:figureTarget.archiveDigest,memberId:figureTarget.memberId,memberPath:figureTarget.memberPath } : null,
     loading:loading||readingBusy,acceptance:'unverified',
     sources:(reading ? [reading] : []).map(p => ({ id:p.id, title:p.title, contentKind:p.contentKind, contentDigest:p.contentDigest, hasPdf:!!p.pdfUrl || p.source==='local-pdf' })),
     research:{ prepare:'prepare-research', followup:'follow-up-research', step:'research-step', continue:'continue-research', submit:'submit-report',
@@ -335,58 +373,84 @@ export default function PaperAgent() {
     const selection: PaperResearchSelection = {
       paperIds: reading ? [reading.id] : [], fullText: !!reading && (!!reading.pdfUrl || reading.source === 'local-pdf'), ...chatRequest.selection,
     };
+    const draft = chatRequest;
     setChatRequest(null);
-    void chat.compose(chatRequest.message, { attachments: [chat.objectReference('paper-agent', selection)] }).catch(onError);
+    void chat.compose(draft.message, { attachments: [chat.objectReference('paper-agent', selection)] })
+      .then(() => { if (mounted.current) setQuestionMode(true); })
+      .catch(error => { if (mounted.current) setQuestionMode(false); onError(error); });
   }, [chatRequest, readingBusy]);
   const readingCount = library.papers.filter(paper => statusOf(shelf, paper.id) === 'reading').length;
   const toReadCount = library.papers.filter(paper => statusOf(shelf, paper.id) === 'to-read').length;
-  const shownCount = shelfFilter === 'all' ? library.papers.length : library.papers.filter(paper => statusOf(shelf, paper.id) === shelfFilter).length;
-  const searchingLibrary = libraryQuery.trim().length > 0;
-  const libraryTitle = searchingLibrary ? t('searchLibrary') : shelfFilter === 'reading' ? t('statusReading') : shelfFilter === 'to-read' ? t('statusToRead') : shelfFilter === 'reviewed' ? t('statusReviewed') : t('library');
-  const librarySubtitle = searchingLibrary ? t('searchLibraryCopy') : t('papersInWorkspace', { n: shownCount });
   const bundles = library.bundles ?? [];
+  const evidencePanel = citation && <div className="pa-record-evidence"><EvidencePanel citation={citation} location={evidence} paper={citation.intent.papers.find(p => p.id === citation.paperId)} busy={evidenceBusy} onClose={closeEvidence} onRead={(page, rects) => {
+    const paper = citation.intent.papers.find(p => p.id === citation.paperId), pdf = evidence?.pdf;
+    if (paper && pdf) void revealPdf(paper, { documentId: pdf.documentId, page: page ?? pdf.pages[0], rects: rects ?? pdf.rects }).catch(onError);
+    else if (paper) void read(paper, true);
+  }} t={t}/></div>;
   return <div onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { if (!event.dataTransfer.files.length) return; event.preventDefault(); void importPdf(event.dataTransfer.files[0]); }} className="pa-workbench pa-reading-first" data-screen={screen} data-research={showResearch} {...appObjectProps('paper-agent')}>
     {sdkContext.permissions && <ChatClosed onClose={() => setQuestionMode(false)}/>}
+    {figureDialog && <FigureSourceDialog api={api} reference={figureDialog} onClose={() => setFigureDialog(null)}/>}
     {importingPdf && <p className="pa-loading" role="status">{t('pdfImporting')}</p>}
     {error && <div className="pa-global-error"><Feedback kind="error"><span>{error}</span><Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback></div>}
-    {savingPaper && <LibrarySave key={savingPaper.id} api={api} paper={savingPaper} t={t} onError={onError} onRead={id => { pendingAsk.current = null; setSavingPaper(null); void api.get<Paper>(`/api/papers/${id}`).then(paper => read(paper)).catch(onError); }} onClose={() => { pendingAsk.current = null; setSavingPaper(null); }} onSaved={async () => { setSaveRevision(value => value + 1); await refresh().catch(error => onError(`${t('savedRefreshFailed')} ${error instanceof Error ? error.message : String(error)}`)); const queued = pendingAsk.current; pendingAsk.current = null; if (queued) { setSavingPaper(null); await ask(queued.selection, queued.message); } }}/>}
-    <div className="pa-shell">
-    {screen !== 'reading' && <WorkspaceNav t={t} paperCount={library.papers.length} readingCount={readingCount} toReadCount={toReadCount} bundles={bundles} libraryScreen={libraryScreen} shelfFilter={shelfFilter} openBundleId={bundleOpening?.id ?? null} onLibrary={() => { setShelfFilter('all'); setLibraryScreen('papers'); }} onDiscover={() => setLibraryScreen('find')} onShelf={filter => { setShelfFilter(filter); setLibraryScreen('papers'); }} onBundle={openBundle}/>}
+    {savingPaper && <LibrarySave key={savingPaper.id} api={api} paper={savingPaper} format={saveFormat} t={t} onRead={id => { pendingAsk.current = null; setSavingPaper(null); void api.get<Paper>(`/api/papers/${id}`).then(paper => read(paper)).catch(onError); }} onClose={() => { pendingAsk.current = null; setSavingPaper(null); }} onSaved={async () => { setSaveRevision(value => value + 1); await refresh().catch(error => onError(`${t('savedRefreshFailed')} ${error instanceof Error ? error.message : String(error)}`)); const queued = pendingAsk.current; pendingAsk.current = null; if (queued) { setSavingPaper(null); await ask(queued.selection, queued.message); } }}/>}
+    <Split className="pa-shell" storageKey="paper-agent.library-navigation" collapseBelow={760}>
+    {screen !== 'reading' && <SplitPane id="paper-navigation" size={196} min={160} resizeLabel={t('resizeLibraryNavigation')} stackedBasis="auto"><WorkspaceNav t={t} paperCount={library.papers.length} readingCount={readingCount} toReadCount={toReadCount} bundles={bundles} libraryScreen={libraryScreen} shelfFilter={shelfFilter} openBundleId={bundleOpening?.id ?? null} onLibrary={() => { setShelfFilter('all'); setLibraryScreen('papers'); }} onDiscover={() => setLibraryScreen('find')} onResults={() => setLibraryScreen('results')} onShelf={filter => { setShelfFilter(filter); setLibraryScreen('papers'); }} onBundle={openBundle}/></SplitPane>}
+    <SplitPane id="paper-workspace" min={320} className="pa-workspace-pane">
     <div className="pa-workspace" data-hit-preview={hitPreview && screen === 'reading' ? 'true' : undefined} data-question={questionMode && screen === 'reading' ? 'true' : undefined}>
     <SearchFrame preview={hitPreview && screen === 'reading'} resizeLabel={t('resizeSearch')}>
     <section className="pa-library-screen" hidden={screen !== 'library' && !hitPreview} aria-label={t('papers')}>
-      <div className="pa-library-switch">
-        <button type="button" aria-pressed={libraryScreen === 'papers' || libraryScreen === 'import' || libraryScreen === 'bundle'} onClick={() => { setShelfFilter('all'); setLibraryScreen('papers'); }}>{t('library')}</button>
-        <button type="button" aria-pressed={libraryScreen === 'find' || libraryScreen === 'discovery'} onClick={() => setLibraryScreen('find')}>{t('discoverNav')}</button>
-      </div>
-      {(libraryScreen === 'import' || libraryScreen === 'discovery') && <PageHeader title={t(libraryScreen === 'import' ? 'add' : 'discover')} navigation={<Button variant="ghost" aria-label={t('backToLibrary')} onClick={() => setLibraryScreen('papers')}><Icon name="chevron-left"/></Button>}/>}
+      {libraryScreen === 'import' && <PageHeader title={t('add')} navigation={<Button variant="ghost" aria-label={t('backToLibrary')} onClick={() => setLibraryScreen('papers')}><Icon name="chevron-left"/></Button>}/>}
       <div className="pa-library-content" hidden={libraryScreen !== 'papers'}>
-        <LibraryHeader className="pa-page-heading" title={libraryTitle} subtitle={librarySubtitle} actions={<><Button variant="ghost" aria-label={t('refresh')} onClick={() => void refresh().catch(onError)}><Icon name="refresh"/></Button><Button variant="primary" onClick={openImport}><Icon name="plus"/>{t('add')}</Button></>}/>
-        {loading ? <p role="status">{t('loading')}</p> : <LibrarySearch api={api} t={t} activeHitId={openHit?.id} onOpen={openSearchHit} onQueryChange={setLibraryQuery} onFind={() => setLibraryScreen('find')}>{!library.papers.length ? <EmptyState heading={t('emptyLibrary')} description={t('emptyLibraryCopy')}/> : <PaperList selecting={false} papers={library.papers} selected={reading ? [reading.id] : []} readingId={reading?.id ?? ''} locked={false} savingId={savingPaper?.id} shelf={shelf} shelfFilter={shelfFilter} onShelfFilter={setShelfFilter} onCycleStatus={id => setShelf(current => withStatus(current, id, cycleStatus(statusOf(current, id))))} onFindMore={() => setLibraryScreen('find')} onRead={paper => void read(paper)} onSelect={() => {}} onDiscover={discover} onDownload={setSavingPaper} t={t}/>}</LibrarySearch>}
-        <div className="pa-library-bundles"><ResearchBundleList bundles={bundles} onOpen={openBundle}/></div>
+        <LibraryPapers api={api} papers={library.papers} shelf={shelf} filter={shelfFilter} loading={loading} savingId={savingPaper?.id} activeHitId={openHit?.id} locked={!!chatRequest} showDetails={screen === 'library'} t={t}
+          onFilter={setShelfFilter} onStatus={(id, value) => setShelf(current => withStatus(current, id, value))} onRefresh={() => void refresh().catch(onError)} onImport={openImport}
+          onRead={paper => void read(paper)} onRecords={paper => void read(paper).then(() => setShowResearch(true))} onDiscover={discover}
+          onDownload={(paper, format) => { setSaveFormat(format); setSavingPaper(paper); }} onSearchHit={openSearchHit} onFind={() => setLibraryScreen('find')}
+          onCompare={paperIds => { setComparison({ paperIds, from: 'papers', question: t('compareQuestion') }); setLibraryScreen('compare'); }}/>
         {!!library.favorites?.length && <details className="pa-library-saved"><summary>{t('favorites')} {library.favorites.length}</summary><ul className="pa-report-list">{library.favorites.map(favorite => <li key={favorite.id} data-favorite-work={favorite.paper.id}><Button variant="ghost" disabled={!favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite)}>{favorite.paper.title}</Button><div className="pa-actions"><Button variant="ghost" disabled={!favorite.paper.abstract.trim()} onClick={() => void readFavorite(favorite, true)}>{t('addToMatrix')}</Button><Button variant="ghost" onClick={() => { setDiscoveryOpening({ historyId: favorite.batchId }); setLibraryScreen('discovery'); }}>{t('viewDiscovery')}</Button><a href={favorite.paper.url} target="_blank" rel="noreferrer">{t('original')}</a></div></li>)}</ul></details>}
       </div>
       <div hidden={libraryScreen !== 'import'}><ImportPanel onBundleSaved={bundleSaved} onImportPdf={importPdf} importingPdf={importingPdf} api={api} t={t} active={screen === 'library' && libraryScreen === 'import' && info.active} onAdded={added} onError={onError} onClose={() => setLibraryScreen('papers')}/></div>
       <div hidden={libraryScreen !== 'bundle'}>{bundleOpening && <ResearchBundleView key={`${bundleOpening.id}:${bundleOpening.token}`} api={api} {...bundleOpening} onBack={() => setLibraryScreen('papers')} onRead={readSavedSource}/>}</div>
-      <div hidden={libraryScreen !== 'discovery'}><Discovery api={api} opening={discoveryOpening} library={library} locked={false} selected={reading ? [reading.id] : []} onRefresh={refresh} onRead={async paper => { await read(paper); }} onCompare={addToComparison} onReturn={id => { const paper = library.papers.find(p => p.id === id); if (paper) void read(paper); }} t={t}/></div>
+      <div hidden={libraryScreen !== 'discovery'}><Discovery api={api} opening={discoveryOpening} library={library} locked={false} selected={reading ? [reading.id] : []} onRefresh={refresh} onRead={async paper => { await read(paper); }} onCompare={addToComparison} onReturn={id => { const paper = library.papers.find(p => p.id === id); if (paper) void read(paper); }} onBack={() => setLibraryScreen('papers')} t={t}/></div>
       <div className="pa-find-screen" hidden={libraryScreen !== 'find'}><DiscoverSearch api={api} papers={library.papers} active={screen === 'library' && libraryScreen === 'find' && info.active} onAdded={added} onOpenSaved={paper => void read(paper)} onAddByLink={openImport}/></div>
+      {libraryScreen === 'compare' && comparison && <ComparePapers
+        papers={comparison.paperIds.flatMap(id => library.papers.find(paper => paper.id === id) ?? [])}
+        saving={!!savingPaper} busy={!!chatRequest} t={t}
+        onDownload={paper => { setSaveFormat('pdf'); setSavingPaper(paper); }}
+        onBack={() => setLibraryScreen(comparison.from)}
+        onCompare={fullText => void ask({ paperIds: comparison.paperIds, fullText }, comparison.question)}/>}
+      {libraryScreen === 'results' && <div className="pa-research-page pa-results">
+        <PageHeader title={t('researchResults')}/>
+        {screen === 'library' && evidencePanel}
+        <ResearchRecords api={api} library={library} paper={null} results onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} t={t}/>
+      </div>}
     </section>
-    <section className="pa-reading-screen" hidden={screen !== 'reading'} data-agent={showResearch}>
-      <div className="pa-reading-main" inert={narrow && showResearch}>
-        <header className="pa-reading-bar pero-reader-header"><Button variant="ghost" aria-label={t('backToLibrary')} onClick={back}><Icon family="shell" name="back" size={16}/></Button><div className="pa-reader-crumb"><Button variant="ghost" onClick={back}>{t('library')}</Button><Icon name="chevron-right" size={13}/><h1 title={reading?.title}>{reading?.title ?? t('loading')}</h1></div><div className="pa-reader-tools" ref={setPdfToolbar}/>{!questionMode && <><Button className="pa-records-toggle" variant="ghost" aria-label={t('researchProgress')} title={t('researchProgress')} aria-expanded={showResearch} onClick={() => { preserveView.current?.(); setShowResearch(value => !value); }}><Icon name="panel-right" size={14}/><span>{t('researchProgress')}</span></Button><div ref={askButton}><Button variant="primary" disabled={!reading || readingBusy} onMouseDown={event => event.preventDefault()} onClick={() => void ask()} aria-keyshortcuts="Control+j Meta+j">{t('ask')}</Button></div></>}</header>
-        <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} openToken={readerOpenToken.current} pdfReloadToken={saveRevision} chrome={{ onSave: () => { if (reading) setSavingPaper(reading); }, toolbar: pdfToolbar, preserveView, onNavigate: () => { focusVersion.current++; } }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onReview={openImport} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
-      </div>
-      {screen === 'reading' && showResearch && <aside className="pa-records" aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
-        <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}>×</Button></header>
+    <Split className="pa-reading-screen" storageKey="paper-agent.research-records" collapseBelow={760} hidden={screen !== 'reading'} data-agent={showResearch}>
+      <SplitPane id="paper-reading-main" className="pa-reading-main" min={320}>
+        <header className="pa-reading-bar pero-reader-header">
+          <Button variant="ghost" aria-label={t(libraryScreen === 'results' ? 'researchResults' : libraryScreen === 'compare' ? 'comparePapers' : 'backToLibrary')} onClick={back}><Icon family="shell" name="back" size={16}/>{t(libraryScreen === 'results' ? 'researchResults' : libraryScreen === 'compare' ? 'comparePapers' : 'library')}</Button>
+          <div className="pa-reader-crumb"><span className="pa-reader-title" title={reading?.title}>{reading?.title ?? t('loading')}</span></div>
+          <div className="pa-reader-tools" ref={setPdfToolbar}/>
+          {!questionMode && <>
+            <Button ref={recordsButton} className="pa-records-toggle" variant="ghost" aria-label={t('researchProgress')} title={t('researchProgress')} aria-expanded={showResearch} aria-controls={showResearch ? 'paper-research-records' : undefined} onClick={() => { preserveView.current?.(); setShowResearch(value => !value); }}>
+              <Icon family="shell" name="clock" size={16}/>
+            </Button>
+            <div><Button variant="ghost" className="pa-ask" aria-label={t('ask')} disabled={!reading || readingBusy || !!chatRequest} onMouseDown={event => event.preventDefault()} onClick={() => void ask()} aria-keyshortcuts="Control+j Meta+j"><Icon name="ai-sparkles" size={14}/>{t('ask')}</Button></div>
+          </>}
+        </header>
+        <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} openToken={readerOpenToken.current} pdfReloadToken={saveRevision} chrome={{ figure: figureTarget, onLocation: setReaderLocation, onSave: (format = 'pdf') => { if (reading) { setSaveFormat(format); setSavingPaper(reading); } }, toolbar: pdfToolbar, preserveView, onNavigate: () => { focusVersion.current++; setPdfFocus(null); } }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onReview={openImport} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
+      </SplitPane>
+      {screen === 'reading' && showResearch && <SplitPane as="aside" id="paper-research-records" className="pa-records" size={384} min={300} stackedBasis="55%" resizeLabel={t('resizeResearchRecords')} aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
+        <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}><Icon name="x" size={14}/></Button></header>
         <div className="pa-records-panel">
           <ResearchRecords api={api} library={library} paper={reading} onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} opening={recordOpening} t={t}/>
-          {citation && <div className="pa-record-evidence"><EvidencePanel citation={citation} location={evidence} paper={citation.intent.papers.find(p => p.id === citation.paperId)} busy={evidenceBusy} onClose={closeEvidence} onRead={(page, rects) => { const paper = citation.intent.papers.find(p => p.id === citation.paperId), pdf = evidence?.pdf; if (paper && pdf) void revealPdf(paper, { documentId: pdf.documentId, page: page ?? pdf.pages[0], rects: rects ?? pdf.rects }).catch(onError); else if (paper) void read(paper, true); }} t={t}/></div>}
+          {evidencePanel}
         </div>
-      </aside>}
-    </section>
+      </SplitPane>}
+    </Split>
     </SearchFrame>
     </div>
-    </div>
+    </SplitPane>
+    </Split>
   </div>;
 }
 

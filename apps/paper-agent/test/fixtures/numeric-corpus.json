@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 1,
+  "coordinateSpace": "unrotated-top-left-normalized",
+  "pageNumbering": "one-based PDF pages, not printed page numbers",
+  "purpose": "Real scanned-paper diagnostic corpus; not an OCR accuracy or semantic-admission claim.",
+  "samples": [
+    {
+      "id": "naca-tn-2825-negative-linear",
+      "ntrsId": "19930083484",
+      "title": "A comparative examination of some measurements of airfoil section lift and drag at supercritical speeds",
+      "report": "NACA-TN-2825",
+      "publicationDate": "1952-11-01",
+      "page": 28,
+      "figure": "10",
+      "region": {
+        "x": 0.27,
+        "y": 0.12,
+        "width": 0.46,
+        "height": 0.63
+      },
+      "coverage": [
+        "negative ticks",
+        "linear y axis",
+        "nonlinear x calibration"
+      ],
+      "axes": {
+        "x": {
+          "label": "Free-stream Mach number, M",
+          "unit": "dimensionless",
+          "scale": "nonlinear-transformed",
+          "literalTicks": [
+            "0",
+            ".4",
+            ".5",
+            ".6",
+            ".7",
+            ".75",
+            ".8"
+          ]
+        },
+        "y": {
+          "label": "Upper- and lower-surface section normal-force coefficients",
+          "unit": "dimensionless",
+          "scale": "linear",
+          "literalTicks": [
+            "-.6",
+            "-.4",
+            "-.2",
+            "0",
+            ".2",
+            ".4",
+            ".6",
+            ".8"
+          ]
+        }
+      },
+      "limitations": [
+        "The x ticks are not uniformly spaced in Mach number; do not apply linear x calibration.",
+        "Archival OCR reads the -.4 y tick as 74.",
+        "Airfoil identifiers 0006 through 0018 are not axis ticks."
+      ],
+      "fileName": "19930083484.pdf",
+      "sha256": "d03f1dabbc5fecbc8333443794ba9c33fb6632c2af9efd0237d76a96528829b8",
+      "byteLength": 1382866,
+      "sourceUrl": "https://ntrs.nasa.gov/citations/19930083484",
+      "downloadUrl": "https://ntrs.nasa.gov/api/citations/19930083484/downloads/19930083484.pdf",
+      "rights": "NASA NTRS: Work of the US Gov. Public Use Permitted.",
+      "originalScan": true,
+      "verification": "Visually inspected full page and enlarged crop on 2026-11-04; embedded archival OCR compared separately.",
+      "expectedStatus": "needs-review",
+      "automaticAdmissionAllowed": false
+    },
+    {
+      "id": "naca-tm-768-log-scientific",
+      "ntrsId": "19930094649",
+      "title": "The interdependence of profile drag and lift with Joukowski type and related airfoils",
+      "report": "NACA-TM-768",
+      "publicationDate": "1935-03-01",
+      "page": 17,
+      "figure": "5a",
+      "region": {
+        "x": 0.075,
+        "y": 0.125,
+        "width": 0.395,
+        "height": 0.115
+      },
+      "coverage": [
+        "log axes",
+        "scientific powers",
+        "decimal comma"
+      ],
+      "axes": {
+        "x": {
+          "label": "Delta c_w",
+          "unit": "dimensionless",
+          "scale": "logarithmic",
+          "literalTicks": [
+            "10^-3",
+            "2",
+            "4",
+            "6",
+            "8",
+            "10^-2",
+            "2",
+            "4",
+            "6",
+            "8",
+            "10^-1"
+          ],
+          "notation": "Caret notation transcribes visibly raised exponents; intervening numbers are within each decade."
+        },
+        "y": {
+          "label": "Delta c_a",
+          "unit": "dimensionless",
+          "scale": "logarithmic",
+          "literalTicks": [
+            "0,2",
+            "0,4",
+            "0,6",
+            "0,8",
+            "1,0"
+          ]
+        }
+      },
+      "limitations": [
+        "Printed decimal commas must not be silently split into separate integers.",
+        "Superscripts and tiny axis subscripts require visual confirmation.",
+        "The crop omits the explanatory caption but includes both axes."
+      ],
+      "fileName": "19930094649.pdf",
+      "sha256": "442de33cd86325458dc43f8eb3248f5e763e610057edb3d86034b399af883a96",
+      "byteLength": 951110,
+      "sourceUrl": "https://ntrs.nasa.gov/citations/19930094649",
+      "downloadUrl": "https://ntrs.nasa.gov/api/citations/19930094649/downloads/19930094649.pdf",
+      "rights": "NASA NTRS: Work of the US Gov. Public Use Permitted.",
+      "originalScan": true,
+      "verification": "Visually inspected full page and enlarged crop on 2026-11-04; embedded archival OCR compared separately.",
+      "expectedStatus": "needs-review",
+      "automaticAdmissionAllowed": false
+    },
+    {
+      "id": "naca-tm-842-degraded-log",
+      "ntrsId": "19930094574",
+      "title": "Universal logarithmic law of velocity distribution as applied to the investigation of boundary layer and drag of streamline bodies at large Reynolds number",
+      "report": "NACA-TM-842",
+      "publicationDate": "1937-11-01",
+      "page": 67,
+      "figure": "11",
+      "region": {
+        "x": 0.17,
+        "y": 0.66,
+        "width": 0.72,
+        "height": 0.205
+      },
+      "coverage": [
+        "degraded scan",
+        "mixed raster and archival OCR",
+        "dense log ticks"
+      ],
+      "axes": {
+        "x": {
+          "label": "Reynolds number",
+          "unit": "dimensionless",
+          "scale": "logarithmic",
+          "literalMajorTicks": [
+            "10^5",
+            "10^6",
+            "10^7",
+            "10^8",
+            "10^9"
+          ],
+          "literalMinorTickPattern": [
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9"
+          ],
+          "notation": "Caret notation transcribes visibly raised exponents."
+        },
+        "y": {
+          "label": "Frictional drag coefficient",
+          "unit": "dimensionless",
+          "scale": "logarithmic",
+          "literalTicks": [
+            "0.01",
+            "0.02",
+            "0.03"
+          ]
+        }
+      },
+      "limitations": [
+        "Broken strokes, dense grid and curve labels overlap plot content.",
+        "Archival page OCR contains the caption only, no axis ticks.",
+        "Do not infer axis units or exponent values from numeric token matches alone."
+      ],
+      "fileName": "19930094574.pdf",
+      "sha256": "52a25d5ed3df1f5dc44f61c131d0a58c48ecb24248ba9aecfc4aa723023065a3",
+      "byteLength": 8793288,
+      "sourceUrl": "https://ntrs.nasa.gov/citations/19930094574",
+      "downloadUrl": "https://ntrs.nasa.gov/api/citations/19930094574/downloads/19930094574.pdf",
+      "rights": "NASA NTRS: Work of the US Gov. Public Use Permitted.",
+      "originalScan": true,
+      "verification": "Visually inspected full page and enlarged crop on 2026-11-04; embedded archival OCR compared separately.",
+      "expectedStatus": "needs-review",
+      "automaticAdmissionAllowed": false
+    }
+  ]
+}

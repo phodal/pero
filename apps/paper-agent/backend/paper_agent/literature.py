@@ -12,7 +12,7 @@ from html.parser import HTMLParser
 import json
 import re
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode, urlsplit
+from urllib.parse import quote, urlencode, urlsplit, unquote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import xml.etree.ElementTree as ET
 
@@ -23,6 +23,9 @@ SOURCES = ("alphaxiv", "openalex", "biorxiv", "pubmed", "huggingface")
 ORIGINS = frozenset(("api.alphaxiv.org", "www.alphaxiv.org", "api.openalex.org",
                      "api.biorxiv.org", "eutils.ncbi.nlm.nih.gov", "arxiv.org", "huggingface.co"))
 LIMIT_BYTES = 1024 * 1024
+# OpenAlex rejects nested select. These top-level fields are the ones a hit uses.
+# A cited page of 50 full works exceeds the response limit, so search asks for one page.
+OPENALEX_SELECT = "id,display_name,doi,publication_date,cited_by_count,abstract_inverted_index,authorships,best_oa_location,primary_location,locations"
 ARXIV = re.compile(r"(?:\d{4}\.\d{4,5}|[a-z][a-z.-]*/\d{7})(?:v\d+)?", re.I)
 MERGED_METADATA = ('publicationDate', 'citations', 'citationSource', 'authors', 'pdfUrl', 'fullTextUrl', 'doi',
                    'paperUrl', 'hfVotes', 'thumbnailUrl', 'thumbnailId', 'githubUrl', 'githubStars', 'projectUrl')
@@ -105,8 +108,8 @@ class PaperIdentity:
                     raise Invalid("Invalid paper URL")
             except ValueError as error:
                 raise Invalid("Invalid paper URL") from error
-            if url.hostname in ("arxiv.org", "www.arxiv.org", "alphaxiv.org", "www.alphaxiv.org"):
-                paper_id = re.sub(r"^/(?:abs|pdf|overview)/", "", url.path)
+            if url.hostname in ("arxiv.org", "www.arxiv.org", "export.arxiv.org", "alphaxiv.org", "www.alphaxiv.org"):
+                paper_id = re.sub(r"^/(?:abs|pdf|html|overview)/", "", unquote(url.path))
                 paper_id = re.sub(r"\.pdf$", "", paper_id)
             elif url.hostname in ('huggingface.co', 'www.huggingface.co'):
                 if not url.path.startswith('/papers/'):
@@ -114,13 +117,16 @@ class PaperIdentity:
                 paper_id = url.path.removeprefix('/papers/').rstrip('/')
                 if source is None:
                     source = 'huggingface'
-            elif url.hostname in ("doi.org", "www.biorxiv.org", "biorxiv.org"):
-                paper_id = re.sub(r"^/(?:content/)?", "", url.path)
+            elif url.hostname in ("doi.org", "dx.doi.org", "www.doi.org", "www.biorxiv.org", "biorxiv.org"):
+                paper_id = re.sub(r"^/(?:content/)?", "", unquote(url.path))
             elif url.hostname in ("openalex.org", "pubmed.ncbi.nlm.nih.gov"):
                 paper_id = url.path.strip("/")
             else:
                 raise Invalid("Unsupported paper URL")
         paper_id = re.sub(r"^(?:arxiv:|doi:|pmid:)\s*", "", paper_id, flags=re.I)
+        arxiv_doi = re.fullmatch(r'10\.48550/arxiv\.(.+)', paper_id, re.I)
+        if arxiv_doi:
+            paper_id, source = arxiv_doi[1], 'alphaxiv'
         if source == 'huggingface':
             source = 'alphaxiv'
         if source is None:
@@ -298,6 +304,22 @@ def _openalex(work, source):
     return hit
 
 
+def _interleave(hits):
+    groups, order = {}, []
+    for hit in hits:
+        source = hit["source"]
+        if source not in groups:
+            order.append(source)
+            groups[source] = []
+        groups[source].append(hit)
+    mixed = []
+    while any(groups[source] for source in order):
+        for source in order:
+            if groups[source]:
+                mixed.append(groups[source].pop(0))
+    return mixed
+
+
 def _rerank(hits, priority):
     if priority in ("recency", "historical"):
         dated = [hit for hit in hits if isinstance(hit.get("publicationDate"), str) and hit["publicationDate"]]
@@ -305,7 +327,7 @@ def _rerank(hits, priority):
         return dated + [hit for hit in hits if not isinstance(hit.get("publicationDate"), str) or not hit["publicationDate"]]
     if priority == "popular":
         return sorted(hits, key=lambda hit: (isinstance(hit.get("citations"), int), hit.get("citations") or 0), reverse=True)
-    return hits
+    return _interleave(hits)
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -405,7 +427,7 @@ class LiteratureClient:
         parameters = dict(db="pubmed", id=",".join(ids))
         with ThreadPoolExecutor(max_workers=2) as pool:
             summary = pool.submit(self._request, self._endpoint("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi", **parameters, retmode="json"))
-            xml = pool.submit(self._request, self._endpoint("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi", **parameters, retmode="xml"), json_body=False)
+            xml = pool.submit(self._request, self._endpoint("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi", **parameters, retmode="xml", rettype="abstract"), json_body=False)
             summaries = summary.result().get("result", {})
             try:
                 document = ET.fromstring(xml.result())
@@ -497,7 +519,7 @@ class LiteratureClient:
                 terms += f' AND ("{query.published_after or "1000/01/01"}"[Date - Publication] : "{query.published_before or "3000/12/31"}"[Date - Publication])'
             response = self._request(self._endpoint("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
                                                    db="pubmed", term=terms, sort="pub_date" if query.priority == "recency" else "relevance", retmode="json",
-                                                   retmax=query.limit if query.priority == "default" else min(query.limit * 4, 80)))
+                                                   retmax=query.limit))
             result = response.get("esearchresult", {})
             ids = result.get("idlist")
             if result.get("ERROR") or not isinstance(ids, list) or any(not isinstance(item, str) or not re.fullmatch(r"\d{1,9}", item) for item in ids):
@@ -511,8 +533,8 @@ class LiteratureClient:
         if query.published_before:
             filters.append("to_publication_date:" + query.published_before)
         result = self._request(self._endpoint("https://api.openalex.org/works", search=query.query,
-                                             per_page=query.limit if query.priority == "default" else min(max(query.limit * 4, 50), 200),
-                                             filter=",".join(filters) or None,
+                                             per_page=query.limit,
+                                             filter=",".join(filters) or None, select=OPENALEX_SELECT,
                                              sort="publication_date:desc" if query.priority == "recency" else "publication_date:asc" if query.priority == "historical" else "cited_by_count:desc" if query.priority == "popular" else None))
         if not isinstance(result.get("results"), list):
             raise Invalid("Invalid OpenAlex response")

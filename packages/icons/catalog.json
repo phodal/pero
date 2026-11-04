@@ -33,6 +33,7 @@
   "shield": {},
   "image": {},
   "sparkles": {},
+  "ai-sparkles": {},
   "code": {},
   "message-circle": { "aliases": ["chat"] },
   "text-cursor": {},

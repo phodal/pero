@@ -27,6 +27,8 @@ pub enum ChatAction {
         request_id: Option<String>,
     },
     PreviewContext { reference: ContextReference, thread_id: String },
+    /// Open the App or source named by a frozen composer reference.
+    OpenContext { reference: ContextReference },
     Selected { thread_id: Option<String> },
     /// A compact surface needs room for a picker or a larger draft.
     CompactNeedsSpace,

@@ -133,6 +133,10 @@ mod spotlight;
 
 #[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_apps;
+#[cfg(all(not(target_family = "wasm"), any(test, feature = "native")))]
+mod native_docling;
+#[cfg(all(feature = "native", not(target_family = "wasm")))]
+mod native_docling_dialog;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 mod native_python;
 #[cfg(all(feature="native",not(target_family="wasm")))]

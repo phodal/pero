@@ -166,6 +166,14 @@ class ResearchHTTP(unittest.TestCase):
                 self.assertEqual(status, 201)
                 self.assertEqual(candidate['contentKind'], 'abstract')
                 self.assertEqual(store.intent(frozen['id']), intent)
+                from paper_agent.model import PaperSnapshot
+                legacy = PaperSnapshot.from_reading({**reading(), 'source': 'openalex', 'sourceId': 'W123',
+                    'url': 'https://doi.org/10.48550/arxiv.2610.02858'}, NOW)
+                store.save_paper(legacy)
+                status, view = call('GET', '/api/papers/' + legacy.id)
+                self.assertEqual((status, view['pdfCandidateUrl'], view['arxivUrl']),
+                    (200, 'https://arxiv.org/pdf/2610.02858', 'https://arxiv.org/abs/2610.02858'))
+                self.assertEqual(store.paper(legacy.id), legacy)
                 pdf_paper = call('POST', '/api/papers/import', {**reading(), 'pdfUrl': 'https://arxiv.org/pdf/1706.03762'})[1]
                 # Reading cannot acquire an unapproved PDF. A saved original is
                 # the same input used by both reader and research preparation.

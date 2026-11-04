@@ -9,7 +9,7 @@ import { Product } from '../../packages/product/product.ts';
 const root = resolve(import.meta.dirname, '../..');
 const taskCenter = 'https://app.openpero.com';
 const kitRevision = 'ec89cfc36404667b7947aeb3d40b1c2859d729dd';
-const tag = process.env.RELEASE_TAG || '';
+const tag = process.env.RELEASE_TAG || null;
 const operation = process.argv[2];
 const localSmoke = operation === 'smoke' && process.env.GITHUB_ACTIONS !== 'true';
 const standalone = process.env.RELEASE_PRODUCT === 'virtual-cell';
@@ -21,10 +21,18 @@ const asset = `${native ? 'Pero-Native' : product.artifactStem()}-${platform}-${
 if ((!localSmoke && process.env.GITHUB_ACTIONS !== 'true') || !platform || ((standalone || native) && process.platform !== 'darwin')) {
   throw new Error('Release packages require a native GitHub Actions runner; Virtual Cell requires macOS.');
 }
-if (!localSmoke && !/^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(tag)) throw new Error('RELEASE_TAG must identify an existing version tag.');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const revision = git('rev-parse', 'HEAD');
-if (!localSmoke && git('rev-parse', `refs/tags/${tag}^{commit}`) !== revision) throw new Error('The release tag must match the checked out source.');
+if (standalone && process.env.GITHUB_EVENT_NAME === 'push' && !tag) {
+  if (process.env.GITHUB_SHA !== revision) throw new Error('The push commit must match the checked out source.');
+} else if (!localSmoke) {
+  if (!tag || !/^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(tag)) {
+    throw new Error('RELEASE_TAG must identify an existing version tag.');
+  }
+  if (git('rev-parse', `refs/tags/${tag}^{commit}`) !== revision) {
+    throw new Error('The release tag must match the checked out source.');
+  }
+}
 const packageDir = resolve(root, native ? 'target/native-package' : standalone ? 'target/products/package-com.openpero.virtualcell' : 'target/package');
 const app = join(packageDir, process.platform === 'darwin' ? `${native ? 'Pero Native' : product.name}.app` : asset);
 const executable = process.platform === 'darwin' ? join(app, native ? 'Contents/MacOS/pero-native' : 'Contents/MacOS/Pero') : join(app, process.platform === 'win32' ? 'Pero.exe' : 'pero');

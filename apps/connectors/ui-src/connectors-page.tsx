@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './connectors-page.css';
 import { validateResearchSettings } from './connector-definition.mjs';
 import { matchesProvider } from './shared/catalog-search.mjs';
-import { Dialog } from './components.tsx';
 import { useConnectorDetail } from './use-connector-detail.ts';
 import { useInstallRecords } from './use-install-records.ts';
 import { ConnectorDetailDialog, PROVIDER_NAMES_EN, StatusDot } from './connector-detail-dialog.tsx';
@@ -19,7 +18,7 @@ import { CAPABILITY_GUIDES, capabilityGuides, visibleCapabilityGuides } from './
 import { connectorSections, connectorShelf, connectorShelfLabels } from './connector-categories.mjs';
 import { errorMessage } from './error-message.ts';
 import type { PointBrowserOpener, PointBrowserRequest } from './bridge.ts';
-import { Button as PointButton, Toolbar as PointToolbar, EmptyState as PointEmptyState } from './ui';
+import { Button, Dialog, EmptyState, Input, RadioGroup, RadioGroupItem, ToggleGroup, ToggleGroupItem, Toolbar } from './ui';
 
 
 const ATTENTION = new Set(['needs-attention', 'needs-authorization', 'needs-configuration']);
@@ -327,17 +326,17 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
   };
 
   return <section className={dialogOnly ? 'point-connectors-dialog-only' : 'point-page point-connectors-page'} aria-label={copy('连接器', 'Connectors')}>
-    {error && <div role="alert"><p className="point-error">{error}</p><button type="button" onClick={() => void reload()} disabled={loading}>{copy('重新加载', 'Reload')}</button></div>}
+    {error && <div role="alert"><p className="point-error">{error}</p><Button onClick={() => void reload()} disabled={loading}>{copy('重新加载', 'Reload')}</Button></div>}
     {loading && !directory.length && <p className="point-page-note" role="status">{copy('正在加载…', 'Loading…')}</p>}
     {!dialogOnly && <>
 
-    <PointToolbar unstyled className="point-page-toolbar">
+    <Toolbar className="point-page-toolbar">
       <div className="point-page-tabs" role="group" aria-label={copy('视图', 'View')}>
-        <button type="button" aria-pressed={mode === 'manage'} onClick={() => { setMode(mode === 'manage' ? 'catalog' : 'manage'); setSearch(''); }}>{copy('已安装连接', 'Installed connections')}{connections.length ? ` ${connections.length}` : ''}</button>
+        <Button aria-pressed={mode === 'manage'} onClick={() => { setMode(mode === 'manage' ? 'catalog' : 'manage'); setSearch(''); }}>{copy('已安装连接', 'Installed connections')}{connections.length ? ` ${connections.length}` : ''}</Button>
       </div>
-      <input type="search" placeholder={mode === 'manage' ? copy('搜索已安装连接', 'Search installed connections') : copy('搜索服务', 'Search services')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
-      <div className="point-page-actions"><button type="button" onClick={openImport} disabled={!!error || loading}>{copy('添加自定义 MCP', 'Add custom MCP')}</button></div>
-    </PointToolbar>
+      <Input type="search" placeholder={mode === 'manage' ? copy('搜索已安装连接', 'Search installed connections') : copy('搜索服务', 'Search services')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
+      <div className="point-page-actions"><Button variant="primary" onClick={openImport} disabled={!!error || loading}>{copy('添加自定义 MCP', 'Add custom MCP')}</Button></div>
+    </Toolbar>
 
     {notice && !detailOpen && !importOpen && <p className={noticeError ? 'point-error' : 'point-connectors-notice'} role={noticeError ? 'alert' : 'status'}>{notice}</p>}
 
@@ -352,9 +351,9 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
           <GuideArt tone={item.tone} />
         </button>)}
       </div>}
-      <div className="point-page-filters point-connectors-categories" role="group" aria-label={copy('分类', 'Categories')}>
-        {categoriesAvailable.map(key => <button key={key} type="button" aria-pressed={category === key} onClick={() => setCategory(key)}>{key === 'all' ? copy('全部', 'All') : categoryLabels[key] ?? key}</button>)}
-      </div>
+      <ToggleGroup className="point-page-filters point-connectors-categories" type="single" value={category} aria-label={copy('分类', 'Categories')} onValueChange={next => { if (next) setCategory(next); }}>
+        {categoriesAvailable.map(key => <ToggleGroupItem key={key} value={key}>{key === 'all' ? copy('全部', 'All') : categoryLabels[key] ?? key}</ToggleGroupItem>)}
+      </ToggleGroup>
       {/* One section per tab, in tab order, so the catalog reads as sections instead of one long mixed grid. */}
       {catalogSections.map(section => <section key={section.id} className="point-connectors-section" aria-label={section.label}>
         <h2 className="point-connectors-section-title">{section.label}<span>{section.entries.length}</span></h2>
@@ -374,9 +373,9 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
                   <div className="point-connectors-card-meta">{installed.length ? copy(`已安装 · ${installed.length} 个连接`, `Installed · ${installed.length} connections`) : record === 'running' ? copy('正在后台安装…', 'Installing in the background…') : record ? copy('服务已安装 · 未添加', 'Server installed · Not added') : stage ?? auth}</div>
                 </div>
                 {installed.length
-                  ? <button type="button" className="point-connectors-tile-action" onClick={() => { if (installed.length === 1) openDetail(installed[0].connectionId); else { setMode('manage'); setSearch(entry.displayName); } }}>{copy('管理', 'Manage')}</button>
-                  : entry.listed ? <button type="button" className="point-connectors-tile-action" title={prerequisite} onClick={() => openDocs(entry.providerId)}>{copy('查看文档', 'View docs')}</button>
-                  : <button type="button" className="point-connectors-tile-action" disabled={!!entry.sealed} title={entry.sealed ? copy('内置服务由应用提供，不能新建实例', 'Built-in services are provided by the app') : copy('安装这个服务', 'Install this service')} onClick={() => openDetail(null, entry.providerId)}>{entry.sealed ? copy('内置', 'Built-in') : record && record !== 'running' ? copy('添加', 'Add') : copy('安装', 'Install')}</button>}
+                  ? <Button className="point-connectors-tile-action" onClick={() => { if (installed.length === 1) openDetail(installed[0].connectionId); else { setMode('manage'); setSearch(entry.displayName); } }}>{copy('管理', 'Manage')}</Button>
+                  : entry.listed ? <Button className="point-connectors-tile-action" title={prerequisite} onClick={() => openDocs(entry.providerId)}>{copy('查看文档', 'View docs')}</Button>
+                  : <Button className="point-connectors-tile-action" disabled={!!entry.sealed} title={entry.sealed ? copy('内置服务由应用提供，不能新建实例', 'Built-in services are provided by the app') : copy('安装这个服务', 'Install this service')} onClick={() => openDetail(null, entry.providerId)}>{entry.sealed ? copy('内置', 'Built-in') : record && record !== 'running' ? copy('添加', 'Add') : copy('安装', 'Install')}</Button>}
               </div>
               {/* Preparation copy is long; the detail page shows it in full, the tile only hints. */}
               <p className="point-connectors-summary" title={prerequisite ? copy(`准备：${prerequisite}`, `Preparation: ${prerequisite}`) : summary}>{summary}</p>
@@ -384,46 +383,46 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
           })}
         </div>
       </section>)}
-      {!matchesCatalog.length && !loading && !error && <PointEmptyState as="p" unstyled className="point-page-empty">{copy('没有匹配的服务。', 'No matching services.')}</PointEmptyState>}
+      {!matchesCatalog.length && !loading && !error && <EmptyState as="p">{copy('没有匹配的服务。', 'No matching services.')}</EmptyState>}
     </div>}
 
     {mode === 'manage' && <div className="point-connectors-manage">
-      <div className="point-page-filters point-connectors-categories" role="group" aria-label={copy('筛选', 'Filter')}>
+      <ToggleGroup className="point-page-filters point-connectors-categories" type="single" value={stateFilter} aria-label={copy('筛选', 'Filter')} onValueChange={next => { if (next === 'all' || next === 'attention' || next === 'ready' || next === 'paused') setStateFilter(next); }}>
         {([['all', copy('全部', 'All')], ['attention', copy('需处理', 'Needs attention')], ['ready', copy('正常', 'Ready')], ['paused', copy('已停用', 'Paused')]] as const).map(([key, label]) =>
-          <button key={key} type="button" aria-pressed={stateFilter === key} onClick={() => setStateFilter(key)}>{label} {key === 'all' ? connections.length : key === 'attention' ? connections.filter(c => ATTENTION.has(c.state)).length : key === 'ready' ? connections.filter(c => READY.has(c.state)).length : connections.filter(c => !c.enabled).length}</button>)}
-      </div>
+          <ToggleGroupItem key={key} value={key}>{label} {key === 'all' ? connections.length : key === 'attention' ? connections.filter(c => ATTENTION.has(c.state)).length : key === 'ready' ? connections.filter(c => READY.has(c.state)).length : connections.filter(c => !c.enabled).length}</ToggleGroupItem>)}
+      </ToggleGroup>
       {matchesManage.length > 0 && <div className="point-page-list">
         {matchesManage.map(view => <article key={view.connectionId} className="point-page-row point-connectors-row-card" data-state={view.state}>
           <span className="point-connectors-symbol"><StatusDot state={view.state} /></span>
           <div className="point-connectors-row-copy">
             <div className="point-connectors-row-title">
-              <button type="button" className="point-connectors-link" onClick={() => openDetail(view.connectionId)}>{cardTitle(view)}</button>
+              <Button variant="unstyled" className="point-connectors-link" onClick={() => openDetail(view.connectionId)}>{cardTitle(view)}</Button>
               <span className="point-connectors-pill" data-state={view.state}>{(locale === 'en' ? STATE_LABELS_EN : STATE_LABELS)[view.state] ?? view.state}</span>
               {view.badges.filter(b => ['lease-held', 'probe-released', 'source-builtin'].includes(b)).map(b => <span key={b} className="point-connectors-badge">{(locale === 'en' ? BADGE_LABELS_EN : BADGE_LABELS)[b] ?? b}</span>)}
             </div>
             <div className="point-connectors-row-meta">{summaryLine(view)}</div>
           </div>
           <div className="point-page-row-actions">
-            <button type="button" disabled={!!busy} title={(locale === 'en' ? LIFECYCLE_HINTS_EN : LIFECYCLE_HINTS)[view.primary] ?? ''} onClick={() => perform(view.primary, view)}>{(locale === 'en' ? ACTION_LABELS_EN : ACTION_LABELS)[view.primary] ?? view.primary}</button>
-            <button type="button" aria-label={`${copy('详情', 'Details')} ${cardTitle(view)}`} onClick={() => openDetail(view.connectionId)}>{copy('详情', 'Details')}</button>
-            {view.lifecycle.includes('remove') && <button type="button" className="point-danger-action" disabled={!!busy}
-              aria-label={`${copy('删除', 'Remove')} ${cardTitle(view)}`} title={(locale === 'en' ? LIFECYCLE_HINTS_EN : LIFECYCLE_HINTS).remove ?? ''} onClick={() => requestRemove(view)}>{copy('删除', 'Remove')}</button>}
+            <Button disabled={!!busy} title={(locale === 'en' ? LIFECYCLE_HINTS_EN : LIFECYCLE_HINTS)[view.primary] ?? ''} onClick={() => perform(view.primary, view)}>{(locale === 'en' ? ACTION_LABELS_EN : ACTION_LABELS)[view.primary] ?? view.primary}</Button>
+            <Button aria-label={`${copy('详情', 'Details')} ${cardTitle(view)}`} onClick={() => openDetail(view.connectionId)}>{copy('详情', 'Details')}</Button>
+            {view.lifecycle.includes('remove') && <Button variant="danger" disabled={!!busy}
+              aria-label={`${copy('删除', 'Remove')} ${cardTitle(view)}`} title={(locale === 'en' ? LIFECYCLE_HINTS_EN : LIFECYCLE_HINTS).remove ?? ''} onClick={() => requestRemove(view)}>{copy('删除', 'Remove')}</Button>}
           </div>
         </article>)}
       </div>}
-      {!matchesManage.length && !loading && !error && <PointEmptyState as="p" unstyled className="point-page-empty">{connections.length ? copy('没有匹配的连接。', 'No matching connections.') : copy('还没有连接。从目录安装一个，或添加自定义 MCP。', 'No connections yet. Install from the catalog or add a custom MCP.')}</PointEmptyState>}
+      {!matchesManage.length && !loading && !error && <EmptyState as="p">{connections.length ? copy('没有匹配的连接。', 'No matching connections.') : copy('还没有连接。从目录安装一个，或添加自定义 MCP。', 'No connections yet. Install from the catalog or add a custom MCP.')}</EmptyState>}
     </div>}
     </>}
 
-    {importOpen && <Dialog title={copy('添加自定义 MCP', 'Add custom MCP')} size="lg" initialFocus="#connector-import-json" onClose={() => setImportOpen(false)}
-      footerStart={<button type="button" onClick={() => { setImportOpen(false); openDetail(null, null); }}>{copy('改用表单填写', 'Use the form instead')}</button>}
-      footer={<><button type="button" onClick={() => setImportOpen(false)}>{copy('取消', 'Cancel')}</button><PointButton variant="unstyled" type="button" className="point-dialog-primary" disabled={!importPreview.draft} onClick={continueImport}>{copy('导入并继续', 'Import and continue')}</PointButton></>}>
+    {importOpen && <Dialog title={copy('添加自定义 MCP', 'Add custom MCP')} size="lg" closeLabel={copy('关闭', 'Close')} dismissOnBackdrop initialFocus="#connector-import-json" onClose={() => setImportOpen(false)}
+      footerStart={<Button variant="ghost" onClick={() => { setImportOpen(false); openDetail(null, null); }}>{copy('改用表单填写', 'Use the form instead')}</Button>}
+      footer={<><Button onClick={() => setImportOpen(false)}>{copy('取消', 'Cancel')}</Button><Button variant="primary" disabled={!importPreview.draft} onClick={continueImport}>{copy('导入并继续', 'Import and continue')}</Button></>}>
         <p className="point-connectors-hint">{copy('粘贴 MCP 服务 README 或其他客户端（Claude、VS Code、Cursor、Codex）里的配置 JSON。支持 ', 'Paste the configuration JSON from an MCP server README or another client (Claude, VS Code, Cursor, Codex). Accepts ')}<code>mcpServers</code>{copy('、', ', ')}<code>servers</code>{copy(' 包装、单个服务对象，以及本应用自己的连接定义。', ' wrappers, a single server object, or this app’s own connection definition.')}</p>
         <div className="point-connectors-actions">
-          <button type="button" onClick={() => void pasteClipboard()}>{copy('从剪贴板粘贴', 'Paste from clipboard')}</button>
-          <button type="button" onClick={() => setImportText(IMPORT_EXAMPLES.stdio)}>{copy('本地进程示例', 'Local process example')}</button>
-          <button type="button" onClick={() => setImportText(IMPORT_EXAMPLES.http)}>{copy('远程 HTTP 示例', 'Remote HTTP example')}</button>
-          <button type="button" onClick={() => setImportText(IMPORT_EXAMPLES.oauth)}>{copy('远程 OAuth 示例', 'Remote OAuth example')}</button>
+          <Button onClick={() => void pasteClipboard()}>{copy('从剪贴板粘贴', 'Paste from clipboard')}</Button>
+          <Button onClick={() => setImportText(IMPORT_EXAMPLES.stdio)}>{copy('本地进程示例', 'Local process example')}</Button>
+          <Button onClick={() => setImportText(IMPORT_EXAMPLES.http)}>{copy('远程 HTTP 示例', 'Remote HTTP example')}</Button>
+          <Button onClick={() => setImportText(IMPORT_EXAMPLES.oauth)}>{copy('远程 OAuth 示例', 'Remote OAuth example')}</Button>
         </div>
         <JsonEditor locale={locale} id="connector-import-json" value={importText} onChange={setImportText} rows={10} invalid={!!importPreview.error}
           placeholder={IMPORT_EXAMPLES.stdio} />
@@ -444,10 +443,10 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
       actions={{ save, importPasted, saveSecret, deleteSecret, saveTools, perform,
         onDocs: openDocs }} />}
 
-    {guide && <Dialog className="point-connectors-guide-dialog" title={guide.title} size="md" onClose={() => { if (!trying) setGuideId(null); }}
+    {guide && <Dialog className="point-connectors-guide-dialog" title={guide.title} size="md" closeLabel={copy('关闭', 'Close')} dismissOnBackdrop onClose={() => { if (!trying) setGuideId(null); }}
       footerStart={<span className="point-connectors-hint">{copy('试用只把这句话放进输入框，不会直接发送。', 'Try it fills the composer without sending the message.')}</span>}
-      footer={<><button type="button" disabled={trying} onClick={() => setGuideId(null)}>{copy('关闭', 'Close')}</button>
-        <PointButton variant="unstyled" type="button" className="point-dialog-primary" disabled={trying} onClick={() => void tryGuide()}>{trying ? copy('正在放入…', 'Adding…') : copy('试用', 'Try it')}</PointButton></>}>
+      footer={<><Button disabled={trying} onClick={() => setGuideId(null)}>{copy('关闭', 'Close')}</Button>
+        <Button variant="primary" disabled={trying} onClick={() => void tryGuide()}>{trying ? copy('正在放入…', 'Adding…') : copy('试用', 'Try it')}</Button></>}>
       <p>{guide.lead}</p>
       <div>
         <div className="point-connectors-guide-kicker">{copy('可以做', 'What it can do')}</div>
@@ -457,19 +456,19 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
         <div className="point-connectors-guide-kicker">{copy('边界', 'Boundaries')}</div>
         <ul className="point-connectors-guide-list">{guide.bounds.map(line => <li key={line}>{line}</li>)}</ul>
       </div>
-      <fieldset className="point-connectors-examples">
-        <legend className="point-connectors-guide-kicker">{copy('试一句', 'Try a prompt')}</legend>
+      <div className="point-connectors-guide-kicker">{copy('试一句', 'Try a prompt')}</div>
+      <RadioGroup className="point-connectors-examples" value={exampleId} onValueChange={setExampleId} aria-label={copy('试一句', 'Try a prompt')}>
         {guide.examples.map(example => <label key={example.id} className="point-connectors-example">
-          <input type="radio" name="capability-guide-example" checked={exampleId === example.id} onChange={() => setExampleId(example.id)} />
+          <RadioGroupItem value={example.id} />
           <span><strong>{example.label}</strong><span className="point-connectors-guide-prompt">{example.prompt}</span></span>
         </label>)}
-      </fieldset>
+      </RadioGroup>
       {guideError && <p className="point-error" role="alert">{guideError}</p>}
     </Dialog>}
 
-    {removeTarget && <Dialog title={copy('删除连接器', 'Remove connector')} closeLabel={copy('关闭', 'Close')} size="sm" onClose={() => { if (!busy) setRemoveTarget(null); }}
-      footer={<><button type="button" disabled={!!busy} onClick={() => setRemoveTarget(null)}>{copy('取消', 'Cancel')}</button>
-        <PointButton variant="unstyled" type="button" className="point-dialog-danger" disabled={!!busy} onClick={confirmRemove}>{busy === 'remove' ? copy('正在删除…', 'Removing…') : copy('确认删除', 'Confirm removal')}</PointButton></>}>
+    {removeTarget && <Dialog title={copy('删除连接器', 'Remove connector')} closeLabel={copy('关闭', 'Close')} dismissOnBackdrop size="sm" onClose={() => { if (!busy) setRemoveTarget(null); }}
+      footer={<><Button disabled={!!busy} onClick={() => setRemoveTarget(null)}>{copy('取消', 'Cancel')}</Button>
+        <Button variant="danger" disabled={!!busy} onClick={confirmRemove}>{busy === 'remove' ? copy('正在删除…', 'Removing…') : copy('确认删除', 'Confirm removal')}</Button></>}>
       <p>{copy('确定要删除', 'Remove')} <strong>{cardTitle(removeTarget)}</strong>{copy('吗？这将删除这个连接的配置与本机授权记录。', '? This removes its configuration and local consent records.')}</p>
     </Dialog>}
   </section>;

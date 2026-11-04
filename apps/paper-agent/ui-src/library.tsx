@@ -123,12 +123,18 @@ export function LiteratureHits({ results, resultPriority, adding, addError, onAd
   </>;
 }
 
-function contentKind(paper: Paper, t: Translator) {
+export function contentKind(paper: Paper, t: Translator) {
   if (paper.resourceKind === 'web_article') return 'Article excerpt';
   return t(paper.contentKind === 'abstract' ? 'abstract' : paper.contentKind === 'report' ? 'sourceReport' : 'fullText');
 }
 
-function addedText(fetchedAt: string, t: Translator) {
+export function paperSource(paper: Paper, t: Translator) {
+  if (paper.source === 'local-pdf') return t('localPdfFile');
+  if (paper.source === 'import' || paper.source === 'research-import') return t('importedSource');
+  return sourceNames[paper.source] ?? paper.source;
+}
+
+export function addedText(fetchedAt: string, t: Translator) {
   const now = new Date();
   const when = addedWhen(fetchedAt, now);
   if (when === 'today') return t('addedToday');
@@ -144,54 +150,48 @@ const statusLabel: Record<ShelfStatus, 'statusReading' | 'statusToRead' | 'statu
   reading: 'statusReading', 'to-read': 'statusToRead', reviewed: 'statusReviewed',
 };
 
-export function PaperList({ papers, selecting, selected, readingId, locked, savingId, shelf, shelfFilter, onShelfFilter, onCycleStatus, onFindMore, onSelect, onRead, onDiscover, onDownload, t }: {
-  papers: Paper[]; selecting: boolean; selected: string[]; readingId: string; locked: boolean; savingId?: string;
+export function PaperList({ papers, sort, onSort, selected, previewId, locked, shelf, shelfFilter, onShelfFilter, onCycleStatus, onFindMore, onSelect, onRead, onPreview, t }: {
+  papers: Paper[]; sort: 'recent' | 'title'; onSort(value: 'recent' | 'title'): void; selected: string[]; previewId: string; locked: boolean;
   shelf: Shelf; shelfFilter: ShelfFilter; onShelfFilter(filter: ShelfFilter): void; onCycleStatus(id: string): void; onFindMore(): void;
-  onSelect(id: string, checked: boolean): void; onRead(paper: Paper): void; onDiscover?(paper: Paper): void; onDownload?(paper: Paper): void; t: Translator;
+  onSelect(id: string, checked: boolean): void; onRead(paper: Paper): void; onPreview(paper: Paper): void; t: Translator;
 }) {
-  const [sort, setSort] = useState<'recent' | 'title'>('recent');
-  const rows = [...papers].sort((left, right) => sort === 'title' ? left.title.localeCompare(right.title) : right.fetchedAt.localeCompare(left.fetchedAt))
-    .filter(paper => shelfFilter === 'all' || statusOf(shelf, paper.id) === shelfFilter);
+  const rows = papers;
   return <div className="pa-library-table">
     <div className="pa-library-toolbar">
-      <label className="pa-filter-control"><Icon name="filter" size={15}/>
-        <select aria-label={t('readingStatus')} value={shelfFilter} onChange={event => { if (isShelfFilter(event.target.value)) onShelfFilter(event.target.value); }}>
-          <option value="all">{t('allStatuses')}</option>
-          <option value="reading">{t('statusReading')}</option>
-          <option value="to-read">{t('statusToRead')}</option>
-          <option value="reviewed">{t('statusReviewed')}</option>
-        </select>
-      </label>
-      <label className="pa-sort-control">
-        <select aria-label={t('searchOrder')} value={sort} onChange={event => setSort(event.target.value === 'title' ? 'title' : 'recent')}>
-          <option value="recent">{t('recentlyAdded')}</option>
-          <option value="title">{t('titleSort')}</option>
-        </select>
-      </label>
+      <div className="pa-filter-control"><Icon name="filter" size={15}/>
+        <Select label={t('readingStatus')} value={shelfFilter} onChange={value => { if (isShelfFilter(value)) onShelfFilter(value); }} options={[
+          { value: 'all', label: t('allStatuses') },
+          { value: 'reading', label: t('statusReading') },
+          { value: 'to-read', label: t('statusToRead') },
+          { value: 'reviewed', label: t('statusReviewed') },
+        ]}/>
+      </div>
+      <div className="pa-sort-control">
+        <Select label={t('searchOrder')} value={sort} onChange={value => onSort(value === 'title' ? 'title' : 'recent')} options={[
+          { value: 'recent', label: t('recentlyAdded') },
+          { value: 'title', label: t('titleSort') },
+        ]}/>
+      </div>
     </div>
-    <div className="pa-library-head" aria-hidden="true"><span>{t('paperColumn')}</span><span>{t('readingStatus')}</span><span>{t('added')}</span><span/></div>
+    <div className="pa-library-head" aria-hidden="true"><span>{t('paperColumn')}</span><span>{t('source')}</span><span>{t('readingStatus')}</span></div>
     <ul className="pa-library-list">{rows.map(paper => {
       const status = statusOf(shelf, paper.id);
       const authors = paper.authors.slice(0, 4).join(', ');
-      const source = paper.source === 'local-pdf' ? t('localPdfFile') : paper.source;
-      return <li key={paper.id} className="pa-paper-row" data-current={readingId === paper.id ? 'true' : undefined}>
+      return <li key={paper.id} className="pa-paper-row" data-current={previewId === paper.id ? 'true' : undefined}>
         <div className="pa-paper-main">
-          {selecting && <Checkbox checked={selected.includes(paper.id)} disabled={locked || selected.length >= 5 && !selected.includes(paper.id)} aria-label={`${t('usePaper')}: ${paper.title}`} onCheckedChange={checked => onSelect(paper.id, checked === true)}/>}
-          <button type="button" className="pero-list-open" onClick={() => onRead(paper)}>
-            <span className="pa-paper-file" aria-hidden="true"><Icon name="document" size={18}/></span>
+          <Checkbox checked={selected.includes(paper.id)} disabled={locked || selected.length >= 5 && !selected.includes(paper.id)} aria-label={`${t('usePaper')}: ${paper.title}`} onCheckedChange={checked => onSelect(paper.id, checked === true)}/>
+          <button type="button" className="pero-list-open" aria-pressed={previewId === paper.id} onClick={() => onPreview(paper)} onDoubleClick={() => onRead(paper)}>
             <span className="pa-paper-name">
               <span className="pero-list-title">{paper.title}</span>
-              <span className="pa-meta-line">{[authors, source].filter(Boolean).map((part, index) => <span key={`${index}:${part}`}>{part}</span>)}</span>
-              <span className="pa-paper-kind">{contentKind(paper, t)}</span>
+              {authors && <span className="pa-meta-line pa-paper-authors">{authors}{paper.authors.length > 4 ? ' et al.' : ''}</span>}
             </span>
           </button>
         </div>
+        <span className="pa-paper-source">{paperSource(paper, t)}</span>
         <Button variant="ghost" className="pa-status" data-status={status} onClick={() => onCycleStatus(paper.id)}>
           {status === 'to-read' ? <Icon family="shell" name="clock" size={13}/> : <Icon name={status === 'reading' ? 'skill' : 'check'} size={13}/>}
           {t(statusLabel[status])}
         </Button>
-        <span className="pa-paper-added">{addedText(paper.fetchedAt, t)}</span>
-        <span className="pa-actions">{onDownload && <Button variant="ghost" busy={savingId === paper.id} disabled={!!savingId || !(paper.pdfUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper)}>{savingId === paper.id ? t('saveCopies') : t('downloadPaper')}</Button>}{onDiscover && <Button variant="ghost" onClick={() => onDiscover(paper)}>{t('discover')}</Button>}</span>
       </li>;
     })}</ul>
     {!rows.length && <p className="pa-filter-empty">{t('noPapersFilter')}</p>}

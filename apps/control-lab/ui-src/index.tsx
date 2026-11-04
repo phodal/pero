@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { EnvironmentInspector } from "@pero/app-sdk/ui";
 import {
   appObjectProps,
   downloadFile,
@@ -627,6 +628,7 @@ export default function ControlLab() {
           </details>
           <details>
             <summary>Engine availability</summary>
+            <EnvironmentInspector targets={['control-lab.python-control', 'control-lab.ngspice']} />
             {capabilities.map((item) => (
               <p key={item.engine}>
                 {item.engine}:{" "}

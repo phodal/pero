@@ -1739,6 +1739,9 @@
       "title": "AppRequest",
       "oneOf": [
         {
+          "$ref": "#/$defs/EnvironmentInspectionApp"
+        },
+        {
           "$ref": "#/$defs/AppApiAccess"
         },
         {
@@ -2114,6 +2117,9 @@
         },
         "value": {
           "anyOf": [
+            {
+              "$ref": "#/$defs/EnvironmentInspectionReport"
+            },
             {
               "$ref": "#/$defs/AgentPreparedContext"
             },
@@ -5916,6 +5922,115 @@
         "name",
         "method",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "EnvironmentInspectionApp": {
+      "title": "EnvironmentInspectionApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "environment"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "paper-agent.pcgym"
+            },
+            {
+              "type": "string",
+              "const": "control-lab.python-control"
+            },
+            {
+              "type": "string",
+              "const": "control-lab.ngspice"
+            }
+          ]
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "target",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Software observations only; does not allocate or approve scientific execution."
+    },
+    "EnvironmentInspectionReport": {
+      "title": "EnvironmentInspectionReport",
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "pero.environment.inspection.v1"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "paper-agent.pcgym"
+            },
+            {
+              "type": "string",
+              "const": "control-lab.python-control"
+            },
+            {
+              "type": "string",
+              "const": "control-lab.ngspice"
+            }
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "const": "configured-interpreter"
+        },
+        "evidence": {
+          "type": "string",
+          "const": "metadata_only"
+        },
+        "observed_at_ms": {
+          "type": "string"
+        },
+        "profile": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        },
+        "requirements": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        },
+        "matched": {
+          "type": "boolean"
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppDocumentSchema"
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "method",
+        "scope",
+        "evidence",
+        "observed_at_ms",
+        "profile",
+        "requirements",
+        "matched",
+        "missing"
       ],
       "additionalProperties": false
     },

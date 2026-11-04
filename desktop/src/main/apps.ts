@@ -1,4 +1,6 @@
+import { DoclingSetup, doclingInput, doclingStatus } from './docling-runtime.ts';
 import { randomUUID } from 'node:crypto';
+import { environmentInspectionInput } from './environment-inspection.ts';
 import { realpath, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -46,6 +48,7 @@ function reproductionStatus(value: unknown): Record<string, unknown> {
 export class DesktopApps {
   private pending = new Map<string, Pending>();
   private reproductions = new Map<string, ReproductionPending>();
+  private docling: DoclingSetup;
   connectors?: (request: Record<string, unknown>) => Promise<unknown>;
 
   async requireConnectorsGrant(name = 'connectors'): Promise<void> {
@@ -59,7 +62,8 @@ export class DesktopApps {
     private input?: (app:string,token:string)=>Promise<{data:Buffer;name:string;mediaType:string}>,
     private onAgentCancel?: (sessionId: string) => void,
     private confirmReproduction?: (summary: string, signal: AbortSignal) => Promise<boolean>,
-  ) {}
+    confirmDocling?: (summary: string, signal: AbortSignal, operation?: 'install' | 'revoke') => Promise<boolean>,
+  ) { this.docling = new DoclingSetup(request => this.request('doclingruntime', { name: 'paper-agent', request }), confirmDocling); }
 
   accept(event: Event): boolean {
     if (event.kind !== 'apps_result') return false;
@@ -75,6 +79,7 @@ export class DesktopApps {
   }
 
   close() {
+    this.docling.close();
     for (const operation of this.reproductions.values()) operation.controller.abort();
     this.reproductions.clear();
     for (const request of this.pending.values()) {
@@ -211,6 +216,16 @@ export class DesktopApps {
       if (caller && caller !== origin) return new Response('App origin refused', { status: 403 });
       if ((url.hostname === 'control-lab' || url.hostname === 'lab') && decodeURIComponent(url.pathname) === '/api/agent-step')
         return new Response('Agent route is reserved for the Host', { status: 403 });
+      if (url.pathname === '/host/environment') {
+        if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 4096) return new Response('Request too large', { status: 413 });
+        let input: { target: string };
+        try { input = environmentInspectionInput(JSON.parse(body)); }
+        catch { return new Response('Expected only a scientific method', { status: 400 }); }
+        const value = await this.request('environment', { name: url.hostname, target: input.target });
+        return Response.json(value, { headers: { 'Cache-Control': 'no-store' } });
+      }
       if (url.pathname === '/host/sdk') {
         if (request.method !== 'GET') return new Response('Method refused', {status:405});
         return Response.json({...await this.request<Record<string,unknown>>('sdkcontext', {name:url.hostname}),slots:['conversation']}, {headers:{'Cache-Control':'no-store'}});
@@ -237,6 +252,20 @@ export class DesktopApps {
       }
       if (url.hostname === 'paper-agent' && ['/api/reproduction/start', '/api/reproduction/host'].includes(decodeURIComponent(url.pathname)))
         return new Response('Reproduction execution is reserved for the Host', { status: 403 });
+      if (url.pathname === '/host/docling-runtime') {
+        if (url.hostname !== 'paper-agent' || caller !== origin) return new Response('Paper origin required', { status: 403 });
+        if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 4096) return new Response('Request too large', { status: 413 });
+        let input;
+        try { input = doclingInput(JSON.parse(body)); }
+        catch { return new Response('Invalid Docling component request', { status: 400 }); }
+        try {
+          return Response.json(doclingStatus(await this.docling.apply(input)), { headers: { 'Cache-Control': 'no-store' } });
+        } catch {
+          return new Response('Optional OCR setup unavailable. Check status or continue manually.', { status: 503 });
+        }
+      }
       if (url.pathname === '/host/reproduction') {
         if (url.hostname !== 'paper-agent') return new Response('Paper origin required', { status: 403 });
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });

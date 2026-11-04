@@ -15,7 +15,7 @@ export type AppSurface = { visible: boolean; name?: string; panel?: string; left
 export type AppSurfaceSlot=Omit<AppSurface,'dark'|'locale'|'appearance'|'open'>;
 export type AppSurfaceBatch = {surfaces:AppSurfaceSlot[];dark:boolean;locale:string;appearance?:AppearanceSnapshot;open?:{name:string;panel:string}[]};
 type Mount = {region:HTMLElement;status:HTMLDivElement;useStatus:HTMLDivElement;surface:AppSurface;error:string;presenceExpiry?:ReturnType<typeof setTimeout>};
-type Frame = { documents:AppDocuments; element: HTMLIFrameElement; name: string; panel: string; ready: boolean; failed: boolean; timer: ReturnType<typeof setTimeout>; dispose(): void };
+type Frame = { documents:AppDocuments; element: HTMLIFrameElement; name: string; panel: string; ready: boolean; failed: boolean; timer: ReturnType<typeof setTimeout>; contextKey?: string; dispose(): void };
 type AppUsePresence = { scope: { app: string; panel: string }; title?: string; standing: string[]; tasks: { id: string; actions: string[]; expiresAt: number }[] };
 export type AppChatSlot = { scope: { app: string; panel: string }; rect: { x: number; y: number; width: number; height: number } };
 type SlotRequest = { frame: Frame; id: string; rect: AppChatSlot['rect'] };
@@ -81,9 +81,15 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     slot={region:element,status,useStatus,surface:{...surface,name,panel,visible:false},error:''};mounts.set(identity,slot);return slot;
   };
   const active = (slot:Mount) => frames.get(key(slot.surface.name,slot.surface.panel));
+  // Geometry updates on every prepaint during window resize. Re-posting Host
+  // context each time remounts App theme effects and blanks EmbedPDF/canvas.
   const context = (frame:Frame) => {
     const value=mounts.get(key(frame.name,frame.panel))?.surface||surface;
-    frame.element.contentWindow?.postMessage({type:'pero:app:context',context:{appearance:value.appearance,dark:value.dark,locale:normalizeLocale(value.locale),active:value.visible,titlebar:true}},'*');
+    const next={appearance:value.appearance,dark:value.dark,locale:normalizeLocale(value.locale),active:value.visible,titlebar:true};
+    const serialized=JSON.stringify(next);
+    if(frame.contextKey===serialized)return;
+    frame.contextKey=serialized;
+    frame.element.contentWindow?.postMessage({type:'pero:app:context',context:next},'*');
   };
   const renderPresence = (slot:Mount) => {
     const {surface,useStatus}=slot;
@@ -177,7 +183,9 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     if(surface.appearance)applyAppearance(surface.appearance,region);
     for(const slot of mounts.values()) {
       const value=slot.surface;slot.region.hidden=!value.visible;
-      slot.region.style.cssText=`position:absolute;left:${(value.left||0)-left}px;top:${(value.top||0)-top}px;width:${value.width||0}px;height:${value.height||0}px;overflow:hidden;pointer-events:auto;color-scheme:${value.dark?'dark':'light'};background:var(--pero-surface)`;
+      // Page chrome, not reading surface: short App documents must not flash a
+      // white slab through the iframe when their height chain is incomplete.
+      slot.region.style.cssText=`position:absolute;left:${(value.left||0)-left}px;top:${(value.top||0)-top}px;width:${value.width||0}px;height:${value.height||0}px;overflow:hidden;pointer-events:auto;color-scheme:${value.dark?'dark':'light'};background:var(--pero-material-chrome)`;
       const frame = active(slot);
       const x = value.left || 0, y = value.top || 0, w = value.width || 0, h = value.height || 0;
       const overlay = chatOverlaySuspended ? null : chatOverlay;
@@ -186,10 +194,17 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       const covered = !!overlay && value.visible && x2 > x1 && y2 > y1;
       if (frame) frame.element.dataset.peroChatCovered = String(covered);
       if (covered) slot.region.style.clipPath = `polygon(0 0,100% 0,100% 100%,0 100%,0 ${y1}px,${x1}px ${y1}px,${x1}px ${y2}px,${x2}px ${y2}px,${x2}px ${y1}px,0 ${y1}px)`;
+      else slot.region.style.clipPath = '';
       renderStatus(slot);renderPresence(slot);
     }
     for(const frame of frames.values()) {
-      frame.element.hidden=!mounts.get(key(frame.name,frame.panel))?.surface.visible;
+      // Keep the iframe in the layout tree while hidden: display:none after a
+      // resize flicker blanks Chromium's compositor until a full reload.
+      const shown=!!mounts.get(key(frame.name,frame.panel))?.surface.visible;
+      frame.element.hidden=false;
+      frame.element.style.visibility=shown?'visible':'hidden';
+      frame.element.style.pointerEvents=shown?'auto':'none';
+      frame.element.setAttribute('aria-hidden', shown ? 'false' : 'true');
       context(frame);
     }
     reconcileSlot();

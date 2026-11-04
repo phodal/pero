@@ -1,0 +1,63 @@
+.pa-research-page {
+  max-inline-size: 960px;
+  margin-inline: auto;
+  padding: 12px;
+  min-inline-size: 0;
+}
+
+.pa-workbench .pa-research-description {
+  margin: 12px 0;
+  color: var(--pero-text-muted);
+  font-size: 12px;
+}
+
+.pa-comparison-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.pa-comparison-table th,
+.pa-comparison-table td {
+  padding: 8px;
+  border-bottom: var(--pero-hairline);
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.pa-comparison-table thead th {
+  color: var(--pero-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pa-comparison-table thead th:first-child { width: 54%; }
+.pa-comparison-table tbody th { font-weight: 500; }
+.pa-comparison-table td > span { display: block; }
+.pa-comparison-table td > button { margin-top: 4px; white-space: normal; }
+.pa-comparison-actions { margin-top: 12px; }
+
+.pa-results-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.pa-results-tools > input,
+.pa-results-tools > select {
+  min-block-size: 28px;
+  border: 1px solid var(--pero-border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  background: var(--pero-surface);
+  color: var(--pero-text);
+  font: inherit;
+}
+
+.pa-results-tools > input { flex: 1 1 200px; min-inline-size: 0; }
+.pa-results-tools > :focus-visible { outline: 2px solid var(--pero-focus); }
+.pa-history-papers { display: block; margin-top: 3px; color: var(--pero-text-muted); font-size: 12px; font-weight: 400; }
+.pa-results .pa-record-evidence { margin: 12px 0; }

@@ -30,3 +30,13 @@ Native rendered the plot, caption and TeX location in light/dark and narrow
 panels; process restart restored it without another inference or tool call.
 Checks, source hashes and limits are recorded in
 [Paper answer figures](../fitness/paper-answer-figures.md).
+
+Follow-up: displayed answer figures have no click target. Bind returned image
+bytes to their immutable archive/member reference and reuse App location
+navigation. Existing answers must gain the same source links during replay.
+Open an exact cached TeX caption match when unique; otherwise show the original
+figure and TeX lines. Do not infer a page from a figure number or recompile.
+
+The source navigation and side-chat sizing follow-up is resolved locally.
+Real saved figures, history replay, page 10 navigation, narrow panels and the
+original-image/source fallback were inspected; see the verification record above.

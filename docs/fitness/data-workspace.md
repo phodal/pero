@@ -16,8 +16,10 @@ Project references are organizational strings, not Host directory lookups or
 permissions. Archive retains bytes. Local import and inspection remain bounded
 at 10 MiB; downloaded opaque/larger assets are still catalogued. Pagination is a
 bounded response over an in-memory admitted file, not streaming large-data support.
-Data Agent, new Agent tools, Run/Compute integration, live scientific validation,
-remote storage and signed-product acceptance are outside this increment.
+Run/Compute integration, live scientific validation, remote storage and
+signed-product acceptance are outside this increment. Chart analysis and Ask
+Agent now run on the selected Data catalog version; the standalone Data Agent
+app and its digest store are not a second catalog.
 
 ## Executed locally
 

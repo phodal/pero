@@ -43,7 +43,8 @@ readline.createInterface({input:process.stdin}).on('line',async line=>{
       const sha=createHash('sha256').update(Buffer.from(image.data,'base64')).digest('hex');
       assert.equal(viewed.value.answerImage.uri,`pero-image://${sha}`);
       if(output){writeFileSync(`${output}.png`,Buffer.from(image.data,'base64'));writeFileSync(`${output}.json`,JSON.stringify({fixture:true,paperId,figure,image:viewed.value},null,2));}
-      update({sessionUpdate:'agent_message_chunk',content:{type:'text',text:`界面链路验证：以下图片来自当前论文已保存的源码文件。\n\n${viewed.value.answerImage.markdown}\n\n${figure.caption}\n\n来源：${figure.texPath} 第 ${figure.startLine}–${figure.endLine} 行，${figure.members[0].path}。此处未调用模型或复现实验。`}});
+      const markdown = option('legacy') === 'true' ? `图 5 消融实验 ![Source image](${viewed.value.answerImage.uri}) ${figure.caption}` : viewed.value.answerImage.markdown;
+      update({sessionUpdate:'agent_message_chunk',content:{type:'text',text:`界面链路验证：以下图片来自当前论文已保存的源码文件。\n\n${markdown}\n\n${figure.caption}\n\n来源：${figure.texPath} 第 ${figure.startLine}–${figure.endLine} 行，${figure.members[0].path}。此处未调用模型或复现实验。`}});
       send({id:request.id,result:{stopReason:'end_turn'}});
     } else if(request.id!==undefined)send({id:request.id,result:{}});
   } catch(error) {send({id:request.id,error:{code:-32603,message:String(error)}});}

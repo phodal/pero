@@ -1,7 +1,9 @@
 # Data
 
-An independent dataset and model browser in the Workbench sidebar and
-`products/data/product.json`. Data does not require Data Agent or an Agent session.
+The dataset and model browser in the Workbench sidebar and
+`products/data/product.json`. Data owns the only catalog. Table, field, chart,
+and Ask Agent actions run on the selected dataset version. An Agent session is
+optional; inspection does not call a model.
 
 ## Use
 
@@ -11,8 +13,10 @@ Choose a file, review its type/source/license/project reference, then press
 there are no automatically populated demo assets or downloads.
 
 The list supports search, explicit project-reference filters and archived items.
-The resizable detail pane contains **Preview**, **Fields**, **Checks** and
-**History**. **Add version** appends a file to the selected logical dataset;
+Each row shows the name, kind (Dataset or Model), size of the selected or latest
+version, version count, and availability (Stored, Missing, or Changed).
+The resizable detail pane contains **Table**, **Fields**, **Chart**, **Checks**
+and **History**. **Add version** appends a file to the selected logical dataset;
 existing bytes and IDs do not change. A normal import creates a separate dataset,
 even when its filename matches. Repeated explicit imports create separate files
 or versions, not automatic content deduplication.
@@ -41,29 +45,44 @@ catalogs are not automatically shared.
   scientific validity. Parse errors and exceeded bounds are explicit; no partial
   sample is represented as a full report.
 - Units are user-supplied view labels, not conversions. **Save view** freezes the
-  columns/filter/units, exact asset ID, SHA-256, parser version and check report.
-  History reopens that input and rechecks current bytes. **Export reference**
-  exports a JSON reference and report, not original files or a runnable experiment.
-  Historical reports remain readable if the current original becomes unavailable.
-- Unsupported formats, including opaque model weights, remain stored and listed;
-  no deserialization, inference, extraction or execution occurs. Larger existing
+  columns, filter, sort, selection, chart choice and units, plus the exact asset
+  ID, SHA-256, parser version and check report. A catalog written by an older
+  build stores only columns, a contains-filter and units. That shape is read as
+  operator `contains` with no sort, selection or chart. The next successful
+  mutation writes schema 3 and, once, `catalog.v2.backup.json`. History reopens
+  that input and rechecks current bytes. **Export reference** exports a JSON
+  reference and report, not original files or a runnable experiment. Historical
+  reports remain readable if the current original becomes unavailable.
+- **Chart** is available only after inspection is `ok`. It uses the same matching
+  records or explicit selection, up to 2,000 rows, and reports an error instead of
+  drawing a partial chart as complete. Saved chart documents live under `charts/`
+  beside the catalog, addressed by content digest, and are not rows in `catalog.json`.
+  **Source**, **Export records** and **Ask Agent** use that same version. Ask Agent
+  attaches the catalog dataset id, asset id, SHA-256 and view id. Embedded chat is
+  the host conversation slot. There is no Run or Compute handoff and no host query
+  language.
+- Unsupported formats, including opaque model weights, remain stored and listed.
+  Model files are not parsed, charted, or sent to the agent as rows. No
+  deserialization, inference, extraction or execution occurs. Larger existing
   downloads remain catalogued but exceed inspection limits. **Stored** describes
   presence/size, not a fresh digest or scientific check; **Bytes matched** applies
   to the successful bounded inspection of the selected file.
 
-The previous synthetic auto-populated chart page is removed. This increment
-focuses on the persistent browser and exact tabular checks; it does not claim a
-replacement chart-analysis workspace or a Control Lab/Compute execution handoff.
+Older Data Agent directories (`*.source`, `*.meta.json`) are not imported and are
+not a second catalog. Examples under `test/fixtures/` are test data only; the
+user's catalog is not auto-populated.
 
 ## Storage and compatibility
 
-Data owns `PERO_APP_DATA/files` and `catalog.json`. Schema version 2 stores existing
+Data owns `PERO_APP_DATA/files` and `catalog.json`. Schema version 3 stores existing
 asset records, logical dataset version references and saved views in one atomic
-metadata envelope. Legacy list catalogs remain readable with stable asset IDs and
-Paper `bundleId`/`sourceId` references. The first successful mutation saves the old
-list as `catalog.v1.backup.json` before replacing the catalog. Unsupported catalog
-schemas fail without overwriting the original. Do not run an older App against a
-migrated catalog; back up the whole Data directory before a manual downgrade.
+metadata envelope. Asset ids are unchanged across schema 1, 2 and 3. Legacy list
+catalogs remain readable with stable asset IDs and Paper `bundleId`/`sourceId`
+references. The first successful mutation of a list saves it as
+`catalog.v1.backup.json`. The first successful mutation of a schema 2 catalog
+saves it as `catalog.v2.backup.json`. Unsupported catalog schemas fail without
+overwriting the original. Do not run an older App against a migrated catalog;
+back up the whole Data directory before a manual downgrade.
 
 The existing downloader remains the sole owner of source downloads. Local imports
 and Paper-authorized downloads enter the same catalog. Metadata failures do not
@@ -107,8 +126,9 @@ file read under the catalog lock. No Paper PDF/TeX ownership is moved into Data.
 
 Python 3.10+ standard library only. Host supplies the backend process, private
 App token and data directory. The App build packages the shared
-`harness/go/charts/python/dataset.py` under `backend/_core`; it does not install
-Data Agent. Generated copies are not committed.
+`harness/go/charts/python` modules `dataset.py`, `view.py` and `chart_document.py`
+under `backend/_core`. Generated copies are not committed. Conversation
+`chart_render` stays in the harness and does not open this App.
 
 ```sh
 python3 -m unittest discover -s apps/data/test -v

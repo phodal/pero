@@ -17,18 +17,10 @@
   min-block-size: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 28px 12px 16px;
+  padding: 16px 12px;
   background: var(--pero-surface-muted);
   border-inline-end: var(--pero-hairline);
   color: var(--pero-text);
-}
-
-.pa-nav-heading {
-  margin: 0;
-  padding: 4px 10px 20px;
-  font-size: var(--pero-font-title);
-  font-weight: 600;
-  line-height: 1.25;
 }
 
 .pa-nav-label,
@@ -100,30 +92,25 @@
   min-inline-size: 0;
 }
 
-.pa-library-screen .pa-page-heading.pero-library-header {
-  box-sizing: border-box;
-  height: auto;
-  min-height: 0;
-  min-block-size: 0;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 0;
+.pa-library-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
   margin: 0 0 12px;
-  background: transparent;
 }
 
-.pa-library-screen .pa-page-heading .pero-library-heading h1 {
-  font-size: var(--pero-font-title);
-  font-weight: 600;
-  line-height: 1.25;
-}
-
-.pa-library-screen .pa-page-heading .pero-library-heading p {
-  margin-top: 8px;
+.pa-library-toolbar > p {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
   font-size: var(--pero-font-caption);
   line-height: 1.4;
   color: var(--pero-text-muted);
+}
+
+.pa-library-toolbar .pa-actions {
+  flex: none;
 }
 
 .pa-library-screen .pa-import {
@@ -243,25 +230,25 @@
 
 .pa-sort-control { margin-inline-start: auto; }
 
-.pa-library-toolbar select {
+.pa-library-toolbar .pero-select { width: auto; max-inline-size: 100%; }
+
+.pa-library-toolbar .pero-select-trigger {
+  width: auto;
   font: inherit;
   font-size: max(12px, 1em);
   color: var(--pero-text-muted);
   background: transparent;
   border: 0;
   min-block-size: 24px;
+  min-height: 24px;
   max-inline-size: 100%;
-}
-
-.pa-library-toolbar select:focus-visible {
-  outline: 2px solid var(--pero-focus);
-  outline-offset: 2px;
 }
 
 .pa-library-table {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content min-content max-content;
-  column-gap: 20px;
+  /* Title keeps leftover space; actions may shrink and wrap instead of crushing it. */
+  grid-template-columns: minmax(0, 1fr) max-content min-content minmax(0, max-content);
+  column-gap: 16px;
   min-inline-size: 0;
 }
 
@@ -270,7 +257,7 @@
 .pa-library-list > li.pa-paper-row {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr) max-content min-content max-content;
+  grid-template-columns: minmax(0, 1fr) max-content min-content minmax(0, max-content);
   grid-template-columns: subgrid;
   min-inline-size: 0;
 }
@@ -332,8 +319,8 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  inline-size: 28px;
-  block-size: 34px;
+  inline-size: 24px;
+  block-size: 28px;
   border: 0.5px solid var(--pero-border);
   border-radius: 4px;
   background: var(--pero-surface-muted);
@@ -383,12 +370,41 @@
 
 .pa-library-list .pa-actions {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  min-inline-size: max-content;
-  white-space: nowrap;
+  align-content: center;
+  gap: 2px;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.pa-library-list .pa-actions .pa-row-action.pero-ui-button {
+  flex: none;
+  inline-size: 28px;
+  block-size: 28px;
+  min-block-size: 28px;
+  padding: 0;
+  color: var(--pero-text-muted);
+}
+
+.pa-library-list .pa-actions .pa-row-action.pero-ui-button:hover:not(:disabled) {
+  color: var(--pero-text);
+  background: var(--pero-fill-hover);
+}
+
+@container (max-width: 720px) {
+  .pa-library-table {
+    column-gap: 10px;
+  }
+  .pa-library-list .pa-actions {
+    /* Two icons wide so the third wraps instead of eating title space. */
+    max-inline-size: 3.75rem;
+  }
+  .pa-library-head > span:nth-child(3),
+  .pa-library-list .pa-paper-added {
+    display: none;
+  }
 }
 
 .pa-library-list .pa-status.pero-ui-button {
@@ -504,7 +520,18 @@
   min-inline-size: 0;
 }
 
-.pa-reading-bar .pa-reader-crumb h1 {
+@container pa-workbench (max-width: 1100px) {
+  .pa-reading-bar .pa-reader-crumb {
+    flex-basis: auto;
+    max-inline-size: none;
+  }
+  .pa-reading-bar .pa-reader-crumb .pa-reader-title,
+  .pa-reading-bar .pa-reader-crumb > .pero-ui-glyph {
+    display: none;
+  }
+}
+
+.pa-reading-bar .pa-reader-crumb .pa-reader-title {
   flex: 1 1 auto;
   max-inline-size: none;
   min-inline-size: 0;
@@ -525,7 +552,7 @@
   .pa-library-switch { display: flex; }
   .pa-library-bundles { display: block; }
   .pa-library-screen > .pa-library-content { max-inline-size: none; padding: 20px 16px 32px; }
-  .pa-library-screen .pa-page-heading.pero-library-header { margin-bottom: 12px; }
+  .pa-library-toolbar { margin-bottom: 8px; }
   .pa-reader-crumb { display: none; }
   .pa-local-passage { margin-inline-start: 0; }
 }
@@ -539,3 +566,19 @@
   }
   .pa-local-passage mark { background: Highlight; color: HighlightText; }
 }
+
+/* Refined reading chrome; original PDF/HTML content retains its own typography. */
+.pa-reading-first .pa-reading-bar { border-bottom: .5px solid var(--pero-border); background: var(--pero-surface); }
+.pa-reading-first .pa-reading-bar > .pero-ui-button:first-child { width: auto; flex: none; font-size: 12px; }
+.pa-reading-first .pa-reading-bar .pa-ask.pero-ui-button { width: auto; min-width: 0; height: 24px; min-height: 24px; padding: 2px 6px; font-size: 12px; }
+.pa-reading-first .pa-reading-canvas,
+.pa-reading-first .pa-text-reading { background: var(--pero-surface); }
+.pa-reading-first .pa-reader-tools .pa-reader-modes { background: transparent; }
+.pa-reading-first .pa-reader-tools .pa-reader-modes > .pero-ui-button[aria-pressed=true] { background: var(--pa-selection); color: var(--pero-text); box-shadow: none; }
+.pa-reading-first .pa-text-reading > .pero-reader-content { padding: 24px 32px 40px; }
+.pa-reading-first .pa-records-header { min-height: 36px; padding-inline: 12px; }
+.pa-reading-first .pa-records-scroll { padding: 12px; }
+.pa-reading-first .pa-reading-bar .pa-reader-crumb { flex: 0 1 300px; max-width: 28%; }
+.pa-reading-first .pa-reading-bar .pa-reader-crumb .pa-reader-title { font-size: 12px; font-weight: 400; color: var(--pero-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pa-reading-first .pa-reading-bar .pa-reader-tools { background: transparent; justify-content: center; }
+@container pa-workbench (max-width: 1100px) { .pa-reading-first .pa-reading-bar .pa-reader-crumb { display: none; } }

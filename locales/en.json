@@ -147,6 +147,8 @@
   "error.host_wait": "The local service is not ready. Reopen the workbench.",
   "status.host_ready": "Local connection ready",
   "error.invalid_request": "Invalid connection request",
+  "error.invalid_session": "This session request is invalid. Dismiss and try again.",
+  "error.dismiss": "Dismiss",
   "notice.desktop": "Received a connection message from the desktop menu",
   "error.browser": "Use the desktop app to check the local connection.",
   "error.connection": "Local connection failed. Reopen the workbench.",

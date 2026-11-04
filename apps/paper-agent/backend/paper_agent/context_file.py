@@ -13,6 +13,7 @@ class ContextSelection:
     document_id: str | None = None
     page: int | None = None
     anchor: PdfAnchor | None = None
+    tex_preview_id: str | None = None
 
     @classmethod
     def parse(cls, value):
@@ -29,12 +30,16 @@ class ContextSelection:
             raise Invalid('Choose a PDF page for the selected context')
         # Keep the original whitespace in the file, independently of text validation.
         anchor = PdfAnchor.parse(value) if 'fileDigest' in value or 'rects' in value else None
-        return cls(content, paper_id, document_id, page, anchor)
+        preview = value.get('texPreviewId')
+        if preview is not None and (not isinstance(preview, str) or not ID.fullmatch(preview) or not document_id or not anchor):
+            raise Invalid('Choose a version-bound TeX preview for this context')
+        return cls(content, paper_id, document_id, page, anchor, preview)
 
     @property
     def id(self):
         return digest(dict(content=self.content, paperId=self.paper_id, documentId=self.document_id, page=self.page,
-                           **(dict(anchor=self.anchor.to_dict()) if self.anchor else {})))
+                           **(dict(anchor=self.anchor.to_dict()) if self.anchor else {}),
+                           **(dict(texPreviewId=self.tex_preview_id) if self.tex_preview_id else {})))
 
 
 @dataclass(frozen=True)
@@ -46,16 +51,18 @@ class ContextFile:
     document_id: str | None
     page: int | None
     anchor: PdfAnchor | None = None
+    tex_preview_id: str | None = None
 
     def to_dict(self):
         return dict(id=self.id, path=self.path, contentDigest=self.content_digest,
                     paperId=self.paper_id, documentId=self.document_id, page=self.page,
-                    **(dict(anchor=self.anchor.to_dict()) if self.anchor else {}))
+                    **(dict(anchor=self.anchor.to_dict()) if self.anchor else {}),
+                    **(dict(texPreviewId=self.tex_preview_id, representation='tex-preview') if self.tex_preview_id else {}))
 
     @classmethod
     def from_record(cls, value):
         return cls(value['id'], value['path'], value['contentDigest'], value['paperId'], value['documentId'], value['page'],
-                   PdfAnchor.parse(value['anchor']) if value.get('anchor') else None)
+                   PdfAnchor.parse(value['anchor']) if value.get('anchor') else None, value.get('texPreviewId'))
 
     def for_sources(self, paper_ids):
         if self.paper_id not in paper_ids:
@@ -63,7 +70,8 @@ class ContextFile:
         return self
 
     def prompt(self):
-        return ('Selected source context is saved as a UTF-8 file at ' + repr(self.path) + '. '
+        return ((f'This context is derived from TeX preview {self.tex_preview_id}; it is not an original-PDF passage. ' if self.tex_preview_id else '')
+                + 'Selected source context is saved as a UTF-8 file at ' + repr(self.path) + '. '
                 'This is an App-managed path, not a workspace-relative file. Read it before answering using '
                 'app_describe, then app_write app="paper-agent", tool="read-context", '
                 'document={"contextId":"' + self.id + '","start":0}. Follow nextStart to continue. '

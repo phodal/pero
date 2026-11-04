@@ -40,7 +40,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!value || !['en', 'zh-CN'].includes(value.locale) || typeof value.dark !== 'boolean' || typeof value.active !== 'boolean') return;
       const appearance = readAppearance(value.appearance);
       if (value.appearance !== undefined && !appearance) return;
-      setContext(previous=>({ ...previous, locale: value.locale, dark: value.dark, active: value.active, appearance, iconTheme:previous.iconTheme }));
+      setContext(previous => {
+        if (
+          previous.locale === value.locale
+          && previous.dark === value.dark
+          && previous.active === value.active
+          && JSON.stringify(previous.appearance) === JSON.stringify(appearance)
+        ) return previous;
+        return { ...previous, locale: value.locale, dark: value.dark, active: value.active, appearance, iconTheme: previous.iconTheme };
+      });
     };
     const stopAppUse = installAppUseBridge();
     void fetch('/host/sdk').then(response => response.ok ? response.json() : null).then(info => { if (info) setContext(previous => ({ ...previous, ...info })); }).catch(() => {});

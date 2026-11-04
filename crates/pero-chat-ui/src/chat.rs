@@ -646,12 +646,8 @@ impl ChatPanel {
                 }
                 chat.push_user(event.text.clone(), cx);
                 if let Some(message) = chat.messages.last_mut() {
-                    message.attached_files = event.data["contexts"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|r| r["label"].as_str().map(str::to_string))
-                        .collect();
+                    let contexts = event.data["contexts"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+                    message.attached_files = crate::message_attachments::attachment_labels(&event.text, contexts);
                 }
             }
             "session_connecting" => chat.state = SessionState::Connecting,
@@ -849,7 +845,10 @@ impl ChatPanel {
 
                     }
                 }))
-                .when(busy,|el|el.child(div().text_color(p.text_muted).child(self.t(if chat.is_some_and(|c|c.state==SessionState::Connecting){"chat.preparing"}else{"chat.thinking"}))))
+                .when(busy,|el|el.child(div()
+                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
+                    .text_color(p.text_muted)
+                    .child(self.t(if chat.is_some_and(|c|c.state==SessionState::Connecting){"chat.preparing"}else{"chat.thinking"}))))
                 .when(chat.is_some_and(|c|c.error.is_some() && c.state!=SessionState::AuthRequired) && !credential_reminder,|el|el.child(div().p(px(14.)).bg(p.error_bg).text_color(p.error).rounded(px(6.)).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))))))
             .children(chat.filter(|c|c.state==SessionState::AuthRequired).into_iter().map(|chat|{
                 div().w_full().max_w(px(pero_theme::COMPOSER_MAX)).min_w_0().mx_auto().mb(px(10.)).p(px(12.)).bg(p.warning_bg).rounded(px(4.))

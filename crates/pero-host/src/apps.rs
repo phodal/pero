@@ -17,6 +17,12 @@ enum Request {
         method: Method,
         id: String,
     },
+    Environment {
+        method: Method,
+        id: String,
+        name: AppName,
+        target: pero_runtime::apps::ScientificMethod,
+    },
     Install {
         method: Method,
         id: String,
@@ -30,6 +36,7 @@ enum Request {
     Sdkcontext { method: Method, id: String, name: AppName },
     Agentcatalog { method: Method, id: String, name: AppName, path: String },
     Prepare { method: Method, id: String, name: AppName },
+    Doclingruntime { method: Method, id: String, name: AppName, request: pero_runtime::apps::docling_runtime::Request },
     Enable {
         method: Method,
         id: String,
@@ -93,8 +100,16 @@ pub struct Apps {
     store: std::sync::Arc<std::sync::Mutex<Result<AppStore, String>>>,
     builtins: Option<PathBuf>,
     names: Option<Vec<String>>,
+    shutting_down: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
+pub struct AppsShutdown(Apps);
+impl Drop for AppsShutdown { fn drop(&mut self) { self.0.shutdown(); } }
 impl Apps {
+    pub fn shutdown_guard(&self) -> AppsShutdown { AppsShutdown(self.clone()) }
+    fn shutdown(&self) {
+        self.shutting_down.store(true, std::sync::atomic::Ordering::SeqCst);
+        if let Ok(guard) = self.store.lock() { if let Ok(store) = guard.as_ref() { store.shutdown_docling_runtime(); } }
+    }
     pub(crate) fn agent_panel(&self, name: &AppName) -> Result<String, String> {
         let guard = self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes")?;
         guard.as_ref().map_err(Clone::clone)?.agent_panel(name)
@@ -147,6 +162,7 @@ impl Apps {
             store: std::sync::Arc::new(std::sync::Mutex::new(store)),
             builtins,
             names,
+            shutting_down: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 
@@ -189,6 +205,7 @@ impl Apps {
             let mut guard = if agents.is_some() {
                 self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes".to_string())?
             } else { self.store.lock().map_err(|error| error.to_string())? };
+            if self.shutting_down.load(std::sync::atomic::Ordering::SeqCst) { return Err("Host is shutting down".into()); }
             let store = guard.as_mut().map_err(|error| error.clone())?;
             let mut progress = |value: pero_runtime::apps::AppPreparation| {
                 let mut event = HostEvent::new("apps_preparation", id.clone(), value.message.clone());
@@ -216,6 +233,10 @@ impl Apps {
                 }
                 Request::Sdkcontext { method, id, name } => {
                     let _ = (method, id); serde_json::to_value(store.sdk_context(&name)?)
+                }
+                Request::Environment { method, id, name, target } => {
+                    let _ = (method, id);
+                    serde_json::to_value(store.inspect_environment_for(&name, target)?)
                 }
                 Request::List { method, id } => {
                     let _ = (method, id);
@@ -284,6 +305,12 @@ impl Apps {
                     store.require_grant(&name, "connectors")?;
                     Ok(serde_json::json!({"permitted":true}))
                 }
+                Request::Doclingruntime { method, id, name, request } => {
+                    let _ = (method, id);
+                    let runtime = store.docling_runtime(&name)?;
+                    drop(guard);
+                    return runtime.execute(request);
+                }
                 Request::Reproduction { method, id, name, request } => {
                     let _ = (method, id);
                     let handoff = crate::paper_reproduction::PaperReproduction::resolve(store, &name)?;
@@ -343,6 +370,16 @@ mod tests {
         ] {
             assert!(serde_json::from_value::<Request>(request).is_err());
         }
+    }
+
+    #[test]
+    fn optional_runtime_requires_private_apps_method_and_fixed_request() {
+        let valid = serde_json::json!({"method":"apps","id":"setup","action":"doclingruntime","name":"paper-agent","request":{"operation":"prepare","component":"model"}});
+        assert!(matches!(serde_json::from_value::<Request>(valid.clone()), Ok(Request::Doclingruntime { .. })));
+        let mut mixed = valid.clone(); mixed["method"] = serde_json::json!("settings.workbench");
+        assert!(serde_json::from_value::<Request>(mixed).is_err());
+        let mut arbitrary = valid; arbitrary["request"]["url"] = serde_json::json!("https://example.org/package");
+        assert!(serde_json::from_value::<Request>(arbitrary).is_err());
     }
 
     #[test]

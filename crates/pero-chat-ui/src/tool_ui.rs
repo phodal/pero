@@ -28,12 +28,47 @@ pub(crate) fn visible_output(content: &str, output: &[Value]) -> bool {
         })
 }
 
+/// Chat chrome only. Stored ACP titles keep the wire name.
+pub(crate) fn display_tool_title(title: &str) -> String {
+    let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+    let Some(rest) = title.strip_prefix("mcp__") else {
+        return title;
+    };
+    let parts = rest
+        .split("__")
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    match parts.as_slice() {
+        // Prefer the leaf tool name so the chip can show the action, not the
+        // transport path. App id is only a disambiguator when several tools share a leaf.
+        ["pero-app-use", "app", app, tool @ ..] if !tool.is_empty() => {
+            let leaf = tool.join("__");
+            if tool.len() == 1 {
+                leaf
+            } else {
+                format!("{app}/{leaf}")
+            }
+        }
+        ["pero-app-use", tool @ ..] if !tool.is_empty() => tool.join("__"),
+        [server, tool @ ..] if !tool.is_empty() => {
+            let leaf = tool.join("__");
+            if tool.len() == 1 {
+                leaf
+            } else {
+                format!("{server}/{leaf}")
+            }
+        }
+        [server] => (*server).to_string(),
+        _ => title,
+    }
+}
+
 pub(crate) fn short_label(action: &str, title: &str, path: Option<&str>) -> String {
     if let Some(path) = path.filter(|path| !path.is_empty()) {
         let file = path.rsplit(['/', '\\']).next().unwrap_or(path);
         return format!("{action} {file}");
     }
-    let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+    let title = display_tool_title(title);
     if title.is_empty() || title.eq_ignore_ascii_case("tool") {
         return action.into();
     }
@@ -150,9 +185,9 @@ mod rendering {
                         .relative()
                         .child(first.toggle_bounds.probe())
                         .ghost()
-                        .small()
                         .w_full()
                         .h(px(pero_theme::UiAppearance::global(cx).typography.row_height()))
+                        .text_size(px(pero_theme::UiAppearance::global(cx).typography.ui))
                         .px(px(4.))
                         .justify_start()
                         .accessibility_label(format!("{summary}. {disclosure}"))
@@ -218,8 +253,8 @@ mod rendering {
                                     .flex()
                                     .flex_col()
                                     .gap(px(6.))
-                                    .when(tools.len() > 1 || tool.title != summary, |el| {
-                                        el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(tool.title.clone()))
+                                    .when(tools.len() > 1 || display_tool_title(&tool.title) != summary, |el| {
+                                        el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(display_tool_title(&tool.title)))
                                     })
                                     .when_some(tool.transcript.input_text(), |el, input| {
                                         let chat_id = conversation_id.to_owned();
@@ -286,11 +321,6 @@ mod rendering {
                                                 }
                                                 cx.notify();
                                             })))
-                                    })
-                                    .when_some(tool.document.as_ref().filter(|_|self.can_open_documents && tool.artifact.as_ref().is_none_or(|artifact|matches!(artifact.status,crate::artifact_read::ArtifactStatus::Loaded))), |el,document| {
-                                        let document=document.clone();
-                                        el.child(Button::new(("workspace-content",index)).ghost().small().label(self.t("content.open_workspace"))
-                                            .on_click(cx.listener(move |_,_,_,cx|cx.emit(crate::panel::ChatAction::OpenDocument(document.clone())))))
                                     })
                                     .when_some(tool.reader.as_ref().filter(|_|tool.artifact.as_ref().is_none_or(|artifact|matches!(artifact.status,crate::artifact_read::ArtifactStatus::Loaded))), |el, reader| el.child(reader.clone()))
                                     .when_some(tool.view.as_ref(), |el, view| {
@@ -451,5 +481,27 @@ mod tests {
         );
         assert_eq!(short_label("Tool", "Tool", None), "Tool");
         assert!(short_label("Run", &"x".repeat(100), None).ends_with('…'));
+    }
+
+    #[test]
+    fn mcp_wire_names_drop_transport_prefix() {
+        assert_eq!(
+            display_tool_title("mcp__pero-app-use__app__paper-agent__prepare-research"),
+            "prepare-research"
+        );
+        assert_eq!(
+            display_tool_title("mcp__pero-app-use__content_read"),
+            "content_read"
+        );
+        assert_eq!(display_tool_title("mcp__evidence__lookup"), "lookup");
+        assert_eq!(
+            short_label(
+                "Tool",
+                "mcp__pero-app-use__app__paper-agent__inspect-research-link",
+                None
+            ),
+            "inspect-research-link"
+        );
+        assert_eq!(display_tool_title("chart_render"), "chart_render");
     }
 }

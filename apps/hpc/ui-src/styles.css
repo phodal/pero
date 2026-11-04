@@ -5,15 +5,7 @@ body { margin: 0; background: var(--pero-bg); }
 h1, h2, h3, p { margin: 0; }
 h1 { font-size: 18px; font-weight: 650; line-height: 24px; letter-spacing: -0.02em; }
 h2, h3 { font-size: 14px; font-weight: 600; }
-.hpc-app .pero-ui-button:not([data-variant=unstyled]), .hpc-app .pero-ui-input:not([data-unstyled]) { min-height: 24px; height: 24px; padding: 1px 8px; border-radius: 4px; font: 12px/20px system-ui, sans-serif; }
-.hpc-app .pero-ui-button:not([data-variant=unstyled]) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--pero-input-border); background: var(--pero-surface); color: var(--pero-text); white-space: nowrap; box-shadow: none; }
-.hpc-app .pero-ui-button:not([data-variant=unstyled]):hover:not(:disabled) { background: var(--pero-surface-muted); }
-.hpc-app .pero-ui-button[data-variant=primary] { background: var(--pero-action); border-color: var(--pero-action); color: var(--pero-on-action); }
-.hpc-app .pero-ui-button[data-variant=primary]:hover:not(:disabled) { background: var(--pero-action-hover); }
-.hpc-app .pero-ui-button[data-variant=ghost] { border-color: transparent; background: transparent; }
-.hpc-app .pero-ui-button:not([data-variant=unstyled]):disabled { color: var(--pero-disabled-text); background: var(--pero-disabled); border-color: var(--pero-border); opacity: 1; cursor: default; }
 .hpc-app .pero-ui-button.icon-button { width: 24px; padding: 0; flex-shrink: 0; }
-.hpc-app .pero-ui-input:not([data-unstyled]) { width: 100%; min-width: 0; border: 1px solid var(--pero-input-border); background: var(--pero-surface); color: var(--pero-text); }
 .hpc-app button, .hpc-app summary { cursor: pointer; }
 .hpc-app button:focus-visible, .hpc-app input:focus-visible, .hpc-app summary:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
 input[type=checkbox] { accent-color: var(--pero-action); width: 16px; height: 16px; margin: 2px 0; }

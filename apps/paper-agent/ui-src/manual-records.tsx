@@ -76,12 +76,10 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
   const title = (id: string) => library.papers.find(item => item.id === id)?.title ?? 'Unavailable paper';
   const valid = question.trim() && scope.trim() && inclusion.trim() && exclusion.trim() && decisions.length && decisions.every(item => item.reason.trim());
   return <details className="pa-manual-records"><summary>Question and scope</summary>
-    <p>Manual research records. Saving or opening a record does not run research.</p>
     {loading && <p role="status">Loading records…</p>}
     {error && <Feedback kind="error">{error}<Button disabled={busy || loading} onClick={() => setRetry(value => value + 1)}>Reload records</Button></Feedback>}
     {message && <p role="status">{message}</p>}
     {!editing && <Button disabled={busy || loading || !library.papers.length} onClick={() => edit()}>New record</Button>}
-    {!loading && !visible.length && <p>No records for this paper. Save a question and screening reasons to begin.</p>}
     {editing && <form ref={form} onSubmit={event => { event.preventDefault(); submit(); }} onKeyDown={event => {
       if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.type === 'text') {
         event.preventDefault(); if (!event.nativeEvent.isComposing) submit();

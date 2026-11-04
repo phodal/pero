@@ -26,7 +26,8 @@ Use 核心在 acquiring/unknown 时保留取消意图，迟到成功仅释放；
 
 私有 [AppStore 检查](../../crates/pero-runtime/src/apps/environment.rs) 复用原解释器选择与
 PATH 设置，以固定模块探针读取元数据。边界核对 schema、method、Profile 身份和内容摘要，
-只向内部调用者提供具名值，不新增公共 Host 命令或 HTTP endpoint。
+P1 最初只向内部调用者提供具名值；现有 [Environments UI](environments-ui.md)
+通过 App-origin `/host/environment` 暴露相同只读观察，不增加准备或执行授权。
 探测的是当前选定解释器，不是已经运行的 Desktop backend 的加载身份或远程 attestation。
 
 Control 软件要求读取原 App manifest；原 Store 仍控制预算/attempt，真实 engine 入口仅增加

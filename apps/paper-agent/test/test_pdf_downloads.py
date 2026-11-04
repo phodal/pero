@@ -204,6 +204,7 @@ class PdfAcquisitionTest(unittest.TestCase):
                 self.assertEqual(result['status'], 'completed', result)
                 self.assertEqual(result['receipt']['requestUrl'], resource.originalUrl)
                 receipts.append(result['receipt'])
+            self.assertEqual(store.paper(receipts[1]['paperId']).title, '2610.24806v1')
             self.assertNotEqual(receipts[0]['documentId'], receipts[1]['documentId'])
             self.assertEqual([r['pageCount'] for r in receipts], [27, 34])
             for receipt in receipts:

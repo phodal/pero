@@ -1,5 +1,7 @@
 //! GPUI conversation components shared by the Workbench and standalone chat.
 pub mod app_links;
+#[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
+mod message_attachments;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod assets;
 #[cfg(any(target_family = "wasm", feature = "native"))]
@@ -22,6 +24,7 @@ mod panel;
 mod session_controls;
 pub mod stream;
 pub mod inline_images;
+pub mod image_references;
 pub mod artifact_read;
 #[cfg(target_family = "wasm")]
 pub mod web_platform;

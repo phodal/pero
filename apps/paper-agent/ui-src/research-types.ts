@@ -31,7 +31,7 @@ export function assetSize(size: number | null) {
 export type SourceEvidenceLocation = {
   memberId?: string; memberPath?: string; startLine?: number; endLine?: number; start?: number; end?: number; archiveDigest?: string; memberDigest?: string;
 };
-export type SourceEvidenceMatch = { source: SourceEvidenceLocation; pdf: { page: number; fileDigest: string; documentId: string } };
+export type SourceEvidenceMatch = { source: SourceEvidenceLocation; pdf: { page: number; fileDigest: string; documentId: string; start?: number; end?: number } };
 export type DocumentEvidenceScope = {
   documentId: string; parserRevision: string; sourceDigest: string; blockId: string;
   unit: 'characters' | 'tokens' | 'cells' | 'images' | 'original-html'; start: number; end: number; contentDigest: string;

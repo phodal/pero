@@ -1,0 +1,30 @@
+const en = {
+ title: 'Environments', inspect: 'Environment', checkAll: 'Check all', check: 'Check', retry: 'Retry', checking: 'Checking…',
+ search: 'Search environments', filter: 'Filter environments', all: 'All', unchecked: 'Not checked', matched: 'Matches requirements',
+ blocked: 'Missing requirements', stale: 'Check again', error: 'Unavailable', table: 'Table', grid: 'Grid', back: 'Back', close: 'Close',
+ method: 'Method', app: 'App', status: 'Status', observed: 'Observed', actions: 'Actions', open: 'Open',
+ software: 'Software', requirements: 'Requirements', observation: 'Observation', export: 'Export observation',
+ package: 'Package', version: 'Version', missing: 'Missing', native: 'Native programs', platform: 'Platform',
+ python: 'Python', evidence: 'Evidence', metadata: 'Metadata only', identity: 'Profile digest', local: 'Local process',
+ scope: 'Configured interpreter only; not a running-process or result verification.',
+ unknown: 'No observation yet.', checkPrompt: 'Check the configured software.', empty: 'No matching environments.', clear: 'Clear filters',
+ missingNote: 'Prepare missing software through its App or Host configuration, then check again.',
+ expired: 'This observation is no longer current. Check again before using it.',
+ details: 'Details', noChanges: 'Inspecting does not install software or start a run.',
+ exportName: 'Environment observation', probe_failed: 'Check failed', unsupported: 'Unsupported',
+};
+const zh = {
+ title: '环境', inspect: '环境', checkAll: '检查全部', check: '检查', retry: '重试', checking: '检查中…',
+ search: '搜索环境', filter: '筛选环境', all: '全部', unchecked: '未检查', matched: '满足软件要求',
+ blocked: '缺少必要条件', stale: '需要重新检查', error: '不可用', table: '表格', grid: '卡片', back: '返回', close: '关闭',
+ method: '方法', app: '应用', status: '状态', observed: '观察时间', actions: '操作', open: '打开',
+ software: '软件', requirements: '运行要求', observation: '观察记录', export: '导出观察记录',
+ package: '依赖包', version: '版本', missing: '缺失', native: '原生程序', platform: '平台',
+ python: 'Python', evidence: '证据范围', metadata: '仅软件元数据', identity: '配置摘要', local: '本地进程',
+ scope: '仅检查配置的解释器，不代表正在运行的进程或结果已通过验证。',
+ unknown: '尚无观察记录。', checkPrompt: '检查已配置的软件。', empty: '没有匹配的环境。', clear: '清除筛选',
+ missingNote: '通过应用或 Host 配置准备缺失软件后，重新检查。',
+ expired: '观察记录已过期，使用前请重新检查。',
+ details: '详情', noChanges: '检查不会安装软件或启动计算。', exportName: '环境观察记录', probe_failed: '检查失败', unsupported: '不支持',
+};
+export const messages = locale => locale === 'zh' || locale === 'zh-CN' ? zh : en;

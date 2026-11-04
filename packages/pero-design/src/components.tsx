@@ -56,11 +56,6 @@ export function Kbd({ children, className = '', ...props }: React.HTMLAttributes
   return <kbd {...props} className={`pero-kbd ${className}`}>{children}</kbd>;
 }
 
-/** State sentence and one caption. No dashed frame. */
-export function EmptyState({ heading, description }: { heading: string; description?: string }) {
-  return <div className="pero-ui-empty"><strong>{heading}</strong>{description ? <p>{description}</p> : null}</div>;
-}
-
 /** One reading-surface panel. Rows inside are separated by a hairline. */
 export function SettingsGroup({ label, children, className = '', ...props }: React.HTMLAttributes<HTMLElement> & { label?: React.ReactNode }) {
   return <section {...props} className={`pero-settings ${className}`}>
@@ -72,16 +67,9 @@ export function SettingsRow({ children, className = '', ...props }: React.HTMLAt
   return <div {...props} className={`pero-settings-row ${className}`}>{children}</div>;
 }
 
-/** Primary action, or a ghost control. One primary; the rest stay ghost. */
-export function ActionButton({ label, kind = 'primary', className = '', children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  label: React.ReactNode; kind?: 'primary' | 'ghost';
-}) {
-  return <button {...props} type="button" data-kind={kind} className={`pero-action ${className}`}>{children ?? label}</button>;
-}
-
-export function SearchField({ className = '', ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} type="search" className={`pero-search-field ${className}`} />;
-}
+export const SearchField = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(function SearchField({ className = '', ...props }, ref) {
+  return <input {...props} ref={ref} type="search" className={`pero-search-field ${className}`} />;
+});
 
 /** Session markdown. Headings, lists, code, quotes, and tables use the chat contract. */
 export function ChatMarkdown({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {

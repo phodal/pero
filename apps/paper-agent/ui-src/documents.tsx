@@ -3,59 +3,24 @@ import { Button, Disclosure, EmptyState, Toolbar } from '@pero/app-sdk/ui';
 import type { Api, Evidence, EvidenceLocation, Intent, Paper, Report, PdfFocus, PdfSource, PdfRect, TextFocus } from './types';
 import { PdfReader, type ReaderChrome } from './pdf-reader';
 import { ScientificContent } from './scientific-content';
+import { SavedTextReading } from './saved-text-reading';
 import { StructuredReading } from './structured-reading';
 import { EvidenceMatrix } from './evidence-matrix';
 import type { Translator } from './i18n';
 import './reader-workspace.css';
 
-function SourceLines({ content, focus, label }: { content: string; focus: TextFocus; label: string }) {
-  const mark = useRef<HTMLElement>(null);
-  // Search offsets count Python code points; String.slice counts UTF-16 units.
-  // Convert at the rendering boundary to preserve stored source coordinates.
-  const start = Math.max(0, focus.start), end = Math.max(start, focus.end);
-  let from = 0, to = 0, position = 0;
-  for (const character of content) {
-    if (position >= end) break;
-    to += character.length;
-    if (position < start) from = to;
-    position++;
-  }
-  const line = content.slice(0, from).split('\n').length;
-  useEffect(() => { mark.current?.scrollIntoView({ block: 'center' }); }, [content, from, to, focus.token]);
-  return <>
-    <p className="pa-document-meta">{label.replace('{n}', String(line))}</p>
-    <pre className="pa-search-source">{content.slice(0, from)}<mark ref={mark} data-search-line={line}>{content.slice(from, to)}</mark>{content.slice(to)}</pre>
-  </>;
-}
 export function Reader({ paper, busy, openToken, pdfReloadToken, api, pdfFocus, textFocus, onFull, onDiscuss, onMatrixAdded, onReview, chrome, t }: {
   paper: Paper; busy: boolean; openToken: number; pdfReloadToken?: number; api: Api; pdfFocus?: PdfFocus | null; textFocus?: TextFocus | null; onFull(): void;
   onDiscuss(text: string, source?: PdfSource): void; onMatrixAdded(): Promise<void>; onReview(): void; chrome: ReaderChrome; t: Translator;
 }) {
-  const source = useRef<HTMLDivElement>(null);
-  const [excerpt, setExcerpt] = useState(''), [structured, setStructured] = useState(false);
+  const [structured, setStructured] = useState(false);
   const [sourceUrl, setSourceUrl] = useState<string>();
   const [readRequest, setReadRequest] = useState(0);
-  useEffect(() => { setExcerpt(''); }, [paper.id]);
-  function capture() {
-    const selection = window.getSelection();
-    if (!paper.content || !selection || !selection.rangeCount || !source.current?.contains(selection.anchorNode) || !source.current.contains(selection.focusNode)) return;
-    const value = selection.toString().trim();
-    setExcerpt(value);
-  }
-  return <article className="pa-document pa-reading-document" data-paper-id={paper.id} aria-label={paper.title}>
-    <PdfReader key={paper.id} sourceUrl={sourceUrl} openToken={openToken} readRequest={readRequest} pdfReloadToken={pdfReloadToken} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} readLabel={structured && !textFocus ? 'Read' : undefined} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
+  return <article className="pa-document pa-reading-document" data-paper-id={paper.id} data-structured={structured} aria-label={paper.title}>
+    <PdfReader key={paper.id} sourceUrl={sourceUrl} openToken={openToken} readRequest={readRequest} pdfReloadToken={pdfReloadToken} chrome={chrome} paper={paper} api={api} focus={textFocus ? null : pdfFocus} lockText={!!textFocus} readLabel={t('readerText')} t={t} onDiscuss={onDiscuss} onMatrixAdded={onMatrixAdded}>
       <div className="pa-text-reading pero-reader-body"><div className="pero-reader-content">
-        <StructuredReading onDiscuss={onDiscuss} onSourceUrl={setSourceUrl} toolbar={chrome.toolbar} openToken={openToken} showText={!!textFocus} api={api} paperId={paper.id} onReady={setStructured} onPrepared={() => setReadRequest(value => value + 1)} onReview={onReview}>
-        {paper.contentKind !== 'full-text' && !textFocus && <p className="pa-document-meta">{paper.resourceKind === 'web_article' ? 'Article excerpt' : t(paper.contentKind === 'abstract' ? 'abstract' : 'sourceReport')}</p>}
-        {paper.limitation && <p className="pa-document-meta">{paper.limitation}</p>}
-        <div className="pa-source-text" ref={source} onMouseUp={capture} onKeyUp={capture}>{paper.content != null ? textFocus ? <SourceLines content={paper.content} focus={textFocus} label={t('sourceLine')}/> : paper.resourceKind ? <p className="pa-resource-excerpt">{paper.content}</p> : <ScientificContent content={paper.content}/> : t('loading')}</div>
-        {!!excerpt && <div className="pa-reader-actions"><Button onClick={() => onDiscuss(excerpt)}>{t('discussSelection')}</Button></div>}
-        <Disclosure summary={t('sourceDetails')}>
-          {paper.source !== 'local-pdf' && <a href={paper.url} target="_blank" rel="noreferrer">{t('original')}</a>}
-          {paper.contentKind !== 'full-text' && paper.source === 'alphaxiv' && <Button disabled={busy} onClick={onFull}>{t('fetchFull')}</Button>}
-          <dl className="pa-details"><dt>SHA-256</dt><dd>{paper.contentDigest}</dd><dt>{t('frozenInput')}</dt><dd>{paper.fetchedAt}</dd></dl>
-          <Disclosure summary={t('rawSource')}><pre className="pa-raw-source">{paper.content}</pre></Disclosure>
-        </Disclosure>
+        <StructuredReading onDiscuss={onDiscuss} onSourceUrl={setSourceUrl} paperSource={paper.source} openToken={openToken} showText={!!textFocus} api={api} paperId={paper.id} onReady={setStructured} onPrepared={() => setReadRequest(value => value + 1)} onReview={onReview}>
+        <SavedTextReading paper={paper} busy={busy} textFocus={textFocus} onFull={onFull} onDiscuss={onDiscuss} t={t}/>
         </StructuredReading>
       </div></div>
     </PdfReader>

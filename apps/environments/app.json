@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "environments",
+  "version": "0.1.0",
+  "displayName": "Environments",
+  "description": "Inspect the configured scientific software for Paper and Control Lab.",
+  "permissions": { "host": ["environments"], "api": [] },
+  "contributes": {
+    "panels": [{ "id": "main", "title": "Environments", "entry": "dist/index.html" }]
+  }
+}

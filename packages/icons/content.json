@@ -134,7 +134,6 @@
     "paper-agent": "book-open-text",
     "control-lab": "activity",
     "data": "database",
-    "data-agent": "chart-line",
     "insights": "layout-list",
     "connectors": "plug",
     "automations": "clock"

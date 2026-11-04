@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { pack, unpack, runtimePaths } from './desktop-artifact.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
-const modules = { data: ['dataset.py'], 'data-agent': ['dataset.py', 'view.py', 'chart_document.py'] };
+const modules = { data: ['dataset.py', 'view.py', 'chart_document.py'] };
 
 // Real Python shells and parsers cross the same archive boundary as Desktop CI.
 // Unrelated native/UI outputs are placeholders: this is not Desktop acceptance.
@@ -63,9 +63,7 @@ try:
         assert result['status'] == 'ok', result
         assert result['rows'][0]['cells'][0]['text'] == '9007199254740993', result
     else:
-        imported = post('/api/import', dict(name='test.json', format='json', content=content))
-        result = post('/api/query', dict(dataset=imported['dataset']['id'], columns=['n']))
-        assert result['rows'][0]['cells']['n']['display'] == '9007199254740993', result
+        raise AssertionError('Data is the only catalog import')
     print('INSTALLED_READY_AND_EXACT_IMPORT_OK')
 finally:
     process.terminate()

@@ -39,7 +39,7 @@ impl InstalledApp {
         match self.name.as_str() { "insights" => AppPlacement::Primary, "paper-agent" | "data" => AppPlacement::Workspace, "connectors" => AppPlacement::Customize, "automations" => AppPlacement::Automation, _ => AppPlacement::Catalog }
     }
     pub fn category(&self) -> AppCategory {
-        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" => AppCategory::Research, "data-agent" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
+        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
     }
 }
 
@@ -512,5 +512,78 @@ impl crate::app::Workbench {
             deliver(&serde_json::json!({"app":app,"panel":panel,"location":location}).to_string());
         }
         cx.notify();
+    }
+
+    /// Composer chips jump to their source App, like a side-chat file reference.
+    /// Frozen Paper selections reopen the selected paper inside that App.
+    pub(crate) fn open_context_reference(
+        &mut self,
+        reference: &pero_contracts::context::ContextReference,
+        window: &mut gpui_kit::Window,
+        cx: &mut gpui_kit::Context<Self>,
+    ) {
+        use pero_contracts::context::{ContextContent, ContextKind};
+        let mut paper_location = None;
+        let (app, panel) = match reference.kind {
+            ContextKind::AppObject => match &reference.content {
+                ContextContent::Text { text } => {
+                    let value: serde_json::Value = serde_json::from_str(text).unwrap_or_default();
+                    let scope = &value["scope"];
+                    paper_location = Self::frozen_paper_location(&value);
+                    (
+                        scope["app"].as_str().unwrap_or("").to_string(),
+                        scope["panel"].as_str().unwrap_or("main").to_string(),
+                    )
+                }
+                ContextContent::Image { .. } => (String::new(), String::new()),
+            },
+            _ => {
+                if reference.source.starts_with("http://") || reference.source.starts_with("https://")
+                {
+                    cx.open_url(&reference.source);
+                }
+                return;
+            }
+        };
+        let (app, panel) = if !app.is_empty() {
+            (app, panel)
+        } else if let Some(host) = reference
+            .source
+            .strip_prefix("pero-app://")
+            .and_then(|rest| rest.split(['/', '#']).next())
+            .filter(|host| !host.is_empty())
+        {
+            (host.to_string(), "main".into())
+        } else {
+            return;
+        };
+        if !self.apps.contains_panel(&app, &panel) {
+            return;
+        }
+        // Dock the float so the App is visible, the same way a side chat
+        // reveals the file it just opened.
+        if self.floating_chat {
+            self.floating_chat = false;
+        }
+        if let Some(location) = paper_location {
+            self.open_app_link(
+                &format!("pero-app-location://{app}/{panel}/{location}"),
+                window,
+                cx,
+            );
+        } else {
+            self.open_app(app, panel, cx);
+            cx.notify();
+        }
+    }
+
+    fn frozen_paper_location(value: &serde_json::Value) -> Option<String> {
+        let id = value["selection"]["paperIds"]
+            .as_array()
+            .and_then(|ids| ids.first())
+            .and_then(|id| id.as_str())
+            .or_else(|| value["state"]["readingId"].as_str())
+            .filter(|id| id.len() == 64 && id.bytes().all(|b| b.is_ascii_hexdigit()))?;
+        Some(format!("paper/{id}"))
     }
 }

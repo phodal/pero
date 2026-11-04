@@ -53,11 +53,18 @@ class LiteratureTest(unittest.TestCase):
                 PaperIdentity.parse({"id": paper_id})
         for paper_id, source, identity in (("https://arxiv.org/pdf/1706.03762v2.pdf", "alphaxiv", "1706.03762v2"),
                                            ("https://huggingface.co/papers/2601.12345", "alphaxiv", "2601.12345"),
+                                           ("https://doi.org/10.48550/arxiv.2610.02858", "alphaxiv", "2610.02858"),
+                                           ("doi:10.48550/arXiv.hep-th/9901001", "alphaxiv", "hep-th/9901001"),
+                                           ("https://dx.doi.org/10.48550/arXiv.2610.02858", "alphaxiv", "2610.02858"),
+                                           ("https://arxiv.org/html/2610.02858v1", "alphaxiv", "2610.02858v1"),
+                                           ("https://export.arxiv.org/abs/2610.02858v1", "alphaxiv", "2610.02858v1"),
                                            ("pmid:123", "pubmed", "123"), ("https://openalex.org/W123", "openalex", "W123"),
                                            ("https://www.biorxiv.org/content/10.1101/2026.01.01.1v2.full", "biorxiv", "10.1101/2026.01.01.1")):
             with self.subTest(paper_id=paper_id):
                 parsed = PaperIdentity.parse({"id": paper_id})
                 self.assertEqual((parsed.source, parsed.id), (source, identity))
+        selected_doi = PaperIdentity.parse({'id': '10.48550/arXiv.2610.02858', 'source': 'openalex'})
+        self.assertEqual((selected_doi.source, selected_doi.id), ('alphaxiv', '2610.02858'))
         selected = PaperIdentity.parse({'id': 'https://huggingface.co/papers/2601.12345', 'source': 'huggingface'})
         self.assertEqual((selected.source, selected.id), ('alphaxiv', '2601.12345'))
 
@@ -68,6 +75,11 @@ class LiteratureTest(unittest.TestCase):
                 self.assertEqual(parse_qs(parsed.query)["publishedAfter"], ["2026-01-01"])
                 return Response([{"paperId": "2601.12345", "title": "A research paper", "abstract": "Original"}])
             if parsed.hostname == "api.openalex.org":
+                selected = parse_qs(parsed.query)["select"][0]
+                self.assertIn("abstract_inverted_index", selected)
+                self.assertIn("authorships", selected)
+                self.assertNotIn("referenced_works", selected)
+                self.assertEqual(parse_qs(parsed.query)["per_page"], ["10"])
                 return Response({"results": [WORK]})
             return Response(status=503)
         result = LiteratureClient(fetch, lambda: NOW).search({"query": "Graph RAG", "sources": ["alphaxiv", "openalex", "pubmed"], "publishedAfter": "2026-01-01"})
@@ -108,6 +120,8 @@ class LiteratureTest(unittest.TestCase):
         self.assertEqual(popular[0]['citations'], 3)
         self.assertNotIn('citations', popular[1])
         self.assertNotIn('citations', popular[2])
+        mixed = client.search({'query': 'x', 'sources': ['alphaxiv', 'openalex'], 'priority': 'default'})['items']
+        self.assertEqual([item['source'] for item in mixed[:2]], ['alphaxiv', 'openalex'])
 
     def test_huggingface_search_merges_paper_versions_and_keeps_observed_links(self):
         def fetch(url, **_options):
@@ -216,6 +230,7 @@ class LiteratureTest(unittest.TestCase):
             if parsed.path.endswith("esummary.fcgi"):
                 return Response({"result": {"123": {"title": "Medical paper", "sortpubdate": "2025/02/01 00:00", "authors": [{"name": "A"}], "articleids": [{"idtype": "pmc", "value": "PMC123"}]}}})
             if parsed.path.endswith("efetch.fcgi"):
+                self.assertEqual(parse_qs(parsed.query).get("rettype"), ["abstract"])
                 return Response('<PubmedArticleSet><PubmedArticle><PMID Version="1">123</PMID><Abstract><AbstractText Label="METHODS">A <i>real</i> method &amp; result.</AbstractText></Abstract></PubmedArticle></PubmedArticleSet>')
             return Response({"esearchresult": {"idlist": ["123"]}})
         client = LiteratureClient(fetch)

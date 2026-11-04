@@ -1,5 +1,4 @@
 """Original member lines and conservative source/PDF cross-representation evidence."""
-import re
 import base64
 from bisect import bisect_right
 from itertools import accumulate
@@ -7,6 +6,7 @@ from itertools import accumulate
 from .model import ID, Invalid, digest
 from .source_archive import LIMITATIONS, SourceArchive
 from .source_text import SourceText
+from .source_captions import SourceCaption
 
 
 def source_read(store, value):
@@ -16,6 +16,9 @@ def source_read(store, value):
 
 
 def read_source(store, value):
+    if value.get('operation') == 'reference':
+        from .figure_references import FigureReference
+        return FigureReference.from_document(value).resolve(store, value.get('paperId'))
     if value.get('operation') == 'figures':
         from .source_figures import FigureQuery, paper_figures
         return paper_figures(store, FigureQuery.parse(value))
@@ -126,41 +129,20 @@ def compare_source(store, value, source_resource, job, archive):
     document = store.pdf(pdf_job.receipt.documentId)
     consulted_pdf = dict(documentId=document.id, fileDigest=document.file_digest)
     matches, inspected = [], 0
-    normalized_pages = {page.number: ' '.join(page.text.split()) for page in document.pages}
     for member in archive.members:
         for structure in member.structures:
-            caption = structure.caption
-            # TeX commands are not rendered or guessed. Only literal text is compared.
-            if structure.kind != 'caption' or not caption or re.search(r'[\\{}$%]', caption):
+            if structure.kind != 'caption' or not structure.caption:
                 continue
-            words = caption.split()
-            if len(' '.join(words)) < 12:
-                continue
-            needle = ' '.join(words)
-            for page in document.pages:
-                inspected += len(page.text)
-                if inspected > 32_000_000:
-                    return dict(status='matched' if matches else 'unresolved', reason='Literal comparison reached its 32-million-character budget; remaining captions are unresolved.', matches=matches, consultedPdf=consulted_pdf)
-                normalized = normalized_pages[page.number]
-                cursor = normalized.find(needle)
-                while cursor >= 0:
-                    # Map the exact normalized substring back to original PDF
-                    # offsets without an untrusted-pattern regular expression.
-                    position, original_start, original_end = 0, None, None
-                    for token in re.finditer(r'\S+', page.text):
-                        stop = position + len(token[0])
-                        if position <= cursor < stop:
-                            original_start = token.start() + cursor - position
-                        if position < cursor + len(needle) <= stop:
-                            original_end = token.start() + cursor + len(needle) - position
-                            break
-                        position = stop + 1
-                    matches.append(dict(source=dict(archiveDigest=archive.sha256, memberId=member.id,
-                        memberPath=member.path, memberDigest=member.sha256, startLine=structure.startLine,
-                        endLine=structure.endLine, start=structure.start, end=structure.end, caption=caption),
-                        pdf=dict(paperId=document.paper_id, documentId=document.id, fileDigest=document.file_digest,
-                                 page=page.number, start=original_start, end=original_end, quote=page.text[original_start:original_end])))
-                    cursor = normalized.find(needle, cursor + 1)
-                    if len(matches) >= 64:
-                        return dict(status='matched', reason='First 64 literal caption matches; not a compiled source map or semantic validation.', matches=matches, consultedPdf=consulted_pdf)
+            inspected += sum(len(page.text) for page in document.pages)
+            if inspected > 32_000_000:
+                return dict(status='matched' if matches else 'unresolved', reason='Literal comparison reached its 32-million-character budget; remaining captions are unresolved.', matches=matches, consultedPdf=consulted_pdf)
+            for location in SourceCaption(structure.caption).matches(document):
+                page = document.page(location.page)
+                matches.append(dict(source=dict(archiveDigest=archive.sha256, memberId=member.id,
+                    memberPath=member.path, memberDigest=member.sha256, startLine=structure.startLine,
+                    endLine=structure.endLine, start=structure.start, end=structure.end, caption=structure.caption),
+                    pdf=dict(paperId=document.paper_id, documentId=document.id, fileDigest=document.file_digest,
+                             page=location.page, start=location.start, end=location.end, quote=page.text[location.start:location.end])))
+                if len(matches) >= 64:
+                    return dict(status='matched', reason='First 64 literal caption matches; not a compiled source map or semantic validation.', matches=matches, consultedPdf=consulted_pdf)
     return dict(status='matched' if matches else 'unresolved', reason='Literal caption matches only; not a compiled source map or semantic validation.' if matches else 'No literal caption matched. Macro expansion, numbering and approximate page guesses were not used.', matches=matches, consultedPdf=consulted_pdf)

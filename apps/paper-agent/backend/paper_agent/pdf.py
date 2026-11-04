@@ -30,6 +30,10 @@ class PdfDocument:
     pages: tuple[PdfPage, ...]
     created_at: str
 
+    @property
+    def has_selectable_text(self):
+        return any(page.text.strip() for page in self.pages)
+
     @classmethod
     def create(cls, paper_id, file_digest, source_url, pages, now):
         identity = digest(dict(paperId=paper_id, fileDigest=file_digest))

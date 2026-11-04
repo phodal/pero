@@ -13,10 +13,8 @@ const components = {
   ReaderFrame: ['title'],
   Badge: ['label'],
   OutlineBadge: ['label'],
-  EmptyState: ['heading'],
   SettingsGroup: [],
   SettingsRow: ['label', 'actions'],
-  ActionButton: ['label', 'kind'],
   SearchField: [],
 };
 

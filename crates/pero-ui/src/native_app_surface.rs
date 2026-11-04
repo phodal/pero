@@ -15,6 +15,7 @@ pub(crate) struct NativeAppPage {
     location: Option<String>,
     context: Value,
     pending: std::collections::HashSet<String>,
+    docling_live: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 pub(crate) struct NativeAppMessage(pub Value);
 impl EventEmitter<NativeAppMessage> for NativeAppPage {}
@@ -36,11 +37,19 @@ impl NativeAppPage {
         let popups = sender.clone();
         let client = crate::native::apps();
         let owner = name.clone();
+        let docling_live = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        #[cfg(target_os = "macos")]
+        let (ipc_client, ipc_owner, ipc_live, ipc_replies) = (client.clone(), name.clone(), docling_live.clone(), sender.clone());
+        #[cfg(target_os = "macos")]
+        let ipc_generation = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         let allowed = format!("pero-app://{name}/");
         let ipc_origin = allowed.clone();
         let builder = wry::WebViewBuilder::new()
             .with_url(format!("pero-app://{name}/{entry}"))
-            .with_initialization_script_for_main_only(BRIDGE, true)
+            .with_initialization_script_for_main_only(BRIDGE, true);
+        #[cfg(target_os = "macos")]
+        let builder = builder.with_initialization_script_for_main_only(include_str!("native_docling_bridge.js"), true);
+        let builder = builder
             .with_asynchronous_custom_protocol("pero-app".into(), move |_, request, responder| {
                 let client = client.clone();
                 let name = owner.clone();
@@ -63,9 +72,23 @@ impl NativeAppPage {
                 }
             })
             .with_ipc_handler(move |request| {
-                if !request.uri().to_string().starts_with(&ipc_origin) { return; }
                 if request.body().len() <= 256_000 {
                     if let Ok(message) = serde_json::from_str::<Value>(request.body()) {
+                        #[cfg(target_os = "macos")]
+                        if message["type"] == "pero:docling:request" {
+                            let (client, owner, live, replies) = (ipc_client.clone(), ipc_owner.clone(), ipc_live.clone(), ipc_replies.clone());
+                            let generation = ipc_generation.clone();
+                            let received = generation.load(std::sync::atomic::Ordering::Acquire);
+                            std::thread::spawn(move || {
+                                if let Some(reply) = client.docling_from_frame(&owner, request,
+                                    || live.load(std::sync::atomic::Ordering::Acquire) && generation.load(std::sync::atomic::Ordering::Acquire) == received,
+                                    || { generation.fetch_add(1, std::sync::atomic::Ordering::AcqRel); }) {
+                                    let _ = replies.try_send(reply);
+                                }
+                            });
+                            return;
+                        }
+                        if !request.uri().to_string().starts_with(&ipc_origin) { return; }
                         let _ = sender.try_send(message);
                     }
                 }
@@ -92,6 +115,7 @@ impl NativeAppPage {
                                     cx,
                                 );
                             }
+                            Some("pero:docling:result") => this.send(message, cx),
                             _ => cx.emit(NativeAppMessage(message)),
                         }
                         cx.notify();
@@ -125,6 +149,7 @@ impl NativeAppPage {
             location:None,
             context: Value::Null,
             pending: Default::default(),
+            docling_live,
         }
     }
     pub fn navigate(&mut self, location:String, cx:&App) {
@@ -205,6 +230,13 @@ impl NativeAppPage {
             .raw()
             .evaluate_script_with_callback(script, callback)?;
         Ok(())
+    }
+}
+impl Drop for NativeAppPage {
+    fn drop(&mut self) {
+        // A request queued before tab close may not reach prepare until later.
+        // Its native confirmation must still be refused after the owner is gone.
+        self.docling_live.store(false, std::sync::atomic::Ordering::Release);
     }
 }
 impl Render for NativeAppPage {
@@ -437,12 +469,18 @@ impl Workbench {
         cx.notify();
     }
     pub(crate) fn sync_native_apps(&mut self, cx: &mut Context<Self>) {
-        self.native_app_pages.retain(|(name, panel), _| {
-            self.navigation.items().contains(&WorkspaceItem::App {
+        let paper_pages = self.native_app_pages.keys().filter(|(name, _)| name == "paper-agent").count();
+        self.native_app_pages.retain(|(name, panel), page| {
+            let keep = self.navigation.items().contains(&WorkspaceItem::App {
                 name: name.clone(),
                 panel: panel.clone(),
-            }) && self.apps.retains_panel(name, panel)
+            }) && self.apps.retains_panel(name, panel);
+            if !keep { page.view.read(cx).docling_live.store(false, std::sync::atomic::Ordering::Release); }
+            keep
         });
+        if self.native_app_pages.keys().filter(|(name, _)| name == "paper-agent").count() < paper_pages {
+            crate::native::apps().cancel_docling_confirmation();
+        }
         for ((name, panel), page) in &self.native_app_pages {
             let item = WorkspaceItem::App {
                 name: name.clone(),

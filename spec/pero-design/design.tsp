@@ -64,13 +64,14 @@ model ChatProse {
   inlineCode: "9/10";
   /** 12px fenced code. */
   codeSize: "6/7";
-  h1Scale: "3/2";
+  /** Chat body is 14px; keep headings inside the 14/16/18 interface scale. */
+  h1Scale: "9/7";
   h1Line: "71/50";
-  h1Gap: "11/10";
-  h2Scale: "4/3";
+  h1Gap: "1/1";
+  h2Scale: "8/7";
   h2Line: "71/50";
-  h2Gap: "11/10";
-  h3Scale: "8/7";
+  h2Gap: "1/1";
+  h3Scale: "1/1";
   h3Line: "71/50";
   h3Gap: "1/1";
   h4Scale: "1/1";
@@ -158,10 +159,7 @@ model ReaderFrame {
 model Badge { label: string; }
 model OutlineBadge { label: string; }
 
-model EmptyState {
-  heading: string;
-  caption?: string;
-}
+// Empty states and action buttons are SDK controls (`EmptyState`, `Button`), not chrome models.
 
 model SettingsGroup { label?: string; }
 
@@ -170,11 +168,6 @@ model SettingsRow {
   label: string;
   caption?: string;
   actions: "actions";
-}
-
-model ActionButton {
-  label: string;
-  kind: "primary" | "ghost";
 }
 
 model SearchField { placeholder?: string; }

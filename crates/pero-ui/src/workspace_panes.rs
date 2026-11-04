@@ -325,7 +325,7 @@ mod tests {
     fn retained_document_observation_cannot_attach_reading_state_to_an_app_route() {
         let document = WorkspaceItem::Document {
             origin: ContentOrigin::App {
-                app: "data-agent".into(),
+                app: "data".into(),
                 panel: "main".into(),
             },
             source: "observations.json".into(),
@@ -349,7 +349,7 @@ mod tests {
             },
         );
         navigation.open(WorkspaceItem::App {
-            name: "data-agent".into(),
+            name: "data".into(),
             panel: "main".into(),
         });
         navigation.observe_view_reading(

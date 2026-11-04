@@ -1,13 +1,14 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import JSX = React.JSX;
 import { useAppI18n } from '@pero/app-sdk';
-import { Icon } from '@pero/app-sdk/ui';
+import { Button, Checkbox, Icon, LoadingSkeleton, SearchField, Select, SkeletonBlock } from '@pero/app-sdk/ui';
 import type { Api, Paper, SearchItem } from './types';
 import './discover-search.css';
 
 const messages = {
   heading: { zh: '发现', en: 'Discover' },
   subtitle: { zh: '为你的研究找到下一篇论文。', en: 'Find the next paper for your research.' },
+  idle: { zh: '搜索主题、作者或标题，把下一篇论文加入文库。', en: 'Search a topic, author, or title to add the next paper.' },
   addByLink: { zh: '通过链接添加', en: 'Add by link' },
   searchLabel: { zh: '检索文献', en: 'Search literature' },
   placeholder: { zh: '搜索论文、主题或作者…', en: 'Search papers, topics, or authors…' },
@@ -114,6 +115,7 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
   const [addError, setAddError] = useState<{ key: string; message: string } | null>(null);
   const [saved, setSaved] = useState<Record<string, Paper>>({});
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [menu, setMenu] = useState<'source' | 'sort' | ''>('');
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; epoch.current += 1; }; }, []);
   useEffect(() => { if (active) field.current?.focus(); }, [active]);
@@ -178,35 +180,31 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
   const retry = () => { void run(attempted.current || submitted || query, source, sort); };
 
   return <section className="pa-discover" aria-label={t('heading')} aria-busy={busy}>
-    <header className="pa-discover-head">
-      <div>
-        <h1>{t('heading')}</h1>
-        <p>{t('subtitle')}</p>
-      </div>
+    <header className="pa-discover-toolbar">
+      <p>{t('subtitle')}</p>
       <button type="button" className="pa-discover-secondary" onClick={onAddByLink}><Icon name="link" size={16}/>{t('addByLink')}</button>
     </header>
     <form className="pa-discover-search" role="search" aria-label={t('searchLabel')} onSubmit={event => { event.preventDefault(); submitQuery(); }}>
-      <Icon name="search" size={18}/>
-      <input ref={field} type="search" aria-label={t('searchLabel')} aria-describedby={noteId} placeholder={t('placeholder')} value={query} maxLength={500} autoComplete="off" spellCheck={false} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); submitQuery(); } }}/>
-      <button type="submit" className="pa-discover-go" data-ready={query.trim() ? 'true' : 'false'} disabled={busy || !query.trim()} aria-busy={busy}>{busy ? t('searching') : t('search')}<Icon name="arrow" size={16}/></button>
+      <SearchField ref={field} aria-label={t('searchLabel')} aria-describedby={noteId} placeholder={t('placeholder')} value={query} maxLength={500} autoComplete="off" spellCheck={false} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); submitQuery(); } }}/>
+      <Button type="submit" variant="primary" disabled={busy || !query.trim()} aria-busy={busy}>{busy ? t('searching') : t('search')}<Icon name="arrow" size={16}/></Button>
     </form>
     <p id={noteId} className="pa-discover-note">{t('publicNote')}</p>
     <div className="pa-discover-filters">
       <div className="pa-discover-filter-start">
-        <select aria-label={t('sourceLabel')} value={source} onChange={event => changeSource(event.target.value)}>
-          <option value="all">{t('allSources')}</option>
-          {allSources.map(value => <option key={value} value={value}>{sourceName(value)}</option>)}
-        </select>
-        <label className="pa-discover-check"><input type="checkbox" checked={fullText} onChange={event => setFullText(event.target.checked)}/>{t('fullTextAvailable')}</label>
+        <Select label={t('sourceLabel')} value={source} menuMinWidth={180} open={menu === 'source'} onOpenChange={next => setMenu(next ? 'source' : '')} onChange={changeSource} options={[
+          { value: 'all', label: t('allSources') },
+          ...allSources.map(value => ({ value, label: sourceName(value) })),
+        ]}/>
+        <label className="pa-discover-check"><Checkbox checked={fullText} onCheckedChange={value => setFullText(value === true)}/>{t('fullTextAvailable')}</label>
       </div>
-      <label className="pa-discover-sort"><span>{t('sortBy')}</span>
-        <select value={sort} onChange={event => { const next = event.target.value; if (next === 'relevance' || next === 'newest' || next === 'cited' || next === 'title') changeSort(next); }}>
-          <option value="relevance">{t('relevance')}</option>
-          <option value="newest">{t('newest')}</option>
-          <option value="cited">{t('cited')}</option>
-          <option value="title">{t('titleSort')}</option>
-        </select>
-      </label>
+      <div className="pa-discover-sort"><span>{t('sortBy')}</span>
+        <Select label={t('sortBy')} value={sort} menuMinWidth={160} open={menu === 'sort'} onOpenChange={next => setMenu(next ? 'sort' : '')} onChange={next => { if (next === 'relevance' || next === 'newest' || next === 'cited' || next === 'title') changeSort(next); }} options={[
+          { value: 'relevance', label: t('relevance') },
+          { value: 'newest', label: t('newest') },
+          { value: 'cited', label: t('cited') },
+          { value: 'title', label: t('titleSort') },
+        ]}/>
+      </div>
     </div>
     {!!warnings.length && results && <div className="pa-discover-warn" role="status">
       <Icon name="info" size={16}/>
@@ -217,13 +215,21 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
       <button type="button" className="pa-discover-retry" onClick={retry}>{t('retry')}<Icon name="refresh" size={14}/></button>
     </div>}
     {error && <div className="pa-discover-error" role="alert"><p>{error}</p><button type="button" className="pa-discover-retry" onClick={retry}>{t('retry')}<Icon name="refresh" size={14}/></button></div>}
-    {!!visible.length && <p className="pa-discover-count" role="status">{t(visible.length === 1 ? 'countOne' : 'count', { n: visible.length })} <strong>{submitted}</strong></p>}
-    {!!visible.length && <ul className="pa-discover-results">{visible.map(item => {
+    {busy && <LoadingSkeleton className="pa-discover-loading" label={t('searching')}>{[0, 1, 2].map(row => <div className="pa-discover-skeleton" key={row}>
+      <SkeletonBlock width="28%"/>
+      <SkeletonBlock shape="title" width={row === 1 ? '72%' : '88%'}/>
+      <SkeletonBlock width="46%"/>
+      <SkeletonBlock width="100%"/>
+      <SkeletonBlock width="64%"/>
+    </div>)}</LoadingSkeleton>}
+    {!busy && !!visible.length && <p className="pa-discover-count" role="status">{t(visible.length === 1 ? 'countOne' : 'count', { n: visible.length })} <strong>{submitted}</strong></p>}
+    {!busy && !!visible.length && <ul className="pa-discover-results">{visible.map(item => {
       const key = hitKey(item);
       const paper = saved[key] ?? papers.find(candidate => (candidate.source === item.source && candidate.sourceId === item.id) || (!!item.url && candidate.url === item.url));
       return <DiscoverHit key={key} item={item} paper={paper} adding={adding === key} locked={!!adding} error={addError?.key === key ? addError.message : ''} open={!!open[key]} onOpenChange={next => setOpen(current => current[key] === next ? current : { ...current, [key]: next })} onAdd={() => void add(item)} onOpen={onOpenSaved} t={t}/>;
     })}</ul>}
-    {!error && results && visible.length === 0 && <div className="pa-discover-empty"><p>{t('empty')}</p>{canClear && <button type="button" className="pa-discover-secondary" onClick={clearFilters}>{t('clear')}</button>}</div>}
+    {!error && !busy && !results && !menu && <div className="pa-discover-empty"><p>{t('idle')}</p></div>}
+    {!error && !busy && results && visible.length === 0 && <div className="pa-discover-empty"><p>{t('empty')}</p>{canClear && <button type="button" className="pa-discover-secondary" onClick={clearFilters}>{t('clear')}</button>}</div>}
   </section>;
 }
 

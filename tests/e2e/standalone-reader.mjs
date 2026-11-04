@@ -11,14 +11,16 @@ import {randomUUID} from 'node:crypto';
 const root=resolve(import.meta.dirname,'../..'),out=join(root,'test-results/standalone-reader');await mkdir(out,{recursive:true});
 const temp=await mkdtemp(join(tmpdir(),'pero-standalone-reader-'));
 const assets=process.env.PERO_READER_TEST_ASSETS||join(root,'web/dist-reader');
-execFileSync(process.execPath,[join(root,'scripts/build/apps.mjs'),'--app','data-agent','--reader-dist',assets],{cwd:root,stdio:'inherit'});
+execFileSync(process.execPath,[join(root,'scripts/build/apps.mjs'),'--app','data','--reader-dist',assets],{cwd:root,stdio:'inherit'});
 const token=randomUUID();
-const backend=spawn('python3',['-E','-s','-u','-B',join(root,'apps/data-agent/backend/server.py')],{env:{...process.env,PERO_APP_DATA:join(temp,'data'),PERO_APP_TOKEN:token},stdio:['ignore','pipe','pipe']});
+const backend=spawn('python3',['-E','-s','-u','-B',join(root,'apps/data/backend/server.py')],{env:{...process.env,PERO_APP_DATA:join(temp,'data'),PERO_APP_TOKEN:token},stdio:['ignore','pipe','pipe']});
 const port=await new Promise((resolve,reject)=>{
   const timer=setTimeout(()=>reject(new Error('Python readiness timed out')),15000);
   const lines=createInterface({input:backend.stdout});lines.once('line',line=>{clearTimeout(timer);lines.close();resolve(JSON.parse(line).port);});backend.once('error',reject);
 });
-const directory=join(root,'apps/data-agent/dist');
+const observations=await readFile(join(root,'apps/data/test/fixtures/observations.json'));
+await fetch(`http://127.0.0.1:${port}/api/import`,{method:'POST',headers:{'Content-Type':'application/json','X-Pero-App-Token':token},body:JSON.stringify({name:'observations.json',kind:'dataset',content:observations.toString('base64'),source:'Local import',license:'Unknown'})});
+const directory=join(root,'apps/data/dist');
 const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm':'application/wasm','.json':'application/json','.svg':'image/svg+xml'};
 const server=createServer(async(request,response)=>{
   try{
@@ -42,9 +44,9 @@ let app,page;const errors=[],checks=[],logs=[];
 try{
   app=await electron.launch({args:[main],cwd:root});page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));
   page.on('console',message=>{if(message.type()==='error'||message.type()==='warning')logs.push(message.text());});
-  await page.getByRole('button',{name:'Open example',exact:true}).click();await expect(page.locator('.data-grid tbody tr')).toHaveCount(6);
+  await expect(page.locator('.data-grid tbody tr')).toHaveCount(6);
   await expect(page.getByRole('button',{name:'Ask Agent',exact:true})).toBeDisabled();
-  const source=await page.evaluate(async()=>{const value=await(await fetch('/api/datasets')).json();return(await(await fetch('/api/source/'+value.datasets[0].id)).json()).content;});
+  const source=await page.evaluate(async()=>{const state=await(await fetch('/api/state')).json();const dataset=state.datasets[0];const assetId=dataset.versions.at(-1);return(await(await fetch('/api/source',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({datasetId:dataset.id,assetId})})).json()).content;});
   await page.getByRole('button',{name:'Source',exact:true}).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect.poll(()=>page.frames().some(frame=>frame.url().includes('/_reader/reader.html'))).toBe(true);

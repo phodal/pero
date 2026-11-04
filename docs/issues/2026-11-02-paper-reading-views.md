@@ -41,3 +41,18 @@ Browser checks covered switching, separate PDF/TeX state, light/dark layouts,
 490px width and source-dialog dismissal. Automated checks and remaining
 platform/HTML-parser limits are recorded in
 [Paper reading views](../fitness/paper-reading-views.md).
+
+## Saved text outline, 2026-11-04
+
+Clicking the second outline entry in the saved text of *Harness as an Asset*
+scrolled the outer reading screen as well as the text pane. The toolbar moved
+out of view, taking the library and reading-mode buttons with it.
+
+Outline jumps and saved-text search highlights now scroll the text pane directly.
+The same paper was verified in macOS Native Preview. The heading came into view,
+the toolbar stayed in place, and switching to PDF, back to text, and returning
+to the library worked. A loopback browser verified the same navigation at
+1220px in light mode and at 490px in dark mode with keyboard activation.
+The isolated Electron import and saved-text search journeys passed. The full
+suite stopped at a PDF highlight quote assertion that also fails with the
+previous App bundle. Screenshots are in `test-results/paper-outline/`.

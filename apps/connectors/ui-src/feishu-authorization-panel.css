@@ -21,8 +21,8 @@
 .point-feishu-connection .point-connectors-advanced{border:0;border-radius:0;border-top:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);padding:var(--pero-space-6, 12px) 0;margin:var(--pero-space-8, 16px) 0 0}
 .point-feishu-connection .point-connectors-advanced>summary{padding:var(--pero-space-2, 4px) 0}
 .point-feishu-connection .point-connectors-advanced[open]>summary{margin-bottom:var(--pero-space-6, 12px)}
-@media(max-width:520px){.point-feishu-permission-list{grid-template-columns:1fr}.point-feishu-authorization .point-ui-button{min-height:44px}.point-feishu-connection summary{min-height:44px;align-content:center}}
+@media(max-width:520px){.point-feishu-permission-list{grid-template-columns:1fr}.point-feishu-connection summary{min-height:44px;align-content:center}}
 
-.point-connector-detail.point-feishu-connection.point-ui-dialog[data-size=lg]{width:min(680px,calc(100vw - 32px));max-height:min(88dvh,760px)}
+.point-connector-detail.point-feishu-connection.pero-ui-dialog[data-size=lg]{width:min(680px,calc(100vw - 32px));max-height:min(88dvh,760px)}
 .point-feishu-runtime-details{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--pero-space-4, 8px) var(--pero-space-8, 16px);font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}
 .point-feishu-runtime-details dd{margin:0;overflow-wrap:anywhere}

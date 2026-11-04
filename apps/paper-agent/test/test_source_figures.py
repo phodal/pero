@@ -9,6 +9,10 @@ from test_pdf import image_pdf_fixture, pdf_fixture
 from paper_agent.model import Invalid, PaperSnapshot, digest
 from paper_agent.source_archive import SourceArchive
 from paper_agent.source_figures import SourceFigure
+from paper_agent.figure_references import FigureReference
+from paper_agent.tex_preview import TexPreview
+from paper_agent.pdf import PdfDocument
+from paper_agent.pdf_files import PdfFiles
 from paper_agent.source_reading import source_read
 from paper_agent.source_reports import source_report
 from paper_agent.store import ResearchStore
@@ -56,11 +60,24 @@ class SourceFiguresTest(unittest.TestCase):
                     contentKind='abstract', content='Self-authored figure fixture.'), NOW)
                 store.save_paper(result)
                 return result
-            query = dict(operation='figures', paperId=paper('v1').id, query='ablation')
+            paper_v1 = paper('v1')
+            query = dict(operation='figures', paperId=paper_v1.id, query='ablation')
             figures = source_read(store, query)
             figure, = figures['figures']
             self.assertTrue(figure['resolved'])
             self.assertEqual(figure['members'][0]['path'], 'figures/ablation.pdf')
+            self.assertEqual(figures['links'], [dict(label='Local fixture', location=f'paper/{paper_v1.id}')])
+            reference = FigureReference.parse(figure['archiveDigest'], figure['members'][0]['id'])
+            target = reference.resolve(store)
+            self.assertEqual(source_read(store, dict(operation='reference', archiveDigest=reference.archive_digest, memberId=reference.member_id)), target)
+            self.assertEqual(target['memberPath'], 'figures/ablation.pdf')
+            self.assertEqual(target['figures'][0]['startLine'], 3)
+            self.assertIsNone(target['preview'])
+            self.assertIsNone(target['pdf'])
+            with self.assertRaises(Invalid):
+                FigureReference.parse('0' * 64, reference.member_id).resolve(store)
+            with self.assertRaises(Invalid):
+                FigureReference.parse(reference.archive_digest, '0' * 64).resolve(store)
             self.assertEqual(source_read(store, dict(query, paperId=paper('v2').id))['sources'], [])
             self.assertEqual(source_report(store, dict(operation='observations', bundleId=selection['bundleId']), NOW)['observations'], [])
             image_request = dict(operation='image', **selection, memberId=figure['members'][0]['id'])
@@ -86,3 +103,45 @@ class SourceFiguresTest(unittest.TestCase):
             path.write_bytes(b'changed preview')
             with self.assertRaisesRegex(Invalid, 'integrity'):
                 source_read(store, image_request)
+
+    def test_figure_navigation_resolves_each_document_independently(self):
+        caption = 'First page. Ablation of two methods.'
+        data = archive_bytes([('main.tex', TEX.replace('Ablation of two methods.', caption).encode()),
+                              ('figures/ablation.pdf', image_pdf_fixture())])
+        with tempfile.TemporaryDirectory() as directory:
+            store = ResearchStore(directory)
+            self.addCleanup(lambda: store.source_downloads.close())
+            selection, _ = bundle(store)
+            store.source_downloads = SourceDownloads(store, SourceTransport(data))
+            store.source_downloads.request(dict(operation='start', **selection))
+            self.assertEqual(finish(store.source_downloads, selection)['status'], 'source_available')
+            paper = PaperSnapshot.from_reading(dict(source='arxiv', sourceId='2610.24806v1', title='Figure navigation',
+                url='https://arxiv.org/abs/2610.24806v1', contentKind='abstract', content='Authored fixture.'), NOW)
+            store.save_paper(paper)
+            pdf_files = PdfFiles()
+            original = pdf_fixture(phrase='Ablation of two methods.')
+            compiled = original.replace(b'/Kids [3 0 R 4 0 R]', b'/Kids [4 0 R 3 0 R]')
+            document = PdfDocument.create(paper.id, digest(original), 'https://arxiv.org/pdf/2610.24806v1', pdf_files.pages(original), NOW)
+            store.save_pdf(document, original)
+            project = source_read(store, dict(operation='figures', paperId=paper.id))['figures'][0]
+            preview_document = PdfDocument.create(paper.id, digest(compiled), 'urn:pero:tex:' + project['archiveDigest'], pdf_files.pages(compiled), NOW)
+            preview = TexPreview('e' * 64, paper.id, selection['bundleId'], selection['resourceId'], project['archiveDigest'],
+                                 project['texMemberId'], 'main.tex', 'fixture', preview_document, '', NOW)
+            store._write('tex-previews', preview.id, preview.to_dict())
+            (store.root / 'tex-preview-files').mkdir()
+            (store.root / 'tex-preview-files' / (preview.id + '.pdf')).write_bytes(compiled)
+            result = FigureReference(project['archiveDigest'], project['memberIds'][0]).resolve(store, paper.id)
+            for key, expected_page, expected_id in (('preview', 2, preview_document.id), ('pdf', 1, document.id)):
+                target = result[key]
+                self.assertEqual((target['page'], target['documentId']), (expected_page, expected_id))
+                self.assertTrue(target['rects'])
+                self.assertTrue(all(0 <= rect['x'] < 1 and 0 <= rect['y'] < 1 for rect in target['rects']))
+            from paper_agent.context_file import ContextSelection
+            selection = dict(content=preview_document.page(2).text, paperId=paper.id, documentId=preview_document.id,
+                             fileDigest=preview_document.file_digest, page=2, texPreviewId=preview.id)
+            context = store.save_context(ContextSelection.parse(selection))
+            self.assertEqual(store.stored_context(context.id).to_dict()['representation'], 'tex-preview')
+            self.assertIn('not an original-PDF passage', context.prompt())
+            for patch in (dict(documentId=document.id), dict(fileDigest='0' * 64), dict(content='Invented text')):
+                with self.subTest(context=patch), self.assertRaises(Invalid):
+                    store.save_context(ContextSelection.parse(dict(selection, **patch)))

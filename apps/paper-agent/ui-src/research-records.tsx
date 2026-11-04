@@ -1,12 +1,32 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { downloadFile } from '@pero/app-sdk';
-import { Button, EmptyState, Feedback } from '@pero/app-sdk/ui';
+import { downloadFile, useAppInfo } from '@pero/app-sdk';
+import { Button, EmptyState, Feedback, Icon } from '@pero/app-sdk/ui';
 import { Experiments, ReportView, type Citation } from './documents';
 import { ReadingMatrix } from './reading-matrix';
-import { ManualRecords } from './manual-records';
 import type { Api, Intent, Library, Paper, PdfAnnotation, Report, ResearchStudy, StudySummary } from './types';
 import './reader-workspace.css';
 import type { Translator } from './i18n';
+import './research-history.css';
+
+type HistoryEntry = { kind: 'turn'; entry: Intent; reports: Report[] } | { kind: 'study'; entry: StudySummary };
+type RecordKind = 'reportSaved' | 'questionSaved' | 'studyUnfinished';
+type RecordSummary = { date?: { value: string; time: string }; papers?: string[] };
+
+function HistorySummary({ question, kind, date, papers, t }: RecordSummary & {
+  question: string;
+  kind: RecordKind;
+  t: Translator;
+}) {
+  return <summary className="pa-history-summary">
+    {kind === 'reportSaved' ? <Icon name="file-text" size={15}/> : <Icon family="shell" name="clock" size={15}/>}
+    <span className="pa-history-item">
+      <span className="pa-history-question">{question}</span>
+      {!!papers?.length && <span className="pa-history-papers">{papers.join(' / ')}</span>}
+      <span className="pa-history-meta"><span>{t(kind)}</span>{date && <time dateTime={date.value}>{date.time}</time>}</span>
+    </span>
+    <Icon className="pa-history-chevron" name="chevron-right" size={14}/>
+  </summary>;
+}
 
 function StudyRecord({ study, complete, t }: { study: ResearchStudy; complete: boolean; t: Translator }) {
   const labels = { read: 'readingSource', search: 'searchingSource', note: 'recordingFinding', finalize: 'submittingReport' } as const;
@@ -33,7 +53,7 @@ function Answer({ report, intent, api, onCite, t }: { report: Report; intent: In
   </div>;
 }
 
-function SavedTurn({ entry, reports, api, onCite, onResume, disabled, opening, t }: { entry: Intent; reports: Report[]; api: Api; onCite(citation: Citation, intent: Intent): void; onResume(intent: Intent): void; disabled: boolean; opening?: number; t: Translator }) {
+function SavedTurn({ entry, reports, date, papers, api, onCite, onResume, opening, t }: RecordSummary & { entry: Intent; reports: Report[]; api: Api; onCite(citation: Citation, intent: Intent): void; onResume(intent: Intent): void; opening?: number; t: Translator }) {
   const details = useRef<HTMLDetailsElement>(null);
   useEffect(() => { if (opening && details.current) { details.current.open = true; details.current.scrollIntoView({ block: 'nearest' }); } }, [opening]);
   const [loaded, setLoaded] = useState<{ intent: Intent; reports: Report[] } | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false);
@@ -44,16 +64,17 @@ function SavedTurn({ entry, reports, api, onCite, onResume, disabled, opening, t
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setLoading(false); }
   }
-  return <details ref={details} className="pa-turn-history pa-record-note" data-turn-id={entry.id} onToggle={event => { if (event.currentTarget.open) void load(); }}><summary>{entry.question}</summary>
+  return <details ref={details} className="pa-turn-history pa-record-note" data-turn-id={entry.id} onToggle={event => { if (event.currentTarget.open) void load(); }}>
+    <HistorySummary question={entry.question} kind={reports.length ? 'reportSaved' : 'questionSaved'} date={date} papers={papers} t={t}/>
     {loading && <p role="status">{t('loading')}</p>}
     {error && <Feedback kind="error">{error}<Button onClick={() => void load()}>{t('retry')}</Button></Feedback>}
     {loaded?.intent.contextFile?.anchor && <Button onClick={() => onCite({ paperId: loaded.intent.contextFile!.paperId, anchor: loaded.intent.contextFile!.anchor }, loaded.intent)}>{loaded.intent.contextFile.anchor.rects?.length ? 'Show discussed region' : 'Show discussed page'}</Button>}
     {loaded?.reports.map(report => <Answer key={report.id} report={report} intent={loaded.intent} api={api} onCite={onCite} t={t}/>)}
-    <Button disabled={disabled || !loaded} onClick={() => loaded && onResume(loaded.intent)}>{t(reports.length ? 'continueFromHere' : 'resumeQuestion')}</Button>
+    {loaded && <Button onClick={() => onResume(loaded.intent)}>{t(reports.length ? 'continueFromHere' : 'resumeQuestion')}</Button>}
   </details>;
 }
 
-function SavedStudy({ entry, api, onContinue, opening, t }: { entry: StudySummary; api: Api; onContinue(): void; opening?: number; t: Translator }) {
+function SavedStudy({ entry, date, papers, api, onContinue, opening, t }: RecordSummary & { entry: StudySummary; api: Api; onContinue(): void; opening?: number; t: Translator }) {
   const details = useRef<HTMLDetailsElement>(null);
   useEffect(() => { if (opening && details.current) { details.current.open = true; details.current.scrollIntoView({ block: 'nearest' }); } }, [opening]);
   const [study, setStudy] = useState<ResearchStudy | null>(null), [error, setError] = useState('');
@@ -66,26 +87,66 @@ function SavedStudy({ entry, api, onContinue, opening, t }: { entry: StudySummar
     return () => { active = false; };
   }, [api, entry.id, entry.budget.used, open, retry]);
   return <details ref={details} className="pa-turn-history pa-record-note" data-saved-study-id={entry.id} onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>{entry.question}</summary>
+    <HistorySummary question={entry.question} kind="studyUnfinished" date={date} papers={papers} t={t}/>
     {error ? <Feedback kind="error">{error}<Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback> : study ? <StudyRecord study={study} complete={false} t={t}/> : <p role="status">{t('loading')}</p>}
     <Button onClick={onContinue}>{t('continueStudy')}</Button>
   </details>;
 }
 
 /** Paper owns persisted research output; the Host owns the conversation and execution. */
-export function ResearchRecords({ api, library, paper, onFollowUp, onContinue, onCite, matrixOpen, onMatrixOpen, onAnnotation, opening, t }: {
+export function ResearchRecords({ api, library, paper, results = false, onFollowUp, onContinue, onCite, matrixOpen, onMatrixOpen, onAnnotation, opening, t }: {
   api: Api; library: Library; paper: Paper | null; opening?: { studyId: string; intentId: string | null; token: number } | null;
+  results?: boolean;
   onFollowUp(intent: Intent): void; onContinue(study: StudySummary): void;
   onCite(citation: Citation, intent: Intent): void;
   matrixOpen: boolean; onMatrixOpen(value: boolean): void; onAnnotation(annotation: PdfAnnotation): void; t: Translator;
 }) {
-  const history = library.intents.filter(intent => !paper || intent.paperIds?.includes(paper.id)).sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+  const { locale } = useAppInfo();
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<RecordKind | 'all'>('all');
+  const term = query.trim().toLocaleLowerCase(locale);
+  const titles = new Map(library.papers.map(paper => [paper.id, paper.title]));
+  const dayFormat = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+  const timeFormat = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const turns = library.intents.filter(intent => !paper || intent.paperIds?.includes(paper.id));
   const unfinished = library.studies?.filter(study => !study.reportId && (!paper || study.paperIds.includes(paper.id))) ?? [];
-  return <div className="pa-records-scroll" aria-label={t('researchProgress')}>
-    <ManualRecords key={paper?.id ?? 'all'} api={api} library={library} paper={paper}/>
-    {!history.length && !unfinished.length && !library.matrixCount && <EmptyState heading={t('noResearchRecords')}/>}
-    {unfinished.map(study => <SavedStudy key={study.id} entry={study} api={api} opening={opening?.studyId === study.id ? opening.token : undefined} onContinue={() => onContinue(study)} t={t}/>)}
-    {history.map(intent => <SavedTurn key={`${intent.id}:${library.reports.filter(report => report.intentId === intent.id).length}`} entry={intent} opening={opening?.intentId === intent.id ? opening.token : undefined} reports={library.reports.filter(report => report.intentId === intent.id)} api={api} onCite={onCite} onResume={onFollowUp} disabled={false} t={t}/>)}
-    {!!library.matrixCount && <details className="pa-output-matrix pa-record-note" open={matrixOpen} onToggle={event => onMatrixOpen(event.currentTarget.open)}><summary>{t('matrix')}</summary><ReadingMatrix api={api} active={matrixOpen} count={library.matrixCount} papers={library.papers} onOpen={onAnnotation} t={t}/></details>}
+  const history: HistoryEntry[] = [
+    ...turns.map(entry => ({ kind: 'turn' as const, entry, reports: library.reports.filter(report => report.intentId === entry.id) })),
+    ...unfinished.map(entry => ({ kind: 'study' as const, entry })),
+  ];
+  const days = new Map<string, (RecordSummary & { record: HistoryEntry })[]>();
+  for (const record of history.sort((a, b) => (b.entry.createdAt ?? '').localeCompare(a.entry.createdAt ?? ''))) {
+    const papers = record.entry.paperIds?.flatMap(id => titles.get(id) ?? []) ?? [];
+    const reports = record.kind === 'turn' ? record.reports : [];
+    const kind = record.kind === 'study' ? 'studyUnfinished' : reports.length ? 'reportSaved' : 'questionSaved';
+    if (results && filter !== 'all' && filter !== kind) continue;
+    if (results && term && ![record.entry.question, ...papers, ...reports.map(report => report.title)].some(text => text.toLocaleLowerCase(locale).includes(term))) continue;
+    const value = record.entry.createdAt;
+    const instant = value ? Date.parse(value) : NaN;
+    const day = Number.isFinite(instant) ? dayFormat.format(instant) : t('recordUndated');
+    const date = value && Number.isFinite(instant) ? { value, time: timeFormat.format(instant) } : undefined;
+    const items = days.get(day) ?? [];
+    items.push({ record, date, papers: results ? papers : undefined });
+    days.set(day, items);
+  }
+  return <div className="pa-records-scroll" aria-label={t(results ? 'researchResults' : 'researchProgress')}>
+    {results && <div className="pa-results-tools">
+      <input type="search" aria-label={t('searchResearchResults')} placeholder={t('searchResearchResults')} value={query} onChange={event => setQuery(event.currentTarget.value)}/>
+      <select aria-label={t('researchResultStatus')} value={filter} onChange={event => setFilter(event.currentTarget.value as typeof filter)}>
+        <option value="all">{t('allResearchResults')}</option>
+        {(['reportSaved', 'studyUnfinished', 'questionSaved'] as const).map(kind => <option key={kind} value={kind}>{t(kind)}</option>)}
+      </select>
+    </div>}
+    {!days.size && <EmptyState heading={t(history.length ? 'noResearchMatches' : 'noResearchRecords')}/>}
+    {[...days].map(([day, items]) => <section className="pa-history-day" key={day}>
+      <h3>{day}</h3>
+      {items.map(({ record, date, papers }) => record.kind === 'study'
+        ? <SavedStudy key={record.entry.id} entry={record.entry} date={date} papers={papers} api={api} opening={opening?.studyId === record.entry.id ? opening.token : undefined} onContinue={() => onContinue(record.entry)} t={t}/>
+        : <SavedTurn key={`${record.entry.id}:${record.reports.length}`} entry={record.entry} date={date} papers={papers} api={api} opening={opening?.intentId === record.entry.id ? opening.token : undefined} reports={record.reports} onCite={onCite} onResume={onFollowUp} t={t}/>)}
+    </section>)}
+    {!!library.matrixCount && (!results || (!term && filter === 'all')) && <details className="pa-output-matrix pa-record-note pa-history-matrix" open={matrixOpen} onToggle={event => onMatrixOpen(event.currentTarget.open)}>
+      <summary>{t('matrix')}</summary>
+      <ReadingMatrix api={api} active={matrixOpen} count={library.matrixCount} papers={library.papers} onOpen={onAnnotation} t={t}/>
+    </details>}
   </div>;
 }

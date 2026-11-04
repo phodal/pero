@@ -182,6 +182,7 @@ class LibraryFilesTest(unittest.TestCase):
         self.assertEqual(self.store.paper(self.paper.id).to_dict(), original_paper)
         self.assertEqual(self.store._list('source-observations'), [])
         self.assertEqual(self.export(plan), saved)
+        self.assertEqual([p['id'] for p in self.store.library()['papers']], [self.paper.id])
         paper_ids = set(self.store._list('papers'))
         self.assertEqual(len(paper_ids), 2)
         repeat = self.confirm()
@@ -353,14 +354,30 @@ class LibraryFilesTest(unittest.TestCase):
         self.assertEqual(self.store._list('source-observations'), [])
 
     def test_pinned_and_officially_frozen_library_papers_reuse_the_real_bundle_both_orders(self):
-        for first_version, second_version in (('', 'v3'), ('v3', '')):
+        for first_version, second_version in (('', 'v3'), ('v3', ''), ('doi', 'v3')):
             with self.subTest(first=first_version), tempfile.TemporaryDirectory() as root:
                 self.store = ResearchStore(root)
                 self.files = LibraryFiles(self.store, self.copies)
                 self.store.imports.inspector = ResourceInspector(OfficialMetadata(), arxiv_interval=0)
                 self.store.pdf_downloads = PdfDownloads(self.store, LibraryPdfTransport(pdf_fixture()))
                 self.store.source_downloads = SourceDownloads(self.store, SourceTransport(self.original))
-                self.paper = self.store.save_paper(PaperSnapshot.from_reading(arxiv_reading(first_version), NOW))
+                initial = (reading(source='openalex', sourceId='W123', title='Saved DOI paper',
+                    url='https://doi.org/10.48550/arxiv.1706.03762') if first_version == 'doi' else arxiv_reading(first_version))
+                self.paper = self.store.save_paper(PaperSnapshot.from_reading(initial, NOW))
+                frozen = self.paper.to_record()
+                if first_version == 'doi':
+                    view = self.store.library()['papers'][0]
+                    self.assertEqual(view['pdfCandidateUrl'], 'https://arxiv.org/pdf/1706.03762')
+                    self.assertNotIn('pdfUrl', view)
+                    self.assertEqual(self.store.paper(self.paper.id).to_record(), frozen)
+                    # This legacy DOI snapshot can itself acquire/export both representations.
+                    plan = self.confirm()
+                    self.acquire(plan, 'pdf')
+                    self.acquire(plan, 'source')
+                    self.assertTrue(Path(self.export(plan)['tex']).is_file())
+                    self.assertEqual(self.store.paper(self.paper.id).to_record(), frozen)
+                    # The following comparison checks reuse for another saved representation.
+                    self.paper = self.store.save_paper(PaperSnapshot.from_reading(arxiv_reading(''), NOW))
                 first = self.confirm()
                 original_id = self.paper.id
                 self.paper = self.store.save_paper(PaperSnapshot.from_reading(arxiv_reading(second_version), NOW))

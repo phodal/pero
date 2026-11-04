@@ -97,7 +97,7 @@ const BRAND_GLYPHS: Record<string, { path: string; color?: string }> = {
   notion: { path: 'M4.5 4.2c.7.6 1 .6 2.4.5l13.2-.8c.3 0 0-.3 0-.3L17.9 2c-.4-.3-1-.7-2.1-.6L3 2.3c-.5 0-.6.3-.4.5l1.9 1.4Zm.8 3.1v13.9c0 .7.4 1 1.2 1l14.5-.9c.8 0 .9-.6.9-1.1V6.4c0-.6-.2-1-.7-.9L6 6.4c-.6 0-.7.3-.7.9Zm14.3.7c.1.4 0 .9-.4.9l-.7.2v10.2c-.6.3-1.2.5-1.7.5-.7 0-.9-.2-1.5-.9l-4.5-7.2v7l1.4.3s0 .8-1.2.8l-3.2.2c-.1-.2 0-.7.3-.8l.9-.2V9.9l-1.2-.1c-.1-.4.1-1 .8-1.1l3.5-.2 4.7 7.2V9.3l-1.2-.1c-.1-.6.3-.9.8-1l3.2-.2ZM1.9 1 15.2 0c1.7-.1 2.1 0 3.1.8l4.3 3c.7.5.9.6.9 1.2v16.3c0 1-.4 1.7-1.7 1.8l-15.4.9c-1 0-1.5-.1-2-.8l-3.1-4c-.6-.7-.8-1.3-.8-2V2.7c0-.9.4-1.6 1.4-1.7Z' },
   vercel: { path: 'm12 1.6 12 20.8H0Z' },
 };
-const namedDomainIcons: Record<string, { family?: 'shell'; name: UiIconName | ShellIconName }> = {
+const namedDomainIcons: Record<string, { family?: 'shell'; name: string }> = {
   cad: { name: 'cube' },
   signal: { name: 'activity' },
   replay: { family: 'shell', name: 'replay' },
@@ -156,7 +156,8 @@ export function ProviderIcon({ entry }: { entry: DirectoryEntry }) {
   const brand = entry.brand ? BRAND_GLYPHS[entry.brand] : undefined;
   if (brand) return <SharedIcon size={18} stroke="none" style={brand.color ? { color: brand.color } : undefined} glyph={{ viewBox: '0 0 24 24', children: <path d={brand.path} fill="currentColor" /> }} />;
   const named = namedConnectorIcon(entry);
-  return <SharedIcon name={named.name} family={named.family} size={18} />;
+  if (named.family === 'shell') return <SharedIcon family="shell" name={named.name as ShellIconName} size={18} />;
+  return <SharedIcon name={named.name as UiIconName} size={18} />;
 }
 
 export const IMPORT_EXAMPLES: Record<string, string> = {

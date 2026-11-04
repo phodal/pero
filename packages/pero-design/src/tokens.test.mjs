@@ -28,11 +28,11 @@ test('generated geometry matches the TypeSpec contract', () => {
   assert.equal(colorRoles.action.light, '#007F86');
   assert.equal(colorRoles.action.dark, '#55D5DD');
   assert.equal(metrics.sidebarNavRow, 32);
-  assert.equal(chatProse.h1Scale, '3/2');
-  assert.equal(chatProse.h2Scale, '4/3');
-  assert.equal(chatProse.h3Scale, '8/7');
+  assert.equal(chatProse.h1Scale, '9/7');
+  assert.equal(chatProse.h2Scale, '8/7');
+  assert.equal(chatProse.h3Scale, '1/1');
   assert.equal(chatProse.paragraphGap, '5/7');
-  assert.match(generated, /--pero-prose-h2-scale:\s*calc\(4 \/ 3\)/);
+  assert.match(generated, /--pero-prose-h2-scale:\s*calc\(8 \/ 7\)/);
   assert.match(generated, /--pero-prose-paragraph-gap:\s*calc\(5 \/ 7\)/);
   assert.match(generated, /--pero-prose-quote-border:\s*2px/);
   assert.match(components, /\.pero-chat :where\(h1\)/);

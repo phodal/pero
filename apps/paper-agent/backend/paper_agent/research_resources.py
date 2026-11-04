@@ -158,7 +158,7 @@ class ResearchResource:
         kind = identity.kind
         if re.search(r'benchmark|leaderboard|gift[- ]eval|fev[- ]bench', label + ' ' + context, re.I) and kind in ('service', 'dataset', 'web_article'):
             kind, relation = 'benchmark', 'evaluated_on'
-        version = re.search(r'(?:/abs/|/pdf/|/src/|/e-print/)([^?]+?)(v\d+)(?:\.pdf)?$', urlsplit(url).path)
+        version = re.search(r'(?:/abs/|/pdf/|/html/|/src/|/e-print/)([^?]+?)(v\d+)(?:\.pdf)?$', urlsplit(url).path)
         revision = version[2] if version and urlsplit(url).hostname in ('arxiv.org', 'www.arxiv.org') else None
         unresolved = ('PDF candidate; paper identity and document version are unverified. No file has been downloaded.',) if kind == 'pdf_candidate' else ()
         if kind == 'source_archive':
@@ -272,11 +272,16 @@ class ArxivPaper:
 
     @classmethod
     def from_snapshot(cls, paper):
-        values = [paper.source_id] if paper.source in ('alphaxiv', 'arxiv') else []
-        for url in (paper.pdf_url, paper.url):
-            parsed = urlsplit(url or '')
-            if parsed.scheme == 'https' and parsed.hostname in ('arxiv.org', 'www.arxiv.org'):
-                values.append(parsed.path.removeprefix('/abs/').removeprefix('/pdf/').removesuffix('.pdf'))
+        values = []
+        for reference in (paper.source_id, paper.pdf_url, paper.url, paper.full_text_url):
+            if not reference:
+                continue
+            try:
+                identity = PaperIdentity.parse({'id': reference})
+            except Invalid:
+                continue
+            if identity.source == 'alphaxiv':
+                values.append(identity.id)
         matches = [re.fullmatch(r'(.+?)(v[1-9]\d*)?', value, re.I) for value in values
                    if isinstance(value, str) and ARXIV.fullmatch(value)]
         if not matches:
@@ -292,6 +297,22 @@ class ArxivPaper:
     @property
     def identifier(self):
         return self.work + (self.revision or '')
+
+    @property
+    def pdf_url(self):
+        return 'https://arxiv.org/pdf/' + self.identifier
+
+    @classmethod
+    def reading_view(cls, paper, include_content=True):
+        # Derived presentation only: never rewrite an immutable saved snapshot.
+        view = paper.to_dict(include_content)
+        try:
+            work = cls.from_snapshot(paper)
+        except Invalid:
+            return view
+        view['pdfCandidateUrl'] = paper.pdf_url or work.pdf_url
+        view['arxivUrl'] = 'https://arxiv.org/abs/' + work.identifier
+        return view
 
     def accepts(self, source):
         return source.work == self.work and (not self.revision or self.revision == source.revision)

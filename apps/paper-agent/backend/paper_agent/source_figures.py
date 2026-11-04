@@ -9,6 +9,7 @@ FIGURE_ANSWER_GUIDANCE = (
     'When a figure helps answer the question, call research-source-read with operation=figures, a selected paperId and an optional short source-language query. '
     'It returns only approved source scopes and literal caption/label associations. For a uniquely resolved relevant member, call operation=image with its returned bundleId, resourceId and memberId. '
     'In the final chat response, embed the returned answerImage.markdown near the explanation and cite its original caption/TeX lines. Do not invent URLs or copy base64. '
+    'For the explanation, use operation=reference with that image provenance archiveDigest and memberId to read the matching PDF page text alongside the TeX caption. Its tex-preview text is derived from that exact source archive, not an original-PDF passage or a visual pixel read. '
     'These source-image observations are separate from frozen PDF passage evidence; do not substitute them for required report citations. '
     'If sources or images are unavailable, state the gap; never download, compile or run an experiment automatically.\n'
 )
@@ -72,6 +73,8 @@ class SourceFigure:
 def paper_figures(store, query: FigureQuery):
     from .tex_preview import TexPreviews
     from .pdf_files import PdfFiles
+    paper = store.paper(query.paper_id)
+    title = (paper.title or '').strip()[:200] or 'Open paper'
     sources, figures = [], []
     for source in TexPreviews(store, PdfFiles()).sources(query.paper_id):
         scope = dict(bundleId=source.bundle_id, resourceId=source.resource_id, revision=source.revision,
@@ -89,5 +92,7 @@ def paper_figures(store, query: FigureQuery):
             figures.append(dict(**scope, archiveDigest=archive.sha256, **asdict(figure),
                 members=[dict(id=by_id[i].id, path=by_id[i].path, sha256=by_id[i].sha256) for i in figure.memberIds],
                 resolved=len(figure.memberIds) == 1))
+    # Chat surfaces this as an appLink so reopened tool results can reopen the paper.
     return dict(paperId=query.paper_id, sources=sources, figures=figures[:16], truncated=len(figures) > 16,
+                links=[dict(label=title, location=f'paper/{query.paper_id}')],
                 limitation='Literal TeX associations only, not compiled figure numbers or PDF page mappings. Use image with the returned bundleId, resourceId and unique memberId; cite its caption and original TeX lines. No source is acquired automatically.')

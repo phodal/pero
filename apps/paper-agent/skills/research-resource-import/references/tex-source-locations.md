@@ -102,3 +102,13 @@ Text-only models receive the image reference and an explicit unread-pixels
 notice while the chat retains the actual image for display. Base interpretation
 on the returned caption/source text and disclose that limitation; displaying a
 figure does not mean the model inspected its pixels.
+
+For an explanation, follow the returned image with `research-source-read`
+`operation=reference`, `archiveDigest` and `memberId`. It returns the TeX
+associations and, when a literal caption identifies one page in an existing
+same-archive TeX preview, that PDF page's bounded text and file hash. Combine
+this text with the original caption. A derived TeX PDF is not an independent
+publisher-PDF passage, and text-only models still have not inspected the pixels.
+Keep `answerImage.markdown` in its own paragraph so Chat shows a readable figure
+instead of a line-height icon. Clicking it opens that exact cached page, or the
+original image and TeX source when no unique page exists.

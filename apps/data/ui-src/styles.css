@@ -58,4 +58,51 @@ html, body, #app { height: 100%; }
 .data-sources { margin-top: var(--pero-space-4); }
 .data-sources section { display: grid; gap: var(--pero-space-2); padding: var(--pero-space-3) 0; border-bottom: var(--pero-hairline); }
 .data-sources h3, .data-sources p { margin: 0; }
-@media (max-width: 860px) { .data-preview { min-height: 320px; } }
+.data-page { background: var(--pero-material-reading); }
+.data-page .data-all { justify-content: flex-start; width: calc(100% - 12px); margin: 8px 6px 4px; }
+.data-document-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.data-document-heading h2 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.data-format { margin-inline-start: auto; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.data-preview > .data-content, .data-workspace, .data-content { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.data-workspace { flex-direction: column; overflow: auto; }
+.data-page .pero-ui-tabs-list { flex-wrap: wrap; }
+.data-page .data-controls, .data-page .data-field-controls { flex: none; flex-wrap: wrap; gap: 8px 12px; padding: 8px 0; }
+.data-filter-controls, .data-sort-controls, .data-pagination, .data-counts, .data-statusbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.data-filter-controls { flex: 1 1 280px; }
+.data-sort-controls { margin-inline-start: auto; }
+.data-filter-field, .data-filter-condition { width: 140px; max-width: 100%; }
+.data-filter-value { flex: 1 1 120px; min-width: 0; max-width: 220px; }
+.data-grid { min-height: 0; overflow: auto; }
+.data-grid .data-rows thead button { border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.data-grid tr[aria-selected="true"] { background: var(--pero-fill-selected); }
+.data-grid [data-kind="null"], .data-grid [data-kind="missing"] { color: var(--pero-text-muted); }
+.data-workspace-footer { border-top: var(--pero-hairline); }
+.data-statusbar { justify-content: space-between; padding: 4px 0; }
+.data-counts, .data-provenance { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.data-provenance { padding-bottom: 8px; }
+.data-provenance code, .data-chart-source code { overflow-wrap: anywhere; }
+.data-chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.data-chat[hidden], .data-content:not([data-chat]) > .pero-ui-split-handle { display: none; }
+.data-chat > [data-pero-chat-slot] { flex: 1; min-height: 240px; }
+.data-chart { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.data-chart-panel, .data-chart-notes, .data-chart-controls, .data-chart-actions, .data-chart-result-heading, .data-saved-heading { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.data-chart-panel { flex-direction: column; min-width: 0; }
+.data-chart-field { display: flex; flex: 1 1 140px; flex-direction: column; gap: 4px; max-width: 240px; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.data-chart-field .pero-select { width: 100%; color: var(--pero-text); }
+.data-chart-result-heading { justify-content: space-between; align-items: center; }
+.data-chart-surface { position: relative; width: 100%; height: 320px; }
+.data-chart-surface iframe { width: 100%; height: 100%; border: 0; }
+.data-chart-error { color: var(--pero-error); overflow-wrap: anywhere; }
+.data-chart-table { max-height: 240px; overflow: auto; }
+.data-chart-source { font-size: var(--pero-font-caption); overflow-wrap: anywhere; }
+.data-chart-source pre { max-width: 100%; overflow: auto; }
+.data-chart-source button { min-height: 24px; border: 0; padding: 2px; background: none; color: var(--pero-link); cursor: pointer; }
+.data-saved { padding-top: 12px; border-top: var(--pero-hairline); }
+.data-saved-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
+.data-saved-list button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 36px; padding: 4px; border: 0; background: transparent; text-align: start; cursor: pointer; }
+.data-saved-list button:hover:not(:disabled) { background: var(--pero-fill-hover); }
+.data-muted { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+@media (max-width: 860px) {
+  .data-preview { min-height: 320px; }
+  .data-filter-field, .data-filter-condition, .data-chart-field, .data-filter-value { max-width: none; width: auto; }
+}

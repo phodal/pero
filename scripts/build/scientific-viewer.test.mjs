@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { buildScientificViewer } from './scientific-viewer.mjs';
+import { buildScientificViewer, scientificViewerBrowserDefines } from './scientific-viewer.mjs';
 test('production viewer replaces stale outputs and ships its pinned local engines', async () => {
   const outdir = await mkdtemp(resolve(tmpdir(), 'pero-viewer-build-'));
   try {
@@ -13,7 +13,8 @@ test('production viewer replaces stale outputs and ships its pinned local engine
     await assert.rejects(stat(resolve(outdir, 'RDKit_minimal.js')), { code: 'ENOENT' });
     await assert.rejects(stat(resolve(outdir, 'RDKit_minimal.wasm')), { code: 'ENOENT' });
     for (const name of ['index.html', 'index.js', 'molstar.css', 'pdf.worker.mjs', 'licenses/RDKit.txt']) assert.ok((await stat(resolve(outdir, name))).size > 0);
-    assert.deepEqual(JSON.parse(await readFile(resolve(outdir, 'public-engines.json'))).map(item => item.name), ['molstar', 'pdfjs-dist', 'fflate', 'three', 'rdkit']);
+    assert.deepEqual(JSON.parse(await readFile(resolve(outdir, 'public-engines.json'))).map(item => item.name), ['molstar', 'pdfjs-dist', 'fflate', 'three', 'jupyter-react', 'rdkit']);
+    assert.ok((await stat(resolve(outdir, 'licenses/jupyter-react.txt'))).size > 0);
   } finally { await rm(outdir, { recursive: true, force: true }); }
 });
 
@@ -34,4 +35,25 @@ test('the actual public structure engine bundle initializes without string code 
   runInNewContext(bundled.outputFiles[0].text, browser,
     { timeout: 10_000, contextCodeGeneration: { strings: false, wasm: true } });
   assert.equal(typeof browser.engine.createStructureEngine, 'function');
+});
+
+
+test('the real notebook TeX loader initializes without Node globals or string code generation', async () => {
+  const { build } = await import('esbuild');
+  const { runInNewContext } = await import('node:vm');
+  const bundled = await build({
+    entryPoints: [resolve('apps/scientific-viewer/node_modules/mathjax-full/js/input/tex/require/RequireConfiguration.js')],
+    bundle: true, platform: 'browser', format: 'iife', globalName: 'texLoader', write: false,
+    define: scientificViewerBrowserDefines,
+  });
+  // Run the actual dependency graph, not a mock of MathJax. No Node global or
+  // __dirname exists here, just as in the isolated production App frame.
+  const browser = { document: { currentScript: null, getElementById: () => null } };
+  runInNewContext(bundled.outputFiles[0].text, browser,
+    { timeout: 10_000, contextCodeGeneration: { strings: false, wasm: true } });
+  assert.equal(browser.MathJax.version, '3.2.2');
+  assert.equal(browser.texLoader.RequireConfiguration.name, 'require');
+  assert.equal(typeof browser.MathJax.loader.load, 'function');
+  assert.equal('global' in browser, false);
+  assert.equal('__dirname' in browser, false);
 });

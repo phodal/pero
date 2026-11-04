@@ -16,7 +16,7 @@ const bundled = await build({
         DesktopApps, DesktopAppUse, DesktopComputer, Product } = ports;
       export const harnessEnvironment = () => ({}), translate = (_, key) => key;
       export const testWindowOptions = {}, computerPermissions = {}, ConversationContentRead = {};
-      export const confirmReproduction = () => {}, bindAppFrameEditing = () => {};
+      export const confirmReproduction = () => {}, confirmDoclingSetup = () => {}, bindAppFrameEditing = () => {};
     ` }));
   } }],
 });

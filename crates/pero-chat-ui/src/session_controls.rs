@@ -118,12 +118,7 @@ impl ChatPanel {
                 let thread = chat.id.clone();
                 let setting = option.clone();
                 let workbench = cx.entity().downgrade();
-                Button::new(("session-setting", index))
-                    .ghost()
-                    .small()
-                    .h(px(pero_theme::UiAppearance::global(cx)
-                        .typography
-                        .control_height()))
+                W::chat_control(Button::new(("session-setting", index)).ghost(), cx)
                     .label(label)
                     .when(category == "thought_level", |button| {
                         button.icon(Icon::default().path("icons/lightbulb.svg"))
@@ -191,12 +186,7 @@ impl ChatPanel {
         let thread = chat.id.clone();
         let workbench = cx.entity().downgrade();
         Some(
-            Button::new("session-permissions")
-                .ghost()
-                .small()
-                .h(px(pero_theme::UiAppearance::global(cx)
-                    .typography
-                    .control_height()))
+            W::chat_control(Button::new("session-permissions").ghost(), cx)
                 .icon(Icon::default().path("icons/shield.svg"))
                 .when_some(mode_label, |button, label| button.label(label))
                 .accessibility_label(tooltip.clone())
@@ -239,8 +229,8 @@ impl ChatPanel {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use pero_contracts::session_settings::SettingChoice;
+    use super::localize_permission;
+    use pero_contracts::session_settings::{SessionSetting, SettingChoice};
 
     #[test]
     fn harness_permission_uses_auto_review_label() {

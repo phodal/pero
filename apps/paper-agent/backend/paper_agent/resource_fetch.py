@@ -56,6 +56,10 @@ class OfficialArxivEndpoint:
             if match[1] in ('html', 'src', 'e-print') and not re.search(r'v[1-9]\d*$', match[2]):
                 return None
             return cls(parts.hostname, parts.path)
+        # Same-directory assets under an explicit HTML version path.
+        asset = re.fullmatch(r'/html/([^/]+)/(.+)', parts.path)
+        if not parts.query and asset and ARXIV.fullmatch(asset[1]) and re.search(r'v[1-9]\d*$', asset[1]):
+            return cls(parts.hostname, parts.path)
         return None
 
 
@@ -101,7 +105,14 @@ class PublicMetadata:
         final, mime, data = self._fetch(url, timeout=timeout, limit=limit, pdf=False, html=True)
         return SourceResponse(final, data, mime)
 
-    def _fetch(self, url, *, timeout, limit, pdf, source=False, html=False):
+    def fetch_image(self, url, *, timeout=15, limit=2 * 1024 * 1024):
+        # Same-directory presentation assets for an already-approved HTML snapshot.
+        final, mime, data = self._fetch(url, timeout=timeout, limit=limit, pdf=False, image=True)
+        if not mime.startswith('image/'):
+            raise Invalid('The source did not return an image', 415)
+        return SourceResponse(final, data, mime)
+
+    def _fetch(self, url, *, timeout, limit, pdf, source=False, html=False, image=False):
         deadline = self.clock() + timeout
         for _ in range(4):
             url = PublicURL.parse(url).value
@@ -124,12 +135,14 @@ class PublicMetadata:
                         raise Invalid('Private or non-public network addresses are refused')
                     connection = self.connection(parts.hostname, addresses[0], remaining)
                 try:
+                    accept = ('application/pdf' if pdf else 'image/*' if image
+                              else 'text/html,application/json,text/plain,application/xml')
                     connection.request('GET', endpoint.target if proxy else parts.path + ('?' + parts.query if parts.query else ''), headers={
-                        'User-Agent': 'Pero-Research-Import/0.1', 'Accept': 'application/pdf' if pdf else 'text/html,application/json,text/plain,application/xml',
+                        'User-Agent': 'Pero-Research-Import/0.1', 'Accept': accept,
                         'Accept-Encoding': 'identity'})
                     response = connection.getresponse()
                     if response.status in (301, 302, 303, 307, 308):
-                        if html:
+                        if html or image:
                             raise Invalid('Official HTML redirects are unsupported; keep using the PDF', 409)
                         location = response.getheader('Location')
                         if not location:
@@ -145,9 +158,11 @@ class PublicMetadata:
                         raise Invalid('The source did not return text/html', 415)
                     if pdf and content_type != 'application/pdf':
                         raise Invalid('The source did not return application/pdf', 415)
+                    if image and not content_type.startswith('image/'):
+                        raise Invalid('The source did not return an image', 415)
                     if source and content_type not in ('application/pdf', 'application/gzip', 'application/x-gzip', 'application/x-tar', 'application/octet-stream', 'application/x-tex', 'text/x-tex', 'text/plain'):
                         raise Invalid('Unsupported source response type; HTML is not source text', 415)
-                    if not pdf and not source and not (content_type.startswith('text/') or content_type in ('application/json', 'application/xml', 'application/xhtml+xml', 'application/atom+xml')):
+                    if not pdf and not source and not image and not (content_type.startswith('text/') or content_type in ('application/json', 'application/xml', 'application/xhtml+xml', 'application/atom+xml')):
                         raise Invalid('Only text metadata pages are inspected; no binary assets were downloaded')
                     if response.getheader('Content-Encoding', 'identity') not in ('identity', ''):
                         raise Invalid('Compressed metadata is not accepted')

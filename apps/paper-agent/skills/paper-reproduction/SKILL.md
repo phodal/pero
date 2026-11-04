@@ -88,6 +88,11 @@ another launcher or blindly replay an unknown attempt. Resume as described above
 
 ## Independently check and return evidence
 
+For comparisons using a Paper Agent figure reference, require a matching
+reviewed and frozen reference. If it is missing or still needs review, report
+**INCONCLUSIVE** and explain what needs review. Do not evaluate tolerance against
+an unreviewed candidate or give a provisional pass or fail.
+
 Have checker logic read the saved primitive outputs and frozen criteria, verify
 identity, units, dimensions and coverage, then recompute the metric without using
 the candidate's metric helper or cached score. Distinguish **PASS**, **FAIL** and
