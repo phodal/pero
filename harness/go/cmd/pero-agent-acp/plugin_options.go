@@ -88,7 +88,7 @@ func pluginResourceReader(catalog *skills.Catalog, selections []skills.FileSelec
 	return func(ctx context.Context, path string) (fstools.ScopedText, error) {
 		selected, found := paths[filepath.Clean(path)]
 		if !found || catalog == nil {
-			return fstools.ScopedText{}, errors.New("plugin resource is outside the explicitly selected package files")
+			return fstools.ScopedText{}, errors.New("file path is outside the configured workspace and explicitly selected plugin resources; place scratch files inside the workspace before using Read")
 		}
 		return catalog.ReadResource(ctx, selected.name, selected.digest, selected.path)
 	}
