@@ -2,6 +2,7 @@ name: Release Desktop products
 
 on:
   push:
+    branches: [master]
     tags: ['v*']
   workflow_dispatch:
     inputs:
@@ -24,7 +25,7 @@ defaults:
 jobs:
   dispatch:
     name: Dispatch tagged build on the default branch
-    if: github.event_name == 'push'
+    if: github.ref_type == 'tag' && github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
       actions: write
@@ -38,29 +39,29 @@ jobs:
         run: gh workflow run release.yml --ref "$RELEASE_BRANCH" --field "tag=$RELEASE_TAG"
 
   build:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'branch'
     name: ${{ matrix.product }} (${{ matrix.platform }}-${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { os: macos-15, platform: macos, arch: arm64, product: pero }
-          - { os: macos-15, platform: macos, arch: arm64, product: pero-native }
-          - { os: ubuntu-24.04, platform: linux, arch: x64, product: pero }
-          - { os: windows-2025, platform: windows, arch: x64, product: pero }
-          - { os: macos-15, platform: macos, arch: arm64, product: virtual-cell }
+        include: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '[
+          {"os":"macos-15","platform":"macos","arch":"arm64","product":"pero"},
+          {"os":"macos-15","platform":"macos","arch":"arm64","product":"pero-native"},
+          {"os":"ubuntu-24.04","platform":"linux","arch":"x64","product":"pero"},
+          {"os":"windows-2025","platform":"windows","arch":"x64","product":"pero"}
+          ]' || '[{"os":"macos-15","platform":"macos","arch":"arm64","product":"virtual-cell"}]') }}
     timeout-minutes: 90
     env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      RELEASE_TAG: ${{ inputs.tag }}
       RELEASE_PRODUCT: ${{ matrix.product }}
       CARGO_BUILD_JOBS: '2'
       HOMEBREW_NO_AUTO_UPDATE: '1'
     steps:
-      - name: Checkout tagged source
+      - name: Checkout build source
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.sha }}
           fetch-depth: 0
 
       - name: Keep LF line endings
@@ -170,7 +171,7 @@ jobs:
       - name: Upload verified package
         uses: actions/upload-artifact@v7
         with:
-          name: release-${{ matrix.product }}-${{ matrix.platform }}-${{ matrix.arch }}
+          name: ${{ matrix.product == 'virtual-cell' && 'push' || 'release' }}-${{ matrix.product }}-${{ matrix.platform }}-${{ matrix.arch }}
           path: target/release-assets/
           if-no-files-found: error
           retention-days: 7
@@ -193,6 +194,7 @@ jobs:
           retention-days: 7
 
   publish:
+    if: github.event_name == 'workflow_dispatch'
     name: Publish all verified products together
     needs: build
     runs-on: ubuntu-24.04
@@ -227,7 +229,6 @@ jobs:
           - Native local sessions and Apps are available; preparing a cloud contribution workspace is currently supported by Electron only. Python App environments are prepared on first use.
           - Install Git and a supported coding CLI and authenticate the CLI before starting. Native coding CLIs are not bundled.
           - To publish PRs, install GitHub CLI from https://cli.github.com and run `gh auth login --hostname github.com --git-protocol https` in any directory. Then check changes again in Pero. App sign-in and gh authorization are separate.
-          - Virtual Cell: separate macOS Apple Silicon App with bundled Python. Opens directly into the research App; no checkout, coding CLI or gh required.
           - macOS packages are ad-hoc signed and not notarized; Windows/Linux packages are unsigned development builds.
           - Per-product build metadata and SHA256SUMS accompany every archive.
           EOF_NOTES
