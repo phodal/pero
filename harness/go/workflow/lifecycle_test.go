@@ -78,17 +78,19 @@ func TestWorkflowCancellationJoinsProcessAndChildren(t *testing.T) {
 					t.Error("workflow returned before child provider cancellation")
 				}
 				cancelled := 0
+				var terminalFacts []string
 				for _, event := range f.parent.Session().Events() {
 					if event.Type != "workflow/agent-end" {
 						continue
 					}
+					terminalFacts = append(terminalFacts, string(event.Data))
 					var member progress
 					if json.Unmarshal(event.Data, &member) == nil && member.Outcome == "cancelled" && member.Status == harness.SubagentAborted && member.ChildID != "" {
 						cancelled++
 					}
 				}
 				if cancelled != 1 {
-					t.Fatalf("cancelled child terminal records=%d want one", cancelled)
+					t.Fatalf("cancelled child terminal records=%d want one; observed=%v", cancelled, terminalFacts)
 				}
 			}
 			if len(f.h.Agents().List()) != 1 {

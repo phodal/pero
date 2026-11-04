@@ -24,3 +24,10 @@ The complete local Go race suite also passed. These retries do not establish
 the root cause or a fix. Preserve the terminal/effect assertions and capture
 the actual record fields on recurrence before changing cancellation behavior.
 No production workaround, delay or relaxed assertion is introduced.
+
+The same assertion recurred in Harness Go CI at head `7877a5fa`, job
+126677025387 of run 41859450156, while the standalone Bazel job passed.
+The assertion now includes every observed workflow/agent-end payload on
+failure so a new Linux recurrence distinguishes absence from an empty child
+identity or a different terminal status. Local full Go tests and the targeted
+package still pass; this diagnostic change is not a root-cause fix.
