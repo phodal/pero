@@ -51,6 +51,8 @@ func run() (resultErr error) {
 	}
 	endpoint := flag.String("endpoint", "", "explicit OpenAI-compatible HTTPS endpoint (loopback HTTP allowed)")
 	model := flag.String("model", "", "explicit provider model ID")
+	modelProfilePath := flag.String("model-profile", "", "explicit versioned JSON launch defaults for one matching model; CLI flags override defaults")
+	toolFormatFlag := flag.String("tool-format", "auto", "native or claude tool names; auto preserves package-selected behavior")
 	chartPython := flag.String("chart-python", "python3", "Python 3.9+ executable for shared chart/data core")
 	workflowNode := flag.String("workflow-node", "node", "Node executable for explicitly selected plugin workflows")
 	recoverTail := flag.Bool("recover-complete-session-tail", false, "opt in to lossless final JSONL delimiter recovery with a private backup")
@@ -87,6 +89,10 @@ func run() (resultErr error) {
 	lspConfig := bindLSPOptions(flag.CommandLine)
 	research := bindResearchOptions(flag.CommandLine)
 	flag.Parse()
+	modelProfile, err := loadModelProfile(*modelProfilePath, flag.CommandLine)
+	if err != nil {
+		return err
+	}
 	printPrompt := strings.TrimSpace(strings.Join(flag.Args(), " "))
 	if !*printMode && flag.NArg() != 0 || strings.TrimSpace(*model) == "" || strings.TrimSpace(*sessions) == "" {
 		return errors.New("--model and --session-dir are required; positional arguments require --print")
@@ -128,6 +134,10 @@ func run() (resultErr error) {
 		return errors.New("--bash-output-max-chars requires --plugin-dir or --research-source")
 	}
 	packages, err := plugins.LoadPackages(ctx, pluginConfig.Directories)
+	if err != nil {
+		return err
+	}
+	toolFormat, err := resolveToolFormat(*toolFormatFlag, len(packages) > 0)
 	if err != nil {
 		return err
 	}
@@ -229,7 +239,7 @@ func run() (resultErr error) {
 		return err
 	}
 	if *workspace != "" {
-		nativeOptions := nativetools.Options{SpillStore: spillStore, Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: len(packages) > 0, PDFRendererPath: *pdfRenderer, DeferToolLoading: *deferToolLoading, BashEnvFile: func(agent *harness.Agent) string {
+		nativeOptions := nativetools.Options{SpillStore: spillStore, Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: toolFormat == "claude", PDFRendererPath: *pdfRenderer, DeferToolLoading: *deferToolLoading, BashEnvFile: func(agent *harness.Agent) string {
 			if pluginHooks == nil {
 				return ""
 			}
@@ -421,7 +431,7 @@ func run() (resultErr error) {
 	if err := mountToolHistory(ctx, h, toolHistoryConfig); err != nil {
 		return err
 	}
-	if err := mountLaunchReceipt(ctx, h, launchReceipt{Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking, ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != "", OutputLimitRecoveries: *outputLimitRecoveries}); err != nil {
+	if err := mountLaunchReceipt(ctx, h, launchReceipt{ModelProfile: modelProfile, ToolFormat: toolFormat, APIFormat: budget.APIFormat, StreamingDisabled: budget.DisableStreaming, ReasoningEffort: budget.ReasoningEffort, Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking, ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != "", OutputLimitRecoveries: *outputLimitRecoveries}); err != nil {
 		return err
 	}
 	if *initOnly || *maintenance {

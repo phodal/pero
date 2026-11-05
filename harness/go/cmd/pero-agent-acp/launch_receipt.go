@@ -9,6 +9,11 @@ import (
 )
 
 type launchReceipt struct {
+	ModelProfile          *modelProfileIdentity          `json:"model_profile,omitempty"`
+	ToolFormat            string                         `json:"tool_format"`
+	APIFormat             string                         `json:"api_format"`
+	StreamingDisabled     bool                           `json:"streaming_disabled"`
+	ReasoningEffort       string                         `json:"reasoning_effort,omitempty"`
 	Model                 string                         `json:"model"`
 	ContextWindow         int                            `json:"context_window"`
 	MaxOutputTokens       int                            `json:"max_output_tokens"`

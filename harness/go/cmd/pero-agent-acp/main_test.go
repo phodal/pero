@@ -116,6 +116,9 @@ func TestBudgetAgentProcess(t *testing.T) {
 	}
 	flag.CommandLine = flag.NewFlagSet("agent-fixture", flag.ContinueOnError)
 	os.Args = []string{"agent-fixture", "--endpoint", os.Getenv("PERO_BUDGET_TEST_ENDPOINT"), "--model", "fixture", "--session-dir", os.Getenv("PERO_BUDGET_TEST_SESSIONS"), "--max-requests", "4", "--max-tokens", "512", "--max-retries", "0", "--disable-thinking"}
+	if profile := os.Getenv("PERO_BUDGET_TEST_PROFILE"); profile != "" {
+		os.Args = append(os.Args, "--model-profile", profile, "--tool-format", "native")
+	}
 	if audit := os.Getenv("PERO_BUDGET_TEST_AUDIT"); audit != "" {
 		os.Args = append(os.Args, "--http-attempt-audit", audit)
 	}
@@ -153,8 +156,13 @@ func TestBudgetCLIActualLoopAndWire(t *testing.T) {
 	if err := os.WriteFile(audit, nil, 0600); err != nil {
 		t.Fatal(err)
 	}
+	sessions := t.TempDir()
+	profilePath := filepath.Join(t.TempDir(), "profile.json")
+	if err := os.WriteFile(profilePath, []byte(`{"version":1,"id":"wire-fixture","model":"fixture","settings":{"tool_format":"claude","context_window":64000,"max_output_tokens":8192,"disable_thinking":false}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
 	child := exec.CommandContext(ctx, exe, "-test.run=^TestBudgetAgentProcess$")
-	child.Env = append(os.Environ(), "PERO_BUDGET_TEST_CHILD=1", "PERO_BUDGET_TEST_ENDPOINT="+server.URL+"/v1", "PERO_BUDGET_TEST_SESSIONS="+t.TempDir(), "PERO_BUDGET_TEST_AUDIT="+audit, "AGENT_PROVIDER_API_KEY=fixture-not-secret")
+	child.Env = append(os.Environ(), "PERO_BUDGET_TEST_CHILD=1", "PERO_BUDGET_TEST_ENDPOINT="+server.URL+"/v1", "PERO_BUDGET_TEST_SESSIONS="+sessions, "PERO_BUDGET_TEST_PROFILE="+profilePath, "PERO_BUDGET_TEST_AUDIT="+audit, "AGENT_PROVIDER_API_KEY=fixture-not-secret")
 	input, err := child.StdinPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -217,6 +225,34 @@ func TestBudgetCLIActualLoopAndWire(t *testing.T) {
 	if err != nil || string(data) != "attempt\nattempt\nattempt\nattempt\n" {
 		t.Fatalf("HTTP audit=%q error=%v", data, err)
 	}
+	log, err := os.Open(filepath.Join(sessions, session.(string)+".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer log.Close()
+	scanner = bufio.NewScanner(log)
+	scanner.Buffer(make([]byte, 4096), 1<<20)
+	found := false
+	for scanner.Scan() {
+		var record struct {
+			Event struct {
+				Type string        `json:"type"`
+				Data launchReceipt `json:"data"`
+			} `json:"event"`
+		}
+		if json.Unmarshal(scanner.Bytes(), &record) != nil || record.Event.Type != "agent/launch-config" {
+			continue
+		}
+		r := record.Event.Data
+		if r.ModelProfile == nil || r.ModelProfile.ID != "wire-fixture" || len(r.ModelProfile.SHA256) != 64 || r.ToolFormat != "native" || r.MaxOutputTokens != 512 || !r.ThinkingDisabled || r.ContextWindow != 64000 {
+			t.Fatalf("effective profile receipt=%+v", r)
+		}
+		found = true
+	}
+	if scanner.Err() != nil || !found {
+		t.Fatal("effective model profile launch receipt missing", scanner.Err())
+	}
+
 }
 
 func TestEnvironmentProxyRequiresExplicitCLIOptIn(t *testing.T) {
