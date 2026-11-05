@@ -13,7 +13,7 @@ const bundled = await build({
     build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path.startsWith('node:') ? undefined : { path: args.path, namespace: 'ports' });
     build.onLoad({ filter: /.*/, namespace: 'ports' }, () => ({ contents: `
       export const { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, globalShortcut, shell,
-        DesktopApps, DesktopAppUse, DesktopComputer, Product } = ports;
+        DesktopApps, DesktopAppUse, DesktopComputer, HostArtifactDelivery, Product } = ports;
       export const harnessEnvironment = () => ({}), translate = (_, key) => key;
       export const testWindowOptions = {}, computerPermissions = {}, ConversationContentRead = {};
       export const confirmReproduction = () => {}, confirmDoclingSetup = () => {}, bindAppFrameEditing = () => {};
@@ -22,7 +22,7 @@ const bundled = await build({
 });
 
 async function product() {
-  const delivered = [], lifecycle = new EventEmitter();
+  const delivered = [], lifecycle = new EventEmitter(), protocols = new Map();
   const host = new EventEmitter();
   host.stdout = new PassThrough(); host.stderr = new PassThrough();
   host.stdin = new Writable({ write(_chunk, _encoding, done) { done(); } });
@@ -52,9 +52,11 @@ async function product() {
       async loadURL() {}
     },
     ipcMain: { handle() {} }, Menu: { buildFromTemplate: value => value, setApplicationMenu() {} },
-    protocol: { handle() {}, registerSchemesAsPrivileged() {} }, nativeTheme: theme,
+    protocol: { handle(scheme, handler) { protocols.set(scheme, handler); }, registerSchemesAsPrivileged() {} }, nativeTheme: theme,
+    net: { fetch: async () => new Response('<h1>Product transport fixture</h1>') },
     globalShortcut: { register() {}, unregisterAll() {} },
     DesktopApps: class { accept() { return false; } close() {} },
+    HostArtifactDelivery: class { accept() { return false; } close() {} },
     DesktopAppUse: class {
       constructor(_window, send) { ports.appEvent = send; }
       async start() { return {}; } async close() {} reset() {} accept() {}
@@ -67,14 +69,29 @@ async function product() {
   };
   const require = createRequire(import.meta.url);
   runInNewContext(bundled.outputFiles[0].text, {
-    ports, __dirname: '/tmp/fixture/desktop/dist', process, console, setTimeout, clearTimeout,
+    ports, __dirname: '/tmp/fixture/desktop/dist', process, console, setTimeout, clearTimeout, URL, Headers, Response,
     require: name => name === 'node:child_process' ? { spawn: () => host }
       : name === 'node:fs' ? { readFileSync: () => '{}' } : require(name),
   });
   await boot;
   const message = kind => host.stdout.write(JSON.stringify({ version: 1, kind, text: 'en' }) + '\n');
-  return { app, host, window, delivered, ports, lifecycle, message };
+  return { app, host, window, delivered, ports, protocols, lifecycle, message };
 }
+
+test('Product Chat response permits artifact frames without broadening the reader response', async () => {
+  const fixture = await product();
+  try {
+    const serve = fixture.protocols.get('pero');
+    for (const host of ['chat', 'reader']) {
+      const response = await serve(new Request(`pero://${host}/${host}.html`));
+      assert.equal(response.status, 200);
+      assert.equal(await response.text(), '<h1>Product transport fixture</h1>');
+      const csp = response.headers.get('Content-Security-Policy');
+      assert.ok(csp.includes("default-src 'self'"));
+      assert.equal(csp.match(/(?:^|; )frame-src ([^;]+)/)?.[1], host === 'chat' ? 'pero-app:' : undefined);
+    }
+  } finally { fixture.host.stdout.end(); fixture.host.stderr.end(); fixture.host.emit('close', 0); }
+});
 
 for (const destroyed of ['window', 'renderer']) {
   test(`late Host and service events do not access a destroyed ${destroyed}`, async () => {

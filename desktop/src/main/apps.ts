@@ -1,7 +1,7 @@
 import { DoclingSetup, doclingInput, doclingStatus } from './docling-runtime.ts';
 import { randomUUID } from 'node:crypto';
 import { environmentInspectionInput } from './environment-inspection.ts';
-import { realpath, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { net } from 'electron';
@@ -9,7 +9,7 @@ import { AppWriteRoutes } from './app-write-routes.ts';
 import { PreparedAppWrite, type AppWriteDefinition } from './app-write.ts';
 
 // These are transport values, generated from the same contract as the Rust Host.
-import type { AppAccess, AppRecord, ProjectResourceCatalog } from '../../../protocol/generated/host';
+import type { AppAccess, AppRecord, ArtifactSnapshot, ProjectResourceCatalog } from '../../../protocol/generated/host';
 
 type Event = { version: number; kind: string; request_id: string | null; text: string; data?: unknown };
 type Pending = { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
@@ -50,6 +50,7 @@ export class DesktopApps {
   private reproductions = new Map<string, ReproductionPending>();
   private docling: DoclingSetup;
   connectors?: (request: Record<string, unknown>) => Promise<unknown>;
+  artifactSnapshot?: (thread: string, artifact: string, version: number, signal: AbortSignal) => Promise<ArtifactSnapshot>;
 
   async requireConnectorsGrant(name = 'connectors'): Promise<void> {
     await this.request('connectors', { name });
@@ -214,6 +215,27 @@ export class DesktopApps {
       const origin = `pero-app://${url.host}`;
       const caller = request.headers.get('Origin');
       if (caller && caller !== origin) return new Response('App origin refused', { status: 403 });
+      if (url.pathname.startsWith('/host/artifacts/')) {
+        if (url.hostname !== 'scientific-viewer' || !this.artifactSnapshot) return new Response('Artifact preview unavailable', { status: 404 });
+        if (request.method !== 'GET' || url.search) return new Response('Method refused', { status: 405 });
+        const match = /^\/host\/artifacts\/([^/]+)\/([^/]+)\/([1-9][0-9]*)$/.exec(url.pathname);
+        if (!match || !Number.isSafeInteger(Number(match[3]))) return new Response('Invalid artifact reference', { status: 400 });
+        await this.request('sdkcontext', { name: url.hostname });
+        const snapshot = await this.artifactSnapshot(decodeURIComponent(match[1]), decodeURIComponent(match[2]), Number(match[3]), request.signal);
+        const media = snapshot.media;
+        const contentType = media.kind === 'image' ? media.mime_type : media.kind === 'pdf' ? 'application/pdf'
+          : media.kind === 'html' ? 'text/html;charset=utf-8' : media.kind === 'notebook' ? 'application/x-ipynb+json'
+          : media.kind === 'csv' ? 'text/csv;charset=utf-8' : media.kind === 'tsv' ? 'text/tab-separated-values;charset=utf-8'
+          : media.kind === 'document' && media.format.kind === 'json' ? 'application/json'
+          : media.kind === 'document' && media.format.kind === 'json_lines' ? 'application/x-ndjson'
+          : media.kind === 'document' && media.format.kind === 'markdown' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8';
+        return new Response(new Uint8Array(await readFile(snapshot.path)), { headers: {
+          'Content-Type': contentType, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+          'Content-Security-Policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data: blob:",
+          'X-Pero-Artifact-Name': encodeURIComponent(snapshot.filename),
+          'X-Pero-Artifact-Sha256': snapshot.sha256, 'X-Pero-Artifact-Kind': media.kind,
+        } });
+      }
       if ((url.hostname === 'control-lab' || url.hostname === 'lab') && decodeURIComponent(url.pathname) === '/api/agent-step')
         return new Response('Agent route is reserved for the Host', { status: 403 });
       if (url.pathname === '/host/environment/profiles') {
@@ -336,7 +358,7 @@ export class DesktopApps {
           this.onAgentCancel?.(operation.sessionId);
         return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
       }
-      const access = await this.request<AppAccess>('resolve', { name: url.hostname });
+      const access = await this.request<AppAccess>(url.pathname.startsWith('/api/') ? 'resolve' : 'resolve_static', { name: url.hostname });
       if (['/api/workspaces','/api/harnesses'].includes(url.pathname)) {
         if (request.method !== 'GET' || url.search) return new Response('Method refused', {status:405});
         return Response.json(await this.request('agentcatalog', {name:url.hostname,path:url.pathname}), {headers:{'Cache-Control':'no-store'}});
@@ -363,7 +385,8 @@ export class DesktopApps {
       const headers = new Headers(response.headers);
       const nestedReader = file === resolve(assets, '_reader/reader.html') ||
         url.hostname === 'paper-agent' && file === resolve(assets, '_paper-reader/frame.html');
-      const ancestors = nestedReader ? "'self' pero://workbench" : 'pero://workbench';
+      const artifactReader = url.hostname === 'scientific-viewer' && file === resolve(assets, 'artifact.html');
+      const ancestors = artifactReader ? 'pero://workbench pero://chat' : nestedReader ? "'self' pero://workbench" : 'pero://workbench';
       headers.set('Content-Security-Policy', `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self' ${(access.frameOrigins ?? []).join(' ')}; object-src 'none'; base-uri 'none'; frame-ancestors ${ancestors}`);
       headers.set('Cache-Control', 'no-store');
       headers.set('X-Content-Type-Options', 'nosniff');
