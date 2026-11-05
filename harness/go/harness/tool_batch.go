@@ -158,6 +158,9 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 			return false, err
 		}
 	}
+	if interrupted {
+		return true, &ToolInterruptError{Reason: "tool batch stopped"}
+	}
 	return concluded, nil
 }
 

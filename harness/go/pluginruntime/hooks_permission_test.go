@@ -22,7 +22,7 @@ func TestPermissionRequestHookDecidesBeforeThePrompt(t *testing.T) {
 		name, script                 string
 		prompted                     bool
 		runs                         bool
-		interrupt                    bool
+		interrupt, parallel          bool
 		wantCommand, reasonSubstring string
 	}{
 		{
@@ -40,6 +40,12 @@ func TestPermissionRequestHookDecidesBeforeThePrompt(t *testing.T) {
 			name:            "deny and interrupt stops the remaining batch",
 			script:          `printf '%s' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","interrupt":true,"message":"stop now"}}}'`,
 			interrupt:       true,
+			reasonSubstring: "stop now",
+		},
+		{
+			name:      "interrupt stops queued parallel tools",
+			script:    `printf '%s' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","interrupt":true,"message":"stop now"}}}'`,
+			interrupt: true, parallel: true,
 			reasonSubstring: "stop now",
 		},
 		{
@@ -69,10 +75,18 @@ func TestPermissionRequestHookDecidesBeforeThePrompt(t *testing.T) {
 				followed = string(raw)
 				return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
 			})
-			h, _ := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: []claudehooks.Hook{hook}}, 0)
+			hooks := []claudehooks.Hook{hook}
+			if test.interrupt {
+				hooks = append(hooks, scriptHook(t, root, "Stop", `printf '%s' '{"decision":"block","reason":"continue working"}'`))
+			}
+			h, _ := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: hooks}, 0)
+			mode := harness.ExecutionSerial
+			if test.parallel {
+				mode = harness.ExecutionParallel
+			}
 			_, err := h.RegisterTool(t.Context(), "fixture-bash", harness.Tool{
 				Schema:           harness.ToolSchema{Name: "Bash", InputSchema: json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`)},
-				RequiresApproval: true, ExecutionMode: harness.ExecutionSerial,
+				RequiresApproval: true, ExecutionMode: mode,
 				Execute: func(_ context.Context, arguments json.RawMessage) (harness.ToolResult, error) {
 					var body struct {
 						Command string `json:"command"`
@@ -87,7 +101,7 @@ func TestPermissionRequestHookDecidesBeforeThePrompt(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "permission-hook", CWD: root, Provider: "fixture", Model: "scripted", Configure: func(_ context.Context, run *point.Run, _ *harness.Agent) error {
+			agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "permission-hook", CWD: root, MaxParallelToolCalls: 1, Provider: "fixture", Model: "scripted", Configure: func(_ context.Context, run *point.Run, _ *harness.Agent) error {
 				_, err := h.Approvals().Register(run, func(context.Context, harness.ApprovalRequest) (harness.ApprovalOutcome, error) {
 					prompted.Add(1)
 					return harness.ApprovalAllowedOnce, nil

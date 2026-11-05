@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "32d2af55079c38a18c5c18f2e9bd9abc3fbec2da + 2026-11-05 validation-driven recovery working snapshot; per-file hashes below",
+  "right_ref": "06f8fe6a + 2026-11-05 permission interruption repair; per-file hashes below",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -16,7 +16,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "51502806e3c48ec4f58ebf384a052727a21d76e5f485dc2ff9899a9a10063fba"
+        "sha256": "1cd609f37e89ae9979da0beb89283f87a197463a03513109cf620995352af7b5"
       },
       "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence. Go turn entry separately rejects already canceled contexts and retired scopes before claiming queued input; native lifecycle tests validate that local admission rule. The follow-up applies opt-in historical clearing before PreStep and permits stop continuation for explicit unlimited steps; native behavior tests cover these separately from the output-limit landmarks.",
       "landmarks": [
@@ -55,7 +55,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "51502806e3c48ec4f58ebf384a052727a21d76e5f485dc2ff9899a9a10063fba"
+        "sha256": "1cd609f37e89ae9979da0beb89283f87a197463a03513109cf620995352af7b5"
       },
       "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests. The follow-up applies opt-in historical clearing before PreStep and permits stop continuation for explicit unlimited steps; native behavior tests cover these separately from the output-limit landmarks.",
       "landmarks": [
