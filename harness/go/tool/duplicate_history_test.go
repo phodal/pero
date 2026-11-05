@@ -44,7 +44,7 @@ func TestDuplicateErrorProjection(t *testing.T) {
 				if row.reuseID {
 					id = "reused"
 				}
-				s.Append("tool/call", struct {
+				callEvent, _ := s.Append("tool/call", struct {
 					CallID    model.ToolCallID `json:"callId"`
 					Name      string           `json:"name"`
 					Arguments any              `json:"arguments"`
@@ -58,7 +58,7 @@ func TestDuplicateErrorProjection(t *testing.T) {
 					Text      string `json:"text"`
 					Truncated bool   `json:"truncated"`
 				}{strings.Repeat(output, 300), row.truncated}})
-				e, err := s.Append("tool/result", model.ContentBlock{Type: model.BlockToolResult, ToolCallID: id, IsError: true, Content: []model.ContentBlock{{Type: model.BlockText, Text: string(raw)}}})
+				e, err := s.AppendSurface("tool/result", model.ContentBlock{Type: model.BlockToolResult, ToolCallID: id, IsError: true, Content: []model.ContentBlock{{Type: model.BlockText, Text: string(raw)}}}, []uint64{callEvent.Seq})
 				if err != nil {
 					t.Fatal(err)
 				}

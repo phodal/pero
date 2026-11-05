@@ -51,7 +51,9 @@ These protections can keep history above target.
 
 Only the request surface is replaced. Original Session events, failure status,
 call/result pairing and exact `ReadToolOutput` locators survive JSONL restore.
-Reused call IDs bind to their original completed occurrence. A placeholder
+Reused call IDs bind to their original completed occurrence. A source-event
+reference alone is not a projection: provenance-bearing append results retain
+their own tool identity and error protection. A placeholder
 identifies the retained diagnostic's result sequence and the old output's locator.
 Character reductions are not token or billing estimates.
 

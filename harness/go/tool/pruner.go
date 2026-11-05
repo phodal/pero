@@ -295,8 +295,17 @@ func (p *ToolResultPruner) PruneSession(session *harnesssession.Session) (ToolRe
 		if event.Type == "tool/result" {
 			var result harnessmodel.ContentBlock
 			if json.Unmarshal(event.Data, &result) == nil {
-				if len(event.SourceEventSeqs) == 1 {
-					callsByResult[event.Seq] = callsByResult[event.SourceEventSeqs[0]]
+				var operation struct {
+					Op    string `json:"op"`
+					Start uint64 `json:"start"`
+					End   uint64 `json:"end"`
+				}
+				projection := json.Unmarshal(event.SurfaceOp, &operation) == nil && operation.Op == "replace" && len(event.SourceEventSeqs) == 1 && operation.Start == event.SourceEventSeqs[0] && operation.End == operation.Start
+				if projection {
+					source := callsByResult[event.SourceEventSeqs[0]]
+					if source.CallID == result.ToolCallID {
+						callsByResult[event.Seq] = source
+					}
 				} else {
 					callsByResult[event.Seq] = pending[result.ToolCallID]
 					delete(pending, result.ToolCallID)
