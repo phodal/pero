@@ -152,13 +152,16 @@ test('dropdown menu keeps item semantics, controlled intent, dismissal and dialo
     const host = document.createElement('div');
     document.body.append(host);
     await render(React.createElement(DropdownMenu, { defaultOpen: true },
-      React.createElement(DropdownMenuTrigger, { style: { '--pero-border': '#123456', color: 'rgb(9, 8, 7)' } }, 'Body'),
+      React.createElement(DropdownMenuTrigger, { style: { '--pero-border': '#123456', color: 'rgb(9, 8, 7)', fontWeight: 700, fontSize: '24px', fontFamily: 'monospace' } }, 'Body'),
       React.createElement(DropdownMenuContent, null, React.createElement(DropdownMenuItem, null, 'Portaled'))));
     const popup = menu();
     assert.equal(document.body.contains(popup), true);
     assert.equal(popup.closest('.pero-workbench'), null);
     assert.equal(popup.style.getPropertyValue('--pero-border'), '#123456');
     assert.equal(popup.style.color, 'rgb(9, 8, 7)');
+    assert.equal(popup.style.fontFamily, 'monospace');
+    assert.equal(popup.style.fontWeight, '', 'trigger emphasis does not override menu typography');
+    assert.equal(popup.style.fontSize, '', 'menu size comes from the body token, not a custom trigger size');
     host.remove();
     await render(null);
     const sink = document.createElement('div');
@@ -172,12 +175,17 @@ test('dropdown menu keeps item semantics, controlled intent, dismissal and dialo
   });
   await t.test('body portals follow theme changes while open and retain explicit content styles', async () => {
     await render(null);
-    await render(React.createElement('div', { id: 'theme-scope', style: { '--dsw-alias-bg-base': '#101010' } },
+    await render(React.createElement('div', { id: 'theme-scope', style: { '--dsw-alias-bg-base': '#101010', '--pero-surface': '#112233', '--pero-surface-hover': '#223344', '--pero-font-body': '18px' } },
       React.createElement(DropdownMenu, { defaultOpen: true },
         React.createElement(DropdownMenuTrigger, null, 'Theme'),
         React.createElement(DropdownMenuContent, { style: { color: 'rgb(1, 2, 3)', fontFamily: 'monospace' } },
           React.createElement(DropdownMenuItem, null, 'Keep')))));
     assert.equal(menu().style.getPropertyValue('--dsw-alias-bg-base'), '#101010');
+    assert.equal(menu().style.getPropertyValue('--pero-surface'), '#112233');
+    assert.equal(menu().style.getPropertyValue('--pero-surface-hover'), '#223344');
+    assert.equal(menu().style.getPropertyValue('--pero-font-body'), '18px');
+    await React.act(async () => document.getElementById('theme-scope').style.setProperty('--pero-surface', '#334455'));
+    assert.equal(menu().style.getPropertyValue('--pero-surface'), '#334455');
     await React.act(async () => document.getElementById('theme-scope').style.setProperty('--dsw-alias-bg-base', '#202020'));
     assert.equal(menu().style.getPropertyValue('--dsw-alias-bg-base'), '#202020');
     assert.equal(menu().style.color, 'rgb(1, 2, 3)');
@@ -205,7 +213,7 @@ test('dropdown menu keeps item semantics, controlled intent, dismissal and dialo
     await render(null);
     const picks = [];
     await render(React.createElement(DropdownMenu, { open: true },
-      React.createElement(DropdownMenuTrigger, null, 'Actions'),
+      React.createElement(DropdownMenuTrigger, { id: 'submenu-theme-trigger', style: { '--pero-surface': '#112233' } }, 'Actions'),
       React.createElement(DropdownMenuContent, null,
         React.createElement(DropdownMenuLabel, null, 'Section'),
         React.createElement(DropdownMenuGroup, null,
@@ -218,6 +226,10 @@ test('dropdown menu keeps item semantics, controlled intent, dismissal and dialo
     assert.ok(document.querySelector('.pero-ui-dropdown-sub-trigger'));
     const nested = [...document.querySelectorAll('[role="menuitem"]')].find(node => node.textContent === 'Nested');
     assert.ok(nested);
+    const submenu = nested.closest('[role=menu]');
+    assert.equal(submenu.style.getPropertyValue('--pero-surface'), '#112233');
+    await React.act(async () => document.getElementById('submenu-theme-trigger').style.setProperty('--pero-surface', '#445566'));
+    assert.equal(submenu.style.getPropertyValue('--pero-surface'), '#445566');
     await click(nested);
     assert.deepEqual(picks, ['nested']);
     await render(null);

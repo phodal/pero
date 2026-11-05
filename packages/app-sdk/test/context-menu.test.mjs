@@ -59,6 +59,26 @@ test('context menu keeps item semantics, pointer open, Escape and dialog focus',
     await render(null);
   });
 
+  await t.test('body portal retains semantic theme and follows an open scope change', async () => {
+    await render(null);
+    await render(React.createElement('div', { id: 'context-theme', style: { '--pero-surface': '#112233', '--pero-text': '#eeeeee', '--pero-surface-hover': '#223344', '--pero-font-body': '18px' } },
+      React.createElement(ContextMenu, { open: true },
+        React.createElement(ContextMenuTrigger, { unstyled: true }, 'Region'),
+        React.createElement(ContextMenuContent, { style: { '--pero-text': '#ffffff' } },
+          React.createElement(ContextMenuItem, null, 'Inspect')))));
+    assert.equal(menu().style.getPropertyValue('--pero-surface'), '#112233');
+    assert.equal(menu().style.getPropertyValue('--pero-surface-hover'), '#223344');
+    assert.equal(menu().style.getPropertyValue('--pero-font-body'), '18px');
+    assert.equal(menu().style.getPropertyValue('--pero-text'), '#ffffff');
+    await React.act(async () => {
+      document.getElementById('context-theme').style.setProperty('--pero-surface', '#445566');
+      document.getElementById('context-theme').style.setProperty('--pero-text', '#000000');
+    });
+    assert.equal(menu().style.getPropertyValue('--pero-surface'), '#445566');
+    assert.equal(menu().style.getPropertyValue('--pero-text'), '#ffffff');
+    await render(null);
+  });
+
   await t.test('escape dismisses and an opened native dialog keeps focus', async () => {
     await render(null);
     const opens = [];

@@ -34,6 +34,7 @@ test('select keeps listbox semantics, controlled intent, and dialog portal', asy
     assert.equal(button.getAttribute('data-value'), 'alpha');
     assert.equal(button.querySelector('svg').getAttribute('width'), '12');
     await click(button);
+    assert.equal(document.querySelector('[data-keyboard-active=true]'), null, 'pointer opening does not paint a keyboard focus marker');
     const chosen = document.querySelector('[data-value="gamma"]');
     await click(chosen);
     assert.deepEqual(picks, ['gamma']);
@@ -55,9 +56,14 @@ test('select keeps listbox semantics, controlled intent, and dialog portal', asy
     await key(list, 'ArrowDown');
     const active = document.querySelector('[data-active="true"]');
     assert.equal(active.getAttribute('data-value'), 'gamma');
+    assert.equal(active.getAttribute('data-keyboard-active'), 'true');
+    await React.act(async () => active.dispatchEvent(new dom.window.Event('pointermove', { bubbles: true })));
+    assert.equal(active.hasAttribute('data-keyboard-active'), false, 'pointer navigation removes keyboard emphasis');
+    assert.equal(document.querySelector('[aria-selected=true]').getAttribute('data-value'), 'alpha', 'hover does not change selection');
     assert.equal(document.querySelector('[data-value="beta"]').getAttribute('aria-disabled'), 'true');
     await key(list, 'Home');
     assert.equal(document.querySelector('[data-active="true"]').getAttribute('data-value'), 'alpha');
+    assert.equal(document.querySelector('[data-active="true"]').getAttribute('data-keyboard-active'), 'true');
     await render(null);
   });
 
