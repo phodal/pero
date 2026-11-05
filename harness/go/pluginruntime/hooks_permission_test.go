@@ -189,6 +189,13 @@ func TestSessionPermissionRuleAppliesToTheNextCall(t *testing.T) {
 			secondReason: "second",
 		},
 		{
+			name:         "session deny blocks a matching segment",
+			permissions:  `[{"type":"addRules","behavior":"deny","destination":"session","rules":[{"toolName":"Bash","ruleContent":"rm *"}]}]`,
+			second:       "rm victim; touch marker",
+			want:         []string{"printf original"},
+			secondReason: "Session permission rule denied this tool call.",
+		},
+		{
 			name:         "session deny blocks before the hook",
 			permissions:  `[{"type":"addRules","behavior":"deny","destination":"session","rules":[{"toolName":"Bash","ruleContent":"printf *"}]}]`,
 			second:       "printf later",

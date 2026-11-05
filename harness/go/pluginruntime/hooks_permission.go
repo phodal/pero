@@ -182,10 +182,10 @@ func (app *HookApp) sessionBehavior(request *harness.ToolRequest) string {
 			allow = append(allow, rule.rule)
 		}
 	}
-	if skills.AllowsTool(deny, request.Name, request.Arguments) {
+	if skills.MatchesToolRestriction(deny, request.Name, request.Arguments) {
 		return "deny"
 	}
-	if skills.AllowsTool(ask, request.Name, request.Arguments) {
+	if skills.MatchesToolRestriction(ask, request.Name, request.Arguments) {
 		return "ask"
 	}
 	if skills.AllowsTool(allow, request.Name, request.Arguments) {

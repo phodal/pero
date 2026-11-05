@@ -61,6 +61,33 @@ func TestAllowedToolGrants(t *testing.T) {
 	}
 }
 
+func TestToolRestrictions(t *testing.T) {
+	for _, row := range []struct {
+		rule, command string
+		want          bool
+	}{
+		{"Bash(rm *)", "rm victim", true},
+		{"Bash(rm *)", "rm victim; touch marker", true},
+		{"Bash(rm *)", "touch marker && rm victim", true},
+		{"Bash(rm *)", "echo harmless", false},
+		{"Bash(rm *)", "timeout 5 rm victim", true},
+		{"Bash(rm *)", "rm victim > log", true},
+		{"Bash(rm *)", "X=1 rm victim", true},
+		{"Bash(find *)", "find . -delete", true},
+		{"Bash(*)", "printf $(date)", true},
+		{"Write", "rm victim", false},
+	} {
+		t.Run(row.rule+"/"+row.command, func(t *testing.T) {
+			args, _ := json.Marshal(struct {
+				Command string `json:"command"`
+			}{row.command})
+			if got := MatchesToolRestriction([]string{row.rule}, "Bash", args); got != row.want {
+				t.Fatalf("matched=%v want=%v", got, row.want)
+			}
+		})
+	}
+}
+
 func TestSkillDenialsApplyBeforeFirstRequestAndExpire(t *testing.T) {
 	requireCatalogPlatform(t)
 	root := canonicalTempDir(t)
