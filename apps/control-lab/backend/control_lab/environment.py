@@ -42,9 +42,7 @@ def inspect_environment(engine):
     if engine == 'ngspice':
         executable = shutil.which('ngspice')
         program = dict(version=None, sha256=None, status='missing')
-        if os.name == 'nt':
-            program['status'] = 'unsupported'
-        elif executable:
+        if executable:
             program.update(sha256=file_digest(executable), status='probe_failed')
             try:
                 probe = subprocess.run([executable, '-v'], capture_output=True, text=True, timeout=3, check=False)

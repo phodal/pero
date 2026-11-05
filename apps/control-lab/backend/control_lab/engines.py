@@ -68,9 +68,7 @@ def capabilities():
     executable = shutil.which("ngspice")
     error = None
     version = None
-    if os.name == "nt":
-        error = "ngspice runs are disabled on Windows until descendant cleanup is verified"
-    elif not executable:
+    if not executable:
         error = "ngspice is not available on the App process PATH"
     else:
         try:
@@ -276,8 +274,6 @@ def _read_table(path, columns, max_rows=MAX_EVIDENCE_SAMPLES):
 
 
 def _ngspice(model, parameters, scenario, directory, cancelled):
-    if os.name == "nt":
-        raise EngineUnavailable("ngspice is gated on Windows until descendant cleanup is verified")
     executable = shutil.which("ngspice")
     if not executable:
         raise EngineUnavailable("ngspice executable is missing from PATH; no fallback was run")
