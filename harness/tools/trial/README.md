@@ -103,6 +103,8 @@ Continuations reuse the same session. Submitted
 prompts and provider requests have no automatic retries. A positive USD budget
 is rejected because this runtime has no authoritative pricing; use max_requests,
 which caps HTTP attempts per session process, including child model requests.
+It defaults to 64; explicit `max_requests: 0` disables this cap, matching the
+native CLI. Session and idle timeouts still apply.
 
 Questions are cancelled by default, cancelling the active trial turn. Explicit
 `unattended_questions: "first-option"` selects the first option of each question

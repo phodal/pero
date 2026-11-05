@@ -171,7 +171,7 @@ class TrialConfig:
                            text(raw.get("model"), "model"), key, models, sessions, final_patterns,
                            seconds(raw.get("session_timeout", raw.get("timeout", 3600)), "session_timeout"),
                            seconds(raw.get("idle_timeout", 600), "idle_timeout"),
-                           integer(raw.get("max_requests", 64), "max_requests", 1, 100000),
+                           integer(raw.get("max_requests", 64), "max_requests", 0, 100000),
                            integer(raw.get("max_tokens", 4096), "max_tokens", 1, 1048576), questions, enable_shell,
                            Path(text(context, "context_source")) if context is not None else None, permission)
 

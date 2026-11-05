@@ -211,7 +211,8 @@ class RuntimeTrial(unittest.TestCase):
             return [answer(value)]
 
         with provider(dispatch) as endpoint:
-            result = run_pipeline(self.config(endpoint, success_patterns=["report.md"], max_continuations=0))
+            result = run_pipeline(self.config(endpoint, success_patterns=["report.md"], max_continuations=0,
+                                              max_requests=0))
         self.assertTrue(result["pipeline_complete"], result)
         self.assertEqual(Path(result["workspace"], "report.md").read_text(), value)
         self.assertEqual(result["usage"]["reported_completions"], 2)
