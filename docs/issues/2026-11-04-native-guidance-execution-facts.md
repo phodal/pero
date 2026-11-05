@@ -140,3 +140,20 @@ Implemented in the Bash schema and existing capability-scoped native guidance.
 The native package race suite, `go vet ./nativetools` and standalone
 `//nativetools:nativetools_test` pass. No new provider run was made for this
 wording change; the five-task result belongs to the earlier binary.
+
+## Follow-up: unbound delivery review repeats completed checks
+
+The same sample records 21 responses and 320,366 tokens after the five final
+reviews, with no Edit/Write calls. The unbound review enumerates Git conflicts,
+file sets, format and service checks even for standalone function tasks.
+Narrow the existing final/progress review to requirements actually requested,
+reuse successful checks on unchanged inputs and permit an immediate final
+answer when no concrete gap remains. Keep the single review and independent
+acceptance boundary; do not infer machine acceptance from generic shell output.
+
+Implemented through one shared review scope for final and unbound progress
+feedback. Existing final-review and unlimited-step/mid-turn contracts pass in
+the full engineering-profile race suite and standalone Bazel target; package
+vet passes. The live matched-task rerun is recorded separately in
+[the native sample](../fitness/evalplus-native.md); prompt changes alone do not
+prove fewer model requests.

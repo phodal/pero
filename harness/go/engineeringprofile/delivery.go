@@ -171,6 +171,8 @@ func evaluateDelivery(ctx context.Context, cwd string, d *DeliverySpec) []Delive
 
 // With no machine contract, feedback requests one public-requirement review.
 // It never upgrades the agent's claims into acceptance evidence.
+const publicReviewScope = "Compare the user's original requirements with existing deliverables and verification evidence. Reuse passed checks on unchanged inputs. Run another check only for changed inputs, a failure or a concrete unverified requirement. File-set/format, Git-conflict and service-lifetime checks apply only when the task requires them. Preserve the specification in self-tests. If no concrete gap remains, finish with the evidence already collected; this review does not require new tools or tests. No machine acceptance contract is bound."
+
 func (a *App) reviewUnboundDelivery(input harness.TurnStoppingInput) error {
 	events := input.Agent.Session().Events()
 	usedTools := false
@@ -198,7 +200,7 @@ func (a *App) reviewUnboundDelivery(input harness.TurnStoppingInput) error {
 	}{input.Turn}); err != nil {
 		return err
 	}
-	return input.Agent.Inject(contextMessage("engineering/delivery-review", "Before finishing, review the user's public requirements against the actual deliverables: exact output paths and file set, requested format or length, unresolved Git conflicts, and observed verification results. Check server availability across the required lifecycle if the task delivers a service. Preserve the original specification when writing self-tests. Correct any concrete gap; if already satisfied, finish with the evidence. No machine acceptance contract is bound to this review."))
+	return input.Agent.Inject(contextMessage("engineering/delivery-review", "Before finishing: "+publicReviewScope))
 }
 
 // progressReview contributes bounded public-requirement feedback before request
@@ -230,7 +232,7 @@ func (a *App) progressReview(ctx context.Context, agent *harness.Agent, turn, st
 	if err != nil {
 		return nil, err
 	}
-	text := "During this long turn, compare the actual deliverables with the user's original public requirements. Check exact paths, file set, format, service lifecycle, and observed validation. Preserve the specification in self-tests; prefer a focused independent check before further broad edits. This is a progress review, not a failure verdict or call limit. No machine acceptance contract is bound."
+	text := "Progress review: " + publicReviewScope + " This is not a failure verdict or call limit."
 	var observed *Assessment
 	if bound {
 		c, _, err := Current(agent.Session())
