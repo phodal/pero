@@ -55,6 +55,43 @@ calls in the selected prefix, bounded to 32 rows and 4096 JSON bytes. Shell
 effects, failed calls and future operations are excluded. Records are observations,
 not proof of current file contents. Non-shrinking summaries remain rejected.
 
+## Explicit output recovery and compaction budgets
+
+The 2026-11-05 failure audit found four incomplete Write responses at the 8192
+output cap. Qwen's incomplete-write guidance suggests a skeleton plus smaller
+complete edits; DSH keeps a sticky output-limit outcome. Pero preserves that
+core outcome and never executes partial calls. ACP's opt-in
+`--output-limit-recoveries 1` allows one separately attributed plugin turn under
+the same outer prompt deadline. Zero retains the single-turn stop contract.
+Further truncation returns max_tokens after the configured allowance. Refusals,
+transport failures and provider request-budget exhaustion do not trigger output
+recovery. Provider retries retain their existing independent policy. Cancellation
+stops accepted follow-up execution before the ACP prompt slot reopens. Print
+mode rejects this ACP-only setting.
+
+Following Codex's independent automatic-compaction budget and Pi's recent-token
+retention, the existing engine now accepts absolute trigger/retention CLI
+settings. They do not change advertised model capacity or tool-pair cut rules.
+An absolute trigger lowers the ratio threshold; output/summary headroom can
+lower it further. Settings that leave no usable retention budget are rejected.
+Use explicit recent-token retention when a large window's retain ratio would
+exceed the absolute trigger. The separate polyglot run's 103,829-token prompt
+could not reach the former 800,000-token trigger.
+
+For a new ACP benchmark attempt, add the following to its existing pinned
+provider/workspace configuration (keep official task deadlines and verifier):
+
+```sh
+--max-requests 0 --max-turn-steps 0 --max-retries 0 \
+--output-limit-recoveries 1 \
+--context-window 1000000 --compaction-trigger-tokens 65536 \
+--compaction-retain-tokens 16384 --compaction-summary-tokens 4096 \
+--engineering-profile feedback
+```
+
+This is an explicit experimental configuration, not a tuned default or a
+measured token-saving claim. Do not modify frozen baseline launchers/results.
+
 ## Progress and delivery
 
 Existing exact-call/unchanged-result reminders at 3/5/8 repetitions remain.
@@ -62,11 +99,24 @@ Additional source-attributed advisories cover unchanged ABABAB, eight consecutiv
 tool errors or a repeated nonzero exit class, and eight narrow Git overview
 inspections. File-specific diffs/mutations do not match that Git pattern. Explicit
 file edits and task/terminal operations reset or bypass the chain. Alternating
-calls with changing results do not match. These reminders impose no call cap.
+calls with changing results do not match. A separate 24-operation window now
+retains settled nonzero shell exits across edits/inspections. Eight exits emit
+an advisory, at most once per 24 subsequent operations. Timeouts, cancellations,
+uncertain cleanup (including outer wrapped receipts) and polling do not count
+as settled failures. New turns clear the window. A successful edit does not
+prove that a failing experiment was repaired. These reminders impose no call cap.
 
 `--engineering-profile feedback` requests one final public-requirement review
 after tool use even without a contract. It does not turn model claims into
 acceptance evidence. Unlimited steps now correctly permit this stop continuation.
+Feedback mode also reviews public requirements before every 32nd request during
+a long tool-using turn, at most three times per turn. The existing PreStep seam
+adds the review to that request before assembly, without an extra model call.
+Bound change contracts report actual unresolved checks/artifacts; already ready
+or non-change contracts receive no mid-turn reminder. Unbound turns receive a
+public-specification reminder, not invented machine acceptance. Observe mode
+and short turns retain their behavior. This addresses feedback arriving too
+late to help before a timeout or output limit.
 With a host-owned `--engineering-contract`, delivery requirements join the
 existing bounded feedback policy:
 
@@ -132,10 +182,15 @@ Missing final usage remains unknown.
 thinking/image flags, compaction and service enablement. It is a frozen launch
 receipt, not later routing authority. The existing offline reporter recognizes
 this, tool-history/config, provider/request-timeout, progress advisories,
-engineering/delivery-review and environment-service/receipt. JSON retains event
+engineering/delivery-review, engineering/progress-review, ACP output-limit
+recovery attempts/committed messages and environment-service/receipt. JSON retains event
 references; Markdown adds replacement/advisory/deadline/service counts beside
 usage and failures. Receipts omit credentials/environment values. No extra model
 call is needed.
+
+Recovery attempts and committed follow-up messages are counted separately;
+neither proves that a provider request succeeded or that the task passed. The
+original max-tokens turn end and plugin authorship remain visible.
 
 ## Verification
 
@@ -158,3 +213,37 @@ token savings nor a uniform full-suite score. Thinking/image configuration
 already exists; paired model/configuration experiments remain separate.
 Original full-suite results and strict-stop validity retain their own evidence
 in [the failure review](terminal-bench-failure-repair-review.md).
+
+### 2026-11-05 follow-up acceptance
+
+All five affected Go race suites (harness, ACP, CLI, engineeringprofile and
+nativetools), five standalone Bazel targets, related vet and native CLI build
+pass. The reporter now has 26 passing tests. Eighteen pinned AST parser tests
+pass without skips; three changed ACP selectors were unavailable before receipt
+refresh, then all 17 mappings extracted with zero unavailable selectors. This
+records the intentional ACP policy change; it does not prove AST equivalence.
+
+Focused regressions cover discarded incomplete writes followed by a real small
+file write, default/exhausted recovery, provider-budget/refusal stops,
+cancellation, plugin authorship, cross-edit failures and productive/uncertain
+counterexamples. A real compaction fixture triggers at an absolute budget with
+a 1,000,000-token declared model window. Mid-turn tests prove the review is
+present in request 32 before a later max-tokens stop, the three-review bound,
+public artifact evidence and quiet ready/observe/short cases.
+
+Offline replay of the unchanged `88041974-2269-4902-99dd-8a26c2972d63` polyglot
+Session matches all 222 original tool operations and produces two cross-edit
+advisories, first at original result seq 20020. The old run recorded zero.
+Replay excludes historical replacement projections from new executions. This
+only validates detection against the retained trajectory; no model was rerun,
+reward changed, token reduction measured or new full-suite score produced.
+The replay driver/log are retained locally as `/tmp/pero-replay-progress.py`
+and `/tmp/pero-failure-recovery-replay.log`.
+
+Read-only comparison pins: Qwen `6fe83a82457def9ab8daa43bf833b4cfdf192bd2`,
+Codex `fc39cfcacd8c6efaf561269e882ea76bdc1dff42`, Pi
+`90b42bca6ed161b8e7ee40ceda9755205c2882ec`, DSH
+`8bd073392eef6f54e921a093b95076248eb08cbb`. The existing AST mapping retains
+its separately pinned official DSH source. Normal-end algorithm/specification
+failures, missing verifier dependencies and the Rosetta/x86 environment gap
+remain separate from these runtime repairs.
