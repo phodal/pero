@@ -123,7 +123,9 @@ fn start_with_workspace_access(
     let managed = config.managed_mcp.clone().unwrap_or_default();
     let mcp_runtime = Arc::new(Mutex::new(pero_contracts::mcp_runtime::McpRuntimeSession::new(
         config.id.clone(), thread.clone(), incarnation, managed.revision,
-        managed.servers.iter().filter(|server| server.enabled).map(|server| server.name.clone()).collect(),
+        managed.servers.iter().filter(|server| server.enabled).map(|server| server.name.clone())
+            .chain(config.required_mcp_servers.iter().cloned())
+            .collect::<std::collections::BTreeSet<_>>().into_iter().collect(),
     )));
     let runtime_snapshot = mcp_runtime.clone();
     let permissions: Permissions = Arc::default();
@@ -389,6 +391,13 @@ async fn run(
                 if initialized.agent_capabilities.mcp_capabilities.http {
                     if let Some(endpoint) = &app_use {
                         mcp_servers.push(endpoint.server(&thread));
+                        let mut snapshot = mcp_runtime.lock().unwrap();
+                        if !snapshot.servers.iter().any(|server| server.server == "pero-app-use") {
+                            snapshot.servers.push(pero_contracts::mcp_runtime::McpRuntimeServer {
+                                server: "pero-app-use".into(), generation: 0,
+                                status: pero_contracts::mcp_runtime::McpRuntimeStatus::Connecting, tools: vec![],
+                            });
+                        }
                     }
                 }
                 let (method, mut request) = if let Some(id) = &resume_id {
@@ -445,6 +454,12 @@ async fn run(
             let session_id = session.session_id.clone();
             user_questions.bind(session_id.to_string());
             observations.lock().unwrap().bind(session_id.to_string(), &tx);
+            let snapshot = mcp_runtime.lock().unwrap().clone();
+            let unavailable = snapshot.required_unavailable(&config.required_mcp_servers);
+            if !unavailable.is_empty() {
+                return Err(failure(&format!("Required MCP dependencies unavailable: {}. Check MCP settings and retry the conversation.", unavailable.join(", "))));
+            }
+            session_data["peroMcp"] = serde_json::to_value(&snapshot).unwrap_or_default();
             // Session-ready is journaled and replayed on renderer reconnect;
             // initialization is transient, so carry its composer capabilities
             // in the retained session snapshot as well.

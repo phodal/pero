@@ -122,19 +122,58 @@ func ExpandSkill(ctx context.Context, h *harness.Harness, agent *harness.Agent, 
 		if err != nil {
 			return skills.Definition{}, fmt.Errorf("plugin-runtime: prepare skill shell: %w", err)
 		}
-		spec, err := executor.Resolve(shell.ExecRequest{Command: command.command, Workdir: agent.Session().WorkingDirectory()})
+		toolArguments, err := json.Marshal(struct {
+			Command string `json:"command"`
+		}{Command: command.command})
+		if err != nil {
+			return skills.Definition{}, err
+		}
+		request := harness.ToolRequest{Agent: agent, CallID: harness.ToolCallID("skill-preprocess-" + rand.Text()), Name: "Bash", Arguments: toolArguments}
+		request, err = h.Tools().Before.Run(ctx, request, func(_ context.Context, value harness.ToolRequest) (harness.ToolRequest, error) { return value, nil })
+		if err != nil {
+			return skills.Definition{}, err
+		}
+		if request.EndTurn {
+			return skills.Definition{}, &harness.ToolInterruptError{Reason: request.DenyReason}
+		}
+		if request.DenyReason != "" {
+			return skills.Definition{}, fmt.Errorf("%w: %s", ErrSkillCommandDenied, request.DenyReason)
+		}
+		if request.Agent != agent || request.Name != "Bash" {
+			return skills.Definition{}, errors.New("plugin-runtime: skill shell admission changed its caller or tool")
+		}
+		var input struct {
+			Command string `json:"command"`
+		}
+		if err := json.Unmarshal(request.Arguments, &input); err != nil {
+			return skills.Definition{}, err
+		}
+		spec, err := executor.Resolve(shell.ExecRequest{Command: input.Command, Workdir: agent.Session().WorkingDirectory()})
 		if err != nil {
 			return skills.Definition{}, fmt.Errorf("plugin-runtime: resolve skill command: %w", err)
 		}
-		toolArguments, err := json.Marshal(struct {
-			Command string `json:"command"`
-		}{Command: spec.Command})
+		var hookResult harness.ApprovalHookResult
+		outcome, err := h.Approvals().Request(ctx, harness.ApprovalRequest{
+			Agent: agent, CallID: request.CallID, ToolName: "Bash", Reason: spec.Command,
+			NonInteractive: true, AlwaysAsk: request.RequestApproval,
+			Preapproved: request.Preapproved || skills.AllowsTool(definition.AllowedTools, "Bash", request.Arguments),
+			ToolInput:   request.Arguments, HookResult: &hookResult,
+		})
 		if err != nil {
 			return skills.Definition{}, err
 		}
-		outcome, err := h.Approvals().Request(ctx, harness.ApprovalRequest{Agent: agent, CallID: harness.ToolCallID("skill-preprocess-" + rand.Text()), ToolName: "Bash", Reason: spec.Command, NonInteractive: true, Preapproved: skills.AllowsTool(definition.AllowedTools, "Bash", toolArguments)})
-		if err != nil {
-			return skills.Definition{}, err
+		if hookResult.Interrupt {
+			return skills.Definition{}, &harness.ToolInterruptError{Reason: hookResult.Reason}
+		}
+		if outcome == harness.ApprovalAllowedOnce && len(hookResult.UpdatedInput) > 0 {
+			input.Command = ""
+			if err := json.Unmarshal(hookResult.UpdatedInput, &input); err != nil {
+				return skills.Definition{}, err
+			}
+			spec, err = executor.Resolve(shell.ExecRequest{Command: input.Command, Workdir: agent.Session().WorkingDirectory()})
+			if err != nil {
+				return skills.Definition{}, fmt.Errorf("plugin-runtime: resolve approved skill command: %w", err)
+			}
 		}
 		if err := agent.Session().Flush(ctx); err != nil {
 			return skills.Definition{}, fmt.Errorf("plugin-runtime: persist skill command permission: %w", err)

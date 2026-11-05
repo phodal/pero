@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-11-05",
+  "runtime_commit": "bba8e40794082aaa1e43ddc4addd7318f625c73e",
+  "binary_sha256": "0b1ebc6002ef436e391819a6b4d45cd46f2593910e753040586a8b74b486385c",
+  "platform": "darwin/arm64",
+  "local_gates": {
+    "go_race_all": true,
+    "go_vet_all": true,
+    "bazel_tests_passed": 36,
+    "coder_opt_in_cli": true,
+    "new_code_opt_in_cli": true,
+    "new_code_original_node_tests_passed": 62
+  },
+  "model": "deepseek-flash",
+  "thinking_disabled": true,
+  "automatic_retries": 0,
+  "question_policy": "first-option fixture client, not human approval",
+  "shell_policy": "allow-unsandboxed",
+  "cost_usd": null,
+  "plugins": {
+    "new_code": {
+      "success": true,
+      "stop_reason": "end_turn",
+      "http_attempts": 43,
+      "duration_ms": 117593.8,
+      "tool_summary": {
+        "Bash": 29,
+        "Read": 4,
+        "Write": 8,
+        "Agent": 1,
+        "Skill": 1,
+        "AskUserQuestion": 1
+      },
+      "usage": {
+        "input_tokens": 50861,
+        "output_tokens": 13372,
+        "total_tokens": 982633,
+        "cache_read_tokens": 918400,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 0,
+        "reported_completions": 43,
+        "unreported_completions": 0,
+        "unreported_attempts": 0
+      },
+      "agent_exit_code": 0,
+      "cleanup_failures": [],
+      "version": "0.5.0",
+      "scope": "Original new-code entry develops clamp in two isolated Node repositories, records actual tests, invokes an independent reviewer and publishes only to local bare remotes. Retains published_testing and worktrees; done is covered separately by the loopback CLI lifecycle test.",
+      "independent_verification": [
+        {
+          "repository": "alpha",
+          "head": "3648a095aebbc19da29101e60f3cb34f43a0b5f0",
+          "tests_passed": true,
+          "independent_clamp_contract_passed": true,
+          "main_unchanged_and_clean": true,
+          "worktree_clean": true,
+          "remote_local_only": true,
+          "remote_head_matches": true
+        },
+        {
+          "repository": "beta",
+          "head": "05617aa305b7df0bde3966cc9fe18ebe96ed782c",
+          "tests_passed": true,
+          "independent_clamp_contract_passed": true,
+          "main_unchanged_and_clean": true,
+          "worktree_clean": true,
+          "remote_local_only": true,
+          "remote_head_matches": true
+        }
+      ],
+      "independent_node_tests_passed": {
+        "alpha": 6,
+        "beta": 6
+      },
+      "plugin_file_sha256": {
+        ".claude-plugin/plugin.json": "2ac18daae0a54530867bdf1765a58ab0aff88022126d83990a0e66132075f2d0",
+        "skills/new-code/SKILL.md": "cc4308979cc936eb138f754bae63bb3d826f721ed31ac24a6a895a76774fb86c",
+        "skills/publish/SKILL.md": "9d8c6d84ace7148b10a2f707a3acd4e6a108d8f378dc11cd3977a1f5ecc56cc4",
+        "scripts/state-store.mjs": "ae7a688b3a9c7f0415e6359c3bac79be4717a7aae5952e87e9c41f57777f4b90",
+        "scripts/worktree-manager.mjs": "febd8fc0c208af5e903fbd71d0493459d8d956b451096cd32c5f8d2007dfc9e5",
+        "scripts/branch-manager.mjs": "6d004b916d8ac6a5a67866d6ea5a803f90182c4dc691686e6722fa6850f71531",
+        "scripts/test-runner.mjs": "aff9ae626a09c3fb7d7dbdbf19a922415315820333c6ca237970b81287068c01"
+      }
+    },
+    "sad": {
+      "success": true,
+      "stop_reason": "end_turn",
+      "http_attempts": 21,
+      "duration_ms": 83784.0,
+      "tool_summary": {
+        "Bash": 8,
+        "Glob": 1,
+        "Skill": 3,
+        "Read": 10,
+        "Agent": 1,
+        "Write": 1
+      },
+      "usage": {
+        "input_tokens": 39076,
+        "output_tokens": 12470,
+        "total_tokens": 432090,
+        "cache_read_tokens": 380544,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 0,
+        "reported_completions": 21,
+        "unreported_completions": 0,
+        "unreported_attempts": 0
+      },
+      "agent_exit_code": 0,
+      "cleanup_failures": [],
+      "version": "1.4.0",
+      "scope": "Selected standards skill, original structural validator on positive and negative fixtures, one original reviewer agent for source traceability, and a written acceptance report. Not the complete SAD generation pipeline.",
+      "independent_verification": {
+        "positive_validator_exit": 0,
+        "positive_errors": 0,
+        "negative_validator_exit": 1,
+        "negative_errors": 19,
+        "unchanged_fixture_files": 14,
+        "traceability_review": "reported gaps in a structurally valid sample; not content compliance certification",
+        "drawio_export": "unverified: executable unavailable"
+      },
+      "plugin_file_sha256": {
+        ".claude-plugin/plugin.json": "38fe9c86dba38a00caf1f017a6bb3f269bd979d2db5ad32c4db9c83f7475e0d8",
+        "skills/standards/SKILL.md": "4a9006bfacab6d3f637402b70e3cf94643ba36467d389c3ae12b56684a8f486c",
+        "agents/sad-reviewer.md": "9b4938723e30981f5b1d4049a8d13330aa9c6059fcaaa3a37c34f81b0bbe9ac1",
+        "scripts/validate-sad.sh": "a81d1c1ea10a065611444a6d1443fd1c5c9b1f4c7b2eddcbbca1ae6423d90a15"
+      }
+    },
+    "coder": {
+      "version": "0.58.0",
+      "scope": "Current integrated CLI loopback regression covers two real Git repositories, child edits, commits, registry resume and cleanup. Existing real-model original workflow evidence is retained, not rerun.",
+      "real_model_evidence": "coder-entry-acceptance.json",
+      "plugin_file_sha256": {
+        "scripts/multi-repo-worktree.mjs": "1c4c4b64646e26792af4d4260efb9326d60f7577b54705204c78ba78728851eb"
+      }
+    }
+  }
+}

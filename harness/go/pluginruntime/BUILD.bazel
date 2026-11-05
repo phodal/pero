@@ -14,6 +14,7 @@ go_library(
         "hooks_env.go",
         "hooks_expansion.go",
         "hooks_files.go",
+        "hooks_instructions.go",
         "hooks_lifecycle.go",
         "hooks_mcp.go",
         "hooks_model.go",
@@ -28,12 +29,14 @@ go_library(
         "hooks_terminal.go",
         "hooks_worktree.go",
         "mcp.go",
+        "mcp_headers.go",
         "preprocess.go",
         "transcript.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/pluginruntime",
     visibility = ["//visibility:public"],
     deps = [
+        "//agentinstructions",
         "//claudehooks",
         "//fstools",
         "//harness",
@@ -66,6 +69,7 @@ go_test(
         "hooks_files_test.go",
         "hooks_http_test.go",
         "hooks_initial_test.go",
+        "hooks_instructions_test.go",
         "hooks_mcp_test.go",
         "hooks_model_test.go",
         "hooks_notify_test.go",
@@ -84,6 +88,7 @@ go_test(
         "hooks_title_test.go",
         "hooks_watch_test.go",
         "hooks_worktree_test.go",
+        "mcp_headers_test.go",
         "mcp_sse_test.go",
         "mcp_test.go",
         "preprocess_test.go",
@@ -97,6 +102,7 @@ go_test(
         "@com_github_modelcontextprotocol_go_sdk//mcp",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//agentinstructions",
             "//claudehooks",
             "//fstools",
             "//mcp",
@@ -107,6 +113,7 @@ go_test(
             "//tasks",
         ],
         "@rules_go//go/platform:darwin": [
+            "//agentinstructions",
             "//claudehooks",
             "//fstools",
             "//mcp",
@@ -117,6 +124,7 @@ go_test(
             "//tasks",
         ],
         "@rules_go//go/platform:ios": [
+            "//agentinstructions",
             "//claudehooks",
             "//fstools",
             "//mcp",
@@ -127,6 +135,7 @@ go_test(
             "//tasks",
         ],
         "@rules_go//go/platform:linux": [
+            "//agentinstructions",
             "//claudehooks",
             "//fstools",
             "//mcp",

@@ -37,21 +37,22 @@ type rpcWrite struct {
 	done  chan error
 }
 type connection struct {
-	command      *exec.Cmd
-	stdin        io.WriteCloser
-	mu           sync.Mutex
-	sequence     uint64
-	pending      map[string]chan rpcReply
-	closed       chan struct{}
-	exited       chan struct{}
-	writes       chan rpcWrite
-	err          error
-	once         sync.Once
-	closeOnce    sync.Once
-	settings     JSONValue
-	workspaceURI string
-	workers      sync.WaitGroup
-	diagnostics  *documentDiagnostics
+	command       *exec.Cmd
+	stdin         io.WriteCloser
+	mu            sync.Mutex
+	sequence      uint64
+	pending       map[string]chan rpcReply
+	closed        chan struct{}
+	exited        chan struct{}
+	writes        chan rpcWrite
+	err           error
+	once          sync.Once
+	closeOnce     sync.Once
+	settings      JSONValue
+	workspaceURI  string
+	workers       sync.WaitGroup
+	diagnostics   *documentDiagnostics
+	registrations []capabilityRegistration
 }
 
 func startConnection(command *exec.Cmd, settings JSONValue, workspaceURI string) (*connection, error) {
@@ -298,6 +299,18 @@ func (c *connection) readLoop(reader *bufio.Reader) {
 func (c *connection) answer(request rpcMessage) error {
 	response := rpcMessage{JSONRPC: "2.0", ID: request.ID, Result: json.RawMessage("null")}
 	switch request.Method {
+	case "client/registerCapability", "client/unregisterCapability":
+		var err error
+		if request.Method == "client/registerCapability" {
+			err = c.registerCapabilities(request.Params)
+		} else {
+			err = c.unregisterCapabilities(request.Params)
+		}
+		if err != nil {
+			response.Error = &rpcError{Code: -32602, Message: err.Error()}
+		} else {
+			response.Result = json.RawMessage(`null`)
+		}
 	case "workspace/configuration":
 		var params struct {
 			Items []struct {

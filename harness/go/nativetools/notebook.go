@@ -85,8 +85,8 @@ func editNotebook(ctx context.Context, files *fstools.Workspace, input arguments
 	if err := json.Unmarshal([]byte(text.Text), &document); err != nil {
 		return nil, fmt.Errorf("invalid notebook JSON: %w", err)
 	}
-	if document.Nbformat == 0 {
-		return nil, errors.New("notebook nbformat is required")
+	if document.Nbformat != 4 {
+		return nil, errors.New("NotebookEdit supports only nbformat 4; convert the notebook before editing")
 	}
 
 	cellID := strings.TrimSpace(input.CellID)

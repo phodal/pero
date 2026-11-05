@@ -2,6 +2,7 @@ package environmentservice
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -61,6 +62,35 @@ func TestServiceGuidanceBeforeDiscovery(t *testing.T) {
 			}
 			if !observed {
 				t.Fatal("provider request was not observed")
+			}
+		})
+	}
+}
+
+func TestServiceStartRespectsWorkspacePermission(t *testing.T) {
+	for _, mode := range []harness.PermissionMode{harness.PermissionReadOnly, harness.PermissionWorkspaceWrite} {
+		t.Run(string(mode), func(t *testing.T) {
+			h, err := harness.Boot(t.Context(), harness.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) })
+			if err := Mount(t.Context(), h, Options{Directory: filepath.Join(t.TempDir(), "services")}, nil); err != nil {
+				t.Fatal(err)
+			}
+			agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "service-permission", CWD: t.TempDir()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.SetPermissionMode(agent.Session(), mode); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := agent.Session().Append("turn/start", struct{ Turn int }{1}); err != nil {
+				t.Fatal(err)
+			}
+			outcome, err := h.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, CallID: "start", Name: "ServiceStart", Arguments: json.RawMessage(`{"command":"printf forbidden"}`), Preapproved: true})
+			if err != nil || !outcome.Result.IsError || !strings.Contains(outcome.Result.Content[0].Text, "approval rejected") {
+				t.Fatalf("outcome=%+v err=%v", outcome, err)
 			}
 		})
 	}

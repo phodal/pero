@@ -96,3 +96,30 @@ func TestPluginInspectionDispatch(t *testing.T) {
 		t.Fatal("inspection ran plugin code")
 	}
 }
+
+func TestPluginFetchCommand(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "commands"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "commands", "hello.md"), []byte("Hello."), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "."}, {"-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "initial"}} {
+		command := exec.CommandContext(t.Context(), "git", append([]string{"-C", root}, args...)...)
+		if out, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git: %v %s", err, out)
+		}
+	}
+	var output bytes.Buffer
+	if err := runPlugins([]string{"fetch", root, t.TempDir()}, &output); err != nil {
+		t.Fatal(err)
+	}
+	var receipt struct{ Directory, Revision string }
+	if err := json.Unmarshal(output.Bytes(), &receipt); err != nil || !filepath.IsAbs(receipt.Directory) || len(receipt.Revision) < 40 {
+		t.Fatalf("receipt=%+v err=%v", receipt, err)
+	}
+	if _, err := os.Stat(filepath.Join(receipt.Directory, "commands", "hello.md")); err != nil {
+		t.Fatal(err)
+	}
+}

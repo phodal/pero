@@ -27,8 +27,8 @@ func (app *App) selectionFor(file string) *Selection {
 }
 
 func (app *App) registerDiagnostics(run *point.Run, h *harness.Harness) error {
-	if _, err := h.Hooks().PreStep.Use(run, func(_ context.Context, input harness.StepInput, next point.Next[harness.StepInput]) (harness.StepInput, error) {
-		for _, text := range app.pendingDiagnostics(input.Agent) {
+	if _, err := h.Hooks().PreStep.Use(run, func(ctx context.Context, input harness.StepInput, next point.Next[harness.StepInput]) (harness.StepInput, error) {
+		for _, text := range append(app.refreshObserved(ctx, input.Agent), app.pendingDiagnostics(input.Agent)...) {
 			input.Messages = append(input.Messages, harness.Message{Role: harness.RoleUser, Source: json.RawMessage(`{"kind":"lsp-diagnostics"}`), Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}})
 		}
 		return next(input)

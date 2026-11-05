@@ -319,6 +319,12 @@ func (b ToolCatalogBase) DispatchCaptured(ctx context.Context, request ToolReque
 	return normalizeToolOutput(bodyCtx, request, result), nil
 }
 
+// ToolInterruptError ends the current tool batch and turn after recording a
+// rejected result. It is distinct from a recoverable tool execution failure.
+type ToolInterruptError struct{ Reason string }
+
+func (err *ToolInterruptError) Error() string { return "tool execution interrupted: " + err.Reason }
+
 type ToolRequest struct {
 	finalContent        *toolFinalContentReceipt
 	dshOutputProjection bool

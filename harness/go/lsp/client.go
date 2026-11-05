@@ -47,15 +47,16 @@ type diagnosticCursor struct {
 	version, generation int
 }
 type instance struct {
-	gate           chan struct{}
-	selected       Selection
-	cwd            string
-	conn           *connection
-	capabilities   capabilities
-	launches       int
-	version        int
-	save, saveText bool
-	closed         bool
+	gate                         chan struct{}
+	selected                     Selection
+	cwd                          string
+	conn                         *connection
+	capabilities                 capabilities
+	launches                     int
+	version                      int
+	save, saveText               bool
+	closed                       bool
+	observedFile, observedDigest string
 }
 type App struct {
 	mu            sync.Mutex
@@ -293,9 +294,6 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 	if err := session.ensure(ctx, app.environment); err != nil {
 		return Result{}, err
 	}
-	if !session.capabilities.supports(query.Operation) {
-		return Result{}, errors.New("lsp: initialized server does not support this operation")
-	}
 	language := ""
 	longest := 0
 	for _, mapping := range session.selected.Server.Config.ExtensionToLanguage {
@@ -304,9 +302,15 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 			longest = len(mapping.Extension)
 		}
 	}
+	if !session.capabilities.supports(query.Operation) && !session.conn.dynamicallySupports(query.Operation, file, language) {
+		return Result{}, errors.New("lsp: initialized server does not support this operation for the selected document")
+	}
 	uri := fileURI(filepath.Join(files.Path(), relative))
 	requestCtx, requestCancel := context.WithTimeout(ctx, session.selected.Server.Config.RequestTimeout)
 	defer requestCancel()
+	if session.selected.Server.Config.Diagnostics {
+		session.observedFile, session.observedDigest = file, source.Digest
+	}
 	session.version++
 	retainDocument := query.Operation == collectDiagnostics
 	if previous := session.conn.diagnosticURI(); previous != "" {
@@ -413,6 +417,7 @@ func (instance *instance) ensure(ctx context.Context, environment []string) erro
 		InitializationOptions JSONValue         `json:"initializationOptions"`
 		Capabilities          struct {
 			TextDocument struct {
+				dynamicDocumentCapabilities
 				Synchronization struct {
 					DidSave bool `json:"didSave"`
 				} `json:"synchronization"`
@@ -424,11 +429,15 @@ func (instance *instance) ensure(ctx context.Context, environment []string) erro
 				PositionEncodings []string `json:"positionEncodings"`
 			} `json:"general"`
 			Workspace struct {
-				Configuration    bool `json:"configuration"`
-				WorkspaceFolders bool `json:"workspaceFolders"`
+				Symbol           dynamicRegistrationSupport `json:"symbol"`
+				Configuration    bool                       `json:"configuration"`
+				WorkspaceFolders bool                       `json:"workspaceFolders"`
 			} `json:"workspace"`
 		} `json:"capabilities"`
 	}{ProcessID: os.Getpid(), RootURI: uri, Folders: []workspaceFolder{{URI: uri, Name: filepath.Base(instance.cwd)}}, InitializationOptions: config.InitializationOptions}
+	enabled := dynamicRegistrationSupport{Dynamic: true}
+	params.Capabilities.TextDocument.dynamicDocumentCapabilities = dynamicDocumentCapabilities{enabled, enabled, enabled, enabled, enabled, enabled}
+	params.Capabilities.Workspace.Symbol = enabled
 	params.Capabilities.General.PositionEncodings = []string{"utf-16"}
 	params.Capabilities.TextDocument.PublishDiagnostics.VersionSupport = true
 	params.Capabilities.TextDocument.Synchronization.DidSave = true

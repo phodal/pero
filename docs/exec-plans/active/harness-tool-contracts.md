@@ -45,7 +45,7 @@ pixels and PDFRead requires a successfully probed Poppler renderer.
 | Track | Implemented contract | Verification / remaining boundary |
 | --- | --- | --- |
 | Deferred tools | `--defer-tool-loading` starts with ToolSearch; complete results durably activate exact schemas for subsequent requests. Authorization, current registration and request declarations still gate dispatch. | Real HTTP wire, same-batch rejection, unload/reload, failed checkpoint, compaction, disk resume and child isolation. Another authoritative/PTC presenter or tool-history protocol is explicitly incompatible. |
-| Interactive terminal | Real Open/Read/Write/Resize/Stop on the existing shell owner. Approved startup intent is flushed before launch; live-only exact-agent handles, bounded output/lifetime, observed cancellation and exit. | macOS real process/race tests, including interruption then reopening. Linux/Windows cross-compiled; Linux runtime remains unverified. No Windows or configured-sandbox PTY tools. |
+| Interactive terminal | Real Open/Read/Write/Resize/Stop on the existing shell owner. Approved startup intent is flushed before launch; live-only exact-agent handles, bounded output/lifetime, observed cancellation and exit. | macOS real process/race tests, including interruption then reopening. Linux runtime now passes in PR #116 Harness CI (2026-11-05); Windows cross-compiled only. No Windows or configured-sandbox PTY tools. |
 | Root worktree | Approved root-only retained detached checkout, durable cwd/return point, file/shell/instruction rebinding. Exit/shutdown never delete files or Git registration. | Real Git, dirty-file preservation, JSONL restore, instruction refresh and checkout-filter cancellation. Starts at committed state; existing dirty edits are not copied. No automatic merge or cleanup. |
 | Document images | Probed pdftoppm/pdfinfo, descriptor-backed source via stdin, page numbers/SHA-256; saved notebook raster outputs/attachments include cell provenance. | Real Poppler two-page rendering and notebook fixtures; next provider request tested in image/text routes. PDF: 32 MiB source, 30 seconds, up to three pages/call. No OCR or notebook execution; renderer must be installed. |
 | Shared budgets | 64 KiB across Skill/Agent catalog descriptions and MCP initialization guidance; owner-backed paginated metadata recovery. Retained text/process spill defaults to 256 MiB/session. | Large catalogs/UTF-8/full-text recovery; concurrent store writers, abort and restart accounting. Quota synchronization is within one runtime process; simultaneous runtimes writing the same directory are not coordinated. |
@@ -80,6 +80,15 @@ No shell, real business data or downloaded implementation was sent to the model.
 This small fixed-order sample establishes successful behavior on those fixtures;
 it shows no reliable efficiency improvement. It does not establish the best
 prompt, evaluate deferred mode with a real model, or validate all plugins.
-Broader model/task evaluation remains product work, along with native Linux PTY
-execution and unsupported platform/sandbox capabilities. Monitor/cron/team
+Broader model/task evaluation and unsupported platform/sandbox capabilities remain
+product work. Native Linux PTY now passes the Harness Linux CI contracts. Monitor/cron/team
 remain demand-driven; no placeholder tools are added.
+
+
+## Follow-up verification, 2026-11-05
+
+Integrated compatibility fixes pass full Go race/vet and 36/36 standalone Bazel
+contracts. coder/new_code opt-in actual CLI regressions also pass. New bounded
+real-model trials cover new_code two-repository development/local publication
+and SAD standards/validator/reviewer execution; scopes and remaining boundaries
+are in [the compatibility follow-up](claude-compatibility-gaps.md).

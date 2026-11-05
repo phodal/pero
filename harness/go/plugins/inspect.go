@@ -19,6 +19,7 @@ type marketplaceEntry struct {
 	Name    string          `json:"name"`
 	Version string          `json:"version"`
 	Source  json.RawMessage `json:"source"`
+	Strict  *bool           `json:"strict"`
 }
 
 // Inspect reads a local plugin or local marketplace. Relative component paths
@@ -88,27 +89,8 @@ func inspectMarketplace(ctx context.Context, root *os.Root, content []byte, repo
 			report.Diagnostics = append(report.Diagnostics, Diagnostic{SeverityError, "INVALID_MARKETPLACE_ENTRY", path, field, "Expected an entry object with correctly typed fields."})
 			continue
 		}
-		// Entry metadata uses the same decoder as plugin.json. Entry-owned
-		// execution declarations need strict/manifest precedence, not omission.
-		manifestFields := make(map[string]json.RawMessage)
-		for key, value := range fields {
-			switch key {
-			case "source", "strict", "category", "tags", "relevance", "headers", "headersHelper":
-			default:
-				manifestFields[key] = value
-			}
-		}
-		metadata, _ := json.Marshal(manifestFields)
-		_, entryDiagnostics := parseManifest(path, entry.Name, metadata)
-		for _, d := range entryDiagnostics {
-			d.Field = field + "." + d.Field
-			report.Diagnostics = append(report.Diagnostics, d)
-		}
-		for _, key := range []string{"commands", "agents", "skills", "hooks", "outputStyles", "themes", "mcpServers", "lspServers", "userConfig", "channels", "headersHelper"} {
-			if _, present := fields[key]; present {
-				report.Diagnostics = append(report.Diagnostics, Diagnostic{SeverityError, "UNSUPPORTED_MARKETPLACE_COMPONENT", path, field + "." + key, "Entry-owned components are not yet inspected; declare components in plugin.json or inspect their files explicitly."})
-			}
-		}
+		selection, entryDiagnostics := parseMarketplaceSelection(path, field, entry, fields)
+		report.Diagnostics = append(report.Diagnostics, entryDiagnostics...)
 		if !pluginNamePattern.MatchString(entry.Name) || seen[entry.Name] {
 			report.Diagnostics = append(report.Diagnostics, Diagnostic{SeverityError, "INVALID_MARKETPLACE_ENTRY", path, field + ".name", "Entry names must be valid and unique within the marketplace."})
 			continue
@@ -124,7 +106,7 @@ func inspectMarketplace(ctx context.Context, root *os.Root, content []byte, repo
 			report.Diagnostics = append(report.Diagnostics, Diagnostic{SeverityError, "UNREADABLE_PLUGIN", path, field + ".source", "Plugin directory is missing, unreadable or outside the marketplace."})
 			continue
 		}
-		plugin, diagnostics := inspectPlugin(ctx, child, entry.Name, filepath.ToSlash(filepath.Clean(source)))
+		plugin, diagnostics := inspectPluginSelection(ctx, child, entry.Name, filepath.ToSlash(filepath.Clean(source)), &selection)
 		_ = child.Close()
 		plugin.MarketplaceVersion = entry.Version
 		plugin.InstallName = entry.Name
@@ -137,6 +119,10 @@ func inspectMarketplace(ctx context.Context, root *os.Root, content []byte, repo
 }
 
 func inspectPlugin(ctx context.Context, root *os.Root, fallback, prefix string) (Plugin, []Diagnostic) {
+	return inspectPluginSelection(ctx, root, fallback, prefix, nil)
+}
+
+func inspectPluginSelection(ctx context.Context, root *os.Root, fallback, prefix string, entry *marketplaceSelection) (Plugin, []Diagnostic) {
 	p := Plugin{Name: fallback, Path: prefix, Components: []Component{}, Hooks: HooksDefinition{InspectionOnly: true, Hooks: []HookSummary{}}, MCP: MCPDefinition{InspectionOnly: true, Servers: []MCPServerSummary{}}}
 	manifestPath := joined(prefix, ".claude-plugin/plugin.json")
 	content, err := readConfiguration(root, ".claude-plugin/plugin.json")
@@ -147,6 +133,11 @@ func inspectPlugin(ctx context.Context, root *os.Root, fallback, prefix string) 
 	p.ManifestPresent = err == nil
 	definition, ds := parseManifest(manifestPath, fallback, content)
 	diagnostics = append(diagnostics, ds...)
+	if entry != nil {
+		definition, ds = entry.compose(definition, p.ManifestPresent)
+		diagnostics = append(diagnostics, ds...)
+	}
+	p.manifest, p.manifestSource = definition, string(content)
 	p.Name, p.Version = definition.Name, definition.Version
 	seenFiles := make(map[string]bool)
 	for _, selection := range definition.Components {
@@ -160,6 +151,11 @@ func inspectPlugin(ctx context.Context, root *os.Root, fallback, prefix string) 
 		p.Hooks.Hooks = append(p.Hooks.Hooks, value.Hooks...)
 		diagnostics = append(diagnostics, ds...)
 	}, &diagnostics)
+	if definition.EntryHooks != nil {
+		value, ds := ParseHooks(manifestPath, definition.EntryHooks)
+		diagnostics = append(diagnostics, ds...)
+		p.Hooks.Hooks = replaceHookEvents(p.Hooks.Hooks, value.Hooks, definition.EntryEvents, func(h HookSummary) string { return h.Event })
+	}
 	loadIntegration(root, prefix, ".mcp.json", definition.MCP, func(path string, raw []byte) {
 		value, ds := ParseMCP(path, raw)
 		p.MCP = p.MCP.Merge(value)
@@ -202,6 +198,10 @@ func discoverComponents(ctx context.Context, root *os.Root, plugin *Plugin, diag
 		return
 	}
 	path = filepath.ToSlash(filepath.Clean(path))
+	if strings.Count(path, "/") > 64 || len(plugin.Components) >= maxComponents {
+		*diagnostics = append(*diagnostics, Diagnostic{SeverityError, "COMPONENT_LIMIT", joined(prefix, path), "", "Component traversal exceeds the depth or component limit."})
+		return
+	}
 	if !localPath(path) {
 		*diagnostics = append(*diagnostics, Diagnostic{SeverityError, "INVALID_COMPONENT_PATH", joined(prefix, path), string(selection.Kind), "Component paths must remain inside the plugin."})
 		return
@@ -263,7 +263,7 @@ func discoverComponents(ctx context.Context, root *os.Root, plugin *Plugin, diag
 			}
 		} else {
 			if child.IsDir() {
-				*diagnostics = append(*diagnostics, Diagnostic{SeverityError, "UNSUPPORTED_COMPONENT_DIRECTORY", joined(prefix, candidate), string(selection.Kind), "Nested command and agent directories are not inspected; select Markdown files explicitly."})
+				discoverComponents(ctx, root, plugin, diagnostics, seen, selection, candidate, prefix)
 				continue
 			}
 			if !strings.HasSuffix(child.Name(), ".md") {

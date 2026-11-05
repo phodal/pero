@@ -71,9 +71,11 @@ impl Manager {
                 if matches!(name.as_str(), "pero-app-use" | "pero-connectors") || !names.insert(name.clone()) {
                     return Err(format!("Plugin MCP server name conflicts with session configuration: {name}"));
                 }
+                agent.required_mcp_servers.insert(name.clone());
             }
             agent.mcp_servers.extend(plugins.dependencies.mcp_servers.clone());
             agent.session_instructions = plugins.instructions.clone();
+            if plugins.assembly.is_some() { agent.required_mcp_servers.insert("pero-app-use".into()); }
         }
         if let Some(endpoint) = &self.connectors {
             endpoint.bind(&mut agent, &thread_id)?;

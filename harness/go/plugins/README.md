@@ -30,7 +30,7 @@ Supported inspection behavior:
 - YAML frontmatter, plugin-qualified component names, separate user/model
   invocation visibility, tool expressions and required agent metadata.
 - Local marketplace sources, distinct installation and manifest identities,
-  version drift and unsupported entry-owned component diagnostics.
+  version drift and entry/manifest composition with explicit strict conflicts.
 - Default and explicit integration files, inline declarations and mixed arrays.
   Default MCP servers load first; later same-name declarations replace them.
 - Hook wrapper/argv checks, unsupported execution fields, MCP transport,
@@ -48,8 +48,12 @@ artifacts rather than automatically public documents.
 
 Marketplace inspection visits its declared local entries. A local plugin that
 is not registered in that marketplace can be inspected by passing its own
-directory. Remote acquisition, entry-owned component merging, nested command
-directories remain separate implementation steps.
+directory. Entry components append to a present manifest with default `strict: true`;
+`strict: false` plus entry components is a conflict. Inline entry hooks replace
+existing matchers for their events (including an empty array). Without a
+manifest, the entry also supplies MCP/LSP declarations. Nested command and agent
+directories are traversed with depth and component bounds. Remote acquisition
+remains a separate explicit operation.
 
 The ACP runtime accepts explicit plugin selections:
 
@@ -97,10 +101,22 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   the main session identity and the actual child identity. Stop defaults to
   eight consecutive continuations and resets after ordinary tool work.
   Structured answer submissions also pass the stop gate and can be revised.
+  InstructionsLoaded observes admitted workspace CLAUDE.md baselines asynchronously;
+  unchanged baselines remain deduplicated across resume. Decisions from this event
+  cannot block a request or inject model context. This follows the existing
+  opt-in hierarchical loader; it does not load user/ancestor files, imports or
+  `.claude/rules`. ConfigChange and team lifecycle events remain unsupported.
   A PermissionRequest `updatedPermissions` entry with destination `session` applies allow, deny, and ask rules, adds or removes working directories, and can set the session mode to `default`, `plan`, `acceptEdits`, or `dontAsk`. `auto` and `bypassPermissions` do not change the mode. Other destinations are ignored and are not written to settings files. Directory updates do not fire `DirectoryAdded`. Tool, prompt, and stop hooks receive that mode as `permission_mode`.
 - MCP stdio, streamable HTTP and legacy SSE connections belong to root-agent lifetimes.
   Each package gets a server namespace; children inherit the parent connection.
   `list_mcp_prompts` and `get_mcp_prompt` read prompts from those servers.
+  Remote declarations can use `headersHelper`: a trusted shell command returning
+  a JSON string map via /bin/bash, resolved on each connection with a 10-second/64-KiB bound.
+  Dynamic headers override static headers case-insensitively. The helper receives
+  plugin/project environment and CLAUDE_CODE_MCP_SERVER_NAME/URL. Inspection never
+  runs it, and helper output/stderr is excluded from error messages. Failed tool
+  calls and authentication rejection are not automatically replayed. Native OAuth
+  login/token storage/refresh is not implemented.
   The session workspace is advertised as a file root.
   A server's initialize instructions join the system prompt, and text over 32,768 bytes rejects that connection.
 - Agent, SendMessage, TaskOutput and TaskStop run, continue and cancel actual harness children.
@@ -135,8 +151,9 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   Selection grants execution of trusted local stdio servers; it does not
   install missing executables. Nine capability-checked queries, cancellation,
   restart limits and shutdown are implemented. Native saved-file diagnostic
-  checks default to enabled; continuous asynchronous monitoring and dynamic
-  registration remain pending. See the [LSP contract](../lsp/README.md).
+  checks default to enabled. Dynamic query registration and late diagnostics are
+  supported; the last observed file per server/agent/CWD is checked for external
+  edits before each model step. Arbitrary workspace watching remains unsupported. See the [LSP contract](../lsp/README.md).
 - Explicit `--web-provider deepseek-api` enables WebSearch/WebFetch, using the
   existing approval channel and a tool-free child for page extraction. See
   [Web provider configuration](../webtools/README.md).
@@ -199,3 +216,20 @@ regressions. These results do not establish every plugin's business workflow or
 every external service connection. Final frozen-source Go race/vet passed and
 Bazel passed 34/34 targets. The existing real-provider evidence remains the PRD
 flow and one Search/Fetch request each; the full research chain was loopback.
+
+## Explicit Git acquisition
+
+`pero-agent-acp plugins fetch GIT_SOURCE CACHE_DIRECTORY [REF]` fetches a Git
+plugin or marketplace into a new snapshot and prints its absolute directory and
+exact revision. Pass that directory to `--plugin-dir`. Running fetch again updates
+by creating another snapshot: existing directories, edits and running sessions
+are retained. The adjacent `receipt.json` records marketplace and dependency
+revisions. Configuration inspection does not fetch anything implicitly.
+
+Sources are absolute local Git paths or HTTPS/SSH URLs. Marketplace `github`,
+`url` and `git-subdir` entries are acquired separately, honoring `ref`/full `sha`,
+and rewritten to contained snapshot paths. Git authentication uses the operator's
+existing Git configuration; credentials in HTTPS URLs are rejected. Hook/MCP
+commands and package installers never run during acquisition. The CLI bounds
+acquisition to five minutes; Unix cancellation terminates the Git process group.
+Archive/npm/command sources and submodule installation remain unsupported.

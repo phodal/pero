@@ -43,6 +43,41 @@ func AllowsTool(rules []string, name string, arguments json.RawMessage) bool {
 	return false
 }
 
+// MatchesToolRestriction matches deny/ask rules. A matching command segment is
+// sufficient; preapproval's read-only exemptions never match a restriction.
+// Unparseable Bash syntax stays restricted until a caller can interpret it.
+func MatchesToolRestriction(rules []string, name string, arguments json.RawMessage) bool {
+	if name != "Bash" {
+		return AllowsTool(rules, name, arguments)
+	}
+	patterns, unrestricted := bashAllowPatterns(rules)
+	if unrestricted || len(patterns) == 0 {
+		return unrestricted
+	}
+	var input struct {
+		Command string `json:"command"`
+	}
+	if json.Unmarshal(arguments, &input) != nil {
+		return true
+	}
+	commands, ok := shell.ClaudeAllowCommands(input.Command)
+	if !ok {
+		return true
+	}
+	for _, command := range commands {
+		stripped, ok := shell.ClaudeStripAllowWrappers(command)
+		if !ok {
+			return true
+		}
+		for _, pattern := range patterns {
+			if bashPatternMatches(pattern, stripped) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func allowsBash(rules []string, arguments json.RawMessage) bool {
 	var input struct {
 		Command string `json:"command"`

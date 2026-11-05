@@ -108,7 +108,7 @@ func TestLoadPackageRejectsUnsupportedExecution(t *testing.T) {
 		{"unknown hook handler", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"function","prompt":"private-canary-value"}]}]}}`, "UNSUPPORTED_HOOK_"},
 		{"invalid hook failure policy", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true","onFailure":"sometimes"}]}]}}`, "INVALID_HOOK_FIELD"},
 		{"unsupported hook shell", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true","shell":"zsh"}]}]}}`, "INVALID_HOOK_FIELD"},
-		{"MCP auth provider", ".mcp.json", `{"remote":{"url":"https://example.invalid/mcp","headersHelper":"private-canary-value"}}`, "UNSUPPORTED_MCP_FIELD"},
+		{"MCP auth provider", ".mcp.json", `{"remote":{"url":"https://example.invalid/mcp","oauth":{"clientId":"private-canary-value"}}}`, "UNSUPPORTED_MCP_FIELD"},
 		{"unknown MCP field", ".mcp.json", `{"local":{"command":"node","futureField":"private-canary-value"}}`, "UNKNOWN_MCP_FIELD"},
 		{"fractional MCP timeout", ".mcp.json", `{"local":{"command":"node","timeout":1200.5}}`, "integer millisecond"},
 		{"oversize hook duration", "hooks/hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true","timeout":1e30}]}]}}`, "duration range"},

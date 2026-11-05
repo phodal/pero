@@ -22,6 +22,7 @@ type instructionTouch struct {
 
 type source struct {
 	Kind             string   `json:"kind"`
+	Workspace        string   `json:"workspace,omitempty"`
 	Form             string   `json:"form,omitempty"`
 	Baseline         bool     `json:"baseline,omitempty"`
 	BaselineIdentity string   `json:"baselineIdentity,omitempty"`
@@ -159,7 +160,7 @@ func (a *App) preparePaths(ctx context.Context, input harness.StepInput, paths .
 	for _, file := range included {
 		changes = append(changes, change{Action: "set", Scope: file.scope, Path: file.display, Digest: digest(file.content)})
 	}
-	raw, err := json.Marshal(source{Kind: sourceKind, Form: "instructions", Baseline: true, BaselineIdentity: identity, BaselineDigest: currentDigest, Changes: changes})
+	raw, err := json.Marshal(source{Kind: sourceKind, Workspace: reader.files.Path(), Form: "instructions", Baseline: true, BaselineIdentity: identity, BaselineDigest: currentDigest, Changes: changes})
 	if err != nil {
 		return input, err
 	}
