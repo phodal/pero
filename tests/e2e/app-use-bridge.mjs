@@ -33,6 +33,13 @@ try {
       hold: { run: () => { document.body.dataset.holding = 'true'; return new Promise(() => {}); } },
     } });
     const entry = surface.register(object());
+    window.contexts = [];
+    window.addEventListener('message', event => {
+      if (event.source !== parent || event.data?.type !== 'pero:app:context') return;
+      window.contexts.push(event.data.context);
+      document.documentElement.lang = event.data.context.locale;
+      document.documentElement.style.colorScheme = event.data.context.dark ? 'dark' : 'light';
+    });
     document.querySelector('button').onclick = () => { count++; update(); };
     window.addEventListener('message', event => {
       if (!window.geometryOverride || event.data?.request?.action !== 'geometry') return;
@@ -69,8 +76,9 @@ try {
         window.peroAppUseRevoke = async thread => window.revoked.push(thread);
         window.surface = mountAppSurfaces(async () => {});
         surface.event({ kind:'apps_opened', data:{ name:'probe', panel:'main', url:'${childOrigin}/' } });
+        window.presentation = { dark:true, locale:'zh-CN' };
         window.setVisible = visible => surface.surface({ visible, name:'probe', panel:'main', left:50, top:50,
-          width:700, height:500, dark:false, locale:'en' });
+          width:700, height:500, ...presentation });
         setVisible(true);
       </script>
     `);
@@ -85,6 +93,13 @@ try {
   await page.goto(`http://127.0.0.1:${parent.address().port}`);
   const frame = page.frameLocator('iframe[title="probe"]');
   await frame.getByRole('button', { name: 'Increment' }).waitFor();
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'zh-CN');
+  await expect(frame.locator('html')).toHaveCSS('color-scheme', 'dark');
+  await page.evaluate(() => { setVisible(true); setVisible(true); });
+  assert.equal(await frame.locator('body').evaluate(() => window.contexts.length), 1);
+  await page.evaluate(() => { presentation = { dark:false, locale:'en' }; setVisible(true); });
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'en');
+  checks.push('initial locale/theme arrive after ready; geometry updates deduplicate context and live changes still arrive');
   const call = request => page.evaluate(request => window.peroAppUse({ scope: { app: 'probe', panel: 'main' }, request }), request);
 
   const inventory = await call({ action: 'inventory' });
@@ -192,6 +207,8 @@ try {
 
   const current = (await call({ action: 'inventory' })).value.surfaces[0];
   await frame.getByRole('button', { name: 'Increment' }).waitFor();
+  await expect(frame.locator('html')).toHaveAttribute('lang', 'en');
+  checks.push('reloaded App receives unchanged host context again');
   observed = await call({ action: 'observe', instance: current.instance });
   const pendingRemoval = call({ action: 'invoke', instance: current.instance, target: 'probe', name: 'hold', revision: observed.value.objects[0].revision });
   await expect.poll(() => frame.locator('body').getAttribute('data-holding')).toBe('true');

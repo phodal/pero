@@ -42,7 +42,7 @@ impl Workbench {
             .child(self.settings_menu(self.sidebar_collapsed, cx))
             .child(self.view_bounds.settings.probe("settings".into()))
             .into_any_element();
-        let apps = self.apps.entries.iter().filter(|app| app.enabled || app.placement() != crate::apps::AppPlacement::Catalog).filter_map(|app| {
+        let apps = self.apps.entries.iter().filter(|app| app.enabled || !app.placement().in_catalog()).filter_map(|app| {
             let panel = app.panels.first()?;
             Some(sidebar::AppShortcut {
                 badge: self.apps.badges.get(&app.name).map(ToString::to_string),

@@ -15,10 +15,10 @@ if (!python) throw new Error('Set PERO_ENVIRONMENTS_TEST_VENV to an existing pre
 await mkdir(out, { recursive: true });
 await rm(resolve(out, 'failure.png'), { force: true });
 await writeFile(resolve(profile, 'settings.json'), JSON.stringify({ workbench: { appearance: 'light' }, app_python: { default: python } }));
-const env = { ...process.env, PERO_BUILTIN_APPS: 'environments,paper-agent,control-lab',
+const env = { ...process.env,
   PERO_DESKTOP_DATA_DIR: profile, PERO_LOCALE: 'en', PERO_SETTINGS_PATH: resolve(profile, 'settings.json'),
   PERO_HISTORY_PATH: resolve(profile, 'history.jsonl') };
-delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT;
+delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT; delete env.PERO_BUILTIN_APPS;
 let app, page;
 const errors = [], checks = [], reports = {};
 const targets = ['paper-agent.pcgym', 'control-lab.python-control', 'control-lab.ngspice'];
@@ -28,7 +28,7 @@ const post = (frame, body) => frame.locator('body').evaluate(async (_, body) => 
   return { status: response.status, text: await response.text() };
 }, body);
 async function open(name) {
-  if (name === 'paper-agent') await clickAppShortcut(page, name);
+  if (name === 'paper-agent' || name === 'environments') await clickAppShortcut(page, name);
   else { await clickAppShortcut(page, 'apps'); await clickAppOpen(page, name); }
   const frame = page.frameLocator(`iframe[title="${name}"]`);
   await expect(frame.locator('body')).toBeVisible({ timeout: 30000 });
@@ -47,7 +47,7 @@ try {
   await expect(frame.getByText('No matching environments.', { exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'Clear filters', exact: true }).click();
   await expect(frame.getByRole('button', { name: 'PC-Gym', exact: true })).toBeVisible();
-  checks.push('built-in registration, React mount, empty state and search recovery');
+  checks.push('default product registration, Workspace sidebar, React mount and search recovery');
   const responses = [];
   const responseListener = response => {
     if (new URL(response.url()).pathname === '/host/environment') responses.push(response);

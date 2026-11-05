@@ -22,9 +22,15 @@ pub(crate) struct InstalledApp {
     pub panels: Vec<AppPanel>,
 }
 
-/// Workbench-owned destinations stay outside the optional App catalog.
+/// App shortcut placement and optional catalog management.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AppPlacement { Primary, Workspace, Customize, Automation, Catalog }
+pub(crate) enum AppPlacement { Primary, Workspace, WorkspaceCatalog, Customize, Automation, Catalog }
+
+impl AppPlacement {
+    pub fn in_catalog(self) -> bool {
+        matches!(self, Self::Catalog | Self::WorkspaceCatalog)
+    }
+}
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum AppCategory { #[default] All, Research, Data, Tools }
@@ -36,7 +42,14 @@ impl AppCategory {
 }
 impl InstalledApp {
     pub fn placement(&self) -> AppPlacement {
-        match self.name.as_str() { "insights" => AppPlacement::Primary, "paper-agent" | "data" => AppPlacement::Workspace, "connectors" => AppPlacement::Customize, "automations" => AppPlacement::Automation, _ => AppPlacement::Catalog }
+        match self.name.as_str() {
+            "insights" => AppPlacement::Primary,
+            "paper-agent" | "data" => AppPlacement::Workspace,
+            "environments" => AppPlacement::WorkspaceCatalog,
+            "connectors" => AppPlacement::Customize,
+            "automations" => AppPlacement::Automation,
+            _ => AppPlacement::Catalog,
+        }
     }
     pub fn category(&self) -> AppCategory {
         match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
@@ -157,6 +170,8 @@ mod surface {
                 self.t("nav.automations").to_string()
             } else if name == "paper-agent" {
                 self.t("nav.papers").to_string()
+            } else if name == "environments" {
+                self.t("nav.environments").to_string()
             } else if name == "connectors" {
                 self.t("nav.customize").to_string()
             } else {
@@ -387,15 +402,15 @@ mod surface {
                     .child(div().id("apps-categories").w(px(rail_width)).flex_shrink_0().flex().flex_col().gap(px(4.))
                         .child(div().px(px(8.)).py(px(8.)).text_color(p.text_muted).child(self.t("apps.categories")))
                         .children(AppCategory::ALL.into_iter().enumerate().map(|(index, category)| {
-                            let count = self.apps.entries.iter().filter(|app| app.placement() == AppPlacement::Catalog && (category == AppCategory::All || app.category() == category)).count();
+                            let count = self.apps.entries.iter().filter(|app| app.placement().in_catalog() && (category == AppCategory::All || app.category() == category)).count();
                             Button::new(("app-category", index)).ghost().w_full().selected(self.apps.category == category)
                                 .accessibility_label(format!("{} ({})", self.t(category.label_key()), count))
                                 .child(div().w_full().flex().justify_between().child(self.t(category.label_key())).child(count.to_string()))
                                 .on_click(cx.listener(move |this, _, _, cx| { this.apps.category = category; cx.notify(); }))
                         })))
                     .child(div().id("apps-launchpad").flex_1().min_w_0().flex().flex_wrap().items_start().gap(px(14.))
-                    .when(!busy && !self.apps.entries.iter().any(|app| app.placement() == AppPlacement::Catalog && (self.apps.category == AppCategory::All || app.category() == self.apps.category)), |el| el.child(div().p(px(12.)).text_color(p.text_muted).child(self.t("apps.category_empty"))))
-                    .children(self.apps.entries.iter().enumerate().filter(|(_, app)| app.placement() == AppPlacement::Catalog && (self.apps.category == AppCategory::All || app.category() == self.apps.category)).map(|(index, app)| {
+                    .when(!busy && !self.apps.entries.iter().any(|app| app.placement().in_catalog() && (self.apps.category == AppCategory::All || app.category() == self.apps.category)), |el| el.child(div().p(px(12.)).text_color(p.text_muted).child(self.t("apps.category_empty"))))
+                    .children(self.apps.entries.iter().enumerate().filter(|(_, app)| app.placement().in_catalog() && (self.apps.category == AppCategory::All || app.category() == self.apps.category)).map(|(index, app)| {
                         let title = self.installed_app_title(&app.name, &app.display_name);
                         let name = app.name.clone();
                         let required = app.tenure == "required";

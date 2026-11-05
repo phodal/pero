@@ -6,6 +6,35 @@ date: 2026-10-31
 
 # CI delays integration failures behind serial acceptance
 
+## 2026-11-05 contract and startup repairs
+
+Master run [41942237130](https://github.com/phodal/pero/actions/runs/41942237130)
+failed three independent checks: the PDF restoration selection fake lacked the
+production begin/end selection subscriptions; the research-import fixture staged
+only `dataset.py` although Data now imports the shared view/chart modules; and
+Viewer browser acceptance still treated SDK Select buttons as native selects.
+The fixtures now match those public interfaces and installed payloads. Existing
+zoom/citation, transfer/consent and browser assertions remain in place.
+
+Release runs including
+[41849393828](https://github.com/phodal/pero/actions/runs/41849393828) reached
+the product restart check with an English App inside a Chinese shell. App
+surfaces cached context sent before the iframe installed its message listener,
+then suppressed the identical context at the ready handshake. Context delivery
+now waits for ready and resets its cache at each handshake, including iframe
+reload. Geometry-only updates still deduplicate context. The cross-origin bridge
+regression exercises initial Chinese/dark context, live changes, deduplication
+and reload, and runs in the existing Chromium CI job.
+
+Local verification: the Generated/runner command passed 104 tests (five Linux-only
+cases skipped on macOS), all six App build contracts passed, and a freshly built
+Host passed the complete Paper-to-Data research-import contract. Chromium/RDKit
+Viewer acceptance passed all five groups and produced light/dark/narrow screenshots
+under `test-results/scientific-viewer-browser/`. The bridge regression failed
+before the startup repair and passed afterward. A newly packaged macOS product
+restart has not been rerun locally. The separate ARM64 runner-capacity failure
+requires another available GitHub runner and has no source repair here.
+
 A passing CI run took about 30 minutes although repository caches hit. Linux
 combined compilation with 22 minutes of serial Desktop scenarios. An unbounded
 scenario could hide subsequent failures until the job timeout. Meanwhile master
