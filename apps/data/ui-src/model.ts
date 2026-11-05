@@ -9,7 +9,10 @@ export type Dataset = {
   id: string; name: string; kind: 'dataset' | 'model'; versions: string[]; projectRef: string; archived: boolean;
 };
 export type ViewFilter = { field: string; operator: string; value: string };
+export type ViewIssue = { kind: 'missing' | 'null' | 'empty' | 'duplicate' | 'conversion'; field?: string };
 export type ViewSpec = {
+  interpretations?: Record<string, 'number'>;
+  issue?: ViewIssue | null;
   columns: string[];
   filter: ViewFilter | null;
   sort: { field: string; descending: boolean } | null;
@@ -17,7 +20,7 @@ export type ViewSpec = {
   chart: { category: string; measure: string; aggregation: string } | null;
   units: Record<string, string>;
 };
-export const emptyView = (): ViewSpec => ({ columns: [], filter: null, sort: null, selection: [], chart: null, units: {} });
+export const emptyView = (): ViewSpec => ({ columns: [], filter: null, sort: null, selection: [], chart: null, units: {}, interpretations: {}, issue: null });
 export const fieldRule = { type: 'string', maxLength: 300 };
 export const querySchema = { type: 'object', properties: {
   filterField: fieldRule, operator: { type: 'string', enum: ['contains', 'eq', 'gte', 'lte', 'missing', 'null'] }, value: { type: 'string', maxLength: 4096 },
@@ -25,9 +28,9 @@ export const querySchema = { type: 'object', properties: {
   columns: { type: 'array', maxItems: 32, items: fieldRule },
   selection: { type: 'array', maxItems: 1000, items: { type: 'integer', minimum: 0 } },
 }, additionalProperties: false };
-export type FieldProfile = { name: string; kinds: string[]; missing: number; nulls: number; empty: number };
+export type FieldProfile = { name: string; kinds: string[]; missing: number; nulls: number; empty: number; interpretation?: 'number' | null; conversionFailures?: number; conversionExamples?: { row: number; sourceLine: number | null; text: string }[] };
 export type Report = {
-  parserVersion: string; scope: 'full'; rowCount: number; fields: FieldProfile[];
+  conversionFailures?: number; parserVersion: string; scope: 'full'; rowCount: number; fields: FieldProfile[];
   missing: number; nulls: number; empty: number; duplicateRows: number; blankLines: number;
   duplicates: { row: number; duplicateOf: number; sourceLine: number | null }[];
 };
@@ -45,7 +48,7 @@ export type CatalogState = {
   selectedDatasetId?: string; selectedAssetId?: string; savedViewId?: string;
 };
 export type Selection = { datasetId: string; assetId: string };
-export type InspectionRow = { row: number; pointer: string; line: number | null; cells: { kind: string; text: string }[] };
+export type InspectionRow = { row: number; pointer: string; line: number | null; cells: { kind: string; text: string; exact?: string; conversionError?: string }[] };
 export type OkInspection = {
   status: 'ok'; datasetId: string; assetId: string; sha256: string; report: Report;
   columns: string[]; matched: number; selected?: number; offset: number; nextOffset: number | null; viewId?: string;
@@ -53,7 +56,7 @@ export type OkInspection = {
 };
 export type Inspection = OkInspection | { status: 'invalid' | 'changed' | 'missing' | 'unsupported'; datasetId: string; assetId: string; message: string };
 export type ChartDataset = {
-  datasetId: string; assetId: string; sha256: string; name: string; view: ViewSpec; viewId: string;
+  datasetId: string; assetId: string; sha256: string; name: string; view: ViewSpec; viewId: string; parserVersion: string;
   fields: { name: string; kinds: string[] }[];
 };
 
@@ -86,4 +89,19 @@ export function encodeBytes(buffer: ArrayBuffer): string {
   for (let offset = 0; offset < bytes.length; offset += 0x8000)
     encoded += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
   return btoa(encoded);
+}
+
+/** Applying a type preserves analysis, except issue predicates whose type no longer exists. */
+export function applyInterpretation(view: ViewSpec, field: string, numeric: boolean): ViewSpec {
+  const interpretations = { ...view.interpretations };
+  if (numeric) interpretations[field] = 'number';
+  else delete interpretations[field];
+  const issue = !numeric && view.issue?.kind === 'conversion' &&
+    (view.issue.field === field || !Object.keys(interpretations).length) ? null : view.issue;
+  return { ...view, interpretations, issue };
+}
+
+/** A type preview reads the full input without changing the active analysis. */
+export function interpretationPreview(view: ViewSpec, field: string, numeric: boolean): ViewSpec {
+  return { ...applyInterpretation(view, field, numeric), filter: null, sort: null, selection: [], chart: null, issue: null, columns: [field] };
 }

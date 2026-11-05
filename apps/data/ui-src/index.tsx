@@ -22,7 +22,7 @@ function sampleRows(value: OkInspection) {
   return value.rows.slice(0, 10).map(row => ({
     ordinal: row.row - 1, pointer: row.pointer, line: row.line,
     cells: Object.fromEntries(value.columns.map((name, index) => [name, {
-      kind: row.cells[index]?.kind ?? 'missing', display: (row.cells[index]?.text ?? '').slice(0, 240),
+      kind: row.cells[index]?.kind ?? 'missing', exact: row.cells[index]?.exact, conversionError: row.cells[index]?.conversionError, display: (row.cells[index]?.text ?? '').slice(0, 240),
       truncated: (row.cells[index]?.text.length ?? 0) > 240,
     }])),
   }));
@@ -36,6 +36,7 @@ export default function Data() {
   const [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<InspectionSnapshot | null>(null), [inspecting, setInspecting] = useState(false);
+  const [fieldSnapshot, setFieldSnapshot] = useState<InspectionSnapshot | null>(null);
   const [inspectionEpoch, setInspectionEpoch] = useState(0);
   const [importTarget, setImportTarget] = useState<Dataset | null | undefined>(undefined);
   const [showChat, setShowChat] = useState(false), [tab, setTab] = useState('table');
@@ -47,7 +48,7 @@ export default function Data() {
   const inspectionScope = JSON.stringify([selectedId, assetId, asset?.sha256, asset?.availability, focus.parserVersion, inspectionEpoch]);
   const sameInput = active && snapshot?.scope === inspectionScope ? snapshot : null;
   const result = sameInput?.view === focus.view && sameInput.offset === focus.offset ? sameInput.result : null;
-  const fields = sameInput?.result.status === 'ok' ? sameInput.result : null;
+  const fields = active && fieldSnapshot?.scope === inspectionScope && fieldSnapshot.result.status === 'ok' ? fieldSnapshot.result : null;
   const ready = result?.status === 'ok' ? result : null;
   const fail = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
 
@@ -90,8 +91,13 @@ export default function Data() {
     setInspecting(true);
     void api.post<Inspection>('/api/inspect', { datasetId: selectedId, assetId, view: focus.view,
       offset: focus.offset, limit: 50, parserVersion: focus.parserVersion }).then(value => {
-      if (current) setSnapshot({ scope: inspectionScope, view: focus.view, offset: focus.offset, result: value });
-    }).catch(cause => { if (current) { setSnapshot(null); fail(cause); } }).finally(() => { if (current) setInspecting(false); });
+      if (current) {
+        const next = { scope: inspectionScope, view: focus.view, offset: focus.offset, result: value };
+        setSnapshot(next);
+        if (value.status === 'ok') setFieldSnapshot(next);
+        else if (value.status !== 'invalid') setFieldSnapshot(null);
+      }
+    }).catch(cause => { if (current) { setSnapshot(null); setFieldSnapshot(null); fail(cause); } }).finally(() => { if (current) setInspecting(false); });
     return () => { current = false; };
   }, [active, selectedId, assetId, focus.view, focus.offset, focus.parserVersion, inspectionScope, api]);
 
@@ -119,7 +125,7 @@ export default function Data() {
 
   async function loadSource(record?: number) {
     if (!dataset || !asset || !ready) throw new Error('Open a dataset first');
-    const opened = await api.post<SourceBody>('/api/source', { datasetId: dataset.id, assetId: asset.id });
+    const opened = await api.post<SourceBody>('/api/source', { datasetId: dataset.id, assetId: asset.id, view: focus.view, parserVersion: focus.parserVersion });
     await openDocument({ id: opened.assetId, title: opened.name, text: opened.content, format: { kind: sourceKind(opened.format) },
       ...(record === undefined ? {} : { location: { record } }) });
     return { datasetId: opened.datasetId, assetId: opened.assetId, sha256: opened.sha256, ...(record === undefined ? {} : { record }) };
@@ -128,7 +134,7 @@ export default function Data() {
   async function exportRows(open = false) {
     if (!dataset || !asset || !ready) throw new Error('Open a dataset first');
     const exported = await api.post<{ id: string; name: string; records: number; bytes: number; content: string }>(
-      '/api/export', { datasetId: dataset.id, assetId: asset.id, view: focus.view });
+      '/api/export', { datasetId: dataset.id, assetId: asset.id, view: focus.view, parserVersion: focus.parserVersion });
     if (open) await openDocument({ id: exported.id, title: exported.name, text: exported.content, format: { kind: 'json' } });
     else downloadFile(exported.name, exported.content, 'application/json');
     return { artifactId: exported.id, name: exported.name, records: exported.records, bytes: exported.bytes };
@@ -148,11 +154,11 @@ export default function Data() {
     ...(ready && dataset && asset ? { dataset: dataset.id, datasetId: dataset.id, assetId: asset.id, sha256: asset.sha256,
       viewId: ready.viewId ?? '', name: asset.name, sourceFormat: asset.format, bytes: asset.size,
       recordCount: ready.report.rowCount, fieldCount: ready.report.fields.length,
-      fields: ready.report.fields.slice(0, 32), query: focus.view, matching: ready.matched, selected: ready.selected ?? focus.view.selection.length,
+      fieldKindsScope: 'original input; interpretation is explicit in each field profile', fields: ready.report.fields.slice(0, 32), query: focus.view, matching: ready.matched, selected: ready.selected ?? focus.view.selection.length,
       sample: sampleRows(ready) } : {}) },
   actions: {
     query: { description: 'Apply a typed filter, sort, displayed fields, or stable record selection on the open catalog version.', parameters: querySchema, run: async params => {
-      if (!ready) throw new Error('Open a dataset first');
+      if (!dataset || !asset) throw new Error('Open a dataset first');
       const next: ViewSpec = { ...focus.view, selection: (params.selection as number[] | undefined) ?? focus.view.selection,
         columns: (params.columns as string[] | undefined) ?? focus.view.columns };
       if (Object.hasOwn(params, 'filterField')) next.filter = params.filterField
@@ -169,7 +175,7 @@ export default function Data() {
     source: { description: 'Open the complete immutable source for this catalog version, optionally locating a record.', parameters: { type: 'object', properties: { record: { type: 'integer', minimum: 0 } }, additionalProperties: false }, run: params => loadSource(params.record as number | undefined) },
     read: { description: 'Read selected or matching records with exact numeric text and provenance.', parameters: { type: 'object', properties: { offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 20 }, columns: { type: 'array', maxItems: 8, items: fieldRule } }, additionalProperties: false }, run: params => {
       if (!dataset || !asset) throw new Error('Open a dataset first');
-      return api.post('/api/records', { datasetId: dataset.id, assetId: asset.id, view: focus.view,
+      return api.post('/api/records', { datasetId: dataset.id, assetId: asset.id, view: focus.view, parserVersion: focus.parserVersion,
         columns: params.columns ?? focus.view.columns.slice(0, 8), offset: params.offset ?? 0, limit: params.limit ?? 10 });
     } },
     export: { description: 'Persist an exact JSON export with dataset, asset, SHA-256, query, selection, and record provenance.', parameters: { type: 'object', properties: {}, additionalProperties: false }, run: () => exportRows(true) },
@@ -229,10 +235,10 @@ export default function Data() {
       <SplitPane as="aside" id="data-preview" aria-label="Preview" className="data-preview">
         <Split className="data-content" data-chat={showChat || undefined} storageKey="pero.data.chat-width" collapseBelow={820}>
           <SplitPane id="data-workspace" min={360} className="data-workspace">
-            {dataset && asset && state ? <Workspace key={dataset.id} dataset={dataset} asset={asset} assets={state.assets}
+            {dataset && asset && state ? <Workspace key={`${dataset.id}:${asset.id}`} dataset={dataset} asset={asset} assets={state.assets}
               views={state.views.filter(view => view.datasetId === dataset.id)} result={result} fields={fields} loading={inspecting} busy={busy}
-              view={focus.view} tab={tab} maxColumns={state.limits.columns} onTab={setTab}
-              onVersion={id => choose(dataset, id)} onView={next => setFocus(previous => ({ ...previous, view: next, offset: 0 }))}
+              view={focus.view} parserVersion={focus.parserVersion} tab={tab} maxColumns={state.limits.columns} onTab={setTab}
+              onVersion={id => choose(dataset, id)} onView={next => { setError(''); setFocus(previous => ({ ...previous, view: next, offset: 0 })); }}
               onPage={offset => setFocus(previous => ({ ...previous, offset }))}
               onAddVersion={() => { setError(''); setImportTarget(dataset); }}
               onEdit={value => { void perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, ...value })); setNotice(value.archived ? 'Archived. Original files remain stored.' : 'Saved.'); }); }}

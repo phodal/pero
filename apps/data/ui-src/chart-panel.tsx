@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { downloadFile, openDocument, useAppApi, useAppContext, useAppObject } from '@pero/app-sdk';
 import { Button, FilePicker, Select } from '@pero/app-sdk/ui';
 import { mountChartSurface } from '../../../packages/app-sdk/src/chart-surface';
-import type { ChartDataset } from './model';
+import type { ChartDataset, ViewSpec } from './model';
 
 type ChartDocument = {
   id: string; title: string; description?: string;
@@ -10,7 +10,7 @@ type ChartDocument = {
   rows: Record<string, unknown>[];
   source: {
     label: string; caveats?: string[]; dataset?: string; catalogDatasetId?: string; assetId?: string; sha256?: string;
-    viewId?: string; view?: unknown; aggregation?: unknown; sql?: string; executedAt?: string;
+    viewId?: string; view?: unknown; dataView?: ViewSpec; parserVersion?: string; aggregation?: unknown; sql?: string; executedAt?: string;
     records?: { ordinal: number; pointer: string; line: number | null }[];
     exactValues?: string[]; omittedGroups?: number; excludedValues?: number;
   };
@@ -61,7 +61,7 @@ export function ChartPanel({ data, busy, aggregationControls, onActivate }: {
         : kind === 'sankey' ? { type: kind, x, y, target } : { type: kind, x, y, ...(kind === 'line' && series ? { series } : {}) });
     try {
       const value = await api.post<ChartResult>('/api/chart', {
-        datasetId: data.datasetId, assetId: data.assetId, view: data.view,
+        datasetId: data.datasetId, assetId: data.assetId, view: data.view, parserVersion: data.parserVersion,
         chartDocument: { title: data.name, chart }, ...(useAggregation && data.view.chart ? { aggregation: data.view.chart } : {}),
       });
       if (request === serial.current) setResult(value);
@@ -72,7 +72,7 @@ export function ChartPanel({ data, busy, aggregationControls, onActivate }: {
   useEffect(() => {
     ++serial.current; setPending(false); setResult(null); setError('');
     if (mode === 'aggregate' && data?.view.chart) void create().catch(() => {});
-  }, [data?.datasetId, data?.assetId, data?.viewId, chartView, kind, mode]);
+  }, [data?.datasetId, data?.assetId, data?.parserVersion, data?.viewId, chartView, kind, mode]);
   async function listSaved() {
     setSavedLoading(true); setSavedError('');
     try { setSaved((await api.get<{ charts: typeof saved }>('/api/charts')).charts); }
@@ -102,7 +102,8 @@ export function ChartPanel({ data, busy, aggregationControls, onActivate }: {
   async function showSource(record?: number) {
     const linked = result?.document.source;
     if (!linked?.catalogDatasetId || !linked.assetId) return;
-    const value = await api.post<SourceBody>('/api/source', { datasetId: linked.catalogDatasetId, assetId: linked.assetId });
+    const value = await api.post<SourceBody>('/api/source', { datasetId: linked.catalogDatasetId, assetId: linked.assetId,
+      ...(linked.dataView ? { view: linked.dataView } : {}), ...(linked.parserVersion ? { parserVersion: linked.parserVersion } : {}) });
     await openDocument({ id: value.assetId, title: value.name, text: value.content, format: { kind: sourceFormat(value.format) }, ...(record === undefined ? {} : { location: { record } }) });
     return { dataset: value.datasetId, assetId: value.assetId, sha256: value.sha256 };
   }

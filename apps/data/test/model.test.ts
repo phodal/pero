@@ -35,3 +35,33 @@ test('stored is not a scientific or current-byte verification claim', () => {
   assert.equal(availabilityLabel({ ...asset('a'), availability: 'changed' }), 'Changed');
   assert.equal(availabilityLabel({ ...asset('a'), availability: 'missing' }), 'Missing');
 });
+
+test('interpretation preview reads full input without applying to the current analysis', async () => {
+  const { emptyView, interpretationPreview } = await import('../ui-src/model.ts');
+  const view = { ...emptyView(), columns: ['id', 'amount'], filter: { field: 'amount', operator: 'gte', value: '10' },
+    sort: { field: 'id', descending: true }, selection: [3], chart: { category: 'id', measure: 'amount', aggregation: 'sum' },
+    issue: { kind: 'empty' as const, field: 'amount' }, interpretations: { id: 'number' as const }, units: { amount: 'kg' } };
+  const original = structuredClone(view);
+  const draft = interpretationPreview(view, 'amount', true);
+  assert.deepEqual(draft, { ...view, columns: ['amount'], filter: null, sort: null, selection: [], chart: null, issue: null,
+    interpretations: { id: 'number', amount: 'number' } });
+  assert.deepEqual(view, original);
+  assert.deepEqual(interpretationPreview(draft, 'amount', false).interpretations, { id: 'number' });
+});
+
+test('reverting a number removes only conversion issues that lose their interpretation', async () => {
+  const { emptyView, applyInterpretation } = await import('../ui-src/model.ts');
+  const view = { ...emptyView(), interpretations: { amount: 'number' as const, id: 'number' as const },
+    issue: { kind: 'conversion' as const, field: 'amount' }, filter: { field: 'id', operator: 'gte', value: '1' } };
+  const reverted = applyInterpretation(view, 'amount', false);
+  assert.equal(reverted.issue, null);
+  assert.deepEqual(reverted.interpretations, { id: 'number' });
+  assert.deepEqual(reverted.filter, view.filter);
+  const allFailures = { ...view, issue: { kind: 'conversion' as const } };
+  assert.deepEqual(applyInterpretation(allFailures, 'amount', false).issue, allFailures.issue);
+  assert.equal(applyInterpretation(applyInterpretation(allFailures, 'amount', false), 'id', false).issue, null);
+  const missing = { ...view, issue: { kind: 'missing' as const, field: 'amount' } };
+  assert.deepEqual(applyInterpretation(missing, 'amount', false).issue, missing.issue);
+  assert.deepEqual(view.interpretations, { amount: 'number', id: 'number' });
+  assert.deepEqual(applyInterpretation(reverted, 'amount', true).interpretations, { id: 'number', amount: 'number' });
+});
