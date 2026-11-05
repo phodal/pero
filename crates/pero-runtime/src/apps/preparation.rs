@@ -275,7 +275,7 @@ fn uv_command(uv: &std::path::Path, environment: &PythonEnvironment) -> Command 
 
 /// Stream installer output while bounding the wait. No installation timeout is
 /// mistaken for backend readiness; the backend starts only after this succeeds.
-fn run(command: &mut Command, log: &mut impl FnMut(String)) -> Result<(), String> {
+pub(super) fn run(command: &mut Command, log: &mut impl FnMut(String)) -> Result<(), String> {
     let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

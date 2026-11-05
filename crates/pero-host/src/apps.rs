@@ -17,6 +17,7 @@ enum Request {
         method: Method,
         id: String,
     },
+    Localenvironment { method: Method, id: String, name: AppName, request: pero_runtime::apps::local_environment::Request },
     Environment {
         method: Method,
         id: String,
@@ -214,6 +215,12 @@ impl Apps {
             }
             let request: Request =
                 serde_json::from_value(value).map_err(|error| error.to_string())?;
+            if let Request::Localenvironment { ref name, request: pero_runtime::apps::local_environment::Request::Prepare {ref id}, .. } = request {
+                let job={let guard=self.store.lock().map_err(|e|e.to_string())?;guard.as_ref().map_err(Clone::clone)?.environment_preparation(name,id)?};
+                job.run(&mut |_| {})?;
+                let guard=self.store.lock().map_err(|e|e.to_string())?;
+                return serde_json::to_value(guard.as_ref().map_err(Clone::clone)?.local_environments(name,pero_runtime::apps::local_environment::Request::List)?).map_err(|e|e.to_string());
+            }
             let mut guard = if agents.is_some() {
                 self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes".to_string())?
             } else { self.store.lock().map_err(|error| error.to_string())? };
@@ -245,6 +252,14 @@ impl Apps {
                 }
                 Request::Sdkcontext { method, id, name } => {
                     let _ = (method, id); serde_json::to_value(store.sdk_context(&name)?)
+                }
+                Request::Localenvironment { method, id, name, request } => {
+                    let _=(method,id);
+                    let values=match request {
+                        pero_runtime::apps::local_environment::Request::Bind{id} => store.bind_local_environment(&name,id)?,
+                        other => store.local_environments(&name,other)?,
+                    };
+                    serde_json::to_value(values)
                 }
                 Request::Environment { method, id, name, target } => {
                     let _ = (method, id);

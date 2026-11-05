@@ -105,7 +105,7 @@ impl EnvironmentInspection {
         })
     }
 
-    fn inspect(
+    pub(super) fn inspect(
         root: &Path,
         python: Option<&PythonEnvironment>,
         method: ScientificMethod,

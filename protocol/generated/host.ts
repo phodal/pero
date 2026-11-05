@@ -93,6 +93,7 @@ export type ContextKind =
 export type ThreadId = string;
 export type ContextContent = TextContextContent | ImageContextContent;
 export type AppRequest =
+  | LocalEnvironmentApp
   | EnvironmentInspectionApp
   | AppApiAccess
   | AppSdkRequest
@@ -114,6 +115,8 @@ export type AppRequest =
   | AutomationApp
   | ResearchAssetsApp;
 export type AppName = string;
+export type LocalEnvironmentOperation =
+  LocalEnvironmentCreate | LocalEnvironmentList | LocalEnvironmentPrepare | LocalEnvironmentBind;
 export type RequestId = string;
 export type AgentRunRequest =
   | AgentRunPrepare
@@ -984,6 +987,29 @@ export interface DeleteCommand {
 export interface InsightsCommand {
   action: "insights";
   thread_id: ThreadId;
+}
+export interface LocalEnvironmentApp {
+  action: "localenvironment";
+  name: AppName;
+  request: LocalEnvironmentOperation;
+  method: "apps";
+  id: RequestId;
+}
+export interface LocalEnvironmentCreate {
+  operation: "create";
+  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice";
+  label: string;
+}
+export interface LocalEnvironmentList {
+  operation: "list";
+}
+export interface LocalEnvironmentPrepare {
+  operation: "prepare";
+  id: AppName;
+}
+export interface LocalEnvironmentBind {
+  operation: "bind";
+  id: AppName;
 }
 /**
  * Software observations only; does not allocate or approve scientific execution.
@@ -2333,6 +2359,7 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | LocalEnvironmentRecord[]
     | EnvironmentInspectionReport
     | AgentPreparedContext
     | AgentTerminalList
@@ -2355,6 +2382,16 @@ export interface AppSuccess {
     | AppGrant
     | ResearchAssetReply
     | ResearchBundleReply;
+}
+export interface LocalEnvironmentRecord {
+  id: AppName;
+  label: string;
+  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice";
+  dependencies: string[];
+  state: "created" | "preparing" | "ready" | "failed";
+  log: string[];
+  error: string | null;
+  bound: boolean;
 }
 export interface EnvironmentInspectionReport {
   schema: "pero.environment.inspection.v1";

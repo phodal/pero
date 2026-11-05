@@ -16,6 +16,7 @@ mod preparation;
 pub mod docling_runtime;
 mod environment;
 mod environment_catalog;
+pub mod local_environment;
 pub use environment::{EnvironmentInspection, ScientificMethod};
 pub use environment_catalog::EnvironmentReport;
 mod session_plugins;
@@ -141,7 +142,7 @@ impl AppStore {
                 installed.keys().cloned(),
             )
         };
-        Ok(Self {
+        let store=Self {
             root,
             data,
             installed,
@@ -151,7 +152,9 @@ impl AppStore {
             required,
             settings: None,
             docling_runtime: None,
-        })
+        };
+        store.recover_local_environments()?;
+        Ok(store)
     }
 
     pub fn remember_settings(&mut self, path: &Path) {
