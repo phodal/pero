@@ -84,7 +84,7 @@ model AutomationRequest { method:"automation"; id:string; command:AutomationComm
 model AutomationAgentSummary { id:string; name:string; available:boolean; ...AutomationClosed; }
 model AutomationCapabilities {
   owner:string; workspace:string; agents:AutomationAgentSummary[]; supportedTargets:"local_host"[];
-  supportedMethods:"agent"[]; sourceBindingId:string; sourceKind:"local_published_registry"; maxInputBytes:uint32; available:boolean; unsupported:string[]; ...AutomationClosed;
+  supportedMethods:("agent"|"research_watch")[]; sourceBindingId:string; sourceKind:"local_published_registry"; maxInputBytes:uint32; available:boolean; unsupported:string[]; ...AutomationClosed;
 }
 model AutomationAttention is Record<string>;
 model AutomationAuthority { agentId:string; workspace:string; configurationDigest:string; `model`:string|null; permissionPolicy:string; appUse:boolean; ...AutomationClosed; }
