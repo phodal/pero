@@ -3,10 +3,10 @@
 .pa-numeric-values p{margin:8px 0;line-height:1.5}
 .pa-numeric-values fieldset{padding:0;margin:0;border:0;min-width:0}
 .pa-numeric-values label{display:flex;flex-direction:column;gap:4px;margin:8px 0}
-.pa-numeric-values input,.pa-numeric-values select,.pa-numeric-values textarea{box-sizing:border-box;width:100%;min-width:0;min-height:24px;border:1px solid var(--pero-input-border);border-radius:3px;background:var(--pero-surface);color:var(--pero-text);font:inherit;font-size:12px;padding:2px 4px}
+.pa-numeric-values input,.pa-numeric-values textarea{box-sizing:border-box;width:100%;min-width:0;min-height:24px;border:1px solid var(--pero-input-border);border-radius:3px;background:var(--pero-surface);color:var(--pero-text);font:inherit;font-size:12px;padding:2px 4px}
 .pa-numeric-values textarea{resize:vertical}
-.pa-numeric-values :is(input,select,textarea,summary,pre):focus-visible{outline:2px solid var(--pero-focus);outline-offset:2px}
-.pa-numeric-values input:disabled,.pa-numeric-values select:disabled,.pa-numeric-values textarea:disabled{color:var(--pero-disabled-text);background:var(--pero-disabled)}
+.pa-numeric-values :is(input,textarea,summary,pre):focus-visible{outline:2px solid var(--pero-focus);outline-offset:2px}
+.pa-numeric-values input:disabled,.pa-numeric-values textarea:disabled{color:var(--pero-disabled-text);background:var(--pero-disabled)}
 .pa-numeric-values .pa-numeric-check{flex-direction:row;align-items:flex-start;gap:8px}
 .pa-numeric-values .pa-numeric-check input{width:16px;height:16px;min-height:16px;flex:none;margin:2px 0}
 .pa-numeric-values details{margin:12px 0}

@@ -46,8 +46,7 @@
   margin: 12px 0;
 }
 
-.pa-results-tools > input,
-.pa-results-tools > select {
+.pa-results-tools > input {
   min-block-size: 28px;
   border: 1px solid var(--pero-border);
   border-radius: 4px;
