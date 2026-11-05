@@ -27,6 +27,7 @@ export function ResearchWatch({ recordId, versions, reports, onAttempt }: { reco
     title: { en: 'Research updates', zh: '研究更新' }, loading: { en: 'Loading checks…', zh: '正在加载检查…' },
     check: { en: 'Check now', zh: '立即检查' }, daily: { en: 'Check daily', zh: '每天检查' },
     pause: { en: 'Pause checks', zh: '暂停检查' }, schedule: { en: 'Checks run while Pero is open.', zh: 'Pero 打开时执行检查。' },
+    next: { en: 'Next check', zh: '下次检查' }, checked: { en: 'Last checked', zh: '上次检查' },
     empty: { en: 'No check has finished.', zh: '暂无完成的检查。' }, running: { en: 'Checking research inputs…', zh: '正在检查研究输入…' },
     retry: { en: 'Reload', zh: '重新加载' }, changed: { en: 'Update available', zh: '有更新' },
     unchanged: { en: 'Up to date', zh: '版本一致' }, unknown: { en: 'Could not verify latest', zh: '无法确认最新版本' },
@@ -42,17 +43,17 @@ export function ResearchWatch({ recordId, versions, reports, onAttempt }: { reco
   const request = (operation?: string) => researchHost<Overview>('automation', { method: operation ? 'POST' : 'GET',
     path: '/api/research-watch', body: operation ? { recordId, operation } : null });
   async function refresh(operation?: string) {
-    setBusy(true); setError('');
-    try { setValue(await request(operation)); }
+    setBusy(true);
+    try { setValue(await request(operation)); setError(''); }
     catch (reason) { setError(String(reason)); }
     finally { setBusy(false); }
   }
   useEffect(() => { void refresh(); }, [recordId]);
   useEffect(() => {
-    if (!watch?.running || error) return;
+    if (!watch?.running || busy) return;
     const timer = setTimeout(() => void refresh(), 800);
     return () => clearTimeout(timer);
-  }, [value, error]);
+  }, [value, busy]);
   return <section aria-label={t('title')}>
     <h3>{t('title')}</h3>
     {!!versions.length && <ul>{versions.map(version => <li key={version.datasetId}>{version.name} ({version.versionId.slice(0, 8)})</li>)}</ul>}
@@ -60,14 +61,14 @@ export function ResearchWatch({ recordId, versions, reports, onAttempt }: { reco
       <Button disabled={busy || !!watch?.running} onClick={() => void refresh('check')}>{t('check')}</Button>
       <Button disabled={busy} onClick={() => void refresh(watch?.scheduled ? 'pause' : 'schedule')}>{t(watch?.scheduled ? 'pause' : 'daily')}</Button>
     </div>
-    {watch?.scheduled && <p className="pa-muted">{t('schedule')} {watch.next && <time dateTime={watch.next}>{new Date(watch.next).toLocaleString()}</time>}</p>}
+    {watch?.scheduled && <p className="pa-muted">{t('schedule')} {watch.next && <>{t('next')}: <time dateTime={watch.next}>{new Date(watch.next).toLocaleString()}</time></>}</p>}
     {(error || value?.fault || update?.error) && <Feedback kind="error">{error || value?.fault || update?.error}
       <Button disabled={busy} onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
     {!value && busy && <p role="status">{t('loading')}</p>}
     {watch?.running && <p role="status">{t('running')}</p>}
     {value && !update && !watch?.running && <p>{t('empty')}</p>}
     {update?.result && <>
-      <time dateTime={update.result.checkedAt}>{new Date(update.result.checkedAt).toLocaleString()}</time>
+      <p className="pa-muted">{t('checked')}: <time dateTime={update.result.checkedAt}>{new Date(update.result.checkedAt).toLocaleString()}</time></p>
       <ul>{[...update.result.papers, ...update.result.datasets].map(row => <li key={row.subject}>
         <strong>{row.name}</strong> {t(row.status)}
         {row.status === 'changed' && row.latest && (/^(?:[a-z.-]+\/)?\d+(?:\.\d+)?v\d+$/.test(row.latest)
