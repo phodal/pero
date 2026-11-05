@@ -96,6 +96,29 @@ The reporter retains 19 unresolved strict operation-recovery windows. A changed
 check can pass without closing an identical-operation window; these are not
 19 failed benchmark tasks. Official acceptance is independently 5/5.
 
+## Guidance correction after the sample
+
+The Bash timeout property now names milliseconds and gives `30000 = 30 seconds`.
+The bounded-check prompt uses the same example and asks the agent to inspect
+its selected budget before diagnosing a timeout as an environment failure.
+Existing native guidance also supplies an exit-status preservation example,
+explains workspace-local Python imports and asks for expected-output format
+checks before running illustrative docstrings as doctests. These changes
+address missing/ambiguous instructions; they do not rewrite timeout values or
+enforce arbitrary shell program exit codes. Native package race tests, vet and
+the standalone Bazel native-tool target pass. There is no post-change model
+rerun or new score/token comparison.
+
+Two observations remain open. Reading a settled job with TaskOutput does not
+consume its separately queued completion notice, so `sort_array` received an
+already-observed failure after its main turn. Also, across the five tasks,
+21 responses and 18 tool calls occurred after the final delivery-review prompt,
+recording 320,366 tokens (19.0% of the total), with no Edit or Write tool calls.
+Those checks may add evidence; the total is not a measured avoidable cost.
+Task-relevant review scope and reuse of current verification evidence need a
+separate change and acceptance. Guidance compliance and workspace-only scratch
+writes also remain empirical limits.
+
 ## Retained artifacts
 
 Root:

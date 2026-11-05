@@ -116,3 +116,27 @@ The bounded same-budget spot check at `16d6ac9d` selected
 no children, empty discovery or masked validation candidates. Its preceding
 32-request budget failure is preserved separately. This pair does not establish
 repeatable or causal savings. The complete native package race suite passes.
+
+## Follow-up: timeout units and local check setup
+
+The 2026-11-05 native HumanEval+ sample passes five official task verdicts but
+still exposes guidance defects. `sort_array` supplied 15–90 as Bash timeout
+values in 32 calls; these are milliseconds. Eleven processes timed out and
+the model diagnosed interpreter failures. The Bash property has no description,
+while prompt guidance says to use a "short timeout" without a numeric example.
+`get_odd_collatz` ran a script outside the workspace, failed to import the local
+solution and hid Python's exit code behind echo. `prod_signs` ran doctest on
+examples without expected-output lines. Source/result references and original
+verdicts are in [the native sample](../fitness/evalplus-native.md).
+
+Clarify milliseconds with a 30-second example on the Bash parameter and in the
+bounded-check guidance. Supply a concrete status-preservation pattern, explain
+workspace-local script imports and distinguish examples from executable tests.
+Keep the existing timeout values, default/caps, shell status, permissions and
+independent test verdicts. These are instructions, not enforced model behavior;
+later provider runs must establish whether compliance and token use improve.
+
+Implemented in the Bash schema and existing capability-scoped native guidance.
+The native package race suite, `go vet ./nativetools` and standalone
+`//nativetools:nativetools_test` pass. No new provider run was made for this
+wording change; the five-task result belongs to the earlier binary.
