@@ -224,6 +224,29 @@ these checks do not claim independent verification of those Agents' mounts.
 
 ## What the UI is waiting on
 
+### Implementation: complete compact history
+
+`SessionHistory` now owns replay and deletion. Host reads the journal in order
+without the arbitrary 5000-event cut and uses the same fold for live events.
+Only adjacent plain message/thought text chunks with identical thread and event
+headers are combined; role, turn, tool, metadata and annotated-content boundaries
+remain intact. Deleted threads and late events stay excluded. The append-only
+source journal is not rewritten or rotated.
+
+Contracts, Host/runtime suites and Host protocol conformance passed. The real
+Electron test `tests/e2e/session-history.mjs` restored a conversation with over
+6000 chunks, its original title/user message, tool evidence, reasoning and final
+answer. It checked deletion and verified the original journal hash did not
+change. The resulting screenshot was inspected.
+
+A probe using a disposable copy of the actual Native journal preserved every
+message/thought text byte and all 83 non-deleted conversation identities:
+33,803 source events became 3500 replay events / 8,842,102 bytes. Host readiness
+took 329.7 ms and replay delivery 217.3 ms. This full-history response includes
+older conversations omitted by the former 5000-event tail, so its size/time must
+not be compared as equal scope to the former partial replay. Receipts are in
+`test-results/session-history/`; no original user journal was changed.
+
 `chat.preparing` is shown while `SessionState::Connecting`. Auto-preparation
 (`prepare_chat`) runs as soon as the chat is visible, Host-connected, history
 replayed, and workspace non-empty. It issues `new_session` before the first

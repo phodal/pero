@@ -15,7 +15,7 @@ pub mod automation_agent;
 mod mcp_settings;
 use std::{
     collections::HashMap,
-    io::Write,
+    io::{BufRead, Write},
     path::PathBuf,
     sync::{
         mpsc::{self, Sender},
@@ -28,7 +28,7 @@ pub struct Manager {
     agents: Vec<AgentConfig>,
     sessions: HashMap<String, SessionHandle>,
     tx: Sender<HostEvent>,
-    history: Arc<Mutex<Vec<HostEvent>>>,
+    history: Arc<Mutex<pero_contracts::session_history::SessionHistory>>,
     app_bindings: HashMap<String, AppSessionBinding>,
     run_journal: app_agent_run::Journal,
     app_use: Option<acp::AppUseEndpoint>,
@@ -46,14 +46,14 @@ impl Manager {
         let history_file = std::env::var_os("PERO_HISTORY_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|| root.join("target/sessions.jsonl"));
-        let stored = std::fs::read_to_string(&history_file)
-            .unwrap_or_default()
-            .lines()
-            .rev()
-            .take(5000)
-            .filter_map(|line| serde_json::from_str::<HostEvent>(line).ok())
-            .collect::<Vec<_>>();
+        let mut stored = pero_contracts::session_history::SessionHistory::default();
+        if let Ok(file) = std::fs::File::open(&history_file) {
+            for line in std::io::BufReader::new(file).lines().map_while(Result::ok) {
+                if let Ok(event) = serde_json::from_str::<HostEvent>(&line) { stored.record(event); }
+            }
+        }
         let app_bindings = stored
+            .events()
             .iter()
             .filter_map(|event| {
                 if event.kind != "session_created" {
@@ -67,7 +67,7 @@ impl Manager {
         let run_journal=app_agent_run::Journal::default();
         run_journal.restore(&app_bindings);
         let run_writer=run_journal.clone();
-        let history = Arc::new(Mutex::new(stored.into_iter().rev().collect::<Vec<_>>()));
+        let history = Arc::new(Mutex::new(stored));
         let saved = history.clone();
         if let Some(parent) = history_file.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -107,7 +107,7 @@ impl Manager {
                             | "session_authenticated"
                     )
                 {
-                    saved.lock().unwrap().push(event.clone());
+                    saved.lock().unwrap().record(event.clone());
                     let mut persisted=Err("Session journal is unavailable".to_string());
                     if !matches!(
                         event.kind.as_str(),
@@ -183,7 +183,7 @@ impl Manager {
         }
     }
     fn visible_history(&self) -> Vec<HostEvent> {
-        HostEvent::without_deleted_threads(&self.history.lock().unwrap())
+        self.history.lock().unwrap().events().to_vec()
     }
     pub fn insights_value(&self, thread_id: &str) -> Result<serde_json::Value, String> {
         if !super::insights::session_id_ok(thread_id) {
