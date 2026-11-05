@@ -52,6 +52,16 @@ func TestReadReuseSurfaceLifecycle(t *testing.T) {
 			if projected.Seq == second.Seq || !strings.Contains(projected.Message.Content[0].Content[0].Text, "identical") {
 				t.Fatal("missing reuse projection")
 			}
+			// A compaction slice containing only the reference must receive the
+			// actual content, without mutating the main request surface.
+			expanded := ExpandReadReferences(s.Events(), []uint64{projected.Seq}, []model.Message{projected.Message})
+			if expanded[0].Content[0].Content[0].Text != text || !strings.Contains(projected.Message.Content[0].Content[0].Text, "identical") {
+				t.Fatal("summary lost content or mutated projection")
+			}
+			retained := ExpandReadReferences(s.Events(), []uint64{first.Seq, projected.Seq}, []model.Message{projected.Message})
+			if retained[0].Content[0].Content[0].Text != projected.Message.Content[0].Content[0].Text {
+				t.Fatal("unnecessarily expanded a visible anchor")
+			}
 			// A stable request boundary is idempotent and keeps both call identities.
 			count := len(s.Events())
 			if err := reuse.Reconcile(s); err != nil || len(s.Events()) != count {

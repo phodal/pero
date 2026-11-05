@@ -128,3 +128,35 @@ func (p *ReadReuse) Reconcile(s *session.Session) error {
 	p.visible = next
 	return nil
 }
+
+// ExpandReadReferences supplies full content to a summary that selects only a
+// slice of history. A reference may survive in that slice while its full anchor
+// is outside it (or has been pruned). Summarizers cannot execute readback tools.
+func ExpandReadReferences(events []model.Event, seqs []uint64, messages []model.Message) []model.Message {
+	visible := make(map[uint64]bool, len(seqs))
+	for _, seq := range seqs {
+		visible[seq] = true
+	}
+	result := model.CloneMessages(messages)
+	for i := range result {
+		if result[i].Role != model.RoleTool {
+			continue
+		}
+		for j, block := range result[i].Content {
+			raw, _ := json.Marshal(block)
+			r := decodeReusableRead(raw)
+			if !r.valid || r.meta.Reuse == nil || visible[r.meta.Reuse.Anchor] {
+				continue
+			}
+			original := r.meta.Reuse.Original
+			if original == 0 || original > uint64(len(events)) || events[original-1].Type != "tool/result" {
+				continue
+			}
+			full := decodeReusableRead(events[original-1].Data)
+			if full.valid && full.meta.Reuse == nil && full.key == r.key && full.block.ToolCallID == block.ToolCallID {
+				result[i].Content[j] = full.block
+			}
+		}
+	}
+	return result
+}
