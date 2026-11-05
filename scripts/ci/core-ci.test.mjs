@@ -92,7 +92,10 @@ test('Viewer inspection survives bridge failure and retains screenshot evidence'
   const evidence = job.steps.at(-1);
   assert.equal(evidence.if, 'always()');
   assert.match(evidence.uses, /^actions\/upload-artifact@/);
-  assert.equal(evidence.with.path, 'test-results/scientific-viewer-browser/');
+  assert.deepEqual(evidence.with.path.trim().split('\n'), ['test-results/scientific-viewer-browser/', 'test-results/session-artifacts-viewer/']);
+  const artifacts = job.steps.find(step => step.run === 'node apps/scientific-viewer/test/artifact-browser.mjs');
+  assert.ok(artifacts);
+  assert.equal(artifacts.if, viewer.if);
   assert.ok(workflow.jobs.complete.needs.includes('scientific-viewer'));
   assert.deepEqual(failures({ 'scientific-viewer': { result: 'failure' } }, false), ['scientific-viewer']);
 });
