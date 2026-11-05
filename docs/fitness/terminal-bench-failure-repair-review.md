@@ -109,3 +109,122 @@ uv/uvx 缺失、HF fixture 网络失败、镜像别名 metadata 与 Rosetta sysc
 新增入口回归先在修复前失败，修复后通过。完整 core、nativetools、ACP 和
 ACP CLI 的 race suites 及对应 go vet 通过；standalone Harness Bazel target
 通过。冻结全套和收费补跑配置均未因本次审查改变。
+
+## 后续：同步最新主线后的离线复核
+
+当前 PR 分支远端为 `7c6d4952`，没有新的同分支提交。拉取后合入
+`origin/master` 的五个新提交，形成 `02ecac447579f10557c5d846333cd139ed775653`。
+这些提交涉及 UI/CI；与 `7c6d4952` 比较，`harness/go` 和 Session reporter
+没有变化。本节审查的是旧轨迹在最新源码下的含义，没有启动新一轮模型运行。
+
+原 status 文件仍由旧 watcher 刷新；审查将必要字段冻结到独立的
+`status-snapshot.json`，保留源文件当时的哈希及时间，不把后续更新时间当成新结果。
+按 trial 身份重新关联 87 个 result、verifier stdout/CTRF 和 Session summary。
+总数仍是 89 个槽位、87 个官方判分、32 个原始 reward one。两个未判分槽位
+不凭旧状态标签推断当前仍在运行；四个 timeout/reward-one 也不升级为有效通过。
+这不是最新代码的全套分数。
+
+### 55 个原始零分如何停止
+
+| 停止分类 | 数量 | 含义 |
+| --- | ---: | --- |
+| 正常结束后官方零分 | 26 | 包括错误实现、缺少产物、服务退出及部分 verifier 启动失败，不能全部归为算法错误 |
+| 官方 agent 超时 | 19 | 在时限内未取得通过；另有四个超时任务 raw reward one，不在本表中 |
+| 单次输出耗尽 | 4 | 最后一条响应均为 8192 tokens，生成的 Write 参数不完整 |
+| 旧的隐藏 512 步上限 | 2 | 已单独修正并补跑，DNA/Scheme 仍零分，不能只归因于限制 |
+| agent 异常退出 | 4 | 三题记录泛化 provider 错误，video 另有持续慢速流证据；历史传输根因不能补猜 |
+
+独立检查 verifier 阶段：55 个零分中，47 个报告了 pytest，七个缺少 runner
+命令，一个 fixture setup 失败。这是与上表交叉的另一维度，不能额外相加。
+七题是 `large-scale-text-editing`、`llm-inference-batching-scheduler`、
+`mcmc-sampling-stan`、`merge-diff-arc-agi-task`、`model-extraction-relu-logits`、
+`qemu-alpine-ssh`、`qemu-startup`；fixture 失败为 `reshard-c4-data`。
+环境先阻止了判定，但不能反过来证明候选正确；QEMU 还有独立的 Rosetta
+signalfd 限制证据。
+
+### 不能用失败调用数解释零分
+
+87 个任务共 9,487 个工具调用，按 reporter 的三个失败 flag 取并集为 654：
+Bash 608、Read 11、TaskOutput 18、Write 14、Edit 2、TaskStop 1。
+`failed`/`interrupted` 状态之和与这个 flag 并集不同，不能换用或重复相加。
+
+零分任务是 482/7,055（6.83%），reward-one 任务是 172/2,432（7.07%）。
+这不构成因果实验，但明确不支持把较多失败调用直接当作低分原因。
+`fix-git` 原轨迹零显式失败仍遗留冲突；`count-dataset-tokens` 只有一次失败
+调用仍选错计数对象。前述十次 shell 零退出掩盖验证失败，也说明应看实际
+断言和产物，不能只看 exit code 或错误率。
+
+### 四次大型 Write 截断是同一种可处理场景
+
+重新拼接最后一步的 `assistant/chunk.content[].argumentsDelta`，四题均只有
+未完成的 Write JSON，未进入实际 `tool/call`。来源、seq、参数字节及解析结果
+保存在独立审查 JSON，不保留或执行残缺参数。
+
+| 任务 | 最后输出 tokens | 未完成参数 UTF-8 字节 |
+| --- | ---: | ---: |
+| adaptive-rejection-sampler | 8192 | 28,938 |
+| headless-terminal | 8192 | 32,623 |
+| make-doom-for-mips | 8192 | 32,862 |
+| make-mips-interpreter | 8192 | 25,930 |
+
+最新 `harness/loop.go` 仍正确丢弃 max-tokens 响应中的所有工具调用；ACP 返回
+`max_tokens`，engineering feedback 的 CanContinue 为 false。原 benchmark
+adapter 只提交一次 prompt，随即进入 verifier，因而这类任务没有恢复机会。
+这是大文件生成策略与调用方恢复策略的缺口，不应撤销
+[截断调用不可执行的契约](../issues/2026-10-28-harness-upstream-parity.md)。
+可验证的改进是分块构建文件，并在显式的 benchmark 配置里，于原官方时限内
+记录并恢复输出截断，要求重新生成更小的完整操作。不能执行或直接重放半截 JSON，
+也不能将这种恢复悄悄施加给普通 ACP 调用方。单纯增大输出 cap 尚无效果证据。
+
+### 通过了但仍很贵：压缩和进度提示为何没起作用
+
+21 个超时/旧步数限制的零分任务记录 498,904,640 tokens，占 87 个任务
+842,870,007 的 59.2%。这些是包含 cache read 的已记录用量，不是费用。
+原始全套没有声明 context window，因此未启用自动压缩。
+
+独立的新 runtime `polyglot-c-py` 补跑通过，但用掉 220 次响应、42 次失败
+调用和 13,321,025 tokens。重新核对响应 usage 后，其峰值 prompt 是
+103,829 tokens。启动配置为 1,000,000 context、默认 0.8 threshold，实际
+压缩阈值 800,000；本次根本没有接近阈值，故模型 compaction 为零。
+容量声明与成本控制是不同目的：声明大窗口不会主动缩短这个轨迹。
+
+162 次 tool-history replacement 只裁剪可替换的旧工具文本，保护错误和近期
+结果，也不消除 assistant 的代码/tool-call 参数。它不是 162 次摘要，更不能
+作为省 token 的证据。应使用现有 threshold/retain 配置做单因素成本实验，
+而不是重复新增压缩引擎或继续只削减 schema。
+
+当前 progress 规则匹配精确重复、结果不变的交替调用、连续同类失败和窄 Git
+总览；Write/Edit/等待操作重置链。polyglot 的命令、错误和源码持续变化，因此
+零次提醒符合当前实现。下一步需要观察验证是否取得进展，不能把任意写入等同于
+有用进展，也不能把未进展提示改成任意请求次数上限。
+
+### 为什么已有反馈没有解决所有交付错误
+
+engineering delivery 检查挂在正常 TurnStopping 且 CanContinue 为 true 时。
+它可以帮助正常收尾，不能在 agent 超时后补写产物，也不会在 max-tokens 时
+绕过停止契约。新 polyglot/fix-git 补跑的 contract feedback-attempt 都为零；
+最终自行清理/解冲突不能作为 hook 自动纠错的验收。
+
+`bn-fit-modify` 的自测改变 parent/child 语义、密码长度约束遗漏、统计对象选错、
+FEAL 交付未实现骨架，仍分别属于规格保真、最终约束及解题策略问题。通用提示
+能要求核对，但不替代独立测试。中途检查必须绑定公开要求及真实产物/验证结果，
+不把 hidden tests 或模型自行编造的 oracle 写入 prompt。
+
+此前服务 owner/deferred 发现修复已经在独立 PyPI 补跑通过；polyglot 和
+fix-git 也各有通过记录，详见 [runtime 重跑](terminal-bench-runtime-rerun.md)。
+这些都是小样本且存在版本/配置变化，不能把原 55 个零分统一解释为已经修好。
+
+### 后续优先级与证据
+
+1. 固定 runner 依赖、镜像/网络就绪和严格停止证据，先保证能执行官方断言。
+2. 针对四个大型 Write 场景验证分块写入和显式输出截断恢复。
+3. 在原时限内更早检查公开交付物和验证进展，遇到未改善的编译/算法试探时调整
+   策略；保留必要诊断，不靠继续放大请求上限。
+4. 单独调整现有 compaction threshold/retain，并记账摘要调用，验证对正确性和
+   总 usage 的影响；复杂算法、视觉任务的模型/模态配置另做配对实验。
+
+离线复核工具及完整 55 题表位于 benchmark artifact root 的
+`failure-audit-20261105-latest/{audit.py,audit.json,audit.md}`。
+JSON 绑定快照、87 份摘要、四份截断 Session、verifier 证据和所审源码哈希。
+检查确认三个失败 flag 的并集与原快照一致，四份残缺 Write 均未执行。
+本轮只同步主线并生成分析，没有修改 runtime 行为、冻结输入或官方 reward。
