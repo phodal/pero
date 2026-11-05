@@ -52,6 +52,10 @@ func TestCompactionLaunchDefaultsAndValidation(t *testing.T) {
 	if c != nil {
 		t.Fatal("disable flag ignored")
 	}
+	p, c = compactionLaunch(t, "--context-window=1000000", "--compaction-trigger-tokens=65536", "--compaction-retain-tokens=16384")
+	if p.Models[0].ContextWindow != 1000000 || c.ThresholdRatio != .065536 || c.RetainRatio != nil || c.RetainTokens == nil || *c.RetainTokens != 16384 {
+		t.Fatalf("absolute budgets changed capacity or lost retention: %+v", c)
+	}
 	for _, mutate := range []func(*compactionFlags, *openai.Config){
 		func(c *compactionFlags, _ *openai.Config) { c.ContextWindow = -1 },
 		func(c *compactionFlags, _ *openai.Config) { c.ContextWindow = 1<<30 + 1 },
@@ -62,6 +66,9 @@ func TestCompactionLaunchDefaultsAndValidation(t *testing.T) {
 		func(c *compactionFlags, _ *openai.Config) { c.Retain = .8 },
 		func(c *compactionFlags, _ *openai.Config) { c.Retain = math.NaN() },
 		func(c *compactionFlags, _ *openai.Config) { c.SummaryTokens = 1024 },
+		func(c *compactionFlags, _ *openai.Config) { c.TriggerTokens = -1 },
+		func(c *compactionFlags, _ *openai.Config) { c.RetainTokens = -1 },
+		func(c *compactionFlags, _ *openai.Config) { c.TriggerTokens, c.RetainTokens = 256, 256 },
 		func(c *compactionFlags, p *openai.Config) { p.Models[0].MaxTokens = 1024 },
 		func(c *compactionFlags, p *openai.Config) { p.Models[0].MaxTokens = 900 },
 	} {
@@ -81,7 +88,7 @@ func TestCompactionLaunchDefaultsAndValidation(t *testing.T) {
 }
 
 func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
-	for _, scenario := range []string{"pressure", "overflow", "overflow-bound", "empty-summary", "cancel", "nonshrinking"} {
+	for _, scenario := range []string{"pressure", "absolute-pressure", "overflow", "overflow-bound", "empty-summary", "cancel", "nonshrinking"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -89,7 +96,11 @@ func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
 			if scenario != "pressure" && scenario != "nonshrinking" {
 				window = "32768"
 			}
-			p, cfg := compactionLaunch(t, "--context-window="+window)
+			args := []string{"--context-window=" + window}
+			if scenario == "absolute-pressure" {
+				args = []string{"--context-window=1000000", "--compaction-trigger-tokens=2048", "--compaction-retain-tokens=256", "--compaction-summary-tokens=128"}
+			}
+			p, cfg := compactionLaunch(t, args...)
 			metadata, err := openai.New(p) // Constructs metadata only; never invokes HTTP.
 			if err != nil {
 				t.Fatal(err)
@@ -171,7 +182,7 @@ func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
 			for i := 0; i < 6; i++ {
 				prompt(a, strings.Repeat("long context detail ", 100))
 			}
-			if scenario == "pressure" && summaries.Load() == 0 {
+			if (scenario == "pressure" || scenario == "absolute-pressure") && summaries.Load() == 0 {
 				_, e := a.CompactIfNeeded(ctx, harness.CompactionPressure)
 				t.Fatalf("pressure hook never activated: err=%v", e)
 			}
