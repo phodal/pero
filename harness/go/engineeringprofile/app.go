@@ -309,7 +309,7 @@ func (a *App) Assessment(ctx context.Context, agent *harness.Agent) (Assessment,
 			}
 		}
 	}
-	return Assess(c, checks, open), true, nil
+	return Assess(c, checks, open, evaluateDelivery(ctx, agent.Session().WorkingDirectory(), c.Delivery)...), true, nil
 }
 
 func (a *App) stopping(ctx context.Context, input harness.TurnStoppingInput) error {
@@ -317,8 +317,11 @@ func (a *App) stopping(ctx context.Context, input harness.TurnStoppingInput) err
 		return nil
 	}
 	assessment, ok, err := a.Assessment(ctx, input.Agent)
-	if err != nil || !ok {
+	if err != nil {
 		return err
+	}
+	if !ok {
+		return a.reviewUnboundDelivery(input)
 	}
 	c, _, err := Current(input.Agent.Session())
 	if err != nil {

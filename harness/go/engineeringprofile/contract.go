@@ -45,6 +45,7 @@ type Contract struct {
 	Goal      string         `json:"goal"`
 	TaskIDs   []tasks.TaskID `json:"taskIds,omitempty"`
 	Checks    []CheckSpec    `json:"checks,omitempty"`
+	Delivery  *DeliverySpec  `json:"delivery,omitempty"`
 }
 
 type CheckSpec struct {
@@ -65,6 +66,9 @@ func (c Contract) validateRevisionAfter(revision int) error {
 // Validate is also used by host configuration readers before staging. The
 // request MessageID is assigned by the host separately at the admission edge.
 func (c Contract) Validate() error {
+	if err := c.Delivery.validate(); err != nil {
+		return err
+	}
 	if !validID(c.ID) || c.Revision < 1 || strings.TrimSpace(c.Goal) == "" || len(c.Goal) > 2048 || !utf8.ValidString(c.Goal) {
 		return errors.New("engineeringprofile: contract requires id, positive revision and a UTF-8 goal of at most 2048 bytes")
 	}
@@ -108,6 +112,22 @@ func validID(id string) bool {
 }
 
 func cloneContract(c Contract) Contract {
+	if c.Delivery != nil {
+		d := *c.Delivery
+		d.Artifacts = append([]ArtifactSpec(nil), d.Artifacts...)
+		for i := range d.Artifacts {
+			if d.Artifacts[i].Runes != nil {
+				n := *d.Artifacts[i].Runes
+				d.Artifacts[i].Runes = &n
+			}
+		}
+		if d.FileSet != nil {
+			f := *d.FileSet
+			f.Files = append([]string(nil), f.Files...)
+			d.FileSet = &f
+		}
+		c.Delivery = &d
+	}
 	c.TaskIDs = append([]tasks.TaskID(nil), c.TaskIDs...)
 	c.Checks = append([]CheckSpec(nil), c.Checks...)
 	for i := range c.Checks {
@@ -134,16 +154,17 @@ type CheckAssessment struct {
 }
 
 type Assessment struct {
-	ContractID  string            `json:"contractId"`
-	Revision    int               `json:"revision"`
-	Ready       bool              `json:"ready"`
-	Checks      []CheckAssessment `json:"checks"`
-	OpenTasks   []tasks.TaskID    `json:"openTasks,omitempty"`
-	Fingerprint string            `json:"fingerprint"`
+	ContractID  string               `json:"contractId"`
+	Revision    int                  `json:"revision"`
+	Ready       bool                 `json:"ready"`
+	Checks      []CheckAssessment    `json:"checks"`
+	OpenTasks   []tasks.TaskID       `json:"openTasks,omitempty"`
+	Delivery    []DeliveryAssessment `json:"delivery,omitempty"`
+	Fingerprint string               `json:"fingerprint"`
 }
 
 // Assess does not mutate task status or infer authorization from prose.
-func Assess(c Contract, checks []CheckAssessment, open []tasks.TaskID) Assessment {
+func Assess(c Contract, checks []CheckAssessment, open []tasks.TaskID, delivery ...DeliveryAssessment) Assessment {
 	a := Assessment{ContractID: c.ID, Revision: c.Revision, Ready: true, Checks: append([]CheckAssessment(nil), checks...), OpenTasks: append([]tasks.TaskID(nil), open...)}
 	for _, spec := range c.Checks {
 		if !spec.Required {
@@ -159,6 +180,10 @@ func Assess(c Contract, checks []CheckAssessment, open []tasks.TaskID) Assessmen
 		a.Ready = a.Ready && passed
 	}
 	a.Ready = a.Ready && len(open) == 0
+	a.Delivery = append([]DeliveryAssessment(nil), delivery...)
+	for _, row := range delivery {
+		a.Ready = a.Ready && row.Status == Passed
+	}
 	raw, _ := json.Marshal(a)
 	a.Fingerprint = digest(raw)
 	return a
