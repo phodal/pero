@@ -22,6 +22,9 @@ import (
 )
 
 type Options struct {
+	// UserQuestions enables the optional Pero input extension when the client
+	// explicitly advertises revision 1. Ordinary ACP has no question transport.
+	UserQuestions bool
 	// ModelSelection opts into the registered provider's explicit local catalog.
 	ModelSelection bool
 	// ValidateWorkingDirectory is trusted native composition, not ACP client data.
@@ -32,11 +35,26 @@ type Options struct {
 	Persistence              harness.SessionPersistence
 	Provider                 string
 	Model                    string
-	Compaction               *harness.BasicCompactionConfig
-	ToolResultPruner         *harness.ToolResultPruneConfig
-	Name                     string
-	Version                  string
-	SessionListPageSize      int
+	// MaxSteps is host configuration: zero keeps the harness default and
+	// harness.UnlimitedMaxSteps delegates termination to external cancellation.
+	MaxSteps int
+	// OutputLimitRecoveries explicitly allows attributed new turns after an
+	// output-limit stop. Zero preserves ACP's single-prompt stop contract.
+	OutputLimitRecoveries int
+	Compaction            *harness.BasicCompactionConfig
+	ToolResultPruner      *harness.ToolResultPruneConfig
+	Name                  string
+	Version               string
+	SessionListPageSize   int
+	// HoldAssistantText and RenderAssistantText let a MessageDisplay hook
+	// replace one completed assistant message on the wire. Nil leaves streaming
+	// unchanged. The stored message stays the original text.
+	HoldAssistantText   func(*harness.Agent) bool
+	RenderAssistantText func(context.Context, *harness.Agent, string) string
+	// PreparePrompt is trusted host composition, never ACP request data. It runs
+	// with a fresh message ID before human prompt admission. The returned cleanup
+	// runs after settlement, including rejection and cancellation.
+	PreparePrompt func(context.Context, *harness.Agent, *harness.Message) (func(), error)
 }
 
 type Server struct {
@@ -48,27 +66,34 @@ type Server struct {
 	persistence              harness.SessionPersistence
 	provider                 string
 	model                    string
+	maxSteps                 int
+	outputLimitRecoveries    int
 	compaction               *harness.BasicCompactionConfig
 	toolResultPruner         *harness.ToolResultPruneConfig
 	name                     string
 	version                  string
 	sessionListPageSize      int
 
-	mu             sync.Mutex
-	sessions       map[harness.SessionID]*activeSession
-	activating     map[harness.SessionID]struct{}
-	retiring       map[*harness.Agent]*activeSession
-	closedSessions map[harness.SessionID]*activeSession
-	operations     int
-	operationWG    sync.WaitGroup
-	closing        bool
-	closeDone      chan struct{}
-	closeErr       error
-	retireErr      error
-	nextID         uint64
-	pending        map[string]chan clientResponse
-	writer         *wireWriter
-	mcpRuntime     bool
+	mu                  sync.Mutex
+	sessions            map[harness.SessionID]*activeSession
+	activating          map[harness.SessionID]struct{}
+	retiring            map[*harness.Agent]*activeSession
+	closedSessions      map[harness.SessionID]*activeSession
+	operations          int
+	operationWG         sync.WaitGroup
+	closing             bool
+	closeDone           chan struct{}
+	closeErr            error
+	retireErr           error
+	nextID              uint64
+	pending             map[string]chan clientResponse
+	writer              *wireWriter
+	mcpRuntime          bool
+	questionTools       bool
+	userQuestions       bool
+	holdAssistantText   func(*harness.Agent) bool
+	renderAssistantText func(context.Context, *harness.Agent, string) string
+	preparePrompt       func(context.Context, *harness.Agent, *harness.Message) (func(), error)
 }
 
 type clientResponse struct {
@@ -110,6 +135,9 @@ func NewServer(options Options) (*Server, error) {
 	if options.Harness == nil || options.Persistence == nil {
 		return nil, errors.New("acp: harness and persistence are required")
 	}
+	if options.OutputLimitRecoveries < 0 {
+		return nil, errors.New("acp: output limit recoveries must be nonnegative")
+	}
 	if options.Name == "" {
 		options.Name = "pero-agent-acp"
 	}
@@ -129,8 +157,10 @@ func NewServer(options Options) (*Server, error) {
 	return &Server{
 		modelChoices: choices, modelCapacity: capacity, modelOutput: output,
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
-		provider: options.Provider, model: options.Model, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
-		name: options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
+		provider: options.Provider, model: options.Model, maxSteps: options.MaxSteps, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
+		outputLimitRecoveries: options.OutputLimitRecoveries,
+		name:                  options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
+		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
 		sessions: make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),
 	}, nil
@@ -264,12 +294,15 @@ func (s *Server) handle(ctx context.Context, message request) (any, *rpcError) {
 		if err := s.negotiateMCPRuntime(message.Params); err != nil {
 			return nil, invalid(err.Error())
 		}
+		if err := s.negotiateUserQuestions(message.Params); err != nil {
+			return nil, invalid(err.Error())
+		}
 		imagePrompts := s.h.Attachments() != nil
 		return map[string]any{
 			"protocolVersion": ProtocolVersion,
 			"agentInfo":       map[string]any{"name": s.name, "version": s.version},
 			"agentCapabilities": map[string]any{
-				"_meta":               map[string]any{"pero.mcpRuntime": 1},
+				"_meta":               s.extensionCapabilities(),
 				"loadSession":         true,
 				"mcpCapabilities":     map[string]any{"http": true},
 				"promptCapabilities":  map[string]any{"image": imagePrompts, "audio": false, "embeddedContext": false},
@@ -434,9 +467,12 @@ func (s *Server) newSession(ctx context.Context, params NewSessionParams) (harne
 		return "", err
 	}
 	agent, err := s.h.Agents().Create(ctx, harness.AgentOptions{
-		ID: id, CWD: params.CWD, Provider: s.provider, Model: s.model, Compaction: s.compaction,
+		ID: id, CWD: params.CWD, Provider: s.provider, Model: s.model, MaxSteps: s.maxSteps, Compaction: s.compaction,
 		ToolResultPruner: s.toolResultPruner,
-		Configure: func(setup context.Context, run *point.Run, _ *harness.Agent) error {
+		Configure: func(setup context.Context, run *point.Run, owner *harness.Agent) error {
+			if err := s.registerUserQuestions(run, owner); err != nil {
+				return err
+			}
 			if _, err := s.h.Approvals().Register(run, s.requestApproval); err != nil {
 				return err
 			}
@@ -519,63 +555,6 @@ func (s *Server) activateWithPolicy(ctx context.Context, agent *harness.Agent, a
 	}
 	committed = true
 	return nil
-}
-
-func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error) {
-	record, err := s.currentRecord(harness.SessionID(params.SessionID))
-	if err != nil {
-		return "", err
-	}
-	record.mu.Lock()
-	if record.closing {
-		record.mu.Unlock()
-		return "", invalidError("session is closing: " + params.SessionID)
-	}
-	if record.inflight || record.modelChanging {
-		record.mu.Unlock()
-		return "", invalidError("session already has an active prompt: " + params.SessionID)
-	}
-	// The prompt owns cancellation from admission through settlement, including
-	// the interval before the Agent has installed its active-turn canceler.
-	promptCtx, cancel := context.WithCancel(ctx)
-	record.inflight = true
-	record.promptCancel = cancel
-	record.cancelRequested = false
-	record.mu.Unlock()
-	defer cancel()
-	content, promptErr := promptBlocks(promptCtx, s.h.Attachments(), params.Prompt)
-	var result harness.TurnResult
-	if promptErr == nil {
-		result, promptErr = record.agent.Prompt(promptCtx, harness.Message{Role: harness.RoleUser, Content: content})
-		// Prompt can return as soon as its context is canceled. Retain the ACP
-		// slot until the worker has stopped, so the next turn cannot overlap it.
-		if promptCtx.Err() != nil {
-			promptErr = errors.Join(promptErr, record.agent.WhenIdle(context.WithoutCancel(ctx)))
-		}
-	}
-	record.mu.Lock()
-	cancelled := record.cancelRequested
-	record.inflight = false
-	record.promptCancel = nil
-	record.mu.Unlock()
-	if cancelled {
-		return "cancelled", nil
-	}
-	if promptErr != nil {
-		return "", promptErr
-	}
-	return promptStopReason(result.Reason), nil
-}
-
-func promptStopReason(reason harness.FinishKind) string {
-	switch reason {
-	case harness.FinishMaxTokens:
-		return "max_tokens"
-	case harness.FinishRefusal:
-		return "refusal"
-	default:
-		return "end_turn"
-	}
 }
 
 func (s *Server) closeSession(ctx context.Context, id harness.SessionID) error {
@@ -701,8 +680,11 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 		return err
 	}
 	agent, err := s.h.Agents().Resume(ctx, session, harness.AgentOptions{
-		Provider: s.provider, Model: s.model, Compaction: s.compaction, ToolResultPruner: s.toolResultPruner,
-		Configure: func(setup context.Context, run *point.Run, _ *harness.Agent) error {
+		Provider: s.provider, Model: s.model, MaxSteps: s.maxSteps, Compaction: s.compaction, ToolResultPruner: s.toolResultPruner,
+		Configure: func(setup context.Context, run *point.Run, owner *harness.Agent) error {
+			if err := s.registerUserQuestions(run, owner); err != nil {
+				return err
+			}
 			if _, err := s.h.Approvals().Register(run, s.requestApproval); err != nil {
 				return err
 			}
@@ -755,16 +737,28 @@ func (s *Server) requestApproval(ctx context.Context, request harness.ApprovalRe
 	// tool call, not as a generic human-question transport. Keep userQuestions
 	// unclaimed here, matching DSH ACP, instead of encoding arbitrary answers
 	// into permission option IDs that compliant clients cannot interpret.
+	controller := request.Agent
+	for controller.Parent() != nil {
+		controller = controller.Parent()
+	}
 	params := map[string]any{
-		"sessionId": request.Agent.ID(),
+		"sessionId": controller.ID(),
 		"toolCall":  map[string]any{"toolCallId": request.CallID},
 		"options": []any{
 			map[string]any{"optionId": "allow-once", "name": "Allow once", "kind": "allow_once"},
 			map[string]any{"optionId": "reject-once", "name": "Reject", "kind": "reject_once"},
 		},
 	}
+	if controller != request.Agent {
+		params["_meta"] = map[string]any{"pero.dev/delegated-approval": map[string]any{"agentId": request.Agent.ID(), "toolName": request.ToolName}}
+	}
 	if request.Native != nil {
-		params["_meta"] = map[string]any{"pero.dev/native-approval": *request.Native}
+		meta, ok := params["_meta"].(map[string]any)
+		if !ok {
+			meta = map[string]any{}
+			params["_meta"] = meta
+		}
+		meta["pero.dev/native-approval"] = *request.Native
 	}
 	raw, err := s.requestClient(ctx, "session/request_permission", params)
 	if err != nil {

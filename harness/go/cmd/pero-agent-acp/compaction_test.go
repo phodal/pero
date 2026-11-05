@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"math"
@@ -51,6 +52,10 @@ func TestCompactionLaunchDefaultsAndValidation(t *testing.T) {
 	if c != nil {
 		t.Fatal("disable flag ignored")
 	}
+	p, c = compactionLaunch(t, "--context-window=1000000", "--compaction-trigger-tokens=65536", "--compaction-retain-tokens=16384")
+	if p.Models[0].ContextWindow != 1000000 || c.ThresholdRatio != .065536 || c.RetainRatio != nil || c.RetainTokens == nil || *c.RetainTokens != 16384 {
+		t.Fatalf("absolute budgets changed capacity or lost retention: %+v", c)
+	}
 	for _, mutate := range []func(*compactionFlags, *openai.Config){
 		func(c *compactionFlags, _ *openai.Config) { c.ContextWindow = -1 },
 		func(c *compactionFlags, _ *openai.Config) { c.ContextWindow = 1<<30 + 1 },
@@ -61,6 +66,9 @@ func TestCompactionLaunchDefaultsAndValidation(t *testing.T) {
 		func(c *compactionFlags, _ *openai.Config) { c.Retain = .8 },
 		func(c *compactionFlags, _ *openai.Config) { c.Retain = math.NaN() },
 		func(c *compactionFlags, _ *openai.Config) { c.SummaryTokens = 1024 },
+		func(c *compactionFlags, _ *openai.Config) { c.TriggerTokens = -1 },
+		func(c *compactionFlags, _ *openai.Config) { c.RetainTokens = -1 },
+		func(c *compactionFlags, _ *openai.Config) { c.TriggerTokens, c.RetainTokens = 256, 256 },
 		func(c *compactionFlags, p *openai.Config) { p.Models[0].MaxTokens = 1024 },
 		func(c *compactionFlags, p *openai.Config) { p.Models[0].MaxTokens = 900 },
 	} {
@@ -80,20 +88,25 @@ func TestCompactionLaunchDefaultsAndValidation(t *testing.T) {
 }
 
 func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
-	for _, scenario := range []string{"pressure", "overflow", "overflow-bound", "empty-summary", "cancel"} {
+	for _, scenario := range []string{"pressure", "absolute-pressure", "overflow", "overflow-bound", "empty-summary", "cancel", "nonshrinking"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			window := "1024"
-			if scenario != "pressure" {
+			if scenario != "pressure" && scenario != "nonshrinking" {
 				window = "32768"
 			}
-			p, cfg := compactionLaunch(t, "--context-window="+window)
+			args := []string{"--context-window=" + window}
+			if scenario == "absolute-pressure" {
+				args = []string{"--context-window=1000000", "--compaction-trigger-tokens=2048", "--compaction-retain-tokens=256", "--compaction-summary-tokens=128"}
+			}
+			p, cfg := compactionLaunch(t, args...)
 			metadata, err := openai.New(p) // Constructs metadata only; never invokes HTTP.
 			if err != nil {
 				t.Fatal(err)
 			}
 			var summaries, normals atomic.Int32
+			var checkedRejection atomic.Bool
 			var overflow, block, alwaysOverflow, emptySummary atomic.Bool
 			entered := make(chan struct{}, 1)
 			adapter := harness.AdapterFunc(func(ctx context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
@@ -112,13 +125,35 @@ func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
 					if emptySummary.Load() {
 						text = ""
 					}
+					if scenario == "nonshrinking" {
+						text = strings.Repeat("nonshrinking ", 10000)
+					}
 				} else {
 					normals.Add(1)
+					if scenario == "nonshrinking" && summaries.Load() > 0 && !checkedRejection.Swap(true) {
+						// The main request header can change the resolved policy
+						// after PreStep. Establish this exact selection first.
+						if _, err := req.Agent.CompactIfNeeded(ctx, harness.CompactionPressure); err != nil && !strings.Contains(err.Error(), "did not shrink") {
+							t.Fatal(err)
+						}
+						before := summaries.Load()
+						for i := 0; i < 2; i++ {
+							if _, err := req.Agent.CompactIfNeeded(ctx, harness.CompactionPressure); err != nil {
+								t.Fatal(err)
+							}
+						}
+						if summaries.Load() != before {
+							t.Fatal("unchanged nonshrinking selection consumed another pressure request")
+						}
+						if _, err := req.Agent.CompactIfNeeded(ctx, harness.CompactionContextOverflow); err == nil || summaries.Load() != before+1 {
+							t.Fatal("pressure rejection suppressed real overflow recovery")
+						}
+					}
 					if overflow.Swap(false) || alwaysOverflow.Load() {
 						return harness.Completion{}, harness.NewProviderErrorWithFailure(harness.ProviderFailure{Code: harness.ContextWindowExceededCode, Message: "synthetic overflow"}, errors.New("synthetic overflow"))
 					}
 				}
-				return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}}}, nil
+				return harness.Completion{Finish: harness.FinishStop, Usage: &harness.TokenUsage{InputTokens: 4, OutputTokens: 2, TotalTokens: 6}, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}}}, nil
 			})
 			h, err := harness.Boot(ctx, harness.Options{Adapter: compactionSyntheticAdapter{adapter, metadata}, AdapterProviders: []string{"configured"}, ModelInfo: metadata})
 			if err != nil {
@@ -147,9 +182,18 @@ func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
 			for i := 0; i < 6; i++ {
 				prompt(a, strings.Repeat("long context detail ", 100))
 			}
-			if scenario == "pressure" && summaries.Load() == 0 {
+			if (scenario == "pressure" || scenario == "absolute-pressure") && summaries.Load() == 0 {
 				_, e := a.CompactIfNeeded(ctx, harness.CompactionPressure)
 				t.Fatalf("pressure hook never activated: err=%v", e)
+			}
+			if scenario == "nonshrinking" {
+				if !checkedRejection.Load() || summaries.Load() < 3 {
+					t.Fatal("changed selection was not retried after pressure rejection")
+				}
+				before := summaries.Load()
+				if _, err := a.CompactNow(ctx); err == nil || summaries.Load() != before+1 {
+					t.Fatal("pressure rejection suppressed explicit compaction")
+				}
 			}
 			if scenario == "overflow" {
 				before := normals.Load()
@@ -245,13 +289,31 @@ func TestCompactionLaunchEngineLongContextOverflowCancelResume(t *testing.T) {
 			defer func() { _ = detach() }()
 			prompt(a, "resume checkpoint")
 			found := false
+			var responseCount int32
 			for _, event := range a.Session().Events() {
 				if event.Type == "compaction/end" {
 					found = true
 				}
+				if event.Type == "compaction/response" {
+					var response struct {
+						CompactionID string             `json:"compactionId"`
+						Usage        harness.TokenUsage `json:"usage"`
+					}
+					if err := json.Unmarshal(event.Data, &response); err != nil || response.CompactionID == "" || response.Usage.TotalTokens != 6 {
+						t.Fatalf("invalid durable compaction usage: %s err=%v", event.Data, err)
+					}
+					responseCount++
+				}
 			}
 			if !found {
 				t.Fatal("missing durable compaction bracket")
+			}
+			want := summaries.Load()
+			if scenario == "cancel" {
+				want-- // A cancelled provider request has no completed usage receipt.
+			}
+			if responseCount != want {
+				t.Fatalf("durable compaction responses=%d want %d including rejected summaries", responseCount, want)
 			}
 		})
 	}

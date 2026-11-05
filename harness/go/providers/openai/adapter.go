@@ -10,6 +10,7 @@ import (
 	"fmt"
 	openaisdk "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/responses"
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/llm"
 	"net"
@@ -23,6 +24,13 @@ import (
 
 var errStreamClosed = errors.New("SSE stream ended without [DONE]")
 
+type APIFormat string
+
+const (
+	ChatCompletions APIFormat = "chat-completions"
+	Responses       APIFormat = "responses"
+)
+
 type ModelConfig struct {
 	ID, Name, Description    string
 	ContextWindow, MaxTokens int
@@ -30,10 +38,15 @@ type ModelConfig struct {
 	Reasoning                *llm.ModelReasoningInfo
 }
 type Config struct {
+	APIFormat APIFormat
 	// Explicit compatible-provider extension; omitted unless requested.
 	DisableThinking bool
+	// Explicit transport choice for compatible providers without an SSE route.
+	DisableStreaming bool
 	// Explicit opt-in to the process environment HTTP(S) proxy; TLS verification is unchanged.
 	UseEnvironmentProxy bool
+	// Explicit opt-in to plaintext HTTP for this configured endpoint only.
+	AllowHTTP bool
 	// Optional audit gate called before each HTTP attempt. An error prevents it.
 	BeforeHTTPAttempt func() error
 	// Optional adapter-lifetime hard limits. Zero preserves unlimited behavior.
@@ -44,9 +57,13 @@ type Config struct {
 	Client                         *http.Client
 	RetryPolicy                    *llm.RetryPolicyConfig
 	StreamIdleTimeoutMS            int64
+	RequestTimeoutMS               int64
 }
 type Adapter struct {
+	apiFormat         APIFormat
+	responses         responses.ResponseService
 	disableThinking   bool
+	disableStreaming  bool
 	maxRequests       int64
 	maxOutputTokens   int
 	requests          atomic.Int64
@@ -55,9 +72,19 @@ type Adapter struct {
 	providerName      string
 	retryPolicy       llm.ResolvedRetryPolicy
 	streamIdleTimeout time.Duration
+	requestTimeout    time.Duration
 }
 
 func New(c Config) (*Adapter, error) {
+	if c.APIFormat == "" {
+		c.APIFormat = ChatCompletions
+	}
+	if c.APIFormat != ChatCompletions && c.APIFormat != Responses {
+		return nil, errors.New("openai adapter: unsupported API format")
+	}
+	if c.APIFormat == Responses && (!c.DisableStreaming || c.DisableThinking) {
+		return nil, errors.New("openai adapter: Responses requires disable-streaming and does not accept the Chat thinking extension")
+	}
 	if c.MaxRequests < 0 || c.MaxOutputTokens < 0 {
 		return nil, errors.New("openai adapter: budget limits must be non-negative")
 	}
@@ -67,14 +94,14 @@ func New(c Config) (*Adapter, error) {
 	}
 	if u.Scheme != "https" {
 		ip := net.ParseIP(u.Hostname())
-		if u.Scheme != "http" || ip == nil || !ip.IsLoopback() {
-			return nil, errors.New("openai adapter: HTTPS required except loopback fixtures")
+		if u.Scheme != "http" || (!c.AllowHTTP && (ip == nil || !ip.IsLoopback())) {
+			return nil, errors.New("openai adapter: HTTPS required except loopback fixtures; explicit HTTP requires allow-http")
 		}
 	}
 	if strings.TrimSpace(c.APIKey) == "" || strings.TrimSpace(c.ProviderName) == "" || len(c.Models) == 0 {
 		return nil, errors.New("openai adapter: explicit credential, provider and model catalog required")
 	}
-	u.Path = strings.TrimSuffix(strings.TrimSuffix(u.Path, "/"), "/chat/completions") + "/"
+	u.Path = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(u.Path, "/"), "/chat/completions"), "/responses") + "/"
 	models := map[string]ModelConfig{}
 	for _, m := range c.Models {
 		if m.ID == "" || m.ContextWindow < 0 || m.MaxTokens < 0 {
@@ -121,6 +148,9 @@ func New(c Config) (*Adapter, error) {
 	if c.StreamIdleTimeoutMS < 1 || c.StreamIdleTimeoutMS > 2147483647 {
 		return nil, errors.New("openai adapter: invalid idle timeout")
 	}
+	if c.RequestTimeoutMS < 0 || c.RequestTimeoutMS > 2147483647 {
+		return nil, errors.New("openai adapter: invalid total request timeout")
+	}
 	client := http.Client{}
 	if c.Client != nil {
 		client = *c.Client
@@ -131,12 +161,13 @@ func New(c Config) (*Adapter, error) {
 	if transport == nil {
 		transport = configuredTransport(c.UseEnvironmentProxy)
 	}
-	client.Transport = terminalCheckingTransport{next: transport}
+	client.Transport = terminalCheckingTransport{next: transport, nonStreaming: c.DisableStreaming}
 	if c.BeforeHTTPAttempt != nil {
 		client.Transport = attemptAuditTransport{next: client.Transport, before: c.BeforeHTTPAttempt}
 	}
-	sdk := openaisdk.NewChatCompletionService(option.WithAPIKey(c.APIKey), option.WithBaseURL(u.String()), option.WithHTTPClient(&client), option.WithMaxRetries(0), option.WithOrganization(""), option.WithProject(""), option.WithHeader("User-Agent", "pero-agent/0.1"))
-	return &Adapter{disableThinking: c.DisableThinking, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, client: sdk, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond}, nil
+	sdkOptions := []option.RequestOption{option.WithAPIKey(c.APIKey), option.WithBaseURL(u.String()), option.WithHTTPClient(&client), option.WithMaxRetries(0), option.WithOrganization(""), option.WithProject(""), option.WithHeader("User-Agent", "pero-agent/0.1")}
+	sdk := openaisdk.NewChatCompletionService(sdkOptions...)
+	return &Adapter{apiFormat: c.APIFormat, responses: responses.NewResponseService(sdkOptions...), disableThinking: c.DisableThinking, disableStreaming: c.DisableStreaming, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, client: sdk, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond, requestTimeout: time.Duration(c.RequestTimeoutMS) * time.Millisecond}, nil
 }
 
 type attemptAuditTransport struct {

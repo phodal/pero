@@ -15,6 +15,16 @@ type ToolRegistration struct {
 // and scoped shadows. It invokes catalog providers outside registry locks and
 // never falls back to same-name or same-schema equivalence.
 func (r ToolRegistration) Visible(ctx context.Context, agent *Agent) (bool, error) {
+	return r.available(ctx, agent, false)
+}
+
+// Available checks this exact authorized registration before deferred discovery.
+// It does not activate or declare the tool, or bypass another presenter.
+func (r ToolRegistration) Available(ctx context.Context, agent *Agent) (bool, error) {
+	return r.available(ctx, agent, true)
+}
+
+func (r ToolRegistration) available(ctx context.Context, agent *Agent, beforeDiscovery bool) (bool, error) {
 	if r.registry == nil || r.owner == nil || agent == nil || agent.retired.Load() || r.owner.admissionError() != nil {
 		return false, nil
 	}
@@ -24,7 +34,11 @@ func (r ToolRegistration) Visible(ctx context.Context, agent *Agent) (bool, erro
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	tool, found, err := r.registry.resolveForAgent(ctx, agent, r.name)
+	resolve := r.registry.resolveForAgent
+	if deferred := r.registry.deferredViewForAgent(agent); beforeDiscovery && deferred != nil {
+		resolve = deferred.base.Resolve
+	}
+	tool, found, err := resolve(ctx, agent, r.name)
 	if err != nil || !found {
 		return false, err
 	}

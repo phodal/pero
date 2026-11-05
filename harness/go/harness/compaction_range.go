@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -17,6 +18,8 @@ type compactionSelection struct {
 	seqs       []uint64
 	tokens     int
 }
+
+var errCompactionNoReduction = errors.New("harness: compaction summary did not shrink the selected history")
 
 func selectCompactionRange(measurement TokenMeasurement, retainTokens int) *compactionSelection {
 	nodes := measurement.Nodes
@@ -132,7 +135,7 @@ func toolPairsBalanced(nodes []TokenNode) bool {
 	return len(pending) == 0
 }
 
-func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measurement TokenMeasurement, selection compactionSelection, turn *int, sourceCommandID *CommandID, policy resolvedTargetCompactionPolicy) (result *CompactionResult, err error) {
+func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measurement TokenMeasurement, selection compactionSelection, turn *int, sourceCommandID *CommandID, instructions string, policy resolvedTargetCompactionPolicy) (result *CompactionResult, err error) {
 	session := agent.session
 	releaseCompaction, acquired := session.TryLockCompaction()
 	if !acquired {
@@ -164,6 +167,17 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 	}
 	if turn != nil && (openTurn == nil || *openTurn != *turn) {
 		return nil, errors.New("harness: automatic compaction requires its current open turn")
+	}
+	hookInput := CompactionHookInput{Agent: agent, Trigger: "auto", CustomInstructions: strings.TrimSpace(instructions)}
+	if turn == nil {
+		hookInput.Trigger = "manual"
+	}
+	hookInput, hookErr := agent.hooks.PreCompact.Run(ctx, hookInput, func(_ context.Context, input CompactionHookInput) (CompactionHookInput, error) { return input, nil })
+	if hookErr != nil {
+		return nil, hookErr
+	}
+	if hookInput.Reject {
+		return nil, fmt.Errorf("harness: compaction blocked: %s", hookInput.Reason)
 	}
 	beforeNodes := append([]TokenNode(nil), measurement.Nodes...)
 	selectedNodes := append([]TokenNode(nil), measurement.Nodes[selection.startIndex:selection.endIndex+1]...)
@@ -220,7 +234,7 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 		}
 	}()
 
-	summary, rawOutput, usage, provider, model, err := b.summarize(ctx, agent, measurement, selection, policy)
+	summary, rawOutput, usage, provider, model, err := b.summarize(ctx, agent, compactionID, measurement, selection, policy)
 	if err != nil {
 		if turn == nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			return nil, newManualCompactionError(ManualCompactionSummary, "manual compaction summary failed", err)
@@ -252,30 +266,37 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 		}
 		return nil, errors.New("harness: compaction surface changed while summarization was running")
 	}
+	fileOperations := checkpointFileOperations(session.Events(), selection.rangeValue.End)
+	if len(fileOperations) > 0 {
+		raw, _ := json.Marshal(fileOperations)
+		summary = append(summary, ContentBlock{Type: BlockText, Text: "Observed file operations (bounded recent records; not current-content verification):\n" + string(raw)})
+	}
 	checkpoint := frameCompactionSummary(summary)
 	if EstimateMessageTokens(Message{Role: RoleUser, Content: checkpoint}) >= selection.tokens {
 		if turn == nil {
 			return nil, newManualCompactionError(ManualCompactionSummary, "manual compaction summary did not shrink history", nil)
 		}
-		return nil, errors.New("harness: compaction summary did not shrink the selected history")
+		return nil, errCompactionNoReduction
 	}
 	summaryEvent, err := session.Append("compaction/summary", struct {
-		CompactionID       string         `json:"compactionId"`
-		SourceCommandID    *CommandID     `json:"sourceCommandId,omitempty"`
-		Summary            []ContentBlock `json:"summary"`
-		RawOutput          []ContentBlock `json:"rawOutput"`
-		LLMStreamCall      bool           `json:"llmStreamCall"`
-		ShadowedRange      SurfaceRange   `json:"shadowedRange"`
-		ShadowedSeqs       []uint64       `json:"shadowedSeqs"`
-		ShadowedTokenCount int            `json:"shadowedTokenCount"`
-		Provider           string         `json:"provider"`
-		Model              string         `json:"model"`
-		MaxTokens          int            `json:"maxTokens"`
-		Usage              *TokenUsage    `json:"usage,omitempty"`
+		CompactionID       string                    `json:"compactionId"`
+		SourceCommandID    *CommandID                `json:"sourceCommandId,omitempty"`
+		Summary            []ContentBlock            `json:"summary"`
+		RawOutput          []ContentBlock            `json:"rawOutput"`
+		LLMStreamCall      bool                      `json:"llmStreamCall"`
+		ShadowedRange      SurfaceRange              `json:"shadowedRange"`
+		ShadowedSeqs       []uint64                  `json:"shadowedSeqs"`
+		ShadowedTokenCount int                       `json:"shadowedTokenCount"`
+		Provider           string                    `json:"provider"`
+		Model              string                    `json:"model"`
+		MaxTokens          int                       `json:"maxTokens"`
+		Usage              *TokenUsage               `json:"usage,omitempty"`
+		FileOperations     []checkpointFileOperation `json:"fileOperations,omitempty"`
 	}{
 		CompactionID: compactionID, SourceCommandID: sourceCommandID, Summary: summary, RawOutput: rawOutput, LLMStreamCall: true,
 		ShadowedRange: selection.rangeValue, ShadowedSeqs: selection.seqs, ShadowedTokenCount: selection.tokens,
 		Provider: provider, Model: model, MaxTokens: policy.maxTokens, Usage: usage,
+		FileOperations: fileOperations,
 	})
 	if err != nil {
 		if turn == nil {
@@ -318,6 +339,24 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 		return nil, err
 	}
 	closed = true
+	hookInput.CompactSummary = compactionSummaryText(summary)
+	hookInput, hookErr = agent.hooks.PostCompact.Run(ctx, hookInput, func(_ context.Context, input CompactionHookInput) (CompactionHookInput, error) { return input, nil })
+	if hookErr != nil {
+		return nil, hookErr
+	}
+	for _, message := range hookInput.Messages {
+		if message.Role != RoleUser || len(message.Source) == 0 {
+			return nil, errors.New("harness: post-compaction context requires synthetic user messages with a source")
+		}
+	}
+	for _, message := range hookInput.Messages {
+		if _, err := session.AppendSurface("user/message", message, []uint64{endEvent.Seq}); err != nil {
+			return nil, fmt.Errorf("harness: append post-compaction context: %w", err)
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return &CompactionResult{
 		CompactionID: compactionID, SourceCommandID: commandIDValue(sourceCommandID), StartSeq: start.Seq, SummarySeq: summaryEvent.Seq, EndSeq: endEvent.Seq,
 		Summary: summary, ShadowedRange: selection.rangeValue, ShadowedSeqs: append([]uint64(nil), selection.seqs...),
@@ -325,7 +364,7 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 	}, nil
 }
 
-func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, measurement TokenMeasurement, selection compactionSelection, policy resolvedTargetCompactionPolicy) (
+func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, compactionID string, measurement TokenMeasurement, selection compactionSelection, policy resolvedTargetCompactionPolicy) (
 	summary []ContentBlock, raw []ContentBlock, usage *TokenUsage, provider string, model string, err error,
 ) {
 	header, _, err := agent.session.RequestHeader()
@@ -360,6 +399,11 @@ func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, measuremen
 	if err != nil {
 		return nil, nil, nil, "", "", err
 	}
+	if agent.tools.deferredForAgent(agent) {
+		// Summarization does not execute tool calls. Historical headers may
+		// contain withdrawn registrations, so do not redeclare those schemas.
+		request.Tools = nil
+	}
 	var completion Completion
 	for {
 		if err := ctx.Err(); err != nil {
@@ -388,6 +432,18 @@ func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, measuremen
 			return nil, nil, nil, "", "", refreshErr
 		}
 		request.Messages = append(refreshed, Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: compactionInstruction}}})
+	}
+	// Provider usage belongs to the completed request even when its summary is
+	// truncated, rejected or too large to replace the selected history.
+	if _, err := agent.session.Append("compaction/response", struct {
+		CompactionID string      `json:"compactionId"`
+		Provider     string      `json:"provider"`
+		Model        string      `json:"model"`
+		Finish       FinishKind  `json:"finish"`
+		Usage        *TokenUsage `json:"usage"`
+		ToolCount    int         `json:"toolCount"`
+	}{compactionID, provider, model, completion.Finish, completion.Usage, len(request.Tools)}); err != nil {
+		return nil, nil, nil, "", "", err
 	}
 	if completion.Finish == FinishMaxTokens {
 		return nil, nil, nil, "", "", errors.New("harness: compaction summary was truncated at max tokens")
@@ -454,10 +510,28 @@ func commandIDValue(value *CommandID) CommandID {
 	return *value
 }
 
+func compactionSummaryText(blocks []ContentBlock) string {
+	var text strings.Builder
+	for _, block := range blocks {
+		if block.Type != BlockText || block.Text == "" {
+			continue
+		}
+		if text.Len() > 0 {
+			text.WriteByte('\n')
+		}
+		text.WriteString(block.Text)
+	}
+	return text.String()
+}
+
 func frameCompactionSummary(summary []ContentBlock) []ContentBlock {
 	result := make([]ContentBlock, 0, len(summary)+2)
 	result = append(result, ContentBlock{Type: BlockText, Text: compactionCheckpointPreamble + "\n\n<compacted-summary>"})
-	result = append(result, summary...)
+	// This is a new user checkpoint. Assistant protocol metadata remains in
+	// the audited summary, but cannot acquire user-message authority here.
+	for _, block := range summary {
+		result = append(result, ContentBlock{Type: BlockText, Text: block.Text})
+	}
 	result = append(result, ContentBlock{Type: BlockText, Text: "</compacted-summary>"})
 	return result
 }

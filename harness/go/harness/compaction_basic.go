@@ -2,6 +2,8 @@ package harness
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -142,7 +144,7 @@ func (b *BasicCompactor) CompactIfNeeded(ctx context.Context, agent *Agent, trig
 			return nil, nil
 		}
 		turn := agent.currentTurn()
-		return b.compactRange(ctx, agent, measurement, *selection, &turn, nil, policy)
+		return b.compactRange(ctx, agent, measurement, *selection, &turn, nil, "", policy)
 	}
 	contextWindow := target.ContextWindow
 	if b.config.dshSourcePolicy {
@@ -206,8 +208,29 @@ func (b *BasicCompactor) CompactIfNeeded(ctx context.Context, agent *Agent, trig
 		if selection == nil {
 			return result, nil
 		}
+		selected, encodeErr := json.Marshal(measurement.Nodes[selection.startIndex : selection.endIndex+1])
+		if encodeErr != nil {
+			return nil, encodeErr
+		}
+		candidate := compactionPressureRejection{selection: sha256.Sum256(selected), policy: spec}
+		b.pressureMu.Lock()
+		rejected := b.pressureRejected != nil && reflect.DeepEqual(*b.pressureRejected, candidate)
+		b.pressureMu.Unlock()
+		if rejected {
+			_, err := agent.session.Append("compaction/skipped", struct {
+				Reason string       `json:"reason"`
+				Range  SurfaceRange `json:"range"`
+			}{"unchanged nonshrinking pressure selection", selection.rangeValue})
+			return result, err
+		}
 		turn := agent.currentTurn()
-		result, err = b.compactRange(ctx, agent, measurement, *selection, &turn, nil, policy)
+		result, err = b.compactRange(ctx, agent, measurement, *selection, &turn, nil, "", policy)
+		b.pressureMu.Lock()
+		b.pressureRejected = nil
+		if errors.Is(err, errCompactionNoReduction) {
+			b.pressureRejected = &candidate
+		}
+		b.pressureMu.Unlock()
 		if err != nil {
 			return nil, err
 		}
@@ -223,7 +246,7 @@ func (b *BasicCompactor) CompactIfNeeded(ctx context.Context, agent *Agent, trig
 		spec.compactionRetries+1, measurement.TotalTokens, spec.thresholdTokens)
 }
 
-func (b *BasicCompactor) CompactNow(ctx context.Context, agent *Agent, sourceCommandID *CommandID) (*CompactionResult, error) {
+func (b *BasicCompactor) CompactNow(ctx context.Context, agent *Agent, sourceCommandID *CommandID, instructions string) (*CompactionResult, error) {
 	if agent == nil || agent.session == nil {
 		return nil, errors.New("harness: compaction requires an agent session")
 	}
@@ -243,7 +266,7 @@ func (b *BasicCompactor) CompactNow(ctx context.Context, agent *Agent, sourceCom
 		policy = b.config.defaults
 		policy.provider, policy.model = agent.provider, agent.model
 	}
-	return b.compactRange(ctx, agent, measurement, *selection, nil, sourceCommandID, policy)
+	return b.compactRange(ctx, agent, measurement, *selection, nil, sourceCommandID, instructions, policy)
 }
 
 // CompactRegion implements the DSH explicit-region capability inside the
@@ -270,7 +293,7 @@ func (b *BasicCompactor) CompactRegion(ctx context.Context, agent *Agent, start,
 		policy.provider, policy.model = agent.provider, agent.model
 	}
 	turn := agent.currentTurn()
-	return b.compactRange(ctx, agent, measurement, *selection, &turn, nil, policy)
+	return b.compactRange(ctx, agent, measurement, *selection, &turn, nil, "", policy)
 }
 
 func (b *BasicCompactor) routedPolicy(agent *Agent) (resolvedTargetCompactionPolicy, RequestContext, bool, error) {

@@ -443,3 +443,31 @@ func TestCallerResultReceipt(t *testing.T) {
 		})
 	}
 }
+
+func TestAutoCompactWindowReservesHeadroom(t *testing.T) {
+	h, err := harness.Boot(t.Context(), harness.Options{Adapter: harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		return harness.Completion{}, nil
+	}), AdapterProviders: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = h.Dispose(cleanup)
+		_ = h.Drain(cleanup)
+	})
+	parent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "compact-parent", CWD: t.TempDir(), Provider: "fixture", Model: "parent-model", MaxSteps: 4, MaxTokens: 128})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := &inProcessProvider{h: h, compaction: &harness.BasicCompactionConfig{ContextWindow: 8192, MaxTokens: 128}}
+	options, err := provider.childAgentOptions(harness.SubagentRequest{Parent: parent, AutoCompactWindow: 1000}, nil)
+	if err != nil || options.Compaction == nil || options.Compaction.HeadroomTokens == nil || *options.Compaction.HeadroomTokens != 1000 {
+		t.Fatalf("options=%+v err=%v", options.Compaction, err)
+	}
+	provider.compaction = nil
+	if _, err := provider.childAgentOptions(harness.SubagentRequest{Parent: parent, AutoCompactWindow: 1000}, nil); err == nil || !strings.Contains(err.Error(), "compaction policy") {
+		t.Fatalf("missing policy err=%v", err)
+	}
+}

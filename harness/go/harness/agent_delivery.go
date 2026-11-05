@@ -59,19 +59,53 @@ func (a *Agent) Deliver(message Message, wake bool) error {
 // become model-visible. Wakeup messages own FIFO turns; quiet messages wait at
 // the next-step boundary. A resumed Agent replays the same pending queues.
 func (a *Agent) DeliverDurable(ctx context.Context, message Message, wake bool) error {
-	if err := a.mutationAdmissionError(); err != nil {
-		return err
-	}
-	if a == nil || a.durableInbox == nil {
-		return errors.New("harness: durable Agent inbox is unavailable")
-	}
-	if !a.session.DurabilityAttached() {
-		return errors.New("harness: durable Agent delivery requires attached session persistence")
-	}
 	target := InboxNextStep
 	if wake {
 		target = InboxNextTurn
 	}
+	return a.deliverInboxNotice(ctx, message, inboxDelivery{target: target, wake: wake, requirePersistence: true})
+}
+
+// DeliverBackgroundNotice commits a source-identified completion notice to the
+// existing inbox before scheduling it. It never clears the user interrupt latch.
+func (a *Agent) DeliverBackgroundNotice(ctx context.Context, message Message) error {
+	return a.deliverInboxNotice(ctx, message, inboxDelivery{target: InboxNextTurn, wake: true})
+}
+
+// AcknowledgeBackgroundNotice withdraws a completion whose result is already
+// committed through another channel. Remembering the same immutable identity
+// also suppresses late publication and replay; unrelated queued work is intact.
+func (a *Agent) AcknowledgeBackgroundNotice(ctx context.Context, message Message) error {
+	return a.deliverInboxNotice(ctx, message, inboxDelivery{target: InboxNextTurn, observed: true})
+}
+
+// deliverInboxNotice retains stable source identities in the existing inbox.
+// The internal wake respects interruption; unlike explicit WakeDurable it does
+// not unpark work that the user stopped. In-memory Sessions remain in-memory.
+type inboxDelivery struct {
+	target                   InboxTarget
+	wake, requirePersistence bool
+	observed                 bool
+}
+
+// StageBackgroundNotice persists an idempotent next-turn notice without waking
+// the worker. Recovery stages a batch before ResumeDurableInbox schedules it.
+func (a *Agent) StageBackgroundNotice(ctx context.Context, message Message) error {
+	return a.deliverInboxNotice(ctx, message, inboxDelivery{target: InboxNextTurn, requirePersistence: true})
+}
+
+func (a *Agent) deliverInboxNotice(ctx context.Context, message Message, delivery inboxDelivery) error {
+	message, err := validatePluginMessage(a, message)
+	if err != nil {
+		return err
+	}
+	if a == nil || a.durableInbox == nil {
+		return errors.New("harness: Agent inbox is unavailable")
+	}
+	if delivery.requirePersistence && !a.session.DurabilityAttached() {
+		return errors.New("harness: durable Agent delivery requires attached session persistence")
+	}
+	target := delivery.target
 	a.inboxClaimMu.Lock()
 	if err := a.mutationAdmissionError(); err != nil {
 		a.inboxClaimMu.Unlock()
@@ -82,15 +116,28 @@ func (a *Agent) DeliverDurable(ctx context.Context, message Message, wake bool) 
 		a.inboxClaimMu.Unlock()
 		return err
 	}
-	if err := a.session.Flush(ctx); err != nil {
-		a.inboxClaimMu.Unlock()
-		return err
+	var removed InboxMutation
+	if delivery.observed {
+		removed, _, err = a.durableInbox.RemoveExact(message)
+		if err != nil {
+			a.inboxClaimMu.Unlock()
+			return err
+		}
+	}
+	if a.session.DurabilityAttached() {
+		if err := a.session.Flush(ctx); err != nil {
+			a.inboxClaimMu.Unlock()
+			return err
+		}
 	}
 	a.inboxClaimMu.Unlock()
 	if inserted {
 		a.publishInboxInserted(message, target, false)
 	}
-	if wake {
+	for _, message := range removed.Removed {
+		a.publishInboxDiscarded(message, false)
+	}
+	if delivery.wake {
 		a.requestDurableWake()
 	}
 	return nil
@@ -145,7 +192,15 @@ func (a *Agent) ResumeDurableInbox() error {
 	if err := a.mutationAdmissionError(); err != nil {
 		return err
 	}
-	if a == nil || a.durableInbox == nil || !a.durableInbox.HasNextTurn() {
+	if a == nil || a.durableInbox == nil {
+		return nil
+	}
+	if a.session.DurabilityAttached() {
+		if err := a.hooks.BeforeInboxResume.Emit(context.Background(), a); err != nil {
+			return err
+		}
+	}
+	if !a.durableInbox.HasNextTurn() {
 		return nil
 	}
 	if !a.session.DurabilityAttached() {
@@ -418,6 +473,19 @@ func (a *Agent) tryFollowupOwned(message Message, admission *FollowupAdmission, 
 }
 
 func validatePluginMessage(a *Agent, message Message) (Message, error) {
+	message, err := validateInboxMessage(a, message)
+	if err != nil {
+		return Message{}, err
+	}
+	if messageHasUserSource(message) {
+		return Message{}, errors.New("harness: plugin message cannot declare user source")
+	}
+	return message, nil
+}
+
+// validateInboxMessage admits the shared user-role envelope. Host DSH
+// admissions may carry user provenance; plugin-only entry points may not.
+func validateInboxMessage(a *Agent, message Message) (Message, error) {
 	if a == nil {
 		return Message{}, errors.New("harness: cannot deliver to a nil agent")
 	}
@@ -428,7 +496,7 @@ func validatePluginMessage(a *Agent, message Message) (Message, error) {
 		message.Role = RoleUser
 	}
 	if message.Role != RoleUser || len(message.Content) == 0 {
-		return Message{}, errors.New("harness: plugin message must be a non-empty user message")
+		return Message{}, errors.New("harness: inbox message must be a non-empty user message")
 	}
 	select {
 	case <-a.done:

@@ -1,9 +1,39 @@
 package shell
 
-import "sync"
+import (
+	"context"
+	"fmt"
+	"io"
+	"sync"
+)
+
+// foregroundOutputSink serializes the two pipe readers. A failed capture must
+// cancel the owned process group, while its pipes continue draining until exit.
+type foregroundOutputSink struct {
+	mu     sync.Mutex
+	writer io.Writer
+	cancel context.CancelCauseFunc
+	failed bool
+}
+
+func (w *foregroundOutputSink) Write(source []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if !w.failed {
+		n, err := w.writer.Write(source)
+		if err == nil && n != len(source) {
+			err = io.ErrShortWrite
+		}
+		if err != nil {
+			w.failed = true
+			w.cancel(fmt.Errorf("shell: output sink: %w", err))
+		}
+	}
+	return len(source), nil
+}
 
 // tailWriter retains the source collector's bounded trailing-byte algorithm.
-// No spill file or background observer can retain unbounded process output.
+// Its memory use stays bounded even when a trusted foreground sink is present.
 type tailWriter struct {
 	mu        sync.Mutex
 	limit     int

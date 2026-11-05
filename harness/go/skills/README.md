@@ -71,6 +71,38 @@ reuses the existing descriptor-rooted `fstools` reader, currently supported on
 Linux and macOS; it does not add another sandbox, agent, registry or scheduler.
 See `SOURCE.json` for the precise adapted-versus-new boundary.
 
+## Bounded catalog presentation
+
+Native composition can opt into `MountOptions{SummaryBudget: SummaryBudget{
+AdvertisementBytes: 8192, PageBytes: 8192}}`. Setting either budget applies byte
+ceilings to the existing presentation for both native `skill` and plugin
+`Skill`; an omitted field uses 8192 bytes. Each budget must be between 1024 and
+65536 bytes. The all-zero value retains the existing defaults: listings are
+bounded to 16 KiB, and advertisements participate in the shared catalog budget.
+An advertisement ceiling also participates in that shared budget; it never
+allocates additional space outside the total.
+
+Small `{}` listings retain their array response. Larger or explicitly paged
+listings return `{"items":[...],"offset":0,"total":512,"next_offset":5}`.
+Continue with `{"offset":5,"limit":5}`; `next_offset` is omitted at the end.
+The same offset/limit protocol is used with or without the engineering profile.
+The catalog remains the sole authorization and digest-check owner.
+
+Display descriptions, hints and path patterns may be shortened or omitted to
+fit the byte budget, with valid UTF-8 retained. Names and read digests are never
+shortened. A row with `metadata_truncated: true` can be recovered completely with
+`{"summary":"exact_name","offset":0}`. Concatenate the returned `text` fields
+using their `next_offset` byte positions to recover the complete summary JSON;
+summary reads never activate a workflow. Every model-visible name remains
+discoverable, including the selected-plugin path's maximum 512 selections
+(the legacy roots path retains its separate 64-skill limit). Loaded instruction
+bodies and selected resources retain their existing read limits.
+
+Native callers still copy an exact name and digest from discovery before
+reading. Claude-profile callers that already know the exact authorized
+qualified name may invoke it directly; another list call is unnecessary.
+User-only workflows remain absent from model discovery and invocation.
+
 ## Behavioral comparison
 
 Unlike official DSH, summaries are tool-schema descriptions rather than durable

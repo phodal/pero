@@ -56,23 +56,25 @@ func MountToolResultPruner(run *point.Run, agent *Agent, config ToolResultPruneC
 	return nil
 }
 
-func (a *Agent) pruneToolResults() (ToolResultPruneResult, error) {
-	if a == nil {
-		return ToolResultPruneResult{}, errors.New("harness: tool-result pruning requires an agent")
-	}
+func (a *Agent) effectiveToolResultPruner() *ToolResultPruner {
 	if a.scope != nil {
 		if policy, ok := point.Lookup(a.scope.Runtime(), a.scope, ToolResultPrunerPolicyKey); ok {
 			if pruner, overridden := policy.Effective(); overridden {
 				if pruner == nil {
-					return ToolResultPruneResult{}, nil
+					return nil
 				}
-				return pruner.PruneSession(a.session)
+				return pruner
 			}
 		}
 	}
 	a.prunerMu.RLock()
 	pruner := a.pruner
 	a.prunerMu.RUnlock()
+	return pruner
+}
+
+func (a *Agent) pruneToolResults() (ToolResultPruneResult, error) {
+	pruner := a.effectiveToolResultPruner()
 	if pruner == nil {
 		return ToolResultPruneResult{}, nil
 	}

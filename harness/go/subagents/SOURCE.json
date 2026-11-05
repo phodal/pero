@@ -20,12 +20,14 @@
   ],
   "adaptations": [
     "Import paths remapped to Pero. Native in-process preparation/Begin/result/Cancel/exact Dispose and Session persistence attach/detach retained.",
-    "Removed external, continuation/resume/catalog/preset interfaces and arbitrary child Configure callback. Native structured capture retained.",
+    "The original bounded spawn/fork providers remain one-shot. The selected Claude profile now adds an original managed continuation provider over the native registry; arbitrary ConfigureChild compositions and Explore/Plan stay one-shot.",
     "Bounded child options reject model route, CWD and budget increases; token ceiling is minimum positive creation-time parent and committed request-header cap.",
     "Parent scoped authority and immutable launch-owned native sandbox are retained. Point sandbox ModeOverride propagation omitted because Pero never treats session events as executable sandbox authority. ApprovalNever pinned before publication and again after descriptor.",
     "Tool contribution retains native scoped registration and argument shape, narrowed to exact description/prompt keys. Uses registry StartActivation caller delivery and synchronous native result/disposal instead of asynchronous Start/WatchParentActivation, ensuring native capacity enforcement and parent cancellation.",
     "Trusted Compaction option defensively copied through existing native clone helper. No model-controlled budget/permission/provider/compaction knobs.",
     "New synthetic tests and BUILD metadata. No live models or network actors.",
-    "Caller result consumption joins the already-started teardown receipt with Wait after Result delivery, instead of issuing Dispose again and surfacing transient disposal-pending as a tool failure. Closed-result and cancellation branches retain their existing cleanup behavior."
-  ]
+    "Caller result consumption joins the already-started teardown receipt with Wait after Result delivery, instead of issuing Dispose again and surfacing transient disposal-pending as a tool failure. Closed-result and cancellation branches retain their existing cleanup behavior.",
+    "Selected custom/general-purpose agents retain descriptor-bound identity, effective route and declared tool restrictions; exact managed activation resume and JSONL continuation use the existing AgentManager, approval and Session seams. New loopback HTTP/native file tests prove history preservation, current-policy narrowing and no effect replay."
+  ],
+  "behavior_reference": "https://code.claude.com/docs/en/sub-agents#resume-subagents"
 }

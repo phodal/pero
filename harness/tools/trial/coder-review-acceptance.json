@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-11-03",
+  "plugin": {
+    "name": "coder",
+    "version": "0.58.0"
+  },
+  "scope": "Original review subflow in an isolated Git fixture; not the full coder development/merge orchestration.",
+  "source_workflow_hashes": {
+    "workflows/coder-review.js": "ec19a97377b7a0172e185a55892bac623360379b7969794230e6aefdde3a45a8",
+    "workflows/phases/review-aggregate-assessment-phase.js": "5de9541b65ab01f9bf0719d0ce8fd99a0dc3ed7da3eb2b6d4c2cf4a554e7fdc4",
+    "workflows/phases/review-cr-phase.js": "e224751b5f89624ea913054ee55d9982090813c4cd818dd264b62f63afb2f138"
+  },
+  "hook_migration": "harness/go/plugins/migrations/selected-coder-hook-v1.json",
+  "attempts": [
+    {
+      "request_limit": 32,
+      "http_attempts": 32,
+      "status": "incomplete_budget_exhausted",
+      "report_count": 2,
+      "automatic_retries": 0
+    },
+    {
+      "request_limit": 80,
+      "http_attempts": 56,
+      "status": "approved",
+      "automatic_retries": 0,
+      "same_model_aliases": [
+        "opus",
+        "sonnet"
+      ],
+      "model": "deepseek-flash",
+      "thinking_disabled": true,
+      "workflow": {
+        "value": {
+          "status": "approved",
+          "affected_tasks": []
+        },
+        "stopReason": "completed",
+        "agentCalls": 4
+      },
+      "selected_dimensions": [
+        "d9",
+        "d8",
+        "d4"
+      ],
+      "report_parses": {
+        "spec": {
+          "dimension": "spec",
+          "result": "pass",
+          "affected_tasks": [],
+          "rework_count": 0,
+          "source": "frontmatter"
+        },
+        "d9": {
+          "dimension": "d9",
+          "result": "pass",
+          "affected_tasks": [],
+          "rework_count": 0,
+          "source": "frontmatter"
+        },
+        "d8": {
+          "dimension": "d8",
+          "result": "pass",
+          "affected_tasks": [],
+          "rework_count": 0,
+          "source": "frontmatter"
+        },
+        "d4": {
+          "dimension": "d4",
+          "result": "pass",
+          "affected_tasks": [],
+          "rework_count": 0,
+          "source": "frontmatter"
+        }
+      },
+      "unit_tests": 6,
+      "tracked_source_and_commit_unchanged": true,
+      "selected_plugin_matches_source": true,
+      "tool_calls": {
+        "Read": 23,
+        "Bash": 39,
+        "Write": 4,
+        "structured_output": 4,
+        "Edit": 1,
+        "Grep": 2,
+        "Workflow": 1
+      },
+      "approval_count": 44,
+      "approval_policy": "Explicit test-client allow-once decisions for fixture writes and unsandboxed Bash; not human interaction.",
+      "tool_errors": 0,
+      "session_stop_reason": "end_turn",
+      "agent_exit_code": 0,
+      "cleanup_failures": [],
+      "usage": {
+        "input_tokens": 56835,
+        "output_tokens": 23758,
+        "total_tokens": 797649,
+        "cache_read_tokens": 717056,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 0,
+        "reported_completions": 56,
+        "unreported_completions": 0
+      },
+      "usage_source": "committed provider-reported completions",
+      "cost_usd": null
+    }
+  ],
+  "verification_entrypoint": "harness/tools/trial/verify_coder.py"
+}

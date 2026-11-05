@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "purpose": "Resolve each explicit worktree repository without passing Array.map index/array arguments to node:path.resolve.",
+  "files": [
+    {
+      "plugin": "P03",
+      "path": "scripts/multi-repo-worktree.mjs",
+      "beforeSHA256": "818d23bdb4cdff9fd91118ba9b9010caa97b15d01d0661714f30db5bd8a3916d",
+      "afterSHA256": "1c4c4b64646e26792af4d4260efb9326d60f7577b54705204c78ba78728851eb",
+      "actions": [
+        {
+          "kind": "worktree-explicit-repository-paths"
+        }
+      ]
+    }
+  ]
+}

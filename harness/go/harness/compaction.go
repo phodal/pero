@@ -65,7 +65,7 @@ func (e *ManualCompactionError) Unwrap() error {
 
 type CompactionEngine interface {
 	CompactIfNeeded(context.Context, *Agent, CompactionTrigger) (*CompactionResult, error)
-	CompactNow(context.Context, *Agent, *CommandID) (*CompactionResult, error)
+	CompactNow(context.Context, *Agent, *CommandID, string) (*CompactionResult, error)
 }
 
 // CompactionRegionEngine is the optional capability behind DSH's explicit
@@ -156,6 +156,13 @@ type BasicCompactor struct {
 	overflowMu       sync.Mutex
 	overflowRetries  int
 	pressureWarnings compactionPressureWarnings
+	pressureMu       sync.Mutex
+	pressureRejected *compactionPressureRejection
+}
+
+type compactionPressureRejection struct {
+	selection [32]byte
+	policy    resolvedCompactSpec
 }
 
 // CompactIfNeeded invokes the effect-owned compactor mounted for this agent.
@@ -177,6 +184,12 @@ func (a *Agent) CompactIfNeeded(ctx context.Context, trigger CompactionTrigger) 
 // CompactNow reserves this agent while it is idle, compacts one useful older
 // span below pressure thresholds, and admits later prompts behind the operation.
 func (a *Agent) CompactNow(ctx context.Context, sourceCommandID ...CommandID) (*CompactionResult, error) {
+	return a.CompactWithInstructions(ctx, "", sourceCommandID...)
+}
+
+// CompactWithInstructions is CompactNow plus the text supplied to /compact.
+// PreCompact hooks receive that text as custom_instructions.
+func (a *Agent) CompactWithInstructions(ctx context.Context, instructions string, sourceCommandID ...CommandID) (*CompactionResult, error) {
 	if a == nil {
 		return nil, errors.New("harness: compaction requires an agent")
 	}
@@ -198,7 +211,7 @@ func (a *Agent) CompactNow(ctx context.Context, sourceCommandID ...CommandID) (*
 		source = &value
 	}
 	result, err := a.runMaintenance(ctx, func(operationContext context.Context) (*CompactionResult, error) {
-		return engine.CompactNow(operationContext, a, source)
+		return engine.CompactNow(operationContext, a, source, instructions)
 	})
 	if err != nil && ctx.Err() == nil && errors.Is(err, context.Canceled) {
 		return nil, newManualCompactionError(ManualCompactionCancelled, "manual compaction was cancelled", err)
@@ -495,4 +508,4 @@ const compactionCheckpointPreamble = "This is an automatically generated checkpo
 
 const compactionInstruction = `You are now acting as a compaction engine for this AI coding assistant. Condense the conversation ABOVE into a structured checkpoint that lets another model resume the work with no loss of essential context.
 
-Output these Markdown sections in order using terse bullets: Primary Request and Intent; Key Technical Concepts; Files and Code; Errors and Fixes; Pending Jobs; Current Work; Next Step; Critical Context. Preserve exact paths, commands, errors, identifiers, numeric values, and user corrections. Output only the checkpoint text. Do not call tools or mention this request.`
+Output these Markdown sections in order using terse bullets: Primary Request and Intent; Constraints and Acceptance Requirements; Key Technical Concepts; Files and Code; Errors and Fixes; Verified Results and Unverified Assumptions; Required Deliverables; Pending Jobs; Current Work; Next Step; Critical Context. Preserve exact paths, commands, errors, identifiers, numeric values, and user corrections. Keep public acceptance requirements separate from self-generated tests and preserve unresolved failures. Output only the checkpoint text. Do not call tools or mention this request.`

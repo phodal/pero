@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	harnessmcp "github.com/phodal/pero/harness/go/mcp"
 )
 
 func (r *ToolRegistry) Execute(ctx context.Context, request ToolRequest) (ToolOutcome, error) {
@@ -200,9 +202,13 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 		)}, nil
 	}
 	if filtered.DenyReason != "" {
-		return r.settle(ctx, ToolOutcome{Request: filtered, Result: ToolResult{
+		outcome, err := r.settle(ctx, ToolOutcome{Request: filtered, Result: ToolResult{
 			IsError: true, Content: []ContentBlock{{Type: BlockText, Text: filtered.DenyReason}},
 		}}, nested, "", nil)
+		if err == nil && filtered.EndTurn {
+			outcome.Result.ConcludesTurn = true
+		}
+		return outcome, err
 	}
 	if prepared && !r.preparedFinalContentAdmitted(filtered.Agent, preparedTool) {
 		return ToolOutcome{}, errors.New("harness: prepared tool selection or restrictions changed before dispatch")
@@ -287,9 +293,11 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 			if filtered.profileLease != nil && !filtered.profileLease.active() {
 				return r.settle(ctx, ToolOutcome{Request: filtered, Result: retiredToolOwnerResult(nil)}, nested, tool.Schema.Name, tool.ObserveResult)
 			}
+			var hookResult ApprovalHookResult
 			approval, err = r.approval.Request(ctx, ApprovalRequest{
 				Agent: filtered.Agent, CallID: filtered.CallID, ToolName: filtered.Name,
-				Reason: reason, Native: native, AlwaysAsk: tool.AlwaysAskApproval,
+				Reason: reason, Native: native, AlwaysAsk: tool.AlwaysAskApproval || filtered.RequestApproval, Preapproved: filtered.Preapproved,
+				ToolInput: filtered.Arguments, HookResult: &hookResult,
 			})
 			if err != nil {
 				if contextFailure(ctx) != nil {
@@ -299,6 +307,15 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 				}
 				return ToolOutcome{}, err
 			}
+			if hookResult.Interrupt {
+				return ToolOutcome{}, &ToolInterruptError{Reason: hookResult.Reason}
+			}
+			if approval == ApprovalAllowedOnce && len(hookResult.UpdatedInput) > 0 {
+				filtered.Arguments = hookResult.UpdatedInput
+			}
+			if hookResult.Reason != "" {
+				filtered.DenyReason = hookResult.Reason
+			}
 		}
 		if approval != ApprovalAllowedOnce {
 			if contextFailure(ctx) != nil {
@@ -306,8 +323,12 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 					"tool call aborted before dispatch", "AbortError", ToolAbortedBeforeDispatch, nil,
 				)}, nested, tool.Schema.Name, tool.ObserveResult)
 			}
+			text := "tool approval " + string(approval) + ": " + filtered.Name
+			if filtered.DenyReason != "" {
+				text = filtered.DenyReason
+			}
 			return r.settle(ctx, ToolOutcome{Request: filtered, Result: ToolResult{
-				IsError: true, Content: []ContentBlock{{Type: BlockText, Text: "tool approval " + string(approval) + ": " + filtered.Name}},
+				IsError: true, Content: []ContentBlock{{Type: BlockText, Text: text}},
 			}}, nested, tool.Schema.Name, tool.ObserveResult)
 		}
 	}
@@ -342,6 +363,7 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 	}
 	func() {
 		bodyCtx, retireBody := withToolBodyAdmission(executeCtx, filtered)
+		bodyCtx = harnessmcp.WithToolCaller(bodyCtx, filtered.Agent)
 		defer retireBody()
 		if tool.ExecuteRequest != nil {
 			result, executeErr = tool.ExecuteRequest(bodyCtx, filtered)
@@ -354,6 +376,10 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 		cancelTimeout()
 	}
 	if executeErr != nil {
+		var interrupt *ToolInterruptError
+		if errors.As(executeErr, &interrupt) {
+			filtered.EndTurn = true
+		}
 		result = toolBodyErrorResult(filtered, result, executeErr)
 	}
 	// The timeout wrapper owns its deadline classification. Once its timer wins,

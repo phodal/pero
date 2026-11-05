@@ -2,6 +2,8 @@ package openai
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	openaisdk "github.com/openai/openai-go/v3"
@@ -20,8 +22,8 @@ type wireRequest struct {
 	Tools           []wireTool              `json:"tools,omitempty"`
 	MaxTokens       int                     `json:"max_tokens,omitempty"`
 	Stop            []string                `json:"stop,omitempty"`
-	Stream          bool                    `json:"stream,omitempty"`
-	StreamOptions   wireStreamOptions       `json:"stream_options"`
+	Stream          bool                    `json:"stream"`
+	StreamOptions   *wireStreamOptions      `json:"stream_options,omitempty"`
 }
 
 type wireThinking struct {
@@ -69,7 +71,7 @@ type wireToolCall struct {
 	Function wireFunction `json:"function"`
 }
 
-func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest, emit func(harness.StreamChunk) error) (harness.Completion, error) {
+func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest, emit func(harness.StreamChunk) error) (harness.Completion, error) {
 	if _, err := a.ResolveModelInfo(ctx, request.Provider, request.Model); err != nil {
 		return harness.Completion{}, err
 	}
@@ -97,14 +99,50 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 	if a.maxOutputTokens > 0 && (request.MaxTokens == 0 || request.MaxTokens > a.maxOutputTokens) {
 		request.MaxTokens = a.maxOutputTokens
 	}
-	wire, err := encodeRequest(request, slices.Contains(a.models[request.Model].InputModalities, "image"))
-	if err != nil {
-		return harness.Completion{}, err
+	var body any
+	var toolsPayload []byte
+	toolResultBytes, toolResults := 0, 0
+	imagesAllowed := slices.Contains(a.models[request.Model].InputModalities, "image")
+	if a.apiFormat == Responses {
+		wire, err := encodeResponses(request, imagesAllowed)
+		if err != nil {
+			return harness.Completion{}, err
+		}
+		body = wire
+		if len(wire.Tools) > 0 {
+			toolsPayload, _ = json.Marshal(wire.Tools)
+		}
+		for _, item := range wire.Input {
+			if item.Type == "function_call_output" {
+				encoded, _ := json.Marshal(item)
+				toolResultBytes += len(encoded)
+				toolResults++
+			}
+		}
+	} else {
+		wire, err := encodeRequest(request, imagesAllowed)
+		if err != nil {
+			return harness.Completion{}, err
+		}
+		if a.disableThinking {
+			wire.Thinking = &wireThinking{Type: "disabled"}
+		}
+		if a.disableStreaming {
+			wire.Stream, wire.StreamOptions = false, nil
+		}
+		body = wire
+		if len(wire.Tools) > 0 {
+			toolsPayload, _ = json.Marshal(wire.Tools)
+		}
+		for _, message := range wire.Messages {
+			if message.Role == "tool" {
+				encoded, _ := json.Marshal(message)
+				toolResultBytes += len(encoded)
+				toolResults++
+			}
+		}
 	}
-	if a.disableThinking {
-		wire.Thinking = &wireThinking{Type: "disabled"}
-	}
-	payload, err := json.Marshal(wire)
+	payload, err := json.Marshal(body)
 	if err != nil {
 		return harness.Completion{}, err
 	}
@@ -117,9 +155,35 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 	// Consume budget immediately before any HTTP generation; failed requests count.
 	// The SDK has retries disabled, and exhaustion is not a retryable error.
 	if a.maxRequests > 0 && a.requests.Add(1) > a.maxRequests {
-		return harness.Completion{}, harness.NewProviderError("provider request budget exhausted", "BUDGET_EXHAUSTED", nil)
+		return harness.Completion{}, harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
 	}
-	go a.pumpStream(streamCtx, params, events)
+	if request.Agent != nil {
+		hash := sha256.Sum256(payload)
+		_, err := request.Agent.Session().Append("request/wire-size", struct {
+			Stage                  string `json:"stage"`
+			Purpose                string `json:"purpose,omitempty"`
+			Turn                   int    `json:"turn,omitempty"`
+			Step                   int    `json:"step,omitempty"`
+			PayloadBytes           int    `json:"payload_bytes"`
+			ToolsBytes             int    `json:"tools_bytes"`
+			ToolResultMessageBytes int    `json:"tool_result_message_bytes"`
+			ToolResults            int    `json:"tool_results"`
+			SHA256                 string `json:"payload_sha256"`
+		}{"prepared_for_http", request.Purpose, request.Turn, request.Step, len(payload), len(toolsPayload), toolResultBytes, toolResults, hex.EncodeToString(hash[:])})
+		if err != nil {
+			return harness.Completion{}, err
+		}
+		if err := request.Agent.Session().Flush(ctx); err != nil {
+			return harness.Completion{}, err
+		}
+	}
+	if a.apiFormat == Responses {
+		go a.pumpResponses(streamCtx, payload, events)
+	} else if a.disableStreaming {
+		go a.pumpCompletion(streamCtx, params, events)
+	} else {
+		go a.pumpStream(streamCtx, params, events)
+	}
 	timer := time.NewTimer(a.streamIdleTimeout)
 	defer timer.Stop()
 	assembly := newStreamAssembly()
@@ -133,7 +197,30 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 				return assembly.completion()
 			}
 			if event.err != nil {
+				if event.decoded {
+					return harness.Completion{}, event.err
+				}
 				return harness.Completion{}, normalizeStreamError(ctx, event.err)
+			}
+			if event.completion != nil {
+				if emit != nil {
+					chunk := harness.StreamChunk{Usage: event.completion.Usage}
+					for _, block := range event.completion.Message.Content {
+						block.Extensions = nil
+						if block.Type == harness.BlockToolCall {
+							block.ArgumentsDelta = string(block.Arguments)
+							block.Arguments = nil
+						}
+						chunk.Content = append(chunk.Content, block)
+					}
+					if err := emit(chunk); err != nil {
+						return harness.Completion{}, err
+					}
+				}
+				if err := ctx.Err(); err != nil {
+					return harness.Completion{}, err
+				}
+				return *event.completion, nil
 			}
 			resetTimer(timer, a.streamIdleTimeout)
 			chunk, consumeErr := assembly.consume(event.chunk)
@@ -169,6 +256,8 @@ func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest,
 }
 
 type openAIStreamEvent struct {
-	chunk openaisdk.ChatCompletionChunk
-	err   error
+	decoded    bool
+	completion *harness.Completion
+	chunk      openaisdk.ChatCompletionChunk
+	err        error
 }

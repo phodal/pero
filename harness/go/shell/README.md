@@ -18,12 +18,17 @@ approval before execution and use external isolation for untrusted commands.
 Default timeout is 30 seconds, hard maximum 120 seconds. Commands are limited to
 16 KiB. Retained output is bounded to at most 64 KiB independently for stdout and
 stderr; excess output is discarded while the pipes continue draining. The source
-tail algorithm retains the last bytes and reports truncation. No spill files,
-background job ownership, persistent shell, model environment overrides, product
+tail algorithm retains the last bytes and reports truncation. Trusted composition
+can supply `LocalOptions.OutputSink` to retain the complete combined stream;
+writes are serialized and a sink failure cancels the owned process group. The
+executor does not create spill files itself. No background job ownership,
+persistent shell, model environment overrides, product
 sandbox service or managed runtime is included.
 
-Only explicit PATH/LANG/LC_ALL/TZ values may be supplied in BaseEnv; no process
-environment is inherited. Fixed noninteractive presentation values are added.
+By default only explicit PATH/LANG/LC_ALL/TZ values may be supplied in BaseEnv;
+no process environment is inherited. Trusted plugin composition can opt into
+`TrustedBaseEnvironment` with an explicit launch snapshot. Neither setting is a
+model argument. Fixed noninteractive presentation values are added.
 Bash startup files are disabled. Cancellation/timeout terminate then kill the
 owned process group even if the leader exits first. Pipe drain time is bounded.
 Ordinary descendants are cleaned up on completion; deliberate process-group or
@@ -50,3 +55,16 @@ returning. A five-second cleanup deadline forces termination if necessary and
 reports `cleanupUncertain: true`; inspect the runner diagnostics before retrying.
 The ordinary Unix process-group grace is unchanged. Native Windows tests skip
 unless `PERO_REQUIRE_WINDOWS_ACL=1` is set for an approved disposable runner.
+
+
+## Explicit PTY execution
+
+`SupportsTerminal` and `StartTerminal` add a separate live PTY path on Linux and
+macOS for an unsandboxed executor. It reuses workspace resolution, explicit
+shell/environment, finite timeout and process-group termination. Terminal owns
+bounded cursor output, stdin/EOF, resize and stop; it does not restore processes
+from receipts. Canonical EOF is terminal input, not a pipe-close guarantee in raw
+mode. Native composition owns exact-agent handles, approval and durable startup
+intent. macOS real-process/race tests passed; Linux and Windows cross-compilation
+do not establish native runtime support. Windows and configured sandbox PTYs are
+unavailable.

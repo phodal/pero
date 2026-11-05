@@ -6,14 +6,75 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
 	openaiadapter "github.com/phodal/pero/harness/go/providers/openai"
 )
+
+func TestClaudeChildToolCallDoesNotMaskSharedBudgetExhaustion(t *testing.T) {
+	var calls, childCalls atomic.Int32
+	f := newClaudeHTTPFixture(t, t.TempDir(), func(w http.ResponseWriter, r *http.Request) {
+		var request struct{ Model string }
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Error(err)
+			return
+		}
+		calls.Add(1)
+		if request.Model == "parent-model" {
+			claudeHTTPAnswer(w, `{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"delegate","type":"function","function":{"name":"Agent","arguments":"{\"subagent_type\":\"sample:worker\",\"description\":\"budget probe\",\"prompt\":\"write once and read\"}"}}]},"finish_reason":"tool_calls"}]}`)
+			return
+		}
+		name, arguments := "Read", `{"file_path":"proof.txt"}`
+		if childCalls.Add(1) == 1 {
+			name, arguments = "Write", `{"file_path":"proof.txt","content":"one actual write"}`
+		}
+		quoted, _ := json.Marshal(arguments)
+		claudeHTTPAnswer(w, fmt.Sprintf(`{"choices":[{"index":0,"delta":{"content":"visible child progress","tool_calls":[{"index":0,"id":"child-%d","type":"function","function":{"name":%q,"arguments":%s}}]},"finish_reason":"tool_calls"}]}`, childCalls.Load(), name, quoted))
+	}, true, []AgentDefinition{{Name: "sample:worker", Description: "Budget probe", Instructions: "Perform the selected fixture task.", Model: "sonnet", Tools: []string{"Write", "Read"}}}, ClaudeOptions{})
+	// Child steps inherit this ceiling. Keep it above the fixture's shared HTTP
+	// cap so exhaustion happens after a committed child tool call.
+	parent, err := f.h.Agents().Create(f.ctx, harness.AgentOptions{ID: "budget-parent", CWD: f.root, Provider: "fixture", Model: "parent-model", MaxSteps: 32, MaxTokens: 128, DisableCompaction: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.SetPermissionMode(parent.Session(), harness.PermissionAutoReview); err != nil {
+		t.Fatal(err)
+	}
+	_, err = parent.Prompt(f.ctx, harness.Message{Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "delegate budget probe"}}})
+	if err == nil || !strings.Contains(err.Error(), "budget exhausted") || strings.Contains(err.Error(), "unsupported") {
+		t.Fatalf("child's tool call masked the real budget failure: %v", err)
+	}
+	if calls.Load() != 20 || childCalls.Load() != 19 || f.approvals.Load() != 0 {
+		t.Fatalf("requests/approvals=%d/%d/%d", calls.Load(), childCalls.Load(), f.approvals.Load())
+	}
+	if data, err := os.ReadFile(filepath.Join(f.root, "proof.txt")); err != nil || string(data) != "one actual write" {
+		t.Fatalf("lost or replayed the actual child write: %q %v", data, err)
+	}
+	for _, event := range parent.Session().Events() {
+		if event.Type != "tool/result" {
+			continue
+		}
+		var result harness.ToolResult
+		if err := json.Unmarshal(event.Data, &result); err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Content) != 2 || result.Content[1].Text != "visible child progress" || !result.IsError {
+			t.Fatalf("failure lost its text or diagnostic status: %+v", result)
+		}
+		for _, block := range result.Content {
+			if block.Type != harness.BlockText {
+				t.Fatalf("assistant-only child content leaked into parent receipt: %s", block.Type)
+			}
+		}
+	}
+}
 
 // Uses only loopback and a deliberately fake credential. HTTP receipts, not
 // adapter counters or direct API calls, prove the budget covers real child turns.

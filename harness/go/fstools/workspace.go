@@ -102,6 +102,9 @@ func (w *Workspace) checked(name string, directory bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err := checkPrivatePath(filepath.Join(w.path, name)); err != nil {
+		return "", err
+	}
 	parts := strings.Split(name, "/")
 	for i := range parts {
 		p := strings.Join(parts[:i+1], "/")
@@ -159,8 +162,26 @@ func (w *Workspace) Read(ctx context.Context, name string) (ScopedText, error) {
 }
 
 func (w *Workspace) Write(ctx context.Context, name, text string) (ScopedTextReceipt, error) {
+	return w.write(ctx, name, text, false)
+}
+
+// WriteCreatingParents is the Claude Write contract. Directory creation is part
+// of the already-approved file write and remains under the same workspace root.
+func (w *Workspace) WriteCreatingParents(ctx context.Context, name, text string) (ScopedTextReceipt, error) {
+	return w.write(ctx, name, text, true)
+}
+
+func (w *Workspace) write(ctx context.Context, name, text string, createParents bool) (ScopedTextReceipt, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if createParents {
+		if len(text) > MaxFileBytes || !validText([]byte(text)) {
+			return ScopedTextReceipt{}, errors.New("content must be UTF-8 text of at most 1 MiB without NUL")
+		}
+		if err := w.createParents(ctx, name); err != nil {
+			return ScopedTextReceipt{}, err
+		}
+	}
 	name, err := w.checked(name, false)
 	if err != nil {
 		return ScopedTextReceipt{}, err
@@ -204,43 +225,45 @@ func (w *Workspace) Write(ctx context.Context, name, text string) (ScopedTextRec
 	return w.writeNew(ctx, name, text)
 }
 
-func (w *Workspace) Edit(ctx context.Context, name, oldText, newText string, all bool) (ScopedTextReceipt, error) {
-	if !w.SupportsReplacement() {
-		return ScopedTextReceipt{}, errors.New("native Windows file replacement is unavailable")
+func (w *Workspace) createParents(ctx context.Context, name string) error {
+	if err := w.check(); err != nil {
+		return err
 	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	name, err := w.checked(name, false)
+	name, err := relative(name, false)
 	if err != nil {
-		return ScopedTextReceipt{}, err
+		return err
 	}
-	if oldText == "" || len(oldText) > MaxFileBytes || len(newText) > MaxFileBytes || !validText([]byte(oldText)) || !validText([]byte(newText)) {
-		return ScopedTextReceipt{}, errors.New("edit requires nonempty bounded UTF-8 old_text and bounded new_text")
+	if err := checkPrivatePath(filepath.Join(w.path, name)); err != nil {
+		return err
 	}
-	selected, err := w.selectFile(name)
-	if err != nil {
-		return ScopedTextReceipt{}, err
-	}
-	defer selected.Close()
-	before, err := selected.Read(ctx, name)
-	if err != nil {
-		return ScopedTextReceipt{}, err
-	}
-	count := strings.Count(before.Text, oldText)
-	if count == 0 || (!all && count != 1) {
-		return ScopedTextReceipt{}, errors.New("old_text must match exactly once unless replace_all is true")
-	}
-	// Check expansion before allocating the replacement.
-	if len(newText) > len(oldText) && (len(newText)-len(oldText)) > (MaxFileBytes-len(before.Text))/count {
-		return ScopedTextReceipt{}, errors.New("edited content exceeds 1 MiB")
-	}
-	after := strings.ReplaceAll(before.Text, oldText, newText)
-	return selected.Replace(ctx, name, before.Digest, []byte(after), func(c context.Context) error {
-		if err := c.Err(); err != nil {
+	parts := strings.Split(path.Dir(name), "/")
+	for i := range parts {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
-		return w.check()
-	})
+		parent := strings.Join(parts[:i+1], "/")
+		if parent == "." {
+			continue
+		}
+		info, err := w.root.Lstat(parent)
+		if errors.Is(err, os.ErrNotExist) {
+			if err = w.root.Mkdir(parent, 0700); err != nil && !errors.Is(err, os.ErrExist) {
+				return err
+			}
+			info, err = w.root.Lstat(parent)
+		}
+		if err != nil {
+			return err
+		}
+		if scopedLink(info) || !info.IsDir() {
+			return errors.New("write parent must be a directory without symlinks")
+		}
+	}
+	return w.check()
+}
+
+func (w *Workspace) Edit(ctx context.Context, name, oldText, newText string, all bool) (ScopedTextReceipt, error) {
+	return w.EditBatch(ctx, name, []TextEdit{{OldText: oldText, NewText: newText, ReplaceAll: all}})
 }
 
 type DirectoryEntry struct {

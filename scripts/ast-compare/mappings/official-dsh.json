@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "6a42cd30a1e445b0c319d55ee5caaf2456ced2bf",
+  "right_ref": "06f8fe6a + 2026-11-05 permission interruption repair; per-file hashes below",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -16,9 +16,9 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "95113ee77a8856acf39b64319cb1db92cabc2799e8e1581796885e6daa64d798"
+        "sha256": "1cd609f37e89ae9979da0beb89283f87a197463a03513109cf620995352af7b5"
       },
-      "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence.",
+      "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence. Go turn entry separately rejects already canceled contexts and retired scopes before claiming queued input; native lifecycle tests validate that local admission rule. The follow-up applies opt-in historical clearing before PreStep and permits stop continuation for explicit unlimited steps; native behavior tests cover these separately from the output-limit landmarks.",
       "landmarks": [
         {
           "id": "output-limit",
@@ -55,9 +55,9 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "95113ee77a8856acf39b64319cb1db92cabc2799e8e1581796885e6daa64d798"
+        "sha256": "1cd609f37e89ae9979da0beb89283f87a197463a03513109cf620995352af7b5"
       },
-      "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests.",
+      "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests. The follow-up applies opt-in historical clearing before PreStep and permits stop continuation for explicit unlimited steps; native behavior tests cover these separately from the output-limit landmarks.",
       "landmarks": [
         {
           "id": "sticky-state",
@@ -84,7 +84,7 @@
         "path": "harness/go/providers/openai/stream.go",
         "language": "go",
         "symbol": "streamAssembly.completion",
-        "sha256": "2cecfaf622dcebbb5400207ddeadd95d2b24ed3c9ece466d82fa8d42288aae8f"
+        "sha256": "5c12b239a3d2283adffd9f07b0f41467e4348aa3d78dc4cb09cb9cccae9d5cda"
       },
       "notes": "Official neutral assembler and Go Chat Completions assembler have different roles. Both must discard unsafe tool calls at output truncation; replay-envelope support remains a separate capability.",
       "landmarks": [
@@ -113,7 +113,7 @@
         "path": "harness/go/providers/openai/provider_errors.go",
         "language": "go",
         "symbol": "httpErrorCode",
-        "sha256": "20ce09a75aa29b167c5e680dd14643ebd60593a5866451f22ba12f3b198ba8ab"
+        "sha256": "87fb195455876733167b922e90d08edabdc234a3ea022c471a52f2567fe7ffa3"
       },
       "notes": "Official Messages and Go Chat Completions are different transports. Compare category precedence, not exact field/schema equality.",
       "landmarks": [
@@ -152,7 +152,7 @@
         "path": "harness/go/providers/openai/stream.go",
         "language": "go",
         "symbol": "mapUsage",
-        "sha256": "2cecfaf622dcebbb5400207ddeadd95d2b24ed3c9ece466d82fa8d42288aae8f"
+        "sha256": "5c12b239a3d2283adffd9f07b0f41467e4348aa3d78dc4cb09cb9cccae9d5cda"
       },
       "notes": "Official component counts are exclusive Messages values. Cached<=prompt in Go is a separate Chat Completions conversion invariant, not a literal upstream rule.",
       "landmarks": [
@@ -181,9 +181,9 @@
         "path": "harness/go/fstools/workspace.go",
         "language": "go",
         "symbol": "FormatRead",
-        "sha256": "f24afcaace3efc212eac8f765d39e055032d2115b25b37690cb28298ddd6ffd6"
+        "sha256": "6280d22bfc853935e626526cfe042ef958616f489917ce13f8e59efc462bf9b9"
       },
-      "notes": "Official streaming scanner and Go bounded decoded-text presentation differ in implementation. Go retains 16 KiB total cap; official default is 50 KiB. Verify empty/terminal-newline/CRLF cases by regression.",
+      "notes": "Official streaming scanner and Go bounded decoded-text presentation differ in implementation. Go retains 16 KiB total cap; official default is 50 KiB. Verify empty/terminal-newline/CRLF cases by regression. The 2026-11-05 batch-Edit follow-up delegates Edit to the same-file atomic replacement owner; this physical-read selector is unchanged. The per-file receipt is refreshed, without claiming new cross-language equivalence.",
       "landmarks": [
         {
           "id": "window-boundary",
@@ -210,9 +210,9 @@
         "path": "harness/go/fstools/workspace.go",
         "language": "go",
         "symbol": "FormatRead",
-        "sha256": "f24afcaace3efc212eac8f765d39e055032d2115b25b37690cb28298ddd6ffd6"
+        "sha256": "6280d22bfc853935e626526cfe042ef958616f489917ce13f8e59efc462bf9b9"
       },
-      "notes": "Official returns a line-numbered text envelope; Go returns a JSON ReadWindow. Compare continuation contract, not output syntax.",
+      "notes": "Official returns a line-numbered text envelope; Go returns a JSON ReadWindow. Compare continuation contract, not output syntax. The 2026-11-05 batch-Edit follow-up delegates Edit to the same-file atomic replacement owner; this physical-read selector is unchanged. The per-file receipt is refreshed, without claiming new cross-language equivalence.",
       "landmarks": [
         {
           "id": "next-offset",
@@ -236,12 +236,12 @@
         "sha256": "e4d624d1a4d305d924ae0cff23e0f005becf9a797b02c037e45a1e86c3c17d12"
       },
       "right": {
-        "path": "harness/go/acp/server.go",
+        "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "40771e3721b9614e53dfd194e793dedbd3fb3e671a19c28c2b8f97b66f08612e"
+        "sha256": "d2598cf9a59196cef64824b0e1430f08dcef61c13af6ab1708402b919d8ecc86"
       },
-      "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement.",
+      "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement. ACP may explicitly enable bounded output-limit follow-up turns. Each uses a plugin source and the same prompt lifetime; default zero retains the single-prompt contract. The core sticky max-token outcome is unchanged. Recovery, exhausted budgets and cancellation are pinned by native tests.",
       "landmarks": [
         {
           "id": "admission-context",
@@ -278,7 +278,7 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "40771e3721b9614e53dfd194e793dedbd3fb3e671a19c28c2b8f97b66f08612e"
+        "sha256": "9dc22d83f4e81f97448e0376905b27f009c9caa6cc044cab945a248975c9d7f0"
       },
       "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity.",
       "landmarks": [
@@ -304,10 +304,10 @@
         "sha256": "e4d624d1a4d305d924ae0cff23e0f005becf9a797b02c037e45a1e86c3c17d12"
       },
       "right": {
-        "path": "harness/go/acp/server.go",
+        "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "40771e3721b9614e53dfd194e793dedbd3fb3e671a19c28c2b8f97b66f08612e"
+        "sha256": "d2598cf9a59196cef64824b0e1430f08dcef61c13af6ab1708402b919d8ecc86"
       },
       "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates.",
       "landmarks": [
@@ -472,7 +472,7 @@
         "path": "harness/go/cmd/pero-agent-acp/coding.go",
         "language": "go",
         "symbol": "mountCoding",
-        "sha256": "6898a4178c921c7683991e735c369554978162b610de0237b1728b07ab53c583"
+        "sha256": "4e6e846d366441170dfa7537559adcaa1bcaddd5dfa7171d0a067b0af339fd83"
       },
       "notes": "Official tool registration versus optional Go CLI composition. The mapping highlights policy selection; it does not equate full projection/plugin assembly.",
       "landmarks": [
@@ -501,7 +501,7 @@
         "path": "harness/go/mcp/tools.go",
         "language": "go",
         "symbol": "ListTools",
-        "sha256": "ffd57a9f63d755285d0a72487e061ee5ee8f6ff5d0f8b90599fb910565381e72"
+        "sha256": "774da244185fe853ceefdf8927e0627610198cdb9116e0b291f4e6f896451371"
       },
       "notes": "A server without tools capability need not implement tools/list. A capabilities guard should precede discovery.",
       "landmarks": [
@@ -530,7 +530,7 @@
         "path": "harness/go/mcp/tools.go",
         "language": "go",
         "symbol": "fromMCPResult",
-        "sha256": "ffd57a9f63d755285d0a72487e061ee5ee8f6ff5d0f8b90599fb910565381e72"
+        "sha256": "774da244185fe853ceefdf8927e0627610198cdb9116e0b291f4e6f896451371"
       },
       "notes": "Canonical value and supported output schema now flow through the existing tool registry. Existing Go text/image projection is retained; this does not claim complete official rich-attachment/PTC rendering parity.",
       "landmarks": [

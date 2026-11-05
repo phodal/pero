@@ -13,7 +13,7 @@ func encodeRequest(r harness.GenerateRequest, imagesAllowed bool) (wireRequest, 
 	if r.MaxTokens < 0 || (r.Temperature != nil && (math.IsNaN(*r.Temperature) || math.IsInf(*r.Temperature, 0) || *r.Temperature < 0 || *r.Temperature > 2)) {
 		return wireRequest{}, fmt.Errorf("invalid generation controls")
 	}
-	w := wireRequest{Model: r.Model, ReasoningEffort: r.ReasoningEffort, Temperature: r.Temperature, MaxTokens: r.MaxTokens, Stop: r.Stop, Stream: true, StreamOptions: wireStreamOptions{IncludeUsage: true}}
+	w := wireRequest{Model: r.Model, ReasoningEffort: r.ReasoningEffort, Temperature: r.Temperature, MaxTokens: r.MaxTokens, Stop: r.Stop, Stream: true, StreamOptions: &wireStreamOptions{IncludeUsage: true}}
 	imageBytes := 0
 	if r.System != "" {
 		w.Messages = append(w.Messages, wireMessage{Role: "system", Content: r.System})
@@ -59,16 +59,7 @@ func encodeRequest(r harness.GenerateRequest, imagesAllowed bool) (wireRequest, 
 				// Tool images remain in the journal/ACP transcript for display.
 				// Text-only providers receive an explicit visual-read limitation;
 				// user image attachments still require declared image capability.
-				toolContent := b.Content
-				if !imagesAllowed {
-					toolContent = make([]harness.ContentBlock, 0, len(b.Content))
-					for _, block := range b.Content {
-						if block.Type == harness.BlockImage && len(block.Extensions) == 0 {
-							block = harness.ContentBlock{Type: harness.BlockText, Text: "\n[Tool image retained for conversation display. This text-only model has not inspected its pixels; use the accompanying text and image reference, and disclose this limitation when interpreting the figure.]\n"}
-						}
-						toolContent = append(toolContent, block)
-					}
-				}
+				toolContent := projectToolImages(b.Content, imagesAllowed, imageBytes)
 				result, err := encodeContent(toolContent, imagesAllowed, &imageBytes)
 				if err != nil {
 					return w, err

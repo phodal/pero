@@ -10,17 +10,29 @@ import (
 // skillInvocation attributes loaded instructions without granting user authorship
 // or tool permissions. The digest identifies the approved launch-time content.
 type skillInvocation struct {
-	Kind   string `json:"kind"`
-	Form   string `json:"form"`
-	Name   string `json:"name"`
-	Digest string `json:"digest"`
+	Kind      string                 `json:"kind"`
+	Form      string                 `json:"form"`
+	Name      string                 `json:"name"`
+	Digest    string                 `json:"digest"`
+	Arguments string                 `json:"arguments,omitempty"`
+	Turn      int                    `json:"turn,omitempty"`
+	ID        string                 `json:"id,omitempty"`
+	Context   string                 `json:"context,omitempty"`
+	ChildID   harness.SessionID      `json:"childId,omitempty"`
+	Status    harness.SubagentStatus `json:"status,omitempty"`
 }
 
-// invokedSkills selects only whole whitespace-bounded tokens in this step's
-// claimed direct-user text, never history or nested tool/external content.
-// Known launch-time names provide both the grammar and the authority boundary.
-func invokedSkills(messages []harness.Message, rows []Summary) []Summary {
-	var selected []Summary
+type explicitInvocation struct {
+	Summary
+	Arguments string
+	Prompt    string
+}
+
+// explicitInvocations recognizes claimed direct-user text. Claude's ACP/SDK
+// mode loads only the first command at the start; legacy roots retain their
+// existing whitespace-bounded gesture semantics.
+func explicitInvocations(messages []harness.Message, rows []Summary, claude bool) []explicitInvocation {
+	var selected []explicitInvocation
 	seen := make(map[string]bool)
 	for _, message := range messages {
 		var source struct {
@@ -33,13 +45,26 @@ func invokedSkills(messages []harness.Message, rows []Summary) []Summary {
 			if block.Type != harness.BlockText {
 				continue
 			}
+			if claude && strings.TrimSpace(block.Text) == "" {
+				continue
+			}
+			cursor := 0
 			for _, token := range strings.Fields(block.Text) {
+				start := cursor + strings.Index(block.Text[cursor:], token)
+				cursor = start + len(token)
 				for _, row := range rows {
 					if token == "/"+row.Name && !seen[row.Name] {
-						selected = append(selected, row)
+						arguments := strings.TrimSpace(block.Text[cursor:])
+						selected = append(selected, explicitInvocation{Summary: row, Arguments: arguments, Prompt: block.Text})
 						seen[row.Name] = true
 					}
 				}
+				if claude {
+					break
+				}
+			}
+			if claude {
+				break
 			}
 		}
 	}

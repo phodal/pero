@@ -5,6 +5,8 @@ go_library(
     srcs = [
         "config.go",
         "connection.go",
+        "elicit.go",
+        "instructions.go",
         "observation.go",
         "output.go",
         "resources.go",
@@ -24,6 +26,7 @@ go_library(
 go_test(
     name = "mcp_test",
     srcs = [
+        "elicit_test.go",
         "observation_test.go",
         "resources_test.go",
         "visibility_test.go",

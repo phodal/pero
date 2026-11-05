@@ -1,0 +1,18 @@
+{
+  "references": [
+    {
+      "repository": "https://github.com/deepseek-ai/deepseek-harness",
+      "commit": "ce7073d51254c26cd63b22a60835b8f948deb447",
+      "files": [
+        "packages/workflow/tool-workflow/src/index.ts",
+        "packages/workflow/workflow-ptc/src/runtime.ts",
+        "packages/workflow/workflow-ptc/src/host.ts",
+        "packages/workflow/workflow-ptc/src/meta.ts"
+      ],
+      "relationship": "Behavior adapted through a new Go/Node RPC host; original TypeScript runtime not copied.",
+      "license": "MIT",
+      "licenseFile": "LICENSE.dsh"
+    }
+  ],
+  "scope": "Only explicit selected-package workflow scripts; no implicit script roots, model credentials, separate agent loop, or OS-sandbox claim."
+}

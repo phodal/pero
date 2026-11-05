@@ -1,5 +1,39 @@
 # Quality gates
 
+Opt-in native Go engineering contracts, acceptance evidence, skills budgets and
+memory attribution: [Engineering profile](engineering-profile.md).
+
+Native ACP coding sample, Session usage/failure reports and observed benchmark
+procedure limits: [Coding benchmark](coding-benchmark.md).
+
+Five native HumanEval+ tasks without Docker, official controls and token/tool
+failure analysis: [Native EvalPlus sample](evalplus-native.md).
+
+Pinned DSH/Pi/Qwen comparison, native tool changes and verification:
+[Native coding follow-up](dsh-native-improvements.md).
+
+Historical output clearing, checkpoint provenance, progress/delivery feedback,
+environment-owned services and request deadlines:
+[Reference runtime improvements](reference-runtime-improvements.md).
+
+Selected old failures, separate service-discovery correction and recorded usage:
+[Terminal-Bench runtime reruns](terminal-bench-runtime-rerun.md).
+
+Deferred discovery, output budgets, continuation cursors and Session boundary
+measurements: [Tool-call efficiency](tool-call-efficiency.md).
+
+Further task suites, Harbor ACP integration and current execution prerequisites:
+[Coding benchmark candidates](coding-benchmark-candidates.md).
+
+First Harbor ACP execution, official failure verdict and reviewed Session:
+[Terminal-Bench cancellation smoke run](terminal-bench-smoke.md).
+
+All 89 tasks, uncapped request configuration and current execution evidence:
+[Terminal-Bench full-suite run](terminal-bench-full.md).
+
+Failure evidence, repair boundaries and the verified turn-entry correction:
+[Terminal-Bench failure repair review](terminal-bench-failure-repair-review.md).
+
 Local environment creation, dependency installation and App-wide runtime binding:
 [Local environment preparation](local-environment-preparation.md).
 
@@ -127,3 +161,5 @@ and remaining gaps: [Harness behavior parity](harness-behavior-parity.md).
 Local research goals, Overview and links to App-owned records: [research Projects](research-projects.md).
 
 Independent scientific HTML reader package and Paper integration: [Paper reader](paper-reader.md).
+
+- [Validation-driven coding recovery](validation-driven-coding.md): diagnostic evidence, reproducible profiles, atomic edits and offline recovery-window accounting.

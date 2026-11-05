@@ -29,7 +29,7 @@ func TestCodingModelAgentProcess(t *testing.T) {
 		return
 	}
 	flag.CommandLine = flag.NewFlagSet("coding-model-fixture", flag.ContinueOnError)
-	os.Args = []string{"coding-model-fixture", "--endpoint", os.Getenv("PERO_CODING_MODEL_ENDPOINT"), "--model", "fixture-a", "--selectable-model", "fixture-b", "--session-dir", os.Getenv("PERO_CODING_MODEL_SESSIONS"), "--enable-todos", "--context-window", "8192", "--max-tokens", "128", "--max-retries", "0"}
+	os.Args = []string{"coding-model-fixture", "--endpoint", os.Getenv("PERO_CODING_MODEL_ENDPOINT"), "--model", "fixture-a", "--selectable-model", "fixture-b", "--session-dir", os.Getenv("PERO_CODING_MODEL_SESSIONS"), "--enable-todos", "--context-window", "8192", "--max-tokens", "128", "--max-retries", "0", "--max-turn-steps", "0"}
 	if os.Getenv("PERO_CODING_MODEL_NATIVE") == "1" {
 		os.Args = append(os.Args, "--workspace", os.Getenv("PERO_CODING_MODEL_WORKSPACE"), "--enable-agent-instructions")
 	}

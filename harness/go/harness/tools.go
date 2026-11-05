@@ -15,6 +15,8 @@ import (
 )
 
 type Tool struct {
+	registrationID             uint64
+	catalogID                  uint64
 	dshTodoNumberCompatibility bool
 	nativeFinalContent         *nativeFinalContent
 	nativeFinalTransfer        *sourceFinalContentTransfer
@@ -102,6 +104,10 @@ type ToolCatalogProvider struct {
 	// ordinary Go/dynamic capability and project those capabilities through an
 	// external presentation runtime such as DSH native/PTC/both.
 	Authoritative bool
+	// Exclusive rejects overlapping authoritative presenters at registration.
+	// Use it when a view cannot compose another presenter's declarations.
+	Exclusive bool
+	deferred  *DeferredTools
 	// Bind receives a capability view that excludes this provider and every
 	// authoritative presentation provider. It is invoked synchronously during
 	// registration before the provider can serve requests.
@@ -313,6 +319,12 @@ func (b ToolCatalogBase) DispatchCaptured(ctx context.Context, request ToolReque
 	return normalizeToolOutput(bodyCtx, request, result), nil
 }
 
+// ToolInterruptError ends the current tool batch and turn after recording a
+// rejected result. It is distinct from a recoverable tool execution failure.
+type ToolInterruptError struct{ Reason string }
+
+func (err *ToolInterruptError) Error() string { return "tool execution interrupted: " + err.Reason }
+
 type ToolRequest struct {
 	finalContent        *toolFinalContentReceipt
 	dshOutputProjection bool
@@ -323,9 +335,15 @@ type ToolRequest struct {
 	Arguments           json.RawMessage
 	// DenyReason and RequestApproval are runtime-only pre-execute decisions.
 	// Pipelines may set them but model-provided input cannot forge them.
-	DenyReason      string
+	DenyReason string
+	// EndTurn records that a denied call should finish the turn. Failed tool
+	// results otherwise stay available for the model to correct.
+	EndTurn         bool
 	RequestApproval bool
 	ApprovalReason  string
+	// Preapproved is set by trusted runtime policy for this exact invocation,
+	// never decoded from model arguments. Base approval policy still applies.
+	Preapproved bool `json:"-"`
 
 	executionToken       ToolExecutionToken
 	parentExecutionToken ToolExecutionToken
@@ -391,6 +409,8 @@ type toolRestrictionEntry struct {
 	scope *point.Scope
 	allow map[string]struct{}
 	deny  map[string]struct{}
+	admit func(*Agent, string) bool
+	agent *Agent
 }
 
 // ToolGuard is a post-waterfall execution check. Nil abstains; an error denies
@@ -404,6 +424,7 @@ type ToolRegistry struct {
 	entries        map[string][]toolEntry
 	catalogs       []toolCatalogEntry
 	catalogPending map[toolCatalogIdentityKey]*toolCatalogIdentity
+	deferredEpoch  string
 	restrictions   []toolRestrictionEntry
 	approval       *ApprovalBroker
 	spills         *SpillRegistry
@@ -504,9 +525,26 @@ func (r *ToolRegistry) Restrict(ctx context.Context, run *point.Run, agent *Agen
 		return nil, err
 	}
 
+	return r.registerRestriction(run, toolRestrictionEntry{scope: run.Scope, allow: allow, deny: deny})
+}
+
+// RestrictWhen installs a trusted, synchronous policy in the existing catalog
+// and dispatch restriction owner. It applies to all definitions in this scope,
+// including newly registered tools. The predicate must not call this registry.
+func (r *ToolRegistry) RestrictWhen(run *point.Run, admit func(*Agent, string) bool) (point.Dispose, error) {
+	if run == nil || !run.Active() {
+		return nil, point.ErrInactiveRun
+	}
+	if admit == nil {
+		return nil, errors.New("harness: dynamic restriction requires a predicate")
+	}
+	return r.registerRestriction(run, toolRestrictionEntry{scope: run.Scope, admit: admit})
+}
+
+func (r *ToolRegistry) registerRestriction(run *point.Run, entry toolRestrictionEntry) (point.Dispose, error) {
 	r.mu.Lock()
 	r.nextID++
-	entry := toolRestrictionEntry{id: r.nextID, scope: run.Scope, allow: allow, deny: deny}
+	entry.id = r.nextID
 	r.restrictions = append(r.restrictions, entry)
 	r.mu.Unlock()
 	var once sync.Once
@@ -579,10 +617,11 @@ func newToolRegistryWithSpills(runtime *point.Runtime, approval *ApprovalBroker,
 	return registry
 }
 
-func visibleToolRestrictions(entries []toolRestrictionEntry, scope *point.Scope) []toolRestrictionEntry {
+func visibleToolRestrictions(entries []toolRestrictionEntry, agent *Agent) []toolRestrictionEntry {
 	result := make([]toolRestrictionEntry, 0, len(entries))
 	for _, entry := range entries {
-		if entry.scope.Contains(scope) {
+		if entry.scope.Contains(agent.Scope()) {
+			entry.agent = agent
 			result = append(result, entry)
 		}
 	}
@@ -591,6 +630,9 @@ func visibleToolRestrictions(entries []toolRestrictionEntry, scope *point.Scope)
 
 func toolRestrictionsAdmit(restrictions []toolRestrictionEntry, name string, origin *point.Scope) bool {
 	for _, restriction := range restrictions {
+		if restriction.admit != nil && !restriction.admit(restriction.agent, name) {
+			return false
+		}
 		// A restriction masks only definitions inherited from an ancestor of
 		// its own scope. Definitions contributed at or below that scope are the
 		// child's own response/control surface and remain exempt.

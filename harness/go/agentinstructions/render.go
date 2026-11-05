@@ -42,7 +42,8 @@ func frame(blocks ...string) string {
 }
 
 func baselineSection(file instructionFile) string {
-	return "Instructions from: " + file.display + "\n\n" + file.content
+	dir, _ := splitScope(file.scope)
+	return "Instructions from: " + file.display + "\nApplies only to work under: " + dir + "\n\n" + file.content
 }
 
 func changeSection(item renderItem) string {
