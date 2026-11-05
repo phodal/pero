@@ -159,6 +159,17 @@ impl LayoutPreferences {
         (available >= 520.).then(|| self.sessions_width().min(available - 320.))
     }
 
+    /// Move the displayed divider, retaining the preference when it cannot move.
+    pub fn resize_sessions_by(&mut self, available: f32, delta: f32) {
+        if let Some(width) = self.visible_sessions_width(available) {
+            let mut resized = *self;
+            resized.resize_sessions(width + delta);
+            if resized.visible_sessions_width(available) != Some(width) {
+                self.sessions_width = resized.sessions_width;
+            }
+        }
+    }
+
     fn deserialize_sessions_width<'de, D: serde::Deserializer<'de>>(
         deserializer: D,
     ) -> Result<u16, D::Error> {
@@ -432,6 +443,36 @@ mod layout_tests {
         for width in [199, 481] {
             assert!(serde_json::from_value::<LayoutPreferences>(
                 serde_json::json!({"sessions_width": width})).is_err());
+        }
+    }
+
+    #[test]
+    fn sessions_width_adjustments_start_at_the_displayed_divider() {
+        for (saved, available, delta, expected, visible) in [
+            (480., 740., -20., 400., Some(400.)),
+            (360., 600., -20., 260., Some(260.)),
+            (280., 900., 20., 300., Some(300.)),
+            (200., 900., -20., 200., Some(200.)),
+            (480., 900., 20., 480., Some(480.)),
+            (480., 740., 20., 480., Some(420.)),
+            (480., 520., -20., 480., Some(200.)),
+            (360., 519., -20., 360., None),
+        ] {
+            let mut layout = LayoutPreferences::default();
+            layout.resize_sessions(saved);
+            layout.resize_sessions_by(available, delta);
+            assert_eq!(layout.sessions_width(), expected);
+            assert_eq!(layout.visible_sessions_width(available), visible);
+            let restored: LayoutPreferences =
+                serde_json::from_value(serde_json::to_value(layout).unwrap()).unwrap();
+            assert_eq!(restored.sessions_width(), expected);
+        }
+        let mut layout = LayoutPreferences::default();
+        layout.resize_sessions(480.);
+        for expected in [400., 380., 360.] {
+            layout.resize_sessions_by(740., -20.);
+            assert_eq!(layout.sessions_width(), expected);
+            assert_eq!(layout.visible_sessions_width(740.), Some(expected));
         }
     }
 

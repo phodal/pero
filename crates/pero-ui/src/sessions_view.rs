@@ -203,16 +203,16 @@ impl Workbench {
                     cx.stop_propagation();
                     cx.notify();
                 }))
-                .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
+                .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                     use pero_contracts::workbench::LayoutPreferences as L;
-                    let width = match event.keystroke.key.as_str() {
-                        "left" => this.preferences.layout.sessions_width() - 20.,
-                        "right" => this.preferences.layout.sessions_width() + 20.,
-                        "home" => L::MIN_SESSIONS_WIDTH.into(),
-                        "end" => L::MAX_SESSIONS_WIDTH.into(),
+                    let available = f32::from(window.viewport_size().width) - this.layout.sidebar_width;
+                    match event.keystroke.key.as_str() {
+                        "left" => this.preferences.layout.resize_sessions_by(available, -20.),
+                        "right" => this.preferences.layout.resize_sessions_by(available, 20.),
+                        "home" => this.preferences.layout.resize_sessions(L::MIN_SESSIONS_WIDTH.into()),
+                        "end" => this.preferences.layout.resize_sessions(L::MAX_SESSIONS_WIDTH.into()),
                         _ => return,
-                    };
-                    this.preferences.layout.resize_sessions(width);
+                    }
                     this.save_preferences(this.preferences.clone(), cx);
                     cx.stop_propagation();
                     cx.notify();
