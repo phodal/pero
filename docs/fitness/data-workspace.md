@@ -188,3 +188,19 @@ Hosted verification at `8bc8b30616fe3b3590ac3e59c7d8e9740fa50130`:
 - The first browser run caught non-JSON optional properties in Agent samples;
   the fix and retained real-SDK regression are recorded in
   [the resolved incident](../issues/2026-11-05-data-interpretation-samples.md).
+
+## PR integration verification (2026-11-05)
+
+Merged master `53d07858592e6391414362aaa222120d23b7c8a5` into PR #130 at
+`d26e5f67`. Resolved the overlapping #126/#130 UI changes by retaining persistent
+inspection errors, retry and filter recovery alongside full-input interpretation
+previews and issue navigation. Both earlier verification sections remain intact.
+
+The combined tree passed 64 Data Python tests on Python 3.12, strict Data
+TypeScript, 7 UI model tests, 7 Chromium tests, 16 cross-origin bridge checks,
+32 App Use unit tests and Go chart race tests. CI workflow contracts passed
+(14 passed, one Linux-only case skipped on macOS). The Data App built using the
+existing reader distribution. Inspected the new light type-preview and numeric
+filter captures plus dark and 390px conversion-issue captures in
+`test-results/data-workflow/`. These verify the real Data frame and catalog;
+they do not extend release-package or scientific acceptance.
