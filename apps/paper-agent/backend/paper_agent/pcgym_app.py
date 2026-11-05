@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from zipfile import ZipFile, ZIP_DEFLATED
 
 from . import pcgym
 from .model import Invalid as RequestInvalid, PdfPassage
@@ -285,6 +286,51 @@ class PcgymApp:
         self.frozen_binding(root, spec)
         archive = BytesIO()
         pcgym.export(root, attempt_id, archive, verification_item=item.to_dict(), research_record=research_record)
+        if research_record is not None:
+            # Handoff instructions can improve without changing the frozen compute pipeline.
+            with ZipFile(archive, 'a', compression=ZIP_DEFLATED) as bundle:
+                bundle.writestr('README.md', f'''# Research handoff: PC-Gym Table 6
+
+Unpack the ZIP in a new directory. Read `research-record.json`, `spec.json`,
+and `audit.json` before deciding whether to rerun. The selected PDF passage
+and numeric evidence are included. Data Workspace pins, if present, are
+revision references; this PC-Gym method does not consume their data.
+
+## Verify the saved result
+
+From the unpacked directory, run `python3.12 -E -s -S verify.py`.
+Python 3.10 or newer is required. No packages, model, or network are needed.
+A numeric PASS confirms the saved counts. The separate paper verdict reflects
+the unresolved original experiment and metric grain.
+
+## Rerun the frozen method
+
+Provision Python {spec.python_version} with the exact package versions in
+`spec.json`, a clean PC-Gym checkout at `{COMMIT}`, and a Pero
+Paper backend matching `pipeline_digest` in the spec. These are supplied
+separately from the archive. The CLI preflight checks them before compute.
+
+From the unpacked directory, set the three absolute paths below, then run:
+
+```sh
+export PYTHONPATH=/absolute/path/to/pero/apps/paper-agent/backend
+science_python=/absolute/path/to/scientific-venv/bin/python
+checkout=/absolute/path/to/pinned-pc-gym
+bundle=$(pwd -P)
+"$science_python" -c 'import json, pathlib, sys; pathlib.Path("local.json").write_text(json.dumps({{"checkout":str(pathlib.Path(sys.argv[1]).resolve()),"interpreter":sys.executable}}))' "$checkout"
+"$science_python" -m paper_agent.pcgym run --bundle "$bundle" \\
+  --spec-sha {spec.id} --confirm-execution --accept-audit-findings
+```
+
+Run the last command only if you approve this exact spec and accept its audit
+findings. It creates a new attempt. Verify that attempt using its returned ID:
+
+```sh
+"$science_python" -m paper_agent.pcgym verify --bundle "$bundle" --attempt ATTEMPT_ID
+```
+
+Keep `local.json` out of shared copies; it contains local paths.
+''')
         return archive.getvalue()
 
     def research_attempts(self, paper_ids):

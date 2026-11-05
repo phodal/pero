@@ -14,6 +14,7 @@ const { PERO_PCGYM_PDF: pdf, PERO_PCGYM_VENV: venv, PERO_PAPER_PCGYM_CHECKOUT: c
 const runProfile = process.env.PERO_PCGYM_DESKTOP_PROFILE || 'smoke';
 const expectedFailure = process.env.PERO_PCGYM_DESKTOP_EXPECT_ENV_FAILURE === '1';
 const secondSeed = process.env.PERO_PCGYM_DESKTOP_SECOND_SEED === '1';
+const linkData = process.env.PERO_PCGYM_DESKTOP_DATA_PIN === '1';
 if (process.env.PERO_PCGYM_DESKTOP_LIVE !== '1' || !pdf || !venv || !checkout) {
   throw Error('Set PERO_PCGYM_DESKTOP_LIVE=1, PERO_TEST_HEADED=1, PERO_PCGYM_PDF, PERO_PCGYM_VENV and PERO_PAPER_PCGYM_CHECKOUT. The native dialog requires an explicit Run once.');
 }
@@ -34,12 +35,12 @@ with closing(pdfium.PdfDocument(sys.argv[1])) as doc, closing(doc[19]) as page, 
 `, pdf], { encoding: 'utf8' }));
 
 expect(['smoke', 'table6']).toContain(runProfile);
-const out = resolve(root, 'test-results/paper-pcgym-live', expectedFailure ? 'preflight-failure' : runProfile);
+const out = resolve(root, 'test-results/paper-pcgym-live', expectedFailure ? 'preflight-failure' : linkData ? `${runProfile}-data` : runProfile);
 const profile = await realpath(await mkdtemp(join(tmpdir(), 'pero-pcgym-desktop-')));
 await mkdir(out, { recursive: true });
 await rm(join(out, 'report.json'), { force: true });
 await writeFile(join(profile, 'settings.json'), JSON.stringify({ workbench: { appearance: 'light' },
-  app_python: { apps: { 'paper-agent': venv } } }));
+  app_python: { apps: { 'paper-agent': venv, ...(linkData ? { data: venv } : {}) } } }));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: join(profile, 'desktop'),
   PERO_SETTINGS_PATH: join(profile, 'settings.json'), PERO_HISTORY_PATH: join(profile, 'history.jsonl'),
   PERO_ENV_FILE: join(profile, '.env'), PERO_LOCALE: 'en' };
@@ -64,6 +65,19 @@ async function launch() {
 
 async function exercise() {
   await launch();
+  const dataFile = 'context-sample.csv';
+  let dataset;
+  if (linkData) {
+    await clickAppShortcut(page, 'data');
+    const data = page.frameLocator('iframe[title="data"]');
+    await data.getByRole('button', { name: 'Add data', exact: true }).click();
+    const dialog = data.getByRole('dialog');
+    await dialog.locator('input[type="file"]').setInputFiles({ name: dataFile, mimeType: 'text/csv', buffer: Buffer.from('sample,value\n1,1.25\n') });
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    dataset = await data.locator('body').evaluate(async () => (await (await fetch('/api/state')).json()).assets[0]);
+    await clickAppShortcut(page, 'paper-agent');
+  }
   await frame.getByRole('button', { name: 'Add papers', exact: true }).first().click();
   await frame.getByRole('tab', { name: 'PDF', exact: true }).click();
   await frame.locator('input[type="file"][accept*="pdf"]').setInputFiles(pdf);
@@ -169,6 +183,11 @@ async function exercise() {
   await records.getByRole('button', { name: 'Find attempts', exact: true }).click();
   await records.getByRole('checkbox', { name: /base, seed 0 \/ completed/ }).check();
   if (variant) await records.getByRole('checkbox', { name: /base, seed 1 \/ completed/ }).check();
+  if (dataset) {
+    await records.getByText('Data Workspace', { exact: true }).click();
+    await records.getByRole('button', { name: 'Choose Data versions' }).click();
+    await records.getByRole('combobox', { name: new RegExp(`^${dataFile}`) }).selectOption(dataset.id);
+  }
   await records.getByRole('button', { name: 'Save revision', exact: true }).click();
   const record = records.getByRole('article', { name: 'Saved research record' });
   const firstAttempt = record.getByRole('listitem').filter({ hasText: /base, seed 0 \/ completed/ });
@@ -211,6 +230,13 @@ async function exercise() {
   const checked = JSON.parse(execFileSync(python, ['-E', '-s', '-S', 'verify.py'], { cwd: unpacked, encoding: 'utf8' }));
   expect(checked).toEqual(Object.fromEntries(Object.entries(verification).filter(([key]) => !['observation_sha256', 'checker_sha256'].includes(key))));
   const researchRecord = JSON.parse(await readFile(join(unpacked, 'research-record.json'), 'utf8'));
+  const handoffReadme = await readFile(join(unpacked, 'README.md'), 'utf8');
+  expect(handoffReadme).toContain('python3.12 -E -s -S verify.py');
+  expect(handoffReadme).toContain(`--spec-sha ${saved.spec.id}`);
+  if (dataset) {
+    expect(researchRecord.dataVersions).toMatchObject([{ versionId: dataset.id, sha256: dataset.sha256, name: dataFile }]);
+    expect(execFileSync(python, ['-m', 'zipfile', '-l', archive], { encoding: 'utf8' })).not.toContain(dataFile);
+  }
   expect(researchRecord.attempts[0].attemptId).toBe(attempt.attempt_id);
   if (variant) expect(researchRecord.attempts[1].attemptId).toBe(variant.attempts[0].attempt_id);
   expect(JSON.parse(await readFile(join(unpacked, 'verification-item.json'), 'utf8'))).toEqual(saved.item);
@@ -225,6 +251,7 @@ async function exercise() {
   }
   await writeFile(join(out, 'report.json'), JSON.stringify({ fileDigest, annotationId: annotation.id,
     item: saved.item, spec: saved.spec, comparison, verification, execution, training: environment.training, researchRecordId: researchRecord.id,
+    dataVersions: researchRecord.dataVersions,
     revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
     archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex') }, null, 2));
   console.log('Original PDF selection, native approval, real PC-Gym worker, annotation comparison, restart and offline checker passed.');
