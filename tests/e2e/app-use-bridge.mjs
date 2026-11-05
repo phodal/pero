@@ -96,9 +96,10 @@ try {
   await expect(frame.locator('html')).toHaveAttribute('lang', 'zh-CN');
   await expect(frame.locator('html')).toHaveCSS('color-scheme', 'dark');
   await page.evaluate(() => { setVisible(true); setVisible(true); });
-  assert.equal(await frame.locator('body').evaluate(() => window.contexts.length), 1);
   await page.evaluate(() => { presentation = { dark:false, locale:'en' }; setVisible(true); });
   await expect(frame.locator('html')).toHaveAttribute('lang', 'en');
+  // The live update arrives after any contexts queued by the geometry updates.
+  assert.equal(await frame.locator('body').evaluate(() => window.contexts.length), 2);
   checks.push('initial locale/theme arrive after ready; geometry updates deduplicate context and live changes still arrive');
   const call = request => page.evaluate(request => window.peroAppUse({ scope: { app: 'probe', panel: 'main' }, request }), request);
 
