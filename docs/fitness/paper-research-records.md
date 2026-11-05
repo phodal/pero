@@ -1,5 +1,40 @@
 # Manual research records (#79, bounded P3/P4 slice)
 
+## 2026-11-05 attempt history and handoff
+
+Question and scope is available from the Reader's Research record and from
+Research results. A revision can retain finished PC-Gym attempts, including
+failures and cancellations. Each entry opens its original PDF version,
+annotation, frozen item and attempt. New inputs use a new frozen Spec and
+native approval. Earlier decisions and execution records remain available.
+
+The references export contains identities. The handoff ZIP includes the
+selected attempt's frozen item and tolerance, execution and numeric evidence,
+checker, and the research revision. Inclusion of revision notes and the bound
+PDF excerpt requires explicit confirmation. The export excludes local checkout
+and interpreter paths, credentials, full original documents, checkpoints and
+execution logs. Notes are included as entered. Other attempts and reports are
+retained as references. In a clean directory, `python3 -E -s -S verify.py`
+checks the archive identities and recomputes both metric grains using the
+standard library. Rerunning training requires the pinned checkout and
+scientific interpreter described in the specification.
+
+Saved-source impact compares the frozen paper and its PDF and structured
+document identities to saved versions. Recognized arXiv revisions can be opened
+from the impact list. A changed installed method identifies affected frozen
+attempts. Source changes identify the reports and attempts linked by the
+revision. Opening a reread or an earlier result does not run the method.
+
+The [Desktop acceptance](paper-direct-reproduction.md) exercises B5–B6 on
+the original PDF and real PC-Gym, one restart path in B8, and the B9 handoff ZIP
+and clean-directory checker. Two independently approved seeds exercise B11 for
+one fixed method. B10 covers saved-source and local method impact. External Data
+Workspace versions and scheduled upstream updates through Automation/Insights
+are outstanding. No separate researcher completed a handoff in this run, and
+the full B1–B11 product acceptance remains open.
+
+## Earlier manual-record scope
+
 Baseline: `78881615e37790b0a0b4635a197e18f974ea6867`. Verification date: 2026-11-02.
 This is **not completion of #79**, a new observation ledger, or a computational
 handoff package. #75/#76 still own source/reading closure; #77 owns actual
