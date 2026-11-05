@@ -247,3 +247,9 @@ Codex `fc39cfcacd8c6efaf561269e882ea76bdc1dff42`, Pi
 its separately pinned official DSH source. Normal-end algorithm/specification
 failures, missing verifier dependencies and the Rosetta/x86 environment gap
 remain separate from these runtime repairs.
+
+
+The next six scoped changes are documented separately in
+[validation-driven coding recovery](validation-driven-coding.md): actual check
+input evidence, concrete diagnostic hints, opt-in duplicate-error projection,
+explicit model profiles, atomic batch Edit and offline recovery-window usage.

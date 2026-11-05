@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "c451b05260e3926c623130e25effbca29a12bdd0 + 2026-11-05 explicit ACP recovery working snapshot; per-file hashes below",
+  "right_ref": "32d2af55079c38a18c5c18f2e9bd9abc3fbec2da + 2026-11-05 validation-driven recovery working snapshot; per-file hashes below",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -181,9 +181,9 @@
         "path": "harness/go/fstools/workspace.go",
         "language": "go",
         "symbol": "FormatRead",
-        "sha256": "56829808adfbd56787a9fb129bb3ef7eb892715921f74bced5c78c6fca416805"
+        "sha256": "6280d22bfc853935e626526cfe042ef958616f489917ce13f8e59efc462bf9b9"
       },
-      "notes": "Official streaming scanner and Go bounded decoded-text presentation differ in implementation. Go retains 16 KiB total cap; official default is 50 KiB. Verify empty/terminal-newline/CRLF cases by regression.",
+      "notes": "Official streaming scanner and Go bounded decoded-text presentation differ in implementation. Go retains 16 KiB total cap; official default is 50 KiB. Verify empty/terminal-newline/CRLF cases by regression. The 2026-11-05 batch-Edit follow-up delegates Edit to the same-file atomic replacement owner; this physical-read selector is unchanged. The per-file receipt is refreshed, without claiming new cross-language equivalence.",
       "landmarks": [
         {
           "id": "window-boundary",
@@ -210,9 +210,9 @@
         "path": "harness/go/fstools/workspace.go",
         "language": "go",
         "symbol": "FormatRead",
-        "sha256": "56829808adfbd56787a9fb129bb3ef7eb892715921f74bced5c78c6fca416805"
+        "sha256": "6280d22bfc853935e626526cfe042ef958616f489917ce13f8e59efc462bf9b9"
       },
-      "notes": "Official returns a line-numbered text envelope; Go returns a JSON ReadWindow. Compare continuation contract, not output syntax.",
+      "notes": "Official returns a line-numbered text envelope; Go returns a JSON ReadWindow. Compare continuation contract, not output syntax. The 2026-11-05 batch-Edit follow-up delegates Edit to the same-file atomic replacement owner; this physical-read selector is unchanged. The per-file receipt is refreshed, without claiming new cross-language equivalence.",
       "landmarks": [
         {
           "id": "next-offset",

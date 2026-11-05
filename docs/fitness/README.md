@@ -155,3 +155,5 @@ and remaining gaps: [Harness behavior parity](harness-behavior-parity.md).
 Local research goals, Overview and links to App-owned records: [research Projects](research-projects.md).
 
 Independent scientific HTML reader package and Paper integration: [Paper reader](paper-reader.md).
+
+- [Validation-driven coding recovery](validation-driven-coding.md): diagnostic evidence, reproducible profiles, atomic edits and offline recovery-window accounting.
