@@ -37,7 +37,11 @@ export async function prepareWebBackend() {
   writeFileSync(archivePath, archive);
   // A Windows drive letter in -f is interpreted as a remote host by GNU tar.
   await run('tar', ['-xzf', name, '--strip-components=1'], { cwd: webBackend });
-  await run('git', ['apply', '--unsafe-paths', `--directory=${webBackend}`, patch]);
+  // Checkouts under core.autocrlf=true store the patch with CRLF; git apply
+  // needs LF to match the crate's LF sources. Normalize before applying.
+  const patchLf = resolve(webBackend, '.pero-patch.patch');
+  writeFileSync(patchLf, readFileSync(patch, 'utf8').replace(/\r/g, ''));
+  await run('git', ['apply', '--unsafe-paths', `--directory=${webBackend}`, patchLf]);
   for(let i=0;i<conduits.length;i++)copyFileSync(conduits[i],resolve(webBackend,`src/input_conduit.${i===0?'js':'rs'}`));
   writeFileSync(stamp, digest);
 }

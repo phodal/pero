@@ -98,7 +98,7 @@ impl AppProcess {
             .arg(root.join(&backend.entry))
             .current_dir(root)
             .env_clear();
-        for key in ["PATH", "HOME", "LANG", "SYSTEMROOT"] {
+        for key in ["PATH", "HOME", "LANG", "SYSTEMROOT", "USERPROFILE", "HOMEDRIVE", "HOMEPATH"] {
             if let Some(value) = std::env::var_os(key) {
                 command.env(key, value);
             }
