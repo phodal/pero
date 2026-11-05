@@ -216,6 +216,14 @@ export class DesktopApps {
       if (caller && caller !== origin) return new Response('App origin refused', { status: 403 });
       if ((url.hostname === 'control-lab' || url.hostname === 'lab') && decodeURIComponent(url.pathname) === '/api/agent-step')
         return new Response('Agent route is reserved for the Host', { status: 403 });
+      if (url.pathname === '/host/environment/profiles') {
+        if (request.method !== 'POST') return new Response('Method refused', {status:405});
+        const body=await request.text();
+        if (Buffer.byteLength(body)>4096) return new Response('Request too large',{status:413});
+        let input: unknown;
+        try { input=JSON.parse(body); } catch { return new Response('Invalid request',{status:400}); }
+        return Response.json(await this.request('localenvironment',{name:url.hostname,request:input}),{headers:{'Cache-Control':'no-store'}});
+      }
       if (url.pathname === '/host/environment') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
         const body = await request.text();

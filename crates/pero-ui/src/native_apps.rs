@@ -328,6 +328,13 @@ impl NativeApps {
             }
             return self.docling_response(method.as_str(), body, || true, || {});
         }
+        if path == "/host/environment/profiles" {
+            if method != "POST" { return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?); }
+            if body.len()>4096 { return Ok(Response::builder().status(413).body(b"Request too large".to_vec())?); }
+            let input: Value=match serde_json::from_slice(body) {Ok(v)=>v,Err(_)=>return Ok(Response::builder().status(400).body(b"Invalid request".to_vec())?)};
+            let value:Value=self.request("localenvironment",json!({"name":name,"request":input}))?;
+            return Ok(Response::builder().header("Content-Type","application/json").header("Cache-Control","no-store").body(serde_json::to_vec(&value)?)?);
+        }
         if path == "/host/environment" {
             if method != "POST" {
                 return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?);
@@ -840,6 +847,18 @@ mod environment_tests {
         assert_eq!(response.status(), 200);
         assert_eq!(response.headers()["Cache-Control"], "no-store");
         assert_eq!(serde_json::from_slice::<Value>(response.body()).unwrap(), value);
+
+        let serving=apps.clone();
+        let response=std::thread::spawn(move || serving.serve("environments",Request::builder()
+            .uri("pero-app://environments/host/environment/profiles").method("POST")
+            .header("Origin","pero-app://environments").body(br#"{"operation":"list"}"#.to_vec()).unwrap()));
+        let command:Value=serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+        assert_eq!(command["action"],"localenvironment");
+        assert_eq!(command["name"],"environments");
+        assert_eq!(command["request"],json!({"operation":"list"}));
+        let mut reply=HostEvent::new("apps_result",command["id"].as_str().map(str::to_owned),String::new());
+        reply.data=json!({"ok":true,"value":[]});assert!(apps.accept(&reply));
+        assert_eq!(response.join().unwrap().status(),200);
 
         for (method, origin, body, status) in [
             ("GET", "pero-app://control-lab", vec![], 405),

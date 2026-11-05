@@ -33,13 +33,28 @@ checked before a probe starts. The frontend does not duplicate scientific
 matching or change execution authorization. Paper's original approvals and
 Control Lab's frozen experiment budgets/verifiers stay unchanged.
 
-## Scope intentionally not claimed
+## Local preparation and binding
 
-There is no Create/Prepare Runtime action, independent interpreter selection,
-GPU/Slurm/cloud selector, historical Use browser, or auto-repair. Those need the
-planned managed-use/runtime-separation work; this UI must not simulate them.
-An observation is explicitly `metadata_only`, uses the configured interpreter,
-and does not establish the software loaded by an already-running backend.
+The local environment section creates named CPython 3.12 venvs from fixed method
+recipes. Prepare installs the App backend pins and, for PC-Gym, the additional
+pins in `crates/pero-runtime/src/apps/pcgym-dependencies.json`. Circuit also uses
+Homebrew to install ngspice and binds its resolved executable into the venv.
+Native dependency installation currently requires Homebrew.
+
+Preparation runs outside the AppStore lock. Logs and state persist under the
+Host profile's `environment/profiles`; reopening can inspect an ongoing job.
+Interrupted preparation is marked failed at Host startup and can be retried.
+Binding rechecks requirements, saves the existing runtime `app_python` setting,
+stops the old App backend, and starts it with the selected venv. The UI requires
+an explicit confirmation because this stops that App's current calculations.
+Bound software cannot be modified in place. Create a new environment to change it.
+Control and Circuit share Control Lab's App-wide interpreter binding.
+
+This is local App runtime binding, not independent per-attempt compute or managed
+EnvironmentUse admission. PC-Gym source checkout and scientific approvals retain
+their existing configuration and owners; installing packages does not authorize
+training or establish scientific acceptance. Python transitive dependencies are
+resolved by uv, not a complete cross-platform artifact lock.
 
 ## Build and validate in the repository
 
