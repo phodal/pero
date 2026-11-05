@@ -1,12 +1,9 @@
 //! A retained view of the Host-owned artifact catalog, scoped to each conversation.
-use crate::{
-    content_reader::ContentReader,
-    panel::{ChatAction, ChatPanel, ComposerInsertion},
-};
+use crate::panel::{ChatAction, ChatPanel, ComposerInsertion};
 use gpui_kit::{component::input::InputState, *};
 use pero_contracts::{
     HostEvent,
-    content_document::{ContentDocument, ContentFormat, DocumentHeader},
+    content_document::{ContentFormat, DocumentHeader},
     context::ContextReference,
     session_artifact::{ArtifactMethod, ArtifactRequest, ArtifactSource, SessionArtifact},
 };
@@ -27,9 +24,6 @@ pub(crate) struct ArtifactCollection {
     pub loading: bool,
     pub open: bool,
     pub selected: Option<(String, u64)>,
-    pub document: Option<ContentDocument>,
-    pub reader: Option<Entity<ContentReader>>,
-    pub reader_subscription: Option<Subscription>,
     pub chart: Option<crate::chart_view::ChartView>,
     pub chart_source_open: bool,
     pub pending: Option<(String, bool)>,
@@ -115,9 +109,6 @@ impl ChatPanel {
             .or_default();
         state.open = true;
         state.selected = Some((id.into(), version));
-        state.document = None;
-        state.reader = None;
-        state.reader_subscription = None;
         state.chart = None;
         state.chart_source_open = false;
         state.error = None;
@@ -471,12 +462,8 @@ impl ChatPanel {
                     Some(request.as_str()) == event.request_id.as_deref()
                 }) {
                     match serde_json::from_value::<DocumentHeader>(event.data.clone()) {
-                        Ok(header) => {
-                            state.document = Some(header.into_document(event.text.clone()));
-                            state.reader = None;
-                            state.reader_subscription = None;
-                            state.chart =
-                                crate::chart_view::ChartView::from_content(&event.text).ok();
+                        Ok(_) => {
+                            state.chart = crate::chart_view::ChartView::from_content(&event.text).ok();
                         }
                         Err(error) => state.error = Some(error.to_string()),
                     }
@@ -607,26 +594,6 @@ impl ChatPanel {
                     .placeholder(pero_contracts::i18n::text(&self.locale, "artifacts.path"))
             }));
         }
-        if state.reader.is_none() {
-            if let Some(document) = state.document.clone() {
-                let locale = self.locale.clone();
-                let reader = cx.new(|cx| {
-                    ContentReader::new(document, locale, window, cx).embedded(window, cx)
-                });
-                state.reader_subscription = Some(cx.subscribe(
-                    &reader,
-                    |_, _, action: &crate::content_reader::ReaderAction, cx| {
-                        if let crate::content_reader::ReaderAction::Link(href) = action {
-                            cx.emit(ChatAction::AppLink(href.clone()));
-                        }
-                    },
-                ));
-                state.reader = Some(reader);
-            }
-        }
-        if let Some(reader) = &state.reader {
-            reader.update(cx, |reader, _| reader.locale = self.locale.clone());
-        }
     }
 
     pub(crate) fn artifact_source_key(
@@ -729,11 +696,11 @@ impl ChatPanel {
         cx.notify();
     }
 
-    pub(crate) fn artifact_snapshot(&self, cx: &App) -> Value {
+    pub(crate) fn artifact_snapshot(&self, _cx: &App) -> Value {
         let thread = self
             .active_chat
             .and_then(|index| self.chats.get(index))
             .map(|chat| chat.id.as_str());
-        thread.and_then(|thread|self.artifacts.conversations.get(thread).map(|state|json!({"thread_id":thread,"items":state.items,"open":state.open,"selected":state.selected,"loading":state.loading,"reading":state.pending.is_some(),"saving":state.mutation.is_some(),"error":state.error,"chart":state.chart.is_some(),"document":state.document.as_ref().map(|document|document.header()),"reader":state.reader.as_ref().map(|reader|reader.read(cx).snapshot(cx)),"bounds":self.artifacts.bounds.iter().filter_map(|(key,bounds)|key.strip_prefix(&format!("{thread}/")).map(|key|(key.to_owned(),bounds.snapshot()))).collect::<std::collections::BTreeMap<_,_>>()}))).unwrap_or(Value::Null)
+        thread.and_then(|thread|self.artifacts.conversations.get(thread).map(|state|json!({"thread_id":thread,"items":state.items,"open":state.open,"selected":state.selected,"loading":state.loading,"reading":state.pending.is_some(),"saving":state.mutation.is_some(),"error":state.error,"chart":state.chart.is_some(),"bounds":self.artifacts.bounds.iter().filter_map(|(key,bounds)|key.strip_prefix(&format!("{thread}/")).map(|key|(key.to_owned(),bounds.snapshot()))).collect::<std::collections::BTreeMap<_,_>>()}))).unwrap_or(Value::Null)
     }
 }

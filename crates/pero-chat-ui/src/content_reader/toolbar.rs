@@ -1,10 +1,8 @@
-//! Source and preview controls shared by inline, embedded and workspace readers.
+//! Source and preview controls shared by inline and workspace readers.
 use super::*;
-use gpui_kit::component::Icon;
 
 impl ContentReader {
     pub(super) fn toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
-        let embedded = self.placement == ReaderPlacement::Embedded;
         let structured = matches!(
             self.document.format,
             ContentFormat::Json | ContentFormat::JsonLines | ContentFormat::Markdown
@@ -13,11 +11,7 @@ impl ContentReader {
             .flex()
             .items_center()
             .gap(px(pero_theme::SPACE_4))
-            .h(px(if embedded {
-                24.
-            } else {
-                pero_theme::ACTION_BUTTON_HEIGHT
-            }))
+            .h(px(pero_theme::ACTION_BUTTON_HEIGHT))
             .flex_shrink_0()
             .when(structured, |el| {
                 el.child(
@@ -111,17 +105,12 @@ impl ContentReader {
                 )
             })
             .child(div().flex_1())
-            .when(!embedded, |el| {
-                el.child(
-                    div()
-                        .text_size(
-                            pero_theme::UiAppearance::global(cx)
-                                .text(pero_theme::TextRole::Caption),
-                        )
-                        .text_color(cx.theme().muted_foreground)
-                        .child(format!("{} B", self.document.bytes)),
-                )
-            })
+            .child(
+                div()
+                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(format!("{} B", self.document.bytes)),
+            )
             .child(
                 Button::new("content-copy")
                     .ghost()
@@ -136,25 +125,11 @@ impl ContentReader {
                     } else {
                         "content.copy"
                     }))
-                    .when(embedded, |el| {
-                        el.icon(
-                            Icon::default().path(
-                                crate::assets::UiIcon::named(if self.copied {
-                                    "check"
-                                } else {
-                                    "copy"
-                                })
-                                .path(),
-                            ),
-                        )
-                    })
-                    .when(!embedded, |el| {
-                        el.label(self.t(if self.copied {
-                            "content.copied"
-                        } else {
-                            "content.copy"
-                        }))
-                    })
+                    .label(self.t(if self.copied {
+                        "content.copied"
+                    } else {
+                        "content.copy"
+                    }))
                     .on_click(cx.listener(|this, _, _, cx| {
                         cx.write_to_clipboard(ClipboardItem::new_string(if this.dirty {
                             this.editor.as_ref().unwrap().read(cx).text().to_string()

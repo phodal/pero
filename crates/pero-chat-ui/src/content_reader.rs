@@ -62,7 +62,6 @@ enum DiscardAction {
 enum ReaderPlacement {
     Inline,
     Workspace,
-    Embedded,
 }
 
 pub struct ContentReader {
@@ -185,13 +184,6 @@ impl ContentReader {
         self
     }
 
-    /// An owning panel supplies the title; the reader keeps its source tools and fills the pane.
-    pub fn embedded(mut self, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        self.placement = ReaderPlacement::Embedded;
-        self.observe_links(window, cx);
-        self
-    }
-
     pub fn focus(&self, window: &mut Window, cx: &mut App) {
         // A late source read may materialize a workspace preview behind a picker.
         // The dialog keeps focus until its explicit close hands it back.
@@ -222,7 +214,7 @@ impl ContentReader {
     pub fn snapshot(&self, cx: &App) -> serde_json::Value {
         let preview_offset = self.preview_scroll.offset();
         serde_json::json!({"bounds":self.bounds.snapshot(),"id":self.document.id,"revision":self.document.revision,"bytes":self.document.bytes,
-            "dirty":self.dirty,"saving":self.saving,"fileError":self.file_error,"confirmClose":self.discard.is_some(),"editable":self.editable(),"markdown":self.markdown.is_some(),"workspace":self.placement==ReaderPlacement::Workspace,"embedded":self.placement==ReaderPlacement::Embedded,"source":self.source,"editor":self.editor.is_some(),"rows":self.preview.as_ref().map(|p|p.rows.len()).ok(),
+            "dirty":self.dirty,"saving":self.saving,"fileError":self.file_error,"confirmClose":self.discard.is_some(),"editable":self.editable(),"markdown":self.markdown.is_some(),"workspace":self.placement==ReaderPlacement::Workspace,"source":self.source,"editor":self.editor.is_some(),"rows":self.preview.as_ref().map(|p|p.rows.len()).ok(),
             "table":self.table.as_ref().map(|table|table.read(cx).snapshot(cx)),
             "columns":self.preview.as_ref().map(|p|p.columns.len()).ok(),"previewLoading":self.preview_loading,"error":self.preview.as_ref().err().filter(|_|!self.preview_loading),
             "selection":self.editor.as_ref().map(|e|e.read(cx).selected_range()),
@@ -238,7 +230,7 @@ impl ContentReader {
     }
 
     fn observe_links(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.placement != ReaderPlacement::Inline && self.markdown_subscription.is_none() {
+        if self.placement == ReaderPlacement::Workspace && self.markdown_subscription.is_none() {
             if let Some(markdown) = &self.markdown {
                 let scroll = self.preview_scroll.clone();
                 markdown.update(cx, |view, _| {
@@ -621,8 +613,7 @@ impl ContentReader {
 
 impl Render for ContentReader {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let workspace = self.placement != ReaderPlacement::Inline;
-        let embedded = self.placement == ReaderPlacement::Embedded;
+        let workspace = self.placement == ReaderPlacement::Workspace;
         let inline_markdown = !workspace && !self.source && self.markdown.is_some();
         let height = if self.source {
             let lines = self.document.source().lines().take(16).count().max(1) as f32;
@@ -808,19 +799,14 @@ impl Render for ContentReader {
                         .overflow_y_scroll()
                         .track_scroll(&self.preview_scroll)
                 })
-                .when(embedded, |el| el.p(px(20.)))
                 .child(markdown.clone())
                 .into_any_element();
-            view = if embedded {
-                view.child(body)
-            } else {
-                view.child(pero_theme::reader_frame(
-                    self.document.title.clone(),
-                    None,
-                    body,
-                    pero_theme::Chrome::from_app(cx),
-                ))
-            };
+            view = view.child(pero_theme::reader_frame(
+                self.document.title.clone(),
+                None,
+                body,
+                pero_theme::Chrome::from_app(cx),
+            ));
         } else if self.preview_loading {
             view = view.child(div().p(px(12.)).child(self.t("content.preparing_preview")));
         } else {
