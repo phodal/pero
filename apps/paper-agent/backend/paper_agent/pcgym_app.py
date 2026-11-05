@@ -4,6 +4,7 @@ No execution authority is obtained from an HTTP body or a source document.
 The shipped server has no trusted checkout and therefore cannot start compute.
 """
 from dataclasses import asdict
+from io import BytesIO
 import json
 import secrets
 import platform
@@ -18,6 +19,7 @@ from .model import Invalid as RequestInvalid, PdfPassage
 from .pcgym_domain import (Claim, COMMIT, Invalid, PaperAnchor, ReproductionSpec,
                            canonical, digest, fields, identifier, EPISODE_METRIC, PAPER)
 from .verification import ComparisonEvidence, VerificationItem, ReproductionApproval
+from .research_records import ResearchAttempt
 from .reproduction_approval import (ApprovalCommand, ApprovalState, ApprovalDecision,
     ApprovalDenied, ApprovalUnavailable, PendingApproval, ExecutionFacts, dispatch_failure)
 from .pcgym_sources import (PINS, SourceFile, audit_sources, package_inventory,
@@ -258,10 +260,11 @@ class PcgymApp:
                         if a['attempt_id'] == data['attemptId']), None)
         if attempt is None:
             raise Invalid('attempt', 'Choose an existing attempt belonging to this item')
-        actual, coverage, integrity = None, False, False
+        actual, coverage, integrity, metrics = None, False, False, []
         if attempt['status'] == 'completed':
             report = pcgym.check_attempt(root, data['attemptId'])
-            metric = next(m for m in report['metrics'] if m['policy'] == item.policy)
+            metrics = report['metrics']
+            metric = next(m for m in metrics if m['policy'] == item.policy)
             actual = metric['episode_fraction']
             coverage = (metric['total_episodes'] == spec.episodes
                         and metric['total_samples'] == spec.episodes * spec.samples
@@ -274,7 +277,30 @@ class PcgymApp:
         result = dict(**comparison, attempt_id=data['attemptId'])
         if attempt['status'] in ('completed', 'failed', 'cancelled'):
             result['id'] = self.save('comparisons', result)
-        return result
+        return dict(result, metrics=metrics)
+
+    def evidence_archive(self, item_id, attempt_id, *, research_record=None):
+        item, spec = self.item(item_id)
+        root = self.bundle(spec.id)
+        self.frozen_binding(root, spec)
+        archive = BytesIO()
+        pcgym.export(root, attempt_id, archive, verification_item=item.to_dict(), research_record=research_record)
+        return archive.getvalue()
+
+    def research_attempts(self, paper_ids):
+        rows = []
+        for item_id in self.store._list('pcgym-items'):
+            item, spec = self.item(item_id)
+            if spec.anchor.paper_id not in paper_ids:
+                continue
+            root = self.bundle(spec.id)
+            self.frozen_binding(root, spec)
+            for attempt in pcgym.status(root)['attempts']:
+                if attempt['spec_id'] == spec.id and attempt['status'] in ('completed', 'failed', 'cancelled'):
+                    rows.append(ResearchAttempt(spec.anchor.paper_id, spec.anchor.document_id, item.annotation_id, spec.anchor.page,
+                        item.id, spec.id, attempt['attempt_id'], item.policy, spec.profile, spec.seed,
+                        spec.pipeline_digest, attempt['status'], attempt['started_at']))
+        return tuple(sorted(rows, key=lambda row: (row.startedAt, row.attemptId), reverse=True))
 
     def prepare_item(self, data):
         fields(data, ('action', 'annotationId', 'policy', 'comparison', 'profile', 'seed', 'includeOracle', 'maxSeconds'))

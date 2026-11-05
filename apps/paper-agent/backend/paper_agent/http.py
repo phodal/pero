@@ -255,6 +255,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                             reproduction_fields(data, ('action', 'specId', 'requestId', 'confirmation'))
                             raise Invalid('Execution requires a private per-run Host decision', 403)
                         return self.reply(200, store.pcgym.command(data))
+                    if path == '/api/reproduction/evidence-archive':
+                        reproduction_fields(data, ('itemId', 'attemptId'))
+                        return self.binary(200, store.pcgym.evidence_archive(data['itemId'], data['attemptId']), 'application/zip')
                     if path == '/api/research/inspect':
                         return self.reply(200, store.imports.inspect(data, now()).to_dict())
                     if path == '/api/research/commit':
@@ -266,6 +269,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if path == '/api/research/record':
                         from .research_commands import execute
                         return self.reply(200, execute(store, 'record', data, now=now()))
+                    if path == '/api/research/record-handoff':
+                        from .research_record_commands import record_handoff
+                        return self.binary(200, record_handoff(store, data), 'application/zip')
                     if path == '/api/research/source-report':
                         from .research_commands import execute
                         return self.reply(200, execute(store, 'source-report', data))
