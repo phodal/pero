@@ -46,24 +46,9 @@ impl FileDocuments {
                 .unwrap_or_default()
                 .to_string_lossy()
                 .into_owned();
-            let extension = path
-                .extension()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_ascii_lowercase();
-            let format = match extension.as_str() {
-                "md" | "markdown" => ContentFormat::Markdown,
-                "json" => ContentFormat::Json,
-                "jsonl" | "ndjson" => ContentFormat::JsonLines,
-                "rs" => ContentFormat::Code("rust".into()),
-                "py" => ContentFormat::Code("python".into()),
-                "go" => ContentFormat::Code("go".into()),
-                "js" | "mjs" | "cjs" => ContentFormat::Code("javascript".into()),
-                "ts" => ContentFormat::Code("typescript".into()),
-                "tsx" | "jsx" | "html" | "css" | "sql" | "sh" | "yaml" | "toml" | "xml" | "c"
-                | "cpp" | "java" => ContentFormat::Code(extension),
-                _ => ContentFormat::Text,
-            };
+            let format = ContentFormat::from_extension(
+                &path.extension().unwrap_or_default().to_string_lossy(),
+            );
             FileDocument::loaded(id.clone(), title, text, format, next_revision)
         };
         let snapshot = file.snapshot().clone();

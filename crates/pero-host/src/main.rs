@@ -4,6 +4,7 @@ use pero_contracts::{
 use std::io::{self, BufRead, Write};
 mod terminal;
 mod agents;
+mod artifacts;
 mod automation;
 mod automation_store;
 mod apps;
@@ -41,6 +42,7 @@ fn main() -> io::Result<()> {
         .as_deref()
         .map(pero_runtime::workspace_store::WorkspaceStore::new);
     let mut documents = pero_runtime::file_documents::FileDocuments::default();
+    let artifacts = artifacts::Artifacts::new(settings_path.as_deref());
     let workers = local_worker::LocalWorkers::new(settings_path.as_deref());
     let mut mcp = mcp::Mcp::new(settings_path.as_deref());
     let mut icons = icons::Icons::new(settings_path.as_deref());
@@ -76,6 +78,10 @@ fn main() -> io::Result<()> {
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         };
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
+        if value.get("method").and_then(|v| v.as_str()) == Some("artifacts") {
+            emit(artifacts.dispatch(value, &agents))?;
+            continue;
+        }
         if value.get("method").and_then(|v| v.as_str()) == Some("automation") {
             let event = match &mut automation {
                 Ok(owner) => owner.dispatch(value, &mut agents),
