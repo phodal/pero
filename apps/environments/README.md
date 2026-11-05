@@ -12,9 +12,10 @@ Control Lab methods. This is an observation UI, not a second compute scheduler.
 - Export a versioned metadata observation. It is **not** a verification report,
   managed EnvironmentUse, proof of a running process, or scientific acceptance.
 
-Opening the catalog does not spawn probes. Check and the single-method task
-inspector call a fixed read-only Host probe. No arbitrary code, package installer,
-resource allocation, scientific run, data movement or approval is introduced.
+Opening the catalog lists saved environments without probing or installing. Check
+and the single-method task inspector call a fixed read-only Host probe. Creating,
+preparing and binding are separate explicit actions. No arbitrary installation
+commands or scientific execution are accepted by these actions.
 
 ## Ownership
 
