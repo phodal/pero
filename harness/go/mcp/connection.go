@@ -101,7 +101,7 @@ type mcpConnectionSupervisor struct {
 	observe          func(ConnectionObservation)
 	elicit           func(context.Context, ElicitationRequest, any) (ElicitationReply, error)
 	completed        func(context.Context, string, any)
-	calls            callStack
+	calls            activeToolCalls
 	roots            []string
 
 	nextGeneration   uint64
