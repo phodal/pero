@@ -22,6 +22,7 @@ impl Fixture {
         std::fs::create_dir(&workspace).unwrap();
         let config = AgentConfig {
             managed_mcp: None,
+            required_mcp_servers: Default::default(),
             id: "questions-fixture".into(),
             name: "Question fixture".into(),
             command: "node".into(),

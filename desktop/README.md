@@ -308,13 +308,17 @@ saving, restart, cancellation and wrong/repeated callbacks.
 
 ### Native GPUI preview
 
-Run `npm run dev:native` while editing the workbench. It builds a debug Host and
-`pero-native`, opens that binary, and rebuilds when a Rust source or `Cargo.toml`
-under `crates/pero-ui` changes. Close the window to stop. A failed rebuild leaves
-the current window open.
+Run `npm run dev:native` while editing the workbench. It builds the Go Harness,
+connector bridge/worker, Rust Host/Worker and `pero-native` before opening the
+window. It watches the shared UI, runtime, Host, Harness, connector sources and
+locales; each rebuild refreshes the runtime dependencies before restarting the
+preview. Close the window to stop. A failed rebuild leaves the current window
+open. Use `npm run dev:native -- --build-only` to build these dependencies without
+opening a window or starting watchers.
 
 `npm run build:macos-native` still writes the release bundle at
-`target/native/Pero Native.app`. This preview reuses the GPUI workbench and Rust
+`target/native/Pero Native.app` and refreshes its checkout's debug Harness adapter.
+This preview reuses the GPUI workbench and Rust
 Host without Electron, Chromium or Wasm; embedded Web/App content uses Wry/WebKit. Local ACP sessions use the
 existing installed adapters and model authentication. Preview history and
 preferences are isolated under `~/.pero/native-preview`; they do not overwrite

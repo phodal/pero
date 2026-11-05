@@ -302,8 +302,9 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		result.Usage = completion.Usage
 		calls := toolCalls(completion.Message)
 		concluded := false
+		var interruption *ToolInterruptError
 		if len(calls) > 0 {
-			if concluded, err = a.executeToolCalls(ctx, turn, step, calls); err != nil {
+			if concluded, err = a.executeToolCalls(ctx, turn, step, calls); err != nil && !errors.As(err, &interruption) {
 				return result, err
 			}
 		}
@@ -311,6 +312,10 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 			return result, err
 		}
 		openStep = 0
+		if interruption != nil {
+			reason = FinishStop
+			return result, nil
+		}
 		if concluded || len(calls) == 0 {
 			canContinue := ctx.Err() == nil && (a.maxSteps == UnlimitedMaxSteps || step < a.maxSteps) &&
 				(completion.Finish == "" || completion.Finish == FinishStop || completion.Finish == FinishToolCalls)

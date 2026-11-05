@@ -258,3 +258,24 @@ func TestComponentDiagnosticsDoNotEchoValues(t *testing.T) {
 		}
 	}
 }
+
+func TestComponentHookTimeoutAndRewake(t *testing.T) {
+	for _, row := range []struct {
+		timeout string
+		valid   bool
+	}{
+		{"1.5", true}, {"0", false}, {"-1", false}, {"1e30", false}, {".nan", false}, {".inf", false},
+	} {
+		t.Run(row.timeout, func(t *testing.T) {
+			body := "---\nname: check\ndescription: Check.\nhooks:\n  Stop:\n    - hooks:\n        - type: command\n          command: true\n          asyncRewake: true\n          timeout: " + row.timeout + "\n---\nCheck."
+			component, diagnostics := ParseComponent("sample", ComponentSkill, "skills/check/SKILL.md", []byte(body))
+			if row.valid {
+				if len(diagnostics) != 0 || len(component.Hooks) != 1 || !component.Hooks[0].AsyncRewake || component.Hooks[0].Timeout.Seconds() != 1.5 {
+					t.Fatalf("component=%+v diagnostics=%v", component, diagnostics)
+				}
+			} else if len(diagnostics) == 0 || len(component.Hooks) != 0 {
+				t.Fatalf("invalid timeout accepted: %+v %v", component.Hooks, diagnostics)
+			}
+		})
+	}
+}

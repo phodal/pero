@@ -372,9 +372,9 @@ impl ChatPanel {
                                 })),
                         )
                     })
-                    .when(chat.is_some_and(|c| c.state == SessionState::Closed && c.can_retarget()), |el| {
+                    .when(chat.is_some_and(|c| c.can_retry()), |el| {
                         el.child(
-                            W::chat_control(Button::new("retry-chat").outline(), cx)
+                            W::chat_control(Button::new("retry-chat").outline().relative().child(self.retry_button_bounds.probe()), cx)
                                 .label(self.t("chat.retry"))
                                 .disabled(!self.connected)
                                 .on_click(cx.listener(|this, _, _, cx| this.retry_chat(cx))),

@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"path/filepath"
 	"strings"
 	"unicode"
 )
@@ -142,7 +141,7 @@ func ClaudeStripAllowWrappers(command string) (string, bool) {
 		if !ok || len(words) == 0 {
 			return "", false
 		}
-		switch base := filepath.Base(words[0]); base {
+		switch words[0] {
 		case "timeout":
 			next, ok := skipAllowWords(command, 2)
 			if !ok {
@@ -230,7 +229,7 @@ func ClaudeReadOnlyAllowCommand(command string) bool {
 	if !ok || len(words) == 0 {
 		return false
 	}
-	switch filepath.Base(words[0]) {
+	switch words[0] {
 	case "ls", "cat", "echo", "pwd", "head", "tail", "grep", "egrep", "fgrep", "rg", "wc", "which", "diff", "stat", "du", "cd":
 		return true
 	case "find":
@@ -249,9 +248,14 @@ func ClaudeReadOnlyAllowCommand(command string) bool {
 }
 
 func claudeReadOnlyGit(args []string) bool {
+	for _, arg := range args {
+		if arg == "--output" || strings.HasPrefix(arg, "--output=") || arg == "--ext-diff" || arg == "--textconv" || arg == "--filters" || arg == "--open-files-in-pager" || strings.HasPrefix(arg, "--open-files-in-pager=") || strings.HasPrefix(arg, "-O") {
+			return false
+		}
+	}
 	for i := 0; i < len(args); i++ {
 		switch arg := args[i]; {
-		case arg == "--no-pager", arg == "--paginate":
+		case arg == "--no-pager":
 			continue
 		case arg == "-C":
 			if i+1 >= len(args) {
@@ -261,8 +265,14 @@ func claudeReadOnlyGit(args []string) bool {
 			continue
 		case strings.HasPrefix(arg, "-C") && len(arg) > 2:
 			continue
+		case arg == "branch", arg == "tag":
+			// These subcommands also create and delete refs. Only admit their
+			// plain listing forms; other forms require an explicit grant.
+			return i+1 == len(args) || i+2 == len(args) && (args[i+1] == "--list" || args[i+1] == "-l")
+		case arg == "remote":
+			return i+1 == len(args) || i+2 == len(args) && (args[i+1] == "-v" || args[i+1] == "--verbose")
 		case arg == "status", arg == "log", arg == "diff", arg == "show", arg == "grep",
-			arg == "branch", arg == "tag", arg == "remote", arg == "rev-parse", arg == "describe",
+			arg == "rev-parse", arg == "describe",
 			arg == "ls-files", arg == "ls-tree", arg == "cat-file", arg == "blame", arg == "shortlog":
 			return true
 		default:

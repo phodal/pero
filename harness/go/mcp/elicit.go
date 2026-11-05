@@ -8,37 +8,39 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// callStack is the tool caller waiting on one MCP session. The elicitation
-// request arrives on the connection, not on the tool context.
-type callStack struct {
+// activeToolCalls tracks exact calls on an MCP connection. Connection-level
+// elicitation has no request correlation, so only one active caller is usable.
+type activeToolCalls struct {
 	mu      sync.Mutex
-	callers []any
+	callers map[*activeToolCaller]struct{}
 }
 
-func (stack *callStack) push(ctx context.Context) func() {
-	caller := ToolCaller(ctx)
-	if caller == nil {
-		return func() {}
+type activeToolCaller struct{ caller any }
+
+func (calls *activeToolCalls) push(ctx context.Context) func() {
+	call := &activeToolCaller{caller: ToolCaller(ctx)}
+	calls.mu.Lock()
+	if calls.callers == nil {
+		calls.callers = make(map[*activeToolCaller]struct{})
 	}
-	stack.mu.Lock()
-	stack.callers = append(stack.callers, caller)
-	stack.mu.Unlock()
+	calls.callers[call] = struct{}{}
+	calls.mu.Unlock()
 	return func() {
-		stack.mu.Lock()
-		if n := len(stack.callers); n > 0 {
-			stack.callers = stack.callers[:n-1]
-		}
-		stack.mu.Unlock()
+		calls.mu.Lock()
+		delete(calls.callers, call)
+		calls.mu.Unlock()
 	}
 }
 
-func (stack *callStack) current() any {
-	stack.mu.Lock()
-	defer stack.mu.Unlock()
-	if len(stack.callers) == 0 {
-		return nil
+func (calls *activeToolCalls) current() any {
+	calls.mu.Lock()
+	defer calls.mu.Unlock()
+	if len(calls.callers) == 1 {
+		for call := range calls.callers {
+			return call.caller
+		}
 	}
-	return stack.callers[len(stack.callers)-1]
+	return nil
 }
 
 type toolCallerKey struct{}
@@ -90,6 +92,9 @@ func elicit(ctx context.Context, answer func(context.Context, ElicitationRequest
 	}
 	if caller == nil {
 		caller = ToolCaller(ctx)
+	}
+	if caller == nil {
+		return &mcp.ElicitResult{Action: "decline"}, nil
 	}
 	reply, err := answer(ctx, ElicitationRequest{Message: params.Message, Mode: mode, URL: params.URL, ID: params.ElicitationID, RequestedSchema: schema}, caller)
 	if err != nil {

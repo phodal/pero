@@ -44,12 +44,14 @@ type componentPaths struct {
 }
 
 type manifestDefinition struct {
-	Name       string
-	Version    string
-	Components []componentPaths
-	Hooks      json.RawMessage
-	MCP        json.RawMessage
-	LSP        json.RawMessage
+	Name        string
+	Version     string
+	Components  []componentPaths
+	Hooks       json.RawMessage
+	MCP         json.RawMessage
+	LSP         json.RawMessage
+	EntryHooks  json.RawMessage
+	EntryEvents []string
 }
 
 func parseManifest(path, fallback string, content []byte) (manifestDefinition, []Diagnostic) {

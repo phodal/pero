@@ -26,6 +26,7 @@ go_library(
 go_test(
     name = "mcp_test",
     srcs = [
+        "elicit_test.go",
         "observation_test.go",
         "resources_test.go",
         "visibility_test.go",

@@ -61,10 +61,15 @@ while True:
             continue
         capabilities = {"positionEncoding": "utf-8" if mode == "wrong-encoding" else "utf-16", "textDocumentSync": {"openClose": True, "change": 1},
                         "definitionProvider": True, "referencesProvider": True, "implementationProvider": True,
-                        "hoverProvider": mode != "missing-capability", "documentSymbolProvider": True,
+                        "hoverProvider": mode not in ("missing-capability", "dynamic"), "documentSymbolProvider": True,
                         "workspaceSymbolProvider": True, "callHierarchyProvider": True}
         if mode.startswith("after-edit"):
             capabilities["textDocumentSync"]["save"] = {"includeText": True}
+        if mode == "dynamic":
+            assert params["capabilities"]["textDocument"]["hover"]["dynamicRegistration"]
+            send({"jsonrpc": "2.0", "id": "register-hover", "method": "client/registerCapability",
+                  "params": {"registrations": [{"id": "hover", "method": "textDocument/hover",
+                                               "registerOptions": {"documentSelector": [{"language": "go"}]}}]}})
         answer(message, {"capabilities": capabilities})
     elif method == "initialized":
         send({"jsonrpc": "2.0", "id": "configuration-fixture", "method": "workspace/configuration",
@@ -107,6 +112,9 @@ while True:
         else:
             answer(message, [{"uri": uri, "range": span}])
     elif method == "textDocument/hover":
+        if mode == "dynamic":
+            send({"jsonrpc": "2.0", "id": "unregister-hover", "method": "client/unregisterCapability",
+                  "params": {"unregisterations": [{"id": "hover", "method": "textDocument/hover"}]}})
         if mode.startswith("diagnostics"):
             def publish(target, revision, text):
                 send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",

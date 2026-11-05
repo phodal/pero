@@ -86,7 +86,7 @@ func (s *shellTasks) presentCapture(task *shellTask, success bool) (*bashPresent
 	if task.executor == nil {
 		return nil, errors.New("Bash output artifact requires its original workspace authority")
 	}
-	if err := task.executor.CheckCWD(task.intent.Workdir); err != nil {
+	if err := task.executor.CheckCWD(s.options.CWD); err != nil {
 		return nil, fmt.Errorf("Bash output artifact workspace changed: %w", err)
 	}
 	plan, err := shell.PlanOutputFile(s.options.CWD, ".pero/bash-artifacts", task.intent.ID+".txt", bashArtifactBytes)

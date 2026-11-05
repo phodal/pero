@@ -38,6 +38,7 @@ type MCPServerDefinition struct {
 	Env                 map[string]string `json:"-"`
 	URL                 string            `json:"-"`
 	Headers             map[string]string `json:"-"`
+	HeadersHelper       string            `json:"-"`
 	TimeoutMilliseconds int               `json:"timeoutMilliseconds,omitempty"`
 }
 
@@ -126,13 +127,11 @@ func compilePackage(ctx context.Context, path string, definition Plugin) (Packag
 	if errors.Is(err, os.ErrNotExist) {
 		manifest = nil
 	}
-	parsed, diagnostics := parseManifest(".claude-plugin/plugin.json", definition.Name, manifest)
-	if err := packageDiagnostics(diagnostics); err != nil {
-		return Package{}, err
+	if string(manifest) != definition.manifestSource {
+		return Package{}, errors.New("plugins: manifest changed during package compilation")
 	}
-	if parsed.Name != definition.Name || parsed.Version != definition.Version {
-		return Package{}, errors.New("plugins: manifest identity changed during package compilation")
-	}
+	parsed := definition.manifest
+	var diagnostics []Diagnostic
 	excluded := make(map[string]bool)
 	value.LSP = append([]lsp.Server(nil), definition.lsp.servers...)
 	for _, source := range definition.lsp.sources {
@@ -151,6 +150,13 @@ func compilePackage(ctx context.Context, path string, definition Plugin) (Packag
 		}
 		value.Hooks = append(value.Hooks, hooks...)
 	}, &diagnostics)
+	if parsed.EntryHooks != nil {
+		hooks, err := compileHooks(".claude-plugin/marketplace.json", parsed.EntryHooks)
+		if err != nil {
+			return Package{}, err
+		}
+		value.Hooks = replaceHookEvents(value.Hooks, hooks, parsed.EntryEvents, func(h claudehooks.Hook) string { return h.Event })
+	}
 	positions := make(map[string]int)
 	loadIntegration(root, "", ".mcp.json", parsed.MCP, func(path string, raw []byte) {
 		excluded[path] = true
@@ -183,6 +189,17 @@ func compilePackage(ctx context.Context, path string, definition Plugin) (Packag
 	}
 	value.Resources = resources
 	return value, nil
+}
+
+// hookTimeoutSeconds is the external hook timeout in either JSON or YAML.
+type hookTimeoutSeconds float64
+
+func (seconds hookTimeoutSeconds) duration() (time.Duration, error) {
+	nanoseconds := float64(seconds) * float64(time.Second)
+	if math.IsNaN(nanoseconds) || nanoseconds < 1 || nanoseconds >= float64(math.MaxInt64) {
+		return 0, errors.New("plugins: hook timeout is outside the supported duration range")
+	}
+	return time.Duration(nanoseconds), nil
 }
 
 func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
@@ -273,11 +290,11 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 					hook.Args = append([]string{}, (*handler.Args)...)
 				}
 				if handler.Timeout != nil {
-					nanoseconds := *handler.Timeout * float64(time.Second)
-					if nanoseconds < 1 || nanoseconds >= float64(math.MaxInt64) {
-						return nil, errors.New("plugins: hook timeout is outside the supported duration range")
+					duration, err := hookTimeoutSeconds(*handler.Timeout).duration()
+					if err != nil {
+						return nil, err
 					}
-					hook.Timeout = time.Duration(nanoseconds)
+					hook.Timeout = duration
 				}
 				hooks = append(hooks, hook)
 			}
@@ -298,13 +315,14 @@ func compileMCP(path string, raw []byte) ([]MCPServerDefinition, error) {
 	var result []MCPServerDefinition
 	for _, name := range sortedIntegrationKeys(servers) {
 		var wire struct {
-			Transport string            `json:"type"`
-			Command   string            `json:"command"`
-			Args      []string          `json:"args"`
-			Env       map[string]string `json:"env"`
-			URL       string            `json:"url"`
-			Headers   map[string]string `json:"headers"`
-			Timeout   *float64          `json:"timeout"`
+			Transport     string            `json:"type"`
+			Command       string            `json:"command"`
+			Args          []string          `json:"args"`
+			Env           map[string]string `json:"env"`
+			URL           string            `json:"url"`
+			Headers       map[string]string `json:"headers"`
+			HeadersHelper string            `json:"headersHelper"`
+			Timeout       *float64          `json:"timeout"`
 		}
 		if json.Unmarshal(servers[name], &wire) != nil {
 			return nil, errors.New("plugins: invalid runtime MCP declaration")
@@ -315,7 +333,7 @@ func compileMCP(path string, raw []byte) ([]MCPServerDefinition, error) {
 				wire.Transport = "http"
 			}
 		}
-		server := MCPServerDefinition{Name: name, Transport: wire.Transport, Command: wire.Command, Args: wire.Args, Env: wire.Env, URL: wire.URL, Headers: wire.Headers}
+		server := MCPServerDefinition{Name: name, Transport: wire.Transport, Command: wire.Command, Args: wire.Args, Env: wire.Env, URL: wire.URL, Headers: wire.Headers, HeadersHelper: wire.HeadersHelper}
 		if wire.Timeout != nil {
 			if math.Trunc(*wire.Timeout) != *wire.Timeout || *wire.Timeout >= float64(math.MaxInt) {
 				return nil, errors.New("plugins: MCP timeout requires an integer millisecond value within the supported range")

@@ -103,7 +103,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 		for _, hook := range pkg.Hooks {
 			count++
 			switch hook.Event {
-			case "SessionStart", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay", "Elicitation", "ElicitationResult", "CwdChanged", "DirectoryAdded":
+			case "SessionStart", "InstructionsLoaded", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PostToolBatch", "PreCompact", "PostCompact", "Stop", "StopFailure", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "WorktreeCreate", "WorktreeRemove", "FileChanged", "Notification", "Setup", "PreModelSwitch", "PostModelSwitch", "MessageDisplay", "Elicitation", "ElicitationResult", "CwdChanged", "DirectoryAdded":
 			default:
 				return nil, fmt.Errorf("plugin-runtime: hook event %q is not implemented", hook.Event)
 			}
@@ -273,6 +273,7 @@ func (app *HookApp) register(run *point.Run) error {
 		if err != nil || request.Agent == nil || request.Purpose != "" {
 			return request, err
 		}
+		app.noteInstructionLoads(request.Agent, request.Messages)
 		if note := app.modelNoteForRequest(request.Agent, request.Turn); note != "" {
 			request.Messages = append(request.Messages, hookMessage("PostModelSwitch", note))
 		}
@@ -658,6 +659,8 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 		switch input.Event {
 		case "SessionStart":
 			matcherValue, filter = input.Source, true
+		case "InstructionsLoaded":
+			matcherValue, filter = input.LoadReason, true
 		case "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest":
 			matcherValue, filter = input.ToolName, true
 		case "FileChanged":
@@ -725,16 +728,25 @@ func (app *HookApp) event(ctx context.Context, agent *harness.Agent, input claud
 				hook.Args[index] = expand.Replace(hook.Args[index])
 			}
 		}
-		if hook.Async || hook.AsyncRewake {
+		if (hook.Async || hook.AsyncRewake) && input.Event != "InstructionsLoaded" {
 			if err := app.startAsyncHook(agent, selected, hook, input, environment); err != nil {
 				app.h.Runtime().Logger().Warn("Claude async hook failed to start", "plugin", selected.plugin, "event", input.Event, "error", err)
 			}
 			continue
 		}
 		runner := claudehooks.Runner{Shell: app.options.Shell, Environment: environment}
+		if input.Event == "InstructionsLoaded" {
+			hook.Async, hook.AsyncRewake = false, false
+		}
 		var decision claudehooks.Decision
 		var ran bool
 		decision, err, ran = app.executeHook(ctx, agent, selected.plugin, hook, input, runner)
+		if input.Event == "InstructionsLoaded" {
+			if err != nil {
+				app.h.Runtime().Logger().Warn("InstructionsLoaded observer failed", "error", err)
+			}
+			continue
+		}
 		if !ran {
 			continue
 		}

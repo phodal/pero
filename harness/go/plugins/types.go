@@ -30,5 +30,7 @@ type Plugin struct {
 	Hooks              HooksDefinition `json:"hooks"`
 	MCP                MCPDefinition   `json:"mcp"`
 	LSP                LSPDefinition   `json:"lsp"`
+	manifest           manifestDefinition
+	manifestSource     string
 	lsp                compiledLSP
 }

@@ -33,6 +33,7 @@ pub(crate) fn attach(
 ) {
     cx.spawn(async move |cx| {
         let outcome = match std::env::args().nth(3).as_deref() {
+            Some("startup") => verify_startup(&root, cx).await,
             Some("paper-chat") => verify_paper_chat(&root,window,cx).await,
             Some("docling-origin") => verify_docling_origin(&root,cx).await,
             _ => verify(&root, window, cx).await,
@@ -45,6 +46,35 @@ pub(crate) fn attach(
         cx.update(|cx| cx.quit());
     })
     .detach();
+}
+
+async fn verify_startup(root: &Entity<Workbench>, cx: &mut AsyncApp) -> anyhow::Result<Value> {
+    let mut requested = None;
+    let mut last = Value::Null;
+    for _ in 0..150 {
+        last = cx.update(|cx| root.read(cx).chat.read(cx).snapshot(cx));
+        if last["connected"] == true && last["agents"][0]["id"] == "pero" && requested.is_none() {
+            requested = Some(std::time::Instant::now());
+            cx.update(|cx| root.update(cx, |root, cx| root.chat.update(cx, |chat, cx| {
+                chat.set_visible(true, cx);
+                chat.new_chat(cx);
+            })));
+        }
+        if let Some(chat) = last["activeChat"].as_u64().and_then(|index| last["chats"].get(index as usize)) {
+            if chat["state"] == "closed" { anyhow::bail!("Native Agent startup failed: {}", chat["error"]); }
+            if chat["state"] == "idle" {
+                anyhow::ensure!(chat["agent"] == "pero", "Native startup selected a different Agent");
+                let servers = chat["mcp"]["servers"].as_array().ok_or_else(|| anyhow::anyhow!("Missing Native MCP observations"))?;
+                for name in ["pero-connectors", "pero-app-use"] {
+                    anyhow::ensure!(servers.iter().any(|server| server["server"] == name && server["status"] == "connected"), "Native MCP {name} is not connected: {}", chat["mcp"]);
+                }
+                anyhow::ensure!(chat["messages"].as_array().is_some_and(Vec::is_empty), "Startup must not send a prompt");
+                return Ok(json!({"passed":true,"mcp":chat["mcp"],"noPrompt":true,"preparingMs":requested.unwrap().elapsed().as_millis()}));
+            }
+        }
+        cx.background_executor().timer(Duration::from_millis(100)).await;
+    }
+    anyhow::bail!("Native Agent startup timed out: {last}")
 }
 
 // Real WKWebView transport, deliberately without a backend or installation request.

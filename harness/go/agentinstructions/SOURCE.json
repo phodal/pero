@@ -35,15 +35,17 @@
     "Point bounded UTF-8 rendering retained. Context is untrusted user-role guidance, never permission.",
     "Reconstruct prior baseline from durable session messages on each preparation; no premature cache mutation.",
     "Host adapter and regression tests are new extraction glue; no planmode or user-question subsystem imported.",
-    "Instruction authority follows an active native root-worktree lease (or an existing child retained there), never an arbitrary CWD event or generic additional-directory binding."
+    "Instruction authority follows an active native root-worktree lease (or an existing child retained there), never an arbitrary CWD event or generic additional-directory binding.",
+    "LoadedBaseline exposes admitted workspace CLAUDE.md provenance to asynchronous InstructionsLoaded observers; omitted files and AGENTS.md do not produce Claude load events."
   ],
   "destination_sha256": {
-    "BUILD.bazel": "4fff0da01e1d1b41aee4e5d393a364afd5249024bd1fb0d61c44c3fbbc6ca51c",
+    "BUILD.bazel": "5ff53008bb4443946ea1ffadac079984ea72251fa376c4e4a6d9d189dca5bf45",
     "README.md": "7bab6b90fac91bb7e3c59baa291ede779f77637cda4b66c73f06b8814858be29",
-    "app.go": "ea26ccaee9e2c0c97953b9bc9ff9de823e7ebd28a08edf5314c77c960ec6c6a1",
+    "app.go": "82559215f03a55cbbfd7dd2f0f9f6684bae3c954240394fd14550b5c284e70dd",
     "app_test.go": "7e27e4fcfc19b2f5d1d5b053b982f65fcf2a2f172c54d13a69d2a9d848a603fe",
     "config.go": "c3c380b2745d4580ae26fac76fa58e53109f7bfb27d68f2ca7fc41b6f7af3633",
     "files.go": "5de41706f89b6a04c2cd2a6a0cd9e083a1e900292d98ba363503c77b80e474b8",
-    "render.go": "b5deb794b256dcdf19930a1fa7ba0c3f88ee4e6da4ee732bbe52e50404fa5c04"
+    "render.go": "b5deb794b256dcdf19930a1fa7ba0c3f88ee4e6da4ee732bbe52e50404fa5c04",
+    "loads.go": "81e3b50f924fa6a6f80eebe28f61bc651b7e1df11d3160c528762881a683a674"
   }
 }
