@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -468,6 +467,7 @@ func parseComponentHooks(path string, node *yaml.Node) ([]claudehooks.Hook, []Di
 			Args          []string `yaml:"args"`
 			Timeout       *float64 `yaml:"timeout"`
 			Async         bool     `yaml:"async"`
+			AsyncRewake   bool     `yaml:"asyncRewake"`
 			If            string   `yaml:"if"`
 			Once          bool     `yaml:"once"`
 			OnFailure     string   `yaml:"onFailure"`
@@ -508,18 +508,18 @@ func parseComponentHooks(path string, node *yaml.Node) ([]claudehooks.Hook, []Di
 					diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks.statusMessage", Message: "Hook statusMessage must be at most 256 bytes."})
 					continue
 				}
-				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure, Shell: handler.Shell, StatusMessage: handler.StatusMessage}
+				hook := claudehooks.Hook{Event: event, Matcher: group.Matcher, Command: handler.Command, Async: handler.Async, AsyncRewake: handler.AsyncRewake, If: handler.If, Once: handler.Once, OnFailure: handler.OnFailure, Shell: handler.Shell, StatusMessage: handler.StatusMessage}
 				if len(handler.Args) > 0 {
 					hook.ExecForm = true
 					hook.Args = append([]string{}, handler.Args...)
 				}
 				if handler.Timeout != nil {
-					duration := *handler.Timeout * float64(time.Second)
-					if duration < 1 {
-						diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks.timeout", Message: "Hook timeout must be positive."})
+					duration, err := hookTimeoutSeconds(*handler.Timeout).duration()
+					if err != nil {
+						diagnostics = append(diagnostics, Diagnostic{Severity: SeverityError, Code: "INVALID_COMPONENT_FIELD", Path: path, Field: "hooks.timeout", Message: err.Error()})
 						continue
 					}
-					hook.Timeout = time.Duration(duration)
+					hook.Timeout = duration
 				}
 				hooks = append(hooks, hook)
 			}

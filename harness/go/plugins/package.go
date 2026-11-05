@@ -191,6 +191,17 @@ func compilePackage(ctx context.Context, path string, definition Plugin) (Packag
 	return value, nil
 }
 
+// hookTimeoutSeconds is the external hook timeout in either JSON or YAML.
+type hookTimeoutSeconds float64
+
+func (seconds hookTimeoutSeconds) duration() (time.Duration, error) {
+	nanoseconds := float64(seconds) * float64(time.Second)
+	if math.IsNaN(nanoseconds) || nanoseconds < 1 || nanoseconds >= float64(math.MaxInt64) {
+		return 0, errors.New("plugins: hook timeout is outside the supported duration range")
+	}
+	return time.Duration(nanoseconds), nil
+}
+
 func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 	_, diagnostics := ParseHooks(path, raw)
 	if err := packageDiagnostics(diagnostics); err != nil {
@@ -279,11 +290,11 @@ func compileHooks(path string, raw []byte) ([]claudehooks.Hook, error) {
 					hook.Args = append([]string{}, (*handler.Args)...)
 				}
 				if handler.Timeout != nil {
-					nanoseconds := *handler.Timeout * float64(time.Second)
-					if nanoseconds < 1 || nanoseconds >= float64(math.MaxInt64) {
-						return nil, errors.New("plugins: hook timeout is outside the supported duration range")
+					duration, err := hookTimeoutSeconds(*handler.Timeout).duration()
+					if err != nil {
+						return nil, err
 					}
-					hook.Timeout = time.Duration(nanoseconds)
+					hook.Timeout = duration
 				}
 				hooks = append(hooks, hook)
 			}
