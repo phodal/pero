@@ -76,6 +76,27 @@ test('cancellation stops new checks rather than acting like an assertion failure
   assert.deepEqual(failures({ core: { result: 'cancelled' } }, false), ['core']);
 });
 
+test('Viewer inspection survives bridge failure and retains screenshot evidence', () => {
+  const job = workflow.jobs['scientific-viewer'];
+  const bridge = job.steps.find(step => step.run === 'node tests/e2e/app-use-bridge.mjs');
+  const viewer = job.steps.find(step => step.run === 'node tests/e2e/scientific-viewer-browser.mjs');
+  const prepare = job.steps.find(step => step.id === 'prepare');
+  assert.ok(prepare);
+  assert.ok(job.steps.indexOf(prepare) < job.steps.indexOf(bridge));
+  assert.ok(job.steps.indexOf(bridge) < job.steps.indexOf(viewer));
+  // Only successful preparation is required; !cancelled() bypasses the implicit
+  // success() gate without continuing after cancellation or masking failures.
+  assert.deepEqual(dependencies(viewer), ['prepare']);
+  for (const step of job.steps) assert.equal(step['continue-on-error'], undefined);
+  assert.equal(job['continue-on-error'], undefined);
+  const evidence = job.steps.at(-1);
+  assert.equal(evidence.if, 'always()');
+  assert.match(evidence.uses, /^actions\/upload-artifact@/);
+  assert.equal(evidence.with.path, 'test-results/scientific-viewer-browser/');
+  assert.ok(workflow.jobs.complete.needs.includes('scientific-viewer'));
+  assert.deepEqual(failures({ 'scientific-viewer': { result: 'failure' } }, false), ['scientific-viewer']);
+});
+
 test('Control Lab split selects every existing runtime test exactly once', () => {
   const select = id => execFileSync('bash', ['-c', steps.find(step => step.id === id).run.replace('node --test', "printf '%s\\n'")], { encoding: 'utf8' }).trim().split('\n');
   const pure = select('control_lab');
