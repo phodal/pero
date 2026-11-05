@@ -46,12 +46,14 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
   const preview = (target: ArtifactTarget) => { savedScroll.current = browserScroll.current?.scrollTop ?? 0; select(target); setQuickLook(true); };
   const closePreview = () => { restoreFocus.current = true; setQuickLook(false); };
   const onKeyDown = (event: React.KeyboardEvent) => {
+    if (event.defaultPrevented) return;
     if (event.key === 'Escape' && quickLook) { event.preventDefault(); closePreview(); return; }
     if (!context || (event.target as HTMLElement).closest('input,textarea,[contenteditable=true],.cm-editor')) return;
     if (quickLook) return;
     const row = (event.target as HTMLElement).closest<HTMLElement>('[data-artifact-id]');
-    const index = Math.max(0, context.artifacts.findIndex(item => item.id === (row?.dataset.artifactId ?? context.selected?.artifact_id)));
-    if ((event.key === ' ' || event.key === 'Enter') && row) {
+    if (!row) return;
+    const index = Math.max(0, context.artifacts.findIndex(item => item.id === row.dataset.artifactId));
+    if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault(); preview(artifactTarget(context.artifacts[index], context.selected)); return;
     }
     const columns = context.view === 'icons' && grid.current

@@ -63,11 +63,17 @@ try {
     window.__artifactChat = [];
     window.__artifactChatPending = [];
     window.__artifactChatManual = false;
+    window.__artifactBrowserContext = null;
     window.__replyArtifactChat = (ok, error = '') => {
       const message = window.__artifactChatPending.shift();
       window.postMessage({ type: 'pero:app:chat-result', id: message.id, ok, error, value: ok ? { threadId: 'fixture-thread' } : undefined }, '*');
     };
     window.addEventListener('message', event => {
+      if (event.source === window && event.data?.type === 'pero:artifact:select' && window.__artifactBrowserContext) {
+        window.__artifactBrowserContext.selected = event.data.target;
+        window.postMessage({ type: 'pero:app:context', context: { artifactBrowser: window.__artifactBrowserContext } }, '*');
+        return;
+      }
       if (event.source !== window || event.data?.type !== 'pero:app:chat') return;
       window.__artifactChat.push(event.data.options);
       window.__artifactChatPending.push(event.data);
@@ -127,6 +133,39 @@ try {
   await open('csv'); await expect(page.locator('.numeric-point')).toHaveCount(2); await expect(page.getByRole('alert')).toContainText('1 missing'); await screenshot('csv-light');
   await page.getByRole('button', { name: 'Table', exact: true }).click(); await expect(page.getByRole('cell', { name: 'Missing', exact: true })).toBeVisible();
   checks.push('Existing CodeMirror and CSV graph/table keep original missing values');
+  await page.goto(`${origin}/artifact.html?thread_id=fixture-thread`);
+  await expect(page.getByRole('main', { name: 'Artifact browser' })).toBeVisible();
+  const catalog = ['csv', 'markdown'].map(id => {
+    const [filename, , kind, content] = sources[id];
+    const format = { kind: id === 'markdown' ? 'markdown' : 'text' };
+    return { id, thread_id: 'fixture-thread', title: filename, versions: [{ version: 2,
+      sha256: createHash('sha256').update(content).digest('hex'), bytes: Buffer.byteLength(content), created_at: 0,
+      format, media: kind === 'document' ? { kind, format } : { kind }, filename, source: { kind: 'text' } }] };
+  });
+  await page.evaluate(artifacts => {
+    window.__artifactBrowserContext = { thread_id: 'fixture-thread', view: 'gallery', artifacts,
+      selected: { thread_id: 'fixture-thread', artifact_id: 'csv', version: 2 } };
+    window.postMessage({ type: 'pero:app:context', context: { artifactBrowser: window.__artifactBrowserContext } }, '*');
+  }, catalog);
+  const chart = page.locator('.numeric-chart svg');
+  await chart.focus(); await chart.press('ArrowRight');
+  await expect(page.locator('.numeric-chart output')).toContainText('Row 3:');
+  await expect(chart).toBeFocused();
+  const xAxis = page.getByRole('combobox', { name: 'X axis' });
+  await xAxis.focus(); await xAxis.press('End');
+  await expect(xAxis).toHaveValue('1'); await expect(xAxis).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.__artifactBrowserContext.selected.artifact_id)).toBe('csv');
+  const csvTile = page.getByRole('option', { name: 'voltage.csv, CSV, v2' });
+  const markdownTile = page.getByRole('option', { name: 'report.md, Markdown, v2' });
+  await csvTile.focus(); await csvTile.press('ArrowRight');
+  await expect(markdownTile).toHaveAttribute('aria-selected', 'true'); await expect(markdownTile).toBeFocused();
+  await markdownTile.press('Home');
+  await expect(csvTile).toHaveAttribute('aria-selected', 'true'); await expect(csvTile).toBeFocused();
+  await csvTile.press('Space');
+  await expect(page.getByRole('button', { name: 'Back to artifacts' })).toBeFocused();
+  await page.keyboard.press('Escape'); await expect(csvTile).toBeFocused();
+  await screenshot('gallery-keyboard');
+  checks.push('Gallery keeps chart and select keyboard input local; artifact navigation, quick look and Escape restore focus');
   await open('image'); await expect(page.locator('.artifact-image img')).toBeVisible();
   await expect.poll(() => page.locator('.artifact-image img').evaluate(node => node.naturalWidth)).toBeGreaterThan(0); await screenshot('image-light');
   await open('html'); await expect(page.frameLocator('.artifact-html').getByRole('heading', { name: 'Static HTML result' })).toBeVisible();
