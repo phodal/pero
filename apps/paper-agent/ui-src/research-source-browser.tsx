@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Feedback, Split, SplitPane } from '@pero/app-sdk/ui';
+import { Button, Select, Feedback, Split, SplitPane } from '@pero/app-sdk/ui';
 import type { Api, PdfFocus, SourceFocus } from './types';
 import type { ResearchBundle, SourceObservation, SourceEvidenceLocation } from './research-types';
 import { SourceReports } from './research-source-reports';
@@ -141,7 +141,7 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
     </Split>}
     {!inspectionOnly && <details className="pa-source-analysis"><summary>{copy('advanced')}</summary><section className="pa-source-compare" aria-label={copy('compare')}><h4>{copy('compare')}</h4>
       <p>{copy('compareScope')}</p>
-      {pdfs.length ? <div className="pa-actions"><label>{copy('choosePdf')} <select value={pdfId} disabled={busy} onChange={event => { setPdfId(event.target.value); setComparison(null); }}><option value="">{copy('choosePdf')}</option>{pdfs.map(pdf => <option key={pdf.id} value={pdf.id}>{pdf.title} — {pdf.originalUrl}</option>)}</select></label><Button disabled={busy || !pdfId || !available} onClick={() => void compare()}>{copy('compareAction')}</Button></div> : <p>{copy('noPdf')}</p>}
+      {pdfs.length ? <div className="pa-actions"><label>{copy('choosePdf')} <Select label={copy('choosePdf')} value={pdfId} disabled={busy} onChange={value => { setPdfId(value); setComparison(null); }} options={[{ value: '', label: copy('choosePdf') }, ...pdfs.map(pdf => ({ value: pdf.id, label: pdf.title, hint: pdf.originalUrl }))]} showHint/></label><Button disabled={busy || !pdfId || !available} onClick={() => void compare()}>{copy('compareAction')}</Button></div> : <p>{copy('noPdf')}</p>}
       {comparison && <><p role="status">{comparison.status === 'matched' ? 'Evidence-backed caption matches' : 'Comparison unresolved'}: {comparison.reason}</p><ul>{comparison.matches.map((match, i) => <li key={i}><p>{match.source.memberPath}, lines {match.source.startLine}–{match.source.endLine}</p><blockquote>{match.pdf.quote}</blockquote><Button disabled={busy} onClick={() => void reveal(match)}>Open matched PDF page {match.pdf.page}</Button><details><summary>Match versions</summary><dl className="pa-resource-provenance"><dt>Archive SHA-256</dt><dd>{match.source.archiveDigest}</dd><dt>Member SHA-256</dt><dd>{match.source.memberDigest}</dd><dt>PDF SHA-256</dt><dd>{match.pdf.fileDigest}</dd><dt>PDF document</dt><dd>{match.pdf.documentId}</dd></dl></details></li>)}</ul></>}
     </section>
     <SourceReports key={bundle.id} api={api} bundleId={bundle.id} refresh={reportRefresh} navigating={busy}

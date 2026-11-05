@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile, useAppInfo } from '@pero/app-sdk';
-import { Button, EmptyState, Feedback, Icon } from '@pero/app-sdk/ui';
+import { Button, Select, EmptyState, Feedback, Icon } from '@pero/app-sdk/ui';
 import { Experiments, ReportView, type Citation } from './documents';
 import { ReadingMatrix } from './reading-matrix';
 import { ManualRecords, type ResearchAttempt } from './manual-records';
@@ -134,10 +134,8 @@ export function ResearchRecords({ api, library, paper, results = false, onFollow
   return <div className="pa-records-scroll" aria-label={t(results ? 'researchResults' : 'researchProgress')}>
     {results && <div className="pa-results-tools">
       <input type="search" aria-label={t('searchResearchResults')} placeholder={t('searchResearchResults')} value={query} onChange={event => setQuery(event.currentTarget.value)}/>
-      <select aria-label={t('researchResultStatus')} value={filter} onChange={event => setFilter(event.currentTarget.value as typeof filter)}>
-        <option value="all">{t('allResearchResults')}</option>
-        {(['reportSaved', 'studyUnfinished', 'questionSaved'] as const).map(kind => <option key={kind} value={kind}>{t(kind)}</option>)}
-      </select>
+      <Select label={t('researchResultStatus')} value={filter} onChange={value => setFilter(value as typeof filter)}
+        options={[{ value: 'all', label: t('allResearchResults') }, ...(['reportSaved', 'studyUnfinished', 'questionSaved'] as const).map(kind => ({ value: kind, label: t(kind) }))]}/>
     </div>}
     {(!results || (!term && filter === 'all')) && <ManualRecords api={api} library={library} paper={paper} onRead={onRead} onAttempt={onAttempt}/>}
     {!days.size && <EmptyState heading={t(history.length ? 'noResearchMatches' : 'noResearchRecords')}/>}

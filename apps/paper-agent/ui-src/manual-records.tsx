@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile } from '@pero/app-sdk';
-import { Button, Feedback, Input, Textarea } from '@pero/app-sdk/ui';
+import { Button, Select, Feedback, Input, Textarea } from '@pero/app-sdk/ui';
 import type { Api, Library, Paper, Report } from './types';
 import { reviseEvidence, reportsCitingPaper, type ManualEvidence as Evidence } from './manual-evidence';
 import { ResearchWatch, researchHost, type DataPin, type Dataset } from './research-watch';
@@ -128,18 +128,17 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
                 setAttempts(values => values.filter(value => value.paperId !== item.id)); setAvailableAttempts(null);
               }}/><span>{item.title}</span></label>
               {decision && <>
-                <label>Decision<select value={decision.decision} onChange={event => updateDecision(item.id, { decision: event.target.value as Decision['decision'] })}><option value="pending">Pending</option><option value="include">Include</option><option value="exclude">Exclude</option></select></label>
+                <label>Decision<Select label="Decision" value={decision.decision} onChange={value => updateDecision(item.id, { decision: value as Decision['decision'] })} options={[{ value: 'pending', label: 'Pending' }, { value: 'include', label: 'Include' }, { value: 'exclude', label: 'Exclude' }]}/></label>
                 <label>Reason<Textarea required maxLength={2000} rows={2} value={decision.reason} onChange={event => updateDecision(item.id, { reason: event.target.value })}/></label>
                 <details><summary>Evidence or gaps (optional)</summary>
                   {reportsLoading && <p role="status">Loading cited reports…</p>}
                   {reportsError && <Feedback kind="error">Reports could not be loaded. Existing references are unchanged.<Button onClick={() => setReportsRetry(value => value + 1)}>Reload cited reports</Button></Feedback>}
                   {citations.map(({ citation, index }) => <fieldset key={index}><legend>Evidence {citations.findIndex(value => value.index === index) + 1}</legend>
-                    <label>Saved report<select disabled={reportsLoading || !!reportsError} value={citation.reportId ?? '__gap__'} onChange={event => updateEvidence(index, event.target.value === '__gap__' ? { reportId: null, stance: 'gap' } : { reportId: event.target.value })}>
-                      <option value="__gap__">Unresolved gap (no report)</option>
-                      {citation.reportId && !options.some(report => report.id === citation.reportId) && <option value={citation.reportId} disabled>Saved reference (not currently available)</option>}
-                      {options.map(report => <option key={report.id} value={report.id}>{report.title}</option>)}
-                    </select></label>
-                    <label>Relation<select disabled={citation.reportId === null} value={citation.stance} onChange={event => updateEvidence(index, { stance: event.target.value as Evidence['stance'] })}><option value="support">Support</option><option value="counterevidence">Counterevidence</option><option value="gap">Gap</option></select></label>
+                    <label>Saved report<Select label="Saved report" disabled={reportsLoading || !!reportsError} value={citation.reportId ?? '__gap__'} onChange={value => updateEvidence(index, value === '__gap__' ? { reportId: null, stance: 'gap' } : { reportId: value })}
+                      options={[{ value: '__gap__', label: 'Unresolved gap (no report)' },
+                        ...(citation.reportId && !options.some(report => report.id === citation.reportId) ? [{ value: citation.reportId, label: 'Saved reference (not currently available)', disabled: true }] : []),
+                        ...options.map(report => ({ value: report.id, label: report.title }))]}/></label>
+                    <label>Relation<Select label="Relation" disabled={citation.reportId === null} value={citation.stance} onChange={value => updateEvidence(index, { stance: value as Evidence['stance'] })} options={[{ value: 'support', label: 'Support' }, { value: 'counterevidence', label: 'Counterevidence' }, { value: 'gap', label: 'Gap' }]}/></label>
                     <label>Conditions and limitations<Textarea required maxLength={2000} rows={2} value={citation.note} onChange={event => updateEvidence(index, { note: event.target.value })}/></label>
                     <Button onClick={() => updateEvidence(index, null)}>Remove evidence</Button>
                   </fieldset>)}
@@ -170,20 +169,17 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
             if (mounted.current) setDatasets(values.filter(dataset => !dataset.archived || dataPins[dataset.datasetId]));
           })}>Choose Data versions</Button>
           {datasets?.length === 0 && <p role="status">Import a dataset in Data Workspace first.</p>}
-          {datasets?.map(dataset => <label key={dataset.datasetId}>{dataset.name}<select value={dataPins[dataset.datasetId] ?? ''} onChange={event => {
+          {datasets?.map(dataset => <label key={dataset.datasetId}>{dataset.name}<Select label={dataset.name} value={dataPins[dataset.datasetId] ?? ''} onChange={value => {
             const next = { ...dataPins };
-            if (event.target.value) next[dataset.datasetId] = event.target.value;
+            if (value) next[dataset.datasetId] = value;
             else delete next[dataset.datasetId];
             setDataPins(next);
-          }}>
-            <option value="">No reference</option>
-            {[...dataset.versions].reverse().map((version, index) => <option key={version.versionId} value={version.versionId}
-              disabled={dataset.archived || version.availability !== 'present'}>{version.versionId.slice(0, 8)}{index === 0 ? ' (latest)' : ''}</option>)}
-          </select></label>)}
+          }} options={[{ value: '', label: 'No reference' }, ...[...dataset.versions].reverse().map((version, index) => ({ value: version.versionId,
+            disabled: dataset.archived || version.availability !== 'present', label: `${version.versionId.slice(0, 8)}${index === 0 ? ' (latest)' : ''}` }))]}/></label>)}
         </details>
         <details><summary>Local review (optional)</summary>
           <p>Your recorded decision, not independent review or scientific acceptance.</p>
-          <label>Review decision<select value={review} onChange={event => setReview(event.target.value)}><option value="">No review recorded</option><option value="needs_review">Needs review</option><option value="accepted">Accepted by me</option><option value="rejected">Rejected by me</option></select></label>
+          <label>Review decision<Select label="Review decision" value={review} onChange={setReview} options={[{ value: '', label: 'No review recorded' }, { value: 'needs_review', label: 'Needs review' }, { value: 'accepted', label: 'Accepted by me' }, { value: 'rejected', label: 'Rejected by me' }]}/></label>
           {review && <label>Review reason<Textarea required maxLength={2000} rows={2} value={reviewNote} onChange={event => setReviewNote(event.target.value)}/></label>}
         </details>
         <div className="pa-actions"><Button type="button" disabled={!valid} onClick={submit}>{busy ? 'Saving…' : 'Save revision'}</Button><Button type="button" onClick={() => setEditing(false)}>Cancel</Button></div>
