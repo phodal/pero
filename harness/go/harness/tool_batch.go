@@ -124,7 +124,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 			return false, err
 		}
 		d := tool.ObserveDiagnostic(calls[i].Name, calls[i].Arguments, outcomes[i].Result.Content, outcomes[i].Result.IsError)
-		if d.Failed {
+		if d.Failed || d.ValidationSignal != "" {
 			if _, err := a.session.Append("tool/diagnostic", struct {
 				Turn       int             `json:"turn"`
 				Step       int             `json:"step"`

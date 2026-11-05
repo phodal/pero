@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: resolved
+status: in_progress
 date: 2026-11-05
 ---
 
@@ -64,3 +64,22 @@ changing its deadline. All 36 Go package race suites, three relevant standalone
 Bazel race targets and related vet pass. Preview isolation, caller mutation,
 image/prompt/surface updates and restore equivalence are covered. New Linux CI
 results remain separate evidence; no new paid benchmark or score is claimed.
+
+
+## Live recovery and discovery follow-up
+
+The retained native follow-up contains nine reviewed validation failures whose
+shell exits were zero. The runtime currently treats these as ordinary settled
+successes, so it supplies no warning and may clear earlier diagnostic history.
+Distinct read/search arguments also evade the existing repetition reminders;
+unchanged complete file reads repeatedly occupy model context.
+
+Implement three bounded changes: advisory observations of structured validation
+failure text despite exit zero (never a fabricated failed exit); one reminder
+per continuous discovery phase without limiting requests; and reuse of identical
+complete native file-read content only while its full anchor remains visible.
+Explicit ranges, partial/media/plugin-resource reads remain full. Fresh reads
+must still happen, original results remain recoverable, and removing an anchor
+through pruning/compaction must restore content before the next model request.
+Test real shell output, changed content with preserved timestamps, context
+replacement/restore, mixed discovery operations and mutation/new-turn resets.

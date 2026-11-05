@@ -4,6 +4,7 @@ go_library(
     name = "tool",
     srcs = [
         "diagnostic.go",
+        "validation_signal.go",
         "history.go",
         "json_schema_subset.go",
         "output.go",
@@ -32,6 +33,7 @@ go_test(
     name = "tool_test",
     srcs = [
         "diagnostic_test.go",
+        "validation_signal_test.go",
         "duplicate_history_test.go",
         "history_test.go",
         "json_schema_subset_test.go",
