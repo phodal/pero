@@ -5,6 +5,8 @@ import { isDeepStrictEqual } from 'node:util';
 let authenticated = false;
 let sessionAttempts = 0;
 let sessionMcp = [];
+const runtimeRevision = scenario === 'runtime_live' ? 0 : 7;
+let runtimeGeneration = 2;
 let active;
 let permission;
 let turn = 0;
@@ -46,13 +48,13 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if ((scenario === 'auth' || scenario === 'mcp_auth') && !authenticated) { fail(id, -32000, 'Fixture requires login'); return; }
     if (scenario.startsWith('runtime_')) {
       const observable = scenario !== 'runtime_unobservable';
-      if (observable !== (params._meta?.['pero.mcpRuntime']?.revision === 7)) { fail(id, -32602, 'Runtime revision negotiation mismatch'); return; }
+      if (observable !== (params._meta?.['pero.mcpRuntime']?.revision === runtimeRevision)) { fail(id, -32602, 'Runtime revision negotiation mismatch'); return; }
       if (scenario.startsWith('runtime_start_')) {
         update('session/new pending');
         if (scenario === 'runtime_start_fail') fail(id, -32603, 'Fixture session creation failed');
         return;
       }
-      const runtime = (generation, status, tools, extra = {}) => send({method: '_pero/mcp/runtime', params: {sessionId: 'fixture-session', revision: 7, server: 'docs', generation, status, tools, ...extra}});
+      const runtime = (generation, status, tools, extra = {}) => send({method: '_pero/mcp/runtime', params: {sessionId: 'fixture-session', revision: runtimeRevision, server: 'docs', generation, status, tools, ...extra}});
       runtime(1, 'connected', ['initial']); // Arrives before session identity is returned.
       runtime(2, 'connected', ['current']);
       runtime(1, 'disconnected', []);
@@ -93,6 +95,12 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     active = id;
     turn += 1;
     const text = params.prompt[0].text;
+    if (scenario === 'runtime_live' && ['disconnect', 'recover'].includes(text)) {
+      send({method: '_pero/mcp/runtime', params: {sessionId: 'fixture-session', revision: runtimeRevision,
+        server: 'docs', generation: ++runtimeGeneration, status: text === 'disconnect' ? 'disconnected' : 'connected',
+        tools: text === 'disconnect' ? [] : ['recovered']}});
+      finish('end_turn'); return;
+    }
     if (scenario === 'prompt_auth' && !authenticated) {
       setTimeout(() => { fail(id, -32000, 'Fixture provider requires login'); active = undefined; }, 100);
       return;

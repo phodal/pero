@@ -49,6 +49,8 @@ const agents = resolve(temp, 'agents.json');
 writeFileSync(agents, JSON.stringify([
  { id: 'fixture', name: 'ACP test fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] },
  { id: 'settings-fixture', name: 'ACP settings fixture', command: process.execPath, args: [resolve(root, 'tests/runtime/lifecycle-agent.mjs')], env: {PERO_FIXTURE_SCENARIO:'settings'} },
+ { id: 'runtime-fixture', name: 'ACP runtime fixture', command: process.execPath, args: [resolve(root, 'tests/runtime/lifecycle-agent.mjs')], env: {PERO_FIXTURE_SCENARIO:'runtime_live'},
+   mcp_servers: [{type:'http',name:'docs',url:'http://127.0.0.1/mcp',headers:[]}] },
 ]));
 writeFileSync(resolve(temp, 'notes.txt'), 'Context file for the contract test.\n');
 const env = { ...process.env, PERO_APPS_ROOT: resolve(temp, 'installed'), PERO_BUILTIN_APPS_ROOT: builtins,
@@ -277,8 +279,30 @@ try {
   host.send({action:'search_context',request_id:'thread-after-delete',kind:'thread',query:'hello'});
   const afterDelete = await host.next('context_candidates', e => e.request_id === 'thread-after-delete');
   if (afterDelete.data.some(item => item.source === thread || item.source === 'delete-live')) failures.push('deleted thread remained searchable');
+  // A renderer reload must receive observations newer than session_ready,
+  // including both a post-startup disconnect and a subsequent recovery.
+  const runtimeThread = 'runtime-contract';
+  host.send({action:'new_session',thread_id:runtimeThread,agent_id:'runtime-fixture'});
+  await host.next('session_ready', event => event.thread_id === runtimeThread);
+  for (const [text, status] of [['disconnect','disconnected'], ['recover','connected']]) {
+    host.send({action:'prompt',thread_id:runtimeThread,text});
+    const changed = await host.next('mcp_runtime', event => event.thread_id === runtimeThread
+      && event.data.servers.some(server => server.server === 'docs' && server.status === status && server.generation > 2));
+    await host.next('turn_finished', event => event.thread_id === runtimeThread);
+    host.send({action:'list_agents'});
+    await host.next('replay');
+    const refreshed = await host.next('mcp_runtime', event => event.thread_id === runtimeThread
+      && event.data.servers.some(server => server.server === 'docs' && server.generation === changed.data.servers.find(server => server.server === 'docs').generation));
+    if (!isDeepStrictEqual(refreshed.data, changed.data)) failures.push('renderer reconnect restored a stale MCP observation');
+  }
   await host.stop();
 
+  // A malformed byte line must not hide later intact conversations. Replaying
+  // recovers valid records without rewriting the source journal.
+  const journal = readFileSync(env.PERO_HISTORY_PATH);
+  const boundary = journal.indexOf(10) + 1;
+  const damaged = Buffer.concat([journal.subarray(0,boundary), Buffer.from([0xff,0xfe,10]), Buffer.from('{malformed}\n'), journal.subarray(boundary)]);
+  writeFileSync(env.PERO_HISTORY_PATH, damaged);
   // A fresh Host replays the journal written above.
   host = startHost();
   await host.next('ready');
@@ -294,6 +318,7 @@ try {
   if (replay.data.events.some(event => event.thread_id === thread || event.thread_id === 'delete-live')) failures.push('deleted thread was replayed');
   if (!replay.data.events.some(event => event.thread_id === 'settings-contract')) failures.push('deleting a thread removed unrelated history');
   if (!replay.data.events.some(event => event.thread_id === 'settings-contract' && event.kind === 'session_created' && isDeepStrictEqual(event.data.scope, {app:'fixture',panel:'main'}))) failures.push('App scope was lost after Host restart');
+  if (!readFileSync(env.PERO_HISTORY_PATH).equals(damaged)) failures.push('history recovery rewrote the source journal');
   await host.stop();
 } catch (error) {
   failures.push(String(error));
