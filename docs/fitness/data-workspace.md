@@ -124,7 +124,7 @@ Local verification in the assistant workspace:
 - Python Data regression suite: **64 passed**, including exact-number and
   conversion failure cases, issue pagination, saved/restarted views, cross-action
   provenance and original-byte checks.
-- Strict App TypeScript checking and **6** UI model tests: passed.
+- Strict App TypeScript checking and **7** UI model tests: passed.
 - Direct esbuild of the real Data frame and SDK: passed. The full App packaging
   command is unavailable because `PERO_GPUI_KIT_PATH` is not configured.
 - Core CI workflow contracts: **5 passed**. The wider scripts/ci test run has
@@ -143,3 +143,19 @@ new versions and corrupted-original recovery. Light/dark/390px screenshots and
 bundle hashes are emitted under `test-results/data-workflow/` and uploaded with
 the existing Data browser artifact. This is still distinct from full Desktop,
 Host permission, release packaging and scientific-validity acceptance.
+
+Hosted verification at `8bc8b30616fe3b3590ac3e59c7d8e9740fa50130`:
+
+- [Data CI job](https://github.com/phodal/pero/actions/runs/41954040103/job/127004512941):
+  **64 Python, 7 UI model and 7 browser tests passed**, plus strict type checking.
+- [Browser artifact](https://github.com/phodal/pero/actions/runs/41954040103/artifacts/13382746233):
+  real Data frame + Python catalog journey, actual backend restart, source/export/
+  chart consistency checks, and light/dark/390px screenshots. Preview, exact
+  numeric filtering with leading-zero IDs, and clearly marked conversion issues
+  were visually inspected. The narrow layout keeps controls readable and wraps
+  the issue-scope explanation; the table retains its normal scroll container.
+- Bundle SHA-256: JS `b01b8e80d571bd0e80e2e42f326ce2744cd45f795d86c3786fb48f537ea73604`;
+  CSS `715a70c36170773c55030d9154f3234775afbe0dee79e43ca0948378563e97f9`.
+- The first browser run caught non-JSON optional properties in Agent samples;
+  the fix and retained real-SDK regression are recorded in
+  [the resolved incident](../issues/2026-11-05-data-interpretation-samples.md).
