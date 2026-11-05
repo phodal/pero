@@ -54,6 +54,7 @@ jobs:
           cache: pip
           cache-dependency-path: apps/scientific-viewer/requirements.txt
       - name: Prepare pinned App and actual molecular engine
+        id: prepare
         run: |
           npm ci --ignore-scripts
           npm ci --prefix apps/scientific-viewer --ignore-scripts
@@ -63,6 +64,7 @@ jobs:
       - name: Verify App context handshake and cross-origin bridge
         run: node tests/e2e/app-use-bridge.mjs
       - name: Verify imported files, charts, molecules and responsive themes
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: node tests/e2e/scientific-viewer-browser.mjs
       - name: Viewer screenshots and exact bundle evidence
         if: always()
@@ -107,7 +109,9 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: data-fields-browser
-          path: test-results/data-fields/
+          path: |
+            test-results/data-fields/
+            test-results/data-workflow/
           if-no-files-found: ignore
 
   lab:

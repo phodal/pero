@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { analysisRequest, briefFromReply, briefResultPrompt } from './work-recap-model.mjs';
 import { PulseHomeResult, type ResultBrief } from './pulse-home-result';
 import type { RecapSession, RecapTurn, WorkRecap } from './pulse-work-recap';
+import { ResearchUpdates } from './research-updates';
 
 type HostTurn = { status?: string; request?: string; response?: string; response_kind?: string; boundary?: string; seq_start?: number; seq_end?: number; truncated?: boolean };
 type HostSession = {
@@ -148,6 +149,7 @@ export default function Insights() {
     runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale));
   }, [recap, repositories, conflicts, modelReady, locale]);
   return <div className="point-pulse-page">
+    <ResearchUpdates />
     {error && <p className="point-pulse-banner" role="alert">{error} <button type="button" onClick={() => { started.current = false; setAttempt(value => value + 1); }}>{locale === 'zh' ? '重试' : 'Retry'}</button></p>}
     <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} />
   </div>;

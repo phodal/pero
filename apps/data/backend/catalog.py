@@ -13,7 +13,7 @@ import uuid
 _shared = Path(__file__).resolve().parents[3] / 'harness/go/charts/python'
 sys.path.insert(0, str(_shared if _shared.is_dir() else Path(__file__).parent / '_core'))
 from datasets import (Dataset, DatasetEdit, MAX_COLUMNS, MAX_FIELDS, MAX_ROWS, PARSER_VERSION,
-                      PREVIEW_BYTES, PreviewRequest, SaveView, SavedView, fields, identity, text)
+                      PREVIEW_BYTES, PreviewRequest, QualityReport, SaveView, SavedView, fields, identity, text)
 from inspection import Inspection
 
 IMPORT_LIMIT = 10 * 1024 * 1024
@@ -154,6 +154,14 @@ class Catalog:
                         limits=dict(importBytes=IMPORT_LIMIT, previewBytes=PREVIEW_BYTES,
                                     records=MAX_ROWS, fields=MAX_FIELDS, columns=MAX_COLUMNS))
 
+    def research_versions(self):
+        with self.lock:
+            assets = {asset.id: asset for asset in self.assets}
+            return [dict(datasetId=dataset.id, name=dataset.name, archived=dataset.archived,
+                         versions=[dict(versionId=identity, sha256=assets[identity].sha256,
+                                        availability=self.availability(assets[identity])) for identity in dataset.versions])
+                    for dataset in self.datasets if dataset.kind == 'dataset']
+
     def dataset(self, dataset_id):
         found = next((item for item in self.datasets if item.id == dataset_id), None)
         if found is None:
@@ -242,7 +250,7 @@ class Catalog:
         asset, inspection = self._inspect(request.preview)
         page = inspection.page(request.preview)
         view = SavedView(uuid.uuid4().hex, request.name, request.preview.datasetId, asset.id, asset.sha256,
-                         replace(request.preview.view, columns=tuple(page['columns'])), inspection.report,
+                         replace(request.preview.view, columns=tuple(page['columns'])), QualityReport.restore(page['report']),
                          datetime.now(timezone.utc).isoformat())
         with self.lock:
             self._save(self.assets, self.datasets, [*self.views, view])

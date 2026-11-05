@@ -190,7 +190,7 @@ fn unchanged_calendar_revision_retains_progress_and_exhaustion() {
     for next in [Some(200),None] {
         let progressed=advance(&configured(),tick(1,100,next),100,"r1").state;
         let mut definition=progressed.definitions[0].clone();definition.revision=2;
-        let Method::Agent{prompt,..}=&mut definition.method;*prompt="Updated prompt without rescheduling".into();
+        let Method::Agent{prompt,..}=&mut definition.method else { panic!("expected Agent fixture") };*prompt="Updated prompt without rescheduling".into();
         let edited=advance(&progressed,Command::PutDefinition{definition},101,"unused").state;
         assert_eq!(edited.calendar_slots.get("a").copied(),next);
         assert_eq!(edited.requests[0].status,RequestStatus::DefinitionChanged);

@@ -9,7 +9,8 @@ import threading
 import unittest
 
 from test_research import NOW, reading, request, report_value
-from paper_agent.model import Invalid, PaperSnapshot
+from paper_agent.model import Invalid, PaperSnapshot, digest
+from paper_agent.pdf import PdfDocument, PdfPage
 from paper_agent.research_record_commands import record_command
 from paper_agent.store import ResearchStore
 
@@ -80,15 +81,23 @@ class ResearchRecords(unittest.TestCase):
     def test_actual_saved_change_selection_and_private_export(self):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)
-            paper = store.save_paper(PaperSnapshot.from_reading(reading(), NOW))
+            source = dict(sourceId='2410.22093v3', url='https://arxiv.org/abs/2410.22093v3')
+            paper = store.save_paper(PaperSnapshot.from_reading(reading(**source), NOW))
             record = record_command(store, draft([paper]), NOW)
             command = dict(operation='impact', recordId=record['id'])
             self.assertEqual(record_command(store, command, NOW)['items'][0]['status'], 'unchanged')
-            changed = store.save_paper(PaperSnapshot.from_reading(reading(content='New actual saved fixture bytes'), NOW))
+            changed = store.save_paper(PaperSnapshot.from_reading(reading(content='New actual saved fixture bytes', **source), NOW))
+            revision = store.save_paper(PaperSnapshot.from_reading(reading(sourceId='2410.22093v4', url='https://arxiv.org/abs/2410.22093v4'), NOW))
             impact = record_command(store, command, NOW)
-            self.assertEqual(impact['items'][0]['candidatePaperIds'], [changed.id])
+            self.assertCountEqual(impact['items'][0]['candidatePaperIds'], [changed.id, revision.id])
             self.assertEqual(impact['items'][0]['status'], 'changed')
             self.assertEqual(impact['upstreamStatus'], 'unknown')
+            data = b'synthetic PDF fixture'
+            document = store.save_pdf(PdfDocument.create(paper.id, digest(data), paper.url,
+                (PdfPage(1, 400, 600, 'Synthetic PDF'),), NOW), data)
+            self.assertTrue(record_command(store, command, NOW)['items'][0]['pdfChanged'])
+            (store.root / 'pdf-files' / (document.file_digest + '.pdf')).unlink()
+            self.assertEqual(record_command(store, command, NOW)['items'][0]['status'], 'unknown')
             selected = record_command(store, dict(operation='select', recordId=record['id'], paperIds=[paper.id]), NOW)
             self.assertEqual(selected['execution'], 'not_requested')
             self.assertEqual(selected['verification'], 'not_run')

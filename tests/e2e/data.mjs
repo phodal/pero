@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -11,7 +11,7 @@ const root = resolve(import.meta.dirname, '../..');
 const out = resolve(root, 'test-results/data');
 await mkdir(out, { recursive: true });
 for (const name of ['result.json', 'failure.json']) await rm(resolve(out, name), { force: true });
-const temp = await mkdtemp(resolve(tmpdir(), 'pero-data-e2e-'));
+const temp = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-data-e2e-')));
 const agents = resolve(temp, 'agents.json');
 await writeFile(agents, JSON.stringify(['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({ id, name: id, command: resolve(temp, `unavailable-${id}`) }))));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'desktop'), PERO_LOCALE: 'en',
@@ -30,10 +30,10 @@ const catalog = () => frame.locator('body').evaluate(async () => {
   return response.json();
 });
 // SDK Select is an accessible button/listbox, not a native <select>.
-async function choose(scope, label, option) {
+async function choose(scope, label, option, optionLabel = option) {
   const trigger = scope.getByRole('button', { name: label, exact: true });
   await trigger.click();
-  await frame.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: option, exact: true }).click();
+  await frame.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: optionLabel, exact: true }).click();
   await expect(trigger).toHaveAttribute('data-value', option);
 }
 async function openData() {
@@ -95,6 +95,16 @@ try {
   await expect(preview().locator('dt').filter({ hasText: /^Duplicate rows$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
   await expect(preview().locator('dt').filter({ hasText: /^Empty strings$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
   await preview().getByRole('tab', { name: 'Table', exact: true }).click();
+  await choose(preview(), 'Filter field', 'value');
+  await choose(preview(), 'Condition', 'gte', 'At least');
+  await preview().getByLabel('Filter value', { exact: true }).fill('invalid');
+  await preview().getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(preview().getByRole('alert')).toHaveText('A numeric filter needs a finite decimal value');
+  await expect(preview().locator('.data-rows tbody tr')).toHaveCount(0);
+  await page.screenshot({ path: resolve(out, 'data-rejected-filter.png') });
+  await preview().getByRole('button', { name: 'Clear filter', exact: true }).click();
+  await expect(preview().locator('.data-rows tbody tr')).toHaveCount(3);
+  await expect(preview().getByRole('columnheader', { name: 'value (V)', exact: true })).toBeVisible();
   await choose(preview(), 'Filter field', 'id');
   await preview().getByLabel('Filter value', { exact: true }).fill('001');
   await preview().getByLabel('Filter value', { exact: true }).press('Enter');
@@ -134,6 +144,12 @@ try {
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(11);
   await expect(preview().locator('.data-rows tbody tr').first().locator('th')).toHaveText('51');
   await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  const reference = resolve(temp, 'baseline-reference.json');
+  await app.evaluate(({ session }, path) => session.defaultSession.once('will-download', (_event, item) => item.setSavePath(path)), reference);
+  await preview().getByRole('button', { name: 'Export reference', exact: true }).click();
+  await expect.poll(async () => readFile(reference, 'utf8').then(JSON.parse, () => null)).toMatchObject({
+    type: 'pero-dataset-view', ...saved, source: { name: 'measurements.csv', sha256: digest(bytes) },
+  });
   await preview().getByRole('button', { name: 'baseline', exact: true }).click();
   await expect(preview().getByRole('button', { name: 'Version', exact: true })).toHaveAttribute('data-value', v1.id);
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
@@ -163,11 +179,23 @@ try {
   await preview().getByRole('tab', { name: 'History', exact: true }).click();
   await preview().getByRole('button', { name: 'baseline', exact: true }).click();
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
+  await preview().getByText('Source and details', { exact: true }).click();
+  await preview().getByLabel('Project reference', { exact: true }).fill('');
+  await preview().getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect.poll(async () => (await catalog()).datasets[0].projectRef).toBe('');
+  await preview().getByText('Source and details', { exact: true }).click();
   await writeFile(v1.location, Buffer.from(bytes.toString().replace('001', '009')));
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
-  await expect(preview().getByText('Original bytes no longer match the stored SHA-256', { exact: true })).toBeVisible();
+  const corruption = preview().getByText('Original bytes no longer match the stored SHA-256', { exact: true });
+  await expect(corruption).toBeVisible();
+  await expect(frame.getByRole('table', { name: '' }).getByRole('cell', { name: 'Changed', exact: true })).toBeVisible();
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(0);
   expect((await catalog()).views[0]).toEqual(saved);
+  await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  await expect(preview().getByRole('heading', { name: 'Saved views', exact: true })).toBeVisible();
+  await expect(corruption).toBeVisible();
+  await page.screenshot({ path: resolve(out, 'data-changed-original.png') });
+  await preview().getByRole('tab', { name: 'Table', exact: true }).click();
   await writeFile(v1.location, bytes);
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
@@ -176,15 +204,35 @@ try {
   await page.screenshot({ path: resolve(out, 'data-light.png') });
   await setAppearance(page, 'dark');
   await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('dark');
+  const splitter = frame.getByRole('separator', { name: 'Resize datasets', exact: true });
+  await expect(splitter).toBeVisible();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 700));
+  await expect(splitter).toBeHidden();
   expect(await frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await page.screenshot({ path: resolve(out, 'data-dark-narrow.png') });
-  expect(requests.filter(r => r.method === 'POST' && r.path === '/api/import')).toHaveLength(2);
+
+  const malformed = Buffer.from('{"value":1}\n\n{"value":}\n');
+  const longName = `instrument-${'measurements-'.repeat(10)}raw.jsonl`;
+  await frame.getByRole('button', { name: 'Add data', exact: true }).click();
+  const reopenedDialog = frame.getByRole('dialog');
+  await reopenedDialog.locator('input[type="file"]').setInputFiles({ name: longName, mimeType: 'application/jsonl', buffer: malformed });
+  await reopenedDialog.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(reopenedDialog).toBeHidden();
+  await expect(preview().getByRole('heading', { name: longName, exact: true })).toBeVisible();
+  await expect(preview().getByRole('alert')).toHaveText('Line 3, column 10: Expecting value');
+  expect(await frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  const original = (await catalog()).assets[0];
+  expect(original.sha256).toBe(digest(malformed));
+  expect(await readFile(original.location)).toEqual(malformed);
+  await page.screenshot({ path: resolve(out, 'data-malformed-narrow.png') });
+
+  expect(requests.filter(r => r.method === 'POST' && r.path === '/api/import')).toHaveLength(3);
   expect(requests.filter(r => r.method === 'POST' && r.path === '/api/views')).toHaveLength(1);
-  expect(requests.filter(r => r.method === 'POST' && r.path === '/api/datasets/update')).toHaveLength(4);
+  expect(requests.filter(r => r.method === 'POST' && r.path === '/api/datasets/update')).toHaveLength(5);
   expect(requests.filter(r => r.path.includes('download') && r.method === 'POST')).toEqual([]);
   expect(errors).toEqual([]);
   checks.push('restart preserves identities and view; same-length corruption refuses current preview; light/dark narrow screenshots');
+  checks.push('clear a rejected filter without losing field units; export exact saved reference; unlink project; locate malformed JSONL while keeping original bytes');
   await close();
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ scope: 'development-workbench-local-files', checks, requests, errors,
     exclusions: ['live upstream downloads', 'model execution', 'standalone bundled runtime or signed installer'] }, null, 2));

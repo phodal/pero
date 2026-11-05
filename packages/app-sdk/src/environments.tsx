@@ -1,16 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import { useAppContext } from './index';
 import { mountEnvironmentView, mountEnvironmentInspector, type ScientificMethod } from './environments/view.mjs';
+import { mountEnvironmentManager } from './environments/manager.mjs';
 import './environments/styles.css';
 
 export type { ScientificMethod } from './environments/view.mjs';
-/** A Host-backed read-only projection, shared by three consumers. */
+/** Managed local environments; task inspectors keep their scoped observation view. */
 export function EnvironmentBrowser() {
   const root = useRef<HTMLDivElement>(null);
-  const view = useRef<ReturnType<typeof mountEnvironmentView> | null>(null);
+  const view = useRef<ReturnType<typeof mountEnvironmentManager> | null>(null);
   const { locale } = useAppContext();
   useEffect(() => {
-    const mounted = mountEnvironmentView(root.current!, { locale }); view.current = mounted;
+    const mounted = mountEnvironmentManager(root.current!, { locale, inspect: mountEnvironmentView }); view.current = mounted;
     return () => { mounted.dispose(); view.current = null; };
   }, []);
   useEffect(() => { view.current?.setLocale(locale); }, [locale]);

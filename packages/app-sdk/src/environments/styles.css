@@ -68,3 +68,17 @@
 .pero-env-trigger:has(dialog[open]){isolation:isolate}
 @media(max-width:580px){.env-toolbar{gap:8px}.env-toggle{margin-left:0}.env-heading-start{gap:6px}.env-status{white-space:normal}.env-table th,.env-table td{padding:6px 4px}.env-catalog th:nth-child(2),.env-catalog td:nth-child(2){display:none}.env-facts{gap:12px 20px}.env-warning ul{columns:1}.env-observation{grid-template-columns:1fr;gap:4px}.env-observation dd{margin-bottom:8px}.env-tabs{gap:16px}.env-footer .env-note{min-width:100%}}
 @media(prefers-reduced-motion:reduce){.pero-env *,.pero-env-dialog *{scroll-behavior:auto;transition:none;animation:none}}
+.env-actions,.env-form-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.env-create-form{max-width:480px;margin-top:20px}
+.env-field{display:grid;gap:6px;margin-bottom:12px}.env-field label{font-weight:500}.env-field input,.env-field select{width:100%;min-height:28px}
+.env-recipe-summary{display:grid;gap:4px;padding:12px 0;border-top:.5px solid var(--pero-border);border-bottom:.5px solid var(--pero-border);font-size:12px;color:var(--pero-text-muted)}
+.env-recipe-summary strong{color:var(--pero-text);font-weight:500}
+.env-form-actions{justify-content:flex-end;margin-top:16px}.env-warning .env-form-actions{margin-top:8px}
+.env-install-log{margin-top:16px;font-size:12px}.env-install-log summary{cursor:pointer;padding:4px 0}
+.env-section-title{font-size:14px;font-weight:600;margin:16px 0 8px}
+.env-progress{font-size:12px;overflow-wrap:anywhere;padding:12px 0;color:var(--pero-text-muted)}
+.env-checks .pero-env{padding:0}.env-checks h1{display:none}
+.env-workspace>.env-tabs{margin-top:0}
+@media(max-width:580px){.env-managed-table td,.env-managed-table th{padding-left:4px;padding-right:4px}.env-heading{align-items:flex-start}.env-managed-table .env-status{white-space:normal}.env-managed-table td:first-child{overflow-wrap:anywhere;max-width:140px}.env-workspace .env-empty{padding:32px 0}}
+
+.env-dependency-table{max-width:720px}.env-heading h2{overflow-wrap:anywhere}.env-checks .env-heading{justify-content:flex-end}

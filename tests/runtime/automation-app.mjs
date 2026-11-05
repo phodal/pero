@@ -11,10 +11,30 @@ const temp=await mkdtemp(resolve(tmpdir(),'pero-automation-app-'));
 const capture=resolve(temp,'prompts.jsonl');
 // Minimal installed assets prove Host contracts, not production UI rendering.
 const builtins=resolve(temp,'builtins');
-for(const name of ['automations','control-lab']) {
+for(const name of ['automations','control-lab','paper-agent']) {
   const directory=resolve(builtins,name);await mkdir(resolve(directory,'dist'),{recursive:true});
   const declaration=name==='automations'?JSON.parse(await readFile(resolve(root,'apps/automations/app.json'),'utf8')):
     {schemaVersion:1,name,version:'0.1.0',displayName:'Grantless fixture',contributes:{panels:[{id:'main',title:'Fixture',entry:'dist/index.html'}]}};
+  if (name === 'paper-agent') {
+    declaration.permissions = { host: ['research-assets', 'automation'] };
+    declaration.backend = { type: 'python', entry: 'server.py', dependencies: [] };
+    await writeFile(resolve(directory, 'server.py'), `
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import json, os
+class Handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        assert self.path == '/internal/research-watch'
+        assert self.headers['X-Pero-App-Token'] == os.environ['PERO_APP_TOKEN']
+        assert self.headers['X-Pero-Research-Internal'] == '1'
+        request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(json.dumps({'recordId': request['recordId'], 'fixture': True}).encode())
+server = HTTPServer(('127.0.0.1', 0), Handler)
+print(json.dumps({'port': server.server_port}), flush=True)
+server.serve_forever()
+`);
+  }
   await writeFile(resolve(directory,'app.json'),JSON.stringify(declaration));
   await writeFile(resolve(directory,'dist/index.html'),'<title>Host contract fixture</title>');
 }
@@ -40,6 +60,13 @@ async function launch(){
   });
   await wait(event=>event.kind==='ready');
   return {
+    async trusted(command) {
+      const id = `app-test-${++serial}`;
+      child.stdin.write(JSON.stringify({ method: 'automation', id, command }) + '\n');
+      const event = await wait(event => event.request_id === id);
+      if (event.kind === 'automation_error') throw new Error(event.text);
+      return event.data;
+    },
     async api(method,path,body,name='automations'){
       const id=`app-test-${++serial}`;
       child.stdin.write(JSON.stringify({method:'apps',action:'automation',id,name,request:{method,path,body:body??null}})+'\n');
@@ -96,5 +123,31 @@ try{
   assert.equal((await host.api('DELETE',path)).status,204);
   assert.equal((await host.api('DELETE',`/api/automations/${news.body.id}`)).status,204);
   assert.deepEqual((await host.api('GET','/api/automations')).body.items,[]);
-  console.log('PASS: App grant, calendar CRUD, pause/resume, real local ACP run, history, cursor, error, restart and deletion');
+  const beforeWatch = await readFile(capture, 'utf8');
+  const { state } = await host.trusted({ action: 'query' });
+  const recordId = 'a'.repeat(64);
+  await host.trusted({ action: 'publish_input', binding_id: 'local', subject: recordId,
+    revision: 'fixture-record', content: recordId, latest: true });
+  await host.trusted({ action: 'put_definition', definition: { id: 'scheduled-watch', revision: 1, owner: state.owner,
+    trigger: { kind: 'time', subject: recordId, exact: null, anchor: Math.floor(Date.now() / 1000) + 1,
+      interval_seconds: 3600, max_lateness_seconds: 30 }, input: 'recheck_latest', input_binding_id: 'local',
+    method: { kind: 'research_watch', record_id: recordId }, target: { kind: 'local_host', owner: state.owner } } });
+  const watchDeadline = performance.now() + 10000;
+  let checked;
+  while (!checked && performance.now() < watchDeadline) {
+    const { evidence } = await host.trusted({ action: 'query' });
+    checked = evidence.observations.find(row => row.record.researchRecordId === recordId);
+    if (!checked) await new Promise(done => setTimeout(done, 50));
+  }
+  assert(checked, 'the Host must retain the scheduled receipt');
+  const { updates } = (await host.api('GET', '/api/research-watch', null, 'paper-agent')).body;
+  assert.deepEqual(updates[0]?.result, { recordId, fixture: true });
+  assert.equal(await readFile(capture, 'utf8'), beforeWatch, 'metadata checks must not start an Agent');
+  const automation = (await host.api('GET', '/api/automations/scheduled-watch')).body;
+  assert.equal(automation.kind, 'research_watch');
+  assert.equal(automation.runs[0].session_id, null);
+  assert.equal((await host.api('PUT', '/api/automations/scheduled-watch', { enabled: false })).status, 403);
+  await host.close(); host = await launch();
+  assert.deepEqual((await host.api('GET', '/api/research-watch', null, 'paper-agent')).body.updates, updates);
+  console.log('PASS: Automation App and local ACP regressions, scheduled research check without ACP, durable research receipt');
 }finally{if(child){child.stdin.end();await exited;}await rm(temp,{recursive:true,force:true});}

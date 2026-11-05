@@ -3,6 +3,7 @@ import { downloadFile, useAppInfo } from '@pero/app-sdk';
 import { Button, EmptyState, Feedback, Icon } from '@pero/app-sdk/ui';
 import { Experiments, ReportView, type Citation } from './documents';
 import { ReadingMatrix } from './reading-matrix';
+import { ManualRecords, type ResearchAttempt } from './manual-records';
 import type { Api, Intent, Library, Paper, PdfAnnotation, Report, ResearchStudy, StudySummary } from './types';
 import './reader-workspace.css';
 import type { Translator } from './i18n';
@@ -94,11 +95,12 @@ function SavedStudy({ entry, date, papers, api, onContinue, opening, t }: Record
 }
 
 /** Paper owns persisted research output; the Host owns the conversation and execution. */
-export function ResearchRecords({ api, library, paper, results = false, onFollowUp, onContinue, onCite, matrixOpen, onMatrixOpen, onAnnotation, opening, t }: {
+export function ResearchRecords({ api, library, paper, results = false, onFollowUp, onContinue, onCite, matrixOpen, onMatrixOpen, onAnnotation, onRead, onAttempt, opening, t }: {
   api: Api; library: Library; paper: Paper | null; opening?: { studyId: string; intentId: string | null; token: number } | null;
   results?: boolean;
   onFollowUp(intent: Intent): void; onContinue(study: StudySummary): void;
   onCite(citation: Citation, intent: Intent): void;
+  onRead(id: string): void; onAttempt(attempt: ResearchAttempt): void;
   matrixOpen: boolean; onMatrixOpen(value: boolean): void; onAnnotation(annotation: PdfAnnotation): void; t: Translator;
 }) {
   const { locale } = useAppInfo();
@@ -137,6 +139,7 @@ export function ResearchRecords({ api, library, paper, results = false, onFollow
         {(['reportSaved', 'studyUnfinished', 'questionSaved'] as const).map(kind => <option key={kind} value={kind}>{t(kind)}</option>)}
       </select>
     </div>}
+    {(!results || (!term && filter === 'all')) && <ManualRecords api={api} library={library} paper={paper} onRead={onRead} onAttempt={onAttempt}/>}
     {!days.size && <EmptyState heading={t(history.length ? 'noResearchMatches' : 'noResearchRecords')}/>}
     {[...days].map(([day, items]) => <section className="pa-history-day" key={day}>
       <h3>{day}</h3>

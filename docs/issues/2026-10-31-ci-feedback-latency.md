@@ -26,7 +26,14 @@ reload. Geometry-only updates still deduplicate context. The cross-origin bridge
 regression exercises initial Chinese/dark context, live changes, deduplication
 and reload, and runs in the existing Chromium CI job.
 
-Local verification: the Generated/runner command passed 104 tests (five Linux-only
+Review follow-up keeps Viewer browser inspection running after a bridge assertion
+failure when preparation succeeded, without masking that failure; screenshot
+upload still runs unconditionally. The workflow contract pins these independent
+prerequisites. Context deduplication now checks two deliveries only after the
+live English update arrives, using ordered message delivery rather than checking
+before pending geometry-update messages have been received.
+
+Prior PR #127 local verification: the Generated/runner command passed 104 tests (five Linux-only
 cases skipped on macOS), all six App build contracts passed, and a freshly built
 Host passed the complete Paper-to-Data research-import contract. Chromium/RDKit
 Viewer acceptance passed all five groups and produced light/dark/narrow screenshots

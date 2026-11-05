@@ -17,7 +17,9 @@ html, body, #app { height: 100%; }
   position: sticky; top: 0; z-index: 1; font-size: var(--pero-font-caption); font-weight: 600;
   color: var(--pero-text-muted); background: var(--pero-material-sidebar);
 }
-.data-table td:first-child { max-width: 240px; }
+.data-table { table-layout: fixed; min-width: 22rem; }
+.data-table thead th:not(:first-child) { width: 5em; }
+.data-table thead th:last-child { width: 5.75em; }
 .data-table button {
   display: block; max-width: 100%; overflow: hidden; padding: 0; border: 0;
   background: transparent; color: inherit; font: inherit; font-weight: 600;
@@ -106,3 +108,10 @@ html, body, #app { height: 100%; }
   .data-preview { min-height: 320px; }
   .data-filter-field, .data-filter-condition, .data-chart-field, .data-filter-value { max-width: none; width: auto; }
 }
+
+.data-type-preview { padding-block: 12px; border-block: .5px solid var(--pero-border); }
+.data-type-preview h3, .data-type-preview h4 { margin: 0 0 8px; font-size: 14px; }
+.data-type-preview ul { margin: 8px 0; padding-left: 20px; overflow-wrap: anywhere; }
+.data-issue-scope { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.data-issue-scope p { flex: 1 1 260px; }
+.data-conversion-error { display: block; color: var(--pero-error); font-size: 12px; }

@@ -4,6 +4,14 @@ This implements the local portion of [ADR 0024](../adr/0024-event-driven-automat
 not the entire target architecture. The Host remains supervised by Desktop and
 runs scheduling only while open. It is not an installed always-on service.
 
+Paper also has one fixed metadata method. **Watch for updates** binds checks
+to a saved research revision and can run them manually or daily at 09:00 local
+time. The method reads Data Workspace versions and official arXiv version
+metadata, writes the result to Host SQLite with the completion receipt and
+does not start ACP or scientific work. Insights reads the stored result.
+An interrupted check has no completion receipt; a later slot can check again.
+See the [research record exercise](paper-research-records.md).
+
 ## Available path
 
 Workbench's **Automation…** menu opens a compact definition/request view. Create a
@@ -22,8 +30,8 @@ No event can change the definition's Agent, workspace or target.
 There is no public HTTP listener. `SourceBinding.authority` is restricted to
 `trusted-local-host`; a source is an explicitly published local input registry.
 External source authentication, webhook signatures, remote latest-state resolution,
-PostgreSQL handoff, Cloud Run/Worker execution, App/deterministic methods and
-headless service deployment are **not implemented**. Unsupported target/method
+PostgreSQL handoff, Cloud Run/Worker execution, configurable App/deterministic
+methods and headless service deployment are **not implemented**. Unsupported target/method
 variants and internal execution commands are rejected, not accepted into limbo.
 The Workbench modal is available; standalone Product Automation UI is not claimed.
 

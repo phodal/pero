@@ -49,6 +49,14 @@ class AnalysisTests(unittest.TestCase):
                 self.assertEqual(payload['manifest']['dataset'], dataset_id)
                 self.assertEqual(payload['manifest']['assetId'], asset.id)
                 self.assertEqual(payload['manifest']['sha256'], asset.sha256)
+                for offset, expected in ((0, 3), (100000, 0), (100001, 0)):
+                    with self.subTest(offset=offset):
+                        status, page = post(server, '/api/records', dict(
+                            datasetId=dataset_id, assetId=asset.id, offset=offset, limit=20))
+                        self.assertEqual(status, 200)
+                        self.assertEqual(len(page['records']), expected)
+                self.assertEqual(post(server, '/api/inspect', dict(
+                    datasetId=dataset_id, assetId=asset.id, offset=100001, limit=20))[0], 400)
                 self.assertNotIn(exported['id'] + '.export.json',
                                  json.loads((Path(home) / 'catalog.json').read_text()).keys())
                 status, chart = post(server, '/api/chart', dict(

@@ -3,7 +3,7 @@ use crate::{agents::{Manager, automation_agent::{AutomationReceipt, AutomationRe
 use pero_contracts::{HostEvent, automation::{self as domain, CandidateRef, Command, Definition, Effect, ExactRef, Ids, InputContract, Method, Outcome, ReconciliationDisposition, RequestStatus, SourceBinding, Target, Trigger}};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, path::Path, sync::mpsc::Receiver, time::{SystemTime, UNIX_EPOCH}};
+use std::{collections::BTreeMap, path::Path, sync::mpsc::{self, Receiver, Sender}, time::{SystemTime, UNIX_EPOCH}};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -34,7 +34,11 @@ pub struct Automation {
     attention: BTreeMap<String, String>,
     last_attempt: BTreeMap<String, u64>,
     fault: Option<String>,
+    checks: Receiver<ResearchCheck>,
+    check_sender: Sender<ResearchCheck>,
 }
+
+struct ResearchCheck { request_id: String, execution_id: String, record_id: String, result: Result<Value, String> }
 fn now() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) }
 fn execution_id() -> String {
     let value = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
@@ -46,13 +50,14 @@ impl Automation {
         let parent = settings.and_then(Path::parent).ok_or("Automation requires an explicit persistent Host profile")?;
         let mut store = Store::open(&parent.join("automation.sqlite3"))?;
         let prior = store.state()?;
-        for execution in prior.requests.iter().filter_map(|r| r.execution_id.as_ref()) {
+        for execution in prior.requests.iter().filter(|r| matches!(r.definition.method, Method::Agent { .. })).filter_map(|r| r.execution_id.as_ref()) {
             agents.automation_restore_execution(execution.clone());
         }
         let recovery = store.apply(vec![Command::Recover], now(), None, None, None)?;
         let observations = agents.take_automation_events().ok_or("Automation event owner already attached")?;
         let attention = store.attention()?;
-        let mut owner = Self { store, observations, attention, last_attempt: BTreeMap::new(), fault: None };
+        let (check_sender, checks) = mpsc::channel();
+        let mut owner = Self { store, observations, attention, last_attempt: BTreeMap::new(), fault: None, checks, check_sender };
         owner.deliver_cancels(&recovery.effects,agents);
         Ok(owner)
     }
@@ -65,9 +70,9 @@ impl Automation {
         capabilities["sourceKind"] = json!("local_published_registry");
         capabilities["maxInputBytes"] = json!(INPUT_LIMIT);
         capabilities["supportedTargets"] = json!(["local_host"]);
-        capabilities["supportedMethods"] = json!(["agent"]);
+        capabilities["supportedMethods"] = json!(["agent", "research_watch"]);
         capabilities["available"] = json!(self.fault.is_none());
-        capabilities["unsupported"] = json!(["shared_handoff", "cloud_run", "public_webhooks", "app_methods", "deterministic_methods", "always_on_service", "external_latest_resolver"]);
+        capabilities["unsupported"] = json!(["shared_handoff", "cloud_run", "public_webhooks", "generic_app_methods", "always_on_service", "generic_external_latest_resolver"]);
         Ok(json!({"capacity":state.capacity(),"state":state,"capabilities":capabilities,"attention":self.attention,
                   "fault":self.fault,"evidence":self.store.evidence()?}))
     }
@@ -93,8 +98,9 @@ impl Automation {
                         target: Target::LocalHost { owner: state.owner.clone() } } }]
                 }
                 PublicCommand::PutDefinition { definition } => {
-                    let Method::Agent { agent_id, workspace, .. } = &definition.method;
-                    agents.automation_admit(agent_id, Path::new(workspace))?;
+                    if let Method::Agent { agent_id, workspace, .. } = &definition.method {
+                        agents.automation_admit(agent_id, Path::new(workspace))?;
+                    }
                     vec![Command::PutDefinition { definition }]
                 }
                 PublicCommand::PutBinding { binding } => {
@@ -151,6 +157,8 @@ impl Automation {
     fn deliver_cancels(&mut self, effects: &[Effect], agents: &mut Manager) {
         for effect in effects {
             if let Effect::Cancel { request_id, execution_id } = effect {
+                if self.store.state().is_ok_and(|state| state.requests.iter().any(|request| &request.id == request_id &&
+                    matches!(request.definition.method, Method::ResearchWatch { .. }))) { continue; }
                 if let Err(error) = agents.automation_cancel(execution_id) {
                     if let Err(storage_error) = self.store.note_attention(request_id,Some(&error)) { self.fault=Some(storage_error); }
                     self.attention.insert(request_id.clone(), error);
@@ -184,6 +192,22 @@ impl Automation {
 
     fn advance(&mut self, agents: &mut Manager) -> Result<(), String> {
         while let Ok(observation) = self.observations.try_recv() { self.observe(observation)?; }
+        while let Ok(check) = self.checks.try_recv() {
+            let state = self.store.state()?;
+            let Some(request) = state.requests.iter().find(|request| request.id == check.request_id && request.status.active()) else { continue; };
+            if request.cancel_requested {
+                self.store.apply(vec![Command::Observe { request_id:check.request_id, execution_id:check.execution_id, outcome:Outcome::Cancelled }],
+                                 now(), None, None, None)?;
+                continue;
+            }
+            let (outcome, result, error) = match check.result {
+                Ok(result) => (Outcome::Completed, Some(result), None),
+                Err(error) => (Outcome::Failed, None, Some(error)),
+            };
+            let evidence = json!({"researchRecordId":check.record_id,"checkedAt":now(),"result":result,"error":error});
+            self.store.apply(vec![Command::Observe { request_id:check.request_id, execution_id:check.execution_id.clone(), outcome }],
+                             now(), None, None, Some((&check.execution_id, &evidence)))?;
+        }
         self.advance_app_calendars(now())?;
         let state = self.store.state()?;
         let due = domain::due_slots(&state, now());
@@ -195,7 +219,18 @@ impl Automation {
         let proposed = domain::apply(&state, command.clone(), now(), Ids::default()).map_err(|e| e.to_string())?;
         if proposed.state == state { return Ok(()); }
         let dispatch = proposed.effects.iter().find_map(|e| match e { Effect::Dispatch { request_id, execution_id, method, snapshot } => Some((request_id,execution_id,method,snapshot)), _=>None });
-        if let Some((request_id, execution_id, Method::Agent { agent_id, workspace, prompt }, snapshot)) = dispatch {
+        if let Some((request_id, execution_id, Method::ResearchWatch { record_id }, snapshot)) = dispatch {
+            let apps = agents.apps.clone();
+            let frozen = json!({"admittedAt":now(),"authority":"research-metadata","candidate":snapshot});
+            let committed = self.store.apply(vec![command], now(), None, Some((execution_id, &frozen)), None)?;
+            if committed.effects != proposed.effects { return Err("Research check admission changed before reservation".into()); }
+            let sender = self.check_sender.clone();
+            let (request_id, execution_id, record_id) = (request_id.clone(), execution_id.clone(), record_id.clone());
+            std::thread::spawn(move || {
+                let result = apps.ok_or_else(|| "Paper App is unavailable".to_string()).and_then(|apps| apps.check_research(&record_id));
+                let _ = sender.send(ResearchCheck { request_id, execution_id, record_id, result });
+            });
+        } else if let Some((request_id, execution_id, Method::Agent { agent_id, workspace, prompt }, snapshot)) = dispatch {
             self.last_attempt.insert(request_id.clone(), now());
             let admission = match agents.automation_admit(agent_id, Path::new(workspace)) {
                 Ok(admission) => admission,
