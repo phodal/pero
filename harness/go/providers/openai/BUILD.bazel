@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "adapter.go",
         "completion.go",
+        "deadline.go",
         "generate.go",
         "image_input.go",
         "provider_errors.go",
@@ -33,6 +34,7 @@ go_test(
     srcs = [
         "adapter_test.go",
         "completion_test.go",
+        "deadline_test.go",
         "image_input_test.go",
         "responses_test.go",
         "wire_size_test.go",

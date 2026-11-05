@@ -57,6 +57,7 @@ type Config struct {
 	Client                         *http.Client
 	RetryPolicy                    *llm.RetryPolicyConfig
 	StreamIdleTimeoutMS            int64
+	RequestTimeoutMS               int64
 }
 type Adapter struct {
 	apiFormat         APIFormat
@@ -71,6 +72,7 @@ type Adapter struct {
 	providerName      string
 	retryPolicy       llm.ResolvedRetryPolicy
 	streamIdleTimeout time.Duration
+	requestTimeout    time.Duration
 }
 
 func New(c Config) (*Adapter, error) {
@@ -146,6 +148,9 @@ func New(c Config) (*Adapter, error) {
 	if c.StreamIdleTimeoutMS < 1 || c.StreamIdleTimeoutMS > 2147483647 {
 		return nil, errors.New("openai adapter: invalid idle timeout")
 	}
+	if c.RequestTimeoutMS < 0 || c.RequestTimeoutMS > 2147483647 {
+		return nil, errors.New("openai adapter: invalid total request timeout")
+	}
 	client := http.Client{}
 	if c.Client != nil {
 		client = *c.Client
@@ -162,7 +167,7 @@ func New(c Config) (*Adapter, error) {
 	}
 	sdkOptions := []option.RequestOption{option.WithAPIKey(c.APIKey), option.WithBaseURL(u.String()), option.WithHTTPClient(&client), option.WithMaxRetries(0), option.WithOrganization(""), option.WithProject(""), option.WithHeader("User-Agent", "pero-agent/0.1")}
 	sdk := openaisdk.NewChatCompletionService(sdkOptions...)
-	return &Adapter{apiFormat: c.APIFormat, responses: responses.NewResponseService(sdkOptions...), disableThinking: c.DisableThinking, disableStreaming: c.DisableStreaming, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, client: sdk, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond}, nil
+	return &Adapter{apiFormat: c.APIFormat, responses: responses.NewResponseService(sdkOptions...), disableThinking: c.DisableThinking, disableStreaming: c.DisableStreaming, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, client: sdk, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond, requestTimeout: time.Duration(c.RequestTimeoutMS) * time.Millisecond}, nil
 }
 
 type attemptAuditTransport struct {

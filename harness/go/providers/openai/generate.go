@@ -71,7 +71,7 @@ type wireToolCall struct {
 	Function wireFunction `json:"function"`
 }
 
-func (a *Adapter) Generate(ctx context.Context, request harness.GenerateRequest, emit func(harness.StreamChunk) error) (harness.Completion, error) {
+func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest, emit func(harness.StreamChunk) error) (harness.Completion, error) {
 	if _, err := a.ResolveModelInfo(ctx, request.Provider, request.Model); err != nil {
 		return harness.Completion{}, err
 	}

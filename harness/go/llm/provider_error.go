@@ -7,12 +7,13 @@ import (
 )
 
 const (
-	ContextWindowExceededCode  = "CONTEXT_WINDOW_EXCEEDED"
-	EmptyResponseCode          = "EMPTY_RESPONSE"
-	MalformedResponseCode      = "MALFORMED_RESPONSE"
-	StreamClosedCode           = "STREAM_CLOSED"
-	TransportErrorCode         = "TRANSPORT"
-	RequestBudgetExhaustedCode = "BUDGET_EXHAUSTED"
+	ContextWindowExceededCode   = "CONTEXT_WINDOW_EXCEEDED"
+	EmptyResponseCode           = "EMPTY_RESPONSE"
+	MalformedResponseCode       = "MALFORMED_RESPONSE"
+	StreamClosedCode            = "STREAM_CLOSED"
+	TransportErrorCode          = "TRANSPORT"
+	RequestBudgetExhaustedCode  = "BUDGET_EXHAUSTED"
+	RequestDeadlineExceededCode = "REQUEST_DEADLINE_EXCEEDED"
 	// ImageOffloadRequiredCode means an image-capable route cannot send until
 	// more of the oldest retained input images are omitted. OffloadImages names
 	// how many. Recovery records that decision and retries outside the provider
