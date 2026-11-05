@@ -29,8 +29,8 @@ async function chooseFile(label){
  await expect(fileTrigger()).toContainText(label);
 }
 async function chooseExample(name){
- await frame.getByRole('button',{name:'Example',exact:true}).click();
- await frame.getByRole('listbox',{name:'Example',exact:true}).getByRole('option',{name,exact:true}).click();
+ await frame.getByRole('button',{name:'Examples',exact:true}).click();
+ await frame.getByRole('menuitem',{name,exact:true}).click();
 }
 async function expectFileOption(name,count){
  await fileTrigger().click();
@@ -58,7 +58,7 @@ try{
   phase=`example:${example.name}`;
   await chooseExample(example.name);await expect(fileTrigger()).toContainText(example.name);await expect(frame.getByText('Synthetic example, unverified',{exact:true})).toBeVisible();
   if(example.name.endsWith('.csv')){
-   await frame.getByRole('button',{name:'Table',exact:true}).click();await expect(frame.getByRole('table')).toBeVisible();if(example.name!=='quoted-table.csv'){await frame.getByRole('button',{name:'Chart',exact:true}).click();await expect(frame.getByRole('img',{name:/^Chart of /})).toBeVisible();}
+   await frame.getByRole('tab',{name:'Table',exact:true}).click();await expect(frame.getByRole('table')).toBeVisible();if(example.name!=='quoted-table.csv'){await frame.getByRole('tab',{name:'Chart',exact:true}).click();await expect(frame.getByRole('img',{name:/^Chart of /})).toBeVisible();}
    if(example.name==='invalid-spectrum.csv')await expect(frame.getByRole('alert')).toContainText('2 missing or nonnumeric pairs');
   }
   if(example.name.endsWith('.pdb')){await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();}
@@ -68,7 +68,7 @@ try{
    await frame.getByLabel('Find quotation').fill('invented quotation');await expect(frame.getByRole('button',{name:'Save quotation',exact:true})).toBeDisabled();
    await frame.getByLabel('Find quotation').fill('Synthetic scientific evidence.');await frame.getByRole('button',{name:'Save quotation',exact:true}).click();await expect(frame.getByText('1 quotations, 0 figure crops. Unreviewed.',{exact:true})).toBeVisible();
    const box=await canvas.boundingBox();expect(box).not.toBeNull();await page.mouse.move(box.x+20,box.y+20);await page.mouse.down();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.up();await frame.getByRole('button',{name:'Save figure crop',exact:true}).click();await expect(frame.getByText('1 quotations, 1 figure crops. Unreviewed.',{exact:true})).toBeVisible();
-   await frame.getByLabel('Review Agent',{exact:true}).selectOption('codex');await frame.getByRole('button',{name:'Review selected quotations',exact:true}).click();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible({timeout:30000});await expect(frame.getByText('Synthetic transport review. The quotation is present; scientific validity is not assessed.',{exact:true})).toBeVisible();
+   await frame.getByRole('button',{name:'Review Agent',exact:true}).click();await frame.getByRole('listbox',{name:'Review Agent',exact:true}).getByRole('option',{name:'Synthetic evidence review',exact:true}).click();await frame.getByRole('button',{name:'Review selected quotations',exact:true}).click();await expect(frame.locator('summary').filter({hasText:'Agent review — completed — unreviewed'})).toBeVisible({timeout:30000});await expect(frame.getByText('Synthetic transport review. The quotation is present; scientific validity is not assessed.',{exact:true})).toBeVisible();
    const prompts=(await readFile(capture,'utf8')).trim().split('\n').map(JSON.parse);expect(prompts).toHaveLength(1);expect(prompts[0].every(item=>item.type==='text')).toBe(true);expect(JSON.stringify(prompts)).not.toContain('%PDF');
    const exportPath=resolve(out,'evidence.zip');await rm(exportPath,{force:true});
    // Electron owns App-frame downloads; Playwright Page does not receive this event.
@@ -89,13 +89,13 @@ try{
  // Exercise the lazy MathJax loader in the real browser bundle. Merely selecting
  // a notebook can move on before its asynchronous initialization fails.
  const mathNotebook={nbformat:4,nbformat_minor:5,metadata:{},cells:[{id:'math',cell_type:'markdown',metadata:{},source:['$$1 + 1 = 2$$']}]};
- await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'math.ipynb',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(mathNotebook))});
+ await frame.locator('input[type=file][aria-label="Import file"]').setInputFiles({name:'math.ipynb',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(mathNotebook))});
  await expect(frame.locator('.notebook-viewer mjx-container')).toBeVisible({timeout:30000});
  expect(errors).toEqual([]);checks.push('notebook mathematics rendered by the real MathJax bundle');
  phase='structure-input-isolation';
  // Harmless markup markers prove that user structure text never becomes DOM.
  const marker="data_marker\n_struct.title '<b id=viewer-marker>untrusted</b>'\n";
- await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'marker.cif',mimeType:'text/plain',buffer:Buffer.from(marker)});
+ await frame.locator('input[type=file][aria-label="Import file"]').setInputFiles({name:'marker.cif',mimeType:'text/plain',buffer:Buffer.from(marker)});
  await expect(frame.getByRole('alert')).toContainText('preview blocked');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
  await chooseFile('water.pdb');await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});
  const transfer=await frame.locator('.molecule-view').evaluateHandle((_node,text)=>{const data=new DataTransfer();data.items.add(new File([text],'marker.cif',{type:'text/plain'}));return data;},marker);
@@ -105,14 +105,14 @@ try{
  await expect(fileTrigger()).toContainText('water.pdb');
  await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();
  await expect(frame.getByRole('alert')).toContainText('Import file');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
- await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'empty.smi',mimeType:'text/plain',buffer:Buffer.from(' \n\t\n')});
+ await frame.locator('input[type=file][aria-label="Import file"]').setInputFiles({name:'empty.smi',mimeType:'text/plain',buffer:Buffer.from(' \n\t\n')});
  await expect(frame.getByRole('alert')).toContainText('No molecule records');await expect(frame.getByText('Preparing molecule preview…',{exact:true})).toHaveCount(0);
- await frame.getByLabel('Import file',{exact:true}).setInputFiles({name:'model.weights',mimeType:'application/octet-stream',buffer:Buffer.from('opaque synthetic model')});await expect(frame.getByText(/Metadata only/)).toBeVisible();
+ await frame.locator('input[type=file][aria-label="Import file"]').setInputFiles({name:'model.weights',mimeType:'application/octet-stream',buffer:Buffer.from('opaque synthetic model')});await expect(frame.getByText(/Metadata only/)).toBeVisible();
  // Removal is explicit, defaults to Cancel, and affects only the App copy.
  phase='local-copy-removal';
  const removalPath=resolve(temp,'removal-check.json'),removalBytes=Buffer.from('{"synthetic":"local copy removal"}');
  await writeFile(removalPath,removalBytes);
- await frame.getByLabel('Import file',{exact:true}).setInputFiles(removalPath);
+ await frame.locator('input[type=file][aria-label="Import file"]').setInputFiles(removalPath);
  await expect(fileTrigger()).toContainText('removal-check.json');
  await frame.getByLabel('Source details',{exact:true}).click();
  const removal=frame.getByRole('group',{name:'Confirm local copy removal',exact:true});

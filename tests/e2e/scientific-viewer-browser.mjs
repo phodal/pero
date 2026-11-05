@@ -26,8 +26,8 @@ if (process.argv.includes('--serve')) {
     await page.goto(preview.url);
     const app = page.frameLocator('iframe[title="scientific-viewer"]');
     const example = async name => {
-      await app.getByRole('button', { name: 'Example', exact: true }).click();
-      await app.getByRole('option', { name, exact: true }).click();
+      await app.getByRole('button', { name: 'Examples', exact: true }).click();
+      await app.getByRole('menuitem', { name, exact: true }).click();
       await expect(app.getByRole('button', { name: 'Current file', exact: true })).toHaveText(name);
       await expect(app.getByText('Synthetic example, unverified', { exact: true })).toBeVisible();
     };
@@ -65,14 +65,14 @@ if (process.argv.includes('--serve')) {
 
     phase = 'numeric-chart';
     await example('diffraction.csv');
-    await expect(app.getByRole('button', { name: 'Chart', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(app.getByRole('tab', { name: 'Chart', exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect(app.getByRole('img', { name: 'Chart of intensity against 2theta[deg]', exact: true })).toBeVisible();
     await expect(app.locator('.numeric-point')).toHaveCount(4);
     await app.getByRole('img', { name: 'Chart of intensity against 2theta[deg]', exact: true }).focus();
     await page.keyboard.press('ArrowRight');
     await expect(app.locator('.numeric-chart-caption output')).toHaveText('Row 2: 2theta[deg] 20, intensity 8');
     await capture('diffraction-chart');
-    await app.getByRole('button', { name: 'Table', exact: true }).click();
+    await app.getByRole('tab', { name: 'Table', exact: true }).click();
     await expect(app.getByRole('table', { name: 'diffraction.csv data', exact: true }).locator('tbody tr')).toHaveCount(4);
     await expect(app.getByText('Showing up to 200 rows', { exact: true })).toHaveCount(0);
     await example('voltage-gaps.csv');
@@ -83,24 +83,26 @@ if (process.argv.includes('--serve')) {
     await expect(app.getByRole('alert')).toContainText('1 missing or nonnumeric pairs; gaps are not interpolated.');
     await expect(app.locator('.numeric-chart-caption')).toContainText('2 of 3 numeric pairs');
     await capture('voltage-gaps-chart');
-    await app.getByRole('button', { name: 'Table', exact: true }).click();
+    await app.getByRole('tab', { name: 'Table', exact: true }).click();
     await expect(app.getByRole('cell', { name: 'Missing', exact: true })).toHaveCount(1);
     await capture('voltage-missing-table');
-    await app.getByRole('button', { name: 'Chart', exact: true }).click();
-    await app.getByLabel('X axis', { exact: true }).selectOption('1');
-    await app.getByLabel('Y axis', { exact: true }).selectOption('0');
+    await app.getByRole('tab', { name: 'Chart', exact: true }).click();
+    await app.getByRole('button', { name: 'X axis', exact: true }).click();
+    await app.getByRole('listbox', { name: 'X axis', exact: true }).getByRole('option', { name: 'voltage[V]', exact: true }).click();
+    await app.getByRole('button', { name: 'Y axis', exact: true }).click();
+    await app.getByRole('listbox', { name: 'Y axis', exact: true }).getByRole('option', { name: 'time[s]', exact: true }).click();
     await expect(app.getByRole('img', { name: 'Chart of time[s] against voltage[V]', exact: true })).toBeVisible();
-    await app.getByRole('button', { name: 'Table', exact: true }).click();
-    await app.getByRole('button', { name: 'Chart', exact: true }).click();
-    await expect(app.getByLabel('X axis', { exact: true })).toHaveValue('1');
-    await expect(app.getByLabel('Y axis', { exact: true })).toHaveValue('0');
+    await app.getByRole('tab', { name: 'Table', exact: true }).click();
+    await app.getByRole('tab', { name: 'Chart', exact: true }).click();
+    await expect(app.getByRole('button', { name: 'X axis', exact: true })).toHaveText('voltage[V]');
+    await expect(app.getByRole('button', { name: 'Y axis', exact: true })).toHaveText('time[s]');
     checks.push('Labeled chart from exact numeric inputs; missing rows remain discontinuities and visible table cells; axis selection retained');
 
     phase = 'import-and-pagination';
     const long = 'time[s],signal[V]\n' + Array.from({ length: 205 }, (_, i) => `${i},${i / 10}`).join('\n') + '\n';
-    await app.getByLabel('Import file', { exact: true }).setInputFiles({ name: '205-observations.csv', mimeType: 'text/csv', buffer: Buffer.from(long) });
+    await app.locator('input[type=file][aria-label="Import file"]').setInputFiles({ name: '205-observations.csv', mimeType: 'text/csv', buffer: Buffer.from(long) });
     await expect(app.getByRole('button', { name: 'Current file', exact: true })).toHaveText('205-observations.csv');
-    await app.getByRole('button', { name: 'Table', exact: true }).click();
+    await app.getByRole('tab', { name: 'Table', exact: true }).click();
     await expect(app.getByRole('table').locator('tbody tr')).toHaveCount(100);
     await app.getByRole('button', { name: 'Next page', exact: true }).click();
     await app.getByRole('button', { name: 'Next page', exact: true }).click();
@@ -117,7 +119,7 @@ if (process.argv.includes('--serve')) {
     await example('invalid-molecules.smi');
     await expect(app.getByRole('alert')).toContainText('Invalid molecule', { timeout: 30000 });
     await expect(app.getByRole('img', { name: 'Molecule 1', exact: true })).toBeVisible();
-    await app.getByLabel('Import file', { exact: true }).setInputFiles({ name: 'empty.smi', mimeType: 'text/plain', buffer: Buffer.from(' \n\t\n') });
+    await app.locator('input[type=file][aria-label="Import file"]').setInputFiles({ name: 'empty.smi', mimeType: 'text/plain', buffer: Buffer.from(' \n\t\n') });
     await expect(app.getByRole('alert')).toContainText('No molecule records');
     await expect(app.getByRole('button', { name: 'Retry molecule preview', exact: true })).toBeVisible();
     await example('solvents.smi');
@@ -134,7 +136,7 @@ if (process.argv.includes('--serve')) {
     await example('voltage-gaps.csv');
     await expect(app.locator('.numeric-point')).toHaveCount(2);
     await noOverflow(); await capture('chart-dark-narrow');
-    await app.getByRole('button', { name: 'Table', exact: true }).click();
+    await app.getByRole('tab', { name: 'Table', exact: true }).click();
     await expect(app.getByRole('cell', { name: 'Missing', exact: true })).toBeVisible();
     await noOverflow(); await capture('table-dark-narrow');
     checks.push('Real SDK dark theme; 390px stacked molecule panes, chart/table and no document overflow');
