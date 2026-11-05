@@ -3,6 +3,7 @@ package harness
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -11,6 +12,9 @@ import (
 
 func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []ContentBlock) (bool, error) {
 	outcomes := make([]ToolOutcome, len(calls))
+	toolCtx, cancelTools := context.WithCancel(ctx)
+	defer cancelTools()
+	interrupted := false
 	for _, call := range calls {
 		if _, err := a.session.Append("tool/call", struct {
 			Turn      int             `json:"turn"`
@@ -23,8 +27,18 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 		}
 	}
 	for start := 0; start < len(calls); {
+		if interrupted {
+			call := calls[start]
+			outcomes[start] = ToolOutcome{Request: ToolRequest{Agent: a, CallID: call.ToolCallID, Name: call.Name, Arguments: call.Arguments}, Result: ToolResult{IsError: true, Content: []ContentBlock{{Type: BlockText, Text: "Tool batch interrupted before dispatch."}}}}
+			start++
+			continue
+		}
 		if a.toolExecutionMode(ctx, calls[start]) == ExecutionSerial {
-			outcomes[start] = a.executeOneTool(ctx, calls[start])
+			outcomes[start] = a.executeOneTool(toolCtx, calls[start])
+			if outcomes[start].Request.EndTurn {
+				interrupted = true
+				cancelTools()
+			}
 			start++
 			continue
 		}
@@ -42,14 +56,18 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 				next++
 				active++
 				go func() {
-					outcomes[index] = a.executeOneTool(ctx, calls[index])
+					outcomes[index] = a.executeOneTool(toolCtx, calls[index])
 					done <- index
 				}()
 			}
 			if active == 0 {
 				break
 			}
-			<-done
+			index := <-done
+			if outcomes[index].Request.EndTurn {
+				interrupted, barrier = true, true
+				cancelTools()
+			}
 			active--
 		}
 		start = next
@@ -81,7 +99,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 			additional.Source = append(json.RawMessage(nil), additional.Source...)
 			deferred = append(deferred, additional)
 		}
-		concluded = concluded || outcome.Result.ConcludesTurn
+		concluded = concluded || outcome.Request.EndTurn || outcome.Result.ConcludesTurn
 		if reminder := a.toolProgress.observe(turn, calls[index], outcome.Result); reminder != nil {
 			deferred = append(deferred, *reminder)
 		}
@@ -168,7 +186,9 @@ func (a *Agent) executeOneTool(ctx context.Context, call ContentBlock) ToolOutco
 	request := ToolRequest{Agent: a, CallID: call.ToolCallID, Name: call.Name, Arguments: append(json.RawMessage(nil), call.Arguments...)}
 	outcome, err := a.tools.Execute(ctx, request)
 	if err != nil {
-		return ToolOutcome{Request: request, Result: ToolResult{IsError: true, Content: []ContentBlock{{Type: BlockText, Text: err.Error()}}}}
+		var interrupt *ToolInterruptError
+		request.EndTurn = errors.As(err, &interrupt)
+		return ToolOutcome{Request: request, Result: ToolResult{IsError: true, ConcludesTurn: request.EndTurn, Content: []ContentBlock{{Type: BlockText, Text: err.Error()}}}}
 	}
 	return outcome
 }

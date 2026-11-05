@@ -308,7 +308,7 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 				return ToolOutcome{}, err
 			}
 			if hookResult.Interrupt {
-				return ToolOutcome{}, fmt.Errorf("permission hook interrupted the turn: %s", hookResult.Reason)
+				return ToolOutcome{}, &ToolInterruptError{Reason: hookResult.Reason}
 			}
 			if approval == ApprovalAllowedOnce && len(hookResult.UpdatedInput) > 0 {
 				filtered.Arguments = hookResult.UpdatedInput
