@@ -23,6 +23,23 @@ test('tabs keep a unique panel association, controlled intent, and hidden inacti
   React.createElement(TabsContent, { unstyled, value: 'two', forceMount }, 'Panel two'),
   React.createElement(TabsContent, { unstyled, value: 'three', forceMount }, 'Panel three'));
 
+  await t.test('workspace tabs report close intent without discarding a dirty panel', async () => {
+    await render(null);
+    const closed = [];
+    await render(React.createElement(Tabs, {value:'notes'},
+      React.createElement(TabsList, {variant:'content', 'aria-label':'Documents'},
+        React.createElement(ui.ContentTab, {value:'notes',label:'Notes.md',dirty:true,closeLabel:'Close',stateLabel:'Unsaved',onClose:()=>closed.push('notes')})),
+      React.createElement(TabsContent,{value:'notes'},'Unsaved draft')));
+    const trigger = document.querySelector('[role=tab]');
+    assert.equal(trigger.getAttribute('aria-description'), 'Unsaved');
+    assert.equal(trigger.querySelector('button'), null);
+    await React.act(async () => trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key:'Delete', bubbles:true, cancelable:true})));
+    assert.deepEqual(closed, ['notes']);
+    assert.equal(document.querySelector('[role=tabpanel]').textContent, 'Unsaved draft');
+    await React.act(async () => document.querySelector('[aria-label="Close: Notes.md"]').click());
+    assert.deepEqual(closed, ['notes', 'notes']);
+  });
+
   await t.test('each tab controls one labelled panel and the tablist is named', async () => {
     await render(null);
     await render(tabs({ defaultValue: 'one' }));
