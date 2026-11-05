@@ -60,6 +60,8 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
       runtime(1, 'disconnected', []);
       runtime(3, 'connected', ['wrong-session'], {sessionId: 'old-session'});
       runtime(3, 'connected', ['wrong-revision'], {revision: 8});
+      if (scenario === 'runtime_live' && sessionMcp.some(server => server.name === 'pero-connectors'))
+        runtime(3, 'error', [], {server: 'pero-connectors'});
       if (scenario === 'runtime_required_failed') runtime(3, 'error', []);
     }
     const session = { sessionId: 'fixture-session' };

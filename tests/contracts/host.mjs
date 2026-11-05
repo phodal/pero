@@ -60,8 +60,8 @@ const failures = [];
 const seen = new Set();
 const hosts = [];
 
-function startHost() {
-  const child = spawn(process.env.PERO_HOST_PATH || resolve(root, 'target/debug/pero-host'), ['--stdio'], { cwd: temp, env, stdio: ['pipe', 'pipe', 'inherit'] });
+function startHost(overrides = {}) {
+  const child = spawn(process.env.PERO_HOST_PATH || resolve(root, 'target/debug/pero-host'), ['--stdio'], { cwd: temp, env: {...env, ...overrides}, stdio: ['pipe', 'pipe', 'inherit'] });
   // Register at launch so early failures and already-exited Hosts still have an owner.
   const closed = new Promise(done => child.once('close', (code, signal) => {
     if (code !== 0) failures.push(`Host closed with code ${code}, signal ${signal}`);
@@ -304,7 +304,9 @@ try {
   const damaged = Buffer.concat([journal.subarray(0,boundary), Buffer.from([0xff,0xfe,10]), Buffer.from('{malformed}\n'), journal.subarray(boundary)]);
   writeFileSync(env.PERO_HISTORY_PATH, damaged);
   // A fresh Host replays the journal written above.
-  host = startHost();
+  // The ACP fixture reports failure without connecting to this inert endpoint.
+  const connectorUrl = 'http://127.0.0.1:1/mcp', connectorSecret = 'ab'.repeat(32);
+  host = startHost({PERO_CONNECTORS_URL:connectorUrl, PERO_CONNECTORS_TOKEN:connectorSecret});
   await host.next('ready');
   host.send({method:'settings.workbench.get'});
   if (!isDeepStrictEqual((await host.next('workbench_settings')).data,workbench)) failures.push('Workbench preferences were lost after Host restart');
@@ -319,6 +321,12 @@ try {
   if (!replay.data.events.some(event => event.thread_id === 'settings-contract')) failures.push('deleting a thread removed unrelated history');
   if (!replay.data.events.some(event => event.thread_id === 'settings-contract' && event.kind === 'session_created' && isDeepStrictEqual(event.data.scope, {app:'fixture',panel:'main'}))) failures.push('App scope was lost after Host restart');
   if (!readFileSync(env.PERO_HISTORY_PATH).equals(damaged)) failures.push('history recovery rewrote the source journal');
+  host.send({action:'new_session',thread_id:'builtin-contract',agent_id:'runtime-fixture'});
+  const builtinReady = await host.next('session_ready', event => event.thread_id === 'builtin-contract');
+  const builtin = builtinReady.data.peroMcp.servers.find(server => server.server === 'pero-connectors');
+  if (!isDeepStrictEqual(builtin, {server:'pero-connectors',generation:3,status:'error',tools:[]})) failures.push('Host-bound optional Connector failure was hidden or exposed private fields');
+  const publicSnapshot = JSON.stringify(builtinReady.data.peroMcp);
+  if ([connectorUrl, connectorSecret, 'Authorization', 'headers'].some(value => publicSnapshot.includes(value))) failures.push('Connector transport or credentials reached the public runtime snapshot');
   await host.stop();
 } catch (error) {
   failures.push(String(error));

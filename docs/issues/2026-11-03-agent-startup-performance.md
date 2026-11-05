@@ -33,21 +33,33 @@ The existing aggregate Node CI test command was also attempted: 11 tests passed,
 while 14 test modules failed to load because `yaml`, `esbuild` or
 `@playwright/test` is not installed. It is not a full CI pass.
 
-Rust/Host execution and running UI/screenshots remain unverified for this
-follow-up: the assistant environment has no Rust/Bazel toolchains or installed
-locked dependencies, and no tools were installed. The PR remains a draft pending
-CI and UI verification. The Bazel npm metadata is reused unchanged from
+At initial draft submission, local Rust/Host execution and running UI/screenshots
+were unverified: the assistant environment has no Rust/Bazel toolchains or
+installed locked dependencies, and no tools were installed. CI subsequently
+passed at `84db9c439cec7901e2f330c283f96c21a051ae2f`, including core Rust, real
+Host contracts, Bazel and Native regression tests. Running UI/screenshots remain
+unverified. The initial draft reused the Bazel npm metadata unchanged from
 [`2ff5a6f7`](https://github.com/phodal/pero/commit/2ff5a6f7ad7fb1648b70212400171e6d878de6ae).
 Its [verification record](https://github.com/phodal/pero/blob/b138759c14ceccd6f35d482a29ac01ef5b410a29/docs/issues/2026-11-05-claude-merge-permission-blockers.md#integration-findings-against-current-master)
 reports npm sync. All six input files have identical Git blob SHAs at that
 snapshot and this base. The generator was not run again here; final-head CI must
 verify the reused artifact. Dependencies and frozen-lock checks are unchanged.
 
-PR #132 also proposes limiting public MCP observations to managed/required
-servers. That drops ordinary Chat's builtin Connector observation: its binding
-adds a server to `agent.mcp_servers`, not the managed/required sets. This follow-up
-preserves #131's actual-mounted-server identity/status contract and tests its
-sanitized fields. The conflicting #132 filter needs reconciliation before merge.
+PR #132 merged into the #116 branch at `66066a717082d5438c40d081b08f7dccca7b0cea`;
+#116 then merged into master at `d949f0d13c1ccaf661e219bb0966b21beeef46ba`.
+That integration limits public MCP observations to managed/required servers,
+dropping ordinary Chat's builtin Connector observation: its binding adds a
+server to `agent.mcp_servers`, not those sets. The follow-up integrates that
+master, retaining upstream user-question rendering/lifecycle and restoring
+`config.mcp_server_names()` as the startup observation source. Only sanitized
+identity/status fields are public; transport configuration and credentials stay
+private. The existing Host contract also creates an actual Host-bound builtin
+Connector with synthetic credentials: its ACP fixture reports an optional error
+without any MCP request, and the ready snapshot must retain that error with
+exactly the public fields and no transport/credential data. Existing live
+replay and MCP Settings projection contracts remain. The Bazel cache now matches master, with no remaining
+cache diff. CI must be rerun for the integrated head; earlier green results do
+not verify this new source snapshot.
 The measurements and screenshots in the historical sections below are not new
 verification of this follow-up.
 
