@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -198,4 +199,57 @@ func (a *App) reviewUnboundDelivery(input harness.TurnStoppingInput) error {
 		return err
 	}
 	return input.Agent.Inject(contextMessage("engineering/delivery-review", "Before finishing, review the user's public requirements against the actual deliverables: exact output paths and file set, requested format or length, unresolved Git conflicts, and observed verification results. Check server availability across the required lifecycle if the task delivers a service. Preserve the original specification when writing self-tests. Correct any concrete gap; if already satisfied, finish with the evidence. No machine acceptance contract is bound to this review."))
+}
+
+// progressReview contributes bounded public-requirement feedback before request
+// assembly, so long turns can use it before a timeout or output limit. It reads
+// existing evidence and never executes checks or invents an acceptance contract.
+func (a *App) progressReview(ctx context.Context, agent *harness.Agent, turn, step int) (*harness.Message, error) {
+	count, usedTools := 0, false
+	for _, event := range agent.Session().Events() {
+		if event.Type == "turn/start" {
+			usedTools = false
+		}
+		if event.Type == "tool/call" {
+			usedTools = true
+		}
+		if event.Type == "engineering/progress-review" {
+			var row struct{ Turn, Step int }
+			if json.Unmarshal(event.Data, &row) == nil && row.Turn == turn {
+				count++
+				if row.Step == step {
+					return nil, nil
+				}
+			}
+		}
+	}
+	if !usedTools || count >= 3 {
+		return nil, nil
+	}
+	assessment, bound, err := a.Assessment(ctx, agent)
+	if err != nil {
+		return nil, err
+	}
+	text := "During this long turn, compare the actual deliverables with the user's original public requirements. Check exact paths, file set, format, service lifecycle, and observed validation. Preserve the specification in self-tests; prefer a focused independent check before further broad edits. This is a progress review, not a failure verdict or call limit. No machine acceptance contract is bound."
+	var observed *Assessment
+	if bound {
+		c, _, err := Current(agent.Session())
+		if err != nil {
+			return nil, err
+		}
+		if c.Kind != Change || assessment.Ready {
+			return nil, nil
+		}
+		observed = &assessment
+		text = "During this long turn, review unresolved public acceptance work against the original specification. File edits alone do not verify correctness. Use focused independent validation and change approach if diagnostics are not improving. This review does not impose a call limit. Observed acceptance: " + assessmentText(assessment)
+	}
+	if _, err := agent.Session().Append("engineering/progress-review", struct {
+		Turn       int         `json:"turn"`
+		Step       int         `json:"step"`
+		Assessment *Assessment `json:"assessment,omitempty"`
+	}{turn, step, observed}); err != nil {
+		return nil, err
+	}
+	message := contextMessage(fmt.Sprintf("engineering/progress-review/%d/%d", turn, step), text)
+	return &message, nil
 }

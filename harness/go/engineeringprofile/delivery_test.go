@@ -1,6 +1,8 @@
 package engineeringprofile
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -101,5 +103,70 @@ func TestUnboundDeliveryReviewWithUnlimitedSteps(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("review count=%d", count)
+	}
+}
+
+func TestMidTurnDeliveryReview(t *testing.T) {
+	for _, row := range []struct {
+		name         string
+		mode         Mode
+		steps        int
+		bound, ready bool
+		want         int
+	}{
+		{"public review before output stop", Feedback, 34, false, false, 1},
+		{"bounded long review", Feedback, 130, false, false, 3},
+		{"bound missing artifact", Feedback, 34, true, false, 1},
+		{"bound verified artifact", Feedback, 34, true, true, 0},
+		{"observation mode", Observe, 34, false, false, 0},
+		{"short turn", Feedback, 8, false, false, 0},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			var responses []harness.Completion
+			for i := 1; i < row.steps; i++ {
+				args, _ := json.Marshal(struct {
+					Command string `json:"command"`
+				}{fmt.Sprintf("inspect-%d", i)})
+				responses = append(responses, harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, ToolCallID: harness.ToolCallID(fmt.Sprint(i)), Name: "shell", Arguments: args}}}})
+			}
+			responses = append(responses, answer(harness.FinishMaxTokens))
+			f := setup(t, row.mode, harness.UnlimitedMaxSteps, responses...)
+			f.shell(t, `{"exitCode":0}`, false, nil)
+			var c *Contract
+			if row.bound {
+				c = &Contract{ID: "public-delivery", Revision: 1, MessageID: "human-1", Kind: Change, Goal: "produce the public artifact", Delivery: &DeliverySpec{Artifacts: []ArtifactSpec{{Path: "answer", NonEmpty: true}}}}
+				if row.ready {
+					if err := os.WriteFile(filepath.Join(f.root, "answer"), []byte("complete"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if result := f.prompt(t, c); result.Reason != harness.FinishMaxTokens {
+				t.Fatalf("stop=%s", result.Reason)
+			}
+			count := 0
+			for _, e := range f.agent.Session().Events() {
+				if e.Type == "engineering/progress-review" {
+					count++
+				}
+			}
+			if count != row.want || len(f.adapter.requests) != row.steps {
+				t.Fatalf("reviews=%d requests=%d", count, len(f.adapter.requests))
+			}
+			if row.want > 0 {
+				found := false
+				for _, message := range f.adapter.requests[31].Messages {
+					if strings.HasPrefix(message.ID, "engineering/progress-review/") {
+						found = true
+						if row.bound && !strings.Contains(message.Content[0].Text, "artifact:answer") {
+							t.Fatal("review omitted actual missing artifact")
+						}
+					}
+				}
+				if !found {
+					t.Fatal("review did not reach the step-32 request before the output stop")
+				}
+			}
+		})
 	}
 }
