@@ -73,11 +73,30 @@ func Mount(ctx context.Context, h *harness.Harness, options Options, checkCWD fu
 			return err
 		}
 	}
-	_, err := h.RegisterPrompt(ctx, "environment/services", harness.PromptSection{ID: "environment/services", Order: 705, Guidance: func(_ context.Context, _ *harness.Agent, capabilities harness.PromptCapabilities) (string, error) {
+	_, err := h.RegisterPrompt(ctx, "environment/services", harness.PromptSection{ID: "environment/services", Order: 705, Guidance: func(ctx context.Context, agent *harness.Agent, capabilities harness.PromptCapabilities) (string, error) {
+		discovery := ""
 		if !capabilities.HasTool("ServiceStart") {
-			return "", nil
+			search := "ToolSearch"
+			if !capabilities.HasTool(search) {
+				search = "tool_search"
+			}
+			if !capabilities.HasTool(search) {
+				return "", nil
+			}
+			pool, err := h.Tools().DelegationPool(ctx, agent)
+			if err != nil {
+				return "", err
+			}
+			available := false
+			for _, schema := range pool.Schemas {
+				available = available || schema.Name == "ServiceStart"
+			}
+			if !available {
+				return "", nil
+			}
+			discovery = "First discover ServiceStart with " + search + " query=ServiceStart, then wait for its schema in the next request. "
 		}
-		return "For a delivered server that must remain accessible after this agent exits, use ServiceStart and verify application readiness separately. Preserve its service_id for the environment to stop after verification. Ordinary Bash jobs remain Session-owned and are cleaned up on exit.", nil
+		return discovery + "For a delivered server that must remain accessible after this agent exits, use ServiceStart and verify application readiness separately. Preserve its service_id for the environment to stop after verification. Ordinary Bash jobs remain Session-owned and are cleaned up on exit.", nil
 	}})
 	return err
 }

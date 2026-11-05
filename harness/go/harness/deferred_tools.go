@@ -340,8 +340,8 @@ type ToolDelegationPool struct {
 	Discovery []string
 }
 
-// DelegationPool is for trusted child restriction setup, independent of the
-// parent's activation state. Model requests still use SchemasForAgent.
+// DelegationPool is for trusted capability inspection and child restriction
+// setup, independent of activation. Model requests still use SchemasForAgent.
 func (r *ToolRegistry) DelegationPool(ctx context.Context, agent *Agent) (ToolDelegationPool, error) {
 	if deferred := r.deferredViewForAgent(agent); deferred != nil {
 		schemas, err := deferred.Candidates(ctx, agent)

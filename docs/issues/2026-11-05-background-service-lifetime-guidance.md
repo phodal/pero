@@ -36,3 +36,25 @@ The existing background ownership, cancellation and promotion real-process race
 tests pass. A separately frozen current-code `pypi-server` acceptance is queued
 after the full suite and timeout corrections, with unchanged official inputs
 and no request/step caps. Its result will remain separate from both cohorts.
+
+## Deferred service discovery regression
+
+The separate current-runtime rerun at `5a246b02` still fails `pypi-server`
+(49 responses, raw reward zero). Its Session discovers standard coding and
+background-task tools but never ServiceStart. All four system prompt generations
+omit that name. The service guidance incorrectly requires ServiceStart in the
+already-declared tools, hiding the entry point while tools are deferred.
+The final answer explicitly leaves a Session-owned server; the independent
+post-agent probe confirms the process exited and port 8080 is unavailable.
+
+Evidence is in `runtime-rerun-20261105-02/jobs/pypi-server-runtime-01/`
+under the benchmark artifact root. Fix the discovery hint against the current
+caller-authorized capability pool, without activating tools or advertising a
+restricted capability. Preserve that attempt and separately rerun the service
+case after the correction. Earlier lifetime guidance alone did not solve it.
+
+The regression test reproduces missing guidance before the first deferred
+discovery. The corrected prompt reads the existing authorized pool and supplies
+an exact ToolSearch recovery action without activating ServiceStart. Eager,
+deferred and restricted callers are covered; all related native race suites
+pass. Real-provider acceptance of the correction remains a separate attempt.

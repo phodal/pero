@@ -18,6 +18,14 @@ go_library(
 
 go_test(
     name = "environmentservice_test",
-    srcs = ["service_test.go"],
+    srcs = [
+        "guidance_test.go",
+        "service_test.go",
+    ],
     embed = [":environmentservice"],
+    deps = [
+        "//harness",
+        "//nativetools",
+        "//runtime",
+    ],
 )
