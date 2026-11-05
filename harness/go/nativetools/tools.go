@@ -86,22 +86,23 @@ func (a *App) CheckCWD(cwd string) error {
 }
 
 type arguments struct {
-	Patch                                          string `json:"patch"`
-	Path                                           string `json:"path"`
-	Content                                        string `json:"content"`
-	OldText                                        string `json:"old_text"`
-	NewText                                        string `json:"new_text"`
-	ReplaceAll                                     bool   `json:"replace_all"`
-	Query                                          string `json:"query"`
-	Cursor                                         string `json:"cursor"`
-	Offset                                         int    `json:"offset"`
-	Limit                                          int    `json:"limit"`
-	Command                                        string `json:"command"`
-	Workdir                                        string `json:"workdir"`
-	TimeoutMS                                      int    `json:"timeout_ms"`
-	TerminateOnTimeout                             bool   `json:"terminate_on_timeout"`
-	Pattern                                        string `json:"pattern"`
-	Glob                                           string `json:"glob"`
+	Patch                                          string             `json:"patch"`
+	Path                                           string             `json:"path"`
+	Content                                        string             `json:"content"`
+	OldText                                        string             `json:"old_text"`
+	NewText                                        string             `json:"new_text"`
+	ReplaceAll                                     bool               `json:"replace_all"`
+	Edits                                          []fstools.TextEdit `json:"edits"`
+	Query                                          string             `json:"query"`
+	Cursor                                         string             `json:"cursor"`
+	Offset                                         int                `json:"offset"`
+	Limit                                          int                `json:"limit"`
+	Command                                        string             `json:"command"`
+	Workdir                                        string             `json:"workdir"`
+	TimeoutMS                                      int                `json:"timeout_ms"`
+	TerminateOnTimeout                             bool               `json:"terminate_on_timeout"`
+	Pattern                                        string             `json:"pattern"`
+	Glob                                           string             `json:"glob"`
 	FileType                                       string
 	OutputMode                                     string `json:"output_mode"`
 	IgnoreCase                                     bool   `json:"ignore_case"`
@@ -164,7 +165,10 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 		{"write_file", "Create or replace a bounded UTF-8 file under the configured workspace. Parent directory must already exist. Requires approval.", `"path":{"type":"string"},"content":{"type":"string","maxLength":1048576}`, `"path","content"`, true, func(c context.Context, a arguments) (any, error) {
 			return workspaceFrom(c, files).Write(c, a.Path, a.Content)
 		}},
-		{"edit_file", "Replace exact text in an existing workspace file; old_text must match once unless replace_all. Requires approval.", `"path":{"type":"string"},"old_text":{"type":"string","minLength":1,"maxLength":1048576},"new_text":{"type":"string","maxLength":1048576},"replace_all":{"type":"boolean"}`, `"path","old_text","new_text"`, true, func(c context.Context, a arguments) (any, error) {
+		{"edit_file", "Edit exact text in an existing workspace file. Use old_text/new_text or edits with 1..64 disjoint replacements matched against the original file; never combine both forms. All replacements validate before one write. Requires approval.", `"path":{"type":"string"},"old_text":{"type":"string","minLength":1,"maxLength":1048576},"new_text":{"type":"string","maxLength":1048576},"replace_all":{"type":"boolean"},"edits":{"type":"array","minItems":1,"maxItems":64,"items":{"type":"object","additionalProperties":false,"properties":{"old_text":{"type":"string","minLength":1},"new_text":{"type":"string"},"replace_all":{"type":"boolean"}},"required":["old_text","new_text"]}}`, `"path"`, true, func(c context.Context, a arguments) (any, error) {
+			if a.Edits != nil {
+				return workspaceFrom(c, files).EditBatch(c, a.Path, a.Edits)
+			}
 			return workspaceFrom(c, files).Edit(c, a.Path, a.OldText, a.NewText, a.ReplaceAll)
 		}},
 		{"list_directory", "List up to 256 direct workspace directory entries; does not follow symlinks.", `"path":{"type":"string"}`, ``, false, func(c context.Context, a arguments) (any, error) { return workspaceFrom(c, files).List(c, a.Path) }},
@@ -316,6 +320,9 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			d = claudeToolDefinition(d, files, opts.ReadOnlyResource)
 		}
 		schema := json.RawMessage(fmt.Sprintf(`{"type":"object","additionalProperties":false,"properties":{%s},"required":[%s]}`, d.properties, d.required))
+		if d.name == "Edit" || d.name == "edit_file" {
+			schema = editInputSchema(d.properties, d.required, opts.ClaudeTools)
+		}
 		toolTimeout := 125 * time.Second
 		if opts.ClaudeTools && d.name == "Bash" {
 			// The owned execution separates foreground waiting from background

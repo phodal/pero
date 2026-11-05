@@ -263,42 +263,7 @@ func (w *Workspace) createParents(ctx context.Context, name string) error {
 }
 
 func (w *Workspace) Edit(ctx context.Context, name, oldText, newText string, all bool) (ScopedTextReceipt, error) {
-	if !w.SupportsReplacement() {
-		return ScopedTextReceipt{}, errors.New("native Windows file replacement is unavailable")
-	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	name, err := w.checked(name, false)
-	if err != nil {
-		return ScopedTextReceipt{}, err
-	}
-	if oldText == "" || len(oldText) > MaxFileBytes || len(newText) > MaxFileBytes || !validText([]byte(oldText)) || !validText([]byte(newText)) {
-		return ScopedTextReceipt{}, errors.New("edit requires nonempty bounded UTF-8 old_text and bounded new_text")
-	}
-	selected, err := w.selectFile(name)
-	if err != nil {
-		return ScopedTextReceipt{}, err
-	}
-	defer selected.Close()
-	before, err := selected.Read(ctx, name)
-	if err != nil {
-		return ScopedTextReceipt{}, err
-	}
-	count := strings.Count(before.Text, oldText)
-	if count == 0 || (!all && count != 1) {
-		return ScopedTextReceipt{}, errors.New("old_text must match exactly once unless replace_all is true")
-	}
-	// Check expansion before allocating the replacement.
-	if len(newText) > len(oldText) && (len(newText)-len(oldText)) > (MaxFileBytes-len(before.Text))/count {
-		return ScopedTextReceipt{}, errors.New("edited content exceeds 1 MiB")
-	}
-	after := strings.ReplaceAll(before.Text, oldText, newText)
-	return selected.Replace(ctx, name, before.Digest, []byte(after), func(c context.Context) error {
-		if err := c.Err(); err != nil {
-			return err
-		}
-		return w.check()
-	})
+	return w.EditBatch(ctx, name, []TextEdit{{OldText: oldText, NewText: newText, ReplaceAll: all}})
 }
 
 type DirectoryEntry struct {

@@ -4,6 +4,7 @@ go_library(
     name = "fstools",
     srcs = [
         "directory_page.go",
+        "edit_batch.go",
         "media.go",
         "patch.go",
         "private.go",
@@ -28,6 +29,7 @@ go_test(
     name = "fstools_test",
     srcs = [
         "directory_page_test.go",
+        "edit_batch_test.go",
         "parents_test.go",
         "patch_test.go",
         "private_test.go",

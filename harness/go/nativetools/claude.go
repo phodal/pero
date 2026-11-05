@@ -13,13 +13,18 @@ import (
 // Claude arguments are converted once at the registration boundary. The
 // original registry call still owns approval, cancellation and the tool receipt.
 type claudeArguments struct {
-	Patch              string `json:"patch"`
-	FilePath           string `json:"file_path"`
-	NotebookPath       string `json:"notebook_path"`
-	Path               string `json:"path"`
-	Content            string `json:"content"`
-	NewSource          string `json:"new_source"`
-	OldString          string `json:"old_string"`
+	Patch        string `json:"patch"`
+	FilePath     string `json:"file_path"`
+	NotebookPath string `json:"notebook_path"`
+	Path         string `json:"path"`
+	Content      string `json:"content"`
+	NewSource    string `json:"new_source"`
+	OldString    string `json:"old_string"`
+	Edits        []struct {
+		OldString  string `json:"old_string"`
+		NewString  string `json:"new_string"`
+		ReplaceAll bool   `json:"replace_all"`
+	} `json:"edits"`
 	NewString          string `json:"new_string"`
 	ReplaceAll         bool   `json:"replace_all"`
 	Offset             int    `json:"offset"`
@@ -103,13 +108,20 @@ func decodeNativeArguments(raw json.RawMessage, workspace string, claude, allowR
 		selectedPath = filepath.ToSlash(selectedPath)
 	}
 	around := value.Around
+	var edits []fstools.TextEdit
+	if value.Edits != nil {
+		edits = make([]fstools.TextEdit, len(value.Edits))
+		for i, e := range value.Edits {
+			edits[i] = fstools.TextEdit{OldText: e.OldString, NewText: e.NewString, ReplaceAll: e.ReplaceAll}
+		}
+	}
 	if value.Context != 0 {
 		around = value.Context
 	}
 	return arguments{
 		Patch: value.Patch,
 		Path:  selectedPath, Content: content, OldText: value.OldString,
-		NewText: value.NewString, ReplaceAll: value.ReplaceAll, Offset: value.Offset,
+		NewText: value.NewString, ReplaceAll: value.ReplaceAll, Edits: edits, Offset: value.Offset,
 		Limit: value.Limit, Command: value.Command, Workdir: value.Workdir, TimeoutMS: value.Timeout,
 		Pattern: value.Pattern, Glob: value.Glob, FileType: value.FileType,
 		Cursor:     value.Cursor,
@@ -152,9 +164,9 @@ func claudeToolDefinition(definition toolDefinition, files *fstools.Workspace, r
 		}
 	case "edit_file":
 		definition.name = "Edit"
-		definition.description = "Replace exact old_string with new_string in an existing workspace text file; the old string must match once unless replace_all is true. Requires approval."
-		definition.properties = filePath + `,"old_string":{"type":"string","minLength":1,"maxLength":1048576},"new_string":{"type":"string","maxLength":1048576},"replace_all":{"type":"boolean"}`
-		definition.required = `"file_path","old_string","new_string"`
+		definition.description = "Edit exact text in one existing file. Use old_string/new_string or edits with 1..64 disjoint replacements against the original file; do not combine forms. Batch independent changes without large unchanged regions. All replacements validate before one write. Requires approval."
+		definition.properties = filePath + `,"old_string":{"type":"string","minLength":1,"maxLength":1048576},"new_string":{"type":"string","maxLength":1048576},"replace_all":{"type":"boolean"},"edits":{"type":"array","minItems":1,"maxItems":64,"items":{"type":"object","additionalProperties":false,"properties":{"old_string":{"type":"string","minLength":1},"new_string":{"type":"string"},"replace_all":{"type":"boolean"}},"required":["old_string","new_string"]}}`
+		definition.required = `"file_path"`
 	case "notebook_edit":
 		definition.name = "NotebookEdit"
 		definition.description = "Modify one cell in a UTF-8 Jupyter notebook (.ipynb). replace overwrites source, insert adds a cell after cell_id (or at the start), delete removes the cell. Requires approval."
