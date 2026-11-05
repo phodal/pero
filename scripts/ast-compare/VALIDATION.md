@@ -1,5 +1,24 @@
 # Validated reference snapshot
 
+## Runtime follow-up source receipt — 2026-11-05
+
+The mapping selects committed Pero source
+`31f03f3924a60ec06579f82d9755527c997c5b30`. The selected `Agent.runTurn`
+now applies opt-in historical tool clearing before PreStep and correctly allows
+stop continuation when max steps are explicitly unlimited. Those behaviors have
+their own native tests; the output-limit landmarks do not establish them.
+
+Against the unchanged official pin, the previous mapping reproduces 15 extracted
+pairs and two `source_hash_mismatch` selectors, both for `harness/go/harness/loop.go`.
+Refreshing only those containing-file hashes restores 17 extracted and zero
+unavailable, exit 0. Every right-side file is byte-identical to the committed
+source; all 11 official file receipts match the retained exact-pin source copy.
+The existing pinned parsers and extended TypeScript grammar pass all 18 tests
+without skips. No selector, landmark, hash check or parser check is removed.
+Local reports are `/tmp/pero-reference-improvements-ast-{before,after}.{json,md}`;
+the parser test log is `/tmp/pero-reference-improvements-ast-tests.log`.
+This repairs source admission for review, not semantic equivalence.
+
 ## Turn-entry source receipt — 2026-11-05
 
 The mapping now selects Pero source `4c7494e035e80e7f07629b5abcdb25cb3b4c0adc`.

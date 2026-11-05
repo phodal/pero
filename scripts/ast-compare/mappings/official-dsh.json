@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "4c7494e035e80e7f07629b5abcdb25cb3b4c0adc",
+  "right_ref": "31f03f3924a60ec06579f82d9755527c997c5b30",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -16,9 +16,9 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "ece31e6dd94687d1f1c16bd9c389a2e1cabcbff45760c65fee327caaf7139a4d"
+        "sha256": "51502806e3c48ec4f58ebf384a052727a21d76e5f485dc2ff9899a9a10063fba"
       },
-      "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence. Go turn entry separately rejects already canceled contexts and retired scopes before claiming queued input; native lifecycle tests validate that local admission rule.",
+      "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence. Go turn entry separately rejects already canceled contexts and retired scopes before claiming queued input; native lifecycle tests validate that local admission rule. The follow-up applies opt-in historical clearing before PreStep and permits stop continuation for explicit unlimited steps; native behavior tests cover these separately from the output-limit landmarks.",
       "landmarks": [
         {
           "id": "output-limit",
@@ -55,9 +55,9 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "ece31e6dd94687d1f1c16bd9c389a2e1cabcbff45760c65fee327caaf7139a4d"
+        "sha256": "51502806e3c48ec4f58ebf384a052727a21d76e5f485dc2ff9899a9a10063fba"
       },
-      "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests.",
+      "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests. The follow-up applies opt-in historical clearing before PreStep and permits stop continuation for explicit unlimited steps; native behavior tests cover these separately from the output-limit landmarks.",
       "landmarks": [
         {
           "id": "sticky-state",
