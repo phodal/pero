@@ -14,9 +14,8 @@ import subprocess
 import sys
 
 
-TOKEN_KEYS = {"input_tokens": "inputTokens", "output_tokens": "outputTokens",
-              "cache_read_tokens": "cacheReadTokens", "cache_write_tokens": "cacheWriteTokens",
-              "reasoning_tokens": "reasoningTokens", "total_tokens": "totalTokens"}
+from usage import Usage
+from recovery import build_recovery
 
 
 def encoded(value: object) -> bytes:
@@ -25,54 +24,6 @@ def encoded(value: object) -> bytes:
 
 def digest(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
-
-
-@dataclass
-class Usage:
-    input_tokens: int = 0
-    cache_read_tokens: int = 0
-    cache_write_tokens: int = 0
-    output_tokens: int = 0
-    reasoning_tokens: int = 0
-    total_tokens: int | None = 0
-    known_total_tokens: int = 0
-    reported_completions: int = 0
-    unreported_completions: int = 0
-    totals_unreported: int = 0
-
-    def add(self, usage: dict | None) -> None:
-        if usage is None:
-            self.unreported_completions += 1
-            self.total_tokens = None
-            return
-        for field_name, key in TOKEN_KEYS.items():
-            value = usage.get(key, None if key == "totalTokens" else 0)
-            if value is not None and (type(value) is not int or value < 0):
-                raise ValueError(f"invalid nonnegative integer usage field: {key}")
-            if value is None and key != "totalTokens":
-                raise ValueError(f"invalid null usage field: {key}")
-            if key == "totalTokens":
-                if value is None:
-                    self.totals_unreported += 1
-                    self.total_tokens = None
-                else:
-                    self.known_total_tokens += value
-                    if self.total_tokens is not None:
-                        self.total_tokens += value
-            else:
-                setattr(self, field_name, getattr(self, field_name) + value)
-        self.reported_completions += 1
-
-    def summary(self) -> dict:
-        result = asdict(self)
-        # Pero's normalized input excludes cache reads. Cache writes and reasoning
-        # are descriptive subfields, not additional token lanes.
-        result["prompt_tokens"] = self.input_tokens + self.cache_read_tokens
-        result["derived_total_tokens"] = result["prompt_tokens"] + self.output_tokens
-        result["committed_response_usage_complete"] = self.unreported_completions == 0 and self.totals_unreported == 0
-        result["usage_complete"] = result["committed_response_usage_complete"]
-        result["cost_usd"] = None
-        return result
 
 
 @dataclass
@@ -126,6 +77,7 @@ class Call:
     truncated: bool = False
     observed_task_state: dict | None = None
     discovery_total: int | None = None
+    diagnostic: dict | None = None
 
 
 def text_blocks(value: dict) -> str:
@@ -202,6 +154,7 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
     contexts = []
     wire_measurements, batch_budgets = [], []
     runtime_observations, history_replacements = [], []
+    diagnostics, accounting_gaps = {}, []
     result_identities = {}
     pending_wire = None
     turns = []
@@ -241,12 +194,19 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
             counts[kind] += 1
             last_time = event.get("time")
             ref = {"seq": seq, "line": line_number}
-            if kind in ("agent/launch-config", "tool-history/config", "provider/request-timeout", "engineering/delivery-review", "engineering/progress-review", "acp/output-limit-recovery"):
+            if kind in ("assistant/attempt", "provider/request-timeout"):
+                accounting_gaps.append({**ref,"time":last_time,"type":kind})
+            if kind == "tool/diagnostic":
+                # Bind reused IDs to the most recent completed occurrence.
+                matches = [c for c in calls.values() if c.id == data.get("callId") and c.seq in results]
+                if matches:
+                    diagnostics[matches[-1].seq] = data.get("diagnostic")
+            if kind in ("tool/diagnostic", "engineering/validation-review", "engineering/validation-observation", "agent/launch-config", "tool-history/config", "provider/request-timeout", "engineering/delivery-review", "engineering/progress-review", "acp/output-limit-recovery"):
                 runtime_observations.append({**ref, "type": kind, "data": data})
             elif kind == "environment-service/receipt":
                 runtime_observations.append({**ref, "type": kind, "data": {
                     key: data[key] for key in ("service_id", "status", "owner", "expires_at", "diagnostic") if key in data}})
-            elif kind == "user/message" and isinstance(data.get("source"), dict) and data["source"].get("kind") in ("tool-progress-reminder", "tool-progress-pattern"):
+            elif kind == "user/message" and isinstance(data.get("source"), dict) and data["source"].get("kind") in ("tool-progress-reminder", "tool-progress-pattern", "tool-diagnostic-reminder"):
                 runtime_observations.append({**ref, "type": data["source"]["kind"], "data": data["source"]})
             elif kind == "user/message" and isinstance(data.get("source"), dict) and data["source"].get("kind") == "acp/output-limit-recovery":
                 runtime_observations.append({**ref, "type": "acp/output-limit-recovery-message", "data": data["source"]})
@@ -485,7 +445,10 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
     if usage.unreported_completions or counts["assistant/attempt"] or unknown_compactions:
         findings.append(Finding("usage_coverage_gap", "warning",
             "Some completions or failed/interrupted attempts have no complete provider usage; totals cover recorded usage only"))
+    for call in calls.values():
+        call.diagnostic = diagnostics.get(call.seq)
     call_values = [asdict(call) for call in calls.values()]
+    recovery = build_recovery(call_values, responses, turns, wire_measurements, accounting_gaps, last_time, previous_seq, unknown_compactions)
     usage_summary = usage.summary()
     usage_summary["usage_complete"] = usage_summary["usage_complete"] and counts["assistant/attempt"] == 0 and not unknown_compactions and counts["provider/request-timeout"] == 0
     label = label_for(path)
@@ -497,7 +460,7 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
         "source": {"path": source_path, "sha256": source_hash, "bytes": size}, "workspace": header.get("cwd"),
         "started_at": header.get("createdAt"), "ended_at": last_time,
         "raw_events": event_count, "event_counts": dict(counts), "usage": usage_summary,
-        "responses": responses, "contexts": contexts, "wire_measurements": wire_measurements, "batch_budgets": batch_budgets, "calls": call_values, "turns": turns,
+        "recovery": recovery, "responses": responses, "contexts": contexts, "wire_measurements": wire_measurements, "batch_budgets": batch_budgets, "calls": call_values, "turns": turns,
         "runtime_observations": runtime_observations, "history_replacements": history_replacements,
         "findings": [asdict(finding) for finding in findings], "counts": count_calls(call_values),
         "failed_or_interrupted_attempt_records": counts["assistant/attempt"],
@@ -563,10 +526,14 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
             "schema_exposure": "compact declared tool JSON bytes per main response; compaction schema exposure is unknown; unused means never called in that Session; not provider tokens or causal waste",
             "repeated_result": "same arguments classified by returned observation; missing, spilled or truncated evidence is unknown, not unchanged",
             "validation_signals": "heuristic review candidates, not confirmed failures; raw output may quote source or expected errors",
+            "recovery": "nonoverlapping windows from observed failure to matching-operation success, a different failure or turn/trace end; costs after the first failure receipt only; unrelated successes do not resolve; not causal per-tool token attribution or acceptance",
             "task_outcome": "not inferred from stop or tool success; use an external judge/acceptance receipt",
             "cost_usd": "unknown; no authoritative pricing or missing-usage estimate"},
         "summary": {"sessions": len(sessions), "raw_events": sum(s["raw_events"] for s in sessions),
             "responses": sum(len(s["responses"]) for s in sessions), "usage": usage_summary,
+            "recovery_chains": sum(len(s["recovery"]["chains"]) for s in sessions),
+            "unresolved_recovery_chains": sum(c["outcome"]!="matching-operation-succeeded" for s in sessions for c in s["recovery"]["chains"]),
+            "diagnostic_categories": dict(Counter((c.get("diagnostic") or {}).get("category","unobserved") for s in sessions for c in s["calls"] if c["protocol_error"] or c["execution_failure"] or c["lifecycle_failure"])),
             "schema_exposure_bytes": sum(r["schema_bytes"] or 0 for s in sessions for r in s["responses"]),
             "unused_schema_exposure_bytes": sum(r["unused_schema_bytes"] or 0 for s in sessions for r in s["responses"]),
             "prepared_requests_measured": sum(len(s["wire_measurements"]) for s in sessions),
@@ -582,7 +549,7 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
             "compaction_skips": sum(s["event_counts"].get("compaction/skipped", 0) for s in sessions),
             "tool_history_replacements": sum(len(s["history_replacements"]) for s in sessions),
             "provider_request_deadlines": sum(s["event_counts"].get("provider/request-timeout", 0) for s in sessions),
-            "tool_progress_advisories": sum(o["type"] in ("tool-progress-reminder", "tool-progress-pattern") for s in sessions for o in s["runtime_observations"]),
+            "tool_progress_advisories": sum(o["type"] in ("tool-progress-reminder", "tool-progress-pattern", "tool-diagnostic-reminder") for s in sessions for o in s["runtime_observations"]),
             "mid_turn_delivery_reviews": sum(s["event_counts"].get("engineering/progress-review", 0) for s in sessions),
             "output_limit_recovery_attempts": sum(s["event_counts"].get("acp/output-limit-recovery", 0) for s in sessions),
             "output_limit_recovery_messages": sum(o["type"] == "acp/output-limit-recovery-message" for s in sessions for o in s["runtime_observations"]),
@@ -670,6 +637,10 @@ def markdown(report: dict) -> str:
             refs = [r for f in group for r in f["refs"]]
             links = ", ".join(f'[seq {r["seq"]}](<{session["source"]["path"]}:{r["line"]}>)' for r in refs[:8])
             lines.append(f'| {md_text(session["label"])} | {kind} | {len(group)} | {links or md_text(group[0]["message"])} |')
+    lines += ["", "## Recovery chains", "", "Windows begin after an observed failure receipt. Matching-operation success closes a chain; task acceptance is separate. Prepared requests are not proof of HTTP sends. Token totals cover recorded usage only.", "", "| Session / first failure | Outcome | Failed operations | Responses | Prepared requests | Recorded tokens | Duration ms |", "| --- | --- | ---: | ---: | ---: | ---: | ---: |"]
+    for session in sessions:
+        for chain in sorted(session["recovery"]["chains"], key=lambda c:c["usage"]["known_total_tokens"], reverse=True):
+            lines.append(f'| {md_text(session["label"])} seq {chain["start_seq"]} | {chain["outcome"]} | {chain["failed_operations"]} | {chain["committed_responses"]} | {chain["prepared_requests"]} | {chain["usage"]["total_tokens"] if chain["usage"]["total_tokens"] is not None else "unknown ("+str(chain["usage"]["known_total_tokens"])+" reported)"} | {chain["duration_ms"] if chain["duration_ms"] is not None else "unknown"} |')
     lines += ["", "## Tool traffic", "", "| Tool | Calls | Failed | Repeated identical calls | Argument bytes | Result bytes |", "| --- | ---: | ---: | ---: | ---: | ---: |"]
     for tool in sorted(report["tools"], key=lambda x: x["result_bytes"] + x["argument_bytes"], reverse=True):
         lines.append(f'| {md_text(tool["name"])} | {tool["tool_calls"]} | {tool["failed_calls"]} | '
@@ -710,7 +681,8 @@ def discover(inputs: list[Path]) -> list[Path]:
 
 def write_report(inputs: list[Path], output: Path, reviews: list[dict] | None = None) -> dict:
     report = build_report(discover(inputs), reviews)
-    report["analyzer"] = {"path": str(Path(__file__).resolve()), "sha256": digest(Path(__file__).read_bytes())}
+    report["analyzer"] = {"path": str(Path(__file__).resolve()), "sha256": digest(Path(__file__).read_bytes()),
+        "modules": {name: digest(Path(__file__).with_name(name).read_bytes()) for name in ("report.py","recovery.py","usage.py")}}
     output.mkdir(parents=True, exist_ok=True)
     (output / "summary.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
     (output / "summary.md").write_text(markdown(report))

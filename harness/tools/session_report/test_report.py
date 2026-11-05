@@ -9,6 +9,24 @@ from report import build_report, inspect_session, write_report
 
 
 class SessionReportRules(unittest.TestCase):
+    def test_diagnostic_evidence_is_bound_to_completed_call(self):
+        path = self.session([
+            ("tool/call", {"callId":"c", "name":"Bash", "arguments":{"command":"check"}}),
+            ("tool/result", {"toolCallId":"c", "isError":True,"content":[{"type":"text","text":'{"exitCode":1,"stderr":"error: invalid input"}'}]}),
+            ("tool/diagnostic", {"callId":"c", "diagnostic":{"category":"compiler","diagnostic_sha256":"diagnostic"}}),
+            ("user/message", {"source":{"kind":"tool-diagnostic-reminder"}}),
+            ("engineering/validation-review", {"turn":1,"step":3}),
+            ("tool/call", {"callId":"c", "name":"Bash", "arguments":{"command":"other"}}),
+            ("tool/result", {"toolCallId":"c", "content":[{"type":"text","text":'{"exitCode":0}'}]}),
+        ])
+        report=build_report([path])
+        session=report["sessions"][0]
+        self.assertEqual(session["calls"][0]["diagnostic"]["category"],"compiler")
+        self.assertIsNone(session["calls"][1]["diagnostic"])
+        self.assertEqual(report["summary"]["diagnostic_categories"],{"compiler":1})
+        self.assertEqual(report["summary"]["tool_progress_advisories"],1)
+        self.assertEqual(session["recovery"]["chains"][0]["outcome"],"unresolved-at-trace-end")
+
     def test_recovery_receipts_preserve_original_stops(self):
         path = self.session([
             ("turn/start", {"turn": 1, "source": "human"}),

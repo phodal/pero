@@ -180,3 +180,21 @@ python3 -m unittest discover -s harness/tools/session_report -p 'test_*.py' -v
 Tests use temporary native traces and actual report behavior, without network
 or model requests. The trial runtime fixture additionally verifies automatic
 report generation after a real ACP subprocess exits.
+
+## Recovery windows
+
+`recovery.chains` and the Markdown table group nonoverlapping windows after
+explicit failures. Identical tool/argument success resolves the window; a
+different failure, turn end or trace end leaves it unresolved. Repeated failures
+of the same invocation stay together. Unrelated successes do not establish
+repair. Each subsequent committed response is attributed once; the initial
+failure-producing response is excluded from its new window. Window usage is
+observational and does not establish per-tool causal cost or task acceptance.
+
+Each window exposes result/response references, heuristic diagnostic categories
+when recorded, separate agent/compaction usage, prepared request count and
+elapsed duration. Missing usage and unmatched prepared requests remain unknown;
+known cached/uncached/output subtotals survive. Prepared boundaries are not proof
+of HTTP sends, and reasoning is already included in output. `analyzer.modules`
+pins report.py, recovery.py and usage.py. See the
+[implementation and verification note](../../../docs/fitness/validation-driven-coding.md).
