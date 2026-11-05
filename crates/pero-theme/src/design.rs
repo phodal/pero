@@ -41,7 +41,12 @@ impl<'a> Chrome<'a> {
     }
 
     pub fn text(self, base: f32) -> Pixels {
-        px(base * self.ui / TYPE_BODY)
+        px((base * self.ui / TYPE_BODY).max(TYPE_CAPTION))
+    }
+
+    /// Controls grow with the text while spacing and radii remain stable.
+    pub fn control(self, minimum: f32) -> Pixels {
+        px(minimum.max((self.ui * 1.4).ceil() + 4.))
     }
 
     pub fn list(self) -> Hsla {
@@ -78,7 +83,7 @@ pub enum ActionKind {
 }
 
 fn wash(chrome: Chrome) -> Hsla {
-    chrome.palette.text.opacity(0.08)
+    chrome.palette.surface_hover
 }
 
 fn clear(chrome: Chrome) -> Hsla {
@@ -98,7 +103,7 @@ pub fn interaction_row(
     div()
         .id(id)
         .w_full()
-        .h(chrome.geo(height))
+        .h(chrome.control(height))
         .flex_shrink_0()
         .flex()
         .items_center()
@@ -118,16 +123,20 @@ pub fn sidebar_row(
     level: RowLevel,
     lead: Option<AnyElement>,
     chrome: Chrome,
+    cx: &App,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-) -> Stateful<Div> {
+) -> Button {
     let sub = level == RowLevel::Sub;
     let muted = chrome.palette.text_muted;
-    interaction_row(
-        id,
-        active,
-        if sub { ROW_SUB } else { ROW_NAV },
-        chrome,
-    )
+    let label = label.into();
+    Button::new(id)
+    .custom(ghost_colors(chrome, cx, chrome.palette.accent_soft))
+    .selected(active)
+    .accessibility_label(label.clone())
+    .small().w_full().h(chrome.control(if sub { ROW_SUB } else { ROW_NAV }))
+    .rounded(chrome.geo(RADIUS_SELECTION))
+    .border_1().border_color(clear(chrome))
+    .when(active, |row| row.text_color(chrome.palette.accent_text))
     .cursor_pointer()
     .pl(chrome.geo(if sub { SPACE_8 + SUB_INDENT } else { SPACE_8 }))
     .pr(chrome.geo(SPACE_8))
@@ -150,7 +159,7 @@ pub fn sidebar_row(
                 .flex_1()
                 .min_w_0()
                 .text_ellipsis()
-                .child(label.into()),
+                .child(label),
         )
         .children(caption.map(|caption| {
             div()
@@ -159,7 +168,8 @@ pub fn sidebar_row(
                 .text_color(muted)
                 .child(caption)
         }))
-        .children(count.map(|count| badge(count, chrome)))
+        .children(count.map(|count| div().flex_shrink_0()
+            .text_size(chrome.text(TYPE_CAPTION)).text_color(muted).child(count)))
 }
 
 pub fn library_header(
@@ -173,7 +183,8 @@ pub fn library_header(
     div()
         .id(id)
         .w_full()
-        .h(chrome.geo(LIBRARY_HEADER))
+        .min_h(chrome.geo(LIBRARY_HEADER))
+        .py(chrome.geo(SPACE_12))
         .flex_shrink_0()
         .px(chrome.geo(SPACE_16))
         .flex()
@@ -604,13 +615,13 @@ pub fn action_button(
     let button = match kind {
         ActionKind::Primary => Button::new(id).primary().border_color(chrome.palette.action),
         ActionKind::Ghost => Button::new(id)
-            .custom(ghost_colors(chrome, cx, wash(chrome)))
+            .custom(ghost_colors(chrome, cx, chrome.palette.surface_pressed))
             .border_color(clear(chrome)),
         ActionKind::Danger => Button::new(id).danger().border_color(chrome.palette.error),
     };
     button
         .small()
-        .h(chrome.geo(ACTION_BUTTON_HEIGHT))
+        .h(chrome.control(ACTION_BUTTON_HEIGHT))
         .px(chrome.geo(ACTION_BUTTON_PADDING))
         .rounded(chrome.geo(RADIUS_BUTTON))
         .border_1()
@@ -620,10 +631,10 @@ pub fn action_button(
 
 pub fn ghost_icon_button(id: impl Into<ElementId>, chrome: Chrome, cx: &App) -> Button {
     Button::new(id)
-        .custom(ghost_colors(chrome, cx, wash(chrome)))
+        .custom(ghost_colors(chrome, cx, chrome.palette.surface_pressed))
         .small()
-        .w(chrome.geo(GHOST_ICON_BUTTON))
-        .h(chrome.geo(GHOST_ICON_BUTTON))
+        .w(chrome.control(GHOST_ICON_BUTTON))
+        .h(chrome.control(GHOST_ICON_BUTTON))
         .rounded(chrome.geo(RADIUS_BUTTON))
         .border_1()
         .border_color(clear(chrome))
@@ -671,7 +682,7 @@ pub fn sidebar_menu_button(
         .cursor_pointer()
         .small()
         .w_full()
-        .h(chrome.geo(ROW_NAV))
+        .h(chrome.control(ROW_NAV))
         .px(chrome.geo(SPACE_8))
         .rounded(chrome.geo(RADIUS_SELECTION))
         .justify_start()
@@ -703,22 +714,22 @@ pub fn sidebar_menu_button(
 pub fn hairline(chrome: Chrome) -> Div {
     div()
         .w_full()
-        .h(px(1.))
+        .h(px(0.5))
         .flex_shrink_0()
         .bg(chrome.palette.border)
 }
 
 pub fn search_field(input: Input, chrome: Chrome) -> Input {
-    let fill = chrome.palette.surface_muted;
+    let fill = chrome.palette.surface;
     Styled::h(
         input
             .small()
             .appearance(true)
             .bordered(true)
             .bg(fill)
-            .border_color(fill)
+            .border_color(chrome.palette.input_border)
             .rounded(chrome.geo(RADIUS_SELECTION)),
-        chrome.geo(SEARCH_FIELD_HEIGHT),
+        chrome.control(SEARCH_FIELD_HEIGHT),
     )
     .text_size(chrome.text(TYPE_BODY))
     .line_height(relative(1.3))
