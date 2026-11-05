@@ -2662,8 +2662,16 @@
         "supportedMethods": {
           "type": "array",
           "items": {
-            "type": "string",
-            "const": "agent"
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "agent"
+              },
+              {
+                "type": "string",
+                "const": "research_watch"
+              }
+            ]
           }
         },
         "sourceBindingId": {

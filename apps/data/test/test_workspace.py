@@ -135,9 +135,9 @@ class InspectionTests(unittest.TestCase):
         self.assertEqual([row['row'] for row in page['rows']], [3, 1])
         self.assertEqual([row['cells'][1]['text'] for row in page['rows']], ['30', '10'])
         self.assertEqual(page['selected'], 1)
-        _csv, text_page = self.preview(b'id,n\n001,10\n002,2\n', 't.csv',
-                                       filter={'field': 'n', 'operator': 'gte', 'value': '10'})
-        self.assertEqual(text_page['matched'], 0)
+        with self.assertRaisesRegex(ValueError, 'explicitly interpret'):
+            self.preview(b'id,n\n001,10\n002,2\n', 't.csv',
+                         filter={'field': 'n', 'operator': 'gte', 'value': '10'})
         _exact, identifiers = self.preview(b'id,n\n001,10\n', 't.csv',
                                            filter={'field': 'id', 'operator': 'eq', 'value': '001'})
         self.assertEqual(identifiers['rows'][0]['cells'][0]['text'], '001')

@@ -2256,7 +2256,7 @@ export interface AutomationCapabilities {
   workspace: string;
   agents: AutomationAgentSummary[];
   supportedTargets: "local_host"[];
-  supportedMethods: "agent"[];
+  supportedMethods: ("agent" | "research_watch")[];
   sourceBindingId: string;
   sourceKind: "local_published_registry";
   maxInputBytes: number;

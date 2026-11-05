@@ -1,4 +1,5 @@
 """Chart documents, source, and exports for one catalog version. Charts are files, not catalog rows."""
+from dataclasses import asdict
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -10,8 +11,7 @@ sys.path.insert(0, str(_shared if _shared.is_dir() else Path(__file__).parent / 
 from catalog import InspectionUnavailable
 from chart_document import ChartDocument, document_for_view
 from dataset import Invalid, export_records
-from datasets import PreviewRequest, ViewSpec, fields, identity
-from view import DatasetView
+from datasets import PreviewRequest, ViewSpec, fields
 
 CHART_LIMIT = 2 * 1024 * 1024
 
@@ -23,32 +23,25 @@ class Analysis:
         self.exports = catalog.directory / 'exports'
 
     def _target(self, value, allowed):
-        fields(value, allowed)
-        view = ViewSpec.parse(value.get('view', {}))
-        request = PreviewRequest(identity(value.get('datasetId'), 'dataset', 'ds-'),
-                                 identity(value.get('assetId'), 'asset'), view,
-                                 value.get('offset', 0) if 'offset' in allowed else 0,
-                                 value.get('limit', 50) if 'limit' in allowed else 50)
+        fields(value, (*allowed, 'parserVersion'))
+        request = PreviewRequest.parse({key: item for key, item in value.items() if key != 'columns'}, max_offset=None)
+        view = request.view
         try:
             asset, inspection = self.catalog._inspect(request)
         except InspectionUnavailable as error:
             raise ValueError(str(error)) from error
-        columns = view.admitted_columns([field.name for field in inspection.records.fields])
         if 'columns' in value and value.get('columns') is not None:
-            narrowed = ViewSpec.parse(dict(view.public(), columns=value['columns']))
-            columns = narrowed.admitted_columns([field.name for field in inspection.records.fields])
-            view = narrowed
-        try:
-            admitted = DatasetView.admit(view.query_body(columns, request.offset, request.limit), inspection.records)
-        except Invalid as error:
-            raise ValueError(str(error)) from error
-        return asset, inspection, admitted
+            view = ViewSpec.parse(dict(view.public(), columns=value['columns']))
+        inspection = inspection.admit(view, request.offset, request.limit)
+        return asset, inspection, inspection.view
 
     def source(self, value):
-        asset, inspection, _admitted = self._target(value, ('datasetId', 'assetId'))
+        asset, inspection, _admitted = self._target(value, ('datasetId', 'assetId', 'view'))
         return dict(datasetId=value['datasetId'], assetId=asset.id, sha256=asset.sha256, name=asset.name,
                     format='json_lines' if asset.format in ('jsonl', 'ndjson') else asset.format,
-                    bytes=asset.size, content=inspection.records.source)
+                    bytes=asset.size, content=inspection.records.source,
+                    view=inspection.spec.public(), viewId=_admitted.identity(inspection.records),
+                    report=asdict(inspection.report))
 
     def read(self, value):
         asset, inspection, admitted = self._target(value, ('datasetId', 'assetId', 'view', 'offset', 'limit', 'columns'))
@@ -57,7 +50,7 @@ class Analysis:
         except Invalid as error:
             raise ValueError(str(error)) from error
         window.update(datasetId=value['datasetId'], assetId=asset.id, sha256=asset.sha256,
-                      viewId=admitted.identity(inspection.records))
+                      viewId=admitted.identity(inspection.records), report=asdict(inspection.report))
         return window
 
     def export(self, value):
@@ -66,7 +59,9 @@ class Analysis:
         manifest = dict(schema='pero.dataset-export.v1', dataset=value['datasetId'], assetId=asset.id,
                         sha256=asset.sha256, name=asset.name,
                         sourceFormat='json_lines' if inspection.records.json_lines else asset.format,
-                        view=admitted.spec(), viewId=admitted.identity(inspection.records), records=len(rows),
+                        view=inspection.spec.public() | dict(columns=list(admitted.columns)),
+                        parserVersion=inspection.report.parserVersion, report=asdict(inspection.report),
+                        viewId=admitted.identity(inspection.records), records=len(rows),
                         provenance=[dict(ordinal=row.ordinal, pointer=row.pointer, line=row.line) for row in rows])
         content = '{"manifest":' + json.dumps(manifest, ensure_ascii=False, separators=(',', ':')) + ',"rows":' + export_records(rows) + '}\n'
         digest = sha256(content.encode()).hexdigest()
@@ -75,15 +70,17 @@ class Analysis:
                     bytes=len(content.encode()), content=content)
 
     def create_chart(self, value):
-        fields(value, ('datasetId', 'assetId', 'view', 'chartDocument', 'aggregation'))
+        fields(value, ('datasetId', 'assetId', 'view', 'chartDocument', 'aggregation', 'parserVersion'))
         asset, inspection, admitted = self._target(
-            {key: value[key] for key in ('datasetId', 'assetId', 'view') if key in value},
+            {key: value[key] for key in ('datasetId', 'assetId', 'view', 'parserVersion') if key in value},
             ('datasetId', 'assetId', 'view'))
         try:
             document = document_for_view(inspection.records, admitted, value.get('chartDocument'), value.get('aggregation'))
         except Invalid as error:
             raise ValueError(str(error)) from error
-        document['source'].update(catalogDatasetId=value['datasetId'], assetId=asset.id, sha256=asset.sha256)
+        document['source'].update(catalogDatasetId=value['datasetId'], assetId=asset.id, sha256=asset.sha256,
+                                  dataView=inspection.spec.public(),
+                                  parserVersion=inspection.report.parserVersion, report=asdict(inspection.report))
         return self._store_document(document)
 
     def validate_chart(self, value):

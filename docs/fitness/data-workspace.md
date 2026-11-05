@@ -128,3 +128,102 @@ screenshots are under `test-results/data/` and `test-results/data-product/`.
 The Paper handoff fixture checks consent, verification, scoped cancellation,
 receipt reuse and restart without a public download. Linux and Windows Desktop
 and bundled or signed product acceptance were not run locally.
+
+## Explicit CSV interpretation and issue navigation (2026-11-05)
+
+Implementation base: `1ecd08e2a8a80d9344f714af408d878bb35930ed`.
+
+Data view specifications now retain explicit decimal interpretations and issue
+conditions. CSV/TSV originals and displayed text remain unchanged. The preview
+reports exact interpreted values and failures before Apply; failed values remain
+strings, not zero or null. Numeric comparison without a valid numeric type is
+rejected. The same admitted interpretation feeds Table, record reads, exports and
+charts. Full-input profiles retain their raw type/missingness meaning and label
+the interpretation separately. Duplicate checks still compare raw records.
+
+Fields and Checks state their full-input scope. Issue links explicitly pause the
+filter and selection, keep source row identities, and can return to the prior
+analysis. Saved views include interpretations, issue conditions and their full
+report; reopening checks the pinned input hash again. A new version does not
+inherit a draft or interpretation. No Host authorization, download, Agent tool
+grant, model execution or project-permission boundary is expanded.
+
+Local verification in the assistant workspace:
+
+- Python Data regression suite: **64 passed**, including exact-number and
+  conversion failure cases, issue pagination, saved/restarted views, cross-action
+  provenance and original-byte checks.
+- Strict App TypeScript checking and **7** UI model tests: passed.
+- Direct esbuild of the real Data frame and SDK: passed. The full App packaging
+  command is unavailable because `PERO_GPUI_KIT_PATH` is not configured.
+- Core CI workflow contracts: **5 passed**. The wider scripts/ci test run has
+  **78 passed / 1 blocked** by the unavailable Paper EmbedPDF plugin dependency.
+- New browser journey syntax check and diff whitespace check: passed.
+- Repository-wide `npm run check` is blocked by absent generated reader Wasm
+  TypeScript declarations (`web/src/reader-wasm/pero_reader_web`); the strict Data
+  App typecheck above is separate and did pass.
+- Chromium startup is blocked by `socket(): Operation not permitted`, including
+  one permitted retry. No local UI screenshots or browser pass are claimed.
+
+The existing Data CI job runs the real frame with its Python backend and a
+loopback test transport. It exercises preview/cancel/apply, exact filtering and
+sorting, failure and duplicate drilldown, saved views across backend restart,
+new versions and corrupted-original recovery. Light/dark/390px screenshots and
+bundle hashes are emitted under `test-results/data-workflow/` and uploaded with
+the existing Data browser artifact. This is still distinct from full Desktop,
+Host permission, release packaging and scientific-validity acceptance.
+
+Hosted verification at `8bc8b30616fe3b3590ac3e59c7d8e9740fa50130`:
+
+- [Data CI job](https://github.com/phodal/pero/actions/runs/41954040103/job/127004512941):
+  **64 Python, 7 UI model and 7 browser tests passed**, plus strict type checking.
+- [Browser artifact](https://github.com/phodal/pero/actions/runs/41954040103/artifacts/13382746233):
+  real Data frame + Python catalog journey, actual backend restart, source/export/
+  chart consistency checks, and light/dark/390px screenshots. Preview, exact
+  numeric filtering with leading-zero IDs, and clearly marked conversion issues
+  were visually inspected. The narrow layout keeps controls readable and wraps
+  the issue-scope explanation; the table retains its normal scroll container.
+- Bundle SHA-256: JS `b01b8e80d571bd0e80e2e42f326ce2744cd45f795d86c3786fb48f537ea73604`;
+  CSS `715a70c36170773c55030d9154f3234775afbe0dee79e43ca0948378563e97f9`.
+- The first browser run caught non-JSON optional properties in Agent samples;
+  the fix and retained real-SDK regression are recorded in
+  [the resolved incident](../issues/2026-11-05-data-interpretation-samples.md).
+
+## PR integration verification (2026-11-05)
+
+Merged master `53d07858592e6391414362aaa222120d23b7c8a5` into PR #130 at
+`d26e5f67`. Resolved the overlapping #126/#130 UI changes by retaining persistent
+inspection errors, retry and filter recovery alongside full-input interpretation
+previews and issue navigation. Both earlier verification sections remain intact.
+
+The combined tree passed 64 Data Python tests on Python 3.12, strict Data
+TypeScript, 7 UI model tests, 7 Chromium tests, 16 cross-origin bridge checks,
+32 App Use unit tests and Go chart race tests. CI workflow contracts passed
+(14 passed, one Linux-only case skipped on macOS). The Data App built using the
+existing reader distribution. Inspected the new light type-preview and numeric
+filter captures plus dark and 390px conversion-issue captures in
+`test-results/data-workflow/`. These verify the real Data frame and catalog;
+they do not extend release-package or scientific acceptance.
+
+### Review regressions
+
+The integration CI at `c6e0ec5e` passed all 14 ordinary jobs, including the Linux
+gate; full Desktop/platform jobs remained configured skips. Subsequent review
+found four reproducible behavior gaps, corrected before merging PR #130:
+
+- A 40,000-digit exact numeric sample exceeded the SDK state limit. Samples now
+  explicitly omit oversized exact values and stay within 8 KiB; the real frame
+  still renders the input, with complete values in source and export.
+- Record reads beyond the preview row bound now return an empty page. Preview
+  requests retain their own row bound; authenticated HTTP regression covers both.
+- Reverting an interpreted field warns before removing its incompatible numeric
+  filter. Other field filters and text comparisons remain unchanged.
+- Field issue navigation reveals a previously hidden field within the column
+  limit; returning to analysis restores the prior displayed columns and filter.
+
+Each regression failed against the preceding implementation. Existing model,
+authenticated HTTP and real-browser concept tests retain the regression cases.
+After all four corrections, all 64 Python and 7 browser tests passed again;
+Data TypeScript, 7 model tests, App build, standalone Electron import/restart
+and the Paper→Host→Data contract also passed. The new hidden-field and long-number
+screenshots were inspected locally.
