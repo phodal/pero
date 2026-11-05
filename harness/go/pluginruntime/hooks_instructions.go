@@ -8,12 +8,20 @@ import (
 	"github.com/phodal/pero/harness/go/agentinstructions"
 	"github.com/phodal/pero/harness/go/claudehooks"
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/subagents"
 )
 
 // Observe the selected model request, after instruction rendering and guards.
 // Never run on speculative preparePaths checks or from a Session event callback.
 func (app *HookApp) noteInstructionLoads(agent *harness.Agent, messages []harness.Message) {
-	if !app.hasHookEvent("InstructionsLoaded") {
+	identity, err := subagents.HookAttribution(agent)
+	if err != nil {
+		return
+	}
+	applicable := app.hooksFor(agent, claudehooks.Input{AgentType: identity.AgentType})
+	if !slices.ContainsFunc(applicable, func(selected runnableHook) bool {
+		return selected.hook.Event == "InstructionsLoaded"
+	}) {
 		return
 	}
 	files, present := agentinstructions.LoadedBaseline(messages)
