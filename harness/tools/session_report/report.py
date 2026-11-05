@@ -206,7 +206,7 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
             elif kind == "environment-service/receipt":
                 runtime_observations.append({**ref, "type": kind, "data": {
                     key: data[key] for key in ("service_id", "status", "owner", "expires_at", "diagnostic") if key in data}})
-            elif kind == "user/message" and isinstance(data.get("source"), dict) and data["source"].get("kind") in ("tool-progress-reminder", "tool-progress-pattern", "tool-diagnostic-reminder"):
+            elif kind == "user/message" and isinstance(data.get("source"), dict) and data["source"].get("kind") in ("tool-progress-reminder", "tool-progress-pattern", "tool-diagnostic-reminder", "tool-validation-warning", "tool-exploration-reminder"):
                 runtime_observations.append({**ref, "type": data["source"]["kind"], "data": data["source"]})
             elif kind == "user/message" and isinstance(data.get("source"), dict) and data["source"].get("kind") == "acp/output-limit-recovery":
                 runtime_observations.append({**ref, "type": "acp/output-limit-recovery-message", "data": data["source"]})
@@ -549,7 +549,9 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
             "compaction_skips": sum(s["event_counts"].get("compaction/skipped", 0) for s in sessions),
             "tool_history_replacements": sum(len(s["history_replacements"]) for s in sessions),
             "provider_request_deadlines": sum(s["event_counts"].get("provider/request-timeout", 0) for s in sessions),
-            "tool_progress_advisories": sum(o["type"] in ("tool-progress-reminder", "tool-progress-pattern", "tool-diagnostic-reminder") for s in sessions for o in s["runtime_observations"]),
+            "live_validation_warnings": sum(o["type"] == "tool-validation-warning" for s in sessions for o in s["runtime_observations"]),
+            "exploration_reminders": sum(o["type"] == "tool-exploration-reminder" for s in sessions for o in s["runtime_observations"]),
+            "tool_progress_advisories": sum(o["type"] in ("tool-progress-reminder", "tool-progress-pattern", "tool-diagnostic-reminder", "tool-validation-warning", "tool-exploration-reminder") for s in sessions for o in s["runtime_observations"]),
             "mid_turn_delivery_reviews": sum(s["event_counts"].get("engineering/progress-review", 0) for s in sessions),
             "output_limit_recovery_attempts": sum(s["event_counts"].get("acp/output-limit-recovery", 0) for s in sessions),
             "output_limit_recovery_messages": sum(o["type"] == "acp/output-limit-recovery-message" for s in sessions for o in s["runtime_observations"]),

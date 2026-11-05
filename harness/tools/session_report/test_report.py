@@ -27,6 +27,19 @@ class SessionReportRules(unittest.TestCase):
         self.assertEqual(report["summary"]["tool_progress_advisories"],1)
         self.assertEqual(session["recovery"]["chains"][0]["outcome"],"unresolved-at-trace-end")
 
+    def test_live_advisories_do_not_fabricate_process_failures(self):
+        path = self.session([
+            self.call(), self.result({"exitCode": 0, "stderr": "FAILED (failures=1)"}),
+            ("tool/diagnostic", {"callId": "c", "diagnostic": {"failed": False, "exit_code": 0, "validation_signal": "test-failure-summary"}}),
+            ("user/message", {"source": {"kind": "tool-validation-warning"}}),
+            ("user/message", {"source": {"kind": "tool-exploration-reminder", "count": 16}}),
+        ])
+        summary = build_report([path])["summary"]
+        self.assertEqual(summary["failed_calls"], 0)
+        self.assertEqual(summary["live_validation_warnings"], 1)
+        self.assertEqual(summary["exploration_reminders"], 1)
+        self.assertEqual(summary["tool_progress_advisories"], 2)
+
     def test_recovery_receipts_preserve_original_stops(self):
         path = self.session([
             ("turn/start", {"turn": 1, "source": "human"}),
