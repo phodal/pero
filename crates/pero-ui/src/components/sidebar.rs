@@ -388,7 +388,13 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
     use crate::apps::AppPlacement;
     let mut automation = Vec::new(); let mut primary = Vec::new(); let mut workspace = Vec::new(); let mut catalog = Vec::new(); let mut customize = Vec::new();
     for (index, app) in props.apps.into_iter().enumerate() {
-        match app.placement { AppPlacement::Automation => automation.push((index, app)), AppPlacement::Primary => primary.push((index, app)), AppPlacement::Workspace => workspace.push((index, app)), AppPlacement::Customize => customize.push((index, app)), AppPlacement::Catalog => catalog.push((index, app)) }
+        match app.placement {
+            AppPlacement::Automation => automation.push((index, app)),
+            AppPlacement::Primary => primary.push((index, app)),
+            AppPlacement::Workspace | AppPlacement::WorkspaceCatalog => workspace.push((index, app)),
+            AppPlacement::Customize => customize.push((index, app)),
+            AppPlacement::Catalog => catalog.push((index, app)),
+        }
     }
     workspace.sort_by_key(|(_, app)| if app.name == "paper-agent" { 0 } else { 1 });
     let app_rows = |apps: Vec<(usize, AppShortcut)>| apps.into_iter().map(|(index, app)| {
@@ -413,19 +419,16 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
             .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(8.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.workspace"))))
             .children(app_rows(workspace))
-            .children([
-                ("sidebar-environment", ui.t("nav.environment"), "icons/server.svg"),
-                ("sidebar-compute", ui.t("nav.compute"), pero_chat_ui::assets::UiIcon::Cpu.path()),
-            ].into_iter().map(|(id, label, icon)| div().w_full().flex().justify_center().child(
-                pero_theme::ghost_icon_button(id, chrome, cx)
-                    .disabled(true).accessibility_label(label)
-                    .icon(Icon::default().path(icon))
-                    .when(collapsed, |button| button.tooltip(label))
+            .child(div().w_full().flex().justify_center().child(
+                pero_theme::ghost_icon_button("sidebar-compute", chrome, cx)
+                    .disabled(true).accessibility_label(ui.t("nav.compute"))
+                    .icon(Icon::default().path(pero_chat_ui::assets::UiIcon::Cpu.path()))
+                    .when(collapsed, |button| button.tooltip(ui.t("nav.compute")))
                     .when(!collapsed, |button| button.w_full().h(chrome.geo(pero_theme::ROW_NAV))
                         .px(px(8.)).text_size(chrome.text(pero_theme::TYPE_BODY))
                         .child(div().w_full().flex().items_center().justify_between()
-                            .child(label)
-                            .child(div().text_size(px(12.)).child(ui.t("nav.todo"))))))))
+                            .child(ui.t("nav.compute"))
+                            .child(div().text_size(px(12.)).child(ui.t("nav.todo")))))))
             .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(8.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.apps"))))
             .child(nav("sidebar-apps", ui.t("apps.manage"), "icons/layout-grid.svg", props.navigation == WorkbenchPage::Apps && props.catalog_open, SidebarAction::Navigate(WorkbenchPage::Apps)).relative().child(props.shortcut_bounds.probe("apps".into())))
             .children(app_rows(catalog)))
