@@ -46,3 +46,48 @@ func TestToolProgressPatterns(t *testing.T) {
 		})
 	}
 }
+
+func TestToolFailureWindow(t *testing.T) {
+	for _, row := range []struct {
+		name, receipt string
+		spacing       int
+		newTurn       bool
+		want          bool
+	}{
+		{"edits between failed experiments", `{"exitCode":1}`, 3, false, true},
+		{"changing compiler errors", `{"result":{"exitCode":2}}`, 3, false, true},
+		{"productive sparse failures", `{"exitCode":1}`, 4, false, false},
+		{"successful checks", `{"exitCode":0}`, 3, false, false},
+		{"uncertain cleanup", `{"exitCode":1,"cleanupUncertain":true}`, 3, false, false},
+		{"outer uncertain cleanup", `{"cleanupUncertain":true,"result":{"exitCode":1}}`, 3, false, false},
+		{"timeout", `{"exitCode":1,"timedOut":true}`, 3, false, false},
+		{"cancelled", `{"exitCode":1,"aborted":true}`, 3, false, false},
+		{"polling errors", `{"status":"running","task_id":"job"}`, 3, false, false},
+		{"new turn clears history", `{"exitCode":1}`, 3, true, false},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			var p toolProgress
+			found := false
+			for i := 0; i < 8*row.spacing; i++ {
+				turn := 1
+				if row.newTurn && i >= 4*row.spacing {
+					turn = 2
+				}
+				name, text := "Read", fmt.Sprint(i)
+				if i%row.spacing == 0 {
+					name, text = "Bash", row.receipt
+				} else if i%row.spacing == 1 {
+					name = "Edit"
+				}
+				args, _ := json.Marshal(struct {
+					Command string `json:"command"`
+				}{fmt.Sprintf("experiment-%d", i)})
+				advisory := p.observe(turn, ContentBlock{Name: name, Arguments: args}, ToolResult{Content: []ContentBlock{{Type: BlockText, Text: text}}})
+				found = found || advisory != nil
+			}
+			if found != row.want {
+				t.Fatalf("advisory=%t want=%t", found, row.want)
+			}
+		})
+	}
+}

@@ -16,6 +16,7 @@ type toolProgress struct {
 	result   [32]byte
 	count    int
 	patterns toolProgressPatterns
+	failures toolFailureWindow
 }
 
 // Only transport timing is omitted from shell receipts. Actual stdout/stderr,
@@ -42,28 +43,32 @@ type toolProgressShell struct {
 }
 
 func (p *toolProgress) observe(turn int, call ContentBlock, result ToolResult) *DeferredContext {
+	if p.turn != turn {
+		*p = toolProgress{turn: turn}
+	}
+	advisory := p.failures.observe(call, result)
 	// Polling is governed by its existing cursor/wait contract. Mutations reset
-	// the read chain rather than making a stale read look unproductive.
+	// the read chain, but do not erase recent failed experiments.
 	switch call.Name {
 	case "TaskOutput", "TaskStop", "TerminalRead", "terminal_read", "TerminalWrite", "terminal_write",
 		"Write", "write_file", "Edit", "edit_file", "apply_patch", "NotebookEdit", "notebook_edit":
-		*p = toolProgress{}
-		return nil
+		*p = toolProgress{turn: turn, failures: p.failures}
+		return advisory
 	}
 	var args any
 	decoder := json.NewDecoder(bytes.NewReader(call.Arguments))
 	decoder.UseNumber()
 	if decoder.Decode(&args) != nil {
-		*p = toolProgress{}
-		return nil
+		*p = toolProgress{turn: turn, failures: p.failures}
+		return advisory
 	}
 	arguments, _ := json.Marshal(args)
 	key := sha256.Sum256(append(append([]byte(call.Name), 0), arguments...))
 	observed := cloneContentBlocks(result.Content)
 	for i := range observed {
 		if observed[i].Type != BlockText {
-			*p = toolProgress{}
-			return nil
+			*p = toolProgress{turn: turn, failures: p.failures}
+			return advisory
 		}
 		if call.Name == "Bash" || call.Name == "shell" {
 			var receipt toolProgressShell
@@ -79,8 +84,11 @@ func (p *toolProgress) observe(turn int, call ContentBlock, result ToolResult) *
 	}{observed, result.IsError})
 	fingerprint := sha256.Sum256(raw)
 	pattern := p.patterns.observe(turn, call, key, fingerprint, result)
+	if pattern == nil {
+		pattern = advisory
+	}
 	if p.turn != turn || p.key != key || p.result != fingerprint {
-		*p = toolProgress{turn: turn, key: key, result: fingerprint, count: 1, patterns: p.patterns}
+		*p = toolProgress{turn: turn, key: key, result: fingerprint, count: 1, patterns: p.patterns, failures: p.failures}
 		return pattern
 	}
 	p.count++
