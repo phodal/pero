@@ -85,3 +85,28 @@ plugin defects (including the coder Array.map/path.resolve call and the SAD
 Pero must not silently rewrite package code or weaken its gates to hide them.
 Further implementation changes belong in Pero. Upstream plugin modifications
 are not part of this task.
+
+## Permission and merge review, 2026-11-05
+
+The nine unresolved base-PR findings are repaired in Pero. Deny/ask matching is
+separate from preapproval, dynamic commands share tool admission, permission
+interruption survives nested execution and ends the turn without Stop-hook
+continuation, and ambiguous MCP elicitation is declined. ServiceStart now carries
+shell admission, unsupported notebooks remain unchanged, Bash output survives
+explicit/remembered subdirectories, and frontmatter retains asyncRewake with the
+same bounded timeout conversion as JSON.
+
+Integrated current base `5f158886` and master `1263c395`. The integration also
+repairs a required-MCP test fixture, preserves operator MCP metadata privacy in
+public session state, and regenerates Bazel npm input hashes. No external plugin
+source or fixture assertions were weakened.
+
+Verification: full Harness `go test -race ./...`, final affected-package race,
+`go vet ./...`, Gazelle diff, all 36 standalone Bazel race targets and CLI build
+passed. Rust contracts/runtime/Host/Worker suites passed (286 tests, one existing
+ignored test). The actual Host build plus MCP settings and ownership contracts
+passed over disposable loopback fixtures. All seven root Bazel generated checks
+also passed. Remaining CI and merge results belong
+to GitHub's final-head checks; local passes do not imply a merge.
+
+Details: [merge review repairs](../../issues/2026-11-05-claude-merge-permission-blockers.md).
