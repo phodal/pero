@@ -203,3 +203,20 @@ regressions. These results do not establish every plugin's business workflow or
 every external service connection. Final frozen-source Go race/vet passed and
 Bazel passed 34/34 targets. The existing real-provider evidence remains the PRD
 flow and one Search/Fetch request each; the full research chain was loopback.
+
+## Explicit Git acquisition
+
+`pero-agent-acp plugins fetch GIT_SOURCE CACHE_DIRECTORY [REF]` fetches a Git
+plugin or marketplace into a new snapshot and prints its absolute directory and
+exact revision. Pass that directory to `--plugin-dir`. Running fetch again updates
+by creating another snapshot: existing directories, edits and running sessions
+are retained. The adjacent `receipt.json` records marketplace and dependency
+revisions. Configuration inspection does not fetch anything implicitly.
+
+Sources are absolute local Git paths or HTTPS/SSH URLs. Marketplace `github`,
+`url` and `git-subdir` entries are acquired separately, honoring `ref`/full `sha`,
+and rewritten to contained snapshot paths. Git authentication uses the operator's
+existing Git configuration; credentials in HTTPS URLs are rejected. Hook/MCP
+commands and package installers never run during acquisition. The CLI bounds
+acquisition to five minutes; Unix cancellation terminates the Git process group.
+Archive/npm/command sources and submodule installation remain unsupported.
