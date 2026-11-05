@@ -99,6 +99,8 @@ hierarchy. Use color to identify content, guide attention and express character.
   GPUI. Extend the existing library before adding page-local control styles.
   Choose visibility and disclosure from the current task stage; keep primary
   work and decision-critical information directly accessible.
+  Reuse the shared icon families and content registry. Follow DESIGN's icon
+  rules before adding artwork; regenerate shared assets instead of editing outputs.
 - Edit token sources and run their generators; do not hand-edit generated files.
   Map colors by purpose, not by matching hex values across unrelated contexts.
   Follow DESIGN's tonal roles for surfaces, selection, emphasis and foregrounds;
