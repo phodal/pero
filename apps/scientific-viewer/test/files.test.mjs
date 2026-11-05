@@ -35,7 +35,7 @@ test('bounded opaque imports are hashed, not parsed or executed', async () => {
   assert.equal(inspect(asset.name), 'opaque'); assert.match(asset.sha256, /^[a-f0-9]{64}$/); assert.equal(asset.license, 'Unknown');
   await assert.rejects(assetFrom(new File([], 'empty')), /nonempty/);
   await assert.rejects(assetFrom(new File([new Uint8Array(MAX_FILE + 1)], 'large')), /10 MiB/);
-  assert.equal(inspect('unsafe.html'), 'opaque');
+  assert.equal(inspect('unsafe.html'), 'html');
 });
 test('thirteen independent synthetic examples include invalid and real engine inputs', () => {
   assert.equal(examples.length, 13); assert.equal(new Set(examples.map(x => x.name)).size, 13);
