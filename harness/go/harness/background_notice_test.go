@@ -96,6 +96,58 @@ func TestBackgroundNoticePersistenceBarrier(t *testing.T) {
 	}
 }
 
+func TestObservedBackgroundNoticeKeepsUnrelatedWork(t *testing.T) {
+	for _, published := range []bool{false, true} {
+		t.Run(map[bool]string{false: "read before notice", true: "read after notice"}[published], func(t *testing.T) {
+			h, err := Boot(t.Context(), Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
+			agent, err := h.Agents().Create(t.Context(), AgentOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := agent.InterruptDSH(errors.New("keep queued work parked")); err != nil {
+				t.Fatal(err)
+			}
+			message := func(id string) Message {
+				return Message{ID: id, Role: RoleUser, Source: json.RawMessage(`{"kind":"bash-settled"}`), Content: []ContentBlock{{Type: BlockText, Text: id}}}
+			}
+			for _, id := range []string{"before", "observed", "after"} {
+				if id == "observed" && !published {
+					continue
+				}
+				if err := agent.DeliverBackgroundNotice(t.Context(), message(id)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := agent.AcknowledgeBackgroundNotice(t.Context(), message("observed")); err != nil {
+				t.Fatal(err)
+			}
+			if err := agent.DeliverBackgroundNotice(t.Context(), message("observed")); err != nil {
+				t.Fatal(err)
+			}
+			pending := agent.PendingDurableInbox(InboxNextTurn)
+			if len(pending) != 2 || pending[0].ID != "before" || pending[1].ID != "after" || agent.Status() != AgentIdle {
+				t.Fatalf("observation changed unrelated FIFO work or woke an interrupted agent: %v", pending)
+			}
+			changed := message("before")
+			changed.Content[0].Text = "different receipt"
+			if err := agent.AcknowledgeBackgroundNotice(t.Context(), changed); err == nil || len(agent.PendingDurableInbox(InboxNextTurn)) != 2 {
+				t.Fatal("mismatched content withdrew another receipt")
+			}
+			replayed, err := NewDurableInbox(agent.Session())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if inserted, err := replayed.Append(InboxNextTurn, message("observed")); err != nil || inserted || len(replayed.Pending(InboxNextTurn)) != 2 {
+				t.Fatalf("replay forgot observed notice identity: inserted=%t err=%v", inserted, err)
+			}
+		})
+	}
+}
+
 func TestBackgroundNoticeTurnAdmission(t *testing.T) {
 	for _, state := range []string{"live", "canceled", "expired", "retired", "scope-canceled"} {
 		t.Run(state, func(t *testing.T) {

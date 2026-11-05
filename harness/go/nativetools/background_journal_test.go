@@ -13,6 +13,54 @@ func shellFact(seq uint64, kind string, fact any) harness.Event {
 	return harness.Event{Seq: seq, Type: kind, Data: raw}
 }
 
+func TestShellTaskTerminalObservation(t *testing.T) {
+	for _, row := range []struct {
+		name, tool, callTask, receiptTask, kind string
+		status                                  shellTaskStatus
+		retrieval                               harness.TaskRetrieval
+		terminal, replaced, reused, want        bool
+	}{
+		{"completed", "TaskOutput", "bash-one", "bash-one", "shell", shellTaskCompleted, harness.TaskRetrieved, true, false, false, true},
+		{"failed execution retrieved", "TaskOutput", "bash-one", "bash-one", "shell", shellTaskFailed, harness.TaskRetrieved, true, false, false, true},
+		{"stopped execution retrieved", "TaskStop", "bash-one", "bash-one", "shell", shellTaskInterrupted, harness.TaskRetrieved, true, false, false, true},
+		{"running read", "TaskOutput", "bash-one", "bash-one", "shell", shellTaskRunning, harness.TaskNotReady, false, false, false, false},
+		{"read timeout", "TaskOutput", "bash-one", "bash-one", "shell", shellTaskCompleted, harness.TaskTimedOut, true, false, false, false},
+		{"wrong requested task", "TaskOutput", "bash-other", "bash-one", "shell", shellTaskCompleted, harness.TaskRetrieved, true, false, false, false},
+		{"wrong receipt task", "TaskOutput", "bash-one", "bash-other", "shell", shellTaskCompleted, harness.TaskRetrieved, true, false, false, false},
+		{"wrong task kind", "TaskOutput", "bash-one", "bash-one", "agent", shellTaskCompleted, harness.TaskRetrieved, true, false, false, false},
+		{"without terminal fact", "TaskOutput", "bash-one", "bash-one", "shell", shellTaskCompleted, harness.TaskRetrieved, false, false, false, false},
+		{"other tool", "Read", "bash-one", "bash-one", "shell", shellTaskCompleted, harness.TaskRetrieved, true, false, false, false},
+		{"surface replacement", "TaskOutput", "bash-one", "bash-one", "shell", shellTaskCompleted, harness.TaskRetrieved, true, true, false, false},
+		{"reused id belongs to later call", "Read", "bash-one", "bash-one", "shell", shellTaskCompleted, harness.TaskRetrieved, true, false, true, false},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			intent := shellTaskIntent{Version: 1, ID: "bash-one", Owner: "owner", Command: "true", Workdir: "/workspace", TimeoutMS: 30000, Background: true}
+			events := []harness.Event{shellFact(1, shellTaskStarted, intent)}
+			if row.terminal {
+				exit := 0
+				events = append(events, shellFact(2, shellTaskEnded, shellTaskTerminal{Version: 1, ID: intent.ID, Owner: intent.Owner, Status: row.status, Result: &shell.RunResult{ExitCode: &exit}}))
+			}
+			call := func(seq uint64, name string) harness.Event {
+				return harness.Event{Seq: seq, Type: "tool/call", Data: json.RawMessage(`{"callId":"read","name":"` + name + `","arguments":{"task_id":"` + row.callTask + `"}}`)}
+			}
+			if row.reused {
+				events = append(events, call(3, "TaskOutput"))
+			}
+			events = append(events, call(4, row.tool))
+			receipt := `{"task_id":"` + row.receiptTask + `","kind":"` + row.kind + `","status":"` + string(row.status) + `","retrieval_status":"` + string(row.retrieval) + `"}`
+			result := shellFact(5, "tool/result", harness.ContentBlock{Type: harness.BlockToolResult, ToolCallID: "read", IsError: row.status == shellTaskFailed, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: receipt}}})
+			if row.replaced {
+				result.SurfaceOp = json.RawMessage(`{"op":"replace","start":3,"end":3}`)
+			}
+			events = append(events, result)
+			history, err := foldShellTasks(events, intent.Owner)
+			if err != nil || (history[intent.ID].observedSeq != 0) != row.want {
+				t.Fatalf("observation=%d want=%t err=%v", history[intent.ID].observedSeq, row.want, err)
+			}
+		})
+	}
+}
+
 func TestShellTaskPromotionTransitions(t *testing.T) {
 	intent := shellTaskIntent{Version: 1, ID: "bash-promoted", Owner: "owner", Command: "printf work", Workdir: "/workspace", TimeoutMS: 100}
 	promotion := shellTaskPromotion{Version: 1, ID: intent.ID, Owner: intent.Owner, TimeoutMS: 1800000}
