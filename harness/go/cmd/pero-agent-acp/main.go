@@ -76,6 +76,7 @@ func run() (resultErr error) {
 	skillRoots := bindSkillRoots(flag.CommandLine)
 	pluginConfig := bindPluginOptions(flag.CommandLine)
 	compaction := bindCompaction(flag.CommandLine)
+	toolHistory := bindToolHistory(flag.CommandLine)
 	sandboxOptions := bindSandbox(flag.CommandLine)
 	selectable := bindSelectableModels(flag.CommandLine)
 	coding := bindCodingOptions(flag.CommandLine)
@@ -169,6 +170,10 @@ func run() (resultErr error) {
 		return err
 	}
 	compactionConfig, err := configuredCompaction(&providerConfig, *compaction)
+	if err != nil {
+		return err
+	}
+	toolHistoryConfig, err := toolHistory.config(*workspace)
 	if err != nil {
 		return err
 	}
@@ -409,6 +414,12 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
+	if err := mountToolHistory(ctx, h, toolHistoryConfig); err != nil {
+		return err
+	}
+	if err := mountLaunchReceipt(ctx, h, launchReceipt{Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking, ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != ""}); err != nil {
+		return err
+	}
 	if *initOnly || *maintenance {
 		trigger := "init"
 		if *maintenance {
@@ -426,7 +437,7 @@ func run() (resultErr error) {
 		return nil
 	}
 	if *printMode {
-		return runPrintPrepared(ctx, h, pluginHooks, *model, *workspace, printPrompt, *maxTurnSteps, engineering.preparePrompt(engineeringApp))
+		return runPrintPrepared(ctx, h, pluginHooks, *model, *workspace, printPrompt, harness.AgentOptions{MaxSteps: *maxTurnSteps, Compaction: compactionConfig}, engineering.preparePrompt(engineeringApp))
 	}
 	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
 	serverOptions.PreparePrompt = engineering.preparePrompt(engineeringApp)
@@ -481,6 +492,7 @@ type providerBudget struct {
 	MaxTokens           int
 	MaxRetries          int
 	ReasoningEffort     string
+	RequestTimeoutMS    int64
 }
 
 func bindProviderBudget(flags *flag.FlagSet) *providerBudget {
@@ -495,6 +507,7 @@ func bindProviderBudget(flags *flag.FlagSet) *providerBudget {
 	flags.IntVar(&budget.MaxTokens, "max-tokens", 0, "hard per-request output token cap (0 keeps provider default)")
 	flags.IntVar(&budget.MaxRetries, "max-retries", -1, "provider recovery retry count (0 disables; -1 preserves default)")
 	flags.StringVar(&budget.ReasoningEffort, "reasoning-effort", "", "explicit provider reasoning effort/default; omitted preserves existing behavior")
+	flags.Int64Var(&budget.RequestTimeoutMS, "request-timeout-ms", 0, "optional total provider request deadline, including continuous slow streams; 0 keeps the outer task deadline; no default retry on expiry")
 	return budget
 }
 func configuredProvider(endpoint, model, credential string, budget providerBudget) (openai.Config, error) {
@@ -513,6 +526,7 @@ func configuredProvider(endpoint, model, credential string, budget providerBudge
 		declared.Reasoning = &harness.ModelReasoningInfo{DefaultEffort: effort, Efforts: []harness.ReasoningEffortInfo{{ID: effort, Name: budget.ReasoningEffort}}}
 	}
 	config := openai.Config{APIFormat: openai.APIFormat(budget.APIFormat), Endpoint: endpoint, APIKey: credential, ProviderName: "configured", Models: []openai.ModelConfig{declared}, MaxRequests: budget.MaxRequests, MaxOutputTokens: budget.MaxTokens, UseEnvironmentProxy: budget.UseEnvironmentProxy, AllowHTTP: budget.AllowHTTP, DisableThinking: budget.DisableThinking, DisableStreaming: budget.DisableStreaming}
+	config.RequestTimeoutMS = budget.RequestTimeoutMS
 	if budget.MaxRetries >= 0 {
 		count := budget.MaxRetries
 		config.RetryPolicy = &harness.RetryPolicyConfig{Mode: harness.RetryNormal, MaxRetries: &count}

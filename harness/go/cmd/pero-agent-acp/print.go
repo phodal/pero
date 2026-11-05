@@ -15,11 +15,12 @@ import (
 )
 
 func runPrint(ctx context.Context, h *harness.Harness, hooks *pluginruntime.HookApp, model, workspace, prompt string) error {
-	return runPrintPrepared(ctx, h, hooks, model, workspace, prompt, 0, nil)
+	return runPrintPrepared(ctx, h, hooks, model, workspace, prompt, harness.AgentOptions{}, nil)
 }
 
-func runPrintPrepared(ctx context.Context, h *harness.Harness, hooks *pluginruntime.HookApp, model, workspace, prompt string, maxSteps int, prepare func(context.Context, *harness.Agent, *harness.Message) (func(), error)) error {
-	agent, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "print", CWD: workspace, Provider: "configured", Model: model, MaxSteps: maxSteps})
+func runPrintPrepared(ctx context.Context, h *harness.Harness, hooks *pluginruntime.HookApp, model, workspace, prompt string, options harness.AgentOptions, prepare func(context.Context, *harness.Agent, *harness.Message) (func(), error)) error {
+	options.ID, options.CWD, options.Provider, options.Model = "print", workspace, "configured", model
+	agent, err := h.Agents().Create(ctx, options)
 	if err != nil {
 		return err
 	}
