@@ -277,3 +277,19 @@ uses v3 for the remaining selected timeout/step/verifier-bootstrap corrections
 and the independent current-code service acceptance. Original results and all
 earlier freezes are retained. Final integrity checks, failure triage and the
 full summary remain gated on every required phase finishing.
+
+## Final image alias readiness correction
+
+At 76 actual-started verdicts and 29 raw reward-one results, `overfull-hbox`
+fails before setup with zero requests: the final original alias retains the
+first mirror's `application/octet-stream` descriptor. The second-mirror
+reference has the correct manifest type and layers. Earlier architecture
+checks establish readiness of that mirror reference, not every final alias.
+A fresh inventory finds this defect on only one of the 30 original aliases.
+
+Replacing only that alias descriptor preserves its frozen digest and image ID;
+an actual disposable container starts the original alias and exits zero.
+The unrelated main queue resumes. The idle setup-recovery controller now
+queues both this slot and Windows after the main queue; both zero-request
+failures remain retained and counted. Candidate verdicts and full completion
+are still pending. See the [canonical alias incident](../issues/2026-11-05-benchmark-image-alias-media-type.md).
