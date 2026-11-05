@@ -1,6 +1,7 @@
+import { Input, Textarea, Select } from '@pero/app-sdk/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { appObjectProps, downloadFile, useAppApi, useAppChat, useAppDataChanged, useAppObject } from '@pero/app-sdk';
-import { Button, Icon, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { Button, FilePicker, Icon, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import type { Comparison, Engine, Experiment, LabState, Protocol } from './types';
 import { bytesToBase64, exampleProtocol, trialLabel } from './presentation';
 import { Deck } from './deck';
@@ -24,7 +25,7 @@ export default function Lab() {
   const [parentId, setParentId] = useState(''), [reason, setReason] = useState('');
   const [source, setSource] = useState(''), [rationale, setRationale] = useState('');
   const [comparison, setComparison] = useState<Comparison | null>(null);
-  const selected = useRef(''), pending = useRef(false), fileInput = useRef<HTMLInputElement>(null);
+  const selected = useRef(''), pending = useRef(false);
   const trial = experiment?.trials.find(item => item.id === trialId);
   const running = experiment?.trials.some(item => item.status === 'running') ?? false;
   const fail = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
@@ -118,7 +119,6 @@ export default function Lab() {
       update(await api.post<Experiment>(`/api/experiments/${experiment.id}/import`, { trialId: trial.id, filename: file.name, content_base64, source }));
       setNotice('Measurement imported.');
     });
-    if (fileInput.current) fileInput.current.value = '';
   }
   async function review(decision: string) {
     if (!experiment || !trial) return;
@@ -142,8 +142,8 @@ export default function Lab() {
     </div></header>
     {error && <div className="error app-error" role="alert"><Icon name="alert" />{error} <Button onClick={() => void perform(refresh)} disabled={busy}>Retry connection</Button></div>}
     {engine?.error && <p className="error app-error">{engine.error}</p>}
-    {!loading && <div className="context-row"><label className="experiment-picker">Experiment<select aria-label="Saved experiments" title={experiment?.objective} value={experiment?.id ?? ''} disabled={busy} onChange={event => { if (event.target.value) void open(event.target.value); else startNewExperiment(); }}><option value="">New experiment</option>{history.map(item => <option value={item.id} key={item.id}>{item.objective} ({item.trials.length} trials)</option>)}</select></label>
-      {experiment && <div className="toolbar"><label>Trial<select aria-label="Trial" value={trialId} onChange={event => setTrialId(event.target.value)} disabled={busy}><option value="">Select trial</option>{experiment.trials.map((item, index) => <option value={item.id} key={item.id}>{index + 1}: {item.status}{item.parent_trial_id ? ' (revision)' : ''}</option>)}</select></label><Button variant="ghost" disabled={busy} onClick={() => void perform(async () => { const report = await api.get<unknown>(`/api/experiments/${experiment.id}/export`); downloadFile(`lab-${experiment.id}.json`, JSON.stringify(report, null, 2), 'application/json'); setNotice('Evidence report exported.'); })}><Icon name="export" />Export JSON</Button></div>}
+    {!loading && <div className="context-row"><label className="experiment-picker">Experiment<Select label="Saved experiments" title={experiment?.objective} value={experiment?.id ?? ''} disabled={busy} onChange={value => { if (value) void open(value); else startNewExperiment(); }} options={[{value:"",label:"New experiment"}, ...history.map(item => ({value:item.id,label:`${item.objective} (${item.trials.length} trials)`}))]}/></label>
+      {experiment && <div className="toolbar"><label>Trial<Select label="Trial" value={trialId} onChange={setTrialId} disabled={busy} options={[{value:"",label:"Select trial"}, ...experiment.trials.map((item, index) => ({value:item.id,label:`${index + 1}: ${item.status}${item.parent_trial_id ? ' (revision)' : ''}`}))]}/></label><Button variant="ghost" disabled={busy} onClick={() => void perform(async () => { const report = await api.get<unknown>(`/api/experiments/${experiment.id}/export`); downloadFile(`lab-${experiment.id}.json`, JSON.stringify(report, null, 2), 'application/json'); setNotice('Evidence report exported.'); })}><Icon name="export" />Export JSON</Button></div>}
     </div>}
     {experiment && <div className="experiment-summary"><span className="frozen-label"><Icon name="lock" size={12} />Frozen</span><span>{experiment.criteria.target_well}</span><span>{experiment.criteria.target_volume_ul} ± {experiment.criteria.volume_tolerance_ul} µL</span><span>Red fraction {experiment.criteria.target_fraction} ± {experiment.criteria.tolerance}</span><span>{experiment.trials.length}/{experiment.max_trials} trials</span></div>}
     <div className="lab-workspace">
@@ -151,12 +151,12 @@ export default function Lab() {
       {!experiment ? <Split className="setup-layout" storageKey="lab.setup.workbench.panes" collapseBelow={820}>
         <SplitPane id="goal" className="goal-pane" min={300} size={320} resizeLabel="Resize experiment goal">
           <section className="new-experiment"><h2><Icon name="target" />Experiment goal</h2>
-            <label>Objective<textarea className="objective-input" rows={2} value={objective} maxLength={500} disabled={busy} onChange={event => setObjective(event.target.value)} /></label>
+            <label>Objective<Textarea className="objective-input" rows={2} value={objective} maxLength={500} disabled={busy} onChange={event => setObjective(event.target.value)} /></label>
             <div className="fields">
-              <label>Target red fraction<input type="number" min="0" max="1" step="0.01" value={target} disabled={busy} onChange={event => setTarget(event.target.value)} /></label>
-              <label>Tolerance<input type="number" min="0" max="1" step="0.01" value={tolerance} disabled={busy} onChange={event => setTolerance(event.target.value)} /></label>
+              <label>Target red fraction<Input type="number" min="0" max="1" step="0.01" value={target} disabled={busy} onChange={event => setTarget(event.target.value)} /></label>
+              <label>Tolerance<Input type="number" min="0" max="1" step="0.01" value={tolerance} disabled={busy} onChange={event => setTolerance(event.target.value)} /></label>
             </div>
-            <label>Maximum trials<input type="number" min="1" max="8" value={budget} disabled={busy} onChange={event => setBudget(event.target.value)} /></label>
+            <label>Maximum trials<Input type="number" min="1" max="8" value={budget} disabled={busy} onChange={event => setBudget(event.target.value)} /></label>
             <dl className="facts goal-facts"><dt>Target well</dt><dd>B1</dd><dt>Final volume</dt><dd>100 ± 1 µL</dd><dt>Step limit</dt><dd>64 per trial</dd></dl>
           </section>
         </SplitPane>
@@ -169,7 +169,7 @@ export default function Lab() {
               <ProtocolEditor heading={parentId ? 'Revision draft' : 'Candidate draft'} value={draft} onChange={setDraft} disabled={busy || running} state={experiment.initial_state} maxSteps={experiment.max_steps} />
               <div className="draft-footer">
                 {parentId && <p className="muted">Revises {trialLabel(experiment.trials, parentId)}</p>}
-                <details className="candidate-rationale" key={parentId || 'candidate'} open={!!parentId}><summary>{parentId ? 'Revision rationale (required)' : 'Candidate rationale'}</summary><input aria-label={parentId ? 'Revision rationale' : 'Candidate rationale'} value={reason} onChange={event => setReason(event.target.value)} disabled={busy || running} required={!!parentId} /></details>
+                <details className="candidate-rationale" key={parentId || 'candidate'} open={!!parentId}><summary>{parentId ? 'Revision rationale (required)' : 'Candidate rationale'}</summary><Input aria-label={parentId ? 'Revision rationale' : 'Candidate rationale'} value={reason} onChange={event => setReason(event.target.value)} disabled={busy || running} required={!!parentId} /></details>
                 <div className="toolbar save-toolbar"><Button disabled={busy || running} onClick={() => { setDraft(JSON.stringify(exampleProtocol(50, experiment.initial_state.revision), null, 2)); }}>Load example protocol</Button><Button variant="primary" disabled={busy || running || experiment.trials.length >= experiment.max_trials || (!!parentId && !reason.trim())} onClick={() => void propose()}><Icon name="save" />Save candidate</Button></div>
                 {experiment.trials.length >= experiment.max_trials && <p className="notice">Trial limit reached. Start a new experiment.</p>}
               </div>
@@ -189,11 +189,11 @@ export default function Lab() {
           <TabsContent value="runs">{running && <div className="toolbar"><p role="status">Simulation running…</p><Button onClick={() => { if (experiment) void api.post<Experiment>(`/api/experiments/${experiment.id}/cancel`, { trialId }).then(update).catch(fail); }}>Cancel simulation</Button></div>}<Timeline trial={trial} /></TabsContent>
           <TabsContent value="results"><Results experiment={experiment} trial={trial} comparison={comparison} />
             <section className="result-actions"><h2>Evidence</h2><p className="muted">Synthetic fixture: +0.1 fraction bias, not a measurement.</p><div className="toolbar"><Button disabled={busy || trial?.status !== 'completed' || !!trial?.observations.length || !!trial?.verification} onClick={() => void act('observe')}>Attach synthetic fixture</Button><Button variant="primary" disabled={busy || !trial || ['proposed', 'validated', 'running'].includes(trial.status) || !!trial.verification} onClick={() => void act('evaluate')}>Evaluate</Button><Button disabled={busy || experiment.trials.length < 2} onClick={() => void perform(async () => { setComparison(await api.post<Comparison>(`/api/experiments/${experiment.id}/compare`, {})); })}>Compare trials</Button><Button disabled={busy || !trial?.verification || running} onClick={revise}>Revise from feedback</Button></div>
-              <label>Measurement source<input value={source} placeholder="Instrument, dataset or laboratory record" onChange={event => setSource(event.target.value)} /></label><label>Import CSV or JSON<input ref={fileInput} type="file" accept=".csv,.json" disabled={busy || trial?.status !== 'completed' || !source.trim() || !!trial?.observations.length || !!trial?.verification} onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); }} /></label>
+              <label>Measurement source<Input value={source} placeholder="Instrument, dataset or laboratory record" onChange={event => setSource(event.target.value)} /></label><FilePicker label="Import CSV or JSON" emptyLabel="No file selected" accept=".csv,.json" disabled={busy || trial?.status !== 'completed' || !source.trim() || !!trial?.observations.length || !!trial?.verification} onFile={file => void importFile(file)}/>
               <p className="muted">Fraction units; up to 64 KiB.</p>
               <details><summary>Import format</summary><pre>{'well,value,unit\nB1,0.5,fraction\n'}</pre><p className="muted">Original bytes and SHA-256 are retained.</p></details>
             </section>
-            <section><h2>Review decision</h2><label>Review rationale<input value={rationale} onChange={event => setRationale(event.target.value)} /></label><div className="toolbar"><Button disabled={busy || !trial?.verification || !rationale.trim() || running} onClick={event => { if (!event.nativeEvent.isTrusted) { setError('Review requires a direct UI interaction.'); return; } void review('accepted'); }}>Accept trial</Button><Button disabled={busy || !trial?.verification || !rationale.trim() || running} onClick={event => { if (!event.nativeEvent.isTrusted) { setError('Review requires a direct UI interaction.'); return; } void review('rejected'); }}>Reject trial</Button></div></section>
+            <section><h2>Review decision</h2><label>Review rationale<Input value={rationale} onChange={event => setRationale(event.target.value)} /></label><div className="toolbar"><Button disabled={busy || !trial?.verification || !rationale.trim() || running} onClick={event => { if (!event.nativeEvent.isTrusted) { setError('Review requires a direct UI interaction.'); return; } void review('accepted'); }}>Accept trial</Button><Button disabled={busy || !trial?.verification || !rationale.trim() || running} onClick={event => { if (!event.nativeEvent.isTrusted) { setError('Review requires a direct UI interaction.'); return; } void review('rejected'); }}>Reject trial</Button></div></section>
           </TabsContent>
         </Tabs>
       </>}

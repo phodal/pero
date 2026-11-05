@@ -1,3 +1,4 @@
+import { Input, Textarea, Select } from '@pero/app-sdk/ui';
 import React, { useId, useState } from 'react';
 import { Button, Icon } from '@pero/app-sdk/ui';
 import type { LabState } from './types';
@@ -24,7 +25,7 @@ export function ProtocolEditor({ value, onChange, disabled, state, maxSteps, hea
       </div>
     </div>
     <div className="protocol-body">
-    {view === 'json' ? <label className="json-editor-label"><span className="muted">Protocol JSON</span><textarea className="protocol-editor" spellCheck={false} value={value} onChange={event => onChange(event.target.value)} disabled={disabled} /></label> : !document ? <div className="editor-message">
+    {view === 'json' ? <label className="json-editor-label"><span className="muted">Protocol JSON</span><Textarea className="protocol-editor" spellCheck={false} value={value} onChange={event => onChange(event.target.value)} disabled={disabled} /></label> : !document ? <div className="editor-message">
       <p className="error" role="status">{parsed.kind === 'json' && parsed.message}</p>
       <Button onClick={() => setView('json')}>Edit JSON</Button>
     </div> : <>
@@ -35,12 +36,10 @@ export function ProtocolEditor({ value, onChange, disabled, state, maxSteps, hea
         <thead><tr><th scope="col">Step</th><th scope="col">Operation</th><th scope="col">Resource</th><th scope="col">µL</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
         <tbody>{document.steps.map((step, index) => <tr key={index}>
           <th scope="row">{index + 1}</th>
-          <td><select aria-label={`Step ${index + 1} operation`} value={step.op} disabled={disabled} onChange={event => onChange(editProtocolStep(document, index, 'op', event.target.value))}>
-              {!Object.hasOwn(operationLabels, step.op) && <option value={step.op}>{step.op}</option>}
-              {Object.entries(operationLabels).map(([operation, label]) => <option key={operation} value={operation}>{label}</option>)}
-            </select></td>
-          <td><input aria-label={`Step ${index + 1} resource`} list={resourceList} value={step.resource} disabled={disabled} onChange={event => onChange(editProtocolStep(document, index, 'resource', event.target.value))} /></td>
-          <td>{(step.op === 'aspirate' || step.op === 'dispense' || step.volume_ul !== undefined) ? <input aria-label={`Step ${index + 1} volume in microliters`} type="number" step="any" value={step.volume_ul ?? ''} disabled={disabled} onChange={event => onChange(editProtocolStep(document, index, 'volume_ul', event.target.value))} /> : <span className="muted" aria-label="Not applicable">—</span>}</td>
+          <td><Select label={`Step ${index + 1} operation`} value={step.op} disabled={disabled} onChange={value => onChange(editProtocolStep(document, index, 'op', value))}
+              options={[...(!Object.hasOwn(operationLabels, step.op) ? [{value:step.op,label:step.op}] : []), ...Object.entries(operationLabels).map(([value,label]) => ({value,label}))]}/></td>
+          <td><Input aria-label={`Step ${index + 1} resource`} list={resourceList} value={step.resource} disabled={disabled} onChange={event => onChange(editProtocolStep(document, index, 'resource', event.target.value))} /></td>
+          <td>{(step.op === 'aspirate' || step.op === 'dispense' || step.volume_ul !== undefined) ? <Input aria-label={`Step ${index + 1} volume in microliters`} type="number" step="any" value={step.volume_ul ?? ''} disabled={disabled} onChange={event => onChange(editProtocolStep(document, index, 'volume_ul', event.target.value))} /> : <span className="muted" aria-label="Not applicable">—</span>}</td>
           <td><div className="step-actions">
             <Button className="icon-button" variant="ghost" aria-label={`Move step ${index + 1} up`} title="Move up" disabled={disabled || index === 0} onClick={() => {
               const steps = [...document.steps]; [steps[index - 1], steps[index]] = [steps[index], steps[index - 1]];

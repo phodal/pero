@@ -1,3 +1,4 @@
+import { Button } from "@pero/app-sdk/ui";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { AppProvider } from "@pero/app-sdk";
@@ -15,7 +16,7 @@ class ErrorBoundary extends React.Component<
       <main role="alert">
         <h1>Lab could not load</h1>
         <p>{this.state.error}</p>
-        <button onClick={() => location.reload()}>Reload</button>
+        <Button onClick={() => location.reload()}>Reload</Button>
       </main>
     ) : (
       this.props.children
