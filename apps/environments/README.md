@@ -5,7 +5,7 @@ Control Lab methods. This is an observation UI, not a second compute scheduler.
 
 ## Available paths
 
-- Open the Environments App, search/filter the three supported methods, switch
+- Open Environments from the Workspace sidebar, search/filter the three supported methods, switch
   table/grid, inspect one or all, and review installed versions and missing requirements.
 - Paper's reproduction panel opens the same inspector scoped to PC-Gym.
 - Control Lab's engine availability opens it scoped to python-control and ngspice.
@@ -57,9 +57,8 @@ npm --prefix apps/environments run check
 PERO_ENVIRONMENTS_TEST_VENV=/absolute/path/to/existing/venv node tests/e2e/environments.mjs
 ```
 
-The product manifest includes the App as optional. The normal existing builtin
-catalog exposes it; no alternative shell navigation or App installation system
-is added. Dependency pins and lock are inherited from the existing Connectors
+The product includes Environments as an optional App. Manage it from the Apps
+catalog. Dependency pins and lock are inherited from the existing Connectors
 App, with the package identity changed. Actual development verification and
 remaining Native/scientific acceptance are recorded in
 [Environments UI](../../docs/fitness/environments-ui.md).

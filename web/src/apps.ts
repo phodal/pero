@@ -84,6 +84,8 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   // Geometry updates on every prepaint during window resize. Re-posting Host
   // context each time remounts App theme effects and blanks EmbedPDF/canvas.
   const context = (frame:Frame) => {
+    // Cache only deliveries made after the App has installed its listener.
+    if (!frame.ready) return;
     const value=mounts.get(key(frame.name,frame.panel))?.surface||surface;
     const next={appearance:value.appearance,dark:value.dark,locale:normalizeLocale(value.locale),active:value.visible,titlebar:true};
     const serialized=JSON.stringify(next);
@@ -292,7 +294,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       return;
     }
     if (event.data?.type !== 'pero:app:ready') return;
-    clearTimeout(frame.timer); frame.ready = true;
+    clearTimeout(frame.timer); frame.ready = true; frame.contextKey = undefined;
     frame.element.contentWindow?.postMessage({type:'pero:app:icon-theme',theme:iconTheme},'*');
     const slot=mounts.get(key(frame.name,frame.panel));if(slot?.surface.visible&&slot.surface.pane!==undefined&&slot.surface.focused)frame.element.contentWindow?.focus();
     context(frame);

@@ -26,8 +26,9 @@ if (process.argv.includes('--serve')) {
     await page.goto(preview.url);
     const app = page.frameLocator('iframe[title="scientific-viewer"]');
     const example = async name => {
-      await app.getByLabel('Example', { exact: true }).selectOption(name);
-      await expect(app.getByLabel('Current file', { exact: true }).locator('option:checked')).toHaveText(name);
+      await app.getByRole('button', { name: 'Example', exact: true }).click();
+      await app.getByRole('option', { name, exact: true }).click();
+      await expect(app.getByRole('button', { name: 'Current file', exact: true })).toHaveText(name);
       await expect(app.getByText('Synthetic example, unverified', { exact: true })).toBeVisible();
     };
     const capture = name => page.locator('iframe').screenshot({ path: resolve(out, `${name}.png`) });
@@ -98,7 +99,7 @@ if (process.argv.includes('--serve')) {
     phase = 'import-and-pagination';
     const long = 'time[s],signal[V]\n' + Array.from({ length: 205 }, (_, i) => `${i},${i / 10}`).join('\n') + '\n';
     await app.getByLabel('Import file', { exact: true }).setInputFiles({ name: '205-observations.csv', mimeType: 'text/csv', buffer: Buffer.from(long) });
-    await expect(app.getByLabel('Current file', { exact: true }).locator('option:checked')).toHaveText('205-observations.csv');
+    await expect(app.getByRole('button', { name: 'Current file', exact: true })).toHaveText('205-observations.csv');
     await app.getByRole('button', { name: 'Table', exact: true }).click();
     await expect(app.getByRole('table').locator('tbody tr')).toHaveCount(100);
     await app.getByRole('button', { name: 'Next page', exact: true }).click();
@@ -107,7 +108,8 @@ if (process.argv.includes('--serve')) {
     await expect(app.getByText('Rows 201–205 of 205', { exact: true })).toBeVisible();
     await expect(app.getByRole('button', { name: 'Next page', exact: true })).toBeDisabled();
     await page.reload();
-    await app.getByLabel('Current file', { exact: true }).selectOption({ label: '205-observations.csv' });
+    await app.getByRole('button', { name: 'Current file', exact: true }).click();
+    await app.getByRole('option', { name: '205-observations.csv', exact: true }).click();
     await expect(app.locator('.numeric-point')).toHaveCount(205);
     checks.push('Native file import persists exact 205 rows through IndexedDB reload; every row reachable by pagination');
 
