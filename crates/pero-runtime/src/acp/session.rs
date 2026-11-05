@@ -123,7 +123,9 @@ fn start_with_workspace_access(
     let managed = config.managed_mcp.clone().unwrap_or_default();
     let mcp_runtime = Arc::new(Mutex::new(pero_contracts::mcp_runtime::McpRuntimeSession::new(
         config.id.clone(), thread.clone(), incarnation, managed.revision,
-        config.mcp_server_names(),
+        managed.servers.iter().filter(|server| server.enabled).map(|server| server.name.clone())
+            .chain(config.required_mcp_servers.iter().cloned())
+            .collect::<std::collections::BTreeSet<_>>().into_iter().collect(),
     )));
     let runtime_snapshot = mcp_runtime.clone();
     let permissions: Permissions = Arc::default();
