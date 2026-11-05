@@ -203,13 +203,23 @@ async function session(id) {
 async function assertPublicState() {
   const publicText = JSON.stringify(await state()) + JSON.stringify(await evaluate(() => window.mcpAcceptanceEvents));
   expect(publicText.includes(fixture.secret)).toBe(false);
-  expect(publicText.includes('operator-only')).toBe(false);
+  // Operator identities are now observed alongside builtins. Configuration and
+  // credentials still remain outside the public runtime projection.
+  const snapshots = (await mcp()).sessions;
+  for (const snapshot of snapshots) {
+    const operator = snapshot.servers.find(server => server.server === 'operator-only');
+    if (operator) expect(Object.keys(operator).sort()).toEqual(['generation', 'server', 'status', 'tools']);
+  }
 }
 async function lifecycle() {
   await click('mcp-add'); await click('mcp-http'); await input(0, 'Local docs'); await input(1, fixture.url);
   await click('mcp-save'); await settled();
   expect((await mcp()).config.servers[0].enabled).toBe(false);
-  expect(await session('ui-disabled')).toEqual([]); await capture('configured-disabled');
+  expect(await session('ui-disabled')).toEqual([]);
+  const operator = (await mcp()).sessions.flatMap(snapshot => snapshot.servers).find(server => server.server === 'operator-only');
+  expect(operator).toBeDefined();
+  expect(Object.keys(operator).sort()).toEqual(['generation', 'server', 'status', 'tools']);
+  await capture('configured-disabled');
   await click('mcp-toggle-0');
   await expect.poll(async () => (await mcp()).confirm).toEqual([0, true]);
   expect((await mcp()).config.servers[0].enabled).toBe(false); await capture('server-wide-grant');

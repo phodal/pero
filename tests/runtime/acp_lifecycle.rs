@@ -58,6 +58,7 @@ fn launch_with_access(
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let config = AgentConfig {
         session_instructions: String::new(),
+            required_mcp_servers: Default::default(),
         managed_mcp: None,
         id: "fixture".into(),
         name: "Lifecycle fixture".into(),
@@ -70,12 +71,13 @@ fn launch_with_access(
         model: model.map(str::to_owned),
         mcp_servers: vec![],
     };
-    let config = if scenario.starts_with("runtime_") {
+    let mut config = if scenario.starts_with("runtime_") {
         let managed = serde_json::from_value(serde_json::json!({"revision":7,"servers":[
             {"name":"docs","enabled":true,"transport":{"type":"http","url":"http://127.0.0.1/mcp"}}
         ]})).unwrap();
         config.with_managed_mcp(&managed)
     } else { config };
+    if scenario == "runtime_required_failed" { config.required_mcp_servers.insert("docs".into()); }
     let (tx, rx) = mpsc::channel();
     let workspace = Workspace::new();
     let handle = if let Some(endpoint) = app_use {
@@ -819,8 +821,18 @@ fn local_turns_and_worker_execution_share_the_workspace_write_lease() {
 
 #[test]
 fn mcp_runtime_observations_negotiate_and_bind_before_exposing_catalogs() {
-    for scenario in ["runtime_catalog", "runtime_unobservable"] {
+    for scenario in ["runtime_catalog", "runtime_unobservable", "runtime_required_failed"] {
         let (handle, rx, _workspace) = launch(scenario, None);
+        if scenario == "runtime_required_failed" {
+            let mut failed = false;
+            loop {
+                let event = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                assert_ne!(event.kind, "session_ready");
+                if event.kind == "session_error" { assert!(event.text.contains("Required MCP dependencies unavailable: docs")); failed = true; }
+                if event.kind == "session_closed" { assert!(failed); break; }
+            }
+            continue;
+        }
         until(&rx, "session_ready");
         {
             let snapshot = handle.mcp_runtime.lock().unwrap();

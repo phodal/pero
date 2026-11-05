@@ -250,7 +250,7 @@ impl ChatPanel {
         let Some(chat) = self.active_chat.and_then(|i| self.chats.get(i)) else {
             return;
         };
-        if chat.state == SessionState::Closed && chat.can_retarget() {
+        if chat.can_retry() {
             self.replace_empty_session(chat.agent.clone(), cx);
         }
     }
@@ -652,6 +652,7 @@ impl ChatPanel {
             "session_connecting" => chat.state = SessionState::Connecting,
             "session_ready" => {
                 chat.session_id = event.data["sessionId"].as_str().unwrap_or_default().into();
+                if chat.mcp.is_none() { chat.mcp = serde_json::from_value(event.data["peroMcp"].clone()).ok(); }
                 chat.config(&event.data);
                 chat.state = SessionState::Idle;
                 if chat.queued.is_some()
@@ -672,6 +673,11 @@ impl ChatPanel {
                     let contexts = std::mem::take(&mut chat.queued_contexts);
                     let value = json!({"action":"prompt","thread_id":chat.id,"text":text,"contexts":contexts});
                     followup = Some(value);
+                }
+            }
+            "mcp_runtime" => {
+                if let Ok(snapshot) = serde_json::from_value::<pero_contracts::mcp_runtime::McpRuntimeSession>(event.data.clone()) {
+                    if chat.mcp.as_ref().is_none_or(|current| snapshot.can_replace(current)) { chat.mcp = Some(snapshot); }
                 }
             }
             "session_update" => {
@@ -829,6 +835,7 @@ impl ChatPanel {
                     .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
                     .text_color(p.text_muted)
                     .child(self.t(if chat.is_some_and(|c|c.state==SessionState::Connecting){"chat.preparing"}else{"chat.thinking"}))))
+                .when_some(chat.filter(|c| c.state != SessionState::Closed).and_then(|c| c.mcp.as_ref()).map(|mcp| mcp.failed_servers()).filter(|servers| !servers.is_empty()), |el, servers| el.child(div().p(px(12.)).bg(p.warning_bg).text_color(p.warning).rounded(px(4.)).child(self.t("chat.tools_unavailable").replace("{servers}", &servers.join(", ")))))
                 .when(chat.is_some_and(|c|c.error.is_some() && c.state!=SessionState::AuthRequired) && !credential_reminder,|el|el.child(div().p(px(14.)).bg(p.error_bg).text_color(p.error).rounded(px(6.)).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))))))
             .children(chat.filter(|c|c.state==SessionState::AuthRequired).into_iter().map(|chat|{
                 div().w_full().max_w(px(pero_theme::COMPOSER_MAX)).min_w_0().mx_auto().mb(px(10.)).p(px(12.)).bg(p.warning_bg).rounded(px(4.))

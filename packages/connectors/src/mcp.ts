@@ -32,9 +32,12 @@ export class ConnectorMcp {
         const thread = request.headers['x-pero-thread'];
         const actual = request.headers.authorization ?? '';
         const expected = typeof thread === 'string' ? 'Bearer ' + createHmac('sha256', this.token).update(thread).digest('hex') : '';
-        if (request.method !== 'POST' || request.url !== '/mcp' || request.headers.origin || typeof thread !== 'string' || !this.threads.has(thread) ||
+        if (request.url !== '/mcp' || request.headers.origin || typeof thread !== 'string' || !this.threads.has(thread) ||
             actual.length !== expected.length || !timingSafeEqual(Buffer.from(actual), Buffer.from(expected))) {
           response.writeHead(403).end(); return;
+        }
+        if (request.method !== 'POST') {
+          response.writeHead(405, { Allow: 'POST' }).end(); return;
         }
         let size = 0;
         const chunks: Buffer[] = [];
