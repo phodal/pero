@@ -116,7 +116,7 @@ fn start_with_workspace_access(
     let managed = config.managed_mcp.clone().unwrap_or_default();
     let mcp_runtime = Arc::new(Mutex::new(pero_contracts::mcp_runtime::McpRuntimeSession::new(
         config.id.clone(), thread.clone(), incarnation, managed.revision,
-        managed.servers.iter().filter(|server| server.enabled).map(|server| server.name.clone()).collect(),
+        config.mcp_server_names(),
     )));
     let runtime_snapshot = mcp_runtime.clone();
     let permissions: Permissions = Arc::default();
@@ -359,6 +359,13 @@ async fn run(
                 if initialized.agent_capabilities.mcp_capabilities.http {
                     if let Some(endpoint) = &app_use {
                         mcp_servers.push(endpoint.server(&thread));
+                        let mut snapshot = mcp_runtime.lock().unwrap();
+                        if !snapshot.servers.iter().any(|server| server.server == "pero-app-use") {
+                            snapshot.servers.push(pero_contracts::mcp_runtime::McpRuntimeServer {
+                                server: "pero-app-use".into(), generation: 0,
+                                status: pero_contracts::mcp_runtime::McpRuntimeStatus::Connecting, tools: vec![],
+                            });
+                        }
                     }
                 }
                 let (method, mut request) = if let Some(id) = &resume_id {
@@ -414,6 +421,7 @@ async fn run(
             let session: NewSessionResponse = serde_json::from_value(session_data.clone()).map_err(agent_client_protocol::Error::into_internal_error)?;
             let session_id = session.session_id.clone();
             observations.lock().unwrap().bind(session_id.to_string(), &tx);
+            session_data["peroMcp"] = serde_json::to_value(&*mcp_runtime.lock().unwrap()).unwrap_or_default();
             // Session-ready is journaled and replayed on renderer reconnect;
             // initialization is transient, so carry its composer capabilities
             // in the retained session snapshot as well.

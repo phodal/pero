@@ -181,6 +181,18 @@ the changed endpoint: ready in 34 ms, MCP status `connected`, both
 `connectors_list` and `connectors_call` present. No model prompt was sent.
 `node --test packages/connectors/test/mcp.test.mjs` and `npx tsc --noEmit` passed.
 
+## Implementation: actual MCP observations
+
+The Host snapshot now includes operator, managed, plugin and builtin Connector
+servers; App Use joins it when actually included in `session/new`. The retained
+ready receipt carries that snapshot, so its startup observations survive history
+replay. Optional server failure is distinct from Agent readiness. Domain tests
+cover visible failures, disconnected states and unobservable/closed sessions.
+
+The actual Electron/Host/Go probe observed both builtin servers connected and a
+controlled optional endpoint failed. Core Rust suites and repository checks
+passed. The Chat presentation and recovery are verified separately below.
+
 ## What the UI is waiting on
 
 `chat.preparing` is shown while `SessionState::Connecting`. Auto-preparation
