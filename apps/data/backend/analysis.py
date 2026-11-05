@@ -24,7 +24,7 @@ class Analysis:
 
     def _target(self, value, allowed):
         fields(value, (*allowed, 'parserVersion'))
-        request = PreviewRequest.parse({key: item for key, item in value.items() if key != 'columns'})
+        request = PreviewRequest.parse({key: item for key, item in value.items() if key != 'columns'}, max_offset=None)
         view = request.view
         try:
             asset, inspection = self.catalog._inspect(request)

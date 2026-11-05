@@ -276,10 +276,11 @@ class PreviewRequest:
     parserVersion: str = PARSER_VERSION
 
     @classmethod
-    def parse(cls, value):
+    def parse(cls, value, *, max_offset=MAX_ROWS):
         fields(value, ('datasetId', 'assetId', 'view', 'offset', 'limit', 'parserVersion'))
         offset, limit = value.get('offset', 0), value.get('limit', 50)
-        if type(offset) is not int or not 0 <= offset <= MAX_ROWS or type(limit) is not int or not 1 <= limit <= 200:
+        if (type(offset) is not int or offset < 0 or (max_offset is not None and offset > max_offset)
+                or type(limit) is not int or not 1 <= limit <= 200):
             raise ValueError('Use a nonnegative offset and a page size of 1–200')
         parser = value.get('parserVersion', PARSER_VERSION)
         if parser != PARSER_VERSION:
