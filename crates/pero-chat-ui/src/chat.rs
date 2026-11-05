@@ -312,7 +312,7 @@ impl ChatPanel {
             content: self.composer.read(cx).content(),
             references: self.composer_state.references.clone(),
         };
-        if !self.submit_prompt(text, self.attachments.clone(), cx) {
+        if !self.submit_prompt(text, crate::conversation::ComposerDraft::contexts(&draft.content, &draft.references), cx) {
             return;
         }
         self.attachments.clear();
@@ -375,9 +375,15 @@ impl ChatPanel {
         cx: &mut Context<Self>,
     ) -> bool {
         if text.trim().is_empty() && contexts.is_empty()
-            || text.chars().count() > 64000
             || !self.connected
         {
+            return false;
+        }
+        if let Err(error) = pero_contracts::context::validate_prompt_text(&text)
+            .and_then(|()| pero_contracts::context::ContextReference::validate_all(&contexts))
+        {
+            self.error = Some(error.into());
+            cx.notify();
             return false;
         }
         if self.active_chat.is_none() {

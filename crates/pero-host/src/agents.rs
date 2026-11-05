@@ -476,7 +476,7 @@ impl Manager {
                         text,
                         contexts,
                     } if (!text.trim().is_empty() || !contexts.is_empty())
-                        && text.chars().count() <= 64000 =>
+                        && pero_contracts::context::validate_prompt_text(&text).is_ok() =>
                     {
                         if let Err(error) = ContextReference::validate_all(&contexts) {
                             let mut event = HostEvent::new("session_error", None, error.into());

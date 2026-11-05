@@ -71,17 +71,7 @@ impl ChatPanel {
 
     pub(crate) fn update_composer_completion(&mut self, cx: &mut Context<Self>) {
         let editor = self.composer.read(cx);
-        self.attachments = editor
-            .tokens()
-            .iter()
-            .filter_map(|span| {
-                self.composer_state
-                    .references
-                    .get(span.token().id().as_ref())
-                    .cloned()
-            })
-            .collect();
-        self.attachments.dedup_by(|a, b| a.id == b.id);
+        self.attachments = ComposerDraft::contexts(&editor.content(), &self.composer_state.references);
         let rows = editor.value().split('\n').count();
         let wrapped_rows = editor.display_map().wrap_row_count();
         self.context_preview_bounds.retain(|id, _| self.attachments.iter().any(|reference| &reference.id == id));
