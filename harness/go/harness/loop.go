@@ -203,6 +203,9 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		}
 		pending = a.filterFollowupAdmissions(ctx, pending, false)
 		uncommitted = cloneMessages(pending)
+		if _, err := a.effectiveToolResultPruner().PruneHistorySession(a.session); err != nil {
+			return result, err
+		}
 		surfaceBeforePreStep := a.session.SurfaceContentGeneration()
 		decision, pipelineErr := a.hooks.PreStep.Run(ctx, StepInput{Agent: a, Turn: turn, Step: step, Messages: cloneMessages(pending), Continue: continuation}, func(_ context.Context, value StepInput) (StepInput, error) { return value, nil })
 		if pipelineErr != nil {
