@@ -11,6 +11,7 @@ import './shell.css';
 import { applyAppearance } from '../../packages/app-sdk/src/appearance';
 import { normalizeLocale, translate } from '../../locales';
 import { mountAppSurfaces, type AppSurface, type AppSurfaceBatch } from './apps';
+import { mountArtifactPreview, type ArtifactSurface } from './artifact-preview';
 
 export interface HostEvent { version: number; kind: string; request_id: string | null; text: string; message_key?: string; thread_id?: string; data?: unknown }
 declare global {
@@ -25,6 +26,7 @@ declare global {
     peroSetLocale(locale: string): void;
     peroSessionCommand(json: string): void;
     peroAppSurface(json: string): void;
+    peroArtifactSurface(json: string): void;
     peroOpenAppLocation(json:string):void;
     peroAppChatOverlay(json: string): void;
     peroDiagnostics: { snapshot: typeof snapshot };
@@ -43,6 +45,8 @@ try {
     document.documentElement.style.setProperty(`--pero-${key}`, value);
   }
   await init();
+  const artifactPreview = mountArtifactPreview((target,text,id) => receive_host_event(JSON.stringify({version:1,kind:'artifact_compose',request_id:id,text,data:target})), target=>receive_host_event(JSON.stringify({version:1,kind:'artifact_select',request_id:null,text:'',data:target})));
+  window.peroArtifactSurface = json => artifactPreview.update(JSON.parse(json) as ArtifactSurface);
   installContentAnalysis();
   let closeDecision:((ready:boolean)=>void)|undefined;
   window.peroWindowCloseResult=ready=>{const decide=closeDecision;closeDecision=undefined;decide?.(ready);};
@@ -136,6 +140,7 @@ try {
   };
   window.peroSessionCommand = (json) => {
     const command = JSON.parse(json);
+    if(command.action==='artifact_compose_result'){artifactPreview.reply(command.id,command.error);return;}
     if(command.action==='automation_open'){onEvent({version:1,kind:'automation_open',request_id:null,text:''});return;}
     if(typeof command.action==='string'&&command.action.startsWith('web_')) {if(window.pero)void window.pero.webCommand(command).catch(()=>onEvent({version:1,kind:'web_error',request_id:null,text:t('error.connection')}));else onEvent({version:1,kind:'web_error',request_id:null,text:t('error.browser')});return;}
     if(command.action==='cancel_read_result'){cancelContentResult(command.request_id);return;}
