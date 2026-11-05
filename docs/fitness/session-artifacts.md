@@ -280,3 +280,46 @@ The UI run uses a synthetic ACP agent with real Host/MCP I/O. Real-provider tool
 selection, signed packages and non-macOS Native acceptance remain untested.
 After restart, the existing historical fixture conversation cannot send a new
 turn; continuing modification was verified before restart in its live session.
+
+## Integrated review verification (2026-11-05)
+
+PR #135 was integrated with master `951fb071de0aaef9373e85902880f93287c41487`.
+The following checks were rerun on the repaired code ending at `9245a8c3` in an
+isolated Linux checkout. Earlier Native screenshots above are historical
+evidence for the original branch, not screenshots of these review fixes.
+
+- `node scripts/build/wasm.mjs`: passed all workbench, chat, reader and content
+  builds with the pinned `nightly-2026-10-28` toolchain.
+- `npm run check`: passed TypeScript, generated theme/design, 966 bilingual
+  messages, protocol generation and 78 shared icons.
+- `node scripts/cargo.mjs test -p pero-contracts -p pero-runtime -p pero-host
+  -p pero-chat-ui -p pero-ui --lib`: 258 passed, one ignored. This default
+  feature set does not compile the GPUI-gated Composer code.
+- `npm test`: the full default-feature Rust suite passed 336 tests with one
+  ignored, including Host and Worker binaries and remote-worker integration.
+- `node scripts/cargo.mjs test -p pero-chat-ui --features native --lib`: 25
+  passed, including all three ComposerDraft admission tests. This executes
+  Native-feature unit tests, not a graphical Native acceptance session.
+- The seven Desktop delivery/frame/App-use/context/content test files listed
+  above plus `tests/build/product-shutdown.test.mjs`: 36 passed.
+- `npm --prefix apps/scientific-viewer test`: 23 passed; Viewer typecheck and
+  production build passed.
+- A DOM event-bubbling probe using the actual ArtifactBrowser and TablePreview
+  components passed chart-arrow, selector and file-navigation checks. The
+  original Gallery code failed that probe by changing the selected artifact.
+- `node tests/runtime/session-artifacts.mjs`: passed with the rebuilt real
+  Host and synthetic ACP fixture, including exact retained versions, actual
+  caller identity, original workspace, context bytes and restart persistence.
+  Host SHA-256: `c23fa14d804e76c229fd92bcbdbbc30bd0b6e41a24489401327cce23da435dc9`.
+
+Native unit compilation used official Rust 1.99.1, the repository-pinned GPUI
+checkout, and required Debian development libraries extracted into an isolated
+build sysroot. No user-computer state was used or changed.
+
+The expanded production Gallery keyboard scenario is committed in
+`apps/scientific-viewer/test/artifact-browser.mjs`. Its Chromium run was attempted,
+but the browser exited before any assertion because Unix socket creation was
+denied (`process_singleton_posix.cc`, `Operation not permitted`). This is an
+unverified browser acceptance gap, not a passing test or a code-test failure.
+New Native graphical screenshots, real-provider selection, signed packages and
+non-Linux platform acceptance were not established by this integration run.
