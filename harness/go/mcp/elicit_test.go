@@ -2,8 +2,9 @@ package mcp
 
 import (
 	"context"
-	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"testing"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestElicitationCallerAttribution(t *testing.T) {
