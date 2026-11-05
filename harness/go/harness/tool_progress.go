@@ -18,6 +18,7 @@ type toolProgress struct {
 	patterns    toolProgressPatterns
 	failures    toolFailureWindow
 	diagnostics diagnosticProgress
+	discovery   discoveryPhase
 }
 
 // Only transport timing is omitted from shell receipts. Actual stdout/stderr,
@@ -47,7 +48,10 @@ func (p *toolProgress) observe(turn int, call ContentBlock, result ToolResult) *
 	if p.turn != turn {
 		*p = toolProgress{turn: turn}
 	}
-	advisory := p.failures.observe(call, result)
+	advisory := p.discovery.observe(call)
+	if failure := p.failures.observe(call, result); failure != nil {
+		advisory = failure
+	}
 	if diagnostic := p.diagnostics.observe(call, result); diagnostic != nil {
 		advisory = diagnostic
 	}
@@ -56,14 +60,14 @@ func (p *toolProgress) observe(turn int, call ContentBlock, result ToolResult) *
 	switch call.Name {
 	case "TaskOutput", "TaskStop", "TerminalRead", "terminal_read", "TerminalWrite", "terminal_write",
 		"Write", "write_file", "Edit", "edit_file", "apply_patch", "NotebookEdit", "notebook_edit":
-		*p = toolProgress{turn: turn, failures: p.failures, diagnostics: p.diagnostics}
+		*p = toolProgress{turn: turn, failures: p.failures, diagnostics: p.diagnostics, discovery: p.discovery}
 		return advisory
 	}
 	var args any
 	decoder := json.NewDecoder(bytes.NewReader(call.Arguments))
 	decoder.UseNumber()
 	if decoder.Decode(&args) != nil {
-		*p = toolProgress{turn: turn, failures: p.failures, diagnostics: p.diagnostics}
+		*p = toolProgress{turn: turn, failures: p.failures, diagnostics: p.diagnostics, discovery: p.discovery}
 		return advisory
 	}
 	arguments, _ := json.Marshal(args)
@@ -71,7 +75,7 @@ func (p *toolProgress) observe(turn int, call ContentBlock, result ToolResult) *
 	observed := cloneContentBlocks(result.Content)
 	for i := range observed {
 		if observed[i].Type != BlockText {
-			*p = toolProgress{turn: turn, failures: p.failures, diagnostics: p.diagnostics}
+			*p = toolProgress{turn: turn, failures: p.failures, diagnostics: p.diagnostics, discovery: p.discovery}
 			return advisory
 		}
 		if call.Name == "Bash" || call.Name == "shell" {
@@ -92,7 +96,7 @@ func (p *toolProgress) observe(turn int, call ContentBlock, result ToolResult) *
 		pattern = advisory
 	}
 	if p.turn != turn || p.key != key || p.result != fingerprint {
-		*p = toolProgress{turn: turn, key: key, result: fingerprint, count: 1, patterns: p.patterns, failures: p.failures, diagnostics: p.diagnostics}
+		*p = toolProgress{turn: turn, key: key, result: fingerprint, count: 1, patterns: p.patterns, failures: p.failures, diagnostics: p.diagnostics, discovery: p.discovery}
 		return pattern
 	}
 	p.count++
