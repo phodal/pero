@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: in_progress
+status: resolved
 date: 2026-11-05
 ---
 
@@ -83,3 +83,15 @@ must still happen, original results remain recoverable, and removing an anchor
 through pruning/compaction must restore content before the next model request.
 Test real shell output, changed content with preserved timestamps, context
 replacement/restore, mixed discovery operations and mutation/new-turn resets.
+
+
+Live follow-up implemented and verified. Masked checks retain factual exit status
+and attributed warnings; complete fresh reads reuse only visible content with
+raw recovery and partial-summary expansion; distinct discovery arguments now
+receive one phase reminder. Incremental surface receipts avoid re-copying old
+stream events, and replacement size includes metadata. Seven related race
+packages, five standalone Bazel targets, related vet and 34 reporter tests pass.
+The frozen five-task native follow-up remains 4/5, uses 58 requests and 420,212
+recorded tokens, and retains one explicit plus two reviewed masked check failures.
+The live warning reaches the model; this does not establish acceptance repair.
+Full version boundaries, limits and evidence: [live coding feedback](../fitness/live-coding-feedback.md).
