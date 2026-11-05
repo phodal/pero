@@ -41,6 +41,8 @@ deletes the original disk file. No background import or model execution occurs.
 - Actual public PDF.js renders PDF evidence. Quotations/crops and explicit
   quotation review use Pero's existing Host Agent authority, never App credentials.
 - JSON displays escaped metadata. Unsupported formats and model weights remain opaque.
+- Images, code and Markdown have shared read-only previews. HTML opens in a static
+  sandbox without scripts or external resources; the original source stays available.
 - `.ipynb` opens a read-only Datalayer Viewer (`@datalayer/jupyter-react`) for
   stored cells and outputs. No kernel starts and imported notebook bytes are not
   executed as code. Complex MIME outputs follow JupyterLab rendermime; scientific
@@ -69,6 +71,36 @@ unit/build success does not establish graphical or physical validity.
 Workbench entry. It transfers no file, query or source text and starts no search.
 Products without Paper report unavailable; the current Electron handoff reports
 an unacknowledged request on unsupported shells rather than claiming success.
+
+## Conversation snapshots
+
+`dist/artifact.html?thread_id=…` is the conversation artifact browser. The Chat
+shell supplies its typed catalog, selected exact version and saved Icons/List/
+Gallery preference through App context. Single click selects; double click or
+Space opens quick look; Escape returns to the selected item and prior scroll
+position. Gallery keeps a large reader above a horizontally scrollable film strip.
+Images and small source files use their saved content for thumbnails; other
+formats use the shared content icons. The shell owns import, source return and
+whole-artifact context actions. Selected text/PDF page discussion receives its
+success or failure from actual Composer admission in the original Chat.
+
+`dist/artifact.html?thread_id=…&artifact_id=…&version=N` also retains the single
+version preview surface for Host-owned conversation artifacts. It does not open the local
+IndexedDB library or start the molecule Python backend. It reads exactly one
+version from `/host/artifacts/<thread>/<artifact>/<version>`, checks the returned
+bytes against the Host SHA-256 header, then uses the same image, code, Markdown,
+CSV/TSV, PDF.js and saved-Notebook renderers. Download preserves original bytes.
+The Host owns authorization, provenance, versions and persistence.
+
+Continue in chat carries the fixed version identity and selected text or current
+PDF page text. The owning shell binds this action to the original conversation
+and requests the Host-owned context for the same snapshot, including actual image bytes. A preview is not
+scientific acceptance; a saved Notebook does not start a kernel.
+
+`node apps/scientific-viewer/test/artifact-browser.mjs` checks the production bundle
+in Chromium with fixture Host bytes/chat transport, including byte-exact download,
+dark/narrow Notebook preview, digest rejection and recovery. Screenshots go to
+`test-results/session-artifacts-viewer`; Native/Electron bridges need their own checks.
 
 ## Browser inspection
 
