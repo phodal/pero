@@ -175,7 +175,7 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 		}
 		bindings["CLAUDE_PLUGIN_ROOT"], bindings["CLAUDE_PROJECT_DIR"] = pkg.Root, cwd
 		for _, declaration := range pkg.MCP {
-			if declaration.Transport == "" || declaration.Transport == "stdio" {
+			if declaration.Transport == "" || declaration.Transport == "stdio" || declaration.HeadersHelper != "" {
 				directory, err := plugins.EnsurePluginDataDirectory(pkg.Definition.Name)
 				if err != nil {
 					return nil, err
@@ -295,6 +295,9 @@ func MCPServers(packages []plugins.Package, cwd string, environment []string) ([
 			}
 			if config.URL == "" && (declaration.Transport == "http" || declaration.Transport == "streamable-http" || declaration.Transport == "sse") {
 				continue
+			}
+			if declaration.HeadersHelper != "" {
+				config.HeadersProvider = mcpHeadersProvider(pkg, declaration, config, environment, bindings["CLAUDE_PLUGIN_DATA"])
 			}
 			seen[name] = true
 			servers = append(servers, config)

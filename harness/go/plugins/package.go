@@ -38,6 +38,7 @@ type MCPServerDefinition struct {
 	Env                 map[string]string `json:"-"`
 	URL                 string            `json:"-"`
 	Headers             map[string]string `json:"-"`
+	HeadersHelper       string            `json:"-"`
 	TimeoutMilliseconds int               `json:"timeoutMilliseconds,omitempty"`
 }
 
@@ -303,13 +304,14 @@ func compileMCP(path string, raw []byte) ([]MCPServerDefinition, error) {
 	var result []MCPServerDefinition
 	for _, name := range sortedIntegrationKeys(servers) {
 		var wire struct {
-			Transport string            `json:"type"`
-			Command   string            `json:"command"`
-			Args      []string          `json:"args"`
-			Env       map[string]string `json:"env"`
-			URL       string            `json:"url"`
-			Headers   map[string]string `json:"headers"`
-			Timeout   *float64          `json:"timeout"`
+			Transport     string            `json:"type"`
+			Command       string            `json:"command"`
+			Args          []string          `json:"args"`
+			Env           map[string]string `json:"env"`
+			URL           string            `json:"url"`
+			Headers       map[string]string `json:"headers"`
+			HeadersHelper string            `json:"headersHelper"`
+			Timeout       *float64          `json:"timeout"`
 		}
 		if json.Unmarshal(servers[name], &wire) != nil {
 			return nil, errors.New("plugins: invalid runtime MCP declaration")
@@ -320,7 +322,7 @@ func compileMCP(path string, raw []byte) ([]MCPServerDefinition, error) {
 				wire.Transport = "http"
 			}
 		}
-		server := MCPServerDefinition{Name: name, Transport: wire.Transport, Command: wire.Command, Args: wire.Args, Env: wire.Env, URL: wire.URL, Headers: wire.Headers}
+		server := MCPServerDefinition{Name: name, Transport: wire.Transport, Command: wire.Command, Args: wire.Args, Env: wire.Env, URL: wire.URL, Headers: wire.Headers, HeadersHelper: wire.HeadersHelper}
 		if wire.Timeout != nil {
 			if math.Trunc(*wire.Timeout) != *wire.Timeout || *wire.Timeout >= float64(math.MaxInt) {
 				return nil, errors.New("plugins: MCP timeout requires an integer millisecond value within the supported range")

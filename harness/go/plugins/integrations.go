@@ -412,6 +412,12 @@ func ParseMCP(path string, content []byte) (MCPDefinition, []Diagnostic) {
 				}
 			}
 		}
+		if raw, present := server["headersHelper"]; present {
+			var helper string
+			if !integrationDecode(raw, &helper) || strings.TrimSpace(helper) == "" || strings.ContainsRune(helper, 0) || strings.Contains(helper, "${user_config.") || summary.Transport == "stdio" {
+				add(SeverityError, "INVALID_MCP_HEADERS_HELPER", base+".headersHelper", "Headers helper requires a nonempty remote-server command without user_config interpolation.")
+			}
+		}
 		if raw, present := server["timeout"]; present {
 			var timeout float64
 			if !integrationDecode(raw, &timeout) || timeout < 0 {
@@ -425,8 +431,8 @@ func ParseMCP(path string, content []byte) (MCPDefinition, []Diagnostic) {
 		}
 		for _, key := range sortedIntegrationKeys(server) {
 			switch key {
-			case "type", "command", "args", "env", "url", "headers", "timeout":
-			case "headersHelper", "oauth", "disabled", "scope":
+			case "type", "command", "args", "env", "url", "headers", "timeout", "headersHelper":
+			case "oauth", "disabled", "scope":
 				add(SeverityWarning, "UNSUPPORTED_MCP_FIELD", base+"."+key, "This MCP field is recognized but its execution semantics are not implemented.")
 			default:
 				add(SeverityWarning, "UNKNOWN_MCP_FIELD", base+"."+key, "Unrecognized MCP server field is not applied.")

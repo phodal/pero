@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -34,19 +35,20 @@ const (
 // Harness and ACP session creation. TestTransport is intentionally excluded
 // from wire formats and lets conformance tests use the SDK's in-memory link.
 type MCPServerConfig struct {
-	Name                    string                         `json:"name"`
-	Transport               MCPTransport                   `json:"transport"`
-	Command                 string                         `json:"command,omitempty"`
-	Args                    []string                       `json:"args,omitempty"`
-	Env                     map[string]string              `json:"env,omitempty"`
-	CWD                     string                         `json:"cwd,omitempty"`
-	URL                     string                         `json:"url,omitempty"`
-	Headers                 map[string]string              `json:"headers,omitempty"`
-	ToolCallTimeoutMS       int                            `json:"toolCallTimeoutMs,omitempty"`
-	FailOnStartupError      bool                           `json:"failOnStartupError,omitempty"`
-	Reconnect               *MCPReconnectConfig            `json:"reconnect,omitempty"`
-	Observe                 func(MCPConnectionObservation) `json:"-"`
-	TestTransport           mcp.Transport                  `json:"-"`
+	Name                    string                                           `json:"name"`
+	Transport               MCPTransport                                     `json:"transport"`
+	Command                 string                                           `json:"command,omitempty"`
+	Args                    []string                                         `json:"args,omitempty"`
+	Env                     map[string]string                                `json:"env,omitempty"`
+	CWD                     string                                           `json:"cwd,omitempty"`
+	URL                     string                                           `json:"url,omitempty"`
+	Headers                 map[string]string                                `json:"headers,omitempty"`
+	HeadersProvider         func(context.Context) (map[string]string, error) `json:"-"`
+	ToolCallTimeoutMS       int                                              `json:"toolCallTimeoutMs,omitempty"`
+	FailOnStartupError      bool                                             `json:"failOnStartupError,omitempty"`
+	Reconnect               *MCPReconnectConfig                              `json:"reconnect,omitempty"`
+	Observe                 func(MCPConnectionObservation)                   `json:"-"`
+	TestTransport           mcp.Transport                                    `json:"-"`
 	testTransportFactory    func() (mcp.Transport, error)
 	testListTools           func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	resolvedReconnect       resolvedMCPReconnectPolicy
@@ -394,7 +396,7 @@ func newMCPTransport(config MCPServerConfig) (mcp.Transport, error) {
 	if config.Transport == MCPSSE {
 		transport = &mcp.SSEClientTransport{Endpoint: config.URL, HTTPClient: client}
 	}
-	return &authenticationTransport{Transport: transport, HTTPClient: client, headers: headers}, nil
+	return &authenticationTransport{Transport: transport, HTTPClient: client, headers: headers, resolveHeaders: config.HeadersProvider}, nil
 }
 
 func mergedEnvironment(overrides map[string]string) []string {
@@ -432,8 +434,38 @@ func scrubMCPEnvironmentName(name string) bool {
 // discovery fallback. Each configured connection remains terminal until reloaded.
 type authenticationTransport struct {
 	mcp.Transport
-	HTTPClient *http.Client
-	headers    *headerRoundTripper
+	HTTPClient     *http.Client
+	headers        *headerRoundTripper
+	resolveHeaders func(context.Context) (map[string]string, error)
+}
+
+func (t *authenticationTransport) Connect(ctx context.Context) (mcp.Connection, error) {
+	if t.resolveHeaders != nil {
+		dynamic, err := t.resolveHeaders(ctx)
+		if err != nil {
+			return nil, err
+		}
+		merged := http.Header{}
+		t.headers.mu.RLock()
+		for name, value := range t.headers.headers {
+			merged.Set(name, value)
+		}
+		t.headers.mu.RUnlock()
+		for name, value := range dynamic {
+			if !validHTTPHeaderName(name) || strings.ContainsAny(value, "\r\n\x00") {
+				return nil, errors.New("harness: MCP header provider returned an invalid header")
+			}
+			merged.Set(name, value)
+		}
+		values := make(map[string]string, len(merged))
+		for name := range merged {
+			values[name] = merged.Get(name)
+		}
+		t.headers.mu.Lock()
+		t.headers.headers = values
+		t.headers.mu.Unlock()
+	}
+	return t.Transport.Connect(ctx)
 }
 
 func (t *authenticationTransport) SupportsProtocolVersion(version string) bool {
@@ -456,6 +488,7 @@ func (t *authenticationTransport) TerminalError() error {
 }
 
 type headerRoundTripper struct {
+	mu                     sync.RWMutex
 	authenticationRejected atomic.Bool
 	originRejected         atomic.Bool
 	base                   http.RoundTripper
@@ -475,9 +508,11 @@ func (t *headerRoundTripper) RoundTrip(request *http.Request) (*http.Response, e
 	}
 	clone := request.Clone(request.Context())
 	clone.Header = request.Header.Clone()
+	t.mu.RLock()
 	for name, value := range t.headers {
 		clone.Header.Set(name, value)
 	}
+	t.mu.RUnlock()
 	response, err := t.base.RoundTrip(clone)
 	if err == nil && response != nil && (response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden) {
 		t.authenticationRejected.Store(true)
