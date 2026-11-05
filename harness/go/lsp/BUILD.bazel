@@ -4,6 +4,7 @@ go_library(
     name = "lsp",
     srcs = [
         "after_edit.go",
+        "observed_files.go",
         "client.go",
         "config.go",
         "connection.go",

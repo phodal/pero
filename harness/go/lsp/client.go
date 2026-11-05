@@ -47,15 +47,16 @@ type diagnosticCursor struct {
 	version, generation int
 }
 type instance struct {
-	gate           chan struct{}
-	selected       Selection
-	cwd            string
-	conn           *connection
-	capabilities   capabilities
-	launches       int
-	version        int
-	save, saveText bool
-	closed         bool
+	gate                         chan struct{}
+	selected                     Selection
+	cwd                          string
+	conn                         *connection
+	capabilities                 capabilities
+	launches                     int
+	version                      int
+	save, saveText               bool
+	closed                       bool
+	observedFile, observedDigest string
 }
 type App struct {
 	mu            sync.Mutex
@@ -307,6 +308,9 @@ func (app *App) Query(ctx context.Context, agent *harness.Agent, query Query) (R
 	uri := fileURI(filepath.Join(files.Path(), relative))
 	requestCtx, requestCancel := context.WithTimeout(ctx, session.selected.Server.Config.RequestTimeout)
 	defer requestCancel()
+	if session.selected.Server.Config.Diagnostics {
+		session.observedFile, session.observedDigest = file, source.Digest
+	}
 	session.version++
 	retainDocument := query.Operation == collectDiagnostics
 	if previous := session.conn.diagnosticURI(); previous != "" {

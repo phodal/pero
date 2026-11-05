@@ -349,3 +349,39 @@ func TestDiagnosticOwnerDeactivationReclaimsServer(t *testing.T) {
 		t.Fatal("deactivated owner's language server is still live")
 	}
 }
+
+func TestObservedExternalFileDiagnostics(t *testing.T) {
+	app, _, agent, root := fixtureApp(t, "after-edit", func(config *Config) { config.Diagnostics = true })
+	if _, err := app.Query(t.Context(), agent, Query{Operation: Hover, FilePath: "fixture.go", Line: 2, Character: 6}); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(root, "fixture.go")
+	if err := os.WriteFile(file, []byte("package fixture\n// BROKEN\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	notes := app.refreshObserved(t.Context(), agent)
+	if len(notes) != 1 || !strings.Contains(notes[0], "saved file type error") {
+		t.Fatalf("changed file diagnostics=%v", notes)
+	}
+	if notes := app.refreshObserved(t.Context(), agent); len(notes) != 0 {
+		t.Fatalf("unchanged file reran diagnostics=%v", notes)
+	}
+	if notes := app.pendingDiagnostics(agent); len(notes) != 0 {
+		t.Fatalf("snapshot delivered twice=%v", notes)
+	}
+	if err := os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	if notes := app.refreshObserved(t.Context(), agent); len(notes) != 1 || !strings.Contains(notes[0], "removed") {
+		t.Fatalf("removal=%v", notes)
+	}
+	if notes := app.pendingDiagnostics(agent); len(notes) != 0 {
+		t.Fatalf("removed file retained stale diagnostics=%v", notes)
+	}
+	if err := os.WriteFile(file, []byte("package fixture\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if notes := app.refreshObserved(t.Context(), agent); len(notes) != 1 || strings.Contains(notes[0], "saved file type error") {
+		t.Fatalf("recreated file=%v", notes)
+	}
+}

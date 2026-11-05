@@ -39,7 +39,10 @@ rendered results to 100 entries / 16,000 characters.
 `restartOnCrash` and `maxRestarts` control lazy replacement on a subsequent
 query; the failed query is not silently retried. Defaults permit three
 replacements. Supported configuration is strict: unknown fields, non-stdio
-transport is rejected. Dynamic capability registration is not implemented.
+transport is rejected. Query capabilities support connection-local dynamic
+registration/unregistration with language, file scheme and glob selectors.
+Patterns support `*`, `**`, `?` and character classes; brace alternatives and
+notebook selectors are rejected. Dynamic document synchronization is not supported.
 Post-edit diagnostic checks default to enabled; `diagnostics: false` disables
 them for the selected server. Managed
 process ownership is currently implemented only on Linux and macOS.
@@ -88,8 +91,8 @@ After a successful native Write/Edit (or write_file/edit_file), the existing
 After pipeline reads the actual applied filesystem receipt. For a mapped file,
 it reads the saved contents through the existing workspace authority and opens
 a fresh versioned document on that server. If the server advertises save
-support, the host sends didSave, including text only when requested. It closes
-the transient document after the check; it never sends an invented didChange
+support, the host sends didSave, including text only when requested. It retains
+the versioned document for late publications; it never sends an invented didChange
 for a document that it did not already own.
 
 The host waits up to two seconds for startup, connection admission and the
@@ -105,5 +108,9 @@ Tests execute real native Write and Edit, observe error and empty publications,
 and prove that the next model requests receive both contexts with exactly two
 approvals and two effects. A separate prompt observes a publication that
 arrives after the saved snapshot. Crash, silent-server and disabled cases are
-covered. The host still does not watch arbitrary Bash or external-editor file
-changes.
+covered. Before each model step, the host checks the content digest of the last
+observed file per existing server/agent/current-directory instance. Bash/editor
+changes to that file invalidate stale diagnostics and trigger a fresh bounded
+check; deletion produces an unavailable notice and restoration is rechecked.
+This has a total two-second budget and does not watch or scan arbitrary workspace
+files. A newer observed document replaces the previous observation.
