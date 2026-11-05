@@ -66,5 +66,5 @@ func readClaudeFile(ctx context.Context, files *fstools.Workspace, resourceReade
 		}
 		window.Content = strings.Join(lines, "\n")
 	}
-	return window, nil
+	return nativeReadResult(window, input.Offset, input.Limit, input.ResourcePath), nil
 }

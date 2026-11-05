@@ -3,11 +3,11 @@ package nativetools
 import (
 	"context"
 	"encoding/json"
-	"github.com/phodal/pero/harness/go/harness"
 	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/tool"
 )
 

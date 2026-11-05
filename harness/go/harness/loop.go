@@ -478,6 +478,9 @@ func (a *Agent) generateStepWithRuntime(ctx context.Context, turn, step int, pre
 		if err := contextFailure(ctx); err != nil {
 			return Completion{}, err
 		}
+		if err := a.readReuse.Reconcile(a.session); err != nil {
+			return Completion{}, err
+		}
 		plan, err := a.session.ContextPlanWithMessages(admission)
 		if err != nil {
 			return Completion{}, err
