@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "64d203bec2dd69ac8d5aae82cfdb151ac914009c",
+  "right_ref": "4c7494e035e80e7f07629b5abcdb25cb3b4c0adc",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -16,9 +16,9 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "c55517e324c55ca5224a89a63b798b3f9d52dc08a74c6d9f45070028f87e8db4"
+        "sha256": "ece31e6dd94687d1f1c16bd9c389a2e1cabcbff45760c65fee327caaf7139a4d"
       },
-      "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence.",
+      "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence. Go turn entry separately rejects already canceled contexts and retired scopes before claiming queued input; native lifecycle tests validate that local admission rule.",
       "landmarks": [
         {
           "id": "output-limit",
@@ -55,7 +55,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "c55517e324c55ca5224a89a63b798b3f9d52dc08a74c6d9f45070028f87e8db4"
+        "sha256": "ece31e6dd94687d1f1c16bd9c389a2e1cabcbff45760c65fee327caaf7139a4d"
       },
       "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests.",
       "landmarks": [
