@@ -3,6 +3,7 @@ import { downloadFile } from '@pero/app-sdk';
 import { Button, Feedback, Input, Textarea } from '@pero/app-sdk/ui';
 import type { Api, Library, Paper, Report } from './types';
 import { reviseEvidence, reportsCitingPaper, type ManualEvidence as Evidence } from './manual-evidence';
+import { ResearchWatch, researchHost, type DataPin, type Dataset } from './research-watch';
 import './manual-records.css';
 
 type Decision = { paperId: string; decision: 'include' | 'exclude' | 'pending'; reason: string };
@@ -12,6 +13,7 @@ type RecordRevision = {
   id: string; parentId?: string | null; question: string; scope: string; inclusion: string; exclusion: string;
   paperIds: string[]; decisions: Decision[]; evidence: Evidence[]; createdAt: string;
   attempts?: ResearchAttempt[];
+  dataVersions?: DataPin[];
   selections?: { id: string; paperIds: string[]; createdAt: string }[];
   review?: { decision: 'needs_review' | 'accepted' | 'rejected'; note: string } | null;
 };
@@ -30,6 +32,9 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
   const [decisions, setDecisions] = useState<Decision[]>([]), [evidence, setEvidence] = useState<Evidence[]>([]);
   const [attempts, setAttempts] = useState<ResearchAttempt[]>([]), [availableAttempts, setAvailableAttempts] = useState<ResearchAttempt[] | null>(null);
   const [handoffNotes, setHandoffNotes] = useState(false);
+  const [watchOpen, setWatchOpen] = useState(false);
+  const [datasets, setDatasets] = useState<Dataset[] | null>(null);
+  const [dataPins, setDataPins] = useState<Record<string, string>>({});
   const [opened, setOpened] = useState<RecordRevision | null>(null), [impact, setImpact] = useState<Impact | null>(null), [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const form = useRef<HTMLFormElement>(null);
@@ -62,6 +67,7 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
     setDecisions(record?.decisions ?? (paper ? [{ paperId: paper.id, decision: 'pending', reason: '' }] : []));
     setReview(''); setReviewNote('');
     setAttempts(record?.attempts ?? []); setAvailableAttempts(null);
+    setDatasets(null); setDataPins(Object.fromEntries((record?.dataVersions ?? []).map(pin => [pin.datasetId, pin.versionId])));
     setEvidence(record?.evidence ?? []); setEditing(true); setError(''); setMessage('');
   }
   async function open(record: RecordRevision) {
@@ -72,9 +78,12 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
   function updateDecision(id: string, patch: Partial<Decision>) { setDecisions(items => items.map(item => item.paperId === id ? { ...item, ...patch } : item)); }
   function updateEvidence(index: number, patch: Partial<Evidence> | null) { setEvidence(items => reviseEvidence(items, index, patch)); }
   async function save() {
-    const result = await request<RecordRevision>({ operation: 'create', ...(parentId ? { parentId } : {}), question, scope, inclusion, exclusion,
+    const record = { operation: 'create', ...(parentId ? { parentId } : {}), question, scope, inclusion, exclusion,
       paperIds: decisions.map(item => item.paperId), decisions, evidence, attempts: attempts.map(({ itemId, attemptId }) => ({ itemId, attemptId })),
-      ...(review ? { review: { decision: review, note: reviewNote } } : {}) });
+      ...(review ? { review: { decision: review, note: reviewNote } } : {}) };
+    const result = datasets === null ? await request<RecordRevision>(record) : await researchHost<RecordRevision>('research-assets', {
+      operation: 'saverecord', record, datasets: Object.entries(dataPins).map(([datasetId, versionId]) => ({ datasetId, versionId })),
+    });
     if (!mounted.current) return;
     setRecords(items => [result, ...items.filter(item => item.id !== result.id)]); setEditing(false); await open(result); setMessage('Revision saved. Earlier records are unchanged.');
   }
@@ -155,6 +164,23 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
               <span>{attemptLabel(attempt)}</span></label>;
           })}
         </details>
+        <details><summary>Data Workspace</summary>
+          <Button disabled={busy} onClick={() => void act(async () => {
+            const values = await researchHost<Dataset[]>('research-assets', { operation: 'datasets' });
+            if (mounted.current) setDatasets(values.filter(dataset => !dataset.archived || dataPins[dataset.datasetId]));
+          })}>Choose Data versions</Button>
+          {datasets?.length === 0 && <p role="status">Import a dataset in Data Workspace first.</p>}
+          {datasets?.map(dataset => <label key={dataset.datasetId}>{dataset.name}<select value={dataPins[dataset.datasetId] ?? ''} onChange={event => {
+            const next = { ...dataPins };
+            if (event.target.value) next[dataset.datasetId] = event.target.value;
+            else delete next[dataset.datasetId];
+            setDataPins(next);
+          }}>
+            <option value="">No reference</option>
+            {[...dataset.versions].reverse().map((version, index) => <option key={version.versionId} value={version.versionId}
+              disabled={dataset.archived || version.availability !== 'present'}>{version.versionId.slice(0, 8)}{index === 0 ? ' (latest)' : ''}</option>)}
+          </select></label>)}
+        </details>
         <details><summary>Local review (optional)</summary>
           <p>Your recorded decision, not independent review or scientific acceptance.</p>
           <label>Review decision<select value={review} onChange={event => setReview(event.target.value)}><option value="">No review recorded</option><option value="needs_review">Needs review</option><option value="accepted">Accepted by me</option><option value="rejected">Rejected by me</option></select></label>
@@ -183,6 +209,9 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
         <Button disabled={busy} onClick={() => void act(async () => { const version = epoch.current, result = await request<Impact>({ operation: 'impact', recordId: opened.id }); if (mounted.current && version === epoch.current) { setImpact(result); setSelected([]); } })}>Check saved source updates</Button>
         <Button disabled={busy} onClick={() => void act(async () => { const result = await request<object>({ operation: 'export', recordId: opened.id }); if (mounted.current) downloadFile(`research-record-${opened.id.slice(0,12)}.json`, JSON.stringify(result, null, 2), 'application/json'); })}>Export references</Button>
       </div>
+      <details onToggle={event => setWatchOpen(event.currentTarget.open)}><summary>Watch for updates</summary>
+        {watchOpen && <ResearchWatch key={opened.id} recordId={opened.id} versions={opened.dataVersions ?? []} reports={library.reports} onAttempt={onAttempt}/>}
+      </details>
       {!!opened.selections?.length && <details><summary>Saved reread selections</summary><ul>{opened.selections.map(selection => <li key={selection.id}>{selection.createdAt}
         {selection.paperIds.map(id => <Button key={id} variant="ghost" disabled={busy} onClick={() => onRead(id)}>{title(id)}</Button>)}</li>)}</ul></details>}
       {impact && <section aria-label="Source update impact">

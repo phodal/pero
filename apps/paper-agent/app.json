@@ -9,7 +9,8 @@
     "frameOrigins": ["https://arxiv.org"],
     "host": [
       "agent",
-      "research-assets"
+      "research-assets",
+      "automation"
     ]
   },
   "contributes": {

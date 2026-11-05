@@ -1,5 +1,5 @@
 export type Run = {key:{request_id?:string;slot:string;trigger:string};scheduled_for:string;state:string;session_id?:string;error?:string;skip_reason?:string};
-export type Automation = {id:string;name:string;prompt:string;enabled:boolean;rule:string;timezone:string;next?:string;in_flight?:string;scheduled:boolean;error?:string;event?:{event:string};runs:Run[]};
+export type Automation = {id:string;name:string;prompt:string;kind?:'research_watch';enabled:boolean;rule:string;timezone:string;next?:string;in_flight?:string;scheduled:boolean;error?:string;event?:{event:string};runs:Run[]};
 export type Schedule = 'manual'|'hourly'|'daily'|'weekly'|'monthly'|'custom';
 export type Draft = {id?:string;name:string;prompt:string;schedule:Schedule;hour:number;minute:number;monthDay:number;interval:number;days:string[];timezone:string;rule:string;enabled:boolean};
 export const weekdays = ['MO','TU','WE','TH','FR','SA','SU'];

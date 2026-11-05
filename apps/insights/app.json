@@ -5,7 +5,7 @@
   "displayName": "Insights",
   "description": "阅读本机会话记录。",
   "permissions": {
-    "host": ["insights", "agent"]
+    "host": ["insights", "agent", "automation"]
   },
   "contributes": {
     "panels": [
