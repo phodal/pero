@@ -77,9 +77,11 @@ func ObserveDiagnostic(name string, arguments json.RawMessage, content []model.C
 		if json.Unmarshal([]byte(text), &r) != nil {
 			return d
 		}
+		outerError, outerDiagnostic := "", ""
 		uncertain := r.uncertain()
 		identity := r.TaskID != "" || r.OutputFile != "" || r.OutputPartial
 		if r.Result != nil {
+			outerError, outerDiagnostic = r.Error, r.Diagnostic
 			r = *r.Result
 			uncertain = uncertain || r.uncertain()
 			identity = identity || r.TaskID != "" || r.OutputFile != "" || r.OutputPartial
@@ -92,11 +94,12 @@ func ObserveDiagnostic(name string, arguments json.RawMessage, content []model.C
 		// Exclude transport duration, retaining exact stdout/stderr, exit and
 		// error text. No diagnostic lines or changing numbers are discarded.
 		raw, _ := json.Marshal(struct {
-			Stdout, Stderr    json.RawMessage
-			Error, Diagnostic string
-			ExitCode          int
-		}{r.Stdout, r.Stderr, r.Error, r.Diagnostic, *r.ExitCode})
-		text = diagnosticText(r.Stdout) + "\n" + diagnosticText(r.Stderr) + "\n" + r.Error + "\n" + r.Diagnostic
+			Stdout, Stderr              json.RawMessage
+			Error, Diagnostic           string
+			OuterError, OuterDiagnostic string
+			ExitCode                    int
+		}{r.Stdout, r.Stderr, r.Error, r.Diagnostic, outerError, outerDiagnostic, *r.ExitCode})
+		text = diagnosticText(r.Stdout) + "\n" + diagnosticText(r.Stderr) + "\n" + r.Error + "\n" + r.Diagnostic + "\n" + outerError + "\n" + outerDiagnostic
 		if strings.TrimSpace(text) != "" {
 			d.Fingerprint = diagnosticHash(string(raw))
 		}
@@ -133,23 +136,42 @@ func ObserveDiagnostic(name string, arguments json.RawMessage, content []model.C
 // Unknown receipt fields, nested process identities and truncated streams retain
 // their full context rather than equating their visible previews.
 func completeDiagnosticReceipt(raw []byte) bool {
+	var envelope struct {
+		Result json.RawMessage `json:"result"`
+		Error  string          `json:"error"`
+	}
+	if json.Unmarshal(raw, &envelope) == nil && len(envelope.Result) > 0 {
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&envelope) != nil {
+			return false
+		}
+		raw = envelope.Result
+	}
+
 	var r struct {
-		Stdout           json.RawMessage `json:"stdout"`
-		Stderr           json.RawMessage `json:"stderr"`
-		ExitCode         *int            `json:"exitCode"`
-		TimedOut         bool            `json:"timedOut"`
-		Aborted          bool            `json:"aborted"`
-		CleanupUncertain bool            `json:"cleanupUncertain"`
-		Signal           string          `json:"signal"`
-		ReadIsolated     bool            `json:"readIsolated"`
-		NetworkIsolated  bool            `json:"networkIsolated"`
-		Enforcement      json.RawMessage `json:"enforcement"`
-		DurationMS       float64         `json:"durationMs"`
-		ElapsedMS        float64         `json:"elapsed_ms"`
+		Stdout              json.RawMessage `json:"stdout"`
+		Stderr              json.RawMessage `json:"stderr"`
+		ExitCode            *int            `json:"exitCode"`
+		TimedOut            bool            `json:"timedOut"`
+		Aborted             bool            `json:"aborted"`
+		CleanupUncertain    bool            `json:"cleanupUncertain"`
+		Signal              string          `json:"signal"`
+		ReadIsolated        bool            `json:"readIsolated"`
+		NetworkIsolated     bool            `json:"networkIsolated"`
+		Enforcement         json.RawMessage `json:"enforcement"`
+		OutputFile          string          `json:"output_file"`
+		OutputBytes         int64           `json:"output_bytes"`
+		OutputFilePartial   bool            `json:"output_file_partial"`
+		TotalOutputBytes    int64           `json:"total_output_bytes"`
+		ReadbackTruncated   bool            `json:"readback_truncated"`
+		OutputFileTruncated bool            `json:"output_file_truncated"`
+		DurationMS          float64         `json:"durationMs"`
+		ElapsedMS           float64         `json:"elapsed_ms"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&r) != nil || r.ExitCode == nil {
+	if decoder.Decode(&r) != nil || r.ExitCode == nil || r.OutputFile != "" || r.OutputFilePartial || r.ReadbackTruncated || r.OutputFileTruncated {
 		return false
 	}
 	for _, stream := range []json.RawMessage{r.Stdout, r.Stderr} {

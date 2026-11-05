@@ -132,7 +132,9 @@ Seven affected Go race suites pass (`tool`, `harness`, `fstools`, `nativetools`,
 `engineeringprofile`, native CLI and ACP), as do seven standalone Bazel targets,
 related vet and the native CLI build. Final targeted race checks and CLI/tool
 Bazel suites were rerun after adding changed-input/observe, reused-ID/recent
-protection and real profile wire/receipt cases. Thirty offline reporter tests
+protection and real profile wire/receipt cases. A real foreground Bash regression
+also verifies complete failure receipts (including wrappers and byte metadata)
+are eligible while truncated failure output stays protected. Thirty offline reporter tests
 and 21 trial tests pass. All changed code files remain below 1000 lines;
 whitespace and credential-literal checks pass.
 

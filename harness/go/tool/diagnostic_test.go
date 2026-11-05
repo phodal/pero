@@ -27,6 +27,8 @@ func TestDiagnosticObservations(t *testing.T) {
 		{"running", `{"status":"running","task_id":"job"}`, "", false, false},
 		{"truncated", `{"exitCode":1,"stderr":{"text":"error: x","truncated":true}}`, "compiler", true, false},
 		{"unknown fields", `{"exitCode":1,"stderr":"error: x","new_evidence":"retain me"}`, "compiler", true, false},
+		{"foreground error wrapper", `{"error":"shell task ended with status failed","result":{"exitCode":1,"stderr":{"text":"error: x","truncated":false},"total_output_bytes":8}}`, "compiler", true, true},
+		{"truncated readback", `{"exitCode":1,"stderr":"error: x","readback_truncated":true}`, "compiler", true, false},
 		{"spilled", `{"exitCode":1,"stderr":"error: x","output_file":"saved"}`, "compiler", true, false},
 	} {
 		t.Run(row.name, func(t *testing.T) {
