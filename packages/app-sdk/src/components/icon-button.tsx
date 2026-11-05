@@ -9,8 +9,8 @@ export type IconButtonProps = Omit<ButtonProps, 'asChild' | 'aria-label' | 'chil
 };
 
 /** Always a <button>. Busy and disabled behavior stay on Button; asChild is not available. */
-export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton({ label, children, variant = 'ghost', className, ...props }, ref) {
-  return <Button {...props} asChild={false} variant={variant} aria-label={label}
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton({ label, children, variant = 'ghost', className, title, ...props }, ref) {
+  return <Button {...props} asChild={false} variant={variant} aria-label={label} title={title ?? label}
     className={['pero-ui-icon-button', className].filter(Boolean).join(' ')}
     ref={ref as React.Ref<HTMLElement>}>{children}</Button>;
 });
