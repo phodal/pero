@@ -175,7 +175,6 @@ impl Workbench {
                 }),
                 groups,
                 ungrouped,
-                new_chat_bounds: &self.view_bounds.new_chat,
             },
             search,
             on_action,

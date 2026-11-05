@@ -55,6 +55,7 @@ impl Workbench {
         }).collect();
         sidebar::sidebar(self.ui(cx), width, sidebar::SidebarProps {
             shortcut_bounds: &self.view_bounds.sidebar,
+            new_chat_bounds: &self.view_bounds.new_chat,
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
             identity: self.remote.data["identity"]["name"].as_str().unwrap_or(self.t("nav.sign_in")).to_string(),
             terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps,
@@ -64,20 +65,6 @@ impl Workbench {
     fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
         self.sidebar_collapsed = !self.sidebar_collapsed;
         cx.notify();
-    }
-
-    fn chrome_title(&self, cx: &App) -> String {
-        if let Some(item) = self.navigation.current() {
-            return self.content_label(item, cx).0;
-        }
-        if self.navigation.page() == WorkbenchPage::Apps { return self.t("apps.manage").to_string(); }
-        let panel = self.chat.read(cx);
-        panel
-            .active_chat
-            .and_then(|index| panel.chats.get(index))
-            .map(|chat| chat.title.display().to_string())
-            .filter(|title| !title.is_empty())
-            .unwrap_or_default()
     }
 
     fn window_titlebar(
@@ -93,18 +80,11 @@ impl Workbench {
         });
         let tabs = if let Some(ref leaf) = single_pane { Some(div().flex_1().min_w_0().h_full().child(self.pane_tab_bar(leaf, crate::workspace_pane_tabs::TabBarPlacement::WindowChrome, cx)).into_any_element()) }
             else { has_tabs.then(|| self.content_tabs(false, cx).into_any_element()) };
-        let title = if has_tabs {
-            SharedString::default()
-        } else {
-            self.chrome_title(cx).into()
-        };
         chrome::window_titlebar(
             self.ui(cx),
             self.sidebar_collapsed,
             self.layout.sidebar_width,
-            title,
             tabs,
-            single_pane.is_some(),
             cx.listener(|this, _, _, cx| this.toggle_sidebar(cx)),
             cx.listener(|this, _, window, cx| this.toggle_spotlight(window, cx)),
             dragging,
