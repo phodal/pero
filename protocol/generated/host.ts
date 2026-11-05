@@ -41,6 +41,7 @@ export type AutomationTrigger =
   AutomationManualTrigger | AutomationEventTrigger | AutomationTimeTrigger | AutomationCalendarTrigger;
 export type AutomationCounter = number;
 export type AutomationInputContract = "process_exact" | "recheck_latest";
+export type AutomationMethod = AutomationAgentMethod | AutomationResearchWatch;
 export type AutomationTarget = AutomationLocalTarget | AutomationUnsupportedTarget;
 export type AutomationReconciliationDisposition = "not_started" | "completed" | "failed" | "cancelled";
 export type TerminalRequest = OpenTerminal | WriteTerminal | ResizeTerminal | CloseTerminal;
@@ -308,7 +309,7 @@ export interface AutomationDefinition {
   trigger: AutomationTrigger;
   input: AutomationInputContract;
   input_binding_id: string;
-  method: AutomationAgentMethod;
+  method: AutomationMethod;
   target: AutomationTarget;
 }
 export interface AutomationAgentMethod {
@@ -316,6 +317,10 @@ export interface AutomationAgentMethod {
   agent_id: string;
   workspace: string;
   prompt: string;
+}
+export interface AutomationResearchWatch {
+  kind: "research_watch";
+  record_id: string;
 }
 export interface AutomationLocalTarget {
   kind: "local_host";
