@@ -151,7 +151,7 @@ app.whenReady().then(async () => {
       locale = message.text === 'zh-CN' ? 'zh-CN' : 'en'; menus();
       send('product:context', context());
     }
-    if (product.chat && ['ready', 'agents', 'workspace', 'replay', 'workbench_settings', 'context_files', 'context_candidates', 'context_resolved', 'context_error', 'artifact_catalog', 'artifact_registered', 'artifact_document', 'artifact_error', 'session_created', 'agent_info', 'session_authenticated', 'session_auth_required', 'session_auth_error', 'user_message', 'session_connecting', 'session_ready', 'session_update', 'model_changed', 'configuration_changed', 'turn_started', 'turn_finished', 'session_usage', 'permission', 'user_questions', 'user_questions_resolved', 'user_questions_error', 'session_error', 'session_closed', 'session_deleted', 'command_rejected', 'error'].includes(message.kind)) {
+    if (product.chat && ['ready', 'agents', 'workspace', 'replay', 'workbench_settings', 'context_files', 'context_candidates', 'context_resolved', 'context_error', 'artifact_catalog', 'artifact_registered', 'artifact_document', 'artifact_context', 'artifact_error', 'session_created', 'agent_info', 'session_authenticated', 'session_auth_required', 'session_auth_error', 'user_message', 'session_connecting', 'session_ready', 'session_update', 'model_changed', 'configuration_changed', 'turn_started', 'turn_finished', 'session_usage', 'permission', 'user_questions', 'user_questions_resolved', 'user_questions_error', 'session_error', 'session_closed', 'session_deleted', 'command_rejected', 'error'].includes(message.kind)) {
       send('product:event', message);
     }
   });

@@ -74,9 +74,19 @@ async function product() {
       : name === 'node:fs' ? { readFileSync: () => '{}' } : require(name),
   });
   await boot;
-  const message = kind => host.stdout.write(JSON.stringify({ version: 1, kind, text: 'en' }) + '\n');
+  const message = (kind, fields = {}) => host.stdout.write(JSON.stringify({ version: 1, kind, text: 'en', ...fields }) + '\n');
   return { app, host, window, delivered, ports, protocols, lifecycle, message };
 }
+
+test('Product Chat forwards the Host artifact context receipt to its composer', async () => {
+  const fixture = await product();
+  try {
+    const receipt = { request_id: 'artifact-context-1', thread_id: 'chat', text: '',
+      data: { id: 'session-artifact:report:v2', kind: 'file', source: 'report.md', content: 'Frozen report' } };
+    fixture.message('artifact_context', receipt);
+    assert.deepEqual(JSON.parse(JSON.stringify(fixture.delivered)), [{ channel: 'product:event', value: { version: 1, kind: 'artifact_context', ...receipt } }]);
+  } finally { fixture.host.stdout.end(); fixture.host.stderr.end(); fixture.host.emit('close', 0); }
+});
 
 test('Product Chat response permits artifact frames without broadening the reader response', async () => {
   const fixture = await product();
