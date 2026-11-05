@@ -9,6 +9,9 @@ procedure limits: [Coding benchmark](coding-benchmark.md).
 Five native HumanEval+ tasks without Docker, official controls and token/tool
 failure analysis: [Native EvalPlus sample](evalplus-native.md).
 
+Live masked-validation warnings, complete-read reuse, discovery phase reminders
+and the third native sample: [Live coding feedback](live-coding-feedback.md).
+
 Pinned DSH/Pi/Qwen comparison, native tool changes and verification:
 [Native coding follow-up](dsh-native-improvements.md).
 

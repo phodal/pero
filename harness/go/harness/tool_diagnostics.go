@@ -22,7 +22,7 @@ func (p *diagnosticProgress) observe(call ContentBlock, result ToolResult) *Defe
 		p.edits++
 	}
 	d := tool.ObserveDiagnostic(call.Name, call.Arguments, result.Content, result.IsError)
-	if d.Settled && !d.Failed && d.CommandSHA256 != "" {
+	if d.Settled && !d.Failed && d.ValidationSignal == "" && d.CommandSHA256 != "" {
 		for i, s := range p.window {
 			if s.command == d.CommandSHA256 {
 				p.window[i] = diagnosticSample{}
@@ -30,14 +30,14 @@ func (p *diagnosticProgress) observe(call ContentBlock, result ToolResult) *Defe
 		}
 	}
 	sample := diagnosticSample{edits: p.edits}
-	if d.Failed {
+	if d.Failed || d.ValidationSignal != "" {
 		sample.fingerprint, sample.category, sample.command = d.Fingerprint, d.Category, d.CommandSHA256
 	}
 	p.window = append(p.window, sample)
 	if len(p.window) > 24 {
 		p.window = p.window[1:]
 	}
-	if !d.Failed || !d.Settled || d.Fingerprint == "" {
+	if (!d.Failed && d.ValidationSignal == "") || !d.Settled || d.Fingerprint == "" {
 		return nil
 	}
 	count, categoryCount, firstEdits := 0, 0, p.edits
@@ -51,6 +51,17 @@ func (p *diagnosticProgress) observe(call ContentBlock, result ToolResult) *Defe
 		if s.category == d.Category {
 			categoryCount++
 		}
+	}
+	if d.ValidationSignal != "" {
+		if count != 1 && count != 3 && count != 6 {
+			return nil
+		}
+		source, _ := json.Marshal(struct {
+			Kind       string          `json:"kind"`
+			CallID     ToolCallID      `json:"callId"`
+			Diagnostic tool.Diagnostic `json:"diagnostic"`
+		}{"tool-validation-warning", call.ToolCallID, d})
+		return &DeferredContext{Role: RoleUser, Source: source, Content: []ContentBlock{{Type: BlockText, Text: "Shell exit code is 0, but its output contains a validation failure signal (" + d.ValidationSignal + "). Inspect the actual diagnostic before claiming verification passed. It may be intentional or quoted; this warning does not establish a failed requirement. If the check failed, fix its cause and preserve the check's exit status through pipelines or trailing commands (capture status immediately and exit with it). Do not weaken independent test expectations."}}}
 	}
 	specific := d.Category == "missing-dependency" || d.Category == "platform" || d.Category == "permission" || d.Category == "tool-input"
 	if count != 3 && count != 6 && !(specific && categoryCount == 1) {

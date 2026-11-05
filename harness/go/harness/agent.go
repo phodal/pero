@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	point "github.com/phodal/pero/harness/go/runtime"
+	harnesstool "github.com/phodal/pero/harness/go/tool"
 )
 
 type AgentStatus string
@@ -256,6 +257,7 @@ type Agent struct {
 	maxTokens            int
 	maxParallelToolCalls int
 	agentLoopConfig      *AgentLoopConfig
+	readReuse            harnesstool.ReadReuse
 	toolProgress         toolProgress // ordered continuation only; reset by turn
 	delegated            bool
 	parent               *Agent
