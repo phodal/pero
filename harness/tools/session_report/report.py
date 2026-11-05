@@ -241,13 +241,15 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
             counts[kind] += 1
             last_time = event.get("time")
             ref = {"seq": seq, "line": line_number}
-            if kind in ("agent/launch-config", "tool-history/config", "provider/request-timeout", "engineering/delivery-review"):
+            if kind in ("agent/launch-config", "tool-history/config", "provider/request-timeout", "engineering/delivery-review", "engineering/progress-review", "acp/output-limit-recovery"):
                 runtime_observations.append({**ref, "type": kind, "data": data})
             elif kind == "environment-service/receipt":
                 runtime_observations.append({**ref, "type": kind, "data": {
                     key: data[key] for key in ("service_id", "status", "owner", "expires_at", "diagnostic") if key in data}})
             elif kind == "user/message" and isinstance(data.get("source"), dict) and data["source"].get("kind") in ("tool-progress-reminder", "tool-progress-pattern"):
                 runtime_observations.append({**ref, "type": data["source"]["kind"], "data": data["source"]})
+            elif kind == "user/message" and isinstance(data.get("source"), dict) and data["source"].get("kind") == "acp/output-limit-recovery":
+                runtime_observations.append({**ref, "type": "acp/output-limit-recovery-message", "data": data["source"]})
             if kind == "system/message":
                 current_system = text_blocks(data.get("message", {}))
             elif kind == "request/header":
@@ -581,6 +583,9 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
             "tool_history_replacements": sum(len(s["history_replacements"]) for s in sessions),
             "provider_request_deadlines": sum(s["event_counts"].get("provider/request-timeout", 0) for s in sessions),
             "tool_progress_advisories": sum(o["type"] in ("tool-progress-reminder", "tool-progress-pattern") for s in sessions for o in s["runtime_observations"]),
+            "mid_turn_delivery_reviews": sum(s["event_counts"].get("engineering/progress-review", 0) for s in sessions),
+            "output_limit_recovery_attempts": sum(s["event_counts"].get("acp/output-limit-recovery", 0) for s in sessions),
+            "output_limit_recovery_messages": sum(o["type"] == "acp/output-limit-recovery-message" for s in sessions for o in s["runtime_observations"]),
             "environment_service_receipts": sum(s["event_counts"].get("environment-service/receipt", 0) for s in sessions),
             "unreported_compaction_failures": sum(s["unreported_compaction_failures"] for s in sessions)},
         "tools": [{"name": name, **count_calls(calls)} for name, calls in sorted(tools.items())],
@@ -610,6 +615,9 @@ def markdown(report: dict) -> str:
         f'Tool history replacements: {summary["tool_history_replacements"]}; progress advisories: {summary["tool_progress_advisories"]}; '
         f'total request deadlines: {summary["provider_request_deadlines"]}; environment service receipts: {summary["environment_service_receipts"]}. '
         'Projection replacements are not tool executions or orphan returns; advisories are not benchmark verdicts.', "",
+        f'Mid-turn public delivery reviews: {summary["mid_turn_delivery_reviews"]}; output-limit recovery attempts: '
+        f'{summary["output_limit_recovery_attempts"]}; committed recovery messages: {summary["output_limit_recovery_messages"]}. '
+        'Recovery messages do not prove a provider request or successful recovery; original turn stops remain in the trace.', "",
         f'Explicit tool/process failures: **{summary["failed_calls"]}** '
         f'(isError={summary["protocol_errors"]}; nonzero exit={summary["execution_failures"]}; owner failure={summary["lifecycle_failures"]}; overlapping counts). '
         f'Interrupted: {summary["interrupted_calls"]}; running: {summary["running_calls"]}; missing returns: {summary["missing_results"]}.', "",

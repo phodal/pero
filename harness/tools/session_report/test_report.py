@@ -9,6 +9,26 @@ from report import build_report, inspect_session, write_report
 
 
 class SessionReportRules(unittest.TestCase):
+    def test_recovery_receipts_preserve_original_stops(self):
+        path = self.session([
+            ("turn/start", {"turn": 1, "source": "human"}),
+            ("turn/end", {"turn": 1, "reason": "max-tokens"}),
+            ("acp/output-limit-recovery", {"attempt": 1, "previous_turn": 1}),
+            ("turn/start", {"turn": 2, "source": "plugin"}),
+            ("user/message", {"source": {"kind": "acp/output-limit-recovery", "attempt": 1, "previous_turn": 1}}),
+            ("engineering/progress-review", {"turn": 2, "step": 32}),
+            ("turn/end", {"turn": 2, "reason": "max-tokens"}),
+            ("acp/output-limit-recovery", {"attempt": 2, "previous_turn": 2}),
+        ])
+        report = build_report([path])
+        self.assertEqual(report["summary"]["output_limit_recovery_attempts"], 2)
+        self.assertEqual(report["summary"]["output_limit_recovery_messages"], 1)
+        self.assertEqual(report["summary"]["mid_turn_delivery_reviews"], 1)
+        session = report["sessions"][0]
+        self.assertEqual([t["reason"] for t in session["turns"]], ["max-tokens", "max-tokens"])
+        self.assertEqual([t["source"] for t in session["turns"]], ["human", "plugin"])
+        self.assertTrue(all(o["line"] > 0 and o["seq"] > 0 for o in session["runtime_observations"]))
+
     def test_history_replacements_and_runtime_receipts(self):
         path = self.session([
             self.call(), self.result({"exitCode": 1, "stdout": {"text": "original failure"}}),
