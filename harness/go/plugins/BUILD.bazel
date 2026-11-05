@@ -5,10 +5,10 @@ go_library(
     srcs = [
         "components.go",
         "data.go",
-        "fetch.go",
-        "fetch_process_unix.go",
-        "fetch_process_other.go",
         "diagnostic.go",
+        "fetch.go",
+        "fetch_process_other.go",
+        "fetch_process_unix.go",
         "inspect.go",
         "integrations.go",
         "lsp.go",
