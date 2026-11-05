@@ -133,6 +133,7 @@
     "scientific-viewer": "microscope",
     "paper-agent": "book-open-text",
     "control-lab": "activity",
+    "lab": "flask-conical",
     "data": "database",
     "insights": "layout-list",
     "connectors": "plug",

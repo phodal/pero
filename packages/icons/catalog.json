@@ -2,6 +2,7 @@
   "settings": {},
   "pin": { "kit": "Pin" },
   "microscope": { "kit": "Microscope" },
+  "flask-conical": { "kit": "FlaskConical" },
   "alert-circle": {},
   "database": {},
   "languages": {},
