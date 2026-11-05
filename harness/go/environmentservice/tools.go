@@ -26,6 +26,12 @@ func Mount(ctx context.Context, h *harness.Harness, options Options, checkCWD fu
 		_, err := h.RegisterTool(ctx, "environment/"+name, harness.Tool{
 			Schema:           harness.ToolSchema{Name: name, Description: description, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{` + properties + `},"required":[` + required + `]}`)},
 			RequiresApproval: name != "ServiceStatus", ExecutionMode: harness.ExecutionSerial, Timeout: 10 * time.Second,
+			ApprovalDescriptor: func(_ context.Context, request harness.ToolRequest) (*harness.NativeApprovalDescriptor, error) {
+				if toolName != "ServiceStart" || request.Agent == nil {
+					return nil, nil
+				}
+				return &harness.NativeApprovalDescriptor{Version: 1, Operation: "shell", Workspace: request.Agent.Session().WorkingDirectory(), SandboxMode: harness.SandboxFullAccessMode, Enforcement: "none", Network: "allow"}, nil
+			},
 			ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
 				if request.Agent == nil || checkCWD == nil {
 					return harness.ToolResult{}, errors.New("service tools require a native workspace")
