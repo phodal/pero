@@ -318,16 +318,16 @@ export function checkConcepts(experiment: Experiment, candidateId: string, phase
 }
 
 export function verdictSummary(concepts: { verdict: string }[], scenarioCount: number) {
-  if (!concepts.length) return { title: "No checks", detail: `${scenarioCount} frozen scenarios` };
+  if (!concepts.length) return { verdict: "NOT_RUN" as Verdict, title: "No checks", detail: `${scenarioCount} frozen scenarios` };
   if (concepts.every((concept) => concept.verdict === "NOT_RUN")) {
-    return { title: "Checks have not been run", detail: `${scenarioCount} frozen scenarios` };
+    return { verdict: "NOT_RUN" as Verdict, title: "Checks have not been run", detail: `${scenarioCount} frozen scenarios` };
   }
   const failed = concepts.filter((concept) => concept.verdict === "FAIL").length;
   const passed = concepts.filter((concept) => concept.verdict === "PASS").length;
   const title = failed
     ? `${failed} constraint${failed === 1 ? "" : "s"} failed`
     : passed === concepts.length ? "All checks passed" : "Evidence inconclusive";
-  return { title, detail: `${passed} of ${concepts.length} checks passed · ${scenarioCount} scenarios` };
+  return { verdict: (failed ? "FAIL" : passed === concepts.length ? "PASS" : "INCONCLUSIVE") as Verdict, title, detail: `${passed} of ${concepts.length} checks passed · ${scenarioCount} scenarios` };
 }
 
 function moveToward(current: Record<string, number>, ranges: Record<string, Range>, name: string, fraction: number) {
