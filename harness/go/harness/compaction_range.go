@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -265,6 +266,11 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 		}
 		return nil, errors.New("harness: compaction surface changed while summarization was running")
 	}
+	fileOperations := checkpointFileOperations(session.Events(), selection.rangeValue.End)
+	if len(fileOperations) > 0 {
+		raw, _ := json.Marshal(fileOperations)
+		summary = append(summary, ContentBlock{Type: BlockText, Text: "Observed file operations (bounded recent records; not current-content verification):\n" + string(raw)})
+	}
 	checkpoint := frameCompactionSummary(summary)
 	if EstimateMessageTokens(Message{Role: RoleUser, Content: checkpoint}) >= selection.tokens {
 		if turn == nil {
@@ -273,22 +279,24 @@ func (b *BasicCompactor) compactRange(ctx context.Context, agent *Agent, measure
 		return nil, errCompactionNoReduction
 	}
 	summaryEvent, err := session.Append("compaction/summary", struct {
-		CompactionID       string         `json:"compactionId"`
-		SourceCommandID    *CommandID     `json:"sourceCommandId,omitempty"`
-		Summary            []ContentBlock `json:"summary"`
-		RawOutput          []ContentBlock `json:"rawOutput"`
-		LLMStreamCall      bool           `json:"llmStreamCall"`
-		ShadowedRange      SurfaceRange   `json:"shadowedRange"`
-		ShadowedSeqs       []uint64       `json:"shadowedSeqs"`
-		ShadowedTokenCount int            `json:"shadowedTokenCount"`
-		Provider           string         `json:"provider"`
-		Model              string         `json:"model"`
-		MaxTokens          int            `json:"maxTokens"`
-		Usage              *TokenUsage    `json:"usage,omitempty"`
+		CompactionID       string                    `json:"compactionId"`
+		SourceCommandID    *CommandID                `json:"sourceCommandId,omitempty"`
+		Summary            []ContentBlock            `json:"summary"`
+		RawOutput          []ContentBlock            `json:"rawOutput"`
+		LLMStreamCall      bool                      `json:"llmStreamCall"`
+		ShadowedRange      SurfaceRange              `json:"shadowedRange"`
+		ShadowedSeqs       []uint64                  `json:"shadowedSeqs"`
+		ShadowedTokenCount int                       `json:"shadowedTokenCount"`
+		Provider           string                    `json:"provider"`
+		Model              string                    `json:"model"`
+		MaxTokens          int                       `json:"maxTokens"`
+		Usage              *TokenUsage               `json:"usage,omitempty"`
+		FileOperations     []checkpointFileOperation `json:"fileOperations,omitempty"`
 	}{
 		CompactionID: compactionID, SourceCommandID: sourceCommandID, Summary: summary, RawOutput: rawOutput, LLMStreamCall: true,
 		ShadowedRange: selection.rangeValue, ShadowedSeqs: selection.seqs, ShadowedTokenCount: selection.tokens,
 		Provider: provider, Model: model, MaxTokens: policy.maxTokens, Usage: usage,
+		FileOperations: fileOperations,
 	})
 	if err != nil {
 		if turn == nil {
