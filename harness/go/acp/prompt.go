@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/phodal/pero/harness/go/harness"
@@ -44,6 +45,17 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 		}
 		if promptErr == nil {
 			result, promptErr = record.agent.Prompt(promptCtx, message)
+			for attempt := 1; promptErr == nil && promptCtx.Err() == nil && result.Reason == harness.FinishMaxTokens && attempt <= s.outputLimitRecoveries; attempt++ {
+				source, _ := json.Marshal(struct {
+					Kind    string `json:"kind"`
+					Attempt int    `json:"attempt"`
+					Turn    int    `json:"previous_turn"`
+				}{"acp/output-limit-recovery", attempt, result.Turn})
+				if _, promptErr = record.agent.Session().Append("acp/output-limit-recovery", json.RawMessage(source)); promptErr != nil {
+					break
+				}
+				result, promptErr = record.agent.PromptFollowup(promptCtx, harness.Message{Role: harness.RoleUser, Source: source, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "The previous turn reached its output token limit. Incomplete tool calls were discarded and did not write files. Inspect the current files before continuing the original task. Use smaller complete operations: write a minimal working skeleton, then fill it with focused incremental edits. Do not resend the same large file or replay incomplete arguments. Preserve the original requirements and verify the completed artifacts."}}})
+			}
 		}
 		// Prompt can return as soon as its context is canceled. Retain the ACP
 		// slot until the worker has stopped, so the next turn cannot overlap it.

@@ -37,12 +37,15 @@ type Options struct {
 	Model                    string
 	// MaxSteps is host configuration: zero keeps the harness default and
 	// harness.UnlimitedMaxSteps delegates termination to external cancellation.
-	MaxSteps            int
-	Compaction          *harness.BasicCompactionConfig
-	ToolResultPruner    *harness.ToolResultPruneConfig
-	Name                string
-	Version             string
-	SessionListPageSize int
+	MaxSteps int
+	// OutputLimitRecoveries explicitly allows attributed new turns after an
+	// output-limit stop. Zero preserves ACP's single-prompt stop contract.
+	OutputLimitRecoveries int
+	Compaction            *harness.BasicCompactionConfig
+	ToolResultPruner      *harness.ToolResultPruneConfig
+	Name                  string
+	Version               string
+	SessionListPageSize   int
 	// HoldAssistantText and RenderAssistantText let a MessageDisplay hook
 	// replace one completed assistant message on the wire. Nil leaves streaming
 	// unchanged. The stored message stays the original text.
@@ -64,6 +67,7 @@ type Server struct {
 	provider                 string
 	model                    string
 	maxSteps                 int
+	outputLimitRecoveries    int
 	compaction               *harness.BasicCompactionConfig
 	toolResultPruner         *harness.ToolResultPruneConfig
 	name                     string
@@ -131,6 +135,9 @@ func NewServer(options Options) (*Server, error) {
 	if options.Harness == nil || options.Persistence == nil {
 		return nil, errors.New("acp: harness and persistence are required")
 	}
+	if options.OutputLimitRecoveries < 0 {
+		return nil, errors.New("acp: output limit recoveries must be nonnegative")
+	}
 	if options.Name == "" {
 		options.Name = "pero-agent-acp"
 	}
@@ -151,7 +158,8 @@ func NewServer(options Options) (*Server, error) {
 		modelChoices: choices, modelCapacity: capacity, modelOutput: output,
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
 		provider: options.Provider, model: options.Model, maxSteps: options.MaxSteps, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
-		name: options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
+		outputLimitRecoveries: options.OutputLimitRecoveries,
+		name:                  options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
 		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
 		sessions: make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),

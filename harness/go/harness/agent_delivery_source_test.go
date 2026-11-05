@@ -35,6 +35,7 @@ func TestPluginAdmissionRejectsHumanSource(t *testing.T) {
 		{"quiet delivery", func() error { return agent.Deliver(message, false) }},
 		{"waking delivery", func() error { return agent.Deliver(message, true) }},
 		{"followup", func() error { _, err := agent.FollowupResultContext(t.Context(), message); return err }},
+		{"synchronous followup", func() error { _, err := agent.PromptFollowup(t.Context(), message); return err }},
 		{"conditional followup", func() error { _, err := agent.TryFollowup(message); return err }},
 		{"durable next step", func() error { return agent.DeliverDurable(t.Context(), message, false) }},
 		{"durable next turn", func() error { return agent.DeliverDurable(t.Context(), message, true) }},
@@ -59,6 +60,10 @@ func TestInboxAdmissionPreservesSourceAndAuthorship(t *testing.T) {
 		human, quiet bool
 		admit        func(context.Context, *Agent, Message) error
 	}{
+		{"synchronous plugin turn", json.RawMessage(`{"kind":"acp/output-limit-recovery","attempt":1}`), false, false, func(ctx context.Context, agent *Agent, message Message) error {
+			_, err := agent.PromptFollowup(ctx, message)
+			return err
+		}},
 		{"plugin next step", json.RawMessage(`{"kind":"agent-message","senderSessionId":"child","extra":{"note":"keep"}}`), false, true, func(ctx context.Context, agent *Agent, message Message) error {
 			return agent.DeliverDurable(ctx, message, false)
 		}},

@@ -73,6 +73,7 @@ func run() (resultErr error) {
 	approval := flag.String("approval", "ask", "tool approval policy: never or ask via ACP client")
 	budget := bindProviderBudget(flag.CommandLine)
 	maxTurnSteps := flag.Int("max-turn-steps", harness.DefaultMaxSteps, "maximum model/tool steps per turn; 0 disables this ceiling (cancellation and provider budgets still apply)")
+	outputLimitRecoveries := flag.Int("output-limit-recoveries", 0, "ACP-only attributed follow-up turns after output truncation; 0 returns max_tokens immediately")
 	skillRoots := bindSkillRoots(flag.CommandLine)
 	pluginConfig := bindPluginOptions(flag.CommandLine)
 	compaction := bindCompaction(flag.CommandLine)
@@ -95,6 +96,9 @@ func run() (resultErr error) {
 	}
 	if *maxTurnSteps < 0 {
 		return errors.New("--max-turn-steps must be nonnegative")
+	}
+	if *outputLimitRecoveries < 0 || *printMode && *outputLimitRecoveries != 0 {
+		return errors.New("--output-limit-recoveries must be nonnegative and is only supported in ACP mode")
 	}
 	if *maxTurnSteps == 0 {
 		*maxTurnSteps = harness.UnlimitedMaxSteps
@@ -417,7 +421,7 @@ func run() (resultErr error) {
 	if err := mountToolHistory(ctx, h, toolHistoryConfig); err != nil {
 		return err
 	}
-	if err := mountLaunchReceipt(ctx, h, launchReceipt{Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking, ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != ""}); err != nil {
+	if err := mountLaunchReceipt(ctx, h, launchReceipt{Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking, ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != "", OutputLimitRecoveries: *outputLimitRecoveries}); err != nil {
 		return err
 	}
 	if *initOnly || *maintenance {
@@ -440,6 +444,7 @@ func run() (resultErr error) {
 		return runPrintPrepared(ctx, h, pluginHooks, *model, *workspace, printPrompt, harness.AgentOptions{MaxSteps: *maxTurnSteps, Compaction: compactionConfig}, engineering.preparePrompt(engineeringApp))
 	}
 	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
+	serverOptions.OutputLimitRecoveries = *outputLimitRecoveries
 	serverOptions.PreparePrompt = engineering.preparePrompt(engineeringApp)
 	if pluginHooks != nil {
 		serverOptions.HoldAssistantText = func(*harness.Agent) bool { return pluginHooks.HoldsAssistantText() }

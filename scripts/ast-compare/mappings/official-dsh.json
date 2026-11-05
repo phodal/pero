@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "31f03f3924a60ec06579f82d9755527c997c5b30",
+  "right_ref": "c451b05260e3926c623130e25effbca29a12bdd0 + 2026-11-05 explicit ACP recovery working snapshot; per-file hashes below",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -239,9 +239,9 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "8ba03260fc563fb1c1af69225c879d9f55525328b808d7087032f1adf71b19b1"
+        "sha256": "d2598cf9a59196cef64824b0e1430f08dcef61c13af6ab1708402b919d8ecc86"
       },
-      "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement.",
+      "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement. ACP may explicitly enable bounded output-limit follow-up turns. Each uses a plugin source and the same prompt lifetime; default zero retains the single-prompt contract. The core sticky max-token outcome is unchanged. Recovery, exhausted budgets and cancellation are pinned by native tests.",
       "landmarks": [
         {
           "id": "admission-context",
@@ -278,7 +278,7 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "0f6ac54a6cf598082110772b9ca920c513f7d4720edf9daed7bf66d8c0008e53"
+        "sha256": "9dc22d83f4e81f97448e0376905b27f009c9caa6cc044cab945a248975c9d7f0"
       },
       "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity.",
       "landmarks": [
@@ -307,7 +307,7 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "8ba03260fc563fb1c1af69225c879d9f55525328b808d7087032f1adf71b19b1"
+        "sha256": "d2598cf9a59196cef64824b0e1430f08dcef61c13af6ab1708402b919d8ecc86"
       },
       "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates.",
       "landmarks": [

@@ -9,15 +9,16 @@ import (
 )
 
 type launchReceipt struct {
-	Model               string                         `json:"model"`
-	ContextWindow       int                            `json:"context_window"`
-	MaxOutputTokens     int                            `json:"max_output_tokens"`
-	ThinkingDisabled    bool                           `json:"thinking_disabled"`
-	ImageInput          bool                           `json:"image_input"`
-	MaxTurnSteps        int                            `json:"max_turn_steps"`
-	RequestTimeoutMS    int64                          `json:"request_timeout_ms"`
-	Compaction          *harness.BasicCompactionConfig `json:"compaction,omitempty"`
-	EnvironmentServices bool                           `json:"environment_services"`
+	Model                 string                         `json:"model"`
+	ContextWindow         int                            `json:"context_window"`
+	MaxOutputTokens       int                            `json:"max_output_tokens"`
+	ThinkingDisabled      bool                           `json:"thinking_disabled"`
+	ImageInput            bool                           `json:"image_input"`
+	MaxTurnSteps          int                            `json:"max_turn_steps"`
+	OutputLimitRecoveries int                            `json:"output_limit_recoveries"`
+	RequestTimeoutMS      int64                          `json:"request_timeout_ms"`
+	Compaction            *harness.BasicCompactionConfig `json:"compaction,omitempty"`
+	EnvironmentServices   bool                           `json:"environment_services"`
 }
 
 // A launch receipt is frozen host configuration, not current routing authority.

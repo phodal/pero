@@ -6,11 +6,134 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/phodal/pero/harness/go/harness"
 )
+
+func TestOutputLimitRecovery(t *testing.T) {
+	for _, row := range []struct {
+		name, stop                         string
+		limit, calls                       int
+		exhausted, cancel, budget, refusal bool
+	}{
+		{name: "disabled", stop: "max_tokens", calls: 1},
+		{name: "smaller complete write", stop: "end_turn", limit: 1, calls: 3},
+		{name: "exhausted", stop: "max_tokens", limit: 1, calls: 2, exhausted: true},
+		{name: "provider budget", stop: "max_turn_requests", limit: 2, calls: 2, budget: true},
+		{name: "refusal", stop: "refusal", limit: 2, calls: 2, refusal: true},
+		{name: "cancelled recovery", limit: 2, calls: 2, cancel: true},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			path := filepath.Join(t.TempDir(), "artifact")
+			calls, writes := 0, 0
+			h, err := harness.Boot(t.Context(), harness.Options{AdapterProviders: []string{"fixture"}, Adapter: harness.AdapterFunc(func(requestCtx context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+				calls++
+				if calls == 1 || row.exhausted {
+					return harness.Completion{Finish: harness.FinishMaxTokens, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, ToolCallID: "partial", Name: "Write", Arguments: json.RawMessage(`{"content":"unfinished`)}}}}, nil
+				}
+				if calls == 2 {
+					if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+						t.Fatalf("truncated write executed: %v", err)
+					}
+					last := request.Messages[len(request.Messages)-1]
+					if !strings.Contains(string(last.Source), "acp/output-limit-recovery") || !strings.Contains(last.Content[0].Text, "smaller complete operations") {
+						t.Fatal("missing attributed recovery guidance")
+					}
+					if row.budget {
+						return harness.Completion{}, harness.NewProviderError("request budget", harness.RequestBudgetExhaustedCode, nil)
+					}
+					if row.refusal {
+						return harness.Completion{Finish: harness.FinishRefusal}, nil
+					}
+					if row.cancel {
+						cancel()
+						<-requestCtx.Done()
+						return harness.Completion{}, requestCtx.Err()
+					}
+					return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, ToolCallID: "complete", Name: "Write", Arguments: json.RawMessage(`{"content":"complete"}`)}}}}, nil
+				}
+				return harness.Completion{Finish: harness.FinishStop}, nil
+			})})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { h.Dispose(context.Background()); h.Drain(context.Background()) }()
+			_, err = h.RegisterTool(t.Context(), "fixture/write", harness.Tool{Schema: harness.ToolSchema{Name: "Write", InputSchema: json.RawMessage(`{"type":"object","properties":{"content":{"type":"string"}},"required":["content"]}`)}, Execute: func(_ context.Context, args json.RawMessage) (harness.ToolResult, error) {
+				var value struct {
+					Content string `json:"content"`
+				}
+				if err := json.Unmarshal(args, &value); err != nil {
+					return harness.ToolResult{}, err
+				}
+				writes++
+				return harness.ToolResult{}, os.WriteFile(path, []byte(value.Content), 0600)
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			disk, err := harness.NewJSONLSessionPersistence(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture", OutputLimitRecoveries: row.limit})
+			if err != nil {
+				t.Fatal(err)
+			}
+			server.writer = &wireWriter{encoder: json.NewEncoder(io.Discard)}
+			defer server.closeAll(context.Background())
+			id, err := server.newSession(ctx, NewSessionParams{CWD: t.TempDir()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			stop, err := server.prompt(ctx, PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "create artifact"}}})
+			if stop != row.stop || row.cancel && !errors.Is(err, context.Canceled) || !row.cancel && err != nil {
+				t.Fatalf("stop=%q err=%v", stop, err)
+			}
+			wantWrites := 0
+			if row.stop == "end_turn" {
+				wantWrites = 1
+			}
+			if calls != row.calls || writes != wantWrites {
+				t.Fatalf("calls=%d writes=%d", calls, writes)
+			}
+			if wantWrites == 1 {
+				data, err := os.ReadFile(path)
+				if err != nil || string(data) != "complete" {
+					t.Fatalf("artifact=%q err=%v", data, err)
+				}
+			}
+			record, err := server.currentRecord(id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			recoveries, originalStops := 0, 0
+			for _, event := range record.agent.Session().Events() {
+				if event.Type == "acp/output-limit-recovery" {
+					recoveries++
+				}
+				if event.Type == "turn/end" && strings.Contains(string(event.Data), string(harness.FinishMaxTokens)) {
+					originalStops++
+				}
+			}
+			wantRecoveries := 0
+			if row.limit > 0 {
+				wantRecoveries = 1
+			}
+			if recoveries != wantRecoveries || originalStops < 1 {
+				t.Fatalf("recovery attempts=%d original stops=%d", recoveries, originalStops)
+			}
+			if record.inflight {
+				t.Fatal("prompt slot remained active after settlement")
+			}
+		})
+	}
+}
 
 func TestPromptTermination(t *testing.T) {
 	budgetErr := harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
@@ -40,7 +163,11 @@ func TestPromptTermination(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture"})
+			recoveries := 2
+			if test.finish == harness.FinishMaxTokens {
+				recoveries = 0
+			}
+			server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture", OutputLimitRecoveries: recoveries})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -53,6 +180,15 @@ func TestPromptTermination(t *testing.T) {
 			stop, err := server.prompt(t.Context(), PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "run"}}})
 			if stop != test.stop || test.stop != "" && err != nil || test.stop == "" && !errors.Is(err, test.err) {
 				t.Fatalf("stop=%q error=%v", stop, err)
+			}
+			record, recordErr := server.currentRecord(id)
+			if recordErr != nil {
+				t.Fatal(recordErr)
+			}
+			for _, event := range record.agent.Session().Events() {
+				if event.Type == "acp/output-limit-recovery" {
+					t.Fatal("non-recoverable termination started output-limit recovery")
+				}
 			}
 			if test.err != nil {
 				record, err := server.currentRecord(id)

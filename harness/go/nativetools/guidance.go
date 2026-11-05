@@ -63,7 +63,7 @@ func nativeGuidance(capabilities harness.PromptCapabilities) string {
 		{[]string{"Glob", "glob_files"}, "Use %s to locate files by name. Narrow the directory or pattern when traversal is truncated."},
 		{[]string{"Grep", "regex_search"}, "Use %s for regular-expression searches. Its Go/RE2 syntax does not support lookaround or backreferences; paginate results and narrow the scope when scanning is truncated."},
 		{[]string{"search_files"}, "Use %s for literal text searches; its query is not a regular expression."},
-		{[]string{"apply_patch", "Edit", "edit_file", "Write", "write_file"}, "Use the available file mutation tools for focused changes. Preserve unrelated edits. Inspect partial or unknown receipts before retrying a mutation."},
+		{[]string{"apply_patch", "Edit", "edit_file", "Write", "write_file"}, "Use the available file mutation tools for focused changes. Preserve unrelated edits. Build large files as a small working skeleton followed by complete incremental edits that fit the response output budget. Inspect current files and partial or unknown receipts before retrying a mutation."},
 		{[]string{"Bash", "shell"}, "Use %s for commands such as builds and tests. Report the observed exit status; a running task is not a successful completion. Shell authority and approval are determined by the host."},
 	} {
 		for _, name := range group.names {
