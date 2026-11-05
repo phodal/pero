@@ -30,7 +30,21 @@ pub(crate) enum ResearchAssetsRequest {
     Start { bundle_id: ResearchId, asset_id: ResearchId },
     Status { bundle_id: ResearchId, asset_id: Option<ResearchId> },
     Cancel { bundle_id: ResearchId, asset_id: Option<ResearchId> },
+    Datasets,
+    Saverecord { record: Value, datasets: Vec<DatasetSelection> },
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct DatasetSelection { dataset_id: String, version_id: String }
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Dataset { dataset_id: String, name: String, archived: bool, versions: Vec<DatasetVersion> }
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DatasetVersion { version_id: String, sha256: String, availability: String }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,16 +108,36 @@ impl ResearchAssetHandoff {
     }
 
     pub(crate) fn execute(self, request: ResearchAssetsRequest) -> Result<Value, String> {
+        match request {
+            ResearchAssetsRequest::Datasets => {
+                return serde_json::to_value(datasets(&self.data)?).map_err(|error| error.to_string());
+            }
+            ResearchAssetsRequest::Saverecord { record, datasets: selected } => {
+                if selected.len() > 32 || record["operation"] != "create" {
+                    return Err("Choose up to 32 dataset versions for a new research revision".into());
+                }
+                let catalog = datasets(&self.data)?;
+                let mut seen = std::collections::BTreeSet::new();
+                let mut versions = Vec::new();
+                for selection in selected {
+                    if !seen.insert(selection.dataset_id.clone()) { return Err("Choose one version per dataset".into()); }
+                    let dataset = catalog.iter().find(|dataset| !dataset.archived && dataset.dataset_id == selection.dataset_id)
+                        .ok_or("Selected dataset is unavailable")?;
+                    let version = dataset.versions.iter().find(|version| version.version_id == selection.version_id && version.availability == "present")
+                        .ok_or("Selected dataset version is unavailable")?;
+                    versions.push(serde_json::json!({"datasetId":dataset.dataset_id,"name":dataset.name,"versionId":version.version_id,"sha256":version.sha256}));
+                }
+                return post(&client(6)?, &self.paper, "/internal/research-record", &serde_json::json!({"record":record,"dataVersions":versions}));
+            }
+            _ => (),
+        }
         let scope = match &request {
             ResearchAssetsRequest::Start { bundle_id, asset_id } => AssetScope { bundle_id, asset_id: Some(asset_id) },
             ResearchAssetsRequest::Status { bundle_id, asset_id }
             | ResearchAssetsRequest::Cancel { bundle_id, asset_id } => AssetScope { bundle_id, asset_id: asset_id.as_ref() },
+            _ => unreachable!(),
         };
-        let client = reqwest::blocking::Client::builder()
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_secs(6))
-            .build().map_err(|error| error.to_string())?;
+        let client = client(6)?;
         // Paper alone owns approvals. Status/cancel must prove the same scope too.
         let asset = if let Some(asset_id) = scope.asset_id {
             let asset: ApprovedAsset = post(&client, &self.paper, "/api/research/handoff", &scope)?;
@@ -123,8 +157,24 @@ impl ResearchAssetHandoff {
                 &DownloadRequest { asset: asset.expect("Start has an approved asset"), confirmed: true }),
             ResearchAssetsRequest::Status { .. } => post(&client, &self.data, "/api/research-status", &scope),
             ResearchAssetsRequest::Cancel { .. } => post(&client, &self.data, "/api/research-cancel", &scope),
+            _ => unreachable!(),
         }
     }
+}
+
+pub(crate) fn watch(paper: &BackendAccess, data: Option<&BackendAccess>, record_id: &str) -> Result<Value, String> {
+    let versions = data.and_then(|backend| datasets(backend).ok()).unwrap_or_default();
+    post(&client(25)?, paper, "/internal/research-watch", &serde_json::json!({"recordId":record_id,"datasets":versions}))
+}
+
+fn client(timeout: u64) -> Result<reqwest::blocking::Client, String> {
+    reqwest::blocking::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(timeout)).build().map_err(|error| error.to_string())
+}
+
+fn datasets(backend: &BackendAccess) -> Result<Vec<Dataset>, String> {
+    read(client(6)?.get(format!("{}/internal/research-versions", backend.url))
+        .header("X-Pero-App-Token", &backend.token).header("X-Pero-Research-Internal", "1"))
 }
 
 fn post<T: Serialize, R: DeserializeOwned>(
@@ -133,9 +183,12 @@ fn post<T: Serialize, R: DeserializeOwned>(
     path: &str,
     body: &T,
 ) -> Result<R, String> {
-    let response = client.post(format!("{}{path}", backend.url))
-        .header("X-Pero-App-Token", &backend.token)
-        .json(body).send().map_err(|_| "Research App backend is unavailable or timed out".to_string())?;
+    let request = client.post(format!("{}{path}", backend.url)).header("X-Pero-App-Token", &backend.token).json(body);
+    read(if path.starts_with("/internal/") { request.header("X-Pero-Research-Internal", "1") } else { request })
+}
+
+fn read<R: DeserializeOwned>(request: reqwest::blocking::RequestBuilder) -> Result<R, String> {
+    let response = request.send().map_err(|_| "Research App backend is unavailable or timed out".to_string())?;
     if !response.status().is_success() {
         return Err(format!("Research App request was refused (HTTP {})", response.status().as_u16()));
     }

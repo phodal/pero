@@ -105,6 +105,18 @@ pub struct Apps {
 pub struct AppsShutdown(Apps);
 impl Drop for AppsShutdown { fn drop(&mut self) { self.0.shutdown(); } }
 impl Apps {
+    pub(crate) fn check_research(&self, record_id: &str) -> Result<serde_json::Value, String> {
+        let (paper, data) = {
+            let mut guard = self.store.lock().map_err(|error| error.to_string())?;
+            let store = guard.as_mut().map_err(|error| error.clone())?;
+            let name = AppName::try_from("paper-agent".to_owned())?;
+            store.require_grant(&name, "research-assets")?;
+            let paper = store.resolve_with_progress(&name, &mut |_| {})?.backend.ok_or("Paper has no backend")?;
+            let data = store.resolve_with_progress(&AppName::try_from("data".to_owned())?, &mut |_| {}).ok().and_then(|value| value.backend);
+            (paper, data)
+        };
+        crate::research_assets::watch(&paper, data.as_ref(), record_id)
+    }
     pub fn shutdown_guard(&self) -> AppsShutdown { AppsShutdown(self.clone()) }
     fn shutdown(&self) {
         self.shutting_down.store(true, std::sync::atomic::Ordering::SeqCst);

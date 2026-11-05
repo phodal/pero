@@ -83,6 +83,14 @@ class ResearchAttempt:
 
 
 @dataclass(frozen=True)
+class DataVersion:
+    datasetId: str
+    versionId: str
+    sha256: str
+    name: str
+
+
+@dataclass(frozen=True)
 class ReviewDecision:
     decision: str
     note: str
@@ -110,9 +118,10 @@ class ResearchRecord:
     parentId: str | None = None
     review: ReviewDecision | None = None
     attempts: tuple[ResearchAttempt, ...] = ()
+    dataVersions: tuple[DataVersion, ...] = ()
 
     @classmethod
-    def create(cls, value, papers, now, *, sources=None, available_attempts=()):
+    def create(cls, value, papers, now, *, sources=None, available_attempts=(), data_versions=()):
         if set(value) - {'operation', 'question', 'scope', 'inclusion', 'exclusion', 'paperIds', 'decisions', 'evidence', 'parentId', 'review', 'attempts'}:
             raise Invalid('Unknown research record fields')
         ids = tuple(p.id for p in papers)
@@ -135,7 +144,7 @@ class ResearchRecord:
         parent = reference(value['parentId'], 'parent revision') if value.get('parentId') is not None else None
         return cls(*(text(value.get(key), 4000, key) for key in ('question', 'scope', 'inclusion', 'exclusion')),
                    ids, decisions, evidence, sources if sources is not None else tuple(SourceVersion(p.id, p.content_digest) for p in papers), now,
-                   parent, ReviewDecision.parse(value['review']) if value.get('review') is not None else None, tuple(attempts))
+                   parent, ReviewDecision.parse(value['review']) if value.get('review') is not None else None, tuple(attempts), data_versions)
 
     def body(self):
         value = asdict(self)
@@ -146,6 +155,10 @@ class ResearchRecord:
             value['attempts'] = [asdict(item) for item in self.attempts]
         else:
             del value['attempts']
+        if self.dataVersions:
+            value['dataVersions'] = [asdict(item) for item in self.dataVersions]
+        else:
+            del value['dataVersions']
         return value
 
     @property
@@ -163,7 +176,8 @@ class ResearchRecord:
                      tuple(SourceVersion(**{**item, 'structuredDocumentIds': tuple(item.get('structuredDocumentIds', ()))})
                            for item in value['sourceVersions']), value['createdAt'], value['parentId'],
                      ReviewDecision(**value['review']) if value['review'] else None,
-                     tuple(ResearchAttempt(**item) for item in value.get('attempts', ())))
+                     tuple(ResearchAttempt(**item) for item in value.get('attempts', ())),
+                     tuple(DataVersion(**item) for item in value.get('dataVersions', ())))
         if result.id != identity or value != result.to_dict():
             raise Invalid('Research revision identity check failed', 409)
         return result
@@ -222,6 +236,7 @@ class ResearchRecord:
                     sourceVersions=[item.to_dict() for item in self.sourceVersions],
                     reportIds=list(dict.fromkeys(item.reportId for item in self.evidence if item.reportId)),
                     attempts=[asdict(item) for item in self.attempts],
+                    dataVersions=[asdict(item) for item in self.dataVersions],
                     verification='not_run', omitted=['Question and scope', 'Notes and screening reasons',
                         'Paper text', 'Report text', 'Private data', 'Paths and credentials'],
                     limitation='Reference index only. Not a portable research record or a recomputation package.')

@@ -373,7 +373,7 @@ impl NativeApps {
             if method != "POST" {
                 return Ok(Response::builder().status(405).body(b"Method refused".to_vec())?);
             }
-            if body.len() > 4096 {
+            if body.len() > 64 * 1024 {
                 return Ok(Response::builder().status(413).body(b"Request too large".to_vec())?);
             }
             let operation: Value = serde_json::from_slice(body)?;

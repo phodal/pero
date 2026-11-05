@@ -34,7 +34,7 @@ def record_handoff(store, value):
     return store.pcgym.evidence_archive(attempt.itemId, attempt.attemptId, research_record=record.to_dict())
 
 
-def record_command(store, value, now):
+def record_command(store, value, now, *, data_versions=None):
     operation = value.get('operation')
 
     def paper(identity):
@@ -52,10 +52,10 @@ def record_command(store, value, now):
     if operation == 'create':
         ids = sequence(value.get('paperIds'), 32, 'saved papers')
         papers = tuple(paper(identity) for identity in ids)
+        parent = read_record(store, value['parentId']) if value.get('parentId') is not None else None
         record = ResearchRecord.create(value, papers, now, sources=tuple(source_version(store, item) for item in papers),
-                                       available_attempts=store.pcgym.research_attempts(ids) if value.get('attempts') else ())
-        if record.parentId:
-            read_record(store, record.parentId)
+                                       available_attempts=store.pcgym.research_attempts(ids) if value.get('attempts') else (),
+                                       data_versions=data_versions if data_versions is not None else parent.dataVersions if parent else ())
         for link in record.evidence:
             if link.reportId is None:
                 continue  # An explicitly missing evidence gap is not an observation.

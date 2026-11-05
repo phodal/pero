@@ -83,6 +83,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     raise Invalid("Request exceeds the upload limit", 413)
                 if not secret or not hmac.compare_digest(secret, self.headers.get("X-Pero-App-Token", "")):
                     raise Invalid("Host proxy authentication required", 401)
+                if path.startswith('/internal/research-') and self.headers.get('X-Pero-Research-Internal') != '1':
+                    raise Invalid('Private research metadata access required', 403)
                 self.connection.settimeout(15)
                 body = self.rfile.read(length)
                 if len(body) != length:
@@ -97,6 +99,13 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if not self.headers.get("Content-Type", "").startswith("application/json"):
                         raise Invalid("JSON is required", 415)
                     data = mapping(json.loads(body), "request")
+                    if path == '/internal/research-record':
+                        from .research_watch import save_with_data
+                        return self.reply(200, save_with_data(store, data, now()))
+                    if path == '/internal/research-watch':
+                        from .research_watch import check
+                        from .resource_fetch import PublicMetadata
+                        return self.reply(200, check(store, data['recordId'], data['datasets'], PublicMetadata().fetch, now()))
                     tex_location = re.fullmatch(r'/api/tex-previews/([a-f0-9]{64})/locate', path)
                     if tex_location:
                         from .tex_navigation import TexNavigation, locate_tex
