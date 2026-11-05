@@ -948,3 +948,21 @@ SubagentResult 现在统一拥有 ParentContent 投影：向父会话传递支�
 初次运行暴露本机 Node 文件入口携带大 JSON 参数时 SIGKILL；后来在 Harness 外同样复现，不能归为 Harness 进程终止缺陷。独立、带精确前后哈希的 P08 迁移新增互斥的 --payload-file 输入，保留旧 --payload 及原 CLI 状态 owner，并给两个 skill 增加使用说明；不直接修改状态文件或放宽发布 gate。宿主根因仍未知。[迁移说明](../../harness/go/plugins/migrations/README.md#selected-state-payload-input)、[问题及验证](../issues/2026-11-03-new-code-cli-transition-signal.md)
 
 本步骤六条迁移测试、原插件 62 条 Node 测试、实际 CLI opt-in race 回归、完整 CLI race/vet 与 Bazel CLI 目标通过。生命周期模型为 loopback HTTP fixture，17 次父请求、3 次子请求、12 次审批；Git、Node、文件、hook 和进程效果真实，不冒充付费模型独立开发验收。连续 LSP、后台 Workflow 执行栈续跑及其余插件的外部依赖和完整业务验收仍按前文边界保留。
+
+### 16.24 兼容性补齐与三个本地开发插件复验（2026-11-05）
+
+本节更新前述历史状态，不将早期矩阵的“未实现/未验收”当作当前结论。
+
+- Marketplace 默认 strict=true 组合 manifest 与 entry 组件；manifestless entry、按事件替换的 hooks、嵌套 command/agent 目录已有回归。显式 `plugins fetch` 支持 Git/GitHub/git-subdir、ref/完整 SHA 和版本回执；更新生成新快照，保留旧快照。获取不执行插件 hook 或安装器；archive/npm/submodule 未支持。
+- 远程 MCP 的 headersHelper 在每次连接解析，动态头覆盖静态头，10 秒/64 KiB 限制与原进程清理 owner 复用。实际 SDK HTTP 连接验证凭据更新及错误脱敏；不自动重试已失败工具或 401，OAuth 登录/存储/刷新仍未实现。
+- InstructionsLoaded 来自实际交付的 workspace CLAUDE.md provenance，异步、跨恢复去重，输出不能阻塞或注入请求。沿用现有分层 loader；AGENTS.md、被省略文件、用户/祖先/.claude/rules/imports 不冒充此事件，ConfigChange 和团队事件未实现。
+- LSP 支持查询能力动态注册/注销及 language/file/glob selector；brace/notebook selector 与动态同步未实现。每次模型步骤检测每个 server/agent/CWD 最近观察文件的内容变化，清除旧诊断并检查新内容；删除/恢复也覆盖。不是任意工作区监听。
+- 已合入 `f5646077` 的不可变 context 解码缓存与报告 ownership 修复。PR #116 当前 Linux 检查通过，包含真实 Linux shell/PTY 回归；Windows/sandbox PTY 仍不支持。当前集成全 Go race/vet 与 36 个 Bazel 目标全部通过。
+
+| 插件 | 当前实际证据 | 保留边界 |
+| --- | --- | --- |
+| coder 0.58.0 | 当前 CLI/race 复验双仓 worktree、子代理读写、提交、登记恢复和清理；16.22 的真实模型原入口→恢复→done/本地合并证据保留 | 本轮未重新执行 1011 请求的完整模型流程；配置使用显式迁移快照 |
+| new-code 0.5.0 | 原入口真实 deepseek-flash 共 43 HTTP，双仓 clamp 开发、真实测试、独立 reviewer、原发布流程到临时本地 bare remote；独立重测各 6/6 和额外边界断言，测试/发布 HEAD 一致 | 保留 published_testing/worktree；done 与错误/旧证据拒绝由当前 loopback CLI 生命周期覆盖，不冒充本次模型完成 done |
+| sad 1.4.0 | 真实模型 21 HTTP 加载 standards，执行原 validator 正样本 0 错/退出 0、负样本 19 错/退出 1，调用原 reviewer 并写报告；14 个样本未变 | 只验收局部审查流程；结构通过样本仍存在来源追溯缺口；缺 draw.io 可执行程序，未验证完整生成/重新导出 |
+
+两个新模型回执均正常 end_turn、退出 0、无清理错误。opus/sonnet/haiku 别名显式映射同一 deepseek-flash，不声称 Claude 模型质量等价；机器问答策略不代表真人审批。实际计量、插件关键文件哈希与独立断言在 [匿名验收回执](../../harness/tools/trial/local-plugin-acceptance.json)。15/15 编译通过仍仅指显式迁移后的配置，不代表 15 个真实业务流程。更大提示词效果评测仍不能由这两个样本证明最优。

@@ -101,10 +101,22 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   the main session identity and the actual child identity. Stop defaults to
   eight consecutive continuations and resets after ordinary tool work.
   Structured answer submissions also pass the stop gate and can be revised.
+  InstructionsLoaded observes admitted workspace CLAUDE.md baselines asynchronously;
+  unchanged baselines remain deduplicated across resume. Decisions from this event
+  cannot block a request or inject model context. This follows the existing
+  opt-in hierarchical loader; it does not load user/ancestor files, imports or
+  `.claude/rules`. ConfigChange and team lifecycle events remain unsupported.
   A PermissionRequest `updatedPermissions` entry with destination `session` applies allow, deny, and ask rules, adds or removes working directories, and can set the session mode to `default`, `plan`, `acceptEdits`, or `dontAsk`. `auto` and `bypassPermissions` do not change the mode. Other destinations are ignored and are not written to settings files. Directory updates do not fire `DirectoryAdded`. Tool, prompt, and stop hooks receive that mode as `permission_mode`.
 - MCP stdio, streamable HTTP and legacy SSE connections belong to root-agent lifetimes.
   Each package gets a server namespace; children inherit the parent connection.
   `list_mcp_prompts` and `get_mcp_prompt` read prompts from those servers.
+  Remote declarations can use `headersHelper`: a trusted shell command returning
+  a JSON string map, resolved on each connection with a 10-second/64-KiB bound.
+  Dynamic headers override static headers case-insensitively. The helper receives
+  plugin/project environment and CLAUDE_CODE_MCP_SERVER_NAME/URL. Inspection never
+  runs it, and helper output/stderr is excluded from error messages. Failed tool
+  calls and authentication rejection are not automatically replayed. Native OAuth
+  login/token storage/refresh is not implemented.
   The session workspace is advertised as a file root.
   A server's initialize instructions join the system prompt, and text over 32,768 bytes rejects that connection.
 - Agent, SendMessage, TaskOutput and TaskStop run, continue and cancel actual harness children.
@@ -139,8 +151,9 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   Selection grants execution of trusted local stdio servers; it does not
   install missing executables. Nine capability-checked queries, cancellation,
   restart limits and shutdown are implemented. Native saved-file diagnostic
-  checks default to enabled; continuous asynchronous monitoring and dynamic
-  registration remain pending. See the [LSP contract](../lsp/README.md).
+  checks default to enabled. Dynamic query registration and late diagnostics are
+  supported; the last observed file per server/agent/CWD is checked for external
+  edits before each model step. Arbitrary workspace watching remains unsupported. See the [LSP contract](../lsp/README.md).
 - Explicit `--web-provider deepseek-api` enables WebSearch/WebFetch, using the
   existing approval channel and a tool-free child for page extraction. See
   [Web provider configuration](../webtools/README.md).
