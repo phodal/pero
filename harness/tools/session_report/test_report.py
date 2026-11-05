@@ -9,6 +9,29 @@ from report import build_report, inspect_session, write_report
 
 
 class SessionReportRules(unittest.TestCase):
+    def test_history_replacements_and_runtime_receipts(self):
+        path = self.session([
+            self.call(), self.result({"exitCode": 1, "stdout": {"text": "original failure"}}),
+            ("compaction/prune", {"shadowedSeqs": [2], "shadowedTokenCount": 100}),
+            self.result({"text": "omitted"}),
+            ("provider/request-timeout", {"chunks": 38, "content_bytes": 161, "usage_complete": False}),
+            ("environment-service/receipt", {"service_id": "a" * 32, "status": "running", "owner": "environment", "result": {"stdout": "do not duplicate"}}),
+            ("user/message", {"source": {"kind": "tool-progress-pattern", "pattern": "alternating", "count": 6}}),
+        ])
+        records = [json.loads(line) for line in path.read_text().splitlines()]
+        records[4]["event"].update(surfaceOp={"op": "replace", "start": 2, "end": 2}, sourceEventSeqs=[2])
+        path.write_text("".join(json.dumps(row) + "\n" for row in records))
+        report = build_report([path])
+        session = report["sessions"][0]
+        self.assertEqual(session["calls"][0]["result_seq"], 2)
+        self.assertFalse(any(f["kind"] == "orphan_tool_result" for f in session["findings"]))
+        self.assertEqual(report["summary"]["tool_history_replacements"], 1)
+        self.assertEqual(report["summary"]["tool_progress_advisories"], 1)
+        self.assertEqual(report["summary"]["provider_request_deadlines"], 1)
+        self.assertFalse(report["summary"]["usage"]["usage_complete"])
+        service = next(o for o in session["runtime_observations"] if o["type"] == "environment-service/receipt")
+        self.assertNotIn("result", service["data"])
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

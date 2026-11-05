@@ -21,6 +21,14 @@ source hashes and seq/line references. `summary.md` lists token consumption,
 failed/interrupted calls, zero-exit validation candidates and tool traffic.
 These are private local diagnostics; commands and paths retain source data.
 
+Source-bound tool-result surface replacements are tracked separately from
+executions, retaining the original execution outcome. Runtime observations
+include launch/history configuration, progress advisories, delivery reviews,
+request deadlines and safe service receipt fields. Summary counters distinguish
+these from failures and benchmark verdicts. A request deadline makes usage
+coverage incomplete even when no final response record exists; missing usage
+is unknown. See [runtime follow-up](../../../docs/fitness/reference-runtime-improvements.md).
+
 The existing trial runner automatically writes `<records>/trace-summary` after
 cleanup and adds `trace_summary` to its JSON receipt. The benchmark runner can
 use the same CLI for per-task and aggregate reports. A diagnostic report error

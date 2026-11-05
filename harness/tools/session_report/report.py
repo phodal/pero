@@ -201,6 +201,8 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
     compaction_failures = []
     contexts = []
     wire_measurements, batch_budgets = [], []
+    runtime_observations, history_replacements = [], []
+    result_identities = {}
     pending_wire = None
     turns = []
     turn_sources = {}
@@ -239,6 +241,13 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
             counts[kind] += 1
             last_time = event.get("time")
             ref = {"seq": seq, "line": line_number}
+            if kind in ("agent/launch-config", "tool-history/config", "provider/request-timeout", "engineering/delivery-review"):
+                runtime_observations.append({**ref, "type": kind, "data": data})
+            elif kind == "environment-service/receipt":
+                runtime_observations.append({**ref, "type": kind, "data": {
+                    key: data[key] for key in ("service_id", "status", "owner", "expires_at", "diagnostic") if key in data}})
+            elif kind == "user/message" and isinstance(data.get("source"), dict) and data["source"].get("kind") in ("tool-progress-reminder", "tool-progress-pattern"):
+                runtime_observations.append({**ref, "type": data["source"]["kind"], "data": data["source"]})
             if kind == "system/message":
                 current_system = text_blocks(data.get("message", {}))
             elif kind == "request/header":
@@ -292,11 +301,21 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
                 pending[call_id] = seq
             elif kind == "tool/result":
                 call_id = data.get("toolCallId")
+                operation = event.get("surfaceOp")
+                sources = event.get("sourceEventSeqs", [])
+                if (isinstance(operation, dict) and operation.get("op") == "replace" and isinstance(sources, list)
+                        and len(sources) == 1 and type(sources[0]) is int
+                        and operation.get("start") == operation.get("end") == sources[0]
+                        and result_identities.get(sources[0]) == call_id):
+                    result_identities[seq] = call_id
+                    history_replacements.append({**ref, "source_seq": sources[0], "call_id": call_id})
+                    continue
                 call_seq = pending.pop(call_id, None)
                 if call_seq is None:
                     findings.append(Finding("orphan_tool_result", "error", "Tool result has no matching pending call", [ref]))
                 else:
                     results[call_seq] = ({**ref, "time": last_time}, data)
+                    result_identities[seq] = call_id
             elif kind == "shell-task/started":
                 if data.get("call_id") in pending:
                     processes[pending[data["call_id"]]] = data["task_id"]
@@ -466,7 +485,7 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
             "Some completions or failed/interrupted attempts have no complete provider usage; totals cover recorded usage only"))
     call_values = [asdict(call) for call in calls.values()]
     usage_summary = usage.summary()
-    usage_summary["usage_complete"] = usage_summary["usage_complete"] and counts["assistant/attempt"] == 0 and not unknown_compactions
+    usage_summary["usage_complete"] = usage_summary["usage_complete"] and counts["assistant/attempt"] == 0 and not unknown_compactions and counts["provider/request-timeout"] == 0
     label = label_for(path)
     if header.get("parentSession"):
         label += "/subagent:" + header["id"][-8:]
@@ -477,6 +496,7 @@ def inspect_session(path: Path, reviews: list[dict] | None = None) -> dict:
         "started_at": header.get("createdAt"), "ended_at": last_time,
         "raw_events": event_count, "event_counts": dict(counts), "usage": usage_summary,
         "responses": responses, "contexts": contexts, "wire_measurements": wire_measurements, "batch_budgets": batch_budgets, "calls": call_values, "turns": turns,
+        "runtime_observations": runtime_observations, "history_replacements": history_replacements,
         "findings": [asdict(finding) for finding in findings], "counts": count_calls(call_values),
         "failed_or_interrupted_attempt_records": counts["assistant/attempt"],
         "compaction_failures": len(compaction_failures),
@@ -558,6 +578,10 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
             "compaction_responses": sum(r["purpose"] == "compaction" for s in sessions for r in s["responses"]),
             "compaction_failures": sum(s["compaction_failures"] for s in sessions),
             "compaction_skips": sum(s["event_counts"].get("compaction/skipped", 0) for s in sessions),
+            "tool_history_replacements": sum(len(s["history_replacements"]) for s in sessions),
+            "provider_request_deadlines": sum(s["event_counts"].get("provider/request-timeout", 0) for s in sessions),
+            "tool_progress_advisories": sum(o["type"] in ("tool-progress-reminder", "tool-progress-pattern") for s in sessions for o in s["runtime_observations"]),
+            "environment_service_receipts": sum(s["event_counts"].get("environment-service/receipt", 0) for s in sessions),
             "unreported_compaction_failures": sum(s["unreported_compaction_failures"] for s in sessions)},
         "tools": [{"name": name, **count_calls(calls)} for name, calls in sorted(tools.items())],
         "duplicates_skipped": duplicates, "sessions": sessions}
@@ -583,6 +607,9 @@ def markdown(report: dict) -> str:
         f'{summary["unreported_compaction_failures"]}. Missing usage is unknown.', "",
         f'Compaction response records: {summary["compaction_responses"]}; failures: '
         f'{summary["compaction_failures"]}; skipped pressure attempts: {summary["compaction_skips"]}.', "",
+        f'Tool history replacements: {summary["tool_history_replacements"]}; progress advisories: {summary["tool_progress_advisories"]}; '
+        f'total request deadlines: {summary["provider_request_deadlines"]}; environment service receipts: {summary["environment_service_receipts"]}. '
+        'Projection replacements are not tool executions or orphan returns; advisories are not benchmark verdicts.', "",
         f'Explicit tool/process failures: **{summary["failed_calls"]}** '
         f'(isError={summary["protocol_errors"]}; nonzero exit={summary["execution_failures"]}; owner failure={summary["lifecycle_failures"]}; overlapping counts). '
         f'Interrupted: {summary["interrupted_calls"]}; running: {summary["running_calls"]}; missing returns: {summary["missing_results"]}.', "",
