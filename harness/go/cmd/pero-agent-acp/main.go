@@ -17,6 +17,7 @@ import (
 	"github.com/phodal/pero/harness/go/acp"
 	"github.com/phodal/pero/harness/go/agentinstructions"
 	"github.com/phodal/pero/harness/go/charts"
+	"github.com/phodal/pero/harness/go/environmentservice"
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/lsp"
 	"github.com/phodal/pero/harness/go/nativetools"
@@ -39,6 +40,12 @@ func main() {
 }
 
 func run() (resultErr error) {
+	if len(os.Args) == 3 && os.Args[1] == "service-host" {
+		return environmentservice.Supervise(os.Args[2])
+	}
+	if len(os.Args) > 1 && os.Args[1] == "services" {
+		return runServices(os.Args[2:])
+	}
 	if len(os.Args) > 1 && os.Args[1] == "plugins" {
 		return runPlugins(os.Args[2:], os.Stdout)
 	}
@@ -62,6 +69,7 @@ func run() (resultErr error) {
 	bashOutputMaxChars := flag.Int("bash-output-max-chars", 0, "plugin Bash inline/readback character override, 1..128000; zero uses Claude defaults and BASH_MAX_OUTPUT_LENGTH")
 	bashHostMode := flag.String("bash-host-mode", "unattended", "plugin Bash background deadlines: unattended or explicit interactive")
 	disableBashBackground := flag.Bool("disable-bash-background", false, "disable plugin Bash background starts and automatic promotion")
+	serviceDirectory := flag.String("service-dir", "", "explicit private environment service directory; enables services surviving agent exit; Unix unsandboxed only; environment must clean up after verification")
 	approval := flag.String("approval", "ask", "tool approval policy: never or ask via ACP client")
 	budget := bindProviderBudget(flag.CommandLine)
 	maxTurnSteps := flag.Int("max-turn-steps", harness.DefaultMaxSteps, "maximum model/tool steps per turn; 0 disables this ceiling (cancellation and provider budgets still apply)")
@@ -136,6 +144,9 @@ func run() (resultErr error) {
 	sandboxConfig, err := sandboxOptions.config(*workspace, *enableShell, *approval)
 	if err != nil {
 		return err
+	}
+	if *serviceDirectory != "" && (!*enableShell || sandboxConfig != nil) {
+		return errors.New("--service-dir requires --enable-shell and an unsandboxed Unix host")
 	}
 	credential, err := takeProviderCredential(*keyEnv)
 	if err != nil {
@@ -234,6 +245,11 @@ func run() (resultErr error) {
 	}
 	if err := charts.Mount(ctx, h, *chartPython); err != nil {
 		return err
+	}
+	if *serviceDirectory != "" {
+		if err := mountEnvironmentServices(ctx, h, *serviceDirectory, *workspace, pluginShell, pluginEnvironment, native.CheckCWD); err != nil {
+			return err
+		}
 	}
 	instructions, err = mountCoding(ctx, h, *workspace, *coding)
 	if err != nil {
