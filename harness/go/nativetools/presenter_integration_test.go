@@ -118,6 +118,7 @@ func TestBashModelPresentationRunsCommandOnce(t *testing.T) {
 	}{
 		{"unicode inline bypasses encoded byte cap", strings.Repeat("汉🙂", 15000), BashOutputOptions{}, nil, false, 30000, false},
 		{"large success artifact", strings.Repeat("a", 30001), BashOutputOptions{}, nil, false, 2000, true},
+		{"subdirectory artifact", strings.Repeat("a", 30001), BashOutputOptions{}, nil, false, 2000, true},
 		{"failure head and tail", strings.Repeat("A", 5000) + strings.Repeat("M", 20000) + strings.Repeat("C", 5000) + strings.Repeat("D", 10000), BashOutputOptions{}, nil, true, 10000, false},
 		{"trusted override ignores environment", strings.Repeat("x", 40000), BashOutputOptions{BashOutputMaxChars: 50000}, []string{"BASH_MAX_OUTPUT_LENGTH=20"}, false, 40000, false},
 	} {
@@ -127,12 +128,21 @@ func TestBashModelPresentationRunsCommandOnce(t *testing.T) {
 				t.Fatal(err)
 			}
 			command := "printf x >> effects; cat input.txt"
+			workdir := ""
+			if test.name == "subdirectory artifact" {
+				workdir = filepath.Join(f.root, "subdir")
+				if err := os.Mkdir(workdir, 0700); err != nil {
+					t.Fatal(err)
+				}
+				command = "printf x >> ../effects; cat ../input.txt"
+			}
 			if test.failure {
 				command += "; exit 7"
 			}
 			response := f.call(t, f.allowed, "Bash", struct {
 				Command string `json:"command"`
-			}{command})
+				Workdir string `json:"workdir,omitempty"`
+			}{command, workdir})
 			var view bashPresentedResult
 			if test.failure {
 				var failed struct {
