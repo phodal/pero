@@ -3,6 +3,7 @@ package harness
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -87,6 +88,49 @@ func TestToolFailureWindow(t *testing.T) {
 			}
 			if found != row.want {
 				t.Fatalf("advisory=%t want=%t", found, row.want)
+			}
+		})
+	}
+}
+
+func TestDiagnosticProgress(t *testing.T) {
+	for _, row := range []struct {
+		name                    string
+		changing, success, turn bool
+		want                    bool
+	}{
+		{"same diagnostic after edits", false, false, false, true},
+		{"changing diagnostics", true, false, false, false},
+		{"successful command breaks recurrence", false, true, false, false},
+		{"new turn", false, false, true, false},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			var p toolProgress
+			found := false
+			for i := 0; i < 3; i++ {
+				turn := 1
+				if row.turn && i == 2 {
+					turn = 2
+				}
+				p.observe(turn, ContentBlock{Name: "Edit", Arguments: json.RawMessage(`{}`)}, ToolResult{})
+				if row.success && i == 2 {
+					p.observe(turn, ContentBlock{Name: "Bash", Arguments: json.RawMessage(`{"command":"check"}`)}, ToolResult{Content: []ContentBlock{{Type: BlockText, Text: `{"exitCode":0}`}}})
+				}
+				diagnostic := "same"
+				if row.changing {
+					diagnostic = fmt.Sprint(i)
+				}
+				raw, _ := json.Marshal(struct {
+					ExitCode int    `json:"exitCode"`
+					Stderr   string `json:"stderr"`
+				}{1, "main.c: error: " + diagnostic})
+				reminder := p.observe(turn, ContentBlock{Name: "Bash", Arguments: json.RawMessage(`{"command":"check"}`)}, ToolResult{Content: []ContentBlock{{Type: BlockText, Text: string(raw)}}})
+				if reminder != nil && strings.Contains(string(reminder.Source), "tool-diagnostic-reminder") {
+					found = true
+				}
+			}
+			if found != row.want {
+				t.Fatalf("diagnostic reminder=%t want=%t", found, row.want)
 			}
 		})
 	}

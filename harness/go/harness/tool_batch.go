@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/phodal/pero/harness/go/tool"
 )
 
 func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []ContentBlock) (bool, error) {
@@ -117,9 +119,20 @@ func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []Co
 	// OpenAI-compatible histories require every result for one assistant tool
 	// batch to remain contiguous. Deferred user context is therefore committed
 	// only after all results, while preserving call and context order.
-	for _, block := range blocks {
+	for i, block := range blocks {
 		if _, err := a.session.Append("tool/result", block); err != nil {
 			return false, err
+		}
+		d := tool.ObserveDiagnostic(calls[i].Name, calls[i].Arguments, outcomes[i].Result.Content, outcomes[i].Result.IsError)
+		if d.Failed {
+			if _, err := a.session.Append("tool/diagnostic", struct {
+				Turn       int             `json:"turn"`
+				Step       int             `json:"step"`
+				CallID     ToolCallID      `json:"callId"`
+				Diagnostic tool.Diagnostic `json:"diagnostic"`
+			}{turn, step, calls[i].ToolCallID, d}); err != nil {
+				return false, err
+			}
 		}
 	}
 	for _, additional := range deferred {
