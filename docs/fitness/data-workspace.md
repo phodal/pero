@@ -204,3 +204,26 @@ existing reader distribution. Inspected the new light type-preview and numeric
 filter captures plus dark and 390px conversion-issue captures in
 `test-results/data-workflow/`. These verify the real Data frame and catalog;
 they do not extend release-package or scientific acceptance.
+
+### Review regressions
+
+The integration CI at `c6e0ec5e` passed all 14 ordinary jobs, including the Linux
+gate; full Desktop/platform jobs remained configured skips. Subsequent review
+found four reproducible behavior gaps, corrected before merging PR #130:
+
+- A 40,000-digit exact numeric sample exceeded the SDK state limit. Samples now
+  explicitly omit oversized exact values and stay within 8 KiB; the real frame
+  still renders the input, with complete values in source and export.
+- Record reads beyond the preview row bound now return an empty page. Preview
+  requests retain their own row bound; authenticated HTTP regression covers both.
+- Reverting an interpreted field warns before removing its incompatible numeric
+  filter. Other field filters and text comparisons remain unchanged.
+- Field issue navigation reveals a previously hidden field within the column
+  limit; returning to analysis restores the prior displayed columns and filter.
+
+Each regression failed against the preceding implementation. Existing model,
+authenticated HTTP and real-browser concept tests retain the regression cases.
+After all four corrections, all 64 Python and 7 browser tests passed again;
+Data TypeScript, 7 model tests, App build, standalone Electron import/restart
+and the Paper→Host→Data contract also passed. The new hidden-field and long-number
+screenshots were inspected locally.
