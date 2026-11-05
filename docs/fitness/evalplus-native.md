@@ -4,10 +4,11 @@ kind: verification_report
 
 # Native HumanEval+ sample
 
-2026-11-05. Five selected HumanEval+ tasks passed both base and extra tests
-through Pero's native ACP agent and DeepSeek Flash on macOS arm64. This run
-used no Docker, VM startup or hidden-test feedback. It is a selected function
-sample, not a full HumanEval+ score or a new Terminal-Bench score.
+2026-11-05. The first five-task native HumanEval+ sample passed 5/5; the matched
+follow-up at `671897f7` passes **4/5**, with fewer requests but one correctness
+regression. Both use Pero's native ACP agent and DeepSeek Flash on macOS arm64,
+without Docker, VM startup or hidden-test feedback. These are selected function
+samples, not full HumanEval+ scores or new Terminal-Bench scores.
 
 ## Provenance and controls
 
@@ -57,7 +58,8 @@ The 124 responses record **1,690,268 tokens**: 64,007 uncached input,
 1,598,720 cached input and 27,541 output. All responses have usage; HTTP
 attempt counts reconcile and no failed/interrupted provider attempt is
 observed. Recorded totals include cache reads and are not an invoice.
-There is no matched baseline establishing token savings.
+These totals belong to the first sample; the follow-up below compares the same
+tasks without establishing causal savings.
 
 ## Failure observations
 
@@ -106,18 +108,116 @@ explains workspace-local Python imports and asks for expected-output format
 checks before running illustrative docstrings as doctests. These changes
 address missing/ambiguous instructions; they do not rewrite timeout values or
 enforce arbitrary shell program exit codes. Native package race tests, vet and
-the standalone Bazel native-tool target pass. There is no post-change model
-rerun or new score/token comparison.
+the standalone Bazel native-tool target pass. The follow-up below includes
+these instructions together with the notice and review changes.
 
-Two observations remain open. Reading a settled job with TaskOutput does not
-consume its separately queued completion notice, so `sort_array` received an
+Two observations motivated the follow-up. Reading a settled job with TaskOutput
+did not consume its separately queued completion notice, so `sort_array` received an
 already-observed failure after its main turn. Also, across the five tasks,
 21 responses and 18 tool calls occurred after the final delivery-review prompt,
 recording 320,366 tokens (19.0% of the total), with no Edit or Write tool calls.
 Those checks may add evidence; the total is not a measured avoidable cost.
-Task-relevant review scope and reuse of current verification evidence need a
-separate change and acceptance. Guidance compliance and workspace-only scratch
-writes also remain empirical limits.
+The following changes address notice acknowledgement and review scope.
+Guidance compliance and workspace-only scratch writes remain empirical limits.
+
+## Follow-up: notice acknowledgement and evidence reuse
+
+The new binary is built from clean commit
+`671897f73c9a5a39692406c3c616c4f419a0b02b`, including `0117957e` (timeout/check
+guidance), `edcd04f6` (observed notices) and `671897f7` (review scope).
+A committed TaskOutput/TaskStop terminal receipt now acknowledges the exact
+stable completion notice in the existing durable inbox. Failed execution with
+successful retrieval also counts; running/timeout/mismatched receipts do not.
+Queued and later publication, unrelated FIFO work, interruption, real successful/
+failed/stopped processes and disk resume have regression coverage. The actual
+ACP CLI verifies one turn after a terminal read and a second turn for an unread
+completion. Six related Go race suites, vet and four standalone Bazel targets pass.
+
+Final and unbound progress reviews now compare task requirements with existing
+evidence, reuse passed checks on unchanged inputs, and request another check only
+for a concrete gap, failure or changed input. Machine acceptance stays independent.
+
+The same five tasks started in fresh public-prompt-only workspaces. The runner,
+public prompts, selected judge records, evaluator and provider/run settings are
+unchanged; binary/wrapper/workspace receipts identify the new run. References
+pass 5/5 and empty controls fail 5/5 again. Each task has one original submission;
+no hidden feedback, answer repair or model retry was used. All five ACP prompts
+end normally and cleanup succeeds.
+
+| Task | Base / plus | Requests | Tool calls | Explicit failed calls | Reviewed masked failures | Recorded tokens |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| HumanEval/115 | pass / pass | 7 | 5 | 0 | 0 | 31,852 |
+| HumanEval/116 | fail / pass | 22 | 21 | 0 | 7 | 196,852 |
+| HumanEval/123 | pass / pass | 7 | 6 | 0 | 0 | 32,657 |
+| HumanEval/128 | pass / pass | 8 | 7 | 0 | 0 | 38,158 |
+| HumanEval/129 | pass / pass | 17 | 16 | 0 | 2 | 133,509 |
+
+| Metric | First sample | Follow-up |
+| --- | ---: | ---: |
+| Pass both base and plus | 5/5 | **4/5** |
+| Provider responses / HTTP attempts | 124 | 61 |
+| Tool calls | 120 | 55 |
+| Explicit failed tool calls | 19 | 0 |
+| Reviewed zero-exit validation failures | 1 | 9 |
+| Recorded tokens | 1,690,268 | 433,028 |
+| Responses after final review | 21 | 5 |
+| Tools after final review | 18 | 0 |
+| Tokens after final review | 320,366 | 45,988 |
+
+Recorded token lanes are 38,437 uncached input, 378,496 cache reads and 16,095
+output; usage is complete and response counts reconcile. The observed total
+falls 74.4%, requests 50.8% and tool calls 54.2%, while acceptance falls by one
+task. Several changes and stochastic single samples are combined, so these
+are observed deltas, not repeatable or causal savings. `minPath` costs more than
+before because it repairs its own tests. Cached reads remain included, not billed cost.
+
+Each final review uses one response and no tools. No model call supplies a tiny
+timeout; `sort_array` uses the default instead of 15–90 milliseconds. No timeout
+or plugin turn occurs. The follow-up has no background jobs or TaskOutput calls,
+so it does **not** exercise notice suppression; the real-process and recovery
+regressions above establish that behavior.
+
+### Remaining failure evidence
+
+`sort_array` initially writes general popcount/value ordering at seq 402, then
+rewrites it at seq 1491 to sort negatives separately while keeping negative
+positions fixed. That rule is absent from the specification. The public prose
+restricts inputs to nonnegative integers, but includes a negative example;
+its printed example outputs also conflict with popcount sorting. The official
+reference applies popcount/value ordering to all values. For the retained base
+failure `[-2, -3, -4, -5, -6]`, it expects `[-4, -2, -6, -5, -3]`; the submitted
+special rule returns `[-6, -5, -4, -3, -2]`. Plus tests pass, but the combined task
+verdict remains failed. The original implementation's form matches the reference
+rule; it is not a second graded submission or a replacement score.
+
+All nine zero-exit candidates were reviewed against commands and actual output
+and bound to source/result/stdout hashes. Seven are `sort_array` self-test
+assertions, including incorrect tuple ordering and conflicting negative rules;
+one invocation also runs illustrative examples through doctest. `minPath` adds
+an incorrect assertion that the path values must be globally sorted, then calls
+a test helper before defining it. Both are repaired locally and its independent
+verdict passes. Trailing `echo`/filters hide the failing check exits in all nine
+cases. Therefore zero explicit tool failures does not mean zero validation
+failures: prompt guidance has not eliminated masking or invented test expectations.
+
+Three tasks still use `/tmp` scratch, and four inspect `.pero` output directories.
+Review of all 55 tool arguments and embedded scripts finds no judge-path access
+or external-solution retrieval. This remains an unsandboxed trace observation.
+The next improvement needs to preserve source-backed requirements when tests
+conflict and expose masked validation evidence during execution; another generic
+instruction alone has not demonstrated that behavior. No benchmark-specific
+negative-number rule or hidden oracle was added to the harness.
+
+Follow-up artifacts are in sibling root `evalplus-native-20261105-02`:
+`manifest.json`, `binary-build.json`, `runner-preflight.json`, original
+`judge/samples_eval_results.json`, `complete.json`, `comparison.json`/`.md`,
+`analyze.py`, nine bound `reviews.json` entries, `tool-access-review.json` and
+`final-audit.json`. The aggregate report includes those annotations and its
+existing Better Harness Inspector loads all five Sessions. The Inspector's
+explicit failure counter excludes masked failures; the reviewed count and judge
+verdicts are in the summary/comparison. Frozen inputs remain unchanged, and the
+credential-literal audit has zero matches. Raw traces/binary/judge records stay
+outside Git.
 
 ## Retained artifacts
 

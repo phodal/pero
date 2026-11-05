@@ -41,3 +41,6 @@ completion case still requires its automatic second turn. The six related Go
 race suites and vet pass. The native/harness/engineering-profile/CLI standalone
 Bazel targets pass.
 Live provider evidence is recorded in [the native sample](../fitness/evalplus-native.md).
+That follow-up has no background jobs or TaskOutput calls. Its absence of plugin
+turns is not evidence that it exercised this fix; real-process and disk-resume
+regressions establish the notice behavior.

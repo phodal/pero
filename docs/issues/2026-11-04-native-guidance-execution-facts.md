@@ -138,8 +138,8 @@ later provider runs must establish whether compliance and token use improve.
 
 Implemented in the Bash schema and existing capability-scoped native guidance.
 The native package race suite, `go vet ./nativetools` and standalone
-`//nativetools:nativetools_test` pass. No new provider run was made for this
-wording change; the five-task result belongs to the earlier binary.
+`//nativetools:nativetools_test` pass. The initial five-task result belongs to
+the earlier binary; the later combined rerun below measures compliance separately.
 
 ## Follow-up: unbound delivery review repeats completed checks
 
@@ -157,3 +157,15 @@ the full engineering-profile race suite and standalone Bazel target; package
 vet passes. The live matched-task rerun is recorded separately in
 [the native sample](../fitness/evalplus-native.md); prompt changes alone do not
 prove fewer model requests.
+
+The matched five-task run at `671897f7` uses no tools after any final review
+(18 previously), with 45,988 post-review tokens (320,366 previously). Tiny
+millisecond timeouts disappear, but nine self-test failures are still masked by
+echo/filters. Acceptance drops from 5/5 to 4/5: conflicting `sort_array` public
+examples lead the model to replace general ordering with an unsupported negative
+special case. `minPath` also spends more requests repairing invented test
+expectations. Total usage falls from 1,690,268 to 433,028 tokens, an observed
+single-sample delta across several changes, not a causal saving or quality win.
+The supplied facts and review scope are implemented; reliable specification
+handling, status preservation and workspace-only scratch behavior remain model
+compliance gaps. See the linked verification report for exact source references.
