@@ -67,3 +67,21 @@ The first current-branch Linux run exposed /bin/sh resolving to dash while the
 existing executor supplies Bash startup flags. The MCP headers helper now selects
 /bin/bash; no shared shell behavior or credential redaction changed. Gazelle also
 normalized BUILD ordering/platform dependencies. See the [incident](../../issues/2026-11-05-mcp-header-helper-shell.md).
+
+
+## Scoped observer repair and acceptance boundary, 2026-11-05
+
+InstructionsLoaded now admits package, active skill and owning agent declarations
+through the existing hooksFor selection. The actual-context regression covers
+all three scopes, late skill activation and root/child attribution. Plugin runtime
+race/vet/Bazel and the latest Linux CI pass at 7f1ca380.
+
+Compatibility acceptance must distinguish unmodified source packages from
+explicit migration snapshots. Earlier model and lifecycle results using migrated
+coder/new_code snapshots remain evidence for those exact hashes only. They do
+not prove that an untouched original package runs every workflow. Original
+plugin defects (including the coder Array.map/path.resolve call and the SAD
+12-section template versus 9-section validator mismatch) are external blockers;
+Pero must not silently rewrite package code or weaken its gates to hide them.
+Further implementation changes belong in Pero. Upstream plugin modifications
+are not part of this task.
