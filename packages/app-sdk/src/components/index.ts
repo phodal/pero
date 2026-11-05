@@ -6,7 +6,7 @@ export { RadioGroup, RadioGroupItem, type RadioGroupProps, type RadioGroupItemPr
 export { Tabs, TabsList, TabsTrigger, TabsContent, type TabsProps, type TabsListProps, type TabsTriggerProps, type TabsContentProps } from './tabs';
 export { ToggleGroup, ToggleGroupItem, type ToggleGroupProps, type ToggleGroupItemProps } from './toggle-group';
 export { Stepper, type StepperProps, type StepperItem, type StepperEnd, type StepperStatus, type StepperView } from './stepper';
-export { Input, Textarea, MultiSelect, type InputProps, type TextareaProps, type MultiSelectProps } from './input';
+export { Input, Textarea, MultiSelect, NativeSelect, type InputProps, type TextareaProps, type MultiSelectProps } from './input';
 export { TimeField, type TimeFieldProps } from './time-field';
 export { Field, type FieldProps, type FieldControlProps } from './field';
 export { Feedback, type FeedbackProps } from './feedback';
@@ -40,3 +40,6 @@ export { FileTree, type FileTreeProps } from './file-tree';
 export { TreeView, type TreeViewProps, type TreeViewNode } from './tree-view';
 export { SuggestionList, suggestionListKey, type Suggestion, type SuggestionListProps } from './suggestion-list';
 export { MarkdownText, type MarkdownTextProps } from './markdown-text';
+
+export { ContentTab, type ContentTabProps } from './tabs';
+export { Slider, type SliderProps } from './slider';
