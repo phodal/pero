@@ -20,11 +20,11 @@ model Space {
 }
 
 model TypePx {
-  title: 22;
-  heading: 16;
+  title: 24;
+  heading: 18;
   body: 14;
   caption: 12;
-  label: 11;
+  label: 12;
 }
 
 model TypeWeight {
@@ -86,17 +86,22 @@ model ChatProse {
 }
 
 model Metrics {
+  /** Window controls and content tabs share one bar, without a repeated page title. */
+  windowTitlebar: 42;
+  sidebarPadding: 10;
+  sidebarGroupGap: 16;
+  contentTab: 30;
   sidebarNavRow: 32;
   /** Account and choice menus use the same row box as sidebar navigation. */
   menuRow: 32;
   subRow: 26;
   leadBox: 18;
   subIndent: 12;
-  libraryHeader: 88;
-  actionButtonHeight: 32;
+  libraryHeader: 64;
+  actionButtonHeight: 24;
   actionButtonPadding: 12;
   ghostIconButton: 28;
-  searchFieldHeight: 32;
+  searchFieldHeight: 24;
   readerMaxWidth: 720;
   /** Centered conversation composer and ACP session stream. Width is the minimum of this value and the pane minus its horizontal inset. */
   composerMax: 800;
@@ -171,3 +176,18 @@ model SettingsRow {
 }
 
 model SearchField { placeholder?: string; }
+
+/** Slots contain controls; dragging and platform window controls belong to the host. */
+model WindowTitlebar { leading: "slot"; tabs?: "slot"; actions: "slot"; }
+model Sidebar { label: string; collapsed: boolean; }
+/** Spacing groups navigation; a visible label is optional, never repeated by every row. */
+model SidebarGroup { label?: string; }
+
+/** Presentation only. Each host owns activation, ordering, close confirmation and persistence. */
+model ContentTab { label: string; active: boolean; pinned: boolean; preview: boolean; dirty: boolean; }
+/** A content toolbar has no mandatory title: the workspace tab already names the App. */
+model AppBar { title?: string; tools?: "slot"; actions?: "slot"; }
+model IconButton { label: string; disabled: boolean; }
+model Select { label: string; disabled: boolean; }
+model DropdownMenu { label: string; }
+model FilePicker { label: string; disabled: boolean; busy: boolean; }

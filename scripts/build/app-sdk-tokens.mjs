@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 const root = new URL('../../packages/app-sdk/src/tokens/', import.meta.url);
 const palette = JSON.parse(await readFile(new URL('../../web/src/theme.generated.json', import.meta.url), 'utf8'));
-const aliases = {primary:'action','primary-hover':'action-hover','primary-border':'action','on-primary':'on-action',danger:'error','danger-surface':'error-bg','danger-button':'error','danger-button-hover':'error','border-control':'input-border','border-subtle':'border','text-secondary':'text-muted',hover:'surface-muted',active:'accent-soft',page:'bg'};
+const aliases = {primary:'action','primary-hover':'action-hover','primary-border':'action','on-primary':'on-action',danger:'error','danger-surface':'error-bg','danger-button':'error','danger-button-hover':'error','border-control':'input-border','border-subtle':'border','text-secondary':'text-muted',hover:'surface-hover',active:'accent-soft',page:'bg'};
 const block = (selectors, values) => `${selectors.join(',\n')} {\n${Object.entries(values).map(([name,value]) => `  --pero-${name}: ${value};`).join('\n')}\n}\n`;
 const roles = Object.fromEntries(Object.entries(aliases).map(([name,role]) => [name,`var(--pero-${role})`]));
 let appearance = '/* Generated from the shared Pero palette; run scripts/build/app-sdk-tokens.mjs. */\n';
@@ -10,7 +10,8 @@ appearance += block([':root','[data-theme="light"]','[data-theme="pero-light"]',
 appearance += block(['[data-theme="dark"]','[data-theme="pero-dark"]'],{...palette.dark,...roles});
 appearance += '@media (prefers-color-scheme: dark) {\n'+block(['[data-theme="system"]'],{...palette.dark,...roles})+'}\n';
 const names = ['theme-light', 'theme-dark', 'theme-contrast', 'structure'];
-const css = (await Promise.all(names.map(name => readFile(new URL(`${name}.css`, root), 'utf8')))).join('') + appearance;
+const design = await readFile(new URL('../../packages/pero-design/src/tokens.css', import.meta.url), 'utf8');
+const css = (await Promise.all(names.map(name => readFile(new URL(`${name}.css`, root), 'utf8')))).join('') + appearance + design;
 const outputs = {
   'appearance.css': appearance,
   'appearance-properties.mjs': '// Generated from the shared Pero palette.\nexport const APPEARANCE_PROPERTIES = '+JSON.stringify([...Object.keys(palette.light),'text-secondary','border-subtle'])+';\n',
