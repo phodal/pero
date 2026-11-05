@@ -57,6 +57,8 @@ type Input struct {
 	ToolUseID            string          `json:"tool_use_id,omitempty"`
 	ToolInput            json.RawMessage `json:"tool_input,omitempty"`
 	FilePath             string          `json:"file_path,omitempty"`
+	MemoryType           string          `json:"memory_type,omitempty"`
+	LoadReason           string          `json:"load_reason,omitempty"`
 	FileChange           string          `json:"event,omitempty"`
 	NotebookPath         string          `json:"notebook_path,omitempty"`
 	ToolResponse         json.RawMessage `json:"tool_response,omitempty"`

@@ -6,6 +6,7 @@ go_library(
         "app.go",
         "config.go",
         "files.go",
+        "loads.go",
         "render.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/agentinstructions",
