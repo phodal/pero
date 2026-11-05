@@ -390,3 +390,15 @@ func TestLSPRealClangdOptIn(t *testing.T) {
 		t.Fatalf("real clangd hover: %+v %v", result, err)
 	}
 }
+
+func TestLSPDynamicStdioCapabilities(t *testing.T) {
+	app, _, agent, _ := fixtureApp(t, "dynamic")
+	query := Query{Operation: Hover, FilePath: "fixture.go", Line: 2, Character: 6}
+	result, err := app.Query(t.Context(), agent, query)
+	if err != nil || result.Hover == "" {
+		t.Fatalf("registered hover=%+v err=%v", result, err)
+	}
+	if _, err := app.Query(t.Context(), agent, query); err == nil {
+		t.Fatal("unregistered capability was called")
+	}
+}
