@@ -169,6 +169,10 @@ func (s *Server) setModelOption(ctx context.Context, record *activeSession, valu
 		return nil, classify(err)
 	}
 	if err := record.agent.SelectModel(ctx, next); err != nil {
+		var rejected *harness.ModelSwitchRejectedError
+		if errors.As(err, &rejected) {
+			return nil, invalid(rejected.Error())
+		}
 		// Append may have succeeded before a durability failure. Never acknowledge
 		// rollback or keep using uncertain state; close and require explicit restore.
 		s.requestRecordClose(record)

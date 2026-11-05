@@ -265,7 +265,8 @@ func finishKind(reason string) (harness.FinishKind, error) {
 }
 
 type terminalCheckingTransport struct {
-	next http.RoundTripper
+	next         http.RoundTripper
+	nonStreaming bool
 }
 
 type streamActivityContextKey struct{}
@@ -279,18 +280,25 @@ func (t terminalCheckingTransport) RoundTrip(request *http.Request) (*http.Respo
 	if response.Body != nil {
 		response.Body = &boundedResponseBody{ReadCloser: response.Body}
 	}
-	if response.StatusCode >= 200 && response.StatusCode < 300 && mediaType != "text/event-stream" {
+	expectedType := "text/event-stream"
+	if t.nonStreaming {
+		expectedType = "application/json"
+	}
+	if response.StatusCode >= 200 && response.StatusCode < 300 && mediaType != expectedType {
 		if response.Body != nil {
 			_ = response.Body.Close()
 		}
-		return nil, errors.New("provider returned a non-SSE success response")
+		return nil, errors.New("provider returned an unexpected success response content type")
 	}
-	if response.StatusCode >= 200 && response.StatusCode < 300 && mediaType == "text/event-stream" && response.Body != nil {
+	if response.StatusCode >= 200 && response.StatusCode < 300 && response.Body != nil {
 		body := response.Body
 		if activity, ok := request.Context().Value(streamActivityContextKey{}).(chan struct{}); ok {
 			body = &activityReadCloser{ReadCloser: body, activity: activity}
 		}
-		response.Body = &doneCheckingBody{ReadCloser: body}
+		if !t.nonStreaming {
+			body = &doneCheckingBody{ReadCloser: body}
+		}
+		response.Body = body
 	}
 	return response, nil
 }

@@ -151,7 +151,7 @@ app.whenReady().then(async () => {
       locale = message.text === 'zh-CN' ? 'zh-CN' : 'en'; menus();
       send('product:context', context());
     }
-    if (product.chat && ['ready', 'agents', 'workspace', 'replay', 'workbench_settings', 'context_files', 'context_candidates', 'context_resolved', 'context_error', 'artifact_catalog', 'artifact_registered', 'artifact_document', 'artifact_error', 'session_created', 'agent_info', 'session_authenticated', 'session_auth_required', 'session_auth_error', 'user_message', 'session_connecting', 'session_ready', 'session_update', 'model_changed', 'configuration_changed', 'turn_started', 'turn_finished', 'session_usage', 'permission', 'session_error', 'session_closed', 'session_deleted', 'command_rejected', 'error'].includes(message.kind)) {
+    if (product.chat && ['ready', 'agents', 'workspace', 'replay', 'workbench_settings', 'context_files', 'context_candidates', 'context_resolved', 'context_error', 'artifact_catalog', 'artifact_registered', 'artifact_document', 'artifact_error', 'session_created', 'agent_info', 'session_authenticated', 'session_auth_required', 'session_auth_error', 'user_message', 'session_connecting', 'session_ready', 'session_update', 'model_changed', 'configuration_changed', 'turn_started', 'turn_finished', 'session_usage', 'permission', 'user_questions', 'user_questions_resolved', 'user_questions_error', 'session_error', 'session_closed', 'session_deleted', 'command_rejected', 'error'].includes(message.kind)) {
       send('product:event', message);
     }
   });
@@ -214,7 +214,7 @@ app.whenReady().then(async () => {
       if (!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({ method: 'artifacts', action: 'register_file', request_id: randomUUID(), thread_id: value.thread_id, path: selected.filePaths[0] }) + '\n');
       return;
     }
-    if ((!['list_agents', 'workspace', 'new_session', 'prompt', 'cancel', 'permission', 'model', 'configure', 'authenticate', 'close', 'delete', 'search_context', 'resolve_context', 'attach_files'].includes(value.action || '') && !['settings.workbench', 'settings.workbench.get', 'documents', 'artifacts'].includes(value.method || '')) || JSON.stringify(value).length > 16_000_000) throw new Error('Invalid session command');
+    if ((!['list_agents', 'workspace', 'new_session', 'prompt', 'cancel', 'permission', 'answer_user_questions', 'model', 'configure', 'authenticate', 'close', 'delete', 'search_context', 'resolve_context', 'attach_files'].includes(value.action || '') && !['settings.workbench', 'settings.workbench.get', 'documents', 'artifacts'].includes(value.method || '')) || JSON.stringify(value).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.command(value as {action?:string;thread_id?:string});
     host.stdin!.write(JSON.stringify(value) + '\n');
   });

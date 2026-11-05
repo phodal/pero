@@ -38,7 +38,12 @@
   "new_files": [
     "adapter_test.go",
     "image_input.go",
-    "image_input_test.go"
+    "image_input_test.go",
+    "completion.go",
+    "completion_test.go",
+    "responses_encode.go",
+    "responses_decode.go",
+    "responses_test.go"
   ],
   "budget_adaptation_sha256": {
     "adapter.go": "32f185b4897404976fbe812c3c4929820e710ddfce24fff8410d8fe7793593de",
@@ -50,5 +55,6 @@
     "adapter.go": "5c71cd0604ef31156f709eeb9c4e466eac097e724dc45add3c9776577ca0444a",
     "adapter_test.go": "48acb9308e1a9fdecf6e641249c6cd8c2fb92cf6fc727651ee47bcae5f92c4c3"
   },
-  "image_input_adaptation": "Issue75 local opt-in PNG/JPEG input: explicit model capability, bounded full raster decode and MIME validation, canonical typed image_url data URIs for user/tool content. No remote image URL/path, Files upload, implicit capability discovery or claim of upstream image parity. Default text wire remains unchanged."
+  "image_input_adaptation": "Issue75 local opt-in PNG/JPEG input: explicit model capability, bounded full raster decode and MIME validation, canonical typed image_url data URIs for user/tool content. No remote image URL/path, Files upload, implicit capability discovery or claim of upstream image parity. Default text wire remains unchanged.",
+  "transport_protocol_adaptation": "Local explicitly selected complete JSON Chat and stateless JSON Responses transports reuse the pinned Chat adapter seam, bounded HTTP client, request limits and cancellation. Responses supports native function calls/text/images, retains call/item identity, assistant phase and encrypted reasoning, and fails on unsupported output kinds. No protocol inference, automatic fallback, hosted-tool execution or Responses streaming. Loopback restoration and real sol tool acceptance are recorded in docs/issues/2026-11-05-responses-tool-protocol.md."
 }

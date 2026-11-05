@@ -1,0 +1,233 @@
+{
+  "version": 1,
+  "purpose": "Repair selected local plugin configuration snapshots without copying their connection configuration or instruction bodies.",
+  "files": [
+    {
+      "plugin": "P01",
+      "path": "hooks/hooks.json",
+      "beforeSHA256": "7ebb9623c8ed48ebfff58f377a7c7d1e2b392550e4112a6196611893b6a18509",
+      "afterSHA256": "7604e3ed0fbcbd04bba3705b59be0035d22ecbeb97d94945d3cb1f9d0c354b42",
+      "actions": [
+        {
+          "kind": "wrap-hooks"
+        }
+      ]
+    },
+    {
+      "plugin": "P01",
+      "path": "hooks/scripts/readonly-guard.sh",
+      "beforeSHA256": "b48164b0b9042f07f39f2c418e52b297a29c333210d9a61218d5fe0d9d9378fb",
+      "afterSHA256": "91aa1293f9811ecee1a720b03784c5ad55fbc5ed3d5efb9c3a5390428a409aeb",
+      "actions": [
+        {
+          "kind": "canonical-memory-guard"
+        }
+      ]
+    },
+    {
+      "plugin": "P02",
+      "path": "agents/process-analyst.md",
+      "beforeSHA256": "39e7838d1a9798c0d8e2ca99ad46bb06b942668ea3ab98d88b8ac004302b2807",
+      "afterSHA256": "9b2f3a1035dcfd039971313d574284e362972b0a751aad73836665aff96ebb46",
+      "actions": [
+        {
+          "kind": "frontmatter-add",
+          "fields": {
+            "name": "process-analyst"
+          }
+        }
+      ]
+    },
+    {
+      "plugin": "P08",
+      "path": ".claude-plugin/plugin.json",
+      "beforeSHA256": "1cff40f723b4c89650d818bf3354fefc31c4233a7946780a31f36edeea3dca8d",
+      "afterSHA256": "2ac18daae0a54530867bdf1765a58ab0aff88022126d83990a0e66132075f2d0",
+      "actions": [
+        {
+          "kind": "explicit-agent-files"
+        }
+      ]
+    },
+    {
+      "plugin": "P08",
+      "path": "skills/new-code/SKILL.md",
+      "beforeSHA256": "3d5813c6f196a337e137ad06b5e36b24d867298759745c84f66841d9aef8c341",
+      "afterSHA256": "dfd0147deed82ace31d8acf900dd09ac7e2707edb1a5d48d47c3115ad204ab32",
+      "actions": [
+        {
+          "kind": "skill-session-substitution"
+        }
+      ]
+    },
+    {
+      "plugin": "P10",
+      "path": "hooks/hooks.json",
+      "beforeSHA256": "1c287ece8188ac788bba9defff299e9ed62ea46b8070d5b679f23d344a753bbb",
+      "afterSHA256": "7627d19a0faaf5557cfea1980b75ff6fc47b4e8e443ab2bb625845fd19450a1b",
+      "actions": [
+        {
+          "kind": "python-hook-exec-form",
+          "events": [
+            "SessionStart",
+            "PreCompact",
+            "Stop"
+          ]
+        }
+      ]
+    },
+    {
+      "plugin": "P13",
+      "path": "agents/diagram-analysis.md",
+      "beforeSHA256": "5edb4c9ec915e332c96fc22570a5459006e1630056ee50680af112ad53970f34",
+      "afterSHA256": "4142f87f50e3909db9b54b84f73a126ac22e68813b5021649dc159c41be7c564",
+      "actions": [
+        {
+          "kind": "frontmatter-add",
+          "fields": {
+            "name": "diagram-analysis",
+            "description": "Extract visible structure from one supplied diagram and write its analysis to the requested cache file."
+          }
+        }
+      ]
+    },
+    {
+      "plugin": "P13",
+      "path": "agents/jira-retrieval.md",
+      "beforeSHA256": "7dea5c618141cf6a1f53985c53c88752e1f6318eaede7c2eec05752cbada2011",
+      "afterSHA256": "f884990393c7e6579f6ee7d254605bf4e1091f469460a1fc7599e6506f4b05d4",
+      "actions": [
+        {
+          "kind": "frontmatter-add",
+          "fields": {
+            "name": "jira-retrieval",
+            "description": "Retrieve the supplied Jira issue with explicit fields and without comments or linked-issue traversal."
+          }
+        }
+      ]
+    },
+    {
+      "plugin": "P13",
+      "path": "agents/merged-concerns.md",
+      "beforeSHA256": "79a5bc9c3cb075ea71268bb150f0949f48a71d1d203cee15f3218f30b1be3904",
+      "afterSHA256": "31795f94ce5c9e256cbdafe070ccef05dd26534516c29c8c452b88cb95f323eb",
+      "actions": [
+        {
+          "kind": "frontmatter-add",
+          "fields": {
+            "name": "merged-concerns",
+            "description": "Review supplied requirements for statements that combine independently testable behaviors."
+          }
+        }
+      ]
+    },
+    {
+      "plugin": "P13",
+      "path": "agents/open-preservation.md",
+      "beforeSHA256": "56e153471b4e80b6f070c1d3a6691b6e68b4f8888bdf8de87fa4db907fc1d6e6",
+      "afterSHA256": "7a32c9e2ee5503066c4caacb5db42136659f301a76646d30e6ce06d7624e6384",
+      "actions": [
+        {
+          "kind": "frontmatter-add",
+          "fields": {
+            "name": "open-preservation",
+            "description": "Verify that every unresolved item in the supplied context remains explicitly unresolved in the draft."
+          }
+        }
+      ]
+    },
+    {
+      "plugin": "P13",
+      "path": "agents/source-annotation.md",
+      "beforeSHA256": "6570b5774549775047471f310af8a59eb67c443025732017e8a4a905b9d03aa3",
+      "afterSHA256": "5253f45ea6c5a8b22e7a2190c7edf95d667772393b529ddeaf843720d6ada278",
+      "actions": [
+        {
+          "kind": "frontmatter-add",
+          "fields": {
+            "name": "source-annotation",
+            "description": "Check requirement values for valid source annotations from the supplied context summary."
+          }
+        }
+      ]
+    },
+    {
+      "plugin": "P13",
+      "path": "agents/testability.md",
+      "beforeSHA256": "afeca084f93c7aa37ee5b1b128efe8eb50a62ddf08ab1033e717832230f457e9",
+      "afterSHA256": "4fc31ebf7cbae6b29b39a69044cb6ae53e83a754909f112169df7de34c8ef09c",
+      "actions": [
+        {
+          "kind": "frontmatter-add",
+          "fields": {
+            "name": "testability",
+            "description": "Review supplied requirements for concrete measurable conditions and observable pass or fail criteria."
+          }
+        }
+      ]
+    },
+    {
+      "plugin": "P13",
+      "path": "agents/text-reference-retrieval.md",
+      "beforeSHA256": "aa679f5ae692b90ced6d227b648c05ea7b007dc4be85f771371365f03544d35c",
+      "afterSHA256": "6a91a8548548d791a6c0e065de75342ec9edaf3baf8fee786d7562a121e648c9",
+      "actions": [
+        {
+          "kind": "frontmatter-add",
+          "fields": {
+            "name": "text-reference-retrieval",
+            "description": "Read selected knowledge-registry resources and return traceable architecture context for the supplied topic."
+          }
+        }
+      ]
+    },
+    {
+      "plugin": "P13",
+      "path": "agents/traceability.md",
+      "beforeSHA256": "7fe4bc158214657a44072ed512f92258ab0cc0a8cf0d1997c68363c5cb8a2f45",
+      "afterSHA256": "fe02087a8c78022039bb78f42350054f7ee80a3980d04b4d262dc20845be5bd9",
+      "actions": [
+        {
+          "kind": "frontmatter-add",
+          "fields": {
+            "name": "traceability",
+            "description": "Check supplied requirement values against verified context facts and flag invented specifics."
+          }
+        }
+      ]
+    },
+    {
+      "plugin": "P13",
+      "path": "skills/context-retrieval/SKILL.md",
+      "beforeSHA256": "fa8492c248f08815d71563d1a1fa4cba96d843d49ad79fa50de4a7dafa479978",
+      "afterSHA256": "437fe22e5963e8acc1f0f420a7cd1436f8a5c4a9bc4b1bdfa24a5350a785db6f",
+      "actions": [
+        {
+          "kind": "agent-parameter-name"
+        }
+      ]
+    },
+    {
+      "plugin": "P15",
+      "path": ".mcp.json",
+      "beforeSHA256": "f17a1e57d01a82b2418d790e5a322eeb7ec031db7d1a6689f0df80889e8dc283",
+      "afterSHA256": "33cc5e323db572c24e8ad71527e1a020faab94d18fec114a338a47c93237f7e1",
+      "actions": [
+        {
+          "kind": "mcp-alias-and-timeout-units"
+        }
+      ]
+    },
+    {
+      "plugin": "P15",
+      "path": "CLAUDE.md",
+      "beforeSHA256": "e737d5e260c1c9fa9a25d94935426fffaffc25c06f884da3a635e6b4d2da220f",
+      "afterSHA256": "97f90efb0940da8f596ca2f0254bda0fe042b85323fe3e6a971cf4df17b276bd",
+      "actions": [
+        {
+          "kind": "documented-mcp-alias"
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
@@ -40,6 +41,9 @@ func (s *Server) projectLive(record *activeSession, event harness.Event) {
 			switch block.Type {
 			case harness.BlockText:
 				record.stream.text += block.Text
+				if s.holdAssistantText != nil && s.holdAssistantText(record.agent) {
+					continue
+				}
 			case harness.BlockReasoning:
 				record.stream.thought += block.Text
 				kind = "agent_thought_chunk"
@@ -62,6 +66,26 @@ func (s *Server) projectLive(record *activeSession, event harness.Event) {
 		}
 		if json.Unmarshal(event.Data, &payload) != nil {
 			return
+		}
+		if s.holdAssistantText != nil && s.holdAssistantText(record.agent) {
+			var full strings.Builder
+			for _, block := range payload.Message.Content {
+				if block.Type == harness.BlockText {
+					full.WriteString(block.Text)
+				}
+			}
+			if text := full.String(); text != "" {
+				shown := text
+				if s.renderAssistantText != nil {
+					shown = s.renderAssistantText(context.Background(), record.agent, text)
+				}
+				if shown != "" {
+					_ = s.writer.write(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{
+						"sessionId": record.agent.ID(), "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": shown}},
+					}})
+				}
+				record.stream.text = text
+			}
 		}
 		stream := record.stream
 		record.stream = liveStream{}

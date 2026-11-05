@@ -46,3 +46,16 @@ The follow-up passed [CI 41142498082](https://github.com/phodal/pero/actions/run
 on exact head `076bbdba196beb9ab14ff0c298148ecfc4b8dffd`: all 18 checks were
 green, including the Windows Harness Go job. This records CI execution, not an
 additional local test run.
+
+## Native shell cold-recovery recurrence (2026-11-04)
+
+Two local package/full Harness race runs failed the native shell cold-recovery
+test's `terminal_result` case at `background_restart_test.go:80` with the same
+documented pending sentinel. A focused retry passed. This test also requires a
+synchronous Dispose before its existing Drain. Accept only the pending sentinel
+at both shutdown requests and retain successful Drain, persisted-result checks
+and the assertion that the shell effect occurred exactly once. No production
+shutdown behavior or delay is added.
+
+The corrected cold-recovery table passed 30 consecutive race runs; the full
+Harness Go race suite (35 packages) and `go vet ./...` also passed.

@@ -80,7 +80,11 @@ func TestSubagentProtocolPromptPreservesQueueSteerAndAcceptedSource(t *testing.T
 
 func TestSubagentProtocolPromptRejectsForeignOwnerAndTextOnlyImages(t *testing.T) {
 	ctx := activationTestContext(t)
-	h, err := Boot(ctx, Options{EnableSubagents: true, Adapter: AdapterFunc(func(ctx context.Context, _ GenerateRequest, _ func(StreamChunk) error) (Completion, error) {
+	entered := make(chan struct{}, 1)
+	h, err := Boot(ctx, Options{EnableSubagents: true, Adapter: AdapterFunc(func(ctx context.Context, req GenerateRequest, _ func(StreamChunk) error) (Completion, error) {
+		if req.Agent != nil && req.Agent.Parent() != nil {
+			entered <- struct{}{}
+		}
 		<-ctx.Done()
 		return Completion{}, ctx.Err()
 	}),
@@ -96,17 +100,30 @@ func TestSubagentProtocolPromptRejectsForeignOwnerAndTextOnlyImages(t *testing.T
 	provider := &capacityLocalProvider{h: h}
 	capacityRegister(t, h, provider)
 	activation := capacityStart(t, h, parent, provider.Name(), "caller")
+	awaitDescendantSignal(t, ctx, entered)
 	child, _ := h.Agents().Get(activation.ChildID)
 	if _, err := child.Session().Append("session/model-selected", AgentModelSelection{Provider: "fixed", Model: "text"}); err != nil {
 		t.Fatal(err)
 	}
-	_, err = h.Subagents().DeliverSubagentPrompt(ctx, foreign, activation.ChildID, Message{Content: []ContentBlock{{Type: BlockText, Text: "forged"}}}, "queue")
+	inserted := make(chan InboxInsertedInput, 2)
+	mountSubagentControlObserver(t, h, func(run *point.Run) error {
+		_, err := h.Hooks().InboxInserted.On(run, func(_ context.Context, in InboxInsertedInput) error {
+			if in.Agent == child && (in.Message.ID == "rejected-foreign" || in.Message.ID == "rejected-image") {
+				inserted <- in
+			}
+			return nil
+		})
+		return err
+	})
+	_, err = h.Subagents().DeliverSubagentPrompt(ctx, foreign, activation.ChildID, Message{ID: "rejected-foreign", Content: []ContentBlock{{Type: BlockText, Text: "forged"}}}, "queue")
 	assertSubagentControlCode(t, err, "UNAUTHORIZED")
-	before := child.pendingPrompts.Load()
-	_, err = h.Subagents().DeliverSubagentPrompt(ctx, parent, activation.ChildID, Message{Content: []ContentBlock{{Type: BlockImage, Data: []byte("unmaterialized")}}}, "steer")
+	_, err = h.Subagents().DeliverSubagentPrompt(ctx, parent, activation.ChildID, Message{ID: "rejected-image", Content: []ContentBlock{{Type: BlockImage, Data: []byte("unmaterialized")}}}, "steer")
 	assertSubagentControlCode(t, err, "MODEL_DOES_NOT_SUPPORT_IMAGES")
-	if child.pendingPrompts.Load() != before {
-		t.Fatal("rejected image reached inbox")
+	// Admission emits InboxInserted synchronously for both queue and steer.
+	select {
+	case in := <-inserted:
+		t.Fatalf("rejected prompt reached inbox: %+v", in)
+	default:
 	}
 	capacityDispose(t, activation)
 }

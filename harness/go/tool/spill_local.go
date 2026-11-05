@@ -23,12 +23,16 @@ const DefaultProcessSpillBytes int64 = 64 * 1024 * 1024
 const DefaultSpillRetention = 30 * 24 * time.Hour
 
 type LocalSpillStoreOptions struct {
+	// SessionMaxBytes bounds all retained text/process artifacts for one owner.
+	// Zero selects 256 MiB; negative values are rejected at admission.
+	SessionMaxBytes  int64
 	Root             string
 	Retention        time.Duration
 	DisableCleanup   bool
 	Now              func() time.Time
 	Warn             func(string)
 	DefaultRootsBase string
+	RetrievalHint    string
 }
 
 type LocalSpillStore struct {
@@ -46,6 +50,9 @@ func NewLocalSpillStore(root string) *LocalSpillStore {
 }
 
 func NewLocalSpillStoreWithOptions(options LocalSpillStoreOptions) *LocalSpillStore {
+	if options.SessionMaxBytes == 0 {
+		options.SessionMaxBytes = DefaultSessionSpillBytes
+	}
 	if options.Retention == 0 {
 		options.Retention = DefaultSpillRetention
 	}
@@ -96,6 +103,10 @@ func (s *LocalSpillStore) Root() (string, error) {
 		return "", errors.New("spill-local: store is nil")
 	}
 	s.once.Do(func() {
+		if s.options.SessionMaxBytes < 0 {
+			s.err = errors.New("spill-local: session quota must be positive")
+			return
+		}
 		s.root, s.err = initializeSpillRoot(s.options.Root, s.options.DefaultRootsBase)
 	})
 	return s.root, s.err
@@ -125,7 +136,7 @@ func (s *LocalSpillStore) SaveText(ctx context.Context, input SaveTextSpill) (Sp
 		return SpillRef{}, err
 	}
 	data := []byte(input.Content)
-	written, writeErr := file.Write(data)
+	written, writeErr := s.writeQuota(path, file, data, false)
 	if writeErr == nil && written != len(data) {
 		writeErr = io.ErrShortWrite
 	}
@@ -134,14 +145,21 @@ func (s *LocalSpillStore) SaveText(ctx context.Context, input SaveTextSpill) (Sp
 		_ = os.Remove(path)
 		return SpillRef{}, errors.Join(writeErr, closeErr)
 	}
-	return SpillRef{
-		Locator: path, Bytes: int64(len(data)),
-		RetrievalHint: "Use read_file with this exact locator, or bash with sed/grep, to retrieve it.",
-	}, nil
+	hint := s.options.RetrievalHint
+	if hint == "" {
+		hint = "Retrieve this exact saved locator through a readback tool available in the current request; use bounded ranges and follow truncation markers."
+	}
+	return SpillRef{Locator: path, Bytes: int64(len(data)), RetrievalHint: hint}, nil
 }
 
 func (s *LocalSpillStore) LookupText(ctx context.Context, owner SpillOwner, locator string, maxBytes int) (SpillTextLookup, error) {
-	if owner.SessionID == "" || maxBytes <= 0 {
+	return s.ReadTextPage(ctx, owner, locator, 0, maxBytes)
+}
+
+// ReadTextPage reads a byte range from an exact Session-owned saved locator.
+// Callers continue at offset+len(Text), which stays on a UTF-8 boundary.
+func (s *LocalSpillStore) ReadTextPage(ctx context.Context, owner SpillOwner, locator string, offset int64, maxBytes int) (SpillTextLookup, error) {
+	if owner.SessionID == "" || maxBytes <= 0 || offset < 0 {
 		return SpillTextLookup{}, errors.New("spill-local: lookup requires owner and positive read limit")
 	}
 	root, err := s.Root()
@@ -184,9 +202,15 @@ func (s *LocalSpillStore) LookupText(ctx context.Context, owner SpillOwner, loca
 		return SpillTextLookup{}, err
 	}
 	defer file.Close()
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		return SpillTextLookup{}, err
+	}
 	data, err := io.ReadAll(io.LimitReader(file, int64(maxBytes)+1))
 	if err != nil {
 		return SpillTextLookup{}, err
+	}
+	if len(data) > 0 && !utf8.RuneStart(data[0]) {
+		return SpillTextLookup{}, errors.New("spill-local: offset must be a UTF-8 boundary")
 	}
 	truncated := len(data) > maxBytes
 	if truncated {
@@ -235,18 +259,21 @@ func (s *LocalSpillStore) OpenProcessSpill(ctx context.Context, owner SpillOwner
 	if err != nil {
 		return nil, err
 	}
-	return &localProcessSpill{path: path, file: file}, nil
+	return &localProcessSpill{path: path, file: file, store: s}, nil
 }
 
 type localProcessSpill struct {
-	path string
-	file *os.File
-	once sync.Once
-	err  error
+	store *LocalSpillStore
+	path  string
+	file  *os.File
+	once  sync.Once
+	err   error
 }
 
-func (s *localProcessSpill) Write(data []byte) (int, error) { return s.file.Write(data) }
-func (s *localProcessSpill) Locator() string                { return s.path }
+func (s *localProcessSpill) Write(data []byte) (int, error) {
+	return s.store.writeQuota(s.path, s.file, data, true)
+}
+func (s *localProcessSpill) Locator() string { return s.path }
 func (s *localProcessSpill) Close() error {
 	s.once.Do(func() { s.err = s.file.Close() })
 	return s.err

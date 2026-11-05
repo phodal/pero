@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	openaisdk "github.com/openai/openai-go/v3"
@@ -45,7 +48,24 @@ func normalizeStreamError(ctx context.Context, err error) error {
 	if errors.As(err, &streamError) {
 		return harness.NewProviderError("openai adapter: provider stream error", harness.TransportErrorCode, nil)
 	}
-	return harness.NewProviderError("openai adapter: provider stream failed", harness.TransportErrorCode, err)
+	message := "openai adapter: provider stream failed"
+	var dnsError *net.DNSError
+	var networkError net.Error
+	// Only fixed labels cross into native diagnostics. Transport error strings
+	// can contain endpoint credentials, request queries or private hostnames.
+	switch {
+	case errors.As(err, &dnsError):
+		message += " (DNS lookup failed)"
+	case errors.As(err, &networkError) && networkError.Timeout():
+		message += " (transport timed out)"
+	case errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, io.EOF):
+		message += " (connection ended unexpectedly)"
+	case errors.Is(err, syscall.ECONNRESET):
+		message += " (connection reset)"
+	case errors.Is(err, syscall.ECONNREFUSED):
+		message += " (connection refused)"
+	}
+	return harness.NewProviderError(message, harness.TransportErrorCode, err)
 }
 
 func retryAfterMilliseconds(header http.Header, now time.Time) int64 {

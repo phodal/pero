@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "webtools",
+    srcs = [
+        "deepseek.go",
+        "tools.go",
+        "web.go",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/webtools",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//harness",
+        "//runtime",
+    ],
+)
+
+go_test(
+    name = "webtools_test",
+    srcs = [
+        "deepseek_test.go",
+        "tools_test.go",
+        "web_test.go",
+    ],
+    embed = [":webtools"],
+    deps = [
+        "//harness",
+        "//runtime",
+    ],
+)

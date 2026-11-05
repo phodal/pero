@@ -10,16 +10,13 @@ import (
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
-const compactCommandUsage = "Usage: /compact (no arguments)"
+const compactCommandUsage = "Usage: /compact [instructions]"
 
 func CompactCommandDefinition() CommandDefinition {
 	return CommandDefinition{
 		Name: "compact", Description: "Compact older conversation history",
 		Handler: func(ctx context.Context, invocation CommandInvocation) (CommandResult, error) {
-			if strings.TrimSpace(invocation.RawInput) != "" {
-				return CommandResult{Kind: CommandError, Text: compactCommandUsage}, nil
-			}
-			result, err := invocation.Agent.CompactNow(ctx, invocation.CommandID)
+			result, err := invocation.Agent.CompactWithInstructions(ctx, strings.TrimSpace(invocation.RawInput), invocation.CommandID)
 			if err != nil {
 				if commandContextFailure(ctx) != nil {
 					return CommandResult{}, err

@@ -93,6 +93,7 @@ export type HostCommand =
   | PromptCommand
   | CancelCommand
   | PermissionCommand
+  | AnswerUserQuestionsCommand
   | ModelCommand
   | ConfigureCommand
   | CloseCommand
@@ -101,6 +102,7 @@ export type HostCommand =
 export type ContextKind =
   "file" | "directory" | "symbol" | "thread" | "skill" | "image" | "selection" | "branch_diff" | "fetch" | "app_object";
 export type ContextContent = TextContextContent | ImageContextContent;
+export type QuestionReply = AnsweredQuestions | CancelledQuestions;
 export type AppRequest =
   | LocalEnvironmentApp
   | EnvironmentInspectionApp
@@ -223,6 +225,9 @@ export type HostEvent =
   | SessionAuthErrorEvent
   | SessionAuthenticatedEvent
   | PermissionEvent
+  | UserQuestionsEvent
+  | QuestionsResolvedEvent
+  | QuestionsErrorEvent
   | PromptQueuedEvent
   | CommandRejectedEvent
   | InsightsEvent;
@@ -1037,6 +1042,24 @@ export interface PermissionCommand {
   thread_id: string;
   request_id: string;
   option_id?: string | null;
+}
+export interface AnswerUserQuestionsCommand {
+  action: "answer_user_questions";
+  thread_id: string;
+  request_id: string;
+  reply: QuestionReply;
+}
+export interface AnsweredQuestions {
+  outcome: "answered";
+  answers: QuestionAnswer[];
+}
+export interface QuestionAnswer {
+  questionIndex: number;
+  selectedOptions?: number[];
+  text?: string;
+}
+export interface CancelledQuestions {
+  outcome: "cancelled";
 }
 export interface ModelCommand {
   action: "model";
@@ -2905,6 +2928,70 @@ export interface PermissionEvent {
 export interface PermissionData {
   permission_id: string;
   [k: string]: unknown | undefined;
+}
+export interface UserQuestionsEvent {
+  kind: "user_questions";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: UserQuestionsData;
+}
+export interface UserQuestionsData {
+  request_id: string;
+  sessionId: string;
+  toolCallId: string;
+  /**
+   * @minItems 1
+   * @maxItems 4
+   */
+  questions:
+    | [UserQuestion]
+    | [UserQuestion, UserQuestion]
+    | [UserQuestion, UserQuestion, UserQuestion]
+    | [UserQuestion, UserQuestion, UserQuestion, UserQuestion];
+}
+export interface UserQuestion {
+  question: string;
+  header: string;
+  /**
+   * @minItems 2
+   * @maxItems 4
+   */
+  options:
+    | [QuestionOption, QuestionOption]
+    | [QuestionOption, QuestionOption, QuestionOption]
+    | [QuestionOption, QuestionOption, QuestionOption, QuestionOption];
+  multiSelect?: boolean;
+}
+export interface QuestionOption {
+  label: string;
+  description: string;
+  preview?: string;
+}
+export interface QuestionsResolvedEvent {
+  kind: "user_questions_resolved";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: QuestionsResolvedData;
+}
+export interface QuestionsResolvedData {
+  request_id: string;
+  toolCallId: string;
+}
+export interface QuestionsErrorEvent {
+  kind: "user_questions_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: QuestionsErrorData;
+}
+export interface QuestionsErrorData {
+  request_id: string;
+  error: string;
 }
 export interface PromptQueuedEvent {
   kind: "prompt_queued";

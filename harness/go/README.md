@@ -17,7 +17,18 @@ go build -o pero-agent-acp ./cmd/pero-agent-acp
 Live provider use requires separate configuration and authorization. No endpoint,
 model or credential is discovered from Point settings or accounts. Provider
 endpoints must be HTTPS (loopback HTTP is permitted for local protocol tests).
-Stdout is ACP NDJSON only; diagnostics use stderr. Do not publish raw sessions.
+In the default agent mode stdout is ACP NDJSON only; diagnostics use stderr.
+The separate `plugins inspect` / `plugins validate` commands emit a JSON
+configuration report without provider credentials. See
+[plugin configuration and execution](plugins/README.md). Repeated `--plugin-dir`
+flags enable the explicit Claude plugin profile in ACP sessions, including
+qualified skills, package resources, hooks, MCP, agents and task tools.
+Do not publish raw sessions.
+
+The opt-in native [engineering profile](engineeringprofile/README.md) adds short
+root guidance, explicit host-bound verification contracts, settled check
+evidence and bounded stop feedback. Enable it with `--engineering-profile
+observe` or `feedback`; it keeps tool execution and approvals separate.
 
 An [isolated Bazel build](BAZEL.md) is available from `harness/go`. Its build
 graph is separate from the root server pilot; the server Go version and
@@ -133,7 +144,7 @@ committed output. Durable load replays only committed messages; ACP cannot retra
 a failed provisional prefix.
 
 Absent: Point Projects/Hub/Pages, web/desktop UI, accountsync, product prompts,
-telemetry, workflows/jobs/schedules, external subagent providers, plugin/default
+telemetry, workflows/jobs/schedules, external subagent providers, default
 product coding assembly, implicit/product skill discovery, automatic file upload, and Point memory/context policies.
 The explicit native file/shell composition is independent of those product profiles.
 Generic generation-owner and compaction seams remain because the reused tool
@@ -207,3 +218,17 @@ The [pinned capability matrix](../../docs/fitness/harness-behavior-parity.md)
 distinguishes tested subsets, deliberate restrictions, missing Skill reminder
 semantics and unverified runtime parity. Source/AST extraction is not proof of
 complete behavior equivalence.
+
+Compatible providers can opt into `--disable-streaming` to request complete
+JSON Chat completions. SSE remains the default. JSON responses use the same
+argument, finish-reason, truncation and usage validation, shared attempt budget,
+cancellation and response bounds. There is no automatic transport fallback.
+
+`--api-format responses --disable-streaming` selects stateless Responses JSON
+function calling. The default is `chat-completions`. Responses preserves call
+and item IDs, assistant phase and encrypted reasoning in native Session block
+extensions, and pairs tool outputs by call ID after cold restoration. It sets
+`store: false` and requests encrypted reasoning. This subset excludes hosted
+tools, Responses streaming, Chat stop sequences and the Chat thinking extension;
+unsupported selections or returned item kinds fail explicitly. Tool schemas
+retain existing optional-field semantics with `strict: false`.

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "researchprofile",
+    srcs = [
+        "prepare.go",
+        "profile.go",
+        "snapshot.go",
+    ],
+    embedsrcs = [
+        "bridge.md",
+        "source.json",
+        "validate_json.py",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/researchprofile",
+    visibility = ["//visibility:public"],
+    deps = ["//fstools"],
+)
+
+go_test(
+    name = "researchprofile_test",
+    srcs = [
+        "profile_test.go",
+        "source_test.go",
+    ],
+    embed = [":researchprofile"],
+    deps = ["//plugins"],
+)

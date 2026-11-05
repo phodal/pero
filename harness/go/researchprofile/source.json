@@ -1,0 +1,59 @@
+{
+  "repository": "https://github.com/Weizhena/Deep-Research-skills",
+  "revision": "6ce38f60e3f8b22502c29873f96503a4e0c5addb",
+  "license": "MIT",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "1883a89d5fe9b87f5137eb7f2755df95a95c6c75aaf8eb1d9eec2cb794471c72"
+    },
+    {
+      "path": "skills/research-zh/research/SKILL.md",
+      "sha256": "a27578492110b66672bca9140ef46851ba777da141d8c5a9a0272352311ff039"
+    },
+    {
+      "path": "skills/research-zh/research/validate_json.py",
+      "sha256": "bce4d313c5c6cb832fdd0d79f85eccc25c6642bbf1ed323a43070bb58f594870"
+    },
+    {
+      "path": "skills/research-zh/research-add-fields/SKILL.md",
+      "sha256": "4776d79f8bf256d5761c7c30c32e4ae0023973684082d3477f456708041ac4c3"
+    },
+    {
+      "path": "skills/research-zh/research-add-items/SKILL.md",
+      "sha256": "088b9c4d94c4a79d9abb0acf9aa49187e190f9a8a21ba012379d9f75d0a034b8"
+    },
+    {
+      "path": "skills/research-zh/research-deep/SKILL.md",
+      "sha256": "cb28e379f797e55592f314d6cc37d1855c18fa34136bf451a3bf2a769f71379a"
+    },
+    {
+      "path": "skills/research-zh/research-report/SKILL.md",
+      "sha256": "40862d8db6670107e959c7a87deb20cf1d163b5440d9fc59afcef5c0003db3be"
+    },
+    {
+      "path": "agents/web-search-agent.md",
+      "sha256": "605fd784a7d85d7d28dfaa447b170629f2e2e5f1234161b653320e43e418c8e5"
+    },
+    {
+      "path": "agents/web-search-modules/academic-papers.md",
+      "sha256": "7f0e271f9ba52d978cd08540142e8bce79906ad7d828603dc20060076b8530b2"
+    },
+    {
+      "path": "agents/web-search-modules/chinese-tech.md",
+      "sha256": "d69e90038e278dd926a1aae46bac92ea25278ee93b5f9f70707cba724e966f73"
+    },
+    {
+      "path": "agents/web-search-modules/general-web.md",
+      "sha256": "e6b2a119414daa643a902a53037a15c2867ff03c94d7d5ebbdca448c0b2b3df1"
+    },
+    {
+      "path": "agents/web-search-modules/github-debug.md",
+      "sha256": "4ff703b48fa6b963aa731e14cffee111d543079d34beb997ed309705b5bc8bff"
+    },
+    {
+      "path": "agents/web-search-modules/stackoverflow.md",
+      "sha256": "8bca4e46b9963d3e845a97e57f955a10f0549a33c129f7260b11957adb313877"
+    }
+  ]
+}

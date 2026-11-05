@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/phodal/pero/harness/go/claudehooks"
 	"github.com/phodal/pero/harness/go/fstools"
 	"gopkg.in/yaml.v3"
 )
@@ -23,30 +24,52 @@ const MaxSkills = 64
 const MaxFileBytes = 64 << 10
 
 type Summary struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Digest      string `json:"digest"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Digest       string   `json:"digest"`
+	ArgumentHint string   `json:"argumentHint,omitempty"`
+	Paths        []string `json:"paths,omitempty"`
 }
 type Definition struct {
 	Summary
-	Content string `json:"content"`
+	Content         string             `json:"content"`
+	ResourceBase    string             `json:"resourceBase,omitempty"`
+	Directory       string             `json:"directory,omitempty"`
+	Resources       []string           `json:"resources,omitempty"`
+	AllowedTools    []string           `json:"allowedTools,omitempty"`
+	DisallowedTools []string           `json:"disallowedTools,omitempty"`
+	Model           string             `json:"model,omitempty"`
+	Effort          string             `json:"effort,omitempty"`
+	Context         string             `json:"context,omitempty"`
+	Agent           string             `json:"agent,omitempty"`
+	Background      *bool              `json:"background,omitempty"`
+	Claude          bool               `json:"-"`
+	Shell           string             `json:"shell,omitempty"`
+	Hooks           []claudehooks.Hook `json:"-"`
+	// Rendered marks trusted invocation output, never model-supplied content.
+	Rendered bool `json:"-"`
 }
 type entry struct {
-	summary  Summary
-	path     string
-	files    *fstools.ScopedTextFiles
-	disabled bool
+	definition                    Definition
+	path                          string
+	files                         *fstools.ScopedTextFiles
+	userInvocable, modelInvocable bool
+	resources                     map[string]selectedResource
 }
 
 // Catalog owns a fixed launch-time selection. New, removed or changed files
 // require a new catalog; reads never silently refresh the authorized manifest.
 type Catalog struct {
 	// Private deterministic discovery race fixture; never set by tool arguments.
-	openFiles func(string, []string, int64) (*fstools.ScopedTextFiles, error)
-	afterRead func()
-	mu        sync.Mutex
-	entries   map[string]entry
-	closed    bool
+	openFiles  func(string, []string, int64) (*fstools.ScopedTextFiles, error)
+	afterRead  func()
+	mu         sync.Mutex
+	roots      []string
+	rescanning bool
+	entries    map[string]entry
+	resources  map[selectedSource]selectedResource
+	ownedFiles []*fstools.ScopedTextFiles
+	closed     bool
 }
 
 // Open accepts only explicit roots. Layout is root/<skill-name>/SKILL.md;
@@ -82,11 +105,35 @@ func Open(ctx context.Context, roots []string) (_ *Catalog, err error) {
 			return nil, errors.New("skills: duplicate root")
 		}
 		seen[absolute] = true
+		c.roots = append(c.roots, absolute)
 		if err := c.scan(ctx, absolute, &visited); err != nil {
 			return nil, err
 		}
 	}
 	return c, nil
+}
+
+// Rescan reads the same authorized roots again and adds skill directories that
+// were not present at launch. Definitions already in the catalog stay as they
+// were authorized.
+func (c *Catalog) Rescan(ctx context.Context) error {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return errors.New("skills: catalog is closed")
+	}
+	c.rescanning = true
+	defer func() { c.rescanning = false }()
+	visited := 0
+	for _, root := range c.roots {
+		if err := c.scan(ctx, root, &visited); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func (c *Catalog) scan(ctx context.Context, path string, visited *int) error {
 	before, err := os.Lstat(path)
@@ -159,10 +206,14 @@ func (c *Catalog) scan(ctx context.Context, path string, visited *int) error {
 		}
 		if _, exists := c.entries[definition.Name]; exists {
 			files.Close()
+			if c.rescanning {
+				continue
+			}
 			return fmt.Errorf("skills: duplicate name %q; no root takes precedence", definition.Name)
 		}
 		definition.Digest = text.Digest
-		c.entries[definition.Name] = entry{definition.Summary, relative, files, disabled}
+		c.entries[definition.Name] = entry{definition: definition, path: relative, files: files, userInvocable: !disabled, modelInvocable: !disabled}
+		c.ownedFiles = append(c.ownedFiles, files)
 	}
 	after, err := os.Lstat(path)
 	if err != nil || !os.SameFile(before, after) {
@@ -171,6 +222,16 @@ func (c *Catalog) scan(ctx context.Context, path string, visited *int) error {
 	return nil
 }
 func (c *Catalog) List(ctx context.Context) ([]Summary, error) {
+	return c.list(ctx, false)
+}
+
+// UserList includes user-invocable definitions that are hidden from model
+// discovery. Legacy roots preserve their existing disabled behavior.
+func (c *Catalog) UserList(ctx context.Context) ([]Summary, error) {
+	return c.list(ctx, true)
+}
+
+func (c *Catalog) list(ctx context.Context, user bool) ([]Summary, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
@@ -181,39 +242,107 @@ func (c *Catalog) List(ctx context.Context) ([]Summary, error) {
 	}
 	rows := make([]Summary, 0, len(c.entries))
 	for _, e := range c.entries {
-		if !e.disabled {
-			rows = append(rows, e.summary)
+		if user && e.userInvocable || !user && e.modelInvocable {
+			rows = append(rows, e.definition.Summary)
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
 	return rows, nil
 }
-func (c *Catalog) Read(ctx context.Context, name, digest string) (Definition, error) {
+
+// Preload returns one selected skill body for a trusted agent. An exact name
+// wins. A bare name matches one plugin-qualified skill. The text does not
+// grant tools.
+func (c *Catalog) Preload(ctx context.Context, name string) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
-		return Definition{}, errors.New("skills: catalog closed")
+		return "", errors.New("skills: catalog closed")
 	}
 	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	var exact, suffix []entry
+	for _, candidate := range c.entries {
+		switch {
+		case candidate.definition.Name == name:
+			exact = append(exact, candidate)
+		case strings.HasSuffix(candidate.definition.Name, ":"+name):
+			suffix = append(suffix, candidate)
+		}
+	}
+	chosen := exact
+	if len(chosen) == 0 {
+		chosen = suffix
+	}
+	if len(chosen) != 1 {
+		return "", fmt.Errorf("skills: skill %q must match one selected skill", name)
+	}
+	definition, err := c.definition(ctx, chosen[0])
+	if err != nil {
+		return "", err
+	}
+	return definition.Content, nil
+}
+
+func (c *Catalog) Read(ctx context.Context, name, digest string) (Definition, error) {
+	return c.read(ctx, name, digest, false)
+}
+
+func (c *Catalog) ReadUser(ctx context.Context, name, digest string) (Definition, error) {
+	return c.read(ctx, name, digest, true)
+}
+
+func (c *Catalog) read(ctx context.Context, name, digest string, user bool) (Definition, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, err := c.lookup(ctx, name, digest)
+	if err != nil {
 		return Definition{}, err
 	}
+	if user && !e.userInvocable || !user && !e.modelInvocable {
+		return Definition{}, errors.New("skills: skill is unavailable to this invocation source")
+	}
+	return c.definition(ctx, e)
+}
+
+// lookup and definition run under the Catalog mutex. They own snapshot checks
+// for both instruction and resource reads.
+func (c *Catalog) lookup(ctx context.Context, name, digest string) (entry, error) {
+	if c.closed {
+		return entry{}, errors.New("skills: catalog closed")
+	}
+	if err := ctx.Err(); err != nil {
+		return entry{}, err
+	}
 	e, ok := c.entries[name]
-	if !ok || e.disabled {
-		return Definition{}, errors.New("skills: unknown or model-disabled skill")
+	if !ok {
+		return entry{}, errors.New("skills: unknown skill")
 	}
-	if digest != e.summary.Digest {
-		return Definition{}, errors.New("skills: digest must match the launch-time catalog; call skill with {} to list this catalog, then copy the listed digest rather than guessing it")
+	if digest != e.definition.Digest {
+		return entry{}, errors.New("skills: digest must match the launch-time catalog; call skill with {} to list this catalog, then copy the listed digest rather than guessing it")
 	}
+	return e, nil
+}
+
+func (c *Catalog) definition(ctx context.Context, e entry) (Definition, error) {
 	text, err := e.files.Read(ctx, e.path)
 	if err != nil {
 		return Definition{}, fmt.Errorf("skills: selected file unavailable or changed; restart to select again: %w", err)
 	}
-	if text.Digest != digest {
+	if text.Digest != e.definition.Digest {
 		return Definition{}, errors.New("skills: content changed; restart to select again")
 	}
-	definition, _, err := parse(text.Text)
-	definition.Digest = digest
-	return definition, err
+	definition := e.definition
+	definition.Resources = append([]string(nil), definition.Resources...)
+	definition.AllowedTools = append([]string(nil), definition.AllowedTools...)
+	definition.DisallowedTools = append([]string(nil), definition.DisallowedTools...)
+	definition.Paths = append([]string(nil), definition.Paths...)
+	if definition.Background != nil {
+		background := *definition.Background
+		definition.Background = &background
+	}
+	return definition, nil
 }
 func (c *Catalog) Close() error {
 	if c == nil {
@@ -226,8 +355,8 @@ func (c *Catalog) Close() error {
 	}
 	c.closed = true
 	var err error
-	for _, e := range c.entries {
-		err = errors.Join(err, e.files.Close())
+	for _, files := range c.ownedFiles {
+		err = errors.Join(err, files.Close())
 	}
 	return err
 }
@@ -249,9 +378,10 @@ func parse(text string) (Definition, bool, error) {
 		return Definition{}, false, errors.New("invalid frontmatter delimiter")
 	}
 	var header struct {
-		Name        string `yaml:"name"`
-		Description string `yaml:"description"`
-		Disabled    bool   `yaml:"disable-model-invocation"`
+		Name         string `yaml:"name"`
+		Description  string `yaml:"description"`
+		ArgumentHint string `yaml:"argument-hint"`
+		Disabled     bool   `yaml:"disable-model-invocation"`
 	}
 	if err := yaml.Unmarshal([]byte(text[4:closing]), &header); err != nil {
 		return Definition{}, false, err
@@ -263,7 +393,7 @@ func parse(text string) (Definition, bool, error) {
 	if end < len(text) {
 		body = strings.TrimSpace(text[end+1:])
 	}
-	return Definition{Summary: Summary{Name: header.Name, Description: header.Description}, Content: body}, header.Disabled, nil
+	return Definition{Summary: Summary{Name: header.Name, Description: header.Description, ArgumentHint: strings.TrimSpace(header.ArgumentHint)}, Content: body}, header.Disabled, nil
 }
 func validName(name string) bool {
 	if name == "" || len(name) > 64 || strings.Contains(name, "--") {

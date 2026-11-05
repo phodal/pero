@@ -16,6 +16,8 @@ type compactionFlags struct {
 	Disabled          bool
 	Threshold, Retain float64
 	SummaryTokens     int
+	TriggerTokens     int
+	RetainTokens      int
 }
 
 func bindCompaction(flags *flag.FlagSet) *compactionFlags {
@@ -25,6 +27,8 @@ func bindCompaction(flags *flag.FlagSet) *compactionFlags {
 	flags.Float64Var(&c.Threshold, "compaction-threshold", .8, "compact at this context fraction, in (0, 1]")
 	flags.Float64Var(&c.Retain, "compaction-retain-ratio", .16, "recent context fraction to retain, below threshold")
 	flags.IntVar(&c.SummaryTokens, "compaction-summary-tokens", 0, "summary output cap; 0 chooses min(8192, context-window/8)")
+	flags.IntVar(&c.TriggerTokens, "compaction-trigger-tokens", 0, "absolute automatic compaction trigger; 0 uses context fraction, requires context-window")
+	flags.IntVar(&c.RetainTokens, "compaction-retain-tokens", 0, "recent token budget after compaction; 0 uses retain ratio")
 	return c
 }
 
@@ -35,8 +39,8 @@ func configuredCompaction(provider *openai.Config, c compactionFlags) (*harness.
 	if c.ContextWindow > 1<<30 {
 		return nil, errors.New("context-window must not exceed 1073741824 tokens")
 	}
-	if c.ContextWindow < 0 || c.SummaryTokens < 0 {
-		return nil, errors.New("context-window and compaction-summary-tokens must be nonnegative")
+	if c.ContextWindow < 0 || c.SummaryTokens < 0 || c.TriggerTokens < 0 || c.RetainTokens < 0 {
+		return nil, errors.New("compaction token budgets must be nonnegative")
 	}
 	if math.IsNaN(c.Threshold) || math.IsInf(c.Threshold, 0) || c.Threshold <= 0 || c.Threshold > 1 {
 		return nil, errors.New("compaction-threshold must be finite and in (0, 1]")
@@ -51,8 +55,8 @@ func configuredCompaction(provider *openai.Config, c compactionFlags) (*harness.
 		return nil, errors.New("max-tokens must be below context-window")
 	}
 	if c.ContextWindow == 0 || c.Disabled {
-		if c.ContextWindow == 0 && c.SummaryTokens != 0 {
-			return nil, errors.New("compaction-summary-tokens requires context-window")
+		if c.ContextWindow == 0 && (c.SummaryTokens != 0 || c.TriggerTokens != 0 || c.RetainTokens != 0) {
+			return nil, errors.New("compaction token budgets require context-window")
 		}
 		provider.Models[0].ContextWindow = c.ContextWindow
 		return nil, nil
@@ -67,15 +71,22 @@ func configuredCompaction(provider *openai.Config, c compactionFlags) (*harness.
 	// Reserve summary-sized headroom in addition to the main output reservation.
 	// Validate the same integer-rounded budgets used by the existing engine.
 	budget := c.ContextWindow - provider.Models[0].MaxTokens
+	if c.TriggerTokens > 0 {
+		c.Threshold = min(c.Threshold, float64(c.TriggerTokens)/float64(c.ContextWindow))
+	}
 	threshold := min(int(math.Floor(float64(c.ContextWindow)*c.Threshold)), budget-summary)
 	retain := int(math.Floor(float64(budget) * c.Retain))
-	if summary < 1 || summary >= budget || threshold <= 0 || retain >= threshold || c.Retain == 0 {
+	var retainRatio, retainTokens = &c.Retain, (*int)(nil)
+	if c.RetainTokens > 0 {
+		retain, retainRatio, retainTokens = c.RetainTokens, nil, &c.RetainTokens
+	}
+	if summary < 1 || summary >= budget || threshold <= 0 || retain >= threshold || retain < 1 {
 		return nil, errors.New("compaction context/output/headroom/retention settings leave no usable pressure budget")
 	}
 	provider.Models[0].ContextWindow = c.ContextWindow
 	retries, overflow := 1, 1
 	return &harness.BasicCompactionConfig{
-		ThresholdRatio: c.Threshold, RetainRatio: &c.Retain,
+		ThresholdRatio: c.Threshold, RetainRatio: retainRatio, RetainTokens: retainTokens,
 		HeadroomTokens: &summary, MaxTokens: summary,
 		CompactionRetries: &retries, MaxOverflowRetries: &overflow,
 	}, nil

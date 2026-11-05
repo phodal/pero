@@ -9,13 +9,60 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/llm"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
+
+func TestTransportDiagnosticsKeepPrivateCauseOutOfPublicFailure(t *testing.T) {
+	for _, row := range []struct {
+		name, label string
+		cause       error
+	}{
+		{"dns", "DNS lookup failed", &net.DNSError{Err: "private-canary", Name: "private-canary.example"}},
+		{"timeout", "transport timed out", &net.OpError{Op: "private-canary", Net: "tcp", Err: context.DeadlineExceeded}},
+		{"unexpected EOF", "connection ended unexpectedly", io.ErrUnexpectedEOF},
+		{"EOF", "connection ended unexpectedly", io.EOF},
+		{"reset", "connection reset", syscall.ECONNRESET},
+		{"refused", "connection refused", syscall.ECONNREFUSED},
+		{"unknown", "", errors.New("private-canary")},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			cause := &url.Error{Op: "POST", URL: "https://private-canary:private-canary@private-canary.example/?key=private-canary", Err: row.cause}
+			err := normalizeStreamError(context.Background(), cause)
+			failure := harness.ProviderFailureFromError(err)
+			want := "openai adapter: provider stream failed"
+			if row.label != "" {
+				want += " (" + row.label + ")"
+			}
+			if failure.Code != harness.TransportErrorCode || failure.Message != want || !errors.Is(err, cause) {
+				t.Fatalf("diagnostic or live cause changed: %+v", failure)
+			}
+			public, marshalErr := json.Marshal(failure)
+			if marshalErr != nil || strings.Contains(string(public), "private-canary") || strings.Contains(err.Error(), "private-canary") {
+				t.Fatal("private transport content entered public diagnostics")
+			}
+		})
+	}
+	t.Run("truncated HTTP body", func(t *testing.T) {
+		a, _ := fixture(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Content-Length", "1000")
+			event(w, `{"choices":[{"index":0,"delta":{"content":"partial"}}]}`)
+		})
+		completion, err := a.Generate(context.Background(), request(), nil)
+		failure := harness.ProviderFailureFromError(err)
+		if failure.Code != harness.TransportErrorCode || !strings.Contains(failure.Message, "connection ended unexpectedly") || completion.Usage != nil {
+			t.Fatalf("truncated response lost its transport evidence or invented usage: failure=%+v usage=%+v", failure, completion.Usage)
+		}
+	})
+}
 
 func TestSSELineBufferIsBounded(t *testing.T) {
 	b := &doneCheckingBody{ReadCloser: io.NopCloser(bytes.NewReader(bytes.Repeat([]byte{'x'}, 1024*1024+1)))}
@@ -94,6 +141,26 @@ func TestExplicitConfiguration(t *testing.T) {
 	for _, c := range []Config{{}, {Endpoint: "https://example.com", APIKey: "test", ProviderName: "x"}, {Endpoint: "http://example.com", APIKey: "test", ProviderName: "x", Models: []ModelConfig{{ID: "m"}}}, {Endpoint: "https://u:p@example.com", APIKey: "test", ProviderName: "x", Models: []ModelConfig{{ID: "m"}}}, {Endpoint: "https://example.com", APIKey: "test", ProviderName: "x", Models: []ModelConfig{{ID: "m", InputModalities: []string{"image"}}}}} {
 		if _, err := New(c); err == nil {
 			t.Fatalf("accepted unsafe/implicit configuration %+v", c)
+		}
+	}
+	for _, test := range []struct {
+		endpoint string
+		allow    bool
+		accepted bool
+	}{
+		{"https://provider.invalid/v1", false, true},
+		{"http://provider.invalid/v1", false, false},
+		{"http://provider.invalid/v1", true, true},
+		{"http://127.0.0.1/v1", false, true},
+		{"http://[::1]/v1", false, true},
+		{"ftp://provider.invalid/v1", true, false},
+		{"http://u:p@provider.invalid/v1", true, false},
+		{"http://provider.invalid/v1?key=fixture", true, false},
+		{"http://provider.invalid/v1#fragment", true, false},
+	} {
+		c := Config{Endpoint: test.endpoint, AllowHTTP: test.allow, APIKey: "fixture", ProviderName: "fixture", Models: []ModelConfig{{ID: "fixture"}}}
+		if _, err := New(c); (err == nil) != test.accepted {
+			t.Errorf("endpoint=%s allowHTTP=%v accepted=%v error=%v", test.endpoint, test.allow, test.accepted, err)
 		}
 	}
 }

@@ -15,7 +15,7 @@ pub mod automation_agent;
 mod mcp_settings;
 use std::{
     collections::HashMap,
-    io::Write,
+    io::{BufRead, Write},
     path::PathBuf,
     sync::{
         mpsc::{self, Sender},
@@ -28,7 +28,7 @@ pub struct Manager {
     agents: Vec<AgentConfig>,
     sessions: HashMap<String, SessionHandle>,
     tx: Sender<HostEvent>,
-    history: Arc<Mutex<Vec<HostEvent>>>,
+    history: Arc<Mutex<pero_contracts::session_history::SessionHistory>>,
     app_bindings: HashMap<String, AppSessionBinding>,
     run_journal: app_agent_run::Journal,
     app_use: Option<acp::AppUseEndpoint>,
@@ -54,14 +54,14 @@ impl Manager {
         let history_file = std::env::var_os("PERO_HISTORY_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|| root.join("target/sessions.jsonl"));
-        let stored = std::fs::read_to_string(&history_file)
-            .unwrap_or_default()
-            .lines()
-            .rev()
-            .take(5000)
-            .filter_map(|line| serde_json::from_str::<HostEvent>(line).ok())
-            .collect::<Vec<_>>();
+        let mut stored = pero_contracts::session_history::SessionHistory::default();
+        if let Ok(file) = std::fs::File::open(&history_file) {
+            for line in std::io::BufReader::new(file).lines().map_while(Result::ok) {
+                if let Ok(event) = serde_json::from_str::<HostEvent>(&line) { stored.record(event); }
+            }
+        }
         let app_bindings = stored
+            .events()
             .iter()
             .filter_map(|event| {
                 if event.kind != "session_created" {
@@ -75,7 +75,7 @@ impl Manager {
         let run_journal=app_agent_run::Journal::default();
         run_journal.restore(&app_bindings);
         let run_writer=run_journal.clone();
-        let history = Arc::new(Mutex::new(stored.into_iter().rev().collect::<Vec<_>>()));
+        let history = Arc::new(Mutex::new(stored));
         let saved = history.clone();
         if let Some(parent) = history_file.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -110,16 +110,22 @@ impl Manager {
                             | "session_closed"
                             | "session_deleted"
                             | "permission"
+                            | "user_questions"
+                            | "user_questions_resolved"
+                            | "user_questions_error"
                             | "session_auth_required"
                             | "session_auth_error"
                             | "session_authenticated"
                     )
                 {
-                    saved.lock().unwrap().push(event.clone());
+                    saved.lock().unwrap().record(event.clone());
                     let mut persisted=Err("Session journal is unavailable".to_string());
                     if !matches!(
                         event.kind.as_str(),
                         "permission"
+                            | "user_questions"
+                            | "user_questions_resolved"
+                            | "user_questions_error"
                             | "session_auth_required"
                             | "session_auth_error"
                             | "session_authenticated"
@@ -191,7 +197,7 @@ impl Manager {
         }
     }
     fn visible_history(&self) -> Vec<HostEvent> {
-        HostEvent::without_deleted_threads(&self.history.lock().unwrap())
+        self.history.lock().unwrap().events().to_vec()
     }
     pub fn insights_value(&self, thread_id: &str) -> Result<serde_json::Value, String> {
         if !super::insights::session_id_ok(thread_id) {
@@ -435,6 +441,16 @@ impl Manager {
                     }
                 }
             }
+            HostCommand::AnswerUserQuestions {thread_id,request_id,reply} => {
+                let result = self.sessions.get(&thread_id).ok_or("Session is unavailable".to_owned())
+                    .and_then(|session|session.user_questions.finish(&request_id,reply));
+                if let Err(error)=result {
+                    let mut event=HostEvent::new("user_questions_error",None,error.clone());
+                    event.thread_id=Some(thread_id);
+                    event.data=serde_json::json!({"request_id":request_id,"error":error});
+                    let _=self.tx.send(event);
+                }
+            }
             HostCommand::Insights { thread_id } => self.publish_insights(thread_id),
             HostCommand::Delete { thread_id } => {
                 self.app_plugins.remove(&thread_id);
@@ -445,6 +461,7 @@ impl Manager {
                     return;
                 }
                 if let Some(session) = self.sessions.remove(&thread_id) {
+                    session.user_questions.clear();
                     session.permissions.lock().unwrap().clear();
                     let _ = session.tx.send(SessionCommand::Close);
                 }
@@ -502,6 +519,7 @@ impl Manager {
                     HostCommand::Close { thread_id } => {
                         self.app_plugins.remove(&thread_id);
                         if let Some(session) = self.sessions.remove(&thread_id) {
+                            session.user_questions.clear();
                             session.permissions.lock().unwrap().clear();
                             let _ = session.tx.send(SessionCommand::Close);
                         }
@@ -529,6 +547,7 @@ impl Manager {
                         let _ = self.tx.send(event);
                     }
                     if matches!(command, SessionCommand::Cancel) {
+                        session.user_questions.clear();
                         session.permissions.lock().unwrap().clear();
                     }
                     if session.tx.send(command).is_ok() {
@@ -549,6 +568,7 @@ impl Manager {
 impl Drop for Manager {
     fn drop(&mut self) {
         for session in self.sessions.values() {
+            session.user_questions.clear();
             session.permissions.lock().unwrap().clear();
             let _ = session.tx.send(SessionCommand::Close);
         }

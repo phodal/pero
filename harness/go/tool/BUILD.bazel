@@ -3,6 +3,8 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "tool",
     srcs = [
+        "diagnostic.go",
+        "history.go",
         "json_schema_subset.go",
         "output.go",
         "presentation.go",
@@ -12,6 +14,7 @@ go_library(
         "spill_local.go",
         "spill_local_cleanup_other.go",
         "spill_local_cleanup_unix.go",
+        "spill_quota.go",
         "types.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/tool",
@@ -28,8 +31,16 @@ go_library(
 go_test(
     name = "tool_test",
     srcs = [
+        "diagnostic_test.go",
+        "duplicate_history_test.go",
+        "history_test.go",
         "json_schema_subset_test.go",
         "output_test.go",
+        "spill_quota_test.go",
     ],
     embed = [":tool"],
+    deps = [
+        "//model",
+        "//session",
+    ],
 )

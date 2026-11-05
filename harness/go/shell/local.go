@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/phodal/pero/harness/go/sandbox"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,9 +32,21 @@ type LocalOptions struct {
 	MaxTimeout     time.Duration
 	MaxOutputBytes int
 	Grace          time.Duration
+	// ProcessStarted must not block. Trusted owners use it to distinguish a
+	// live process from preparation when their foreground wait expires.
+	ProcessStarted func()
 	// BaseEnv is an explicit trusted allowlist input, never inherited implicitly.
 	// Only PATH, LANG, LC_ALL and TZ are accepted; no per-command environment seam.
 	BaseEnv []string
+	// TrustedBaseEnvironment accepts an operator-supplied launch snapshot, such
+	// as an explicitly enabled plugin profile. Model requests cannot set it.
+	TrustedBaseEnvironment bool
+	// OutputSink is an optional trusted foreground capture for both streams.
+	// The caller owns its size limit and lifetime; a write failure stops execution.
+	OutputSink io.Writer
+	// AllowWorkdir permits an absolute directory outside the launch workspace.
+	// Callers use it for a worktree they created and still own.
+	AllowWorkdir func(string) bool
 }
 
 type LocalExecutor struct {
@@ -44,6 +57,9 @@ type LocalExecutor struct {
 	timeout, maxTimeout, grace time.Duration
 	maxOutputBytes             int
 	baseEnv                    []string
+	outputSink                 io.Writer
+	processStarted             func()
+	allowWorkdir               func(string) bool
 }
 
 func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
@@ -82,10 +98,13 @@ func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
 	if options.Grace == 0 {
 		options.Grace = defaultGrace
 	}
-	if options.Timeout < 0 || options.MaxTimeout <= 0 || options.MaxTimeout > maximumTimeout || options.Timeout > options.MaxTimeout || options.MaxOutputBytes < 1 || options.MaxOutputBytes > maximumOutputBytes || options.Grace < 0 || options.Grace > time.Second {
+	if options.Timeout < 0 || options.MaxTimeout <= 0 || options.Timeout > options.MaxTimeout || options.MaxOutputBytes < 1 || options.MaxOutputBytes > maximumOutputBytes || options.Grace < 0 || options.Grace > time.Second {
 		return nil, errors.New("shell: limits exceed supported bounds")
 	}
 	env, err := explicitEnvironment(options.BaseEnv)
+	if options.TrustedBaseEnvironment {
+		env, err = trustedEnvironment(options.BaseEnv)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +115,7 @@ func NewLocalExecutor(options LocalOptions) (*LocalExecutor, error) {
 			return nil, err
 		}
 	}
-	return &LocalExecutor{sandbox: confined, windowsACL: windowsACL, shell: shell, cwd: cwd, workspaceIdentity: info, timeout: options.Timeout, maxTimeout: options.MaxTimeout, maxOutputBytes: options.MaxOutputBytes, grace: options.Grace, baseEnv: env}, nil
+	return &LocalExecutor{sandbox: confined, windowsACL: windowsACL, shell: shell, cwd: cwd, workspaceIdentity: info, timeout: options.Timeout, maxTimeout: options.MaxTimeout, maxOutputBytes: options.MaxOutputBytes, grace: options.Grace, baseEnv: env, outputSink: options.OutputSink, processStarted: options.ProcessStarted, allowWorkdir: options.AllowWorkdir}, nil
 }
 
 func explicitEnvironment(entries []string) ([]string, error) {
@@ -112,6 +131,32 @@ func explicitEnvironment(entries []string) ([]string, error) {
 		default:
 			return nil, errors.New("shell: environment variable is not allowlisted")
 		}
+	}
+	names := make([]string, 0, len(values))
+	for name := range values {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	result := make([]string, 0, len(names))
+	for _, name := range names {
+		result = append(result, name+"="+values[name])
+	}
+	return result, nil
+}
+
+func trustedEnvironment(entries []string) ([]string, error) {
+	values := map[string]string{"PATH": "/usr/bin:/bin", "NO_COLOR": "1", "TERM": "dumb", "PAGER": "cat", "GIT_PAGER": "cat"}
+	for _, entry := range entries {
+		name, value, ok := strings.Cut(entry, "=")
+		if !ok || name == "" || strings.ContainsRune(value, 0) {
+			return nil, errors.New("shell: invalid trusted environment binding")
+		}
+		for i, r := range name {
+			if !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || i > 0 && r >= '0' && r <= '9') {
+				return nil, errors.New("shell: invalid trusted environment name")
+			}
+		}
+		values[name] = value
 	}
 	names := make([]string, 0, len(values))
 	for name := range values {
@@ -159,7 +204,8 @@ func (e *LocalExecutor) Resolve(request ExecRequest) (ExecSpec, error) {
 		return ExecSpec{}, fmt.Errorf("shell: workdir: %w", err)
 	}
 	rel, err := filepath.Rel(e.cwd, workdir)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	outside := err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	if outside && (e.allowWorkdir == nil || !e.allowWorkdir(workdir)) {
 		return ExecSpec{}, errors.New("shell: launch directory is outside configured workspace")
 	}
 	info, err := os.Stat(workdir)
@@ -180,30 +226,57 @@ func (e *LocalExecutor) Resolve(request ExecRequest) (ExecSpec, error) {
 	if limit < 1 || limit > e.maxOutputBytes {
 		return ExecSpec{}, errors.New("shell: output limit exceeds configured bounds")
 	}
-	return ExecSpec{Command: request.Command, Workdir: workdir, Timeout: timeout, StdoutMaxBytes: limit}, nil
+	expiry := request.OnExpiry
+	if expiry == "" {
+		expiry = ExpiryKill
+	}
+	if expiry != ExpiryKill && expiry != ExpiryNone {
+		return ExecSpec{}, errors.New("shell: unsupported execution expiry policy")
+	}
+	return ExecSpec{Command: request.Command, Workdir: workdir, Timeout: timeout, StdoutMaxBytes: limit, OnExpiry: expiry}, nil
 }
 
-// Run adapts the source foreground lifecycle. Cancellation owns the process
-// group until forced cleanup completes, even when Bash exits before descendants.
+// Run defaults to timeout-kill execution. With trusted OnExpiry:none the owner
+// supplies its lifetime. Cancellation joins the process group even when Bash
+// exits before descendants.
 func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	resolved, err := e.Resolve(ExecRequest(spec))
+	envFile := spec.EnvFile
+	resolved, err := e.Resolve(ExecRequest{Command: spec.Command, Workdir: spec.Workdir, Timeout: spec.Timeout, StdoutMaxBytes: spec.StdoutMaxBytes, OnExpiry: spec.OnExpiry})
 	if err != nil {
 		return RunResult{}, err
 	}
 	spec = resolved
+	spec.EnvFile = envFile
 	result := RunResult{Timeout: spec.Timeout}
+	callerCause := func() error {
+		if spec.OnExpiry == ExpiryNone {
+			return context.Cause(ctx)
+		}
+		return ctx.Err() // Preserve the legacy caller-cancellation contract.
+	}
 	if err := ctx.Err(); err != nil {
-		result.Aborted = true
-		return result, err
+		cause := callerCause()
+		result.TimedOut = errors.Is(cause, ErrTimeout)
+		result.Aborted = !result.TimedOut
+		return result, cause
 	}
 	executionCtx, cancel := context.WithCancelCause(context.Background())
-	stopCaller := context.AfterFunc(ctx, func() { cancel(ctx.Err()) })
-	timer := time.AfterFunc(spec.Timeout, func() { cancel(ErrTimeout) })
-	defer func() { stopCaller(); timer.Stop(); cancel(nil) }()
-	argv := shellCommand(e.shell, spec.Command, runtime.GOOS)
+	stopCaller := context.AfterFunc(ctx, func() { cancel(callerCause()) })
+	var timer *time.Timer
+	if spec.OnExpiry == ExpiryKill {
+		timer = time.AfterFunc(spec.Timeout, func() { cancel(ErrTimeout) })
+	}
+	defer func() {
+		stopCaller()
+		if timer != nil {
+			timer.Stop()
+		}
+		cancel(nil)
+	}()
+	argv := shellCommand(e.shell, commandWithEnvFile(spec), runtime.GOOS)
 	env := append([]string(nil), e.baseEnv...)
 	if e.sandbox != nil {
 		confined, err := e.sandbox.Confine(argv)
@@ -231,6 +304,10 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 	}
 	stdout, stderr := newTailWriter(spec.StdoutMaxBytes), newTailWriter(e.maxOutputBytes)
 	command.Stdout, command.Stderr = stdout, stderr
+	if e.outputSink != nil {
+		sink := &foregroundOutputSink{writer: e.outputSink, cancel: cancel}
+		command.Stdout, command.Stderr = io.MultiWriter(stdout, sink), io.MultiWriter(stderr, sink)
+	}
 	command.WaitDelay = e.grace
 	configureProcess(command)
 	if err := e.verifyWorkspace(); err != nil {
@@ -243,6 +320,9 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 	}
 	if err := command.Start(); err != nil {
 		return result, fmt.Errorf("shell: start command: %w", err)
+	}
+	if e.processStarted != nil {
+		e.processStarted()
 	}
 	if controlRead != nil {
 		_ = controlRead.Close()
@@ -332,6 +412,21 @@ func (e *LocalExecutor) CheckConfinement(ctx context.Context) error {
 	return ctx.Err()
 }
 
+func commandWithEnvFile(spec ExecSpec) string {
+	if spec.EnvFile == "" {
+		return spec.Command
+	}
+	info, err := os.Stat(spec.EnvFile)
+	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+		return spec.Command
+	}
+	return "set -a; . " + shellQuote(spec.EnvFile) + "; set +a\n" + spec.Command
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+}
+
 // Startup arguments are fixed; a tool request only supplies the command body.
 func shellCommand(executable, command, platform string) []string {
 	if platform == "windows" {
@@ -355,6 +450,9 @@ func (e *LocalExecutor) CheckCWD(cwd string) error {
 	}
 	rel, err := filepath.Rel(e.cwd, resolved)
 	if err != nil || rel != "." {
+		if e.allowWorkdir != nil && e.allowWorkdir(resolved) {
+			return nil
+		}
 		return errors.New("shell: session cwd differs from configured workspace")
 	}
 	return nil

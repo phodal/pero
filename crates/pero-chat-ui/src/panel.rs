@@ -74,6 +74,7 @@ pub struct ChatPanel {
     pub attachments: Vec<ContextReference>,
     pub(crate) context_preview_bounds: HashMap<String, crate::view_bounds::ViewBounds>,
     pub(crate) stop_button_bounds: crate::view_bounds::ViewBounds,
+    pub(crate) retry_button_bounds: crate::view_bounds::ViewBounds,
     pub composer_focused: bool,
     pub composer_restore: Option<InputContent>,
     pub composer_picker_scroll: ScrollHandle,
@@ -148,6 +149,7 @@ impl ChatPanel {
             attachments: vec![],
             context_preview_bounds: HashMap::new(),
             stop_button_bounds: Default::default(),
+            retry_button_bounds: Default::default(),
             composer_focused: false,
             composer_restore: None,
             composer_picker_scroll: ScrollHandle::new(),
@@ -294,6 +296,7 @@ impl ChatPanel {
             "disconnected" => {
                 self.connected = false;
                 for chat in &mut self.chats {
+                    chat.user_questions.clear();
                     chat.pending_model = None;
                     chat.pending_setting = None;
                 }
@@ -382,10 +385,12 @@ impl ChatPanel {
             "expandedTools":self.expanded_tools,"expandedReasoning":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(i,m)|m.role=="thought" && chat.thinking.open(*i)).map(|(i,_)|(&chat.id,i))).collect::<Vec<_>>(),
             "modelMenu":self.model_menu,"deletingChat":self.deleting_chat,
             "stopButtonBounds":self.stop_button_bounds.snapshot(),
+            "retryButtonBounds":self.retry_button_bounds.snapshot(),
             "completion":{"open":self.composer_state.open,"loading":self.composer_state.loading,"error":self.composer_state.error,
                 "selected":self.composer_state.selected,"items":self.composer_picker_items().iter().map(|i|&i.label).collect::<Vec<_>>()},
             "contextPreviewBounds":self.attachments.iter().map(|reference|json!({"id":reference.id,"image":matches!(reference.content, pero_contracts::context::ContextContent::Image{..}),"bounds":self.context_preview_bounds.get(&reference.id).map(|bounds|bounds.snapshot())})).collect::<Vec<_>>(),
             "permissionBounds":self.chats.iter().flat_map(|chat|chat.permission_bounds.iter().enumerate().map(move |(index,bounds)|json!({"chat":chat.id,"index":index,"bounds":bounds.snapshot()}))).collect::<Vec<_>>(),
+            "userQuestionBounds":self.chats.iter().flat_map(|chat|chat.user_questions.iter().map(|form|form.bounds())).collect::<Vec<_>>(),
             "reasoningBounds":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(_,m)|m.role=="thought").map(move |(index,message)|json!({"chat":chat.id,"index":index,"open":chat.thinking.open(index),"bounds":message.toggle_bounds.snapshot()}))).collect::<Vec<_>>(),
             "inputBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().map(move |tool|json!({"chat":chat.id,"tool":tool.id,"bounds":tool.input_bounds.snapshot()}))).collect::<Vec<_>>(),
             "appLinkBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().flat_map(move |tool|tool.app_links.iter().map(move |link|json!({"chat":chat.id,"url":link.url,"label":link.label,"bounds":link.bounds.snapshot()})))).collect::<Vec<_>>(),

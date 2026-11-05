@@ -26,6 +26,7 @@ func CloneToolSchemas(tools []ToolSchema) []ToolSchema {
 	result := make([]ToolSchema, len(tools))
 	copy(result, tools)
 	for i := range result {
+		result[i].Catalog = CloneCatalogText(tools[i].Catalog)
 		result[i].InputSchema = append(result[i].InputSchema[:0:0], tools[i].InputSchema...)
 		result[i].OutputSchema = append(result[i].OutputSchema[:0:0], tools[i].OutputSchema...)
 		result[i].OutputProjectionConfig = append(result[i].OutputProjectionConfig[:0:0], tools[i].OutputProjectionConfig...)

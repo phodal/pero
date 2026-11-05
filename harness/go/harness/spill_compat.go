@@ -5,8 +5,11 @@ import harnesstool "github.com/phodal/pero/harness/go/tool"
 const (
 	DefaultSpillMaxInlineBytes = harnesstool.DefaultSpillMaxInlineBytes
 	DefaultProcessSpillBytes   = harnesstool.DefaultProcessSpillBytes
+	DefaultSessionSpillBytes   = harnesstool.DefaultSessionSpillBytes
 	DefaultSpillRetention      = harnesstool.DefaultSpillRetention
 )
+
+var ErrSpillQuota = harnesstool.ErrSpillQuota
 
 type SpillOwner = harnesstool.SpillOwner
 type SpillSource = harnesstool.SpillSource

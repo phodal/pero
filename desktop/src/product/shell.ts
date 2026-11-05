@@ -129,7 +129,8 @@ let chatExpanded = false;
 let capturePending = false;
 let chatReady = false;
 let openedScope: { app: string; panel: string } | undefined;
-const chatNotices = new Map<string, 'running' | 'permission' | 'auth' | 'error'>();
+const chatNotices = new Map<string, 'running' | 'permission' | 'question' | 'auth' | 'error'>();
+const questionRequests = new Map<string, Set<string>>();
 let selectedThread: string | undefined;
 const refreshChatNotice = () => {
   void chat?.selectedDraft().then(draft => {
@@ -165,7 +166,7 @@ function update() {
   toggle.hidden = !context.product.chat || embedded || chatOpen;
   const notice = selectedThread && chatNotices.get(selectedThread);
   toggle.textContent = translate(context.locale, chatOpen ? 'chat.close_panel' : 'chat.open_panel') +
-    (notice ? ` · ${translate(context.locale, notice === 'permission' ? 'chat.permission' : notice === 'running' ? 'chat.thinking' : notice === 'auth' ? 'chat.signin' : 'roadmap.attention')}` : '');
+    (notice ? ` · ${translate(context.locale, notice === 'permission' ? 'chat.permission' : notice === 'question' ? 'chat.question_waiting' : notice === 'running' ? 'chat.thinking' : notice === 'auth' ? 'chat.signin' : 'roadmap.attention')}` : '');
   toggle.setAttribute('aria-expanded', String(chatOpen));
   toggle.setAttribute('aria-controls', chatPanel.id);
   chatTitle.textContent = translate(context.locale, 'chat.panel_title');
@@ -207,12 +208,23 @@ bridge.onEvent(event => {
   if (event.kind === 'ready') { runtimeConnected = true; if (context) context.connected = true; initializeChat(); }
   if (event.kind === 'disconnected') { runtimeConnected = false; if (context) context.connected = false; }
   chat?.event(event);
-  if (event.thread_id && ['turn_started', 'permission', 'session_auth_required', 'session_auth_error', 'session_authenticated', 'session_ready', 'session_error', 'turn_finished', 'session_closed'].includes(event.kind)) {
+  if (event.thread_id && ['turn_started', 'permission', 'user_questions', 'user_questions_error', 'user_questions_resolved', 'session_auth_required', 'session_auth_error', 'session_authenticated', 'session_ready', 'session_error', 'turn_finished', 'session_closed'].includes(event.kind)) {
     if (event.kind === 'turn_started') chatNotices.set(event.thread_id, 'running');
     if (event.kind === 'permission') chatNotices.set(event.thread_id, 'permission');
+    if (event.kind === 'user_questions') {
+      const request = (event.data as { request_id: string }).request_id;
+      const requests = questionRequests.get(event.thread_id) ?? new Set<string>();
+      requests.add(request); questionRequests.set(event.thread_id, requests);
+      chatNotices.set(event.thread_id, 'question');
+    }
+    if (event.kind === 'user_questions_error') chatNotices.set(event.thread_id, 'question');
+    if (event.kind === 'user_questions_resolved') {
+      questionRequests.get(event.thread_id)?.delete((event.data as { request_id: string }).request_id);
+      chatNotices.set(event.thread_id, questionRequests.get(event.thread_id)?.size ? 'question' : 'running');
+    }
     if (event.kind === 'session_auth_required' || event.kind === 'session_auth_error') chatNotices.set(event.thread_id, 'auth');
     if (event.kind === 'session_error') chatNotices.set(event.thread_id, 'error');
-    if (['turn_finished', 'session_closed', 'session_ready', 'session_authenticated'].includes(event.kind)) chatNotices.delete(event.thread_id);
+    if (['turn_finished', 'session_closed', 'session_ready', 'session_authenticated'].includes(event.kind)) { chatNotices.delete(event.thread_id); questionRequests.delete(event.thread_id); }
     refreshChatNotice();
   }
   if (event.kind === 'apps_catalog') {

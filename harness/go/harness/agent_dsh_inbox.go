@@ -67,7 +67,7 @@ func (a *Agent) admitDSHMessage(ctx context.Context, message Message, target Inb
 	}
 	defer operation.release()
 	ctx = operation.context
-	message, err = validatePluginMessage(a, message)
+	message, err = validateInboxMessage(a, message)
 	if err != nil {
 		return nil, err
 	}

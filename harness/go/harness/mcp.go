@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -26,29 +28,37 @@ type MCPTransport = harnessmcp.MCPTransport
 const (
 	MCPStdio          = harnessmcp.MCPStdio
 	MCPStreamableHTTP = harnessmcp.MCPStreamableHTTP
+	MCPSSE            = harnessmcp.MCPSSE
 )
 
 // MCPServerConfig is the transport-neutral server declaration accepted by
 // Harness and ACP session creation. TestTransport is intentionally excluded
 // from wire formats and lets conformance tests use the SDK's in-memory link.
 type MCPServerConfig struct {
-	Name                    string                         `json:"name"`
-	Transport               MCPTransport                   `json:"transport"`
-	Command                 string                         `json:"command,omitempty"`
-	Args                    []string                       `json:"args,omitempty"`
-	Env                     map[string]string              `json:"env,omitempty"`
-	CWD                     string                         `json:"cwd,omitempty"`
-	URL                     string                         `json:"url,omitempty"`
-	Headers                 map[string]string              `json:"headers,omitempty"`
-	ToolCallTimeoutMS       int                            `json:"toolCallTimeoutMs,omitempty"`
-	FailOnStartupError      bool                           `json:"failOnStartupError,omitempty"`
-	Reconnect               *MCPReconnectConfig            `json:"reconnect,omitempty"`
-	Observe                 func(MCPConnectionObservation) `json:"-"`
-	TestTransport           mcp.Transport                  `json:"-"`
+	Name                    string                                           `json:"name"`
+	Transport               MCPTransport                                     `json:"transport"`
+	Command                 string                                           `json:"command,omitempty"`
+	Args                    []string                                         `json:"args,omitempty"`
+	Env                     map[string]string                                `json:"env,omitempty"`
+	CWD                     string                                           `json:"cwd,omitempty"`
+	URL                     string                                           `json:"url,omitempty"`
+	Headers                 map[string]string                                `json:"headers,omitempty"`
+	HeadersProvider         func(context.Context) (map[string]string, error) `json:"-"`
+	ToolCallTimeoutMS       int                                              `json:"toolCallTimeoutMs,omitempty"`
+	FailOnStartupError      bool                                             `json:"failOnStartupError,omitempty"`
+	Reconnect               *MCPReconnectConfig                              `json:"reconnect,omitempty"`
+	Observe                 func(MCPConnectionObservation)                   `json:"-"`
+	TestTransport           mcp.Transport                                    `json:"-"`
 	testTransportFactory    func() (mcp.Transport, error)
 	testListTools           func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	resolvedReconnect       resolvedMCPReconnectPolicy
 	resolvedToolCallTimeout time.Duration
+	// ElicitationName is the configured server name Elicitation hooks match.
+	ElicitationName string
+	// Elicit answers an elicitation for this server. Nil leaves the capability off.
+	Elicit func(context.Context, harnessmcp.ElicitationRequest, any) (harnessmcp.ElicitationReply, error)
+	// ElicitationCompleted receives notifications/elicitation/complete.
+	ElicitationCompleted func(context.Context, string, any)
 }
 
 // MountMCPServers validates and connects a complete server set before the
@@ -75,7 +85,7 @@ func MountMCPServers(ctx context.Context, run *point.Run, registry *ToolRegistry
 		if err := registerMCPResourceTools(run, registry, directory); err != nil {
 			return err
 		}
-		if err := registerMCPResourcePrompt(run, prompts, directory); err != nil {
+		if err := registerMCPResourcePrompt(run, registry, prompts, directory); err != nil {
 			return err
 		}
 	}
@@ -104,10 +114,15 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 		Enabled: config.resolvedReconnect.enabled, InitialDelay: config.resolvedReconnect.initialDelay,
 		MaxDelay: config.resolvedReconnect.maxDelay, MaxAttempts: config.resolvedReconnect.maxAttempts,
 	}
+	var roots []string
+	if filepath.IsAbs(config.CWD) {
+		roots = []string{config.CWD}
+	}
 	return harnessmcp.MountConnection(ctx, run, harnessmcp.ConnectionOptions{
 		ServerName: config.Name, Reconnect: policy, ToolCallTimeout: config.resolvedToolCallTimeout,
 		FailOnStartupError: config.FailOnStartupError, TransportFactory: transportFactory, ListTools: config.testListTools,
-		Resources: directory, Observe: config.Observe,
+		Resources: directory, Observe: config.Observe, Elicit: config.Elicit, ElicitationCompleted: config.ElicitationCompleted,
+		Roots: roots,
 	}, func(owner *point.Run, generation string, definitions []harnessmcp.Tool) (point.Dispose, error) {
 		tools := make([]Tool, len(definitions))
 		for i, definition := range definitions {
@@ -171,7 +186,7 @@ func validateMCPConfigs(servers []MCPServerConfig) ([]MCPServerConfig, error) {
 				if !filepath.IsAbs(server.Command) {
 					return nil, fmt.Errorf("harness: MCP server %q command must be absolute", server.Name)
 				}
-			case MCPStreamableHTTP:
+			case MCPStreamableHTTP, MCPSSE:
 				request, err := http.NewRequest(http.MethodPost, server.URL, nil)
 				if err != nil || (request.URL.Scheme != "http" && request.URL.Scheme != "https") {
 					return nil, fmt.Errorf("harness: MCP server %q URL must be absolute HTTP(S)", server.Name)
@@ -232,27 +247,74 @@ func registerMCPResourceTools(run *point.Run, registry *ToolRegistry, directory 
 		mcpResourceTool(directory, "list_mcp_resources", "List resources available from an MCP server.", mcpResourceListSchema, "resources/list"),
 		mcpResourceTool(directory, "list_mcp_resource_templates", "List parameterized resource URI templates from an MCP server.", mcpResourceListSchema, "resources/templates/list"),
 		mcpResourceTool(directory, "read_mcp_resource", "Read an MCP resource by URI from the named server. Use a listed URI or an expanded resource template.", mcpResourceReadSchema, "resources/read"),
+		mcpResourceTool(directory, "list_mcp_prompts", "List prompts available from an MCP server.", mcpResourceListSchema, "prompts/list"),
+		mcpPromptTool(directory),
+		mcpInstructionsTool(directory),
 	}
 	_, err := registry.ReplaceGeneration(run, "mcp-resources", tools)
 	return err
 }
 
-func registerMCPResourcePrompt(run *point.Run, prompts *PromptRegistry, directory *harnessmcp.ResourceDirectory) error {
+func registerMCPResourcePrompt(run *point.Run, registry *ToolRegistry, prompts *PromptRegistry, directory *harnessmcp.ResourceDirectory) error {
 	_, err := prompts.Register(run, PromptSection{
 		ID: fmt.Sprintf("mcp-resource-servers:%p", run.Scope), Order: 3100,
-		Content: func(context.Context, *Agent) (string, error) {
+		Catalog: true, CatalogRecoveryTool: "read_mcp_instructions", CatalogContinuation: "Call read_mcp_instructions with {} to list servers, then server/offset/limit to recover complete instructions.",
+		Guidance: func(ctx context.Context, agent *Agent, capabilities PromptCapabilities) (string, error) {
 			names := directory.Names()
 			if len(names) == 0 {
+				return "", nil
+			}
+			var tools []string
+			for _, schema := range capabilities.Tools {
+				switch schema.Name {
+				case "list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource", "list_mcp_prompts", "get_mcp_prompt", "read_mcp_instructions":
+					tools = append(tools, schema.Name)
+				}
+			}
+			if len(tools) == 0 {
 				return "", nil
 			}
 			encoded, marshalErr := json.Marshal(names)
 			if marshalErr != nil {
 				return "", marshalErr
 			}
-			return "## MCP resource servers\n\nUse list_mcp_resources, list_mcp_resource_templates, or read_mcp_resource with one of these names as the server argument: " + string(encoded) + ".", nil
+			catalog := directory.InstructionCatalog()
+			catalog.Header = "## MCP resource servers\n\nUse " + strings.Join(tools, ", ") + " with one of these names as the server argument: " + string(encoded) + "."
+			if !capabilities.HasTool("read_mcp_instructions") {
+				catalog.Continuation = "Additional server instructions are omitted from this request."
+			}
+			budget := CatalogBudget{Remaining: DefaultCatalogBytes}
+			text := budget.Render(catalog)
+			return text, nil
 		},
 	})
 	return err
+}
+
+func mcpPromptTool(directory *harnessmcp.ResourceDirectory) Tool {
+	schema := `{"type":"object","additionalProperties":false,"required":["server","name"],"properties":{"server":{"type":"string","description":"Configured MCP server name."},"name":{"type":"string","description":"Prompt name."},"arguments":{"type":"object","additionalProperties":{"type":"string"},"description":"Prompt arguments."}}}`
+	return Tool{
+		Schema: ToolSchema{Name: "get_mcp_prompt", Description: "Get one named prompt from an MCP server. Arguments are string values for the prompt template.", InputSchema: json.RawMessage(schema)},
+		Execute: func(ctx context.Context, raw json.RawMessage) (ToolResult, error) {
+			var args struct {
+				Server    string            `json:"server"`
+				Name      string            `json:"name"`
+				Arguments map[string]string `json:"arguments"`
+			}
+			if err := json.Unmarshal(raw, &args); err != nil {
+				return ToolResult{}, err
+			}
+			payload, err := directory.GetPrompt(ctx, args.Server, args.Name, args.Arguments)
+			if err != nil {
+				return ToolResult{IsError: true, Content: []ContentBlock{{Type: BlockText, Text: err.Error()}}}, nil
+			}
+			text, err := harnessmcp.RenderResourceResult(args.Server, payload)
+			if err != nil {
+				return ToolResult{}, err
+			}
+			return ToolResult{Content: []ContentBlock{{Type: BlockText, Text: text}}}, nil
+		},
+	}
 }
 
 func mcpResourceTool(directory *harnessmcp.ResourceDirectory, name, description, schema, method string) Tool {
@@ -310,7 +372,7 @@ func mcpTransportFactory(config MCPServerConfig) (func() (mcp.Transport, error),
 		}, nil
 	}
 	switch config.Transport {
-	case MCPStdio, MCPStreamableHTTP:
+	case MCPStdio, MCPStreamableHTTP, MCPSSE:
 		return func() (mcp.Transport, error) { return newMCPTransport(config) }, nil
 	default:
 		return nil, fmt.Errorf("unsupported transport %q", config.Transport)
@@ -324,9 +386,17 @@ func newMCPTransport(config MCPServerConfig) (mcp.Transport, error) {
 		command.Env = mergedEnvironment(config.Env)
 		return &mcp.CommandTransport{Command: command}, nil
 	}
-	headers := &headerRoundTripper{base: http.DefaultTransport, headers: config.Headers}
+	endpoint, err := url.Parse(config.URL)
+	if err != nil {
+		return nil, errors.New("harness: invalid MCP endpoint")
+	}
+	headers := &headerRoundTripper{base: http.DefaultTransport, headers: config.Headers, origin: endpoint}
 	client := &http.Client{Transport: headers, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &authenticationTransport{StreamableClientTransport: &mcp.StreamableClientTransport{Endpoint: config.URL, HTTPClient: client}, headers: headers}, nil
+	var transport mcp.Transport = &mcp.StreamableClientTransport{Endpoint: config.URL, HTTPClient: client}
+	if config.Transport == MCPSSE {
+		transport = &mcp.SSEClientTransport{Endpoint: config.URL, HTTPClient: client}
+	}
+	return &authenticationTransport{Transport: transport, HTTPClient: client, headers: headers, resolveHeaders: config.HeadersProvider}, nil
 }
 
 func mergedEnvironment(overrides map[string]string) []string {
@@ -363,32 +433,86 @@ func scrubMCPEnvironmentName(name string) bool {
 // Retain authentication classification independently of SDK error wrapping and
 // discovery fallback. Each configured connection remains terminal until reloaded.
 type authenticationTransport struct {
-	*mcp.StreamableClientTransport
-	headers *headerRoundTripper
+	mcp.Transport
+	HTTPClient     *http.Client
+	headers        *headerRoundTripper
+	resolveHeaders func(context.Context) (map[string]string, error)
 }
+
+func (t *authenticationTransport) Connect(ctx context.Context) (mcp.Connection, error) {
+	if t.resolveHeaders != nil {
+		dynamic, err := t.resolveHeaders(ctx)
+		if err != nil {
+			return nil, err
+		}
+		merged := http.Header{}
+		t.headers.mu.RLock()
+		for name, value := range t.headers.headers {
+			merged.Set(name, value)
+		}
+		t.headers.mu.RUnlock()
+		for name, value := range dynamic {
+			if !validHTTPHeaderName(name) || strings.ContainsAny(value, "\r\n\x00") {
+				return nil, errors.New("harness: MCP header provider returned an invalid header")
+			}
+			merged.Set(name, value)
+		}
+		values := make(map[string]string, len(merged))
+		for name := range merged {
+			values[name] = merged.Get(name)
+		}
+		t.headers.mu.Lock()
+		t.headers.headers = values
+		t.headers.mu.Unlock()
+	}
+	return t.Transport.Connect(ctx)
+}
+
+func (t *authenticationTransport) SupportsProtocolVersion(version string) bool {
+	if supporter, ok := t.Transport.(mcp.ProtocolVersionSupporter); ok {
+		return supporter.SupportsProtocolVersion(version)
+	}
+	return true
+}
+
+var errMCPForeignEndpoint = errors.New("MCP message endpoint is outside the configured origin")
 
 func (t *authenticationTransport) TerminalError() error {
 	if t.headers.authenticationRejected.Load() {
 		return harnessmcp.ErrAuthentication
 	}
+	if t.headers.originRejected.Load() {
+		return errMCPForeignEndpoint
+	}
 	return nil
 }
 
 type headerRoundTripper struct {
+	mu                     sync.RWMutex
 	authenticationRejected atomic.Bool
+	originRejected         atomic.Bool
 	base                   http.RoundTripper
 	headers                map[string]string
+	origin                 *url.URL
 }
 
 func (t *headerRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	// Legacy SSE announces a separate POST endpoint. The SDK may resolve an
+	// absolute URL; configured headers only authorize the selected origin.
+	if t.origin != nil && !sameMCPOrigin(t.origin, request.URL) {
+		t.originRejected.Store(true)
+		return nil, errMCPForeignEndpoint
+	}
 	if t.authenticationRejected.Load() {
 		return nil, harnessmcp.ErrAuthentication
 	}
 	clone := request.Clone(request.Context())
 	clone.Header = request.Header.Clone()
+	t.mu.RLock()
 	for name, value := range t.headers {
 		clone.Header.Set(name, value)
 	}
+	t.mu.RUnlock()
 	response, err := t.base.RoundTrip(clone)
 	if err == nil && response != nil && (response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden) {
 		t.authenticationRejected.Store(true)
@@ -400,4 +524,17 @@ func (t *headerRoundTripper) RoundTrip(request *http.Request) (*http.Response, e
 		return nil, harnessmcp.ErrAuthentication
 	}
 	return response, err
+}
+
+func sameMCPOrigin(left, right *url.URL) bool {
+	port := func(value *url.URL) string {
+		if value.Port() != "" {
+			return value.Port()
+		}
+		if value.Scheme == "https" {
+			return "443"
+		}
+		return "80"
+	}
+	return strings.EqualFold(left.Scheme, right.Scheme) && strings.EqualFold(left.Hostname(), right.Hostname()) && port(left) == port(right)
 }

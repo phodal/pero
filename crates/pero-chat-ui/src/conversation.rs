@@ -232,6 +232,7 @@ pub struct Conversation {
     pub workspace: String,
     pub scope: Option<pero_contracts::AppChatScope>,
     pub usage: Option<pero_contracts::usage::SessionUsage>,
+    pub mcp: Option<pero_contracts::mcp_runtime::McpRuntimeSession>,
     pub id: String,
     pub title: crate::conversation_title::ConversationTitle,
     #[serde(skip)]
@@ -254,6 +255,7 @@ pub struct Conversation {
     pub draft_references:
         std::collections::HashMap<String, pero_contracts::context::ContextReference>,
     pub permission: Option<Value>,
+    pub(crate) user_questions: Vec<crate::user_questions::QuestionForm>,
     #[serde(skip)]
     pub(crate) permission_bounds: Vec<crate::view_bounds::ViewBounds>,
     pub auth_methods: Vec<crate::authentication::AuthenticationMethod>,
@@ -272,6 +274,7 @@ impl Conversation {
             workspace: String::new(),
             scope: None,
             usage: None,
+            mcp: None,
             id,
             agent,
             title: crate::conversation_title::ConversationTitle::new(title),
@@ -289,6 +292,7 @@ impl Conversation {
             draft: gpui_kit::component::input::InputContent::new(""),
             draft_references: Default::default(),
             permission: None,
+            user_questions: vec![],
             permission_bounds: vec![],
             auth_methods: vec![],
             models: vec![],
@@ -302,6 +306,11 @@ impl Conversation {
 
     pub fn can_retarget(&self) -> bool {
         self.state.can_retarget(!self.messages.is_empty(), self.queued.is_some())
+    }
+
+    pub fn can_retry(&self) -> bool {
+        self.can_retarget() && (self.state == SessionState::Closed
+            || self.mcp.as_ref().is_some_and(|mcp| !mcp.failed_servers().is_empty()))
     }
 
     pub fn can_submit(&self) -> bool {

@@ -10,13 +10,38 @@ import (
 	"strings"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/media"
 )
 
 // ProviderImage is a bounded, fully decoded raster already held in memory.
 // No remote URL, local path, SVG, file upload or implicit fetch is accepted.
-const MaxInputImageBytes = 4 << 20
-const MaxInputImageDimension = 2048
-const MaxRequestImageBytes = 16 << 20
+const MaxInputImageBytes = media.ToolImageMaxBytes
+const MaxInputImageDimension = media.ToolImageMaxDimension
+const MaxRequestImageBytes = media.ToolImageRequestMaxBytes
+
+// Project only tool results. Invalid user attachments remain admission errors.
+// Old tool images stay in the transcript, but cannot poison every continuation.
+func projectToolImages(content []harness.ContentBlock, imagesAllowed bool, used int) []harness.ContentBlock {
+	result := make([]harness.ContentBlock, 0, len(content))
+	for _, block := range content {
+		if block.Type == harness.BlockImage && len(block.Extensions) == 0 {
+			limitation := "This text-only model has not inspected its pixels"
+			if imagesAllowed {
+				data, mime, err := media.NormalizeToolImage(block.Data, block.MIMEType)
+				if err == nil && len(data) <= MaxRequestImageBytes-used {
+					block.Data, block.MIMEType = data, mime
+					used += len(data)
+					result = append(result, block)
+					continue
+				}
+				limitation = "This image's pixels were omitted from the model request because the image is invalid or exceeds its raster/remaining byte budget"
+			}
+			block = harness.ContentBlock{Type: harness.BlockText, Text: "\n[Tool image retained for conversation display. " + limitation + "; use the accompanying text and image reference, and disclose this limitation when interpreting the figure. Re-read a smaller image if needed.]\n"}
+		}
+		result = append(result, block)
+	}
+	return result
+}
 
 func encodeContent(content []harness.ContentBlock, imagesAllowed bool, imageBytes *int) (any, error) {
 	var text strings.Builder

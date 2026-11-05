@@ -68,7 +68,16 @@ func permissionDecision(policy ApprovalPolicy, request ApprovalRequest) (Approva
 	if request.Agent == nil {
 		return ApprovalRejected, false
 	}
-	mode, found, err := PermissionModeOverride(request.Agent.Session().Events())
+	events := request.Agent.Session().Events()
+	if mode, found, err := latestClaudePermissionMode(events); err != nil {
+		return ApprovalRejected, false
+	} else if found {
+		if mode == "plan" && request.ToolName == "ExitPlanMode" && request.AlwaysAsk {
+			return "", true
+		}
+		return claudePermissionDecision(mode, request)
+	}
+	mode, found, err := PermissionModeOverride(events)
 	if err != nil {
 		return ApprovalRejected, false
 	}
@@ -95,12 +104,118 @@ func permissionDecision(policy ApprovalPolicy, request ApprovalRequest) (Approva
 	}
 }
 
+// SetClaudePermissionMode records a session mode from a permission hook.
+// It does not write settings files. A later composer preset replaces it.
+func SetClaudePermissionMode(session *Session, mode string) (Event, error) {
+	if session == nil {
+		return Event{}, errors.New("harness: permission mode requires a session")
+	}
+	switch mode {
+	case "default", "plan", "acceptEdits", "dontAsk":
+	default:
+		return Event{}, fmt.Errorf("harness: claude permission mode %q is unsupported", mode)
+	}
+	return session.Append("permission/claude-mode", struct {
+		Mode string `json:"mode"`
+	}{mode})
+}
+
+func latestClaudePermissionMode(events []Event) (string, bool, error) {
+	for index := len(events) - 1; index >= 0; index-- {
+		switch events[index].Type {
+		case "permission/preset":
+			return "", false, nil
+		case "permission/claude-mode":
+			var payload struct {
+				Mode string `json:"mode"`
+			}
+			if err := json.Unmarshal(events[index].Data, &payload); err != nil {
+				return "", false, fmt.Errorf("harness: decode permission/claude-mode at seq %d: %w", events[index].Seq, err)
+			}
+			switch payload.Mode {
+			case "default", "plan", "acceptEdits", "dontAsk":
+				return payload.Mode, true, nil
+			default:
+				return "", false, fmt.Errorf("harness: invalid permission/claude-mode at seq %d", events[index].Seq)
+			}
+		}
+	}
+	return "", false, nil
+}
+
+func claudePermissionDecision(mode string, request ApprovalRequest) (ApprovalOutcome, bool) {
+	switch mode {
+	case "plan":
+		return ApprovalRejected, false
+	case "acceptEdits":
+		if claudeEditTool(request.ToolName) {
+			return ApprovalAllowedOnce, false
+		}
+		return "", true
+	case "dontAsk":
+		if request.Preapproved && !request.AlwaysAsk {
+			return ApprovalAllowedOnce, false
+		}
+		return ApprovalRejected, false
+	default:
+		return "", true
+	}
+}
+
+func claudeEditTool(name string) bool {
+	switch name {
+	case "Write", "Edit", "NotebookEdit", "MultiEdit", "write_file", "edit_file", "notebook_edit", "apply_patch":
+		return true
+	default:
+		return false
+	}
+}
+
+// HookPermissionMode is the permission_mode value for a hook event. An empty
+// result means this session's latest fact is a composer preset, which has no
+// Claude mode name. No recorded mode is "default".
+func HookPermissionMode(events []Event) string {
+	for index := len(events) - 1; index >= 0; index-- {
+		switch events[index].Type {
+		case "permission/preset":
+			return ""
+		case "permission/claude-mode":
+			var payload struct {
+				Mode string `json:"mode"`
+			}
+			if json.Unmarshal(events[index].Data, &payload) != nil {
+				return ""
+			}
+			switch payload.Mode {
+			case "default", "plan", "acceptEdits", "dontAsk":
+				return payload.Mode
+			default:
+				return ""
+			}
+		}
+	}
+	return "default"
+}
+
+func claudePermissionPrompt(mode string) string {
+	switch mode {
+	case "plan":
+		return "Permission: plan. File changes and commands are rejected."
+	case "acceptEdits":
+		return "Permission: accept edits. File edits are allowed without asking. Other actions may ask."
+	case "dontAsk":
+		return "Permission: don't ask. Actions that need approval are rejected. An explicit allow rule still applies."
+	default:
+		return ""
+	}
+}
+
 func permissionEscapesWorkspace(request ApprovalRequest) bool {
 	if request.Native != nil && request.Native.Operation == "shell" {
 		return true
 	}
 	switch request.ToolName {
-	case "shell", "bash":
+	case "shell", "bash", "Bash":
 		return true
 	default:
 		return false

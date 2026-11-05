@@ -2,7 +2,7 @@
 
 Add `--context-window <provider-documented-token-capacity>` to the existing
 `pero-agent-acp` launch. This is an explicit operator declaration, not a model-name
-lookup. The same configuration is applied to new and resumed ACP sessions.
+lookup. The same configuration is applied to print mode and new/resumed ACP sessions.
 Omission preserves no-compaction behavior; `--disable-compaction` disables it even
 when capacity is declared. Capacity must be between 1 and 1,073,741,824 tokens,
 and must leave usable output, headroom and retention budgets.
@@ -34,3 +34,11 @@ No GUI, Projects, account settings, discovery, tools, or model switch is added.
 Tests use only synthetic in-process providers and a loopback SSE fixture. They
 cover CLI-to-ACP activation and reactivation on resume, pressure, overflow retry
 bounds, empty summaries, cancellation, and durable JSONL round trips.
+
+Historical tool text clearing is separately opt-in via `--tool-history-chars`,
+`--tool-history-low-watermark` (default half the high watermark), and
+`--tool-history-keep-recent` (default four). It runs without model compaction,
+protects failures/recent results and retains original Session events for
+ReadToolOutput. It requires a native workspace. Checkpoint file-operation
+metadata and limitations are documented in
+[runtime follow-up](../../../../docs/fitness/reference-runtime-improvements.md).

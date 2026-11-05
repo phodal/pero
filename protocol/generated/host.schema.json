@@ -1035,6 +1035,53 @@
       ],
       "additionalProperties": false
     },
+    "AnsweredQuestions": {
+      "title": "AnsweredQuestions",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "const": "answered"
+        },
+        "answers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestionAnswer"
+          }
+        }
+      },
+      "required": [
+        "outcome",
+        "answers"
+      ],
+      "additionalProperties": false
+    },
+    "AnswerUserQuestionsCommand": {
+      "title": "AnswerUserQuestionsCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "answer_user_questions"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "reply": {
+          "$ref": "#/$defs/QuestionReply"
+        }
+      },
+      "required": [
+        "action",
+        "thread_id",
+        "request_id",
+        "reply"
+      ],
+      "additionalProperties": false
+    },
     "AppAccess": {
       "title": "AppAccess",
       "type": "object",
@@ -5108,6 +5155,20 @@
       ],
       "additionalProperties": false
     },
+    "CancelledQuestions": {
+      "title": "CancelledQuestions",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "const": "cancelled"
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
     "ChooseDocumentSave": {
       "title": "ChooseDocumentSave",
       "type": "object",
@@ -7211,6 +7272,9 @@
           "$ref": "#/$defs/PermissionCommand"
         },
         {
+          "$ref": "#/$defs/AnswerUserQuestionsCommand"
+        },
+        {
           "$ref": "#/$defs/ModelCommand"
         },
         {
@@ -7460,6 +7524,15 @@
         },
         {
           "$ref": "#/$defs/PermissionEvent"
+        },
+        {
+          "$ref": "#/$defs/UserQuestionsEvent"
+        },
+        {
+          "$ref": "#/$defs/QuestionsResolvedEvent"
+        },
+        {
+          "$ref": "#/$defs/QuestionsErrorEvent"
         },
         {
           "$ref": "#/$defs/PromptQueuedEvent"
@@ -10272,6 +10345,181 @@
         },
         "data": {
           "$ref": "#/$defs/PromptQueuedData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionAnswer": {
+      "title": "QuestionAnswer",
+      "type": "object",
+      "properties": {
+        "questionIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "selectedOptions": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "questionIndex"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionOption": {
+      "title": "QuestionOption",
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "preview": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionReply": {
+      "title": "QuestionReply",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AnsweredQuestions"
+        },
+        {
+          "$ref": "#/$defs/CancelledQuestions"
+        }
+      ]
+    },
+    "QuestionsErrorData": {
+      "title": "QuestionsErrorData",
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionsErrorEvent": {
+      "title": "QuestionsErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "user_questions_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/QuestionsErrorData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionsResolvedData": {
+      "title": "QuestionsResolvedData",
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string"
+        },
+        "toolCallId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "toolCallId"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionsResolvedEvent": {
+      "title": "QuestionsResolvedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "user_questions_resolved"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/QuestionsResolvedData"
         }
       },
       "required": [
@@ -13290,6 +13538,108 @@
         "request_id",
         "text",
         "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "UserQuestion": {
+      "title": "UserQuestion",
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "header": {
+          "type": "string",
+          "maxLength": 12
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestionOption"
+          },
+          "minItems": 2,
+          "maxItems": 4
+        },
+        "multiSelect": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "question",
+        "header",
+        "options"
+      ],
+      "additionalProperties": false
+    },
+    "UserQuestionsData": {
+      "title": "UserQuestionsData",
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "toolCallId": {
+          "type": "string"
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UserQuestion"
+          },
+          "minItems": 1,
+          "maxItems": 4
+        }
+      },
+      "required": [
+        "request_id",
+        "sessionId",
+        "toolCallId",
+        "questions"
+      ],
+      "additionalProperties": false
+    },
+    "UserQuestionsEvent": {
+      "title": "UserQuestionsEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "user_questions"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/UserQuestionsData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
       ],
       "additionalProperties": false
     },

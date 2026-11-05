@@ -71,9 +71,11 @@ impl Manager {
                 if matches!(name.as_str(), "pero-app-use" | "pero-connectors") || !names.insert(name.clone()) {
                     return Err(format!("Plugin MCP server name conflicts with session configuration: {name}"));
                 }
+                agent.required_mcp_servers.insert(name.clone());
             }
             agent.mcp_servers.extend(plugins.dependencies.mcp_servers.clone());
             agent.session_instructions = plugins.instructions.clone();
+            if plugins.assembly.is_some() { agent.required_mcp_servers.insert("pero-app-use".into()); }
         }
         if let Some(endpoint) = &self.connectors {
             endpoint.bind(&mut agent, &thread_id)?;
@@ -110,24 +112,7 @@ impl Manager {
         if let Some(plugins) = plugins { self.app_plugins.insert(thread_id.clone(), plugins); }
         self.sessions.insert(
             thread_id.clone(),
-            if let Some(resume_id)=resume_id {
-                acp::resume_app(agent.clone(),self.workspace.clone(),thread_id,self.tx.clone(),app_use,resume_id)
-            } else if let Some(endpoint) = app_use {
-                acp::start_app(
-                    agent.clone(),
-                    self.workspace.clone(),
-                    thread_id,
-                    self.tx.clone(),
-                    endpoint,
-                )
-            } else {
-                acp::start(
-                    agent.clone(),
-                    self.workspace.clone(),
-                    thread_id,
-                    self.tx.clone(),
-                )
-            },
+            acp::start_interactive(agent.clone(),self.workspace.clone(),thread_id,self.tx.clone(),app_use,resume_id),
         );
         Ok(())
     }

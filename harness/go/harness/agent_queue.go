@@ -20,6 +20,21 @@ func (a *Agent) mutationAdmissionError() error {
 }
 
 func (a *Agent) Prompt(ctx context.Context, message Message) (TurnResult, error) {
+	return a.promptContext(ctx, message, true)
+}
+
+// PromptFollowup runs an attributed host/plugin follow-up with the caller's
+// execution lifetime. Unlike asynchronous FollowupResultContext, cancellation
+// also prevents a queued turn from starting. It never records a human claim.
+func (a *Agent) PromptFollowup(ctx context.Context, message Message) (TurnResult, error) {
+	message, err := validatePluginMessage(a, message)
+	if err != nil {
+		return TurnResult{}, err
+	}
+	return a.promptContext(ctx, message, false)
+}
+
+func (a *Agent) promptContext(ctx context.Context, message Message, userAuthored bool) (TurnResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -29,7 +44,7 @@ func (a *Agent) Prompt(ctx context.Context, message Message) (TurnResult, error)
 	if message.Role != RoleUser {
 		return TurnResult{}, errors.New("harness: prompt message must have user role")
 	}
-	request, err := a.enqueuePrompt(ctx, message, true)
+	request, err := a.enqueuePrompt(ctx, message, userAuthored)
 	if err != nil {
 		return TurnResult{}, err
 	}

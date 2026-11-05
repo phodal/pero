@@ -83,7 +83,8 @@ func (r *SubagentRegistry) waitForChildren(ctx context.Context, parent *Agent, f
 			}
 			r.mu.RLock()
 			changed := state.changed
-			owned := state.preparing != 0 || len(state.owned) != 0
+			descendants := state.preparing != 0 || len(state.owned) != 0
+			activities := state.activities != 0
 			r.mu.RUnlock()
 			if record.child != nil && !state.closing.Load() {
 				child := record.child
@@ -93,10 +94,10 @@ func (r *SubagentRegistry) waitForChildren(ctx context.Context, parent *Agent, f
 				state.mu.Lock()
 				failed := state.failure != nil
 				state.mu.Unlock()
-				if parked && !failed {
+				if parked && !failed && !activities {
 					continue
 				}
-				if owned {
+				if descendants && !activities {
 					continue
 				}
 			}

@@ -3,12 +3,14 @@ package harness
 import harnessllm "github.com/phodal/pero/harness/go/llm"
 
 const (
-	ContextWindowExceededCode = harnessllm.ContextWindowExceededCode
-	EmptyResponseCode         = harnessllm.EmptyResponseCode
-	MalformedResponseCode     = harnessllm.MalformedResponseCode
-	StreamClosedCode          = harnessllm.StreamClosedCode
-	TransportErrorCode        = harnessllm.TransportErrorCode
-	ImageOffloadRequiredCode  = harnessllm.ImageOffloadRequiredCode
+	ContextWindowExceededCode   = harnessllm.ContextWindowExceededCode
+	EmptyResponseCode           = harnessllm.EmptyResponseCode
+	MalformedResponseCode       = harnessllm.MalformedResponseCode
+	StreamClosedCode            = harnessllm.StreamClosedCode
+	TransportErrorCode          = harnessllm.TransportErrorCode
+	RequestBudgetExhaustedCode  = harnessllm.RequestBudgetExhaustedCode
+	RequestDeadlineExceededCode = harnessllm.RequestDeadlineExceededCode
+	ImageOffloadRequiredCode    = harnessllm.ImageOffloadRequiredCode
 )
 
 type ProviderFailure = harnessllm.ProviderFailure

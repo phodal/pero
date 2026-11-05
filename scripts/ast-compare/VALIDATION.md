@@ -1,5 +1,59 @@
 # Validated reference snapshot
 
+## Runtime follow-up source receipt — 2026-11-05
+
+The mapping selects committed Pero source
+`31f03f3924a60ec06579f82d9755527c997c5b30`. The selected `Agent.runTurn`
+now applies opt-in historical tool clearing before PreStep and correctly allows
+stop continuation when max steps are explicitly unlimited. Those behaviors have
+their own native tests; the output-limit landmarks do not establish them.
+
+Against the unchanged official pin, the previous mapping reproduces 15 extracted
+pairs and two `source_hash_mismatch` selectors, both for `harness/go/harness/loop.go`.
+Refreshing only those containing-file hashes restores 17 extracted and zero
+unavailable, exit 0. Every right-side file is byte-identical to the committed
+source; all 11 official file receipts match the retained exact-pin source copy.
+The existing pinned parsers and extended TypeScript grammar pass all 18 tests
+without skips. No selector, landmark, hash check or parser check is removed.
+Local reports are `/tmp/pero-reference-improvements-ast-{before,after}.{json,md}`;
+the parser test log is `/tmp/pero-reference-improvements-ast-tests.log`.
+This repairs source admission for review, not semantic equivalence.
+
+## Turn-entry source receipt — 2026-11-05
+
+The mapping now selects Pero source `4c7494e035e80e7f07629b5abcdb25cb3b4c0adc`.
+The turn-entry fix changes the selected `Agent.runTurn` callable: it rejects an
+already canceled context or retired scope before turn records and inbox claims.
+This is a local admission correction, separately covered by native lifecycle
+tests, not a semantic-equivalence conclusion from the output-limit landmarks.
+
+Against the exact official pin, the old mapping reports 15 extracted and two
+`source_hash_mismatch` selectors, both for `harness/go/harness/loop.go`.
+Refreshing those two file receipts restores all 17 extracted pairs and zero
+unavailable. All 11 official source files are SHA256-verified after retrieval
+at `f3803c96974ad4a94195fb97e5c637e9c2a3afe3`; every right-side source is
+byte-identical to the selected Pero commit. The existing pinned parsers and
+extended TypeScript grammar pass all 18 parser tests without skips. No mapping,
+landmark or hash check is removed. Reports are retained locally as
+`/tmp/pero-turn-admission-ast-pinned-before.{json,md}` and
+`/tmp/pero-turn-admission-ast-after.{json,md}`.
+
+## Provider diagnostic source receipt — 2026-11-05
+
+The mapping records published Pero source `64d203bec2dd69ac8d5aae82cfdb151ac914009c`.
+CI run `41902835870` and a local unchanged-mapping run both report 16 extracted
+pairs and one `source_hash_mismatch`, exit 2. Only the containing-file hash for
+`provider-error-classification` is stale after the stream diagnostic change in
+`98057b6c`; its selected `httpErrorCode` callable is unchanged.
+
+Refreshing that hash restores all 17 extracted pairs, zero unavailable, exit 0
+against official DSH `f3803c96974ad4a94195fb97e5c637e9c2a3afe3` with the pinned
+parsers and extended TypeScript grammar. All 18 parser tests pass without skips.
+Both classification landmarks remain observed on each side. No pair, landmark,
+parser check or source-hash check is removed. This validates extraction for
+review; the new stream diagnostics have their separate provider behavior tests
+and this does not establish semantic equivalence.
+
 ## MCP source-receipt refresh — 2026-11-01
 
 The mapping now selects published Pero source

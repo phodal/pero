@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "purpose": "Add explicit file-backed JSON input for state transitions and annotations, preserving the original state owner and inline payload behavior.",
+  "files": [
+    {
+      "plugin": "P08",
+      "path": "scripts/state-store.mjs",
+      "beforeSHA256": "a9e1a68d5531332c04accba960d11f9243aef966301e4a88eb8289cb05b2590a",
+      "afterSHA256": "ae7a688b3a9c7f0415e6359c3bac79be4717a7aae5952e87e9c41f57777f4b90",
+      "actions": [
+        {
+          "kind": "state-payload-file"
+        }
+      ]
+    },
+    {
+      "plugin": "P08",
+      "path": "skills/new-code/SKILL.md",
+      "beforeSHA256": "dfd0147deed82ace31d8acf900dd09ac7e2707edb1a5d48d47c3115ad204ab32",
+      "afterSHA256": "cc4308979cc936eb138f754bae63bb3d826f721ed31ac24a6a895a76774fb86c",
+      "actions": [
+        {
+          "kind": "state-payload-file-guidance",
+          "anchor": "## 第一步：会话绑定"
+        }
+      ]
+    },
+    {
+      "plugin": "P08",
+      "path": "skills/publish/SKILL.md",
+      "beforeSHA256": "02e358770d8511d65dc2d0d1d1b6f4139776277b936daa7bb04e5408f923fdee",
+      "afterSHA256": "9d8c6d84ace7148b10a2f707a3acd4e6a108d8f378dc11cd3977a1f5ecc56cc4",
+      "actions": [
+        {
+          "kind": "state-payload-file-guidance",
+          "anchor": "## 前置条件(逐条核实,不要假设)"
+        }
+      ]
+    }
+  ]
+}

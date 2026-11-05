@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "plugin": "P09",
+  "purpose": "Add an explicit ACP trial adapter while preserving the original optional SDK runner.",
+  "files": [
+    {
+      "role": "entry",
+      "path": "scripts/run_trial.py",
+      "beforeSHA256": "cb65bc18d5bac089285fecc05327281803806a59f05c9e9cbaa2a338d4a24b68",
+      "afterSHA256": "2bf01648521658cf137233ebc6fe25b26df0fc477fc3860912717468b235a47a"
+    },
+    {
+      "role": "skill",
+      "path": "skills/plugin-tuning/SKILL.md",
+      "beforeSHA256": "7408e3ac5bea27721a4f90b575be13b3ecaed8ff16a72684ee07d187c445d7a3",
+      "afterSHA256": "1177e6b1054e819470595715a48c2f9077db94bf494d07fd40a7b4e155e0923c"
+    }
+  ]
+}

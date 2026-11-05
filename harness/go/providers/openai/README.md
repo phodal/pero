@@ -4,7 +4,9 @@ This is the text/tool-call slice of the pinned DSH Go port. Configure endpoint,
 credential, provider ID and exact model catalog explicitly. No default provider,
 model discovery, credential lookup, anonymous identity, session-log telemetry,
 Files API upload, UI, or Point service is included. HTTP is accepted only for
-numeric loopback fixture servers; deployment endpoints require HTTPS. Redirects
+numeric loopback fixture servers by default. An operator can explicitly set
+`Config.AllowHTTP` (CLI: `--allow-http`) for a supplied plaintext provider endpoint;
+this does not change TLS verification or other services' endpoints. Redirects
 and SDK retries are disabled. Retry decisions remain owned by the harness.
 
 Unknown model/provider, unsupported media, content extensions, request extensions and
@@ -14,6 +16,10 @@ usage, cancellation and structured provider failures. It rejects truncated SSE,
 missing terminal finish reasons and incomplete tool calls. Limits are 1 MiB per
 SSE line/buffer and 16 MiB per response. Error bodies and remote request IDs are
 not copied into public diagnostics.
+Typed DNS failures, transport timeouts, premature EOF and connection reset/refusal
+receive fixed public labels under the existing TRANSPORT code. Their original
+causes remain available in memory; URLs, private hostnames and arbitrary transport
+error strings are not copied into the public failure or native turn error.
 
 The transport/assembly and error taxonomy are adapted from the source recorded
 in SOURCE.json; the explicit constructor and bounded request encoder are a

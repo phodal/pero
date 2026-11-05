@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-03",
+  "kind": "source-lock",
+  "target": {
+    "repository": "pero",
+    "revision": "17f4b1e3156171e45f29bb721b367877867f8157",
+    "dirtyAtStart": false,
+    "note": "Source analysis baseline; the accompanying MCP guidance fix is recorded separately after this baseline.",
+    "implementationFixRevision": "7d6b700ae0761898e45324368f0d3498517a77cc"
+  },
+  "referenceRoot": "$AI_REFERENCE_ROOT",
+  "sources": [
+    {
+      "id": "pi",
+      "repository": "https://github.com/earendil-works/pi",
+      "discoveredFrom": "https://github.com/badlogic/pi-mono",
+      "revision": "90b42bca6ed161b8e7ee40ceda9755205c2882ec",
+      "checkout": "pi-mono",
+      "acquisition": "new-shallow-clone",
+      "license": "MIT",
+      "evidence": "source",
+      "dirtyAtObservation": false
+    },
+    {
+      "id": "qwen-code",
+      "repository": "https://github.com/QwenLM/qwen-code",
+      "revision": "6fe83a82457def9ab8daa43bf833b4cfdf192bd2",
+      "checkout": "qwen-code",
+      "acquisition": "new-shallow-clone",
+      "license": "Apache-2.0",
+      "evidence": "source",
+      "dirtyAtObservation": false
+    },
+    {
+      "id": "codex",
+      "repository": "https://github.com/openai/codex",
+      "revision": "fc39cfcacd8c6efaf561269e882ea76bdc1dff42",
+      "checkout": "codex",
+      "acquisition": "existing-clean-checkout-read-only",
+      "remoteHeadAtObservation": "fc39cfcacd8c6efaf561269e882ea76bdc1dff42",
+      "license": "Apache-2.0",
+      "evidence": "source",
+      "dirtyAtObservation": false
+    },
+    {
+      "id": "deepseek-harness",
+      "repository": "https://github.com/deepseek-ai/deepseek-harness",
+      "revision": "8bd073392eef6f54e921a093b95076248eb08cbb",
+      "checkout": "deepseek-harness",
+      "acquisition": "new-shallow-clone",
+      "license": "MIT",
+      "evidence": "source",
+      "notes": [
+        "Newer than the f3803c9 baseline in the existing parity documents.",
+        "apply_patch is implemented but applyPatch is false in the inspected base/standard/PTC compositions."
+      ],
+      "dirtyAtObservation": false
+    },
+    {
+      "id": "claude-extracted",
+      "checkout": "claude-code-extracted",
+      "acquisition": "existing-user-provided-extraction-read-only",
+      "revision": "1dbf34de9b8652da95ba6c8cca47b764d535a5d9",
+      "dirtyAtObservation": false,
+      "license": "Runtime notice retains commercial terms and all rights reserved; not treated as open source",
+      "evidence": "static-extracted-runtime-source",
+      "embeddedVersion": "2.1.21",
+      "embeddedBuildTime": "2026-01-28T01:37:09Z",
+      "generatedAt": "2026-03-13T01:10:48.590Z",
+      "organizedAt": "2026-03-13T01:22:00.073Z",
+      "extractionTool": "resplit.mjs",
+      "organizationTool": "organize.mjs",
+      "verifiedAgainstOriginalDistribution": false,
+      "executedExtraction": false,
+      "fileSha256": {
+        "00-runtime.js": "0b725fcca4a029a7481407f50ce902fa2f49b21d3e1b720beba357bea5b5911a",
+        "manifest.json": "2cc294964f0090f3b00795b64aca9dfa8407a9c863b53ce9ea7b8e8f430d7ccd",
+        "cluster-40/2927.js": "ec60cf0b0fc27efcf5783df760b23ad49e54f9066ce84cab4d8befb46ceb46c2",
+        "tool-search-and-media/4646.js": "f0a99e663d5dc99f66971a2a20ab6ed6603b8f56e6092536bb628016dd2f13d0",
+        "file-context-limits/4152.js": "a3fe8bd4edc0abf0f4ccb68f6f481213e226ac794e2bcc7a93ad2755bd699ab0",
+        "tool-search-and-media/2918.js": "73d075d3a17770271fd92961845d592b0a857b49a5547f793b31861b6630453a",
+        "tool-search-and-media/2919.js": "367bfeb77fa8cbb89dc3849c3e97f50f5a8d01b79c3c8d5d6e9e308d936079c4",
+        "config-loading-and-rules/4054.js": "f9a8071fd5105197339a9dfc84de3632b0f373bd0385d104d304b8e1a3f79293",
+        "config-loading-and-rules/0581.js": "ef24c14e77f902f0775474c7640fa5555794e9f3382b8fd2dfa648b77c5d96d1",
+        "config-loading-and-rules/4056.js": "2c78ee4889bce93ca1f1a9c153ffa322697456f30b1da85da156319adf9e3af2",
+        "tool-search-and-media/4665.js": "416b8377beeea6d796a09fa1f6e0474acbc498f57e7b664c1ff2248b4c03a918",
+        "tool-search-and-media/3372.js": "26fd49070e6ce2e8a5b387559824c8f95057aad294825560b2cbde589e29c200",
+        "tool-search-and-media/3426.js": "696ddc6fb5097dc723f854a5cf0f1986595974ce3c8c403204b5c9e8b8fbc669",
+        "config-and-oauth/4210.js": "e3ea49668b2c58c7c1d050b45350bc3b38e4904e58480e7ae65107d54d12aeb1",
+        "config-and-oauth/4211.js": "9189b646a498904c63e2c13752477852297525fc776b05cf0144d63223d2684b",
+        "config-and-oauth/3229.js": "ec6b9b9b6f6ee282248db9c303802e3bdd920731f8ea40f70fa4da135a2be629",
+        "cluster-11/2940.js": "1ce79b8b6aa3da33ca2517d373c6e4de82a1588bde696ec288faf570ad6cf7de",
+        "cluster-11/2939.js": "b01019f19041a487e91e30daabcede9aecb50b3d9657e6b26670c073fcc92c2a",
+        "models-and-mcp-resources/4198.js": "f59897693d63e6e0d626709246846e52ae1d1b392f60993ac188c19e47432b0d",
+        "file-context-limits/4222.js": "d7d0d88f014e2bb432158a765bec0b4ebf1c52b5f7bc08883595376a0cebe50c",
+        "tool-search-and-media/4209.js": "eef8f5167d640b5606952b267e41b6dc6739d8b6df6b8a1fd8a1655aeaa67b73"
+      },
+      "note": "Corrected directory supplied by the user. Embedded historical version is distinct from the current official documentation. Only behavior is paraphrased; extracted prompts and implementation are not copied."
+    },
+    {
+      "id": "claude-public-docs",
+      "repository": "https://github.com/anthropics/claude-code",
+      "revision": null,
+      "license": "Commercial terms; not treated as a complete open-source runtime",
+      "evidence": "official-public-documentation",
+      "urls": [
+        "https://code.claude.com/docs/en/tools-reference",
+        "https://code.claude.com/docs/en/skills",
+        "https://code.claude.com/docs/en/sub-agents",
+        "https://code.claude.com/docs/en/mcp"
+      ],
+      "note": "Mutable documentation observed on the stated date; internal implementation claims are excluded.",
+      "documentDigests": {
+        "https://code.claude.com/docs/en/tools-reference": "fa3802969f81cca7ef50e86b5104667fa69cedf0a299d384d3f209387b63d875",
+        "https://code.claude.com/docs/en/skills": "d2a5d07c0d1cef1d1edcf30f38f6b2712ff70ac050e3d50601cd3dadb42f9097",
+        "https://code.claude.com/docs/en/sub-agents": "171391cec830f18874b1fd9b9125a4712ca10d6e34afdb53e2f0f8b2f643c392",
+        "https://code.claude.com/docs/en/mcp": "4b3c2237229b454601119d2fd5d44228089ec3436b78edb395d357fc2bfe44d1"
+      }
+    },
+    {
+      "id": "codex-official-prompting",
+      "requestedUrl": "https://developers.openai.com/codex/prompting",
+      "resolvedUrl": "https://learn.chatgpt.com/docs/prompting",
+      "redirectStatus": 308,
+      "fetchStatus": 200,
+      "evidence": "official-public-documentation",
+      "note": "User prompting guidance; source code is used for internal tool and prompt assembly claims.",
+      "documentSha256": "d961fe832078a459d879c8e893224953f4af8daaf228c6a0072465404c35ead9"
+    }
+  ],
+  "method": {
+    "installedReferenceDependencies": false,
+    "executedDownloadedProjectCode": false,
+    "copiedThirdPartyPromptsOrTests": false,
+    "staticResearchProvesOptimalPrompt": false
+  }
+}

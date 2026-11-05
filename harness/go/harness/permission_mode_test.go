@@ -18,10 +18,10 @@ func TestPermissionModeDecidesApproval(t *testing.T) {
 	}
 	defer h.Dispose(context.Background())
 	for _, row := range []struct {
-		name, mode, tool, operation string
-		never, alwaysAsk            bool
-		want                        ApprovalOutcome
-		consulted                   int32
+		name, mode, tool, operation   string
+		never, alwaysAsk, preapproved bool
+		want                          ApprovalOutcome
+		consulted                     int32
 	}{
 		{name: "unset-asks", tool: "write_file", want: ApprovalAllowedOnce, consulted: 1},
 		{name: "auto-review-explicit-call-asks", mode: "auto-review", tool: "clone_repository", alwaysAsk: true, want: ApprovalAllowedOnce, consulted: 1},
@@ -35,6 +35,12 @@ func TestPermissionModeDecidesApproval(t *testing.T) {
 		{name: "full-access-asks", mode: "full-access", tool: "shell", want: ApprovalAllowedOnce, consulted: 1},
 		{name: "never-rejects-auto-review", mode: "auto-review", tool: "shell", never: true, want: ApprovalRejected},
 		{name: "invalid-mode-rejects", mode: "nope", tool: "write_file", want: ApprovalRejected},
+		{name: "trusted-preapproval", tool: "Write", preapproved: true, want: ApprovalAllowedOnce},
+		{name: "preapproval-never", tool: "Write", preapproved: true, never: true, want: ApprovalRejected},
+		{name: "preapproval-read-only", mode: "read-only", tool: "Write", preapproved: true, want: ApprovalRejected},
+		{name: "preapproval-workspace-files", mode: "workspace-write", tool: "Write", preapproved: true, want: ApprovalAllowedOnce},
+		{name: "preapproval-workspace-shell", mode: "workspace-write", tool: "Bash", preapproved: true, want: ApprovalRejected},
+		{name: "preapproval-always-asks", tool: "Write", preapproved: true, alwaysAsk: true, want: ApprovalAllowedOnce, consulted: 1},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			var consulted atomic.Int32
@@ -72,7 +78,7 @@ func TestPermissionModeDecidesApproval(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			request := ApprovalRequest{Agent: agent, ToolName: row.tool, AlwaysAsk: row.alwaysAsk}
+			request := ApprovalRequest{Agent: agent, ToolName: row.tool, AlwaysAsk: row.alwaysAsk, Preapproved: row.preapproved}
 			if row.operation != "" {
 				request.Native = &NativeApprovalDescriptor{Operation: row.operation}
 			}
@@ -100,5 +106,76 @@ func TestPermissionModePromptFollowsTheRecordedMode(t *testing.T) {
 	}
 	if _, err := SetPermissionMode(session, PermissionMode("auto")); err == nil {
 		t.Fatal("accepted an unadvertised mode")
+	}
+	if _, err := SetClaudePermissionMode(session, "plan"); err != nil {
+		t.Fatal(err)
+	}
+	if approvalPolicyPrompt(ApprovalAsk, session) != claudePermissionPrompt("plan") {
+		t.Fatal(approvalPolicyPrompt(ApprovalAsk, session))
+	}
+	if _, err := SetPermissionMode(session, PermissionReadOnly); err != nil {
+		t.Fatal(err)
+	}
+	if approvalPolicyPrompt(ApprovalAsk, session) != permissionModePrompt(PermissionReadOnly) {
+		t.Fatal("composer preset did not replace the hook mode")
+	}
+}
+
+func TestClaudePermissionModeDecidesTheNextAsk(t *testing.T) {
+	ctx := testContext(t)
+	h, err := Boot(ctx, Options{Adapter: AdapterFunc(func(context.Context, GenerateRequest, func(StreamChunk) error) (Completion, error) {
+		return Completion{Message: Message{Role: RoleAssistant}, Finish: FinishStop}, nil
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Dispose(context.Background())
+	var consulted atomic.Int32
+	agent, err := h.Agents().Create(ctx, AgentOptions{ID: "claude-mode", Configure: func(_ context.Context, run *point.Run, _ *Agent) error {
+		_, err := h.Approvals().Register(run, func(context.Context, ApprovalRequest) (ApprovalOutcome, error) {
+			consulted.Add(1)
+			return ApprovalAllowedOnce, nil
+		})
+		return err
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agent.Session().Append("turn/start", struct {
+		Turn int `json:"turn"`
+	}{1}); err != nil {
+		t.Fatal(err)
+	}
+	ask := func(tool string, preapproved bool) ApprovalOutcome {
+		t.Helper()
+		outcome, err := h.Approvals().Request(ctx, ApprovalRequest{Agent: agent, ToolName: tool, Preapproved: preapproved})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return outcome
+	}
+	if _, err := SetClaudePermissionMode(agent.Session(), "acceptEdits"); err != nil {
+		t.Fatal(err)
+	}
+	if ask("Write", false) != ApprovalAllowedOnce || consulted.Load() != 0 || ask("Bash", false) != ApprovalAllowedOnce || consulted.Load() != 1 {
+		t.Fatalf("acceptEdits consulted=%d", consulted.Load())
+	}
+	if _, err := SetClaudePermissionMode(agent.Session(), "dontAsk"); err != nil {
+		t.Fatal(err)
+	}
+	if ask("Bash", true) != ApprovalAllowedOnce || ask("Bash", false) != ApprovalRejected || consulted.Load() != 1 {
+		t.Fatalf("dontAsk consulted=%d", consulted.Load())
+	}
+	if _, err := SetClaudePermissionMode(agent.Session(), "plan"); err != nil {
+		t.Fatal(err)
+	}
+	if ask("Write", true) != ApprovalRejected {
+		t.Fatal("plan allowed a write")
+	}
+	if _, err := SetClaudePermissionMode(agent.Session(), "default"); err != nil {
+		t.Fatal(err)
+	}
+	if ask("Write", false) != ApprovalAllowedOnce || consulted.Load() != 2 {
+		t.Fatalf("default consulted=%d", consulted.Load())
 	}
 }

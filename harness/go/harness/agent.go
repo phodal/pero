@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"sync/atomic"
 
@@ -64,12 +65,32 @@ type StepInput struct {
 	Messages            []Message
 	Continue            bool
 	Reject              bool
+	RejectReason        string
 	StartsRequestSeries bool
 }
 
 type TurnStoppingInput struct {
-	Agent *Agent
-	Turn  int
+	Agent     *Agent
+	Turn      int
+	Step      int
+	Finish    FinishKind
+	Concluded bool
+	// CanContinue reports loop eligibility; it never grants new tool authority.
+	// Feedback listeners must not inject work when cancellation, finish reason
+	// or the remaining step budget prevents another request in this turn.
+	CanContinue bool
+}
+
+type CompactionHookInput struct {
+	Agent   *Agent
+	Trigger string
+	Reject  bool
+	Reason  string
+	// Messages contains synthetic user context to append durably after a
+	// successful compaction, before the next provider request is assembled.
+	Messages           []Message
+	CustomInstructions string
+	CompactSummary     string
 }
 
 type AgentErrorInput struct {
@@ -118,14 +139,47 @@ type InboxDiscardedInput struct {
 	UserAuthored bool
 }
 
+// ToolBatchCall is one resolved call in an assistant tool batch.
+type ToolBatchCall struct {
+	Name       string          `json:"tool_name"`
+	ToolCallID ToolCallID      `json:"tool_use_id"`
+	Input      json.RawMessage `json:"tool_input"`
+	Response   json.RawMessage `json:"tool_response"`
+}
+
+// ToolBatchInput is the resolved assistant tool batch. Listeners may add one
+// notice and stop the loop before the next model call.
+type ToolBatchInput struct {
+	Agent   *Agent
+	Calls   []ToolBatchCall
+	Context string
+	Reason  string
+	Stop    bool
+}
+
+type AssistantReadyInput struct {
+	Agent      *Agent
+	Turn, Step int
+	Message    Message
+}
+
 type AgentHooks struct {
+	// AssistantReady runs outside the session notification lane, before the
+	// completed message is committed. Presentation effects may append events.
+	AssistantReady *point.Signal[AssistantReadyInput]
 	// MainRequest observes only an admitted, prepared loop dispatch after its
 	// durable header fold. Its receipt is valid only during this notification.
-	MainRequest  *point.Signal[MainRequestInput]
-	PreStep      *point.Pipeline[StepInput]
-	Request      *point.Pipeline[GenerateRequest]
-	RequestError *point.Pipeline[RequestErrorInput]
-	TurnStopping *point.Signal[TurnStoppingInput]
+	MainRequest     *point.Signal[MainRequestInput]
+	PreStep         *point.Pipeline[StepInput]
+	Request         *point.Pipeline[GenerateRequest]
+	RequestError    *point.Pipeline[RequestErrorInput]
+	TurnStopping    *point.Signal[TurnStoppingInput]
+	PreCompact      *point.Pipeline[CompactionHookInput]
+	PostCompact     *point.Pipeline[CompactionHookInput]
+	PreModelSwitch  *point.Pipeline[ModelSwitchInput]
+	PostModelSwitch *point.Pipeline[ModelSwitchInput]
+	// PostToolBatch runs once after every tool call in one assistant batch.
+	PostToolBatch *point.Pipeline[ToolBatchInput]
 	// Error is a contained lifecycle notification. The loop never replaces the
 	// original turn failure with a listener failure.
 	Error     *point.Signal[AgentErrorInput]
@@ -140,28 +194,37 @@ type AgentHooks struct {
 	// Deactivated fires after the exact Agent is no longer visible and its
 	// scoped runtime has stopped. Lifecycle services use it to release leases
 	// that may have been acquired during Activated.
-	Deactivated    *point.Signal[*Agent]
-	InboxInserted  *point.Signal[InboxInsertedInput]
-	InboxClaimed   *point.Signal[InboxClaimedInput]
-	InboxDiscarded *point.Signal[InboxDiscardedInput]
+	Deactivated *point.Signal[*Agent]
+	// BeforeInboxResume stages recoverable notices after persistence/controller readiness.
+	BeforeInboxResume *point.Signal[*Agent]
+	InboxInserted     *point.Signal[InboxInsertedInput]
+	InboxClaimed      *point.Signal[InboxClaimedInput]
+	InboxDiscarded    *point.Signal[InboxDiscardedInput]
 }
 
 func NewAgentHooks(runtime *point.Runtime) *AgentHooks {
 	return &AgentHooks{
-		MainRequest:    point.NewSignal[MainRequestInput](runtime, "harness/agent/main-request"),
-		PreStep:        point.NewPipeline[StepInput](runtime, "harness/agent/pre-step"),
-		Request:        point.NewPipeline[GenerateRequest](runtime, "harness/agent/request"),
-		RequestError:   point.NewPipeline[RequestErrorInput](runtime, "harness/agent/request-error"),
-		TurnStopping:   point.NewSignal[TurnStoppingInput](runtime, "harness/agent/turn-stopping"),
-		Error:          point.NewSignal[AgentErrorInput](runtime, "harness/agent/error"),
-		Status:         point.NewSignal[AgentStatusInput](runtime, "harness/agent/status"),
-		Published:      point.NewSignal[*Agent](runtime, "harness/agent/published"),
-		Activated:      point.NewSignal[*Agent](runtime, "harness/agent/activated"),
-		Retiring:       point.NewSignal[*Agent](runtime, "harness/agent/retiring"),
-		Deactivated:    point.NewSignal[*Agent](runtime, "harness/agent/deactivated"),
-		InboxInserted:  point.NewSignal[InboxInsertedInput](runtime, "harness/agent/inbox-inserted"),
-		InboxClaimed:   point.NewSignal[InboxClaimedInput](runtime, "harness/agent/inbox-claimed"),
-		InboxDiscarded: point.NewSignal[InboxDiscardedInput](runtime, "harness/agent/inbox-discarded"),
+		AssistantReady:    point.NewSignal[AssistantReadyInput](runtime, "harness/agent/assistant-ready"),
+		MainRequest:       point.NewSignal[MainRequestInput](runtime, "harness/agent/main-request"),
+		PreStep:           point.NewPipeline[StepInput](runtime, "harness/agent/pre-step"),
+		Request:           point.NewPipeline[GenerateRequest](runtime, "harness/agent/request"),
+		RequestError:      point.NewPipeline[RequestErrorInput](runtime, "harness/agent/request-error"),
+		TurnStopping:      point.NewSignal[TurnStoppingInput](runtime, "harness/agent/turn-stopping"),
+		PreCompact:        point.NewPipeline[CompactionHookInput](runtime, "harness/agent/pre-compact"),
+		PostCompact:       point.NewPipeline[CompactionHookInput](runtime, "harness/agent/post-compact"),
+		PreModelSwitch:    point.NewPipeline[ModelSwitchInput](runtime, "harness/agent/pre-model-switch"),
+		PostModelSwitch:   point.NewPipeline[ModelSwitchInput](runtime, "harness/agent/post-model-switch"),
+		PostToolBatch:     point.NewPipeline[ToolBatchInput](runtime, "harness/agent/post-tool-batch"),
+		Error:             point.NewSignal[AgentErrorInput](runtime, "harness/agent/error"),
+		Status:            point.NewSignal[AgentStatusInput](runtime, "harness/agent/status"),
+		Published:         point.NewSignal[*Agent](runtime, "harness/agent/published"),
+		Activated:         point.NewSignal[*Agent](runtime, "harness/agent/activated"),
+		Retiring:          point.NewSignal[*Agent](runtime, "harness/agent/retiring"),
+		Deactivated:       point.NewSignal[*Agent](runtime, "harness/agent/deactivated"),
+		BeforeInboxResume: point.NewSignal[*Agent](runtime, "harness/agent/before-inbox-resume"),
+		InboxInserted:     point.NewSignal[InboxInsertedInput](runtime, "harness/agent/inbox-inserted"),
+		InboxClaimed:      point.NewSignal[InboxClaimedInput](runtime, "harness/agent/inbox-claimed"),
+		InboxDiscarded:    point.NewSignal[InboxDiscardedInput](runtime, "harness/agent/inbox-discarded"),
 	}
 }
 
@@ -193,6 +256,7 @@ type Agent struct {
 	maxTokens            int
 	maxParallelToolCalls int
 	agentLoopConfig      *AgentLoopConfig
+	toolProgress         toolProgress // ordered continuation only; reset by turn
 	delegated            bool
 	parent               *Agent
 	freshSession         bool
@@ -255,10 +319,14 @@ type Agent struct {
 // retaining a finite circuit breaker for callers that do not choose a budget.
 const DefaultMaxSteps = 512
 
+// UnlimitedMaxSteps explicitly delegates turn termination to cancellation,
+// provider budgets and the model. Zero continues to select DefaultMaxSteps.
+const UnlimitedMaxSteps = -1
+
 func newAgent(session *Session, scope *point.Scope, adapter Adapter, modelInfo ModelInfoResolver, attachments AttachmentStore, prompts *PromptRegistry, tools *ToolRegistry, hooks *AgentHooks, provider, model string, reasoningEffort ReasoningEffort, maxSteps, maxTokens, maxParallelToolCalls int, delegated bool, parent *Agent, freshSession bool) *Agent {
 	idle := make(chan struct{})
 	close(idle)
-	if maxSteps <= 0 {
+	if maxSteps <= 0 && maxSteps != UnlimitedMaxSteps {
 		maxSteps = DefaultMaxSteps
 	}
 	return &Agent{
