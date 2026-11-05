@@ -11,10 +11,11 @@ import (
 // toolProgress is turn-local advisory state, owned by the ordered tool-batch
 // continuation. It never changes dispatch, success, or replay decisions.
 type toolProgress struct {
-	turn   int
-	key    [32]byte
-	result [32]byte
-	count  int
+	turn     int
+	key      [32]byte
+	result   [32]byte
+	count    int
+	patterns toolProgressPatterns
 }
 
 // Only transport timing is omitted from shell receipts. Actual stdout/stderr,
@@ -77,13 +78,14 @@ func (p *toolProgress) observe(turn int, call ContentBlock, result ToolResult) *
 		Failed  bool           `json:"failed"`
 	}{observed, result.IsError})
 	fingerprint := sha256.Sum256(raw)
+	pattern := p.patterns.observe(turn, call, key, fingerprint, result)
 	if p.turn != turn || p.key != key || p.result != fingerprint {
-		*p = toolProgress{turn: turn, key: key, result: fingerprint, count: 1}
-		return nil
+		*p = toolProgress{turn: turn, key: key, result: fingerprint, count: 1, patterns: p.patterns}
+		return pattern
 	}
 	p.count++
 	if p.count != 3 && p.count != 5 && p.count != 8 {
-		return nil
+		return pattern
 	}
 	source, _ := json.Marshal(struct {
 		Kind         string     `json:"kind"`
