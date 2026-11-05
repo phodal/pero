@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppObject } from '@pero/app-sdk';
+import { AppApiError, AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppObject } from '@pero/app-sdk';
 import { AppFrame, Button, EmptyState, Feedback, SearchField, Select, Split, SplitPane } from '@pero/app-sdk/ui';
 import { availabilityLabel, emptyView, encodeBytes, fieldRule, formatBytes, querySchema, retainSelection, summary, visibleDatasets,
-  type CatalogState, type Dataset, type Inspection, type OkInspection, type SavedView, type Selection, type ViewSpec } from './model';
+  type CatalogState, type Dataset, type Inspection, type InspectionOutcome, type OkInspection, type SavedView, type Selection, type ViewSpec } from './model';
 import { ImportDialog, type ImportDetails } from './import';
 import { Workspace } from './workspace';
 import './styles.css';
 
-type InspectionSnapshot = { scope: string; view: ViewSpec; offset: number; result: Inspection };
+type InspectionSnapshot = { scope: string; view: ViewSpec; offset: number; result: InspectionOutcome };
 type Focus = { selection: Selection | null; view: ViewSpec; offset: number; parserVersion: string };
 type SourceBody = { datasetId: string; assetId: string; sha256: string; name: string; format: string; content: string };
 const focused = (selection: Selection | null, parserVersion: string): Focus => ({ selection, view: emptyView(), offset: 0, parserVersion });
@@ -49,6 +49,7 @@ export default function Data() {
   const result = sameInput?.view === focus.view && sameInput.offset === focus.offset ? sameInput.result : null;
   const fields = sameInput?.result.status === 'ok' ? sameInput.result : null;
   const ready = result?.status === 'ok' ? result : null;
+  const canClearFilter = focus.parserVersion === state?.parserVersion && focus.view.filter !== null;
   const fail = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
 
   const adopt = useCallback((next: CatalogState) => {
@@ -91,7 +92,18 @@ export default function Data() {
     void api.post<Inspection>('/api/inspect', { datasetId: selectedId, assetId, view: focus.view,
       offset: focus.offset, limit: 50, parserVersion: focus.parserVersion }).then(value => {
       if (current) setSnapshot({ scope: inspectionScope, view: focus.view, offset: focus.offset, result: value });
-    }).catch(cause => { if (current) { setSnapshot(null); fail(cause); } }).finally(() => { if (current) setInspecting(false); });
+    }).catch(cause => {
+      if (!current) return;
+      let message = cause instanceof Error ? cause.message : String(cause);
+      if (cause instanceof AppApiError) {
+        try {
+          const body = JSON.parse(cause.body);
+          if (typeof body?.detail === 'string') message = body.detail;
+        } catch { /* The proxy may return a non-JSON response. */ }
+      }
+      setSnapshot({ scope: inspectionScope, view: focus.view, offset: focus.offset,
+        result: { status: cause instanceof AppApiError && cause.status === 400 ? 'rejected' : 'unavailable', message } });
+    }).finally(() => { if (current) setInspecting(false); });
     return () => { current = false; };
   }, [active, selectedId, assetId, focus.view, focus.offset, focus.parserVersion, inspectionScope, api]);
 
@@ -216,11 +228,11 @@ export default function Data() {
             <tbody>{visible.map(item => {
               const current = versionFor(item);
               return <tr key={item.id} aria-selected={item.id === dataset?.id} onClick={() => choose(item)}>
-                <td><button type="button" aria-pressed={item.id === dataset?.id} onClick={event => { event.stopPropagation(); choose(item); }}>{item.name}</button></td>
+                <td><button type="button" title={item.name} aria-pressed={item.id === dataset?.id} onClick={event => { event.stopPropagation(); choose(item); }}>{item.name}</button></td>
                 <td>{item.kind === 'model' ? 'Model' : 'Dataset'}</td>
                 <td>{current ? formatBytes(current.size) : '—'}</td>
                 <td>{item.versions.length}</td>
-                <td>{current ? availabilityLabel(current) : 'Missing'}</td>
+                <td>{current ? availabilityLabel(current, result) : 'Missing'}</td>
               </tr>;
             })}</tbody>
           </table> : <EmptyState heading={query || project ? 'No matches' : archived ? 'No archived datasets' : 'No data yet'} description={query || project ? 'Change the search or project filter.' : archived ? 'Archived datasets appear here.' : 'Add a file to start your data library.'} />}
@@ -232,7 +244,13 @@ export default function Data() {
             {dataset && asset && state ? <Workspace key={dataset.id} dataset={dataset} asset={asset} assets={state.assets}
               views={state.views.filter(view => view.datasetId === dataset.id)} result={result} fields={fields} loading={inspecting} busy={busy}
               view={focus.view} tab={tab} maxColumns={state.limits.columns} onTab={setTab}
+              recoveryLabel={canClearFilter ? 'Clear filter' : 'Reset view'}
               onVersion={id => choose(dataset, id)} onView={next => setFocus(previous => ({ ...previous, view: next, offset: 0 }))}
+              onRetryInspection={() => setInspectionEpoch(value => value + 1)}
+              onRecoverView={() => {
+                if (canClearFilter) setFocus(previous => ({ ...previous, view: { ...previous.view, selection: [], filter: null }, offset: 0 }));
+                else choose(dataset, asset.id);
+              }}
               onPage={offset => setFocus(previous => ({ ...previous, offset }))}
               onAddVersion={() => { setError(''); setImportTarget(dataset); }}
               onEdit={value => { void perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, ...value })); setNotice(value.archived ? 'Archived. Original files remain stored.' : 'Saved.'); }); }}
