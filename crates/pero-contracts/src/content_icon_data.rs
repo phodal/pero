@@ -97,6 +97,11 @@ pub fn canonical(name: &str) -> Option<&'static str> {
         "rotate-ccw" => Some("rotate-ccw"),
         "replay" => Some("rotate-ccw"),
         "dots" => Some("dots"),
+        "info" => Some("info"),
+        "loader-circle" => Some("loader-circle"),
+        "circle-check" => Some("circle-check"),
+        "circle-alert" => Some("circle-alert"),
+        "circle-x" => Some("circle-x"),
         _ => None,
     }
 }

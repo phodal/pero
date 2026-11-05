@@ -40,7 +40,12 @@ gpui_kit::assets::icon_assets!(
         Factory,
         Cpu,
         Dna,
-        RotateCcw
+        RotateCcw,
+        Info,
+        LoaderCircle,
+        CircleCheck,
+        CircleAlert,
+        CircleX
     ]
 );
 
@@ -124,6 +129,11 @@ pub enum UiIcon {
     Dna,
     RotateCcw,
     Dots,
+    Info,
+    LoaderCircle,
+    CircleCheck,
+    CircleAlert,
+    CircleX,
 }
 
 impl UiIcon {
@@ -210,6 +220,11 @@ impl UiIcon {
             "dna" | "protein" => Some(Self::Dna),
             "rotate-ccw" | "replay" => Some(Self::RotateCcw),
             "dots" => Some(Self::Dots),
+            "info" => Some(Self::Info),
+            "loader-circle" => Some(Self::LoaderCircle),
+            "circle-check" => Some(Self::CircleCheck),
+            "circle-alert" => Some(Self::CircleAlert),
+            "circle-x" => Some(Self::CircleX),
             _ => None,
         }
     }
@@ -293,6 +308,11 @@ impl UiIcon {
             Self::Dna => "dna",
             Self::RotateCcw => "rotate-ccw",
             Self::Dots => "dots",
+            Self::Info => "info",
+            Self::LoaderCircle => "loader-circle",
+            Self::CircleCheck => "circle-check",
+            Self::CircleAlert => "circle-alert",
+            Self::CircleX => "circle-x",
         }
     }
 
@@ -407,6 +427,11 @@ impl UiIcon {
             Self::Dna => "icons/dna.svg",
             Self::RotateCcw => "icons/rotate-ccw.svg",
             Self::Dots => "icons/dots.svg",
+            Self::Info => "icons/info.svg",
+            Self::LoaderCircle => "icons/loader-circle.svg",
+            Self::CircleCheck => "icons/circle-check.svg",
+            Self::CircleAlert => "icons/circle-alert.svg",
+            Self::CircleX => "icons/circle-x.svg",
         }
     }
 
@@ -590,6 +615,11 @@ impl AssetSource for UiAssets {
             Some(UiIcon::Dots) => Some(Cow::Borrowed(include_bytes!(
                 "../../../web/public/icons/dots.svg"
             ))),
+            Some(UiIcon::Info) => SelectedKitIcons.load("icons/info.svg")?,
+            Some(UiIcon::LoaderCircle) => SelectedKitIcons.load("icons/loader-circle.svg")?,
+            Some(UiIcon::CircleCheck) => SelectedKitIcons.load("icons/circle-check.svg")?,
+            Some(UiIcon::CircleAlert) => SelectedKitIcons.load("icons/circle-alert.svg")?,
+            Some(UiIcon::CircleX) => SelectedKitIcons.load("icons/circle-x.svg")?,
             None => None,
         })
     }
@@ -673,6 +703,11 @@ impl AssetSource for UiAssets {
             UiIcon::Dna,
             UiIcon::RotateCcw,
             UiIcon::Dots,
+            UiIcon::Info,
+            UiIcon::LoaderCircle,
+            UiIcon::CircleCheck,
+            UiIcon::CircleAlert,
+            UiIcon::CircleX,
         ]
         .into_iter()
         .map(UiIcon::path)
