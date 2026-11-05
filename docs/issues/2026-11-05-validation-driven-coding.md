@@ -95,3 +95,9 @@ The frozen five-task native follow-up remains 4/5, uses 58 requests and 420,212
 recorded tokens, and retains one explicit plus two reviewed masked check failures.
 The live warning reaches the model; this does not establish acceptance repair.
 Full version boundaries, limits and evidence: [live coding feedback](../fitness/live-coding-feedback.md).
+
+
+Remote integration at `953661c0` retains #132 repairs. Full 36-package race/vet,
+seven standalone Bazel targets, CLI build, 34 reporter tests and 18 pinned parser
+tests pass; all 17 reference selectors extract. The paid sample remains frozen
+at its pre-integration binary. Concurrent original-checkout UI edits are preserved.

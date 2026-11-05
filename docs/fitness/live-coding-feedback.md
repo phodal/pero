@@ -114,3 +114,22 @@ Retained artifacts: `complete.json`, `comparison.json`/`.md`, original official
 hash-bound `reviews.json` entries, `all-sessions/summary.json`/`.md`, existing
 Better Harness `inspector.html`, `manifest.json` and `final-audit.json`. Session
 directories are explicitly redirected; these runs do not use `~/.pero/sessions`.
+
+
+## Remote integration verification
+
+The PR branch advanced by 38 commits during this work. Integration `953661c0`
+merges remote `66066a71` (including #132 compatibility/permission repairs) in an
+isolated worktree, preserving the concurrent UI work in the original checkout.
+The overlapping loop/batch changes retain both permission interruption and the
+new feedback/read projection. All 36 Harness Go packages pass
+`GOMAXPROCS=2 go test -race -count=1 ./...`; full `go vet ./...` and a standalone
+CLI build pass. Seven standalone Bazel targets pass: tool, session, harness,
+nativetools, engineeringprofile, pluginruntime and native ACP CLI. All 34 reporter
+tests pass again. Eighteen pinned parser tests pass and all 17 official reference
+pairs extract; the two loop-file hashes were refreshed after confirming the
+mapped `Agent.runTurn` bytes are unchanged from `66066a71`.
+
+No paid benchmark is rerun after this integration: the five-task results above
+remain attributed to their original binary. The isolated integration worktree
+is `/Users/phodal/.codex/worktrees/live-feedback-integration/pero`.
