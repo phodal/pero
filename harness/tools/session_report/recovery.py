@@ -12,7 +12,6 @@ def operation(call: dict) -> tuple:
     return (call["name"], call["argument_sha256"])
 
 
-
 @dataclass
 class RecoveryWindow:
     turn: int | None
@@ -24,14 +23,14 @@ class RecoveryWindow:
     def observe(self, call: dict) -> None:
         self.calls.append(call)
         failed = any(call.get(key) for key in ("protocol_error", "execution_failure", "lifecycle_failure", "reviewed_validation_failure"))
-        if failed or call.get("status") in ("missing_return", "interrupted", "unobserved", "running"):
+        if failed:
             self.unresolved.add(operation(call))
         elif (call.get("status") == "succeeded" or call.get("status") == "returned" and not call.get("command") and call["name"] not in ("Bash","shell","TerminalOpen","terminal_open")) and not call.get("cleanup_uncertain"):
             self.unresolved.discard(operation(call))
 
     def finish(self, end_seq, end_time, outcome, responses, wire, gaps, compaction_gaps) -> dict:
-        selected = [r for r in responses if self.start_seq < r["seq"] <= end_seq]
-        prepared = [w for w in wire if self.start_seq < w["seq"] <= end_seq]
+        selected = [r for r in responses if self.start_seq < r["seq"] <= end_seq and (self.turn is None or r.get("turn") is None or r["turn"]==self.turn)]
+        prepared = [w for w in wire if self.start_seq < w["seq"] <= end_seq and (self.turn is None or w.get("turn") is None or w["turn"]==self.turn)]
         missing = [g for g in gaps if self.start_seq < g["seq"] <= end_seq]
         missing_compactions = [g for g in compaction_gaps if self.start_seq < g["seq"] <= end_seq]
         agent, compaction = Usage(), Usage()
@@ -80,17 +79,33 @@ class RecoveryWindow:
 def build_recovery(calls, responses, turns, wire, gaps, last_time, last_seq, compaction_gaps=()) -> dict:
     chains = []
     active = None
+    closed_turns = set()
     # Observe settled receipts, not invocation ordering: parallel calls can
-    # finish in either order. Running receipts stay unresolved until trace end.
+    # finish in either order. Unknown observations cannot resolve a failure.
     timeline = [(c.get("process_end_seq") or c.get("result_seq") or c["seq"], 0, c) for c in calls]
     timeline += [(t["seq"], 1, t) for t in turns]
     for seq, kind, item in sorted(timeline, key=lambda x:(x[0], x[1])):
-        if active and (kind == 1 or item.get("turn") != active.turn):
-            chains.append(active.finish(seq if kind==1 else item["seq"]-1, item.get("time"), "unresolved-at-turn-end", responses, wire, gaps, compaction_gaps))
-            active = None
+        turn = item.get("turn")
         if kind == 1:
+            if turn is not None:
+                closed_turns.add(turn)
+            if active and (turn is None or active.turn == turn):
+                chains.append(active.finish(seq, item.get("time"), "unresolved-at-turn-end", responses, wire, gaps, compaction_gaps))
+                active = None
             continue
         failed = any(item.get(k) for k in ("protocol_error", "execution_failure", "lifecycle_failure", "reviewed_validation_failure"))
+        if turn is not None and turn in closed_turns:
+            # A delayed process fact remains owned by its original turn. It has
+            # no recovery opportunity there and cannot consume another turn's
+            # responses or interrupt an active recovery in that turn.
+            if failed:
+                late = RecoveryWindow(turn, seq, item.get("end_time"))
+                late.observe(item)
+                chains.append(late.finish(seq, item.get("end_time"), "unresolved-after-turn-end", responses, wire, gaps, compaction_gaps))
+            continue
+        if active and turn != active.turn:
+            chains.append(active.finish(seq-1, item.get("time"), "unresolved-at-next-turn", responses, wire, gaps, compaction_gaps))
+            active = None
         if active and failed and operation(item) not in active.unresolved:
             chains.append(active.finish(seq, item.get("end_time"), "unresolved-at-different-failure", responses, wire, gaps, compaction_gaps))
             active = None

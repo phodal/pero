@@ -55,3 +55,34 @@ class RecoveryAccounting(unittest.TestCase):
         self.assertFalse(chain["usage"]["usage_complete"])
         self.assertEqual(chain["unmatched_prepared_seqs"],[8])
         self.assertIsNone(chain["duration_ms"])
+
+    def test_unrelated_process_observations_do_not_block_repair(self):
+        for status in ("running", "unobserved", "missing_return", "interrupted"):
+            with self.subTest(status=status):
+                report=build_recovery([self.call(1,"check",True),
+                    self.call(4,"server",False,status),self.call(7,"check",False)],
+                    [self.response(3),self.response(6)], [{"seq":10,"turn":1}], [],[],None,10)
+                chain=report["chains"][0]
+                self.assertEqual(chain["outcome"],"matching-operation-succeeded")
+                self.assertEqual(chain["unresolved_operations"],0)
+                self.assertEqual(chain["call_seqs"],[1,4,7])
+
+    def test_late_lifecycle_fact_preserves_turn_ownership(self):
+        for late_failure in (False, True):
+            with self.subTest(late_failure=late_failure):
+                late=self.call(1,"background",late_failure)
+                late["process_end_seq"]=9
+                report=build_recovery([late,self.call(6,"check",True,turn=2),
+                    self.call(11,"check",False,turn=2)],
+                    [self.response(8,{"totalTokens":10}),self.response(10,{"totalTokens":20})],
+                    [{"seq":5,"turn":1},{"seq":14,"turn":2}],[],[],None,14)
+                current=next(c for c in report["chains"] if c["turn"]==2)
+                self.assertEqual(current["outcome"],"matching-operation-succeeded")
+                self.assertEqual(current["response_seqs"],[8,10])
+                self.assertEqual(current["usage"]["total_tokens"],30)
+                old=[c for c in report["chains"] if c["turn"]==1]
+                self.assertEqual(len(old),int(late_failure))
+                if old:
+                    self.assertEqual(old[0]["outcome"],"unresolved-after-turn-end")
+                    self.assertEqual(old[0]["response_seqs"],[])
+                    self.assertEqual(old[0]["start_seq"],old[0]["end_seq"])

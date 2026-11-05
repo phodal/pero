@@ -526,7 +526,7 @@ def build_report(paths: list[Path], reviews: list[dict] | None = None) -> dict:
             "schema_exposure": "compact declared tool JSON bytes per main response; compaction schema exposure is unknown; unused means never called in that Session; not provider tokens or causal waste",
             "repeated_result": "same arguments classified by returned observation; missing, spilled or truncated evidence is unknown, not unchanged",
             "validation_signals": "heuristic review candidates, not confirmed failures; raw output may quote source or expected errors",
-            "recovery": "nonoverlapping windows from observed failure to matching-operation success, a different failure or turn/trace end; costs after the first failure receipt only; unrelated successes do not resolve; not causal per-tool token attribution or acceptance",
+            "recovery": "nonoverlapping windows from observed failure to matching-operation success, a different failure or turn/trace end; costs after the first failure receipt only; unrelated successes do not resolve; late lifecycle failures retain their ended turn with no response usage; not causal per-tool token attribution or acceptance",
             "task_outcome": "not inferred from stop or tool success; use an external judge/acceptance receipt",
             "cost_usd": "unknown; no authoritative pricing or missing-usage estimate"},
         "summary": {"sessions": len(sessions), "raw_events": sum(s["raw_events"] for s in sessions),
