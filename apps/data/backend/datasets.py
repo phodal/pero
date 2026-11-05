@@ -126,6 +126,18 @@ class ChartChoice:
 
 
 @dataclass(frozen=True)
+class Interpretation:
+    field: str
+    kind: str
+
+
+@dataclass(frozen=True)
+class IssueChoice:
+    kind: str
+    field: str | None = None
+
+
+@dataclass(frozen=True)
 class ViewSpec:
     columns: tuple[str, ...] = ()
     filter: FilterChoice | None = None
@@ -133,16 +145,18 @@ class ViewSpec:
     selection: tuple[int, ...] = ()
     chart: ChartChoice | None = None
     units: tuple[tuple[str, str], ...] = ()
+    interpretations: tuple[Interpretation, ...] = ()
+    issue: IssueChoice | None = None
 
     @classmethod
     def parse(cls, value):
         legacy = {'columns', 'filterField', 'contains', 'units'}
-        modern = {'columns', 'filter', 'sort', 'selection', 'chart', 'units'}
+        modern = {'columns', 'filter', 'sort', 'selection', 'chart', 'units', 'interpretations', 'issue'}
         if not isinstance(value, dict) or set(value) - (legacy | modern):
             raise ValueError('Unknown request field')
-        if {'filterField', 'contains'} & set(value) and {'filter', 'sort', 'selection', 'chart'} & set(value):
+        if {'filterField', 'contains'} & set(value) and {'filter', 'sort', 'selection', 'chart', 'interpretations', 'issue'} & set(value):
             raise ValueError('Unknown request field')
-        if {'filter', 'sort', 'selection', 'chart'} & set(value):
+        if {'filter', 'sort', 'selection', 'chart', 'interpretations', 'issue'} & set(value):
             return cls._modern(value)
         return cls._legacy(value)
 
@@ -194,11 +208,32 @@ class ViewSpec:
                 raise ValueError('Choose valid chart fields')
             chart = ChartChoice(literal_name(raw_chart['category'], 'chart field'),
                                 literal_name(raw_chart['measure'], 'chart field'), raw_chart['aggregation'])
-        return cls(column_names(value), chosen, sort, tuple(selected), chart, unit_labels(value))
+        raw_interpretations = value.get('interpretations', {})
+        if (not isinstance(raw_interpretations, dict) or len(raw_interpretations) > MAX_FIELDS
+                or any(kind != 'number' for kind in raw_interpretations.values())):
+            raise ValueError('Choose an explicit decimal-number interpretation')
+        interpretations = tuple(sorted((Interpretation(literal_name(name, 'interpreted field'), kind)
+                                        for name, kind in raw_interpretations.items()), key=lambda item: item.field))
+        raw_issue = value.get('issue')
+        issue = None
+        if raw_issue is not None:
+            if (not isinstance(raw_issue, dict) or set(raw_issue) - {'kind', 'field'}
+                    or raw_issue.get('kind') not in ('missing', 'null', 'empty', 'duplicate', 'conversion')):
+                raise ValueError('Choose a valid issue kind and field')
+            issue_field = raw_issue.get('field')
+            if issue_field is not None:
+                issue_field = literal_name(issue_field, 'issue field')
+            if raw_issue['kind'] == 'duplicate' and issue_field is not None:
+                raise ValueError('Duplicate records are a whole-record check')
+            issue = IssueChoice(raw_issue['kind'], issue_field)
+        return cls(column_names(value), chosen, sort, tuple(selected), chart, unit_labels(value),
+                   interpretations, issue)
 
     def admitted_columns(self, names):
         chosen = self.columns or tuple(names[:MAX_COLUMNS])
-        referenced = set(chosen) | {name for name, _ in self.units}
+        referenced = set(chosen) | {name for name, _ in self.units} | {item.field for item in self.interpretations}
+        if self.issue and self.issue.field is not None:
+            referenced.add(self.issue.field)
         if self.filter:
             referenced.add(self.filter.field)
         if self.sort:
@@ -226,7 +261,9 @@ class ViewSpec:
             sort=None if self.sort is None else dict(field=self.sort.field, descending=self.sort.descending),
             selection=list(self.selection),
             chart=None if self.chart is None else dict(category=self.chart.category, measure=self.chart.measure, aggregation=self.chart.aggregation),
-            units=dict(self.units))
+            units=dict(self.units),
+            interpretations={item.field: item.kind for item in self.interpretations},
+            issue=None if self.issue is None else dict(kind=self.issue.kind, field=self.issue.field))
 
 
 @dataclass(frozen=True)
@@ -253,12 +290,22 @@ class PreviewRequest:
 
 
 @dataclass(frozen=True)
+class ConversionExample:
+    row: int
+    sourceLine: int | None
+    text: str
+
+
+@dataclass(frozen=True)
 class FieldProfile:
     name: str
     kinds: tuple[str, ...]
     missing: int
     nulls: int
     empty: int
+    interpretation: str | None = None
+    conversionFailures: int = 0
+    conversionExamples: tuple[ConversionExample, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -280,11 +327,14 @@ class QualityReport:
     duplicateRows: int
     duplicates: tuple[Duplicate, ...]
     blankLines: int = 0
+    conversionFailures: int = 0
 
     @classmethod
     def restore(cls, value):
         return cls(**(value | {
-            'fields': tuple(FieldProfile(**(f | {'kinds': tuple(f['kinds'])})) for f in value['fields']),
+            'fields': tuple(FieldProfile(**(f | {'kinds': tuple(f['kinds']),
+                'conversionExamples': tuple(ConversionExample(**example) for example in f.get('conversionExamples', []))}))
+                for f in value['fields']),
             'duplicates': tuple(Duplicate(**row) for row in value['duplicates']),
         }))
 
