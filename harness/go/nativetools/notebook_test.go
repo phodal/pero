@@ -116,6 +116,30 @@ func TestClaudeNotebookEditReplaceInsertDelete(t *testing.T) {
 	}
 }
 
+func TestNotebookUnsupportedFormatsPreserveOriginal(t *testing.T) {
+	for _, initial := range []string{
+		`{"nbformat":3,"worksheets":[{"cells":[{"cell_type":"code","input":["important"]}]}]}`,
+		`{"nbformat":5,"cells":[],"future":"preserve"}`,
+		`{"cells":[]}`,
+	} {
+		f := newClaudeFixture(t, Options{})
+		path := filepath.Join(f.root, "legacy.ipynb")
+		if err := os.WriteFile(path, []byte(initial), 0600); err != nil {
+			t.Fatal(err)
+		}
+		result := f.call(t, f.allowed, "NotebookEdit", map[string]any{
+			"notebook_path": path, "edit_mode": "insert", "cell_type": "code", "new_source": "new",
+		})
+		if !result.IsError || !strings.Contains(result.Content[0].Text, "only nbformat 4") {
+			t.Fatalf("result=%+v", result)
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil || string(raw) != initial {
+			t.Fatalf("original changed: %s %v", raw, err)
+		}
+	}
+}
+
 func TestNotebookReplacementCellTypes(t *testing.T) {
 	for _, tc := range []struct {
 		name, original, requested, wantType, outputs, count, attachments string
