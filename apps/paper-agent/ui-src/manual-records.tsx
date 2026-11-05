@@ -6,22 +6,30 @@ import { reviseEvidence, reportsCitingPaper, type ManualEvidence as Evidence } f
 import './manual-records.css';
 
 type Decision = { paperId: string; decision: 'include' | 'exclude' | 'pending'; reason: string };
+export type ResearchAttempt = { paperId: string; documentId: string; annotationId: string; page: number;
+  itemId: string; attemptId: string; profile: string; policy: string; seed: number; status: string; startedAt: string };
 type RecordRevision = {
   id: string; parentId?: string | null; question: string; scope: string; inclusion: string; exclusion: string;
   paperIds: string[]; decisions: Decision[]; evidence: Evidence[]; createdAt: string;
+  attempts?: ResearchAttempt[];
   selections?: { id: string; paperIds: string[]; createdAt: string }[];
   review?: { decision: 'needs_review' | 'accepted' | 'rejected'; note: string } | null;
 };
-type Impact = { recordId: string; items: { paperId: string; status: string; reason: string }[] };
+type Impact = { recordId: string; methodStatus: string; affectedAttempts: ResearchAttempt[]; affectedReportIds: string[];
+  items: { paperId: string; status: string; reason: string;
+  pdfChanged: boolean; structuredChanged: boolean; candidatePaperIds: string[] }[] };
 
 /** Manual decisions reference existing evidence; they never create observations or execute research. */
-export function ManualRecords({ api, library, paper }: { api: Api; library: Library; paper: Paper | null }) {
+export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api: Api; library: Library; paper: Paper | null;
+  onRead(id: string): void; onAttempt(attempt: ResearchAttempt): void }) {
   const [reports, setReports] = useState<Report[]>([]), [reportsLoading, setReportsLoading] = useState(false), [reportsError, setReportsError] = useState(''), [reportsRetry, setReportsRetry] = useState(0);
   const [records, setRecords] = useState<RecordRevision[]>([]), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0);
   const [editing, setEditing] = useState(false), [parentId, setParentId] = useState<string | undefined>();
   const [review, setReview] = useState(''), [reviewNote, setReviewNote] = useState('');
   const [question, setQuestion] = useState(''), [scope, setScope] = useState(''), [inclusion, setInclusion] = useState(''), [exclusion, setExclusion] = useState('');
   const [decisions, setDecisions] = useState<Decision[]>([]), [evidence, setEvidence] = useState<Evidence[]>([]);
+  const [attempts, setAttempts] = useState<ResearchAttempt[]>([]), [availableAttempts, setAvailableAttempts] = useState<ResearchAttempt[] | null>(null);
+  const [handoffNotes, setHandoffNotes] = useState(false);
   const [opened, setOpened] = useState<RecordRevision | null>(null), [impact, setImpact] = useState<Impact | null>(null), [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const form = useRef<HTMLFormElement>(null);
@@ -53,18 +61,20 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
     setInclusion(record?.inclusion ?? ''); setExclusion(record?.exclusion ?? '');
     setDecisions(record?.decisions ?? (paper ? [{ paperId: paper.id, decision: 'pending', reason: '' }] : []));
     setReview(''); setReviewNote('');
+    setAttempts(record?.attempts ?? []); setAvailableAttempts(null);
     setEvidence(record?.evidence ?? []); setEditing(true); setError(''); setMessage('');
   }
   async function open(record: RecordRevision) {
     const value = await request<RecordRevision>({ operation: 'read', recordId: record.id });
     if (!mounted.current) return;
-    epoch.current++; setOpened(value); setImpact(null); setSelected([]); setMessage('');
+    epoch.current++; setOpened(value); setImpact(null); setSelected([]); setMessage(''); setHandoffNotes(false);
   }
   function updateDecision(id: string, patch: Partial<Decision>) { setDecisions(items => items.map(item => item.paperId === id ? { ...item, ...patch } : item)); }
   function updateEvidence(index: number, patch: Partial<Evidence> | null) { setEvidence(items => reviseEvidence(items, index, patch)); }
   async function save() {
     const result = await request<RecordRevision>({ operation: 'create', ...(parentId ? { parentId } : {}), question, scope, inclusion, exclusion,
-      paperIds: decisions.map(item => item.paperId), decisions, evidence, ...(review ? { review: { decision: review, note: reviewNote } } : {}) });
+      paperIds: decisions.map(item => item.paperId), decisions, evidence, attempts: attempts.map(({ itemId, attemptId }) => ({ itemId, attemptId })),
+      ...(review ? { review: { decision: review, note: reviewNote } } : {}) });
     if (!mounted.current) return;
     setRecords(items => [result, ...items.filter(item => item.id !== result.id)]); setEditing(false); await open(result); setMessage('Revision saved. Earlier records are unchanged.');
   }
@@ -72,9 +82,17 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
     // App frames deliberately omit allow-forms; validate without native submission.
     if (valid && form.current?.reportValidity()) void act(save);
   }
+  async function exportHandoff(record: RecordRevision, attempt: ResearchAttempt) {
+    const response = await fetch('/api/research/record-handoff', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recordId: record.id, itemId: attempt.itemId, attemptId: attempt.attemptId, includeNotes: true }) });
+    if (!response.ok) throw Error((await response.json()).detail);
+    const bytes = await response.arrayBuffer();
+    if (mounted.current) downloadFile(`research-${record.id.slice(0, 12)}-${attempt.attemptId.slice(0, 12)}.zip`, bytes, 'application/zip');
+  }
   const visible = records.filter(record => !paper || record.paperIds.includes(paper.id));
   const title = (id: string) => library.papers.find(item => item.id === id)?.title ?? 'Unavailable paper';
   const valid = question.trim() && scope.trim() && inclusion.trim() && exclusion.trim() && decisions.length && decisions.every(item => item.reason.trim());
+  const attemptLabel = (attempt: ResearchAttempt) => `${attempt.profile} / ${attempt.policy}, seed ${attempt.seed} / ${attempt.status} / ${attempt.startedAt}`;
   return <details className="pa-manual-records"><summary>Question and scope</summary>
     {loading && <p role="status">Loading records…</p>}
     {error && <Feedback kind="error">{error}<Button disabled={busy || loading} onClick={() => setRetry(value => value + 1)}>Reload records</Button></Feedback>}
@@ -98,6 +116,7 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
               <label className="pa-manual-choice"><input type="checkbox" disabled={!decision && decisions.length >= 32} checked={!!decision} onChange={event => {
                 setDecisions(values => event.target.checked ? [...values, { paperId: item.id, decision: 'pending', reason: '' }] : values.filter(value => value.paperId !== item.id));
                 setEvidence(values => values.filter(value => value.paperId !== item.id));
+                setAttempts(values => values.filter(value => value.paperId !== item.id)); setAvailableAttempts(null);
               }}/><span>{item.title}</span></label>
               {decision && <>
                 <label>Decision<select value={decision.decision} onChange={event => updateDecision(item.id, { decision: event.target.value as Decision['decision'] })}><option value="pending">Pending</option><option value="include">Include</option><option value="exclude">Exclude</option></select></label>
@@ -121,6 +140,21 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
             </div>;
           })}
         </details>
+        <details><summary>Execution history</summary>
+          <Button disabled={busy || !decisions.length} onClick={() => void act(async () => {
+            const result = await request<{ attempts: ResearchAttempt[] }>({ operation: 'attempts', paperIds: decisions.map(item => item.paperId) });
+            if (mounted.current) setAvailableAttempts(result.attempts);
+          })}>Find attempts</Button>
+          {availableAttempts?.length === 0 && <p role="status">No finished attempts for these papers.</p>}
+          {(availableAttempts ?? attempts).map(attempt => {
+            const matching = (value: ResearchAttempt) => value.itemId === attempt.itemId && value.attemptId === attempt.attemptId;
+            const checked = attempts.some(matching);
+            return <label className="pa-manual-choice" key={`${attempt.itemId}/${attempt.attemptId}`}>
+              <input type="checkbox" checked={checked} disabled={!checked && attempts.length >= 32} onChange={event =>
+                setAttempts(values => event.target.checked ? [...values, attempt] : values.filter(value => !matching(value)))}/>
+              <span>{attemptLabel(attempt)}</span></label>;
+          })}
+        </details>
         <details><summary>Local review (optional)</summary>
           <p>Your recorded decision, not independent review or scientific acceptance.</p>
           <label>Review decision<select value={review} onChange={event => setReview(event.target.value)}><option value="">No review recorded</option><option value="needs_review">Needs review</option><option value="accepted">Accepted by me</option><option value="rejected">Rejected by me</option></select></label>
@@ -135,15 +169,36 @@ export function ManualRecords({ api, library, paper }: { api: Api; library: Libr
       <ul>{opened.decisions.map(item => <li key={item.paperId}><strong>{title(item.paperId)}</strong><p>{item.decision}: {item.reason}</p></li>)}</ul>
       {!!opened.evidence.length && <><h3>Evidence references</h3><ul>{opened.evidence.map((item, index) => <li key={index}>{title(item.paperId)} — {item.stance}<p>{item.note}</p><small>{item.reportId ? library.reports.find(report => report.id === item.reportId)?.title ?? 'Saved report reference' : 'No source evidence yet'}</small></li>)}</ul></>}
       {opened.review && <p>Local review: {opened.review.decision} — {opened.review.note}. Identity is self-declared, not independent review.</p>}
-      <p>Not scientifically verified. Only saved text content is compared. PDF, parsed document, data and method versions are not checked.</p>
+      {!!opened.attempts?.length && <details open><summary>Execution history</summary>
+        <ul>{opened.attempts.map(attempt => <li key={`${attempt.itemId}/${attempt.attemptId}`}><p>{attemptLabel(attempt)}</p>
+          <Button variant="ghost" disabled={busy} onClick={() => onAttempt(attempt)}>Open result in PDF</Button>
+          {attempt.status === 'completed' && <Button disabled={busy || !handoffNotes} onClick={() => void act(() => exportHandoff(opened, attempt))}>Export research handoff</Button>}
+        </li>)}</ul>
+        {opened.attempts.some(attempt => attempt.status === 'completed') && <label className="pa-manual-choice">
+          <input type="checkbox" checked={handoffNotes} disabled={busy} onChange={event => setHandoffNotes(event.target.checked)}/>
+          <span>Include this revision’s notes, the bound PDF excerpt, and the selected attempt’s numeric evidence.</span>
+        </label>}
+      </details>}
       <div className="pa-actions"><Button disabled={busy || editing} onClick={() => edit(opened)}>Revise</Button>
         <Button disabled={busy} onClick={() => void act(async () => { const version = epoch.current, result = await request<Impact>({ operation: 'impact', recordId: opened.id }); if (mounted.current && version === epoch.current) { setImpact(result); setSelected([]); } })}>Check saved source updates</Button>
         <Button disabled={busy} onClick={() => void act(async () => { const result = await request<object>({ operation: 'export', recordId: opened.id }); if (mounted.current) downloadFile(`research-record-${opened.id.slice(0,12)}.json`, JSON.stringify(result, null, 2), 'application/json'); })}>Export references</Button>
       </div>
-      <p className="pa-muted">References only; no paper text, private data or executable handoff.</p>
-      {!!opened.selections?.length && <details><summary>Saved reread selections</summary><ul>{opened.selections.map(selection => <li key={selection.id}>{selection.createdAt}<p>{selection.paperIds.map(title).join(', ')}</p><p>Recorded only; no execution requested.</p></li>)}</ul></details>}
-      {impact && <section aria-label="Source update impact"><ul>{impact.items.map(item => <li key={item.paperId}><label className="pa-manual-choice"><input type="checkbox" disabled={busy} checked={selected.includes(item.paperId)} onChange={event => setSelected(ids => event.target.checked ? [...ids, item.paperId] : ids.filter(id => id !== item.paperId))}/><span>{title(item.paperId)} — {item.status}</span></label><p>{item.reason}</p></li>)}</ul>
-        <Button disabled={busy || !selected.length} onClick={() => void act(async () => { await request({ operation: 'select', recordId: opened.id, paperIds: selected }); const value = await request<RecordRevision>({ operation: 'read', recordId: opened.id }); if (mounted.current) { setOpened(value); setSelected([]); setMessage('Reread selection saved. No reading or computation has started.'); } })}>Save reread selection</Button>
+      {!!opened.selections?.length && <details><summary>Saved reread selections</summary><ul>{opened.selections.map(selection => <li key={selection.id}>{selection.createdAt}
+        {selection.paperIds.map(id => <Button key={id} variant="ghost" disabled={busy} onClick={() => onRead(id)}>{title(id)}</Button>)}</li>)}</ul></details>}
+      {impact && <section aria-label="Source update impact">
+        <p>Saved versions only. Upstream freshness is unknown.</p>
+        {impact.methodStatus === 'changed' && <p>The installed PC-Gym method has changed. Freeze a new item before running it.</p>}
+        {!!impact.affectedAttempts.length && <ul aria-label="Affected attempts">{impact.affectedAttempts.map(attempt => <li key={`${attempt.itemId}/${attempt.attemptId}`}>
+          <Button variant="ghost" disabled={busy} onClick={() => onAttempt(attempt)}>{attemptLabel(attempt)}</Button>
+        </li>)}</ul>}
+        {!!impact.affectedReportIds.length && <ul aria-label="Affected reports">{impact.affectedReportIds.map(id => <li key={id}>
+          {library.reports.find(report => report.id === id)?.title ?? 'Saved report reference'}
+        </li>)}</ul>}
+        <ul>{impact.items.map(item => <li key={item.paperId}><label className="pa-manual-choice"><input type="checkbox" disabled={busy} checked={selected.includes(item.paperId)} onChange={event => setSelected(ids => event.target.checked ? [...ids, item.paperId] : ids.filter(id => id !== item.paperId))}/><span>{title(item.paperId)} — {item.status}</span></label>
+          <p>{item.reason}{item.pdfChanged ? ' / PDF changed' : ''}{item.structuredChanged ? ' / Parsed document changed' : ''}</p>
+          {item.candidatePaperIds.map(id => <Button key={id} variant="ghost" disabled={busy} onClick={() => onRead(id)}>{title(id)}</Button>)}
+        </li>)}</ul>
+        <Button disabled={busy || !selected.length} onClick={() => void act(async () => { await request({ operation: 'select', recordId: opened.id, paperIds: selected }); const value = await request<RecordRevision>({ operation: 'read', recordId: opened.id }); if (mounted.current) { setOpened(value); setSelected([]); setMessage('Reread selection saved.'); if (selected.length === 1) onRead(selected[0]); } })}>Save reread selection</Button>
       </section>}
     </article>}
   </details>;
