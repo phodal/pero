@@ -69,3 +69,9 @@ acceptance passed. Full Wasm build and `npm run check` passed. The Viewer DOM
 regression passed against the actual components; full Chromium acceptance was
 blocked before browser startup by the execution environment's Unix-socket policy.
 See the current verification section in `docs/fitness/session-artifacts.md`.
+
+The integrated CI also exposed stale Host stdio fixture expectations: they omitted
+the new `sessions_width` and `artifact_view` fields from strict preference
+comparisons. The fixture now checks default migration (`280`, `icons`), explicit
+`360`/`gallery` persistence across restart, and rejection of out-of-range widths
+or unknown views without replacing saved settings. No assertion was relaxed.
