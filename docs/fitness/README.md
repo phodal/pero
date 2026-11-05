@@ -6,6 +6,9 @@ memory attribution: [Engineering profile](engineering-profile.md).
 Native ACP coding sample, Session usage/failure reports and observed benchmark
 procedure limits: [Coding benchmark](coding-benchmark.md).
 
+Five native HumanEval+ tasks without Docker, official controls and token/tool
+failure analysis: [Native EvalPlus sample](evalplus-native.md).
+
 Pinned DSH/Pi/Qwen comparison, native tool changes and verification:
 [Native coding follow-up](dsh-native-improvements.md).
 
