@@ -51,3 +51,29 @@ test('materials reference Pero roles and do not copy Wake colors', () => {
   const allowed = new Set([colorRoles.list.light, colorRoles.list.dark]);
   for (const hex of source.match(/#[0-9a-fA-F]{3,8}/g) ?? []) assert.ok(allowed.has(hex), hex);
 });
+
+test('surface, emphasis and interaction pairs remain readable in both palettes', () => {
+  const palettes = JSON.parse(readFileSync(resolve(dir, '../../..', 'web/src/theme.generated.json'), 'utf8'));
+  const luminance = hex => {
+    const channels = hex.slice(1).match(/../g).map(part => parseInt(part, 16) / 255)
+      .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+    return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+  };
+  for (const [mode, colors] of Object.entries(palettes)) {
+    const pairs = [
+      ['text', 'surface-hover', 4.5], ['text', 'surface-pressed', 4.5],
+      ['on-action', 'action', 4.5], ['on-action', 'action-hover', 4.5], ['on-action', 'action-pressed', 4.5],
+      ['accent-text', 'accent-soft', 4.5], ['focus', 'surface', 3], ['input-border', 'surface', 3],
+      ...['blue', 'apricot'].flatMap(tone => [
+        [`tint-${tone}-text`, `tint-${tone}-surface`, 4.5], [`tint-${tone}-text`, `tint-${tone}-soft`, 4.5],
+        [`tint-${tone}-strong`, `tint-${tone}-surface`, 3],
+      ]),
+      ...['info', 'success', 'warning', 'error'].map(kind => [kind, `${kind}-bg`, 4.5]),
+    ];
+    for (const [foreground, background, minimum] of pairs) {
+      const a = luminance(colors[foreground]), b = luminance(colors[background]);
+      const ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+      assert.ok(ratio >= minimum, `${mode}: ${foreground} on ${background} is ${ratio.toFixed(2)}:1, needs ${minimum}:1`);
+    }
+  }
+});
