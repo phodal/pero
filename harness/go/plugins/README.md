@@ -30,7 +30,7 @@ Supported inspection behavior:
 - YAML frontmatter, plugin-qualified component names, separate user/model
   invocation visibility, tool expressions and required agent metadata.
 - Local marketplace sources, distinct installation and manifest identities,
-  version drift and unsupported entry-owned component diagnostics.
+  version drift and entry/manifest composition with explicit strict conflicts.
 - Default and explicit integration files, inline declarations and mixed arrays.
   Default MCP servers load first; later same-name declarations replace them.
 - Hook wrapper/argv checks, unsupported execution fields, MCP transport,
@@ -48,8 +48,12 @@ artifacts rather than automatically public documents.
 
 Marketplace inspection visits its declared local entries. A local plugin that
 is not registered in that marketplace can be inspected by passing its own
-directory. Remote acquisition, entry-owned component merging, nested command
-directories remain separate implementation steps.
+directory. Entry components append to a present manifest with default `strict: true`;
+`strict: false` plus entry components is a conflict. Inline entry hooks replace
+existing matchers for their events (including an empty array). Without a
+manifest, the entry also supplies MCP/LSP declarations. Nested command and agent
+directories are traversed with depth and component bounds. Remote acquisition
+remains a separate explicit operation.
 
 The ACP runtime accepts explicit plugin selections:
 

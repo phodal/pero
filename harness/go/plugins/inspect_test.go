@@ -157,7 +157,7 @@ func TestInspectMarketplaceEntryIdentityAndDeclarations(t *testing.T) {
 		valid       bool
 	}{
 		{"install-alias", `{"name":"install.alias_v1","source":"./sample"}`, "", true},
-		{"entry-components", `{"name":"sample","source":"./sample","commands":"./extra.md"}`, "UNSUPPORTED_MARKETPLACE_COMPONENT", false},
+		{"entry-components", `{"name":"sample","source":"./sample","commands":"./extra.md"}`, "UNREADABLE_CONFIGURATION", false},
 		{"entry-metadata", `{"name":"sample","source":"./sample","description":42}`, "INVALID_MANIFEST", false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
