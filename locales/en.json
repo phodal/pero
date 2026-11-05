@@ -228,7 +228,7 @@
   "chat.login_in_terminal": "Sign in from your terminal, then continue here.",
   "chat.login_complete": "I have signed in · Continue",
   "chat.preparing": "Preparing Agent…",
-  "chat.tools_unavailable": "Tools unavailable: {servers}. Check Settings → MCP or start a new chat to retry.",
+  "chat.tools_unavailable": "Tools unavailable: {servers}. Check Settings → MCP, then retry an empty chat or start a new one.",
   "chat.retry": "Retry",
   "chat.connect": "Connect",
   "menu.about": "About Pero",

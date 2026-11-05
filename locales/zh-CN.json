@@ -228,7 +228,7 @@
   "chat.login_in_terminal": "请先在终端登录，再回到这里继续。",
   "chat.login_complete": "已登录，继续",
   "chat.preparing": "正在准备 Agent…",
-  "chat.tools_unavailable": "工具不可用：{servers}。请检查设置 → MCP，或新建聊天重试。",
+  "chat.tools_unavailable": "工具不可用：{servers}。请检查设置 → MCP，然后重试空白对话或新建对话。",
   "chat.retry": "重试",
   "chat.connect": "连接",
   "menu.about": "关于 Pero",
