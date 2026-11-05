@@ -124,7 +124,7 @@ impl EnvironmentInspection {
         if let Some(argument) = argument {
             command.arg(argument);
         }
-        for key in ["PATH", "HOME", "LANG", "SYSTEMROOT"] {
+        for key in ["PATH", "HOME", "LANG", "SYSTEMROOT", "USERPROFILE", "HOMEDRIVE", "HOMEPATH"] {
             if let Some(value) = std::env::var_os(key) {
                 command.env(key, value);
             }
