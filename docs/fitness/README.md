@@ -13,6 +13,9 @@ Historical output clearing, checkpoint provenance, progress/delivery feedback,
 environment-owned services and request deadlines:
 [Reference runtime improvements](reference-runtime-improvements.md).
 
+Selected old failures, separate service-discovery correction and recorded usage:
+[Terminal-Bench runtime reruns](terminal-bench-runtime-rerun.md).
+
 Deferred discovery, output budgets, continuation cursors and Session boundary
 measurements: [Tool-call efficiency](tool-call-efficiency.md).
 

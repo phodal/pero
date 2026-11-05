@@ -101,6 +101,9 @@ only. Ordinary Bash jobs keep their Session cleanup. Sandbox/Windows support
 is not added.
 
 ServiceStart launches a separate detached supervisor for a foreground command.
+With deferred tools, an authorized caller receives a ToolSearch discovery hint
+before ServiceStart is declared. Restricted callers receive no such hint; the
+hint itself does not activate a tool.
 The environment directory owns it across agent exit. Default lifetime is 30
 minutes; range is 100 ms to two hours. Keep servers in the foreground. Running
 confirms process start, not endpoint readiness. Verify independently, preserve
@@ -147,7 +150,11 @@ CLI build and whitespace checks also pass. The pinned AST parser suite passes
 restores 17 extracted pairs and zero unavailable selectors. This is native
 runtime evidence, not Desktop/release acceptance or AST semantic equivalence.
 
-No paid request or new benchmark cohort is started. Thinking/image configuration
-already exists; paired model, usage and score experiments remain separate.
+Subsequent [real-provider reruns](terminal-bench-runtime-rerun.md) passed two of
+three selected old failures, followed by a separate passing service-discovery
+fix acceptance. The versions remain separate. Recorded usage grew substantially,
+dominated by polyglot compile/patch loops; these observations establish neither
+token savings nor a uniform full-suite score. Thinking/image configuration
+already exists; paired model/configuration experiments remain separate.
 Original full-suite results and strict-stop validity retain their own evidence
 in [the failure review](terminal-bench-failure-repair-review.md).

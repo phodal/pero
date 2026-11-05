@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: active
+status: resolved
 date: 2026-11-05
 ---
 
@@ -33,9 +33,9 @@ The Bash declaration now calls the background process a managed job, states
 agent/session shutdown explicitly, and explains that nohup/shell suffixes do
 not change ownership. Persistent requested services need an environment owner.
 The existing background ownership, cancellation and promotion real-process race
-tests pass. A separately frozen current-code `pypi-server` acceptance is queued
-after the full suite and timeout corrections, with unchanged official inputs
-and no request/step caps. Its result will remain separate from both cohorts.
+tests pass. Separately frozen current-code `pypi-server` acceptances retain
+unchanged official inputs and no request/step caps. Their results remain
+separate from the original full suite and timeout-correction cohorts.
 
 ## Deferred service discovery regression
 
@@ -57,4 +57,21 @@ The regression test reproduces missing guidance before the first deferred
 discovery. The corrected prompt reads the existing authorized pool and supplies
 an exact ToolSearch recovery action without activating ServiceStart. Eager,
 deferred and restricted callers are covered; all related native race suites
-pass. Real-provider acceptance of the correction remains a separate attempt.
+pass.
+
+## Separate real-provider acceptance
+
+At `42d6029b`, `runtime-rerun-20261105-03` passes the unchanged official
+`pypi-server` test (reward 1; one pytest pass). The model first searches for
+ServiceStart. Its first service exits because pypiserver requires `-P .` with
+`-a .`; a failed curl probe exposes that failure, and the second start adds
+the missing parameter. After agent exit, an independent probe confirms that
+exact service is still running and HTTP returns 200, before official verification.
+Harbor subsequently deletes the task container.
+
+The guidance/discovery defect is resolved for authorized service-enabled native
+callers. Services remain explicitly configured, and normal Bash cleanup remains
+intentional. This does not establish Desktop/default-mode or unsupported
+platform acceptance. The earlier reward-zero attempt and original 89-task score
+are unchanged. Usage and remaining compile-loop inefficiency are recorded in
+[the separate rerun report](../fitness/terminal-bench-runtime-rerun.md).
