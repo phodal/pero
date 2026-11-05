@@ -70,3 +70,39 @@ func TestHistorySnapshotPreservesDetachedOpaqueMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestSurfaceDeltaTracksReplacementsAndDetachesReceipts(t *testing.T) {
+	s := NewSession("surface-delta", "")
+	first, err := s.Append("user/message", Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: "before"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, surface, last := s.SurfaceDelta(0)
+	if len(events) != 1 || len(surface) != 1 || last != first.Seq {
+		t.Fatal("incomplete initial surface")
+	}
+	_, err = s.AppendReplacement("user/message", Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: "after"}}}, SurfaceRange{Start: first.Seq, End: first.Seq}, []uint64{first.Seq})
+	if err != nil {
+		t.Fatal(err)
+	}
+	delta, current, next := s.SurfaceDelta(last)
+	if len(delta) != 1 || len(current) != 1 || current[0] != delta[0].Seq || next <= last {
+		t.Fatal("replacement missing from incremental surface")
+	}
+	raw, ok := s.EventAt(first.Seq)
+	if !ok || string(raw.Data) != string(events[0].Data) {
+		t.Fatal("shadowed original is not recoverable")
+	}
+	delta[0].Data[0] = '!'
+	current[0] = 999
+	raw.Data[0] = '!'
+	original, _ := s.EventAt(first.Seq)
+	again, _, _ := s.SurfaceDelta(last)
+	if original.Data[0] == '!' || again[0].Data[0] == '!' {
+		t.Fatal("snapshot aliases committed receipts")
+	}
+	empty, retained, _ := s.SurfaceDelta(next)
+	if len(empty) != 0 || len(retained) != 1 {
+		t.Fatal("stable snapshot recopied committed payload")
+	}
+}

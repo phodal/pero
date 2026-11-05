@@ -54,11 +54,11 @@ func TestReadReuseSurfaceLifecycle(t *testing.T) {
 			}
 			// A compaction slice containing only the reference must receive the
 			// actual content, without mutating the main request surface.
-			expanded := ExpandReadReferences(s.Events(), []uint64{projected.Seq}, []model.Message{projected.Message})
+			expanded := ExpandReadReferences(s, []uint64{projected.Seq}, []model.Message{projected.Message})
 			if expanded[0].Content[0].Content[0].Text != text || !strings.Contains(projected.Message.Content[0].Content[0].Text, "identical") {
 				t.Fatal("summary lost content or mutated projection")
 			}
-			retained := ExpandReadReferences(s.Events(), []uint64{first.Seq, projected.Seq}, []model.Message{projected.Message})
+			retained := ExpandReadReferences(s, []uint64{first.Seq, projected.Seq}, []model.Message{projected.Message})
 			if retained[0].Content[0].Content[0].Text != projected.Message.Content[0].Content[0].Text {
 				t.Fatal("unnecessarily expanded a visible anchor")
 			}
@@ -158,5 +158,27 @@ func TestReadReuseEqualityAndSize(t *testing.T) {
 				t.Fatal("incorrect reuse eligibility")
 			}
 		})
+	}
+}
+
+func TestReadReuseNeverInflatesEncodedOutput(t *testing.T) {
+	for n := 250; n < 500; n += 11 {
+		s := session.NewSession("size-boundary", "")
+		s.Append("turn/start", struct {
+			Turn int `json:"turn"`
+		}{1})
+		text := strings.Repeat("a", n)
+		block := model.ContentBlock{Type: model.BlockToolResult, ToolCallID: "read", Content: []model.ContentBlock{{Type: model.BlockText, Text: text}}, Meta: ReusableReadMetadata("file", "digest", text)}
+		s.Append("tool/result", block)
+		original, _ := s.Append("tool/result", block)
+		var p ReadReuse
+		if err := p.Reconcile(s); err != nil {
+			t.Fatal(err)
+		}
+		events, surface := s.HistorySnapshot()
+		projected := events[surface[len(surface)-1]-1]
+		if projected.Seq != original.Seq && len(projected.Data) >= len(original.Data) {
+			t.Fatalf("%d bytes: projection grew", n)
+		}
 	}
 }

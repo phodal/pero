@@ -33,10 +33,11 @@ func ReusableReadMetadata(path, digest, text string) json.RawMessage {
 }
 
 type reusableRead struct {
-	block model.ContentBlock
-	meta  readMetadata
-	key   ReadObservation
-	valid bool
+	original *reusableRead
+	block    model.ContentBlock
+	meta     readMetadata
+	key      ReadObservation
+	valid    bool
 }
 
 func decodeReusableRead(data json.RawMessage) reusableRead {
@@ -61,20 +62,27 @@ func decodeReusableRead(data json.RawMessage) reusableRead {
 // invocation still reads and hashes the file. Full raw results remain in the
 // Session; references are reconciled after pruning/compaction, before a request.
 // Memoize only immutable visible result decoding, bounded by the live surface.
-type ReadReuse struct{ visible map[uint64]reusableRead }
+type ReadReuse struct {
+	visible map[uint64]reusableRead
+	lastSeq uint64
+}
 
 func (p *ReadReuse) Reconcile(s *session.Session) error {
-	events, surface := s.HistorySnapshot()
+	events, surface, last := s.SurfaceDelta(p.lastSeq)
+	if p.visible == nil {
+		p.visible = make(map[uint64]reusableRead)
+	}
+	for _, e := range events {
+		if e.Type == "tool/result" {
+			p.visible[e.Seq] = decodeReusableRead(e.Data)
+		}
+	}
 	next := make(map[uint64]reusableRead)
 	anchors := make(map[ReadObservation]uint64)
 	for _, seq := range surface {
-		event := events[seq-1]
-		if event.Type != "tool/result" {
-			continue
-		}
 		r, ok := p.visible[seq]
 		if !ok {
-			r = decodeReusableRead(event.Data)
+			continue
 		}
 		next[seq] = r
 		if !r.valid {
@@ -84,10 +92,19 @@ func (p *ReadReuse) Reconcile(s *session.Session) error {
 		full := r
 		if r.meta.Reuse != nil {
 			original = r.meta.Reuse.Original
-			if original == 0 || original >= seq || original > uint64(len(events)) || events[original-1].Type != "tool/result" {
+			if original == 0 || original >= seq {
 				continue
 			}
-			full = decodeReusableRead(events[original-1].Data)
+			if r.original == nil {
+				event, ok := s.EventAt(original)
+				if !ok || event.Type != "tool/result" {
+					continue
+				}
+				decoded := decodeReusableRead(event.Data)
+				r.original = &decoded
+				next[seq] = r
+			}
+			full = *r.original
 			if !full.valid || full.meta.Reuse != nil || full.key != r.key || full.block.ToolCallID != r.block.ToolCallID {
 				continue
 			}
@@ -100,9 +117,6 @@ func (p *ReadReuse) Reconcile(s *session.Session) error {
 				continue
 			}
 			replacement.Content = []model.ContentBlock{{Type: model.BlockText, Text: fmt.Sprintf("File %q was read again; its complete content is identical to the earlier visible read at result seq %d. Reuse that content. To retrieve this exact read, use ReadToolOutput locator=%q; an explicit offset/limit forces full output.", r.key.Path, anchor, fmt.Sprintf("%s%s:%d", historyLocatorPrefix, s.Header().ID, original))}}
-			if len(replacement.Content[0].Text) >= len(full.block.Content[0].Text) {
-				continue
-			}
 			replacement.Meta, _ = json.Marshal(readMetadata{Read: full.meta.Read, Reuse: &reference})
 		} else if r.meta.Reuse == nil {
 			anchors[r.key] = seq
@@ -113,6 +127,19 @@ func (p *ReadReuse) Reconcile(s *session.Session) error {
 		raw, err := json.Marshal(replacement)
 		if err != nil {
 			return err
+		}
+		if anchor != 0 {
+			fullRaw, err := json.Marshal(full.block)
+			if err != nil {
+				return err
+			}
+			// Include metadata and JSON escaping, not just visible text size.
+			if len(raw) >= len(fullRaw) {
+				if r.meta.Reuse == nil {
+					continue
+				}
+				raw = fullRaw
+			}
 		}
 		tokens := model.EstimateMessageTokens(model.Message{Role: model.RoleTool, Content: []model.ContentBlock{r.block}})
 		committed, err := s.AppendPrunedToolResult(seq, raw, max(1, tokens))
@@ -126,13 +153,14 @@ func (p *ReadReuse) Reconcile(s *session.Session) error {
 		}
 	}
 	p.visible = next
+	p.lastSeq = last
 	return nil
 }
 
 // ExpandReadReferences supplies full content to a summary that selects only a
 // slice of history. A reference may survive in that slice while its full anchor
 // is outside it (or has been pruned). Summarizers cannot execute readback tools.
-func ExpandReadReferences(events []model.Event, seqs []uint64, messages []model.Message) []model.Message {
+func ExpandReadReferences(s *session.Session, seqs []uint64, messages []model.Message) []model.Message {
 	visible := make(map[uint64]bool, len(seqs))
 	for _, seq := range seqs {
 		visible[seq] = true
@@ -149,10 +177,11 @@ func ExpandReadReferences(events []model.Event, seqs []uint64, messages []model.
 				continue
 			}
 			original := r.meta.Reuse.Original
-			if original == 0 || original > uint64(len(events)) || events[original-1].Type != "tool/result" {
+			event, ok := s.EventAt(original)
+			if !ok || event.Type != "tool/result" {
 				continue
 			}
-			full := decodeReusableRead(events[original-1].Data)
+			full := decodeReusableRead(event.Data)
 			if full.valid && full.meta.Reuse == nil && full.key == r.key && full.block.ToolCallID == block.ToolCallID {
 				result[i].Content[j] = full.block
 			}
