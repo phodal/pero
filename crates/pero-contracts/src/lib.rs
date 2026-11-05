@@ -20,6 +20,7 @@ pub mod local_worker;
 pub mod mcp;
 pub mod roadmap;
 pub mod session_settings;
+pub mod session_artifact;
 pub mod usage;
 pub mod workbench;
 pub mod web_document;

@@ -1740,6 +1740,9 @@
           "$ref": "#/$defs/ResolveApp"
         },
         {
+          "$ref": "#/$defs/ResolveStaticApp"
+        },
+        {
           "$ref": "#/$defs/ProjectResourcesApp"
         },
         {
@@ -2184,6 +2187,780 @@
         "schema"
       ],
       "additionalProperties": false
+    },
+    "ArtifactBrowserState": {
+      "title": "ArtifactBrowserState",
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionArtifact"
+          }
+        },
+        "selected": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactPreviewTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "view": {
+          "$ref": "#/$defs/ArtifactView"
+        }
+      },
+      "required": [
+        "thread_id",
+        "artifacts",
+        "selected",
+        "view"
+      ],
+      "additionalProperties": false,
+      "description": "Public UI state, not a second artifact catalog or Host persistence owner."
+    },
+    "ArtifactCatalogEvent": {
+      "title": "ArtifactCatalogEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "artifact_catalog"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "artifacts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SessionArtifact"
+              }
+            }
+          },
+          "required": [
+            "artifacts"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactContextEvent": {
+      "title": "ArtifactContextEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "artifact_context"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ContextReference"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactContextRequest": {
+      "title": "ArtifactContextRequest",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "context"
+        },
+        "method": {
+          "type": "string",
+          "const": "artifacts"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "request_id",
+        "thread_id",
+        "artifact_id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactDocumentEvent": {
+      "title": "ArtifactDocumentEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "artifact_document"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DocumentHeader"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactDocumentMedia": {
+      "title": "ArtifactDocumentMedia",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "document"
+        },
+        "format": {
+          "$ref": "#/$defs/ContentFormat"
+        }
+      },
+      "required": [
+        "kind",
+        "format"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactErrorEvent": {
+      "title": "ArtifactErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "artifact_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "thread_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "artifact_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "invalid"
+                },
+                {
+                  "type": "string",
+                  "const": "integrity"
+                },
+                {
+                  "type": "string",
+                  "const": "unavailable"
+                },
+                {
+                  "type": "string",
+                  "const": "unsupported"
+                },
+                {
+                  "type": "string",
+                  "const": "outside_workspace"
+                },
+                {
+                  "type": "string",
+                  "const": "read_write"
+                }
+              ]
+            }
+          },
+          "required": [
+            "thread_id",
+            "artifact_id",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactFileSource": {
+      "title": "ArtifactFileSource",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "file"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactImageMedia": {
+      "title": "ArtifactImageMedia",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "image"
+        },
+        "mime_type": {
+          "$ref": "#/$defs/ArtifactImageType"
+        }
+      },
+      "required": [
+        "kind",
+        "mime_type"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactImageType": {
+      "title": "ArtifactImageType",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "image/png"
+        },
+        {
+          "type": "string",
+          "const": "image/jpeg"
+        },
+        {
+          "type": "string",
+          "const": "image/gif"
+        },
+        {
+          "type": "string",
+          "const": "image/webp"
+        },
+        {
+          "type": "string",
+          "const": "image/svg+xml"
+        }
+      ]
+    },
+    "ArtifactMedia": {
+      "title": "ArtifactMedia",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ArtifactDocumentMedia"
+        },
+        {
+          "$ref": "#/$defs/ArtifactSimpleMedia"
+        },
+        {
+          "$ref": "#/$defs/ArtifactImageMedia"
+        }
+      ]
+    },
+    "ArtifactPreviewTarget": {
+      "title": "ArtifactPreviewTarget",
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "thread_id",
+        "artifact_id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactRegisteredEvent": {
+      "title": "ArtifactRegisteredEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "artifact_registered"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "artifact": {
+              "$ref": "#/$defs/SessionArtifact"
+            }
+          },
+          "required": [
+            "artifact"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactRegistration": {
+      "title": "ArtifactRegistration",
+      "type": "object",
+      "properties": {
+        "artifact_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "source_message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "source_tool_call_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minLength": 1,
+          "maxLength": 512
+        }
+      }
+    },
+    "ArtifactRequest": {
+      "title": "ArtifactRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ListArtifacts"
+        },
+        {
+          "$ref": "#/$defs/RegisterTextArtifact"
+        },
+        {
+          "$ref": "#/$defs/RegisterFileArtifact"
+        },
+        {
+          "$ref": "#/$defs/ReadArtifact"
+        },
+        {
+          "$ref": "#/$defs/ResolveArtifactSnapshot"
+        },
+        {
+          "$ref": "#/$defs/ArtifactContextRequest"
+        }
+      ]
+    },
+    "ArtifactRequestBase": {
+      "title": "ArtifactRequestBase",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "artifacts"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        }
+      },
+      "required": [
+        "method",
+        "request_id",
+        "thread_id"
+      ]
+    },
+    "ArtifactSimpleMedia": {
+      "title": "ArtifactSimpleMedia",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "csv"
+            },
+            {
+              "type": "string",
+              "const": "tsv"
+            },
+            {
+              "type": "string",
+              "const": "pdf"
+            },
+            {
+              "type": "string",
+              "const": "html"
+            },
+            {
+              "type": "string",
+              "const": "notebook"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactSnapshot": {
+      "title": "ArtifactSnapshot",
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "filename": {
+          "type": "string"
+        },
+        "media": {
+          "$ref": "#/$defs/ArtifactMedia"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10485760
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "thread_id",
+        "artifact_id",
+        "version",
+        "filename",
+        "media",
+        "sha256",
+        "bytes",
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "Shell-private verified snapshot. The local path never enters the App or Wasm event stream."
+    },
+    "ArtifactSnapshotFailure": {
+      "title": "ArtifactSnapshotFailure",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactSnapshotResult": {
+      "title": "ArtifactSnapshotResult",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ArtifactSnapshotSuccess"
+        },
+        {
+          "$ref": "#/$defs/ArtifactSnapshotFailure"
+        }
+      ]
+    },
+    "ArtifactSnapshotResultEvent": {
+      "title": "ArtifactSnapshotResultEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "artifact_snapshot_result"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ArtifactSnapshotResult"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false,
+      "description": "Main/Native-only descriptor response. Shells consume it before forwarding public events."
+    },
+    "ArtifactSnapshotSuccess": {
+      "title": "ArtifactSnapshotSuccess",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "value": {
+          "$ref": "#/$defs/ArtifactSnapshot"
+        }
+      },
+      "required": [
+        "ok",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactSource": {
+      "title": "ArtifactSource",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ArtifactTextSource"
+        },
+        {
+          "$ref": "#/$defs/ArtifactFileSource"
+        }
+      ]
+    },
+    "ArtifactTextSource": {
+      "title": "ArtifactTextSource",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "text"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactView": {
+      "title": "ArtifactView",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "icons"
+        },
+        {
+          "type": "string",
+          "const": "list"
+        },
+        {
+          "type": "string",
+          "const": "gallery"
+        }
+      ]
     },
     "AttachFilesCommand": {
       "title": "AttachFilesCommand",
@@ -6544,6 +7321,24 @@
           "$ref": "#/$defs/FileDocumentErrorEvent"
         },
         {
+          "$ref": "#/$defs/ArtifactCatalogEvent"
+        },
+        {
+          "$ref": "#/$defs/ArtifactRegisteredEvent"
+        },
+        {
+          "$ref": "#/$defs/ArtifactDocumentEvent"
+        },
+        {
+          "$ref": "#/$defs/ArtifactContextEvent"
+        },
+        {
+          "$ref": "#/$defs/ArtifactSnapshotResultEvent"
+        },
+        {
+          "$ref": "#/$defs/ArtifactErrorEvent"
+        },
+        {
           "$ref": "#/$defs/ContentDocumentEvent"
         },
         {
@@ -6700,6 +7495,9 @@
         },
         {
           "$ref": "#/$defs/FileDocumentRequest"
+        },
+        {
+          "$ref": "#/$defs/ArtifactRequest"
         },
         {
           "$ref": "#/$defs/LocalWorkerRequest"
@@ -7241,6 +8039,16 @@
           "minimum": 200,
           "maximum": 480,
           "default": 260
+        },
+        "artifact_pane_width": {
+          "type": "integer",
+          "minimum": 280,
+          "maximum": 1200,
+          "default": 400
+        },
+        "artifact_view": {
+          "$ref": "#/$defs/ArtifactView",
+          "default": "icons"
         }
       },
       "additionalProperties": false
@@ -7302,6 +8110,35 @@
         "action",
         "method",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "ListArtifacts": {
+      "title": "ListArtifacts",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "list"
+        },
+        "method": {
+          "type": "string",
+          "const": "artifacts"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "request_id",
+        "thread_id"
       ],
       "additionalProperties": false
     },
@@ -9441,6 +10278,52 @@
       ],
       "additionalProperties": false
     },
+    "ReadArtifact": {
+      "title": "ReadArtifact",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "read"
+        },
+        "method": {
+          "type": "string",
+          "const": "artifacts"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minimum": 1
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "request_id",
+        "thread_id",
+        "artifact_id"
+      ],
+      "additionalProperties": false
+    },
     "ReaderLocation": {
       "title": "ReaderLocation",
       "type": "object",
@@ -9645,6 +10528,172 @@
         "kind",
         "version",
         "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "RegisterFileArtifact": {
+      "title": "RegisterFileArtifact",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "register_file"
+        },
+        "method": {
+          "type": "string",
+          "const": "artifacts"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "artifact_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "source_message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "source_tool_call_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "request_id",
+        "thread_id",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "RegisterTextArtifact": {
+      "title": "RegisterTextArtifact",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "register_text"
+        },
+        "method": {
+          "type": "string",
+          "const": "artifacts"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "artifact_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "source_message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "source_tool_call_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "text": {
+          "type": "string"
+        },
+        "format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentFormat"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "request_id",
+        "thread_id",
+        "title",
         "text"
       ],
       "additionalProperties": false
@@ -10282,6 +11331,44 @@
       ],
       "additionalProperties": false
     },
+    "ResolveArtifactSnapshot": {
+      "title": "ResolveArtifactSnapshot",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "resolve_snapshot"
+        },
+        "method": {
+          "type": "string",
+          "const": "artifacts"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "request_id",
+        "thread_id",
+        "artifact_id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
     "ResolveContextCommand": {
       "title": "ResolveContextCommand",
       "type": "object",
@@ -10331,6 +11418,34 @@
         "source"
       ],
       "additionalProperties": false
+    },
+    "ResolveStaticApp": {
+      "title": "ResolveStaticApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "resolve_static"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Static UI access without dependency preparation or backend startup."
     },
     "RoadmapItem": {
       "title": "RoadmapItem",
@@ -10676,6 +11791,95 @@
         "action",
         "request_id",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "SessionArtifact": {
+      "title": "SessionArtifact",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionArtifactVersion"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "id",
+        "thread_id",
+        "title",
+        "versions"
+      ],
+      "additionalProperties": false
+    },
+    "SessionArtifactVersion": {
+      "title": "SessionArtifactVersion",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10485760
+        },
+        "format": {
+          "$ref": "#/$defs/ContentFormat"
+        },
+        "media": {
+          "$ref": "#/$defs/ArtifactMedia"
+        },
+        "filename": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "source": {
+          "$ref": "#/$defs/ArtifactSource"
+        },
+        "source_message_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "source_tool_call_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "created_at": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "version",
+        "sha256",
+        "bytes",
+        "format",
+        "source",
+        "created_at"
       ],
       "additionalProperties": false
     },

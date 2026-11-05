@@ -34,6 +34,15 @@ pub struct ProjectBinding {
     pub project_id: String,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactView {
+    #[default]
+    Icons,
+    List,
+    Gallery,
+}
+
 /// Persistent layout choices, independent of the current viewport's available space.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
@@ -46,6 +55,12 @@ pub struct LayoutPreferences {
         deserialize_with = "LayoutPreferences::deserialize_sidebar_width"
     )]
     sidebar_width: u16,
+    #[serde(
+        default = "LayoutPreferences::default_artifact_pane_width",
+        deserialize_with = "LayoutPreferences::deserialize_artifact_pane_width"
+    )]
+    artifact_pane_width: u16,
+    pub artifact_view: ArtifactView,
 }
 
 impl Default for LayoutPreferences {
@@ -54,6 +69,8 @@ impl Default for LayoutPreferences {
             chat_width: 420,
             chat_open: false,
             sidebar_width: Self::DEFAULT_SIDEBAR_WIDTH,
+            artifact_pane_width: Self::DEFAULT_ARTIFACT_PANE_WIDTH,
+            artifact_view: ArtifactView::Icons,
         }
     }
 }
@@ -64,6 +81,9 @@ impl LayoutPreferences {
     pub const MIN_SIDEBAR_WIDTH: u16 = 200;
     pub const MAX_SIDEBAR_WIDTH: u16 = 480;
     const DEFAULT_SIDEBAR_WIDTH: u16 = 260;
+    const MIN_ARTIFACT_PANE_WIDTH: u16 = 280;
+    const MAX_ARTIFACT_PANE_WIDTH: u16 = 1200;
+    const DEFAULT_ARTIFACT_PANE_WIDTH: u16 = 400;
 
     pub fn chat_width(&self) -> f32 {
         self.chat_width.into()
@@ -112,6 +132,33 @@ impl LayoutPreferences {
         if !(Self::MIN_SIDEBAR_WIDTH..=Self::MAX_SIDEBAR_WIDTH).contains(&width) {
             return Err(serde::de::Error::custom(
                 "Sidebar width must be between 200 and 480",
+            ));
+        }
+        Ok(width)
+    }
+
+    pub fn artifact_pane_width(&self) -> f32 {
+        self.artifact_pane_width.into()
+    }
+
+    pub fn resize_artifact_pane(&mut self, width: f32) {
+        self.artifact_pane_width = width
+            .round()
+            .max(Self::MIN_ARTIFACT_PANE_WIDTH.into())
+            .min(Self::MAX_ARTIFACT_PANE_WIDTH.into()) as u16;
+    }
+
+    fn default_artifact_pane_width() -> u16 {
+        Self::DEFAULT_ARTIFACT_PANE_WIDTH
+    }
+
+    fn deserialize_artifact_pane_width<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<u16, D::Error> {
+        let width = u16::deserialize(deserializer)?;
+        if !(Self::MIN_ARTIFACT_PANE_WIDTH..=Self::MAX_ARTIFACT_PANE_WIDTH).contains(&width) {
+            return Err(serde::de::Error::custom(
+                "Artifact pane width must be between 280 and 1200",
             ));
         }
         Ok(width)
@@ -282,6 +329,32 @@ mod layout_tests {
         for (requested, expected) in [(200., 320.), (400.7, 401.), (800., 640.)] {
             layout.resize_chat(requested);
             assert_eq!(layout.chat_width(), expected);
+        }
+        for (input, expected) in [
+            (serde_json::json!({}), Some(400.)),
+            (serde_json::json!({"artifact_pane_width":640}), Some(640.)),
+            (serde_json::json!({"artifact_pane_width":279}), None),
+            (serde_json::json!({"artifact_pane_width":1201}), None),
+        ] {
+            assert_eq!(
+                serde_json::from_value::<LayoutPreferences>(input)
+                    .ok()
+                    .map(|layout| layout.artifact_pane_width()),
+                expected
+            );
+        }
+        for (requested, expected) in [(100., 280.), (640.4, 640.), (1600., 1200.)] {
+            layout.resize_artifact_pane(requested);
+            assert_eq!(layout.artifact_pane_width(), expected);
+        }
+        for (input, expected) in [
+            (serde_json::json!({}), Some(ArtifactView::Icons)),
+            (serde_json::json!({"artifact_view":"icons"}), Some(ArtifactView::Icons)),
+            (serde_json::json!({"artifact_view":"list"}), Some(ArtifactView::List)),
+            (serde_json::json!({"artifact_view":"gallery"}), Some(ArtifactView::Gallery)),
+            (serde_json::json!({"artifact_view":"unknown"}), None),
+        ] {
+            assert_eq!(serde_json::from_value::<LayoutPreferences>(input).ok().map(|layout| layout.artifact_view), expected);
         }
     }
 

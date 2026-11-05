@@ -12,6 +12,7 @@ export type HostInput =
   | McpSourceRequest
   | WorkspaceSessionRequest
   | FileDocumentRequest
+  | ArtifactRequest
   | LocalWorkerRequest
   | EchoRequest
   | SetLocaleRequest
@@ -70,7 +71,16 @@ export type FileDocumentRequest =
   | SaveDraftFileDocument
   | SaveAsReferenceFileDocument
   | ReleaseFileDocument;
+export type ArtifactRequest =
+  | ListArtifacts
+  | RegisterTextArtifact
+  | RegisterFileArtifact
+  | ReadArtifact
+  | ResolveArtifactSnapshot
+  | ArtifactContextRequest;
+export type ThreadId = string;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
+export type ArtifactView = "icons" | "list" | "gallery";
 export type HostCommand =
   | ListAgentsCommand
   | WorkspaceCommand
@@ -90,7 +100,6 @@ export type HostCommand =
   | InsightsCommand;
 export type ContextKind =
   "file" | "directory" | "symbol" | "thread" | "skill" | "image" | "selection" | "branch_diff" | "fetch" | "app_object";
-export type ThreadId = string;
 export type ContextContent = TextContextContent | ImageContextContent;
 export type AppRequest =
   | LocalEnvironmentApp
@@ -109,6 +118,7 @@ export type AppRequest =
   | DisableApp
   | UninstallApp
   | ResolveApp
+  | ResolveStaticApp
   | ProjectResourcesApp
   | AgentApp
   | ConnectorsApp
@@ -166,6 +176,12 @@ export type HostEvent =
   | DocumentChooseEvent
   | FileDocumentEvent
   | FileDocumentErrorEvent
+  | ArtifactCatalogEvent
+  | ArtifactRegisteredEvent
+  | ArtifactDocumentEvent
+  | ArtifactContextEvent
+  | ArtifactSnapshotResultEvent
+  | ArtifactErrorEvent
   | ContentDocumentEvent
   | LocalWorkerStateEvent
   | ContributorStateEvent
@@ -212,6 +228,10 @@ export type HostEvent =
   | InsightsEvent;
 export type TerminalData = TerminalOpened | TerminalOutput | TerminalExited | TerminalError;
 export type WebLoad = WebLoading | WebReady | WebFailed;
+export type ArtifactMedia = ArtifactDocumentMedia | ArtifactSimpleMedia | ArtifactImageMedia;
+export type ArtifactImageType = "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/svg+xml";
+export type ArtifactSource = ArtifactTextSource | ArtifactFileSource;
+export type ArtifactSnapshotResult = ArtifactSnapshotSuccess | ArtifactSnapshotFailure;
 /**
  * Catalog key resolved by the UI from locales/*.json.
  */
@@ -786,6 +806,59 @@ export interface ReleaseFileDocument {
   action: "release";
   source: string;
 }
+export interface ListArtifacts {
+  action: "list";
+  method: "artifacts";
+  request_id: string;
+  thread_id: ThreadId;
+}
+export interface RegisterTextArtifact {
+  action: "register_text";
+  method: "artifacts";
+  request_id: string;
+  thread_id: ThreadId;
+  artifact_id?: string | null;
+  source_message_id?: string | null;
+  source_tool_call_id?: string | null;
+  title: string;
+  text: string;
+  format?: ContentFormat | null;
+}
+export interface RegisterFileArtifact {
+  action: "register_file";
+  method: "artifacts";
+  request_id: string;
+  thread_id: ThreadId;
+  artifact_id?: string | null;
+  source_message_id?: string | null;
+  source_tool_call_id?: string | null;
+  title?: string | null;
+  path: string;
+}
+export interface ReadArtifact {
+  action: "read";
+  method: "artifacts";
+  request_id: string;
+  thread_id: ThreadId;
+  artifact_id: string;
+  version?: number | null;
+}
+export interface ResolveArtifactSnapshot {
+  action: "resolve_snapshot";
+  method: "artifacts";
+  request_id: string;
+  thread_id: ThreadId;
+  artifact_id: string;
+  version: number;
+}
+export interface ArtifactContextRequest {
+  action: "context";
+  method: "artifacts";
+  request_id: string;
+  thread_id: ThreadId;
+  artifact_id: string;
+  version: number;
+}
 export interface LocalWorkerStartCommand {
   action: "local_worker_start";
   request_id: string;
@@ -886,6 +959,8 @@ export interface LayoutPreferences {
   chat_width?: number;
   chat_open?: boolean;
   sidebar_width?: number;
+  artifact_pane_width?: number;
+  artifact_view?: ArtifactView;
 }
 export interface ListAgentsCommand {
   action: "list_agents";
@@ -1165,6 +1240,15 @@ export interface UninstallApp {
 }
 export interface ResolveApp {
   action: "resolve";
+  name: AppName;
+  method: "apps";
+  id: RequestId;
+}
+/**
+ * Static UI access without dependency preparation or backend startup.
+ */
+export interface ResolveStaticApp {
+  action: "resolve_static";
   name: AppName;
   method: "apps";
   id: RequestId;
@@ -1604,6 +1688,125 @@ export interface FileDocumentErrorEvent {
   data: {
     source: string;
     reason: "conflict" | "unsupported" | "unavailable" | "read_write";
+  };
+}
+export interface ArtifactCatalogEvent {
+  kind: "artifact_catalog";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    artifacts: SessionArtifact[];
+  };
+}
+export interface SessionArtifact {
+  id: string;
+  thread_id: ThreadId;
+  title: string;
+  /**
+   * @minItems 1
+   */
+  versions: [SessionArtifactVersion, ...SessionArtifactVersion[]];
+}
+export interface SessionArtifactVersion {
+  version: number;
+  sha256: string;
+  bytes: number;
+  format: ContentFormat;
+  media?: ArtifactMedia;
+  filename?: string;
+  source: ArtifactSource;
+  source_message_id?: string;
+  source_tool_call_id?: string;
+  created_at: number;
+}
+export interface ArtifactDocumentMedia {
+  kind: "document";
+  format: ContentFormat;
+}
+export interface ArtifactSimpleMedia {
+  kind: "csv" | "tsv" | "pdf" | "html" | "notebook";
+}
+export interface ArtifactImageMedia {
+  kind: "image";
+  mime_type: ArtifactImageType;
+}
+export interface ArtifactTextSource {
+  kind: "text";
+}
+export interface ArtifactFileSource {
+  kind: "file";
+  path: string;
+}
+export interface ArtifactRegisteredEvent {
+  kind: "artifact_registered";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    artifact: SessionArtifact;
+  };
+}
+export interface ArtifactDocumentEvent {
+  kind: "artifact_document";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: DocumentHeader;
+}
+export interface ArtifactContextEvent {
+  kind: "artifact_context";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: ContextReference;
+}
+/**
+ * Main/Native-only descriptor response. Shells consume it before forwarding public events.
+ */
+export interface ArtifactSnapshotResultEvent {
+  kind: "artifact_snapshot_result";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id?: string;
+  data: ArtifactSnapshotResult;
+}
+export interface ArtifactSnapshotSuccess {
+  ok: true;
+  value: ArtifactSnapshot;
+}
+/**
+ * Shell-private verified snapshot. The local path never enters the App or Wasm event stream.
+ */
+export interface ArtifactSnapshot {
+  thread_id: ThreadId;
+  artifact_id: string;
+  version: number;
+  filename: string;
+  media: ArtifactMedia;
+  sha256: string;
+  bytes: number;
+  path: string;
+}
+export interface ArtifactSnapshotFailure {
+  ok: false;
+  error: string;
+}
+export interface ArtifactErrorEvent {
+  kind: "artifact_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id?: string;
+  data: {
+    thread_id: string | null;
+    artifact_id: string | null;
+    reason: "invalid" | "integrity" | "unavailable" | "unsupported" | "outside_workspace" | "read_write";
   };
 }
 /**

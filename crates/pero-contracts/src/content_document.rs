@@ -25,6 +25,26 @@ pub enum ContentFormat {
     Text,
     Markdown,
 }
+impl ContentFormat {
+    /// File readers and saved deliveries use the same format for a filename extension.
+    pub fn from_extension(extension: &str) -> Self {
+        let extension = extension.to_ascii_lowercase();
+        match extension.as_str() {
+            "md" | "markdown" => Self::Markdown,
+            "json" => Self::Json,
+            "jsonl" | "ndjson" => Self::JsonLines,
+            "rs" => Self::Code("rust".into()),
+            "py" => Self::Code("python".into()),
+            "go" => Self::Code("go".into()),
+            "js" | "mjs" | "cjs" => Self::Code("javascript".into()),
+            "ts" => Self::Code("typescript".into()),
+            "yaml" | "yml" => Self::Code("yaml".into()),
+            "tsx" | "jsx" | "html" | "css" | "sql" | "sh" | "toml" | "xml" | "c" | "cpp"
+            | "java" | "r" => Self::Code(extension),
+            _ => Self::Text,
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
