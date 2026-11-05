@@ -9,6 +9,7 @@ go_library(
         "delivery.go",
         "journal.go",
         "prompt.go",
+        "validation_progress.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/engineeringprofile",
     visibility = ["//visibility:public"],
@@ -20,6 +21,7 @@ go_library(
         "//session",
         "//shell",
         "//tasks",
+        "//tool",
     ],
 )
 
@@ -32,12 +34,14 @@ go_test(
         "delivery_test.go",
         "native_check_test.go",
         "recovery_test.go",
+        "validation_progress_test.go",
     ],
     embed = [":engineeringprofile"],
     deps = [
         "//harness",
         "//runtime",
         "//tasks",
+        "//tool",
     ] + select({
         "@rules_go//go/platform:android": [
             "//nativetools",

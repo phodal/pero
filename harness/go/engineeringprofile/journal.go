@@ -6,6 +6,7 @@ import (
 
 	"github.com/phodal/pero/harness/go/harness"
 	harnesssession "github.com/phodal/pero/harness/go/session"
+	"github.com/phodal/pero/harness/go/tool"
 )
 
 const (
@@ -41,6 +42,7 @@ type proof struct {
 	ExitCode     *int               `json:"exitCode,omitempty"`
 	Status       CheckStatus        `json:"status"`
 	Reason       string             `json:"reason,omitempty"`
+	Diagnostic   *tool.Diagnostic   `json:"diagnostic,omitempty"`
 }
 
 type attempt struct {

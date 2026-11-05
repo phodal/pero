@@ -106,10 +106,13 @@ func Mount(ctx context.Context, h *harness.Harness, options Options) (*App, erro
 		}
 		if _, err = hooks.PreStep.Use(run, func(ctx context.Context, input harness.StepInput, next point.Next[harness.StepInput]) (harness.StepInput, error) {
 			input, err := next(input)
-			if err != nil || input.Reject || !input.Continue || a.mode != Feedback || input.Step%32 != 0 || !a.accepts(input.Agent) {
+			if err != nil || input.Reject || !input.Continue || a.mode != Feedback || !a.accepts(input.Agent) {
 				return input, err
 			}
-			message, err := a.progressReview(ctx, input.Agent, input.Turn, input.Step)
+			message, err := a.validationReview(ctx, input.Agent, input.Turn, input.Step)
+			if err == nil && message == nil && input.Step%32 == 0 {
+				message, err = a.progressReview(ctx, input.Agent, input.Turn, input.Step)
+			}
 			if message != nil {
 				input.Messages = append(input.Messages, *message)
 			}

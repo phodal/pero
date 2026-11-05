@@ -12,6 +12,7 @@ import (
 	"github.com/phodal/pero/harness/go/nativetools"
 	point "github.com/phodal/pero/harness/go/runtime"
 	"github.com/phodal/pero/harness/go/shell"
+	"github.com/phodal/pero/harness/go/tool"
 )
 
 type checkExecutionKey struct{}
@@ -124,6 +125,8 @@ func (a *App) executeCheck(ctx context.Context, request harness.ToolRequest) (ha
 	default:
 		p.Status = Passed
 	}
+	diagnostic := tool.ObserveDiagnostic(selected.Tool, args, outcome.Result.Content, outcome.Result.IsError || runErr != nil)
+	p.Diagnostic = &diagnostic
 	if _, err = request.Agent.Session().Append(evidenceEvent, p); err != nil {
 		return harness.ToolResult{}, err
 	}
