@@ -26,6 +26,12 @@ pub mod stream;
 pub mod inline_images;
 pub mod image_references;
 pub mod artifact_read;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod session_artifacts;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod artifact_panel;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod artifact_surface;
 #[cfg(target_family = "wasm")]
 pub mod web_platform;
 #[cfg(any(target_family = "wasm", feature = "native"))]

@@ -11,11 +11,11 @@ use gpui_kit::{
 use pero_contracts::HostEvent;
 use serde_json::json;
 
-enum RenderItem {
+pub(crate) enum RenderItem {
     Message(usize),
     Tools(Vec<usize>),
 }
-fn render_items(chat: &Conversation) -> Vec<RenderItem> {
+pub(crate) fn render_items(chat: &Conversation) -> Vec<RenderItem> {
     let mut rows = Vec::new();
     for item in &chat.timeline {
         match *item {
@@ -116,7 +116,8 @@ impl ChatPanel {
         self.active_chat = index;
         let thread_id = index.and_then(|i| self.chats.get(i)).map(|c| c.id.clone());
         if previous != thread_id {
-            cx.emit(crate::ChatAction::Selected { thread_id });
+            cx.emit(crate::ChatAction::Selected { thread_id: thread_id.clone() });
+            if let Some(thread) = thread_id { self.refresh_artifacts(&thread, cx); }
         }
         self.prepare_chat(cx);
         self.sync_follow(cx);
@@ -362,6 +363,7 @@ impl ChatPanel {
                 text,
                 contexts,
                 replace: false,
+                surface_request: None,
             });
         }
     }
@@ -812,15 +814,21 @@ impl ChatPanel {
                             }
                             let user = message.role == "user";
                             Some(div().id(("message",i)).mb(px(pero_theme::SPACE_12)).flex().flex_col().gap(px(pero_theme::SPACE_8))
+                                .anchor_scroll(self.artifacts.anchors.get(&format!("{}/message:{index}",conversation.id)).cloned())
                                 .child(div().when(user, |el| el.w_full().px(px(pero_theme::SPACE_12)).py(px(pero_theme::SPACE_8)).bg(p.surface).border_1().border_color(p.border).rounded(px(pero_theme::RADIUS_PANEL))).child(message.view.clone()))
                                 .when(!message.attached_files.is_empty(),|el|el.child(div().flex().flex_wrap().gap(px(8.)).text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted)
                                     .children(message.attached_files.iter().map(|name|div().flex().items_center().gap(px(4.)).child(self.icon("file").size(px(13.))).child(name.clone())))))
+                                .when(!user && !message.text.trim().is_empty(), |el| {
+                                    let thread=conversation.id.clone();
+                                    el.child(Button::new(("save-reply-artifact",index)).relative().children(self.artifacts.bounds.get(&format!("{}/save-reply:{index}",conversation.id)).map(|bounds|bounds.probe())).ghost().small().self_end().text_color(p.text_muted).label(self.t("artifacts.save_reply"))
+                                        .on_click(cx.listener(move |this,_,_,cx|this.save_reply_artifact(&thread,index,cx))))
+                                })
                                 .into_any_element())
                         },
                         RenderItem::Tools(indices)=>{
                             let tools=indices.iter().filter_map(|index|conversation.tools.get(*index)).collect::<Vec<_>>();
                             if tools.is_empty() { return None; }
-                            Some(self.tool_group(&conversation.id, tools, i, cx))
+                            Some(div().id(("tool-source-anchor",i)).anchor_scroll(self.artifacts.anchors.get(&format!("{}/tool:{}",conversation.id,tools[0].id)).cloned()).child(self.tool_group(&conversation.id, tools, i, cx)).into_any_element())
                         }
 
                     }
