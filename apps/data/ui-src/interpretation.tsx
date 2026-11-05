@@ -29,6 +29,7 @@ export function InterpretationPreview({ field, numeric, datasetId, assetId, pars
     <h3>{numeric ? 'Preview decimal number' : 'Preview original text'}: {field}</h3>
     <p className="data-note">Full input. Original bytes and displayed text stay unchanged, including leading zeros. {numeric ? 'Signed decimals and exponents are accepted; currency, separators and empty strings fail conversion. Failed values never become zero.' : 'Numeric filtering and aggregation will require number interpretation again.'}</p>
     {view.issue?.kind === 'conversion' && !applied.issue ? <p className="data-note">Applying this change clears the conversion issue condition because its number interpretation is being removed.</p> : null}
+    {view.filter && !applied.filter ? <p className="data-note">Applying this change clears the numeric filter on {field} because its number interpretation is being removed.</p> : null}
     {loadedIdentity !== identity ? <p role="status">Checking interpretation…</p> : null}
     {error || (current && current.status !== 'ok') ? <Feedback kind="error">{error || (current && current.status !== 'ok' ? current.message : '')}<Button onClick={() => setAttempt(value => value + 1)}>Retry preview</Button></Feedback> : null}
     {current?.status === 'ok' ? <>

@@ -157,6 +157,21 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
     checks.push('preview and Cancel leave analysis unchanged; explicit Apply filters and sorts exact numbers while IDs retain leading zeros');
 
     await tab('Fields');
+    const measureField = page.getByRole('row').filter({ has: page.getByRole('checkbox', { name: 'Show measure', exact: true }) });
+    await measureField.getByRole('button', { name: 'Revert to text', exact: true }).click();
+    await expect(preview.getByText('Applying this change clears the numeric filter', { exact: false })).toBeVisible();
+    await expect(preview.getByRole('button', { name: 'Apply type', exact: true })).toBeEnabled();
+    await preview.getByRole('button', { name: 'Apply type', exact: true }).click();
+    await tab('Table');
+    await expect(rows()).toHaveCount(7);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Clear filter', exact: true })).toHaveCount(0);
+    await tab('History');
+    await page.getByRole('button', { name: 'Numeric baseline', exact: true }).click();
+    await expect.poll(rowNumbers).toEqual(['2', '1', '6']);
+    checks.push('reverting an interpreted field warns before clearing its incompatible numeric filter and keeps the table usable');
+
+    await tab('Fields');
     await expect(page.getByText('Full input / 7 records, independent of the table filter.', { exact: false })).toBeVisible();
     await tab('Checks');
     await expect(page.getByText('Full input / 7 records', { exact: true })).toBeVisible();

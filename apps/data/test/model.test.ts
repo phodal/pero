@@ -64,6 +64,12 @@ test('reverting a number removes only conversion issues that lose their interpre
   assert.deepEqual(applyInterpretation(missing, 'amount', false).issue, missing.issue);
   assert.deepEqual(view.interpretations, { amount: 'number', id: 'number' });
   assert.deepEqual(applyInterpretation(reverted, 'amount', true).interpretations, { id: 'number', amount: 'number' });
+  for (const operator of ['gte', 'lte', 'contains', 'eq']) {
+    const filtered = { ...view, filter: { field: 'amount', operator, value: '10' } };
+    assert.deepEqual(applyInterpretation(filtered, 'amount', false).filter,
+      ['gte', 'lte'].includes(operator) ? null : filtered.filter);
+    assert.deepEqual(filtered.filter, { field: 'amount', operator, value: '10' });
+  }
 });
 
 test('semantic samples omit absent optional values and pass the SDK JSON boundary', async () => {

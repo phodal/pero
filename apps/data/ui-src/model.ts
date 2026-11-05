@@ -96,14 +96,16 @@ export function encodeBytes(buffer: ArrayBuffer): string {
   return btoa(encoded);
 }
 
-/** Applying a type preserves analysis, except issue predicates whose type no longer exists. */
+/** Applying a type removes only predicates that lose their numeric interpretation. */
 export function applyInterpretation(view: ViewSpec, field: string, numeric: boolean): ViewSpec {
   const interpretations = { ...view.interpretations };
   if (numeric) interpretations[field] = 'number';
   else delete interpretations[field];
   const issue = !numeric && view.issue?.kind === 'conversion' &&
     (view.issue.field === field || !Object.keys(interpretations).length) ? null : view.issue ?? null;
-  return { ...view, interpretations, issue };
+  const filter = !numeric && view.filter?.field === field && ['gte', 'lte'].includes(view.filter.operator)
+    ? null : view.filter;
+  return { ...view, interpretations, issue, filter };
 }
 
 /** A type preview reads the full input without changing the active analysis. */
