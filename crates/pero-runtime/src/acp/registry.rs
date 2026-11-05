@@ -7,6 +7,9 @@ use std::{
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
+    /// App-declared dependencies; registry JSON cannot grant or relax this policy.
+    #[serde(skip)]
+    pub required_mcp_servers: std::collections::BTreeSet<String>,
     /// Host-frozen App/plugin instructions; never read from the Agent registry.
     #[serde(skip)]
     pub session_instructions: String,
@@ -102,6 +105,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
     let mut agents = vec![
         AgentConfig {
             session_instructions: String::new(),
+            required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "pero".into(),
             name: "Pero (DeepSeek)".into(),
@@ -127,6 +131,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "codex".into(),
             name: "Codex".into(),
@@ -141,6 +146,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "claude".into(),
             name: "Claude".into(),
@@ -155,6 +161,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "copilot".into(),
             name: "GitHub Copilot".into(),
@@ -166,6 +173,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "grok".into(),
             name: "Grok".into(),
@@ -177,6 +185,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "qoder".into(),
             name: "Qoder".into(),
@@ -188,6 +197,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "opencode".into(),
             name: "OpenCode".into(),
@@ -373,6 +383,7 @@ mod tests {
     fn agent(args: &[&str], env: &[(&str, &str)]) -> AgentConfig {
         AgentConfig {
             session_instructions: String::new(),
+            required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "pero".into(),
             name: "Pero".into(),

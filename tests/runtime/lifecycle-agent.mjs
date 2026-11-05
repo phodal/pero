@@ -58,6 +58,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
       runtime(1, 'disconnected', []);
       runtime(3, 'connected', ['wrong-session'], {sessionId: 'old-session'});
       runtime(3, 'connected', ['wrong-revision'], {revision: 8});
+      if (scenario === 'runtime_required_failed') runtime(3, 'error', []);
     }
     const session = { sessionId: 'fixture-session' };
     if (scenario === 'dsh_wire') { reply(id, { ...session, configOptions: [] }); return; }

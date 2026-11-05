@@ -118,7 +118,8 @@ impl Workbench {
                     cx.notify();
                 });
             }
-            return true;
+            // The shared Chat also presents live tool failures and recovery.
+            return false;
         }
         if matches!(event.kind.as_str(), "error" | "disconnected") {
             if let Some(panel) = &self.settings_panel {
