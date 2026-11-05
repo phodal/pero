@@ -19,7 +19,7 @@ try{
   await expect(app.getByLabel('Timezone',{exact:true})).toHaveValue('Local');await app.getByRole('button',{name:'Close',exact:true}).click();
   await app.getByRole('button',{name:'New automation',exact:true}).click();await app.getByLabel('Name',{exact:true}).fill('Fixture review');
   await app.getByLabel('Name',{exact:true}).press('Enter');await expect(app.getByRole('region',{name:'Automation editor'})).toBeVisible();
-  await app.getByLabel('Instructions',{exact:true}).fill('Inspect local evidence only.');await app.getByLabel('Schedule',{exact:true}).selectOption('weekly');
+  await app.getByLabel('Instructions',{exact:true}).fill('Inspect local evidence only.');await app.getByRole('button',{name:'Schedule',exact:true}).click();await app.getByRole('option',{name:'Weekly',exact:true}).click();
   await app.getByLabel('Enable after saving').check();await app.getByRole('button',{name:'Save automation',exact:true}).click();
   await expect(app.getByRole('button',{name:'Fixture review',exact:true})).toBeVisible();await app.getByRole('button',{name:'Edit',exact:true}).click();
   await app.getByLabel('Name',{exact:true}).fill('Edited review');await app.getByLabel('Name',{exact:true}).press('Control+Enter');
