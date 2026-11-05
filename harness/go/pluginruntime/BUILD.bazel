@@ -14,6 +14,7 @@ go_library(
         "hooks_env.go",
         "hooks_expansion.go",
         "hooks_files.go",
+        "hooks_instructions.go",
         "hooks_lifecycle.go",
         "hooks_mcp.go",
         "hooks_model.go",
@@ -35,6 +36,7 @@ go_library(
     importpath = "github.com/phodal/pero/harness/go/pluginruntime",
     visibility = ["//visibility:public"],
     deps = [
+        "//agentinstructions",
         "//claudehooks",
         "//fstools",
         "//harness",
@@ -65,6 +67,7 @@ go_test(
         "hooks_elicit_test.go",
         "hooks_env_test.go",
         "hooks_files_test.go",
+        "hooks_instructions_test.go",
         "hooks_http_test.go",
         "hooks_initial_test.go",
         "hooks_mcp_test.go",
@@ -93,6 +96,7 @@ go_test(
     ],
     embed = [":pluginruntime"],
     deps = [
+        "//agentinstructions",
         "//harness",
         "//plugins",
         "@com_github_modelcontextprotocol_go_sdk//jsonrpc",
