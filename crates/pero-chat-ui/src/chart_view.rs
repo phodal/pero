@@ -46,11 +46,19 @@ impl ChartView {
         }
         Ok(Self {data_bounds:Default::default(),source_bounds:Default::default(),artifact_id:receipt.artifact_id,title,document,geometry,content:receipt.content,source:receipt.source_document})
     }
-    fn document(&self, thread:&str, source:bool) -> ContentDocument {
+    pub(crate) fn document(&self, thread:&str, source:bool) -> ContentDocument {
         let (title,text,format)=if let Some(source)=self.source.as_ref().filter(|_|source) {
             (source.title.clone(),source.text.clone(),if source.format=="json_lines" {ContentFormat::JsonLines} else {ContentFormat::Json})
         } else {(format!("{}.json",self.title),self.content.clone(),ContentFormat::Json)};
         ContentDocument::new(DocumentSource{id:format!("chart/{}/{source}",self.artifact_id),title,origin:ContentOrigin::Conversation{thread_id:thread.into()}},1,text,format)
+    }
+    pub(crate) fn artifact_preview(&self, cx:&App) -> AnyElement {
+        let palette=&pero_theme::UiAppearance::global(cx).palette;
+        div().w_full().flex().flex_col().px(px(8.))
+            .child(div().w_full().h(px(240.)).child(self.geometry.render(cx)))
+            .child(div().text_sm().text_color(palette.text_muted).child(self.document["source"]["label"].as_str().unwrap_or_default().to_owned()))
+            .children(self.document["source"]["caveats"].as_array().into_iter().flatten().filter_map(Value::as_str).map(|text|div().text_sm().text_color(palette.text_muted).child(text.to_owned())))
+            .into_any_element()
     }
 }
 impl ChatPanel {
