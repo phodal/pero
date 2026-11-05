@@ -55,6 +55,8 @@ pub struct LayoutPreferences {
         deserialize_with = "LayoutPreferences::deserialize_sidebar_width"
     )]
     sidebar_width: u16,
+    #[serde(deserialize_with = "LayoutPreferences::deserialize_sessions_width")]
+    sessions_width: u16,
     #[serde(
         default = "LayoutPreferences::default_artifact_pane_width",
         deserialize_with = "LayoutPreferences::deserialize_artifact_pane_width"
@@ -66,6 +68,7 @@ pub struct LayoutPreferences {
 impl Default for LayoutPreferences {
     fn default() -> Self {
         Self {
+            sessions_width: 280,
             chat_width: 420,
             chat_open: false,
             sidebar_width: Self::DEFAULT_SIDEBAR_WIDTH,
@@ -133,6 +136,35 @@ impl LayoutPreferences {
             return Err(serde::de::Error::custom(
                 "Sidebar width must be between 200 and 480",
             ));
+        }
+        Ok(width)
+    }
+
+    pub const MIN_SESSIONS_WIDTH: u16 = 200;
+    pub const MAX_SESSIONS_WIDTH: u16 = 480;
+    pub const DEFAULT_SESSIONS_WIDTH: u16 = 280;
+
+    pub fn sessions_width(&self) -> f32 {
+        self.sessions_width.into()
+    }
+
+    pub fn resize_sessions(&mut self, width: f32) {
+        self.sessions_width = width.round().clamp(
+            Self::MIN_SESSIONS_WIDTH.into(), Self::MAX_SESSIONS_WIDTH.into(),
+        ) as u16;
+    }
+
+    /// Preserve at least 320px for the conversation; hide the list on narrow windows.
+    pub fn visible_sessions_width(&self, available: f32) -> Option<f32> {
+        (available >= 520.).then(|| self.sessions_width().min(available - 320.))
+    }
+
+    fn deserialize_sessions_width<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<u16, D::Error> {
+        let width = u16::deserialize(deserializer)?;
+        if !(Self::MIN_SESSIONS_WIDTH..=Self::MAX_SESSIONS_WIDTH).contains(&width) {
+            return Err(serde::de::Error::custom("Sessions width must be between 200 and 480"));
         }
         Ok(width)
     }
@@ -382,4 +414,25 @@ mod layout_tests {
         layout.resize_sidebar(360.4);
         assert_eq!(layout.sidebar_width(), 360.);
     }
+    #[test]
+    fn sessions_width_preserves_preferences_when_space_is_limited() {
+        let mut layout: LayoutPreferences = serde_json::from_str("{}").unwrap();
+        assert_eq!(layout.sessions_width(), 280.);
+        for (requested, saved, available, visible) in [
+            (100., 200., 900., Some(200.)),
+            (900., 480., 900., Some(480.)),
+            (360.4, 360., 600., Some(280.)),
+            (360., 360., 519., None),
+        ] {
+            layout.resize_sessions(requested);
+            assert_eq!(layout.visible_sessions_width(available), visible);
+            let restored: LayoutPreferences = serde_json::from_value(serde_json::to_value(layout).unwrap()).unwrap();
+            assert_eq!(restored.sessions_width(), saved);
+        }
+        for width in [199, 481] {
+            assert!(serde_json::from_value::<LayoutPreferences>(
+                serde_json::json!({"sessions_width": width})).is_err());
+        }
+    }
+
 }

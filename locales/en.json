@@ -733,6 +733,7 @@
   "workspace.close_other_tabs": "Close other tabs",
   "workspace.close_all_tabs": "Close all tabs",
   "workspace.resize_chat": "Resize chat. Use Left and Right arrow keys.",
+  "workspace.resize_sessions": "Resize session list. Use Left, Right, Home or End; double-click to reset.",
   "workspace.resize_sidebar": "Resize sidebar. Use Left and Right arrow keys.",
   "composer.app_object": "App objects",
   "composer.preview": "Preview",

@@ -195,6 +195,7 @@ model LayoutPreferences {
   chat_open?: boolean = false;
   @minValue(200) @maxValue(480) sidebar_width?: uint16 = 260;
   @minValue(280) @maxValue(1200) artifact_pane_width?: uint16 = 400;
+  @minValue(200) @maxValue(480) sessions_width?: uint16 = 280;
   artifact_view?: ArtifactView = "icons";
   ...Closed;
 }

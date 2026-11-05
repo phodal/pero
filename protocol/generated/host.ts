@@ -960,6 +960,7 @@ export interface LayoutPreferences {
   chat_open?: boolean;
   sidebar_width?: number;
   artifact_pane_width?: number;
+  sessions_width?: number;
   artifact_view?: ArtifactView;
 }
 export interface ListAgentsCommand {

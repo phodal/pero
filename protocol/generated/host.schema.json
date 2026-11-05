@@ -8046,6 +8046,12 @@
           "maximum": 1200,
           "default": 400
         },
+        "sessions_width": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 480,
+          "default": 280
+        },
         "artifact_view": {
           "$ref": "#/$defs/ArtifactView",
           "default": "icons"
