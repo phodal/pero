@@ -30,10 +30,13 @@
 .pa-library-papers .pa-library-table { grid-template-columns: minmax(0, 1fr) minmax(64px, max-content) max-content; column-gap: 12px; }
 .pa-library-papers .pa-library-head { min-height: 26px; margin-inline: 8px; padding-bottom: 6px; }
 .pa-library-papers .pa-library-head > span:nth-child(3) { display: inline; }
-.pa-library-papers .pa-library-list > li.pa-paper-row { column-gap: 12px; min-height: 60px; padding: 10px 8px; border-bottom: .5px solid var(--pero-border); border-radius: 5px; }
+/* The list must not be its own subgrid. Nested subgrid rows overlap, so the next
+   selected background covers the previous paper's authors. */
+.pa-library-papers .pa-library-list { display: contents; }
+.pa-library-papers .pa-library-list > li.pa-paper-row { align-items: center; column-gap: 12px; min-height: 60px; padding: 0 8px; border-bottom: .5px solid var(--pero-border); border-radius: 5px; }
 .pa-library-papers .pa-library-list > li[data-current=true] { background: var(--pa-selection); }
-.pa-library-papers .pa-paper-main { align-items: center; gap: 10px; }
-.pa-library-papers .pa-library-list .pero-list-open { min-width: 0; padding: 0; gap: 0; border: 0; background: none; text-align: start; color: var(--pero-text); font: inherit; cursor: pointer; }
+.pa-library-papers .pa-library-list > li.pa-paper-row > .pa-paper-main { align-self: stretch; align-items: center; gap: 10px; padding-block: 10px; }
+.pa-library-papers .pa-library-list .pero-list-open { display: block; height: auto; overflow: visible; min-width: 0; padding: 0; gap: 0; border: 0; background: none; text-align: start; color: var(--pero-text); font: inherit; cursor: pointer; }
 .pa-library-papers .pa-library-list .pero-list-title { font-size: 14px; font-weight: 550; line-height: 1.5; overflow-wrap: anywhere; }
 .pa-library-papers .pa-meta-line { display: block; margin-top: 5px; font-size: 12px; line-height: 1.5; }
 .pa-paper-source { color: var(--pero-text-muted); font-size: 12px; overflow-wrap: anywhere; }
@@ -74,7 +77,7 @@
   .pa-library-papers .pa-library-table { column-gap: 8px; grid-template-columns: minmax(0, 1fr) 64px max-content; }
   .pa-library-papers .pa-library-head { margin-inline: 4px; }
   .pa-library-papers .pa-library-list > li.pa-paper-row { padding-inline: 4px; column-gap: 8px; }
-  .pa-library-papers .pa-paper-main { gap: 6px; }
+  .pa-library-papers .pa-library-list > li.pa-paper-row > .pa-paper-main { gap: 6px; }
   .pa-library-papers .pa-library-list .pa-status .pero-ui-glyph { display: none; }
 }
 @media (forced-colors: active) {
