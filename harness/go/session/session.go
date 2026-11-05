@@ -43,6 +43,8 @@ type Session struct {
 	// persistenceAttachMu serializes ownership publication for this exact live identity.
 	persistenceAttachMu sync.Mutex
 	compactionMu        sync.Mutex
+	contextDecodeMu     sync.Mutex
+	contextMessages     map[uint64]Message
 	durabilityMu        sync.RWMutex
 	durability          *sessionDurabilityCheckpoint
 	mu                  sync.RWMutex
@@ -732,6 +734,7 @@ type RequestHeaderEvent struct {
 	Step            int                                     `json:"step"`
 	Provider        string                                  `json:"provider,omitempty"`
 	Model           string                                  `json:"model,omitempty"`
+	TransientModel  bool                                    `json:"transientModel,omitempty"`
 	ReasoningEffort ReasoningEffort                         `json:"reasoningEffort,omitempty"`
 	Temperature     *float64                                `json:"temperature,omitempty"`
 	MaxTokens       int                                     `json:"maxTokens,omitempty"`

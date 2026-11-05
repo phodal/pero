@@ -142,6 +142,7 @@ type Completion struct {
 }
 
 type ToolSchema struct {
+	Catalog      *CatalogText    `json:"-"`
 	DeferLoading bool            `json:"deferLoading,omitempty"`
 	Name         string          `json:"name"`
 	Description  string          `json:"description,omitempty"`

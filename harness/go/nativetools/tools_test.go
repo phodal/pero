@@ -79,6 +79,18 @@ func TestNativeToolApprovalAndWorkspaceBoundary(t *testing.T) {
 	if result.IsError || !strings.Contains(result.Content[0].Text, "needle") {
 		t.Fatalf("workspace read: %+v", result)
 	}
+	result = execute(denied, "regex_search", `{"pattern":"^NEED.*$","ignore_case":true,"glob":"*.txt","output_mode":"content"}`)
+	if result.IsError || !strings.Contains(result.Content[0].Text, "needle") {
+		t.Fatalf("regex search without shell: %+v", result)
+	}
+	result = execute(denied, "glob_files", `{"pattern":"**/*.txt","limit":1}`)
+	if result.IsError || !strings.Contains(result.Content[0].Text, "file.txt") {
+		t.Fatalf("glob without shell: %+v", result)
+	}
+	result = execute(denied, "regex_search", `{"pattern":"(?<=unsupported)lookbehind"}`)
+	if !result.IsError {
+		t.Fatal("unsupported regex silently accepted")
+	}
 	result = execute(allowed, "write_file", `{"path":"../outside","content":"bad"}`)
 	if !result.IsError {
 		t.Fatal("approval widened path authority")

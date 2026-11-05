@@ -70,8 +70,8 @@ func MountTool(ctx context.Context, h *harness.Harness, options ToolOptions) (*T
 		if err != nil {
 			return nil, err
 		}
-		_, err = prompts.Register(run, harness.PromptSection{ID: "subagent/guidance/" + options.ToolName, Order: 650, Content: func(_ context.Context, agent *harness.Agent) (string, error) {
-			if agent == nil {
+		_, err = prompts.Register(run, harness.PromptSection{ID: "subagent/guidance/" + options.ToolName, Order: 650, Guidance: func(_ context.Context, agent *harness.Agent, capabilities harness.PromptCapabilities) (string, error) {
+			if agent == nil || !capabilities.HasTool(options.ToolName) {
 				return "", nil
 			}
 			if depth := registry.Depth(agent); depth >= options.MaxDepth {
@@ -146,7 +146,7 @@ func awaitSubagentResult(ctx context.Context, run harness.SubagentActivation) (h
 		// Join that receipt; another Dispose may only report disposal pending.
 		cleanupErr := run.Wait(ctx)
 		content := []harness.ContentBlock{{Type: harness.BlockText, Text: fmt.Sprintf("Subagent %s finished with status %s.", run.ChildID, result.Status)}}
-		content = append(content, result.Output...)
+		content = append(content, result.ParentContent()...)
 		if result.Diagnostic != "" {
 			content = append(content, harness.ContentBlock{Type: harness.BlockText, Text: result.Diagnostic})
 		}

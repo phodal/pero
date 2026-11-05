@@ -81,6 +81,7 @@ type MCPTransport string
 const (
 	MCPStdio          MCPTransport = "stdio"
 	MCPStreamableHTTP MCPTransport = "streamable-http"
+	MCPSSE            MCPTransport = "sse"
 )
 
 func NormalizeServerName(name string) string {
@@ -137,6 +138,8 @@ func (e safeError) Error() string {
 		return "MCP request canceled"
 	case errors.Is(e.cause, context.DeadlineExceeded):
 		return "MCP request timed out"
+	case errors.Is(e.cause, ErrInstructionLimit):
+		return ErrInstructionLimit.Error()
 	default:
 		return "MCP operation failed (details withheld)"
 	}

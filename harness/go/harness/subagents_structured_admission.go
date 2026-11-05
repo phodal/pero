@@ -85,7 +85,7 @@ func (g *SubagentStructuredAdmission) BeginCapture() (func(), error) {
 		return nil, err
 	}
 	state := g.record.activation
-	if pending || g.initialPending || g.inputs != 0 || state.inputs != 0 || state.preparing != 0 || len(state.owned) != 0 || len(r.preparationReceipts[child]) != 0 {
+	if pending || g.initialPending || g.inputs != 0 || state.inputs != 0 || state.hasOwnedWorkLocked() || len(r.preparationReceipts[child]) != 0 {
 		return nil, ErrSubagentCannotComplete
 	}
 	g.captures++

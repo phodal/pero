@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "purpose": "Preserve quoted Bash output data in the selected review hook without bypassing its remaining policy.",
+  "files": [
+    {
+      "plugin": "P03",
+      "path": "hooks/pre-tool-write-guard.mjs",
+      "beforeSHA256": "5fe9a7ea8201ed5f6f81a5b891447506f4e440cffa7a08f9b6de2f1abe7bac3e",
+      "afterSHA256": "af62d33650b5154094ad7ccdd3e4987ded9cff267261b7c7ed41381507011247",
+      "actions": [
+        {
+          "kind": "quoted-echo-separator"
+        }
+      ]
+    }
+  ]
+}

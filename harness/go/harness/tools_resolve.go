@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 
+	harnessmodel "github.com/phodal/pero/harness/go/model"
 	harnesstool "github.com/phodal/pero/harness/go/tool"
 
 	point "github.com/phodal/pero/harness/go/runtime"
@@ -51,7 +52,7 @@ func (r *ToolRegistry) SchemasForAgent(ctx context.Context, agent *Agent) ([]Too
 		ctx = context.Background()
 	}
 	r.mu.RLock()
-	restrictions := visibleToolRestrictions(r.restrictions, agent.Scope())
+	restrictions := visibleToolRestrictions(r.restrictions, agent)
 	catalogs := make([]toolCatalogEntry, 0, len(r.catalogs))
 	for _, catalog := range r.catalogs {
 		if catalog.scope.Contains(agent.Scope()) {
@@ -231,7 +232,7 @@ func (r *ToolRegistry) resolveForAgent(ctx context.Context, agent *Agent, name s
 	}
 	r.mu.RLock()
 	entry, found := nearestToolEntry(r.entries[name], agent.Scope())
-	restrictions := visibleToolRestrictions(r.restrictions, agent.Scope())
+	restrictions := visibleToolRestrictions(r.restrictions, agent)
 	catalogs := make([]toolCatalogEntry, 0, len(r.catalogs))
 	for _, catalog := range r.catalogs {
 		if catalog.scope.Contains(agent.Scope()) {
@@ -301,6 +302,7 @@ func (r *ToolRegistry) resolveForAgent(ctx context.Context, agent *Agent, name s
 			return Tool{}, false, mergeErr
 		}
 		if replace {
+			candidate.catalogID = catalog.id
 			current = resolvedToolView{scope: catalog.scope, generation: catalog.generation, tool: candidate}
 			found = true
 		}
@@ -319,7 +321,7 @@ func (r *ToolRegistry) schemasForAgentBase(ctx context.Context, agent *Agent, ex
 		ctx = context.Background()
 	}
 	r.mu.RLock()
-	restrictions := visibleToolRestrictions(r.restrictions, agent.Scope())
+	restrictions := visibleToolRestrictions(r.restrictions, agent)
 	views := make(map[string]resolvedSchemaView, len(r.entries))
 	for name, entries := range r.entries {
 		entry, ok := nearestToolEntryExcluding(entries, agent.Scope(), excludedScope, excludedGeneration)
@@ -380,7 +382,7 @@ func (r *ToolRegistry) resolveForAgentBase(ctx context.Context, agent *Agent, na
 	}
 	r.mu.RLock()
 	entry, found := nearestToolEntryExcluding(r.entries[name], agent.Scope(), excludedScope, excludedGeneration)
-	restrictions := visibleToolRestrictions(r.restrictions, agent.Scope())
+	restrictions := visibleToolRestrictions(r.restrictions, agent)
 	catalogs := make([]toolCatalogEntry, 0, len(r.catalogs))
 	for _, catalog := range r.catalogs {
 		if catalog.provider.Authoritative || !catalog.scope.Contains(agent.Scope()) ||
@@ -419,6 +421,7 @@ func (r *ToolRegistry) resolveForAgentBase(ctx context.Context, agent *Agent, na
 			return Tool{}, false, mergeErr
 		}
 		if replace {
+			candidate.catalogID = catalog.id
 			current = resolvedToolView{scope: catalog.scope, generation: catalog.generation, tool: candidate}
 			found = true
 		}
@@ -452,6 +455,7 @@ func mergeToolView(name string, currentScope *point.Scope, currentGeneration str
 }
 
 func cloneToolSchema(schema ToolSchema) ToolSchema {
+	schema.Catalog = harnessmodel.CloneCatalogText(schema.Catalog)
 	schema.InputSchema = append(json.RawMessage(nil), schema.InputSchema...)
 	schema.OutputSchema = append(json.RawMessage(nil), schema.OutputSchema...)
 	schema.OutputProjectionConfig = append(json.RawMessage(nil), schema.OutputProjectionConfig...)

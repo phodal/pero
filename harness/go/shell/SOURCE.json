@@ -25,7 +25,8 @@
     "All tests are new regressions using temporary workspace and bounded local processes.",
     "Store workspace os.FileInfo and require Lstat/SameFile identity at Resolve and immediately before process.Start; reject root replacement/symlink and regression-test pre-resolved commands. Pathname race protection is not claimed as sandboxing.",
     "Optional strict confinement is reintroduced through the standalone sandbox package; CheckConfinement validates root and backend before approval and execution. No fallback when strict mode is requested.",
-    "Windows PowerShell startup is composed explicitly only through the Windows ACL sandbox backend, using fixed noninteractive arguments, cooperative stdin-EOF Job Object cancellation and a bounded forced-cleanup warning. Unsandboxed Windows remains refused; result metadata preserves partial read/network non-isolation."
+    "Windows PowerShell startup is composed explicitly only through the Windows ACL sandbox backend, using fixed noninteractive arguments, cooperative stdin-EOF Job Object cancellation and a bounded forced-cleanup warning. Unsandboxed Windows remains refused; result metadata preserves partial read/network non-isolation.",
+    "New terminal*.go PTY implementation reuses the existing executor workspace/environment/process-group contract; no reference implementation or third-party prompt/test source was copied. Native composition owns live handles and durable intents."
   ],
   "license": "No blanket license inferred or assigned; selected source files have no third-party license notice."
 }

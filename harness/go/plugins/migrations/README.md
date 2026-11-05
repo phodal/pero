@@ -1,0 +1,118 @@
+# Selected configuration migration
+
+`selected-config-v1.json` records 17 repairs across six anonymous plugin IDs.
+Each file has its relative path, before/after SHA256 and typed actions. No source
+repository identity, connection configuration or original instruction body is
+copied into this directory. Existing connection values stay in the operator's
+local package and are preserved by the transformations.
+
+`replay.py` reads only explicitly supplied package roots. It performs no remote
+fetch, dependency installation, hook execution, MCP connection or model request.
+It validates every selected source and expected result digest before writing any
+file. Replaying an already migrated snapshot reports `already-applied`.
+
+Bind every ID used by the plan to its package directory:
+
+```sh
+python3 replay.py --check \
+  --root P01=/absolute/plugin-01 --root P02=/absolute/plugin-02 \
+  --root P08=/absolute/plugin-08 --root P10=/absolute/plugin-10 \
+  --root P13=/absolute/plugin-13 --root P15=/absolute/plugin-15
+```
+
+Remove `--check` to apply. A digest mismatch refuses the migration instead of
+guessing how to modify another revision. Current parser behavior remains strict;
+these are source-package repairs.
+
+| ID | Repair |
+| --- | --- |
+| P01 | Add the hooks wrapper; read nested tool input and confine memory targets after path resolution |
+| P02 | Add the required agent name |
+| P08 | Select the actual agent Markdown file and use the documented skill session substitution |
+| P10 | Put the interpreter in command and its script path in args for three Python hooks |
+| P13 | Add only required name/description metadata to eight agents; use subagent_type in their caller |
+| P15 | Align the documented MCP alias and convert four timeout values from seconds to milliseconds |
+
+The agent metadata repairs preserve default inherited tools and models. The
+guard checks Write/Edit and notebook targets; it does not establish read-only
+Bash or MCP policy. Successful configuration compilation does not prove external
+dependencies, interactive UI or complete plugin workflows.
+
+Run the local migration tests from this directory:
+
+```sh
+python3 -m unittest test_replay.py
+```
+
+Tests execute only the memory guard against disposable paths. They check real
+exit codes for allowed targets, source writes, malformed payloads, top-level
+field spoofing, traversal and symlink escapes. Other tests cover digest refusal,
+complete preflight, idempotence and preservation of unrelated opaque fields.
+
+## Selected review hook repair
+
+`selected-coder-hook-v1.json` is a separate P03 migration for one exact hook
+snapshot. Its echo-separator expression rejects quoted output such as
+`echo "=== full diff ==="`. The repair admits that quoted argument while
+preserving the existing unquoted-separator policy and every other hook check.
+This is a plugin repair, rather than a Harness hook bypass.
+
+```sh
+python3 replay.py --plan selected-coder-hook-v1.json --check --root P03=/absolute/coder
+python3 replay.py --plan selected-coder-hook-v1.json --root P03=/absolute/coder
+```
+
+The eight-command regression runs the actual JavaScript expressions. The
+selected package's original twelve resilience tests also passed after applying
+the migration. See the [incident and real-model verification](../../../../docs/issues/2026-11-03-coder-quoted-separator.md).
+
+## Selected worktree repair
+
+`selected-coder-worktree-v1.json` repairs one exact P03 worktree script snapshot.
+The original `args.repos.map(resolve)` passes Array.map's index and array into
+node:path.resolve, which accepts string paths. Status, conversion and cleanup
+with explicit repositories fail before reaching Git. The migration uses a
+single-argument callback and preserves the other script behavior.
+
+```sh
+python3 replay.py --plan selected-coder-worktree-v1.json --check --root P03=/absolute/coder
+python3 replay.py --plan selected-coder-worktree-v1.json --root P03=/absolute/coder
+```
+
+The regression reproduces the Node failure and checks the repaired expression.
+An opt-in actual CLI/ACP test uses the selected script to create, write, commit,
+resume and clean up two repositories, including paths with spaces:
+
+```sh
+PERO_CODER_SOURCE=/absolute/coder go -C ../.. test -race ./cmd/pero-agent-acp \
+  -run TestCoderCLIMultiRepositoryWorktreeOptIn -count=3 -timeout=90s
+```
+
+Its model endpoint is a loopback fixture. Nine actual model requests and five
+tool approvals per run verify process wiring and real Git/file effects, without
+claiming full model-driven development acceptance. See the
+[resolved incident](../../../../docs/issues/2026-11-03-coder-worktree-repos.md).
+
+## Selected state payload input
+
+`selected-new-code-payload-v1.json` repairs one exact P08 snapshot: it adds
+`--payload-file` to transition/annotate and guidance in two skills. Large JSON is
+read from a request-local input file; the original CLI still owns state and
+revision checks. Inline `--payload` remains available; supplying both options or
+malformed JSON fails. No migration runs implicitly.
+
+```sh
+python3 replay.py --plan selected-new-code-payload-v1.json --check --root P08=/absolute/new-code
+python3 replay.py --plan selected-new-code-payload-v1.json --root P08=/absolute/new-code
+PERO_NEW_CODE_SOURCE=/absolute/new-code go -C ../.. test -race ./cmd/pero-agent-acp \
+  -run TestNewCodeCLIMultiRepositoryLifecycleOptIn -count=1 -timeout=90s
+```
+
+The actual CLI fixture uses two repositories and disposable local bare remotes.
+It verifies original guards, failing-test Stop continuation, actual repair and
+reviewer reads, stale verification refusal, retest and publication, then a
+separate explicit completion command that unbinds and removes clean worktrees
+while retaining branches. The loopback model drives 17 parent and three child
+requests with 12 tool approvals; this proves wiring and effects, not model
+quality. The selected package's 62 original tests also passed. See the
+[host argument incident](../../../../docs/issues/2026-11-03-new-code-cli-transition-signal.md).

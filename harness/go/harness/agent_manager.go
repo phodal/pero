@@ -26,8 +26,10 @@ type AgentOptions struct {
 	Provider           string
 	Model              string
 	ReasoningEffort    ReasoningEffort
-	MaxSteps           int
-	MaxTokens          int
+	// MaxSteps uses DefaultMaxSteps when zero; UnlimitedMaxSteps removes only
+	// the step ceiling, preserving cancellation and provider budget ownership.
+	MaxSteps  int
+	MaxTokens int
 	// MaxParallelToolCalls caps the rolling pool of calls whose live classifier
 	// returned parallel. Zero uses the DSH default of 10.
 	MaxParallelToolCalls int

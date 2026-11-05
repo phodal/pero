@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tasks",
+    srcs = [
+        "journal.go",
+        "metadata.go",
+        "task.go",
+        "tools.go",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/tasks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//harness",
+        "//runtime",
+    ],
+)
+
+go_test(
+    name = "tasks_test",
+    srcs = [
+        "journal_test.go",
+        "task_test.go",
+        "tools_test.go",
+    ],
+    embed = [":tasks"],
+    deps = ["//harness"],
+)

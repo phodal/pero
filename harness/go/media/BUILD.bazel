@@ -14,6 +14,7 @@ go_library(
         "image_projection.go",
         "official_image_codec.go",
         "request_image.go",
+        "tool_image.go",
     ],
     embedsrcs = ["official_image_codec.mjs"],
     importpath = "github.com/phodal/pero/harness/go/media",

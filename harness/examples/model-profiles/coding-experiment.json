@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "coding-experiment-1",
+  "model": "replace-with-exact-provider-model-id",
+  "settings": {
+    "tool_format": "claude",
+    "api_format": "chat-completions",
+    "disable_thinking": false,
+    "max_output_tokens": 16384,
+    "context_window": 131072,
+    "compaction_trigger_tokens": 65536,
+    "compaction_retain_tokens": 16384,
+    "compaction_summary_tokens": 4096
+  }
+}

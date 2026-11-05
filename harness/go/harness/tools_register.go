@@ -78,6 +78,7 @@ func (r *ToolRegistry) RegisterWithIdentity(run *point.Run, tool Tool) (ToolRegi
 		}
 	}
 	r.nextID++
+	tool.registrationID = r.nextID
 	entry := toolEntry{id: r.nextID, tool: tool, scope: run.Scope, owner: owner}
 	r.entries[tool.Schema.Name] = append(r.entries[tool.Schema.Name], entry)
 	r.mu.Unlock()
@@ -238,6 +239,7 @@ func (r *ToolRegistry) ReplaceGeneration(run *point.Run, generation string, tool
 	inserted := make([]toolEntry, 0, len(prepared))
 	for _, tool := range prepared {
 		r.nextID++
+		tool.registrationID = r.nextID
 		entry := toolEntry{id: r.nextID, tool: tool, scope: run.Scope, generation: generation, owner: tool.owner}
 		r.entries[tool.Schema.Name] = append(r.entries[tool.Schema.Name], entry)
 		inserted = append(inserted, entry)

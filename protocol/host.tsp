@@ -244,6 +244,25 @@ model PermissionCommand {
   option_id?: string | null;
   ...Closed;
 }
+model QuestionOption { label: string; description: string; preview?: string; ...Closed }
+model UserQuestion {
+  question: string;
+  @maxLength(12) header: string;
+  @minItems(2) @maxItems(4) options: QuestionOption[];
+  multiSelect?: boolean;
+  ...Closed;
+}
+model QuestionAnswer { questionIndex: uint32; selectedOptions?: uint32[]; text?: string; ...Closed }
+model AnsweredQuestions { outcome: "answered"; answers: QuestionAnswer[]; ...Closed }
+model CancelledQuestions { outcome: "cancelled"; ...Closed }
+@oneOf union QuestionReply { AnsweredQuestions, CancelledQuestions }
+model AnswerUserQuestionsCommand {
+  action: "answer_user_questions";
+  thread_id: string;
+  request_id: string;
+  reply: QuestionReply;
+  ...Closed;
+}
 model ModelCommand { action: "model"; thread_id: string; model_id: string; ...Closed }
 model ConfigureCommand { action: "configure"; thread_id: ThreadId; config_id: string; value: string; ...Closed }
 model CloseCommand { action: "close"; thread_id: string; ...Closed }
@@ -264,6 +283,7 @@ union HostCommand {
   PromptCommand,
   CancelCommand,
   PermissionCommand,
+  AnswerUserQuestionsCommand,
   ModelCommand,
   ConfigureCommand,
   CloseCommand,
@@ -425,6 +445,18 @@ model SessionUsageEvent { kind: "session_usage"; ...ThreadEventBase; data: Sessi
 /** The ACP RequestPermissionRequest plus the Host-issued `permission_id`. */
 model PermissionData { ...Record<unknown>; permission_id: string }
 model PermissionEvent { kind: "permission"; ...ThreadEventBase; data: PermissionData }
+model UserQuestionsData {
+  request_id: string;
+  sessionId: string;
+  toolCallId: string;
+  @minItems(1) @maxItems(4) questions: UserQuestion[];
+  ...Closed;
+}
+model UserQuestionsEvent { kind: "user_questions"; ...ThreadEventBase; data: UserQuestionsData }
+model QuestionsResolvedData { request_id: string; toolCallId: string; ...Closed }
+model QuestionsResolvedEvent { kind: "user_questions_resolved"; ...ThreadEventBase; data: QuestionsResolvedData }
+model QuestionsErrorData { request_id: string; error: string; ...Closed }
+model QuestionsErrorEvent { kind: "user_questions_error"; ...ThreadEventBase; data: QuestionsErrorData }
 model PromptQueuedData { position: int32; ...Closed }
 model PromptQueuedEvent { kind: "prompt_queued"; ...ThreadEventBase; data: PromptQueuedData }
 model CommandRejectedData { count: int32; ...Closed }
@@ -539,6 +571,9 @@ union HostEvent {
   SessionAuthErrorEvent,
   SessionAuthenticatedEvent,
   PermissionEvent,
+  UserQuestionsEvent,
+  QuestionsResolvedEvent,
+  QuestionsErrorEvent,
   PromptQueuedEvent,
   CommandRejectedEvent,
   InsightsEvent,

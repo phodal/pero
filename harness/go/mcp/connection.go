@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,6 +28,12 @@ type ConnectionOptions struct {
 	ListTools          func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	Resources          *ResourceDirectory
 	Observe            func(ConnectionObservation)
+	// Elicit answers an MCP elicitation. Nil leaves the capability unadvertised.
+	Elicit func(context.Context, ElicitationRequest, any) (ElicitationReply, error)
+	// ElicitationCompleted receives notifications/elicitation/complete.
+	ElicitationCompleted func(context.Context, string, any)
+	// Roots are absolute workspace directories advertised to the server.
+	Roots []string
 }
 
 type mcpGeneration struct {
@@ -34,6 +42,7 @@ type mcpGeneration struct {
 	session   *mcp.ClientSession
 	waitDone  chan struct{}
 	waitErr   error
+	cancel    context.CancelFunc
 }
 
 type mcpDownEvent struct {
@@ -90,6 +99,10 @@ type mcpConnectionSupervisor struct {
 	listTools        func(context.Context, *mcp.ClientSession) ([]*mcp.Tool, error)
 	resources        *ResourceDirectory
 	observe          func(ConnectionObservation)
+	elicit           func(context.Context, ElicitationRequest, any) (ElicitationReply, error)
+	completed        func(context.Context, string, any)
+	calls            activeToolCalls
+	roots            []string
 
 	nextGeneration   uint64
 	activeGeneration atomic.Uint64
@@ -112,11 +125,11 @@ func MountConnection(ctx context.Context, run *point.Run, options ConnectionOpti
 	supervisor := &mcpConnectionSupervisor{
 		ownerRun: run, replaceTools: replaceTools, serverName: options.ServerName,
 		policy: options.Reconnect, toolCallTimeout: options.ToolCallTimeout,
-		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources, observe: options.Observe,
+		transportFactory: options.TransportFactory, listTools: listTools, resources: options.Resources, observe: options.Observe, elicit: options.Elicit, completed: options.ElicitationCompleted, roots: append([]string(nil), options.Roots...),
 		changes: make(chan uint64, 8), down: make(chan mcpDownEvent, 8), stop: make(chan struct{}),
 	}
 	retrySafe, initialErr := supervisor.connect(ctx)
-	if initialErr != nil && options.FailOnStartupError {
+	if initialErr != nil && (options.FailOnStartupError || errors.Is(ctx.Err(), context.Canceled)) {
 		return SafeError(errors.Join(initialErr, supervisor.shutdown()))
 	}
 	if err := run.Go("mcp:"+options.ServerName+":connection-supervisor", func(workerCtx context.Context) error {
@@ -143,8 +156,13 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 		return !errors.Is(err, ErrAuthentication), SafeError(fmt.Errorf("create transport: %w", err))
 	}
 	trackedTransport := &trackedMCPTransport{inner: transport}
-	generation := &mcpGeneration{id: s.nextGeneration, waitDone: make(chan struct{}), transport: transport}
-	client := mcp.NewClient(&mcp.Implementation{Name: "point-harness", Version: "0.1.0"}, &mcp.ClientOptions{
+	connectionCtx, cancelConnection := context.WithCancel(s.ownerRun.Context)
+	// Startup cancellation can interrupt admission, but a successfully mounted
+	// SSE stream belongs to its runtime generation rather than that short scope.
+	stopStartup := context.AfterFunc(ctx, cancelConnection)
+	defer stopStartup()
+	generation := &mcpGeneration{id: s.nextGeneration, waitDone: make(chan struct{}), transport: transport, cancel: cancelConnection}
+	clientOptions := &mcp.ClientOptions{
 		ToolListChangedHandler: func(context.Context, *mcp.ToolListChangedRequest) {
 			if s.activeGeneration.Load() != generation.id {
 				return
@@ -154,9 +172,54 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 			default:
 			}
 		},
-	})
-	session, err := client.Connect(ctx, trackedTransport, nil)
+	}
+	if s.elicit != nil {
+		clientOptions.Capabilities = &mcp.ClientCapabilities{
+			RootsV2: &mcp.RootCapabilities{ListChanged: true},
+			Elicitation: &mcp.ElicitationCapabilities{
+				Form: &mcp.FormElicitationCapabilities{},
+				URL:  &mcp.URLElicitationCapabilities{},
+			},
+		}
+		clientOptions.ElicitationHandler = func(ctx context.Context, request *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			if request == nil || request.Params == nil {
+				return &mcp.ElicitResult{Action: "decline"}, nil
+			}
+			caller := ToolCaller(ctx)
+			if caller == nil {
+				caller = s.calls.current()
+			}
+			return elicit(ctx, s.elicit, request.Params, caller)
+		}
+	}
+	if len(s.roots) > 0 {
+		if clientOptions.Capabilities == nil {
+			clientOptions.Capabilities = &mcp.ClientCapabilities{}
+		}
+		if clientOptions.Capabilities.RootsV2 == nil {
+			clientOptions.Capabilities.RootsV2 = &mcp.RootCapabilities{}
+		}
+	}
+	if s.completed != nil {
+		clientOptions.ElicitationCompleteHandler = func(ctx context.Context, request *mcp.ElicitationCompleteNotificationRequest) {
+			caller := ToolCaller(ctx)
+			if caller == nil {
+				caller = s.calls.current()
+			}
+			id := ""
+			if request != nil && request.Params != nil {
+				id = request.Params.ElicitationID
+			}
+			s.completed(ctx, id, caller)
+		}
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "point-harness", Version: "0.1.0"}, clientOptions)
+	if roots := workspaceRoots(s.roots); len(roots) > 0 {
+		client.AddRoots(roots...)
+	}
+	session, err := client.Connect(connectionCtx, trackedTransport, nil)
 	if err != nil {
+		cancelConnection()
 		closeErr := trackedTransport.Close()
 		if errors.Is(closeErr, mcp.ErrConnectionClosed) {
 			closeErr = nil
@@ -178,6 +241,17 @@ func (s *mcpConnectionSupervisor) connect(ctx context.Context) (retrySafe bool, 
 	return true, nil
 }
 
+func workspaceRoots(directories []string) []*mcp.Root {
+	var roots []*mcp.Root
+	for _, directory := range directories {
+		if directory == "" || !filepath.IsAbs(directory) {
+			continue
+		}
+		roots = append(roots, &mcp.Root{URI: (&url.URL{Scheme: "file", Path: filepath.ToSlash(directory)}).String(), Name: "workspace"})
+	}
+	return roots
+}
+
 func (s *mcpConnectionSupervisor) publishResourceSession(session *mcp.ClientSession) {
 	if s.resources != nil {
 		s.resources.SetSession(s.serverName, session)
@@ -197,11 +271,16 @@ func (s *mcpConnectionSupervisor) syncGeneration(ctx context.Context, generation
 	if s.current != generation || s.activeGeneration.Load() != generation.id {
 		return nil
 	}
+	if result := generation.session.InitializeResult(); result != nil {
+		if _, err := ServerInstructions(s.serverName, result.Instructions); err != nil {
+			return err
+		}
+	}
 	tools, err := s.listTools(ctx, generation.session)
 	if err != nil {
 		return fmt.Errorf("list tools: %w", err)
 	}
-	definitions, err := buildMCPTools(generation.session, s.serverName, tools, s.toolCallTimeout)
+	definitions, err := buildMCPTools(generation.session, s.serverName, tools, s.toolCallTimeout, s.calls.push)
 	if err != nil {
 		return err
 	}
@@ -363,7 +442,13 @@ func (s *mcpConnectionSupervisor) shutdown() error {
 }
 
 func closeMCPGeneration(generation *mcpGeneration) error {
-	if generation == nil || generation.session == nil {
+	if generation == nil {
+		return nil
+	}
+	if generation.cancel != nil {
+		defer generation.cancel()
+	}
+	if generation.session == nil {
 		return nil
 	}
 	deadline := time.NewTimer(mcpGenerationCloseTimeout)

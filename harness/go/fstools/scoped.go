@@ -149,6 +149,9 @@ func openScopedTextFiles(rootPath string, paths []string, maxBytes int64, readOn
 }
 
 func (s *ScopedTextFiles) check(target scopedTextTarget) error {
+	if err := checkPrivatePath(filepath.Join(s.rootPath, target.dir, target.name)); err != nil {
+		return err
+	}
 	if s.closed {
 		return errors.New("scoped text owner is closed")
 	}

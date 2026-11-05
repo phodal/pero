@@ -67,6 +67,14 @@ func (a *interruptedStreamAssembly) content() []ContentBlock {
 }
 
 func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bool, closeClaimBoundary func([]Message)) (result TurnResult, err error) {
+	// Queued work may outlive its activity wait. Reject before opening a turn
+	// or claiming durable input; an already-running turn retains its own errors.
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	if err := a.operationAdmissionError(); err != nil {
+		return result, err
+	}
 	a.injectMu.Lock()
 	a.acceptingInject = a.externalTurn == nil
 	a.injectMu.Unlock()
@@ -171,7 +179,7 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		reason, err = a.externalTurn(ctx, a, turn, externalMessages)
 		return result, err
 	}
-	for step := 1; step <= a.maxSteps; step++ {
+	for step := 1; a.maxSteps == UnlimitedMaxSteps || step <= a.maxSteps; step++ {
 		// DSH's checkpoint policy makes the preceding durable prefix a hard
 		// boundary before any pre-step plugin can construct the next request.
 		if err := a.checkpoint(ctx); err != nil {
@@ -195,6 +203,9 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		}
 		pending = a.filterFollowupAdmissions(ctx, pending, false)
 		uncommitted = cloneMessages(pending)
+		if _, err := a.effectiveToolResultPruner().PruneHistorySession(a.session); err != nil {
+			return result, err
+		}
 		surfaceBeforePreStep := a.session.SurfaceContentGeneration()
 		decision, pipelineErr := a.hooks.PreStep.Run(ctx, StepInput{Agent: a, Turn: turn, Step: step, Messages: cloneMessages(pending), Continue: continuation}, func(_ context.Context, value StepInput) (StepInput, error) { return value, nil })
 		if pipelineErr != nil {
@@ -217,6 +228,9 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 			// decision, not a preparation failure to recover.
 			uncommitted = nil
 			reason = FinishStop
+			if decision.RejectReason != "" {
+				return result, errors.New(decision.RejectReason)
+			}
 			return result, nil
 		}
 		// An errored PreStep retains original accepted bytes. After a successful
@@ -270,6 +284,9 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 			}
 			completion.Message.Content = safe
 		}
+		if err := a.hooks.AssistantReady.Emit(ctx, AssistantReadyInput{Agent: a, Turn: turn, Step: step, Message: cloneMessages([]Message{completion.Message})[0]}); err != nil {
+			return result, err
+		}
 		if _, err := a.session.Append("assistant/message", struct {
 			Turn    int         `json:"turn"`
 			Step    int         `json:"step"`
@@ -285,8 +302,9 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 		result.Usage = completion.Usage
 		calls := toolCalls(completion.Message)
 		concluded := false
+		var interruption *ToolInterruptError
 		if len(calls) > 0 {
-			if concluded, err = a.executeToolCalls(ctx, turn, step, calls); err != nil {
+			if concluded, err = a.executeToolCalls(ctx, turn, step, calls); err != nil && !errors.As(err, &interruption) {
 				return result, err
 			}
 		}
@@ -294,12 +312,16 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 			return result, err
 		}
 		openStep = 0
-		if concluded {
+		if interruption != nil {
 			reason = FinishStop
 			return result, nil
 		}
-		if len(calls) == 0 {
-			if err := a.hooks.TurnStopping.Emit(ctx, TurnStoppingInput{Agent: a, Turn: turn}); err != nil {
+		if concluded || len(calls) == 0 {
+			canContinue := ctx.Err() == nil && (a.maxSteps == UnlimitedMaxSteps || step < a.maxSteps) &&
+				(completion.Finish == "" || completion.Finish == FinishStop || completion.Finish == FinishToolCalls)
+			if err := a.hooks.TurnStopping.Emit(ctx, TurnStoppingInput{
+				Agent: a, Turn: turn, Step: step, Finish: completion.Finish, Concluded: concluded, CanContinue: canContinue,
+			}); err != nil {
 				return result, err
 			}
 			if injected := a.finishOrTakeInjected(ctx, turn); len(injected) != 0 {
@@ -314,7 +336,7 @@ func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bo
 				continue
 			}
 			reason = completion.Finish
-			if reason == "" {
+			if concluded || reason == "" {
 				reason = FinishStop
 			}
 			return result, nil
@@ -365,9 +387,19 @@ func (a *Agent) claimDurableInbox(ctx context.Context, target InboxTarget, turn 
 	if afterCommit != nil {
 		afterCommit(claimed)
 	}
+	var headID string
+	if target == InboxNextTurn {
+		headID = claimed[len(claimed)-1].ID
+	}
 	claimed = a.filterFollowupAdmissions(ctx, claimed, false)
 	for _, message := range claimed {
-		a.publishInboxClaimed(ctx, message, turn, messageHasUserSource(message))
+		userAuthored := messageHasUserSource(message)
+		if message.ID == headID {
+			// The worker retains the head request's actual admission origin.
+			// A plugin followup cannot become human by setting Source.kind.
+			userAuthored = a.TurnUserAuthored()
+		}
+		a.publishInboxClaimed(ctx, message, turn, userAuthored)
 	}
 	return claimed, nil
 }
@@ -470,6 +502,20 @@ func (a *Agent) generateStepWithRuntime(ctx context.Context, turn, step int, pre
 		if err != nil {
 			return Completion{}, fmt.Errorf("harness: prepare model call for %s/%s: %w", request.Provider, request.Model, err)
 		}
+		request.Tools, err = a.tools.boundDeferredRequest(ctx, a, request.Tools, prepared)
+		if err != nil {
+			return Completion{}, err
+		}
+		request.Tools = BoundToolCatalogs(request.Tools)
+		if presentation.Guidance != nil {
+			guidance, err := presentation.Guidance(ctx, PromptCapabilities{Tools: request.Tools, Model: prepared.ModelInfo})
+			if err != nil {
+				return Completion{}, err
+			}
+			if guidance != "" {
+				request.System = strings.TrimSpace(request.System + "\n\n" + guidance)
+			}
+		}
 		if presentation.RefreshRuntimeContext != nil {
 			request.RuntimeContext, err = presentation.RefreshRuntimeContext(ctx)
 			if err != nil {
@@ -524,7 +570,8 @@ func (a *Agent) generateStepWithRuntime(ctx context.Context, turn, step int, pre
 		header := RequestHeaderEvent{
 			AdapterDefaults: prepared.AdapterDefaults,
 			Turn:            turn, Step: step, Provider: request.Provider, Model: request.Model, ReasoningEffort: request.ReasoningEffort,
-			Temperature: request.Temperature, MaxTokens: request.MaxTokens, Stop: append([]string(nil), request.Stop...),
+			TransientModel: request.TransientModel,
+			Temperature:    request.Temperature, MaxTokens: request.MaxTokens, Stop: append([]string(nil), request.Stop...),
 			Tools: request.Tools, StartsSeries: attemptStartsSeries,
 		}
 		if !a.requestHeaderLogged {
@@ -743,112 +790,6 @@ func toolCalls(message Message) []ContentBlock {
 		}
 	}
 	return result
-}
-
-func (a *Agent) executeToolCalls(ctx context.Context, turn, step int, calls []ContentBlock) (bool, error) {
-	outcomes := make([]ToolOutcome, len(calls))
-	for _, call := range calls {
-		if _, err := a.session.Append("tool/call", struct {
-			Turn      int             `json:"turn"`
-			Step      int             `json:"step"`
-			CallID    ToolCallID      `json:"callId"`
-			Name      string          `json:"name"`
-			Arguments json.RawMessage `json:"arguments"`
-		}{turn, step, call.ToolCallID, call.Name, call.Arguments}); err != nil {
-			return false, err
-		}
-	}
-	for start := 0; start < len(calls); {
-		if a.toolExecutionMode(ctx, calls[start]) == ExecutionSerial {
-			outcomes[start] = a.executeOneTool(ctx, calls[start])
-			start++
-			continue
-		}
-		maxParallelToolCalls := a.MaxParallelToolCalls()
-		done := make(chan int, maxParallelToolCalls)
-		next, active := start, 0
-		barrier := false
-		for active > 0 || (!barrier && next < len(calls)) {
-			for !barrier && active < maxParallelToolCalls && next < len(calls) {
-				if a.toolExecutionMode(ctx, calls[next]) == ExecutionSerial {
-					barrier = true
-					break
-				}
-				index := next
-				next++
-				active++
-				go func() {
-					outcomes[index] = a.executeOneTool(ctx, calls[index])
-					done <- index
-				}()
-			}
-			if active == 0 {
-				break
-			}
-			<-done
-			active--
-		}
-		start = next
-	}
-	concluded := false
-	blocks := make([]ContentBlock, len(outcomes))
-	deferred := make([]DeferredContext, 0)
-	for index, outcome := range outcomes {
-		content, attachmentErr := materializeContentImages(ctx, a.attachments, outcome.Result.Content)
-		if attachmentErr != nil {
-			return false, fmt.Errorf("harness: admit tool-result attachments: %w", attachmentErr)
-		}
-		blocks[index] = ContentBlock{
-			Type: BlockToolResult, ToolCallID: outcome.Request.CallID,
-			Content: content, IsError: outcome.Result.IsError,
-			Meta: append(json.RawMessage(nil), outcome.Result.Meta...),
-		}
-		for _, additional := range outcome.Result.AdditionalContexts {
-			if additional.Role != RoleUser {
-				return false, fmt.Errorf("harness: tool %q deferred non-user context role %q", outcome.Request.Name, additional.Role)
-			}
-			if len(additional.Content) == 0 {
-				return false, fmt.Errorf("harness: tool %q deferred empty user context", outcome.Request.Name)
-			}
-			additional.Content, attachmentErr = materializeContentImages(ctx, a.attachments, additional.Content)
-			if attachmentErr != nil {
-				return false, fmt.Errorf("harness: admit deferred-context attachments: %w", attachmentErr)
-			}
-			additional.Source = append(json.RawMessage(nil), additional.Source...)
-			deferred = append(deferred, additional)
-		}
-		concluded = concluded || outcome.Result.ConcludesTurn
-	}
-	// OpenAI-compatible histories require every result for one assistant tool
-	// batch to remain contiguous. Deferred user context is therefore committed
-	// only after all results, while preserving call and context order.
-	for _, block := range blocks {
-		if _, err := a.session.Append("tool/result", block); err != nil {
-			return false, err
-		}
-	}
-	for _, additional := range deferred {
-		if _, err := a.session.Append("user/message", additional); err != nil {
-			return false, err
-		}
-	}
-	return concluded, nil
-}
-
-func (a *Agent) toolExecutionMode(ctx context.Context, call ContentBlock) ExecutionMode {
-	return a.tools.ExecutionMode(ctx, ToolRequest{
-		Agent: a, CallID: call.ToolCallID, Name: call.Name,
-		Arguments: append(json.RawMessage(nil), call.Arguments...),
-	})
-}
-
-func (a *Agent) executeOneTool(ctx context.Context, call ContentBlock) ToolOutcome {
-	request := ToolRequest{Agent: a, CallID: call.ToolCallID, Name: call.Name, Arguments: append(json.RawMessage(nil), call.Arguments...)}
-	outcome, err := a.tools.Execute(ctx, request)
-	if err != nil {
-		return ToolOutcome{Request: request, Result: ToolResult{IsError: true, Content: []ContentBlock{{Type: BlockText, Text: err.Error()}}}}
-	}
-	return outcome
 }
 
 func finishFromError(err error) FinishKind {

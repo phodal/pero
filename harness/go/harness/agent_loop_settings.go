@@ -13,7 +13,8 @@ const AgentLoopSettingsNamespace = "agent-loop"
 var agentLoopSettingsSchema = json.RawMessage(`{
   "type":"object",
   "properties":{
-    "maxParallelToolCalls":{"type":"integer","minimum":1,"default":10}
+    "maxParallelToolCalls":{"type":"integer","minimum":1,"default":10},
+    "toolOutputBatchBytes":{"type":"integer","minimum":0,"default":65536}
   },
   "additionalProperties":false
 }`)
@@ -22,6 +23,7 @@ var agentLoopSettingsSchema = json.RawMessage(`{
 // model/tool continuation scheduler.
 type AgentLoopSettings struct {
 	MaxParallelToolCalls int `json:"maxParallelToolCalls,omitempty"`
+	ToolOutputBatchBytes int `json:"toolOutputBatchBytes"`
 }
 
 // AgentLoopConfig publishes the latest validated scheduler generation. Agents
@@ -29,6 +31,7 @@ type AgentLoopSettings struct {
 // dispatched, so a settings commit applies without recreating the Session.
 type AgentLoopConfig struct {
 	maxParallelToolCalls atomic.Int64
+	toolOutputBatchBytes atomic.Int64
 	settings             *SettingsScope[AgentLoopSettings]
 }
 
@@ -41,6 +44,15 @@ func (c *AgentLoopConfig) MaxParallelToolCalls() int {
 		return DefaultMaxParallelToolCalls
 	}
 	return value
+}
+
+const DefaultToolOutputBatchBytes = 64 * 1024
+
+func (c *AgentLoopConfig) ToolOutputBatchBytes() int {
+	if c == nil {
+		return DefaultToolOutputBatchBytes
+	}
+	return int(c.toolOutputBatchBytes.Load())
 }
 
 func (c *AgentLoopConfig) Settings() *SettingsScope[AgentLoopSettings] {
@@ -64,12 +76,15 @@ func agentLoopSettingsDefinition() point.Definition {
 				return nil, err
 			}
 			scope, err := RegisterSettingsSection(provider, run, AgentLoopSettingsNamespace, SettingsSectionSpec[AgentLoopSettings]{
-				Defaults: AgentLoopSettings{MaxParallelToolCalls: DefaultMaxParallelToolCalls},
+				Defaults: AgentLoopSettings{MaxParallelToolCalls: DefaultMaxParallelToolCalls, ToolOutputBatchBytes: DefaultToolOutputBatchBytes},
 				Schema:   agentLoopSettingsSchema,
 				Applies:  SettingsLive,
 				Validate: func(value AgentLoopSettings) error {
 					if value.MaxParallelToolCalls < 1 {
 						return errors.New("maxParallelToolCalls must be a positive integer")
+					}
+					if value.ToolOutputBatchBytes < 0 {
+						return errors.New("toolOutputBatchBytes must be non-negative")
 					}
 					return nil
 				},
@@ -83,8 +98,10 @@ func agentLoopSettingsDefinition() point.Definition {
 			}
 			config := &AgentLoopConfig{settings: scope}
 			config.maxParallelToolCalls.Store(int64(initial.MaxParallelToolCalls))
+			config.toolOutputBatchBytes.Store(int64(initial.ToolOutputBatchBytes))
 			if _, err := scope.Watch(run, func(next, _ AgentLoopSettings) {
 				config.maxParallelToolCalls.Store(int64(next.MaxParallelToolCalls))
+				config.toolOutputBatchBytes.Store(int64(next.ToolOutputBatchBytes))
 			}); err != nil {
 				return nil, err
 			}

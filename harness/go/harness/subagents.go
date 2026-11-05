@@ -97,7 +97,10 @@ type SubagentProviderDescriptor struct {
 type SubagentRequest struct {
 	// CWD captures an orchestrator-owned execution directory. Empty inherits the
 	// parent current directory at admission; it never changes the sandbox root.
-	CWD string
+	// IsolatedWorktree is the trusted exception: the provider created a detached
+	// Git worktree and file tools for that session use it.
+	CWD              string
+	IsolatedWorktree bool
 	// ChildID optionally reserves the provider-owned Session identity before
 	// preparation. Durable orchestrators use it to journal provisioning before
 	// any child side effect; providers must return this exact identity.
@@ -117,11 +120,14 @@ type SubagentRequest struct {
 	ReasoningEffort ReasoningEffort
 	MaxSteps        int
 	MaxTokens       int
-	AgentPreset     string
-	Persona         string
-	ToolFilter      *ToolRestriction
-	OutputSchema    json.RawMessage
-	MaxDepth        int
+	// AutoCompactWindow reserves this many tokens before automatic compaction.
+	// Zero keeps the mounted compaction policy.
+	AutoCompactWindow int
+	AgentPreset       string
+	Persona           string
+	ToolFilter        *ToolRestriction
+	OutputSchema      json.RawMessage
+	MaxDepth          int
 	// ProviderManagedDepth represents an omitted cap, not an arbitrary large number.
 	ProviderManagedDepth bool
 	// Depth is provider-resolved by the registry and cannot be widened by a
@@ -240,6 +246,19 @@ type SubagentResult struct {
 	Diagnostic string
 }
 
+// ParentContent projects child assistant output into a parent message or tool
+// result. Tool calls and private reasoning stay in the child's transcript,
+// even on failure.
+func (r SubagentResult) ParentContent() []ContentBlock {
+	var content []ContentBlock
+	for _, block := range r.Output {
+		if block.Type == BlockText || block.Type == BlockImage {
+			content = append(content, cloneContentBlock(block))
+		}
+	}
+	return content
+}
+
 // SubagentReport is an optional, non-terminal progress message from a child.
 // Reports are advisory: the terminal SubagentResult remains authoritative.
 type SubagentReport struct {
@@ -312,6 +331,9 @@ type SubagentContinuationProviderRun struct {
 	// StructuredAdmission is mandatory for managed OutputSchema providers.
 	// Construct a fresh exact-child gate and use it for staging and initial input.
 	StructuredAdmission *SubagentStructuredAdmission
+	// RetainBackgroundActivities lets this managed activation remain resident
+	// after a turn while an explicitly retained tool activity is unfinished.
+	RetainBackgroundActivities bool
 }
 
 // SubagentContinuationReceipt identifies both the durable child and the
@@ -342,6 +364,9 @@ type SubagentLifecycle struct {
 	Local      bool
 	StopReason SubagentStatus
 	Managed    bool
+	// Background is set when the child was started to keep running after the
+	// parent turn. Notification hooks use it for agent_completed.
+	Background bool
 	// Facade identifies the optional profile-local runtime service generation.
 	Facade *SubagentFacade `json:"-"`
 	Result *SubagentResult

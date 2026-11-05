@@ -199,13 +199,13 @@ func (m *managedAgentCompactor) CompactIfNeeded(ctx context.Context, a *Agent, t
 	defer release()
 	return engine.CompactIfNeeded(ctx, a, t)
 }
-func (m *managedAgentCompactor) CompactNow(ctx context.Context, a *Agent, id *CommandID) (*CompactionResult, error) {
+func (m *managedAgentCompactor) CompactNow(ctx context.Context, a *Agent, id *CommandID, instructions string) (*CompactionResult, error) {
 	ctx, engine, release, err := m.acquire(ctx, a)
 	if err != nil {
 		return nil, err
 	}
 	defer release()
-	return engine.CompactNow(ctx, a, id)
+	return engine.CompactNow(ctx, a, id, instructions)
 }
 func (m *managedAgentCompactor) CompactRegion(ctx context.Context, a *Agent, start, end uint64) (*CompactionResult, error) {
 	ctx, engine, release, err := m.acquire(ctx, a)

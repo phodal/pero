@@ -199,3 +199,29 @@ func TestTextOnlyToolImageKeepsReferenceAndDisclosesUnreadPixels(t *testing.T) {
 		t.Fatal("tool image was lost from the retained transcript")
 	}
 }
+
+func TestHistoricalToolImagesDoNotBlockContinuation(t *testing.T) {
+	for _, data := range [][]byte{[]byte("malformed historical raster"), ownedPNG(t, MaxInputImageDimension+1, 1)} {
+		original := append([]byte(nil), data...)
+		r := request()
+		r.Messages = []harness.Message{{Role: harness.RoleTool, Content: []harness.ContentBlock{{Type: harness.BlockToolResult, ToolCallID: "old-read", Content: []harness.ContentBlock{
+			{Type: harness.BlockText, Text: "Retained image reference"},
+			{Type: harness.BlockImage, MIMEType: "image/png", Data: data},
+		}}}}}
+		wire, err := encodeRequest(r, true)
+		if err != nil {
+			t.Fatalf("history poisoned continuation: %v", err)
+		}
+		encoded, _ := json.Marshal(wire)
+		if !strings.Contains(string(encoded), "Retained image reference") {
+			t.Fatal("lost image provenance")
+		}
+		if !bytes.Equal(original, r.Messages[0].Content[0].Content[1].Data) {
+			t.Fatal("rewrote durable history")
+		}
+	}
+	projected := projectToolImages([]harness.ContentBlock{{Type: harness.BlockImage, MIMEType: "image/png", Data: ownedPNG(t, 2, 2)}}, true, MaxRequestImageBytes)
+	if projected[0].Type != harness.BlockText || !strings.Contains(projected[0].Text, "omitted") {
+		t.Fatal("exhausted image budget did not disclose omission")
+	}
+}

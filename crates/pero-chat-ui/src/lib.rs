@@ -60,6 +60,9 @@ pub mod tool_transcript;
 mod approvals;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod user_questions;
+
+#[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod chart;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod chart_lines;

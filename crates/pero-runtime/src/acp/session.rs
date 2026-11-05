@@ -50,6 +50,7 @@ pub enum SessionCommand {
 }
 type Permissions = Arc<Mutex<HashMap<String, oneshot::Sender<Option<String>>>>>;
 pub struct SessionHandle {
+    pub user_questions: Arc<super::QuestionInbox>,
     pub mcp_runtime: Arc<Mutex<pero_contracts::mcp_runtime::McpRuntimeSession>>,
     pub tx: mpsc::UnboundedSender<SessionCommand>,
     pub permissions: Permissions,
@@ -72,7 +73,7 @@ pub fn start(
     thread: String,
     tx: Sender<HostEvent>,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, true, None, None)
+    start_with_workspace_access(config, cwd, thread, tx, true, None, None, false)
 }
 
 /// A scoped Desktop conversation may use the Host-selected App Use endpoint.
@@ -83,7 +84,7 @@ pub fn start_app(
     tx: Sender<HostEvent>,
     endpoint: super::AppUseEndpoint,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, true, Some(endpoint), None)
+    start_with_workspace_access(config, cwd, thread, tx, true, Some(endpoint), None, false)
 }
 
 /// The independent Worker supervisor already owns this checkout's write lease.
@@ -93,12 +94,17 @@ pub fn start_supervised(
     thread: String,
     tx: Sender<HostEvent>,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, false, None, None)
+    start_with_workspace_access(config, cwd, thread, tx, false, None, None, false)
 }
 
 /// Explicitly resume an existing ACP Session; never fall back to session/new.
 pub fn resume_app(config:AgentConfig,cwd:PathBuf,thread:String,tx:Sender<HostEvent>,app_use:Option<super::AppUseEndpoint>,session_id:String)->SessionHandle {
-    start_with_workspace_access(config,cwd,thread,tx,true,app_use,Some(session_id))
+    start_with_workspace_access(config,cwd,thread,tx,true,app_use,Some(session_id),false)
+}
+
+/// Only an interactive Host with a mounted question UI opts into human input.
+pub fn start_interactive(config:AgentConfig,cwd:PathBuf,thread:String,tx:Sender<HostEvent>,app_use:Option<super::AppUseEndpoint>,resume_id:Option<String>)->SessionHandle {
+    start_with_workspace_access(config,cwd,thread,tx,true,app_use,resume_id,true)
 }
 
 fn start_with_workspace_access(
@@ -109,6 +115,7 @@ fn start_with_workspace_access(
     acquire_workspace: bool,
     app_use: Option<super::AppUseEndpoint>,
     resume_id: Option<String>,
+    interactive: bool,
 ) -> SessionHandle {
     let (commands, rx) = mpsc::unbounded_channel();
     static NEXT_MCP_INCARNATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -116,11 +123,15 @@ fn start_with_workspace_access(
     let managed = config.managed_mcp.clone().unwrap_or_default();
     let mcp_runtime = Arc::new(Mutex::new(pero_contracts::mcp_runtime::McpRuntimeSession::new(
         config.id.clone(), thread.clone(), incarnation, managed.revision,
-        config.mcp_server_names(),
+        managed.servers.iter().filter(|server| server.enabled).map(|server| server.name.clone())
+            .chain(config.required_mcp_servers.iter().cloned())
+            .collect::<std::collections::BTreeSet<_>>().into_iter().collect(),
     )));
     let runtime_snapshot = mcp_runtime.clone();
     let permissions: Permissions = Arc::default();
     let pending = permissions.clone();
+    let user_questions = Arc::new(super::QuestionInbox::new(tx.clone(), thread.clone()));
+    let questions = user_questions.clone();
     std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -137,7 +148,10 @@ fn start_with_workspace_access(
             app_use,
             resume_id,
             runtime_snapshot.clone(),
+            questions.clone(),
+            interactive,
         ));
+        questions.clear();
         pending.lock().unwrap().clear();
         {
             let mut snapshot = runtime_snapshot.lock().unwrap();
@@ -159,6 +173,7 @@ fn start_with_workspace_access(
         super::mcp_runtime::publish(&runtime_snapshot.lock().unwrap(), &tx);
     });
     SessionHandle {
+        user_questions,
         mcp_runtime,
         tx: commands,
         permissions,
@@ -231,6 +246,8 @@ async fn run(
     app_use: Option<super::AppUseEndpoint>,
     resume_id: Option<String>,
     mcp_runtime: Arc<Mutex<pero_contracts::mcp_runtime::McpRuntimeSession>>,
+    user_questions: Arc<super::QuestionInbox>,
+    interactive: bool,
 ) -> Result<(), String> {
     config.validate_mcp()?;
     event(
@@ -271,9 +288,15 @@ async fn run(
     let perm_tx = tx.clone();
     let perm_thread = thread.clone();
     let permission_requests = permissions.clone();
+    let question_requests = user_questions.clone();
+    let question_notifications = user_questions.clone();
     Client.builder()
         .on_receive_notification(
             async move |notification: UntypedMessage, _cx| {
+                if notification.method == super::user_questions::CANCEL {
+                    question_notifications.cancel(notification.params);
+                    return Ok(());
+                }
                 if notification.method == "_pero/mcp/runtime" {
                     notification_observations.lock().unwrap().receive(notification.params, &notify_tx);
                     return Ok(());
@@ -330,15 +353,24 @@ async fn run(
             },
             agent_client_protocol::on_receive_request!(),
         )
+        .on_receive_request(
+            async move |request: super::user_questions::AskQuestions, responder, _connection| {
+                super::user_questions::receive(question_requests.clone(), request, responder)
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
         .connect_with(agent, move |connection: ConnectionTo<Agent>| async move {
             let mut deferred = VecDeque::new();
+            let mut capabilities = json!({"_meta": {"pero.mcpRuntime": 1}});
+            if interactive { capabilities["_meta"][super::user_questions::CAPABILITY] = json!(1); }
             let Some(initialized) = setup_request(
                 connection.send_request(UntypedMessage::new("initialize", json!({
-                    "protocolVersion": 1, "clientCapabilities": {"_meta": {"pero.mcpRuntime": 1}}
+                    "protocolVersion": 1, "clientCapabilities": capabilities
                 }))?).block_task(),
                 &mut commands, &mut deferred, &tx, &thread, "Agent initialization",
             ).await? else { return Ok(()); };
             let negotiated = initialized["agentCapabilities"]["_meta"][super::mcp_runtime::CAPABILITY] == json!(1);
+            user_questions.negotiate(interactive && initialized["agentCapabilities"]["_meta"][super::user_questions::CAPABILITY] == json!(1));
             mcp_runtime.lock().unwrap().observable = negotiated;
             let initialized: InitializeResponse = serde_json::from_value(initialized).map_err(agent_client_protocol::Error::into_internal_error)?;
             // Never start a session under a protocol version this client does not implement.
@@ -420,6 +452,7 @@ async fn run(
             // Validate the standard fields without dropping legacy `models` from the raw response.
             let session: NewSessionResponse = serde_json::from_value(session_data.clone()).map_err(agent_client_protocol::Error::into_internal_error)?;
             let session_id = session.session_id.clone();
+            user_questions.bind(session_id.to_string());
             observations.lock().unwrap().bind(session_id.to_string(), &tx);
             let snapshot = mcp_runtime.lock().unwrap().clone();
             let unavailable = snapshot.required_unavailable(&config.required_mcp_servers);
@@ -505,12 +538,14 @@ async fn run(
                                 },
                                 command = commands.recv() => match command {
                                     Some(SessionCommand::Cancel) => {
+                                        user_questions.clear();
                                         permissions.lock().unwrap().clear();
                                         deferred.retain(|command| !matches!(command, SessionCommand::Prompt(_) | SessionCommand::PromptWithContext { .. }));
                                         connection.send_notification(CancelNotification::new(session_id.clone()))?;
                                         cancelled_at.get_or_insert(tokio::time::Instant::now() + CANCEL_TIMEOUT);
                                     },
                                     Some(SessionCommand::Close) | None => {
+                                        user_questions.clear();
                                         permissions.lock().unwrap().clear();
                                         connection.send_notification(CancelNotification::new(session_id.clone()))?;
                                         return Ok(());
@@ -520,6 +555,7 @@ async fn run(
                             }
                         };
                         permissions.lock().unwrap().clear();
+                        user_questions.clear();
                         // Completion is observable only after this turn releases write ownership.
                         drop(_workspace_lease);
                         match result {
@@ -611,7 +647,7 @@ async fn run(
                             Err(error) => event(&tx, &thread, "session_auth_error", error.to_string(), Value::Null),
                         }
                     },
-                    Some(SessionCommand::Cancel) => { permissions.lock().unwrap().clear(); },
+                    Some(SessionCommand::Cancel) => { permissions.lock().unwrap().clear(); user_questions.clear(); },
                     Some(SessionCommand::Close) | None => break,
                 }
             }

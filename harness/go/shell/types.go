@@ -13,11 +13,19 @@ type CollectedOutput struct {
 	Truncated bool   `json:"truncated"`
 }
 
+type ExpiryPolicy string
+
+const (
+	ExpiryKill ExpiryPolicy = "kill"
+	ExpiryNone ExpiryPolicy = "none"
+)
+
 type ExecRequest struct {
 	Command        string
 	Workdir        string
 	Timeout        time.Duration
 	StdoutMaxBytes int
+	OnExpiry       ExpiryPolicy
 }
 
 type ExecSpec struct {
@@ -25,20 +33,26 @@ type ExecSpec struct {
 	Workdir        string
 	Timeout        time.Duration
 	StdoutMaxBytes int
+	OnExpiry       ExpiryPolicy
+	// EnvFile is sourced before Command. It is not part of the recorded command.
+	EnvFile string
 }
 
 type RunResult struct {
-	Enforcement      sandbox.Enforcement `json:"enforcement,omitempty"`
-	ReadIsolated     bool                `json:"readIsolated"`
-	NetworkIsolated  bool                `json:"networkIsolated"`
-	CleanupUncertain bool                `json:"cleanupUncertain,omitempty"`
-	ExitCode         *int                `json:"exitCode"`
-	Signal           string              `json:"signal,omitempty"`
-	TimedOut         bool                `json:"timedOut"`
-	Aborted          bool                `json:"aborted"`
-	Timeout          time.Duration       `json:"-"`
-	Stdout           CollectedOutput     `json:"stdout"`
-	Stderr           CollectedOutput     `json:"stderr"`
+	Enforcement       sandbox.Enforcement `json:"enforcement,omitempty"`
+	ReadIsolated      bool                `json:"readIsolated"`
+	NetworkIsolated   bool                `json:"networkIsolated"`
+	CleanupUncertain  bool                `json:"cleanupUncertain,omitempty"`
+	ExitCode          *int                `json:"exitCode"`
+	Signal            string              `json:"signal,omitempty"`
+	TimedOut          bool                `json:"timedOut"`
+	Aborted           bool                `json:"aborted"`
+	Timeout           time.Duration       `json:"-"`
+	Stdout            CollectedOutput     `json:"stdout"`
+	Stderr            CollectedOutput     `json:"stderr"`
+	OutputFile        string              `json:"output_file,omitempty"`
+	OutputBytes       int64               `json:"output_bytes,omitempty"`
+	OutputFilePartial bool                `json:"output_file_partial,omitempty"`
 }
 
 type Executor interface {

@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/phodal/pero/harness/go/model"
 )
 
 // ResourceDirectory is the set of configured MCP servers that share the three
@@ -31,6 +35,53 @@ func NewResourceDirectory(servers map[string]time.Duration) *ResourceDirectory {
 		endpoints[name] = &resourceEndpoint{timeout: timeout}
 	}
 	return &ResourceDirectory{endpoints: endpoints}
+}
+
+const maxServerInstructionBytes = 32768
+
+// ErrInstructionLimit means the server's initialize text is too large to publish.
+var ErrInstructionLimit = errors.New("MCP server instructions exceed 32768 bytes")
+
+// ServerInstructions attributes one server's initialize text. Blank text adds
+// nothing. The returned section includes the heading and must stay within the
+// instruction budget.
+func ServerInstructions(server, text string) (string, error) {
+	text = strings.TrimRightFunc(text, unicode.IsSpace)
+	if text == "" {
+		return "", nil
+	}
+	section := "### MCP server: " + server + "\n\n" + text
+	if len(section) > maxServerInstructionBytes {
+		return "", fmt.Errorf("mcp-client(%s): %w", server, ErrInstructionLimit)
+	}
+	return section, nil
+}
+
+// InstructionCatalog retains connected servers' complete attributed sections.
+// Model-facing callers render it with their request's remaining catalog budget.
+func (d *ResourceDirectory) InstructionCatalog() model.CatalogText {
+	catalog := model.CatalogText{RecoveryTool: "read_mcp_instructions", Continuation: "Call read_mcp_instructions with {} to list servers, then server/offset/limit to recover complete instructions."}
+	if d == nil {
+		return catalog
+	}
+	for _, name := range d.Names() {
+		endpoint := d.endpoints[name]
+		session := endpoint.session.Load()
+		if session == nil || session.InitializeResult() == nil {
+			continue
+		}
+		section, err := ServerInstructions(name, session.InitializeResult().Instructions)
+		if err == nil && section != "" {
+			catalog.Rows = append(catalog.Rows, section+"\n")
+		}
+	}
+	return catalog
+}
+
+// Instructions returns a bounded preview; ReadInstructions recovers full text.
+func (d *ResourceDirectory) Instructions() string {
+	budget := model.CatalogBudget{Remaining: model.DefaultCatalogBytes}
+	return budget.Render(d.InstructionCatalog())
 }
 
 // Names returns the configured server names in order.
@@ -90,9 +141,37 @@ func (d *ResourceDirectory) Request(ctx context.Context, server, method string, 
 		result, err = session.ListResourceTemplates(requestCtx, params)
 	case "resources/read":
 		result, err = session.ReadResource(requestCtx, &mcp.ReadResourceParams{URI: uri})
+	case "prompts/list":
+		params := &mcp.ListPromptsParams{}
+		if cursor != nil {
+			params.Cursor = *cursor
+		}
+		result, err = session.ListPrompts(requestCtx, params)
 	default:
 		return nil, fmt.Errorf("unsupported MCP resource method %q", method)
 	}
+	if err != nil {
+		return nil, SafeError(err)
+	}
+	return marshalResource(result)
+}
+
+// GetPrompt reads one named prompt from the server's live session.
+func (d *ResourceDirectory) GetPrompt(ctx context.Context, server, name string, arguments map[string]string) (json.RawMessage, error) {
+	if d == nil {
+		return nil, fmt.Errorf("MCP resource server %q is unavailable in this agent's scope", server)
+	}
+	endpoint := d.endpoints[server]
+	if endpoint == nil {
+		return nil, fmt.Errorf("MCP resource server %q is unavailable in this agent's scope", server)
+	}
+	session := endpoint.session.Load()
+	if session == nil {
+		return nil, fmt.Errorf("mcp-client(%s): server is disconnected", server)
+	}
+	requestCtx, cancel := context.WithTimeout(ctx, endpoint.timeout)
+	defer cancel()
+	result, err := session.GetPrompt(requestCtx, &mcp.GetPromptParams{Name: name, Arguments: arguments})
 	if err != nil {
 		return nil, SafeError(err)
 	}

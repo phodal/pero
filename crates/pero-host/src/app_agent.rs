@@ -112,24 +112,7 @@ impl Manager {
         if let Some(plugins) = plugins { self.app_plugins.insert(thread_id.clone(), plugins); }
         self.sessions.insert(
             thread_id.clone(),
-            if let Some(resume_id)=resume_id {
-                acp::resume_app(agent.clone(),self.workspace.clone(),thread_id,self.tx.clone(),app_use,resume_id)
-            } else if let Some(endpoint) = app_use {
-                acp::start_app(
-                    agent.clone(),
-                    self.workspace.clone(),
-                    thread_id,
-                    self.tx.clone(),
-                    endpoint,
-                )
-            } else {
-                acp::start(
-                    agent.clone(),
-                    self.workspace.clone(),
-                    thread_id,
-                    self.tx.clone(),
-                )
-            },
+            acp::start_interactive(agent.clone(),self.workspace.clone(),thread_id,self.tx.clone(),app_use,resume_id),
         );
         Ok(())
     }

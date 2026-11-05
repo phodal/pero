@@ -43,7 +43,7 @@ func ListTools(ctx context.Context, session *mcp.ClientSession) ([]*mcp.Tool, er
 	}
 }
 
-func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp.Tool, callTimeout time.Duration) ([]Tool, error) {
+func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp.Tool, callTimeout time.Duration, bind func(context.Context) func()) ([]Tool, error) {
 	definitions := make([]Tool, 0, len(remotes))
 	publicNames := make(map[string]string, len(remotes))
 	for _, remote := range remotes {
@@ -71,6 +71,11 @@ func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp
 				if len(raw) > 0 {
 					if err := json.Unmarshal(raw, &arguments); err != nil {
 						return harnesstool.Result{}, fmt.Errorf("invalid MCP arguments: %w", err)
+					}
+				}
+				if bind != nil {
+					if done := bind(callCtx); done != nil {
+						defer done()
 					}
 				}
 				requestCtx, cancel := context.WithTimeout(callCtx, callTimeout)

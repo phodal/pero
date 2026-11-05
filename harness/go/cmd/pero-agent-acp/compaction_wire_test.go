@@ -25,6 +25,9 @@ func TestCompactionAgentProcess(t *testing.T) {
 	}
 	flag.CommandLine = flag.NewFlagSet("agent-fixture", flag.ContinueOnError)
 	os.Args = []string{"agent-fixture", "--endpoint", os.Getenv("PERO_COMPACTION_TEST_ENDPOINT"), "--model", "fixture", "--session-dir", os.Getenv("PERO_COMPACTION_TEST_SESSIONS"), "--context-window", os.Getenv("PERO_COMPACTION_TEST_WINDOW"), "--max-tokens", "128", "--max-retries", "0"}
+	if os.Getenv("PERO_COMPACTION_TEST_API") == "responses" {
+		os.Args = append(os.Args, "--api-format", "responses", "--disable-streaming")
+	}
 	if os.Getenv("PERO_RECOVER_TAIL") == "1" {
 		os.Args = append(os.Args, "--recover-complete-session-tail")
 	}
@@ -36,7 +39,7 @@ func TestCompactionAgentProcess(t *testing.T) {
 }
 
 func TestCompactionCLIActualLoopAndWire(t *testing.T) {
-	for _, scenario := range []string{"pressure", "http-context-overflow"} {
+	for _, scenario := range []string{"pressure", "http-context-overflow", "responses-pressure"} {
 		t.Run(scenario, func(t *testing.T) {
 			var summaries, mainCalls atomic.Int32
 			var overflowRecovered atomic.Bool
@@ -62,6 +65,11 @@ func TestCompactionCLIActualLoopAndWire(t *testing.T) {
 						overflowRecovered.Store(summaries.Load() > 0)
 					}
 				}
+				if scenario == "responses-pressure" {
+					w.Header().Set("Content-Type", "application/json")
+					fmt.Fprintf(w, `{"status":"completed","output":[{"id":"msg_%d","type":"message","role":"assistant","status":"completed","phase":"final_answer","content":[{"type":"output_text","text":"checkpoint answer","annotations":[]}]}]}`, mainCalls.Add(1))
+					return
+				}
 				w.Header().Set("Content-Type", "text/event-stream")
 				fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"checkpoint answer\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
 			}))
@@ -79,6 +87,9 @@ func TestCompactionCLIActualLoopAndWire(t *testing.T) {
 			}
 			sessionDir := t.TempDir()
 			child.Env = append(os.Environ(), "PERO_COMPACTION_TEST_WINDOW="+window, "PERO_COMPACTION_TEST_CHILD=1", "PERO_COMPACTION_TEST_ENDPOINT="+server.URL+"/v1", "PERO_COMPACTION_TEST_SESSIONS="+sessionDir, "PERO_RECOVER_TAIL=1", "AGENT_PROVIDER_API_KEY=fixture-not-secret")
+			if scenario == "responses-pressure" {
+				child.Env = append(child.Env, "PERO_COMPACTION_TEST_API=responses")
+			}
 			input, err := child.StdinPipe()
 			if err != nil {
 				t.Fatal(err)

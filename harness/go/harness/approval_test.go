@@ -609,3 +609,70 @@ func TestNativeApprovalDescriptorComesFromValidatedRegistration(t *testing.T) {
 		})
 	}
 }
+
+func TestNonInteractiveApprovalUsesExistingAuthorityWithoutAnswerers(t *testing.T) {
+	for _, test := range []struct {
+		name                   string
+		policy                 ApprovalPolicy
+		mode                   PermissionMode
+		preapproved, alwaysAsk bool
+		want                   ApprovalOutcome
+	}{
+		{name: "unmatched cannot ask", want: ApprovalUnavailable},
+		{name: "preapproved", preapproved: true, want: ApprovalAllowedOnce},
+		{name: "always ask cannot be skipped", preapproved: true, alwaysAsk: true, want: ApprovalUnavailable},
+		{name: "never rejects preapproval", policy: ApprovalNever, preapproved: true, want: ApprovalRejected},
+		{name: "read only rejects commands", mode: PermissionReadOnly, preapproved: true, want: ApprovalRejected},
+		{name: "workspace write rejects shell escape", mode: PermissionWorkspaceWrite, preapproved: true, want: ApprovalRejected},
+		{name: "auto review supplies existing authority", mode: PermissionAutoReview, want: ApprovalAllowedOnce},
+		{name: "auto review always ask still cannot prompt", mode: PermissionAutoReview, alwaysAsk: true, want: ApprovalUnavailable},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			h, err := Boot(t.Context(), Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer h.Dispose(context.Background())
+			var answerers atomic.Int32
+			agent, err := h.Agents().Create(t.Context(), AgentOptions{ID: "noninteractive", Configure: func(_ context.Context, run *point.Run, _ *Agent) error {
+				_, err := h.Approvals().Register(run, func(context.Context, ApprovalRequest) (ApprovalOutcome, error) {
+					answerers.Add(1)
+					return ApprovalAllowedOnce, nil
+				})
+				return err
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.policy != "" {
+				if _, err := SetApprovalPolicy(agent.Session(), test.policy); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if test.mode != "" {
+				if _, err := SetPermissionMode(agent.Session(), test.mode); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := agent.Session().Append("turn/start", struct{ Turn int }{1}); err != nil {
+				t.Fatal(err)
+			}
+			outcome, err := h.Approvals().Request(t.Context(), ApprovalRequest{Agent: agent, ToolName: "Bash", CallID: "preprocess", Reason: "printf fixture", NonInteractive: true, Preapproved: test.preapproved, AlwaysAsk: test.alwaysAsk})
+			if err != nil || outcome != test.want || answerers.Load() != 0 {
+				t.Fatalf("outcome=%s answerers=%d error=%v", outcome, answerers.Load(), err)
+			}
+			asked, decided := 0, 0
+			for _, event := range agent.Session().Events() {
+				switch event.Type {
+				case "approval/asked":
+					asked++
+				case "approval/decided":
+					decided++
+				}
+			}
+			if asked != 1 || decided != 1 {
+				t.Fatalf("noninteractive permission lost its audit pair: asked=%d decided=%d", asked, decided)
+			}
+		})
+	}
+}
