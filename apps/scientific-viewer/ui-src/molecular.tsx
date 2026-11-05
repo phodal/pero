@@ -1,3 +1,4 @@
+import { Button } from '@pero/app-sdk/ui';
 import React, { useEffect, useRef, useState } from 'react';
 import { structureText, moleculeRecords, type Asset } from './files';
 import { useAppApi } from '@pero/app-sdk';
@@ -39,9 +40,9 @@ export function Molecules({ asset }: { asset: Asset }) {
       {status === 'ready' && <p className="sv-molecule-count">{rows.length} {rows.length === 1 ? 'record' : 'records'}{invalid > 0 && <><span>{rows.length - invalid} rendered</span><span className="sv-molecule-invalid-count">{invalid} invalid</span></>}<span>{format}</span></p>}
     </header>
     {error && <p role="alert">{error}</p>}
-    {status === 'loading' && <div className="sv-molecule-load-state"><p role="status">Preparing molecule preview…</p><button onClick={() => { generation.current++; setStatus('stopped'); }}>Stop waiting</button></div>}
+    {status === 'loading' && <div className="sv-molecule-load-state"><p role="status">Preparing molecule preview…</p><Button onClick={() => { generation.current++; setStatus('stopped'); }}>Stop waiting</Button></div>}
     {status === 'stopped' && <p role="status">Result discarded. The bounded local calculation may still finish.</p>}
-    {(status === 'failed' || status === 'stopped') && <div><button onClick={() => setRetry(value => value + 1)}>Retry molecule preview</button></div>}
+    {(status === 'failed' || status === 'stopped') && <div><Button onClick={() => setRetry(value => value + 1)}>Retry molecule preview</Button></div>}
     {rows.length > 0 && <Split className="sv-molecule-layout" storageKey="scientific-viewer.sv-molecule-panes" collapseBelow={720}>
       <SplitPane as="section" id="sv-molecule-gallery" aria-label="Molecule structures" min={320} className="sv-molecule-gallery">
         <div className="sv-molecule-grid">

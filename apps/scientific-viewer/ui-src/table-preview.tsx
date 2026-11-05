@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { defaultNumericColumns, numericSeries, parseTable, type Asset, type NumericPoint } from './files';
+import { Button, Select, Tabs, TabsList, TabsTrigger, TabsContent } from '@pero/app-sdk/ui';
 import './table-preview.css';
 
 const PAGE_SIZE = 100;
@@ -96,22 +97,19 @@ export function TablePreview({ asset }: { asset: Asset }) {
   const points = useMemo(() => table.headers.length >= 2 ? numericSeries(table, xColumn, yColumn) : [], [table, xColumn, yColumn]);
   const pageCount = Math.max(1, Math.ceil(table.rows.length / PAGE_SIZE)), start = page * PAGE_SIZE;
   const header = (index: number) => table.headers[index] || `Column ${index + 1}`;
-  return <section className="numeric-preview" aria-label="Data preview">
+  return <Tabs value={mode} onValueChange={value => setMode(value as 'chart' | 'table')}><section className="numeric-preview" aria-label="Data preview">
     <div className="numeric-toolbar">
-      <nav className="viewer-tabs" aria-label="Preview mode">
-        <button onClick={() => setMode('chart')} aria-pressed={mode === 'chart'} disabled={table.headers.length < 2}>Chart</button>
-        <button onClick={() => setMode('table')} aria-pressed={mode === 'table'}>Table</button>
-      </nav>
+      <TabsList aria-label="Preview mode"><TabsTrigger value="chart" disabled={table.headers.length < 2}>Chart</TabsTrigger><TabsTrigger value="table">Table</TabsTrigger></TabsList>
       <p className="numeric-metadata"><span>{table.rows.length} {table.rows.length === 1 ? 'row' : 'rows'}</span><span>{table.headers.length} {table.headers.length === 1 ? 'column' : 'columns'}</span>
         {table.missing > 0 && <span className="numeric-warning">{table.missing} missing {table.missing === 1 ? 'value' : 'values'}</span>}</p>
     </div>
-    {mode === 'chart' ? <>
+    <TabsContent value="chart">
       <div className="numeric-fields">
-        <label htmlFor={`${fieldId}-x`}>X axis<select id={`${fieldId}-x`} aria-label="X axis" value={xColumn} onChange={event => setXColumn(Number(event.target.value))}>{table.headers.map((_, index) => <option key={index} value={index}>{header(index)}</option>)}</select></label>
-        <label htmlFor={`${fieldId}-y`}>Y axis<select id={`${fieldId}-y`} aria-label="Y axis" value={yColumn} onChange={event => setYColumn(Number(event.target.value))}>{table.headers.map((_, index) => <option key={index} value={index}>{header(index)}</option>)}</select></label>
+        <label htmlFor={`${fieldId}-x`}>X axis<Select id={`${fieldId}-x`} label="X axis" value={String(xColumn)} onChange={value => setXColumn(Number(value))} options={table.headers.map((_, index) => ({value:String(index), label:header(index)}))}/></label>
+        <label htmlFor={`${fieldId}-y`}>Y axis<Select id={`${fieldId}-y`} label="Y axis" value={String(yColumn)} onChange={value => setYColumn(Number(value))} options={table.headers.map((_, index) => ({value:String(index), label:header(index)}))}/></label>
       </div>
       <NumericChart points={points} xLabel={header(xColumn)} yLabel={header(yColumn)} />
-    </> : <>
+    </TabsContent><TabsContent value="table">
       <div className="numeric-table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table">
         <table className="numeric-table" aria-label={`${asset.name} data`}>
           <thead><tr><th scope="col" className="numeric-row-number">Row</th>{table.headers.map((_, index) => <th scope="col" key={index}>{header(index)}</th>)}</tr></thead>
@@ -124,8 +122,8 @@ export function TablePreview({ asset }: { asset: Asset }) {
       </div>
       <footer className="numeric-pagination">
         <span>{table.rows.length ? `Rows ${start + 1}–${Math.min(start + PAGE_SIZE, table.rows.length)} of ${table.rows.length}` : '0 rows'}</span>
-        {pageCount > 1 && <nav aria-label="Table pages"><button aria-label="Previous page" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button><span aria-live="polite">Page {page + 1} of {pageCount}</span><button aria-label="Next page" disabled={page + 1 === pageCount} onClick={() => setPage(page + 1)}>Next</button></nav>}
+        {pageCount > 1 && <nav aria-label="Table pages"><Button aria-label="Previous page" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button><span aria-live="polite">Page {page + 1} of {pageCount}</span><Button aria-label="Next page" disabled={page + 1 === pageCount} onClick={() => setPage(page + 1)}>Next</Button></nav>}
       </footer>
-    </>}
-  </section>;
+    </TabsContent>
+  </section></Tabs>;
 }

@@ -1,6 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { appObjectProps, downloadFile, useAppI18n, useAppObject, useAppChat, useAppDataChanged, useTheme } from '@pero/app-sdk';
-import { Button, Disclosure, EmptyState, Feedback, Icon, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { Button, FilePicker, Disclosure, EmptyState, Feedback, Icon, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { Results } from './components';
 import { messages } from './messages';
 import { useWorkbench } from './use-workbench';
@@ -19,7 +19,7 @@ import { legacyThemeStyle } from './theme';
 
 export default function VirtualCell() {
   const theme = useTheme();
-  const { t } = useAppI18n(messages), lab = useWorkbench(t), file = useRef<HTMLInputElement>(null);
+  const { t } = useAppI18n(messages), lab = useWorkbench(t);
   const [view, setView] = useState('cells'), [mode, setMode] = useState('atlas'), [displayError, setDisplayError] = useState('');
   const isComparison = view === 'cells' && mode === 'comparison', comparison = useComparison(isComparison, t);
   const download = useDatasetDownload(isComparison, t);
@@ -71,12 +71,11 @@ export default function VirtualCell() {
   } } });
   const identity = (document: { source: { id: string; revision: string } }, slot: keyof typeof epochs) => `${document.source.id}:${document.source.revision}:${epochs[slot]}`;
   return <section className="virtual-cell" style={legacyThemeStyle(theme.mode === 'dark')} {...appObjectProps('virtual-cell')} aria-label="Virtual Cell" aria-busy={lab.busy || (isComparison && !!comparison.run && comparisonActive(comparison.run.status))}><style>{css}</style>
-    <input className="vc-file" ref={file} type="file" multiple accept=".json,application/json" aria-label={t('import')} onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; if (files.length) void importFiles(files); }}/>
     {(lab.error || displayError) && <Feedback kind="error">{lab.error || displayError} <Button disabled={lab.busy} onClick={() => { setDisplayError(''); void lab.refresh(); }}>{t('retry')}</Button></Feedback>}
     {lab.busy && <Feedback>{t('busy')}</Feedback>}
     <Tabs value={view} onValueChange={setView} className="vc-view-tabs">
       <Toolbar className="vc-navigation" actions={<>
-        <Button disabled={lab.busy} onClick={() => file.current?.click()}><Icon name="plus"/>{isComparison ? t('comparisonImport') : t('import')}</Button>
+        <FilePicker compact multiple accept=".json,application/json" label={isComparison ? t('comparisonImport') : t('import')} emptyLabel="" disabled={lab.busy} onFiles={files => void importFiles(files)}/>
         {!isComparison && <Button disabled={lab.busy} onClick={() => { void lab.example(); setView('cells'); setMode('perturbation'); }}>{t('example')}</Button>}
         <Button disabled={lab.busy} onClick={() => { void lab.refresh(); comparison.refresh(); download.refresh(); }}><Icon name="refresh"/>{t('refresh')}</Button>
         <Button onClick={()=>{void chat.open({attachments:[chat.objectReference('virtual-cell')]}).catch(error=>setDisplayError(String(error)));}}>{t('discussContext')}</Button>
