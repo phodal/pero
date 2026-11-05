@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/phodal/pero/harness/go/harness"
+	harnesstool "github.com/phodal/pero/harness/go/tool"
 )
 
 func mountToolOutputReadback(ctx context.Context, h *harness.Harness, store *harness.LocalSpillStore) error {
@@ -29,7 +30,10 @@ func mountToolOutputReadback(ctx context.Context, h *harness.Harness, store *har
 			if input.Offset < 0 || input.Limit < 4 || input.Limit > 16384 {
 				return harness.ToolResult{}, errors.New("invalid readback range")
 			}
-			lookup, err := store.ReadTextPage(ctx, harness.SpillOwner{SessionID: request.Agent.ID()}, input.Locator, input.Offset, input.Limit)
+			lookup, err := harnesstool.ReadSessionToolOutput(request.Agent.Session(), input.Locator, input.Offset, input.Limit)
+			if err == nil && !lookup.Recognized && store != nil {
+				lookup, err = store.ReadTextPage(ctx, harness.SpillOwner{SessionID: request.Agent.ID()}, input.Locator, input.Offset, input.Limit)
+			}
 			if err != nil {
 				return harness.ToolResult{}, err
 			}

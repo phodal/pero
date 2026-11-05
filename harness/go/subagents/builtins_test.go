@@ -46,7 +46,7 @@ func TestBuiltinExploreAndPlanReallyReadWithoutWriting(t *testing.T) {
 					names = append(names, tool.Function.Name)
 				}
 				sort.Strings(names)
-				expected := []string{"AgentList", "Glob", "Grep", "NotebookImage", "NotebookRead", "Read", "ToolSearch"}
+				expected := []string{"AgentList", "Glob", "Grep", "NotebookImage", "NotebookRead", "Read", "ReadToolOutput", "ToolSearch"}
 				// PDF rendering is a probed host capability and may be absent in CI.
 				if containsName(names, "PDFRead") {
 					expected = append(expected, "PDFRead")

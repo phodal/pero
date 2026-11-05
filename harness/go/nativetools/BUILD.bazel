@@ -44,6 +44,7 @@ go_library(
         "//runtime",
         "//sandbox",
         "//shell",
+        "//tool",
         "@com_github_sabhiram_go_gitignore//:go-gitignore",
     ],
 )

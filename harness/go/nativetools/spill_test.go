@@ -2,6 +2,7 @@ package nativetools
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -60,5 +61,20 @@ func TestSavedOutputReadback(t *testing.T) {
 	}
 	if json.Unmarshal([]byte(result.Result.Content[0].Text), &page) != nil || page.NextOffset != int64(len(page.Text)) || page.NextOffset == 0 {
 		t.Fatal("readback tool lost continuation")
+	}
+}
+
+func TestSessionHistoryReadbackWithoutSpill(t *testing.T) {
+	f := newClaudeFixture(t, Options{})
+	event, err := f.allowed.Session().Append("tool/result", harness.ContentBlock{Type: harness.BlockToolResult, ToolCallID: "old", Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "历史原文🙂"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, _ := json.Marshal(struct {
+		Locator string `json:"locator"`
+	}{fmt.Sprintf("session-tool-result:%s:%d", f.allowed.ID(), event.Seq)})
+	out, err := f.harness.Tools().Execute(t.Context(), harness.ToolRequest{Agent: f.allowed, Name: "ReadToolOutput", CallID: "recover", Arguments: args})
+	if err != nil || out.Result.IsError || !strings.Contains(out.Result.Content[0].Text, "历史原文") {
+		t.Fatalf("result=%+v error=%v", out, err)
 	}
 }

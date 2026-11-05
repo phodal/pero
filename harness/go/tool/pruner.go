@@ -8,8 +8,8 @@ import (
 	"sync"
 
 	harnessmodel "github.com/phodal/pero/harness/go/model"
-	harnesssession "github.com/phodal/pero/harness/go/session"
 	point "github.com/phodal/pero/harness/go/runtime"
+	harnesssession "github.com/phodal/pero/harness/go/session"
 )
 
 const ToolResultPruneMarker = "\n\n[... tool result middle pruned ...]\n\n"
@@ -20,6 +20,11 @@ type ToolResultPruneConfig struct {
 	ThresholdChars *int `json:"thresholdChars,omitempty"`
 	HeadChars      *int `json:"headChars,omitempty"`
 	TailChars      *int `json:"tailChars,omitempty"`
+	// TotalChars enables history-wide clearing with a low watermark. Nil keeps
+	// the source-compatible per-result policy. Recent results and errors survive.
+	TotalChars        *int `json:"totalChars,omitempty"`
+	LowWatermarkChars *int `json:"lowWatermarkChars,omitempty"`
+	KeepRecent        *int `json:"keepRecent,omitempty"`
 }
 
 type resolvedToolResultPruneConfig struct {
@@ -27,6 +32,9 @@ type resolvedToolResultPruneConfig struct {
 	headChars      int
 	tailChars      int
 	marker         string
+	totalChars     int
+	lowWatermark   int
+	keepRecent     int
 }
 
 type PrunedToolResult struct {
@@ -70,6 +78,9 @@ type ToolResultPrunerPolicySnapshot struct {
 	ThresholdChars int  `json:"thresholdChars,omitempty"`
 	HeadChars      int  `json:"headChars,omitempty"`
 	TailChars      int  `json:"tailChars,omitempty"`
+	TotalChars     int  `json:"totalChars,omitempty"`
+	LowWatermark   int  `json:"lowWatermarkChars,omitempty"`
+	KeepRecent     int  `json:"keepRecent,omitempty"`
 }
 
 // Snapshot reports the immutable effective generation without exposing its
@@ -81,6 +92,9 @@ func (p *ToolResultPrunerPolicy) Snapshot() ToolResultPrunerPolicySnapshot {
 		snapshot.ThresholdChars = pruner.config.thresholdChars
 		snapshot.HeadChars = pruner.config.headChars
 		snapshot.TailChars = pruner.config.tailChars
+		snapshot.TotalChars = pruner.config.totalChars
+		snapshot.LowWatermark = pruner.config.lowWatermark
+		snapshot.KeepRecent = pruner.config.keepRecent
 	}
 	return snapshot
 }
@@ -160,6 +174,22 @@ func NewToolResultPruner(config ToolResultPruneConfig) (*ToolResultPruner, error
 	if resolved.headChars+len([]rune(resolved.marker))+resolved.tailChars > resolved.thresholdChars {
 		return nil, errors.New("harness: tool-result prune head, marker, and tail exceed threshold")
 	}
+	if config.TotalChars != nil {
+		resolved.totalChars = *config.TotalChars
+		resolved.lowWatermark = resolved.totalChars / 2
+		resolved.keepRecent = 4
+	}
+	if config.LowWatermarkChars != nil {
+		resolved.lowWatermark = *config.LowWatermarkChars
+	}
+	if config.KeepRecent != nil {
+		resolved.keepRecent = *config.KeepRecent
+	}
+	if resolved.totalChars < 0 || resolved.lowWatermark < 0 || resolved.keepRecent < 0 ||
+		(resolved.totalChars > 0 && resolved.lowWatermark >= resolved.totalChars) ||
+		(resolved.totalChars == 0 && (config.LowWatermarkChars != nil || config.KeepRecent != nil)) {
+		return nil, errors.New("harness: invalid tool history watermark or recent-result protection")
+	}
 	return &ToolResultPruner{config: resolved}, nil
 }
 
@@ -227,7 +257,7 @@ func (p *ToolResultPruner) PruneSession(session *harnesssession.Session) (ToolRe
 	if p == nil || session == nil {
 		return ToolResultPruneResult{}, errors.New("harness: tool-result pruning requires a pruner and session")
 	}
-	events := session.Events()
+	events, surface := session.HistorySnapshot()
 	if active, err := harnesssession.InspectCompactionLog(events); err != nil {
 		return ToolResultPruneResult{}, err
 	} else if active {
@@ -239,30 +269,76 @@ func (p *ToolResultPruner) PruneSession(session *harnesssession.Session) (ToolRe
 		return ToolResultPruneResult{}, errors.New("harness: tool-result pruning requires an open turn")
 	}
 	eventsBySeq := make(map[uint64]harnessmodel.Event, len(events))
+	toolNames := make(map[harnessmodel.ToolCallID]string)
 	for _, event := range events {
 		eventsBySeq[event.Seq] = event
+		if event.Type == "tool/call" {
+			var call struct {
+				CallID harnessmodel.ToolCallID `json:"callId"`
+				Name   string                  `json:"name"`
+			}
+			if json.Unmarshal(event.Data, &call) == nil {
+				toolNames[call.CallID] = call.Name
+			}
+		}
 	}
-	result := ToolResultPruneResult{}
-	for _, seq := range session.SurfaceSeqs() {
+	// Capture one stable surface before appending replacements.
+	type candidate struct {
+		event     harnessmodel.Event
+		block     harnessmodel.ContentBlock
+		chars     int
+		protected bool
+	}
+	var candidates []candidate
+	total, recent := 0, 0
+	for _, seq := range surface {
 		event, ok := eventsBySeq[seq]
 		if !ok || event.Type != "tool/result" {
 			continue
 		}
 		var block harnessmodel.ContentBlock
 		if err := json.Unmarshal(event.Data, &block); err != nil {
-			return result, fmt.Errorf("harness: decode tool/result at seq %d: %w", seq, err)
+			return ToolResultPruneResult{}, fmt.Errorf("harness: decode tool/result at seq %d: %w", seq, err)
 		}
-		before := p.MeasureContent(block.Content)
-		pruned, changed, err := p.PruneContent(block.Content)
-		if err != nil {
-			return result, fmt.Errorf("harness: prune tool/result at seq %d: %w", seq, err)
+		chars := p.MeasureContent(block.Content)
+		protected := protectedHistoryResult(toolNames[block.ToolCallID], block)
+		candidates = append(candidates, candidate{event, block, chars, protected})
+		total += chars
+		if chars > 0 && !protected && !historyCleared(block.Content) {
+			recent++
+		}
+	}
+	clearing := p.config.totalChars > 0 && total > p.config.totalChars
+	result := ToolResultPruneResult{}
+	for _, c := range candidates {
+		event, block, before := c.event, c.block, c.chars
+		if p.config.totalChars > 0 {
+			if c.protected || before == 0 || historyCleared(block.Content) {
+				continue
+			}
+			recent--
+			if recent < p.config.keepRecent || !clearing || total <= p.config.lowWatermark {
+				continue
+			}
+		}
+		var pruned []harnessmodel.ContentBlock
+		var changed bool
+		if p.config.totalChars > 0 {
+			pruned = clearedHistoryContent(block.Content, string(session.Header().ID), event.Seq)
+			changed = p.MeasureContent(pruned) < before
+		} else {
+			var err error
+			pruned, changed, err = p.PruneContent(block.Content)
+			if err != nil {
+				return result, fmt.Errorf("harness: prune tool/result at seq %d: %w", event.Seq, err)
+			}
 		}
 		if !changed {
 			continue
 		}
 		var raw map[string]json.RawMessage
 		if err := json.Unmarshal(event.Data, &raw); err != nil {
-			return result, fmt.Errorf("harness: preserve tool/result at seq %d: %w", seq, err)
+			return result, fmt.Errorf("harness: preserve tool/result at seq %d: %w", event.Seq, err)
 		}
 		content, err := json.Marshal(pruned)
 		if err != nil {
@@ -277,16 +353,17 @@ func (p *ToolResultPruner) PruneSession(session *harnesssession.Session) (ToolRe
 			Role:    harnessmodel.RoleTool,
 			Content: []harnessmodel.ContentBlock{block},
 		})
-		committed, err := session.AppendPrunedToolResult(seq, replacement, shadowedTokens)
+		committed, err := session.AppendPrunedToolResult(event.Seq, replacement, shadowedTokens)
 		if err != nil {
 			return result, err
 		}
 		after := p.MeasureContent(pruned)
 		result.Pruned = append(result.Pruned, PrunedToolResult{
-			OriginalSeq: seq, ReplacementSeq: committed.Seq, ToolCallID: block.ToolCallID,
+			OriginalSeq: event.Seq, ReplacementSeq: committed.Seq, ToolCallID: block.ToolCallID,
 			CharsBefore: before, CharsAfter: after,
 		})
 		result.CharsRemoved += before - after
+		total -= before - after
 	}
 	return result, nil
 }
