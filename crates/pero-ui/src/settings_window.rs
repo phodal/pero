@@ -8,6 +8,9 @@ use crate::{
 use gpui_kit::component::WindowExt;
 use gpui_kit::{prelude::*, *};
 
+// Shared by the native utility window and the embedded settings dialog.
+const SETTINGS_WIDTH: f32 = 760.;
+
 impl Workbench {
     pub(crate) fn sync_settings_panel(&self, cx: &mut Context<Self>) {
         if let Some(panel) = &self.settings_panel {
@@ -182,7 +185,7 @@ impl Workbench {
                 kind: WindowKind::Normal,
                 window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                     None,
-                    size(px(900.), px(640.)),
+                    size(px(SETTINGS_WIDTH), px(640.)),
                     cx,
                 ))),
                 window_min_size: Some(size(px(700.), px(480.))),
@@ -241,7 +244,7 @@ impl Workbench {
             let cancel_owner = owner.clone();
             let cancel_panel = panel.clone();
             dialog
-                .w((viewport.width - px(48.)).min(px(900.)))
+                .w((viewport.width - px(48.)).min(px(SETTINGS_WIDTH)))
                 .h((viewport.height - px(80.)).min(px(640.)))
                 .p_0()
                 .close_button(false)

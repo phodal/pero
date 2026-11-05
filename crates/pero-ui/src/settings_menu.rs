@@ -7,7 +7,6 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use pero_chat_ui::theme::WorkbenchStyle as W;
 use pero_contracts::workbench::{Appearance, WorkbenchPreferences};
 use serde_json::json;
 
@@ -91,7 +90,9 @@ impl Workbench {
             .accessibility_label(t("settings.title"))
             .dropdown_caret(false)
             .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, window, cx| {
-                let mut menu = menu.min_w(px(W::MENU_WIDTH)).check_side(Side::Right);
+                // Let Kit measure the labels, icons and submenu arrows. A fixed
+                // account-menu minimum wastes space for these short preferences.
+                let mut menu = menu.check_side(Side::Right);
                 if !identity.is_empty() {
                     menu = menu.item(PopupMenuItem::label(identity.clone()));
                 }
@@ -105,7 +106,7 @@ impl Workbench {
                 let saved = preferences.clone();
                 let appearance_choices = appearance_choices.clone();
                 menu = menu.submenu(appearance.clone(), window, cx, move |menu, _, _| {
-                    appearance_choices.iter().fold(menu.min_w(px(170.)), |menu, (mode, label)| {
+                    appearance_choices.iter().fold(menu, |menu, (mode, label)| {
                         let target = target.clone();
                         let mut next = saved.clone();
                         next.appearance = *mode;
@@ -124,7 +125,7 @@ impl Workbench {
                 let selected_locale = locale.clone();
                 menu = menu.submenu(language.clone(), window, cx, move |menu, _, _| {
                     [("zh-CN", "简体中文"), ("en", "English")].into_iter().fold(
-                        menu.min_w(px(170.)),
+                        menu,
                         |menu, (value, label)| {
                             let target = target.clone();
                             menu.item(

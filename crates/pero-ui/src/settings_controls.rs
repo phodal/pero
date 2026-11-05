@@ -22,6 +22,7 @@ pub(crate) fn selection_button(
     let chrome = pero_theme::Chrome::from_app(cx);
     pero_theme::action_button(id, label, pero_theme::ActionKind::Ghost, chrome, cx)
         .accessibility_label(name)
+        .dropdown_caret(true)
 }
 
 pub(crate) fn setting_row(
@@ -81,7 +82,7 @@ impl RenderOnce for FontSizeField {
             .value()
             .parse::<FontSize>()
             .unwrap_or(self.size);
-        let height = chrome.geo(pero_theme::ACTION_BUTTON_HEIGHT);
+        let height = chrome.control(pero_theme::ACTION_BUTTON_HEIGHT);
         let decrement = self.on_step.clone();
         let increment = self.on_step.clone();
         let on_key = self.on_step;
@@ -90,7 +91,7 @@ impl RenderOnce for FontSizeField {
             .id(SharedString::from(format!("font-size-field-{field}")))
             .flex()
             .items_center()
-            .h(height)
+            .min_h(height)
             .rounded(chrome.geo(pero_theme::RADIUS_SELECTION))
             .bg(p.surface_muted)
             .border_1()

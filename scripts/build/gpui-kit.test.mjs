@@ -31,10 +31,11 @@ test('patched Kit retains its own workspace and leaves the source immutable', t 
   // Keep this fixture cache unique without relying on mtimes.
   write('source/fixture-id', root);
   for (const [name, before, after] of [
-    ['source-search', 'original', 'search patched'],
-    ['edit-events', 'search patched', 'both patched'],
+    ['gpui-base-0.8.1-source-search', 'original', 'search patched'],
+    ['gpui-base-0.8.1-edit-events', 'search patched', 'both patched'],
+    ['gpui-component-0.8.1-menu-height', 'both patched', 'all patched'],
   ]) {
-    write(`patches/gpui-base-0.8.1-${name}.patch`, `diff --git a/crates/base/src/lib.rs b/crates/base/src/lib.rs\n--- a/crates/base/src/lib.rs\n+++ b/crates/base/src/lib.rs\n@@ -1 +1 @@\n-// ${before}\n+// ${after}\n`);
+    write(`patches/${name}.patch`, `diff --git a/crates/base/src/lib.rs b/crates/base/src/lib.rs\n--- a/crates/base/src/lib.rs\n+++ b/crates/base/src/lib.rs\n@@ -1 +1 @@\n-// ${before}\n+// ${after}\n`);
   }
   write('prepare.mjs', 'import {patchedKit, prepareKit} from "./scripts/lib/gpui-kit.mjs"; await prepareKit(); console.log(patchedKit);');
   const prepare = () => execFileSync(process.execPath, ['prepare.mjs'], {
@@ -44,7 +45,7 @@ test('patched Kit retains its own workspace and leaves the source immutable', t 
   const patched = prepare();
   t.after(() => rmSync(patched, { recursive: true, force: true }));
   assert.equal(prepare(), patched, 'an unchanged source reuses the patched cache');
-  assert.equal(readFileSync(join(patched, 'crates/base/src/lib.rs'), 'utf8'), '// both patched\n');
+  assert.equal(readFileSync(join(patched, 'crates/base/src/lib.rs'), 'utf8'), '// all patched\n');
   assert.equal(readFileSync(join(root, 'source/crates/base/src/lib.rs'), 'utf8'), '// original\n');
   assert.equal(readFileSync(join(root, 'source/crates/base/Cargo.toml'), 'utf8'), base);
   const workspace = readFileSync(new URL('../../Cargo.toml', import.meta.url), 'utf8')
