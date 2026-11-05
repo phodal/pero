@@ -18,6 +18,8 @@ const icon = resolve(root, 'target/debug/AppIcon.icns');
 const sources = [
   ...['pero-ui', 'pero-chat-ui', 'pero-contracts', 'pero-runtime', 'pero-host', 'pero-worker', 'pero-theme'].map(name => `crates/${name}`),
   'harness/go', 'packages/connectors/src', 'desktop/src/main', 'locales',
+  // Watch the directory so atomic manifest replacements remain observable.
+  'use/connectors/worker',
 ];
 
 let preview = null;
@@ -27,7 +29,7 @@ let queued = false;
 let opened = false;
 
 function sourceChange(filename) {
-  return /\.(rs|go|ts|mjs|json|py)$/.test(filename ?? '') || /(^|\/)(Cargo\.toml|go\.mod|go\.sum)$/.test(filename ?? '');
+  return /\.(rs|go|ts|mjs|json|py)$/.test(filename ?? '') || /(^|\/)(Cargo\.(toml|lock)|go\.mod|go\.sum)$/.test(filename ?? '');
 }
 
 function stopPreview() {
@@ -70,6 +72,11 @@ async function cycle() {
   do {
     queued = false;
     try {
+      // Refresh the installed Data payload before the restarted Host seeds it.
+      const dataCore = resolve(root, 'apps/data/backend/_core');
+      mkdirSync(dataCore, { recursive: true });
+      for (const name of ['dataset.py', 'view.py', 'chart_document.py'])
+        cpSync(resolve(root, 'harness/go/charts/python', name), resolve(dataCore, name));
       await buildHarness();
       await run(process.execPath, ['scripts/build/connectors.mjs']);
       await run('cargo', cargoArgs(['build', '--locked', '-p', 'pero-host', '-p', 'pero-worker']));
@@ -90,6 +97,7 @@ async function cycle() {
 
 let timer = null;
 if (!buildOnly) for (const source of sources) watch(resolve(root, source), { recursive: true }, (_event, filename) => {
+  if (source === 'use/connectors/worker' && /^target(?:\/|$)/.test(filename ?? '')) return;
   if (!sourceChange(filename)) return;
   clearTimeout(timer);
   timer = setTimeout(() => {
@@ -101,11 +109,6 @@ if (!buildOnly) for (const source of sources) watch(resolve(root, source), { rec
 });
 
 console.log('Building the debug Harness, Host and native preview. Secrets stay in this process; the login keychain is not opened.');
-// The installed profile has no checkout harness/ tree. Package the chart core before the Host seeds Data.
-const dataCore = resolve(root, 'apps/data/backend/_core');
-mkdirSync(dataCore, { recursive: true });
-for (const name of ['dataset.py', 'view.py', 'chart_document.py'])
-  cpSync(resolve(root, 'harness/go/charts/python', name), resolve(dataCore, name));
 writeIcns(resolve(root, 'resources/app-icon.svg'), icon);
 await ensureGpuiLock();
 await run(process.execPath, ['scripts/build/apps.mjs', '--app', 'connectors']);

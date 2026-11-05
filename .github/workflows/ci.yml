@@ -454,6 +454,7 @@ jobs:
       - run: npm ci --prefix apps/paper-agent --ignore-scripts
       - run: node scripts/codegen/contracts.mjs --check
       - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs tests/build/product-chat-startup.test.mjs tests/build/product-shutdown.test.mjs
+      - run: node --experimental-vm-modules --test tests/build/native-dev.test.mjs
 
   # Keep one runner and one install per dependency set. Each check depends only
   # on its setup/build inputs, so assertion failures stay red without hiding peers.
