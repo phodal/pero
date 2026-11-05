@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "environmentservice",
+    srcs = [
+        "detach_other.go",
+        "detach_unix.go",
+        "service.go",
+        "tools.go",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/environmentservice",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//harness",
+        "//shell",
+    ],
+)
+
+go_test(
+    name = "environmentservice_test",
+    srcs = ["service_test.go"],
+    embed = [":environmentservice"],
+)
