@@ -173,6 +173,23 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
 
     await tab('Fields');
     await expect(page.getByText('Full input / 7 records, independent of the table filter.', { exact: false })).toBeVisible();
+    await page.getByRole('checkbox', { name: 'Show measure', exact: true }).uncheck();
+    await tab('Table');
+    await expect(rows()).toHaveCount(3);
+    await expect(page.getByRole('region', { name: 'Data records', exact: true }).getByRole('columnheader', { name: 'measure', exact: true })).toHaveCount(0);
+    await tab('Fields');
+    await measureField.getByRole('button', { name: '1', exact: true }).click();
+    await expect(rows()).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Data records', exact: true }).getByRole('columnheader', { name: 'measure', exact: true })).toBeVisible();
+    await expect(page.getByText('empty', { exact: true })).toBeVisible();
+    await capture('hidden-field-issue');
+    await page.getByRole('button', { name: 'Return to analysis', exact: true }).click();
+    await expect.poll(rowNumbers).toEqual(['2', '1', '6']);
+    await expect(page.getByRole('region', { name: 'Data records', exact: true }).getByRole('columnheader', { name: 'measure', exact: true })).toHaveCount(0);
+    await tab('History');
+    await page.getByRole('button', { name: 'Numeric baseline', exact: true }).click();
+    await expect.poll(rowNumbers).toEqual(['2', '1', '6']);
+    checks.push('field issue navigation reveals a hidden field and Return restores the original displayed columns');
     await tab('Checks');
     await expect(page.getByText('Full input / 7 records', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Show conversion failures', exact: true }).click();

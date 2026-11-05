@@ -45,7 +45,9 @@ export function Workspace(props: Props) {
   const fieldOptions = (fields?.report.fields ?? []).map(field => ({ value: field.name, label: field.name }));
   const showIssue = (issue: ViewIssue) => {
     if (!view.issue) setPriorAnalysis(view);
-    props.onView({ ...view, issue, filter: null, selection: [] }); props.onTab('table');
+    const issueColumns = issue.field && !columns.includes(issue.field)
+      ? [...columns.slice(0, props.maxColumns - 1), issue.field] : view.columns;
+    props.onView({ ...view, columns: issueColumns, issue, filter: null, selection: [] }); props.onTab('table');
   };
   const selected = new Set(view.selection);
   const applyFilter = () => props.onView({ ...view, selection: [], filter: filterField
