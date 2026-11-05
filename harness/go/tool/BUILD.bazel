@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "tool",
     srcs = [
+        "diagnostic.go",
         "history.go",
         "json_schema_subset.go",
         "output.go",
@@ -30,6 +31,7 @@ go_library(
 go_test(
     name = "tool_test",
     srcs = [
+        "diagnostic_test.go",
         "history_test.go",
         "json_schema_subset_test.go",
         "output_test.go",
