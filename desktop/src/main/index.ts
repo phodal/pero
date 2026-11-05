@@ -17,6 +17,7 @@ import {McpHost} from './mcp-host.ts';
 import { DesktopContributions } from './contributions';
 import { LocalExecutionController } from './local-execution';
 import { DesktopAppUse } from './app-use-mcp';
+import { HostArtifactDelivery } from './artifact-delivery.ts';
 import { DesktopComputer } from './computer';
 import { computerPermissions } from './computer-electron';
 import { backgroundTest, testWindowOptions } from './test-display';
@@ -66,6 +67,10 @@ const send = (event: object) => {
   if ((event as {kind?: string}).kind === 'remote_state') localExecution?.sync();
   if (window && !window.isDestroyed()) window.webContents.send('pero:event', event);
 };
+const artifactDelivery = new HostArtifactDelivery(request => {
+  if (!ready || !host?.stdin.writable) throw new Error('The local runtime is unavailable');
+  host.stdin.write(JSON.stringify(request) + '\n');
+});
 const apps = new DesktopApps(request => {
   if (!ready || !host?.stdin.writable) throw new Error('The local runtime is unavailable');
   host.stdin.write(JSON.stringify(request) + '\n');
@@ -76,6 +81,7 @@ const apps = new DesktopApps(request => {
 sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId }),
 (summary, signal) => confirmReproduction(window, summary, signal),
 (summary, signal, operation) => confirmDoclingSetup(window, summary, signal, operation));
+apps.artifactSnapshot = artifactDelivery.resolveSnapshot;
 let harness: HarnessPreferences;
 let runtimeSettingsPath = '';
 const preferenceWrites = new Map<string, { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
@@ -176,7 +182,7 @@ app.whenReady().then(async () => {
     permissions: computerPermissions,
   });
   globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
-  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer);
+  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver);
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};
   if (process.platform === 'darwin' || process.platform === 'linux') {
@@ -231,6 +237,7 @@ app.whenReady().then(async () => {
   createInterface({ input: host.stdout }).on('line', (line) => {
     try {
       const message = JSON.parse(line);
+      if (artifactDelivery.accept(message)) return;
       connectorMcp?.accept(message);
       if(message.kind==='mcp_permitted'||message.kind==='mcp_error'){
         const request=mcpRequests.get(message.request_id);
@@ -286,8 +293,8 @@ app.whenReady().then(async () => {
     catch { console.error('Invalid Host event'); }
   });
   host.stderr.on('data', (data) => console.error(String(data)));
-  host.on('error', () => { ready = false; appUse?.reset(); void connectorMcp?.close(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_start')); });
-  host.on('exit', () => { ready = false; appUse?.reset(); void connectorMcp?.close(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_stopped')); });
+  host.on('error', () => { ready = false; artifactDelivery.close(); appUse?.reset(); void connectorMcp?.close(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_start')); });
+  host.on('exit', () => { ready = false; artifactDelivery.close(); appUse?.reset(); void connectorMcp?.close(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_stopped')); });
   void remote.initialize();
   const trusted = (sender: Electron.IpcMainInvokeEvent) => {
     if (sender.sender !== window.webContents || sender.senderFrame?.url !== 'pero://workbench/') throw new Error('Untrusted sender');
@@ -374,6 +381,13 @@ app.whenReady().then(async () => {
       if(!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({method:'documents',action:'open',request_id:'open-file',path:selected.filePaths[0]})+'\n');
       return;
     }
+    if (action === 'choose_artifact_file') {
+      const request = command as { thread_id?: unknown };
+      if (typeof request.thread_id !== 'string') throw new Error('Invalid artifact picker intent');
+      const selected = await dialog.showOpenDialog(window, { properties: ['openFile'] });
+      if (!selected.canceled && selected.filePaths[0]) host.stdin.write(JSON.stringify({ method: 'artifacts', action: 'register_file', request_id: randomUUID(), thread_id: request.thread_id, path: selected.filePaths[0] }) + '\n');
+      return;
+    }
     if(action==='choose_icon_theme'){
       const selected=await dialog.showOpenDialog(window,{title:t('icons.install'),properties:['openFile'],filters:[{name:'Icon theme JSON',extensions:['json']}]});
       host.stdin.write(JSON.stringify(selected.canceled||!selected.filePaths[0]?{method:'icons',action:'get',request_id:'icons'}:
@@ -390,7 +404,7 @@ app.whenReady().then(async () => {
         host.stdin.write(JSON.stringify(command)+'\n',error=>{if(error){clearTimeout(timer);preferenceWrites.delete(id);rejectWrite(error);}});
       });return;
     }
-    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'settings.mcp.get', 'settings.mcp.set', 'documents','icons','automation','terminal'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
+    if ((!['list_agents','workspace','load_roadmap','new_session','prompt','cancel','permission','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'settings.mcp.get', 'settings.mcp.set', 'documents','artifacts','icons','automation','terminal'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.command(command as {action?:string;thread_id?:string});
     host.stdin.write(JSON.stringify(command) + '\n');
   });

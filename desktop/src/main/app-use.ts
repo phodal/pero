@@ -234,6 +234,11 @@ export class AppUse {
   }
   isBoundedResearch(thread: string) { return boundedResearchApp(this.sessions.get(thread)?.scope?.app); }
   canBeginGoal(thread: string) { const session = this.sessions.get(thread); return !!session && !session.running; }
+  requireRunningSession(thread: string) {
+    const session = this.sessions.get(thread);
+    if (!session?.running) fail('APP_SESSION_INACTIVE', 'A running Host conversation is required.');
+    return session;
+  }
   private publish(thread: string) {
     const session = this.sessions.get(thread);
     if (!session) return;
@@ -273,8 +278,8 @@ export class AppUse {
       });
       if (!ready) fail('APP_TURN_UNAVAILABLE', 'The Host did not start the requested turn.');
     }
-    const session = this.sessions.get(thread);
-    if (!session || !session.running || (!appData && selected !== thread))
+    const session = this.requireRunningSession(thread);
+    if (!appData && selected !== thread)
       fail('APP_SESSION_INACTIVE', 'App Use belongs to the running conversation selected in Chat.');
     return session;
   }
