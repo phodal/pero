@@ -69,6 +69,7 @@ func TestToolRestrictions(t *testing.T) {
 		{"Bash(rm *)", "rm victim", true},
 		{"Bash(rm *)", "rm victim; touch marker", true},
 		{"Bash(rm *)", "touch marker && rm victim", true},
+		{"Bash(rm *)", "echo victim | rm victim", true},
 		{"Bash(rm *)", "echo harmless", false},
 		{"Bash(rm *)", "timeout 5 rm victim", true},
 		{"Bash(rm *)", "rm victim > log", true},

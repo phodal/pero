@@ -376,6 +376,10 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 		cancelTimeout()
 	}
 	if executeErr != nil {
+		var interrupt *ToolInterruptError
+		if errors.As(executeErr, &interrupt) {
+			filtered.EndTurn = true
+		}
 		result = toolBodyErrorResult(filtered, result, executeErr)
 	}
 	// The timeout wrapper owns its deadline classification. Once its timer wins,

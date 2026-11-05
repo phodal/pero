@@ -4,8 +4,10 @@ package pluginruntime
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,7 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/phodal/pero/harness/go/claudehooks"
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/plugins"
 	point "github.com/phodal/pero/harness/go/runtime"
 	"github.com/phodal/pero/harness/go/skills"
 )
@@ -373,5 +377,156 @@ func TestDynamicCommandBoundaries(t *testing.T) {
 				t.Fatalf("compound command was split: %+v", commands)
 			}
 		})
+	}
+}
+
+func TestSkillCommandPermissionHooks(t *testing.T) {
+	for _, row := range []struct {
+		name, behavior, event, script, want string
+		deny, interrupt                     bool
+	}{
+		{name: "session deny", behavior: "deny", deny: true},
+		{name: "session ask defeats skill preapproval", behavior: "ask", deny: true},
+		{name: "pretool rewrites command", event: "PreToolUse", script: `printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{"command":"printf rewritten"}}}'`, want: "rewritten"},
+		{name: "permission rewrites command", behavior: "ask", event: "PermissionRequest", script: `cat > "$CLAUDE_PLUGIN_ROOT/input.json"; printf '%s' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow","updatedInput":{"command":"printf approved"}}}}'`, want: "approved"},
+		{name: "permission interrupts", behavior: "ask", event: "PermissionRequest", script: `printf '%s' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","interrupt":true}}}'`, interrupt: true},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			h, agent, definition, options, answerers := expansionFixture(t)
+			root := agent.Session().Header().CWD
+			var hooks []claudehooks.Hook
+			if row.event != "" {
+				hooks = append(hooks, scriptHook(t, root, row.event, row.script))
+			}
+			app, err := MountHooks(t.Context(), h, []plugins.Package{{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: hooks}}, HookOptions{Retain: true, Shell: options.Shell, StateDirectory: t.TempDir(), Environment: options.Environment})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := app.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			if row.behavior != "" {
+				if err := app.rememberSessionPermissions(agent, []claudehooks.PermissionUpdate{{Op: "add", Behavior: row.behavior, Rules: []string{"Bash(touch *)"}}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			definition.Content = "!`touch forbidden`"
+			got, err := ExpandSkill(t.Context(), h, agent, definition, "", options)
+			var interrupt *harness.ToolInterruptError
+			if row.interrupt {
+				if !errors.As(err, &interrupt) {
+					t.Fatalf("interrupt lost: %v", err)
+				}
+			} else if row.deny {
+				if !errors.Is(err, ErrSkillCommandDenied) {
+					t.Fatalf("denial lost: %v", err)
+				}
+			} else if err != nil || got.Content != row.want {
+				t.Fatalf("content=%q error=%v", got.Content, err)
+			}
+			if answerers.Load() != 0 {
+				t.Fatal("render-time command prompted")
+			}
+			if _, err := os.Stat(filepath.Join(root, "forbidden")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("unapproved command ran: %v", err)
+			}
+			if row.name == "permission rewrites command" {
+				body, err := os.ReadFile(filepath.Join(root, "input.json"))
+				if err != nil || !strings.Contains(string(body), `"command":"touch forbidden"`) {
+					t.Fatalf("hook input=%s error=%v", body, err)
+				}
+			}
+		})
+	}
+}
+
+func TestSkillAndShellEntryPointsShareSessionPermissions(t *testing.T) {
+	for _, entry := range []string{"slash", "Skill", "Bash"} {
+		for _, behavior := range []string{"deny", "ask", "interrupt"} {
+			t.Run(entry+"/"+behavior, func(t *testing.T) {
+				root, err := filepath.EvalSymlinks(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				var generated atomic.Int32
+				var observed string
+				adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+					if generated.Add(1) == 1 {
+						args := json.RawMessage(`{"skill":"fixture:dynamic"}`)
+						if entry == "Bash" {
+							args = json.RawMessage(`{"command":"touch forbidden"}`)
+						}
+						calls := []harness.ContentBlock{{Type: harness.BlockToolCall, Name: entry, ToolCallID: "entry", Arguments: args}}
+						if behavior == "interrupt" {
+							calls = append(calls, harness.ContentBlock{Type: harness.BlockToolCall, Name: "Bash", ToolCallID: "later", Arguments: json.RawMessage(`{"command":"touch forbidden"}`)})
+						}
+						return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: calls}}, nil
+					}
+					raw, _ := json.Marshal(request.Messages)
+					observed = string(raw)
+					return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
+				})
+				hooks := []claudehooks.Hook{scriptHook(t, root, "PreToolUse", "true")}
+				if behavior == "interrupt" {
+					hooks = append(hooks, scriptHook(t, root, "PermissionRequest", `printf '%s' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","interrupt":true}}}'`))
+				}
+				h, app := testHookHarness(t, adapter, plugins.Package{Root: root, Definition: plugins.Plugin{Name: "fixture"}, Hooks: hooks}, 0)
+				if _, err := h.RegisterTool(t.Context(), "fixture/bash", harness.Tool{Schema: harness.ToolSchema{Name: "Bash", InputSchema: json.RawMessage(`{"type":"object"}`)}, RequiresApproval: true, Execute: func(context.Context, json.RawMessage) (harness.ToolResult, error) {
+					t.Error("denied command reached execution")
+					return harness.ToolResult{}, nil
+				}}); err != nil {
+					t.Fatal(err)
+				}
+				const source = "!`touch forbidden`"
+				if err := os.WriteFile(filepath.Join(root, "SKILL.md"), []byte(source), 0600); err != nil {
+					t.Fatal(err)
+				}
+				definition := skills.Definition{Summary: skills.Summary{Name: "fixture:dynamic", Description: "Permission fixture", Digest: fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(source)))}, Content: source, Claude: true, AllowedTools: []string{"Bash"}}
+				catalog, err := skills.OpenSelected(t.Context(), nil, []skills.FileSelection{{Root: root, Path: "SKILL.md", Definition: definition, UserInvocable: true, ModelInvocable: true}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = catalog.Close() })
+				if err := skills.MountCatalog(t.Context(), h, catalog, skills.MountOptions{Claude: true, Expand: func(ctx context.Context, agent *harness.Agent, definition skills.Definition, args string) (skills.Definition, error) {
+					return ExpandSkill(ctx, h, agent, definition, args, ExpansionOptions{Shell: "/bin/bash", Environment: []string{"PATH=/usr/bin:/bin"}})
+				}}); err != nil {
+					t.Fatal(err)
+				}
+				agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "entry", CWD: root, Provider: "fixture", Model: "scripted"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				ruleBehavior := behavior
+				if ruleBehavior == "interrupt" {
+					ruleBehavior = "ask"
+				}
+				if err := app.rememberSessionPermissions(agent, []claudehooks.PermissionUpdate{{Op: "add", Behavior: ruleBehavior, Rules: []string{"Bash(touch *)"}}, {Op: "add", Behavior: "allow", Rules: []string{"Bash(*)"}}}); err != nil {
+					t.Fatal(err)
+				}
+				text := "run fixture"
+				if entry == "slash" {
+					text = "/fixture:dynamic"
+				}
+				err = prompt(t, agent, text)
+				if entry == "slash" {
+					if err == nil || generated.Load() != 0 {
+						t.Fatalf("slash admission error=%v model calls=%d", err, generated.Load())
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				} else if behavior == "interrupt" {
+					if generated.Load() != 1 {
+						t.Fatalf("interrupted model continued: %d", generated.Load())
+					}
+				} else if !strings.Contains(observed, "denied") && !strings.Contains(observed, "unavailable") {
+					t.Fatalf("missing permission failure: %s", observed)
+				}
+				if _, err := os.Stat(filepath.Join(root, "forbidden")); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("dynamic command escaped admission: %v", err)
+				}
+			})
+		}
 	}
 }
