@@ -18,12 +18,14 @@ model AutomationCalendarTrigger { kind:"calendar"; schedule:CalendarSchedule; su
 @oneOf union AutomationTrigger { AutomationManualTrigger,AutomationEventTrigger,AutomationTimeTrigger,AutomationCalendarTrigger }
 union AutomationInputContract { "process_exact","recheck_latest" }
 model AutomationAgentMethod { kind:"agent"; agent_id:string; workspace:string; prompt:string; ...AutomationClosed; }
+model AutomationResearchWatch { kind:"research_watch"; record_id:string; ...AutomationClosed; }
+@oneOf union AutomationMethod { AutomationAgentMethod, AutomationResearchWatch }
 model AutomationLocalTarget { kind:"local_host"; owner:string; ...AutomationClosed; }
 model AutomationUnsupportedTarget { kind:"shared"|"worker"; ...AutomationClosed; }
 @oneOf union AutomationTarget { AutomationLocalTarget,AutomationUnsupportedTarget }
 model AutomationDefinition {
   id:string; revision:AutomationCounter; owner:string; trigger:AutomationTrigger; input:AutomationInputContract;
-  input_binding_id:string; method:AutomationAgentMethod; target:AutomationTarget; ...AutomationClosed;
+  input_binding_id:string; method:AutomationMethod; target:AutomationTarget; ...AutomationClosed;
 }
 model AutomationControl { paused:boolean; revoked:boolean; ...AutomationClosed; }
 model AutomationControls is Record<AutomationControl>;

@@ -154,6 +154,14 @@ class Catalog:
                         limits=dict(importBytes=IMPORT_LIMIT, previewBytes=PREVIEW_BYTES,
                                     records=MAX_ROWS, fields=MAX_FIELDS, columns=MAX_COLUMNS))
 
+    def research_versions(self):
+        with self.lock:
+            assets = {asset.id: asset for asset in self.assets}
+            return [dict(datasetId=dataset.id, name=dataset.name, archived=dataset.archived,
+                         versions=[dict(versionId=identity, sha256=assets[identity].sha256,
+                                        availability=self.availability(assets[identity])) for identity in dataset.versions])
+                    for dataset in self.datasets if dataset.kind == 'dataset']
+
     def dataset(self, dataset_id):
         found = next((item for item in self.datasets if item.id == dataset_id), None)
         if found is None:

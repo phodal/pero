@@ -2976,7 +2976,7 @@
           "type": "string"
         },
         "method": {
-          "$ref": "#/$defs/AutomationAgentMethod"
+          "$ref": "#/$defs/AutomationMethod"
         },
         "target": {
           "$ref": "#/$defs/AutomationTarget"
@@ -3342,6 +3342,17 @@
       ],
       "additionalProperties": false
     },
+    "AutomationMethod": {
+      "title": "AutomationMethod",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationAgentMethod"
+        },
+        {
+          "$ref": "#/$defs/AutomationResearchWatch"
+        }
+      ]
+    },
     "AutomationObservation": {
       "title": "AutomationObservation",
       "type": "object",
@@ -3666,6 +3677,24 @@
           "$ref": "#/$defs/AutomationCoveredRequestStatus"
         }
       ]
+    },
+    "AutomationResearchWatch": {
+      "title": "AutomationResearchWatch",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "research_watch"
+        },
+        "record_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "record_id"
+      ],
+      "additionalProperties": false
     },
     "AutomationResult": {
       "title": "AutomationResult",

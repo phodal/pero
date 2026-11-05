@@ -290,7 +290,7 @@ export class DesktopApps {
       if (url.pathname === '/host/research-assets') {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
         const body = await request.text();
-        if (Buffer.byteLength(body) > 4096) return new Response('Request too large', { status: 413 });
+        if (Buffer.byteLength(body) > 64 * 1024) return new Response('Request too large', { status: 413 });
         return Response.json(await this.request('research-assets', { name: url.hostname, request: JSON.parse(body) }), { headers: { 'Cache-Control': 'no-store' } });
       }
       if (url.pathname === '/host/connectors') {

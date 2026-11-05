@@ -246,12 +246,11 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
     return receipt
 
 
-def export(root, attempt_id, destination):
+def export(root, attempt_id, destination, *, verification_item=None, research_record=None):
     target = attempt_directory(root, attempt_id)
     report = check_attempt(root, attempt_id)
     if report['numeric_recomputation'] != 'PASS':
         raise Invalid('integrity', 'Cannot export evidence whose observation receipt does not match')
-    destination = Path(destination)
     files = {name: root / name for name in ('claim.json', 'spec.json', 'audit.json', 'source-manifest.json')}
     spec = load_spec(root)
     if spec.paper_binding_digest is not None:
@@ -267,7 +266,7 @@ def export(root, attempt_id, destination):
             files[name] = target / name
     if any(p.is_symlink() for p in files.values()):
         raise Invalid('export_path', 'Refuse linked artifacts')
-    with zipfile.ZipFile(destination, 'x', compression=zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(destination, 'w' if hasattr(destination, 'write') else 'x', compression=zipfile.ZIP_DEFLATED) as archive:
         manifests = []
         for name, path in files.items():
             content = path.read_bytes()
@@ -277,6 +276,11 @@ def export(root, attempt_id, destination):
         archive.writestr('pcgym_domain.py', checker)
         manifests.append({'name': 'pcgym_domain.py', 'sha256': hashlib.sha256(checker).hexdigest(), 'bytes': len(checker)})
         archive.writestr('verify.py', EXPORT_CHECKER)
+        for name, record in (('verification-item.json', verification_item), ('research-record.json', research_record)):
+            if record is not None:
+                content = canonical(record)
+                archive.writestr(name, content)
+                manifests.append({'name': name, 'sha256': hashlib.sha256(content).hexdigest(), 'bytes': len(content)})
         archive.writestr('manifest.json', canonical({'files': manifests, 'paper_verdict': report['paper_verdict'],
                          'omitted': ['Full third-party PDF and repository files (bound passage text is included)', 'Checkpoints (digests only)', 'Local paths and credentials']}))
     return {'exported': str(destination), 'paper_verdict': report['paper_verdict']}
@@ -301,6 +305,17 @@ if spec.paper_binding_digest is not None:
         raise ValueError('Paper binding differs from frozen specification')
 raw = (root/'observations.json').read_bytes()
 obs = Observation.parse(json.loads(raw), spec)
+if (root/'verification-item.json').is_file():
+    item = json.loads((root/'verification-item.json').read_text())
+    item_id = item.pop('id')
+    if digest(item) != item_id or item['spec_id'] != spec.id or item['paper_binding_digest'] != spec.paper_binding_digest or item['annotation_id'] != binding['annotation_id']:
+        raise ValueError('Verification item differs from the frozen specification and annotation')
+    if (root/'research-record.json').is_file():
+        record = json.loads((root/'research-record.json').read_text())
+        record_id = record.pop('id')
+        record.pop('verification')
+        if digest(record) != record_id or not any(row['itemId'] == item_id and row['attemptId'] == obs.attempt_id for row in record['attempts']):
+            raise ValueError('Research revision does not bind the exported item and attempt')
 receipt = json.loads((root/'execution.json').read_text())
 matched = (receipt.get('observations_sha256') == hashlib.sha256(raw).hexdigest()
            and receipt.get('spec_id') == spec.id and receipt.get('attempt_id') == obs.attempt_id)

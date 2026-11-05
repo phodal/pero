@@ -3,6 +3,7 @@ from contextlib import ExitStack
 import hashlib
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
+from io import BytesIO
 import json
 from pathlib import Path
 import tempfile
@@ -10,6 +11,7 @@ import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from zipfile import ZipFile
 
 from test_pcgym_reproduction import synthetic_sources, observation
 from test_research import reading, NOW
@@ -18,6 +20,7 @@ from paper_agent.pcgym_app import PcgymApp
 from paper_agent.pcgym_domain import COMMIT, Invalid, REQUIRED_PACKAGES
 from paper_agent.model import PaperSnapshot, Invalid as RequestInvalid, digest
 from paper_agent.pdf import PdfAnnotation, PdfDocument, PdfPage
+from paper_agent.research_record_commands import record_command, record_handoff
 from paper_agent.store import ResearchStore
 
 
@@ -90,7 +93,7 @@ class PcgymAppTests(unittest.TestCase):
         attempt = root / 'attempts' / raw['attempt_id']
         attempt.mkdir(parents=True)
         pcgym.write_json(attempt / 'observations.json', raw)
-        receipt = dict(spec_id=spec.id, attempt_id=raw['attempt_id'], status='completed',
+        receipt = dict(spec_id=spec.id, attempt_id=raw['attempt_id'], status='completed', started_at=NOW,
             observations_sha256=hashlib.sha256((attempt / 'observations.json').read_bytes()).hexdigest())
         pcgym.write_json(attempt / 'execution.json', receipt)
         return spec, raw, attempt
@@ -297,6 +300,35 @@ class PcgymAppTests(unittest.TestCase):
                 with self.assertRaisesRegex(Invalid, 'report value'):
                     self.app.command(dict(action='create-item', specId=frozen['id'], policy='base',
                                           comparison=dict(mode='absolute', tolerance=1)))
+
+    def test_research_handoff_preserves_selected_attempts_and_freezes_the_exported_item(self):
+        annotation = self.store.save_annotation(PdfAnnotation.create(dict(page=20, kind='highlight',
+            quote='0.0727', rects=[dict(x=.1, y=.2, width=.1, height=.1)]), self.document, NOW))
+        self.audit_command['annotationId'] = annotation.id
+        spec, raw, target = self.evidence()
+        item = self.app.command(dict(action='create-item', specId=spec.id, policy='base',
+                                     comparison=dict(mode='absolute', tolerance=.001)))
+        failed = target.parent / ('f' * 64)
+        failed.mkdir()
+        pcgym.write_json(failed / 'execution.json', dict(spec_id=spec.id, attempt_id=failed.name, status='failed', started_at=NOW))
+        links = [dict(itemId=item['id'], attemptId=identity) for identity in (raw['attempt_id'], failed.name)]
+        create = dict(operation='create', question='Review the measured value', scope='Synthetic fixture',
+            inclusion='Frozen attempts', exclusion='Unbound data', paperIds=[self.paper.id],
+            decisions=[dict(paperId=self.paper.id, decision='include', reason='Versioned source')], attempts=links)
+        record = record_command(self.store, create, NOW)
+        self.assertEqual([attempt['status'] for attempt in record['attempts']], ['completed', 'failed'])
+        self.assertEqual(record['sourceVersions'][0]['pdfDigest'], self.document.file_digest)
+        for denied in (dict(recordId=record['id'], **links[0]),
+                       dict(recordId=record['id'], includeNotes=True, **links[1])):
+            with self.assertRaises(RequestInvalid):
+                record_handoff(self.store, denied)
+        exported = record_handoff(self.store, dict(recordId=record['id'], includeNotes=True, **links[0]))
+        with ZipFile(BytesIO(exported)) as archive:
+            self.assertEqual(json.loads(archive.read('verification-item.json')), json.loads(pcgym.canonical(item)))
+            self.assertEqual(json.loads(archive.read('research-record.json')), record)
+            self.assertNotIn('local.json', archive.namelist())
+            self.assertNotIn('execution.log', archive.namelist())
+        self.assertNotIn(create['question'], json.dumps(record_command(self.store, dict(operation='export', recordId=record['id']), NOW)))
 
     def test_confirmed_terminal_requests_allow_new_attempt_without_rebinding_history(self):
         frozen, _ = self.freeze()
