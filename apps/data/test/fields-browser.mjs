@@ -141,5 +141,12 @@ for (const failure of ['changed', 'transport']) test(`${failure} failure removes
   await expect(input).toHaveCount(0);
   await expect(page.getByText('Bytes matched', { exact: false })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Checks', exact: true }).click();
-  await expect(page.getByText('No current checks. Open Table for the file status.', { exact: true })).toBeVisible();
+  await expect(page.getByText('No current checks.', { exact: true })).toBeVisible();
+  if (failure === 'transport') {
+    await page.getByRole('button', { name: 'Retry inspection', exact: true }).click();
+    const retry = await next();
+    assert.deepEqual(retry.input, request.input);
+    await retry.reply();
+    await expect(page.getByText('Full input / 1 records', { exact: true })).toBeVisible();
+  }
 });

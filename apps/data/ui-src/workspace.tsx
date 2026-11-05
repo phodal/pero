@@ -3,7 +3,7 @@ import { Button, Checkbox, EmptyState, Feedback, Input, Select, Tabs, TabsConten
 import { InterpretationPreview } from './interpretation';
 import { ChartPanel } from './chart-panel';
 import { DataForm, SubmitButton } from './submit-button';
-import { applyInterpretation, availabilityLabel, emptyView, formatBytes, formatInt, type Asset, type ChartDataset, type Dataset, type Inspection, type OkInspection, type SavedView, type ViewIssue, type ViewSpec } from './model';
+import { applyInterpretation, availabilityLabel, emptyView, formatBytes, formatInt, type Asset, type ChartDataset, type Dataset, type InspectionOutcome, type OkInspection, type SavedView, type ViewIssue, type ViewSpec } from './model';
 
 const operators = [
   { value: 'contains', label: 'Contains' }, { value: 'eq', label: 'Equals' },
@@ -13,9 +13,11 @@ const operators = [
 
 type Props = {
   dataset: Dataset; asset: Asset; assets: Asset[]; views: SavedView[];
-  result: Inspection | null; fields: OkInspection | null; loading: boolean; busy: boolean;
+  result: InspectionOutcome | null; fields: OkInspection | null; loading: boolean; busy: boolean;
   view: ViewSpec; parserVersion: string; tab: string; maxColumns: number;
+  recoveryLabel: string;
   onTab(value: string): void; onVersion(id: string): void; onView(value: ViewSpec): void; onPage(offset: number): void;
+  onRetryInspection(): void; onRecoverView(): void;
   onAddVersion(): void; onEdit(value: { name: string; projectRef: string; archived: boolean }): void;
   onSave(name: string): void; onOpen(view: SavedView): void; onExport(view: SavedView): void;
   onRecord(row: number): void;
@@ -36,6 +38,7 @@ export function Workspace(props: Props) {
     setFilterValue(view.filter?.value ?? '');
   }, [view.filter?.field, view.filter?.operator, view.filter?.value]);
   const inspected = result?.status === 'ok' && result.assetId === asset.id ? result : null;
+  const failure = !loading && result && result.status !== 'ok' ? result : null;
   const columns = view.columns.length ? view.columns : fields?.columns ?? [];
   const versions = dataset.versions.map(id => props.assets.find(item => item.id === id)!).filter(Boolean);
   const metadata = { name: dataset.name, projectRef: dataset.projectRef, archived: dataset.archived };
@@ -61,7 +64,12 @@ export function Workspace(props: Props) {
           options={versions.map((version, index) => ({ value: version.id, label: `v${index + 1} — ${version.name}` }))} />
         <Button onClick={props.onAddVersion} disabled={busy || dataset.archived}>Add version</Button>
       </div>
-      <p className="data-note">{formatBytes(asset.size)} / {format} / {inspected ? 'Bytes matched' : result?.status === 'changed' ? 'Changed' : availabilityLabel(asset)}</p>
+      <p className="data-note">{formatBytes(asset.size)} / {inspected ? 'Bytes matched' : availabilityLabel(asset, result)}</p>
+      {failure ? <div className="data-actions">
+        <Feedback kind={failure.status === 'unsupported' ? 'status' : 'error'}>{failure.message}</Feedback>
+        {failure.status === 'rejected' ? <Button disabled={busy} onClick={props.onRecoverView}>{props.recoveryLabel}</Button> : null}
+        {failure.status === 'unavailable' ? <Button disabled={busy} onClick={props.onRetryInspection}>Retry inspection</Button> : null}
+      </div> : null}
       <details>
         <summary>Source and details</summary>
         <dl className="data-facts">
@@ -92,7 +100,6 @@ export function Workspace(props: Props) {
       </TabsList>
       <TabsContent value="table">
         {loading && !inspected ? <p role="status">Reading this version…</p> : null}
-        {!loading && result && result.assetId === asset.id && result.status !== 'ok' ? <Feedback kind="error"><span>{result.message}</span></Feedback> : null}
         {!loading && !fields && (view.filter || view.issue || Object.keys(view.interpretations ?? {}).length > 0) ? <Button disabled={busy} onClick={() => props.onView(emptyView())}>Reset view</Button> : null}
         {dataset.kind === 'model' ? <p className="data-note">Model files stay stored. They are not parsed, charted, or sent to the agent as rows.</p> : null}
         {fields ? <>
@@ -108,7 +115,7 @@ export function Workspace(props: Props) {
                 onChange={event => setFilterValue(event.target.value)}
                 onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing && !busy) applyFilter(); }} />
               <Button disabled={busy || loading} onClick={applyFilter}>Apply</Button>
-              {view.filter ? <Button disabled={busy} onClick={() => props.onView({ ...view, selection: [], filter: null })}>Clear filter</Button> : null}
+              {view.filter ? <Button disabled={busy} onClick={props.onRecoverView}>Clear filter</Button> : null}
             </div>
             <div className="data-sort-controls">
               <Select panelClassName="data-select-panel" label="Sort field" value={view.sort?.field ?? ''} disabled={busy}
@@ -203,12 +210,12 @@ export function Workspace(props: Props) {
             <thead><tr><th scope="col">Row</th><th scope="col">Duplicate of</th><th scope="col">Source line</th></tr></thead>
             <tbody>{inspected.report.duplicates.map(item => <tr key={item.row}><td>{item.row}</td><td>{item.duplicateOf}</td><td>{item.sourceLine ?? '—'} <Button onClick={() => props.onRecord(item.row - 1)}>Source row {item.row}</Button></td></tr>)}</tbody>
           </table></div> : null}
-        </> : <p className="data-note">No current checks. Open Table for the file status.</p>}
+        </> : <p className="data-note">No current checks.</p>}
       </TabsContent>
       <TabsContent value="history">
         <div className="data-history">{versions.map((version, index) => <section key={version.id}>
           <Button aria-pressed={version.id === asset.id} disabled={busy} onClick={() => props.onVersion(version.id)}>v{index + 1} / {version.name}</Button>
-          <p className="data-note">{version.createdAt} / {availabilityLabel(version)}</p><code>{version.sha256}</code>
+          <p className="data-note">{version.createdAt} / {availabilityLabel(version, result)}</p><code>{version.sha256}</code>
         </section>)}</div>
         <h3>Saved views</h3>
         {props.views.length ? props.views.map(saved => <section className="data-saved-view" key={saved.id}>
@@ -226,12 +233,12 @@ export function Workspace(props: Props) {
     </Tabs>
     <footer className="data-workspace-footer">
       <div className="data-statusbar">
-        <div className="data-counts">
-          <span>{inspected ? `${inspected.rows.length ? inspected.offset + 1 : 0}–${inspected.offset + inspected.rows.length} / ${formatInt(inspected.matched)}` : formatInt(fields?.report.rowCount ?? 0)} records</span>
-          <span>{fields?.report.fields.length ?? 0} fields</span>
+        {fields ? <div className="data-counts">
+          <span>{inspected ? `${inspected.rows.length ? inspected.offset + 1 : 0}–${inspected.offset + inspected.rows.length} / ${formatInt(inspected.matched)}` : formatInt(fields.report.rowCount)} records</span>
+          <span>{fields.report.fields.length} fields</span>
           {view.filter && inspected ? <span>{formatInt(inspected.matched)} matching</span> : null}
           {view.selection.length > 0 ? <span>{view.selection.length} selected</span> : null}
-        </div>
+        </div> : null}
         {props.tab === 'table' && inspected ? <div className="data-pagination">
           {view.selection.length > 0 ? <Button variant="ghost" disabled={busy} onClick={() => props.onView({ ...view, selection: [] })}>Clear selection</Button> : null}
           <Button variant="ghost" disabled={busy || loading || inspected.offset === 0} onClick={() => props.onPage(Math.max(0, inspected.offset - 50))}>Previous</Button>

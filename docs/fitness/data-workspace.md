@@ -50,7 +50,7 @@ parser and unchanged downloader/source modules matched their Git blob hashes:
 No tests here used a public dataset/model download, credentials, a model provider,
 or the user's machine. Fixtures are authored test data, not scientific evidence.
 
-## Required before acceptance
+## Acceptance gaps at initial review
 
 The following were **not executed in this local environment**: the full pre-existing
 Data regression suite, strict App TypeScript checking, full App/Host builds, real
@@ -99,6 +99,35 @@ screenshots were produced. CI must establish behavioral evidence; successful
 bundling and static review are not substitutes. Full App build was also blocked
 by absent `PERO_GPUI_KIT_PATH`; strict App type checking above did run. This
 follow-up does not establish full Host, standalone or Workbench GUI acceptance.
+
+## macOS Electron acceptance (2026-11-05)
+
+Verified the #110 implementation and this follow-up from master
+`68ee694c6ba42e65871b990383cd3fbe4672ff54` on macOS arm64 with disposable
+profiles. Rebuilt the Data App, Rust Host, Workbench Wasm/web and Electron shell.
+The local GPUI Kit checkout was `944803984cf0ba3111861d6e1aa9d6265c109ff9`.
+
+| Command | Result |
+| --- | --- |
+| `npm run check` and `npm --prefix apps/data run typecheck` | Passed |
+| `python3 -m unittest discover -s apps/data/test -v` | 59 passed, including legacy catalog migration, JSON/JSONL exact values, and source-line errors |
+| `npm --prefix apps/data run test:ui` and `npm --prefix apps/data run test:browser` | 4 UI tests and 6 Chromium tests passed, including keyboard focus and retry |
+| `go -C harness/go test -race ./charts` | Passed against the shared Python core |
+| `node tests/contracts/research-import.mjs` | Passed with installed Paper and Data fixture composition, real Rust Host and Data downloader, synthetic metadata and byte streams |
+| `node tests/e2e/data.mjs` | Passed real Electron/Host import, exact bytes and SHA-256, v1/v2 history, pagination, saved reference download, project unlink, archive/restore and restart |
+| `node tests/e2e/data-product.mjs` | Passed real Electron/Host import and restart in a separate standalone development profile using system Python |
+
+Workbench also exercised a rejected filter and recovery with units retained, a
+same-size byte modification while viewing a saved version, and a malformed JSONL
+file that remained stored with its original bytes and reported its physical line
+and column. The install contract stages the shared parser, view and chart
+modules explicitly. It does not rely on generated files from a prior App build.
+
+Inspected actual Electron light, dark and narrow captures. Local receipts and
+screenshots are under `test-results/data/` and `test-results/data-product/`.
+The Paper handoff fixture checks consent, verification, scoped cancellation,
+receipt reuse and restart without a public download. Linux and Windows Desktop
+and bundled or signed product acceptance were not run locally.
 
 ## Explicit CSV interpretation and issue navigation (2026-11-05)
 

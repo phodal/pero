@@ -117,7 +117,17 @@ class Dataset:
 
         try:
             if json_lines:
-                entries = [(read(line), "", index + 1) for index, line in enumerate(source.split('\n')) if line.strip()]
+                entries = []
+                for line_number, line in enumerate(source.split('\n'), start=1):
+                    if not line.strip():
+                        continue
+                    try:
+                        entry = read(line)
+                    except json.JSONDecodeError as error:
+                        raise Invalid(f"Line {line_number}, column {error.colno}: {error.msg}") from None
+                    except Invalid as error:
+                        raise Invalid(f"Line {line_number}: {error}") from None
+                    entries.append((entry, "", line_number))
             else:
                 root = read(source)
                 if isinstance(root, list):
@@ -134,7 +144,8 @@ class Dataset:
             nulls: dict[str, int] = {}
             for index, (entry, pointer, line) in enumerate(entries):
                 if not isinstance(entry, Object):
-                    raise Invalid("Every dataset row must be a JSON object")
+                    message = "Every dataset row must be a JSON object"
+                    raise Invalid(f"Line {line}: {message}" if line is not None else message)
                 records.append(Record(index, pointer, line, entry.cells))
                 for field, cell in entry.cells:
                     kinds.setdefault(field, set()).add(cell.kind)

@@ -17,7 +17,9 @@ html, body, #app { height: 100%; }
   position: sticky; top: 0; z-index: 1; font-size: var(--pero-font-caption); font-weight: 600;
   color: var(--pero-text-muted); background: var(--pero-material-sidebar);
 }
-.data-table td:first-child { max-width: 240px; }
+.data-table { table-layout: fixed; min-width: 22rem; }
+.data-table thead th:not(:first-child) { width: 5em; }
+.data-table thead th:last-child { width: 5.75em; }
 .data-table button {
   display: block; max-width: 100%; overflow: hidden; padding: 0; border: 0;
   background: transparent; color: inherit; font: inherit; font-weight: 600;
