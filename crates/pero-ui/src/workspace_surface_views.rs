@@ -63,9 +63,7 @@ impl Workbench {
     }
 
     pub(crate) fn workspace_split_control(&self, cx: &mut Context<Self>) -> AnyElement {
-        let button = Button::new("workspace-split")
-            .ghost()
-            .small()
+        let button = pero_theme::ghost_icon_button("workspace-split", pero_theme::Chrome::from_app(cx), cx)
             .icon(Icon::default().path("icons/panel-right-open.svg"))
             .tooltip(self.t("workspace.split"))
             .accessibility_label(self.t("workspace.split"));

@@ -524,33 +524,12 @@ impl Workbench {
                                 let (title, icon) = self.content_label(item, cx);
                                 let select = item.clone();
                                 let close = item.clone();
-                                div()
-                                    .min_w(px(100.))
-                                    .max_w(px(220.))
-                                    .h_full()
-                                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                        cx.stop_propagation();
-                                    })
-                                    .bg(p.color(if current == Some(item) {
-                                        "surface"
-                                    } else if ruled {
-                                        "bg"
-                                    } else {
-                                        "surface-muted"
-                                    }))
-                                    .flex_shrink_0()
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(1.))
-                                    .px(px(W::GAP))
-                                    .border_b_2()
-                                    .border_color(p.color(if current == Some(item) {
-                                        "action"
-                                    } else if ruled {
-                                        "bg"
-                                    } else {
-                                        "surface-muted"
-                                    }))
+                                pero_theme::content_tab(
+                                    SharedString::from(format!("workspace-tab-shell:{item:?}")),
+                                    pero_theme::ContentTabState { active: current == Some(item), focused: true, pinned: false },
+                                    pero_theme::Chrome::from_app(cx),
+                                )
+                                    .on_mouse_down(MouseButton::Left, |_, _, cx| { cx.stop_propagation(); })
                                     .child(
                                         Button::new(SharedString::from(format!(
                                             "workspace-tab:{item:?}"
@@ -572,7 +551,7 @@ impl Workbench {
                                                 .size(px(W::ICON))
                                                 .path(pero_chat_ui::icon_theme::asset_path(&icon)),
                                         )
-                                        .label(title.clone())
+                                        .child(pero_theme::content_tab_label(title.clone().into(), false, pero_theme::Chrome::from_app(cx)))
                                         .tooltip(title.clone())
                                         .accessibility_label(title.clone())
                                         .toggled(current == Some(item))
@@ -583,15 +562,9 @@ impl Workbench {
                                         ),
                                     )
                                     .child(
-                                        Button::new(SharedString::from(format!(
+                                        pero_theme::ghost_icon_button(SharedString::from(format!(
                                             "workspace-tab-close:{item:?}"
-                                        )))
-                                        .ghost()
-                                        .small()
-                                        .w(px(26.))
-                                        .h(px(pero_theme::UiAppearance::global(cx)
-                                            .typography
-                                            .control_height()))
+                                        )), pero_theme::Chrome::from_app(cx), cx)
                                         .icon(Icon::default().path("icons/x.svg"))
                                         .tooltip(self.t("workspace.close_tab"))
                                         .accessibility_label(format!(
