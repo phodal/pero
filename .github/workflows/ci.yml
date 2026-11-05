@@ -60,6 +60,8 @@ jobs:
           python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt
           npx playwright install --with-deps chromium
           npm run build --prefix apps/scientific-viewer
+      - name: Verify App context handshake and cross-origin bridge
+        run: node tests/e2e/app-use-bridge.mjs
       - name: Verify imported files, charts, molecules and responsive themes
         run: node tests/e2e/scientific-viewer-browser.mjs
       - name: Viewer screenshots and exact bundle evidence
