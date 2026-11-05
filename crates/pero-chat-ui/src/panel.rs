@@ -4,7 +4,7 @@ use crate::{
     conversation::{AgentChoice, Conversation},
 };
 use gpui_kit::{
-    component::input::{InlineToken, InputContent, InputEvent, TextareaState},
+    component::input::{InputContent, InputEvent, TextareaState},
     prelude::*,
     *,
 };
@@ -19,6 +19,12 @@ use std::collections::{HashMap, HashSet};
 pub enum ChatAction {
     Command(HostCommand),
     Content(crate::artifact_read::ContentReadIntent),
+    Artifacts(pero_contracts::session_artifact::ArtifactRequest),
+    ChooseArtifactFile { thread_id: String },
+    ArtifactPaneWidth { width: f32 },
+    ArtifactPreview(Option<pero_contracts::session_artifact::ArtifactBrowserState>),
+    ArtifactView {view:pero_contracts::workbench::ArtifactView},
+    ArtifactComposeResult { id:String, error:Option<String> },
     AppLink(String),
     OpenDocument(pero_contracts::content_document::ContentDocument),
     ChooseWorkspace,
@@ -46,6 +52,8 @@ pub(crate) struct ComposerInsertion {
     pub(crate) contexts: Vec<ContextReference>,
     #[serde(default)]
     pub(crate) replace: bool,
+    #[serde(skip)]
+    pub(crate) surface_request: Option<String>,
 }
 
 pub struct ChatPanel {
@@ -83,6 +91,7 @@ pub struct ChatPanel {
     pub(crate) visible: bool,
     pub(crate) next_request: u64,
     pub(crate) retired_chats: HashMap<String, String>,
+    pub(crate) artifacts: crate::session_artifacts::SessionArtifacts,
     link_subscriptions: HashMap<gpui_kit::EntityId, Subscription>,
     _subscriptions: Vec<Subscription>,
 }
@@ -155,6 +164,7 @@ impl ChatPanel {
             visible: true,
             next_request: 0,
             retired_chats: HashMap::new(),
+            artifacts: Default::default(),
             _subscriptions: subscriptions,
         }
     }
@@ -186,7 +196,7 @@ impl ChatPanel {
         if let Some(chat) = self.active_chat.and_then(|index| self.chats.get(index)) {
             self.pending_prompts.push(ComposerInsertion {
                 thread_id: chat.id.clone(),
-                text,contexts:vec![],replace:false,
+                text,contexts:vec![],replace:false,surface_request:None,
             });
         }
         cx.notify();
@@ -271,6 +281,7 @@ impl ChatPanel {
     }
 
     pub fn receive(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
+        if self.receive_artifacts(event, cx) { return true; }
         if self.receive_composer(event, cx) {
             return true;
         }
@@ -308,6 +319,20 @@ impl ChatPanel {
                 match serde_json::from_value::<ComposerInsertion>(event.data.clone()) {
                     Ok(mut insertion)=>{insertion.text=event.text.clone();self.pending_prompts.push(insertion);},
                     Err(error)=>self.error=Some(error.to_string()),
+                }
+            }
+            "artifact_select" => {
+                if let Ok(target)=serde_json::from_value::<pero_contracts::session_artifact::ArtifactPreviewTarget>(event.data.clone()) {
+                    if self.artifact_target_available(&target) {self.read_artifact(&target.thread_id,&target.artifact_id,target.version,false,cx);}
+                }
+            }
+            "artifact_compose" => {
+                if let Ok(target)=serde_json::from_value::<pero_contracts::session_artifact::ArtifactPreviewTarget>(event.data.clone()) {
+                    if self.artifact_preview_target().as_ref()==Some(&target) && event.text.len()<=128_000 {
+                        self.request_artifact_context(&target,event.text.clone(),event.request_id.clone(),cx);
+                    } else if let Some(id)=event.request_id.clone() {
+                        cx.emit(ChatAction::ArtifactComposeResult{id,error:Some("This artifact is no longer selected".into())});
+                    }
                 }
             }
             "content_document" => {
@@ -351,7 +376,7 @@ impl ChatPanel {
     /// Diagnostic projection used by both shells; never a second history store.
     pub fn snapshot(&self, cx: &App) -> Value {
         json!({"chats":self.chats,"activeChat":self.active_chat,"agents":self.agents,
-            "connected":self.connected,"error":self.error,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,
+            "connected":self.connected,"error":self.error,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),
             "composer":self.composer.read(cx).value().as_ref(),"composerFocused":self.composer_focused,
             "workspace":self.workspace,"attachments":self.attachments.iter().map(|r|r.label.as_str()).collect::<Vec<_>>(),
             "expandedTools":self.expanded_tools,"expandedReasoning":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(i,m)|m.role=="thought" && chat.thinking.open(*i)).map(|(i,_)|(&chat.id,i))).collect::<Vec<_>>(),
@@ -385,43 +410,7 @@ impl Render for ChatPanel {
             self.link_subscriptions.insert(view.entity_id(),subscription);
         }
         self.apply_composer_context(window, cx);
-        for insertion in std::mem::take(&mut self.pending_prompts) {
-            let Some(index) = self
-                .chats
-                .iter()
-                .position(|chat| chat.id == insertion.thread_id)
-            else {
-                continue;
-            };
-            if self.active_chat == Some(index) {
-                let end=self.composer.read(cx).value().len();
-                self.replace_composer_range(if insertion.replace{0..end}else{end..end},&insertion.text,window,cx);
-                self.update_composer_completion(cx);
-                for reference in insertion.contexts {
-                    let end=self.composer.read(cx).value().len();
-                    self.insert_composer_reference(reference,end..end,window,cx);
-                }
-                self.composer.update(cx,|input,cx|input.focus(window,cx));
-            } else {
-                let chat=&mut self.chats[index];
-                let mut text=if insertion.replace{String::new()}else{chat.draft.text().to_string()};
-                let mut tokens=if insertion.replace{vec![]}else{chat.draft.tokens().iter().map(|span|(span.range(),span.token().clone())).collect::<Vec<_>>()};
-                text.push_str(&insertion.text);
-                let mut references=if insertion.replace{HashMap::new()}else{chat.draft_references.clone()};
-                references.retain(|id,_|tokens.iter().any(|(_,token)|token.id().as_ref()==id.as_str()));
-                for reference in insertion.contexts {
-                    let start=text.len();let label=format!("@{}",reference.label.replace(['\n','\r','\t']," "));
-                    text.push_str(&label);let end=text.len();text.push(' ');
-                    tokens.push((start..end,InlineToken::new(reference.id.clone(),label).with_label(reference.label.clone())));
-                    references.insert(reference.id.clone(),reference);
-                }
-                if let Err(error)=ContextReference::validate_all(&references.values().cloned().collect::<Vec<_>>()){self.error=Some(error.into());continue;}
-                let mut next=InputContent::new(text);
-                for (range,token) in tokens{next=next.with_token(range,token).expect("valid appended token");}
-                chat.draft=next;chat.draft_references=references;
-            }
-
-        }
+        self.apply_pending_composer_insertions(window, cx);
         if self.input_locale != self.locale {
             self.input_locale = self.locale.clone();
             let placeholder = self.t("chat.placeholder");
@@ -429,6 +418,8 @@ impl Render for ChatPanel {
                 input.set_placeholder(placeholder, window, cx)
             });
         }
-        self.chat_view(window, cx)
+        self.prepare_artifacts(window, cx);
+        let view = cx.entity().clone();
+        container_query(move |size, window, cx| view.update(cx, |this, cx| {this.artifacts.narrow=size.width<px(820.);this.artifact_chat_layout(size, window, cx)}))
     }
 }
