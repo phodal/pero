@@ -15,6 +15,23 @@ use std::{
     path::{Path, PathBuf},
 };
 
+// A path can become a FIFO after admission. Nonblocking open keeps that race
+// from stalling Host, and descriptor metadata validates the actual opened file.
+fn open_regular_artifact_file(path: &Path) -> Result<std::fs::File, ArtifactStoreError> {
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = options.open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(ArtifactStoreError::Unsupported);
+    }
+    Ok(file)
+}
+
 pub struct SessionArtifacts {
     directory: PathBuf,
 }
@@ -167,11 +184,12 @@ impl SessionArtifacts {
                 if !path.starts_with(&workspace) {
                     return Err(ArtifactStoreError::OutsideWorkspace);
                 }
-                let mut bytes = Vec::new();
-                let file = std::fs::File::open(&path)?;
-                if !file.metadata()?.is_file() {
+                // Opening a FIFO can wait for a writer before descriptor metadata is available.
+                if !std::fs::metadata(&path)?.is_file() {
                     return Err(ArtifactStoreError::Unsupported);
                 }
+                let mut bytes = Vec::new();
+                let file = open_regular_artifact_file(&path)?;
                 file.take(MAX_ARTIFACT_FILE_BYTES + 1)
                     .read_to_end(&mut bytes)?;
                 let filename = path
@@ -408,6 +426,47 @@ impl SessionArtifacts {
 mod tests {
     use super::*;
     use pero_contracts::session_artifact::ArtifactMethod;
+    #[cfg(unix)]
+    #[test]
+    fn file_delivery_refuses_nonregular_sources_without_waiting() {
+        use std::{ffi::CString, os::unix::{ffi::OsStrExt, fs::OpenOptionsExt}, sync::mpsc, time::Duration};
+        for replaced_after_admission in [false, true] {
+            let root = std::env::temp_dir().join(format!("pero-artifact-file-kind-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&root).unwrap();
+            let fifo = root.join("stream.csv");
+            if replaced_after_admission {
+                std::fs::write(&fifo, b"original regular file").unwrap();
+                assert!(std::fs::metadata(&fifo).unwrap().is_file());
+                std::fs::remove_file(&fifo).unwrap();
+            }
+            let name = CString::new(fifo.as_os_str().as_bytes()).unwrap();
+            assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
+            let workspace = root.clone();
+            let (sender, receiver) = mpsc::channel();
+            let worker = std::thread::spawn(move || {
+                let result = if replaced_after_admission {
+                    // Exercise the same descriptor admission after a stale path check.
+                    open_regular_artifact_file(&workspace.join("stream.csv")).map(|_| ())
+                } else {
+                    SessionArtifacts::new(&workspace.join("settings.json")).register(ArtifactRequest::RegisterFile {
+                        method: ArtifactMethod::Artifacts,
+                        request_id: "file-kind".into(), thread_id: "thread".into(), artifact_id: None,
+                        title: None, path: "stream.csv".into(), source_message_id: None, source_tool_call_id: None,
+                    }, Some(&workspace), 1).map(|_| ())
+                };
+                sender.send(result).unwrap();
+            });
+            let result = receiver.recv_timeout(Duration::from_secs(2));
+            // Release a regressed blocking open so the failure cannot hang the process.
+            let release = result.is_err().then(|| std::fs::OpenOptions::new()
+                .read(true).write(true).custom_flags(libc::O_NONBLOCK).open(&fifo).unwrap());
+            worker.join().unwrap();
+            drop(release);
+            std::fs::remove_dir_all(root).unwrap();
+            assert!(matches!(result, Ok(Err(ArtifactStoreError::Unsupported))), "{result:?}");
+        }
+    }
+
     #[test]
     fn deliveries_keep_exact_versions_across_restart_and_refuse_outside_files() {
         let root =
