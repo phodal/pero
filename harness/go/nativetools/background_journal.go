@@ -13,17 +13,66 @@ import (
 )
 
 type shellTaskHistory struct {
-	intent     shellTaskIntent
-	terminal   *shellTaskTerminal
-	promotion  *shellTaskPromotion
-	startedSeq uint64
-	settledSeq uint64
+	intent      shellTaskIntent
+	terminal    *shellTaskTerminal
+	promotion   *shellTaskPromotion
+	startedSeq  uint64
+	settledSeq  uint64
+	observedSeq uint64
 }
 
 func foldShellTasks(events []harness.Event, owner harness.SessionID) (map[string]shellTaskHistory, error) {
 	tasks := make(map[string]shellTaskHistory)
+	reads := make(map[harness.ToolCallID]string)
 	for _, event := range events {
 		switch event.Type {
+		case "tool/call":
+			var call struct {
+				ID        harness.ToolCallID `json:"callId"`
+				Name      string             `json:"name"`
+				Arguments struct {
+					ID string `json:"task_id"`
+				} `json:"arguments"`
+			}
+			if json.Unmarshal(event.Data, &call) == nil {
+				delete(reads, call.ID)
+				if call.Name == "TaskOutput" || call.Name == "TaskStop" {
+					reads[call.ID] = call.Arguments.ID
+				}
+			}
+		case "tool/result":
+			if len(reads) == 0 {
+				continue
+			}
+			var surface struct {
+				Op string `json:"op"`
+			}
+			if json.Unmarshal(event.SurfaceOp, &surface) == nil && surface.Op == "replace" {
+				continue
+			}
+			var result harness.ContentBlock
+			if json.Unmarshal(event.Data, &result) != nil {
+				continue
+			}
+			id, found := reads[result.ToolCallID]
+			delete(reads, result.ToolCallID)
+			stored := tasks[id]
+			if !found || stored.terminal == nil {
+				continue
+			}
+			for _, block := range result.Content {
+				var receipt struct {
+					ID        string                `json:"task_id"`
+					Kind      harness.TaskKind      `json:"kind"`
+					Status    shellTaskStatus       `json:"status"`
+					Retrieval harness.TaskRetrieval `json:"retrieval_status"`
+				}
+				if block.Type == harness.BlockText && json.Unmarshal([]byte(block.Text), &receipt) == nil && receipt.ID == id && receipt.Kind == harness.TaskKindShell && receipt.Status == stored.terminal.Status && receipt.Retrieval == harness.TaskRetrieved {
+					stored.observedSeq = event.Seq
+					tasks[id] = stored
+					break
+				}
+			}
 		case shellTaskStarted:
 			intent := shellTaskIntent{Background: true}
 			decoder := json.NewDecoder(bytes.NewReader(event.Data))

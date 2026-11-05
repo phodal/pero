@@ -204,13 +204,9 @@ func TestPluginCLIWorkflowAndBackgroundTaskExecution(t *testing.T) {
 						if !strings.Contains(receipt, `"status":"completed"`) || !strings.Contains(receipt, "background-result") {
 							t.Errorf("CLI TaskOutput lost the actual terminal shell result: %s", receipt)
 						}
-					case 5:
-						if mode != "background shell" || !strings.Contains(text, "Background Bash") || !strings.Contains(text, "background-result") {
-							t.Errorf("CLI completion after TaskOutput omitted actual result: %s", text)
-						}
 					}
 				}
-				if stage > 5 || stage > 4 && mode != "background shell" || stage > 3 && mode == "background notification" {
+				if stage > 4 || stage > 3 && mode == "background notification" {
 					t.Errorf("unexpected execution continuation %d", stage)
 				}
 				w.Header().Set("Content-Type", "text/event-stream")
@@ -296,16 +292,13 @@ func TestPluginCLIWorkflowAndBackgroundTaskExecution(t *testing.T) {
 				t.Fatal(result)
 			}
 			wantCalls := int32(4)
-			if mode != "workflow" {
-				wantCalls = 5
-				if mode == "background notification" {
-					wantCalls = 3
-					if calls.Load() != 2 {
-						t.Fatal("root prompt did not return before background completion")
-					}
-					if _, err := io.WriteString(gate, "continue\n"); err != nil {
-						t.Fatal(err)
-					}
+			if mode == "background notification" {
+				wantCalls = 3
+				if calls.Load() != 2 {
+					t.Fatal("root prompt did not return before background completion")
+				}
+				if _, err := io.WriteString(gate, "continue\n"); err != nil {
+					t.Fatal(err)
 				}
 				// Observe the actual follow-up turn's durable end, without sending a
 				// second prompt or closing the process at its first text chunk.
@@ -350,6 +343,13 @@ func TestPluginCLIWorkflowAndBackgroundTaskExecution(t *testing.T) {
 			}
 			if err != nil || !bytes.Contains(journal, []byte(fact)) {
 				t.Fatalf("execution receipt was not durable: %v", err)
+			}
+			wantTurns := 1
+			if mode == "background notification" {
+				wantTurns = 2
+			}
+			if turns := bytes.Count(journal, []byte(`"type":"turn/end"`)); turns != wantTurns || calls.Load() != wantCalls {
+				t.Fatalf("CLI final turns=%d calls=%d; want turns=%d calls=%d", turns, calls.Load(), wantTurns, wantCalls)
 			}
 		})
 	}

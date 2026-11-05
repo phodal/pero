@@ -72,12 +72,20 @@ func (a *Agent) DeliverBackgroundNotice(ctx context.Context, message Message) er
 	return a.deliverInboxNotice(ctx, message, inboxDelivery{target: InboxNextTurn, wake: true})
 }
 
+// AcknowledgeBackgroundNotice withdraws a completion whose result is already
+// committed through another channel. Remembering the same immutable identity
+// also suppresses late publication and replay; unrelated queued work is intact.
+func (a *Agent) AcknowledgeBackgroundNotice(ctx context.Context, message Message) error {
+	return a.deliverInboxNotice(ctx, message, inboxDelivery{target: InboxNextTurn, observed: true})
+}
+
 // deliverInboxNotice retains stable source identities in the existing inbox.
 // The internal wake respects interruption; unlike explicit WakeDurable it does
 // not unpark work that the user stopped. In-memory Sessions remain in-memory.
 type inboxDelivery struct {
 	target                   InboxTarget
 	wake, requirePersistence bool
+	observed                 bool
 }
 
 // StageBackgroundNotice persists an idempotent next-turn notice without waking
@@ -108,6 +116,14 @@ func (a *Agent) deliverInboxNotice(ctx context.Context, message Message, deliver
 		a.inboxClaimMu.Unlock()
 		return err
 	}
+	var removed InboxMutation
+	if delivery.observed {
+		removed, _, err = a.durableInbox.RemoveExact(message)
+		if err != nil {
+			a.inboxClaimMu.Unlock()
+			return err
+		}
+	}
 	if a.session.DurabilityAttached() {
 		if err := a.session.Flush(ctx); err != nil {
 			a.inboxClaimMu.Unlock()
@@ -117,6 +133,9 @@ func (a *Agent) deliverInboxNotice(ctx context.Context, message Message, deliver
 	a.inboxClaimMu.Unlock()
 	if inserted {
 		a.publishInboxInserted(message, target, false)
+	}
+	for _, message := range removed.Removed {
+		a.publishInboxDiscarded(message, false)
 	}
 	if delivery.wake {
 		a.requestDurableWake()

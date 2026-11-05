@@ -15,6 +15,11 @@ func (s *shellTasks) registerNoticeRecovery(h *harness.Harness, run *point.Run) 
 	}); err != nil {
 		return err
 	}
+	if _, err := h.Hooks().TurnStopping.On(run, func(ctx context.Context, input harness.TurnStoppingInput) error {
+		return s.reconcileNotices(ctx, input.Agent, false)
+	}); err != nil {
+		return err
+	}
 	_, err := h.Hooks().PreStep.Use(run, func(ctx context.Context, input harness.StepInput, next point.Next[harness.StepInput]) (harness.StepInput, error) {
 		if err := s.reconcileNotices(ctx, input.Agent, false); err != nil {
 			return input, err
@@ -28,7 +33,7 @@ func (s *shellTasks) registerNoticeRecovery(h *harness.Harness, run *point.Run) 
 // recovered notices before the controller resumes the existing inbox driver.
 // Lost process owners are folded as interrupted, never executed again.
 func (s *shellTasks) reconcileNotices(ctx context.Context, parent *harness.Agent, staging bool) error {
-	if parent == nil || parent.Delegated() || !parent.Session().DurabilityAttached() || parent.CurrentTurnInterrupted() {
+	if parent == nil || parent.Delegated() || staging && !parent.Session().DurabilityAttached() || parent.CurrentTurnInterrupted() {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -74,7 +79,9 @@ func (s *shellTasks) reconcileNotices(ctx context.Context, parent *harness.Agent
 		if !persisted || stored.terminal == nil {
 			continue
 		}
-		if staging {
+		if stored.observedSeq != 0 {
+			err = parent.AcknowledgeBackgroundNotice(ctx, bashNotice(stored))
+		} else if staging {
 			err = parent.StageBackgroundNotice(ctx, bashNotice(stored))
 		} else {
 			err = parent.DeliverBackgroundNotice(ctx, bashNotice(stored))

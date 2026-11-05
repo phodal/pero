@@ -39,6 +39,101 @@ func shellAnswer(text string) harness.Completion {
 	return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: text}}}}
 }
 
+func TestRetrievedBashCompletionDoesNotWakeAgain(t *testing.T) {
+	for _, state := range []string{"completed", "failed", "stopped"} {
+		t.Run(state, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+			defer cancel()
+			var calls atomic.Int32
+			var f *claudeFixture
+			var id string
+			f = newBackgroundFixture(t, harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+				name, raw := "Bash", json.RawMessage(`{"command":"printf x >> effects; IFS= read -r gate < release.fifo; printf retrieved-marker`+map[string]string{"failed": "; exit 7"}[state]+`","run_in_background":true}`)
+				switch calls.Add(1) {
+				case 1:
+				case 2:
+					f.app.background.mu.Lock()
+					for taskID := range f.app.background.tasks {
+						id = taskID
+					}
+					f.app.background.mu.Unlock()
+					name = "TaskStop"
+					if state != "stopped" {
+						if err := releaseShellFIFO(ctx, filepath.Join(f.root, "release.fifo")); err != nil {
+							return harness.Completion{}, err
+						}
+						name = "TaskOutput"
+					}
+					raw = json.RawMessage(fmt.Sprintf(`{"task_id":%q}`, id))
+				case 3:
+					encoded, _ := json.Marshal(request.Messages)
+					if state != "stopped" && !strings.Contains(string(encoded), "retrieved-marker") {
+						t.Error("terminal output missing from tool result")
+					}
+					return shellAnswer("terminal result read"), nil
+				default:
+					return harness.Completion{}, errors.New("already-read completion caused an extra model request")
+				}
+				return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, ToolCallID: harness.ToolCallID(fmt.Sprint(calls.Load())), Name: name, Arguments: raw}}}}, nil
+			}))
+			if err := syscall.Mkfifo(filepath.Join(f.root, "release.fifo"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			disk, err := harness.NewJSONLSessionPersistence(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			detach, err := disk.Attach(ctx, f.allowed.Session())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.allowed.Prompt(ctx, harness.Message{Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "run and read one job"}}}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.allowed.WhenIdle(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if calls.Load() != 3 || len(f.allowed.PendingDurableInbox(harness.InboxNextTurn)) != 0 {
+				t.Fatal("read result left a completion wake")
+			}
+			history, err := foldShellTasks(f.allowed.Session().Events(), f.allowed.ID())
+			if err != nil || history[id].observedSeq == 0 {
+				t.Fatalf("committed read not retained: %v", err)
+			}
+			if err := detach(); err != nil {
+				t.Fatal(err)
+			}
+			var resumedCalls atomic.Int32
+			fresh, _ := noticeRecoveryRuntime(t, f.root, harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+				resumedCalls.Add(1)
+				return shellAnswer("unexpected duplicate"), nil
+			}))
+			loaded, err := disk.Load(ctx, f.allowed.ID())
+			if err != nil {
+				t.Fatal(err)
+			}
+			parent, err := fresh.Agents().Resume(ctx, loaded, harness.AgentOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			detach, err = disk.Attach(ctx, parent.Session())
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = detach() })
+			if err := parent.ResumeDurableInbox(); err != nil {
+				t.Fatal(err)
+			}
+			if err := parent.WhenIdle(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if resumedCalls.Load() != 0 || len(parent.PendingDurableInbox(harness.InboxNextTurn)) != 0 {
+				t.Fatal("disk recovery revived an observed notice")
+			}
+		})
+	}
+}
+
 func TestRootBashCompletionWakesWithActualResult(t *testing.T) {
 	for _, test := range []struct {
 		name       string
