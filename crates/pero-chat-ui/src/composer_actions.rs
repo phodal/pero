@@ -1,8 +1,9 @@
 //! ChatPanel shell for the shared completion surface. Context I/O stays in Host.
 use crate::session_state::SessionState;
+use crate::conversation::ComposerDraft;
 use crate::{composer_picker::PickerItem, composer_state::*, panel::ChatPanel};
 use base64::Engine as _;
-use gpui_kit::{component::input::InlineToken, *};
+use gpui_kit::*;
 use pero_contracts::{
     HostEvent,
     context::{ContextContent, ContextKind, ContextReference},
@@ -460,47 +461,78 @@ impl ChatPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if reference.kind == ContextKind::Image
-            && !self
-                .active_chat
-                .and_then(|i| self.chats.get(i))
-                .is_some_and(|c| c.state == SessionState::Draft || c.capabilities.images)
-        {
-            self.error = Some(self.t("composer.image_unsupported").into());
-            self.close_composer_picker(cx);
-            return;
-        }
-        let mut next = self.attachments.clone();
-        if !next.iter().any(|r| r.id == reference.id) {
-            next.push(reference.clone());
-        }
-        if let Err(error) = ContextReference::validate_all(&next) {
-            self.composer_state.error = Some(error.into());
-            self.error = Some(error.into());
-            cx.notify();
-            return;
-        }
-        let token = InlineToken::new(
-            reference.id.clone(),
-            format!("@{}", reference.label.replace(['\n', '\r', '\t'], " ")),
-        )
-        .with_label(reference.label.clone());
-        self.composer_state
-            .references
-            .insert(reference.id.clone(), reference);
-        self.close_composer_picker(cx);
-        let result = self.composer.update(cx, |input, cx| {
-            input.replace_range_with_token(range, token, window, cx)
-        });
+        let current = ComposerDraft { content: self.composer.read(cx).content(), references: self.composer_state.references.clone() };
+        let images = self.active_chat.and_then(|index| self.chats.get(index))
+            .is_some_and(|chat| chat.state == SessionState::Draft || chat.capabilities.images);
+        let result = current.admit_contexts(std::slice::from_ref(&reference), images)
+            .map_err(|error| error.message(&self.locale))
+            .and_then(|_| self.insert_admitted_composer_reference(reference, range, window, cx));
         if let Err(error) = result {
-            self.error = Some(error.to_string());
-        } else {
-            self.composer.update(cx, |input, cx| {
-                input.insert(" ", window, cx);
-                input.focus(window, cx);
-            });
+            self.composer_state.error = Some(error.clone());
+            self.error = Some(error);
+            cx.notify();
         }
+    }
+
+    fn insert_admitted_composer_reference(&mut self, reference: ContextReference, range: std::ops::Range<usize>, window: &mut Window, cx: &mut Context<Self>) -> Result<(), String> {
+        let token = ComposerDraft::reference_token(&reference);
+        self.close_composer_picker(cx);
+        self.composer.update(cx, |input, cx| {
+            input.replace_range_with_token(range, token, window, cx)
+        }).map_err(|error| error.to_string())?;
+        self.composer_state.references.insert(reference.id.clone(), reference);
+        self.composer.update(cx, |input, cx| {
+            input.insert(" ", window, cx);
+            input.focus(window, cx);
+        });
         self.update_composer_completion(cx);
+        Ok(())
+    }
+
+    pub(crate) fn apply_pending_composer_insertions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        for insertion in std::mem::take(&mut self.pending_prompts) {
+            let is_artifact = insertion.contexts.iter().any(|reference| reference.source.starts_with("session-artifact:"));
+            let result = (|| -> Result<(), String> {
+                let index = self.chats.iter().position(|chat| chat.id == insertion.thread_id)
+                    .ok_or_else(|| "This conversation is no longer available".to_string())?;
+                let active = self.active_chat == Some(index);
+                let chat = &self.chats[index];
+                let current = ComposerDraft {
+                    content: if active { self.composer.read(cx).content() } else { chat.draft.clone() },
+                    references: if active { self.composer_state.references.clone() } else { chat.draft_references.clone() },
+                };
+                let next = current.append(&insertion.text, &insertion.contexts, insertion.replace,
+                    chat.state == SessionState::Draft || chat.capabilities.images)
+                    .map_err(|error| error.message(&self.locale))?;
+                if active {
+                    // Admission is complete. Keep the existing edit APIs and their undo history.
+                    let end = self.composer.read(cx).value().len();
+                    self.replace_composer_range(if insertion.replace {0..end} else {end..end}, &insertion.text, window, cx);
+                    self.update_composer_completion(cx);
+                    for reference in &insertion.contexts {
+                        let end = self.composer.read(cx).value().len();
+                        self.insert_admitted_composer_reference(reference.clone(), end..end, window, cx)?;
+                    }
+                    self.composer.update(cx, |input, cx| input.focus(window, cx));
+                } else {
+                    self.chats[index].draft = next.content;
+                    self.chats[index].draft_references = next.references;
+                }
+                Ok(())
+            })();
+            let error = result.err();
+            if let Some(state) = self.artifacts.conversations.get_mut(&insertion.thread_id) {
+                if error.is_none() || is_artifact && insertion.surface_request.is_none() {
+                    state.error = error.clone();
+                }
+                if error.is_none() && self.artifacts.narrow && is_artifact { state.open = false; }
+            }
+            if let Some(id) = insertion.surface_request {
+                cx.emit(crate::ChatAction::ArtifactComposeResult { id, error });
+            } else if !is_artifact {
+                if let Some(error) = error { self.error = Some(error); }
+            }
+        }
     }
 
     pub fn queue_composer_image(

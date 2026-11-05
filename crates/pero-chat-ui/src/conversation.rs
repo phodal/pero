@@ -140,7 +140,73 @@ pub struct ComposerDraft {
     pub references: std::collections::HashMap<String, pero_contracts::context::ContextReference>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ComposerDraftError {
+    ImagesUnsupported,
+    Context(&'static str),
+    Token(String),
+}
+impl ComposerDraftError {
+    pub(crate) fn message(&self, locale: &str) -> String {
+        match self {
+            Self::ImagesUnsupported => pero_contracts::i18n::text(locale, "composer.image_unsupported").into(),
+            Self::Context(error) => (*error).into(),
+            Self::Token(error) => error.clone(),
+        }
+    }
+}
+
 impl ComposerDraft {
+    pub(crate) fn reference_token(reference: &pero_contracts::context::ContextReference) -> gpui_kit::component::input::InlineToken {
+        gpui_kit::component::input::InlineToken::new(reference.id.clone(), format!("@{}", reference.label.replace(['\n', '\r', '\t'], " ")))
+            .with_label(reference.label.clone())
+    }
+    pub(crate) fn admit_contexts(
+        &self,
+        incoming: &[pero_contracts::context::ContextReference],
+        images: bool,
+    ) -> Result<std::collections::HashMap<String, pero_contracts::context::ContextReference>, ComposerDraftError> {
+        use pero_contracts::context::{ContextKind, ContextReference};
+        if !images && incoming.iter().any(|reference| reference.kind == ContextKind::Image) {
+            return Err(ComposerDraftError::ImagesUnsupported);
+        }
+        let mut references: std::collections::HashMap<_, _> = self.content.tokens().iter()
+            .filter_map(|span| self.references.get(span.token().id().as_ref()))
+            .map(|reference| (reference.id.clone(), reference.clone())).collect();
+        for reference in incoming { references.insert(reference.id.clone(), reference.clone()); }
+        ContextReference::validate_all(&references.values().cloned().collect::<Vec<_>>())
+            .map_err(ComposerDraftError::Context)?;
+        Ok(references)
+    }
+
+    /// Admit the whole addition before the shell mutates either the text or its references.
+    pub(crate) fn append(
+        &self,
+        text: &str,
+        contexts: &[pero_contracts::context::ContextReference],
+        replace: bool,
+        images: bool,
+    ) -> Result<Self, ComposerDraftError> {
+        use gpui_kit::component::input::InputContent;
+        let base = if replace { Self { content: InputContent::new(""), references: Default::default() } } else { self.clone() };
+        let references = base.admit_contexts(contexts, images)?;
+        let mut text_value = base.content.text().to_string();
+        let mut tokens = base.content.tokens().iter().map(|span| (span.range(), span.token().clone())).collect::<Vec<_>>();
+        text_value.push_str(text);
+        for reference in contexts {
+            let start = text_value.len();
+            let token = Self::reference_token(reference);
+            text_value.push_str(token.text());
+            tokens.push((start..text_value.len(), token));
+            text_value.push(' ');
+        }
+        let mut content = InputContent::new(text_value);
+        for (range, token) in tokens {
+            content = content.with_token(range, token).map_err(|error| ComposerDraftError::Token(error.to_string()))?;
+        }
+        Ok(Self { content, references })
+    }
+
     /// Restore the submitted draft before any input typed while preparation was pending.
     pub fn prepend_to(mut self, tail: Self) -> Self {
         if tail.content.text().is_empty() { return self; }
@@ -517,6 +583,43 @@ impl Conversation {
     fn acknowledge_model(&mut self) {
         if self.pending_model.as_deref() == Some(self.model.as_str()) {
             self.pending_model = None;
+        }
+    }
+}
+
+#[cfg(test)]
+mod composer_draft_tests {
+    use super::*;
+    use pero_contracts::context::{ContextContent, ContextKind, ContextReference};
+    use gpui_kit::component::input::InputContent;
+
+    #[test]
+    fn insertion_admission_preserves_the_draft_on_limit_or_capability_rejection() {
+        let file = |id: &str, size| ContextReference {
+            id: id.into(), kind: ContextKind::File, label: id.into(), source: id.into(),
+            content: ContextContent::Text { text: "x".repeat(size) },
+        };
+        let empty = ComposerDraft { content: InputContent::new("Keep my draft. "), references: Default::default() };
+        let current = empty.append("", &[file("existing", 70_000)], false, false).unwrap();
+        let image = ContextReference {
+            id: "image".into(), kind: ContextKind::Image, label: "image.png".into(), source: "image".into(),
+            content: ContextContent::Image { data: "eA==".into(), mime_type: "image/png".into() },
+        };
+        for (incoming, images, replace, expected) in [
+            (vec![file("other", 70_000)], false, false, Some(ComposerDraftError::Context("Context text exceeds 128 KB or contains binary data"))),
+            (vec![file("valid", 1), image.clone()], false, false, Some(ComposerDraftError::ImagesUnsupported)),
+            (vec![image], true, false, None),
+            (vec![file("other", 70_000)], false, true, None),
+        ] {
+            let before = (current.content.text().to_string(), current.content.tokens().to_vec(), current.references.clone());
+            let result = current.append("Quoted selection. ", &incoming, replace, images);
+            assert_eq!(result.as_ref().err(), expected.as_ref());
+            assert_eq!((current.content.text().to_string(), current.content.tokens().to_vec(), current.references.clone()), before);
+            if let Ok(next) = result {
+                assert!(next.content.text().contains("Quoted selection."));
+                assert_eq!(next.references.contains_key("existing"), !replace);
+                assert_eq!(next.content.tokens().len(), incoming.len() + usize::from(!replace));
+            }
         }
     }
 }
