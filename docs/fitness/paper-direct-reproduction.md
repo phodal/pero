@@ -7,6 +7,68 @@ github_url: https://github.com/phodal/pero/issues/77
 
 # Fixed PC-Gym Desktop reproduction continuation
 
+## 2026-11-05 macOS Electron acceptance
+
+The Workbench imports the original arXiv `2410.22093v4` PDF, selects `0.0727`
+in Table 6 on page 20 and saves a region-bound highlight. It freezes an
+absolute diagnostic tolerance of `0.001` and receives an actual native
+**Run once** decision. The existing Host starts the configured Paper process
+and pinned PC-Gym worker. Both Electron launchers forward the explicitly
+configured checkout. The Paper UI uses the dedicated Host route for approval
+and the App API for its records. The checkout and interpreter are provisioned
+before the test. Execution remains off by default.
+
+The `table6` profile ran 25,000 steps and 24,900 gradient updates for each
+DDPG policy. Seed 0 produced these counts from the pinned adapted experiment.
+
+| Policy | Episodes with violations | Violating samples |
+| --- | ---: | ---: |
+| Base | 50 / 50 | 101 / 3000 |
+| Shaped | 0 / 50 | 0 / 3000 |
+| Oracle | 0 / 50 | 0 / 3000 |
+
+The original highlight displays reported `0.0727`, measured episode fraction
+`1.0` and diagnostic difference `+0.9273`, outside the frozen tolerance.
+Independent recomputation agrees with the saved execution. The publication
+verdict is `INCONCLUSIVE` because the original experiment identity and
+metric grain remain unresolved. The tested PDF digest is
+`f3aeddb2f1a29992a52088faf019dea66e2c31a30f134dedca8df40dbe7f5ee7`.
+
+The smoke profile also ran with seeds 0 and 1 under one method digest.
+Both attempt identities remained available in the same research revision.
+With a PDF-capable interpreter missing scientific packages, the approved
+request recorded a failed preflight and log, with `worker_started=false`.
+The historical attempt and its result remain readable after Desktop restart.
+
+The opt-in exercise saves receipts and screenshots in the gitignored
+`test-results/paper-pcgym-live/` directory. The final full run used Spec
+`57bd276878dfaa5561758043d4d674ebbb6e4abc6cb99cede482eb979c7f271c` and saved
+attempt `a533bbb482cc2c9560aed24c088e90521596f0021b41e4c863b58e12974579a6`.
+The worker finished in 130.84 seconds. The downloaded handoff SHA-256 is
+`eb8eac510bb8648333fa2199606c62be749bac96d3452ae806224b79815c811d`.
+Python 3.14.7 with site packages disabled independently verified this archive
+in a new directory. The training interpreter was Python 3.12.11.
+
+Run the exercise with the built Desktop,
+Host and Paper App, a prepared Python environment and the original PDF.
+
+```sh
+PERO_TEST_HEADED=1 PERO_PCGYM_DESKTOP_LIVE=1 PERO_PCGYM_DESKTOP_PROFILE=table6 \
+  PERO_PCGYM_PDF=/absolute/path/to/2410.22093v4.pdf \
+  PERO_PCGYM_VENV=/absolute/path/to/scientific-venv \
+  PERO_PAPER_PCGYM_CHECKOUT=/absolute/path/to/pinned-pc-gym \
+  node tests/e2e/paper-pcgym-live.mjs
+```
+
+Choose **Run once** in the native dialog. Set `PERO_PCGYM_DESKTOP_PROFILE=smoke`
+and `PERO_PCGYM_DESKTOP_SECOND_SEED=1` for the reuse check. With a PDF-capable
+environment lacking the scientific dependencies, set
+`PERO_PCGYM_DESKTOP_EXPECT_ENV_FAILURE=1` for the preflight branch. The test uses
+a disposable profile. This acceptance covers macOS Electron Workbench.
+Native Preview, installed packages and other platforms were outside the run.
+
+## Earlier implementation and fixtures
+
 This increment implements a narrow numerical-job path without an Agent prompt,
 ACP session or model call. It does not close #77 or establish a reproduced paper
 claim. It stacks on published shared-anchor #88 commit

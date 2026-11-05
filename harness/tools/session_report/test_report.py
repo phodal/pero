@@ -290,6 +290,7 @@ class SessionReportRules(unittest.TestCase):
         self.assertFalse(calls["first"]["execution_failure"])
         self.assertEqual((calls["second"]["result_seq"], calls["second"]["status"]), (3, "succeeded"))
         self.assertEqual(calls["missing"]["status"], "missing_return")
+
         self.assertEqual((session["counts"]["tool_calls"], session["counts"]["matched_results"]), (4, 3))
         self.assertEqual({f["kind"] for f in session["findings"]},
                          {"orphan_tool_result", "missing_tool_result", "empty_tool_search"})
@@ -298,6 +299,39 @@ class SessionReportRules(unittest.TestCase):
         self.assertFalse(calls["search"]["execution_failure"])
         self.assertEqual(session["counts"]["empty_tool_searches"], 1)
         self.assertEqual(next(f for f in session["findings"] if f["kind"] == "empty_tool_search")["severity"], "warning")
+
+    def test_late_background_result_does_not_take_next_turn_usage(self):
+        for exit_code in (0, 7):
+            with self.subTest(exit_code=exit_code):
+                call = {"name": "Bash", "turn": 2, "arguments": {"command": "check"}}
+                path = self.session([
+                    ("turn/start", {"turn": 1, "source": "human"}),
+                    self.call("background", command="server"),
+                    ("shell-task/started", {"task_id": "job", "call_id": "background"}),
+                    self.result({"task_id": "job", "status": "running"}, call_id="background"),
+                    ("turn/end", {"turn": 1, "reason": "stop"}),
+                    ("turn/start", {"turn": 2, "source": "human"}),
+                    ("tool/call", {**call, "callId": "failed"}),
+                    self.result({"exitCode": 1}, call_id="failed"),
+                    ("assistant/message", {"turn": 2, "usage": {"totalTokens": 10}}),
+                    ("shell-task/ended", {"task_id": "job", "status": "completed", "result": {"exitCode": exit_code}}),
+                    ("assistant/message", {"turn": 2, "usage": {"totalTokens": 20}}),
+                    ("tool/call", {**call, "callId": "repaired"}),
+                    self.result({"exitCode": 0}, call_id="repaired"),
+                    ("turn/end", {"turn": 2, "reason": "stop"}),
+                ])
+                session = inspect_session(path)
+                chains = session["recovery"]["chains"]
+                current = next(c for c in chains if c["turn"] == 2)
+                self.assertEqual(current["outcome"], "matching-operation-succeeded")
+                self.assertEqual(current["response_seqs"], [9, 11])
+                self.assertEqual(current["usage"]["total_tokens"], 30)
+                self.assertEqual(session["calls"][0]["process_end_seq"], 10)
+                late = [c for c in chains if c["turn"] == 1]
+                self.assertEqual(len(late), int(exit_code != 0))
+                if late:
+                    self.assertEqual(late[0]["outcome"], "unresolved-after-turn-end")
+                    self.assertEqual(late[0]["response_seqs"], [])
 
     def test_owner_failure_preserves_exit_diagnostic_and_counts_union_once(self):
         for label, exit_code, protocol_error in [("zero exit", 0, False),

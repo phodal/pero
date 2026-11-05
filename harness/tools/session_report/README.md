@@ -191,6 +191,12 @@ repair. Each subsequent committed response is attributed once; the initial
 failure-producing response is excluded from its new window. Window usage is
 observational and does not establish per-tool causal cost or task acceptance.
 
+Unrelated running, interrupted or unobserved operations remain visible without
+blocking a matching repair. Delayed process results retain the invocation's
+turn: a failure first observed after that turn ended is an instantaneous
+`unresolved-after-turn-end` window with no response usage. It cannot interrupt
+another turn's recovery or consume its responses and prepared requests.
+
 Each window exposes result/response references, heuristic diagnostic categories
 when recorded, separate agent/compaction usage, prepared request count and
 elapsed duration. Missing usage and unmatched prepared requests remain unknown;

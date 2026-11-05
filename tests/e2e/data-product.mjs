@@ -107,7 +107,10 @@ try {
   await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'dark'; });
   await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('dark');
   await page.screenshot({ path: join(output, 'standalone-data-dark.png') });
+  const splitter = frame.getByRole('separator', { name: 'Resize datasets', exact: true });
+  await expect(splitter).toBeVisible();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 700));
+  await expect(splitter).toBeHidden();
   await expect.poll(() => frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await page.screenshot({ path: join(output, 'standalone-data-dark-narrow.png') });
   checks.push('single-line Enter imports once without allow-forms; standalone light, dark and narrow screenshots');

@@ -1,0 +1,12 @@
+[
+  "casadi==3.8.2",
+  "diffrax==0.7.2",
+  "do-mpc==5.1.2",
+  "equinox==0.13.8",
+  "gymnasium==1.4.0",
+  "jax==0.12.0.1",
+  "numpy==2.5.4",
+  "scipy==1.18.1",
+  "stable-baselines3==2.9.2",
+  "torch==2.15.0"
+]

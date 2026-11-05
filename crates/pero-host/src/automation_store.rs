@@ -155,6 +155,19 @@ impl Store {
         }
         Ok(serde_json::json!({"admissions":rows(&self.db,"admissions")?,"observations":rows(&self.db,"observations")?}))
     }
+
+    pub fn research_updates(&self) -> Result<Vec<Value>, String> {
+        let mut query = self.db.prepare("SELECT body FROM observations WHERE json_extract(body,'$.researchRecordId') IS NOT NULL ORDER BY position DESC").map_err(failure)?;
+        let mut seen = std::collections::BTreeSet::new();
+        let mut latest = Vec::new();
+        for body in query.query_map([], |row| row.get::<_, String>(0)).map_err(failure)? {
+            let value: Value = serde_json::from_str(&body.map_err(failure)?).map_err(failure)?;
+            if let Some(id) = value["researchRecordId"].as_str() {
+                if seen.insert(id.to_owned()) { latest.push(value); }
+            }
+        }
+        Ok(latest)
+    }
 }
 
 #[cfg(test)]

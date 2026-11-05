@@ -225,7 +225,7 @@ fn main() -> io::Result<()> {
                 let _=(request.method,request.action);
                 apps.require_grant(&request.name,"automation")?;
                 let owner=automation.as_mut().map_err(|error|error.clone())?;
-                let response=owner.app_request(request.request,&mut agents);
+                let response=owner.app_request(request.name.as_str(),request.request,&mut agents);
                 let _=request.id;
                 serde_json::to_value(response).map_err(|e|e.to_string())
             })();

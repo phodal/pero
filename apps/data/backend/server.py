@@ -40,6 +40,10 @@ def handler(downloads, secret):
                 self.connection.settimeout(20)
                 if self.command == 'GET' and self.path == '/api/state':
                     return self.reply(200, state())
+                if self.command == 'GET' and self.path == '/internal/research-versions':
+                    if self.headers.get('X-Pero-Research-Internal') != '1':
+                        return self.reply(403, {'error': 'Private research metadata access required'})
+                    return self.reply(200, downloads.catalog.research_versions())
                 if self.command == 'GET' and self.path == '/api/charts':
                     return self.reply(200, {'charts': analysis.list_charts()})
                 if self.command == 'GET' and self.path.startswith('/api/chart/'):

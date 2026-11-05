@@ -1,5 +1,84 @@
 # Manual research records (#79, bounded P3/P4 slice)
 
+## 2026-11-05 Data versions and upstream checks
+
+In **Question and scope**, open **Data Workspace** to bind an existing dataset
+version to the revision. Host resolves the selected IDs through Data; the
+saved record contains the dataset, version and SHA-256. Rebinding creates a new
+revision. Earlier versions, references and decisions remain readable. The
+handoff exports version metadata, with no Data files. A Data pin is research
+context; it does not change the fixed PC-Gym method's inputs.
+
+On a saved revision, **Watch for updates** supports a manual check or an opt-in
+daily check at 09:00 local time while Host is running. Each check compares the
+pinned Data versions, reads official arXiv version metadata for supported saved
+papers, and compares saved paper and installed method identities. An unavailable
+version or unverifiable response stays unknown. Paper identifies affected linked
+reports and attempts; Insights shows the latest stored check for each revision.
+Checks do not download content, launch an Agent, change pins, or rerun work.
+
+The macOS Electron exercise imported two real versions of a local test CSV,
+checked saved `2410.22093v3` against official arXiv metadata returning
+`2410.22093v4`, rebound the CSV in a new revision and recovered the original
+check after restart, then paused the schedule. Automations showed the run in
+history without an Agent session. Insights showed the same receipt and could
+not change the schedule. The runtime timer test dispatched a scheduled check without ACP and
+retained its result after restart. Run with built Host, Electron and Apps:
+
+```sh
+PERO_RESEARCH_WATCH_LIVE=1 node tests/e2e/paper-research-watch.mjs
+node tests/runtime/automation-app.mjs
+```
+
+Desktop receipts and light/dark screenshots are under the gitignored
+`test-results/paper-research-watch/` directory.
+
+## 2026-11-05 attempt history and handoff
+
+Question and scope is available from the Reader's Research record and from
+Research results. A revision can retain finished PC-Gym attempts, including
+failures and cancellations. Each entry opens its original PDF version,
+annotation, frozen item and attempt. New inputs use a new frozen Spec and
+native approval. Earlier decisions and execution records remain available.
+
+The references export contains identities. The handoff ZIP includes the
+selected attempt's frozen item and tolerance, execution and numeric evidence,
+checker, and the research revision. Inclusion of revision notes and the bound
+PDF excerpt requires explicit confirmation. The export excludes local checkout
+and interpreter paths, credentials, full original documents, checkpoints and
+execution logs. Notes are included as entered. Other attempts and reports are
+retained as references. In a clean directory, `python3.12 -E -s -S verify.py`
+checks the archive identities and recomputes both metric grains using the
+standard library. The new handoff README documents the Python minimum and
+the exact replay command. Rerunning training requires the pinned checkout,
+compatible Pero backend and scientific interpreter described in the spec.
+
+Saved-source impact compares the frozen paper and its PDF and structured
+document identities to saved versions. Recognized arXiv revisions can be opened
+from the impact list. A changed installed method identifies affected frozen
+attempts. Source changes identify the reports and attempts linked by the
+revision. Opening a reread or an earlier result does not run the method.
+
+The [Desktop acceptance](paper-direct-reproduction.md) exercises B5–B6 on
+the original PDF and real PC-Gym, one restart path in B8, and the B9 handoff ZIP
+and clean-directory checker. Two independently approved seeds exercise B11 for
+one fixed method. B10 includes the Data and official arXiv checks above. A
+fresh-context Agent independently unpacked the full Table 6 archive, ran its
+checker and performed a fresh run from the unchanged spec in a clean directory.
+All three raw numeric archives matched byte for byte; the independent counts
+matched for both metric grains. The paper verdict remains `INCONCLUSIVE`.
+In a second clean directory, the same reviewer used the new README to replay
+the shorter smoke profile without consulting the CLI source. The downloaded
+ZIP retained the pinned Data version ID and SHA-256; the CSV was absent and
+the rerun completed without it. Set `PERO_PCGYM_DESKTOP_DATA_PIN=1` on the
+Desktop exercise to verify a handoff with this metadata.
+Commands and raw comparison are recorded under
+`test-results/paper-research-watch/independent-review/`. This was independent
+Agent replay. The human researcher handoff in B9 and full B1–B11 product
+acceptance remain open.
+
+## Earlier manual-record scope (historical baseline)
+
 Baseline: `78881615e37790b0a0b4635a197e18f974ea6867`. Verification date: 2026-11-02.
 This is **not completion of #79**, a new observation ledger, or a computational
 handoff package. #75/#76 still own source/reading closure; #77 owns actual

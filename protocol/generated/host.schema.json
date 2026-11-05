@@ -1739,6 +1739,9 @@
       "title": "AppRequest",
       "oneOf": [
         {
+          "$ref": "#/$defs/LocalEnvironmentApp"
+        },
+        {
           "$ref": "#/$defs/EnvironmentInspectionApp"
         },
         {
@@ -2117,6 +2120,12 @@
         },
         "value": {
           "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LocalEnvironmentRecord"
+              }
+            },
             {
               "$ref": "#/$defs/EnvironmentInspectionReport"
             },
@@ -2709,8 +2718,16 @@
         "supportedMethods": {
           "type": "array",
           "items": {
-            "type": "string",
-            "const": "agent"
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "agent"
+              },
+              {
+                "type": "string",
+                "const": "research_watch"
+              }
+            ]
           }
         },
         "sourceBindingId": {
@@ -3023,7 +3040,7 @@
           "type": "string"
         },
         "method": {
-          "$ref": "#/$defs/AutomationAgentMethod"
+          "$ref": "#/$defs/AutomationMethod"
         },
         "target": {
           "$ref": "#/$defs/AutomationTarget"
@@ -3389,6 +3406,17 @@
       ],
       "additionalProperties": false
     },
+    "AutomationMethod": {
+      "title": "AutomationMethod",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationAgentMethod"
+        },
+        {
+          "$ref": "#/$defs/AutomationResearchWatch"
+        }
+      ]
+    },
     "AutomationObservation": {
       "title": "AutomationObservation",
       "type": "object",
@@ -3713,6 +3741,24 @@
           "$ref": "#/$defs/AutomationCoveredRequestStatus"
         }
       ]
+    },
+    "AutomationResearchWatch": {
+      "title": "AutomationResearchWatch",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "research_watch"
+        },
+        "record_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "record_id"
+      ],
+      "additionalProperties": false
     },
     "AutomationResult": {
       "title": "AutomationResult",
@@ -7343,6 +7389,223 @@
       },
       "required": [
         "action"
+      ],
+      "additionalProperties": false
+    },
+    "LocalEnvironmentApp": {
+      "title": "LocalEnvironmentApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "localenvironment"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "request": {
+          "$ref": "#/$defs/LocalEnvironmentOperation"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "request",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "LocalEnvironmentBind": {
+      "title": "LocalEnvironmentBind",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "bind"
+        },
+        "id": {
+          "$ref": "#/$defs/AppName"
+        }
+      },
+      "required": [
+        "operation",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "LocalEnvironmentCreate": {
+      "title": "LocalEnvironmentCreate",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "create"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "paper-agent.pcgym"
+            },
+            {
+              "type": "string",
+              "const": "control-lab.python-control"
+            },
+            {
+              "type": "string",
+              "const": "control-lab.ngspice"
+            }
+          ]
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "target",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "LocalEnvironmentList": {
+      "title": "LocalEnvironmentList",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "list"
+        }
+      },
+      "required": [
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    "LocalEnvironmentOperation": {
+      "title": "LocalEnvironmentOperation",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LocalEnvironmentCreate"
+        },
+        {
+          "$ref": "#/$defs/LocalEnvironmentList"
+        },
+        {
+          "$ref": "#/$defs/LocalEnvironmentPrepare"
+        },
+        {
+          "$ref": "#/$defs/LocalEnvironmentBind"
+        }
+      ]
+    },
+    "LocalEnvironmentPrepare": {
+      "title": "LocalEnvironmentPrepare",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "prepare"
+        },
+        "id": {
+          "$ref": "#/$defs/AppName"
+        }
+      },
+      "required": [
+        "operation",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "LocalEnvironmentRecord": {
+      "title": "LocalEnvironmentRecord",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/AppName"
+        },
+        "label": {
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "paper-agent.pcgym"
+            },
+            {
+              "type": "string",
+              "const": "control-lab.python-control"
+            },
+            {
+              "type": "string",
+              "const": "control-lab.ngspice"
+            }
+          ]
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "created"
+            },
+            {
+              "type": "string",
+              "const": "preparing"
+            },
+            {
+              "type": "string",
+              "const": "ready"
+            },
+            {
+              "type": "string",
+              "const": "failed"
+            }
+          ]
+        },
+        "log": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bound": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "target",
+        "dependencies",
+        "state",
+        "log",
+        "error",
+        "bound"
       ],
       "additionalProperties": false
     },

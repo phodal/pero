@@ -128,9 +128,16 @@ model EnvironmentInspectionReport {
   missing: AppDocumentSchema[];
   ...AppClosed;
 }
-@oneOf union AppRequest { EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
+model LocalEnvironmentCreate { operation:"create";target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice";label:string;...AppClosed; }
+model LocalEnvironmentList { operation:"list";...AppClosed; }
+model LocalEnvironmentPrepare { operation:"prepare";id:AppName;...AppClosed; }
+model LocalEnvironmentBind { operation:"bind";id:AppName;...AppClosed; }
+@oneOf union LocalEnvironmentOperation { LocalEnvironmentCreate,LocalEnvironmentList,LocalEnvironmentPrepare,LocalEnvironmentBind }
+model LocalEnvironmentApp {action:"localenvironment";name:AppName;request:LocalEnvironmentOperation;...RequestBase;}
+model LocalEnvironmentRecord {id:AppName;label:string;target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice";dependencies:string[];state:"created"|"preparing"|"ready"|"failed";log:string[];error:string|null;bound:boolean;...AppClosed;}
+@oneOf union AppRequest { LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
+model AppSuccess { ok: true; value: LocalEnvironmentRecord[] | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 

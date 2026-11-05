@@ -41,6 +41,7 @@ export type AutomationTrigger =
   AutomationManualTrigger | AutomationEventTrigger | AutomationTimeTrigger | AutomationCalendarTrigger;
 export type AutomationCounter = number;
 export type AutomationInputContract = "process_exact" | "recheck_latest";
+export type AutomationMethod = AutomationAgentMethod | AutomationResearchWatch;
 export type AutomationTarget = AutomationLocalTarget | AutomationUnsupportedTarget;
 export type AutomationReconciliationDisposition = "not_started" | "completed" | "failed" | "cancelled";
 export type TerminalRequest = OpenTerminal | WriteTerminal | ResizeTerminal | CloseTerminal;
@@ -94,6 +95,7 @@ export type ThreadId = string;
 export type ContextContent = TextContextContent | ImageContextContent;
 export type QuestionReply = AnsweredQuestions | CancelledQuestions;
 export type AppRequest =
+  | LocalEnvironmentApp
   | EnvironmentInspectionApp
   | AppApiAccess
   | AppSdkRequest
@@ -115,6 +117,8 @@ export type AppRequest =
   | AutomationApp
   | ResearchAssetsApp;
 export type AppName = string;
+export type LocalEnvironmentOperation =
+  LocalEnvironmentCreate | LocalEnvironmentList | LocalEnvironmentPrepare | LocalEnvironmentBind;
 export type RequestId = string;
 export type AgentRunRequest =
   | AgentRunPrepare
@@ -313,7 +317,7 @@ export interface AutomationDefinition {
   trigger: AutomationTrigger;
   input: AutomationInputContract;
   input_binding_id: string;
-  method: AutomationAgentMethod;
+  method: AutomationMethod;
   target: AutomationTarget;
 }
 export interface AutomationAgentMethod {
@@ -321,6 +325,10 @@ export interface AutomationAgentMethod {
   agent_id: string;
   workspace: string;
   prompt: string;
+}
+export interface AutomationResearchWatch {
+  kind: "research_watch";
+  record_id: string;
 }
 export interface AutomationLocalTarget {
   kind: "local_host";
@@ -1002,6 +1010,29 @@ export interface DeleteCommand {
 export interface InsightsCommand {
   action: "insights";
   thread_id: ThreadId;
+}
+export interface LocalEnvironmentApp {
+  action: "localenvironment";
+  name: AppName;
+  request: LocalEnvironmentOperation;
+  method: "apps";
+  id: RequestId;
+}
+export interface LocalEnvironmentCreate {
+  operation: "create";
+  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice";
+  label: string;
+}
+export interface LocalEnvironmentList {
+  operation: "list";
+}
+export interface LocalEnvironmentPrepare {
+  operation: "prepare";
+  id: AppName;
+}
+export interface LocalEnvironmentBind {
+  operation: "bind";
+  id: AppName;
 }
 /**
  * Software observations only; does not allocate or approve scientific execution.
@@ -2274,7 +2305,7 @@ export interface AutomationCapabilities {
   workspace: string;
   agents: AutomationAgentSummary[];
   supportedTargets: "local_host"[];
-  supportedMethods: "agent"[];
+  supportedMethods: ("agent" | "research_watch")[];
   sourceBindingId: string;
   sourceKind: "local_published_registry";
   maxInputBytes: number;
@@ -2351,6 +2382,7 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | LocalEnvironmentRecord[]
     | EnvironmentInspectionReport
     | AgentPreparedContext
     | AgentTerminalList
@@ -2373,6 +2405,16 @@ export interface AppSuccess {
     | AppGrant
     | ResearchAssetReply
     | ResearchBundleReply;
+}
+export interface LocalEnvironmentRecord {
+  id: AppName;
+  label: string;
+  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice";
+  dependencies: string[];
+  state: "created" | "preparing" | "ready" | "failed";
+  log: string[];
+  error: string | null;
+  bound: boolean;
 }
 export interface EnvironmentInspectionReport {
   schema: "pero.environment.inspection.v1";

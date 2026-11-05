@@ -4,6 +4,7 @@ No execution authority is obtained from an HTTP body or a source document.
 The shipped server has no trusted checkout and therefore cannot start compute.
 """
 from dataclasses import asdict
+from io import BytesIO
 import json
 import secrets
 import platform
@@ -12,12 +13,14 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from zipfile import ZipFile, ZIP_DEFLATED
 
 from . import pcgym
 from .model import Invalid as RequestInvalid, PdfPassage
 from .pcgym_domain import (Claim, COMMIT, Invalid, PaperAnchor, ReproductionSpec,
                            canonical, digest, fields, identifier, EPISODE_METRIC, PAPER)
 from .verification import ComparisonEvidence, VerificationItem, ReproductionApproval
+from .research_records import ResearchAttempt
 from .reproduction_approval import (ApprovalCommand, ApprovalState, ApprovalDecision,
     ApprovalDenied, ApprovalUnavailable, PendingApproval, ExecutionFacts, dispatch_failure)
 from .pcgym_sources import (PINS, SourceFile, audit_sources, package_inventory,
@@ -258,10 +261,11 @@ class PcgymApp:
                         if a['attempt_id'] == data['attemptId']), None)
         if attempt is None:
             raise Invalid('attempt', 'Choose an existing attempt belonging to this item')
-        actual, coverage, integrity = None, False, False
+        actual, coverage, integrity, metrics = None, False, False, []
         if attempt['status'] == 'completed':
             report = pcgym.check_attempt(root, data['attemptId'])
-            metric = next(m for m in report['metrics'] if m['policy'] == item.policy)
+            metrics = report['metrics']
+            metric = next(m for m in metrics if m['policy'] == item.policy)
             actual = metric['episode_fraction']
             coverage = (metric['total_episodes'] == spec.episodes
                         and metric['total_samples'] == spec.episodes * spec.samples
@@ -274,7 +278,75 @@ class PcgymApp:
         result = dict(**comparison, attempt_id=data['attemptId'])
         if attempt['status'] in ('completed', 'failed', 'cancelled'):
             result['id'] = self.save('comparisons', result)
-        return result
+        return dict(result, metrics=metrics)
+
+    def evidence_archive(self, item_id, attempt_id, *, research_record=None):
+        item, spec = self.item(item_id)
+        root = self.bundle(spec.id)
+        self.frozen_binding(root, spec)
+        archive = BytesIO()
+        pcgym.export(root, attempt_id, archive, verification_item=item.to_dict(), research_record=research_record)
+        if research_record is not None:
+            # Handoff instructions can improve without changing the frozen compute pipeline.
+            with ZipFile(archive, 'a', compression=ZIP_DEFLATED) as bundle:
+                bundle.writestr('README.md', f'''# Research handoff: PC-Gym Table 6
+
+Unpack the ZIP in a new directory. Read `research-record.json`, `spec.json`,
+and `audit.json` before deciding whether to rerun. The selected PDF passage
+and numeric evidence are included. Data Workspace pins, if present, are
+revision references; this PC-Gym method does not consume their data.
+
+## Verify the saved result
+
+From the unpacked directory, run `python3.12 -E -s -S verify.py`.
+Python 3.10 or newer is required. No packages, model, or network are needed.
+A numeric PASS confirms the saved counts. The separate paper verdict reflects
+the unresolved original experiment and metric grain.
+
+## Rerun the frozen method
+
+Provision Python {spec.python_version} with the exact package versions in
+`spec.json`, a clean PC-Gym checkout at `{COMMIT}`, and a Pero
+Paper backend matching `pipeline_digest` in the spec. These are supplied
+separately from the archive. The CLI preflight checks them before compute.
+
+From the unpacked directory, set the three absolute paths below, then run:
+
+```sh
+export PYTHONPATH=/absolute/path/to/pero/apps/paper-agent/backend
+science_python=/absolute/path/to/scientific-venv/bin/python
+checkout=/absolute/path/to/pinned-pc-gym
+bundle=$(pwd -P)
+"$science_python" -c 'import json, pathlib, sys; pathlib.Path("local.json").write_text(json.dumps({{"checkout":str(pathlib.Path(sys.argv[1]).resolve()),"interpreter":sys.executable}}))' "$checkout"
+"$science_python" -m paper_agent.pcgym run --bundle "$bundle" \\
+  --spec-sha {spec.id} --confirm-execution --accept-audit-findings
+```
+
+Run the last command only if you approve this exact spec and accept its audit
+findings. It creates a new attempt. Verify that attempt using its returned ID:
+
+```sh
+"$science_python" -m paper_agent.pcgym verify --bundle "$bundle" --attempt ATTEMPT_ID
+```
+
+Keep `local.json` out of shared copies; it contains local paths.
+''')
+        return archive.getvalue()
+
+    def research_attempts(self, paper_ids):
+        rows = []
+        for item_id in self.store._list('pcgym-items'):
+            item, spec = self.item(item_id)
+            if spec.anchor.paper_id not in paper_ids:
+                continue
+            root = self.bundle(spec.id)
+            self.frozen_binding(root, spec)
+            for attempt in pcgym.status(root)['attempts']:
+                if attempt['spec_id'] == spec.id and attempt['status'] in ('completed', 'failed', 'cancelled'):
+                    rows.append(ResearchAttempt(spec.anchor.paper_id, spec.anchor.document_id, item.annotation_id, spec.anchor.page,
+                        item.id, spec.id, attempt['attempt_id'], item.policy, spec.profile, spec.seed,
+                        spec.pipeline_digest, attempt['status'], attempt['started_at']))
+        return tuple(sorted(rows, key=lambda row: (row.startedAt, row.attemptId), reverse=True))
 
     def prepare_item(self, data):
         fields(data, ('action', 'annotationId', 'policy', 'comparison', 'profile', 'seed', 'includeOracle', 'maxSeconds'))

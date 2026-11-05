@@ -31,6 +31,9 @@ All 89 tasks, uncapped request configuration and current execution evidence:
 Failure evidence, repair boundaries and the verified turn-entry correction:
 [Terminal-Bench failure repair review](terminal-bench-failure-repair-review.md).
 
+Local environment creation, dependency installation and App-wide runtime binding:
+[Local environment preparation](local-environment-preparation.md).
+
 AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
 managed execution admission remains planned: [Environments P1](ai4s-environments.md).
 

@@ -83,14 +83,16 @@ export function installAutomation(send:(command:object)=>Promise<void>) {
       cell(row,definition.trigger.kind);cell(row,definition.input==='process_exact'?'Exact':'Latest');
       cell(row,definitionStatus(definition,control,result.capacity));
       const toggle=button(control?.paused?'Resume':'Pause',()=>void run(async()=>{result=await command({action:'control',definition_id:definition.id,paused:!control?.paused,revoked:false});}));
-      toggle.disabled=busy||!!control?.revoked||!result.capabilities.available;cell(row,'').append(toggle);
+      if(definition.method.kind==='research_watch')cell(row,'Managed in Paper');
+      else {toggle.disabled=busy||!!control?.revoked||!result.capabilities.available;cell(row,'').append(toggle);}
     }
     const definition=definitions.find(value=>value.id===selected);
     find<HTMLElement>('[data-detail]').hidden=!definition;
     if(definition){
       find<HTMLElement>('[data-detail-title]').textContent=definition.id;
-      find<HTMLElement>('[data-detail-binding]').textContent=`${definition.method.agent_id} · ${definition.method.workspace} · revision ${definition.revision}`;
-      const presentation=inputPresentation(definition);input.hidden=!presentation.editable;
+      find<HTMLElement>('[data-detail-binding]').textContent=definition.method.kind === 'research_watch'
+        ? 'Managed from the Paper research record' : `${definition.method.agent_id} · ${definition.method.workspace} · revision ${definition.revision}`;
+      const presentation=inputPresentation(definition);input.hidden=definition.method.kind === 'research_watch' || !presentation.editable;
       const pinned=find<HTMLElement>('[data-pinned]');pinned.hidden=presentation.pinnedRevision===null;pinned.textContent=presentation.pinnedRevision===null?'':`Pinned revision: ${presentation.pinnedRevision}`;
       const subject=input.elements.namedItem('subject') as HTMLInputElement;
       if(definition.trigger.kind==='time'){subject.value=definition.trigger.subject;subject.readOnly=true;}else subject.readOnly=false;

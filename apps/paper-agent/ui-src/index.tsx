@@ -11,6 +11,7 @@ import type { ResearchBundle } from './research-types';
 import { Reader, EvidencePanel, type Citation } from './documents';
 import { FigureSourceDialog, type FigureReference, type FigureTarget } from './figure-reference';
 import { ResearchRecords } from './research-records';
+import type { ResearchAttempt } from './manual-records';
 import { Discovery, type DiscoveryOpening } from './discovery';
 import { DiscoverSearch } from './discover-search';
 import { WorkspaceNav, type LibraryScreen } from './workspace-nav';
@@ -307,6 +308,18 @@ export default function PaperAgent() {
     const paper = library.papers.find(p => p.id === annotation.paperId);
     if (paper) void revealPdf(paper, { documentId: annotation.documentId, page: annotation.page, annotationId: annotation.id }).catch(onError);
   }
+  function openAttempt(attempt: ResearchAttempt) {
+    const paper = library.papers.find(paper => paper.id === attempt.paperId);
+    if (!paper) { onError(new Error(t('reproductionAttemptUnavailable'))); return; }
+    setOpenHit(null);
+    void revealPdf(paper, { documentId: attempt.documentId, page: attempt.page,
+      annotationId: attempt.annotationId, verification: { itemId: attempt.itemId, attemptId: attempt.attemptId } }).catch(onError);
+  }
+  function reread(id: string) {
+    const paper = library.papers.find(paper => paper.id === id);
+    if (paper) void read(paper);
+    else onError(new Error(t('paperMissing')));
+  }
   useEffect(() => {
     const receive=(event:MessageEvent)=>{
       if(event.source!==window.parent || event.data?.type!=='pero:app:location' || typeof event.data.location!=='string')return;
@@ -421,7 +434,7 @@ export default function PaperAgent() {
       {libraryScreen === 'results' && <div className="pa-research-page pa-results">
         <PageHeader title={t('researchResults')}/>
         {screen === 'library' && evidencePanel}
-        <ResearchRecords api={api} library={library} paper={null} results onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} t={t}/>
+        <ResearchRecords api={api} library={library} paper={null} results onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} onRead={reread} onAttempt={openAttempt} t={t}/>
       </div>}
     </section>
     <Split className="pa-reading-screen" storageKey="paper-agent.research-records" collapseBelow={760} hidden={screen !== 'reading'} data-agent={showResearch}>
@@ -442,7 +455,7 @@ export default function PaperAgent() {
       {screen === 'reading' && showResearch && <SplitPane as="aside" id="paper-research-records" className="pa-records" size={384} min={300} stackedBasis="55%" resizeLabel={t('resizeResearchRecords')} aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
         <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}><Icon name="x" size={14}/></Button></header>
         <div className="pa-records-panel">
-          <ResearchRecords api={api} library={library} paper={reading} onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} opening={recordOpening} t={t}/>
+          <ResearchRecords api={api} library={library} paper={reading} onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} onRead={reread} onAttempt={openAttempt} opening={recordOpening} t={t}/>
           {evidencePanel}
         </div>
       </SplitPane>}

@@ -64,9 +64,75 @@ fn edited_calendar(rule:&str,zone:&str,at:u64,previous:Option<&CalendarSchedule>
 }
 
 impl Automation {
-    pub(crate) fn app_request(&mut self, request: AppRequest, agents: &mut Manager) -> AppResponse {
-        let result=self.app_operation(request,agents);
+    pub(crate) fn app_request(&mut self, caller: &str, request: AppRequest, agents: &mut Manager) -> AppResponse {
+        let result = match (caller, request.path.as_str()) {
+            ("paper-agent", "/api/research-watch") => self.research_watch(request),
+            ("insights", "/api/research-watch") if request.method == "GET" => self.research_overview(),
+            ("automations", _) => self.app_operation(request, agents),
+            _ => return reply(403, json!({"error":"Automation operation is unavailable to this App"})),
+        };
         match result {Ok(value)=>value,Err(error)=>reply(400,json!({"error":error}))}
+    }
+
+    fn research_overview(&self) -> Result<AppResponse, String> {
+        let state = self.store.state()?;
+        let watches = state.definitions.iter().filter_map(|definition| {
+            let Method::ResearchWatch { record_id } = &definition.method else { return None; };
+            if state.latest_definition(&definition.id)?.revision != definition.revision { return None; }
+            let scheduled = matches!(definition.trigger, Trigger::Calendar { .. }) &&
+                !state.controls.get(&definition.id).is_some_and(|control| control.paused || control.revoked);
+            let running = state.requests.iter().any(|request| request.definition.id == definition.id &&
+                (request.status.active() || matches!(request.status, RequestStatus::Pending)));
+            Some(json!({"recordId":record_id,"scheduled":scheduled,"running":running,
+                "next":state.calendar_slots.get(&definition.id).copied().filter(|_|scheduled).map(iso)}))
+        }).collect::<Vec<_>>();
+        Ok(reply(200, json!({"watches":watches,"updates":self.store.research_updates()?,"fault":self.fault})))
+    }
+
+    fn research_watch(&mut self, request: AppRequest) -> Result<AppResponse, String> {
+        if request.method == "GET" { return self.research_overview(); }
+        if request.method != "POST" { return Ok(reply(405, json!({"error":"Method not allowed"}))); }
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        struct Watch { record_id: crate::research_assets::ResearchId, operation: String }
+        let watch: Watch = serde_json::from_value(request.body.unwrap_or(Value::Null)).map_err(|error| error.to_string())?;
+        let record_id: String = watch.record_id.into();
+        if let Some(error) = &self.fault { return Err(error.clone()); }
+        let id = format!("research-{record_id}");
+        let state = self.store.state()?;
+        let prior = state.latest_definition(&id);
+        let at = now();
+        let mut commands = Vec::new();
+        match watch.operation.as_str() {
+            "check" | "schedule" => {
+                let should_schedule = watch.operation == "schedule";
+                if prior.is_none() || should_schedule && prior.is_some_and(|value| matches!(value.trigger, Trigger::Manual)) {
+                    let trigger = if should_schedule { Trigger::Calendar { subject:record_id.clone(), exact:None,
+                        schedule:edited_calendar("FREQ=DAILY;BYHOUR=9;BYMINUTE=0", "Local", at, None)? } } else { Trigger::Manual };
+                    commands.push(Command::PutDefinition { definition: Definition { id:id.clone(),
+                        revision:prior.map_or(1, |value| value.revision + 1), owner:state.owner.clone(), trigger,
+                        input:InputContract::RecheckLatest, input_binding_id:"local".into(),
+                        method:Method::ResearchWatch { record_id:record_id.clone() }, target:Target::LocalHost { owner:state.owner.clone() } } });
+                }
+                if should_schedule { commands.push(Command::Control { definition_id:id.clone(), paused:false, revoked:false }); }
+            }
+            "pause" if prior.is_some() => {
+                let mut definition = prior.unwrap().clone();
+                definition.revision += 1;
+                definition.trigger = Trigger::Manual;
+                commands.push(Command::PutDefinition { definition });
+            }
+            _ => return Err("Choose Check now, Schedule or Pause".into()),
+        }
+        let content = record_id.clone();
+        let hash = digest(content.as_bytes());
+        let candidate = CandidateRef { binding_id:"local".into(), subject:record_id, revision:hash.clone(), digest:hash.clone(), content_ref:hash.clone() };
+        if watch.operation != "pause" {
+            commands.push(Command::PublishSnapshot { candidate:candidate.clone(), latest:true });
+            if watch.operation == "check" { commands.push(Command::ManualInput { definition_id:id, intent_id:execution_id(), candidate }); }
+        }
+        self.store.apply(commands, at, Some((&hash, &content)), None, None)?;
+        self.research_overview()
     }
     fn app_operation(&mut self, request: AppRequest, agents: &mut Manager) -> Result<AppResponse,String> {
         let path=request.path.split('?').next().unwrap_or("");
@@ -91,6 +157,9 @@ impl Automation {
         let previous=catalog.iter().find(|entry|entry.id==id).cloned();
         if parts.len()>2 && (old.is_none() || previous.as_ref().is_some_and(|entry|entry.deleted)){return Ok(reply(404,json!({"error":"Automation not found"})));}
         if request.method=="GET" && parts.len()==3 {return Ok(reply(200,self.app_record(old.as_ref().unwrap(),previous.as_ref(),&state)?));}
+        if old.as_ref().is_some_and(|definition| matches!(definition.method, Method::ResearchWatch { .. })) {
+            return Ok(reply(403,json!({"error":"Manage this check from its saved Paper record"})));
+        }
         if request.method=="DELETE" && parts.len()==3 {
             let mut entry=previous.unwrap_or(CatalogEntry{id:id.clone(),name:id.clone(),deleted:false,created_at:now()});entry.deleted=true;
             let committed=self.store.apply_catalog(vec![Command::Control{definition_id:id,paused:true,revoked:true}],now(),None,None,None,Some(&entry),None)?;
@@ -118,7 +187,7 @@ impl Automation {
         let Method::Agent{agent_id,workspace,prompt:old_prompt}=old.as_ref().map(|d|d.method.clone()).unwrap_or_else(|| {
             let context=agents.automation_context();
             Method::Agent{agent_id:context["agents"].as_array().and_then(|agents|agents.iter().find(|agent|agent["available"]==true)).and_then(|agent|agent["id"].as_str()).unwrap_or("").into(),workspace:context["workspace"].as_str().unwrap_or("").into(),prompt:String::new()}
-        });
+        }) else { return Err("This method is unavailable for editing".into()); };
         let prompt=edit.prompt.unwrap_or(old_prompt);
         agents.automation_admit(&agent_id,Path::new(&workspace))?;
         let old_rule=old.as_ref().and_then(|d|match &d.trigger{domain::Trigger::Calendar{schedule,..}=>Some(schedule.rule.clone()),_=>None}).unwrap_or_default();
@@ -150,7 +219,8 @@ impl Automation {
         Ok(reply(if old.is_some(){200}else{201},self.app_record(&definition,Some(&entry),&self.store.state()?)?))
     }
     fn app_record(&self, definition:&Definition, entry:Option<&CatalogEntry>, state:&domain::State)->Result<Value,String>{
-        let Method::Agent{prompt,..}=&definition.method;
+        let prompt = match &definition.method { Method::Agent { prompt, .. } => prompt.as_str(),
+            Method::ResearchWatch { .. } => "Check saved research inputs and official arXiv metadata" };
         let program=self.store.program(&definition.id)?;
         let control=state.controls.get(&definition.id);
         let enabled=!control.is_some_and(|value|value.paused||value.revoked);
@@ -164,11 +234,15 @@ impl Automation {
         let runs=state.requests.iter().filter(|r|r.definition.id==definition.id).map(|request|{
             let (status,skip)=match request.status{RequestStatus::Completed=>("succeeded",None),RequestStatus::Failed|RequestStatus::NotStarted=>("failed",None),RequestStatus::Expired=>("skipped",Some("missed")),RequestStatus::Cancelled=>("canceled",None),RequestStatus::Reconcile=>("unknown",None),RequestStatus::Reconciled=>("interrupted",None),RequestStatus::Running|RequestStatus::Reserved=>("running",None),_=>("queued",None)};
             let scheduled=match request.intent{domain::Intent::Time{slot}=>slot,_=>request.created_at};
-            json!({"key":{"automation":definition.id,"slot":iso(scheduled),"trigger":if matches!(request.intent,domain::Intent::Manual{..}){"manual"}else{"schedule"},"request_id":request.id},"scheduled_for":iso(scheduled),"state":status,"skip_reason":skip,"session_id":request.execution_id,"error":self.attention.get(&request.id)})
+            json!({"key":{"automation":definition.id,"slot":iso(scheduled),"trigger":if matches!(request.intent,domain::Intent::Manual{..}){"manual"}else{"schedule"},"request_id":request.id},"scheduled_for":iso(scheduled),"state":status,"skip_reason":skip,"session_id":if matches!(definition.method, Method::Agent{..}) {request.execution_id.as_ref()} else {None},"error":self.attention.get(&request.id)})
         }).collect::<Vec<_>>();
         let in_flight=state.requests.iter().rev().find(|r|r.definition.id==definition.id&&r.status.active()).and_then(|r|r.execution_id.clone());
         let mut record=json!({"id":definition.id,"name":entry.map(|e|e.name.as_str()).unwrap_or(&definition.id),"prompt":prompt,"enabled":enabled,"rule":rule,"timezone":zone,"next":if enabled&&calendar_error.is_none(){next}else{None},"event":event,"runs":runs,"in_flight":in_flight,"scheduled":self.fault.is_none()&&calendar_error.is_none(),"error":calendar_error.as_ref().or(self.fault.as_ref()),"target":{"kind":"local"}});
         if let Some(program)=program {record["program"]=serde_json::to_value(program).map_err(|error|error.to_string())?;}
+        if matches!(definition.method, Method::ResearchWatch { .. }) {
+            record["kind"] = json!("research_watch");
+            record["name"] = json!("Research updates");
+        }
         Ok(record)
     }
     fn app_run(&mut self,definition:&Definition)->Result<String,String>{
@@ -192,7 +266,11 @@ impl Automation {
                     Some(recent)=>recent,None=>calendar.next(at)?,
                 });
             }
-            let content=run_notice(&definition.id,&format!("scheduled for {}",iso(slot)),self.store.program(&definition.id)?.as_ref());let hash=digest(content.as_bytes());
+            let content = match &definition.method {
+                Method::ResearchWatch { record_id } => record_id.clone(),
+                Method::Agent { .. } => run_notice(&definition.id,&format!("scheduled for {}",iso(slot)),self.store.program(&definition.id)?.as_ref()),
+            };
+            let hash = digest(content.as_bytes());
             let candidate=CandidateRef{binding_id:definition.input_binding_id.clone(),subject:subject.clone(),revision:hash.clone(),digest:hash.clone(),content_ref:hash.clone()};
             let commands=vec![Command::PublishSnapshot{candidate,latest:true},
                 Command::CalendarTime{definition_id:definition.id.clone(),revision:definition.revision,slot,next_slot:next}];

@@ -83,6 +83,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     raise Invalid("Request exceeds the upload limit", 413)
                 if not secret or not hmac.compare_digest(secret, self.headers.get("X-Pero-App-Token", "")):
                     raise Invalid("Host proxy authentication required", 401)
+                if path.startswith('/internal/research-') and self.headers.get('X-Pero-Research-Internal') != '1':
+                    raise Invalid('Private research metadata access required', 403)
                 self.connection.settimeout(15)
                 body = self.rfile.read(length)
                 if len(body) != length:
@@ -97,6 +99,13 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if not self.headers.get("Content-Type", "").startswith("application/json"):
                         raise Invalid("JSON is required", 415)
                     data = mapping(json.loads(body), "request")
+                    if path == '/internal/research-record':
+                        from .research_watch import save_with_data
+                        return self.reply(200, save_with_data(store, data, now()))
+                    if path == '/internal/research-watch':
+                        from .research_watch import check
+                        from .resource_fetch import PublicMetadata
+                        return self.reply(200, check(store, data['recordId'], data['datasets'], PublicMetadata().fetch, now()))
                     tex_location = re.fullmatch(r'/api/tex-previews/([a-f0-9]{64})/locate', path)
                     if tex_location:
                         from .tex_navigation import TexNavigation, locate_tex
@@ -255,6 +264,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                             reproduction_fields(data, ('action', 'specId', 'requestId', 'confirmation'))
                             raise Invalid('Execution requires a private per-run Host decision', 403)
                         return self.reply(200, store.pcgym.command(data))
+                    if path == '/api/reproduction/evidence-archive':
+                        reproduction_fields(data, ('itemId', 'attemptId'))
+                        return self.binary(200, store.pcgym.evidence_archive(data['itemId'], data['attemptId']), 'application/zip')
                     if path == '/api/research/inspect':
                         return self.reply(200, store.imports.inspect(data, now()).to_dict())
                     if path == '/api/research/commit':
@@ -266,6 +278,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if path == '/api/research/record':
                         from .research_commands import execute
                         return self.reply(200, execute(store, 'record', data, now=now()))
+                    if path == '/api/research/record-handoff':
+                        from .research_record_commands import record_handoff
+                        return self.binary(200, record_handoff(store, data), 'application/zip')
                     if path == '/api/research/source-report':
                         from .research_commands import execute
                         return self.reply(200, execute(store, 'source-report', data))

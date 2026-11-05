@@ -1,7 +1,8 @@
 """Manual research revisions over existing source/report owners; never execution."""
 from dataclasses import asdict, dataclass
 
-from .model import ID, Invalid, digest, mapping, sequence, text
+from .model import ID, Invalid, PaperSnapshot, digest, mapping, sequence, text
+from .research_resources import ArxivPaper
 
 
 def reference(value, label):
@@ -51,6 +52,42 @@ class EvidenceLink:
 class SourceVersion:
     paperId: str
     contentDigest: str
+    pdfDocumentId: str | None = None
+    pdfDigest: str | None = None
+    structuredDocumentIds: tuple[str, ...] = ()
+
+    def to_dict(self):
+        value = dict(paperId=self.paperId, contentDigest=self.contentDigest)
+        if self.pdfDocumentId is not None:
+            value.update(pdfDocumentId=self.pdfDocumentId, pdfDigest=self.pdfDigest)
+        if self.structuredDocumentIds:
+            value['structuredDocumentIds'] = list(self.structuredDocumentIds)
+        return value
+
+
+@dataclass(frozen=True)
+class ResearchAttempt:
+    paperId: str
+    documentId: str
+    annotationId: str
+    page: int
+    itemId: str
+    specId: str
+    attemptId: str
+    policy: str
+    profile: str
+    seed: int
+    methodDigest: str
+    status: str
+    startedAt: str
+
+
+@dataclass(frozen=True)
+class DataVersion:
+    datasetId: str
+    versionId: str
+    sha256: str
+    name: str
 
 
 @dataclass(frozen=True)
@@ -80,10 +117,12 @@ class ResearchRecord:
     createdAt: str
     parentId: str | None = None
     review: ReviewDecision | None = None
+    attempts: tuple[ResearchAttempt, ...] = ()
+    dataVersions: tuple[DataVersion, ...] = ()
 
     @classmethod
-    def create(cls, value, papers, now):
-        if set(value) - {'operation', 'question', 'scope', 'inclusion', 'exclusion', 'paperIds', 'decisions', 'evidence', 'parentId', 'review'}:
+    def create(cls, value, papers, now, *, sources=None, available_attempts=(), data_versions=()):
+        if set(value) - {'operation', 'question', 'scope', 'inclusion', 'exclusion', 'paperIds', 'decisions', 'evidence', 'parentId', 'review', 'attempts'}:
             raise Invalid('Unknown research record fields')
         ids = tuple(p.id for p in papers)
         if not 1 <= len(ids) <= 32 or len(set(ids)) != len(ids):
@@ -92,15 +131,34 @@ class ResearchRecord:
         if len(decisions) != len(ids) or {item.paperId for item in decisions} != set(ids):
             raise Invalid('Give every selected paper exactly one screening decision and reason')
         evidence = tuple(EvidenceLink.parse(item, ids) for item in sequence(value.get('evidence', []), 64, 'evidence links'))
+        attempts = []
+        for item in sequence(value.get('attempts', []), 32, 'reproduction attempts'):
+            item = mapping(item, 'attempt reference')
+            if set(item) != {'itemId', 'attemptId'}:
+                raise Invalid('Choose a verification item and an execution attempt')
+            link = next((row for row in available_attempts if row.itemId == item['itemId']
+                         and row.attemptId == item['attemptId'] and row.paperId in ids), None)
+            if link is None or link in attempts:
+                raise Invalid('Choose distinct completed, failed or cancelled attempts from selected papers')
+            attempts.append(link)
         parent = reference(value['parentId'], 'parent revision') if value.get('parentId') is not None else None
         return cls(*(text(value.get(key), 4000, key) for key in ('question', 'scope', 'inclusion', 'exclusion')),
-                   ids, decisions, evidence, tuple(SourceVersion(p.id, p.content_digest) for p in papers), now,
-                   parent, ReviewDecision.parse(value['review']) if value.get('review') is not None else None)
+                   ids, decisions, evidence, sources if sources is not None else tuple(SourceVersion(p.id, p.content_digest) for p in papers), now,
+                   parent, ReviewDecision.parse(value['review']) if value.get('review') is not None else None, tuple(attempts), data_versions)
 
     def body(self):
         value = asdict(self)
-        for key in ('paperIds', 'decisions', 'evidence', 'sourceVersions'):
+        for key in ('paperIds', 'decisions', 'evidence'):
             value[key] = list(value[key])
+        value['sourceVersions'] = [item.to_dict() for item in self.sourceVersions]
+        if self.attempts:
+            value['attempts'] = [asdict(item) for item in self.attempts]
+        else:
+            del value['attempts']
+        if self.dataVersions:
+            value['dataVersions'] = [asdict(item) for item in self.dataVersions]
+        else:
+            del value['dataVersions']
         return value
 
     @property
@@ -115,29 +173,46 @@ class ResearchRecord:
         result = cls(*(value[key] for key in ('question', 'scope', 'inclusion', 'exclusion')),
                      tuple(value['paperIds']), tuple(ScreeningDecision(**item) for item in value['decisions']),
                      tuple(EvidenceLink(**item) for item in value['evidence']),
-                     tuple(SourceVersion(**item) for item in value['sourceVersions']), value['createdAt'], value['parentId'],
-                     ReviewDecision(**value['review']) if value['review'] else None)
+                     tuple(SourceVersion(**{**item, 'structuredDocumentIds': tuple(item.get('structuredDocumentIds', ()))})
+                           for item in value['sourceVersions']), value['createdAt'], value['parentId'],
+                     ReviewDecision(**value['review']) if value['review'] else None,
+                     tuple(ResearchAttempt(**item) for item in value.get('attempts', ())),
+                     tuple(DataVersion(**item) for item in value.get('dataVersions', ())))
         if result.id != identity or value != result.to_dict():
             raise Invalid('Research revision identity check failed', 409)
         return result
 
-    def impact(self, saved):
-        """Compare only retained exact provider identities, not guessed upstream state."""
+    def impact(self, saved: tuple[PaperSnapshot, ...], sources: tuple[SourceVersion, ...],
+               arxiv_works: dict[str, ArxivPaper], method_digest: str | None):
+        """Compare retained versions of an identified work."""
         items = []
         for version in self.sourceVersions:
             original = next((p for p in saved if p.id == version.paperId), None)
-            alternatives = tuple(p for p in saved if original and p.id != original.id
-                                 and (p.source, p.source_id) == (original.source, original.source_id))
-            changed = tuple(p for p in alternatives if p.content_digest != version.contentDigest)
-            status = 'unknown' if original is None else 'changed' if changed else 'unchanged'
+            original_work = arxiv_works.get(version.paperId)
+            alternatives = tuple(p for p in saved if original and p.id != original.id and (
+                (p.source, p.source_id) == (original.source, original.source_id) or
+                (original_work and p.id in arxiv_works and arxiv_works[p.id].work == original_work.work)))
+            changed = tuple(p for p in alternatives if p.content_digest != version.contentDigest or
+                            (original_work and p.id in arxiv_works and arxiv_works[p.id].revision != original_work.revision))
+            current = next((item for item in sources if item.paperId == version.paperId), None)
+            pdf_changed = current is not None and (current.pdfDocumentId, current.pdfDigest) != (version.pdfDocumentId, version.pdfDigest)
+            structured_changed = current is not None and set(current.structuredDocumentIds) != set(version.structuredDocumentIds)
+            status = 'unknown' if original is None or current is None else 'changed' if changed or pdf_changed or structured_changed else 'unchanged'
             items.append(dict(paperId=version.paperId, status=status, frozenDigest=version.contentDigest,
                               currentDigest=original.content_digest if original else None,
                               candidatePaperIds=[p.id for p in changed],
-                              reason='Frozen snapshot unavailable' if original is None else
-                              'Different saved content for the same provider identity; not an upstream freshness claim' if changed else
-                              'Saved snapshot unchanged; upstream changes were not checked'))
+                              pdfChanged=pdf_changed, structuredChanged=structured_changed,
+                              reason='Saved source or reading artifact unavailable' if status == 'unknown' else
+                              'Saved source or reading version differs' if status == 'changed' else 'Saved versions match'))
+        changed_ids = {item['paperId'] for item in items if item['status'] == 'changed'}
+        affected_attempts = tuple(item for item in self.attempts if item.paperId in changed_ids or
+                                  (method_digest and item.methodDigest != method_digest))
         return dict(recordId=self.id, items=items, execution='not_requested', upstreamStatus='unknown',
-                    dataStatus='not_tracked', methodStatus='not_tracked')
+                    affectedAttempts=[asdict(item) for item in affected_attempts],
+                    affectedReportIds=list(dict.fromkeys(item.reportId for item in self.evidence if item.paperId in changed_ids and item.reportId)),
+                    dataStatus='generated_by_attempt' if self.attempts else 'not_tracked',
+                    methodStatus=('changed' if any(item.methodDigest != method_digest for item in self.attempts) else 'unchanged')
+                    if method_digest and self.attempts else 'not_tracked')
 
     def selection(self, paper_ids, now):
         ids = tuple(reference(item, 'reread paper reference')
@@ -158,8 +233,10 @@ class ResearchRecord:
         # Even user-authored notes can contain private material. Default export is
         # references only, not a textual report or a computational handoff capsule.
         return dict(schema='pero.research-record-index.v1', recordId=self.id, parentId=self.parentId,
-                    sourceVersions=[asdict(item) for item in self.sourceVersions],
+                    sourceVersions=[item.to_dict() for item in self.sourceVersions],
                     reportIds=list(dict.fromkeys(item.reportId for item in self.evidence if item.reportId)),
+                    attempts=[asdict(item) for item in self.attempts],
+                    dataVersions=[asdict(item) for item in self.dataVersions],
                     verification='not_run', omitted=['Question and scope', 'Notes and screening reasons',
                         'Paper text', 'Report text', 'Private data', 'Paths and credentials'],
                     limitation='Reference index only. Not a portable research record or a recomputation package.')

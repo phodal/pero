@@ -47,6 +47,7 @@ pub enum InputContract { ProcessExact, RecheckLatest }
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Method {
     Agent { agent_id: String, workspace: String, prompt: String },
+    ResearchWatch { record_id: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -525,9 +526,12 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
                 Trigger::Calendar { schedule, subject, exact } => calendar::validate_trigger(schedule, subject, exact, definition.input)?,
                 _ => (),
             }
-            let Method::Agent { agent_id, workspace, prompt } = &definition.method;
-            if !identifier(agent_id) || workspace.is_empty() || workspace.len() > 4096
-                || workspace.chars().any(char::is_control) || prompt.is_empty() || prompt.len() > 16384 { return Err(Error::Invalid); }
+            match &definition.method {
+                Method::Agent { agent_id, workspace, prompt } if !identifier(agent_id) || workspace.is_empty() || workspace.len() > 4096
+                    || workspace.chars().any(char::is_control) || prompt.is_empty() || prompt.len() > 16384 => return Err(Error::Invalid),
+                Method::ResearchWatch { record_id } if record_id.len() != 64 || !record_id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) => return Err(Error::Invalid),
+                _ => (),
+            }
             if let Some(old) = state.definitions.iter().find(|d| d.id == definition.id && d.revision == definition.revision) {
                 if old != &definition { return Err(Error::Conflict); }
             } else {
@@ -719,6 +723,12 @@ pub fn apply(state: &State, command: Command, now: u64, ids: Ids) -> Result<Tran
         Command::Recover => {
             for request in &mut next.requests {
                 if request.status.active() {
+                    if matches!(request.definition.method, Method::ResearchWatch { .. }) {
+                        // Metadata checks commit their result with completion. After
+                        // owner restart an uncommitted check has no durable result.
+                        request.status = RequestStatus::Failed;
+                        continue;
+                    }
                     request.status = RequestStatus::Reconcile;
                     if request.cancel_requested {
                         if let Some(execution_id) = &request.execution_id {
