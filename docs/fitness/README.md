@@ -21,6 +21,9 @@ First Harbor ACP execution, official failure verdict and reviewed Session:
 All 89 tasks, uncapped request configuration and current execution evidence:
 [Terminal-Bench full-suite run](terminal-bench-full.md).
 
+Failure evidence, repair boundaries and the verified turn-entry correction:
+[Terminal-Bench failure repair review](terminal-bench-failure-repair-review.md).
+
 AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
 managed execution admission remains planned: [Environments P1](ai4s-environments.md).
 

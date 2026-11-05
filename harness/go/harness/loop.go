@@ -67,6 +67,14 @@ func (a *interruptedStreamAssembly) content() []ContentBlock {
 }
 
 func (a *Agent) runTurn(ctx context.Context, initial []Message, claimNextTurn bool, closeClaimBoundary func([]Message)) (result TurnResult, err error) {
+	// Queued work may outlive its activity wait. Reject before opening a turn
+	// or claiming durable input; an already-running turn retains its own errors.
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	if err := a.operationAdmissionError(); err != nil {
+		return result, err
+	}
 	a.injectMu.Lock()
 	a.acceptingInject = a.externalTurn == nil
 	a.injectMu.Unlock()
