@@ -59,3 +59,11 @@ Windows/sandbox PTY remain unsupported. These are not certified by the selected
 local plugin runs. Lost execution stacks still use durable journal continuation;
 uncertain effects are never silently replayed. Broader prompt comparisons remain
 measurement work, not a compatibility or optimality claim.
+
+
+## Linux verification correction
+
+The first current-branch Linux run exposed /bin/sh resolving to dash while the
+existing executor supplies Bash startup flags. The MCP headers helper now selects
+/bin/bash; no shared shell behavior or credential redaction changed. Gazelle also
+normalized BUILD ordering/platform dependencies. See the [incident](../../issues/2026-11-05-mcp-header-helper-shell.md).

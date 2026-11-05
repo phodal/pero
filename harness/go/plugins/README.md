@@ -111,7 +111,7 @@ Runtime mounting uses the existing harness loop and ownership boundaries:
   Each package gets a server namespace; children inherit the parent connection.
   `list_mcp_prompts` and `get_mcp_prompt` read prompts from those servers.
   Remote declarations can use `headersHelper`: a trusted shell command returning
-  a JSON string map, resolved on each connection with a 10-second/64-KiB bound.
+  a JSON string map via /bin/bash, resolved on each connection with a 10-second/64-KiB bound.
   Dynamic headers override static headers case-insensitively. The helper receives
   plugin/project environment and CLAUDE_CODE_MCP_SERVER_NAME/URL. Inspection never
   runs it, and helper output/stderr is excluded from error messages. Failed tool

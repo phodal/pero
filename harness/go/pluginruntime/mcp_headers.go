@@ -17,7 +17,7 @@ func mcpHeadersProvider(pkg plugins.Package, declaration plugins.MCPServerDefini
 	env := append([]string(nil), environment...)
 	env = append(env, "CLAUDE_PLUGIN_ROOT="+pkg.Root, "CLAUDE_PLUGIN_DATA="+data, "CLAUDE_PROJECT_DIR="+config.CWD, "CLAUDE_CODE_MCP_SERVER_NAME="+declaration.Name, "CLAUDE_CODE_MCP_SERVER_URL="+config.URL)
 	return func(ctx context.Context) (map[string]string, error) {
-		executor, err := shell.NewLocalExecutor(shell.LocalOptions{Shell: "/bin/sh", CWD: config.CWD, Timeout: 10 * time.Second, MaxTimeout: 10 * time.Second, MaxOutputBytes: 64 << 10, BaseEnv: env, TrustedBaseEnvironment: true})
+		executor, err := shell.NewLocalExecutor(shell.LocalOptions{Shell: "/bin/bash", CWD: config.CWD, Timeout: 10 * time.Second, MaxTimeout: 10 * time.Second, MaxOutputBytes: 64 << 10, BaseEnv: env, TrustedBaseEnvironment: true})
 		if err != nil {
 			return nil, errors.New("pluginruntime: MCP headers helper cannot start on this host")
 		}
