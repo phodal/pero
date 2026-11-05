@@ -21,20 +21,22 @@ type ToolResultPruneConfig struct {
 	HeadChars      *int `json:"headChars,omitempty"`
 	TailChars      *int `json:"tailChars,omitempty"`
 	// TotalChars enables history-wide clearing with a low watermark. Nil keeps
-	// the source-compatible per-result policy. Recent results and errors survive.
+	// the source-compatible per-result policy. Recent results and unique errors survive.
 	TotalChars        *int `json:"totalChars,omitempty"`
 	LowWatermarkChars *int `json:"lowWatermarkChars,omitempty"`
 	KeepRecent        *int `json:"keepRecent,omitempty"`
+	DeduplicateErrors bool `json:"deduplicateErrors,omitempty"`
 }
 
 type resolvedToolResultPruneConfig struct {
-	thresholdChars int
-	headChars      int
-	tailChars      int
-	marker         string
-	totalChars     int
-	lowWatermark   int
-	keepRecent     int
+	thresholdChars    int
+	headChars         int
+	tailChars         int
+	marker            string
+	totalChars        int
+	lowWatermark      int
+	keepRecent        int
+	deduplicateErrors bool
 }
 
 type PrunedToolResult struct {
@@ -73,14 +75,15 @@ type ToolResultPrunerPolicy struct {
 }
 
 type ToolResultPrunerPolicySnapshot struct {
-	Overridden     bool `json:"overridden"`
-	Enabled        bool `json:"enabled"`
-	ThresholdChars int  `json:"thresholdChars,omitempty"`
-	HeadChars      int  `json:"headChars,omitempty"`
-	TailChars      int  `json:"tailChars,omitempty"`
-	TotalChars     int  `json:"totalChars,omitempty"`
-	LowWatermark   int  `json:"lowWatermarkChars,omitempty"`
-	KeepRecent     int  `json:"keepRecent,omitempty"`
+	Overridden        bool `json:"overridden"`
+	Enabled           bool `json:"enabled"`
+	ThresholdChars    int  `json:"thresholdChars,omitempty"`
+	HeadChars         int  `json:"headChars,omitempty"`
+	TailChars         int  `json:"tailChars,omitempty"`
+	TotalChars        int  `json:"totalChars,omitempty"`
+	LowWatermark      int  `json:"lowWatermarkChars,omitempty"`
+	KeepRecent        int  `json:"keepRecent,omitempty"`
+	DeduplicateErrors bool `json:"deduplicateErrors,omitempty"`
 }
 
 // Snapshot reports the immutable effective generation without exposing its
@@ -95,6 +98,7 @@ func (p *ToolResultPrunerPolicy) Snapshot() ToolResultPrunerPolicySnapshot {
 		snapshot.TotalChars = pruner.config.totalChars
 		snapshot.LowWatermark = pruner.config.lowWatermark
 		snapshot.KeepRecent = pruner.config.keepRecent
+		snapshot.DeduplicateErrors = pruner.config.deduplicateErrors
 	}
 	return snapshot
 }
@@ -190,6 +194,10 @@ func NewToolResultPruner(config ToolResultPruneConfig) (*ToolResultPruner, error
 		(resolved.totalChars == 0 && (config.LowWatermarkChars != nil || config.KeepRecent != nil)) {
 		return nil, errors.New("harness: invalid tool history watermark or recent-result protection")
 	}
+	if config.DeduplicateErrors && resolved.totalChars == 0 {
+		return nil, errors.New("harness: duplicate error projection requires history watermarks")
+	}
+	resolved.deduplicateErrors = config.DeduplicateErrors
 	return &ToolResultPruner{config: resolved}, nil
 }
 
@@ -269,25 +277,41 @@ func (p *ToolResultPruner) PruneSession(session *harnesssession.Session) (ToolRe
 		return ToolResultPruneResult{}, errors.New("harness: tool-result pruning requires an open turn")
 	}
 	eventsBySeq := make(map[uint64]harnessmodel.Event, len(events))
-	toolNames := make(map[harnessmodel.ToolCallID]string)
+	type callInfo struct {
+		CallID    harnessmodel.ToolCallID `json:"callId"`
+		Name      string                  `json:"name"`
+		Arguments json.RawMessage         `json:"arguments"`
+	}
+	pending := make(map[harnessmodel.ToolCallID]callInfo)
+	callsByResult := make(map[uint64]callInfo)
 	for _, event := range events {
 		eventsBySeq[event.Seq] = event
 		if event.Type == "tool/call" {
-			var call struct {
-				CallID harnessmodel.ToolCallID `json:"callId"`
-				Name   string                  `json:"name"`
-			}
+			var call callInfo
 			if json.Unmarshal(event.Data, &call) == nil {
-				toolNames[call.CallID] = call.Name
+				pending[call.CallID] = call
+			}
+		}
+		if event.Type == "tool/result" {
+			var result harnessmodel.ContentBlock
+			if json.Unmarshal(event.Data, &result) == nil {
+				if len(event.SourceEventSeqs) == 1 {
+					callsByResult[event.Seq] = callsByResult[event.SourceEventSeqs[0]]
+				} else {
+					callsByResult[event.Seq] = pending[result.ToolCallID]
+					delete(pending, result.ToolCallID)
+				}
 			}
 		}
 	}
 	// Capture one stable surface before appending replacements.
 	type candidate struct {
-		event     harnessmodel.Event
-		block     harnessmodel.ContentBlock
-		chars     int
-		protected bool
+		event        harnessmodel.Event
+		block        harnessmodel.ContentBlock
+		chars        int
+		protected    bool
+		duplicateKey string
+		latestSeq    uint64
 	}
 	var candidates []candidate
 	total, recent := 0, 0
@@ -301,10 +325,34 @@ func (p *ToolResultPruner) PruneSession(session *harnesssession.Session) (ToolRe
 			return ToolResultPruneResult{}, fmt.Errorf("harness: decode tool/result at seq %d: %w", seq, err)
 		}
 		chars := p.MeasureContent(block.Content)
-		protected := protectedHistoryResult(toolNames[block.ToolCallID], block)
-		candidates = append(candidates, candidate{event, block, chars, protected})
+		call := callsByResult[event.Seq]
+		protected := protectedHistoryResult(call.Name, block)
+		c := candidate{event: event, block: block, chars: chars, protected: protected}
+		if p.config.deduplicateErrors && protected && !historyCleared(block.Content) {
+			diagnostic := ObserveDiagnostic(call.Name, call.Arguments, block.Content, block.IsError)
+			if diagnostic.Deduplicable {
+				c.duplicateKey = call.Name + ":" + diagnosticHash(string(call.Arguments)) + ":" + diagnostic.Fingerprint
+			}
+		}
+		candidates = append(candidates, c)
 		total += chars
-		if chars > 0 && !protected && !historyCleared(block.Content) {
+	}
+	// The latest identical complete diagnostic is always retained. Count recent
+	// protection after identifying eligible duplicates, not before.
+	latest := make(map[string]uint64)
+	for _, c := range candidates {
+		if c.duplicateKey != "" {
+			latest[c.duplicateKey] = c.event.Seq
+		}
+	}
+	recent = 0
+	for i := range candidates {
+		c := &candidates[i]
+		if seq := latest[c.duplicateKey]; c.duplicateKey != "" && seq > c.event.Seq {
+			c.protected = false
+			c.latestSeq = seq
+		}
+		if c.chars > 0 && !c.protected && !historyCleared(c.block.Content) {
 			recent++
 		}
 	}
@@ -325,6 +373,9 @@ func (p *ToolResultPruner) PruneSession(session *harnesssession.Session) (ToolRe
 		var changed bool
 		if p.config.totalChars > 0 {
 			pruned = clearedHistoryContent(block.Content, string(session.Header().ID), event.Seq)
+			if c.latestSeq > 0 {
+				pruned[0].Text += fmt.Sprintf(" Identical complete diagnostic retained at result seq %d; this remains a failed operation.", c.latestSeq)
+			}
 			changed = p.MeasureContent(pruned) < before
 		} else {
 			var err error

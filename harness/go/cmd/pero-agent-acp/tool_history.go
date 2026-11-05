@@ -9,13 +9,17 @@ import (
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
-type toolHistoryFlags struct{ Total, Low, Recent int }
+type toolHistoryFlags struct {
+	Total, Low, Recent int
+	DeduplicateErrors  bool
+}
 
 func bindToolHistory(flags *flag.FlagSet) *toolHistoryFlags {
 	o := &toolHistoryFlags{}
 	flags.IntVar(&o.Total, "tool-history-chars", 0, "tool text history high watermark; 0 disables clearing; requires workspace for original-output readback")
 	flags.IntVar(&o.Low, "tool-history-low-watermark", 0, "clear old tool text to this character count; 0 chooses half the high watermark")
-	flags.IntVar(&o.Recent, "tool-history-keep-recent", 4, "protect this many recent successful tool results; errors are always protected")
+	flags.IntVar(&o.Recent, "tool-history-keep-recent", 4, "protect this many recent successful tool results; unique errors are always protected")
+	flags.BoolVar(&o.DeduplicateErrors, "tool-history-deduplicate-errors", false, "allow older identical complete command failures to be projected out; original Session output remains readable")
 	return o
 }
 
@@ -24,8 +28,8 @@ func (o toolHistoryFlags) config(workspace string) (*harness.ToolResultPruneConf
 		return nil, errors.New("invalid tool history limits")
 	}
 	if o.Total == 0 {
-		if o.Low != 0 {
-			return nil, errors.New("tool history low watermark requires a positive high watermark")
+		if o.Low != 0 || o.DeduplicateErrors {
+			return nil, errors.New("tool history low watermark and duplicate error projection require a positive high watermark")
 		}
 		return nil, nil
 	}
@@ -35,7 +39,7 @@ func (o toolHistoryFlags) config(workspace string) (*harness.ToolResultPruneConf
 	if o.Low == 0 {
 		o.Low = o.Total / 2
 	}
-	c := &harness.ToolResultPruneConfig{TotalChars: &o.Total, LowWatermarkChars: &o.Low, KeepRecent: &o.Recent}
+	c := &harness.ToolResultPruneConfig{TotalChars: &o.Total, LowWatermarkChars: &o.Low, KeepRecent: &o.Recent, DeduplicateErrors: o.DeduplicateErrors}
 	_, err := harness.NewToolResultPruner(*c)
 	return c, err
 }

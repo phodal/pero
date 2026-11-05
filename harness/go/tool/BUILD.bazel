@@ -32,6 +32,7 @@ go_test(
     name = "tool_test",
     srcs = [
         "diagnostic_test.go",
+        "duplicate_history_test.go",
         "history_test.go",
         "json_schema_subset_test.go",
         "output_test.go",
