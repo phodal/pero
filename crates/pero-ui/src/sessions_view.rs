@@ -6,7 +6,7 @@ use crate::{
     },
     workspace::{ConversationTab, WorkbenchPage},
 };
-use gpui_kit::{component::Sizable, prelude::*};
+use gpui_kit::{component::Sizable, prelude::*, div, px, Window, CursorStyle, Role, MouseButton, MouseDownEvent, KeyDownEvent};
 use std::rc::Rc;
 const INITIAL_VISIBLE_SESSIONS: usize = 5;
 const SESSION_REVEAL_STEP: usize = 10;
@@ -93,7 +93,7 @@ impl Workbench {
             }),
         )
     }
-    pub(crate) fn sessions_panel(&self, width: f32, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn sessions_panel(&self, width: f32, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let on_action = self.navigation_actions(cx);
         let panel = self.chat.read(cx);
         let query = self.session_search.read(cx).value().trim().to_lowercase();
@@ -164,7 +164,7 @@ impl Workbench {
         let search = gpui_kit::component::input::Input::new(&self.session_search)
             .small()
             .into_any_element();
-        sidebar::sessions(
+        div().relative().h_full().flex_shrink_0().child(sidebar::sessions(
             self.ui(cx),
             width,
             sidebar::SessionsProps {
@@ -180,6 +180,43 @@ impl Workbench {
             search,
             on_action,
             cx,
+        )).child(
+            div().id("sessions-resize")
+                .absolute().right_0().top_0().w(px(4.)).h_full()
+                .cursor(CursorStyle::ResizeLeftRight)
+                .track_focus(&self.sessions_resize_focus)
+                .role(Role::Splitter)
+                .aria_label(self.t("workspace.resize_sessions"))
+                .aria_numeric_value(width.into())
+                .when(self.sessions_resize_focus.is_focused(window), |el| {
+                    el.bg(pero_theme::UiAppearance::global(cx).palette.focus)
+                })
+                .on_mouse_down(MouseButton::Left, cx.listener(|this, event: &MouseDownEvent, window, cx| {
+                    this.sessions_resize_focus.focus(window, cx);
+                    if event.click_count == 2 {
+                        this.preferences.layout.resize_sessions(
+                            pero_contracts::workbench::LayoutPreferences::DEFAULT_SESSIONS_WIDTH.into());
+                        this.save_preferences(this.preferences.clone(), cx);
+                    } else {
+                        this.resizing_sessions = true;
+                    }
+                    cx.stop_propagation();
+                    cx.notify();
+                }))
+                .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                    use pero_contracts::workbench::LayoutPreferences as L;
+                    let available = f32::from(window.viewport_size().width) - this.layout.sidebar_width;
+                    match event.keystroke.key.as_str() {
+                        "left" => this.preferences.layout.resize_sessions_by(available, -20.),
+                        "right" => this.preferences.layout.resize_sessions_by(available, 20.),
+                        "home" => this.preferences.layout.resize_sessions(L::MIN_SESSIONS_WIDTH.into()),
+                        "end" => this.preferences.layout.resize_sessions(L::MAX_SESSIONS_WIDTH.into()),
+                        _ => return,
+                    }
+                    this.save_preferences(this.preferences.clone(), cx);
+                    cx.stop_propagation();
+                    cx.notify();
+                }))
         )
     }
 }

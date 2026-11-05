@@ -564,7 +564,7 @@ test('App-owned data access waits for a running turn and ends with the Host turn
   assert.equal(effects, 0);
   use.accept({ kind: 'turn_started', thread_id: 'starting' });
   assert.equal(await waiting, 1);
-  await assert.rejects(use.access('starting', scope, async () => ++effects, signal), /selected in Chat/);
+  await assert.rejects(use.access('starting', scope, async () => ++effects, signal), { code: 'APP_SESSION_INACTIVE' });
   await assert.rejects(use.access('starting', { ...scope, panel: 'foreign' }, async () => ++effects, signal, 'app-data'), /scoped to another App/);
 
   create('cancel-before-start');
@@ -599,7 +599,7 @@ test('App-owned data access waits for a running turn and ends with the Host turn
       await assert.rejects(pending, /stopped waiting/);
       assert.equal(operationSignal.aborted, true);
       release();
-      await assert.rejects(use.access(thread, scope, async () => ++effects, signal, 'app-data'), /selected in Chat/);
+      await assert.rejects(use.access(thread, scope, async () => ++effects, signal, 'app-data'), { code: 'APP_SESSION_INACTIVE' });
       assert.equal(effects, 2);
     }
   }

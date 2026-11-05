@@ -108,6 +108,25 @@ fn installation_and_retained_data_lifecycle() {
 }
 
 #[test]
+fn static_panel_access_does_not_start_its_backend() {
+    let workspace = Workspace::new();
+    let source = workspace.package(Some("python"));
+    let name = AppName::try_from("virtual-cell".to_owned()).unwrap();
+    let mut store = AppStore::open(workspace.0.join("managed/apps"), PythonEnvironments::default()).unwrap();
+    assert!(store.resolve_static(&name).is_err());
+    store.install(&source).unwrap();
+    assert!(store.resolve_static(&name).is_err());
+    store.set_enabled(&name, true).unwrap();
+    let access = store.resolve_static(&name).unwrap();
+    assert_eq!(fs::read_to_string(access.root.join(access.entry)).unwrap(), "<h1>Cell atlas</h1>");
+    assert!(access.backend.is_none());
+    assert!(store.running_backend(&name).is_err());
+    assert!(!workspace.0.join("managed/app-data/virtual-cell/observed").exists());
+    store.set_enabled(&name, false).unwrap();
+    assert!(store.resolve_static(&name).is_err());
+}
+
+#[test]
 fn builtin_catalog_discovers_additions_without_overwriting_choices() {
     for legacy in [false, true] {
         let workspace = Workspace::new();

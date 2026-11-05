@@ -248,6 +248,7 @@ mod rendering {
                             .children(tools.iter().enumerate().map(|(index, tool)| {
                                 div()
                                     .id(("tool-detail", index))
+                                    .anchor_scroll(self.artifacts.anchors.get(&format!("{conversation_id}/tool:{}",tool.id)).cloned())
                                     .py(px(6.))
                                     .min_w_0()
                                     .flex()
@@ -308,6 +309,11 @@ mod rendering {
                                                 cx.notify();
                                             }))))
                                             .when(load_failed, |el|el.child(div().text_color(p.error).child(self.t("content.load_failed"))))
+                                    })
+                                    .when(tool.document.is_some() && tool.status=="completed" && !tool.cancelled && tool.artifact.as_ref().is_none_or(|artifact|matches!(artifact.status,crate::artifact_read::ArtifactStatus::Loaded)), |el| {
+                                        let thread=conversation_id.to_owned();let tool_id=tool.id.clone();
+                                        el.child(Button::new(("save-tool-artifact",index)).relative().children(self.artifacts.bounds.get(&format!("{conversation_id}/save-tool:{}",tool.id)).map(|bounds|bounds.probe())).ghost().small().self_start().text_color(p.text_muted).label(self.t("artifacts.save_result"))
+                                            .on_click(cx.listener(move |this,_,_,cx|this.save_tool_artifact(&thread,&tool_id,cx))))
                                     })
                                     .when_some(tool.document.as_ref().filter(|_| tool.reader.is_none()), |el, document| {
                                         let document = document.clone();

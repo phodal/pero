@@ -1,6 +1,16 @@
 //! A selected context is a frozen value, independent of the picker that found it.
 use serde::{Deserialize, Serialize};
 
+pub const MAX_PROMPT_CHARS: usize = 64_000;
+
+/// The same text budget applies to Composer admission and Host submission.
+pub fn validate_prompt_text(text: &str) -> Result<(), &'static str> {
+    if text.chars().take(MAX_PROMPT_CHARS + 1).count() > MAX_PROMPT_CHARS {
+        return Err("Message exceeds 64,000 characters");
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ContextKind {
@@ -116,6 +126,17 @@ impl ContextReference {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn prompt_budget_counts_characters_not_utf8_bytes() {
+        for (text, valid) in [
+            ("x".repeat(MAX_PROMPT_CHARS), true),
+            ("界".repeat(MAX_PROMPT_CHARS), true),
+            ("x".repeat(MAX_PROMPT_CHARS + 1), false),
+            ("界".repeat(MAX_PROMPT_CHARS + 1), false),
+        ] {
+            assert_eq!(validate_prompt_text(&text).is_ok(), valid);
+        }
+    }
     #[test]
     fn context_limits_cover_the_whole_turn() {
         let reference = ContextReference {

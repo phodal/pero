@@ -12,6 +12,12 @@ import {java} from '@codemirror/legacy-modes/mode/clike';
 import {css} from '@codemirror/legacy-modes/mode/css';
 import {pgSQL} from '@codemirror/legacy-modes/mode/sql';
 import {html} from '@codemirror/legacy-modes/mode/xml';
+import {python} from '@codemirror/legacy-modes/mode/python';
+import {rust} from '@codemirror/legacy-modes/mode/rust';
+import {go} from '@codemirror/legacy-modes/mode/go';
+import {shell} from '@codemirror/legacy-modes/mode/shell';
+import {yaml} from '@codemirror/legacy-modes/mode/yaml';
+import {r} from '@codemirror/legacy-modes/mode/r';
 
 /** JSON keys and values stay distinct. The legacy JavaScript mode marks keys as "string property", which is not a highlight tag. */
 const jsonParser: StreamParser<{stack: string[]}>={
@@ -129,13 +135,19 @@ function languageExtension(language:string){
   if(language==='css') return StreamLanguage.define(css);
   if(language==='html') return StreamLanguage.define(html);
   if(language==='jcl') return StreamLanguage.define(mvsMacro);
+  if(language==='python') return StreamLanguage.define(python);
+  if(language==='rust') return StreamLanguage.define(rust);
+  if(language==='go') return StreamLanguage.define(go);
+  if(language==='shell') return StreamLanguage.define(shell);
+  if(language==='yaml') return StreamLanguage.define(yaml);
+  if(language==='r') return StreamLanguage.define(r);
   return StreamLanguage.define(cobol);
 }
 
 export type CodeViewerProps = {
   text: string;
   documentId: string;
-  language?: 'cobol' | 'java' | 'sql' | 'jcl' | 'json' | 'javascript' | 'typescript' | 'jsx' | 'tsx' | 'css' | 'html' | 'plain';
+  language?: 'cobol' | 'java' | 'sql' | 'jcl' | 'json' | 'javascript' | 'typescript' | 'jsx' | 'tsx' | 'css' | 'html' | 'python' | 'rust' | 'go' | 'shell' | 'yaml' | 'r' | 'plain';
   /** Soft-wrap long lines. COBOL and Java viewers stay unwrapped. */
   wrap?: boolean;
   startLine?: number;

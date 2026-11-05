@@ -66,12 +66,17 @@ jobs:
       - name: Verify imported files, charts, molecules and responsive themes
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: node tests/e2e/scientific-viewer-browser.mjs
+      - name: Verify artifact previews and Gallery keyboard behavior
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: node apps/scientific-viewer/test/artifact-browser.mjs
       - name: Viewer screenshots and exact bundle evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: scientific-viewer-browser-${{ github.sha }}
-          path: test-results/scientific-viewer-browser/
+          path: |
+            test-results/scientific-viewer-browser/
+            test-results/session-artifacts-viewer/
           if-no-files-found: warn
 
   data:

@@ -498,13 +498,23 @@ impl AppStore {
         self.resolve_with_progress(name, &mut |_| {})
     }
 
-    pub fn resolve_with_progress(&mut self, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<AppAccess, String> {
+    /// Static panels do not acquire an environment or start their optional backend.
+    pub fn resolve_static(&self, name: &AppName) -> Result<AppAccess, String> {
         let app = self.installed.get(name).ok_or("App is not installed")?;
         if !app.enabled {
             return Err("App is disabled; enable it before opening".into());
         }
-        let root = self.root.join(name.as_str());
-        let entry = app.definition.contributes.panels[0].entry.clone();
+        Ok(AppAccess {
+            root: self.root.join(name.as_str()),
+            entry: app.definition.contributes.panels[0].entry.clone(),
+            frame_origins: app.definition.permissions.frame_origins.clone(),
+            backend: None,
+        })
+    }
+
+    pub fn resolve_with_progress(&mut self, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<AppAccess, String> {
+        let mut access = self.resolve_static(name)?;
+        let app = self.installed.get(name).expect("resolved installed App");
         if self
             .processes
             .get_mut(name)
@@ -532,7 +542,7 @@ impl AppStore {
                 name.clone(),
                 AppProcess::start(
                     &app.definition,
-                    &root,
+                    &access.root,
                     &self.data.join(name.as_str()),
                     python.as_ref(),
                 )?,
@@ -543,12 +553,8 @@ impl AppStore {
             .get_mut(name)
             .map(AppProcess::access)
             .transpose()?;
-        Ok(AppAccess {
-            root,
-            entry,
-            frame_origins: app.definition.permissions.frame_origins.clone(),
-            backend,
-        })
+        access.backend = backend;
+        Ok(access)
     }
 }
 

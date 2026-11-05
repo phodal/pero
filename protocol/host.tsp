@@ -4,6 +4,7 @@ import "@typespec/json-schema";
 import "./apps.tsp";
 import "./contributions.tsp";
 import "./automation.tsp";
+import "./session-artifacts.tsp";
 
 using JsonSchema;
 
@@ -188,10 +189,14 @@ model SetLocaleRequest {
 }
 
 model ProjectBinding { @minLength(1) @maxLength(4096) workspace: string; @maxLength(128) project_id: string; ...Closed }
+union ArtifactView { "icons", "list", "gallery" }
 model LayoutPreferences {
   @minValue(320) @maxValue(640) chat_width?: uint16 = 420;
   chat_open?: boolean = false;
   @minValue(200) @maxValue(480) sidebar_width?: uint16 = 260;
+  @minValue(280) @maxValue(1200) artifact_pane_width?: uint16 = 400;
+  @minValue(200) @maxValue(480) sessions_width?: uint16 = 280;
+  artifact_view?: ArtifactView = "icons";
   ...Closed;
 }
 model TypographyPreferences {
@@ -314,6 +319,7 @@ union HostInput {
   McpSourceRequest,
   WorkspaceSessionRequest,
   FileDocumentRequest,
+  ArtifactRequest,
   LocalWorkerRequest,
   EchoRequest,
   SetLocaleRequest,
@@ -530,6 +536,7 @@ union HostEvent {
   DocumentChooseEvent,
   FileDocumentEvent,
   FileDocumentErrorEvent,
+  ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
   ContentDocumentEvent,
   LocalWorkerStateEvent,
   ContributorStateEvent,

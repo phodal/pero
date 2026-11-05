@@ -10,6 +10,7 @@ import { DesktopApps } from './apps';
 import { confirmDoclingSetup } from './docling-runtime-dialog.ts';
 import { confirmReproduction } from './reproduction-approval.ts';
 import { DesktopAppUse } from './app-use-mcp';
+import { HostArtifactDelivery } from './artifact-delivery.ts';
 import { DesktopComputer } from './computer';
 import { computerPermissions } from './computer-electron';
 import { randomUUID } from 'node:crypto';
@@ -31,6 +32,10 @@ function send(channel: string, value: unknown) {
   if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send(channel, value);
 }
 let ready = false;
+const artifactDelivery = new HostArtifactDelivery(request => {
+  if (!ready || !host.stdin?.writable) throw new Error('The local runtime is unavailable');
+  host.stdin.write(JSON.stringify(request) + '\n');
+});
 let appUse: DesktopAppUse | undefined;
 let computer: DesktopComputer | undefined;
 let computerEnabled = false;
@@ -44,6 +49,7 @@ const apps = new DesktopApps(request => {
 sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId }),
 (summary, signal) => confirmReproduction(window, summary, signal),
 (summary, signal, operation) => confirmDoclingSetup(window, summary, signal, operation));
+apps.artifactSnapshot = artifactDelivery.resolveSnapshot;
 let locale: 'en' | 'zh-CN' = 'en';
 function context() { return { product, locale, dark: nativeTheme.shouldUseDarkColors, connected: ready }; }
 function menus() {
@@ -83,7 +89,7 @@ app.whenReady().then(async () => {
       if (!file.startsWith(directory + sep)) return new Response('Not found', { status: 404 });
       const response = await net.fetch(pathToFileURL(file).href);
       const headers = new Headers(response.headers);
-      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; object-src 'none'");
+      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; " + (url.host === 'chat' ? 'frame-src pero-app:; ' : '') + "object-src 'none'");
       return new Response(response.body, { status: response.status, headers });
     }
     if (url.host !== 'workbench' || url.pathname !== '/') return new Response('Not found', { status: 404 });
@@ -106,7 +112,7 @@ app.whenReady().then(async () => {
     });
     globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
   }
-  appUse = product.chat ? new DesktopAppUse(() => window, event => send('product:event', event), resolve(profile, 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer) : undefined;
+  appUse = product.chat ? new DesktopAppUse(() => window, event => send('product:event', event), resolve(profile, 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver) : undefined;
   const appUseEnvironment = await appUse?.start();
   host = spawn(resolve(root, 'bin', process.platform === 'win32' ? 'pero-host.exe' : 'pero-host'), ['--stdio'], { cwd: app.getPath('home'), env: {
     ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PERO_'))),
@@ -128,6 +134,7 @@ app.whenReady().then(async () => {
   hostClosed = new Promise<void>(resolve => host.once('close', () => resolve()));
   createInterface({ input: host.stdout! }).on('line', line => {
     const message = JSON.parse(line);
+    if (artifactDelivery.accept(message)) return;
     if (message.kind === 'computer_settings' || message.kind === 'computer_settings_error') {
       const pending = computerWrites.get(message.request_id);
       if (pending) { clearTimeout(pending.timer); computerWrites.delete(message.request_id); }
@@ -144,12 +151,12 @@ app.whenReady().then(async () => {
       locale = message.text === 'zh-CN' ? 'zh-CN' : 'en'; menus();
       send('product:context', context());
     }
-    if (product.chat && ['ready', 'agents', 'workspace', 'replay', 'workbench_settings', 'context_files', 'context_candidates', 'context_resolved', 'context_error', 'session_created', 'agent_info', 'session_authenticated', 'session_auth_required', 'session_auth_error', 'user_message', 'session_connecting', 'session_ready', 'session_update', 'model_changed', 'configuration_changed', 'turn_started', 'turn_finished', 'session_usage', 'permission', 'user_questions', 'user_questions_resolved', 'user_questions_error', 'session_error', 'session_closed', 'session_deleted', 'command_rejected', 'error'].includes(message.kind)) {
+    if (product.chat && ['ready', 'agents', 'workspace', 'replay', 'workbench_settings', 'context_files', 'context_candidates', 'context_resolved', 'context_error', 'artifact_catalog', 'artifact_registered', 'artifact_document', 'artifact_context', 'artifact_error', 'session_created', 'agent_info', 'session_authenticated', 'session_auth_required', 'session_auth_error', 'user_message', 'session_connecting', 'session_ready', 'session_update', 'model_changed', 'configuration_changed', 'turn_started', 'turn_finished', 'session_usage', 'permission', 'user_questions', 'user_questions_resolved', 'user_questions_error', 'session_error', 'session_closed', 'session_deleted', 'command_rejected', 'error'].includes(message.kind)) {
       send('product:event', message);
     }
   });
   host.stderr?.on('data', data => console.error(String(data)));
-  const stopped = () => { ready = false; appUse?.reset(); void computer?.stop(); apps.close(); for (const pending of computerWrites.values()) { clearTimeout(pending.timer); pending.reject(new Error('The local runtime stopped')); } computerWrites.clear(); send('product:event', { version: 1, kind: 'disconnected', request_id: null, text: '' }); };
+  const stopped = () => { ready = false; artifactDelivery.close(); appUse?.reset(); void computer?.stop(); apps.close(); for (const pending of computerWrites.values()) { clearTimeout(pending.timer); pending.reject(new Error('The local runtime stopped')); } computerWrites.clear(); send('product:event', { version: 1, kind: 'disconnected', request_id: null, text: '' }); };
   host.on('error', stopped); host.on('exit', stopped);
   const trusted = (event: Electron.IpcMainInvokeEvent) => {
     if (event.sender !== window.webContents || event.senderFrame?.url !== 'pero://workbench/') throw new Error('Untrusted sender');
@@ -178,7 +185,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('product:session', async (event, command: unknown) => {
     trusted(event);
     if (!product.chat || !ready || !command || typeof command !== 'object' || Array.isArray(command)) throw new Error('Chat runtime is unavailable');
-    const value = command as { action?: string; method?: string; kind?: unknown; request_id?: unknown };
+    const value = command as { action?: string; method?: string; kind?: unknown; request_id?: unknown; thread_id?: unknown };
     if (value.action === 'choose_workspace') {
       const selected = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
       if (!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({ action: 'workspace', path: selected.filePaths[0] }) + '\n');
@@ -201,7 +208,13 @@ app.whenReady().then(async () => {
       if(!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({method:'documents',action:'open',request_id:'open-file',path:selected.filePaths[0]})+'\n');
       return;
     }
-    if ((!['list_agents', 'workspace', 'new_session', 'prompt', 'cancel', 'permission', 'answer_user_questions', 'model', 'configure', 'authenticate', 'close', 'delete', 'search_context', 'resolve_context', 'attach_files'].includes(value.action || '') && !['settings.workbench', 'settings.workbench.get', 'documents'].includes(value.method || '')) || JSON.stringify(value).length > 16_000_000) throw new Error('Invalid session command');
+    if (value.action === 'choose_artifact_file') {
+      if (typeof value.thread_id !== 'string') throw new Error('Invalid artifact picker intent');
+      const selected = await dialog.showOpenDialog(window, { properties: ['openFile'] });
+      if (!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({ method: 'artifacts', action: 'register_file', request_id: randomUUID(), thread_id: value.thread_id, path: selected.filePaths[0] }) + '\n');
+      return;
+    }
+    if ((!['list_agents', 'workspace', 'new_session', 'prompt', 'cancel', 'permission', 'answer_user_questions', 'model', 'configure', 'authenticate', 'close', 'delete', 'search_context', 'resolve_context', 'attach_files'].includes(value.action || '') && !['settings.workbench', 'settings.workbench.get', 'documents', 'artifacts'].includes(value.method || '')) || JSON.stringify(value).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.command(value as {action?:string;thread_id?:string});
     host.stdin!.write(JSON.stringify(value) + '\n');
   });

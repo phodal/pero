@@ -49,6 +49,9 @@ acceptance: [HPC Benchmarks](hpc.md).
 Global appearance, scoped typography and current Settings shell limits:
 [appearance](appearance.md).
 
+Ordinary Chat delivery, immutable versions and Scientific Viewer previews:
+[Conversation artifacts](session-artifacts.md).
+
 Independent App Agent Plugin declarations, local dependencies and scoped ACP
 assembly: [App Agent Plugins](app-agent-plugins.md).
 

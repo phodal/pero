@@ -37,3 +37,23 @@ shortcuts disappeared and returned with their catalog state.
 The UI library tests, native build, WASM/web build and `npm run check` were
 also run. This verifies navigation and local presentation; it does not establish
 real-model, scientific App backend, screen-reader or cross-platform acceptance.
+
+## Resizable session list (2026-11-05)
+
+The Native/Wasm Workbench session list uses the existing GPUI splitter pattern.
+Host-owned LayoutPreferences stores sessions_width (200–480px, default 280px).
+Dragging, Left/Right, Home/End and double-click reset are supported. The list
+shrinks to preserve 320px for Chat and is hidden below 520px of available
+content width without changing the saved preference.
+
+L0: four workbench contract tests, npm run check, and Native UI/Host debug
+builds passed with nightly-2026-10-28. Native CUA inspection in an isolated
+/tmp/pero-resize-profile confirmed keyboard maximum 480, drag to 328,
+double-click reset to 280 and Host/Native restart restoration to 300. Dark
+screenshots were captured and inspected in chat. An initial run used the old
+Host while its replacement was compiling; restarting with the rebuilt Host
+resolved its settings rejection.
+
+Light theme, narrow-window rendering, Wasm interaction and signed-package
+acceptance were not exercised in this increment. Narrow sizing is covered by
+the contract value tests. No real model request was submitted.

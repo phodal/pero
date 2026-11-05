@@ -42,6 +42,14 @@ pub struct Manager {
     automation_rx: Option<mpsc::Receiver<automation_agent::AutomationReceipt>>,
 }
 impl Manager {
+    /// A delivery uses the original conversation workspace, including after restart.
+    pub(crate) fn artifact_workspace(&self, thread_id: &str) -> Option<PathBuf> {
+        self.visible_history().iter().rev().find_map(|event| {
+            if event.kind != "session_created" || event.thread_id.as_deref() != Some(thread_id) { return None; }
+            event.data.get("workspace").and_then(serde_json::Value::as_str).map(PathBuf::from)
+                .filter(|path| path.is_absolute())
+        })
+    }
     pub fn new(root: PathBuf) -> Self {
         let history_file = std::env::var_os("PERO_HISTORY_PATH")
             .map(PathBuf::from)
@@ -468,7 +476,7 @@ impl Manager {
                         text,
                         contexts,
                     } if (!text.trim().is_empty() || !contexts.is_empty())
-                        && text.chars().count() <= 64000 =>
+                        && pero_contracts::context::validate_prompt_text(&text).is_ok() =>
                     {
                         if let Err(error) = ContextReference::validate_all(&contexts) {
                             let mut event = HostEvent::new("session_error", None, error.into());

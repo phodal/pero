@@ -57,6 +57,8 @@ pub(crate) struct Workbench {
     #[cfg(not(target_family="wasm"))]
     pub native_app_pages:std::collections::BTreeMap<(String,String),crate::native_app_surface::RetainedApp>,
     #[cfg(not(target_family="wasm"))]
+    pub artifact_preview:Option<crate::native_artifact_preview::RetainedArtifactPreview>,
+    #[cfg(not(target_family="wasm"))]
     pub native_web_pages:std::collections::BTreeMap<String,crate::web_documents::WorkspaceNativeWeb>,
     pub web_documents:Vec<pero_contracts::web_document::WebDocument>,
     pub web_address:Entity<InputState>,
@@ -105,6 +107,8 @@ pub(crate) struct Workbench {
     pub layout: WorkspaceLayout,
     pub resizing_chat: bool,
     pub resizing_sidebar: bool,
+    pub resizing_sessions: bool,
+    pub sessions_resize_focus: FocusHandle,
     pub chat_resize_focus: FocusHandle,
     pub sidebar_resize_focus: FocusHandle,
     pub tab: ConversationTab,
@@ -246,6 +250,30 @@ impl Workbench {
                 ChatAction::AppLink(href)=>this.open_app_link(href,window,cx),
                 ChatAction::OpenDocument(document)=>this.open_document(document.clone(),window,cx),
                 ChatAction::Content(intent) => this.command(serde_json::to_value(intent).expect("content intent"), cx),
+                ChatAction::Artifacts(request) => this.command(serde_json::to_value(request).expect("artifact request"), cx),
+                ChatAction::ArtifactPreview(target) => {
+                    #[cfg(not(target_family="wasm"))]
+                    this.open_artifact_preview(target.clone(),window,cx);
+                    #[cfg(target_family="wasm")]
+                    let _=target;
+                }
+                ChatAction::ArtifactComposeResult{id,error} => {
+                    #[cfg(not(target_family="wasm"))]
+                    this.reply_artifact_compose(id,error.as_deref(),cx);
+                    #[cfg(target_family="wasm")]
+                    this.command(json!({"action":"artifact_compose_result","id":id,"error":error}),cx);
+                }
+                ChatAction::ArtifactPaneWidth { width } => {
+                    let mut preferences = this.preferences.clone();
+                    preferences.layout.resize_artifact_pane(*width);
+                    this.save_preferences(preferences, cx);
+                }
+                ChatAction::ArtifactView { view } => {
+                    let mut preferences = this.preferences.clone();
+                    preferences.layout.artifact_view = *view;
+                    this.save_preferences(preferences, cx);
+                }
+                ChatAction::ChooseArtifactFile { thread_id } => this.command(json!({"action":"choose_artifact_file","thread_id":thread_id}), cx),
                 ChatAction::ChooseWorkspace => {
                     this.command(json!({"action":"choose_workspace"}), cx)
                 }
@@ -331,6 +359,8 @@ impl Workbench {
             native_web_pages:Default::default(),
             #[cfg(not(target_family="wasm"))]
             native_app_pages:Default::default(),
+            #[cfg(not(target_family="wasm"))]
+            artifact_preview:None,
             web_documents:vec![],web_address,web_entry_open:false,web_surface:String::new(),
             remote,
             local_execution,
@@ -347,6 +377,8 @@ impl Workbench {
             layout,
             resizing_chat: false,
             resizing_sidebar: false,
+            resizing_sessions: false,
+            sessions_resize_focus: cx.focus_handle().tab_stop(true),
             chat_resize_focus: cx.focus_handle().tab_stop(true),
             sidebar_resize_focus: cx.focus_handle().tab_stop(true),
             input,
@@ -595,6 +627,12 @@ impl Workbench {
                         >(event.data.clone())
                         {
                             self.preferences = preferences;
+                            let width = self.preferences.layout.artifact_pane_width();
+                            let view = self.preferences.layout.artifact_view;
+                            self.chat.update(cx, |chat, cx| {
+                                chat.set_artifact_pane_width(width, cx);
+                                chat.set_artifact_view(view, cx);
+                            });
                             self.research_saved(window, cx);
                             if self.preferences_status
                                 == crate::settings_menu::PreferenceSaveState::Saving

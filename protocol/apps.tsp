@@ -71,6 +71,8 @@ model EnableApp { action: "enable"; name: AppName; ...RequestBase; }
 model DisableApp { action: "disable"; name: AppName; ...RequestBase; }
 model UninstallApp { action: "uninstall"; name: AppName; ...RequestBase; }
 model ResolveApp { action: "resolve"; name: AppName; ...RequestBase; }
+/** Static UI access without dependency preparation or backend startup. */
+model ResolveStaticApp { action: "resolve_static"; name: AppName; ...RequestBase; }
 model ProjectResourcesApp { action: "projectresources"; name: AppName; ...RequestBase; }
 /** An App catalog observation; revisions do not claim complete experimental provenance. */
 model ProjectResourceReference { app: string; kind: string; id: string; revision: string; ...AppClosed; }
@@ -135,7 +137,7 @@ model LocalEnvironmentBind { operation:"bind";id:AppName;...AppClosed; }
 @oneOf union LocalEnvironmentOperation { LocalEnvironmentCreate,LocalEnvironmentList,LocalEnvironmentPrepare,LocalEnvironmentBind }
 model LocalEnvironmentApp {action:"localenvironment";name:AppName;request:LocalEnvironmentOperation;...RequestBase;}
 model LocalEnvironmentRecord {id:AppName;label:string;target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice";dependencies:string[];state:"created"|"preparing"|"ready"|"failed";log:string[];error:string|null;bound:boolean;...AppClosed;}
-@oneOf union AppRequest { LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
+@oneOf union AppRequest { LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ResolveStaticApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
 model AppSuccess { ok: true; value: LocalEnvironmentRecord[] | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }

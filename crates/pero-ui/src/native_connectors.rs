@@ -139,6 +139,8 @@ impl NativeConnectors {
             )
         };
         match message.effect.as_deref() {
+            Some("artifact") => self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?
+                .deliver_artifact(message.value.clone()).map_err(|error| { eprintln!("Artifact delivery: {error}"); "ARTIFACT_DELIVERY_FAILED" }),
             Some("apps" | "surface") => {
                 let apps = self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?;
                 if message.effect.as_deref() == Some("surface") {
