@@ -4,6 +4,10 @@ Status: accepted for P1, 2026-11-02. Pure domain values, matching and read-only
 software observation implemented; managed Uses, runtime separation and remote
 integration remain planned. See [P1 evidence](../fitness/ai4s-environments.md).
 
+The 2026-11-05 [local preparation delivery](../fitness/local-environment-preparation.md)
+adds named venvs and explicit App-wide binding. It does not complete managed Uses
+or separate per-attempt scientific interpreters.
+
 ## Context
 
 Pero already has App Python preparation, App-owned experiment/process evidence,

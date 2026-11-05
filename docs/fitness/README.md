@@ -1,5 +1,8 @@
 # Quality gates
 
+Local environment creation, dependency installation and App-wide runtime binding:
+[Local environment preparation](local-environment-preparation.md).
+
 AI4S environment values, matching and read-only Control Lab / PC-Gym observations;
 managed execution admission remains planned: [Environments P1](ai4s-environments.md).
 
