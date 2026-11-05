@@ -9,6 +9,10 @@ procedure limits: [Coding benchmark](coding-benchmark.md).
 Pinned DSH/Pi/Qwen comparison, native tool changes and verification:
 [Native coding follow-up](dsh-native-improvements.md).
 
+Historical output clearing, checkpoint provenance, progress/delivery feedback,
+environment-owned services and request deadlines:
+[Reference runtime improvements](reference-runtime-improvements.md).
+
 Deferred discovery, output budgets, continuation cursors and Session boundary
 measurements: [Tool-call efficiency](tool-call-efficiency.md).
 
