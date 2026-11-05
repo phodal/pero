@@ -134,7 +134,18 @@ Artifact SHA-256 (macOS arm64, Native GPUI / Web catalog):
 | target/design-catalog/assets/index-DlSDSv2j.css | `886b1fb732126670eaebac31ad8d33c253d7838fc8fd9d4d7f31df1db13d3264` |
 | apps/control-lab/dist/index.js | `aae88ab7d4a27fa2433006e4b1d8738d68b9e7977402e79099f82b601e332dd9` |
 | apps/control-lab/dist/index.css | `b2b1deadb30d276b108fe354fd732378fcfa529fb70075e981320c1a7950c764` |
-| Native preview executable | `998522e45e80bb9e9f7b85f4f714a7824652adba89aa6fee2d4b900f37f32379` |
+| Native preview executable (ad hoc signed) | `47b02738e49af3b0098d7753af1ac8bddabe889f52725ba3cc10bfd9b58bd541` |
+
+CI follow-up on 2026-11-06: refreshed the generated Bazel npm-script input
+cache; `bazel test --config=ci //:checks` passed 7/7 and server build passed.
+Updated Viewer browser/Desktop E2E locators for real DropdownMenu, Tabs, Select
+and FilePicker semantics. Production Viewer + Chromium + RDKit 2026.09.1 passed
+five scenario groups with zero page errors; Viewer typecheck and 17 unit tests
+passed. Desktop E2E locators were updated but the Electron run was not performed.
+The menu patch now retains trailing hunk context while avoiding whitespace-only
+context lines: `git apply --check` against CI's pinned Kit revision `ec89cfc`
+and full immutable `prepareKit` both passed; its cache test passed 1/1. The earlier
+failure occurred before Cargo started, and is distinct from Rust compile results.
 
 ## Acceptance limits
 
