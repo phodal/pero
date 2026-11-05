@@ -253,6 +253,27 @@ not be compared as equal scope to the former partial replay. Receipts are in
 
 ## What the UI is waiting on
 
+### Implementation: Native runtime build dependencies
+
+`dev:native` now builds the Go Agent, connector bridge/worker, Host/Worker and
+native UI before opening or replacing the preview. Its watcher includes their
+source trees, shared Chat/contracts/theme and locales. The release preview entry
+also refreshes the debug Agent adapter used from its referenced checkout. Portable
+packaging already builds its own Agent through `stageAgentAdapters`.
+
+`npm run dev:native -- --build-only` passed for the complete macOS debug path,
+without opening a window or creating a watcher. The opt-in hidden Native probe
+`tests/e2e/native-agent-startup.mjs` passed through real GPUI, Host, the rebuilt
+Go Agent and both builtin MCP endpoints. New-chat request to observed readiness
+was 207 ms (100 ms polling); total probe process lifetime was 2183 ms. It sent no
+model prompt, used disposable state/synthetic credentials, and recorded binary
+hashes in `test-results/native-agent-startup/result.json`. The regular native
+build was restored after the instrumented probe.
+
+Final `npm test`, `npm run check`, Connector HTTP tests and Host protocol
+conformance passed. Electron screenshots/receipts are described above. No signed
+installation, live provider/tool operation or non-macOS Native build is claimed.
+
 `chat.preparing` is shown while `SessionState::Connecting`. Auto-preparation
 (`prepare_chat`) runs as soon as the chat is visible, Host-connected, history
 replayed, and workspace non-empty. It issues `new_session` before the first
