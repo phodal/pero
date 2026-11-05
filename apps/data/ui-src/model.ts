@@ -97,11 +97,24 @@ export function applyInterpretation(view: ViewSpec, field: string, numeric: bool
   if (numeric) interpretations[field] = 'number';
   else delete interpretations[field];
   const issue = !numeric && view.issue?.kind === 'conversion' &&
-    (view.issue.field === field || !Object.keys(interpretations).length) ? null : view.issue;
+    (view.issue.field === field || !Object.keys(interpretations).length) ? null : view.issue ?? null;
   return { ...view, interpretations, issue };
 }
 
 /** A type preview reads the full input without changing the active analysis. */
 export function interpretationPreview(view: ViewSpec, field: string, numeric: boolean): ViewSpec {
   return { ...applyInterpretation(view, field, numeric), filter: null, sort: null, selection: [], chart: null, issue: null, columns: [field] };
+}
+
+/** Bounded JSON-safe sample for the semantic App object. */
+export function sampleRows(value: OkInspection) {
+  return value.rows.slice(0, 10).map(row => ({
+    ordinal: row.row - 1, pointer: row.pointer, line: row.line,
+    cells: Object.fromEntries(value.columns.map((name, index) => [name, {
+      kind: row.cells[index]?.kind ?? 'missing', ...(row.cells[index]?.exact === undefined ? {} : { exact: row.cells[index].exact }),
+      ...(row.cells[index]?.conversionError === undefined ? {} : { conversionError: row.cells[index].conversionError }),
+      display: (row.cells[index]?.text ?? '').slice(0, 240),
+      truncated: (row.cells[index]?.text.length ?? 0) > 240,
+    }])),
+  }));
 }

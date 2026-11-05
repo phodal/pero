@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppObject } from '@pero/app-sdk';
 import { AppFrame, Button, EmptyState, Feedback, SearchField, Select, Split, SplitPane } from '@pero/app-sdk/ui';
-import { availabilityLabel, emptyView, encodeBytes, fieldRule, formatBytes, querySchema, retainSelection, summary, visibleDatasets,
+import { availabilityLabel, emptyView, encodeBytes, fieldRule, formatBytes, querySchema, retainSelection, sampleRows, summary, visibleDatasets,
   type CatalogState, type Dataset, type Inspection, type OkInspection, type SavedView, type Selection, type ViewSpec } from './model';
 import { ImportDialog, type ImportDetails } from './import';
 import { Workspace } from './workspace';
@@ -18,15 +18,6 @@ function sourceKind(format: string) {
   return 'text' as const;
 }
 
-function sampleRows(value: OkInspection) {
-  return value.rows.slice(0, 10).map(row => ({
-    ordinal: row.row - 1, pointer: row.pointer, line: row.line,
-    cells: Object.fromEntries(value.columns.map((name, index) => [name, {
-      kind: row.cells[index]?.kind ?? 'missing', exact: row.cells[index]?.exact, conversionError: row.cells[index]?.conversionError, display: (row.cells[index]?.text ?? '').slice(0, 240),
-      truncated: (row.cells[index]?.text.length ?? 0) > 240,
-    }])),
-  }));
-}
 
 export default function Data() {
   const api = useAppApi(), chat = useAppChat(), { active } = useAppContext();

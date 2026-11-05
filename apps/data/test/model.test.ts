@@ -65,3 +65,27 @@ test('reverting a number removes only conversion issues that lose their interpre
   assert.deepEqual(view.interpretations, { amount: 'number', id: 'number' });
   assert.deepEqual(applyInterpretation(reverted, 'amount', true).interpretations, { id: 'number', amount: 'number' });
 });
+
+test('semantic samples omit absent optional values and pass the SDK JSON boundary', async () => {
+  const { sampleRows, applyInterpretation, emptyView } = await import('../ui-src/model.ts');
+  const { AppSurface } = await import('../../../packages/app-sdk/src/app-use.ts');
+  const sample = sampleRows({ columns: ['text', 'number', 'failed', 'missing'], rows: Array.from({ length: 11 }, (_, index) => ({
+    row: index + 1, pointer: `/records/${index}`, line: index + 2, cells: [
+      { kind: 'string', text: '001' }, { kind: 'number', text: '02', exact: '2' },
+      { kind: 'string', text: 'bad'.repeat(100), conversionError: 'Not a finite decimal number' },
+    ],
+  })) } as import('../ui-src/model.ts').OkInspection);
+  assert.equal(sample.length, 10);
+  assert.deepEqual(sample[0].cells.text, { kind: 'string', display: '001', truncated: false });
+  assert.equal(sample[0].cells.number.exact, '2');
+  assert.equal(sample[0].cells.failed.display.length, 240);
+  assert.equal(sample[0].cells.failed.truncated, true);
+  assert.equal(sample[0].cells.failed.conversionError, 'Not a finite decimal number');
+  assert.deepEqual(sample[0].cells.missing, { kind: 'missing', display: '', truncated: false });
+  const surface = new AppSurface('data');
+  assert.doesNotThrow(() => surface.register({ id: 'dataset-view', kind: 'dataset-view', state: { sample } }));
+  const { issue: _issue, interpretations: _interpretations, ...legacy } = emptyView();
+  const interpretedLegacy = applyInterpretation(legacy, 'number', true);
+  assert.equal(interpretedLegacy.issue, null);
+  assert.doesNotThrow(() => surface.register({ id: 'legacy-view', kind: 'dataset-view', state: interpretedLegacy }));
+});
