@@ -37,6 +37,15 @@ catalogs are not automatically shared.
   most 32 selected fields. This is **not** an out-of-core or GB-scale reader.
 - CSV/TSV values remain text, including identifiers such as `001`; empty cells
   remain empty strings. There is no inferred numeric conversion or unit guessing.
+  In **Fields**, **Preview number** checks a decimal interpretation over the full
+  input and shows source-row examples and conversion failures. **Apply type** is
+  explicit; **Cancel** leaves the analysis unchanged. Signed decimal/exponent
+  notation is accepted, without trimming whitespace or guessing locale, currency
+  or thousands separators. Failed and empty values retain their text, never zero
+  or null. Original files and displayed leading zeros are unchanged. **Revert to
+  text** removes the interpretation. Numeric filtering on uninterpreted text is
+  an error, not a successful empty result. Valid numeric filters exclude failed
+  values, which stay visible in the full-input conversion checks.
   JSON uses the existing shared exact-value core: numbers retain their original
   tokens, and missing fields, explicit `null`, and empty strings stay distinct.
 - Fields and Checks report the full input, even when Preview is filtered. Exact
@@ -44,8 +53,15 @@ catalogs are not automatically shared.
   retain original row/source-line locations. These checks do not establish
   scientific validity. Parse errors and exceeded bounds are explicit; no partial
   sample is represented as a full report.
+  **Show issues** opens all matching issue rows, explicitly pausing the table
+  filter and selection; **Return to analysis** restores them. Missing, null,
+  empty and conversion counts are cells, so several cells may belong to one
+  issue row. Duplicate counts and drilldown include repeated rows after the first
+  occurrence. Row identities and source lines do not change with sorting or
+  pagination. The API can additionally intersect an issue condition with a filter.
 - Units are user-supplied view labels, not conversions. **Save view** freezes the
-  columns, filter, sort, selection, chart choice and units, plus the exact asset
+  columns, filter, sort, selection, chart choice, explicit interpretations, issue
+  condition and units, plus the exact asset
   ID, SHA-256, parser version and check report. A catalog written by an older
   build stores only columns, a contains-filter and units. That shape is read as
   operator `contains` with no sort, selection or chart. The next successful
@@ -53,6 +69,8 @@ catalogs are not automatically shared.
   that input and rechecks current bytes. **Export reference** exports a JSON
   reference and report, not original files or a runnable experiment. Historical
   reports remain readable if the current original becomes unavailable.
+  Saved issue views reopen the issue condition; the transient return-to-analysis
+  navigation is not saved. New versions start with no inherited interpretation.
 - **Chart** is available only after inspection is `ok`. It uses the same matching
   records or explicit selection, up to 2,000 rows, and reports an error instead of
   drawing a partial chart as complete. Saved chart documents live under `charts/`
@@ -61,6 +79,10 @@ catalogs are not automatically shared.
   attaches the catalog dataset id, asset id, SHA-256 and view id. Embedded chat is
   the host conversation slot. There is no Run or Compute handoff and no host query
   language.
+  Record exports contain interpreted numeric values and unchanged failed strings;
+  their manifest includes the interpretation, parser and full-input report. Source
+  remains the immutable original. Charts retain the Data view and conversion
+  report alongside their existing exact-value and excluded-value evidence.
 - Unsupported formats, including opaque model weights, remain stored and listed.
   Model files are not parsed, charted, or sent to the agent as rows. No
   deserialization, inference, extraction or execution occurs. Larger existing
@@ -155,3 +177,11 @@ unit drafts, current field selections, version isolation and failure clearing.
 Install Chromium with `npx playwright install --with-deps chromium`, or set
 `PERO_CHROMIUM_EXECUTABLE` to an available browser. This is not a Host authorization,
 persistence or full Desktop test; those remain in the two Desktop suites above.
+
+`test/workflow-browser.mjs` also runs the real Python catalog and Data frame over
+loopback, replacing only Host transport with an authenticated test proxy. It
+checks explicit interpretation/cancel, failure and duplicate navigation, exact
+numeric filtering/sorting, source/export/chart consistency, backend restart,
+version isolation and changed-original recovery. Its light/dark/narrow screenshots
+and bundle identities are under `test-results/data-workflow/`. This is not a
+Workbench, Host permission, standalone packaging or scientific-validity test.

@@ -107,7 +107,9 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: data-fields-browser
-          path: test-results/data-fields/
+          path: |
+            test-results/data-fields/
+            test-results/data-workflow/
           if-no-files-found: ignore
 
   lab:

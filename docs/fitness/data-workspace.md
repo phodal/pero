@@ -99,3 +99,47 @@ screenshots were produced. CI must establish behavioral evidence; successful
 bundling and static review are not substitutes. Full App build was also blocked
 by absent `PERO_GPUI_KIT_PATH`; strict App type checking above did run. This
 follow-up does not establish full Host, standalone or Workbench GUI acceptance.
+
+## Explicit CSV interpretation and issue navigation (2026-11-05)
+
+Implementation base: `1ecd08e2a8a80d9344f714af408d878bb35930ed`.
+
+Data view specifications now retain explicit decimal interpretations and issue
+conditions. CSV/TSV originals and displayed text remain unchanged. The preview
+reports exact interpreted values and failures before Apply; failed values remain
+strings, not zero or null. Numeric comparison without a valid numeric type is
+rejected. The same admitted interpretation feeds Table, record reads, exports and
+charts. Full-input profiles retain their raw type/missingness meaning and label
+the interpretation separately. Duplicate checks still compare raw records.
+
+Fields and Checks state their full-input scope. Issue links explicitly pause the
+filter and selection, keep source row identities, and can return to the prior
+analysis. Saved views include interpretations, issue conditions and their full
+report; reopening checks the pinned input hash again. A new version does not
+inherit a draft or interpretation. No Host authorization, download, Agent tool
+grant, model execution or project-permission boundary is expanded.
+
+Local verification in the assistant workspace:
+
+- Python Data regression suite: **64 passed**, including exact-number and
+  conversion failure cases, issue pagination, saved/restarted views, cross-action
+  provenance and original-byte checks.
+- Strict App TypeScript checking and **6** UI model tests: passed.
+- Direct esbuild of the real Data frame and SDK: passed. The full App packaging
+  command is unavailable because `PERO_GPUI_KIT_PATH` is not configured.
+- Core CI workflow contracts: **5 passed**. The wider scripts/ci test run has
+  **78 passed / 1 blocked** by the unavailable Paper EmbedPDF plugin dependency.
+- New browser journey syntax check and diff whitespace check: passed.
+- Repository-wide `npm run check` is blocked by absent generated reader Wasm
+  TypeScript declarations (`web/src/reader-wasm/pero_reader_web`); the strict Data
+  App typecheck above is separate and did pass.
+- Chromium startup is blocked by `socket(): Operation not permitted`, including
+  one permitted retry. No local UI screenshots or browser pass are claimed.
+
+The existing Data CI job runs the real frame with its Python backend and a
+loopback test transport. It exercises preview/cancel/apply, exact filtering and
+sorting, failure and duplicate drilldown, saved views across backend restart,
+new versions and corrupted-original recovery. Light/dark/390px screenshots and
+bundle hashes are emitted under `test-results/data-workflow/` and uploaded with
+the existing Data browser artifact. This is still distinct from full Desktop,
+Host permission, release packaging and scientific-validity acceptance.
