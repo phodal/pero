@@ -159,6 +159,7 @@ export default function Data() {
       viewId: ready.viewId ?? '', name: asset.name, sourceFormat: asset.format, bytes: asset.size,
       recordCount: ready.report.rowCount, fieldCount: ready.report.fields.length,
       fieldKindsScope: 'original input; interpretation is explicit in each field profile', fields: ready.report.fields.slice(0, 32), query: focus.view, matching: ready.matched, selected: ready.selected ?? focus.view.selection.length,
+      sampleScope: 'Up to 10 rows and 8 fields within 8 KiB; omitted exact values remain available through source and export.',
       sample: sampleRows(ready) } : {}) },
   actions: {
     query: { description: 'Apply a typed filter, sort, displayed fields, or stable record selection on the open catalog version.', parameters: querySchema, run: async params => {

@@ -88,4 +88,16 @@ test('semantic samples omit absent optional values and pass the SDK JSON boundar
   const interpretedLegacy = applyInterpretation(legacy, 'number', true);
   assert.equal(interpretedLegacy.issue, null);
   assert.doesNotThrow(() => surface.register({ id: 'legacy-view', kind: 'dataset-view', state: interpretedLegacy }));
+  for (const columns of [['number'], Array.from({ length: 32 }, (_, i) => `field-${i}`)]) {
+    const exact = '9'.repeat(40000);
+    const input = { columns, rows: Array.from({ length: 10 }, (_, i) => ({ row: i + 1, pointer: `/${i}`, line: null,
+      cells: columns.map(() => ({ kind: 'number', text: exact, exact })) })) } as import('../ui-src/model.ts').OkInspection;
+    const bounded = sampleRows(input);
+    assert.doesNotThrow(() => surface.register({ id: `large-${columns.length}`, kind: 'dataset-view', state: { sample: bounded } }));
+    assert.ok(new TextEncoder().encode(JSON.stringify(bounded)).length <= 8192);
+    assert.ok(bounded.length > 0);
+    assert.equal(bounded[0].cells[columns[0]].exact, undefined);
+    assert.equal(bounded[0].cells[columns[0]].exactOmitted, true);
+    assert.equal(input.rows[0].cells[0].exact, exact);
+  }
 });

@@ -4,7 +4,7 @@ status: resolved
 date: 2026-11-05
 ---
 
-# Data interpretation samples must remain strict JSON
+# Data interpretation samples must respect SDK JSON bounds
 
 PR #130's first browser run at `6cfeee3a` passed Python and TypeScript checks,
 but the real Data frame failed after the first inspection. The error boundary
@@ -27,3 +27,20 @@ mode, and the 390px layout were visually inspected from the
 [passing artifact](https://github.com/phodal/pero/actions/runs/41954040103/artifacts/13382746233).
 The real frame renders successfully and retains explicit failure labels and raw
 identifiers. The JSON admission regression remains in the model test suite.
+
+## Oversized exact-number follow-up (2026-11-05)
+
+Review of integration head `c6e0ec5e` found that an admitted 40,000-digit JSON
+number is copied in full into the semantic sample. Registering that sample with
+the actual SDK exceeds its 32 KiB state limit and sends the Data frame into its
+error boundary. Display text was bounded, but the new exact-number property was
+not. The sample must omit oversized exact values explicitly and retain complete
+numbers through source and export. Regression coverage must exercise SDK
+registration with long numeric values and a wide sample.
+
+The actual SDK regression reproduced `App value exceeds 32768 bytes` before
+the fix. Semantic samples now omit exact values longer than 240 characters
+with `exactOmitted: true`, retain up to eight fields, and stay within 8 KiB.
+The model tests cover long values and 32-column inputs without modifying their
+original data. The browser journey also imports a 40,000-digit number and checks
+that its complete source and export survive while the Data frame stays usable.

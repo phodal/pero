@@ -251,6 +251,19 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
     await expect(rows()).toHaveCount(7);
     await expect(page.getByText('A numeric filter needs a finite decimal value', { exact: false })).toHaveCount(0);
     checks.push('invalid numeric threshold has an explicit error and Reset view restores usable data');
+    const exact = '9'.repeat(40000), longSource = `[{"number":${exact}}]`;
+    await page.getByRole('button', { name: 'Add data', exact: true }).click();
+    await dialog.locator('input[type="file"]').setInputFiles({ name: 'long-number.json', mimeType: 'application/json', buffer: Buffer.from(longSource) });
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(rows()).toHaveCount(1);
+    await expect(rows().getByRole('cell', { name: exact, exact: true })).toBeVisible();
+    const longState = await request('/api/state'), longAsset = longState.assets.find(item => item.name === 'long-number.json');
+    const longTarget = { datasetId: longState.datasets.find(item => item.versions.includes(longAsset.id)).id, assetId: longAsset.id, view: {} };
+    assert.equal((await request('/api/source', longTarget)).content, longSource);
+    assert.ok((await request('/api/export', longTarget)).content.includes(exact));
+    await capture('long-number');
+    checks.push('40,000-digit numeric input renders without a semantic-state overflow; complete values remain in source and export');
     assert.equal(requests.filter(item => /download/.test(item.path) && item.method === 'POST').length, 0);
     await writeFile(resolve(output, 'result.json'), JSON.stringify({ scope: 'real-app-frame-and-python-catalog', checks,
       exclusions: ['Host authorization transport', 'Workbench/standalone Desktop', 'signed releases', 'real scientific validation'],

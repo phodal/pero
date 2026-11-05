@@ -113,13 +113,17 @@ export function interpretationPreview(view: ViewSpec, field: string, numeric: bo
 
 /** Bounded JSON-safe sample for the semantic App object. */
 export function sampleRows(value: OkInspection) {
-  return value.rows.slice(0, 10).map(row => ({
+  const sample = value.rows.slice(0, 10).map(row => ({
     ordinal: row.row - 1, pointer: row.pointer, line: row.line,
-    cells: Object.fromEntries(value.columns.map((name, index) => [name, {
-      kind: row.cells[index]?.kind ?? 'missing', ...(row.cells[index]?.exact === undefined ? {} : { exact: row.cells[index].exact }),
+    cells: Object.fromEntries(value.columns.slice(0, 8).map((name, index) => [name, {
+      kind: row.cells[index]?.kind ?? 'missing', ...(row.cells[index]?.exact === undefined ? {}
+        : row.cells[index].exact.length <= 240 ? { exact: row.cells[index].exact } : { exactOmitted: true }),
       ...(row.cells[index]?.conversionError === undefined ? {} : { conversionError: row.cells[index].conversionError }),
       display: (row.cells[index]?.text ?? '').slice(0, 240),
       truncated: (row.cells[index]?.text.length ?? 0) > 240,
     }])),
   }));
+  const encoder = new TextEncoder();
+  while (encoder.encode(JSON.stringify(sample)).length > 8192) sample.pop();
+  return sample;
 }
