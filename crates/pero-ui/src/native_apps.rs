@@ -87,6 +87,20 @@ impl NativeApps {
         self.cancel_docling_confirmation();
     }
     pub fn accept(&self, event: &HostEvent) -> bool {
+        if event.kind == "artifact_snapshot_result" {
+            if let Some(sender)=self.pending.lock().unwrap().remove(event.request_id.as_deref().unwrap_or("")) {
+                let reply=serde_json::from_value(event.data.clone()).unwrap_or(Reply {ok:false,value:None,error:Some("Invalid artifact snapshot reply".into())});
+                let _=sender.send(reply);
+            }
+            return true; // Snapshot filesystem paths are private to the shell.
+        }
+        if matches!(event.kind.as_str(), "artifact_registered" | "artifact_error")
+            && event.request_id.as_deref().is_some_and(|id| id.starts_with("native-artifact-")) {
+            if let Some(sender) = self.pending.lock().unwrap().remove(event.request_id.as_deref().unwrap_or("")) {
+                let _ = sender.send(Reply { ok: event.kind == "artifact_registered", value: Some(event.data.clone()), error: Some(event.text.clone()) });
+            }
+            return false; // The same receipt also updates the conversation's artifact list.
+        }
         if event.kind != "apps_result" {
             return false;
         }
@@ -104,6 +118,23 @@ impl NativeApps {
             let _ = sender.send(reply);
         }
         true // Private paths and backend credentials never become Workbench events.
+    }
+    pub(super) fn deliver_artifact(&self, command: Value) -> anyhow::Result<Value> {
+        self.artifact_request("register_file", command)
+    }
+    pub(super) fn artifact_request(&self, action: &str, mut command: Value) -> anyhow::Result<Value> {
+        let id = format!("native-artifact-{}", self.next.fetch_add(1, Ordering::Relaxed));
+        command["method"] = json!("artifacts");
+        command["action"] = json!(action);
+        command["request_id"] = json!(id);
+        let (sender, receiver) = mpsc::channel();
+        self.pending.lock().unwrap().insert(id.clone(), sender);
+        let result = self.host.send(command.to_string()).map_err(anyhow::Error::from)
+            .and_then(|_| Ok(receiver.recv_timeout(Duration::from_secs(30))?));
+        self.pending.lock().unwrap().remove(&id);
+        let reply = result?;
+        anyhow::ensure!(reply.ok, "{}", reply.error.unwrap_or_else(|| "Artifact delivery failed".into()));
+        Ok(reply.value.unwrap_or(Value::Null))
     }
     pub(super) fn request<T: DeserializeOwned>(&self, action: &str, fields: Value) -> anyhow::Result<T> {
         let id = format!("native-app-{}", self.next.fetch_add(1, Ordering::Relaxed));
@@ -314,6 +345,9 @@ impl NativeApps {
         if path.starts_with("/api/") {self.request::<Value>("apiaccess",json!({"name":name,"path":path}))?;}
         let method = request.method();
         let body = request.body();
+        if path.starts_with("/host/artifacts/") {
+            return self.artifact_response(name, &request, &uri);
+        }
         if path == "/host/docling-runtime" {
             #[cfg(feature = "native-probe")]
             {
@@ -440,7 +474,7 @@ impl NativeApps {
                 serde_json::to_vec(&value)?,
             )
         } else {
-            let access: Access = self.request("resolve", json!({"name":name}))?;
+            let access: Access = self.request(if path.starts_with("/api/") {"resolve"} else {"resolve_static"}, json!({"name":name}))?;
             for origin in &access.frame_origins { frame_sources.push(' '); frame_sources.push_str(origin); }
             if matches!(path,"/api/workspaces"|"/api/harnesses") {
                 anyhow::ensure!(method == "GET" && uri.query().is_none(),"Method refused");

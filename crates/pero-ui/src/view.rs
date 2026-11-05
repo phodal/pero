@@ -318,6 +318,8 @@ impl Render for Workbench {
             layout = layout.hide_sidebar(width, &self.preferences.layout);
         }
         self.layout = layout;
+        self.chat.update(cx,|chat,cx|chat.set_artifact_surface_covered(covered,cx));
+        self.sync_artifact_preview(cx);
         let sidebar_width = layout.sidebar_width;
         let sessions = (self.navigation.page() == WorkbenchPage::Conversation && self.tab == ConversationTab::Chat)
             .then(|| self.sessions_panel(if width - sidebar_width < 680. {220.} else {280.}, cx).into_any_element());
