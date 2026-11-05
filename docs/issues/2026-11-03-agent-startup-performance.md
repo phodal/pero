@@ -208,6 +208,12 @@ Screenshots and the sanitized receipt are in `test-results/agent-startup/`.
 No prompt or external connector call was made. The test copies its Host binary
 to its disposable profile so another local build cannot replace it mid-run.
 
+The existing MCP Settings lifecycle suite also passed after updating its old
+assertion that operator server names must be hidden. Names and sanitized runtime
+status are now intentionally visible; executable configuration and credentials
+remain excluded. The suite still checks credential non-disclosure, exact public
+projection fields and that its ACP fixture performs no MCP network request.
+
 ## Implementation: required App dependencies
 
 App dependency MCPs and the App Use endpoint needed by an App declaration now
@@ -222,9 +228,7 @@ Contracts, runtime, Host and Worker suites passed. External Agents without this
 extension retain standard ACP readiness and their explicit unobservable status;
 these checks do not claim independent verification of those Agents' mounts.
 
-## What the UI is waiting on
-
-### Implementation: complete compact history
+## Implementation: complete compact history
 
 `SessionHistory` now owns replay and deletion. Host reads the journal in order
 without the arbitrary 5000-event cut and uses the same fold for live events.
@@ -246,6 +250,8 @@ took 329.7 ms and replay delivery 217.3 ms. This full-history response includes
 older conversations omitted by the former 5000-event tail, so its size/time must
 not be compared as equal scope to the former partial replay. Receipts are in
 `test-results/session-history/`; no original user journal was changed.
+
+## What the UI is waiting on
 
 `chat.preparing` is shown while `SessionState::Connecting`. Auto-preparation
 (`prepare_chat`) runs as soon as the chat is visible, Host-connected, history
