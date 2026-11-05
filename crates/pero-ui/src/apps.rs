@@ -84,6 +84,8 @@ pub(crate) struct AppPreparationView {
     pub message: String,
     #[serde(skip)]
     pub log: Vec<String>,
+    #[serde(skip)]
+    pub details_open: bool,
 }
 
 #[derive(Default)]
@@ -140,28 +142,45 @@ mod surface {
 
     impl Workbench {
         pub(crate) fn app_preparation_content(&self, cx: &mut Context<Self>) -> AnyElement {
+            use pero_theme::{ActionKind, FeedbackKind, action_button, feedback, feedback_actions, feedback_details};
             let Some(value) = &self.apps.preparation else { return div().into_any_element(); };
+            let chrome = pero_theme::Chrome::from_app(cx);
             let name = value.name.clone();
-            let phase = match value.phase.as_str() {
-                "checking" => self.t("apps.env_checking"),
-                "creating" => self.t("apps.env_creating"),
-                "installing" => self.t("apps.env_installing"),
-                "ready" => self.t("apps.env_ready"),
-                "required" => self.t("apps.env_required"),
-                _ => self.t("apps.env_failed"),
+            let (title, description, kind) = match value.phase.as_str() {
+                "checking" => ("apps.env_checking", "apps.env_preparing_hint", FeedbackKind::Progress),
+                "creating" => ("apps.env_creating", "apps.env_preparing_hint", FeedbackKind::Progress),
+                "installing" => ("apps.env_installing", "apps.env_preparing_hint", FeedbackKind::Progress),
+                "ready" => ("apps.env_ready", "apps.env_ready_hint", FeedbackKind::Success),
+                "required" => ("apps.env_required", "apps.env_notice", FeedbackKind::Info),
+                _ => ("apps.env_failed", "apps.env_failed_hint", FeedbackKind::Error),
             };
-            div().flex().flex_col().gap(px(12.)).p(px(12.))
-                .child(format!("{}: {}", value.name, phase))
-                .children(value.log.iter().map(|line| div().text_sm().child(line.clone())))
-                .when(value.phase == "required", |el| el.child(self.t("apps.env_notice")))
-                .when(value.phase == "failed" || value.phase == "required", |el| el.child(Button::new("app-env-retry")
-                    .label(self.t(if value.phase == "required" { "apps.env_prepare" } else { "apps.env_retry" }))
+            let mut actions = Vec::new();
+            if value.phase == "failed" || value.phase == "required" {
+                actions.push(action_button("app-env-retry", self.t(if value.phase == "required" {
+                    "apps.env_prepare"
+                } else { "apps.env_retry" }), ActionKind::Primary, chrome, cx)
                     .on_click(cx.listener(move |this, _, _, cx| {
                         if let Some(WorkspaceItem::App { name: active, panel }) = this.navigation.current() {
                             if active == &name { this.pending_app = Some((active.clone(), panel.clone())); }
                         }
                         this.command(json!({"action":"apps_prepare","name":name}), cx);
-                    }))))
+                    })).into_any_element());
+            }
+            if !value.log.is_empty() {
+                actions.push(action_button("app-env-details", self.t(if value.details_open {
+                    "apps.hide_diagnostics"
+                } else { "apps.show_diagnostics" }), ActionKind::Ghost, chrome, cx)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        if let Some(value) = this.apps.preparation.as_mut() {
+                            value.details_open = !value.details_open;
+                        }
+                        cx.notify();
+                    })).into_any_element());
+            }
+            feedback("app-env-feedback", self.t(title), self.t(description), kind, chrome)
+                .child(feedback_actions(actions, chrome))
+                .when(value.details_open, |el| el.child(feedback_details(
+                    "app-env-diagnostics", value.log.join("\n"), chrome)))
                 .into_any_element()
         }
 
@@ -259,7 +278,10 @@ mod surface {
                 "apps_preparation" => {
                     if let Ok(mut value) = serde_json::from_value::<AppPreparationView>(event.data.clone()) {
                         if value.phase != "checking" {
-                            if let Some(previous) = self.apps.preparation.take().filter(|p| p.name == value.name) { value.log = previous.log; }
+                            if let Some(previous) = self.apps.preparation.take().filter(|p| p.name == value.name) {
+                                value.log = previous.log;
+                                value.details_open = previous.details_open;
+                            }
                         }
                         value.log.push(value.message.clone());
                         if value.log.len() > 8 { value.log.remove(0); }
@@ -380,10 +402,24 @@ mod surface {
                             this.command(json!({"action":"apps_install"}), cx);
                         }))))
                 .children(preparation)
-                .when_some(self.apps.error.as_ref(), |el, error| el.child(div().mb(px(12.)).p(px(10.))
-                    .bg(p.error_bg).text_color(p.error).child(error.clone())))
+                .when_some(self.apps.error.as_ref(), |el, error| el.child(
+                    pero_theme::feedback("apps-catalog-feedback", self.t("apps.catalog_failed"), self.t("apps.catalog_failed_hint"),
+                        pero_theme::FeedbackKind::Error, chrome)
+                        .child(pero_theme::feedback_actions([
+                            pero_theme::action_button("apps-error-retry", self.t("apps.refresh"), pero_theme::ActionKind::Primary, chrome, cx)
+                                .disabled(busy).on_click(cx.listener(|this, _, _, cx| this.refresh_apps(cx))).into_any_element(),
+                            pero_theme::action_button("apps-error-details", self.t(if self.apps.error_details_open {
+                                "apps.hide_diagnostics"
+                            } else { "apps.show_diagnostics" }), pero_theme::ActionKind::Ghost, chrome, cx)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.apps.error_details_open = !this.apps.error_details_open;
+                                    cx.notify();
+                                })).into_any_element(),
+                        ], chrome))
+                        .when(self.apps.error_details_open, |el| el.child(pero_theme::feedback_details(
+                            "apps-catalog-diagnostics", error.clone(), chrome)))))
                 .when(busy, |el| el.child(div().py(px(12.)).text_color(p.text_muted).child(self.t("apps.loading"))))
-                .when(!busy && self.apps.entries.is_empty(), |el| el.child(
+                .when(!busy && self.apps.error.is_none() && self.apps.entries.is_empty(), |el| el.child(
                     pero_theme::empty_state(self.t("apps.empty"), Some(self.t("apps.empty_hint").into()), chrome)))
                 .when_some(self.apps.removing.as_ref(), |el, name| {
                     let name = name.clone();
@@ -409,7 +445,7 @@ mod surface {
                                 .on_click(cx.listener(move |this, _, _, cx| { this.apps.category = category; cx.notify(); }))
                         })))
                     .child(div().id("apps-launchpad").flex_1().min_w_0().flex().flex_wrap().items_start().gap(px(14.))
-                    .when(!busy && !self.apps.entries.iter().any(|app| app.placement().in_catalog() && (self.apps.category == AppCategory::All || app.category() == self.apps.category)), |el| el.child(div().p(px(12.)).text_color(p.text_muted).child(self.t("apps.category_empty"))))
+                    .when(!busy && self.apps.error.is_none() && !self.apps.entries.is_empty() && !self.apps.entries.iter().any(|app| app.placement().in_catalog() && (self.apps.category == AppCategory::All || app.category() == self.apps.category)), |el| el.child(div().p(px(12.)).text_color(p.text_muted).child(self.t("apps.category_empty"))))
                     .children(self.apps.entries.iter().enumerate().filter(|(_, app)| app.placement().in_catalog() && (self.apps.category == AppCategory::All || app.category() == self.apps.category)).map(|(index, app)| {
                         let title = self.installed_app_title(&app.name, &app.display_name);
                         let name = app.name.clone();

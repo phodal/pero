@@ -3,7 +3,7 @@ use crate::{
     app::Workbench,
     workspace::{WorkspaceItem, WorkspaceRoute},
 };
-use gpui_kit::{component::{button::*, notification::Notification, Sizable, WindowExt}, prelude::*, *};
+use gpui_kit::{component::{notification::Notification, WindowExt}, prelude::*, *};
 use gpui_webview::WebView;
 use pero_contracts::HostEvent;
 use serde_json::{Value, json};
@@ -528,37 +528,30 @@ impl Workbench {
             .when_some(error.clone(), |el, error| {
                 let diagnostics = format!("App: {name}\nPanel: {panel}\n{error}");
                 el.child(
-                    div().flex().flex_col().gap(px(12.)).p(px(12.)).min_w_0()
-                        .max_w(px(680.)).text_size(chrome.text(14.))
-                        .text_color(chrome.palette.text)
-                        .child(div().font_weight(FontWeight::SEMIBOLD).text_size(chrome.text(18.))
-                            .child(self.t("apps.open_failed")))
-                        .child(div().whitespace_normal().text_color(chrome.palette.text_muted)
-                            .child(self.t("apps.open_failed_hint")))
-                        .child(div().flex().flex_wrap().items_center().gap(px(8.))
-                            .child(Button::new("native-app-retry").small().outline()
-                                .label(self.t("apps.retry_open"))
+                    pero_theme::feedback("native-app-error-feedback", self.t("apps.open_failed"), self.t("apps.open_failed_hint"),
+                        pero_theme::FeedbackKind::Error, chrome)
+                        .child(pero_theme::feedback_actions([
+                            pero_theme::action_button("native-app-retry", self.t("apps.retry_open"),
+                                pero_theme::ActionKind::Primary, chrome, cx)
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.native_app_pages.remove(&(name.clone(), panel.clone()));
                                     this.pending_app=Some((name.clone(),panel.clone()));
                                     this.refresh_apps(cx);
-                                })))
-                            .child(Button::new("native-app-error-details").small().ghost()
-                                .label(self.t(if self.apps.error_details_open {
+                                })).into_any_element(),
+                            pero_theme::action_button("native-app-error-details", self.t(if self.apps.error_details_open {
                                     "apps.hide_diagnostics"
-                                } else { "apps.show_diagnostics" }))
+                                } else { "apps.show_diagnostics" }), pero_theme::ActionKind::Ghost, chrome, cx)
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.apps.error_details_open = !this.apps.error_details_open;
                                     cx.notify();
-                                }))))
+                                })).into_any_element(),
+                        ], chrome))
                         .when(self.apps.error_details_open, |el| el.child(
                             div().flex().flex_col().gap(px(8.)).min_w_0()
-                                .child(div().id("native-app-diagnostics").max_h(px(240.))
-                                    .overflow_y_scroll().text_size(chrome.text(12.))
-                                    .whitespace_normal().child(error))
+                                .child(pero_theme::feedback_details("native-app-diagnostics", error, chrome))
                                 .child(div().flex().child(
-                                    Button::new("native-app-copy-diagnostics").small().ghost()
-                                        .label(self.t("apps.copy_diagnostics"))
+                                    pero_theme::action_button("native-app-copy-diagnostics", self.t("apps.copy_diagnostics"),
+                                        pero_theme::ActionKind::Ghost, chrome, cx)
                                         .on_click(cx.listener(move |this, _, window, cx| {
                                             cx.write_to_clipboard(ClipboardItem::new_string(diagnostics.clone()));
                                             window.push_notification(Notification::success(this.t("content.copied")), cx);
@@ -571,7 +564,8 @@ impl Workbench {
                     if let Some(page) = self.native_app_pages.get(&key) {
                         el.child(page.view.clone())
                     } else {
-                        el.child(self.t("apps.loading_panel"))
+                        el.child(pero_theme::feedback("native-app-loading-feedback", self.t("apps.loading_panel"), self.t("apps.loading_panel_hint"),
+                            pero_theme::FeedbackKind::Progress, chrome))
                     }
                 },
             )
