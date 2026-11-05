@@ -15,7 +15,7 @@ for (const mode of ['saved', 'focus', 'focus-before-layout']) {
     const scroll = { getMetrics: () => ({ currentPage: 1, pageVisibilityMetrics: ready ? [{ pageNumber: 1, original: { pageX: 0, pageY: 0 }, viewportX: 0, viewportY: 0 }] : [] }), onScroll: stop, scrollToPage: value => jumps.push(value) };
     const scrollCapability = { forDocument: () => scroll, onLayoutReady: callback => { listeners.add(callback); return () => listeners.delete(callback); } };
     const zoom = { requestZoom: value => zooms.push(value), getState: () => ({ currentZoomLevel: 1 }), onStateChange: stop };
-    const selected = { getState: () => ({ selection: null }), onSelectionChange: stop, onEmptySpaceClick: stop, setSelection: value => { selections.push(value); return { toPromise: () => Promise.resolve() }; } };
+    const selected = { getState: () => ({ selection: null }), onSelectionChange: stop, onBeginSelection: stop, onEndSelection: stop, onEmptySpaceClick: stop, setSelection: value => { selections.push(value); return { toPromise: () => Promise.resolve() }; } };
     const components = paperComponents({}, { modules: {
       '@embedpdf/pdfium/pdfium.wasm': '/pdfium.wasm',
       '@embedpdf/core': { createPluginRegistration: (plugin, config) => ({ plugin, config }) },
