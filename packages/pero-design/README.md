@@ -1,0 +1,170 @@
+# Pero 组件库
+
+用同一套组件规则实现 GPUI Desktop 和领域 App。页面组合组件，组件负责视觉和
+交互呈现；会话、权限、路由、系统窗口操作和设置持久化仍由已有宿主负责。
+
+## 来源与入口
+
+| 内容 | 唯一维护入口 | 使用方 |
+| --- | --- | --- |
+| 品牌与语义颜色 | `DESIGN.md` | Native、Web、App |
+| 尺寸、字阶、圆角 | `spec/pero-design/design.tsp` | 生成 Rust、TS、CSS |
+| 窗口与侧栏 | 本包 `src/shell.tsx` / `crates/pero-theme/src/shell.rs` | 宿主壳层 |
+| 列表、标题、阅读、输入 | 本包 `src/components.tsx` / `crates/pero-theme/src/design.rs` | 工作台页面 |
+| Button、Tabs、Input、Split 等行为控件 | `packages/app-sdk/src/components` / GPUI Kit | 使用现有焦点与键盘实现 |
+
+App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
+不要在业务页面复制组件样式，也不要为相同组件再建立一个运行时。
+
+## 组件职责
+
+| 组件 | 放什么 | 不放什么 |
+| --- | --- | --- |
+| WindowTitlebar / window_bar | 窗口控制、内容标签、搜索等全局动作 | 与内容重复的标题、面包屑、说明 |
+| Sidebar / sidebar_surface | 紧凑导航、会话行尾独立新建入口、应用与账户入口 | 未实现功能占位、额外卡片边框 |
+| SidebarGroup / sidebar_group | 一组相关导航；跨任务域用 separated 分隔，必要时才给标签 | 每组都添加眉标或分隔线 |
+| SidebarRow / sidebar_row | 图标、名称、必要计数和选中态 | 计数外再套徽章、说明段落 |
+| LibraryHeader / library_header | 当前页面标题、必要副标题、局部动作 | 应用名和页面名重复、固定大块留白 |
+| ListRow / list_row | 标题在前、元信息在后、独立行操作 | 多层卡片、整行嵌套按钮 |
+| ReaderFrame / reader_frame | 单行阅读工具栏与正文面 | 第二套标题或装饰性摘要 |
+| SettingsGroup / settings_group | 无卡片的相关设置行 | 嵌套面板和逐行分隔 |
+| ContentTab / content_tab | 内容名称、固定 / 预览 / 未保存状态、关闭 | 额外的大标题、固定宽度空白、嵌套按钮 |
+| Tabs | 页内视图切换、键盘移动、关联面板 | 与窗口 Tab 重复命名当前 App |
+| AppBar / Toolbar | 当前内容的工具与操作 | 默认重复 App 名、全局导航 |
+| IconButton / ghost_icon_button | 统一点击区域、可访问名称、提示 | 无标签的图标、第二个下拉箭头 |
+| DropdownMenu | 操作菜单，使用已有 Radix / GPUI 菜单行为 | 把操作伪装成当前选中值 |
+| Select / NativeSelect | Select 统一短列表、搜索与分组长列表；NativeSelect 仅用于必须保留系统弹层的兼容场景 | 无意混用系统弹层和共享弹层、替换表单校验 |
+| FilePicker | 单文件 / 多文件、忙碌禁用、选中文件名 | 默认浏览器文件框、业务校验与上传逻辑 |
+| Field / Input / Textarea | 关联标签、帮助和校验信息；保留原生表单语义 | 用 placeholder 代替标签、出错清空输入 |
+| Slider | 有界连续数值，方向键 / Home / End 与原生表单值 | 自建鼠标拖动和另一套数值状态 |
+| Checkbox / RadioGroup / Switch | 多选、单选和即时开关；选中与焦点分别呈现 | 用状态颜色代替名称和选中语义 |
+| Card / Badge | 中性、蓝色、杏色内容身份；明确标注的结果状态 | 把暖色内容卡片当作警告、每个分组都加卡片 |
+| Feedback / EmptyState / Progress | 局部状态、无数据下一步、真实进度 | 把加载当空态、把执行完成当领域通过 |
+| Dialog / Popover / Tooltip | 独立任务或低频细节、关联提示、返回触发器的焦点 | 主任务多层折叠、错误只放浮层里 |
+| Table | 有名称的滚动区域、表头与真实行数据、键盘滚动 | 隐去缺失分母、把排序或结果判定放进通用组件 |
+| Composer | 输入、附件、工具和提交状态 | 自动执行、第二份会话状态 |
+
+窗口栏的拖动、双击、macOS 红绿灯留位由 Desktop 控制器负责。Web 组件不模拟
+系统窗口按钮。折叠侧栏保留可访问名称；焦点和选中状态是不同状态。
+
+## 基础规则
+
+产品层级、颜色使用与标题作用域以 [DESIGN.md](../../DESIGN.md) 为准；以下说明组件默认值与用法。
+
+- 默认字阶 24 / 18 / 14 / 12。Caption 与 Label 是同一个 12px 档位。
+  缩小 UI 字号时，辅助文字仍保持至少 12px。
+- 按钮、选择框和菜单使用同一正文系统字体、常规字重；标题和分组名称才增加字重。
+  标签的内容、固定和关闭图标至少 16px，随 UI 字号增长且不被布局挤压。
+- 侧栏导航 32px、内容标签 30px、窗口栏 42px。操作和输入最低 24px，
+  按当前文字行高增长；间距和圆角不随字体等比例膨胀。
+- 新组件使用 `--pero-spacing-1` 至 `--pero-spacing-6`，对应间距 4 / 8 / 12 / 16 / 20 / 24，图标间距 6。侧栏外边距 10，分组间距 16。
+- 选中导航使用主题的强调背景与文字配对，默认是青色；分类和内容强调按 DESIGN 的颜色用途选择，不能与选中或错误状态混淆。
+- 只在内容确实需要分隔时使用 0.5px 分隔线。输入边界 1px，键盘焦点 2px。
+- 每个操作区有清晰的主要动作；“新聊天”使用会话行尾的独立 +，侧栏不重复品牌标题或大按钮。折叠后仍可达。
+- Insights / 论文、执行环境 / 应用商店之间用 `SidebarGroup separated` 明确划分任务域，避免每行加分隔。
+- 状态由调用方传入。加载、运行、成功、错误、禁用要能区分；出错保留用户输入。
+- 内容标签标识打开的对象；页面保留不同作用域的标题和完整文档标题，只删除没有导航价值的重复名称。
+- 多栏 Web 页面使用 App SDK 的 Split / SplitPane，配置最小宽度、窄窗堆叠和持久化键。
+
+## 颜色与状态契约
+
+- 中性色面用 `surface` / `surface-muted`；hover、pressed 使用各自角色，不能复用选中态。
+- 普通控件悬停统一使用中性 `surface-hover`，不添加强调色侧线。选中态保持，
+  键盘焦点独立描边；主操作使用 `action-hover`，保持文字对比。
+- 主操作用 `action` / `action-hover` / `action-pressed` 配 `on-action`。
+  选中内容用 `accent-soft` 配 `accent-text`，键盘焦点独立使用 `focus`。
+- `Card tone="blue" | "apricot"` 和对应 Badge 表达内容身份；`variant="soft"`
+  用轻染色底。两种 tone 都有 surface / soft / strong / text，明暗主题分别生成。
+- 业务状态使用 neutral / info / success / warning / error，始终带文字；正常未执行使用 neutral。
+- `Feedback` 默认 inline，跨行恢复动作使用 `variant="block"`；error 是 alert，
+  其他消息是 status，empty 不主动播报。重复错误应在最接近问题的位置呈现一次。
+- Native `feedback` 使用同一层级：状态图标、简短标题、说明、紧凑动作；原始日志
+  放在可展开的技术详情。环境尚未准备、准备中、准备失败分别呈现，不把缺少环境当作执行失败。
+- `Field` 通过 children 回调把 id、aria-describedby、aria-invalid 交给输入。
+  页面负责校验、保留草稿和恢复动作；组件不增加业务状态机。
+- 短列表 Select 默认最小 160px、搜索列表 260px，浮层受视口限制；字号选择用 `menuMinWidth={0}` 跟随触发器。设置菜单按内容测量，设置窗口默认 760px。
+- `Progress` 只接收实际完成值与总量；没有依据时使用不确定进度，不能伪造百分比。
+- Dialog 长标题和 footer 可换行；嵌套 Select 的第一次 Escape 关闭选择框，
+  第二次关闭 Dialog，逐层返回焦点。Table 的命名滚动区域可以聚焦后用方向键滚动。
+
+异步页面分别管理数据可用性、请求进度与领域结论。已有内容刷新时保留草稿、选中和焦点；
+刷新失败说明正在显示旧数据并提供局部重试。取消请求的等待状态与确认取消分开显示。
+切换对象才重置对象内选择，不能因同一对象轮询而重挂载整个编辑器。
+
+## 使用
+
+```tsx
+import { Sidebar, SidebarGroup, SidebarRow, WindowTitlebar, LibraryHeader } from '@pero/app-sdk/ui';
+
+<WindowTitlebar leading={windowControls} tabs={contentTabs} actions={globalActions} />
+<Sidebar label="主导航" collapsed={collapsed}>
+  {newTaskButton}
+  <SidebarGroup>
+    <SidebarRow label="研究项目" lead={folderIcon} selected={page === 'projects'} onClick={openProjects} />
+  </SidebarGroup>
+</Sidebar>
+<LibraryHeader title={project.title} actions={projectActions} />
+```
+
+`Sidebar` 不规定宽度；交给宿主的 Split。`WindowTitlebar` 不带标题属性；
+`leading`、`tabs`、`actions` 是内容插槽。`LibraryHeader` 的副标题只有提供时才出现。
+
+## 交互目录
+
+目录导入上面的真实组件和 App SDK 控件，包含折叠侧栏、可调分栏、搜索空状态、
+内容标签的固定 / 预览 / 未保存状态、关闭保护、长标题、Tab 键盘操作、
+下拉菜单、Select、文件导入、字号 / 明暗切换、输入禁用和错误恢复。
+“表单与反馈”包含真实 Field、Slider、Checkbox、Switch、RadioGroup、Table、
+Card、Badge、Feedback、Progress 和嵌套选择框 Dialog。它不连接 Agent。
+
+首次安装（仓库根目录的工具依赖也需已安装）：
+
+```sh
+npm install --prefix packages/app-sdk --workspaces=false --ignore-scripts --package-lock=false
+npm install --prefix packages/pero-design --workspaces=false --ignore-scripts --package-lock=false
+npm run dev:design
+```
+
+```sh
+npm run gen:design
+npm --prefix packages/pero-design run typecheck
+npm --prefix packages/pero-design run build
+npm --prefix packages/app-sdk run typecheck
+node --test packages/pero-design/src/tokens.test.mjs
+```
+
+构建目录是 `target/design-catalog`。生成文件不手改；尺寸从 TypeSpec 修改后重新生成。
+
+## 已迁移与后续边界
+
+已迁移 Desktop 侧栏、窗口栏、两套内容标签容器、窗格操作 / 标签菜单触发器、
+会话新建入口，以及共享标题、列表、设置组、搜索框的基础规则。原生窗口拖动、
+标签拖放、MRU、关闭确认仍由原有 Workbench 状态机负责。
+
+Scientific Viewer 使用 AppBar、FilePicker、DropdownMenu、Select、Tabs，PDF 工具复用
+Button / Input / Textarea。Virtual Cell 使用多文件 FilePicker；Lab 使用 FilePicker 和
+Select、Input、Textarea；Control Lab 使用共享选择器、输入、Slider、Card、Badge、
+Feedback、Table、RadioGroup、Dialog 和 Progress。准备阶段把可调参数、模型条件、
+验收条件和预算直接展示；有数据后展示曲线、核验与证据列表，原始证据独立查看。
+所有内置 App 已重新构建。
+Paper Agent 的 17 处普通选择框和 Automations 的日程选择使用共享 Select；
+原来的禁用条件、历史选择、审阅重置和调度值仍由各 App 管理。
+科学图形及原始证据流程保持领域实现。
+
+Web 控件皮肤由 `components/ui-styles.ts` / `select-styles.mjs` 注入，`ui.css` 负责布局；
+不再为 Button、Input、Tabs、Card、Field、Feedback、Checkbox 和文件控件维护竞争的静态皮肤。SDK 的静态和动态 token
+入口都引入生成的 design contract，`npm run gen:design` 同时刷新两份入口；
+`npm run check` 检查它们是否过期。
+
+旧 SDK 的 `--pero-space-*` 是 2px 兼容间距，保留给尚未迁移的业务 CSS；新库用
+`--pero-spacing-*`，避免过去两套同名 token 互相覆盖。旧字号别名映射到四档标准字阶，
+不再产生低于 12px 的界面文字。新增页面不再使用兼容间距或在局部写控件皮肤。
+
+GPUI 菜单继续使用 Kit 的语义、焦点与子菜单实现，以及 Pero 共享主题；通过现有
+不可变补丁机制让菜单行高随字号增长，保留上游行为。历史 App 的领域布局与第三方科学编辑器不属于
+已全部迁移的范围，不能把目录验收当成所有领域页面的完整验收。
+
+后续修改某个页面时，先迁移到以上组件，再删除该页面重复的标题、边框、尺寸和
+状态文案。科学图形、原文排版和领域执行流程不由通用壳组件改写。
+
+验证范围与已知限制见 [VERIFICATION.md](VERIFICATION.md)。
