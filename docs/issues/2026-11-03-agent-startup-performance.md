@@ -7,6 +7,50 @@ title: Agent startup latency, Connector MCP failure and recovery gaps
 
 # Agent startup performance (Preparing Agent)
 
+## Post-merge follow-up: 2026-11-05
+
+PR #131 merged as `1263c39506191b8e97b0e67e4abd5e2122c47b55`. Review of that
+exact master revision found remaining gaps: renderer reconnect replay restored
+the startup MCP receipt instead of live observations; one invalid UTF-8 journal
+line stopped recovery of later records; compact Chat hid the tool warning; and
+Native preview missed worker manifest changes and retained stale chart Python
+payloads. The follow-up repairs those paths without rewriting the journal,
+changing retry eligibility, or exposing MCP transport configuration.
+
+The MCP Settings verification claim below describes the earlier implementation
+session, not the merged tree: its committed contract still expected operator
+names to be hidden. The [master CI run](https://github.com/phodal/pero/actions/runs/42010799467)
+failed that assertion and independently failed on stale Bazel npm repository
+metadata. The follow-up updates the expected identities while checking the exact
+sanitized observation fields and retaining credential checks.
+
+Available local checks passed: three Native entry-point regressions (all three
+fail against unmodified master), the 933-message locale/reference check,
+JavaScript syntax checks and `git diff --check`. Native tests use real temporary
+Python payloads with mocked build/process/watch seams and now run in CI. They
+do not establish actual macOS watcher or native-build behavior.
+The existing aggregate Node CI test command was also attempted: 11 tests passed,
+while 14 test modules failed to load because `yaml`, `esbuild` or
+`@playwright/test` is not installed. It is not a full CI pass.
+
+Rust/Host execution and running UI/screenshots remain unverified for this
+follow-up: the assistant environment has no Rust/Bazel toolchains or installed
+locked dependencies, and no tools were installed. The PR remains a draft pending
+CI and UI verification. The Bazel npm metadata is reused unchanged from
+[`2ff5a6f7`](https://github.com/phodal/pero/commit/2ff5a6f7ad7fb1648b70212400171e6d878de6ae).
+Its [verification record](https://github.com/phodal/pero/blob/b138759c14ceccd6f35d482a29ac01ef5b410a29/docs/issues/2026-11-05-claude-merge-permission-blockers.md#integration-findings-against-current-master)
+reports npm sync. All six input files have identical Git blob SHAs at that
+snapshot and this base. The generator was not run again here; final-head CI must
+verify the reused artifact. Dependencies and frozen-lock checks are unchanged.
+
+PR #132 also proposes limiting public MCP observations to managed/required
+servers. That drops ordinary Chat's builtin Connector observation: its binding
+adds a server to `agent.mcp_servers`, not the managed/required sets. This follow-up
+preserves #131's actual-mounted-server identity/status contract and tests its
+sanitized fields. The conflicting #132 filter needs reconciliation before merge.
+The measurements and screenshots in the historical sections below are not new
+verification of this follow-up.
+
 ## Current diagnosis: 2026-11-05
 
 The Native Preview's 17–23 second preparation is reproducible in the builtin
