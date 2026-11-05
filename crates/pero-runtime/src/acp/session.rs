@@ -421,7 +421,12 @@ async fn run(
             let session: NewSessionResponse = serde_json::from_value(session_data.clone()).map_err(agent_client_protocol::Error::into_internal_error)?;
             let session_id = session.session_id.clone();
             observations.lock().unwrap().bind(session_id.to_string(), &tx);
-            session_data["peroMcp"] = serde_json::to_value(&*mcp_runtime.lock().unwrap()).unwrap_or_default();
+            let snapshot = mcp_runtime.lock().unwrap().clone();
+            let unavailable = snapshot.required_unavailable(&config.required_mcp_servers);
+            if !unavailable.is_empty() {
+                return Err(failure(&format!("Required MCP dependencies unavailable: {}. Check MCP settings and retry the conversation.", unavailable.join(", "))));
+            }
+            session_data["peroMcp"] = serde_json::to_value(&snapshot).unwrap_or_default();
             // Session-ready is journaled and replayed on renderer reconnect;
             // initialization is transient, so carry its composer capabilities
             // in the retained session snapshot as well.

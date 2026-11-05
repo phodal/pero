@@ -238,6 +238,7 @@ mod tests {
             workspace: PathBuf::from("/not-the-automation-workspace"),
             agents: vec![AgentConfig {
                 session_instructions: String::new(),
+            required_mcp_servers: Default::default(),
                 id: "fixture".into(), name: "Fixture".into(),
                 command: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
                 args: vec![], env: [("SECRET".into(), "private-test-key".into())].into(),

@@ -72,6 +72,15 @@ impl McpRuntimeSession {
             .map(|server| server.server.as_str()).collect()
     }
 
+    /// Standard ACP Agents without observations retain their protocol readiness
+    /// contract. An observed failure must never satisfy a required dependency.
+    pub fn required_unavailable<'a>(&self, required: &'a std::collections::BTreeSet<String>) -> Vec<&'a str> {
+        if !self.observable { return vec![]; }
+        required.iter().filter(|name| !self.servers.iter().any(|server|
+            &server.server == *name && server.status == McpRuntimeStatus::Connected))
+            .map(String::as_str).collect()
+    }
+
     /// Only the frozen session/revision and an admitted server can change this projection.
     pub fn observe(&mut self, observation: McpRuntimeObservation) -> bool {
         if self.closed || !self.observable || self.session_id.as_deref() != Some(&observation.session_id)
@@ -102,6 +111,23 @@ impl McpRuntimeSession {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn required_dependencies_need_connected_observations_when_supported() {
+        let required = std::collections::BTreeSet::from(["docs".into()]);
+        for (observable, status, unavailable) in [
+            (true, McpRuntimeStatus::Connecting, true),
+            (true, McpRuntimeStatus::Connected, false),
+            (true, McpRuntimeStatus::Error, true),
+            (true, McpRuntimeStatus::Disconnected, true),
+            (false, McpRuntimeStatus::Connecting, false),
+        ] {
+            let mut state = McpRuntimeSession::new("agent".into(), "thread".into(), 1, 0, vec!["docs".into()]);
+            state.observable = observable;
+            state.servers[0].status = status;
+            assert_eq!(!state.required_unavailable(&required).is_empty(), unavailable);
+            if observable { state.servers.clear(); assert_eq!(state.required_unavailable(&required), ["docs"]); }
+        }
+    }
     #[test]
     fn tool_failures_are_visible_only_for_live_observed_sessions() {
         for (status, observable, closed, failed) in [

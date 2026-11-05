@@ -193,9 +193,7 @@ The actual Electron/Host/Go probe observed both builtin servers connected and a
 controlled optional endpoint failed. Core Rust suites and repository checks
 passed. The Chat presentation and recovery are verified separately below.
 
-## What the UI is waiting on
-
-### Implementation: visible optional-tool failure and recovery
+## Implementation: visible optional-tool failure and recovery
 
 Chat now shows failed MCP names and a recovery instruction. An empty conversation
 can retry using the existing replacement path, retaining its draft. Workbench
@@ -209,6 +207,22 @@ after its configuration was repaired. Light/dark, Chinese, the supported minimum
 Screenshots and the sanitized receipt are in `test-results/agent-startup/`.
 No prompt or external connector call was made. The test copies its Host binary
 to its disposable profile so another local build cannot replace it mid-run.
+
+## Implementation: required App dependencies
+
+App dependency MCPs and the App Use endpoint needed by an App declaration now
+carry a Host-owned required set. The runtime's domain readiness check rejects
+session readiness when the negotiated observations do not confirm those
+connections. It reports the missing names and closes the unsuccessful session;
+optional failures continue to show the warning described above.
+
+Domain tables and the ACP lifecycle table cover required connection failure,
+successful discovery and an external Agent without the observation extension.
+Contracts, runtime, Host and Worker suites passed. External Agents without this
+extension retain standard ACP readiness and their explicit unobservable status;
+these checks do not claim independent verification of those Agents' mounts.
+
+## What the UI is waiting on
 
 `chat.preparing` is shown while `SessionState::Connecting`. Auto-preparation
 (`prepare_chat`) runs as soon as the chat is visible, Host-connected, history
