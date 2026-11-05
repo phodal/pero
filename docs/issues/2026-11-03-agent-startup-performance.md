@@ -195,6 +195,21 @@ passed. The Chat presentation and recovery are verified separately below.
 
 ## What the UI is waiting on
 
+### Implementation: visible optional-tool failure and recovery
+
+Chat now shows failed MCP names and a recovery instruction. An empty conversation
+can retry using the existing replacement path, retaining its draft. Workbench
+forwards runtime observations to both Settings and Chat instead of consuming
+them in Settings. Submitted conversations keep their existing binding.
+
+`node tests/e2e/agent-startup.mjs` passed with the actual builtin Connector and
+App Use endpoints, a controlled failed optional MCP and pointer-driven retry
+after its configuration was repaired. Light/dark, Chinese, the supported minimum
+1000px window, keyboard focus and warning wrapping were captured and inspected.
+Screenshots and the sanitized receipt are in `test-results/agent-startup/`.
+No prompt or external connector call was made. The test copies its Host binary
+to its disposable profile so another local build cannot replace it mid-run.
+
 `chat.preparing` is shown while `SessionState::Connecting`. Auto-preparation
 (`prepare_chat`) runs as soon as the chat is visible, Host-connected, history
 replayed, and workspace non-empty. It issues `new_session` before the first
