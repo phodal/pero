@@ -90,3 +90,70 @@ func TestContextPlanDoesNotInterpretProductPolicyMetadata(t *testing.T) {
 		t.Fatal("opaque source changed")
 	}
 }
+
+func TestContextPlanPreviewDoesNotPublishOrRetainPendingMessages(t *testing.T) {
+	s := NewSession("preview", "")
+	mustAppend(t, s, "user/message", inboxFixtureMessage("committed", "original"))
+	for _, text := range []string{"discarded preview", "another preview"} {
+		preview, err := s.ContextPlanWithMessages([]Message{inboxFixtureMessage("pending", text)})
+		if err != nil || len(preview.Nodes) != 2 || preview.Nodes[1].Message.Content[0].Text != text {
+			t.Fatalf("preview=%+v err=%v", preview, err)
+		}
+		// Caller-owned output must not mutate the next projection or raw log.
+		preview.Nodes[0].Message.Content[0].Text = "caller mutation"
+		preview.Nodes[0].Message.Source[0] = '!'
+	}
+	if len(s.Events()) != 1 {
+		t.Fatal("preview published pending messages")
+	}
+	// This append reuses the sequence that belonged only to the preview.
+	mustAppend(t, s, "user/message", inboxFixtureMessage("actual", "actual admission"))
+	plan, err := s.ContextPlan()
+	if err != nil || len(plan.Nodes) != 2 || plan.Nodes[0].Message.Content[0].Text != "original" || plan.Nodes[1].Message.ID != "actual" || plan.Nodes[1].Message.Content[0].Text != "actual admission" {
+		t.Fatalf("committed plan=%+v err=%v", plan, err)
+	}
+	if string(plan.Nodes[0].Message.Source) != `{"kind":"user"}` {
+		t.Fatal("caller mutation escaped into later projection")
+	}
+}
+
+func TestContextPlanWarmReadsPreserveProjectionAndReplay(t *testing.T) {
+	s := NewSession("warm-projection", "")
+	user := mustAppend(t, s, "user/message", Message{Role: RoleUser, Content: []ContentBlock{imageBlock("one"), imageBlock("two")}})
+	verify := func() {
+		t.Helper()
+		cold, err := BuildContextPlan(s.Events(), s.SurfaceSeqs())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			warm, err := s.ContextPlan()
+			if err != nil || !reflect.DeepEqual(warm, cold) {
+				t.Fatalf("warm=%+v cold=%+v err=%v", warm, cold, err)
+			}
+		}
+		restored, err := RestoreSession(s.Header(), s.Events())
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := restored.ContextPlan()
+		if err != nil || plan.Digest() != cold.Digest() {
+			t.Fatalf("restored=%+v err=%v", plan, err)
+		}
+	}
+	verify()
+	for _, index := range []int{0, 1} {
+		mustAppend(t, s, "image/offload", imageOffload(user.Seq, index))
+		verify()
+	}
+	if _, err := s.AppendReplacement("user/message", inboxFixtureMessage("summary", "summary"), SurfaceRange{Start: user.Seq, End: user.Seq}, []uint64{user.Seq}); err != nil {
+		t.Fatal(err)
+	}
+	verify()
+	for _, prompt := range []string{"first prompt", "revised prompt"} {
+		if err := s.CommitSystemPrompt(1, 1, prompt, false, false); err != nil {
+			t.Fatal(err)
+		}
+		verify()
+	}
+}

@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: active
+status: resolved
 date: 2026-11-05
 ---
 
@@ -55,3 +55,12 @@ the next turn's recovery. Three added regression methods cover value tables and
 native JSONL with asynchronous process receipts. All 33 reporter tests and 21
 trial tests pass. Reanalysis preserves the retained polyglot source hash, usage,
 42 windows and 210 assigned/10 outside responses exactly.
+
+Context follow-up implemented in Session's existing plan builder: immutable
+committed-message decoding is reused across requests without caching preview
+admissions or derived image/prompt state. Repeated local race runs of the same
+130-step fixture improve from 5.81–5.83 seconds to 0.88–0.90 seconds without
+changing its deadline. All 36 Go package race suites, three relevant standalone
+Bazel race targets and related vet pass. Preview isolation, caller mutation,
+image/prompt/surface updates and restore equivalence are covered. New Linux CI
+results remain separate evidence; no new paid benchmark or score is claimed.

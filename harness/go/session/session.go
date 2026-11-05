@@ -43,6 +43,8 @@ type Session struct {
 	// persistenceAttachMu serializes ownership publication for this exact live identity.
 	persistenceAttachMu sync.Mutex
 	compactionMu        sync.Mutex
+	contextDecodeMu     sync.Mutex
+	contextMessages     map[uint64]Message
 	durabilityMu        sync.RWMutex
 	durability          *sessionDurabilityCheckpoint
 	mu                  sync.RWMutex

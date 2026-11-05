@@ -102,7 +102,8 @@ begins after an explicit failed operation's observed result. Repeated identical
 invocation failures stay in that window. Success of the identical tool and full
 arguments resolves it; a different failure starts a new unresolved window.
 Otherwise turn/trace end leaves it unresolved. Unrelated successful commands
-never resolve the failed operation. An unknown or changed invocation remains
+never resolve the failed operation. Unrelated running, interrupted or unobserved
+commands do not become failed operations that block a matching repair. An unknown or changed invocation remains
 conservative, including a changed timeout. This is an observation policy, not
 proof of causality or task acceptance.
 
@@ -116,6 +117,11 @@ Cached reads remain separate; reasoning is already included in output. There is
 no fabricated price or per-tool token attribution. Analyzer receipts now pin
 all three Python modules.
 
+Delayed process outcomes remain owned by the invocation's turn. An explicit
+failure first observed after that turn ended produces an instantaneous
+`unresolved-after-turn-end` window with no response usage. It cannot interrupt
+another turn's active recovery or consume that turn's responses/preparations.
+
 The unchanged polyglot Session `88041974-2269-4902-99dd-8a26c2972d63` produces
 42 windows: one matching-operation success and 41 unresolved. They cover 210
 responses, with 10 outside windows. The largest window begins at original
@@ -124,6 +130,31 @@ The full original total remains 13,321,025 tokens. Historical traces without
 `tool/diagnostic` keep category unobserved. These windows locate investigation
 cost; they do not establish avoidable spend, successful repair or token savings.
 Artifacts: `/tmp/pero-validation-recovery-polyglot/summary.json` and `summary.md`.
+Follow-up artifacts in `/tmp/pero-validation-recovery-polyglot-followup/` retain
+exactly the same source hash, usage, recovery windows and response coverage.
+
+## Request-context decoding performance
+
+Linux Go race and standalone Bazel jobs at `c4251a64` both exceeded the existing
+10-second fixture deadline in `TestMidTurnDeliveryReview/bounded_long_review`.
+A local race CPU profile placed 37.9% in context-plan construction and only
+0.16% in validation review. Each request rebuilt the plan several times and
+decoded the same immutable historical messages again.
+
+Session now memoizes decoded committed messages, retaining only current
+surface identities at each read. The same pure builder still replays surface
+operations, validates system prompts and applies image omissions every time.
+Preview admissions never enter the cache, caller-visible plans remain deep
+copies, and restoring a Session reconstructs decoding from the authoritative
+log. No request/step budget, test deadline or official benchmark timeout changed.
+
+On the same local host with `GOMAXPROCS=2` and the race detector, the unchanged
+130-step fixture took 5.83/5.81/5.82 seconds before and 0.90/0.88/0.88 seconds
+after. CPU-profile samples fell from 6.10 to 0.84 seconds in the separate
+profiled runs. These are local fixture measurements; they establish neither
+Linux CI success nor provider latency/token savings. Logs and profiles are
+under `/tmp/pero-review-{before,after}-repeated.log` and
+`/tmp/pero-validation-review-{before,after}.pprof`.
 
 
 ## Verification
@@ -147,3 +178,12 @@ This is source-receipt maintenance, not proof of cross-language equivalence.
 These checks cover native local behavior; this change supplies no new paid
 benchmark verdict or causal token-saving measurement. The existing Better
 Harness exporter continues to consume the same summary and Session evidence.
+
+Follow-up verification passes all 36 Go packages with
+`GOMAXPROCS=2 go test -race -count=1 ./...`; standalone Bazel race targets
+`session`, `harness` and `engineeringprofile`; related vet; 33 offline reporter
+tests and 21 trial tests. Added behavior covers native asynchronous cross-turn
+receipts, unrelated unknown process observations, preview sequence reuse,
+caller mutation, warm image omissions/replacements, prompt replacement and
+restore equivalence. Linux CI for the new commit is checked separately from
+these local results.

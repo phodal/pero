@@ -108,11 +108,7 @@ func (p ContextPlan) Digest() string {
 }
 
 func (s *Session) ContextPlan() (ContextPlan, error) {
-	s.mu.RLock()
-	events := append([]Event(nil), s.events...)
-	surface := append([]uint64(nil), s.surface...)
-	s.mu.RUnlock()
-	return BuildContextPlan(events, surface)
+	return s.ContextPlanWithMessages(nil)
 }
 
 // ContextPlanWithMessages previews admission without publishing pending user
@@ -120,10 +116,31 @@ func (s *Session) ContextPlan() (ContextPlan, error) {
 // separately retain accepted input on preparation failure. No synthetic identity
 // escapes this preview.
 func (s *Session) ContextPlanWithMessages(messages []Message) (ContextPlan, error) {
+	// Only immutable committed messages are memoized. Surface replay, image
+	// omissions and prompt validation still run for every plan. Keep the cache
+	// local to this Session and bounded by its current committed surface.
+	s.contextDecodeMu.Lock()
+	defer s.contextDecodeMu.Unlock()
 	s.mu.RLock()
 	events := append([]Event(nil), s.events...)
 	surface := append([]uint64(nil), s.surface...)
 	s.mu.RUnlock()
+	retained := make(map[uint64]bool, len(surface))
+	for _, seq := range surface {
+		retained[seq] = true
+	}
+	decoded := make(map[uint64]Message, len(surface))
+	decode := func(event Event) (Message, error) {
+		message, ok := s.contextMessages[event.Seq]
+		var err error
+		if !ok {
+			message, err = decodeSurfaceMessage(event)
+		}
+		if err == nil && retained[event.Seq] {
+			decoded[event.Seq] = message
+		}
+		return message, err
+	}
 	for _, message := range messages {
 		if message.Role != model.RoleUser {
 			continue
@@ -136,15 +153,23 @@ func (s *Session) ContextPlanWithMessages(messages []Message) (ContextPlan, erro
 		events = append(events, Event{Seq: seq, Type: "user/message", Data: raw, SurfaceOp: json.RawMessage(`"append"`)})
 		surface = append(surface, seq)
 	}
-	return BuildContextPlan(events, surface)
+	plan, err := buildContextPlanWithDecoder(events, surface, decode)
+	if err == nil {
+		s.contextMessages = decoded
+	}
+	return plan, err
 }
 
 // BuildContextPlan preserves the declared surface in order, including opaque
 // message metadata. No plugin identity, tool name or sourceRules grant authority
 // to omit data. Policy/authorization belongs to the caller, before admission.
 func BuildContextPlan(events []Event, surface []uint64) (ContextPlan, error) {
+	return buildContextPlanWithDecoder(events, surface, decodeSurfaceMessage)
+}
+
+func buildContextPlanWithDecoder(events []Event, surface []uint64, decode func(Event) (Message, error)) (ContextPlan, error) {
 	plan := ContextPlan{Kind: ContextPlanKind}
-	projected, err := projectedSurfaceMessages(events, surface)
+	projected, err := projectedSurfaceMessagesWithDecoder(events, surface, decode)
 	if err != nil {
 		return plan, err
 	}
@@ -157,7 +182,7 @@ func BuildContextPlan(events []Event, surface []uint64) (ContextPlan, error) {
 		if !ok || !isSurfaceEventType(event.Type) {
 			return plan, fmt.Errorf("session: invalid context surface seq %d", seq)
 		}
-		if err := validateSystemPromptEvent(event); err != nil {
+		if err := validateSystemPromptEventWithDecoder(event, decode); err != nil {
 			return plan, err
 		}
 		message, ok := projected[seq]
