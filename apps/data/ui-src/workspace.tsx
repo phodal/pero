@@ -129,9 +129,9 @@ export function Workspace(props: Props) {
           <div className="data-grid" tabIndex={0} role="region" aria-label="Data records">
             <table className="data-rows">
               <thead><tr><th scope="col">#</th>{inspected.columns.map(key => <th key={key} scope="col" aria-sort={displayedView.sort?.field === key ? (displayedView.sort.descending ? 'descending' : 'ascending') : 'none'}>
-                <button type="button" disabled={busy} onClick={() => props.onView({ ...view, sort: { field: key, descending: view.sort?.field === key ? !view.sort.descending : false } })}>
+                <Button variant="ghost" disabled={busy} onClick={() => props.onView({ ...view, sort: { field: key, descending: view.sort?.field === key ? !view.sort.descending : false } })}>
                   {key}{displayedView.units[key] ? ` (${displayedView.units[key]})` : ''}
-                </button>
+                </Button>
               </th>)}<th scope="col">Source</th></tr></thead>
               <tbody>{inspected.rows.map(row => <tr key={row.row} aria-selected={selected.has(row.row - 1)}>
                 <th scope="row"><label><Checkbox aria-label={`Select record ${row.row}`} checked={selected.has(row.row - 1)}

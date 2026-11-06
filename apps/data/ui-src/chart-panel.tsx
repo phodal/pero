@@ -199,7 +199,7 @@ export function ChartPanel({ data, busy, inspectionPending, aggregationControls,
         })()} /></div>
       {savedOpen && <div id="data-saved-charts">
         {savedError && <div className="data-chart-error" role="alert"><span>{savedError}</span><Button onClick={() => void listSaved()}>Retry</Button></div>}
-        {savedLoading && !saved.length ? <p className="data-muted" role="status">Loading charts…</p> : saved.length ? <ul className="data-saved-list">{saved.map(item => <li key={item.artifactId}><button type="button" aria-label={`${item.title} (${item.type})`} disabled={busy || pending} onClick={() => void openSaved(item.artifactId)}><span><strong>{item.title}</strong>{item.source !== item.title && <small>{item.source}</small>}</span><span>{item.type}</span></button></li>)}</ul> : !savedError && <p className="data-muted">No saved charts.</p>}
+        {savedLoading && !saved.length ? <p className="data-muted" role="status">Loading charts…</p> : saved.length ? <ul className="data-saved-list">{saved.map(item => <li key={item.artifactId}><Button variant="ghost" aria-label={`${item.title} (${item.type})`} disabled={busy || pending} onClick={() => void openSaved(item.artifactId)}><span><strong>{item.title}</strong>{item.source !== item.title && <small>{item.source}</small>}</span><span>{item.type}</span></Button></li>)}</ul> : !savedError && <p className="data-muted">No saved charts.</p>}
       </div>}
     </section>
   </div>;

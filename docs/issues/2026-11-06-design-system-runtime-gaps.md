@@ -87,3 +87,18 @@ The fixture has no backend (visible API 404), so no execution acceptance is
 inferred. HPC/Cell UI tests, four Apps' type checks/builds and root check pass.
 See the detailed review for screenshots and exact limitations. Native remained
 locked, so the tracker stays in_progress pending the existing acceptance scope.
+
+
+## Data and Paper ordinary action migration
+
+Data's table-header sort action and saved-chart opener still bypassed the public
+Button. Replace both with SDK ghost Button and remove their private control
+background/border/hover skin; retain sort toggles, aria-sort, disabled states,
+chart identity and opening behavior. Long chart labels wrap within their row.
+
+Paper Discover's add-by-link, retry, title disclosure, saved-paper opener and
+add-to-library actions become SDK Button (secondary, ghost and link by purpose).
+Remove the matching private skins and let filters wrap when enlarged. Preserve
+search IME handling, retained results, query/source/sort, per-hit busy/error
+state, details disclosure and already-saved paper navigation. This follow-up
+does not move search, acquisition or reading state into the component library.
