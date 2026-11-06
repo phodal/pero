@@ -45,14 +45,19 @@ impl InstalledApp {
         match self.name.as_str() {
             "insights" => AppPlacement::Primary,
             "paper-agent" | "data" => AppPlacement::Workspace,
-            "environments" => AppPlacement::WorkspaceCatalog,
+            "environments" | "hpc" => AppPlacement::WorkspaceCatalog,
             "connectors" => AppPlacement::Customize,
             "automations" => AppPlacement::Automation,
             _ => AppPlacement::Catalog,
         }
     }
+    /// Workspace tools stay discoverable before first activation; optional
+    /// catalog Apps join the sidebar only after the user enables them.
+    pub fn has_sidebar_entry(&self) -> bool {
+        self.enabled || self.placement() != AppPlacement::Catalog
+    }
     pub fn category(&self) -> AppCategory {
-        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
+        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" | "hpc" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
     }
 }
 
@@ -505,6 +510,26 @@ mod surface {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn workspace_tools_remain_discoverable_before_activation() {
+        for (name, enabled, shortcut, catalog) in [
+            ("hpc", false, true, true),
+            ("hpc", true, true, true),
+            ("environments", false, true, true),
+            ("environments", true, true, true),
+            ("paper-agent", false, true, false),
+            ("virtual-cell", false, false, true),
+            ("virtual-cell", true, true, true),
+        ] {
+            let app: InstalledApp = serde_json::from_value(serde_json::json!({
+                "name": name, "version": "1", "displayName": name,
+                "enabled": enabled, "panels": []
+            })).unwrap();
+            assert_eq!(app.has_sidebar_entry(), shortcut, "{name}, enabled={enabled}");
+            assert_eq!(app.placement().in_catalog(), catalog, "{name}");
+        }
+    }
 
     #[test]
     fn installed_panel_availability_follows_catalog() {

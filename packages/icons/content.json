@@ -134,6 +134,7 @@
     "paper-agent": "book-open-text",
     "control-lab": "activity",
     "lab": "flask-conical",
+    "hpc": "cpu",
     "data": "database",
     "insights": "layout-list",
     "connectors": "plug",

@@ -235,6 +235,7 @@ pub fn lookup(section: &str, value: &str) -> Option<&'static str> {
         ("apps", "paper-agent") => Some("book-open-text"),
         ("apps", "control-lab") => Some("activity"),
         ("apps", "lab") => Some("flask-conical"),
+        ("apps", "hpc") => Some("cpu"),
         ("apps", "data") => Some("database"),
         ("apps", "insights") => Some("layout-list"),
         ("apps", "connectors") => Some("plug"),

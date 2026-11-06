@@ -21,7 +21,9 @@ a numerical report passing are shown separately.
 ## Open the App
 
 The Pero product includes `hpc`. Build and open the workbench, then select
-**Apps → HPC Benchmarks**. The Host prepares the pinned Python dependency from
+**HPC Benchmarks** in the workspace sidebar, or find it under **Apps → Research**.
+The sidebar entry is available before first activation; opening it uses the
+existing App enable and environment preparation flow. The Host prepares the pinned Python dependency from
 `app.json` using its existing environment setup flow. First use needs network
 access for dependency installation. No model credentials or cluster account are
 needed for the local references.
