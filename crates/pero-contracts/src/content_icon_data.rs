@@ -27,6 +27,7 @@ pub fn canonical(name: &str) -> Option<&'static str> {
         "file-code" => Some("file-code"),
         "terminal" => Some("terminal"),
         "arrow-right" => Some("arrow-right"),
+        "arrow-up" => Some("arrow-up"),
         "player-pause" => Some("player-pause"),
         "pause" => Some("player-pause"),
         "external-link" => Some("external-link"),

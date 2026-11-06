@@ -123,6 +123,8 @@ const artwork = {
   "terminal": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M5 7l5 5l-5 5" /> <path d="M12 19l7 0" /></> },
   // web/public/icons/arrow-right.svg (LICENSE.txt)
   "arrow-right": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M5 12l14 0" /> <path d="M13 18l6 -6" /> <path d="M13 6l6 6" /></> },
+  // gpui-kit/assets/icons/arrow-up.svg (Lucide, LICENSE-LUCIDE)
+  "arrow-up": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="m5 12 7-7 7 7" /> <path d="M12 19V5" /></> },
   // web/public/icons/player-pause.svg (LICENSE.txt)
   "player-pause": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M6 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12" /> <path d="M14 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12" /></> },
   // web/public/icons/external-link.svg (LICENSE.txt)

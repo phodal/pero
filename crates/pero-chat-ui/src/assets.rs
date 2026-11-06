@@ -8,6 +8,7 @@ gpui_kit::assets::icon_assets!(
         Pin,
         Microscope,
         FlaskConical,
+        ArrowUp,
         Square,
         LayoutGrid,
         GalleryHorizontal,
@@ -80,6 +81,7 @@ pub enum UiIcon {
     FileCode,
     Terminal,
     ArrowRight,
+    ArrowUp,
     PlayerPause,
     ExternalLink,
     File,
@@ -173,6 +175,7 @@ impl UiIcon {
             "file-code" => Some(Self::FileCode),
             "terminal" => Some(Self::Terminal),
             "arrow-right" => Some(Self::ArrowRight),
+            "arrow-up" => Some(Self::ArrowUp),
             "player-pause" | "pause" => Some(Self::PlayerPause),
             "external-link" => Some(Self::ExternalLink),
             "file" | "file-text" => Some(Self::File),
@@ -263,6 +266,7 @@ impl UiIcon {
             Self::FileCode => "file-code",
             Self::Terminal => "terminal",
             Self::ArrowRight => "arrow-right",
+            Self::ArrowUp => "arrow-up",
             Self::PlayerPause => "player-pause",
             Self::ExternalLink => "external-link",
             Self::File => "file",
@@ -384,6 +388,7 @@ impl UiIcon {
             Self::FileCode => "icons/file-code.svg",
             Self::Terminal => "icons/terminal.svg",
             Self::ArrowRight => "icons/arrow-right.svg",
+            Self::ArrowUp => "icons/arrow-up.svg",
             Self::PlayerPause => "icons/player-pause.svg",
             Self::ExternalLink => "icons/external-link.svg",
             Self::File => "icons/file.svg",
@@ -536,6 +541,7 @@ impl AssetSource for UiAssets {
             Some(UiIcon::ArrowRight) => Some(Cow::Borrowed(include_bytes!(
                 "../../../web/public/icons/arrow-right.svg"
             ))),
+            Some(UiIcon::ArrowUp) => SelectedKitIcons.load("icons/arrow-up.svg")?,
             Some(UiIcon::PlayerPause) => Some(Cow::Borrowed(include_bytes!(
                 "../../../web/public/icons/player-pause.svg"
             ))),
@@ -666,6 +672,7 @@ impl AssetSource for UiAssets {
             UiIcon::FileCode,
             UiIcon::Terminal,
             UiIcon::ArrowRight,
+            UiIcon::ArrowUp,
             UiIcon::PlayerPause,
             UiIcon::ExternalLink,
             UiIcon::File,
