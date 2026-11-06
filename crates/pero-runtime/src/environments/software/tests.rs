@@ -54,11 +54,21 @@ fn software_requirements_are_component_scoped() {
                     },
                 ),
                 (
+                    id("manifest-only"),
+                    SoftwareComponent::OciImage {
+                        index: Some(hash("multi-arch")),
+                        manifest: Some(hash("linux-arm")),
+                        config: None,
+                        os: id("linux"),
+                        architecture: id("arm64"),
+                    },
+                ),
+                (
                     id("image"),
                     SoftwareComponent::OciImage {
                         index: Some(hash("multi-arch")),
                         manifest: Some(hash("linux-arm")),
-                        config: hash("config"),
+                        config: Some(hash("config")),
                         os: id("linux"),
                         architecture: id("arm64"),
                     },
@@ -155,6 +165,22 @@ fn software_requirements_are_component_scoped() {
                 identity: ImageIdentity::Manifest(hash("linux-arm")),
             },
             true,
+        ),
+        (
+            "manifest remains usable without config evidence",
+            "manifest-only",
+            ComponentRequirement::OciImage {
+                identity: ImageIdentity::Manifest(hash("linux-arm")),
+            },
+            true,
+        ),
+        (
+            "unknown config cannot satisfy a config pin",
+            "manifest-only",
+            ComponentRequirement::OciImage {
+                identity: ImageIdentity::Config(hash("linux-arm")),
+            },
+            false,
         ),
         (
             "config is not manifest",

@@ -20,7 +20,7 @@ pub enum SoftwareComponent {
     OciImage {
         index: Option<ContentDigest>,
         manifest: Option<ContentDigest>,
-        config: ContentDigest,
+        config: Option<ContentDigest>,
         os: Identity,
         architecture: Identity,
     },
@@ -214,7 +214,7 @@ impl SoftwareProfile {
                     ) => match identity {
                         ImageIdentity::Index(hash) => index.as_ref() == Some(hash),
                         ImageIdentity::Manifest(hash) => manifest.as_ref() == Some(hash),
-                        ImageIdentity::Config(hash) => config == hash,
+                        ImageIdentity::Config(hash) => config.as_ref() == Some(hash),
                     },
                     _ => false,
                 }
