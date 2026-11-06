@@ -2,7 +2,9 @@
 //! retain budgets, attempt records, verification, and acceptance.
 mod compose;
 mod docker;
+mod slurm;
 pub use compose::{ComposeDeployment, ComposeEvidence, ComposeMember};
+pub use slurm::SlurmSite;
 mod local;
 use crate::environments::{Identity, ResourceBinding};
 use crate::owned_process::OwnedProcess;

@@ -241,3 +241,85 @@ fn compose_preserves_member_identity_and_retains_service_data() {
     );
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+#[ignore = "requires an explicit live Slurm site and shared attempt directory"]
+fn slurm_tracks_submission_allocation_and_confirmed_cancellation() {
+    use std::os::unix::fs::PermissionsExt;
+    let site = SlurmSite::connect(
+        std::env::var("PERO_TEST_SLURM_BIN").unwrap().into(),
+        id(&std::env::var("PERO_TEST_SLURM_CLUSTER").unwrap()),
+    )
+    .unwrap();
+    for cancel in [false, true] {
+        let dir = directory();
+        let payload = dir.join("method.sh");
+        fs::write(
+            &payload,
+            if cancel {
+                "#!/bin/sh\nprintf ready > ready\nexec sleep 300\n"
+            } else {
+                "#!/bin/sh\nprintf batch-result > result\n"
+            },
+        )
+        .unwrap();
+        fs::set_permissions(&payload, fs::Permissions::from_mode(0o700)).unwrap();
+        let operation = id(dir.file_name().unwrap().to_str().unwrap());
+        let constraints = BatchConstraints::new(id("validation"), 1, 32, 60).unwrap();
+        let record = dir.join("submission.json");
+        let submission = site
+            .submit(
+                operation.clone(),
+                constraints.clone(),
+                &payload,
+                &dir,
+                &record,
+            )
+            .unwrap();
+        assert!(
+            site.submit(operation, constraints, &payload, &dir, &record)
+                .is_err(),
+            "no repeated submission"
+        );
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut requested_stop = false;
+        let terminal = loop {
+            let observation = site.observe(&submission).unwrap();
+            if cancel && !requested_stop && dir.join("ready").exists() {
+                assert!(observation.start_time.is_some());
+                assert!(!observation.nodes.is_empty());
+                site.cancel(&submission).unwrap();
+                requested_stop = true;
+            }
+            if observation.stopped() {
+                break observation;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "original Slurm job has not stopped"
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        };
+        assert!(terminal.states.iter().any(|s| s
+            == if cancel {
+                &BatchState::Cancelled
+            } else {
+                &BatchState::Completed
+            }));
+        let allocated = fs::read_to_string(dir.join("allocation.txt")).unwrap();
+        assert!(allocated.contains(&format!("job={}", submission.job_id)));
+        assert!(allocated.contains(submission.payload.as_str()));
+        if !cancel {
+            assert_eq!(
+                fs::read_to_string(dir.join("result")).unwrap(),
+                "batch-result"
+            );
+        }
+        fs::write(
+            dir.join("terminal.json"),
+            serde_json::to_vec_pretty(&terminal).unwrap(),
+        )
+        .unwrap();
+        eprintln!("Slurm evidence: {}", dir.display());
+    }
+}

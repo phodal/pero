@@ -1,5 +1,7 @@
 //! Scientific execution conditions. No processes, clock, storage or authority.
 mod composition;
+mod batch;
+pub use batch::*;
 mod matching;
 mod model;
 mod record;
