@@ -982,5 +982,6 @@
   "research.verification": "Recorded check",
   "research.missing_title": "Original record unavailable",
   "research.idle": "Not run yet",
-  "research.simulation": "Simulation"
+  "research.simulation": "Simulation",
+  "chat.process_more": "More"
 }

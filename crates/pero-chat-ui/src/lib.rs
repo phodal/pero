@@ -61,6 +61,9 @@ pub mod authentication;
 pub mod conversation_title;
 pub mod brief_conversation;
 pub mod thinking;
+pub mod process;
+pub mod tool_activity;
+pub mod tool_body;
 pub mod tool_transcript;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]

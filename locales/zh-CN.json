@@ -982,5 +982,6 @@
   "research.verification": "检查结果",
   "research.missing_title": "原记录不可用",
   "research.idle": "尚未运行",
-  "research.simulation": "模拟实验"
+  "research.simulation": "模拟实验",
+  "chat.process_more": "等"
 }
