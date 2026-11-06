@@ -330,7 +330,7 @@ hover、pressed、selected 和 focus 按控件含义设计；选中是持续状�
 - 浅色链接与强调文字使用 `#00777D`，链接保留下划线。
 - 强调背景与文字使用 `accent-soft` / `accent-text` 配对，亮青使用 `on-accent` 深色文字。
 - 成功、警告、错误、信息使用各主题中的语义色，配明确文字或图标。实色状态背景使用对应 `on-*` 前景。
-- 装饰分隔使用 `border`；输入边界使用 `input-border`；键盘焦点使用 `focus`。
+- 装饰分隔使用 `border`；输入边界使用 `input-border`；键盘焦点使用 `focus`。文本输入、Textarea 与搜索框使用贴合边框的 1px `text-muted` 焦点细线；校验失败时保留 `error` 边界。
 
 默认侧栏使用 `surface-muted`，页面使用 `bg`，阅读面使用 `surface`。
 输入边界与焦点应清晰；分隔线、阴影和边框按分组与层级需要选择，避免叠加重复容器。

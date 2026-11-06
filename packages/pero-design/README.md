@@ -60,7 +60,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
   按当前文字行高增长；间距和圆角不随字体等比例膨胀。
 - 新组件使用 `--pero-spacing-1` 至 `--pero-spacing-6`，对应间距 4 / 8 / 12 / 16 / 20 / 24，图标间距 6。侧栏外边距 10，分组间距 16。
 - 选中导航使用主题的强调背景与文字配对，默认是青色；分类和内容强调按 DESIGN 的颜色用途选择，不能与选中或错误状态混淆。
-- 只在内容确实需要分隔时使用 0.5px 分隔线。输入边界 1px，键盘焦点 2px。
+- 只在内容确实需要分隔时使用 0.5px 分隔线。输入边界 1px；文本输入、Textarea 与搜索框的键盘焦点使用贴合边框的 1px 中性细线，其他控件的键盘焦点 2px。
 - 每个操作区有清晰的主要动作；“新聊天”使用会话行尾的独立 +，侧栏不重复品牌标题或大按钮。折叠后仍可达。
 - Insights / 论文、执行环境 / 应用商店之间用 `SidebarGroup separated` 明确划分任务域，避免每行加分隔。
 - 状态由调用方传入。加载、运行、成功、错误、禁用要能区分；出错保留用户输入。
@@ -75,6 +75,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
   键盘焦点独立描边；主操作使用 `action-hover`，保持文字对比。
 - 主操作用 `action` / `action-hover` / `action-pressed` 配 `on-action`。
   选中内容用 `accent-soft` 配 `accent-text`，键盘焦点独立使用 `focus`。
+- 文本输入、Textarea 与搜索框的焦点细线使用 `text-muted`，不外扩；校验失败时沿用 `error` 边界，禁用状态保持不可编辑。明暗主题都检查细线与实际输入表面的对比。
 - `Card tone="blue" | "apricot"` 和对应 Badge 表达内容身份；`variant="soft"`
   用轻染色底。两种 tone 都有 surface / soft / strong / text，明暗主题分别生成。
 - 业务状态使用 neutral / info / success / warning / error，始终带文字；正常未执行使用 neutral。

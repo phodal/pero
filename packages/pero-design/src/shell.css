@@ -28,7 +28,7 @@
 .pero-sidebar[data-collapsed] .pero-sidebar-label, .pero-sidebar[data-collapsed] .pero-sidebar-count, .pero-sidebar[data-collapsed] .pero-sidebar-group[data-separated] { margin-block-start:var(--pero-spacing-2); padding-block-start:var(--pero-spacing-1); border-block-start:0.5px solid var(--pero-border); }
 .pero-sidebar-group-label { display: none; }
 .pero-sidebar[data-collapsed] .pero-sidebar-row { justify-content: center; padding-inline: 0; }
-.pero-sidebar-row:focus-visible, .pero-search-field:focus-visible, .pero-list-open:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
+.pero-sidebar-row:focus-visible, .pero-list-open:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
 .pero-sidebar-row:disabled { opacity: .5; cursor: default; }
 .pero-sidebar-count { flex: none; font-size: var(--pero-font-caption); font-variant-numeric: tabular-nums; color: var(--pero-text-muted); }
 @media (pointer: coarse) {

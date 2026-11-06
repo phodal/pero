@@ -161,6 +161,9 @@
   color: var(--pero-role-text);
   font: var(--pero-font-body) system-ui, sans-serif;
 }
+.pero-search-field:focus-visible { outline: var(--pero-border-width-thin, 1px) solid var(--pero-text-muted); outline-offset: calc(-1 * var(--pero-border-width-thin, 1px)); }
+.pero-search-field[aria-invalid=true] { border-color: var(--pero-error); }
+.pero-search-field[aria-invalid=true]:focus-visible { outline-color: var(--pero-error); }
 
 .pero-chat {
   color: var(--pero-text);
