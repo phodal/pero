@@ -45,7 +45,7 @@ impl InstalledApp {
         match self.name.as_str() {
             "insights" => AppPlacement::Primary,
             "paper-agent" | "data" => AppPlacement::Workspace,
-            "environments" | "hpc" => AppPlacement::WorkspaceCatalog,
+            "environments" | "compute" | "hpc" => AppPlacement::WorkspaceCatalog,
             "connectors" => AppPlacement::Customize,
             "automations" => AppPlacement::Automation,
             _ => AppPlacement::Catalog,
@@ -57,7 +57,7 @@ impl InstalledApp {
         self.enabled || self.placement() != AppPlacement::Catalog
     }
     pub fn category(&self) -> AppCategory {
-        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" | "hpc" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
+        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" | "hpc" | "compute" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
     }
 }
 
@@ -516,6 +516,8 @@ mod tests {
         for (name, enabled, shortcut, catalog) in [
             ("hpc", false, true, true),
             ("hpc", true, true, true),
+            ("compute", false, true, true),
+            ("compute", true, true, true),
             ("environments", false, true, true),
             ("environments", true, true, true),
             ("paper-agent", false, true, false),

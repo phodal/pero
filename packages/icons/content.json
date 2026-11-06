@@ -135,6 +135,7 @@
     "control-lab": "activity",
     "lab": "flask-conical",
     "hpc": "cpu",
+    "compute": "network",
     "data": "database",
     "insights": "layout-list",
     "connectors": "plug",
