@@ -1,14 +1,16 @@
 use super::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UseRequest {
     pub id: Identity,
     pub consumer: Identity,
     pub snapshot: EnvironmentSnapshot,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OwnerReceipt {
     pub use_id: Identity,
     pub snapshot: ContentDigest,
@@ -26,7 +28,8 @@ pub enum UseState {
     UnknownRelease,
     Released,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum UseCommand {
     Begin(UseRequest),
     Acquired(OwnerReceipt),

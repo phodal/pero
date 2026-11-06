@@ -31,9 +31,17 @@
 .env-footer{justify-content:space-between;align-items:flex-start;border-top:.5px solid var(--pero-border);padding-top:var(--pero-spacing-3)}
 .env-footer .env-note{max-width:60ch;flex:1;min-width:min(180px,100%)}
 .pero-env-trigger{display:inline-flex}
-.env-create-form{max-width:480px;display:grid;gap:var(--pero-spacing-3)}
-.env-recipe-summary{display:grid;gap:var(--pero-spacing-1);padding:var(--pero-spacing-3) 0;border-block:.5px solid var(--pero-border);font-size:var(--pero-font-caption);color:var(--pero-text-muted)}
-.env-recipe-summary strong{color:var(--pero-text);font-weight:500}
+.env-workspace{min-height:100vh;background:var(--pero-bg);align-content:start;padding:var(--pero-spacing-5) var(--pero-spacing-6);gap:var(--pero-spacing-4)}
+.env-workspace>.pero-library-header{padding:0;background:transparent;align-items:flex-start;flex-wrap:wrap}
+.env-workspace .pero-library-heading h1{white-space:normal;overflow-wrap:anywhere}
+.env-workspace .pero-library-heading p{max-width:64ch;margin-top:var(--pero-spacing-2);line-height:1.5}
+.env-back{justify-self:start}
+.env-create-form{width:100%;max-width:560px;display:grid;gap:var(--pero-spacing-5)}
+.env-recipe-summary{display:grid;gap:var(--pero-spacing-3)}
+.env-recipe-facts{display:grid;gap:var(--pero-spacing-2);margin:0}
+.env-recipe-facts>div{display:grid;grid-template-columns:6em minmax(0,1fr);gap:var(--pero-spacing-3)}
+.env-recipe-facts dt{font-size:var(--pero-font-caption);color:var(--pero-text-muted)}
+.env-recipe-facts dd{margin:0;overflow-wrap:anywhere}
 .env-form-actions{justify-content:flex-end}
 .env-install-log{font-size:var(--pero-font-caption)}
 .pero-env summary{cursor:pointer;padding:var(--pero-spacing-1) 0}
@@ -44,4 +52,4 @@
 .env-dependency-table{max-width:720px}
 .pero-env .pero-ui-feedback{overflow-wrap:anywhere}
 .env-load-error{display:grid;gap:var(--pero-spacing-2);justify-items:start}
-@media(max-width:580px){.env-toolbar .pero-ui-toggle-group{margin-left:0}.env-heading{align-items:flex-start}.env-observation{grid-template-columns:1fr;gap:var(--pero-spacing-1)}.env-observation dd{margin-bottom:var(--pero-spacing-2)}.env-footer .env-note{min-width:100%}}
+@media(max-width:580px){.env-workspace{padding:var(--pero-spacing-4)}.env-toolbar .pero-ui-toggle-group{margin-left:0}.env-heading{align-items:flex-start}.env-observation{grid-template-columns:1fr;gap:var(--pero-spacing-1)}.env-observation dd{margin-bottom:var(--pero-spacing-2)}.env-footer .env-note{min-width:100%}}

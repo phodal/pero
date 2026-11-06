@@ -26,7 +26,7 @@ pub(crate) fn fixture() -> (
                 SoftwareComponent::OciImage {
                     index: None,
                     manifest: Some(hash("manifest")),
-                    config: hash("config"),
+                    config: Some(hash("config")),
                     os: id("linux"),
                     architecture: id("amd64"),
                 },
@@ -258,7 +258,7 @@ fn observations_cannot_replace_an_existing_execution() {
                             SoftwareComponent::OciImage {
                                 index: None,
                                 manifest: None,
-                                config: hash("new-image"),
+                                config: Some(hash("new-image")),
                                 os: id("linux"),
                                 architecture: id("amd64"),
                             },

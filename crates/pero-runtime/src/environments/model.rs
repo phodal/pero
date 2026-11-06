@@ -227,7 +227,8 @@ pub enum Requirement {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "EnvironmentRequirementsInput")]
 pub struct EnvironmentRequirements {
     method: Identity,
     required: Vec<Requirement>,
@@ -266,7 +267,8 @@ pub struct SoftwareRecipe {
     pub inputs: Vec<ContentDigest>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnvironmentTemplate {
     identity: Identity,
     version: Version,
@@ -289,19 +291,21 @@ impl EnvironmentTemplate {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnvironmentBinding {
     pub owner: Identity,
     pub incarnation: Identity,
     pub observed_at_ms: u64,
     pub profile: SoftwareProfile,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "LegacySnapshotInput")]
 pub struct LegacySnapshot {
     template: EnvironmentTemplate,
     binding: EnvironmentBinding,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum EnvironmentSnapshot {
     Legacy(LegacySnapshot),
@@ -385,5 +389,39 @@ impl EnvironmentInstance {
     }
     pub fn snapshot(&self) -> &EnvironmentSnapshot {
         &self.snapshot
+    }
+}
+
+// Typed storage boundary; every reconstructed invariant uses its original owner.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EnvironmentRequirementsInput {
+    method: Identity,
+    required: Vec<Requirement>,
+    preferred: Vec<Requirement>,
+}
+impl TryFrom<EnvironmentRequirementsInput> for EnvironmentRequirements {
+    type Error = EnvironmentError;
+    fn try_from(value: EnvironmentRequirementsInput) -> Result<Self, Self::Error> {
+        Self::new(value.method, value.required, value.preferred)
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacySnapshotInput {
+    template: EnvironmentTemplate,
+    binding: EnvironmentBinding,
+}
+impl TryFrom<LegacySnapshotInput> for LegacySnapshot {
+    type Error = EnvironmentError;
+    fn try_from(value: LegacySnapshotInput) -> Result<Self, Self::Error> {
+        // Loading historical evidence does not establish present freshness.
+        let observed = value.binding.observed_at_ms;
+        let EnvironmentSnapshot::Legacy(snapshot) =
+            EnvironmentSnapshot::capture(value.template, value.binding, observed, 1)?
+        else {
+            unreachable!("legacy capture")
+        };
+        Ok(snapshot)
     }
 }

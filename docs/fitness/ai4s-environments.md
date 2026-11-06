@@ -109,3 +109,58 @@ PR 隔离 worktree 复核：显式设置 `PERO_GPUI_KIT_PATH=/Users/phodal/test/
 并把 Rust nightly 与 `/opt/homebrew/bin` 放入测试 PATH。最初 worktree 的系统 Python
 解析为 Xcode Python 3.9，不能加载现有 PC-Gym 注解；切换到已有 Homebrew Python 后
 Runtime 全套再次通过。SDK 测试使用已有包内 jsdom 依赖。没有降低探针要求或把失败计为通过。
+
+## 2026-11-06: live local, Docker, Compose and Slurm owner evidence
+
+Branch `codex/environment-runtime`, commits through `b9e98821`, macOS arm64.
+ADR/core PR #147 merged to the repository default `master` as `08a0e6a2`.
+This follow-up implements validated Use replay, Host SQLite commit-before-effect,
+shared local process supervision, and local/Docker process owners. The private
+Host handoff is exercised with an existing-attempt reference; it is not yet wired
+to the production Control/Paper scientific admission routes.
+
+Actual Docker context `colima-pero-benchmark-rosetta` runs a Linux arm64 daemon;
+the explicit scientific fixture image uses linux/amd64 emulation. Daemon
+`beede0d6-387a-4e23-8547-dce7482ae7c6` returned a containerd image index for ordinary
+inspect and a platform manifest for `--platform`. The model now preserves unknown
+config digests instead of calling either value an image config ID.
+
+Verified independently of the default suite's opt-in skips:
+
+- Local method output, real container method output, readiness-observed running
+  cancellation, and absence of the original container after cleanup.
+- Actual ngspice 42 voltage divider under Host `BoundProcess`: numerical output
+  5 V within 1e-6, Released Use retained after SQLite reopen. Evidence in
+  `test-results/compute/ngspice-57363/{stdout.log,use.json,uses.sqlite}`.
+- Native Compose deploys two healthy services on an internal network, client
+  reads the original service's output, resource evidence survives reopen, and
+  removing exact containers/networks retains named-volume data. The test then
+  explicitly removes its own fixture volume.
+- Slurm 23.11.4 single-node fixture: actual submitted job, allocation-side payload
+  hash check, output, terminal observation, and separately running-job cancellation.
+  The submission intent prevents a second `sbatch`; numeric job ID is checked
+  against cluster, comment/operation and submit time. Missing controller history
+  remains unknown, requiring accounting reconciliation. No accounting fallback
+  or production scheduler integration is claimed.
+- Slurm evidence: `test-results/compute/pero-compute-68638762-4abe-429c-9e53-c0970fcc89e9`
+  (completion) and `pero-compute-6b9dd47f-f9e3-4764-9e7b-4bc2b58582fd` (cancel),
+  including submission/receipt, allocation and terminal JSON.
+
+`pero-runtime --lib`: 126 passed, 4 explicit opt-in ignored. The Docker, Compose
+and Slurm opt-ins listed above were separately run successfully. This is L2 for
+these adapter paths, not full App/Native/release acceptance. Docker CLI waits are
+bounded to 30 seconds and observations to 8 MiB; timeouts never authorize retries.
+
+Authorized local VM resources are being prepared separately: official Alpine
+3.22.6 arm64 SHA-512-verified cloud image with per-instance QEMU overlay/SSH key,
+Tart Ubuntu 24.04 clone, and an isolated k3d/KubeVirt 1.9.1 cluster using emulation.
+QEMU and Tart both returned actual guest boot IDs and executed commands; both
+also confirmed stopping. KubeVirt VM startup and production VM owner integration
+remain in progress. Keys, images, overlays and kubeconfig remain ignored.
+
+Remaining product gates: trusted method registration and bounded input staging,
+Control/Paper reserve-admit-dispatch integration, independent PC-Gym runtime,
+Compute/Environments management UI for nonlocal resources, Compose member Use
+projection, VM adapters and KubeVirt control-plane binding, Slurm allocation-side
+Use binding/accounting reconciliation, and backend-specific release evidence.
+No COBOL App code is included in these commits.

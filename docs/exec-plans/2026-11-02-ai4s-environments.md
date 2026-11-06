@@ -154,3 +154,28 @@ P4 再运行受影响的 Go/Worker 测试和真实后端 gate，不把未配置�
 无法确认原执行停止、未知派发结果、无法证实必需条件或预算/批准绑定变化时停止准入，
 保留原记录并给出恢复入口。环境层不降低科学标准、不自动补造历史观察、不为缺少依赖
 引入替代曲线或隐式下载。本计划没有承诺全量 table6 训练、自动 checkpoint 续跑或通用 GC。
+
+## 2026-11-06 UI steering
+
+The user requested Design alignment of the local creation form while continuing
+the environment implementation. The shared manager now uses LibraryHeader,
+ghost Back, Field/Input/Select and a named software summary on shared Card;
+workspace `surface` becomes full-height `bg`. Existing preparation and binding
+behavior is preserved, with the sandboxed submission bug fixed. Migration and
+actual Electron evidence are in the [preparation report](../fitness/local-environment-preparation.md).
+This does not close the remaining Docker/VM/Compose/Slurm execution gates.
+
+## 2026-11-06 live owner follow-up
+
+- [x] Validate historical Use replay without repeating effects; Host SQLite commits before returning effects.
+- [x] Real local/Docker process owners and private Host handoff, including actual ngspice output and cancellation.
+- [x] Native Compose preparation, exact member/network evidence and retained-volume acceptance.
+- [x] Slurm submission/allocation distinction, original-job observation and actual cancellation against an isolated local fixture.
+- [x] Prepare and execute in isolated QEMU and Tart guests; retain private fixture resources and stop evidence.
+- [ ] Production App admission/dispatch, bounded input staging and independent scientific interpreter selection.
+- [ ] Compose member capability/Use projection and shared-service execution lifetime.
+- [ ] Production VM owner adapters, KubeVirt VM acceptance and existing Go control-plane integration.
+- [ ] Slurm allocation-side environment Use and accounting reconciliation; production-site policy and limits.
+
+These checked items are adapter/fixture evidence only; they do not close P2–P4.
+See the [live owner report](../fitness/ai4s-environments.md#2026-11-06-live-local-docker-compose-and-slurm-owner-evidence).

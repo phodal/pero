@@ -34,7 +34,8 @@ pub enum Readiness {
 
 /// Owner observation, not a caller's declaration or a grant. Runtime identifies
 /// the boot/process incarnation separately from the surviving resource.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ResourceBinding {
     pub resource: ResourceRef,
     pub runtime: Identity,
@@ -44,28 +45,32 @@ pub struct ResourceBinding {
     pub capabilities: BTreeSet<Capability>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ResourceSlot {
     pub software: EnvironmentRequirements,
     pub capabilities: BTreeSet<Capability>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SlotCapability {
     pub slot: Identity,
     pub capability: Capability,
 }
 
 /// An access dependency, not a workflow step or a provisioning schedule.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ResourceLink {
     pub from: SlotCapability,
     pub to: SlotCapability,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "ResourceTemplateInput")]
 pub struct ResourceTemplate {
-    schema: &'static str,
+    schema: TemplateSchema,
     identity: Identity,
     version: Version,
     slots: BTreeMap<Identity, ResourceSlot>,
@@ -96,7 +101,7 @@ impl ResourceTemplate {
             }
         }
         Ok(Self {
-            schema: "pero.environment.template.v2",
+            schema: TemplateSchema::V2,
             identity,
             version,
             slots,
@@ -107,15 +112,17 @@ impl ResourceTemplate {
 
 /// Supplied by the existing method owner after freezing its specification.
 /// This selection does not authorize an App to run or acquire a resource.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UseSelection {
     pub method: Identity,
     pub slots: BTreeMap<Identity, BTreeSet<Capability>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "CompositeSnapshotInput")]
 pub struct CompositeSnapshot {
-    schema: &'static str,
+    schema: SnapshotSchema,
     template: ResourceTemplate,
     selection: UseSelection,
     required: BTreeMap<Identity, BTreeSet<Capability>>,
@@ -123,7 +130,8 @@ pub struct CompositeSnapshot {
 }
 
 /// One acquisition per actual resource, even when several slots refer to it.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UseTarget {
     pub resource: ResourceRef,
     pub runtime: Identity,
@@ -213,7 +221,7 @@ impl CompositeSnapshot {
             bindings.insert(name.clone(), binding.clone());
         }
         Ok(Self {
-            schema: "pero.environment.snapshot.v2",
+            schema: SnapshotSchema::V2,
             template,
             selection,
             required,
@@ -277,3 +285,66 @@ impl CompositeSnapshot {
 
 #[cfg(test)]
 pub(super) mod tests;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ResourceTemplateInput {
+    schema: TemplateSchema,
+    identity: Identity,
+    version: Version,
+    slots: BTreeMap<Identity, ResourceSlot>,
+    links: BTreeSet<ResourceLink>,
+}
+impl TryFrom<ResourceTemplateInput> for ResourceTemplate {
+    type Error = EnvironmentError;
+    fn try_from(value: ResourceTemplateInput) -> Result<Self, Self::Error> {
+        let _ = value.schema;
+        Self::new(value.identity, value.version, value.slots, value.links)
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompositeSnapshotInput {
+    schema: SnapshotSchema,
+    template: ResourceTemplate,
+    selection: UseSelection,
+    required: BTreeMap<Identity, BTreeSet<Capability>>,
+    bindings: BTreeMap<Identity, ResourceBinding>,
+}
+impl TryFrom<CompositeSnapshotInput> for CompositeSnapshot {
+    type Error = EnvironmentError;
+    fn try_from(value: CompositeSnapshotInput) -> Result<Self, Self::Error> {
+        let _ = value.schema;
+        // Historical records retain their original times. The live admission
+        // shell must observe/refresh them before dispatch, never use load as grant.
+        let observed = value
+            .bindings
+            .values()
+            .map(|b| b.observed_at_ms)
+            .max()
+            .unwrap_or(0);
+        let snapshot = Self::capture(
+            value.template,
+            value.selection,
+            &value.bindings,
+            observed,
+            u64::MAX,
+        )?;
+        if snapshot.required != value.required || snapshot.bindings != value.bindings {
+            return Err(EnvironmentError::Invalid("snapshot closure"));
+        }
+        Ok(snapshot)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+enum TemplateSchema {
+    #[serde(rename = "pero.environment.template.v2")]
+    V2,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+enum SnapshotSchema {
+    #[serde(rename = "pero.environment.snapshot.v2")]
+    V2,
+}

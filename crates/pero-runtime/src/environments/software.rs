@@ -20,7 +20,7 @@ pub enum SoftwareComponent {
     OciImage {
         index: Option<ContentDigest>,
         manifest: Option<ContentDigest>,
-        config: ContentDigest,
+        config: Option<ContentDigest>,
         os: Identity,
         architecture: Identity,
     },
@@ -95,7 +95,8 @@ impl From<ComponentObservation> for SoftwareObservation {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "SoftwareProfileInput")]
 pub struct SoftwareProfile {
     id: ContentDigest,
     observation: SoftwareObservation,
@@ -213,7 +214,7 @@ impl SoftwareProfile {
                     ) => match identity {
                         ImageIdentity::Index(hash) => index.as_ref() == Some(hash),
                         ImageIdentity::Manifest(hash) => manifest.as_ref() == Some(hash),
-                        ImageIdentity::Config(hash) => config == hash,
+                        ImageIdentity::Config(hash) => config.as_ref() == Some(hash),
                     },
                     _ => false,
                 }
@@ -253,3 +254,20 @@ impl SoftwareProfile {
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SoftwareProfileInput {
+    id: ContentDigest,
+    observation: SoftwareObservation,
+}
+impl TryFrom<SoftwareProfileInput> for SoftwareProfile {
+    type Error = EnvironmentError;
+    fn try_from(value: SoftwareProfileInput) -> Result<Self, Self::Error> {
+        let profile = Self::observed(value.observation);
+        if profile.id != value.id {
+            return Err(EnvironmentError::IdentityChanged);
+        }
+        Ok(profile)
+    }
+}
