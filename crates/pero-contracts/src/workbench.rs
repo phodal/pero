@@ -223,6 +223,8 @@ pub struct WorkbenchPreferences {
     pub research_projects: Vec<crate::research_project::ResearchProject>,
     #[serde(default)]
     pub layout: LayoutPreferences,
+    #[serde(default)]
+    pub shortcuts: crate::shortcuts::ShortcutOverrides,
 }
 
 impl WorkbenchPreferences {
