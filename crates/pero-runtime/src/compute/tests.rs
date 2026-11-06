@@ -209,6 +209,7 @@ fn compose_preserves_member_identity_and_retains_service_data() {
     reopened.refresh().unwrap();
     let volume = reopened.evidence().retained_volumes[0].clone();
     reopened.dispose().unwrap();
+    reopened.dispose().unwrap(); // Retry after all exact resources were removed.
     let result = command_output(Command::new("docker").args([
         "--context",
         &context,

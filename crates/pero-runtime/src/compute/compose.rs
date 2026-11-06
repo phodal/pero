@@ -358,7 +358,21 @@ impl ComposeDeployment {
                 network.as_str(),
             ]))?;
             if !result.status.success() {
-                return Err("Original Compose network removal is unconfirmed".into());
+                // A prior partial disposal may already have removed this ID.
+                // Only a successful daemon query proves absence.
+                let remaining = command_output(Command::new(&self.docker).args([
+                    "--context",
+                    &self.context,
+                    "network",
+                    "ls",
+                    "--quiet",
+                    "--no-trunc",
+                    "--filter",
+                    &format!("id={}", network.as_str()),
+                ]))?;
+                if !remaining.status.success() || !remaining.stdout.is_empty() {
+                    return Err("Original Compose network removal is unconfirmed".into());
+                }
             }
         }
         Ok(())

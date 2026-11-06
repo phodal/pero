@@ -69,7 +69,16 @@ impl BoundProcess {
                     .into(),
             );
         };
-        let actual = owner.observe(now_ms)?;
+        let actual = match owner.observe(now_ms) {
+            Ok(actual) => actual,
+            Err(error) => {
+                store.apply(
+                    &admission.use_id,
+                    UseCommand::Refused(receipt(&state, target.digest(), "observation-failed")),
+                )?;
+                return Err(error);
+            }
+        };
         let EnvironmentSnapshot::Composite(snapshot) = &state.request().snapshot else {
             unreachable!("composite admission")
         };
@@ -151,6 +160,24 @@ mod tests {
         fs,
         time::{Duration, Instant},
     };
+    struct ObservationFailure {
+        inner: LocalOwner,
+        calls: std::cell::Cell<u32>,
+    }
+    impl ProcessOwner for ObservationFailure {
+        fn observe(&self, now_ms: u64) -> Result<ResourceBinding, String> {
+            let calls = self.calls.get();
+            self.calls.set(calls + 1);
+            if calls > 0 {
+                Err("resource observation unavailable".into())
+            } else {
+                self.inner.observe(now_ms)
+            }
+        }
+        fn launch(&mut self, _: &Identity, _: &MethodInvocation) -> Result<ProcessHandle, String> {
+            panic!("An unobserved resource must not launch");
+        }
+    }
     #[test]
     #[cfg(unix)]
     fn actual_process_is_bound_to_durable_use_and_release_not_relaunch() {
@@ -212,6 +239,26 @@ mod tests {
             UseState::Released
         );
         assert!(BoundProcess::start(&mut store, &mut owner, admission(), &invocation, 10).is_err());
+        let mut unavailable = ObservationFailure {
+            inner: owner,
+            calls: std::cell::Cell::new(0),
+        };
+        let failed = ExecutionAdmission {
+            use_id: id("unavailable-use"),
+            ..admission()
+        };
+        assert!(
+            BoundProcess::start(&mut store, &mut unavailable, failed, &invocation, 10).is_err()
+        );
+        assert_eq!(
+            store
+                .get(&id("unavailable-use"))
+                .unwrap()
+                .unwrap()
+                .state()
+                .state(),
+            UseState::Released
+        );
         drop(process);
         drop(store);
         assert_eq!(
