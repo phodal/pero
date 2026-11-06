@@ -174,9 +174,44 @@ try {
   await page.getByRole('button', { name: 'Open chat' }).click();
   expect((await state()).composer).toBe('Keep this draft');
   expect((await active()).id).toBe(primaryThread);
+  const conversationsBeforePreparation = (await state()).chats.length;
+  // Model a transient App-store rejection at the real standalone Chat bridge.
+  await page.evaluate(() => {
+    window.addEventListener('message', event => {
+      const frame = document.querySelector('iframe[data-pero-chat]');
+      if (event.source !== frame?.contentWindow || event.data?.type !== 'pero:chat:command'
+        || event.data.command?.action !== 'new_session' || window.preparationReleased) return;
+      event.stopImmediatePropagation();
+      window.preparingThread ??= event.data.command.thread_id;
+      frame.contentWindow.postMessage({ type: 'pero:chat:event', event: {
+        version: 1, kind: 'session_preparing', request_id: null,
+        thread_id: event.data.command.thread_id, text: '', data: null,
+      } }, 'pero://chat');
+    }, true);
+  });
   await page.getByRole('combobox', { name: 'Switch App' }).selectOption('other');
   await expect.poll(async () => (await state()).scope?.app).toBe('other');
   const otherFrame = page.frameLocator('iframe[title="other"]');
+  await expect.poll(async () => (await active())?.state).toBe('awaiting_app');
+  const preparingThread = await page.evaluate(() => window.preparingThread);
+  await otherFrame.getByRole('button', { name: 'Discuss selection' }).click();
+  await expect.poll(async () => (await state()).composer).toBe('Selected experiment');
+  expect((await active()).id).toBe(preparingThread);
+  expect((await active()).error).toBeNull();
+  await page.screenshot({ path: join(output, 'preparation-waiting.png') });
+  await page.evaluate(() => {
+    window.preparationReleased = true;
+    document.querySelector('iframe[data-pero-chat]').contentWindow.postMessage({
+      type: 'pero:chat:event', event: { version: 1, kind: 'apps_catalog', request_id: null, text: '', data: [] },
+    }, 'pero://chat');
+  });
+  await expect.poll(async () => (await active())?.state).toBe('idle');
+  expect((await active()).id).toBe(preparingThread);
+  expect((await state()).composer).toBe('Selected experiment');
+  expect((await active()).messages).toHaveLength(0);
+  expect((await state()).chats).toHaveLength(conversationsBeforePreparation + 1);
+  await page.screenshot({ path: join(output, 'preparation-resumed.png') });
+  checks.push('standalone App completion resumes the original waiting draft without submitting retained input');
   await otherFrame.getByRole('button', { name: 'Discuss selection' }).click();
   await expect.poll(async () => (await state()).composer).toBe('Selected experiment');
   expect((await active()).id).not.toBe(primaryThread);

@@ -26,10 +26,12 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 | SidebarRow / sidebar_row | 图标、名称、必要计数和选中态 | 计数外再套徽章、说明段落 |
 | LibraryHeader / library_header | 当前页面标题、必要副标题、局部动作 | 应用名和页面名重复、固定大块留白 |
 | ListRow / list_row | 标题在前、元信息在后、独立行操作 | 多层卡片、整行嵌套按钮 |
+| SessionRow / session_row（GPUI） | 常规字重会话标题、右侧状态、独立行尾菜单 | 状态挤占标题左对齐、读取即解决权限、重复状态文字 |
 | ReaderFrame / reader_frame | 单行阅读工具栏与正文面 | 第二套标题或装饰性摘要 |
 | SettingsGroup / settings_group | 无卡片的相关设置行 | 嵌套面板和逐行分隔 |
 | ContentTab / content_tab | 内容名称、固定 / 预览 / 未保存状态、关闭 | 额外的大标题、固定宽度空白、嵌套按钮 |
 | Tabs | 页内视图切换、键盘移动、关联面板 | 与窗口 Tab 重复命名当前 App |
+| ToggleGroup | 同一内容的互斥表示方式或一组可切换选项 | 复制普通按钮的选中皮肤、代替关联面板的 Tabs |
 | AppBar / Toolbar | 当前内容的工具与操作 | 默认重复 App 名、全局导航 |
 | IconButton / ghost_icon_button | 统一点击区域、可访问名称、提示 | 无标签的图标、第二个下拉箭头 |
 | DropdownMenu | 操作菜单，使用已有 Radix / GPUI 菜单行为 | 把操作伪装成当前选中值 |
@@ -60,7 +62,9 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
   按当前文字行高增长；间距和圆角不随字体等比例膨胀。
 - 新组件使用 `--pero-spacing-1` 至 `--pero-spacing-6`，对应间距 4 / 8 / 12 / 16 / 20 / 24，图标间距 6。侧栏外边距 10，分组间距 16。
 - 页内 Tabs 的 `navigation` 变体用于服务目录／已安装等同级视图：无外框和贯穿底线，保留共享 Tabs 的选中指示线，以共享间距、正文文字与中等字重区分当前页。`page` 保留内容分隔线，`content` 用于窗口内容标签。鼠标选择不显示键盘焦点框，方向键与 Tab 导航保留 2px 焦点。
+- ToggleGroup 用于正文 / PDF / TeX 等内容表示切换；`type="single"` 使用 radiogroup / radio 与 `aria-checked`，多选使用 `aria-pressed`。Tabs 和 ToggleGroup 共用鼠标与键盘焦点规则，2px 键盘焦点向内绘制，避免滚动工具栏裁切；必选状态由调用方忽略空值。
 - 选中导航使用主题的强调背景与文字配对，默认是青色；分类和内容强调按 DESIGN 的颜色用途选择，不能与选中或错误状态混淆。
+- GPUI 会话列表使用 `session_row`：28px 行高、13px 常规字重标题、14px 右侧状态槽，随界面字号增长。列表选中使用中性 `surface-muted`，与全局导航区分；状态与菜单靠近，菜单保留完整点击区域。菜单在 hover、选中、展开或键盘焦点进入时显示。项目文件夹使用稳定的主题分类色，错误、运行和待处理仍使用语义色。未读由 ChatPanel 管理，点开清除未读；待授权、问题和登录状态由原会话状态管理，不随阅读清除。
 - 只在内容确实需要分隔时使用 0.5px 分隔线。输入边界 1px；文本输入、Textarea 与搜索框的键盘焦点使用贴合边框的 1px 中性细线，其他控件的键盘焦点 2px。
 - 每个操作区有清晰的主要动作；“新聊天”使用会话行尾的独立 +，侧栏不重复品牌标题或大按钮。折叠后仍可达。
 - Insights / 论文、执行环境 / 应用商店之间用 `SidebarGroup separated` 明确划分任务域，避免每行加分隔。

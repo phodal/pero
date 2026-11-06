@@ -11,6 +11,16 @@ use std::rc::Rc;
 const INITIAL_VISIBLE_SESSIONS: usize = 5;
 const SESSION_REVEAL_STEP: usize = 10;
 impl Workbench {
+    pub(crate) fn receive_session_workspace(&mut self, event: &pero_contracts::HostEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if event.kind == "error" || event.kind == "disconnected" { self.pending_session_workspace = None; }
+        if event.kind != "workspace" { return; }
+        let Some(expected) = self.pending_session_workspace.take() else { return; };
+        if expected != event.text { return; }
+        self.new_chat(cx);
+        let composer = self.chat.read(cx).composer.clone();
+        composer.update(cx, |input, cx| input.focus(window, cx));
+    }
+
     pub(crate) fn navigation_actions(
         &self,
         cx: &mut Context<Self>,
@@ -38,7 +48,26 @@ impl Workbench {
                     SidebarAction::CancelDelete => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                     }
+                    SidebarAction::SessionMenu(key) => this.session_menu_open = key.clone(),
+                    SidebarAction::ToggleSessionSearch => {
+                        let filtering = !this.session_search.read(cx).value().trim().is_empty();
+                        this.session_search_open = filtering || !this.session_search_open;
+                        if this.session_search_open {
+                            this.session_search.update(cx, |input, cx| input.focus(window, cx));
+                        } else { this.workspace_focus.focus(window, cx); }
+                    }
+                    SidebarAction::NewProjectChat(workspace) => {
+                        if this.workspace == *workspace {
+                            this.new_chat(cx);
+                            let composer = this.chat.read(cx).composer.clone();
+                            composer.update(cx, |input, cx| input.focus(window, cx));
+                        } else {
+                            this.pending_session_workspace = Some(workspace.clone());
+                            this.command(serde_json::json!({"action":"workspace","path":workspace}), cx);
+                        }
+                    }
                     SidebarAction::NewChat => {
+                        this.pending_session_workspace = None;
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                         this.new_chat(cx);
                         let composer = this.chat.read(cx).composer.clone();
@@ -99,6 +128,7 @@ impl Workbench {
         let query = self.session_search.read(cx).value().trim().to_lowercase();
         let session_row =
             |i: usize, chat: &pero_chat_ui::conversation::Conversation| sidebar::RecentRow {
+                key: chat.id.clone(),
                 bounds: Some(
                     self.view_bounds
                         .sessions
@@ -106,11 +136,11 @@ impl Workbench {
                         .into_any_element(),
                 ),
                 label: chat.title.display().to_owned(),
-                icon: None,
                 active: self.navigation.page() == WorkbenchPage::Conversation
                     && panel.active_chat == Some(i),
-                busy: chat.busy(),
-                attention: chat.permission.is_some() || chat.error.is_some(),
+                status: chat.list_status(),
+                unread: chat.notice.unread,
+                menu_open: self.session_menu_open.as_deref() == Some(chat.id.as_str()),
                 action: SidebarAction::SelectSession(i),
                 delete: Some(DeleteAffordance {
                     request: SidebarAction::RequestDelete(i),
@@ -134,7 +164,7 @@ impl Workbench {
                     })
                     .map(|(i, chat)| session_row(i, chat))
                     .collect::<Vec<_>>();
-                if rows.is_empty() {
+                if rows.is_empty() && (!query.is_empty() || project.workspace.is_none()) {
                     return None;
                 }
                 Some(sidebar::ProjectGroup {
@@ -144,6 +174,7 @@ impl Workbench {
                         .get(&project.key)
                         .copied()
                         .unwrap_or(INITIAL_VISIBLE_SESSIONS),
+                    workspace: project.workspace,
                     key: project.key,
                     name: project.name,
                     rows,
@@ -161,13 +192,13 @@ impl Workbench {
             })
             .map(|(i, chat)| session_row(i, chat))
             .collect();
-        let search = gpui_kit::component::input::Input::new(&self.session_search)
-            .small()
-            .into_any_element();
+        let search = pero_theme::search_field(gpui_kit::component::input::Input::new(&self.session_search)
+            .small().cleanable(true), self.ui(cx).chrome()).into_any_element();
         div().relative().h_full().flex_shrink_0().child(sidebar::sessions(
             self.ui(cx),
             width,
             sidebar::SessionsProps {
+                searching: self.session_search_open || !query.is_empty(),
                 empty_text: self.t(if query.is_empty() {
                     "sessions.empty"
                 } else {

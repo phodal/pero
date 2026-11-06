@@ -121,6 +121,9 @@ pub(crate) struct Workbench {
     pub events: Vec<HostEvent>,
     pub chat: Entity<ChatPanel>,
     pub session_search: Entity<InputState>,
+    pub session_search_open: bool,
+    pub session_menu_open: Option<String>,
+    pub pending_session_workspace: Option<String>,
     pub spotlight: Option<Entity<crate::spotlight::SpotlightList>>,
     pub spotlight_query: String,
     pub workspace: String,
@@ -301,6 +304,7 @@ impl Workbench {
                     this.error = None;
                     this.sync_follow(cx);
                 }
+                ChatAction::ClosePanel => this.set_chat_dock(false, cx),
                 ChatAction::CompactNeedsSpace => {
                     if this.floating_chat && this.chat_dock_visible() && !this.floating_chat_expanded {
                         this.floating_chat_expanded = true;
@@ -352,6 +356,9 @@ impl Workbench {
         );
         Self {
             session_search,
+            session_search_open: false,
+            session_menu_open: None,
+            pending_session_workspace: None,
             terminal: Default::default(),
             view_bounds: Default::default(),
             workspace_focus,
@@ -582,8 +589,10 @@ impl Workbench {
             || self.receive_research_resources(&event, cx)
             || self.receive_apps(&event, cx)
             || self.receive_remote(&event, cx);
+        // App lifecycle notifications also reach Chat; scope admission stays with Apps.
+        let handled = (!feature_handled || event.kind.starts_with("apps_"))
+            && self.chat.update(cx, |chat, cx| chat.receive(&event, cx));
         if !feature_handled {
-            let handled = self.chat.update(cx, |chat, cx| chat.receive(&event, cx));
             if event.kind == "agents" {
                 self.workspace = event.text.clone();
             }
@@ -619,6 +628,7 @@ impl Workbench {
                     }
                 }
             }
+            self.receive_session_workspace(&event, window, cx);
             if !handled || matches!(event.kind.as_str(), "ready" | "disconnected" | "settings") {
                 match event.kind.as_str() {
                     "workbench_settings" => {

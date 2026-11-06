@@ -89,7 +89,7 @@ impl ChatWindow {
                         json!({"action":"choose_context","kind":kind,"request_id":request_id})
                     }
                     ChatAction::AppLink(href)=>{if let Some(address)=pero_contracts::app_chat::AppLocation::parse(href){json!({"action":"app_location","app":address.scope.app,"panel":address.scope.panel,"location":address.location})}else{cx.open_url(href);return;}},
-                    ChatAction::OpenDocument(..) | ChatAction::Activated | ChatAction::ReturnToReview => {
+                    ChatAction::OpenDocument(..) | ChatAction::Activated | ChatAction::ReturnToReview | ChatAction::ClosePanel => {
                         cx.notify();
                         return;
                     }

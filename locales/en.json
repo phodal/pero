@@ -31,6 +31,8 @@
   "sessions.no_matches": "No matching sessions.",
   "apps.actions": "App actions",
   "apps.manage": "App Store",
+  "sessions.unread": "Unread",
+  "chat.preparing_app": "Preparing the App environment…",
   "sessions.search": "Search sessions…",
   "mcp.import": "Import JSON",
   "mcp.import_save": "Import as disabled",

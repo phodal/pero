@@ -454,7 +454,7 @@ impl ChatPanel {
                             W::composer_control(Button::new("retry-chat").ghost(), cx)
                                 .relative()
                                 .child(self.composer_bounds.reconnect.probe())
-                                .icon(Icon::default().path("icons/refresh.svg"))
+                                .icon(Icon::default().path(crate::assets::UiIcon::RotateCcw.path()))
                                 .label(if chat.is_some_and(|chat| chat.state == SessionState::Closed) {
                                     self.t("chat.reconnect")
                                 } else {

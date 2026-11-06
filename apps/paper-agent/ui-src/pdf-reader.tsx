@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Feedback, Icon, Input, Popover, Toolbar } from '@pero/app-sdk/ui';
+import { Button, Feedback, Icon, Input, Popover, Toolbar, ToggleGroup, ToggleGroupItem } from '@pero/app-sdk/ui';
 import { useAppI18n } from '@pero/app-sdk';
 import { createPluginRegistration } from '@embedpdf/core';
 import { EmbedPDF, useStoreState } from '@embedpdf/core/react';
@@ -89,12 +89,18 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
   }, [view, paper.id, chrome.onLocation]);
   const textLabel = readLabel ?? 'Read';
   const originalUrl = sourceUrl ?? paper.arxivUrl ?? paper.fullTextUrl ?? paper.metadataUrl ?? (paper.source === 'local-pdf' ? reading.originalUrl ?? reading.document?.sourceUrl : paper.url);
-  const modes = <div className="pa-reader-modes" role="group" aria-label={t('readerView')}>
-    <Button variant="ghost" aria-pressed={view === 'text'} onClick={() => { setMode('text'); setError(''); }}>{textLabel}</Button>
-    <Button variant="ghost" aria-pressed={view === 'pdf'} disabled={!paper.pdfUrl && !paper.pdfCandidateUrl && !reading.document} onClick={() => void open()}>PDF</Button>
-    <Button variant="ghost" aria-pressed={view === 'tex'} onClick={() => { setVisitedTex(true); setMode('tex'); }}>TeX</Button>
-    <Button variant="ghost" aria-pressed={view === 'original'} title={originalUrl} disabled={!originalUrl?.startsWith('https://')} onClick={() => setMode('original')}>{t('readerOriginal')}</Button>
-  </div>;
+  const modes = <ToggleGroup type="single" className="pa-reader-modes" value={view} aria-label={t('readerView')} onValueChange={value => {
+    if (!value) return;
+    if (value === 'pdf') { open(); return; }
+    if (value === 'tex') setVisitedTex(true);
+    if (value === 'text') setError('');
+    setMode(value as ReadingView);
+  }}>
+    <ToggleGroupItem value="text">{textLabel}</ToggleGroupItem>
+    <ToggleGroupItem value="pdf" disabled={!paper.pdfUrl && !paper.pdfCandidateUrl && !reading.document}>PDF</ToggleGroupItem>
+    <ToggleGroupItem value="tex">TeX</ToggleGroupItem>
+    <ToggleGroupItem value="original" title={originalUrl} disabled={!originalUrl?.startsWith('https://')}>{t('readerOriginal')}</ToggleGroupItem>
+  </ToggleGroup>;
   function open() {
     if (reading.document) { setMode('pdf'); return; }
     chrome.onSave();

@@ -255,6 +255,7 @@ pub struct Conversation {
     pub thinking: crate::thinking::ThinkingState,
     pub agent: String,
     pub state: SessionState,
+    pub notice: crate::session_state::SessionNotice,
     pub session_id: String,
     pub messages: Vec<Message>,
     pub tools: Vec<Tool>,
@@ -284,6 +285,12 @@ pub struct Conversation {
 }
 
 impl Conversation {
+    pub fn list_status(&self) -> crate::session_state::SessionListStatus {
+        crate::session_state::SessionListStatus::of(self.state,
+            self.permission.is_some() || self.user_questions.iter().any(|form| !form.submitted),
+            self.error.is_some())
+    }
+
     pub fn new(id: String, agent: String, title: String) -> Self {
         Self {
             images: Default::default(),
@@ -297,6 +304,7 @@ impl Conversation {
             title: crate::conversation_title::ConversationTitle::new(title),
             thinking: Default::default(),
             state: SessionState::Draft,
+            notice: Default::default(),
             session_id: String::new(),
             messages: vec![],
             tools: vec![],
