@@ -309,3 +309,62 @@ frames. It does not sample a held slow drag frame by frame. Continuous drag
 feedback, document pane/session splitters, Native dark/24px variants, other OSes,
 physical IME, screen readers and real scientific/cluster execution were not
 accepted in this pass. The PR remains draft.
+
+
+## Empty states, Compute and Customize follow-up — 2026-11-06
+
+Source: `4a781972` plus `42aab97b`, `40dca903` and `63f53a49` on
+`codex/desktop-design-system`. The last three commits follow a separate read-only
+review, “Review Pero Customize page usability”. No review chat modified source.
+
+| Consumer | Shared migration and behavior |
+| --- | --- |
+| Paper / Data / Environments / Connectors / Insights / Compute | SDK EmptyIllustration for successful empty states; LoadingSkeleton only during actual initial requests. Same-query discovery and refresh failures retain available content. No fake metrics or job counts. |
+| Compute | Separate App from HPC Benchmarks, shared controls and network identity, persistent non-secret cluster drafts, create/edit/select and recovery actions. Legacy saved Compute tabs/history migrate to compute/main. Scheduler and SSH operations remain unavailable. |
+| Text input and content tabs | Shared inset 1px neutral text focus. Generated 13px content-tab text and 14px icons, 24px close target, flat selection and thin underline; Native and Web consumers use the same geometry contract. |
+| Customize catalog | Public Tabs navigation variant, SearchField, Select, Button, Card and InfoTip replace competing raw button styles. No persistent snapshot timestamp. Titles wrap, built-in actions have real icons, full prerequisites remain visible before setup and retained results are identified after refresh failure. |
+| Installed connections / installation | Paused means disabled in both counts and results; unverified connections appear under Needs attention instead of Ready. Installation previews the actual draft tool allowlist and effect groups, with unclassified effects explicit. Shared credential deletion requires a confirmation naming the reference and its effect on all sharing connections. Host authorization, allowlists, revisions and system secret storage are unchanged. |
+
+Shared `TabsList variant="navigation"` has no outer border or baseline, uses
+shared spacing and medium-weight selected text, and wraps at narrow widths.
+Tabs distinguish pointer selection from keyboard focus, including WebKit's
+programmatic Radix focus. Page-local raw button/focus overrides and obsolete
+GuideArt were removed; the production component catalog includes the variant.
+
+Validation:
+
+- Connectors: **45** Node tests, including actual snapshot polling, failed draft
+  retention, count/result consistency, draft tool permissions and credential
+  confirmation/cancellation. Actual five-App browser frames: **14** tests.
+- Shared Tabs: **8 unit + 2 browser** tests. The final navigation refinement also
+  passed the two actual Connectors frame scenarios at 1200px/light/14px and
+  440px/dark/24px: readable long titles, no document overflow, no tab borders,
+  shared gap, pointer selection without outline, keyboard focus visible, and
+  built-in Try it only composing the inspection prompt.
+- Root generated/type/locale/icon checks passed (**972** messages, **84** icons).
+  Connectors and catalog typechecks, component catalog build and all **12** App
+  builds passed; Connectors was rebuilt after the final navigation wrapping.
+- Native executable build passed with 12 existing library warnings. The Native
+  library tests on the earlier content-tab/Compute source passed **64 pero-ui +
+  2 pero-theme**. Earlier Compute acceptance used its actual Python backend:
+  **4 browser**, **3 backend**, **4 product** tests; shared text-focus browser
+  tests: **2**. This catalog-only follow-up does not change the Native binary.
+
+Actual macOS GPUI/WKWebView observations before the final catalog delta:
+Paper/Data/Environments displayed the shared SVG empty family. Compute was
+independent of HPC Benchmarks and saved an isolated “Preview cluster” draft for
+`cluster.example.invalid`; jobs correctly remained unavailable. Customize's new
+layout, wrapped service names, missing timestamp and spaced borderless navigation
+were observed. Pointer switching then exposed a lingering focus outline; that
+issue was fixed in the SDK and passed browser pointer/keyboard regressions.
+
+The preview was rebuilt and restarted for the final SDK focus/Card delta, but
+macOS locked before a final Native screenshot could be captured. Final Native
+pointer focus, the new Card surface and draft persistence after this restart
+remain **unverified** until unlock. No real cluster, credentials, installation or
+scheduler execution was attempted. Dark/24px screenshots here are isolated
+browser fixtures, not Native acceptance. The PR remains draft.
+
+Screenshot artifacts for this pass live outside Git under the task's
+`pero-native-followup/` and `customize-browser/` visualization folders. Published
+PR screenshots distinguish actual Native observations from final browser frames.
