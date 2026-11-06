@@ -14,10 +14,15 @@ func TestToolHistoryWatermarksAndReplay(t *testing.T) {
 	for _, row := range []struct {
 		name                  string
 		high, low, keep, want int
+		unconsumed            bool
+		pending               int
 	}{
-		{"below threshold", 10000, 5000, 1, 0},
-		{"low watermark", 4000, 2500, 1, 3},
-		{"recent protection", 4000, 1000, 3, 1},
+		{"below threshold", 10000, 5000, 1, 0, false, 0},
+		{"low watermark", 4000, 2500, 1, 3, false, 0},
+		{"recent protection", 4000, 1000, 3, 1, false, 0},
+		{"no response yet", 4000, 1000, 1, 0, true, 0},
+		{"pending batch exceeds recent count", 4000, 1000, 1, 3, false, 8},
+		{"pending batch with no recent protection", 4000, 0, 0, 4, false, 8},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			s := harnesssession.NewSession("owner", "")
@@ -37,6 +42,21 @@ func TestToolHistoryWatermarksAndReplay(t *testing.T) {
 					original = event
 				}
 			}
+			if !row.unconsumed {
+				if _, err := s.Append("assistant/message", struct {
+					Message harnessmodel.Message `json:"message"`
+				}{harnessmodel.Message{Role: harnessmodel.RoleAssistant}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for i := 0; i < row.pending; i++ {
+				if _, err := s.Append("tool/result", harnessmodel.ContentBlock{
+					Type: harnessmodel.BlockToolResult, ToolCallID: harnessmodel.ToolCallID(fmt.Sprintf("pending-%d", i)),
+					Content: []harnessmodel.ContentBlock{{Type: harnessmodel.BlockText, Text: strings.Repeat("fresh", 300)}},
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
 			p, err := NewToolResultPruner(ToolResultPruneConfig{TotalChars: &row.high, LowWatermarkChars: &row.low, KeepRecent: &row.keep})
 			if err != nil {
 				t.Fatal(err)
@@ -46,8 +66,19 @@ func TestToolHistoryWatermarksAndReplay(t *testing.T) {
 				t.Fatalf("result=%+v err=%v", result, err)
 			}
 			for _, entry := range result.Pruned {
-				if entry.ToolCallID == "1" || entry.ToolCallID == "4" {
+				if entry.ToolCallID == "1" || row.keep > 0 && entry.ToolCallID == "4" || strings.HasPrefix(string(entry.ToolCallID), "pending-") {
 					t.Fatal("cleared protected result")
+				}
+			}
+			if row.pending > 0 {
+				if _, err := s.Append("assistant/message", struct {
+					Message harnessmodel.Message `json:"message"`
+				}{harnessmodel.Message{Role: harnessmodel.RoleAssistant}}); err != nil {
+					t.Fatal(err)
+				}
+				after, err := p.PruneHistorySession(s)
+				if err != nil || len(after.Pruned) == 0 {
+					t.Fatalf("consumed batch never became eligible: %+v %v", after, err)
 				}
 			}
 			if _, err = s.Append("turn/end", struct {
@@ -126,6 +157,11 @@ func TestToolHistoryCommandFailures(t *testing.T) {
 				Type: harnessmodel.BlockToolResult, ToolCallID: "cmd",
 				Content: []harnessmodel.ContentBlock{{Type: harnessmodel.BlockText, Text: `{` + row.outcome + `,"stdout":"` + strings.Repeat("x", 2000) + `"}`}},
 			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.Append("assistant/message", struct {
+				Message harnessmodel.Message `json:"message"`
+			}{harnessmodel.Message{Role: harnessmodel.RoleAssistant}}); err != nil {
 				t.Fatal(err)
 			}
 			high, low, keep := 1000, 0, 0

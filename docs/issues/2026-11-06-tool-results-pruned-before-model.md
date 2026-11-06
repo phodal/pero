@@ -75,3 +75,25 @@ Scoped Google-only checks still pass. R3 also changes default exception
 behavior outside the frozen judge coverage, recorded separately in the
 [repeat report](../fitness/durability-repeat-verification.md). The issue stays
 open; successful feature checks do not repair first-use visibility.
+
+## Repair
+
+The history pruner now derives its consumption boundary from the latest durable
+`assistant/message`. All later results survive until a response acknowledges
+the next request; they do not use the recent-result slots reserved for consumed
+history. This also protects pending duplicate errors before deduplication can
+clear them. After a response, ordinary watermarks and error protection apply.
+The per-result projection and explicit tool/batch output limits are unchanged.
+History watermarks remain soft targets when protected content exceeds them.
+
+The approach follows Qwen's separation of pending content and committed history
+in `packages/core/src/services/microcompaction/microcompact.ts` at
+`6fe83a82457def9ab8daa43bf833b4cfdf192bd2`. Pero uses its existing durable
+response event, so no additional Session state or journal event is needed.
+
+Four added table rows fail before the repair and pass after it: no acknowledged
+response, a pending batch larger than the recent count, no recent protection,
+and pending duplicate errors. The tests also confirm the batch becomes eligible
+after a response, consumed recent results survive, and original readback/replay
+is retained. `go test -race ./...` passes in `harness/go` (36 packages).
+Fresh model verification is the remaining check before closing this record.
