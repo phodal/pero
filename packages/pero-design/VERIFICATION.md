@@ -220,3 +220,27 @@ visual or Native acceptance. Technical evidence disclosures remain where they
 serve low-frequency review; source finding counts are not a mandate to flatten
 them. Full Electron/GPUI runtime, screen readers and complete scientific workflows
 were not rerun in this follow-up.
+
+### Master integration
+
+Integrated master `98cb01fb` in `8a1e4249`; conflict review confirmed that the
+three design documents already contain master's principles, with additional
+icon guidance retained. Regenerated the combined icon registry instead of
+resolving generated files by hand. The final App source is `d24a78f5`.
+
+On that merged source, root checks passed (**972 bilingual messages / 84 icons**),
+the five production App builds passed, and the combined Paper/actual App/Web
+session behavior suite passed **29/29**. Native `cargo check -p pero-ui --features
+native` passed again (12 existing warnings). The extra discovery/download/action
+typography uses the same shared tokens. The previous Native visual limitations
+still apply.
+
+Production build SHA-256 on this source:
+
+| App | `dist/index.js` | `dist/index.css` |
+| --- | --- | --- |
+| Paper | `8bb60bbbb8a826a4d5e22584b48c2f2afbaa9a1bfd9541937b73a1ad81753a86` | `d3a11a44f67a4cae4ee625ba97a4a8679acb2a56d0f81b048dad6d16fdc73d8d` |
+| Data | `e321a7d439ccb088a53dc27d3b4ee3098905eb6b3fb2ba0f276248e325a1c999` | `665293cab265ec7bf3696a975ac91543b2b59177790c9580e999ec3cc1ef6e13` |
+| Environments | `36ce8b81b2dc404f525a75aa38ccfd6db4ac9283faf24493391accdc11cd740f` | `7e78482404e00d569e1af6e7455f3c9e8e0e2c8724028e01c8b6a6ac6c1c6585` |
+| Connectors | `1881106d36290a7622864a0ca7ec9c9ea837719bc03cfdbe3affc52cfcd9ced2` | `d8f9153da6967eab44b4b5eddba84ee87a0d1565124a9798347ad798d6713011` |
+| Insights | `9b02cd52b2a1075a7e29a30aa23105326437e7ebc9b8dc1b863665594667288f` | `8a674e61da21b075a5179ba376a98a8fd493e498653fcaee477535dc58b104b5` |
