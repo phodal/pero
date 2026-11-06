@@ -117,6 +117,7 @@ test('Insights distinguishes no available Agent from a successfully generated em
   await page.goto(origin+'/insights/index.html');
   await expect(page.getByText('No Agent is connected. Connect an Agent to generate a brief.')).toBeVisible();
   await expect(page.getByText('No new personal work updates.',{exact:true})).not.toBeVisible();
+  await expect(page.locator('.point-insights-empty-result')).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Generate brief',exact:true})).toBeDisabled();
   available=true;await page.reload();
   await expect(page.getByText('No new personal work updates.',{exact:true})).toBeVisible();
@@ -124,6 +125,7 @@ test('Insights distinguishes no available Agent from a successfully generated em
   await expect(page.getByRole('tablist')).toHaveCount(0);
   await expect(page.locator('.point-pulse-day')).toHaveCount(0);
   await expect(page.locator('.point-pulse-generated')).toBeVisible();
+  await expect(page.locator('.point-insights-empty-result .pero-ui-empty-illustration')).toHaveAttribute('aria-hidden','true');
 });
 
 test('Connectors has explicit views, visible prerequisites, and preserves the catalog during a single refresh',async t=>{
@@ -169,6 +171,76 @@ test('Data has one initial empty state',async t=>{
   await expect(page.getByText('No data yet',{exact:true})).toBeVisible();
   await expect(page.getByText('No dataset selected',{exact:true})).not.toBeVisible();
   await shot(page,'data-empty14');
+});
+
+test('Paper shows list skeletons until the library and local search resolve, then distinct empty states',async t=>{
+  let releaseLibrary,releaseSearch;
+  const libraryGate=new Promise(r=>releaseLibrary=r),searchGate=new Promise(r=>releaseSearch=r);
+  t.after(()=>{releaseLibrary();releaseSearch();});
+  const page=await pageFor(t,'paper-agent',async()=>json({}));
+  await page.route('**/api/**',async route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path==='/api/library'){
+      await libraryGate;
+      return route.fulfill({json:{papers:[],intents:[],reports:[]}});
+    }
+    if(path==='/api/library/search'){
+      await searchGate;
+      return route.fulfill({json:{items:[],returned:0,queryTerms:[]}});
+    }
+    return route.fulfill({json:path==='/api/research/record'?{records:[]}:[]});
+  });
+  await page.goto(origin+'/paper-agent/index.html');
+  const library=page.locator('.pa-library-papers');
+  await expect(library.locator('.pero-ui-loading')).toBeVisible();
+  await expect(library.locator('.pero-ui-empty-state')).toHaveCount(0);
+  releaseLibrary();
+  await expect(library.getByText('Add a paper to start reading',{exact:true})).toBeVisible();
+  await expect(library.locator('.pero-ui-empty-illustration')).toHaveAttribute('aria-hidden','true');
+  const search=library.locator('.pa-local-search');
+  await search.getByRole('searchbox').fill('missing passage');
+  await search.getByRole('searchbox').press('Enter');
+  await expect(search.locator('.pero-ui-loading')).toBeVisible();
+  await expect(search.locator('.pero-ui-empty-state')).toHaveCount(0);
+  releaseSearch();
+  await expect(search.getByText(/^No matching passages\./)).toBeVisible();
+  await expect(search.locator('.pero-ui-empty-illustration')).toHaveAttribute('aria-hidden','true');
+  await search.getByRole('button',{name:'Find more papers',exact:true}).click();
+  await expect(page.locator('.pa-discover .pero-ui-empty-state')).toContainText('Search a topic, author, or title');
+});
+
+test('Paper discovery distinguishes loading from zero results and retains the same search during failed refresh',async t=>{
+  let reads=0,release;
+  const hit={id:'fixture-discovery',source:'openalex',title:'A retained discovery result',authors:[]};
+  const page=await pageFor(t,'paper-agent',async()=>json({}));
+  await page.route('**/api/**',async route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path==='/api/search'){
+      reads++;await new Promise(r=>release=r);
+      return reads===2?route.fulfill({status:503,body:'Search service unavailable'}):route.fulfill({json:{items:reads===1?[hit]:[]}});
+    }
+    return route.fulfill({json:path==='/api/library'?{papers:[],intents:[],reports:[]}:path==='/api/research/record'?{records:[]}:[]});
+  });
+  t.after(()=>release?.());
+  await page.goto(origin+'/paper-agent/index.html');
+  await page.locator('.pa-workspace-nav').getByRole('button',{name:'Discover',exact:true}).click();
+  const discover=page.locator('.pa-discover'),input=discover.getByRole('searchbox',{name:'Search literature',exact:true});
+  await input.fill('cell research');await input.press('Enter');
+  await expect.poll(()=>reads).toBe(1);
+  await expect(discover.locator('.pero-ui-loading')).toBeVisible();
+  await expect(discover.locator('.pero-ui-empty-state')).toHaveCount(0);
+  release();await expect(discover.getByRole('heading',{name:hit.title,exact:true})).toBeVisible();
+  await input.press('Enter');await expect.poll(()=>reads).toBe(2);
+  await expect(discover.getByRole('heading',{name:hit.title,exact:true})).toBeVisible();
+  await expect(discover.locator('.pero-ui-loading')).toHaveCount(0);
+  release();await expect(discover.getByRole('alert')).toContainText('Previous search results remain below.');
+  await expect(discover.getByRole('heading',{name:hit.title,exact:true})).toBeVisible();
+  await input.fill('another query');await input.press('Enter');await expect.poll(()=>reads).toBe(3);
+  await expect(discover.getByRole('heading',{name:hit.title,exact:true})).toHaveCount(0);
+  await expect(discover.locator('.pero-ui-loading')).toBeVisible();
+  await expect(discover.locator('.pero-ui-empty-state')).toHaveCount(0);
+  release();await expect(discover.getByText('No papers match these filters',{exact:true})).toBeVisible();
+  await expect(discover.locator('.pero-ui-empty-illustration')).toHaveAttribute('aria-hidden','true');
 });
 
 

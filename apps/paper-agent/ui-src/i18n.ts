@@ -134,6 +134,7 @@ export const messages = {
   observedPassages: { zh: '已读取片段', en: 'Observed passages' }, searchMatches: { zh: '检索匹配', en: 'Search matches' },
   studyScope: { zh: '仅使用本次研究固定的 PDF 版本；引用位置准确不代表结论已获验证。', en: 'Frozen PDF versions for this study only. Accurate citation locations do not establish support.' },
   localNoMatches: { zh: '没有匹配片段。试试其他说法或原文中的词，或清除搜索以阅读论文。', en: 'No matching passages. Try another wording or words from the source, or clear the search to read papers.' },
+  localSearchRetained: { zh: '下方保留上次检索到的片段。', en: 'Previously found passages remain below.' },
   localScope: { zh: '仅检索已保存文本和最新版 PDF。词法或语义相关性都不代表结论成立。', en: 'Saved text and latest saved PDFs only. Keyword or semantic relevance does not establish support.' },
   localQueryTruncated: { zh: '本次仅使用前 64 个不同检索词，请缩短查询以获得更准确的结果。', en: 'Only the first 64 distinct terms were used. Shorten the query for more precise results.' },
   unmatchedSources: { zh: '当前片段未覆盖：', en: 'No returned passages from:' },

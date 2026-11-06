@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Button, Feedback, Icon, Input } from '@pero/app-sdk/ui';
+import { Button, EmptyIllustration, EmptyState, Feedback, Icon, Input, LoadingSkeleton, SkeletonText } from '@pero/app-sdk/ui';
 import type { Api, LocalSearchHit, LocalSearchResult } from './types';
 import type { Translator } from './i18n';
 
@@ -36,7 +36,7 @@ export function LibrarySearch({ api, t, onOpen, activeHitId, onQueryChange, onFi
   function change(value: string) { setQuery(value); resetResults(); }
   async function searchLocal() {
     const current = query;
-    const version = ++epoch.current; setBusy(true); setError(''); setResult(null);
+    const version = ++epoch.current; setBusy(true); setError('');
     try {
       const found = await api.post<LocalSearchResult>('/api/library/search', { query: current });
       if (version === epoch.current) { setResult(found); setActiveQuery(current); }
@@ -66,16 +66,16 @@ export function LibrarySearch({ api, t, onOpen, activeHitId, onQueryChange, onFi
       </div>
       <Button className="pa-search-go" variant="primary" aria-label={t('search')} busy={busy} disabled={busy || !query.trim()} onClick={submit}><Icon name="arrow" size={18}/></Button>
     </form>
-    {busy && <p className="pa-sr-only" role="status">{t('searching')}</p>}
-    {!!error && <Feedback kind="error">{error}<Button disabled={busy} onClick={submit}>{t('retry')}</Button></Feedback>}
+    {busy && (result ? <Feedback kind="status">{t('searching')}</Feedback> : <LoadingSkeleton label={t('searching')}><SkeletonText/></LoadingSkeleton>)}
+    {!!error && <Feedback kind="error">{error}{result && ` ${t('localSearchRetained')}`}<Button disabled={busy} onClick={submit}>{t('retry')}</Button></Feedback>}
     {result ? <>
       <div className="pa-results-caption" role="status">
         <span><strong>{papers}</strong> {t('papers')}<span className="pa-meta-gap"/>{result.returned} {t('passages')}</span>
         <span>{t('bestMatches')}</span>
       </div>
       {result.queryTruncated && <Feedback>{t('localQueryTruncated')}</Feedback>}
-      {!result.items.length && <Feedback>{t('localNoMatches')}</Feedback>}
-      {!result.items.length && onFind && <Button variant="ghost" onClick={onFind}>{t('findMore')}</Button>}
+      {!busy && !result.items.length && <EmptyState icon={<EmptyIllustration kind="search" size="compact"/>} description={t('localNoMatches')}
+        actions={onFind && <Button variant="ghost" onClick={onFind}>{t('findMore')}</Button>}/>}
       <ol className="pa-local-results">{result.items.map(hit => <li key={hit.id} data-search-hit={hit.id} data-search-page={hit.page ?? undefined} data-current={activeHitId === hit.id ? 'true' : undefined}>
         <div className="pa-local-hit">
           <span className="pa-paper-file" aria-hidden="true"><Icon name="document" size={18}/></span>

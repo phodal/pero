@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Button, EmptyState, Icon, LibraryHeader, Select, Split, SplitPane } from '@pero/app-sdk/ui';
+import { Button, EmptyIllustration, EmptyState, Icon, LibraryHeader, LoadingSkeleton, Select, SkeletonBlock, Split, SplitPane } from '@pero/app-sdk/ui';
 import { addedText, contentKind, PaperList, paperSource } from './library';
 import { LibrarySearch } from './library-search';
 import { cycleStatus, isShelfStatus, statusOf, type Shelf, type ShelfFilter, type ShelfStatus } from './shelf';
@@ -28,8 +28,10 @@ export function LibraryPapers({ api, papers, shelf, filter, loading, unavailable
   return <Split storageKey="paper-agent.library-preview" collapseBelow={940} className="pa-library-papers">
     <SplitPane id="paper-library-list" min={360} className="pa-library-list-pane">
       <LibraryHeader className="pa-library-heading" title={t(title)} subtitle={`${rows.length} ${t('sourcesCount')}`} actions={<><Button variant="ghost" aria-label={t('refresh')} onClick={onRefresh}><Icon name="refresh" size={15}/></Button><Button variant="primary" onClick={onImport}><Icon name="plus" size={15}/>{t('add')}</Button></>}/>
-      {loading ? <p role="status">{t('loading')}</p> : !unavailable && <LibrarySearch api={api} t={t} activeHitId={activeHitId} onOpen={onSearchHit} onQueryChange={setQuery} onFind={onFind}>
-        {!papers.length ? <EmptyState heading={t('emptyLibrary')} description={t('emptyLibraryCopy')}/> : <>
+      {loading ? <LoadingSkeleton label={t('loading')}>{[0, 1, 2].map(row => <div className="pa-library-placeholder" key={row}>
+        <SkeletonBlock shape="title" width={row === 1 ? '68%' : '84%'}/><SkeletonBlock width="42%"/>
+      </div>)}</LoadingSkeleton> : !unavailable && <LibrarySearch api={api} t={t} activeHitId={activeHitId} onOpen={onSearchHit} onQueryChange={setQuery} onFind={onFind}>
+        {!papers.length ? <EmptyState icon={<EmptyIllustration kind="documents"/>} heading={t('emptyLibrary')} description={t('emptyLibraryCopy')}/> : <>
           <PaperList papers={rows} sort={sort} onSort={setSort} selected={selectedIds} previewId={paper?.id ?? ''} locked={locked} shelf={shelf} shelfFilter={filter} onShelfFilter={onFilter}
             onCycleStatus={id => onStatus(id, cycleStatus(statusOf(shelf, id)))}
             onFindMore={onFind} onRead={onRead} onPreview={preview} onSelect={(id, checked) => setSelected(current => checked ? [...current, id] : current.filter(value => value !== id))} t={t}/>

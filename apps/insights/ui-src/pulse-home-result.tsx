@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { openAppSession, useAppChat } from '@pero/app-sdk';
-import { Button, Feedback, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { Button, EmptyIllustration, EmptyState, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { cardKind, pulseFeed } from './work-recap-model.mjs';
 import { InsightsError } from './feedback';
 import './pulse-home-result.css';
@@ -95,7 +95,7 @@ export function PulseHomeResult({ brief, createdAt, running, locale }: {
   const day = createdAt && new Date(createdAt).toDateString() === new Date().toDateString();
   const tabs: [Feed, string][] = [['for-me', t.forMe], ['popular', t.popular], ['recent', t.recent]];
   if (!brief.cards.length && !brief.tomorrow) return <section className="point-insights-empty-result" aria-label={t.title}>
-    <Feedback kind="empty" variant="block">{t.personalEmpty}</Feedback>
+    <EmptyState icon={<EmptyIllustration kind="brief"/>} description={t.personalEmpty}/>
     {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
     {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
   </section>;
