@@ -35,6 +35,9 @@ provider usage: [Agentic Coding Durability projects](agentic-coding-durability.m
 Offline request composition, fresh-result visibility defect and optimization
 priorities: [Durability trace analysis](durability-trace-analysis.md).
 
+Fresh problem-case repetitions, recurring first-use pruning and default-mode
+review coverage: [Durability repeats](durability-repeat-verification.md).
+
 Deferred discovery, output budgets, continuation cursors and Session boundary
 measurements: [Tool-call efficiency](tool-call-efficiency.md).
 

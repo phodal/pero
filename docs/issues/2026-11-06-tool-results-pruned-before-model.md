@@ -44,9 +44,34 @@ add a separate cache or change tool effects. A focused regression should cover
 a batch larger than `keepRecent` under pressure and subsequent pruning after
 the first request. Failure evidence and call/result pairing must survive.
 
-This record contains analysis only. No runtime repair or new model attempt is
+This record contains analysis and repetition evidence. No runtime repair is
 included, and the original scoped acceptance remains unchanged.
 
 Evidence: `/Users/phodal/benchmarks/ai4se/runs/20261106-sol-durability-01/`,
 Session `450c4cc6-6bf5-4848-8e52-3c7da4b0e246`; trace SHA-256 and the offline
 analysis provenance are in [the trace analysis](../fitness/durability-trace-analysis.md).
+
+## Fresh repetitions
+
+Run `20261106-sol-durability-repeat-01` uses clean master `2a667adf`, whose
+Harness and Trial trees equal the original evaluated revision. Fresh clones,
+venvs and unchanged prompts/judges run serially, without earlier candidate
+outputs or hidden acceptance feedback. Both additional OpenManus attempts
+reproduce the defect, with no batch-budget miss:
+
+| Attempt | Original result | Omission replacement | First subsequent prepared request |
+| --- | ---: | ---: | ---: |
+| OpenManus-r2 | 88, `web_search.py` lower window | 113 | 117 |
+| OpenManus-r2 | 131, `web_search.py` upper window | 153 | 157 |
+| OpenManus-r2 | 179, README window | 196 | 200 |
+| OpenManus-r3 | 82, `web_search.py` lower window | 105 | 109 |
+
+No request occurs between any original result and its replacement. The offline
+replay matches tool-result wire sizes at all 81 request boundaries across the
+three new trials. Including the original attempt, three observed OpenManus
+traces contain this defect; this is not a population-rate estimate.
+
+Scoped Google-only checks still pass. R3 also changes default exception
+behavior outside the frozen judge coverage, recorded separately in the
+[repeat report](../fitness/durability-repeat-verification.md). The issue stays
+open; successful feature checks do not repair first-use visibility.

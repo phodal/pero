@@ -1,0 +1,532 @@
+{
+  "schema_version": 1,
+  "kind": "verification_report",
+  "date": "2026-11-06",
+  "run_id": "20261106-sol-durability-repeat-01",
+  "benchmark": {
+    "url": "https://github.com/QoderAI/agentic-coding-durability-evalset",
+    "official_score": false,
+    "completion_policy": "Frozen local adaptation; upstream supplies no automated completion verifier."
+  },
+  "artifact_root": "/Users/phodal/benchmarks/ai4se/runs/20261106-sol-durability-repeat-01",
+  "comparison": {
+    "original_run": "20261106-sol-durability-01",
+    "runtime_treatment": false,
+    "fresh_clones_and_venvs": true,
+    "previous_candidate_outputs_in_prompt": false,
+    "hidden_judge_feedback_to_agent": false,
+    "manual_candidate_repairs": 0,
+    "limits": "Selected stochastic repetitions, not population failure rates or a measured efficiency improvement."
+  },
+  "runtime": {
+    "revision": "2a667adf60a5cf66db7c3f7cfc5bde38acbf02fe",
+    "harness_git_tree": "0077150aeb4f9c188803ad5db416ebcc9b9fdd0b",
+    "trial_git_tree": "70ac8b020a1132884cfb7a94059c9a5d51386032",
+    "binary_sha256": "fd6932a9f93900df2f281413b49e4dd9570bba1ca44475e78f719b0820558c0d",
+    "platform": "darwin/arm64",
+    "go_version": "go1.27.3",
+    "cgo_enabled": false,
+    "vcs_modified": false
+  },
+  "protocol": {
+    "projects": 2,
+    "public_prompts": 3,
+    "model": "gpt-6.1-sol",
+    "api_format": "responses",
+    "streaming": false,
+    "endpoint": "http://187.124.157.143:8989/v1",
+    "automatic_retries": 0,
+    "max_requests_per_project": 128,
+    "max_output_tokens": 16384,
+    "session_timeout_seconds": 1800,
+    "idle_timeout_seconds": 600,
+    "engineering_profile": "feedback",
+    "delivery_contract": null,
+    "deferred_tools": true,
+    "context_window": 0,
+    "manual_task_repairs": 0,
+    "hidden_judge_feedback_to_agent": false,
+    "trials": 3
+  },
+  "provenance": {
+    "preparation.json": {
+      "path": "preparation.json",
+      "sha256": "f5cf7d2f44f5c927fc756f94018a00bc915e63966e5196ab20d6cdf5cdecb68d"
+    },
+    "acceptance-plan.json": {
+      "path": "acceptance-plan.json",
+      "sha256": "7291d80c958222cbc359c7b6e9b761b29096589160c0a8a190dbb7400c24f20d"
+    },
+    "run_project.py": {
+      "path": "run_project.py",
+      "sha256": "37702bcb3c34127e11acf7b325eb7d9fcbe90ed12d351c00b7f759094647ec4a"
+    },
+    "agent-wrapper.sh": {
+      "path": "agent-wrapper.sh",
+      "sha256": "3c3e9987dfd88bce01db1f10f2e826fad6dead554d653425efca2b4b225dd639"
+    },
+    "judge-source-freeze.json": {
+      "path": "judge-source-freeze.json",
+      "sha256": "4eac8349c4039a7e79ad5136ed4fe7088014e51d885c6a3645baeb4a4354f6b9"
+    },
+    "postprocessing-freeze.json": {
+      "path": "postprocessing-freeze.json",
+      "sha256": "2e1c369a5515074249aa17e305544b06b947ebc7f50934b03b782070193ecf6f"
+    },
+    "baseline-controls.json": {
+      "path": "baseline-controls.json",
+      "sha256": "4041b75ffac495d0e22333ae7fd1e162f8cac4f8f2720390424f183c07900220"
+    },
+    "artifacts/manual-review.json": {
+      "path": "artifacts/manual-review.json",
+      "sha256": "c502da6e0ddd7b9daaca481281bc8c68dd163b93d45ba27e043769319f45fc02"
+    },
+    "verify_trial.py": {
+      "path": "verify_trial.py",
+      "sha256": "0c0f097d08e297089aab14afb702fe0f0ff19747e343e16d2eb0a4222f57036c"
+    },
+    "quality_controls_repeat.py": {
+      "path": "quality_controls_repeat.py",
+      "sha256": "1c1fc90986518c9aa348958410b41ef723746bde5baa4b3964387b9c69abc832"
+    },
+    "diagnose_default_exception.py": {
+      "path": "diagnose_default_exception.py",
+      "sha256": "74801d359cf664e2cc4f7a53bdfa2ddfbdd175d8bef2ea0f0d9a486cc8561cf1"
+    },
+    "final_audit.py": {
+      "path": "final_audit.py",
+      "sha256": "d17f43950e9207bf32f756aa97135072ed630fbd169d5e1ae9eed50fc3e07b26"
+    },
+    "final-audit.json": {
+      "path": "final-audit.json",
+      "sha256": "000ecf8f1cdb12f8721a688cbe8c3c3289884a18c99a10b4f1fdcc455d0cb713"
+    }
+  },
+  "analysis": {
+    "analyzer": {
+      "path": "/Users/phodal/benchmarks/ai4se/analyses/20261106-sol-durability-repeat-01/analyze.py",
+      "sha256": "79d81c8d36cc0ee25fb76aeba381d571e4822725950a2a2efd0847410807d6e8"
+    },
+    "metrics": {
+      "path": "/Users/phodal/benchmarks/ai4se/analyses/20261106-sol-durability-repeat-01/metrics.json",
+      "sha256": "63600b4401cfc68d773c53744a18a5463549a5167130b398babad3bcbe182155"
+    },
+    "tool_result_wire_size_replay_matches": 81
+  },
+  "trials": [
+    {
+      "trial": "OpenManus-r2",
+      "source_project": "OpenManus",
+      "source_revision": "6c80b4ac7180069957c92338aca5189d2c5f03ee",
+      "prompt_file_sha256": "803a12d17ae926e0d659432f001a761c240095f92cffc6f796d222fdd9841331",
+      "session_id": "458c0551-c910-4c3b-81ca-71dd662ee499",
+      "acceptance": "pass_scoped",
+      "review": [
+        "Default-false google_only configuration, documented in README and example TOML",
+        "Existing engine-order owner selects Google exclusively",
+        "Nine scoped candidate tests and four frozen behavior cases pass",
+        "Ordinary pytest collection blocked by missing browser_use",
+        "Post-run diagnostic retains baseline default-mode RetryError behavior"
+      ],
+      "scope": "Search modules only; full application/browser/LLM/sandbox unverified. Package barrel bypass is explicit in scoped cases.",
+      "configuration_mapping": {
+        "google_only": true
+      },
+      "runtime_complete": true,
+      "turns": [
+        {
+          "task": 1,
+          "stop_reason": "end_turn",
+          "http_attempts": 23
+        }
+      ],
+      "cleanup": {
+        "process_started": true,
+        "exit_code": 0,
+        "errors": []
+      },
+      "duration_seconds": 231.902,
+      "requests": 23,
+      "tool_calls": 45,
+      "failed_calls": 2,
+      "usage": {
+        "input_tokens": 349803,
+        "output_tokens": 4715,
+        "total_tokens": 395734,
+        "cache_read_tokens": 41216,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 480,
+        "reported_completions": 23,
+        "unreported_completions": 0,
+        "unreported_attempts": 0
+      },
+      "verification_exit_codes": {
+        "pytest": 2,
+        "scoped-pytest": 0,
+        "default-fallback": 0,
+        "only-success": 0,
+        "only-empty": 0,
+        "only-error": 0
+      },
+      "fresh_read_results_pruned_before_first_request": [
+        {
+          "path": "app/tool/web_search.py",
+          "digest": "sha256:55c9cd4e276320427ede4d10b9ff24372f7bacae081352fd287205f828aa060b",
+          "call_seq": 76,
+          "result_seq": 88,
+          "replacement_seq": 113,
+          "lines_count": 218
+        },
+        {
+          "path": "app/tool/web_search.py",
+          "digest": "sha256:55c9cd4e276320427ede4d10b9ff24372f7bacae081352fd287205f828aa060b",
+          "call_seq": 120,
+          "result_seq": 131,
+          "replacement_seq": 153,
+          "lines_count": 210
+        },
+        {
+          "path": "README.md",
+          "digest": "sha256:f21c8a870e193a40021e528e33651a2ab2482b541b22be3068c468dcc5fe0fd4",
+          "call_seq": 169,
+          "result_seq": 179,
+          "replacement_seq": 196,
+          "lines_count": 100
+        }
+      ],
+      "discovery": {
+        "pre_mutation_responses": 10,
+        "pre_mutation_tokens": 128985,
+        "read_lines": 2708,
+        "previously_returned_read_lines": 1416,
+        "previously_visible_read_lines": 0
+      },
+      "request_bytes": {
+        "payload_bytes": 1521385,
+        "tools_bytes": 177628,
+        "tool_result_bytes": 739965,
+        "failed_tool_result_bytes": 148703,
+        "assistant_message_bytes": 22768,
+        "assistant_function_call_bytes": 247191,
+        "assistant_reasoning_bytes": 185727,
+        "other_payload_bytes": 148106
+      },
+      "evidence": {
+        "receipt.json": {
+          "path": "artifacts/OpenManus-r2/receipt.json",
+          "sha256": "342989aeac2e500653a703b05e8bda29f6cdf37764e5a238d43ced6d0cbe2c4d"
+        },
+        "verification.json": {
+          "path": "artifacts/OpenManus-r2/verification.json",
+          "sha256": "9128ee129284e12e6bc30fc6487aa22fd046f63a0fe82d5a9f64d6fbebdeaaa0"
+        },
+        "candidate-manifest.json": {
+          "path": "artifacts/OpenManus-r2/candidate-manifest.json",
+          "sha256": "01b2085a07e3393feda513799bdc9ad64d01e3dfc8591b225f3734165238d297"
+        }
+      },
+      "trace": {
+        "path": "artifacts/OpenManus-r2/agent/sessions/458c0551-c910-4c3b-81ca-71dd662ee499.jsonl",
+        "sha256": "3959487608c0584a9a65fdcfecd4f58fceca5028cbfafaf265272d307b424a3a"
+      }
+    },
+    {
+      "trial": "fastapi-sqlite-demo-r2",
+      "source_project": "fastapi-sqlite-demo",
+      "source_revision": "3e29d316778e4f6b723bcf4a5898f3b0e3fe2ef8",
+      "prompt_file_sha256": "a20e18985b25085de739dce0370c2a8b3048b2d9c2f7eeecd2bc28a118c8079f",
+      "session_id": "afbf1856-2ab9-49cd-8145-2abd4fd288de",
+      "acceptance": "pass",
+      "review": [
+        "Blog SQLModel, create/update/read schemas and async repository CRUD",
+        "Depends-based async routes, repository tests and API tests",
+        "SQLite blog table exists in delivered database before verification",
+        "Thirty candidate tests and ten independent HTTP/persistence/regression groups pass",
+        "Ruff baseline/candidate 8/7 and ty 11/11; no introduced normalized diagnostics"
+      ],
+      "scope": "Blog feature, schema, fresh-process persistence and existing Hero behavior",
+      "configuration_mapping": null,
+      "runtime_complete": true,
+      "turns": [
+        {
+          "task": 1,
+          "stop_reason": "end_turn",
+          "http_attempts": 34
+        }
+      ],
+      "cleanup": {
+        "process_started": true,
+        "exit_code": 0,
+        "errors": []
+      },
+      "duration_seconds": 353.694,
+      "requests": 34,
+      "tool_calls": 34,
+      "failed_calls": 4,
+      "usage": {
+        "input_tokens": 527530,
+        "output_tokens": 7517,
+        "total_tokens": 600711,
+        "cache_read_tokens": 65664,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 719,
+        "reported_completions": 34,
+        "unreported_completions": 0,
+        "unreported_attempts": 0
+      },
+      "verification_exit_codes": {
+        "delivered-sqlite-table": 0,
+        "pytest": 0,
+        "independent-http": 0
+      },
+      "fresh_read_results_pruned_before_first_request": [],
+      "discovery": {
+        "pre_mutation_responses": 6,
+        "pre_mutation_tokens": 48729,
+        "read_lines": 88,
+        "previously_returned_read_lines": 44,
+        "previously_visible_read_lines": 0
+      },
+      "request_bytes": {
+        "payload_bytes": 2376788,
+        "tools_bytes": 265760,
+        "tool_result_bytes": 870875,
+        "failed_tool_result_bytes": 312603,
+        "assistant_message_bytes": 37450,
+        "assistant_function_call_bytes": 548929,
+        "assistant_reasoning_bytes": 434907,
+        "other_payload_bytes": 218867
+      },
+      "evidence": {
+        "receipt.json": {
+          "path": "artifacts/fastapi-sqlite-demo-r2/receipt.json",
+          "sha256": "5dd8cbdd06cdc3d6a0679d04b9dd27d5d324cf20d69c67eb4a992e8049db8014"
+        },
+        "verification.json": {
+          "path": "artifacts/fastapi-sqlite-demo-r2/verification.json",
+          "sha256": "7d7cf4186a56d6f883e6ff72827dba9796dba7bf308b017cd5b16570447a3949"
+        },
+        "candidate-manifest.json": {
+          "path": "artifacts/fastapi-sqlite-demo-r2/candidate-manifest.json",
+          "sha256": "35ac8ebe935638fe1656143d3c0cb4998d0e1c6606fa2839eca2a99fe93e9085"
+        }
+      },
+      "trace": {
+        "path": "artifacts/fastapi-sqlite-demo-r2/agent/sessions/afbf1856-2ab9-49cd-8145-2abd4fd288de.jsonl",
+        "sha256": "8c0598419689b7b4f7c868431865f91c102c09d562978077d9b58209a77b877b"
+      }
+    },
+    {
+      "trial": "OpenManus-r3",
+      "source_project": "OpenManus",
+      "source_revision": "6c80b4ac7180069957c92338aca5189d2c5f03ee",
+      "prompt_file_sha256": "803a12d17ae926e0d659432f001a761c240095f92cffc6f796d222fdd9841331",
+      "session_id": "e33d1940-7065-40eb-80d7-86863b571d87",
+      "acceptance": "pass_scoped_with_review_caveat",
+      "review": [
+        "Typed multi/google_only mode, documented in README and example TOML",
+        "Nine candidate tests and four frozen behavior cases pass",
+        "Ordinary pytest command passes because candidate tests implement package-barrel bypass",
+        "Additional generic exception handling changes default multi-mode behavior",
+        "Post-run default-exception probe confirms baseline RetryError becomes successful Bing fallback; this is outside the frozen judge coverage"
+      ],
+      "scope": "Search modules only; full application/browser/LLM/sandbox unverified. Package barrel bypass is explicit in scoped cases.",
+      "configuration_mapping": {
+        "mode": "google_only"
+      },
+      "runtime_complete": true,
+      "turns": [
+        {
+          "task": 1,
+          "stop_reason": "end_turn",
+          "http_attempts": 24
+        }
+      ],
+      "cleanup": {
+        "process_started": true,
+        "exit_code": 0,
+        "errors": []
+      },
+      "duration_seconds": 300.494,
+      "requests": 24,
+      "tool_calls": 44,
+      "failed_calls": 3,
+      "usage": {
+        "input_tokens": 429547,
+        "output_tokens": 5541,
+        "total_tokens": 441744,
+        "cache_read_tokens": 6656,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 867,
+        "reported_completions": 24,
+        "unreported_completions": 0,
+        "unreported_attempts": 0
+      },
+      "verification_exit_codes": {
+        "pytest": 0,
+        "scoped-pytest": 0,
+        "default-fallback": 0,
+        "only-success": 0,
+        "only-empty": 0,
+        "only-error": 0
+      },
+      "fresh_read_results_pruned_before_first_request": [
+        {
+          "path": "app/tool/web_search.py",
+          "digest": "sha256:55c9cd4e276320427ede4d10b9ff24372f7bacae081352fd287205f828aa060b",
+          "call_seq": 70,
+          "result_seq": 82,
+          "replacement_seq": 105,
+          "lines_count": 218
+        }
+      ],
+      "discovery": {
+        "pre_mutation_responses": 7,
+        "pre_mutation_tokens": 83384,
+        "read_lines": 2552,
+        "previously_returned_read_lines": 717,
+        "previously_visible_read_lines": 3
+      },
+      "request_bytes": {
+        "payload_bytes": 1698344,
+        "tools_bytes": 185640,
+        "tool_result_bytes": 825352,
+        "failed_tool_result_bytes": 112983,
+        "assistant_message_bytes": 30879,
+        "assistant_function_call_bytes": 282196,
+        "assistant_reasoning_bytes": 222246,
+        "other_payload_bytes": 152031
+      },
+      "evidence": {
+        "receipt.json": {
+          "path": "artifacts/OpenManus-r3/receipt.json",
+          "sha256": "94fc195b288a0e8674dfe393560d11125fd23d430069a045265c7e60ee876b86"
+        },
+        "verification.json": {
+          "path": "artifacts/OpenManus-r3/verification.json",
+          "sha256": "520463ef34128794240d9f9f0db91ff9a66b2047b66912dd103bfae457edba33"
+        },
+        "candidate-manifest.json": {
+          "path": "artifacts/OpenManus-r3/candidate-manifest.json",
+          "sha256": "188c5531e00110f4904310a5f94712a0b62be9efb907f6d512351a46cef4aa8e"
+        }
+      },
+      "trace": {
+        "path": "artifacts/OpenManus-r3/agent/sessions/e33d1940-7065-40eb-80d7-86863b571d87.jsonl",
+        "sha256": "2598d2d9cf305137a40d3bc860945b13aa487f6d92ff8d229bd1c427f500a996"
+      }
+    }
+  ],
+  "totals": {
+    "requests": 81,
+    "tool_calls": 123,
+    "failed_calls": 9,
+    "duration_seconds": 886.09,
+    "usage": {
+      "input_tokens": 1306880,
+      "cache_read_tokens": 113536,
+      "cache_write_tokens": 0,
+      "output_tokens": 17773,
+      "reasoning_tokens": 2066,
+      "total_tokens": 1438189
+    },
+    "request_bytes": {
+      "payload_bytes": 5596517,
+      "tools_bytes": 629028,
+      "tool_result_bytes": 2436192,
+      "failed_tool_result_bytes": 574289,
+      "assistant_message_bytes": 91097,
+      "assistant_function_call_bytes": 1078316,
+      "assistant_reasoning_bytes": 842880,
+      "other_payload_bytes": 519004
+    },
+    "fresh_read_results_pruned_before_first_request": 4
+  },
+  "fastapi_quality_controls": {
+    "checks": [
+      {
+        "source": "baseline",
+        "check": "ruff",
+        "exit_code": 1,
+        "log": "artifacts/fastapi-sqlite-demo-r2/baseline-ruff.log",
+        "sha256": "4c0b5cb76cbb739d0acd6563ee2b2de274b0a930213bf9abf4e5590a8b9b8d45",
+        "diagnostic_count": 8
+      },
+      {
+        "source": "baseline",
+        "check": "ty",
+        "exit_code": 1,
+        "log": "artifacts/fastapi-sqlite-demo-r2/baseline-ty.log",
+        "sha256": "740e1e860f7758ff140f03b153f60a100a3705f0e2e725b52c60015f59e95ad5",
+        "diagnostic_count": 11
+      },
+      {
+        "source": "candidate",
+        "check": "ruff",
+        "exit_code": 1,
+        "log": "artifacts/fastapi-sqlite-demo-r2/candidate-ruff.log",
+        "sha256": "0d3618365ac0c694f43c2a9fbcde94c075acaf2958e2373602bbac57af17d7df",
+        "diagnostic_count": 7
+      },
+      {
+        "source": "candidate",
+        "check": "ty",
+        "exit_code": 1,
+        "log": "artifacts/fastapi-sqlite-demo-r2/candidate-ty.log",
+        "sha256": "740e1e860f7758ff140f03b153f60a100a3705f0e2e725b52c60015f59e95ad5",
+        "diagnostic_count": 11
+      }
+    ],
+    "introduced": {
+      "ruff": [],
+      "ty": []
+    },
+    "normalization": "Compare diagnostic path, code and message, excluding line/column offsets."
+  },
+  "post_run_default_exception_diagnostic": {
+    "evidence": {
+      "path": "artifacts/default-exception-observation.json",
+      "sha256": "bf365fb73c9bd8042991b7b54167bd8b3079fa1ffc4a9826f60c17d17a671599"
+    },
+    "changes_frozen_verdict": false,
+    "observations": {
+      "baseline": {
+        "calls": [
+          "google",
+          "google",
+          "google"
+        ],
+        "exception": "RetryError",
+        "result_source": null
+      },
+      "OpenManus-r2": {
+        "calls": [
+          "google",
+          "google",
+          "google"
+        ],
+        "exception": "RetryError",
+        "result_source": null
+      },
+      "OpenManus-r3": {
+        "calls": [
+          "google",
+          "google",
+          "google",
+          "bing"
+        ],
+        "exception": null,
+        "result_source": "bing"
+      }
+    },
+    "limitation": "Default empty-result fallback is frozen acceptance; provider-exception behavior is a post-run coverage observation."
+  },
+  "audit": {
+    "sources_clean": true,
+    "frozen_inputs_judges_postprocessors_unchanged": true,
+    "credential_literal_matches": 0,
+    "remaining_native_processes": 0,
+    "passed": true,
+    "raw_artifacts_in_git": false
+  }
+}
