@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { Disclosure, Table, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { InterpretationPreview } from './interpretation';
 import { ChartPanel } from './chart-panel';
 import { DatasetDetails } from './dataset-details';
@@ -79,12 +79,12 @@ export function Workspace(props: Props) {
         {failure.status === 'unavailable' || failure.status === 'forbidden' ? <Button disabled={busy} onClick={props.onRetryInspection}>Retry inspection</Button> : null}
       </div> : null}
       <div className="data-actions"><Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Edit details</Button>
-        <details className="data-provenance"><summary>Source details</summary><dl className="data-facts">
+        <Disclosure variant="inline" className="data-provenance" summary={<>Source details</>}><dl className="data-facts">
           <dt>Revision</dt><dd>{asset.revision || 'Local import'}</dd>
           <dt>SHA-256</dt><dd><code>{asset.sha256}</code></dd>
           <dt>Added</dt><dd>{asset.createdAt}</dd>
           {asset.bundleId ? <><dt>Paper bundle</dt><dd>{asset.bundleId}</dd></> : null}
-        </dl><p>Original bytes remain immutable. Record exports include all fields.</p></details>
+        </dl><p>Original bytes remain immutable. Record exports include all fields.</p></Disclosure>
       </div>
     </header>
     {editing ? <DatasetDetails dataset={dataset} busy={busy} error={props.error} onSave={props.onEdit} onClose={() => setEditing(false)} /> : null}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppContext, useAppI18n, useAppObject, useNavigate } from '@pero/app-sdk';
-import { AppFrame, Badge, Button, Card, EmptyIllustration, EmptyState, Feedback, ListRow, LoadingSkeleton, SkeletonText, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { Disclosure, AppFrame, Badge, Button, Card, EmptyIllustration, EmptyState, Feedback, ListRow, LoadingSkeleton, SkeletonText, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { ClusterDialog } from './cluster-dialog';
 import { messages, type Cluster, type ClusterInput, type ClusterState } from './messages';
 import './styles.css';
@@ -55,7 +55,7 @@ export default function Compute() {
     {error && editing === undefined ? <div className="compute-recovery"><Feedback kind="error" variant="block">{t(failure)} {state && failure === 'loadFailed' ? t('retained') : ''}</Feedback>
       {failure === 'loadFailed' ? <Button disabled={loading || busy} onClick={() => void refresh()}>{t('retry')}</Button> : null}
       {failure === 'environmentUnavailable' ? <Button onClick={() => void open('/apps')}>{t('manageApps')}</Button> : null}
-      <details className="compute-error-details"><summary>{t('details')}</summary><p>{error}</p></details></div> : null}
+      <Disclosure variant="inline" className="compute-error-details" summary={<>{t('details')}</>}><p>{error}</p></Disclosure></div> : null}
     {!state ? loading ? <LoadingSkeleton label={t('loading')} className="compute-loading"><SkeletonText /></LoadingSkeleton> : null : <>
       <TabsContent value="jobs" className="compute-panel">
         <EmptyState className="compute-empty" icon={<EmptyIllustration kind="compute" size="compact" />} heading={<h2>{t('jobsUnavailable')}</h2>}
