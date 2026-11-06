@@ -19,7 +19,7 @@ import { CAPABILITY_GUIDES, capabilityGuides, visibleCapabilityGuides } from './
 import { connectorSections, connectorShelf, connectorShelfLabels } from './connector-categories.mjs';
 import { errorMessage } from './error-message.ts';
 import type { PointBrowserOpener, PointBrowserRequest } from './bridge.ts';
-import { Button, Dialog, EmptyState, Input, RadioGroup, RadioGroupItem, ToggleGroup, ToggleGroupItem, Toolbar } from './ui';
+import { Button, Dialog, EmptyIllustration, EmptyState, Input, LoadingSkeleton, RadioGroup, RadioGroupItem, SkeletonCards, SkeletonText, ToggleGroup, ToggleGroupItem, Toolbar } from './ui';
 
 
 const ATTENTION = new Set(['needs-attention', 'needs-authorization', 'needs-configuration']);
@@ -261,7 +261,8 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.connectionId, view?.revision]);
 
-  const matchesCatalog = directory.filter(entry => (category === 'all' || connectorShelf(entry) === category) &&
+  const catalogDirectory = directory.filter(entry => connectorShelf(entry));
+  const matchesCatalog = catalogDirectory.filter(entry => (category === 'all' || connectorShelf(entry) === category) &&
     matchesProvider(entry, search, [PROVIDER_NAMES_EN[entry.providerId] ?? '']));
   const categoriesAvailable = ['all', ...connectorSections(directory, locale).map(section => section.id)];
   const catalogSections = connectorSections(matchesCatalog, locale);
@@ -297,7 +298,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
 
   return <section className={dialogOnly ? 'point-connectors-dialog-only' : 'point-page point-connectors-page'} aria-label={copy('连接器', 'Connectors')}>
     {error && <div role="alert"><p className="point-error">{error}</p><Button onClick={() => void reload()} disabled={refreshing}>{copy('重新加载', 'Reload')}</Button></div>}
-    {loading && !directory.length && <p className="point-page-note" role="status">{copy('正在加载…', 'Loading…')}</p>}
+    {loading && dialogOnly && <p className="point-page-note" role="status">{copy('正在加载…', 'Loading…')}</p>}
     {!dialogOnly && <>
 
     <Toolbar className="point-page-toolbar">
@@ -327,6 +328,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
       <ToggleGroup className="point-page-filters point-connectors-categories" type="single" value={category} aria-label={copy('分类', 'Categories')} onValueChange={next => { if (next) setCategory(next); }}>
         {categoriesAvailable.map(key => <ToggleGroupItem key={key} value={key}>{key === 'all' ? copy('全部', 'All') : categoryLabels[key] ?? key}</ToggleGroupItem>)}
       </ToggleGroup>
+      {loading && !directory.length && <LoadingSkeleton label={copy('正在加载服务目录…', 'Loading the service catalog…')}><SkeletonCards count={3} /></LoadingSkeleton>}
       {/* One section per tab, in tab order, so the catalog reads as sections instead of one long mixed grid. */}
       {catalogSections.map(section => <section key={section.id} className="point-connectors-section" aria-label={section.label}>
         <h2 className="point-connectors-section-title">{section.label}<span>{section.entries.length}</span></h2>
@@ -356,7 +358,12 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
           })}
         </div>
       </section>)}
-      {!matchesCatalog.length && !loading && !error && <EmptyState as="p">{copy('没有匹配的服务。', 'No matching services.')}</EmptyState>}
+      {!matchesCatalog.length && !loading && !error && (catalogDirectory.length ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />}
+        heading={copy('没有匹配的服务', 'No matching services')} description={copy('换个关键词，或清除分类筛选。', 'Try another search or clear the category filter.')}
+        actions={<Button onClick={() => { setSearch(''); setCategory('all'); }}>{copy('清除筛选', 'Clear filters')}</Button>} />
+        : <EmptyState icon={<EmptyIllustration kind="connections" />} heading={copy('服务目录暂无内容', 'No services available')}
+          description={copy('重新加载目录，或添加自定义 MCP。', 'Reload the service catalog or add a custom MCP.')}
+          actions={<><Button onClick={() => void reload()} disabled={refreshing}>{copy('重新加载', 'Reload')}</Button><Button onClick={openImport}>{copy('添加自定义 MCP', 'Add custom MCP')}</Button></>} />)}
     </div>}
 
     {mode === 'manage' && <div className="point-connectors-manage">
@@ -364,6 +371,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
         {([['all', copy('全部', 'All')], ['attention', copy('需处理', 'Needs attention')], ['ready', copy('正常', 'Ready')], ['paused', copy('已停用', 'Paused')]] as const).map(([key, label]) =>
           <ToggleGroupItem key={key} value={key}>{label} {key === 'all' ? connections.length : key === 'attention' ? connections.filter(c => ATTENTION.has(c.state)).length : key === 'ready' ? connections.filter(c => READY.has(c.state)).length : connections.filter(c => !c.enabled).length}</ToggleGroupItem>)}
       </ToggleGroup>
+      {loading && !connections.length && <LoadingSkeleton label={copy('正在加载已安装连接…', 'Loading installed connections…')}><SkeletonText /></LoadingSkeleton>}
       {matchesManage.length > 0 && <div className="point-page-list">
         {matchesManage.map(view => <article key={view.connectionId} className="point-page-row point-connectors-row-card" data-state={view.state}>
           <span className="point-connectors-symbol"><StatusDot state={view.state} /></span>
@@ -383,7 +391,12 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
           </div>
         </article>)}
       </div>}
-      {!matchesManage.length && !loading && !error && <EmptyState as="p">{connections.length ? copy('没有匹配的连接。', 'No matching connections.') : copy('还没有连接。从目录安装一个，或添加自定义 MCP。', 'No connections yet. Install from the catalog or add a custom MCP.')}</EmptyState>}
+      {!matchesManage.length && !loading && !error && (connections.length ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />}
+        heading={copy('没有匹配的连接', 'No matching connections')} description={copy('换个关键词，或清除状态筛选。', 'Try another search or clear the state filter.')}
+        actions={<Button onClick={() => { setSearch(''); setStateFilter('all'); }}>{copy('清除筛选', 'Clear filters')}</Button>} />
+        : <EmptyState icon={<EmptyIllustration kind="connections" />} heading={copy('尚未添加连接', 'No connections yet')}
+          description={copy('从服务目录安装一个连接，或添加自定义 MCP。', 'Install a connection from the service catalog or add a custom MCP.')}
+          actions={<><Button variant="primary" onClick={() => { setMode('catalog'); setSearch(''); setCategory('all'); }}>{copy('查看服务目录', 'Browse service catalog')}</Button><Button onClick={openImport}>{copy('添加自定义 MCP', 'Add custom MCP')}</Button></>} />)}
     </div>}
     </>}
 

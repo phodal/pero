@@ -7,6 +7,7 @@ import { build } from 'esbuild';
 import { createUiRuntime } from '../../../packages/app-sdk/test/ui-test-runtime.mjs';
 
 const provider = { providerId: 'remote-token', displayName: 'Test service', category: 'custom', transport: 'http', requires: [], auth: { mode: 'token' } };
+const catalogProvider = { ...provider, providerId: 'research-service', category: 'research' };
 const connection = { connectionId: 'test-service', providerId: provider.providerId, displayName: 'Test service', accountLabel: '', origin: 'user',
   state: 'connected', reason: '', primary: 'configure', secondary: [], lifecycle: [], attempt: null, revision: '1', sealed: false,
   docsUrl: '', code: '', nextStep: '', enabled: true, badges: [], tools: { usable: [], blocked: [], needsApproval: [] }, transport: 'http' };
@@ -123,6 +124,73 @@ test('ordinary polling keeps the actual open configuration input and unsaved dra
   }
   assert.match(document.body.textContent, /Connection management is unavailable/);
   assert.ok(document.querySelector('[data-state="connected"]'));
+});
+
+test('initial connection loading and failure stay distinct from first-use actions', async t => {
+  const f = await fixture(t, true), pending = deferred();
+  let currentSnapshot = pending.promise;
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const { operation } = JSON.parse(init.body);
+    if (operation === 'snapshot') return currentSnapshot;
+    if (operation === 'list') return response({ ok: true, result: [] });
+    return response({ ok: true, records: [], running: [] });
+  });
+  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en', initialMode: 'manage' }));
+  assert.match(document.querySelector('[role=status]').textContent, /Loading installed connections/);
+  assert.equal(document.querySelector('.pero-ui-empty-state'), null);
+  await f.React.act(async () => pending.resolve(response({ ok: false, code: 'MCP_HOST_UNAVAILABLE' })));
+  assert.match(document.querySelector('[role=alert]').textContent, /Connection management is unavailable/);
+  assert.equal(document.querySelector('.pero-ui-empty-state'), null);
+
+  currentSnapshot = response({ ok: true, directory: [provider, catalogProvider], connections: [] });
+  await f.click([...document.querySelectorAll('button')].find(node => node.textContent === 'Reload'));
+  const firstUse = document.querySelector('.point-connectors-manage .pero-ui-empty-state');
+  assert.match(firstUse.textContent, /No connections yet/);
+  await f.click([...firstUse.querySelectorAll('button')].find(node => node.textContent === 'Browse service catalog'));
+  assert.match(document.querySelector('.point-connectors-catalog').textContent, /Test service/);
+  await f.click([...document.querySelectorAll('button')].find(node => node.textContent === 'Installed connections'));
+  await f.click([...document.querySelector('.point-connectors-manage .pero-ui-empty-state').querySelectorAll('button')].find(node => node.textContent === 'Add custom MCP'));
+  assert.ok(document.querySelector('#connector-import-json'));
+  assert.equal(document.querySelector('dialog').open, true);
+});
+
+test('catalog and connection no-match recovery clears filters and restores retained entries', async t => {
+  const f = await fixture(t, true);
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const { operation } = JSON.parse(init.body);
+    if (operation === 'snapshot') return response({ ...snapshot('Test service'), directory: [provider, catalogProvider] });
+    if (operation === 'list') return response(entries('initial'));
+    return response({ ok: true, records: [], running: [] });
+  });
+  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en', initialMode: 'manage' }));
+  await f.click([...document.querySelectorAll('button')].find(node => node.textContent === 'Paused 0'));
+  for (const mode of ['manage', 'catalog']) {
+    if (mode === 'catalog') await f.click([...document.querySelectorAll('button')].find(node => node.textContent === 'Service catalog'));
+    const search = document.querySelector('input[type=search]');
+    await f.React.act(async () => {
+      Object.getOwnPropertyDescriptor(f.dom.window.HTMLInputElement.prototype, 'value').set.call(search, 'no-such-service');
+      search.dispatchEvent(new f.dom.window.Event('input', { bubbles: true }));
+    });
+    const empty = document.querySelector('.pero-ui-empty-state');
+    assert.match(empty.textContent, mode === 'manage' ? /No matching connections/ : /No matching services/);
+    await f.click([...empty.querySelectorAll('button')].find(node => node.textContent === 'Clear filters'));
+    assert.equal(search.value, '');
+    assert.equal(document.querySelector('.pero-ui-empty-state'), null);
+    assert.match(document.querySelector(mode === 'manage' ? '.point-page-list' : '.point-connectors-grid').textContent, /Test service/);
+  }
+});
+
+test('transport templates alone do not masquerade as catalog services', async t => {
+  const f = await fixture(t, true);
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const { operation } = JSON.parse(init.body);
+    if (operation === 'snapshot') return response({ ok: true, directory: [provider], connections: [] });
+    if (operation === 'list') return response({ ok: true, result: [] });
+    return response({ ok: true, records: [], running: [] });
+  });
+  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en' }));
+  assert.match(document.querySelector('.pero-ui-empty-state').textContent, /No services available/);
+  assert.equal(document.querySelector('.point-connectors-grid'), null);
 });
 
 test('tool access stays controlled and credential Enter waits for input composition to finish', async t => {
