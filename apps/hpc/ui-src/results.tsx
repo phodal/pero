@@ -1,6 +1,6 @@
 import React from "react";
 import { useAppContext } from "@pero/app-sdk";
-import { Button, Checkbox, Icon } from "@pero/app-sdk/ui";
+import { Table, Button, Checkbox, Icon } from "@pero/app-sdk/ui";
 import type { Benchmark, Comparison, Run, Value, Verification } from "./types";
 import type { Message } from "./messages";
 import { RunPlots } from "./plots";
@@ -36,12 +36,12 @@ function CheckReport({ report, t }: { report: Verification; t: Translate }) {
   }));
   return <>
     <div className="section-heading check-heading"><h3><Icon name="shield" size={14} />{t("verification")}</h3><Status value={report.status} t={t} /></div>
-    <div className="table-scroll"><table className="check-table"><thead><tr>
+    <Table label={t("verification")} density="compact" className="table-scroll" tableClassName="check-table"><thead><tr>
       <th scope="col">{t("metric")}</th><th scope="col">{t("measured")}</th><th scope="col">{t("limit")}</th><th scope="col">{t("verification")}</th>
     </tr></thead><tbody>{checks.map(check => <tr key={check.id}>
       <th scope="row">{propertyLabel(check.id, chinese, check.label)}</th><td>{number(check.value)}</td><td>{typeof check.threshold === "number" && upperBoundChecks.has(check.id) ? "≤ " : ""}{number(check.threshold)}</td>
       <td>{check.passed === undefined ? "—" : <Status value={check.passed ? "pass" : "fail"} t={t} />}</td>
-    </tr>)}</tbody></table></div>
+    </tr>)}</tbody></Table>
     {!report.checks?.length && <details><summary>{t("criteria")}</summary><Facts values={report.thresholds} /></details>}
 
     {report.errors.length > 0 && <ul className="error-text">{report.errors.map((error, index) => <li key={index}>{error}</li>)}</ul>}
@@ -71,8 +71,8 @@ export function RunEvidence({ run, t, busy, exporting, onVerify, onCancel, onExp
     <RunPlots run={run} />
     {run.verification ? <CheckReport report={run.verification} t={t} /> : <p className="muted" role="status">{t("checkPending")}</p>}
     <details className="evidence-files"><summary>{t("artifacts")} ({run.artifacts.length})</summary>
-      {run.artifacts.length ? <div className="table-scroll"><table><thead><tr><th>{t("file")}</th><th>{t("size")}</th><th>SHA-256</th></tr></thead>
-        <tbody>{run.artifacts.map(file => <tr key={file.name}><td>{file.name}</td><td>{number(file.bytes)}</td><td className="digest">{file.sha256}</td></tr>)}</tbody></table></div> : <p>{t("noArtifacts")}</p>}
+      {run.artifacts.length ? <Table label={t("artifacts")} density="compact" className="table-scroll"><thead><tr><th>{t("file")}</th><th>{t("size")}</th><th>SHA-256</th></tr></thead>
+        <tbody>{run.artifacts.map(file => <tr key={file.name}><td>{file.name}</td><td>{number(file.bytes)}</td><td className="digest">{file.sha256}</td></tr>)}</tbody></Table> : <p>{t("noArtifacts")}</p>}
     </details>
     <details><summary>{t("logs")}</summary><pre className="log">{run.logs || t("noLogs")}</pre></details>
     <details><summary>{t("details")}</summary>    <dl className="run-summary">
@@ -91,15 +91,15 @@ export function RunTable({ benchmarks, runs, selectedId, chosen, t, onOpen, onCh
   benchmarks: Benchmark[]; runs: Run[]; selectedId: string; chosen: string[]; t: Translate;
   onOpen(run: Run): void; onChoose(run: Run, selected: boolean): void;
 }) {
-  return <div className="table-scroll"><table className="run-table"><thead><tr>
+  return <Table label={t("history")} density="compact" className="table-scroll" tableClassName="run-table"><thead><tr>
     <th><span className="visually-hidden">{t("chooseComparison")}</span></th><th>{t("created")}</th><th>{t("method")}</th>
     <th>{t("status")}</th><th>{t("verification")}</th><th>{t("elapsed")}</th>
   </tr></thead><tbody>{runs.map(run => <tr key={run.id} className={selectedId === run.id ? "selected" : ""}>
     <td><Checkbox aria-label={`${t("chooseComparison")}: ${run.id}`} checked={chosen.includes(run.id)}
       disabled={run.status !== "completed" || Boolean(run.operation) || chosen.length >= 8 && !chosen.includes(run.id)} onCheckedChange={checked => onChoose(run, checked === true)} /></td>
-    <td><Button variant="unstyled" className="text-button" aria-label={`${t("select")}: ${run.id}`} onClick={() => onOpen(run)}>{new Date(run.createdAt).toLocaleString()}</Button></td>
+    <td><Button variant="link" className="text-button" aria-label={`${t("select")}: ${run.id}`} onClick={() => onOpen(run)}>{new Date(run.createdAt).toLocaleString()}</Button></td>
     <td>{run.benchmarkName}{!benchmarks.some(benchmark => benchmark.id === run.benchmarkId && benchmark.specDigest === run.specDigest) && <span className="prior-specification">{t("priorSpecification")}</span>}</td><td><Status value={run.status} t={t} /></td><td><Status value={run.verification?.status} t={t} /></td><td>{number(run.elapsedSeconds)}</td>
-  </tr>)}</tbody></table></div>;
+  </tr>)}</tbody></Table>;
 }
 
 export function ComparisonTable({ comparison, t }: { comparison: Comparison; t: Translate }) {
@@ -107,11 +107,11 @@ export function ComparisonTable({ comparison, t }: { comparison: Comparison; t: 
   if (!comparison.comparable) return <p className="error-text" role="alert">{comparison.reason}</p>;
   const metrics = ["fineAbsoluteError", "convergenceRatio", "residualMax"].filter(key => comparison.rows.some(row => row.metrics[key] != null));
   return <>
-    <div className="table-scroll"><table><thead><tr><th>{t("metric")}</th>{comparison.rows.map(row => <th key={row.runId}>{row.runId.slice(0, 8)}</th>)}</tr></thead><tbody>
+    <Table label={t("compare")} density="compact" className="table-scroll"><thead><tr><th>{t("metric")}</th>{comparison.rows.map(row => <th key={row.runId}>{row.runId.slice(0, 8)}</th>)}</tr></thead><tbody>
       <tr><th>{t("verification")}</th>{comparison.rows.map(row => <td key={row.runId}><Status value={row.verificationStatus} t={t} /></td>)}</tr>
       <tr><th>{t("elapsed")}</th>{comparison.rows.map(row => <td key={row.runId}>{number(row.elapsedSeconds)}</td>)}</tr>
       {metrics.map(key => <tr key={key}><th>{propertyLabel(key, chinese)}</th>{comparison.rows.map(row => <td key={row.runId}>{number(row.metrics[key])}</td>)}</tr>)}
-    </tbody></table></div>
+    </tbody></Table>
     <details><summary>{t("details")}</summary><p className="digest">{comparison.specDigest}</p>{comparison.runIds.map(id => <p key={id} className="digest">{id}</p>)}</details>
   </>;
 }

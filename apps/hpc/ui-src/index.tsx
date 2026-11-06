@@ -161,7 +161,7 @@ export default function HpcBenchmarks() {
       <SplitPane id="hpc-benchmarks" size={232} min={210} stackedBasis="auto" resizeLabel={t("methods")} as="aside" className="benchmark-explorer">
         <div className="explorer-header"><h2>{t("methods")}</h2><div className="benchmark-search"><Icon name="search" size={14} /><Input type="search" aria-label={t("search")} placeholder={t("search")} value={query} onChange={event => setQuery(event.target.value)} /></div></div>
         <nav className="benchmark-list" aria-label={t("methods")}>
-          {filteredBenchmarks.map(benchmark => <Button key={benchmark.id} variant="unstyled" className="benchmark-item" aria-label={benchmark.name} aria-current={selectedBenchmark?.id === benchmark.id ? "page" : undefined} onClick={() => chooseBenchmark(benchmark)}>
+          {filteredBenchmarks.map(benchmark => <Button key={benchmark.id} variant="ghost" className="benchmark-item" aria-label={benchmark.name} aria-current={selectedBenchmark?.id === benchmark.id ? "page" : undefined} onClick={() => chooseBenchmark(benchmark)}>
             <span className="benchmark-name">{benchmark.name}</span><span className="benchmark-meta"><span>{benchmark.version}</span>{!benchmark.available && <span className="unavailable-label">{t("unavailable")}</span>}</span>
           </Button>)}
           {!filteredBenchmarks.length && <p className="empty">{t(data?.benchmarks.length ? "noMatch" : "noMethods")}</p>}
