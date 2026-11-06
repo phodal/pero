@@ -1,10 +1,10 @@
 //! Source-bound tables published by the harness, visible outside collapsed tools.
-use crate::{panel::ChatPanel, stream::StreamText, scientific_source::{ScientificSource, SourceFormat}};
-use gpui_kit::{
-    component::{Sizable, button::*},
-    prelude::*,
-    *,
+use crate::{
+    panel::ChatPanel,
+    scientific_source::{ScientificSource, SourceFormat},
+    stream::StreamText,
 };
+use gpui_kit::{prelude::*, *};
 use pero_contracts::{
     content_document::{ContentDocument, ContentFormat, DocumentSource},
     content_origin::ContentOrigin,
@@ -26,9 +26,21 @@ struct Column {
     label: String,
     unit: String,
 }
+#[derive(Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum CellKind {
+    Number,
+    String,
+    Boolean,
+    Object,
+    Array,
+    Null,
+    Missing,
+}
 #[derive(Deserialize)]
 struct Cell {
     display: String,
+    kind: CellKind,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +60,14 @@ struct TableDocument {
 #[derive(Clone, Serialize)]
 pub struct TableView {
     pub artifact_id: String,
+    #[serde(skip)]
+    pub(crate) data_bounds: crate::view_bounds::ViewBounds,
+    #[serde(skip)]
+    pub(crate) source_bounds: crate::view_bounds::ViewBounds,
+    #[serde(skip)]
+    missing: bool,
+    #[serde(skip)]
+    nulls: bool,
     pub title: String,
     pub rows: usize,
     pub total_records: usize,
@@ -83,7 +103,10 @@ impl TableView {
         }
         let table: TableDocument =
             serde_json::from_str(&receipt.content).map_err(|_| "Invalid table content")?;
-        if !receipt.source_document.matches_dataset(&table.source.dataset) {
+        if !receipt
+            .source_document
+            .matches_dataset(&table.source.dataset)
+        {
             return Err("Table source identity does not match".into());
         }
         if table.columns.is_empty()
@@ -112,7 +135,26 @@ impl TableView {
         let mut markdown = format!(
             "{}\n\n| {headers} |\n| {} |\n",
             literal(&table.description),
-            vec!["---"; table.columns.len()].join(" | ")
+            (0..table.columns.len())
+                .map(|index| {
+                    if table
+                        .rows
+                        .iter()
+                        .any(|row| row[index].kind == CellKind::Number)
+                        && table.rows.iter().all(|row| {
+                            matches!(
+                                row[index].kind,
+                                CellKind::Number | CellKind::Null | CellKind::Missing
+                            )
+                        })
+                    {
+                        "---:"
+                    } else {
+                        "---"
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" | ")
         );
         for row in &table.rows {
             markdown.push_str(&format!(
@@ -125,12 +167,28 @@ impl TableView {
         }
         Ok(Self {
             artifact_id: receipt.artifact_id,
+            data_bounds: Default::default(),
+            source_bounds: Default::default(),
+            missing: table
+                .rows
+                .iter()
+                .flatten()
+                .any(|cell| cell.kind == CellKind::Missing),
+            nulls: table
+                .rows
+                .iter()
+                .flatten()
+                .any(|cell| cell.kind == CellKind::Null),
             title: table.title,
             rows: table.rows.len(),
             total_records: table.source.total_records,
             source: receipt.source_document,
             content: receipt.content,
-            view: cx.new(|cx| StreamText::new(&markdown, cx)),
+            view: cx.new(|cx| {
+                let mut view = StreamText::new(&markdown, cx);
+                view.appearance = crate::stream::StreamAppearance::ScientificTable;
+                view
+            }),
         })
     }
 }
@@ -181,18 +239,100 @@ impl ChatPanel {
             .find(|chat| chat.id == thread)
             .and_then(|chat| chat.tools.iter().find(|item| item.id == tool))
             .and_then(|tool| tool.chart_reader.clone());
-        div().id(SharedString::from(format!("table-{thread}-{tool}"))).w_full().min_w_0().py_3()
-            .child(div().font_weight(FontWeight::SEMIBOLD).child(table.title.clone()))
+        let chrome = pero_theme::Chrome::from_app(cx);
+        let mut legend = Vec::new();
+        if table.missing {
+            legend.push(if zh {
+                "— 表示字段缺失"
+            } else {
+                "— = missing field"
+            });
+        }
+        if table.nulls {
+            legend.push(if zh {
+                "null 表示显式空值"
+            } else {
+                "null = explicit null"
+            });
+        }
+        pero_theme::research_result(table.title.clone(), chrome)
+            .id(SharedString::from(format!("table-{thread}-{tool}")))
             .child(table.view.clone())
-            .child(div().text_sm().text_color(pero_theme::UiAppearance::global(cx).palette.text_muted)
-                .child(if zh { format!("{} · 展示 {} / {} 条来源记录 · 科学结论未核验；— 表示字段缺失，null 表示显式空值", table.source.title, table.rows, table.total_records) }
-                    else { format!("{} · {} of {} source records · Scientifically unverified; — = missing field, null = explicit null", table.source.title, table.rows, table.total_records) }))
-            .child(div().flex().gap_2()
-                .child(Button::new("table-data").small().ghost().label(if zh { "数据与来源" } else { "Data and sources" })
-                    .on_click(cx.listener(move |this, _, window, cx| this.open_result_document(&thread_id, &tool_id, data.clone(), window, cx))))
-                .child(Button::new("table-source").small().ghost().label(if zh { "原始记录" } else { "Original records" })
-                    .on_click(cx.listener(move |this, _, window, cx| this.open_result_document(&source_thread, &source_tool, source.clone(), window, cx)))))
-            .when_some(reader, |el, reader| el.child(reader)).into_any_element()
+            .child(
+                pero_theme::research_note(chrome)
+                    .child(if zh {
+                        format!(
+                            "{} · {} / {} 条记录 · 科学结论未核验",
+                            table.source.title, table.rows, table.total_records
+                        )
+                    } else {
+                        format!(
+                            "{} · {} of {} records · Scientifically unverified",
+                            table.source.title, table.rows, table.total_records
+                        )
+                    })
+                    .when(!legend.is_empty(), |el| el.child(legend.join(" · "))),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap_2()
+                    .child(
+                        pero_theme::action_button(
+                            "table-source",
+                            if zh {
+                                "原始记录"
+                            } else {
+                                "Original records"
+                            },
+                            pero_theme::ActionKind::Ghost,
+                            chrome,
+                            cx,
+                        )
+                        .relative()
+                        .child(table.source_bounds.probe())
+                        .on_click(cx.listener(
+                            move |this, _, window, cx| {
+                                this.open_result_document(
+                                    &source_thread,
+                                    &source_tool,
+                                    source.clone(),
+                                    window,
+                                    cx,
+                                )
+                            },
+                        )),
+                    )
+                    .child(
+                        pero_theme::action_button(
+                            "table-data",
+                            if zh {
+                                "数据与来源"
+                            } else {
+                                "Data and sources"
+                            },
+                            pero_theme::ActionKind::Ghost,
+                            chrome,
+                            cx,
+                        )
+                        .relative()
+                        .child(table.data_bounds.probe())
+                        .on_click(cx.listener(
+                            move |this, _, window, cx| {
+                                this.open_result_document(
+                                    &thread_id,
+                                    &tool_id,
+                                    data.clone(),
+                                    window,
+                                    cx,
+                                )
+                            },
+                        )),
+                    ),
+            )
+            .when_some(reader, |el, reader| el.child(reader))
+            .into_any_element()
     }
 }
 

@@ -42,8 +42,8 @@ try {
   await page.mouse.wheel(0,600);
   await page.screenshot({path:join(output,'equations-light.png'),scale:'css'});
   if(!source) {
-    // PDE copy control in the captured 1200px fixture viewport.
-    await page.mouse.click(870,312);
+    // Icon-only PDE copy control, inspected in the fixed 1200px fixture viewport.
+    await page.mouse.click(1160,405);
     await expect.poll(()=>app.evaluate(({clipboard})=>clipboard.readText())).toContain(String.raw`\rho\left(`);
   }
   await page.evaluate(()=>window.pero.sessionCommand({method:'settings.workbench',preferences:{...JSON.parse(window.peroDiagnostics.snapshot()).preferences,appearance:'dark'}}));
@@ -59,7 +59,8 @@ try {
   await page.mouse.move(800,400);await page.mouse.wheel(0,-10000);
   await expect.poll(async()=>(await state()).scroll.y).toBe(0);
   if(!source){
-    await page.mouse.click(723,364);
+    const sourceButton=(await state()).tableBounds.find(item=>item.id===table.artifact_id).source;
+    await page.mouse.click(sourceButton.x+sourceButton.width/2,sourceButton.y+sourceButton.height/2);
     await expect.poll(async()=>(await state()).documents?.some(doc=>doc.title==='results.json')).toBe(true);
     await page.mouse.click(await page.evaluate(()=>innerWidth-60),54);
     await expect.poll(()=>app.evaluate(({clipboard})=>clipboard.readText())).toBe(table.source.text);

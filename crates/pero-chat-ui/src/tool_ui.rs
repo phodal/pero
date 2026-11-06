@@ -109,7 +109,10 @@ mod rendering {
             });
             let cancelled = tools.iter().all(|tool| tool.cancelled);
             let (action_key, mut icon) = action(&first.kind);
-            let summary = if tools.len() == 1 {
+            let scientific = tools.iter().all(|tool| tool.status == "completed" && !tool.cancelled && tool.chart_error.is_none() && (tool.table.is_some() || tool.chart.is_some()));
+            let summary = if scientific {
+                if self.locale.starts_with("zh") { "执行详情" } else { "Execution details" }.to_owned()
+            } else if tools.len() == 1 {
                 short_label(
                     self.t(action_key),
                     &first.title,
@@ -180,6 +183,10 @@ mod rendering {
                 .id(("tool-group", row))
                 .mb(px(2.))
                 .min_w_0()
+                .when(scientific, |el| el
+                .children(tools.iter().filter_map(|tool|tool.table.as_ref().map(|table|self.inline_table(conversation_id, &tool.id, table, cx))))
+                .children(tools.iter().filter_map(|tool|tool.chart.as_ref().map(|chart|self.inline_chart(conversation_id, &tool.id, chart, cx))))
+                )
                 .child(
                     Button::new(("tool-toggle", row))
                         .relative()
@@ -194,9 +201,9 @@ mod rendering {
                         .toggled(open)
                         .child(self.icon(if open { "chevron-down" } else { "chevron-right" })
                             .size(px(12.)).flex_shrink_0().text_color(p.text_muted))
-                        .child(self.icon(if failed { "alert-circle" } else if running { "clock" } else { icon })
+                        .when(!scientific, |el| el.child(self.icon(if failed { "alert-circle" } else if running { "clock" } else { icon })
                             .size(px(W::ICON))
-                            .text_color(if failed { p.error } else { p.text_muted }))
+                            .text_color(if failed { p.error } else { p.text_muted })))
                         .child(
                             div()
                                 .flex_1()
@@ -341,8 +348,10 @@ mod rendering {
                     )
                 })
                 .children(tools.iter().filter_map(|tool|tool.chart_error.as_ref().map(|error|div().text_color(p.error).child(error.clone()))))
+                .when(!scientific, |el| el
                 .children(tools.iter().filter_map(|tool|tool.table.as_ref().map(|table|self.inline_table(conversation_id, &tool.id, table, cx))))
                 .children(tools.iter().filter_map(|tool|tool.chart.as_ref().map(|chart|self.inline_chart(conversation_id, &tool.id, chart, cx))))
+                )
                 .children(tools.iter().filter_map(|tool|self.approval(conversation_id, Some(&tool.id), cx)))
                 .when(failed && !open, |el| {
                     el.child(

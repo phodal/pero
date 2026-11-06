@@ -61,7 +61,7 @@ pub(crate) mod view {
         base::text::{
             InlineElement, InlineRenderContext, MarkdownNode, MarkdownParseContext, MarkdownPlugin,
         },
-        component::{ActiveTheme as _, Sizable, button::*},
+        component::ActiveTheme as _,
         prelude::*,
         *,
     };
@@ -111,28 +111,44 @@ pub(crate) mod view {
             cx: &mut App,
         ) -> impl IntoElement {
             let formula = node.data::<Formula>().expect("prepared formula");
-            let font = pero_theme::UiAppearance::global(cx).typography.chat;
+            let font = pero_theme::UiAppearance::global(cx).typography.chat * 1.2;
+            let chrome = pero_theme::Chrome::from_app(cx);
             let source = formula.source.clone();
             let identity = node.source_range().map(|r| r.start).unwrap_or_default();
             div()
                 .id(SharedString::from(format!("equation-{identity}")))
                 .w_full()
                 .min_w_0()
-                .py_2()
+                .flex()
+                .items_start()
+                .gap_2()
+                .my_2()
+                .p_4()
+                .rounded_lg()
+                .bg(chrome.palette.surface_muted)
                 .child(match &formula.display {
                     Ok(display) => div()
                         .id("formula-scroll")
-                        .w_full()
+                        .flex_1()
+                        .min_w_0()
                         .overflow_x_scroll()
                         .child(
-                            svg()
-                                .data(display.svg.as_bytes())
-                                .w(px(display.width_em * font))
-                                .h(px(display.height_em * font))
-                                .text_color(cx.theme().foreground),
+                            div()
+                                .flex()
+                                .justify_center()
+                                .min_w(px(display.width_em * font))
+                                .child(
+                                    svg()
+                                        .data(display.svg.as_bytes())
+                                        .w(px(display.width_em * font))
+                                        .h(px(display.height_em * font))
+                                        .text_color(cx.theme().foreground),
+                                ),
                         )
                         .into_any_element(),
                     Err(error) => div()
+                        .flex_1()
+                        .min_w_0()
                         .flex()
                         .flex_col()
                         .gap_1()
@@ -141,15 +157,15 @@ pub(crate) mod view {
                             div()
                                 .text_sm()
                                 .text_color(cx.theme().danger)
-                                .child(format!("LaTeX: {error}")),
+                                .child(format!("Cannot display formula: {error}")),
                         )
                         .into_any_element(),
                 })
                 .child(
-                    Button::new("copy-equation")
-                        .ghost()
-                        .small()
-                        .label("LaTeX")
+                    pero_theme::ghost_icon_button("copy-equation", chrome, cx)
+                        .flex_shrink_0()
+                        .accessibility_label("Copy formula source")
+                        .tooltip("Copy formula source")
                         .icon(gpui_kit::component::IconName::Copy)
                         .on_click(move |_, _, cx| {
                             cx.write_to_clipboard(ClipboardItem::new_string(source.clone()))

@@ -1,6 +1,6 @@
 //! A published chart is conversation content, independent of any App panel.
 use crate::{chart::Chart, panel::{ChatAction, ChatPanel}};
-use gpui_kit::{component::{button::*, Sizable}, prelude::*, *};
+use gpui_kit::{prelude::*, *};
 use pero_contracts::{content_document::{ContentDocument, ContentFormat, DocumentSource}, content_origin::ContentOrigin};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -65,23 +65,23 @@ impl ChatPanel {
         }
     }
     pub(crate) fn inline_chart(&self, thread:&str, tool:&str, chart:&ChartView, cx:&mut Context<Self>)->AnyElement {
-        let palette = &pero_theme::UiAppearance::global(cx).palette;
+        let chrome = pero_theme::Chrome::from_app(cx);
+        let palette = chrome.palette;
         let data = chart.document(thread,false);
         let source = chart.document(thread,true);
         let zh = self.locale.starts_with("zh");
         let thread_id = thread.to_owned(); let tool_id = tool.to_owned();
         let source_thread = thread_id.clone(); let source_tool = tool_id.clone();
         let reader = self.chats.iter().find(|chat|chat.id == thread).and_then(|chat|chat.tools.iter().find(|item|item.id == tool)).and_then(|tool|tool.chart_reader.clone());
-        div().id(SharedString::from(format!("chart-{thread}-{tool}"))).w_full().min_w_0().py_3()
-            .child(div().font_weight(FontWeight::SEMIBOLD).child(chart.title.clone()))
+        pero_theme::research_result(chart.title.clone(), chrome).id(SharedString::from(format!("chart-{thread}-{tool}")))
             .when_some(chart.document["description"].as_str().filter(|s|!s.is_empty()),|el,text|el.child(div().text_sm().child(text.to_string())))
             .when(chart.document["chart"]["xLabel"].is_string() || chart.document["chart"]["yLabel"].is_string(), |el| el.child(div().text_sm().child([chart.document["chart"]["xLabel"].as_str(),chart.document["chart"]["yLabel"].as_str()].into_iter().flatten().collect::<Vec<_>>().join(" / "))))
-            .child(div().w_full().h(px(280.)).child(chart.geometry.render(cx)))
-            .child(div().text_sm().text_color(palette.text_muted).child(chart.document["source"]["label"].as_str().unwrap_or_default().to_string()))
-            .children(chart.document["source"]["caveats"].as_array().into_iter().flatten().filter_map(Value::as_str).map(|text|div().text_sm().text_color(palette.text_muted).child(text.to_string())))
-            .child(div().flex().gap_2()
-                .child(Button::new(SharedString::from(format!("chart-data-{tool}"))).small().ghost().relative().child(chart.data_bounds.probe()).label(if zh {"数据与来源"} else {"Data and sources"}).on_click(cx.listener(move |this,_,window,cx|this.open_result_document(&thread_id,&tool_id,data.clone(),window,cx))))
-                .when(chart.source.is_some(),|el|el.child(Button::new(SharedString::from(format!("chart-source-{tool}"))).small().ghost().relative().child(chart.source_bounds.probe()).label(if zh {"原始记录"} else {"Original records"}).on_click(cx.listener(move |this,_,window,cx|this.open_result_document(&source_thread,&source_tool,source.clone(),window,cx))))))
+            .child(div().w_full().h(px(280.)).p_3().rounded_lg().border_1().border_color(palette.border).bg(palette.surface).child(chart.geometry.render(cx)))
+            .child(pero_theme::research_note(chrome).child(chart.document["source"]["label"].as_str().unwrap_or_default().to_string())
+            .children(chart.document["source"]["caveats"].as_array().into_iter().flatten().filter_map(Value::as_str).map(|text|div().text_sm().text_color(palette.text_muted).child(text.to_string()))))
+            .child(div().flex().flex_wrap().gap_2()
+                .child(pero_theme::action_button(SharedString::from(format!("chart-data-{tool}")), if zh {"数据与来源"} else {"Data and sources"}, pero_theme::ActionKind::Ghost, chrome, cx).relative().child(chart.data_bounds.probe()).on_click(cx.listener(move |this,_,window,cx|this.open_result_document(&thread_id,&tool_id,data.clone(),window,cx))))
+                .when(chart.source.is_some(),|el|el.child(pero_theme::action_button(SharedString::from(format!("chart-source-{tool}")), if zh {"原始记录"} else {"Original records"}, pero_theme::ActionKind::Ghost, chrome, cx).relative().child(chart.source_bounds.probe()).on_click(cx.listener(move |this,_,window,cx|this.open_result_document(&source_thread,&source_tool,source.clone(),window,cx))))))
             .when_some(reader, |el,reader|el.child(reader))
             .into_any_element()
     }
