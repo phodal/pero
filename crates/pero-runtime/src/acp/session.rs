@@ -523,6 +523,17 @@ async fn run(
                             blocks.push(ContentBlock::Text(TextContent::new(format!("Host-mounted App Agent Plugin instructions:\n{}", config.session_instructions))));
                         }
                         event(&tx, &thread, "turn_started", "正在思考", Value::Null);
+                        let changes = if acquire_workspace {
+                            let workspace = cwd.clone(); let capture_thread = thread.clone();
+                            let settings = std::env::var_os("PERO_SETTINGS_PATH").map(PathBuf::from);
+                            if let Some(settings) = settings {
+                                match tokio::task::spawn_blocking(move || crate::workspace_changes::ChangesStore::new(&settings).begin(&capture_thread,&workspace)).await {
+                                    Ok(Ok(capture)) => capture,
+                                    Ok(Err(error)) => {event(&tx,&thread,"workspace_changes_error",error,Value::Null);None},
+                                    Err(error) => {event(&tx,&thread,"workspace_changes_error",error.to_string(),Value::Null);None},
+                                }
+                            } else {None}
+                        } else {None};
                         let prompt = connection.send_request(PromptRequest::new(
                             session_id.clone(), blocks,
                         )).block_task();
@@ -554,6 +565,13 @@ async fn run(
                         };
                         permissions.lock().unwrap().clear();
                         user_questions.clear();
+                        if let Some(capture) = changes {
+                            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|time|time.as_millis() as u64).unwrap_or(0);
+                            match tokio::task::spawn_blocking(move || capture.finish(pero_contracts::workspace_changes::ChangeScope::Turn,now)).await {
+                                Ok(Ok(summary)) => event(&tx,&thread,"workspace_changes","",json!({"changes":summary})),
+                                outcome => event(&tx,&thread,"workspace_changes_error",format!("Workspace change tracking failed: {outcome:?}"),Value::Null),
+                            }
+                        }
                         // Completion is observable only after this turn releases write ownership.
                         drop(_workspace_lease);
                         match result {
