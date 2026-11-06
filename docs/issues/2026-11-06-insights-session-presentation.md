@@ -302,3 +302,16 @@ Native Preview visibly shows the compact refresh icon in the page header;
 `test-results/insights-topics-native/refresh-action.jpg` records the actual
 saved brief. All 15 existing Insights browser scenarios and npm run check pass,
 including regeneration busy admission and retained results on failure.
+
+### Compact reading headers
+
+Insights now consumes LibraryHeader density=compact instead of the default
+64px directory header. Page top and summary spacing are reduced using shared
+tokens; topic card headers use the body scale and 12px vertical padding.
+The absent decision section no longer reserves an empty named grid row and
+an extra gap. The decision row is included only when actual needs_you cards
+exist; content and recovery behavior remain intact.
+All 15 Insights browser scenarios and npm run check pass. Actual Native Preview
+was rebuilt and visually inspected with the same saved eight-finding brief;
+its topic cards start substantially higher while both headings remain readable.
+Capture: `test-results/insights-topics-native/compact-header.jpg` (local only).

@@ -260,7 +260,7 @@ export default function Insights() {
   </>;
   return <main className="point-pulse-page">
     <div className="point-pulse-main">
-      <LibraryHeader className="point-pulse-top" title={locale === 'zh' ? '工作简报' : 'Work brief'}
+      <LibraryHeader density="compact" className="point-pulse-top" title={locale === 'zh' ? '工作简报' : 'Work brief'}
         subtitle={brief ? undefined : locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'}
         actions={brief && generate} />
       {brief ? <>
