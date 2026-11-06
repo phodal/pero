@@ -115,7 +115,7 @@ Scientific Authoring + Computational Verification 是整体方向，但展示、
 
 行为/视觉、命令、截图与尚未验证范围见 [科学会话验收](../fitness/scientific-conversation.md)。
 
-本地实现提交（分支 `codex/scientific-chat-145`，尚未推送）：
+实现提交（分支 `codex/scientific-chat-145`，已推送）：
 
 - `a4f970c2` — 共享会话公式渲染与许可。
 - `6e01d808` — harness 实验表格领域与工具。
@@ -175,4 +175,9 @@ Electron GPUI/Wasm 的两主题、较窄窗口、原始 JSON 精确复制和完�
 
 补充本地提交：`1720a622`（来源绑定）、`4b3ad893`（分子 skill）、
 `f88d015f`（科学单位字体）、`0cfeaf11`（共享结果呈现）及 `0d2aa4cd`（会话 UI）。
-均关联 #145，尚未推送。完整范围仍未完成，GitHub issue 保持 OPEN。
+均关联 #145，已推送。完整范围仍未完成，GitHub issue 保持 OPEN。
+
+2026-11-06：按用户要求推送至 `origin/codex/scientific-chat-145`，科学会话实现截至 `00c4c78d`。
+后续文件浏览调研见 [会话工作区文件树](../design-docs/conversation-workspace-file-tree.md)：
+核查实际 request/result JSON，并对照本机 Qwen、deepseek-harness、Zed、Pi 和 Codex 源码。
+建议复用右侧面板、Host 文件读取和 ContentReader；本轮仅记录方案，尚未实现文件树。
