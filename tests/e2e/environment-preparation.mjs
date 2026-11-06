@@ -36,8 +36,9 @@ try{
  await frame.getByRole('button',{name:'Create and prepare',exact:true}).click();
  const refusedResponse=await refused;
  expect(refusedResponse.ok()).toBe(false);
- expect(await refusedResponse.text()).toContain('Use an environment name of 1–80 characters');
+ expect(await refusedResponse.text()).toContain('Use an environment name of');
  await expect(frame.getByRole('alert')).toContainText('Could not create the environment');
+ await expect(frame.getByRole('alert')).toContainText('Use an environment name of 1–80 characters');
  await expect(frame.getByLabel('Environment name',{exact:true})).toHaveValue('   ');
  await expect(frame.getByRole('button',{name:'Create and prepare',exact:true})).toBeEnabled();
  await page.screenshot({path:resolve(out,'create-refused.png')});

@@ -180,3 +180,17 @@ window dragging, sidebars, resizing and tab closing were not changed or re-certi
 There is no independent pane split in the new single-column form, so Split's
 resizing/persistence contract does not apply. This scoped evidence does not claim
 complete DESIGN compliance for every surface or environment backend.
+
+
+PR #153 follow-up: merged `5085287b` through `06408814` and separated creation
+refusals from catalog/poll failures in `e4d5de9a`. The existing creation test now
+keeps a preparation active and proves that both successful and failed polling
+retain the create refusal. All 18 environment/radio/popover cases, SDK typecheck
+and repository generated checks pass. The actual Electron flow was rebuilt and
+passed again with the response-name assertion in this commit (run data home
+`pero-env-page-KEJmsV`). It verifies the name-validator response and the complete
+rendered message, and preserves a non-default Circuit draft across cancel/reopen.
+The Playwright response text exposes the en dash with incorrect decoding on this
+custom protocol; the response assertion identifies the ASCII validator prefix,
+while the visible alert assertion checks the complete Unicode message. This is
+a test-observation distinction, not a change to Host validation or product copy.
