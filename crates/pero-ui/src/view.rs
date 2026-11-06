@@ -101,12 +101,13 @@ impl Workbench {
             .role(Role::Splitter)
             .aria_label(self.t("workspace.resize_sidebar"))
             .aria_numeric_value(self.preferences.layout.sidebar_width().into())
-            .when(self.sidebar_resize_focus.is_focused(window), |el| el.bg(p.focus))
             .absolute()
             .top_0()
             .right_0()
             .w(px(4.))
             .h_full()
+            .child(div().absolute().right_0().top_0().w(px(1.)).h_full()
+                .when(self.sidebar_resize_focus.is_focused(window), |el| el.bg(p.focus)))
             .cursor(CursorStyle::ResizeLeftRight)
             .on_mouse_down(
                 MouseButton::Left,
@@ -128,6 +129,73 @@ impl Workbench {
                 this.save_preferences(this.preferences.clone(), cx);
                 cx.stop_propagation();
             }))
+    }
+
+    fn resize_layout_at(&mut self, position: Point<Pixels>, window: &Window, cx: &mut Context<Self>) {
+        self.resize_document_pane(position, cx);
+        if self.resizing_sessions {
+            let x: f32 = position.x.into();
+            self.preferences.layout.resize_sessions(x - self.layout.sidebar_width);
+            cx.notify();
+        }
+        if self.resizing_chat {
+            let width: f32 = window.viewport_size().width.into();
+            let x: f32 = position.x.into();
+            self.preferences.layout.resize_chat(width - x);
+            cx.notify();
+        }
+        if self.resizing_sidebar {
+            let viewport: f32 = window.viewport_size().width.into();
+            let x: f32 = position.x.into();
+            let width = WorkspaceLayout::sidebar_span(viewport, x);
+            self.preferences.layout.resize_sidebar(width);
+            cx.notify();
+        }
+    }
+
+    fn layout_drag_events(&self, cx: &Context<Self>) -> impl IntoElement + use<> {
+        let owner = cx.entity().downgrade();
+        canvas(|_, _, _| (), move |_, _, window, _| {
+            // Keep drag/up delivery even when the pointer crosses a retained native child.
+            // Hiding that child used to turn the entire App blank during a layout drag.
+            let move_owner = owner.clone();
+            window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+                if !phase.capture() { return; }
+                let _ = move_owner.update(cx, |this, cx| {
+                    if !this.resizing_sidebar && !this.resizing_chat && !this.resizing_sessions && this.pane_resize.is_none() { return; }
+                    this.resize_layout_at(event.position, window, cx);
+                    cx.stop_propagation();
+                });
+            });
+            window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
+                if !phase.capture() || event.button != MouseButton::Left { return; }
+                let _ = owner.update(cx, |this, cx| {
+                    if !this.resizing_sidebar && !this.resizing_chat && !this.resizing_sessions && this.pane_resize.is_none() { return; }
+                    // AppKit can deliver release before the next overlay frame.
+                    this.resize_layout_at(event.position, window, cx);
+                    if this.pane_resize.take().is_some() {
+                        this.queue_workspace_checkpoint(cx);
+                        cx.notify();
+                    }
+                    if this.resizing_chat {
+                        this.resizing_chat = false;
+                        this.save_preferences(this.preferences.clone(), cx);
+                        cx.notify();
+                    }
+                    if this.resizing_sessions {
+                        this.resizing_sessions = false;
+                        this.save_preferences(this.preferences.clone(), cx);
+                        cx.notify();
+                    }
+                    if this.resizing_sidebar {
+                        this.resizing_sidebar = false;
+                        this.save_preferences(this.preferences.clone(), cx);
+                        cx.notify();
+                    }
+                    cx.stop_propagation();
+                });
+            });
+        }).absolute().size_full()
     }
 
     fn detail(&self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -229,10 +297,9 @@ impl Render for Workbench {
             && !(self.navigation.page() == WorkbenchPage::Conversation
                 && self.tab != ConversationTab::Chat);
         let pane_layout = self.navigation.pane_layout().filter(|_| pane_tree);
+        let resizing = self.resizing_sidebar || self.resizing_chat || self.resizing_sessions || self.pane_resize.is_some();
         let window_overlay = self.spotlight.is_some()
             || self.settings_menu_open
-            || self.resizing_chat
-            || self.resizing_sidebar
             || self.settings_panel.is_some()
             || self.pane_tabs.switching()
             || window.has_active_dialog(cx);
@@ -251,6 +318,7 @@ impl Render for Workbench {
             window_overlay,
             gpui_kit::component::GlobalState::is_in_deferred_context(cx),
             chat_dock_menu,
+            resizing,
             if cfg!(all(
                 not(target_family = "wasm"),
                 any(target_os = "macos", target_os = "linux")
@@ -577,51 +645,6 @@ impl Render for Workbench {
                     cx.stop_propagation();
                 },
             ))
-            .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
-                this.resize_document_pane(event.position, cx);
-                if this.resizing_sessions {
-                    let x: f32 = event.position.x.into();
-                    this.preferences.layout.resize_sessions(x - this.layout.sidebar_width);
-                    cx.notify();
-                }
-                if this.resizing_chat {
-                    let width: f32 = window.viewport_size().width.into();
-                    let x: f32 = event.position.x.into();
-                    this.preferences.layout.resize_chat(width - x);
-                    cx.notify();
-                }
-                if this.resizing_sidebar {
-                    let viewport: f32 = window.viewport_size().width.into();
-                    let x: f32 = event.position.x.into();
-                    let width = WorkspaceLayout::sidebar_span(viewport, x);
-                    this.preferences.layout.resize_sidebar(width);
-                    cx.notify();
-                }
-            }))
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|this, _, _, cx| {
-                    if this.pane_resize.take().is_some() {
-                        this.queue_workspace_checkpoint(cx);
-                        cx.notify();
-                    }
-                    if this.resizing_chat {
-                        this.resizing_chat = false;
-                        this.save_preferences(this.preferences.clone(), cx);
-                        cx.notify();
-                    }
-                    if this.resizing_sessions {
-                        this.resizing_sessions = false;
-                        this.save_preferences(this.preferences.clone(), cx);
-                        cx.notify();
-                    }
-                    if this.resizing_sidebar {
-                        this.resizing_sidebar = false;
-                        this.save_preferences(this.preferences.clone(), cx);
-                        cx.notify();
-                    }
-                }),
-            )
             .when_some(slot, |el, slot| el.child(self.embedded_app_chat(&slot, cx)))
             .size_full()
             .relative()
@@ -632,6 +655,7 @@ impl Render for Workbench {
             .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
             .font_weight(FontWeight::NORMAL)
             .line_height(relative(1.3))
+            .child(self.layout_drag_events(cx))
             .child(self.window_titlebar(has_tabs, &dragging, window, cx))
             .child(
                 div()
@@ -775,6 +799,14 @@ impl Render for Workbench {
             )
             .when(self.spotlight.is_some(), |el| {
                 el.child(self.spotlight_overlay(cx))
+            })
+            .when(resizing, |el| {
+                // A transparent input layer retains the drag in GPUI while the
+                // native App continues painting below it at its updated bounds.
+                el.child(deferred(div().id("layout-drag-input").absolute().top_0().left_0().w(window.viewport_size().width).h(window.viewport_size().height).occlude()
+                    .cursor(if self.pane_resize.as_ref().is_some_and(|resize| resize.axis == pero_contracts::workspace_panes::PaneAxis::Vertical) {
+                        CursorStyle::ResizeUpDown
+                    } else { CursorStyle::ResizeLeftRight })).with_priority(gpui_kit::base::POPUP_PRIORITY))
             })
     }
 }

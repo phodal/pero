@@ -709,14 +709,13 @@ impl Workbench {
                         .role(Role::Splitter)
                         .aria_label(self.t("workspace.resize_chat"))
                         .aria_numeric_value(self.preferences.layout.chat_width().into())
-                        .when(self.chat_resize_focus.is_focused(window), |el| {
-                            el.bg(p.focus)
-                        })
                         .absolute()
                         .top_0()
                         .left_0()
                         .w(px(4.))
                         .h_full()
+                        .child(div().absolute().left_0().top_0().w(px(1.)).h_full()
+                            .when(self.chat_resize_focus.is_focused(window), |el| el.bg(p.focus)))
                         .cursor(CursorStyle::ResizeLeftRight)
                         .on_mouse_down(
                             MouseButton::Left,

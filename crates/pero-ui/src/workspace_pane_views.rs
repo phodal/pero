@@ -38,7 +38,7 @@ pub(crate) struct PaneReader {
 }
 pub(crate) struct PaneResize {
     split: u64,
-    axis: PaneAxis,
+    pub(crate) axis: PaneAxis,
     bounds: PaneBounds,
 }
 impl Workbench {
@@ -488,6 +488,7 @@ impl Workbench {
                                             axis,
                                             bounds: *bounds,
                                         });
+                                        cx.notify();
                                     }
                                     cx.stop_propagation();
                                 }),

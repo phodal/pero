@@ -187,9 +187,10 @@ impl Workbench {
                 .role(Role::Splitter)
                 .aria_label(self.t("workspace.resize_sessions"))
                 .aria_numeric_value(width.into())
-                .when(self.sessions_resize_focus.is_focused(window), |el| {
-                    el.bg(pero_theme::UiAppearance::global(cx).palette.focus)
-                })
+                .child(div().absolute().right_0().top_0().w(px(1.)).h_full()
+                    .when(self.sessions_resize_focus.is_focused(window), |el| {
+                        el.bg(pero_theme::UiAppearance::global(cx).palette.focus)
+                    }))
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, event: &MouseDownEvent, window, cx| {
                     this.sessions_resize_focus.focus(window, cx);
                     if event.click_count == 2 {
