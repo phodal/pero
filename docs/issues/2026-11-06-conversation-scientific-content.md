@@ -181,3 +181,18 @@ Electron GPUI/Wasm 的两主题、较窄窗口、原始 JSON 精确复制和完�
 后续文件浏览调研见 [会话工作区文件树](../design-docs/conversation-workspace-file-tree.md)：
 核查实际 request/result JSON，并对照本机 Qwen、deepseek-harness、Zed、Pi 和 Codex 源码。
 建议复用右侧面板、Host 文件读取和 ContentReader；本轮仅记录方案，尚未实现文件树。
+
+
+## 2026-11-07 文件树与合并收尾
+
+科学会话 PR #150 已合并到 master（`cd873027`）。当前增量新增会话工作区
+Files/Artifacts 切换，关联 #145；没有关闭仍有未完成科研能力的总 issue。
+
+- 单层惰性目录读取、虚拟列表、键盘导航与复用 ContentReader，Host 根据原会话解析目录。
+- Files 是实时工作区；Artifacts 是历史交付快照。浏览不调用 Agent，不写对话历史。
+- 用户指出两层 Files 标题重复，已合并为上方单行切换和操作栏；选中态明确，预览保留。
+- 修复 #150 审查发现的较大科学回执被默认 50,000-byte spill 截断后无法展示：
+  完整回执保存在 `ToolPresentation` 元数据，ACP 实时/回放统一投影，模型侧继续使用有界文本。
+  两个真实 mounted 科学工具、实际 spill 及 ACP 两种投影路径已有回归。
+- 已同步主干 GPUI Kit 0.9.0 并重新构建/验收。用户明确要求不提交二进制截图，
+  PR 链接 [本地验收记录](../fitness/workspace-files.md)，记录 ignored 截图位置与观察范围。
