@@ -457,3 +457,31 @@ acceptance, physical IME, screen readers, other operating systems, real provider
 requests and scientific execution remain unverified. The original preview
 profile was restored for the final spacing check; synthetic sessions were never
 added to it.
+# PR #139 merge follow-up — 2026-11-06
+
+Source: PR head `507a2d1` merged with `master` at `01ec7f0d`, plus the shared
+ChatPanel completion dispatch and standalone regression in this follow-up.
+The Composer conflict retains master's reconnect label and geometry probe with
+the PR's named RotateCcw icon. App readiness recovery now lives in ChatPanel;
+Workbench forwards events to it even when an App feature also consumes them.
+
+- L0: root checks passed (984 bilingual messages, 85 shared icons). Native
+  chat-ui 28/28 and UI 64/64, Host 44/44 and theme 1/1 passed. Standalone Chat
+  Wasm build and Workbench Wasm check passed. Tabs/design/Product startup tests
+  passed 25/25. Fast CI contracts passed 107, with five conditional skips.
+- L1: actual hidden macOS Electron Product Chat passed all ten scenario checks
+  with zero page errors. A controlled App-store rejection on a new App scope
+  produced AwaitingApp; a completion event recovered the same thread, retained
+  the unsent text and created no extra conversation or user message. Existing
+  scope, cancellation, permission, dark theme, locale and narrow-window checks
+  also passed. The Agent is the local ACP fixture; no real model was called.
+- Captures: `test-results/product-chat/preparation-waiting.png` and
+  `preparation-resumed.png`, plus `compact-light.png`, `embedded.png`,
+  `permission-embedded.png`, `dark.png` and `narrow.png`. The preparation pair
+  was inspected for retained Composer content. The standalone shell's existing
+  Hide messages / Close chat labels overlap in this fixture; this follow-up
+  changes event recovery, not that shell header's layout.
+- This follow-up does not add new Native runtime visual acceptance, physical
+  IME, screen-reader, other OS or signed-package evidence. Earlier Native
+  evidence below retains its own source and scope.
+

@@ -581,9 +581,6 @@ impl Workbench {
             return;
         }
         if event.kind == "automation_open" { self.open_automations(window, cx); return; }
-        if matches!(event.kind.as_str(), "apps_catalog" | "apps_opened" | "apps_error") {
-            self.chat.update(cx, |chat, cx| chat.resume_app_preparation(cx));
-        }
         let event_kind = event.kind.clone();
         let feature_handled = self.receive_terminal(&event,cx) || self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
@@ -592,8 +589,8 @@ impl Workbench {
             || self.receive_research_resources(&event, cx)
             || self.receive_apps(&event, cx)
             || self.receive_remote(&event, cx);
+        let handled = self.chat.update(cx, |chat, cx| chat.receive(&event, cx));
         if !feature_handled {
-            let handled = self.chat.update(cx, |chat, cx| chat.receive(&event, cx));
             if event.kind == "agents" {
                 self.workspace = event.text.clone();
             }

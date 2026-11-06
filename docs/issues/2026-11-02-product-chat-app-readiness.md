@@ -153,3 +153,17 @@ after App completion; no model prompt was sent. Original preview startup using
 the rebuilt real Host no longer showed this banner. This does not establish
 all App API operations as completion signals or resolve the separate historical
 Electron shutdown investigation above.
+
+## PR #139: shared recovery for standalone Chat
+
+Review found that App completion resumed waiting sessions only in Workbench.
+Standalone Chat forwards Host events directly to ChatPanel, so the same transient
+preparation event left its original draft in AwaitingApp with no recovery path.
+The completion handling now belongs to ChatPanel::receive, shared by both shells;
+Workbench no longer owns a separate resume hook. The existing preparation path
+retains the draft, queued prompt and Host access checks.
+
+The standalone Product regression intercepts a new scoped conversation preparation at
+the real shell bridge, then verifies that a completion signal recovers the same
+conversation and preserves unsent input without submitting a model request.
+Validation results are recorded in packages/pero-design/VERIFICATION.md.

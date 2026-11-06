@@ -253,12 +253,6 @@ impl ChatPanel {
         }
     }
 
-    /// App completion is a readiness signal, not permission to run a prompt.
-    pub fn resume_app_preparation(&mut self, cx: &mut Context<Self>) {
-        for chat in &mut self.chats { chat.state = chat.state.app_available(); }
-        self.prepare_chat(cx);
-    }
-
     pub fn set_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
         if self.visible != visible {
             self.visible = visible;
@@ -299,6 +293,11 @@ impl ChatPanel {
             return true;
         }
         match event.kind.as_str() {
+            "apps_catalog" | "apps_opened" | "apps_error" => {
+                // Both shells resume waiting drafts through this shared owner.
+                for chat in &mut self.chats { chat.state = chat.state.app_available(); }
+                self.prepare_chat(cx);
+            }
             "ready" => {
                 self.connected = true;
                 self.error = None;
