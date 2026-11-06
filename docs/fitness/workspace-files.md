@@ -1,7 +1,7 @@
 # Conversation workspace files
 
 2026-11-07 · macOS arm64 · GPUI Kit 0.9.0 · #145.
-Source: `codex/conversation-files-145`, `db0be05d` plus the final presentation and toolbar changes in this PR.
+Source: `codex/conversation-files-145`, the final commits of PR #155 after merging current master.
 Scientific conversation PR [#150](https://github.com/phodal/pero/pull/150) is already merged.
 
 ## Behavior and ownership
@@ -39,9 +39,9 @@ narrow panels retain a Back action. Files remain distinct from immutable Artifac
   the 13,717-byte RDKit result. Request records and RDKit 2026.09.1 were visible.
   Native artifact viewer reports App not installed in this deliberately App-free
   profile; this run accepts the navigation, not installation or embedded App loading.
-- Rust value/runtime tests: Chat 26, contracts 102, runtime 127 passed (4 explicit skips).
+- Rust value/runtime tests: Chat 27, contracts 104, runtime 127 passed (4 explicit skips).
   Native workbench and Host built separately; all four Wasm outputs, Web and Desktop built.
-  `npm run check` passed (996 bilingual messages, 85 icons), with Kit path configured.
+  `npm run check` passed (1,052 bilingual messages, 85 icons), with Kit path configured.
 - `go -C harness/go test -race ./charts ./acp` passed. Mounted `table_render` and
   `chart_render` each exercise a real default spill with 2,000 exact numeric source
   records and a one-record selection. Complete presentation and source precision
@@ -83,3 +83,22 @@ new default `resource_tab`, and the engineering profile fixture treated a docume
 pending Dispose receipt as final failure. Host contracts now check the default,
 selected tab persistence and invalid-tab rejection. Fixture cleanup still requires
 successful Drain. The engineering profile race suite passes locally after this fix.
+
+
+Final review regressions: Host wire validation now covers all three workspace file
+responses with required conversation IDs (43/103 event kinds exercised overall).
+Disconnected or failed requests release pending state for retry and reject late
+responses. An unavailable workspace retains the last listing with a local notice.
+Local tab choices win over older preference echoes, and opening an artifact saves
+the selected tab. Markdown reload updates bytes while retaining the reader and
+scroll offset; an actual wheel/reload regression also caught and fixed the bounded
+scroll container. ACP complete presentation preserves accompanying images in both
+live delivery and replay.
+
+Concurrency boundary: Host currently starts one worker thread per file request;
+there is no global worker pool or queue cap. Canonical containment checks and the
+2 MiB metadata admission check are not descriptor-rooted isolation against a
+concurrent adversarial local writer, nor a hard read cap against concurrent file
+growth. Those broader hardening changes were not added to this local browsing
+increment. The implementation does not claim sandbox guarantees for mutable local
+workspaces.
