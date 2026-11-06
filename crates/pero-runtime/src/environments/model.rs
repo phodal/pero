@@ -1,4 +1,4 @@
-use super::SoftwareProfile;
+use super::{CompositeSnapshot, ResourceBinding, SoftwareProfile};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::collections::BTreeMap;
@@ -8,6 +8,14 @@ pub enum EnvironmentError {
     Invalid(&'static str),
     RequirementUnsatisfied(Vec<Requirement>),
     ObservationMissing,
+    ResourceUnavailable {
+        slot: Identity,
+        readiness: super::Readiness,
+    },
+    CapabilityUnavailable {
+        slot: Identity,
+        missing: std::collections::BTreeSet<super::Capability>,
+    },
     IdentityChanged,
     UseConflict,
 }
@@ -17,6 +25,26 @@ impl std::fmt::Display for EnvironmentError {
     }
 }
 impl std::error::Error for EnvironmentError {}
+
+/// Caller-supplied time and validity bound; no clock is read by the core.
+pub struct ObservationWindow {
+    now_ms: u64,
+    max_age_ms: u64,
+}
+impl ObservationWindow {
+    pub fn new(now_ms: u64, max_age_ms: u64) -> Result<Self, EnvironmentError> {
+        if max_age_ms == 0 {
+            return Err(EnvironmentError::ObservationMissing);
+        }
+        Ok(Self { now_ms, max_age_ms })
+    }
+    pub fn require(&self, observed_at_ms: u64) -> Result<(), EnvironmentError> {
+        if observed_at_ms > self.now_ms || self.now_ms - observed_at_ms > self.max_age_ms {
+            return Err(EnvironmentError::ObservationMissing);
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -269,9 +297,15 @@ pub struct EnvironmentBinding {
     pub profile: SoftwareProfile,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct EnvironmentSnapshot {
+pub struct LegacySnapshot {
     template: EnvironmentTemplate,
     binding: EnvironmentBinding,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum EnvironmentSnapshot {
+    Legacy(LegacySnapshot),
+    Composite(CompositeSnapshot),
 }
 impl EnvironmentSnapshot {
     pub fn capture(
@@ -281,13 +315,16 @@ impl EnvironmentSnapshot {
         max_age_ms: u64,
     ) -> Result<Self, EnvironmentError> {
         super::matching::match_profile(&template.requirements, &binding, now_ms, max_age_ms)?;
-        Ok(Self { template, binding })
+        Ok(Self::Legacy(LegacySnapshot { template, binding }))
     }
     pub fn digest(&self) -> ContentDigest {
         ContentDigest::of(self)
     }
-    pub fn binding(&self) -> &EnvironmentBinding {
-        &self.binding
+    pub fn binding(&self) -> Option<&EnvironmentBinding> {
+        match self {
+            Self::Legacy(value) => Some(&value.binding),
+            Self::Composite(_) => None,
+        }
     }
 }
 
@@ -306,7 +343,12 @@ impl EnvironmentInstance {
         now_ms: u64,
         max_age_ms: u64,
     ) -> Result<Self, EnvironmentError> {
-        let old = &self.snapshot.binding;
+        let EnvironmentSnapshot::Legacy(snapshot) = &self.snapshot else {
+            return Err(EnvironmentError::Invalid(
+                "use resource refresh for composite snapshot",
+            ));
+        };
+        let old = &snapshot.binding;
         if old.owner != binding.owner
             || old.incarnation != binding.incarnation
             || old.profile.id() != binding.profile.id()
@@ -316,11 +358,29 @@ impl EnvironmentInstance {
         Ok(Self {
             identity: self.identity.clone(),
             snapshot: EnvironmentSnapshot::capture(
-                self.snapshot.template.clone(),
+                snapshot.template.clone(),
                 binding,
                 now_ms,
                 max_age_ms,
             )?,
+        })
+    }
+    pub fn refresh_resources(
+        &self,
+        bindings: &BTreeMap<Identity, ResourceBinding>,
+        now_ms: u64,
+        max_age_ms: u64,
+    ) -> Result<Self, EnvironmentError> {
+        let EnvironmentSnapshot::Composite(snapshot) = &self.snapshot else {
+            return Err(EnvironmentError::Invalid(
+                "use legacy refresh for single binding",
+            ));
+        };
+        Ok(Self {
+            identity: self.identity.clone(),
+            snapshot: EnvironmentSnapshot::Composite(
+                snapshot.refresh(bindings, now_ms, max_age_ms)?,
+            ),
         })
     }
     pub fn snapshot(&self) -> &EnvironmentSnapshot {

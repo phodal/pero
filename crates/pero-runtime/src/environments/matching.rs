@@ -41,12 +41,7 @@ pub fn match_profile(
     now_ms: u64,
     max_age_ms: u64,
 ) -> Result<EnvironmentMatch, EnvironmentError> {
-    if max_age_ms == 0
-        || binding.observed_at_ms > now_ms
-        || now_ms - binding.observed_at_ms > max_age_ms
-    {
-        return Err(EnvironmentError::ObservationMissing);
-    }
+    ObservationWindow::new(now_ms, max_age_ms)?.require(binding.observed_at_ms)?;
     match_software(requirements, &binding.profile)
 }
 
