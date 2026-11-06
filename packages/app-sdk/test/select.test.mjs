@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { createUiRuntime } from './ui-test-runtime.mjs';
 
 const options = [
@@ -10,7 +11,10 @@ const options = [
 ];
 
 test('select keeps listbox semantics, controlled intent, and dialog portal', async t => {
-  const env = await createUiRuntime(t, 'select'); if (!env) return;
+  const env = await createUiRuntime(t, {
+    contents: "export { Select } from './components/select'; export { Dialog } from './components/dialog';",
+    resolveDir: fileURLToPath(new URL('../src', import.meta.url)),
+  }); if (!env) return;
   const { React, dom, ui, render, click } = env;
   const { Select } = ui;
   if (!dom.window.HTMLElement.prototype.scrollIntoView) dom.window.HTMLElement.prototype.scrollIntoView = () => {};
@@ -91,6 +95,105 @@ test('select keeps listbox semantics, controlled intent, and dialog portal', asy
     assert.equal(document.querySelector('[role="listbox"]').hasAttribute('aria-activedescendant'), false);
     await typeSearch('First');
     assert.equal(document.querySelector('[role="option"]').getAttribute('data-value'), 'alpha', 'search includes the option hint');
+    await render(null);
+  });
+
+  await t.test('IME candidate keys leave search, focus, and selection alone', async () => {
+    for (const mode of ['composition events', 'native isComposing', 'legacy keyCode']) {
+      const picks = [];
+      await render(tree('alpha', { searchable: true, onChange: next => picks.push(next) }));
+      const button = stubAnchor();
+      await click(button);
+      const search = document.querySelector('.pero-select-search');
+      const activeId = search.getAttribute('aria-activedescendant');
+      if (mode === 'composition events') await React.act(async () => {
+        search.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles: true, data: '' }));
+      });
+      for (const value of ['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab']) {
+        const event = new dom.window.KeyboardEvent('keydown', {
+          key: value, bubbles: true, cancelable: true,
+          isComposing: mode === 'native isComposing', keyCode: mode === 'legacy keyCode' ? 229 : 0,
+        });
+        await React.act(async () => search.dispatchEvent(event));
+        assert.equal(event.defaultPrevented, false, `${mode}: ${value} remains available to the IME`);
+        assert.ok(panel(), `${mode}: ${value} keeps the menu open`);
+        assert.equal(document.activeElement, search, `${mode}: ${value} keeps search focus`);
+        assert.equal(search.getAttribute('aria-activedescendant'), activeId, `${mode}: ${value} does not navigate options`);
+        assert.deepEqual(picks, [], `${mode}: ${value} does not select an option`);
+      }
+      if (mode === 'composition events') await React.act(async () => {
+        search.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles: true, data: '字' }));
+      });
+      await key(search, 'ArrowDown');
+      assert.equal(document.querySelector('[data-active="true"]').getAttribute('data-value'), 'gamma', `${mode}: navigation resumes`);
+      await key(search, 'Enter');
+      assert.deepEqual(picks, ['gamma'], `${mode}: ordinary Enter selects once`);
+      assert.equal(panel(), null);
+      assert.equal(document.activeElement, button);
+      await render(null);
+    }
+  });
+
+  await t.test('IME Escape stays inside Select before ordinary Escape closes each layer', async () => {
+    for (const mode of ['composition events', 'native isComposing', 'legacy keyCode']) {
+      let closes = 0;
+      function Form() {
+        const [open, setOpen] = React.useState(true);
+        return open ? React.createElement(ui.Dialog, {
+          title: 'Choose kind', closeLabel: 'Close',
+          onClose: () => { closes++; setOpen(false); },
+        }, tree('alpha', { searchable: true })) : null;
+      }
+      await render(React.createElement(Form));
+      const dialog = document.querySelector('dialog');
+      // jsdom has no native dialog close method; keep the real component's handlers.
+      dialog.close = () => { dialog.removeAttribute('open'); };
+      const button = stubAnchor();
+      await click(button);
+      const search = document.querySelector('.pero-select-search');
+      assert.ok(dialog.contains(panel()));
+      if (mode === 'composition events') await React.act(async () => {
+        search.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles: true }));
+      });
+      const escape = new dom.window.KeyboardEvent('keydown', {
+        key: 'Escape', bubbles: true, cancelable: true,
+        isComposing: mode === 'native isComposing', keyCode: mode === 'legacy keyCode' ? 229 : 0,
+      });
+      await React.act(async () => search.dispatchEvent(escape));
+      assert.equal(escape.defaultPrevented, false, `${mode}: the IME retains default handling`);
+      assert.equal(closes, 0, `${mode}: the dialog receives no close intent`);
+      assert.ok(dialog.open && dialog.isConnected && panel(), `${mode}: both layers stay open`);
+      assert.equal(document.activeElement, search);
+      if (mode === 'composition events') await React.act(async () => {
+        search.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles: true }));
+      });
+      await key(search, 'Escape');
+      assert.equal(panel(), null);
+      assert.equal(closes, 0);
+      assert.ok(dialog.open && dialog.isConnected);
+      assert.equal(document.activeElement, button);
+      await key(button, 'Escape');
+      assert.equal(closes, 1);
+      assert.equal(document.querySelector('dialog'), null);
+      await render(null);
+    }
+  });
+
+  await t.test('closing during composition does not leave the next search locked', async () => {
+    await render(tree('alpha', { searchable: true }));
+    const button = stubAnchor();
+    await click(button);
+    const search = document.querySelector('.pero-select-search');
+    await React.act(async () => {
+      search.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles: true }));
+      document.body.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true }));
+    });
+    assert.equal(panel(), null);
+    await click(button);
+    await key(document.querySelector('.pero-select-search'), 'ArrowDown');
+    assert.equal(document.querySelector('[data-active="true"]').getAttribute('data-value'), 'gamma');
+    await key(document.querySelector('.pero-select-search'), 'Escape');
+    assert.equal(panel(), null);
     await render(null);
   });
 

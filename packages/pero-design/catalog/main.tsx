@@ -32,7 +32,7 @@ function Catalog() {
   }, [dark, scale]);
   const newTask = () => { setScreen('输入与状态'); setStatus('idle'); setDraft(''); setMessage('新任务草稿已创建'); };
   const nav = <Sidebar label="组件导航" collapsed={collapsed}>
-    <SidebarGroup>{screens.map((name, i) => <SidebarRow key={name} label={name} selected={screen === name} lead={i === 0 ? <Folder size={16}/> : i === 1 ? <BookOpen size={16}/> : <MessageSquare size={16}/>} onClick={() => setScreen(name)}/>)}</SidebarGroup>
+    <SidebarGroup label="组件示例">{screens.map((name, i) => <SidebarRow key={name} label={name} count={i === 0 ? 3 : undefined} selected={screen === name} lead={i === 0 ? <Folder size={16}/> : i === 1 ? <BookOpen size={16}/> : <MessageSquare size={16}/>} onClick={() => setScreen(name)}/>)}</SidebarGroup>
     <div className="catalog-nav-bottom"><SidebarGroup separated><SidebarRow label="设置" lead={<Settings2 size={16}/>} onClick={() => { setScreen('输入与状态'); setMessage('在设置示例中调整输入和状态'); }}/></SidebarGroup></div>
   </Sidebar>;
   return <div className="catalog">

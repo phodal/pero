@@ -10,6 +10,7 @@ import {
   useAppDataChanged,
   useAppObject,
 } from "@pero/app-sdk";
+import { AppApiError } from "@pero/app-sdk/core";
 import type { Capability, Experiment, Summary, Template } from "./types";
 import { applyTranscriptDraft, draftRangeError, generationPrompt, matchingCandidate, parseGeneratedDraft, unsavedExperiment } from "./presentation";
 import { Specification } from "./specification";
@@ -43,7 +44,8 @@ export default function ControlLab() {
     [selectedId, setSelectedId] = useState("baseline");
   const [budget, setBudget] = useState(6),
     [loading, setLoading] = useState(true),
-    [busy, setBusy] = useState(false),
+    [mutating, setMutating] = useState(false),
+    [opening, setOpening] = useState(false),
     [refreshing, setRefreshing] = useState(false),
     [refreshError, setRefreshError] = useState(""),
     [cancelRequested, setCancelRequested] = useState(false),
@@ -52,8 +54,12 @@ export default function ControlLab() {
     [draftError, setDraftError] = useState(""),
     [generating, setGenerating] = useState(false),
     [draft, setDraft] = useState<Record<string, number> | null>(null);
+  const busy = mutating || opening;
   const templateInitialized = useRef(false);
   const selection = useRef(0),
+    readRequest = useRef(0),
+    historyRequest = useRef(0),
+    targetId = useRef<string | null>(null),
     pending = useRef(false),
     pendingSelect = useRef<Record<string, number> | null>(null),
     generationToken = useRef(0),
@@ -67,10 +73,11 @@ export default function ControlLab() {
   const onError = (value: unknown) =>
     setError(value instanceof Error ? value.message : String(value));
   const refreshHistory = useCallback(async () => {
+    const request = ++historyRequest.current;
     const result = await api.get<{ experiments: Summary[] }>(
       "/api/experiments",
     );
-    setHistory(result.experiments);
+    if (request === historyRequest.current) setHistory(result.experiments);
   }, [api]);
   function chooseTemplate(item: Template) {
     setBudget(item.defaultCandidateBudget);
@@ -102,6 +109,7 @@ export default function ControlLab() {
   }, [api, refreshHistory]);
   useEffect(() => {
     void initialize();
+    return () => { selection.current++; readRequest.current++; historyRequest.current++; };
   }, [initialize]);
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -112,76 +120,98 @@ export default function ControlLab() {
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);
   }, [api]);
+  function invalidateUnavailable(error: unknown) {
+    if (error instanceof AppApiError && [401, 403, 404, 410].includes(error.status)) {
+      // Revoked access or a removed source also invalidates pending responses.
+      selection.current++;
+      readRequest.current++;
+      setOpening(false);
+      setRefreshing(false);
+      setExperiment(null);
+      setDraft(null);
+      pendingSelect.current = null;
+      setCancelRequested(false);
+      setRefreshError("");
+      setError(`This experiment is unavailable. ${error.message}`);
+      return true;
+    }
+    return false;
+  }
+  function readFailed(error: unknown) {
+    if (invalidateUnavailable(error)) return;
+    const message = error instanceof Error ? error.message : String(error);
+    if (experimentNow.current?.id === targetId.current) setRefreshError(message);
+    else setError(message);
+  }
   async function open(id: string) {
     const sameObject = experimentNow.current?.id === id;
-    const revision = sameObject ? selection.current : ++selection.current;
+    const revision = targetId.current === id ? selection.current : ++selection.current;
+    targetId.current = id;
+    const request = ++readRequest.current;
     if (sameObject) setRefreshing(true);
-    else setBusy(true);
+    else { setExperiment(null); setOpening(true); setRefreshing(false); }
     setRefreshError("");
     setError("");
     try {
       const result = await api.get<Experiment>(
         `/api/experiments/${encodeURIComponent(id)}`,
       );
-      if (revision === selection.current) {
+      if (revision === selection.current && request === readRequest.current) {
         setExperiment(result);
         if (!sameObject) {
-        setCancelRequested(false);
-        setSelectedId(
-          result.lockedCandidateId ??
-            result.candidates.at(-1)?.id ??
-            "baseline",
-        );
-        setDraft(null);
-        pendingSelect.current = null;
-        setBudget(result.candidateBudget);
+          setCancelRequested(false);
+          setSelectedId(result.lockedCandidateId ?? result.candidates.at(-1)?.id ?? "baseline");
+          setDraft(null);
+          pendingSelect.current = null;
+          setBudget(result.candidateBudget);
         }
       }
     } catch (error) {
-      if (revision === selection.current) {
-        if (sameObject) setRefreshError(String(error instanceof Error ? error.message : error));
-        else onError(error);
-      }
+      if (revision === selection.current && request === readRequest.current) readFailed(error);
     } finally {
-      if (revision === selection.current) { setBusy(false); setRefreshing(false); }
+      if (revision === selection.current && request === readRequest.current) { setOpening(false); setRefreshing(false); }
     }
   }
-  useAppDataChanged(async () => {
+  async function refresh() {
+    const revision = selection.current;
     try {
       await refreshHistory();
-      if (experiment) await open(experiment.id);
+      if (revision === selection.current && targetId.current) await open(targetId.current);
     } catch (error) {
-      onError(error);
+      if (revision === selection.current) onError(error);
     }
-  });
+  }
+  useAppDataChanged(refresh);
   useEffect(() => {
     if (!experiment || !running) return;
-    const id = experiment.id,
-      revision = selection.current;
+    const id = experiment.id, revision = selection.current;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
+      if (pending.current) { timer = setTimeout(poll, 600); return; }
+      const request = ++readRequest.current;
+      let delay = 600;
       try {
-        const next = await api.get<Experiment>(
-          `/api/experiments/${encodeURIComponent(id)}`,
-        );
+        const next = await api.get<Experiment>(`/api/experiments/${encodeURIComponent(id)}`);
         if (disposed || revision !== selection.current) return;
-        setExperiment(next);
-        setRefreshError("");
-        if (next.status === "running") timer = setTimeout(poll, 600);
-        else await refreshHistory();
-      } catch (error) {
-        if (!disposed && revision === selection.current) {
-          setRefreshError(String(error instanceof Error ? error.message : error));
-          timer = setTimeout(poll, 2000);
+        if (request === readRequest.current) {
+          setExperiment(next);
+          setRefreshError("");
+          setRefreshing(false);
+          if (next.status !== "running") {
+            void refreshHistory().catch(error => { if (revision === selection.current) onError(error); });
+            return;
+          }
         }
+      } catch (error) {
+        if (disposed || revision !== selection.current) return;
+        if (request === readRequest.current) { readFailed(error); setRefreshing(false); }
+        delay = 2000;
       }
+      if (!disposed && revision === selection.current) timer = setTimeout(poll, delay);
     }
     timer = setTimeout(poll, 300);
-    return () => {
-      disposed = true;
-      clearTimeout(timer);
-    };
+    return () => { disposed = true; clearTimeout(timer); };
   }, [api, experiment?.id, running, refreshHistory]);
   useEffect(() => {
     if (!notice) return;
@@ -201,8 +231,10 @@ export default function ControlLab() {
   async function create(source?: Experiment) {
     if (pending.current) throw new Error("An operation is already pending.");
     pending.current = true;
+    readRequest.current++;
+    setRefreshing(false);
     const revision = selection.current;
-    setBusy(true);
+    setMutating(true);
     setError("");
     try {
       const result = await api.post<Experiment>("/api/experiments", {
@@ -211,17 +243,20 @@ export default function ControlLab() {
         criteria: source?.criteria ?? criteria,
         candidateBudget: source?.candidateBudget ?? budget,
       });
-      if (revision === selection.current) {
-        selection.current++;
-        setExperiment(result);
-        setSelectedId("baseline");
-        setDraft(null);
-      }
+      if (revision !== selection.current) return;
+      readRequest.current++;
+      setRefreshing(false);
+      targetId.current = result.id;
+      setExperiment(result);
+      setSelectedId("baseline");
+      setDraft(null);
       await refreshHistory();
       return result;
+    } catch (error) {
+      if (revision === selection.current && !invalidateUnavailable(error)) throw error;
     } finally {
       pending.current = false;
-      setBusy(false);
+      setMutating(false);
     }
   }
   async function exportEvidence(id: string) {
@@ -262,30 +297,37 @@ export default function ControlLab() {
     if (!experiment) throw new Error("Freeze a specification first.");
     if (pending.current) throw new Error("An operation is already pending.");
     pending.current = true;
+    readRequest.current++;
+    setRefreshing(false);
     const revision = selection.current;
     const id = experiment.id;
     if (action === "cancel") setCancelRequested(true);
-    setBusy(true);
+    setMutating(true);
     setError("");
     try {
       const result = await api.post<Experiment>(
         `/api/experiments/${encodeURIComponent(id)}/${action}`,
         body,
       );
-      if (revision === selection.current) setExperiment(result);
+      if (revision === selection.current) { readRequest.current++; setRefreshing(false); setExperiment(result); }
       await refreshHistory();
       return result;
     } catch (error) {
+      if (revision !== selection.current) return;
       if (action === "cancel") setCancelRequested(false);
-      throw error;
+      if (!invalidateUnavailable(error)) throw error;
     } finally {
       pending.current = false;
-      setBusy(false);
+      setMutating(false);
     }
   }
   function newExperiment() {
     if (pending.current) return;
     selection.current++;
+    readRequest.current++;
+    targetId.current = null;
+    setOpening(false);
+    setRefreshing(false);
     setExperiment(null);
     setRefreshError("");
     setCancelRequested(false);
@@ -374,19 +416,23 @@ export default function ControlLab() {
   async function runSaved(current: Experiment, proposed: Record<string, number>) {
     if (pending.current) throw new Error("An operation is already pending.");
     pending.current = true;
+    readRequest.current++;
+    setRefreshing(false);
     const revision = selection.current;
-    setBusy(true);
+    setMutating(true);
     setError("");
     try {
       const result = await api.post<Experiment>(
         `/api/experiments/${encodeURIComponent(current.id)}/propose`,
         { parameters: proposed },
       );
-      if (revision === selection.current) setExperiment(result);
+      if (revision === selection.current) { readRequest.current++; setRefreshing(false); setExperiment(result); }
       await refreshHistory();
+    } catch (error) {
+      if (revision === selection.current && !invalidateUnavailable(error)) throw error;
     } finally {
       pending.current = false;
-      setBusy(false);
+      setMutating(false);
     }
   }
   async function runDraft() {
@@ -433,6 +479,8 @@ export default function ControlLab() {
     state: {
       loading,
       busy,
+      refreshing,
+      refreshError: refreshError || null,
       generating,
       experimentId: experiment?.id ?? null,
       specHash: experiment?.specHash ?? null,
@@ -456,10 +504,7 @@ export default function ControlLab() {
         description:
           "Read saved experiment history and refresh the selected experiment.",
         parameters: emptySchema,
-        run: async () => {
-          await refreshHistory();
-          if (experiment) await open(experiment.id);
-        },
+        run: refresh,
       },
       open_experiment: {
         description: "Read an existing experiment and its frozen evidence.",
@@ -521,7 +566,7 @@ export default function ControlLab() {
   const selected = experiment?.candidates.find(
     (item) => item.id === selectedId,
   );
-  const preview = !experiment && template ? unsavedExperiment(template, parameters, criteria, budget) : null;
+  const preview = !experiment && !targetId.current && template ? unsavedExperiment(template, parameters, criteria, budget) : null;
   const tunable = Object.keys(experiment?.searchSpace ?? preview?.searchSpace ?? {});
   const savedDraft = selected?.parameters ?? experiment?.parameters ?? {};
   const currentDraft = draft ?? Object.fromEntries(tunable.map((name) => [name, savedDraft[name]]));
@@ -536,7 +581,7 @@ export default function ControlLab() {
         {!experiment && <Select label="Template" value={templateId} disabled={loading || busy || generating}
           options={templates.map(item => ({ value: item.id, label: item.title }))}
           onChange={value => { const item = templates.find(item => item.id === value); if (item) chooseTemplate(item); }}/>}
-        {!!history.length && <Select label="Open experiment" value={experiment?.id ?? ''} disabled={busy || generating}
+        {!!history.length && <Select label="Open experiment" value={targetId.current ?? ''} disabled={busy || generating}
           options={[{ value: '', label: 'New draft' }, ...history.map(item => ({ value: item.id, label: item.title,
             hint: `${new Date(item.createdAt).toLocaleString()} · ${item.report?.verdict ?? item.status}` }))]}
           showHint onChange={value => value ? void open(value) : newExperiment()}/>}
@@ -570,7 +615,7 @@ export default function ControlLab() {
           {error}{" "}
           <Button
             onClick={() =>
-              experiment ? void open(experiment.id) : void initialize()
+              targetId.current ? void open(targetId.current) : void initialize()
             }
           >
             Retry loading
@@ -584,6 +629,7 @@ export default function ControlLab() {
             <EnvironmentInspector targets={[capability.engine === 'ngspice' ? 'control-lab.ngspice' : 'control-lab.python-control']}/>
           </div>}
           {loading && <Feedback>Loading templates and history…</Feedback>}
+          {busy && targetId.current && !experiment && <Feedback>Loading this experiment…</Feedback>}
           {refreshing && <Feedback>Updating this experiment…</Feedback>}
           {refreshError && <Feedback kind="warning" variant="block">Could not refresh this experiment. Showing the last loaded evidence. {refreshError}<Button onClick={() => experiment && void open(experiment.id)}>Retry refresh</Button></Feedback>}
           {!experiment ? (preview && template && <Results

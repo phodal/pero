@@ -6,8 +6,8 @@ type RowClick = { onClick?(event: React.MouseEvent<HTMLButtonElement>): void; di
 export function SidebarRow({ label, count, lead, level = 'nav', selected, className = '', ...props }: RowClick & React.ButtonHTMLAttributes<HTMLButtonElement> & {
   label: React.ReactNode; count?: React.ReactNode; lead?: React.ReactNode; level?: 'nav' | 'sub'; selected?: boolean;
 }) {
-  return <button {...props} type="button" aria-label={props['aria-label'] ?? (typeof label === 'string' ? label : undefined)} data-level={level} aria-current={selected ? 'page' : undefined} className={`pero-sidebar-row ${className}`}>
-    <span className="pero-lead">{lead}</span>
+  return <button {...props} type="button" aria-label={props['aria-label'] ?? (typeof label === 'string' ? label : undefined)} title={props.title ?? (typeof label === 'string' ? label : props['aria-label'])} data-has-lead={React.Children.toArray(lead).some(child => child !== '') || undefined} data-level={level} aria-current={selected ? 'page' : undefined} className={`pero-sidebar-row ${className}`}>
+    <span className="pero-lead" aria-hidden="true">{lead}</span>
     <span className="pero-sidebar-label">{label}</span>
     {count != null && count !== '' && <span className="pero-sidebar-count">{count}</span>}
   </button>;
