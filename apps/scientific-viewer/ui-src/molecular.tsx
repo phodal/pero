@@ -47,11 +47,11 @@ export function Molecules({ asset }: { asset: Asset }) {
       <SplitPane as="section" id="sv-molecule-gallery" aria-label="Molecule structures" min={320} className="sv-molecule-gallery">
         <div className="sv-molecule-grid">
           {rows.map((row, index) => <article className="sv-molecule-card" key={index} data-status={row.error ? 'invalid' : 'ready'} data-selected={selected === index ? '' : undefined}>
-            <button className="sv-molecule-select" aria-label={`Select Molecule ${index + 1}`} aria-pressed={selected === index} onClick={() => setSelected(index)}>
+            <Button variant="ghost" className="sv-molecule-select" aria-label={`Select Molecule ${index + 1}`} aria-pressed={selected === index} onClick={() => setSelected(index)}>
               <span className="sv-molecule-card-title"><span>Molecule {index + 1}</span>{selected === index && <span className="sv-molecule-selected-label">Selected</span>}</span>
               <span className="sv-molecule-canvas">{row.error ? <span className="sv-molecule-unavailable">No structure</span> : <img alt={`Molecule ${index + 1}`} src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(row.svg!)}`} />}</span>
               {format === 'SMILES' && <code className="sv-molecule-input-preview">{row.input}</code>}
-            </button>
+            </Button>
             {row.error && <p className="sv-molecule-record-error" role="alert">{row.error}</p>}
           </article>)}
         </div>

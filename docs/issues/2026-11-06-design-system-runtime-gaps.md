@@ -119,3 +119,13 @@ return focus to the original cell after closing the editor.
 Paper library preview and related-paper title actions now use ghost Button.
 Preserve single-click preview, double-click reading, aria-pressed selection and
 abstract-dependent disabled state. Remove their competing private control skin.
+
+
+## Scientific selection surfaces
+
+Lab wells and Viewer molecule selectors use ghost Button, retaining plate
+coordinates, volume fill, selection and image geometry. Viewer artifact
+listbox options use Button's unstyled foundation because their file/tile
+layout, roving focus, selected thumbnails and double-click quick look are
+specialized selection surfaces; preserve those semantics and domain layout.
+No execution or scientific model logic changes.

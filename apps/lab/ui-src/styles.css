@@ -65,7 +65,7 @@ button, input, select, textarea { font: inherit; }
 .plate-tray { flex: 0 0 auto; width: max(520px, calc(var(--pero-font-caption) * 36)); min-width: 380px; margin: auto; padding: 12px; border: 1px solid var(--pero-border); border-radius: 10px; background: var(--pero-bg); }
 .plate { display: grid; grid-template-columns: calc(var(--pero-font-caption) * 1.5) repeat(12, minmax(24px, 1fr)); gap: 4px; }
 .plate-axis { display: grid; place-items: center; font-size: var(--pero-font-caption); color: var(--pero-text-muted); }
-.well { position: relative; display: grid; place-items: center; aspect-ratio: 1; min-height: 24px; min-width: 0; padding: 0; border: 1px solid var(--pero-border); border-radius: 50%; background: var(--pero-surface); color: var(--pero-text); cursor: pointer; overflow: hidden; }
+.plate .well.pero-ui-button { position: relative; display: grid; place-items: center; aspect-ratio: 1; min-height: 24px; min-width: 0; padding: 0; border: 1px solid var(--pero-border); border-radius: 50%; background: var(--pero-surface); color: var(--pero-text); overflow: hidden; }
 .well[data-filled] { background: var(--pero-surface-muted); border-color: var(--pero-input-border); }
 .well-liquid { position: absolute; inset: 0; background: var(--pero-data-red-fill, #D9535F); }
 .well-volume { position: relative; font-size: var(--pero-font-caption); line-height: 1.4; background: var(--pero-surface); padding: 0 1px; border-radius: 2px; }
