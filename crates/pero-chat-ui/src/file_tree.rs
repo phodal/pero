@@ -16,6 +16,7 @@ pub(crate) enum Notice {
     Loading,
     Empty,
     Failed(String),
+    WorkspaceUnavailable(String),
     Truncated,
 }
 
@@ -90,6 +91,15 @@ impl FileTree {
         true
     }
 
+    pub fn fail_pending(&mut self, error: &str) {
+        for directory in self.directories.values_mut() {
+            if directory.pending.take().is_some() {
+                directory.error = Some(error.into());
+            }
+        }
+        self.rebuild();
+    }
+
     pub fn toggle(&mut self, path: &str) -> bool {
         if self.expanded.remove(path) {
             self.rebuild();
@@ -162,7 +172,11 @@ impl FileTree {
                 Work::Directory(path, depth) => {
                     if let Some(dir) = self.directories.get(path) {
                         let notice = if let Some(error) = &dir.error {
-                            Some(Notice::Failed(error.clone()))
+                            Some(if path == "." {
+                                Notice::WorkspaceUnavailable(error.clone())
+                            } else {
+                                Notice::Failed(error.clone())
+                            })
                         } else if dir.pending.is_some() {
                             Some(Notice::Loading)
                         } else if dir.truncated {
@@ -296,5 +310,50 @@ mod tests {
         assert!(!tree.expanded.contains("dir"));
         assert_eq!(tree.move_selection(1), Some(0));
         assert_eq!(tree.selected.as_deref(), Some("request.json"));
+        tree.begin(".", "interrupted".into());
+        tree.fail_pending("Host disconnected");
+        assert!(matches!(
+            tree.rows[0].notice,
+            Some(Notice::WorkspaceUnavailable(_))
+        ));
+        assert!(!tree.finish("interrupted", Ok(listing(".", vec![]))));
+        assert!(tree.begin(".", "retry".into()));
+    }
+}
+
+/// A local tab selection wins over older settings echoes until acknowledged.
+#[derive(Default)]
+pub(crate) struct ResourceSelection {
+    pub tab: pero_contracts::workbench::ResourceTab,
+    pending: Option<pero_contracts::workbench::ResourceTab>,
+}
+impl ResourceSelection {
+    pub fn choose(&mut self, tab: pero_contracts::workbench::ResourceTab) {
+        self.tab = tab;
+        self.pending = Some(tab);
+    }
+    pub fn observe(&mut self, tab: pero_contracts::workbench::ResourceTab) {
+        if self.pending.is_some_and(|pending| pending != tab) {
+            return;
+        }
+        self.tab = tab;
+        self.pending = None;
+    }
+}
+#[cfg(test)]
+mod selection_tests {
+    use super::*;
+    use pero_contracts::workbench::ResourceTab::{Artifacts, Files};
+    #[test]
+    fn newer_selection_wins_until_acknowledged() {
+        let mut selection = ResourceSelection::default();
+        selection.observe(Files);
+        selection.choose(Files);
+        selection.choose(Artifacts);
+        selection.observe(Files);
+        assert_eq!(selection.tab, Artifacts);
+        selection.observe(Artifacts);
+        selection.observe(Files);
+        assert_eq!(selection.tab, Files);
     }
 }

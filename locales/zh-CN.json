@@ -1039,6 +1039,7 @@
   "shortcuts.settings": "设置窗口",
   "shortcuts.empty": "没有匹配的快捷键",
   "files.title": "文件",
+  "files.workspace_unavailable": "工作区不可用",
   "files.workspace": "工作区",
   "files.refresh": "刷新目录",
   "files.reload": "重新读取文件",

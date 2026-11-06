@@ -40,8 +40,8 @@ impl ChatPanel {
                         .ghost()
                         .small()
                         .label(self.t(key))
-                        .toggled(self.files.tab == tab)
-                        .selected(self.files.tab == tab)
+                        .toggled(self.files.selection.tab == tab)
+                        .selected(self.files.selection.tab == tab)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.choose_resource_tab(&thread, tab, cx)
                         }))
@@ -277,9 +277,13 @@ impl ChatPanel {
                 Some(Notice::Loading) => "files.loading",
                 Some(Notice::Empty) => "files.empty",
                 Some(Notice::Truncated) => "files.truncated",
+                Some(Notice::WorkspaceUnavailable(_)) => "files.workspace_unavailable",
                 _ => "files.failed",
             };
-            let failed = matches!(row.notice, Some(Notice::Failed(_)));
+            let failed = matches!(
+                row.notice,
+                Some(Notice::Failed(_) | Notice::WorkspaceUnavailable(_))
+            );
             let thread = thread.to_owned();
             div()
                 .h(px(height))

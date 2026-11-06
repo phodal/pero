@@ -98,6 +98,7 @@ impl ChatWindow {
                 };
                 if command(&value.to_string()).is_err() {
                     this.panel.update(cx, |panel, cx| {
+                        panel.fail_file_reads(cx);
                         panel.error = Some("error.connection".into());
                         cx.notify();
                     });
@@ -249,10 +250,10 @@ pub fn receive_host_event(json: &str) -> Result<(), JsValue> {
                 ui.preferences = preferences;
                 let width = ui.preferences.layout.artifact_pane_width();
                 let view = ui.preferences.layout.artifact_view;
-                ui.panel.update(cx, |panel, cx| {
+                ui.preferences.layout.resource_tab = ui.panel.update(cx, |panel, cx| {
                     panel.set_artifact_pane_width(width, cx);
                     panel.set_artifact_view(view, cx);
-                    panel.set_resource_tab(ui.preferences.layout.resource_tab, cx);
+                    panel.set_resource_tab(ui.preferences.layout.resource_tab, cx)
                 });
                 pero_theme::ResolvedAppearance::resolve(
                     &ui.preferences,

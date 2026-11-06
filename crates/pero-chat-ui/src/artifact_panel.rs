@@ -74,7 +74,7 @@ impl ChatPanel {
         if !thread.is_empty() {
             self.init_files(&thread, cx);
         }
-        if self.files.tab == pero_contracts::workbench::ResourceTab::Files
+        if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
             && !thread.is_empty()
             && self
                 .artifacts
@@ -89,13 +89,13 @@ impl ChatPanel {
         let count = state.map_or(0, |state| state.items.len());
         let toggle_thread = thread.clone();
         let title = self.t(
-            if self.files.tab == pero_contracts::workbench::ResourceTab::Files {
+            if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files {
                 "files.title"
             } else {
                 "artifacts.title"
             },
         );
-        let label = if count == 0 || self.files.tab == pero_contracts::workbench::ResourceTab::Files
+        let label = if count == 0 || self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
         {
             title.to_owned()
         } else {
@@ -130,7 +130,7 @@ impl ChatPanel {
                     )
                 })
                 .when(open, |el| {
-                    let toolbar = if self.files.tab == pero_contracts::workbench::ResourceTab::Files
+                    let toolbar = if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
                     {
                         self.files_toolbar(&thread, cx)
                     } else {
@@ -170,7 +170,7 @@ impl ChatPanel {
             .child(self.chat_view(window, cx))
             .into_any_element();
         let body = if open {
-            let pane = if self.files.tab == pero_contracts::workbench::ResourceTab::Files {
+            let pane = if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files {
                 self.file_panel(&thread, cx)
             } else {
                 self.artifact_panel(&thread, state.expect("open artifact catalog"), cx)

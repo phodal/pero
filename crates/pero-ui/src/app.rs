@@ -473,6 +473,7 @@ impl Workbench {
         }
         if session_command(&value.to_string()).is_err() {
             self.chat.update(cx, |panel, cx| {
+                panel.fail_file_reads(cx);
                 if let Some(chat) = panel
                     .active_chat
                     .and_then(|index| panel.chats.get_mut(index))
@@ -594,10 +595,10 @@ impl Workbench {
                             self.install_shortcuts(cx);
                             let width = self.preferences.layout.artifact_pane_width();
                             let view = self.preferences.layout.artifact_view;
-                            self.chat.update(cx, |chat, cx| {
+                            self.preferences.layout.resource_tab = self.chat.update(cx, |chat, cx| {
                                 chat.set_artifact_pane_width(width, cx);
                                 chat.set_artifact_view(view, cx);
-                                chat.set_resource_tab(self.preferences.layout.resource_tab, cx);
+                                chat.set_resource_tab(self.preferences.layout.resource_tab, cx)
                             });
                             self.research_saved(window, cx);
                             if self.preferences_status

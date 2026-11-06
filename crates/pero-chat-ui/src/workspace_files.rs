@@ -28,7 +28,7 @@ pub(crate) struct FileBrowser {
 
 #[derive(Default)]
 pub(crate) struct SessionFiles {
-    pub tab: pero_contracts::workbench::ResourceTab,
+    pub selection: crate::file_tree::ResourceSelection,
     pub conversations: HashMap<String, FileBrowser>,
 }
 
@@ -37,8 +37,20 @@ impl ChatPanel {
         &mut self,
         tab: pero_contracts::workbench::ResourceTab,
         cx: &mut Context<Self>,
-    ) {
-        self.files.tab = tab;
+    ) -> pero_contracts::workbench::ResourceTab {
+        self.files.selection.observe(tab);
+        cx.notify();
+        self.files.selection.tab
+    }
+
+    pub fn fail_file_reads(&mut self, cx: &mut Context<Self>) {
+        let error = self.t("error.connection").to_owned();
+        for browser in self.files.conversations.values_mut() {
+            browser.tree.fail_pending(&error);
+            if browser.pending.take().is_some() {
+                browser.error = Some(error.clone());
+            }
+        }
         cx.notify();
     }
 
@@ -48,7 +60,8 @@ impl ChatPanel {
         tab: pero_contracts::workbench::ResourceTab,
         cx: &mut Context<Self>,
     ) {
-        self.set_resource_tab(tab, cx);
+        self.files.selection.choose(tab);
+        cx.notify();
         self.artifacts
             .conversations
             .entry(thread.into())
@@ -178,6 +191,10 @@ impl ChatPanel {
     }
 
     pub(crate) fn receive_files(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
+        if event.kind == "disconnected" {
+            self.fail_file_reads(cx);
+            return false;
+        }
         if event.kind == "turn_finished" {
             if let Some(thread) = event.thread_id.as_deref().filter(|thread| {
                 self.files
@@ -239,7 +256,18 @@ impl ChatPanel {
     ) {
         self.ensure_files(thread, cx);
         let browser = self.files.conversations.get_mut(thread).unwrap();
-        if let Some(document) = browser.document.take() {
+        if let Some(mut document) = browser.document.take() {
+            if let Some(reader) = browser
+                .reader
+                .as_ref()
+                .filter(|reader| reader.read(cx).document.id == document.id)
+            {
+                // Host reads are fresh snapshots with revision 1. Reuse this
+                // reader with a new view revision so reload preserves scroll.
+                document.revision = reader.read(cx).document.revision + 1;
+                reader.update(cx, |reader, cx| reader.replace(document, cx));
+                return;
+            }
             let locale = self.locale.clone();
             let origin = document.origin.clone();
             let workspace = browser.tree.workspace.clone();
@@ -361,7 +389,7 @@ impl ChatPanel {
             .and_then(|index| self.chats.get(index))
             .map(|chat| chat.id.as_str());
         let browser = thread.and_then(|thread| self.files.conversations.get(thread));
-        serde_json::json!({"tab":self.files.tab,"thread":thread,"browser":browser.map(|b|serde_json::json!({
+        serde_json::json!({"tab":self.files.selection.tab,"thread":thread,"browser":browser.map(|b|serde_json::json!({
             "workspace":b.tree.workspace,"selected":b.tree.selected,"expanded":b.tree.expanded,"previewPath":b.preview_path,"previewOpen":b.preview_open,
             "pending":b.pending,"error":b.error,"rows":b.tree.rows.iter().map(|row|serde_json::json!({"path":row.path,"depth":row.depth,"entry":row.entry,"notice":format!("{:?}",row.notice)})).collect::<Vec<_>>(),
             "reader":b.reader.as_ref().map(|reader|reader.read(cx).snapshot(cx)),"bounds":b.bounds.iter().map(|(key,bounds)|(key,bounds.snapshot())).collect::<std::collections::BTreeMap<_,_>>()
