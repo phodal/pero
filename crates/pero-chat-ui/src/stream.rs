@@ -348,9 +348,9 @@ impl Render for StreamText {
         let typography = pero_theme::UiAppearance::global(cx).typography;
         let (size, color) = match self.appearance {
             StreamAppearance::Answer => (typography.chat, cx.theme().foreground),
-            StreamAppearance::Thought => (typography.chat, cx.theme().muted_foreground),
+            StreamAppearance::Thought => ((typography.chat - 1.).max(12.), cx.theme().muted_foreground),
             StreamAppearance::Tool => (
-                pero_theme::TextRole::Caption.pixels(typography.chat),
+                (typography.chat - 1.).max(12.),
                 cx.theme().muted_foreground,
             ),
         };

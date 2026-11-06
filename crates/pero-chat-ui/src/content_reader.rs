@@ -614,6 +614,7 @@ impl ContentReader {
 impl Render for ContentReader {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let workspace = self.placement == ReaderPlacement::Workspace;
+        if let Some(markdown) = &self.markdown {markdown.update(cx, |view, _| view.appearance = if workspace {crate::stream::StreamAppearance::Answer} else {crate::stream::StreamAppearance::Tool});}
         let inline_markdown = !workspace && !self.source && self.markdown.is_some();
         let height = if self.source {
             let lines = self.document.source().lines().take(16).count().max(1) as f32;
@@ -801,12 +802,7 @@ impl Render for ContentReader {
                 })
                 .child(markdown.clone())
                 .into_any_element();
-            view = view.child(pero_theme::reader_frame(
-                self.document.title.clone(),
-                None,
-                body,
-                pero_theme::Chrome::from_app(cx),
-            ));
+            view = if workspace {view.child(pero_theme::reader_frame(self.document.title.clone(), None, body, pero_theme::Chrome::from_app(cx)))} else {view.child(body)};
         } else if self.preview_loading {
             view = view.child(div().p(px(12.)).child(self.t("content.preparing_preview")));
         } else {
