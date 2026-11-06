@@ -10,6 +10,8 @@ export type RadioGroupProps = Omit<React.ComponentPropsWithoutRef<typeof Primiti
 };
 
 export type RadioGroupItemProps = Omit<React.ComponentPropsWithoutRef<typeof Primitive.Item>, 'asChild' | 'type'> & {
+  /** A labelled choice surface with a persistent selection marker. */
+  variant?: 'default' | 'card';
   /** Compatibility consumers can keep their current item skin. */
   unstyled?: boolean;
 };
@@ -63,14 +65,15 @@ export const RadioGroup = forwardRef<HTMLDivElement, RadioGroupProps>(function R
 });
 
 /** Radix keeps this a button. Custom children replace the decorative dot, as Pulse cards do. */
-export const RadioGroupItem = forwardRef<HTMLButtonElement, RadioGroupItemProps>(function RadioGroupItem({ unstyled, className, children, ...props }, forwardedRef) {
+export const RadioGroupItem = forwardRef<HTMLButtonElement, RadioGroupItemProps>(function RadioGroupItem({ unstyled, variant = 'default', className, children, ...props }, forwardedRef) {
   const { asChild: _asChild, type: _type, ...itemProps } = props as RadioGroupItemProps & { asChild?: boolean; type?: string };
-  return <Primitive.Item {...itemProps} className={['pero-ui-radio-item', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined}
+  return <Primitive.Item {...itemProps} className={['pero-ui-radio-item', className].filter(Boolean).join(' ')} data-variant={variant} data-unstyled={unstyled || undefined}
     ref={node => {
       if (node) ensureUiStyles(node.ownerDocument);
       if (typeof forwardedRef === 'function') forwardedRef(node);
       else if (forwardedRef) forwardedRef.current = node;
     }}>
-    {children ?? <Primitive.Indicator className="pero-ui-radio-indicator" aria-hidden="true"><Icon name="dot" size={16} /></Primitive.Indicator>}
+    {variant === 'card' ? <><span className="pero-ui-radio-card-content">{children}</span><span className="pero-ui-radio-card-marker" aria-hidden="true"><Primitive.Indicator><Icon name="dot" size={16} /></Primitive.Indicator></span></>
+      : children ?? <Primitive.Indicator className="pero-ui-radio-indicator" aria-hidden="true"><Icon name="dot" size={16} /></Primitive.Indicator>}
   </Primitive.Item>;
 });

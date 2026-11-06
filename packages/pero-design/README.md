@@ -106,6 +106,10 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 
 LibraryHeader 的 `density="compact"` 取消目录页默认的 64px 最小高度，用共享 8px 垂直间距随内容高度排列，适合阅读页顶部。
 
+`RadioGroupItem variant="card"` 将标题、说明和身份图标组合为可扫读的选择面，
+仍由 RadioGroup 管理单选、方向键与表单值。选中标记保持可见，hover、选中、焦点
+使用共享主题；内容与卡片排列由调用方提供。不要在卡片中嵌套其他操作控件。
+
 ## 使用
 
 ```tsx
