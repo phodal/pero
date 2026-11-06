@@ -30,6 +30,7 @@ async function fixture(t, withPage = false) {
   }
   const env = await createUiRuntime(t, { resolveDir: resolve(import.meta.dirname, '../ui-src'), contents: `
     export { useConnectorsSnapshot } from './use-connectors-snapshot';
+    export { DiscoveryPanel } from './connector-editor';
     export { ConnectorCredentials, ConnectorToolAccess } from './connector-detail-sections';
     ${pageExport}` });
   env.dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
@@ -46,7 +47,10 @@ async function fixture(t, withPage = false) {
   let state;
   function Probe({ locale }) { state = env.ui.useConnectorsSnapshot(locale); return env.React.createElement('p', null, state.error); }
   const mount = locale => env.render(env.React.createElement(Probe, { locale }));
-  return { ...env, timers, tick, mount, state: () => state };
+  const click = element => element?.getAttribute('role') === 'tab'
+    ? env.React.act(async () => element.dispatchEvent(new env.dom.window.MouseEvent('mousedown', { bubbles: true, button: 0 })))
+    : env.click(element);
+  return { ...env, click, timers, tick, mount, state: () => state };
 }
 
 test('unmounting during either snapshot request phase prevents later polling', async t => {
@@ -215,4 +219,48 @@ test('tool access stays controlled and credential Enter waits for input composit
     await f.React.act(async () => secret.dispatchEvent(new f.dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...options })));
   }
   assert.equal(saves, 1);
+});
+
+
+test('credential deletion requires an explicit shared-impact confirmation and cancellation preserves it', async t => {
+  const f = await fixture(t); let deletes = 0;
+  await f.render(f.React.createElement(f.ui.ConnectorCredentials, { references: ['shared-token'], reference: 'shared-token', onReference() {},
+    value: '', onValue() {}, onSave() {}, onDelete: () => deletes++, busy: false, locale: 'en' }));
+  const button = name => [...document.querySelectorAll('button')].find(node => node.textContent === name);
+  await f.click(button('Delete'));
+  assert.equal(deletes, 0);
+  assert.match(document.querySelector('dialog').textContent, /Every connection using this reference/);
+  assert.match(document.querySelector('dialog').textContent, /shared-token/);
+  await f.click(button('Cancel')); assert.equal(deletes, 0);
+  await f.click(button('Delete')); await f.click(button('Delete credential'));
+  assert.equal(deletes, 1);
+});
+
+test('installation discloses the actual draft tools and their effects before components are ready', async t => {
+  const f = await fixture(t);
+  await f.render(f.React.createElement(f.ui.DiscoveryPanel, {
+    locale: 'en', provider: { ...provider, discovery: { executables: ['fixture'] }, defaultTools: ['read', 'write'], operations: [{ tool: 'read', effect: 'read' }, { tool: 'write', effect: 'write' }] },
+    discovery: { state: 'done', command: [], matlabRoot: [] }, definition: { tools: ['write', 'unclassified'] }, busy: false, installing: false,
+    onPick() {}, onRetry() {}, onManual() {}, onInstall() {}, onDocs() {}, onInstallServer() {}, onCancelInstall() {},
+  }));
+  const scope = document.querySelector('.point-connector-install-scope');
+  assert.match(scope.textContent, /Write 1/); assert.match(scope.textContent, /Unclassified.*1/);
+  assert.doesNotMatch(scope.textContent, /Read 1/);
+  assert.equal(scope.querySelectorAll('code').length, 2);
+});
+
+test('state filter counts match results and unverified connections never appear ready', async t => {
+  const f = await fixture(t, true);
+  const connections = [['ready', 'verified', true], ['draft', 'needs-configuration', true], ['unchecked', 'not-verified', true], ['paused', 'needs-configuration', false]]
+    .map(([id, state, enabled]) => ({ ...connection, connectionId: id, displayName: id, state, enabled }));
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const { operation } = JSON.parse(init.body);
+    if (operation === 'snapshot') return response({ ok: true, directory: [provider], connections });
+    return response({ ok: true, result: [], records: [], running: [] });
+  });
+  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en', initialMode: 'manage' }));
+  for (const [filter, ids] of [['Paused 1', ['paused']], ['Ready 1', ['ready']], ['Needs attention 3', ['draft', 'unchecked', 'paused']]]) {
+    await f.click([...document.querySelectorAll('button')].find(node => node.textContent === filter));
+    assert.deepEqual([...document.querySelectorAll('.point-connectors-row-title .point-connectors-link')].map(node => node.textContent), ids);
+  }
 });

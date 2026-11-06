@@ -1,5 +1,5 @@
-import React from 'react';
-import { Button, Checkbox, Field, InfoTip, Input, Select } from './ui';
+import React, { useState } from 'react';
+import { Button, Checkbox, Dialog, Field, InfoTip, Input, Select } from './ui';
 import type { ConnectionView, ScopeGroup } from './connector-types.ts';
 import {
   BLOCK_REASON_LABELS, BLOCK_REASON_LABELS_EN, EFFECT_LABELS, EFFECT_LABELS_EN, toolSummary,
@@ -70,6 +70,7 @@ export function ConnectorCredentials({ references, reference, onReference, value
 }) {
   const copy = pick(locale);
   const placeholder = SECRET_PLACEHOLDERS[providerId ?? ''];
+  const [deleteReference, setDeleteReference] = useState<string | null>(null);
   return <ConnectorSection title={copy('凭据', 'Credentials')} aside={<InfoTip align="end" label={copy('关于凭据', 'About credentials')}
     text={copy('值由系统加密保存，保存后不再显示。同名引用由多个连接共享，删除会影响全部使用它的连接。', 'Values use OS encryption and are hidden after saving. Connections sharing a reference share its value; deleting it affects all of them.')} />}>
     <div className="point-connector-secret">
@@ -80,7 +81,12 @@ export function ConnectorCredentials({ references, reference, onReference, value
         placeholder={placeholder ? copy(...placeholder) : copy('输入新值', 'Enter a new value')} onChange={e => onValue(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229 && value && !busy) { e.preventDefault(); onSave(); } }} />
       <Button type="button" disabled={busy || !reference || !value} onClick={onSave}>{copy('保存', 'Save')}</Button>
-      <Button type="button" variant="danger" disabled={busy || !reference} onClick={onDelete}>{copy('删除', 'Delete')}</Button>
+      <Button type="button" variant="danger" disabled={busy || !reference} onClick={() => setDeleteReference(reference)}>{copy('删除', 'Delete')}</Button>
     </div>
+    {deleteReference && <Dialog title={copy('删除共享凭据？', 'Delete shared credential?')} size="sm" closeLabel={copy('关闭', 'Close')} onClose={() => { if (!busy) setDeleteReference(null); }}
+      footer={<><Button disabled={busy} onClick={() => setDeleteReference(null)}>{copy('取消', 'Cancel')}</Button><Button variant="danger" disabled={busy || reference !== deleteReference} onClick={() => { onDelete(); setDeleteReference(null); }}>{copy('删除凭据', 'Delete credential')}</Button></>}>
+      <p>{copy('将删除系统存储中的凭据：', 'This removes the credential from system storage: ')}<code>{deleteReference}</code></p>
+      <p>{copy('所有使用此引用的连接都会受影响，需要重新设置凭据才能使用。连接配置会保留。', 'Every connection using this reference is affected and will need the credential again. Connection configurations are retained.')}</p>
+    </Dialog>}
   </ConnectorSection>;
 }
