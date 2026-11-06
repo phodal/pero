@@ -92,3 +92,84 @@ contracts. coder/new_code opt-in actual CLI regressions also pass. New bounded
 real-model trials cover new_code two-repository development/local publication
 and SAD standards/validator/reviewer execution; scopes and remaining boundaries
 are in [the compatibility follow-up](claude-compatibility-gaps.md).
+
+## Responses provider evaluation, 2026-11-06
+
+This follow-up starts from the freshly fetched `origin/master` commit
+`185673fc` in a separate `codex/claude-openapi-master` worktree. The original
+checkout's uncommitted changes are preserved. The selected provider is
+`http://187.124.157.143:8989/v1`, model `gpt-6.1-sol`. Its credential is stored
+only in the ignored local `.env`, with mode 0600.
+
+The model-list request succeeded. A Chat Completions streaming probe returned
+HTTP 503 with `NO_AVAILABLE_CHANNEL`; an explicit nonstreaming Responses probe
+returned HTTP 200, status `completed`, and the requested `OK` text. These are
+separate probes, not an automatic replay of a tool-bearing request.
+
+The existing opt-in guidance experiment now accepts `PERO_EVAL_API_FORMAT`,
+`PERO_EVAL_ALLOW_HTTP=1` and `PERO_EVAL_DISABLE_STREAMING=1`. Responses keeps
+provider reasoning defaults instead of sending the Chat Completions thinking
+extension. `PERO_EVAL_DEFER_TOOL_LOADING=1` selects the existing deferred tool
+profile; its ceiling is 12 steps per sample and 48 requests per four-sample run,
+versus six steps and 24 requests for eager tools. Both retain zero retries,
+1024 output tokens per request, and independent file/content validation.
+
+The original coder review verifier exposes the same explicit transport options:
+`--api-format responses --disable-streaming --allow-http`. It retains the
+original workflow, selector, report parsers and source-preservation checks.
+Only the existing hash-checked quoted-output hook migration is applied to a
+private plugin copy; the original external package is unchanged.
+
+Raw sample metrics, the coder review receipt, source hashes and private-log
+hashes are retained in
+[the provider evaluation report](../../design-docs/harness-guidance-openapi-evaluation.json).
+
+| Tool profile / guidance | Passed | Requests | Tool calls / errors | Input / output tokens |
+| --- | --- | --- | --- | --- |
+| Eager / without | 6/6 | 18 | 12 / 0 | 109,868 / 968 |
+| Eager / with | 6/6 | 30 | 24 / 0 | 193,870 / 1,200 |
+| Deferred / without | 6/6 | 24 | 18 / 0 | 132,254 / 1,034 |
+| Deferred / with | 5/6 | 31 | 26 / 0 | 174,017 / 1,163 |
+
+All 24 planned samples ran. The failed deferred sample received provider HTTP
+429 before any tool call and wrote no report; it is retained as a failure and
+was not retried. The other 23 samples passed independent report and input-file
+preservation checks. The deferred test command therefore exits nonzero. The
+profiles overlapped with the coder review, and guidance variants used fixed
+order; elapsed time is not a controlled performance comparison. These small
+fixtures establish successful tool use but no prompt efficiency improvement.
+
+The original coder review passed with 44 actual Responses HTTP attempts and
+44 reported completions, one Workflow call and four workflow-member agents.
+The unchanged selector chose spec, D9, D8 and D4; original report parsers all
+returned pass. The six Python fixture tests passed, tracked source and commit
+were unchanged, the selected plugin digest was unchanged during execution, and
+the session ended normally with exit 0 and no cleanup failures. This verifies
+the original review subflow, not another full development/merge workflow.
+Both opus and sonnet aliases explicitly route to `gpt-6.1-sol`.
+
+Verification on macOS arm64: baseline full Go race and vet passed; the affected
+native guidance/deferred race tests and vet passed; all 21 Trial tests passed.
+The credential remains excluded from Git. No new image/PDF/PTY, desktop,
+cross-platform or other-plugin model acceptance is claimed. Earlier Claude
+references remain the documented historical extraction, and Workflow helpers
+retain their DSH-derived contract; this run does not establish full parity with
+the latest Claude Code implementation.
+
+To rerun the opt-in experiment after exporting the local `.env` values:
+
+```sh
+PERO_GUIDANCE_EVAL=1 \
+PERO_EVAL_ENDPOINT="$OPENAI_BASE_URL" \
+PERO_EVAL_MODEL="$OPENAI_MODEL" \
+PERO_EVAL_API_KEY="$OPENAI_API_KEY" \
+PERO_EVAL_API_FORMAT=responses \
+PERO_EVAL_ALLOW_HTTP=1 \
+PERO_EVAL_DISABLE_STREAMING=1 \
+go -C harness/go test -race ./nativetools \
+  -run '^TestNativeGuidanceModelEvaluationOptIn$' -count=3 -v -timeout=15m
+```
+
+Add `PERO_EVAL_DEFER_TOOL_LOADING=1` to select the deferred profile. The Go test
+does not load `.env` automatically. Run profiles serially when measuring
+latency or investigating provider limits; no automatic retry is added.
