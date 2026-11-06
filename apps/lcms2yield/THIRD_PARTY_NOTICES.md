@@ -7,5 +7,6 @@ The upstream README states that the project is Apache-2.0. The upstream tree
 does not include a separate LICENSE file. SHA-256
 `c742ac9dae1a83d4169d00d4cfbc59fc3d2fc1b793798132ebbf52e5f1253826`.
 
-Model weights and the rest of that repository are not vendored. A local
-checkout of the same commit is required before a weight rerun.
+Model weights and the rest of that repository are not vendored. Preparing
+the App downloads that commit into the App data directory and checks the
+pinned hashes. The weight file in this commit is part of the archive.

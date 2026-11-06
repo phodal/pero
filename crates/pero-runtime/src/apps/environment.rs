@@ -180,13 +180,29 @@ impl AppStore {
             .is_some_and(|b| !b.dependencies.is_empty())
         {
             return Ok(Some(PythonEnvironment::try_from(
-                self.root
-                    .parent()
-                    .ok_or("App root needs a parent")?
-                    .join("environment/pero-python312"),
+                self.managed_python_directory(name)?,
             )?));
         }
         Ok(None)
+    }
+
+    /// LCMS2Yield carries PyTorch pins that conflict with Control Lab, so its
+    /// managed interpreter is a separate directory. Other Apps share one.
+    pub(super) fn managed_python_directory(
+        &self,
+        name: &AppName,
+    ) -> Result<std::path::PathBuf, String> {
+        let leaf = if name.as_str() == ScientificMethod::Lcms2Yield.target().0 {
+            "lcms2yield-python312"
+        } else {
+            "pero-python312"
+        };
+        Ok(self
+            .root
+            .parent()
+            .ok_or("App root needs a parent")?
+            .join("environment")
+            .join(leaf))
     }
 
     /// Inspects the selected interpreter now, not an attestation of a live backend.

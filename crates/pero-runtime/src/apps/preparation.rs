@@ -1,5 +1,5 @@
 //! Host-owned Python preparation, shared by every Desktop shell.
-use super::{definition::PythonDependency, python::PythonPreparation, AppName, PythonEnvironment};
+use super::{AppName, PythonEnvironment, definition::PythonDependency, python::PythonPreparation};
 use serde::Serialize;
 use std::{
     io::{BufRead, BufReader},
@@ -270,6 +270,61 @@ fn interpreter_request(minor: &str) -> std::ffi::OsString {
     } else {
         minor.into()
     }
+}
+
+/// PyG's torch 2.3 CPU wheels are not `package==version` pins. Install them once.
+pub(super) fn install_lcms_wheels(
+    environment: &PythonEnvironment,
+    log: &mut impl FnMut(String),
+) -> Result<(), String> {
+    if lcms_wheels_ready(environment)? {
+        return Ok(());
+    }
+    log("Installing PyG wheels for torch 2.3".into());
+    install_from_index(
+        environment,
+        "https://data.pyg.org/whl/torch-2.3.0+cpu.html",
+        &[
+            "pyg_lib",
+            "torch_scatter",
+            "torch_sparse",
+            "torch_cluster",
+            "torch_spline_conv",
+        ],
+        log,
+    )
+}
+
+fn lcms_wheels_ready(environment: &PythonEnvironment) -> Result<bool, String> {
+    let output = Command::new(environment.executable())
+        .args([
+            "-I",
+            "-B",
+            "-c",
+            "import importlib.metadata as m\nfor name in ('pyg_lib','torch_scatter','torch_sparse','torch_cluster','torch_spline_conv'):\n m.version(name)\n",
+        ])
+        .output()
+        .map_err(|error| error.to_string())?;
+    Ok(output.status.success())
+}
+
+/// The pinned release lives in App data. The module returns immediately when those bytes are already there.
+pub(super) fn fetch_lcms_release(
+    environment: &PythonEnvironment,
+    app_root: &std::path::Path,
+    data: &std::path::Path,
+    log: &mut impl FnMut(String),
+) -> Result<(), String> {
+    std::fs::create_dir_all(data).map_err(|error| error.to_string())?;
+    log("Checking the pinned LCMS2Yield release".into());
+    let mut command = Command::new(environment.executable());
+    command
+        .args(["-E", "-s", "-B", "-m", "lcms2yield.assets"])
+        .current_dir(app_root.join("backend"))
+        .env_remove("PYTHONPATH")
+        .env_remove("PYTHONHOME")
+        .env("PERO_APP_DATA", data);
+    run(&mut command, log)
 }
 
 /// Install wheels that are not ordinary pinned requirements, such as PyG builds

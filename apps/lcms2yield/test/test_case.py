@@ -58,6 +58,10 @@ class TableTests(unittest.TestCase):
         python = next(item for item in report['required'] if item['kind'] == 'python')
         self.assertEqual((python['major'], python['minor'], python['patch']), (3, 12, None))
         self.assertIn('torch', report['profile']['packages'])
+        manifest = json.loads((Path(__file__).resolve().parents[1] / 'app.json').read_text(encoding='utf-8'))
+        names = [item['name'] for item in report['required'] if item['kind'] == 'package']
+        self.assertEqual(names, [item.split('==', 1)[0] for item in manifest['backend']['dependencies']] + ['torch_scatter'])
+        self.assertIsNone(next(item['version'] for item in report['required'] if item.get('name') == 'torch_scatter'))
         encoded = json.dumps(report)
         self.assertNotIn('PASS', encoded)
         self.assertNotIn(os.path.expanduser('~'), encoded)
@@ -80,6 +84,30 @@ class TableTests(unittest.TestCase):
 
         self.assertIsNone(model_canonical(Chem(), 'bad'))
         self.assertEqual(model_canonical(Chem(), 'C'), repr(('H', 'C')))
+
+    def test_release_archive_rejects_members_outside_the_commit(self):
+        import io
+        import tarfile
+        from lcms2yield.assets import extract_archive
+        from lcms2yield.domain import COMMIT
+        buffer = io.BytesIO()
+        with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
+            payload = b'nope'
+            info = tarfile.TarInfo('elsewhere.txt')
+            info.size = len(payload)
+            archive.addfile(info, io.BytesIO(payload))
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(Invalid):
+                extract_archive(buffer.getvalue(), Path(directory))
+        inside = io.BytesIO()
+        with tarfile.open(fileobj=inside, mode='w:gz') as archive:
+            payload = b'weight'
+            info = tarfile.TarInfo(f'lcms2yield-{COMMIT}/model/predict.py')
+            info.size = len(payload)
+            archive.addfile(info, io.BytesIO(payload))
+        with tempfile.TemporaryDirectory() as directory:
+            extract_archive(inside.getvalue(), Path(directory))
+            self.assertEqual((Path(directory) / 'model/predict.py').read_bytes(), b'weight')
 
     def test_changed_training_table_bytes_do_not_record_identity(self):
         from lcms2yield.service import identity_status

@@ -9,8 +9,9 @@ and LCMS2Yield. This is an observation UI, not a second compute scheduler.
   table/grid, inspect one or all, and review installed versions and missing requirements.
 - Paper's reproduction panel opens the same inspector scoped to PC-Gym.
 - Control Lab's engine availability opens it scoped to python-control and ngspice.
-- LCMS2Yield opens it scoped to `lcms2yield.inference`. That method asks for
-  the bundled CPython 3.12 interpreter for this trial.
+- LCMS2Yield opens it scoped to `lcms2yield.inference`. Preparing that App
+  installs its chemistry packages into `environment/lcms2yield-python312` and
+  downloads the pinned release into the App data directory.
 - Export a versioned metadata observation. It is **not** a verification report,
   managed EnvironmentUse, proof of a running process, or scientific acceptance.
 

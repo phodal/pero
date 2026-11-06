@@ -471,17 +471,23 @@ impl AppStore {
         if self.processes.contains_key(name) { return Ok(()); }
         let Some(backend) = &app.definition.backend else { return Ok(()); };
         if !matches!(backend.kind, definition::BackendKind::Python) || backend.dependencies.is_empty() && self.python.select(name).is_none() { return Ok(()); }
-        let managed = self.root.parent().ok_or("App root needs a parent")?.join("environment/pero-python312");
+        let managed = self.managed_python_directory(name)?;
         let dependencies = backend.dependencies.clone();
         let target = preparation::prepare(name, self.python.select(name),
             PythonEnvironment::try_from(managed)?, &dependencies, python::BUNDLED_PYTHON_MINOR, progress)?;
-        if let python::PythonPreparation::Managed(environment) = target {
+        let environment = target.environment().clone();
+        if let python::PythonPreparation::Managed(_) = &target {
             self.python.bind(name.clone(), environment.root().to_path_buf())?;
             if let Some(path) = &self.settings {
                 if let Err(error) = crate::settings::save_app_python_binding(path, name.as_str(), environment.root()) {
                     eprintln!("warning: Could not record the {} Python environment: {error}", name.as_str());
                 }
             }
+        }
+        if name.as_str() == ScientificMethod::Lcms2Yield.target().0 {
+            let mut report = |line| progress(AppPreparation { name: name.clone(), phase: preparation::PreparationPhase::Installing, message: line });
+            preparation::install_lcms_wheels(&environment, &mut report)?;
+            preparation::fetch_lcms_release(&environment, &self.root.join(name.as_str()), &self.data.join(name.as_str()), &mut report)?;
         }
         Ok(())
     }
@@ -528,8 +534,7 @@ impl AppStore {
             if matches!(backend.kind, definition::BackendKind::Python)
                 && (!backend.dependencies.is_empty() || python.is_some())
             {
-                let managed = PythonEnvironment::try_from(self.root.parent()
-                    .ok_or("App root needs a parent")?.join("environment/pero-python312"))?;
+                let managed = PythonEnvironment::try_from(self.managed_python_directory(name)?)?;
                 let checked = preparation::check(name, self.python.select(name), managed, &backend.dependencies);
                 progress(AppPreparation {
                     name: name.clone(),

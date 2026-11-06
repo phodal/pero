@@ -11,7 +11,7 @@ import subprocess
 import sys
 import tempfile
 
-from .domain import CF_ABSOLUTE_TOLERANCE, COMMIT, PREDICT_SHA256, WEIGHT_SHA256, Invalid, cf_agreement
+from .domain import CF_ABSOLUTE_TOLERANCE, COMMIT, DATA_TABLES, PREDICT_SHA256, WEIGHT_SHA256, Invalid, cf_agreement
 
 PINNED = {
     'model/model_pth/20250721.pth': WEIGHT_SHA256,
@@ -26,6 +26,24 @@ def _file_sha256(path):
         for block in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(block)
     return digest.hexdigest()
+
+
+def pinned_tables(root):
+    """Read the released tables after their pinned digests match."""
+    root = Path(root)
+    if root.is_symlink() or not root.is_dir():
+        raise Invalid('asset', 'Missing pinned table')
+    root = root.resolve()
+    tables = []
+    for name, relative, digest, kind in DATA_TABLES:
+        path = root / relative
+        if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(root):
+            raise Invalid('asset', f'Missing pinned table {relative}')
+        data = path.read_bytes()
+        if hashlib.sha256(data).hexdigest() != digest:
+            raise Invalid('asset', f'{relative} is not the pinned {COMMIT[:12]} release')
+        tables.append((name, kind, data))
+    return tables
 
 
 def verify_checkout(path):

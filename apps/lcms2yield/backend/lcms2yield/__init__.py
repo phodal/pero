@@ -1,1 +1,1 @@
-"""Pinned LCMS2Yield reproduction values. The package does not download or train."""
+"""Pinned LCMS2Yield reproduction values. This package does not train."""
