@@ -1,5 +1,5 @@
 const en = {
- title: 'Environments', inspect: 'Environment', checkAll: 'Check all', check: 'Check', retry: 'Retry', checking: 'Checking…',
+ view: 'View', refreshing: 'Refreshing observation…', retained: 'Showing the previous observation; it has not been refreshed.', title: 'Environments', inspect: 'Environment', checkAll: 'Check all', check: 'Check', retry: 'Retry', checking: 'Checking…',
  search: 'Search environments', filter: 'Filter environments', all: 'All', unchecked: 'Not checked', matched: 'Matches requirements',
  blocked: 'Missing requirements', stale: 'Check again', error: 'Unavailable', table: 'Table', grid: 'Grid', back: 'Back', close: 'Close',
  method: 'Method', app: 'App', status: 'Status', observed: 'Observed', actions: 'Actions', open: 'Open',
@@ -14,7 +14,7 @@ const en = {
  exportName: 'Environment observation', probe_failed: 'Check failed', unsupported: 'Unsupported',
 };
 const zh = {
- title: '环境', inspect: '环境', checkAll: '检查全部', check: '检查', retry: '重试', checking: '检查中…',
+ view: '视图', refreshing: '正在更新观察记录…', retained: '正在显示上次观察记录，本次更新未成功。', title: '环境', inspect: '环境', checkAll: '检查全部', check: '检查', retry: '重试', checking: '检查中…',
  search: '搜索环境', filter: '筛选环境', all: '全部', unchecked: '未检查', matched: '满足软件要求',
  blocked: '缺少必要条件', stale: '需要重新检查', error: '不可用', table: '表格', grid: '卡片', back: '返回', close: '关闭',
  method: '方法', app: '应用', status: '状态', observed: '观察时间', actions: '操作', open: '打开',

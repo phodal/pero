@@ -9,8 +9,11 @@ export async function inspectEnvironment(target, { signal, fetchFn = globalThis.
   });
   if (!response.ok) {
     const detail = (await response.text()).trim().slice(0, 600);
-    if (response.status === 404 || response.status === 405) throw new Error('Environment inspection is unavailable in this Host. Update Pero and retry.');
-    throw new Error(detail || `Environment inspection failed (${response.status})`);
+    const error = new Error(response.status === 404 || response.status === 405
+      ? 'Environment inspection is unavailable in this Host. Update Pero and retry.'
+      : detail || `Environment inspection failed (${response.status})`);
+    error.status = response.status;
+    throw error;
   }
   const raw = await response.text();
   if (raw.length > 131072) throw new Error('Environment observation is too large');
@@ -30,12 +33,18 @@ export function createInspectionSession({ inspect = inspectEnvironment, changed 
     const controller = new AbortController();
     const request = { controller, promise: null };
     requests.set(target, request);
-    records[target] = { state: 'loading' };
+    const previous = records[target]?.report;
+    records[target] = { state: 'loading', report: previous };
     changed(records);
     request.promise = Promise.resolve().then(() => inspect(target, { signal: controller.signal })).then(report => {
       if (!disposed && requests.get(target) === request) records[target] = { state: 'observed', report };
     }).catch(error => {
-      if (!disposed && requests.get(target) === request) records[target] = { state: 'error', error: error instanceof Error ? error.message : String(error) };
+      if (!disposed && requests.get(target) === request) records[target] = {
+        state: 'error', error: error instanceof Error ? error.message : String(error),
+        // An ordinary probe failure does not invalidate the last observation.
+        // Authorization or removed-source replies revoke access to that report.
+        report: [401, 403, 404, 410].includes(error?.status) ? undefined : previous,
+      };
     }).finally(() => {
       if (requests.get(target) === request) requests.delete(target);
       if (!disposed) changed(records);
