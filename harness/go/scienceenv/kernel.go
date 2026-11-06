@@ -59,6 +59,14 @@ type Output struct {
 // MCPHandler answers one repl host.mcp call. Nil refuses the call.
 type MCPHandler func(context.Context, MCPCall) (json.RawMessage, error)
 
+// Host is the cell's view of the supervisor. Python has email and artifact
+// lookup. Only repl has MCP.
+type Host struct {
+	MCP          MCPHandler
+	Email        func() (string, error)
+	ArtifactPath func(versionID string) (string, error)
+}
+
 // Config is the interpreter and directory for one kernel process.
 type Config struct {
 	Language    Language
@@ -192,9 +200,21 @@ func kernelEnv(base []string, repl bool, limit int) []string {
 	return env
 }
 
-// Exec runs one cell. mcp is consulted only when the worker asks; python and R
-// workers are not given a host module. Canceling ctx kills the process.
-func (k *Kernel) Exec(ctx context.Context, code string, mcp MCPHandler) (Output, error) {
+// Exec runs one cell. Canceling ctx kills the process.
+func (k *Kernel) Exec(ctx context.Context, code string, host Host) (Output, error) {
+	return k.roundTrip(ctx, "EXEC", code, host)
+}
+
+// Load executes a skill sidecar whose top level is only functions, imports,
+// and constants. It uses the same persistent process as Exec.
+func (k *Kernel) Load(ctx context.Context, source string, host Host) (Output, error) {
+	if k.cfg.Language == R {
+		return Output{}, errors.New("science skills load into the python kernel")
+	}
+	return k.roundTrip(ctx, "LOAD", source, host)
+}
+
+func (k *Kernel) roundTrip(ctx context.Context, op, body string, host Host) (Output, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -203,7 +223,7 @@ func (k *Kernel) Exec(ctx context.Context, code string, mcp MCPHandler) (Output,
 	if k.closed {
 		return Output{}, errors.New("science kernel is closed")
 	}
-	if len(code) == 0 || len(code) > maxCodeBytes {
+	if len(body) == 0 || len(body) > maxCodeBytes {
 		return Output{}, errors.New("science kernel cell must be 1 byte to 1 MiB")
 	}
 	if k.dead || k.cmd == nil {
@@ -223,7 +243,7 @@ func (k *Kernel) Exec(ctx context.Context, code string, mcp MCPHandler) (Output,
 		case <-watch.Done():
 		}
 	}()
-	if err := writeFrame(k.stdin, "EXEC", []byte(code)); err != nil {
+	if err := writeFrame(k.stdin, op, []byte(body)); err != nil {
 		k.halt()
 		return Output{}, k.down(err)
 	}
@@ -238,9 +258,9 @@ func (k *Kernel) Exec(ctx context.Context, code string, mcp MCPHandler) (Output,
 			return Output{}, k.down(err)
 		}
 		switch kind {
-		case "MCP":
+		case "MCP", "HOST":
 			calls++
-			if err := writeFrame(k.stdin, "MCPRESULT", mcpResult(ctx, mcp, calls, payload)); err != nil {
+			if err := writeFrame(k.stdin, "MCPRESULT", hostResult(ctx, host, calls, payload)); err != nil {
 				k.halt()
 				return Output{}, k.down(err)
 			}
@@ -258,7 +278,7 @@ func (k *Kernel) Exec(ctx context.Context, code string, mcp MCPHandler) (Output,
 	}
 }
 
-func mcpResult(ctx context.Context, mcp MCPHandler, calls int, payload []byte) []byte {
+func hostResult(ctx context.Context, host Host, calls int, payload []byte) []byte {
 	fail := func(message string) []byte {
 		encoded, _ := json.Marshal(struct {
 			OK    bool   `json:"ok"`
@@ -267,19 +287,59 @@ func mcpResult(ctx context.Context, mcp MCPHandler, calls int, payload []byte) [
 		return encoded
 	}
 	if calls > maxMCPCalls {
-		return fail("too many host.mcp calls in one cell")
+		return fail("too many host calls in one cell")
 	}
-	if mcp == nil {
-		return fail("host.mcp is available only in the repl kernel")
+	var request struct {
+		Method    string          `json:"method"`
+		Server    string          `json:"server"`
+		Tool      string          `json:"tool"`
+		Arguments json.RawMessage `json:"arguments"`
+		VersionID string          `json:"version_id"`
 	}
-	var call MCPCall
-	if json.Unmarshal(payload, &call) != nil || strings.TrimSpace(call.Server) == "" || strings.TrimSpace(call.Tool) == "" {
-		return fail("host.mcp requires a server and a tool")
+	if json.Unmarshal(payload, &request) != nil {
+		return fail("host call was not JSON")
 	}
-	if len(call.Arguments) == 0 {
-		call.Arguments = json.RawMessage(`{}`)
+	if request.Method == "" {
+		request.Method = "mcp"
 	}
-	value, err := mcp(ctx, call)
+	var value json.RawMessage
+	var err error
+	switch request.Method {
+	case "mcp":
+		if host.MCP == nil {
+			return fail("host.mcp is available only in the repl kernel")
+		}
+		if strings.TrimSpace(request.Server) == "" || strings.TrimSpace(request.Tool) == "" {
+			return fail("host.mcp requires a server and a tool")
+		}
+		if len(request.Arguments) == 0 {
+			request.Arguments = json.RawMessage(`{}`)
+		}
+		value, err = host.MCP(ctx, MCPCall{Server: request.Server, Tool: request.Tool, Arguments: request.Arguments})
+	case "get_user_email":
+		email := ""
+		if host.Email != nil {
+			email, err = host.Email()
+		}
+		if err == nil {
+			if strings.TrimSpace(email) == "" {
+				value = json.RawMessage("null")
+			} else {
+				value, err = json.Marshal(email)
+			}
+		}
+	case "artifact_path":
+		if host.ArtifactPath == nil {
+			return fail("artifacts are not available")
+		}
+		var path string
+		path, err = host.ArtifactPath(request.VersionID)
+		if err == nil {
+			value, err = json.Marshal(path)
+		}
+	default:
+		return fail("unknown host method " + request.Method)
+	}
 	if err != nil {
 		return fail(err.Error())
 	}
@@ -287,14 +347,14 @@ func mcpResult(ctx context.Context, mcp MCPHandler, calls int, payload []byte) [
 		value = json.RawMessage("null")
 	}
 	if !json.Valid(value) {
-		return fail("MCP result was not JSON")
+		return fail("host result was not JSON")
 	}
 	encoded, err := json.Marshal(struct {
 		OK    bool            `json:"ok"`
 		Value json.RawMessage `json:"value"`
 	}{true, value})
 	if err != nil {
-		return fail("MCP result could not be encoded")
+		return fail("host result could not be encoded")
 	}
 	return encoded
 }

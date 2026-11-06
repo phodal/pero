@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -22,13 +23,17 @@ const (
 	cellSchema = `{"type":"object","additionalProperties":false,"properties":{"code":{"type":"string","minLength":1,"maxLength":1048576}},"required":["code"]}`
 )
 
-// Options selects interpreters for the three session kernels.
-// MCP answers repl host.mcp calls. Nil reports that no MCP server is connected.
+// Options selects interpreters, the read-only skill root, and optional
+// literature MCP servers. MCP answers repl host.mcp calls.
 type Options struct {
-	Workspace string
-	Python    string
-	Rscript   string
-	MCP       func(context.Context, *harness.Agent, MCPCall) (json.RawMessage, error)
+	Workspace      string
+	Python         string
+	Rscript        string
+	SkillRoot      string
+	ContactEmail   string
+	MCPPython      string
+	MCPServersRoot string
+	MCP            func(context.Context, *harness.Agent, MCPCall) (json.RawMessage, error)
 }
 
 type sessionKernels struct {
@@ -44,7 +49,11 @@ type Env struct {
 	pythonBin string
 	rscript   string
 	mcp       func(context.Context, *harness.Agent, MCPCall) (json.RawMessage, error)
+	skillRoot string
+	email     string
+	mcpNames  []string
 	sessions  map[string]*sessionKernels
+	artifacts map[string]map[string]artifactRecord
 }
 
 // Mount registers python, r, and repl. Each cell requires approval.
@@ -67,12 +76,30 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (*Env, error) 
 	if err != nil {
 		return nil, fmt.Errorf("science python: %w", err)
 	}
-	env := &Env{workspace: workspace, pythonBin: pythonBin, rscript: opts.Rscript, mcp: opts.MCP}
+	skillRoot := ""
+	if opts.SkillRoot != "" {
+		skillRoot, err = filepath.Abs(opts.SkillRoot)
+		if err != nil {
+			return nil, err
+		}
+		info, statErr := os.Stat(skillRoot)
+		if statErr != nil || !info.IsDir() {
+			return nil, errors.New("science skill root must be a directory")
+		}
+	}
+	env := &Env{workspace: workspace, pythonBin: pythonBin, rscript: opts.Rscript, mcp: opts.MCP, skillRoot: skillRoot, email: strings.TrimSpace(opts.ContactEmail)}
+	if opts.MCPServersRoot != "" {
+		names, mcpErr := env.mountLiteratureMCP(ctx, h, opts.MCPPython, opts.MCPServersRoot)
+		if mcpErr != nil {
+			return nil, mcpErr
+		}
+		env.mcpNames = names
+	}
 	tools := []struct {
 		id, name, description string
 		language              Language
 	}{
-		{"science/python", pythonTool, "Run one cell in this session's persistent Python kernel. Names and imports survive later python calls. This process has no host.mcp; use repl for MCP. python and repl do not share state. Pass files through the workspace. Not a sandbox. Requires approval.", Python},
+		{"science/python", pythonTool, "Run one cell in this session's persistent Python kernel. Names and imports survive later python calls. host.get_user_email and host.artifact_path are available. host.mcp is not; use repl for MCP. python and repl do not share state. Pass files through the workspace. Not a sandbox. Requires approval.", Python},
 		{"science/repl", replTool, "Run one cell in this session's persistent Python repl kernel, a different process from python. import host, then host.mcp(server, tool, **arguments) calls an MCP tool already connected to this agent. State stays in this kernel. Not a sandbox. Requires approval.", Repl},
 		{"science/r", rTool, "Run one cell in this session's persistent R kernel. The global environment survives later r calls. This process has no host.mcp. Not a sandbox. Requires approval.", R},
 	}
@@ -92,6 +119,10 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (*Env, error) 
 			return nil, err
 		}
 	}
+	if err := env.registerSkillTools(ctx, h); err != nil {
+		_ = env.Close()
+		return nil, err
+	}
 	return env, nil
 }
 
@@ -109,18 +140,12 @@ func (e *Env) execute(ctx context.Context, request harness.ToolRequest, language
 	if json.Unmarshal(request.Arguments, &args) != nil || strings.TrimSpace(args.Code) == "" {
 		return cellError("science kernel requires code"), nil
 	}
-	kernel, err := e.kernel(string(request.Agent.ID()), language)
+	session := string(request.Agent.ID())
+	kernel, err := e.kernel(session, language)
 	if err != nil {
 		return cellError(err.Error()), nil
 	}
-	var mcp MCPHandler
-	if language == Repl && e.mcp != nil {
-		agent := request.Agent
-		mcp = func(ctx context.Context, call MCPCall) (json.RawMessage, error) {
-			return e.mcp(ctx, agent, call)
-		}
-	}
-	out, err := kernel.Exec(ctx, args.Code, mcp)
+	out, err := kernel.Exec(ctx, args.Code, e.host(session, language, request.Agent))
 	if err != nil {
 		return cellError(err.Error()), nil
 	}
