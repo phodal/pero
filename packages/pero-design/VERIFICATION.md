@@ -159,3 +159,64 @@ Native drag/drop, system file dialogs, screen readers, full IME and cross-platfo
 rendering were not comprehensively tested. Third-party editors/scientific graphics
 retain their own implementation. Browser/catalog evidence does not substitute for
 Native evidence or acceptance of a signed installation package.
+
+## Five App follow-up (2026-11-06)
+
+The follow-up starts from `1079a62afd76f0c3e55c1b5abf4d35b22eabef59`.
+App implementation through `ba404d3b` is covered by the checks below; the
+subsequent test/documentation commit records the same implementation. The later
+master integration and its checks are recorded separately. This section does
+not replace the earlier Native acceptance limits.
+
+| Consumer | Previous behavior → adopted component/state behavior | Preserved boundary |
+| --- | --- | --- |
+| Paper | Clipped horizontal navigation → compact shared Select with results/shelves/collections; fixed library/search typography → shared scalable tokens; nested research records → list and selected detail; raw review inputs → Input/Textarea/Checkbox; PDF actions → ContextMenu including original download | Evidence review, scientific assessment, source identity, disabled/required semantics and Host-owned chat execution |
+| Paper library | Refresh replaced the workspace and hid errors on other routes → retain query/editor/selection during ordinary refresh, global retry, explicit initial-load failure; API scope changes and HTTP 401/403 clear unavailable data | Old requests cannot write across API scopes; ordinary 503 failure retains the available library; an unread library is not presented as an empty results list |
+| Data | Tiny multi-column catalog and competing empty states → title-first ListRow and one initial state; nested source detail → shared Dialog; raw selection/progress → Checkbox/Progress | Same file/version table/chart, range label, chart surface and edit draft survive refresh/failure; file/version/permission changes invalidate incompatible results; sandbox DataForm remains in use |
+| Environments | Imperative local controls → shared React Input/Select/Tabs/Table; refresh replaced inspection → stable panels and previous observations with timestamp/retry | Existing client and Host own operations; revoked/missing objects clear; metadata-only observations do not establish runnable scientific readiness; restart still needs the existing confirmation |
+| Connectors | Implicit catalog/installed mode → explicit ToggleGroup and refresh; hidden prerequisites → direct copy; fixed code typography → shared tokens; raw tool selection → Checkbox | Connection operations, secret storage and allowlists remain domain-owned; refresh keeps configuration drafts; obsolete locale/unmounted requests neither write nor restart polling |
+| Insights | Missing data appeared empty and regeneration removed the brief → explicit loading/availability/empty/error states with retained edition; handwritten tabs → Tabs/Content; inert actions/sources → source links, existing-session navigation or a prepared chat draft | A paused generation resumes the original session; duplicate start is blocked; unsafe source URLs are not linked; preparing a draft never submits it; Host checks the existing session before reporting navigation success |
+
+Independent review found and corrected paused-generation tracking, stale polling,
+missing-session acknowledgement, API-scope retention and hidden library errors.
+The final screenshot review also found the old stacked-navigation CSS overriding
+the new compact mode; it was removed, and browser assertions now verify its
+absence and the computed 24px search/heading scale.
+
+Validation on macOS arm64:
+
+- Actual five App frame entrypoints, production SDK aliases and isolated loopback
+  API fixtures: **7/7 Chromium regressions**, no page errors. These exercise
+  loading, empty, failed refresh, keyboard panels, existing-session/draft
+  messages, compact navigation and same-session generation continuation.
+- Paper numeric/Docling/workspace: **20/20**; Connectors: **39/39**, including
+  real label selection, composing Enter, unmount/locale request races and draft
+  retention; Data: **14 browser tests** (including its real Python 3.12 backend)
+  and **8 model tests**; Environments: **23 tests**; full SDK: **155/155**.
+- Root `npm run check`, affected App and SDK typechecks, and all five production
+  App builds passed. The final Paper CSS was rebuilt after the screenshot fix.
+  Insights prompt/model and Web session presentation/navigation: **6/6**.
+- `cargo check -p pero-ui --features native` passed using the configured nightly
+  toolchain and existing GPUI sources; existing warnings remain. This verifies
+  the Native route compiles, not that a GPUI window was observed in this pass.
+
+Reproduce the five App browser regression with
+`node --test tests/e2e/desktop-app-design.mjs`; set `PERO_DESIGN_SCREENSHOTS` to an
+output directory to capture the tested states. No Agent run or production
+approval occurs in that suite. The Data backend suite uses
+`PYTHON=/path/to/python3.12 npm --prefix apps/data run test:browser`.
+
+Captured and visually inspected real App frames (fixture data clearly scoped):
+[Paper 600px/dark/24px](https://github.com/user-attachments/assets/9a00c666-ec19-40a0-9ec6-7cc6e8664c7f),
+[Connectors 24px](https://github.com/user-attachments/assets/2fd67917-8074-40d4-9d0a-1b5062440f43),
+[Insights retained brief/dark/24px](https://github.com/user-attachments/assets/61cbfa4a-eaa2-4d4e-87b7-6f6029a516da),
+[Environments initial error/dark/24px](https://github.com/user-attachments/assets/5fc3c324-533f-4592-823c-0a5aafe462b9),
+[Data initial empty/14px](https://github.com/user-attachments/assets/bb360c74-12e9-4a04-a7f8-09f10b472cf1).
+
+An optional TypeScript/CSS AST candidate scanner and independent forward-test
+workflow are maintained in [OpenStars PR #7](https://github.com/WeiJiLab/openstar-agents/pull/7).
+Its bounded source results do not establish runtime, accessibility, physical IME,
+visual or Native acceptance. Technical evidence disclosures remain where they
+serve low-frequency review; source finding counts are not a mandate to flatten
+them. Full Electron/GPUI runtime, screen readers and complete scientific workflows
+were not rerun in this follow-up.
