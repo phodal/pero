@@ -179,3 +179,21 @@ This does not close the remaining Docker/VM/Compose/Slurm execution gates.
 
 These checked items are adapter/fixture evidence only; they do not close P2–P4.
 See the [live owner report](../fitness/ai4s-environments.md#2026-11-06-live-local-docker-compose-and-slurm-owner-evidence).
+
+
+## 2026-11-06 scientific runtime continuation
+
+- [x] Trusted separate PC-Gym interpreter for freeze, approval, dispatch and worker;
+  retain original cancel/reconcile path when the selected environment changes.
+- [x] Actual CPU smoke plus standalone recomputation and cancellation with a
+  Python 3.15 App / Python 3.12 scientific environment. Synthetic Paper metadata
+  is scoped separately from real computation in the fitness report.
+- [x] Correct review findings in private admission, repeat Compose disposal,
+  Slurm post-submission evidence and fixture readiness; rerun all four live adapters.
+- [ ] Product Profile selection, Host Use/attempt integration and remaining P2/P3 gates.
+- [ ] KubeVirt guest acceptance: local ARM TCG and x86 Rosetta fixture limits recorded;
+  neither stopped fixture is advertised as ready.
+
+The user rejected the initial creation-page appearance and explicitly requested
+an HTML design by a sub-agent before integration. A dedicated design pass is
+underway; acceptance requires the new layout in the real Environments App.

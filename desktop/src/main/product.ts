@@ -124,6 +124,7 @@ app.whenReady().then(async () => {
     PERO_APP_NODE: product.node === 'bundled' ? resolve(root, 'runtime/node/bin/node') : product.node === 'system' ? 'node' : resolve(root, 'runtime/unavailable-node'),
     PERO_LOCALE: locale, PERO_APP_PYTHON: product.python === 'bundled' ? resolve(root, 'runtime/python/bin/python3') : 'python3',
     ...(process.env.PERO_PAPER_PCGYM_CHECKOUT ? { PERO_PAPER_PCGYM_CHECKOUT: process.env.PERO_PAPER_PCGYM_CHECKOUT } : {}),
+    ...(process.env.PERO_PAPER_SCIENTIFIC_PYTHON ? { PERO_PAPER_SCIENTIFIC_PYTHON: process.env.PERO_PAPER_SCIENTIFIC_PYTHON } : {}),
     ...(product.chat ? {
       PATH: [resolve(root, 'bin'), resolve(root, 'node_modules/.bin'), process.env.PATH, resolve(app.getPath('home'), '.local/bin'), '/opt/homebrew/bin'].filter(Boolean).join(delimiter),
       PERO_AGENT_ROOT: root, PERO_ADAPTER_NODE: process.execPath,
