@@ -144,3 +144,15 @@ interpretation previews and chart source rows. Preserve original row numbers,
 aria-sort/aria-selected, selection limits, exact decimal values and sticky
 headers. All five tables gain named keyboard-focusable scroll regions; remove
 Data's duplicate cell padding/header skin.
+
+HPC verification/artifacts/runs/comparison, Lab protocol/criteria/checks/trial
+comparison and Viewer numeric preview now use semantic Table. Preserve row IDs,
+run selection limits, cell editing, protocol colgroups, source pagination and
+comparison denominators. HPC ordinary links/benchmark choices use link/ghost
+Button instead of unstyled controls; remove duplicate skins.
+
+Paper comparison, evidence/reading matrices, reproduction counts, Markdown and
+structured source tables now use semantic Table. Keep source caption, rowspan/
+colspan, original values, missing denominators, citations and editing intact.
+Scientific prose tables inherit document typography; interface matrices use the
+shared typography. Remove private generic cell/header skins.

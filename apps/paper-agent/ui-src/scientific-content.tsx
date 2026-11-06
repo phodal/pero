@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '@pero/app-sdk/ui';
+import { Table, Button } from '@pero/app-sdk/ui';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -24,7 +24,7 @@ export function ScientificContent({ content, evidence = [], onCite, citationLabe
         }
         return <a href={href} target={href?.startsWith('#') ? undefined : '_blank'} rel="noreferrer">{children}</a>;
       },
-      table: ({ children }) => <div className="pa-table-scroll" tabIndex={0}><table>{children}</table></div>,
+      table: ({ children }) => <Table label="Scientific table" className="pa-table-scroll">{children}</Table>,
       img: ({ src, alt }) => src ? <img src={src} alt={alt ?? ""} loading="lazy" referrerPolicy="no-referrer"/> : <span>{alt}</span>,
     }}>{content}</Markdown></div>;
 }

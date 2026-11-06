@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Feedback, Field, Input, Select, Textarea } from '@pero/app-sdk/ui';
+import { Table, Button, Feedback, Field, Input, Select, Textarea } from '@pero/app-sdk/ui';
 import type { Api, Evidence, Intent, Report } from './types';
 import type { Translator } from './i18n';
 import type { Citation } from './documents';
@@ -52,7 +52,7 @@ export function EvidenceMatrix({ matrix, intent, onCite, t, api, reportId }: {
   return <section className="pa-matrix">
     <h2>{t('matrix')}</h2>
     {error && <Feedback kind="error">{error}{!editing && <Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button>}</Feedback>}
-    <div className="pa-table-scroll" tabIndex={0} role="region" aria-label={t('matrix')}><table>
+    <Table label={t('matrix')} className="pa-table-scroll">
       <thead><tr><th scope="col">{t('papers')}</th>{shown.columns.map(column => <th scope="col" key={column.id}>{column.label}</th>)}</tr></thead>
       <tbody>{intent.papers.map((paper, index) => <tr key={paper.id}>
         <th scope="row"><Button variant="link" className="pa-matrix-source" onClick={() => onCite({paperId:paper.id})}>[{index + 1}] {paper.title}</Button></th>
@@ -68,7 +68,7 @@ export function EvidenceMatrix({ matrix, intent, onCite, t, api, reportId }: {
           </td>;
         })}
       </tr>)}</tbody>
-    </table></div>
+    </Table>
     {editing && <CellEditor key={`${editing.paperId}:${editing.columnId}`} title={shown.columns.find(column => column.id === editing.columnId)!.label} cell={editing} intent={intent} busy={busy} onSave={(value, reason) => void save(value, reason)} onClose={closeEditor} t={t}/>}
     {!!state?.revisions.length && <details className="pa-matrix-history"><summary>{t('correctionHistory')}</summary><ol>{state.revisions.map(revision => <li key={revision.id}>{revision.version}: {revision.cell.value || t('missing')}{revision.reason && <p>{revision.reason}</p>}</li>)}</ol></details>}
   </section>;

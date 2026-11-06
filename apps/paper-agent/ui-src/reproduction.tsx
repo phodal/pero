@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile } from '@pero/app-sdk';
-import { Button, Select, Feedback, Input, EnvironmentInspector } from '@pero/app-sdk/ui';
+import { Table, Button, Select, Feedback, Input, EnvironmentInspector } from '@pero/app-sdk/ui';
 import type { Api, PdfAnnotation } from './types';
 import type { Translator } from './i18n';
 
@@ -171,10 +171,10 @@ export function Reproduction({ api, annotation, initial, t }: { api: Api; annota
       {result.diagnostic?.status === 'outside_tolerance' && <p>{t('reproductionOutsideTolerance')}</p>}
       {result.diagnostic?.status === 'within_tolerance' && <p>{t('reproductionWithinTolerance')}</p>}
       {result.diagnostic?.reason && <p>{result.diagnostic.reason}</p>}
-      {!!result.metrics?.length && <details><summary>{t('reproductionCounts')}</summary><table><thead><tr>
+      {!!result.metrics?.length && <details><summary>{t('reproductionCounts')}</summary><Table label={t('reproductionCounts')}><thead><tr>
         <th scope="col">{t('reproductionPolicy')}</th><th scope="col">{t('reproductionEpisodes')}</th><th scope="col">{t('reproductionSamples')}</th>
       </tr></thead><tbody>{result.metrics.map(metric => <tr key={metric.policy}><th scope="row">{metric.policy}</th>
-        <td>{metric.violated_episodes}/{metric.total_episodes}</td><td>{metric.violated_samples}/{metric.total_samples}</td></tr>)}</tbody></table></details>}
+        <td>{metric.violated_episodes}/{metric.total_episodes}</td><td>{metric.violated_samples}/{metric.total_samples}</td></tr>)}</tbody></Table></details>}
       <details><summary>{t('reproductionReasons')}</summary><ul>{result.reasons.map(reason => <li key={reason}>{reason === 'pcgym_metric_and_original_experiment_unresolved' ? t('reproductionUnresolved') : reason}</li>)}</ul></details>
     </section>}
     <details open={!evidence?.items.length}>
