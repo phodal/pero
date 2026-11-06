@@ -95,7 +95,8 @@ impl From<ComponentObservation> for SoftwareObservation {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "SoftwareProfileInput")]
 pub struct SoftwareProfile {
     id: ContentDigest,
     observation: SoftwareObservation,
@@ -253,3 +254,20 @@ impl SoftwareProfile {
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SoftwareProfileInput {
+    id: ContentDigest,
+    observation: SoftwareObservation,
+}
+impl TryFrom<SoftwareProfileInput> for SoftwareProfile {
+    type Error = EnvironmentError;
+    fn try_from(value: SoftwareProfileInput) -> Result<Self, Self::Error> {
+        let profile = Self::observed(value.observation);
+        if profile.id != value.id {
+            return Err(EnvironmentError::IdentityChanged);
+        }
+        Ok(profile)
+    }
+}
