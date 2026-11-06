@@ -7,6 +7,7 @@ mod agents;
 mod artifacts;
 mod automation;
 mod automation_store;
+mod environment_uses;
 mod apps;
 mod research_assets;
 mod project_resources;
