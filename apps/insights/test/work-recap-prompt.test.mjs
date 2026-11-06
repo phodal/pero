@@ -25,6 +25,24 @@ test('a needs_you card is the result row, and the edition underneath stays empty
   assert.equal(view.cards.length, 0);
 });
 
+test('brief publications preserve sources, actions, and next steps across reply formats', () => {
+  const sessionId = 'chat-1793718026531-2';
+  const url = 'https://github.com/phodal/pero/commit/9cf2df1240064ea8b02cb4fe7cd068719a5b1af8';
+  const prompt = `打开 ${sessionId} 交接给 Agent：沿用同版本 TeX 源，标注哪些数字来自原文。`;
+  for (const [publication, expected] of [
+    [{ summary: '论文阅读已拿到图表材料，接下来可沿原会话核对关键结论。', cards: [{ title: '论文图表已交付', entity: { type: 'session', label: '论文阅读', sessionId }, action: { label: '打开会话', sessionId }, sources: [{ label: '阅读会话', sessionId }, { label: '提交', url }] }], tomorrow: '核对原文证据。' },
+      { entity: { type: 'session', label: '论文阅读', sessionId }, action: { label: '打开会话', sessionId }, sources: [{ label: '阅读会话', sessionId }, { label: '提交', url }], tomorrow: '核对原文证据。' }],
+    [{ cards: [{ title: '论文图表已交付', entity: 'session', action: prompt, sources: [{ sessionId }, { url }, null, {}] }], tomorrow: ['核对原文证据。', '继续论文概述。'], view: { schemaVersion: 1, sections: [] } },
+      { entity: { type: 'session', label: 'session' }, action: { label: '交给 Agent', prompt }, sources: [{ label: sessionId, sessionId }, { label: url, url }], tomorrow: '核对原文证据。\n继续论文概述。' }],
+  ]) {
+    const brief = briefFromReply(JSON.stringify(publication));
+    assert.equal(brief.summary, publication.summary ?? '');
+    const card = brief.cards[0];
+    assert.deepEqual({ entity: card.entity, action: card.action, sources: card.sources, tomorrow: brief.tomorrow }, expected);
+    assert.equal(Object.hasOwn(brief, 'view'), false);
+  }
+});
+
 test('the next-step prompt keeps Point’s analysis contract', () => {
   const prompt = workRecapPrompt({
     sessions: [{ sessionId: 'chat-1793283309757-2', turns: [{ turnId: '1', request: '杭州', response: '我来搜一下杭州今天的天气。', responseKind: 'intermediate', status: 'unfinished' }] }],
@@ -39,6 +57,14 @@ test('the next-step prompt keeps Point’s analysis contract', () => {
   assert.match(brief, /看完就结束的工作简报/);
   assert.match(brief, /pulse_publish/);
   assert.match(brief, /最多挑 8 件/);
+  assert.match(brief, /不要把 entity 或 action 写成字符串/);
+  assert.match(brief, /"label":"来源名称","sessionId":"原会话 ID"/);
+  assert.match(brief, /tomorrow 是一个字符串/);
+  assert.match(brief, /先写 summary/);
+  assert.match(brief, /累计会话日志/);
+  assert.match(brief, /回合完成或助手声称/);
+  assert.equal(brief.includes('昨天的 workRecap'), false);
+  assert.equal(brief.includes('按内容生成 view'), false);
   assert.match(brief, /dirty.rs/);
   assert.match(brief, /do not establish clean local work/);
   assert.equal(brief.includes('"repository":"not_read"'), false);
