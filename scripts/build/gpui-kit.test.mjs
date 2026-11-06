@@ -21,9 +21,9 @@ test('patched Kit retains its own workspace and leaves the source immutable', t 
     write(`scripts/lib/${name}.mjs`, readFileSync(new URL(`../lib/${name}.mjs`, import.meta.url)));
   }
   write('source/Cargo.toml', '[workspace]\nmembers=["crates/kit", "crates/base", "crates/shared"]\nresolver="2"\n[workspace.dependencies]\nshared={path="crates/shared"}\n');
-  write('source/crates/kit/Cargo.toml', '[package]\nname="gpui-kit"\nversion="0.8.1"\n');
+  write('source/crates/kit/Cargo.toml', '[package]\nname="gpui-kit"\nversion="0.9.0"\n');
   write('source/crates/kit/src/lib.rs', '');
-  const base = '[package]\nname="gpui-base"\nversion="0.8.1"\n[dependencies]\nshared.workspace=true\n';
+  const base = '[package]\nname="gpui-base"\nversion="0.9.0"\n[dependencies]\nshared.workspace=true\n';
   write('source/crates/base/Cargo.toml', base);
   write('source/crates/base/src/lib.rs', '// original\n');
   write('source/crates/shared/Cargo.toml', '[package]\nname="shared"\nversion="0.1.0"\n');
@@ -31,9 +31,9 @@ test('patched Kit retains its own workspace and leaves the source immutable', t 
   // Keep this fixture cache unique without relying on mtimes.
   write('source/fixture-id', root);
   for (const [name, before, after] of [
-    ['gpui-base-0.8.1-source-search', 'original', 'search patched'],
-    ['gpui-base-0.8.1-edit-events', 'search patched', 'both patched'],
-    ['gpui-component-0.8.1-menu-height', 'both patched', 'all patched'],
+    ['gpui-base-0.9.0-source-search', 'original', 'search patched'],
+    ['gpui-base-0.9.0-edit-events', 'search patched', 'both patched'],
+    ['gpui-component-0.9.0-menu-height', 'both patched', 'all patched'],
   ]) {
     write(`patches/${name}.patch`, `diff --git a/crates/base/src/lib.rs b/crates/base/src/lib.rs\n--- a/crates/base/src/lib.rs\n+++ b/crates/base/src/lib.rs\n@@ -1 +1 @@\n-// ${before}\n+// ${after}\n`);
   }

@@ -1,7 +1,7 @@
 // Actual GPUI/Wasm reading and performance in a background Electron window.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { setAppearance } from './sidebar-controls.mjs';
+import { clickNewChat, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir, cpus, platform, arch, release } from 'node:os';
@@ -93,7 +93,7 @@ try {
   await expect
     .poll(async () => (await state()).agents?.some((a) => a.id === 'fixture'))
     .toBe(true);
-  await page.mouse.click(100, 28);
+  await clickNewChat(page);
   await expect.poll(async () => (await state()).chats.length).toBe(1);
   const thread = (await state()).chats[0].id;
   const id = createHash('sha256').update(source).digest('hex');
@@ -193,10 +193,10 @@ try {
   await page.screenshot({ scale: 'css', path: resolve(out, 'source.png') });
   const foldBounds = (await reader()).bounds;
   const foldX = 49 + (String(rowCount+2).length-4)*(await state()).appearance.typography.code*0.6;
-  await page.mouse.click(foldBounds.x + foldX, foldBounds.y + 52);
+  await page.mouse.click(foldBounds.x + foldX, foldBounds.y + 43);
   await expect.poll(async () => (await reader()).folds).toBe(1);
   await page.screenshot({scale:'css',path:resolve(out,'structural-fold.png')});
-  await page.mouse.click(foldBounds.x + foldX, foldBounds.y + 52);
+  await page.mouse.click(foldBounds.x + foldX, foldBounds.y + 43);
   await expect.poll(async () => (await reader()).folds).toBe(0);
 
   for (
@@ -228,15 +228,17 @@ try {
   const partialBounds = (await reader()).bounds;
   await page.mouse.click(partialBounds.x + 200, partialBounds.y + 90);
   await paint();
-  const partialLine = (await reader()).cursor.line;
   await page.keyboard.press('Home');
   await page.keyboard.press('Shift+End');
+  const partialSelection = (await reader()).selection;
+  expect(partialSelection.end).toBeGreaterThan(partialSelection.start);
+  expect(partialSelection.end - partialSelection.start).toBeLessThan(Buffer.byteLength(source));
   await page.keyboard.press(
     `${process.platform === 'darwin' ? 'Meta' : 'Control'}+c`,
   );
   await expect
     .poll(async () => app.evaluate(({ clipboard }) => clipboard.readText()))
-    .toBe(source.split('\n')[partialLine]);
+    .toBe(Buffer.from(source).subarray(partialSelection.start, partialSelection.end).toString());
   await phase('select-and-readonly-type');
   const bounds = (await reader()).bounds;
   await page.mouse.click(bounds.x + 350, bounds.y + 90);
@@ -431,7 +433,7 @@ try {
   await paint();
 
   for (let i = 0; i < 13; i++) {
-    await page.mouse.click(100, 28);
+    await clickNewChat(page);
     await paint();
     await expect.poll(async () => (await state()).composerFocused).toBe(true);
     await page.keyboard.type(`tab ${i}`);

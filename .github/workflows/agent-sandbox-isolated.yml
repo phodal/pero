@@ -62,7 +62,7 @@ jobs:
           kit="$RUNNER_TEMP/gpui-kit"
           git init --quiet "$kit"
           git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
-          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
+          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
           git -C "$kit" checkout --detach FETCH_HEAD
           echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
       - name: Build external Worker and isolated ACP transports
