@@ -251,3 +251,28 @@ does not establish full original-plugin Workflow compatibility. The
 [open delivery record](../../issues/2026-11-06-coding-delivery-residue.md)
 retain the failure and exact execution boundaries. OCaml GC repair, a MIPS
 interpreter and Cython/NumPy migration are researched next candidates.
+
+## Repository feature sample, 2026-11-06
+
+The requested Agentic Coding Durability sources are cloned under
+`/Users/phodal/benchmarks/ai4se`. Three isolated projects run serially from
+master `5e87d45a`, using the native deferred tools, existing feedback profile
+and `gpt-6.1-sol` Responses. Gin receives two sequential prompts in one Session;
+FastAPI and OpenManus each receive one. No independent judge feedback or manual
+feature repairs are supplied to the model.
+
+Gin's JWT plus SQLite CRUD and FastAPI's blog feature pass independent HTTP,
+schema and persistence checks. OpenManus passes four search-module cases and
+ten scoped tests, while ordinary pytest collection fails on the unprovisioned
+browser dependency; full application startup remains unverified. FastAPI's
+17 tests pass, but inherited repository lint/type debt remains. All prompts
+and native cleanup end normally. The total is 99 requests, 152 tool calls,
+eight retained failed calls and 2,166,073 reported tokens.
+
+This locally adapted sample is not an official Qoder score or a matched
+comparison to the feedback-off Terminal-Bench run. It adds repository feature
+and regression evidence; the earlier delivery issue stays open and full
+plugin development/review/merge parity remains unproven. The
+[verification](../../fitness/agentic-coding-durability.md) and
+[machine report](../../design-docs/harness-durability-sol-evaluation.json)
+retain the preparation, failures, source hashes and acceptance scope.

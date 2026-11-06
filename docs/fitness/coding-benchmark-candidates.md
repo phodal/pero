@@ -149,3 +149,27 @@ Verified remains the separate route to issue-driven repairs across real
 repositories; Pro V2 adds a longer budget and a stricter evaluation protocol.
 Terminal-Bench native-tool verdicts also do not replace an original plugin's
 full Workflow development/review/merge acceptance.
+
+## Agentic Coding Durability sample, 2026-11-06
+
+[Qoder's evaluation set](https://github.com/QoderAI/agentic-coding-durability-evalset)
+adds practical feature work across existing repositories. Its README explicitly
+provides no automated completion verdict and asks for human iteration. At index
+revision `993d6a5a`, the organization lists 19 sample projects plus `.github`;
+projects can contain multiple prompts, so this is not a count of 19 tasks.
+
+The requested sources are cloned under `/Users/phodal/benchmarks/ai4se`.
+A serial native `gpt-6.1-sol` sample runs four original prompts across Gin,
+FastAPI and OpenManus, with acceptance criteria frozen before execution.
+Gin's two-turn JWT/SQLite delivery and FastAPI's blog delivery pass independent
+HTTP/persistence checks. OpenManus passes scoped Google-only selection/fallback
+checks; full startup remains unverified because its search-only environment
+omits browser dependencies. Ordinary pytest collection failure is retained.
+
+The sample consumes 99 requests and 2,166,073 reported tokens. It uses the
+existing feedback profile, unlike the preceding Terminal-Bench run; it is not
+a controlled score or efficiency comparison. These tasks add feature/regression
+coverage but do not establish greater algorithmic difficulty or long-horizon
+durability. Keep independently judged repair tasks and full plugin workflows
+as separate coverage. Exact sources, preparation, results and limitations are
+in the [verification](agentic-coding-durability.md).

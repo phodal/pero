@@ -1,0 +1,458 @@
+{
+  "schema_version": 1,
+  "kind": "verification_report",
+  "date": "2026-11-06",
+  "run_id": "20261106-sol-durability-01",
+  "benchmark": {
+    "name": "Agentic Coding Durability Evaluation Set",
+    "url": "https://github.com/QoderAI/agentic-coding-durability-evalset",
+    "revision": "993d6a5a124d5cbb127312e82fdb92be94bbacef",
+    "official_score": false,
+    "completion_policy": "Upstream human judgement; this sample adds frozen local behavioral judges."
+  },
+  "artifact_root": "/Users/phodal/benchmarks/ai4se/runs/20261106-sol-durability-01",
+  "runtime": {
+    "revision": "5e87d45aaa496097d67217e4be50ebb57c4a742a",
+    "binary": {
+      "path": "bin/pero-agent-acp",
+      "sha256": "57aa75636f49a02dceb7f8ed9c65e7bfe8b52d058172acdf94081708e35f541b"
+    },
+    "platform": "darwin/arm64",
+    "go_version": "go1.27.3",
+    "cgo_enabled": false,
+    "vcs_modified": false,
+    "harness_git_tree": "0077150aeb4f9c188803ad5db416ebcc9b9fdd0b",
+    "trial_git_tree": "70ac8b020a1132884cfb7a94059c9a5d51386032",
+    "publication_base": "08a0e6a2ab2a3aedbe87d2a7fa8e3e0ff9865946",
+    "publication_base_harness_and_trial_unchanged": true
+  },
+  "protocol": {
+    "projects": 3,
+    "public_prompts": 4,
+    "model": "gpt-6.1-sol",
+    "api_format": "responses",
+    "streaming": false,
+    "endpoint": "http://187.124.157.143:8989/v1",
+    "automatic_retries": 0,
+    "max_requests_per_project": 128,
+    "max_output_tokens": 16384,
+    "session_timeout_seconds": 1800,
+    "idle_timeout_seconds": 600,
+    "engineering_profile": "feedback",
+    "delivery_contract": null,
+    "deferred_tools": true,
+    "context_window": 0,
+    "manual_task_repairs": 0,
+    "hidden_judge_feedback_to_agent": false,
+    "gin_turns_share_one_session": true
+  },
+  "provenance": {
+    "acceptance_plan": {
+      "path": "acceptance-plan.json",
+      "sha256": "2da28dd120ef48a8ee160e6b69db26dad5a1ea284a4049c920c042c66280963b"
+    },
+    "runner": {
+      "path": "run_project.py",
+      "sha256": "37702bcb3c34127e11acf7b325eb7d9fcbe90ed12d351c00b7f759094647ec4a"
+    },
+    "wrapper": {
+      "path": "agent-wrapper.sh",
+      "sha256": "ccc160f5d711e93d2956f45ff17fdfb4cb63b1d35403f5d4f10338fc0c0b8793"
+    },
+    "judge_freeze": {
+      "path": "judge-source-freeze.json",
+      "sha256": "4a2a30526996d3db12a0f68e2684164fdf3c5a9708f0c107638697bee14bdd97"
+    },
+    "launch_settings": {
+      "path": "launch-settings.json",
+      "sha256": "c91d0f09fba228bf8e045e573b6120a64ea765b21d82d8433c95ba8509a6ea58"
+    },
+    "manual_review": {
+      "path": "artifacts/manual-review.json",
+      "sha256": "e7b2c616946f39ccf48fdbcebf2af1bd86a623016d90afcdfd90f56815226a7a"
+    },
+    "baseline_controls": {
+      "path": "baseline-controls.json",
+      "sha256": "c5d2f044f76a2d9b64373f4943dd0c025677547d3e858d93f74ead05cf0bdb3f"
+    }
+  },
+  "preparation": [
+    "Gin go.sum populated from existing pinned go.mod; source clone unchanged",
+    "FastAPI uv sync plus missing greenlet installed in workspace venv before model; baseline failure retained as environment preparation evidence",
+    "OpenManus minimal search dependencies and ignored local config use a placeholder Daytona key; no application LLM or live search credential configured",
+    "FastAPI UV_NO_SYNC=1 preserves the prepared venv; dependency/source baseline issues remain separately classified."
+  ],
+  "controls": [
+    {
+      "project": "fastapi-sqlite-demo",
+      "control": "feature-absent",
+      "exit_code": 1,
+      "expected_success": false
+    },
+    {
+      "project": "OpenManus",
+      "control": "default-fallback",
+      "exit_code": 0,
+      "expected_success": true
+    },
+    {
+      "project": "OpenManus",
+      "control": "google-only-absent",
+      "exit_code": 1,
+      "expected_success": false
+    },
+    {
+      "project": "gin-demo",
+      "control": "login-feature-absent",
+      "build_exit_code": 0,
+      "exit_code": 1,
+      "expected_success": false,
+      "public_ping_ready": true
+    }
+  ],
+  "projects": [
+    {
+      "project": "gin-demo",
+      "source_revision": "1700b5c5aadafdc464042722cbd0253979b0d475",
+      "public_prompt_file_sha256": "97e9cc4aa243fecc015ed689526fc1040145fc96af49e8c92319d7f9a938e9ce",
+      "tasks": [
+        1,
+        2
+      ],
+      "acceptance": "pass",
+      "scope": "Final two-turn JWT/SQLite submission; independent HTTP and real server restart",
+      "project_tests": "Go race suite and build pass",
+      "independent_groups": 8,
+      "turns": [
+        {
+          "task": 1,
+          "stop_reason": "end_turn",
+          "http_attempts": 19
+        },
+        {
+          "task": 2,
+          "stop_reason": "end_turn",
+          "http_attempts": 24
+        }
+      ],
+      "runtime_complete": true,
+      "cleanup": {
+        "process_started": true,
+        "exit_code": 0,
+        "errors": []
+      },
+      "duration_seconds": 610.372,
+      "usage": {
+        "input_tokens": 930376,
+        "output_tokens": 16184,
+        "total_tokens": 1094016,
+        "cache_read_tokens": 147456,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 1230,
+        "reported_completions": 43,
+        "unreported_completions": 0,
+        "unreported_attempts": 0
+      },
+      "trace_metrics": {
+        "responses": 43,
+        "tool_calls": 57,
+        "matched_results": 57,
+        "failed_calls": 1,
+        "missing_results": 0,
+        "interrupted_calls": 0,
+        "running_calls": 0,
+        "provider_request_deadlines": 0,
+        "zero_exit_validation_candidates": 0,
+        "recovery_chains": 1,
+        "unresolved_recovery_chains": 0,
+        "tool_history_replacements": 16,
+        "repeated_identical_calls": 12,
+        "repeated_unchanged_results": 4,
+        "prepared_payload_bytes": 4160031,
+        "retained_tool_result_message_bytes": 1428143,
+        "unused_schema_exposure_bytes": 0
+      },
+      "failed_calls": [
+        {
+          "seq": 426,
+          "tool": "Bash",
+          "exit_code": 1
+        }
+      ],
+      "evidence": {
+        "receipt": {
+          "path": "artifacts/gin-demo/receipt.json",
+          "sha256": "e2e548a41f8017ab195b59804392fe8e7535384881af0449b4c644d96a86e5e8"
+        },
+        "verification": {
+          "path": "artifacts/gin-demo/verification.json",
+          "sha256": "ccb1098439212c411eae4a110bae6a879dc17128f8bcdd9b9b0d9abb6cf3915a"
+        },
+        "candidate_manifest": {
+          "path": "artifacts/gin-demo/candidate-manifest.json",
+          "sha256": "b47d1217e600e6b7669e318d32ad578c2dcb384f18c997859f9885a199d17c12"
+        },
+        "tracked_patch": {
+          "path": "artifacts/gin-demo/candidate.patch",
+          "sha256": "c187eb09d3dba3dd1ef09474b0f56d9c689762bc7765dd10e67199d37fe8d050"
+        },
+        "session": {
+          "path": "artifacts/gin-demo/agent/sessions/6215aeed-03cf-4ae5-b6e0-afd8624eee56.jsonl",
+          "sha256": "82a79a38d9d2674bff5d956e6abf0e735d131aebddc4971e2cfb879f157e3b4a"
+        }
+      }
+    },
+    {
+      "project": "fastapi-sqlite-demo",
+      "source_revision": "3e29d316778e4f6b723bcf4a5898f3b0e3fe2ef8",
+      "public_prompt_file_sha256": "a20e18985b25085de739dce0370c2a8b3048b2d9c2f7eeecd2bc28a118c8079f",
+      "tasks": [
+        1
+      ],
+      "acceptance": "pass",
+      "scope": "Blog delivery with fresh-interpreter persistence and Hero regression",
+      "project_tests": "17 pytest cases pass; inherited full-repository lint/type diagnostics remain",
+      "independent_groups": 10,
+      "delivered_database_before_tests": "blog table exists",
+      "turns": [
+        {
+          "task": 1,
+          "stop_reason": "end_turn",
+          "http_attempts": 34
+        }
+      ],
+      "runtime_complete": true,
+      "cleanup": {
+        "process_started": true,
+        "exit_code": 0,
+        "errors": []
+      },
+      "duration_seconds": 326.835,
+      "usage": {
+        "input_tokens": 615401,
+        "output_tokens": 8283,
+        "total_tokens": 698692,
+        "cache_read_tokens": 75008,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 765,
+        "reported_completions": 34,
+        "unreported_completions": 0,
+        "unreported_attempts": 0
+      },
+      "trace_metrics": {
+        "responses": 34,
+        "tool_calls": 55,
+        "matched_results": 55,
+        "failed_calls": 6,
+        "missing_results": 0,
+        "interrupted_calls": 0,
+        "running_calls": 0,
+        "provider_request_deadlines": 0,
+        "zero_exit_validation_candidates": 0,
+        "recovery_chains": 6,
+        "unresolved_recovery_chains": 6,
+        "tool_history_replacements": 22,
+        "repeated_identical_calls": 0,
+        "repeated_unchanged_results": 0,
+        "prepared_payload_bytes": 2768029,
+        "retained_tool_result_message_bytes": 1171228,
+        "unused_schema_exposure_bytes": 43725
+      },
+      "failed_calls": [
+        {
+          "seq": 231,
+          "tool": "Bash",
+          "exit_code": 1
+        },
+        {
+          "seq": 232,
+          "tool": "Bash",
+          "exit_code": 1
+        },
+        {
+          "seq": 312,
+          "tool": "Bash",
+          "exit_code": 1
+        },
+        {
+          "seq": 384,
+          "tool": "Bash",
+          "exit_code": 1
+        },
+        {
+          "seq": 385,
+          "tool": "Bash",
+          "exit_code": 1
+        },
+        {
+          "seq": 387,
+          "tool": "Bash",
+          "exit_code": 1
+        }
+      ],
+      "evidence": {
+        "receipt": {
+          "path": "artifacts/fastapi-sqlite-demo/receipt.json",
+          "sha256": "a77514dab27dde7b4e80e3b3e58de59644452bb1411443d5c8ef7f956ad47876"
+        },
+        "verification": {
+          "path": "artifacts/fastapi-sqlite-demo/verification.json",
+          "sha256": "7ddd0141600e2200228ed2b127623fb52b85da0a0c8f777e51d13eeb823c5a2b"
+        },
+        "candidate_manifest": {
+          "path": "artifacts/fastapi-sqlite-demo/candidate-manifest.json",
+          "sha256": "4cca18b32943f86cfa28e3bd9fac7d45e51a41d8c5042ed9a45a9e520dc2543b"
+        },
+        "tracked_patch": {
+          "path": "artifacts/fastapi-sqlite-demo/candidate.patch",
+          "sha256": "1caec218f5b2a01d5b6f46f11e2d41a0df7e646f33d368e82be94a66ac1b1da4"
+        },
+        "session": {
+          "path": "artifacts/fastapi-sqlite-demo/agent/sessions/ca901e4b-da49-44d8-abad-6be1c46d25e6.jsonl",
+          "sha256": "0093b4806d4ab780ed27e360258e6abdf813afac1c0ce60378a7aab2ec4863b8"
+        }
+      }
+    },
+    {
+      "project": "OpenManus",
+      "source_revision": "6c80b4ac7180069957c92338aca5189d2c5f03ee",
+      "public_prompt_file_sha256": "803a12d17ae926e0d659432f001a761c240095f92cffc6f796d222fdd9841331",
+      "tasks": [
+        1
+      ],
+      "acceptance": "scoped_pass",
+      "scope": "Search module only; full application startup/live search/browser/LLM/sandbox unverified",
+      "project_tests": "Ordinary pytest collection fails: missing browser_use; 10 unchanged candidate tests pass with package-barrel bypass",
+      "independent_groups": 4,
+      "turns": [
+        {
+          "task": 1,
+          "stop_reason": "end_turn",
+          "http_attempts": 22
+        }
+      ],
+      "runtime_complete": true,
+      "cleanup": {
+        "process_started": true,
+        "exit_code": 0,
+        "errors": []
+      },
+      "duration_seconds": 176.933,
+      "usage": {
+        "input_tokens": 318869,
+        "output_tokens": 4064,
+        "total_tokens": 373365,
+        "cache_read_tokens": 50432,
+        "cache_write_tokens": 0,
+        "reasoning_tokens": 575,
+        "reported_completions": 22,
+        "unreported_completions": 0,
+        "unreported_attempts": 0
+      },
+      "trace_metrics": {
+        "responses": 22,
+        "tool_calls": 40,
+        "matched_results": 40,
+        "failed_calls": 1,
+        "missing_results": 0,
+        "interrupted_calls": 0,
+        "running_calls": 0,
+        "provider_request_deadlines": 0,
+        "zero_exit_validation_candidates": 0,
+        "recovery_chains": 1,
+        "unresolved_recovery_chains": 1,
+        "tool_history_replacements": 18,
+        "repeated_identical_calls": 1,
+        "repeated_unchanged_results": 1,
+        "prepared_payload_bytes": 1365997,
+        "retained_tool_result_message_bytes": 693615,
+        "unused_schema_exposure_bytes": 27825
+      },
+      "failed_calls": [
+        {
+          "seq": 215,
+          "tool": "Bash",
+          "exit_code": 1
+        }
+      ],
+      "evidence": {
+        "receipt": {
+          "path": "artifacts/OpenManus/receipt.json",
+          "sha256": "4026c1ae51f882649db80b06a501cf5f05d528a96b49e0c974f0d57078beb68e"
+        },
+        "verification": {
+          "path": "artifacts/OpenManus/verification.json",
+          "sha256": "a130afa25e36c1e360d2ce4b5a59dc72f578f10e97b10d18c5c92a8a83f222a7"
+        },
+        "candidate_manifest": {
+          "path": "artifacts/OpenManus/candidate-manifest.json",
+          "sha256": "898f5970a933b88ddc508d910021d88874377b71c467dd3ff339b70c36709428"
+        },
+        "tracked_patch": {
+          "path": "artifacts/OpenManus/candidate.patch",
+          "sha256": "a7e04cd11f1203983f403f642d06f1e1f6fe03387e2cbf04ba409da6f002060a"
+        },
+        "session": {
+          "path": "artifacts/OpenManus/agent/sessions/450c4cc6-6bf5-4848-8e52-3c7da4b0e246.jsonl",
+          "sha256": "bf9c8e65067060c1ac8fcfb337de40cbbb47615e10bb63497b38a9c39ce96e2c"
+        }
+      }
+    }
+  ],
+  "totals": {
+    "projects": 3,
+    "public_prompts": 4,
+    "fully_exercised_feature_deliveries": 2,
+    "search_module_only_deliveries": 1,
+    "http_attempts": 99,
+    "reported_completions": 99,
+    "tool_calls": 152,
+    "failed_tool_calls": 8,
+    "input_tokens": 1864646,
+    "cache_read_tokens": 272896,
+    "output_tokens": 28531,
+    "total_tokens": 2166073,
+    "native_duration_seconds": 1114.14,
+    "prepared_payload_bytes": 8294057,
+    "retained_tool_result_message_bytes": 3292986,
+    "usage_complete": true,
+    "cost_usd": null
+  },
+  "fastapi_quality_controls": {
+    "evidence": {
+      "path": "artifacts/fastapi-sqlite-demo/quality-controls.json",
+      "sha256": "3053270774448cda3fdb6bb455e9b14c4b99d2e05c96b2a3503128c0ccb44e1a"
+    },
+    "ruff_baseline": 8,
+    "ruff_candidate": 7,
+    "ty_baseline": 11,
+    "ty_candidate": 11,
+    "ty_outputs_identical": true,
+    "new_diagnostics_observed": 0
+  },
+  "audit": {
+    "evidence": {
+      "path": "final-audit.json",
+      "sha256": "8c97e6af0c228761c0aa7144a04e98bea1b44d508e3d0bcf08a73460897aef0c"
+    },
+    "passed": true,
+    "source_clones_clean": true,
+    "original_prompts_unchanged": true,
+    "frozen_inputs_unchanged": true,
+    "judge_sources_unchanged": true,
+    "credential_literal_matches": 0,
+    "lifecycle_probe": {
+      "path": "artifacts/lifecycle-probe.json",
+      "sha256": "3aad66dd9372e24d03754cfde5f2e45ca31e96ae3f009f5110a276e3ec1ae18f"
+    }
+  },
+  "limitations": [
+    "New tasks and enabled existing feedback differ from the previous Terminal-Bench profile; no causal quality/token claim.",
+    "Selected projects and one/two-turn prompts do not establish long-horizon durability or an official Qoder score.",
+    "OpenManus full application, ordinary pytest collection, browser/LLM/sandbox and live search are not accepted; scoped results are recorded separately.",
+    "Fresh venv preparation resolves a baseline FastAPI dependency failure; existing lint/type debt remains.",
+    "No repeated matched samples or monetary cost evidence; unchanged repeats can be necessary after edits.",
+    "No new full original-plugin development/review/merge acceptance or complete Claude Code/Workflow SDK parity.",
+    "Previous polyglot delivery-residue failure remains open."
+  ]
+}
