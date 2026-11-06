@@ -17,6 +17,7 @@ export type DisclosureProps = Omit<React.ComponentPropsWithoutRef<'details'>, 'o
    * `null` or `false` hides the marker.
    */
   indicator?: React.ReactNode;
+  variant?: 'inline' | 'block';
   unstyled?: boolean;
 };
 
@@ -33,6 +34,7 @@ export const Disclosure = forwardRef<HTMLDetailsElement, DisclosureProps>(functi
   summaryProps,
   indicator,
   unstyled,
+  variant = 'block',
   className,
   children,
   ...rest
@@ -129,7 +131,7 @@ export const Disclosure = forwardRef<HTMLDetailsElement, DisclosureProps>(functi
   const indicatorNode = indicator === undefined
     ? <Icon name="chevron-right" size={14} />
     : indicator;
-  return <details {...rest} onToggle={onToggle} ref={setDetailsRef} className={['pero-ui-disclosure', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined} >
+  return <details {...rest} onToggle={onToggle} ref={setDetailsRef} className={['pero-ui-disclosure', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined} data-variant={variant} >
     <summary
       ref={summaryRef as React.Ref<HTMLElement>}
       {...summaryRest}

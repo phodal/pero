@@ -259,6 +259,9 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-split-pane-handle:focus-visible { outline:var(--pero-focus-ring-width, 2px) solid var(--pero-focus); outline-offset:var(--pero-focus-ring-offset, 2px); }
 .pero-ui-disclosure { min-width:0; }
 .pero-ui-disclosure:not([data-unstyled]) { padding:var(--pero-space-5, 10px) var(--pero-space-6, 12px); border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle); border-radius:var(--pero-radius-button); color:var(--pero-text); }
+.pero-ui-disclosure[data-variant=inline]:not([data-unstyled]) { padding:0; border:0; border-radius:0; }
+.pero-ui-disclosure[data-variant=inline] > summary { min-height:var(--pero-control-height); padding:2px 0; color:var(--pero-text-muted); font-size:var(--pero-font-caption); }
+.pero-ui-disclosure[data-variant=inline] > summary:hover { color:var(--pero-text); }
 .pero-ui-disclosure > summary { display:flex; align-items:baseline; gap:var(--pero-space-3, 6px); list-style:none; cursor:pointer; overflow-wrap:anywhere; }
 .pero-ui-disclosure > summary::marker { content:''; }
 .pero-ui-disclosure > summary::-webkit-details-marker { display:none; }
