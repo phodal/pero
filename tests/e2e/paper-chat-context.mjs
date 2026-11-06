@@ -46,7 +46,7 @@ try {
       selection: window.researchChatFixture.requests.at(-1).options.attachments[0].selection }));
   };
   await read(papers[0].title);
-  await expect(page.getByRole('button', { name: 'PDF', exact: true })).toBeDisabled();
+  await expect(page.getByRole('radio', { name: 'PDF', exact: true })).toBeDisabled();
   // Change persisted content while the reader retains its opening snapshot.
   savedPdf = true;
   papers[0] = { ...papers[0], contentKind: 'full-text', contentDigest: 'c'.repeat(64), content: 'Newly saved full text.', pdfUrl: 'https://example.invalid/a.pdf' };

@@ -82,7 +82,7 @@ export async function exerciseImageOnly({ frame, page, profile, out }) {
   const cachedReader = frame.getByRole('article', { name: paper.title, exact: true });
   await expect(cachedReader).toHaveAttribute('data-paper-id', paper.id);
   await expect(viewer.locator('img,canvas').first()).toBeVisible({ timeout: 30000 });
-  await frame.locator('.pa-reader-tools').getByRole('button', { name: 'Read', exact: true }).click();
+  await frame.locator('.pa-reader-tools').getByRole('radio', { name: 'Read', exact: true }).click();
   await expect(cachedReader.locator('.pa-source-text')).toHaveText(paper.content);
   await expect(cachedReader.locator('.pa-saved-heading')).toContainText('Abstract');
   await expect(cachedReader.getByText('Loading…', { exact: true })).toHaveCount(0);
