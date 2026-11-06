@@ -1,6 +1,6 @@
 import React from "react";
 import { useAppContext } from "@pero/app-sdk";
-import { Button, Icon } from "@pero/app-sdk/ui";
+import { Button, Checkbox, Icon } from "@pero/app-sdk/ui";
 import type { Benchmark, Comparison, Run, Value, Verification } from "./types";
 import type { Message } from "./messages";
 import { RunPlots } from "./plots";
@@ -95,8 +95,8 @@ export function RunTable({ benchmarks, runs, selectedId, chosen, t, onOpen, onCh
     <th><span className="visually-hidden">{t("chooseComparison")}</span></th><th>{t("created")}</th><th>{t("method")}</th>
     <th>{t("status")}</th><th>{t("verification")}</th><th>{t("elapsed")}</th>
   </tr></thead><tbody>{runs.map(run => <tr key={run.id} className={selectedId === run.id ? "selected" : ""}>
-    <td><input type="checkbox" aria-label={`${t("chooseComparison")}: ${run.id}`} checked={chosen.includes(run.id)}
-      disabled={run.status !== "completed" || Boolean(run.operation) || chosen.length >= 8 && !chosen.includes(run.id)} onChange={event => onChoose(run, event.target.checked)} /></td>
+    <td><Checkbox aria-label={`${t("chooseComparison")}: ${run.id}`} checked={chosen.includes(run.id)}
+      disabled={run.status !== "completed" || Boolean(run.operation) || chosen.length >= 8 && !chosen.includes(run.id)} onCheckedChange={checked => onChoose(run, checked === true)} /></td>
     <td><Button variant="unstyled" className="text-button" aria-label={`${t("select")}: ${run.id}`} onClick={() => onOpen(run)}>{new Date(run.createdAt).toLocaleString()}</Button></td>
     <td>{run.benchmarkName}{!benchmarks.some(benchmark => benchmark.id === run.benchmarkId && benchmark.specDigest === run.specDigest) && <span className="prior-specification">{t("priorSpecification")}</span>}</td><td><Status value={run.status} t={t} /></td><td><Status value={run.verification?.status} t={t} /></td><td>{number(run.elapsedSeconds)}</td>
   </tr>)}</tbody></table></div>;

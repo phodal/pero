@@ -183,7 +183,7 @@ export function Reproduction({ api, annotation, initial, t }: { api: Api; annota
       <p>{t(profile === 'smoke' ? 'reproductionBudget' : 'reproductionTable6Budget')}</p>
       <label>{t('reproductionSeed')}<Input type="number" min={0} max={2147483647} step={1} value={seed} onChange={event => setSeed(event.target.value)} /></label>
       <p>{t('reproductionDiagnostic')}</p>
-      <label>{t('reproductionPolicy')}<input readOnly value={policy ?? '—'} /></label>
+      <label>{t('reproductionPolicy')}<Input readOnly value={policy ?? '—'} /></label>
       <label>{t('reproductionRange')}<Select label={t('reproductionRange')} value={mode} onChange={value => setMode(value as Comparison['mode'])} options={[{ value: 'absolute', label: t('reproductionAbsolute') }, { value: 'relative', label: t('reproductionRelative') }, { value: 'bounds', label: t('reproductionBounds') }]}/></label>
       {mode === 'bounds' ? <><label>{t('reproductionLower')}<Input type="number" value={lower} onChange={event => setLower(event.target.value)} /></label><label>{t('reproductionUpper')}<Input type="number" value={upper} onChange={event => setUpper(event.target.value)} /></label></> :
         <label>{t('reproductionTolerance')}<Input type="number" min="0" step="any" value={tolerance} onChange={event => setTolerance(event.target.value)} /></label>}
