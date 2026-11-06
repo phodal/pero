@@ -262,6 +262,7 @@ type Agent struct {
 	delegated            bool
 	parent               *Agent
 	freshSession         bool
+	titleStarted         atomic.Bool
 	externalTurn         ExternalTurn
 	externalConfigs      ExternalConfigs
 	externalSelectConfig ExternalSelectConfig
