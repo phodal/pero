@@ -23,6 +23,8 @@ mod panel;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod session_controls;
 pub mod stream;
+pub mod scientific_math;
+mod scientific_source;
 pub mod inline_images;
 pub mod image_references;
 pub mod artifact_read;
@@ -75,3 +77,6 @@ pub mod chart;
 mod chart_lines;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod chart_view;
+
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod table_view;

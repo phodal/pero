@@ -406,6 +406,7 @@ impl ChatPanel {
             "inputBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().map(move |tool|json!({"chat":chat.id,"tool":tool.id,"bounds":tool.input_bounds.snapshot()}))).collect::<Vec<_>>(),
             "appLinkBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().flat_map(move |tool|tool.app_links.iter().map(move |link|json!({"chat":chat.id,"url":link.url,"label":link.label,"bounds":link.bounds.snapshot()})))).collect::<Vec<_>>(),
             "toolBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().map(move |tool|json!({"chat":chat.id,"tool":tool.id,"bounds":tool.toggle_bounds.snapshot(),"artifact":tool.artifact_bounds.snapshot()}))).collect::<Vec<_>>(),
+            "tableBounds":self.chats.iter().flat_map(|chat|chat.tools.iter()).filter_map(|tool|tool.table.as_ref().map(|table|json!({"id":table.artifact_id,"data":table.data_bounds.snapshot(),"source":table.source_bounds.snapshot()}))).collect::<Vec<_>>(),
             "chartBounds":self.chats.iter().flat_map(|chat|chat.tools.iter()).filter_map(|tool|tool.chart.as_ref().map(|chart|json!({"id":chart.artifact_id,"data":chart.data_bounds.snapshot(),"source":chart.source_bounds.snapshot()}))).collect::<Vec<_>>(),
             "contentReaders":self.chats.iter().flat_map(|chat|chat.tools.iter()).filter_map(|tool|tool.reader.as_ref().map(|reader|reader.read(cx).snapshot(cx))).collect::<Vec<_>>(),
             "toolViews":self.chats.iter().map(|c|c.tools.iter().filter(|t|t.view.is_some()).count()).collect::<Vec<_>>(),
