@@ -88,6 +88,13 @@ try {
   expect((await state()).chats[0].capabilities.images).toBe(true);
   expect((await state()).chats[0].settings.options.map(option => option.id)).toEqual(['mode', 'effort', 'approval']);
   await page.screenshot({ path: resolve(output, 'controls.png') });
+  const emptyHeight = (await state()).composerBounds.input.height;
+  await input('First line\n第二行\nThird line');
+  await expect.poll(async () => (await state()).composerBounds.input.height).toBeGreaterThan(emptyHeight);
+  await page.screenshot({ path: resolve(output, 'multiline-growth.png') });
+  await input('');
+  await expect.poll(async () => (await state()).composerBounds.input.height).toBe(emptyHeight);
+
   const setting = async (id, expected, screenshot, previous = 1) => {
     await expect.poll(async () => (await state()).chats[0].pending_setting).toBe(null);
     await frame();

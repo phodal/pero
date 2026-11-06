@@ -31,10 +31,7 @@ impl ChatPanel {
             .split('\n')
             .count()
             .max(editor.display_map().wrap_row_count())
-            .clamp(
-                if self.compact { 1 } else { 3 },
-                if self.compact { 3 } else { 7 },
-            );
+            .clamp(1, if self.compact { 3 } else { 7 });
         let workspace_path = chat
             .map(|chat| chat.workspace.as_str())
             .filter(|path| !path.is_empty())
@@ -342,8 +339,8 @@ impl ChatPanel {
                     .mx_auto()
             })
             .font_weight(FontWeight::NORMAL)
-            .pt(px(pero_theme::SPACE_8))
-            .pb(px(pero_theme::SPACE_12))
+            .pt(px(pero_theme::SPACE_4))
+            .pb(px(pero_theme::SPACE_8))
             .capture_action(cx.listener(|this, action: &Enter, window, cx| {
                 if action.shift || !this.composer_action("enter", window, cx) {
                     cx.propagate();
@@ -411,7 +408,7 @@ impl ChatPanel {
                         .flex_wrap()
                         .items_center()
                         .gap(px(pero_theme::SPACE_8))
-                        .mb(px(pero_theme::SPACE_8))
+                        .mb(px(pero_theme::SPACE_4))
                         .text_color(p.text_muted)
                         .children(normal_agent)
                         .child(
@@ -479,6 +476,9 @@ impl ChatPanel {
                             .child(self.composer_bounds.input.probe())
                             .child(
                                 Textarea::new(&self.composer)
+                                    // The compound frame owns spacing; Kit's XSmall
+                                    // removes its extra vertical padding, not the body font.
+                                    .xsmall()
                                     .bordered(false)
                                     .appearance(false)
                                     .font_weight(FontWeight::NORMAL)
@@ -505,7 +505,7 @@ impl ChatPanel {
                     .child(
                         div()
                             .when(!self.compact, |el| {
-                                el.mt(px(pero_theme::SPACE_8)).flex_wrap()
+                                el.mt(px(pero_theme::SPACE_4)).flex_wrap()
                             })
                             .flex()
                             .items_center()
@@ -618,7 +618,7 @@ impl ChatPanel {
             .when(!self.compact, |el| {
                 el.child(
                     div()
-                        .mt(px(pero_theme::SPACE_8))
+                        .mt(px(pero_theme::SPACE_4))
                         .px(px(pero_theme::SPACE_12))
                         .h(px(pero_theme::UiAppearance::global(cx).typography.ui * 1.4))
                         .text_size(
