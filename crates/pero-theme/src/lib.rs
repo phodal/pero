@@ -19,7 +19,7 @@ pub use feedback::{feedback, feedback_actions, feedback_details, FeedbackKind};
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod shell;
 #[cfg(any(target_family = "wasm", feature = "native"))]
-pub use shell::{content_tab, content_tab_label, ContentTabState, sidebar_group, sidebar_surface, window_bar};
+pub use shell::{content_tab, content_tab_label, content_tab_close_button, ContentTabState, sidebar_group, sidebar_surface, window_bar};
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod appearance;
 #[cfg(any(target_family = "wasm", feature = "native"))]

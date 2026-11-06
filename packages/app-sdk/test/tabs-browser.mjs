@@ -4,6 +4,7 @@ import test, { after, before } from 'node:test';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
 import { resolve } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
 
 const sdk = resolve(import.meta.dirname, '..');
 let browser, script;
@@ -19,7 +20,7 @@ before(async () => {
         {['page', 'content'].map(variant => <Tabs key={variant} defaultValue={ids[0]}>
           <TabsList aria-label={variant} variant={variant} style={{width:260}}>
             {ids.map(id => variant === 'content'
-              ? <ContentTab key={id} value={id} label={id} closeLabel="Close"/>
+              ? <ContentTab key={id} value={id} label={id} closeLabel="Close" leading={<svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor"/></svg>} onClose={() => {}}/>
               : <TabsTrigger key={id} value={id}>{id}</TabsTrigger>)}
           </TabsList>
           {ids.map(id => <TabsContent key={id} value={id}>{variant}: {id}</TabsContent>)}
@@ -60,8 +61,25 @@ for (const size of [14, 24]) test(`scrolling page and content tabs keep the whol
     assert.equal(ring.style,'solid');
     assert.equal(ring.width,4,'uses the configured focus ring width');
     assert.equal(ring.visible,true,`${variant} ring stays inside the scroll viewport: ${JSON.stringify(ring)}`);
+    if (variant === 'content') {
+      const geometry = await list.locator('.pero-content-tab').last().evaluate(node => {
+        const title = node.querySelector('.pero-content-tab-title'), label = node.querySelector('.pero-content-tab-label');
+        const icon = node.querySelector('.pero-content-tab-leading svg'), close = node.querySelector('.pero-content-tab-close');
+        return { font:parseFloat(getComputedStyle(title).fontSize), label:label.getBoundingClientRect().toJSON(),
+          icon:icon.getBoundingClientRect().toJSON(), close:close.getBoundingClientRect().toJSON(), tab:node.getBoundingClientRect().toJSON() };
+      });
+      assert.ok(geometry.font < size, 'content titles have a quieter scale than page controls');
+      assert.ok(geometry.close.width >= 24 && geometry.close.height >= 24, 'small close glyph retains a usable target');
+      assert.ok(geometry.label.height < geometry.tab.height, 'title has vertical breathing room');
+      assert.ok(geometry.icon.width <= geometry.label.height, 'leading glyph fits the title line');
+      assert.ok(geometry.label.right <= geometry.close.left, 'long title leaves the close action visible');
+    }
     await expect(page.getByRole('tabpanel').filter({hasText:`${variant}: Fourth document`})).toBeVisible();
   }
   const checkbox=page.getByRole('checkbox'); await checkbox.focus();
   assert.equal(await checkbox.evaluate(node=>parseFloat(getComputedStyle(node).outlineOffset)),2,'other controls retain their outside focus ring');
+  if (process.env.PERO_TAB_SCREENSHOTS) {
+    await mkdir(process.env.PERO_TAB_SCREENSHOTS,{recursive:true});
+    await writeFile(resolve(process.env.PERO_TAB_SCREENSHOTS,`content-tabs-${size}.png`),await page.screenshot());
+  }
 });

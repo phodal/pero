@@ -9,7 +9,6 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use pero_chat_ui::theme::WorkbenchStyle as W;
 use serde_json::json;
 
 #[cfg(target_family = "wasm")]
@@ -542,13 +541,10 @@ impl Workbench {
                                             .typography
                                             .control_height()))
                                         .justify_start()
-                                        .text_size(
-                                            pero_theme::UiAppearance::global(cx)
-                                                .text(pero_theme::TextRole::Body),
-                                        )
+                                        .text_size(pero_theme::Chrome::from_app(cx).text(pero_theme::TYPE_TAB))
                                         .icon(
                                             Icon::default()
-                                                .size(px(W::ICON))
+                                                .size(pero_theme::Chrome::from_app(cx).text(pero_theme::CONTENT_TAB_ICON))
                                                 .path(pero_chat_ui::icon_theme::asset_path(&icon)),
                                         )
                                         .child(pero_theme::content_tab_label(title.clone().into(), false, pero_theme::Chrome::from_app(cx)))
@@ -562,10 +558,10 @@ impl Workbench {
                                         ),
                                     )
                                     .child(
-                                        pero_theme::ghost_icon_button(SharedString::from(format!(
+                                        pero_theme::content_tab_close_button(SharedString::from(format!(
                                             "workspace-tab-close:{item:?}"
                                         )), pero_theme::Chrome::from_app(cx), cx)
-                                        .icon(Icon::default().path("icons/x.svg"))
+                                        .icon(Icon::default().size(pero_theme::Chrome::from_app(cx).text(pero_theme::CONTENT_TAB_ICON)).path("icons/x.svg"))
                                         .tooltip(self.t("workspace.close_tab"))
                                         .accessibility_label(format!(
                                             "{}: {title}",

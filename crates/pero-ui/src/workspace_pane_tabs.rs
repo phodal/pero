@@ -13,7 +13,6 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use pero_chat_ui::theme::WorkbenchStyle as W;
 use pero_contracts::{
     pane_tabs::{PaneItem, PaneItemKind, ViewId},
     workspace_panes::{PaneId, PaneLayout, PaneLeaf},
@@ -411,7 +410,7 @@ impl Workbench {
         let view = item.id;
         let active = leaf.tabs.active_id() == Some(view);
         let pinned = leaf.tabs.is_pinned(view);
-        let tab_icon_size = px(pero_theme::Chrome::from_app(cx).ui.max(W::ICON));
+        let tab_icon_size = pero_theme::Chrome::from_app(cx).text(pero_theme::CONTENT_TAB_ICON);
         let preview = leaf.tabs.preview_id() == Some(view);
         let dirty = self
             .documents
@@ -453,7 +452,7 @@ impl Workbench {
                 tab.child(Icon::default().size(tab_icon_size).path("icons/pin.svg"))
             })
             .child(
-                pero_theme::ghost_icon_button(("pane-tab-close", view.0 as usize), pero_theme::Chrome::from_app(cx), cx)
+                pero_theme::content_tab_close_button(("pane-tab-close", view.0 as usize), pero_theme::Chrome::from_app(cx), cx)
                     .child(Icon::default().size(tab_icon_size).path("icons/x.svg"))
                     .tooltip(close_label)
                     .accessibility_label(format!("{close_label}: {title}"))

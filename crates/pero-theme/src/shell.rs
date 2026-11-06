@@ -93,7 +93,6 @@ pub fn content_tab(
         .max_w(px(if state.pinned { 160. } else { 220. }))
         .px(chrome.geo(SPACE_8))
         .gap(chrome.geo(SPACE_4))
-        .rounded_t(chrome.geo(crate::RADIUS_BUTTON))
         .cursor_pointer()
         .bg(if state.active {
             p.surface
@@ -101,7 +100,7 @@ pub fn content_tab(
             p.text.opacity(0.)
         })
         .text_color(if state.active { p.text } else { p.text_muted })
-        .border_b_2()
+        .border_b_1()
         .border_color(if state.active && state.focused {
             p.action
         } else if state.active {
@@ -121,7 +120,14 @@ pub fn content_tab_label(title: SharedString, preview: bool, chrome: Chrome) -> 
         .whitespace_nowrap()
         .text_ellipsis()
         .line_height(relative(1.4))
-        .text_size(chrome.text(crate::TYPE_BODY))
+        .text_size(chrome.text(crate::TYPE_TAB))
         .when(preview, |label| label.italic())
         .child(title)
+}
+
+/// A smaller glyph keeps editor tabs quiet while the close target stays usable.
+pub fn content_tab_close_button(id: impl Into<ElementId>, chrome: Chrome, cx: &App) -> gpui_kit::component::button::Button {
+    crate::ghost_icon_button(id, chrome, cx)
+        .w(chrome.control(crate::CONTENT_TAB_CLOSE))
+        .h(chrome.control(crate::CONTENT_TAB_CLOSE))
 }
