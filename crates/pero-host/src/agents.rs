@@ -44,7 +44,7 @@ pub struct Manager {
 impl Manager {
     /// A delivery uses the original conversation workspace, including after restart.
     pub(crate) fn artifact_workspace(&self, thread_id: &str) -> Option<PathBuf> {
-        self.visible_history().iter().rev().find_map(|event| {
+        self.history.lock().unwrap().events().iter().rev().find_map(|event| {
             if event.kind != "session_created" || event.thread_id.as_deref() != Some(thread_id) { return None; }
             event.data.get("workspace").and_then(serde_json::Value::as_str).map(PathBuf::from)
                 .filter(|path| path.is_absolute())

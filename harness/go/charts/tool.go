@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/model"
 )
 
 //go:embed python/*.py
@@ -83,12 +84,20 @@ func Mount(ctx context.Context, h *harness.Harness, python string) error {
 		if _, err := h.RegisterTool(ctx, "data/"+schema.Name, harness.Tool{
 			Schema:  schema,
 			Timeout: 30 * time.Second,
-			Execute: func(ctx context.Context, input json.RawMessage) (harness.ToolResult, error) {
-				output, err := Render(ctx, python, input)
+			ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+				output, err := Render(ctx, python, request.Arguments)
 				if err != nil {
 					return harness.ToolResult{IsError: true, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: err.Error()}}}, nil
 				}
-				return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(output)}}}, nil
+				result := harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(output)}}}
+				limit, enabled, err := h.Spills().InlineLimit(request.Agent)
+				if err != nil {
+					return harness.ToolResult{}, err
+				}
+				if enabled && len(output) > limit {
+					result.Meta, err = json.Marshal(model.ToolPresentation{DisplayText: string(output)})
+				}
+				return result, err
 			},
 		}); err != nil {
 			return err

@@ -6430,6 +6430,34 @@
       ],
       "additionalProperties": false
     },
+    "DirectoryListing": {
+      "title": "DirectoryListing",
+      "type": "object",
+      "properties": {
+        "workspace": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkspaceEntry"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "workspace",
+        "path",
+        "entries",
+        "truncated"
+      ],
+      "additionalProperties": false
+    },
     "DisableApp": {
       "title": "DisableApp",
       "type": "object",
@@ -7564,6 +7592,15 @@
           "$ref": "#/$defs/FileDocumentEvent"
         },
         {
+          "$ref": "#/$defs/WorkspaceFilesListEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceFilesDocumentEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceFilesErrorEvent"
+        },
+        {
           "$ref": "#/$defs/FileDocumentErrorEvent"
         },
         {
@@ -7750,6 +7787,9 @@
         },
         {
           "$ref": "#/$defs/FileDocumentRequest"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceFilesRequest"
         },
         {
           "$ref": "#/$defs/ArtifactRequest"
@@ -8316,6 +8356,19 @@
         "artifact_view": {
           "$ref": "#/$defs/ArtifactView",
           "default": "icons"
+        },
+        "resource_tab": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "files"
+            },
+            {
+              "type": "string",
+              "const": "artifacts"
+            }
+          ],
+          "default": "artifacts"
         }
       },
       "additionalProperties": false
@@ -14993,6 +15046,40 @@
       ],
       "additionalProperties": false
     },
+    "WorkspaceEntry": {
+      "title": "WorkspaceEntry",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "directory"
+            },
+            {
+              "type": "string",
+              "const": "file"
+            },
+            {
+              "type": "string",
+              "const": "symlink"
+            },
+            {
+              "type": "string",
+              "const": "other"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
     "WorkspaceErrorEvent": {
       "title": "WorkspaceErrorEvent",
       "type": "object",
@@ -15061,6 +15148,167 @@
         "version",
         "request_id",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceFilesDocumentEvent": {
+      "title": "WorkspaceFilesDocumentEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_files_document"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DocumentHeader"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceFilesErrorEvent": {
+      "title": "WorkspaceFilesErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_files_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceFilesListEvent": {
+      "title": "WorkspaceFilesListEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_files_list"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DirectoryListing"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceFilesRequest": {
+      "title": "WorkspaceFilesRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace_files"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "list"
+            },
+            {
+              "type": "string",
+              "const": "read"
+            }
+          ]
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "thread_id",
+        "path"
       ],
       "additionalProperties": false
     },

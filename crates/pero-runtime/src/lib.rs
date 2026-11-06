@@ -1,3 +1,4 @@
+pub mod workspace_files;
 pub mod acp;
 pub mod agent_plugins;
 pub mod context;

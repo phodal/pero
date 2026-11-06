@@ -11,6 +11,7 @@ import (
 	"sort"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/model"
 )
 
 func (s *Server) listSessions(ctx context.Context, params ListSessionParams) (map[string]any, error) {
@@ -178,8 +179,16 @@ func (s *Server) project(record *activeSession, event harness.Event) {
 			status = "failed"
 		}
 		content := make([]any, 0, len(block.Content))
+		var presentation model.ToolPresentation
+		if !block.IsError {
+			_ = json.Unmarshal(block.Meta, &presentation)
+		}
+		if presentation.DisplayText != "" {
+			content = append(content, map[string]any{"type": "content", "content": map[string]any{"type": "text", "text": presentation.DisplayText}})
+		}
+
 		for _, child := range block.Content {
-			if child.Type == harness.BlockText {
+			if child.Type == harness.BlockText && presentation.DisplayText == "" {
 				content = append(content, map[string]any{"type": "content", "content": map[string]any{"type": "text", "text": child.Text}})
 			} else if child.Type == harness.BlockImage {
 				data, mediaType, ok := s.imageBytes(child)
@@ -190,6 +199,7 @@ func (s *Server) project(record *activeSession, event harness.Event) {
 				}
 			}
 		}
+
 		update = map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": block.ToolCallID, "status": status, "content": content}
 	default:
 		return

@@ -80,3 +80,10 @@ mod chart_view;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod table_view;
+
+#[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
+mod file_tree;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod workspace_files;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod file_panel;

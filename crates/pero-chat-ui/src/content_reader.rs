@@ -790,23 +790,18 @@ impl Render for ContentReader {
                 );
             }
         } else if let Some(markdown) = &self.markdown {
-            let body = div()
-                .id("content-markdown")
-                .min_w_0()
-                .when(workspace, |el| {
-                    el.flex_1()
-                        .min_h_0()
-                        .overflow_y_scroll()
-                        .track_scroll(&self.preview_scroll)
-                })
-                .child(markdown.clone())
-                .into_any_element();
-            view = view.child(pero_theme::reader_frame(
+            let frame = pero_theme::reader_frame(
                 self.document.title.clone(),
                 None,
-                body,
+                div().min_w_0().child(markdown.clone()).into_any_element(),
                 pero_theme::Chrome::from_app(cx),
-            ));
+            );
+            view = if workspace {
+                view.child(div().id("content-markdown").flex_1().min_h_0().min_w_0()
+                    .overflow_y_scroll().track_scroll(&self.preview_scroll).child(frame))
+            } else {
+                view.child(frame)
+            };
         } else if self.preview_loading {
             view = view.child(div().p(px(12.)).child(self.t("content.preparing_preview")));
         } else {

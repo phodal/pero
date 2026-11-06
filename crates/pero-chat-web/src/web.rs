@@ -72,6 +72,8 @@ impl ChatWindow {
                     ChatAction::Selected{thread_id}=>json!({"action":"app_use_selection","thread_id":thread_id}),
                     ChatAction::CompactNeedsSpace => json!({"action":"chat_expand"}),
                     ChatAction::Content(intent) => serde_json::to_value(intent).expect("content intent"),
+                    ChatAction::WorkspaceFiles(request) => serde_json::to_value(request).expect("workspace file request"),
+                    ChatAction::ResourceTab { tab } => {this.preferences.layout.resource_tab=*tab;json!({"method":"settings.workbench","preferences":this.preferences})},
                     ChatAction::Artifacts(request) => serde_json::to_value(request).expect("artifact request"),
                     ChatAction::ArtifactPreview(_) => return,
                     ChatAction::ArtifactComposeResult{id,error} => json!({"action":"artifact_compose_result","id":id,"error":error}),
@@ -96,6 +98,7 @@ impl ChatWindow {
                 };
                 if command(&value.to_string()).is_err() {
                     this.panel.update(cx, |panel, cx| {
+                        panel.fail_file_reads(cx);
                         panel.error = Some("error.connection".into());
                         cx.notify();
                     });
@@ -247,9 +250,10 @@ pub fn receive_host_event(json: &str) -> Result<(), JsValue> {
                 ui.preferences = preferences;
                 let width = ui.preferences.layout.artifact_pane_width();
                 let view = ui.preferences.layout.artifact_view;
-                ui.panel.update(cx, |panel, cx| {
+                ui.preferences.layout.resource_tab = ui.panel.update(cx, |panel, cx| {
                     panel.set_artifact_pane_width(width, cx);
                     panel.set_artifact_view(view, cx);
+                    panel.set_resource_tab(ui.preferences.layout.resource_tab, cx)
                 });
                 pero_theme::ResolvedAppearance::resolve(
                     &ui.preferences,

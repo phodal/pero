@@ -2,7 +2,7 @@
 
 kind: analysis
 
-2026-11-06，关联 #145。状态：源码调研与建议，尚未实现文件树。
+2026-11-06，关联 #145。状态：已实现，验收见 [workspace-files](../fitness/workspace-files.md)。
 这是科学会话 canonical tracker 的补充分析，不另建 active issue。
 
 ## 当前实例
@@ -37,9 +37,9 @@ kind: analysis
 
 `claude-code-extracted` 是提取模块快照；本轮未确认可复用的侧栏文件树实现，故不据此作 UI 推荐。
 
-## 推荐交互
+## 已实现交互
 
-保留左侧会话导航。在现有会话右侧区域增加 `Files / Artifacts` 切换：
+保留左侧会话导航。在现有会话右侧区域增加 `Files / Artifacts` 切换，与刷新、关闭合并在上方同一行；展开时不再显示第二个 Files 标题：
 Files 展示当前会话工作区，Artifacts 展示已交付版本。打开文件不离开会话。
 
 ```text
@@ -62,26 +62,26 @@ Files 展示当前会话工作区，Artifacts 展示已交付版本。打开文�
 
 ## 接入现有所有者
 
-1. 新增具名 `WorkspaceEntry`、`DirectoryListing` 和 `WorkspaceTree` 状态。
+1. 新增具名 `WorkspaceEntry`、`DirectoryListing` 和 `FileTree` 状态。
    纯状态转换拥有展开、选择、目录结果和可见行；GPUI 只消费状态。
 2. Host 根据会话归属解析工作区；UI 发送会话身份和相对目录，不自行指定根目录。
    现有 `crates/pero-host/src/agents.rs` 的 ContextSources 使用 `self.workspace`；
    新列表接口必须核对历史会话归属，不能直接借用当前活动 Agent 的根目录。
 3. 在 runtime 的文件边界执行单层目录 I/O，返回类型化条目与截断信息。
    路径与目录范围在边界检查一次；UI 不直接读本机盘，不复用会产生上下文快照的目录搜索。
-4. 文件打开复用 `FileCommand::Open` → `FileDocuments::open` → `ContentReader`，
+4. 文件打开经会话绑定的 `workspace_files` 请求复用 `FileDocuments::open` → `ContentReader`，
    以及已有 workspace pane 导航；目录树不另造 JSON 阅读器、版本系统或窗口布局管理器。
    现有 `FileDocuments::open` 整文件读取 UTF-8 文本，不能据此声称支持大文件分页或任意二进制预览。
-5. 首期在面板打开、手动刷新和当前会话一轮执行结束时重新列出已展开目录。
+5. 首期首次打开时列出根目录；手动刷新和当前会话一轮执行结束时刷新根目录与已展开目录。
    按会话/工作区归属接收结果，切会话保留各自状态；不靠解析 shell 文本推断文件变化。
    外部进程修改通过手动刷新可见，实时监听需要后续明确实现。
 6. UI 浏览走 Host 的应用请求，不发起 LLM 请求，不新增 ACP 工具。
    AI 仍使用 harness 的 `list_directory/read_file/write_file`；引用文件到输入框时才走现有 ContextSources。
 
-## 实施与验收顺序
+## 验收边界
 
-先完成目录领域/Host 接口及值测试，再接右侧 Files 与现有 Reader，最后验证真实 Native/Wasm。
-测试覆盖目录排序/展开、工作区切换、局部读取失败、文件消失、截断和重启恢复；
-用真实分子 workspace 打开 request/result，并在修改实时文件后确认旧 artifact 仍保持原版本。
-UI 验收包含明暗主题、窄面板、长文件名、键盘与 JSON 原文复制。
-临时 workspace 删除后应仍能打开已交付 result 快照。调研和设计不算这些验收已完成。
+真实 Host/文件系统的 Electron 回归覆盖会话隔离、逐层加载、键盘、缓存保留、
+刷新、截断与重启偏好；修改实时文件后，旧 artifact 仍保持原版本。
+Native 使用真实 GPT 分子工作区，已观察单行工具栏、request/result 预览与键盘切换。
+明暗/窄宽截图及未验证范围见验收记录。目录每层最多显示 2000 项，文本预览上限
+2 MiB；没有目录分页、写操作、实时 watcher 或远程文件浏览。

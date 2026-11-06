@@ -261,3 +261,10 @@ type RuntimeContextSection struct {
 	Name string `json:"name"`
 	Text string `json:"text"`
 }
+
+// ToolPresentation is optional client-facing text in tool-result Meta. It stays
+// intact when model-facing Content is projected into a bounded spill preview.
+// It is presentation data, never execution or verification authority.
+type ToolPresentation struct {
+	DisplayText string `json:"displayText,omitempty"`
+}

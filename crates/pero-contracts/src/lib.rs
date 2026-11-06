@@ -1,3 +1,4 @@
+pub mod workspace_files;
 pub mod automation;
 pub mod terminal;
 pub mod harness_settings;

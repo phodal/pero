@@ -12,6 +12,7 @@ export type HostInput =
   | McpSourceRequest
   | WorkspaceSessionRequest
   | FileDocumentRequest
+  | WorkspaceFilesRequest
   | ArtifactRequest
   | LocalWorkerRequest
   | EchoRequest
@@ -71,6 +72,7 @@ export type FileDocumentRequest =
   | SaveDraftFileDocument
   | SaveAsReferenceFileDocument
   | ReleaseFileDocument;
+export type ThreadId = string;
 export type ArtifactRequest =
   | ListArtifacts
   | RegisterTextArtifact
@@ -78,7 +80,6 @@ export type ArtifactRequest =
   | ReadArtifact
   | ResolveArtifactSnapshot
   | ArtifactContextRequest;
-export type ThreadId = string;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type KeySequence = string;
 export type ArtifactView = "icons" | "list" | "gallery";
@@ -178,6 +179,9 @@ export type HostEvent =
   | McpAppOpenedEvent
   | DocumentChooseEvent
   | FileDocumentEvent
+  | WorkspaceFilesListEvent
+  | WorkspaceFilesDocumentEvent
+  | WorkspaceFilesErrorEvent
   | FileDocumentErrorEvent
   | ArtifactCatalogEvent
   | ArtifactRegisteredEvent
@@ -812,6 +816,13 @@ export interface ReleaseFileDocument {
   action: "release";
   source: string;
 }
+export interface WorkspaceFilesRequest {
+  method: "workspace_files";
+  action: "list" | "read";
+  request_id: string;
+  thread_id: ThreadId;
+  path: string;
+}
 export interface ListArtifacts {
   action: "list";
   method: "artifacts";
@@ -1344,6 +1355,7 @@ export interface LayoutPreferences {
   artifact_pane_width?: number;
   sessions_width?: number;
   artifact_view?: ArtifactView;
+  resource_tab?: "files" | "artifacts";
 }
 export interface ListAgentsCommand {
   action: "list_agents";
@@ -2080,6 +2092,39 @@ export interface FileDocumentEvent {
   request_id: string | null;
   text: string;
   data: DocumentHeader;
+}
+export interface WorkspaceFilesListEvent {
+  kind: "workspace_files_list";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: DirectoryListing;
+}
+export interface DirectoryListing {
+  workspace: string;
+  path: string;
+  entries: WorkspaceEntry[];
+  truncated: boolean;
+}
+export interface WorkspaceEntry {
+  name: string;
+  kind: "directory" | "file" | "symlink" | "other";
+}
+export interface WorkspaceFilesDocumentEvent {
+  kind: "workspace_files_document";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: DocumentHeader;
+}
+export interface WorkspaceFilesErrorEvent {
+  kind: "workspace_files_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
 }
 export interface FileDocumentErrorEvent {
   kind: "document_error";

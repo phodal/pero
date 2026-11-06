@@ -12,14 +12,22 @@ go_library(
     ],
     importpath = "github.com/phodal/pero/harness/go/charts",
     visibility = ["//visibility:public"],
-    deps = ["//harness"],
+    deps = [
+        "//harness",
+        "//model",
+    ],
 )
 
 go_test(
     name = "charts_test",
     srcs = [
+        "presentation_test.go",
         "table_test.go",
         "tool_test.go",
     ],
     embed = [":charts"],
+    deps = [
+        "//harness",
+        "//model",
+    ],
 )
