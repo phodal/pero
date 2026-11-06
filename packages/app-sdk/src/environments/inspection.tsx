@@ -7,6 +7,7 @@ import { ToggleGroup, ToggleGroupItem } from '../components/toggle-group';
 import { Table } from '../components/table';
 import { Feedback } from '../components/feedback';
 import { EmptyState } from '../components/empty-state';
+import { EmptyIllustration } from '../components/empty-illustration';
 import { Card } from '../components/card';
 import { Dialog } from '../components/dialog';
 import { Badge } from '../../../pero-design/src/components';
@@ -85,7 +86,7 @@ export function EnvironmentChecks({ targets = METHOD_IDS, locale = 'en', selecte
           <ToggleGroupItem value="table">{t.table}</ToggleGroupItem><ToggleGroupItem value="grid">{t.grid}</ToggleGroupItem>
         </ToggleGroup>
       </div>
-      {!methods.length ? <EmptyState description={t.empty} actions={<Button onClick={() => { setQuery(''); setFilter('all'); }}>{t.clear}</Button>} />
+      {!methods.length ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />} description={t.empty} actions={<Button onClick={() => { setQuery(''); setFilter('all'); }}>{t.clear}</Button>} />
         : layout === 'table' ? <Table label={t.title} density="compact" rows={methods} rowId={item => item.id} columns={[
           { id: 'method', header: t.method, size: 210, cell: item => <><Button variant="ghost" onClick={() => { setSelected(item.id); setTab('software'); }}>{item.name}</Button><small className="env-muted">{item.software}</small></> },
           { id: 'app', header: t.app, size: 110, cell: item => item.app },

@@ -7,6 +7,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/tabs';
 import { Table } from '../components/table';
 import { Feedback } from '../components/feedback';
 import { EmptyState } from '../components/empty-state';
+import { EmptyIllustration } from '../components/empty-illustration';
+import { LoadingSkeleton, SkeletonText } from '../components/skeleton';
 import { Dialog } from '../components/dialog';
 import { Badge } from '../../../pero-design/src/components';
 import { METHODS } from './model.mjs';
@@ -99,11 +101,12 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
   }, [page, creating]);
   const status = (item: LocalEnvironment) => <Badge tone={item.state === 'ready' ? 'success' : item.state === 'failed' ? 'error' : item.state === 'preparing' ? 'info' : 'neutral'}>{t[item.state]}</Badge>;
   const back = () => { setCreating(false); setSelected(''); setConfirming(false); };
+  const startCreating = () => { setCreating(true); setSelected(''); setLabel(''); };
   return <main className="pero-env env-workspace">
     <header className="env-heading"><div className="env-heading-start">{(creating || value) && <Button onClick={back}>{t.back}</Button>}
       {creating || value ? <h2 ref={heading} tabIndex={-1}>{creating ? t.createTitle : value?.label}</h2> : <h1 ref={heading} tabIndex={-1}>{t.title}</h1>}{value && status(value)}</div>
       <div className="env-actions">{value ? value.bound ? <span className="env-muted">{t.active}</span> : value.state !== 'preparing' && <Button variant="primary" busy={busy} onClick={() => value.state === 'ready' ? setConfirming(true) : void request({ operation: 'prepare', id: value.id })}>{value.state === 'ready' ? t.bind : t.prepare}</Button>
-        : !creating && <><Button busy={busy} onClick={() => void request({ operation: 'list' })}>{t.refresh}</Button><Button variant="primary" disabled={busy} onClick={() => { setCreating(true); setSelected(''); setLabel(''); }}>{t.create}</Button></>}</div>
+        : !creating && <><Button busy={busy} onClick={() => void request({ operation: 'list' })}>{t.refresh}</Button>{(!loaded || values.length > 0 || tab !== 'environments') && <Button variant="primary" disabled={busy} onClick={startCreating}>{t.create}</Button>}</>}</div>
     </header>
     {error && <div className="env-load-error"><Feedback kind="error" variant="block">{!loaded && `${t.failedLoad}: `}{error}{loaded && ` ${t.retained}`}</Feedback><Button disabled={busy} onClick={() => void request({ operation: 'list' })}>{t.retry}</Button></div>}
     {creating ? <form className="env-create-form" onSubmit={event => { event.preventDefault(); if (!busy) void request({ operation: 'create', label, target }); }}>
@@ -125,7 +128,7 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
     </> : <Tabs value={tab} onValueChange={setTab}>
       <TabsList aria-label={t.title}><TabsTrigger value="environments">{t.environments}</TabsTrigger><TabsTrigger value="inspect">{t.inspect}</TabsTrigger></TabsList>
       <TabsContent value="environments" forceMount>
-        {!loaded ? busy ? <Feedback>{t.loading}</Feedback> : null : !values.length ? <EmptyState heading={t.empty} description={t.emptyNote} /> : <Table label={t.environments} density="compact" rows={values} rowId={item => item.id} columns={[
+        {!loaded ? busy ? <LoadingSkeleton label={t.loading}><SkeletonText /></LoadingSkeleton> : null : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment" />} heading={t.empty} description={t.emptyNote} actions={<Button variant="primary" disabled={busy} onClick={startCreating}>{t.create}</Button>} /> : <Table label={t.environments} density="compact" rows={values} rowId={item => item.id} columns={[
           { id: 'name', header: t.name, size: 220, cell: item => <Button variant="ghost" onClick={() => setSelected(item.id)}>{item.label}</Button> },
           { id: 'method', header: t.method, size: 130, cell: item => METHODS.find(method => method.id === item.target)!.name },
           { id: 'status', header: t.status, size: 140, cell: item => status(item) },
