@@ -266,3 +266,15 @@ Control Lab 46、Insights 6；Compute 类型检查通过。根目录 `npm run ch
 
 本轮标准组件替换与代码交付完成；完整 Native 辅助技术与键盘验收继续保留在原 tracker，
 不能据源码盘点归零宣布全产品验收完成。截图未加入 Git，避免提交二进制证据。
+
+
+## 远端整合后的复验
+
+本轮组件提交已同步到远端默认分支 master，整合点为 `f93ddc07`。
+独立工作树中验证的 App、SDK、Native 源码及本报告与该整合点一致。
+最终复验：SDK 类型检查、161/161 项 SDK 测试、166/166 项 App 测试、
+产品内全部 App 的类型检查（Insights 由根目录与构建覆盖）、12 个生产 bundle
+构建及根目录 check 全部通过。根目录检查使用本机已安装 Rust toolchain 和
+`PERO_GPUI_KIT_PATH=/Users/phodal/test/gpui-kit`；工作树复用现有 reader Wasm
+及已安装依赖，初次缺少这些环境路径的失败不记为源码缺陷。
+本复验没有扩大前文 Native 键盘、物理 IME、VoiceOver 或真实执行的验收范围。
