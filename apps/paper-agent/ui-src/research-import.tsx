@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Checkbox, Feedback, Field, Icon, Input, Toolbar } from '@pero/app-sdk/ui';
+import { Progress, Button, Checkbox, Feedback, Field, Icon, Input, Toolbar } from '@pero/app-sdk/ui';
 import type { Api } from './types';
 import { assetSize, type ImportDraft, type ResearchBundle, type ResearchResource } from './research-types';
 import './research-import.css';
@@ -137,7 +137,7 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
       <Toolbar>{!draft && <Button variant="primary" busy={busy} disabled={!url.trim() || saving} onClick={() => void inspect()}>{busy ? t('inspecting') : t('inspect')}</Button>}{(draft || busy || error) && <Button type="button" disabled={saving} onClick={reset}>{t('newUrl')}</Button>}</Toolbar>
     </div>
     {error && <Feedback kind="error">{error}{draft?.status === 'inspecting' ? <Button disabled={busy} onClick={() => setError('')}>{t('retryStatus')}</Button> : !draft && <Button disabled={busy} onClick={() => void inspect()}>{t('retry')}</Button>}</Feedback>}
-    {draft?.status === 'inspecting' && <div className="pa-import-progress"><progress aria-label={t('inspectSources')}/><span role="status">{t('inspectSources')}</span><Button busy={busy} onClick={() => void cancel()}>{t('cancel')}</Button></div>}
+    {draft?.status === 'inspecting' && <div className="pa-import-progress"><Progress label={t('inspectSources')}/><span role="status">{t('inspectSources')}</span><Button busy={busy} onClick={() => void cancel()}>{t('cancel')}</Button></div>}
     {draft?.status === 'failed' && <Feedback kind="error">{draft.error || t('failed')}<Button onClick={() => void inspect()}>{t('retryInspection')}</Button></Feedback>}
     {draft?.status === 'cancelled' && <Feedback>{t('cancelled')}<Button onClick={() => void inspect()}>{t('retryInspection')}</Button></Feedback>}
     {draft?.warnings.map((warning, index) => <Feedback key={index}>{warning}</Feedback>)}

@@ -49,7 +49,7 @@
 .vc-dataset-source{display:flex;flex-wrap:wrap;gap:var(--pero-space-2) var(--pero-space-3);overflow-wrap:anywhere}
 .vc-dataset a{color:var(--pero-link);text-underline-offset:3px}.vc-dataset code{overflow-wrap:anywhere;font-size:var(--pero-font-caption)}
 .vc-dataset-progress{display:flex;flex-direction:column;gap:var(--pero-space-1);font-variant-numeric:tabular-nums}
-.vc-dataset-progress progress{width:100%;max-width:460px;height:8px;accent-color:var(--pero-action)}
+.vc-dataset-progress .pero-ui-progress{max-width:460px}
 .vc-comparison-layout{display:grid;grid-template-columns:minmax(190px,240px) minmax(0,1fr);gap:var(--pero-space-3);align-items:start;min-width:0}
 .vc-comparison-history{background:var(--pero-material-sidebar);padding:var(--pero-space-3);min-width:0;max-height:650px;overflow:auto;border-radius:var(--pero-radius-panel)}
 .vc-comparison-history h2{margin-bottom:var(--pero-space-2)}

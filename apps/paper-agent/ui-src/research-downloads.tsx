@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Feedback } from '@pero/app-sdk/ui';
+import { Progress, Button, Feedback } from '@pero/app-sdk/ui';
 import { assetSize, type ResearchBundle } from './research-types';
 
 type DownloadReply = {
@@ -73,7 +73,7 @@ export function ResearchDownloads({ bundle, startDownloadIds }: { bundle: Resear
       const reply = replies[asset.id], job = reply?.download;
       return <li key={asset.id}><h3>{asset.filename}</h3><p className="pa-muted">{assetSize(asset.size)} / {asset.license}</p>
         {job ? <p role="status">{job.status === 'running' ? `Downloading: ${assetSize(job.received)} of ${assetSize(job.total)}` : job.status === 'completed' ? reply.asset?.localAvailable ? 'Available in Data' : 'File unavailable in Data' : job.status}</p> : !loading && <p>Not started</p>}
-        {job?.status === 'running' && <progress aria-label={`Download progress: ${asset.filename}`} value={job.received} max={job.total || asset.size}/>}
+        {job?.status === 'running' && <Progress label={`Download progress: ${asset.filename}`} value={job.received} max={job.total || asset.size}/>}
         {job?.error && <Feedback kind="error">{job.error}</Feedback>}
         {job?.status === 'running' ? <Button disabled={busy} onClick={() => void operate('cancel', asset.id)}>Cancel download</Button> : (!job || reply.receipt.retryable) && <Button disabled={loading || busy || !!running || !!error} onClick={() => void operate('start', asset.id)}>{job ? 'Retry download' : 'Start download'}</Button>}
         {reply?.receipt.jobId && <details><summary>Download receipt</summary><dl className="pa-resource-provenance"><dt>Job</dt><dd>{reply.receipt.jobId}</dd><dt>Data asset</dt><dd>{reply.receipt.catalogAssetId || 'Not published'}</dd><dt>Reused</dt><dd>{reply.receipt.reused ? 'Yes' : 'No'}</dd>{reply.asset?.sha256 && <><dt>SHA-256</dt><dd>{reply.asset.sha256}</dd></>}</dl></details>}

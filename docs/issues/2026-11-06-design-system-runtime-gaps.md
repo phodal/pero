@@ -156,3 +156,8 @@ structured source tables now use semantic Table. Keep source caption, rowspan/
 colspan, original values, missing denominators, citations and editing intact.
 Scientific prose tables inherit document typography; interface matrices use the
 shared typography. Remove private generic cell/header skins.
+
+
+Paper research inspection/download and Cell dataset download/verification use
+SDK Progress. Keep unknown inspection progress indeterminate and byte counts/
+expected totals unchanged; remove private progress colour/height overrides.
