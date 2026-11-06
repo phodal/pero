@@ -323,3 +323,92 @@ denied (`process_singleton_posix.cc`, `Operation not permitted`). This is an
 unverified browser acceptance gap, not a passing test or a code-test failure.
 New Native graphical screenshots, real-provider selection, signed packages and
 non-Linux platform acceptance were not established by this integration run.
+
+## Workspace comparisons — 2026-11-06
+
+Source: master `01ec7f0d7edcbded4a214b91b56d99cd93c261e0` plus the current
+uncommitted changes. The local DeepSeek Harness reference is `fcc0ad4621`:
+`workspace-changes` captures Git trees around a turn; `ui-deliverables` keeps
+explicit presentation separate. Its ACP route lacks the native presentation
+hooks. Pero therefore observes the real workspace in the Rust ACP runtime,
+inside the existing workspace write lease, without inferring edits from tool
+names or reply prose.
+
+`WorkspaceChanges` owns NUL numstat parsing, counts, rename and binary metadata.
+`FileComparison` owns diff coordinates and deletion/addition pairing. Runtime
+`ChangesStore` captures trees using a private index and object directory. A
+turn compares its actual starting tree with its final tree; the explicit current
+workspace action compares HEAD with the working tree. Original index bytes and
+refs are preserved. Host owns catalog and lazy comparison requests; metadata is
+journaled with the conversation and retained snapshots can be reopened after
+Host restart. Scientific or execution acceptance is not inferred from a diff.
+
+The shared Chat moves review to a compact `Diff N +added −deleted` control beside
+permissions. It replaces the top `Artifacts 0` row and duplicate inline change
+cards. The output pane retains the existing delivered-file browser and adds a
+flat changed-file list, history/scope menu, local errors, and unified/side-by-side
+comparisons with line numbers. Saving a reply still uses the existing artifact
+registration/version/source-navigation path; the compact copy/save actions only
+appear on a normally completed final reply. Thinking and adjacent tools share a
+process disclosure; approvals and failures remain directly reachable.
+
+The composer density and surface migration is recorded in
+[the composer fitness record](zed-composer-batch-2.md#composer-density-and-conversation-surface--2026-11-06).
+
+### Scope and limits
+
+Automatic snapshots cover local writable ACP turns in a Git repository, including
+new, renamed, deleted, binary and preexisting dirty files. Git-ignored untracked
+files, non-Git folders and remote read-only execution are outside this increment.
+Hard session termination or an unacknowledged cancellation timeout can exit before
+the final snapshot. Historical turns predating this implementation have no
+recoverable baseline; users can explicitly inspect the current workspace against
+HEAD. Current-workspace review requires a HEAD commit.
+
+The catalog lists at most 500 paths while retaining full totals; comparisons are
+bounded to 2 MiB and the UI to 5,000 rows with explicit notices. Snapshots survive
+Host restart while the original repository/object store remains available. This
+increment does not add snapshot garbage collection, ignored-file mutation hooks,
+a repository-independent archive or diff editing/revert controls.
+
+### Verification
+
+macOS arm64, local development binaries; the ACP controller is synthetic, while
+Git mutations, Host storage/transport and the production GPUI renderers are real.
+`tests/e2e/workspace-changes.mjs` passes five-file turn detection, dirty baseline
+preservation, net reverts, additions/deletions, binary metadata, renames, unchanged
+user index bytes, permissions/Diff adjacency, lazy recorded comparisons,
+side-by-side review, separately labeled current worktree, keyboard history
+selection, and reopening the same recorded diff after Host/Electron restart.
+Inspected final Electron captures in `test-results/workspace-changes/` include
+`recorded-diff.png`, `current-worktree.png`, `dark.png` and `narrow.png`. The final
+light screenshot has a white conversation background and a one-row compound
+editor. Narrow mode uses the existing full-pane reader, with Close returning to
+Chat. Red/green changes also retain signs and line numbers.
+
+The existing `composer` suite passes advertised settings, context references,
+undo, submission, permission decisions, themes and narrow layout, with an added
+real edit/clear sequence proving multiline growth and shrinkage. `ime` passes
+boundary keys, successive Pinyin, editing, shortcuts, and composition commit/cancel.
+The contracts/runtime/Host tests pass 265 cases (one runtime test ignored);
+Native-feature Chat/theme tests pass 32. `npm run check`, Host, Native, all Wasm
+consumers, Web and Desktop builds pass. Existing Native dead-code/future-compat
+and generated Wasm eval warnings remain.
+
+CUA inspected an isolated copied-profile Native application, using the binaries
+identified in `test-results/workspace-changes/native-launch.json`. Earlier in the
+run, Diff opened the recorded file list and real Host patch beside the permission
+control. After the density/background rebuild, its actual Native window visibly
+shows a white conversation surface and the shortened one-row editor, retaining
+its conversation and modified sidebar widths. The CUA screenshots are in the
+conversation's tool output. This Native check establishes the visible shared
+layout and restored preview; new provider execution, the history menu's Native
+keyboard path, signed packages and other operating systems remain unverified.
+
+Final shared-consumer regression also passes `streaming-presentation` and
+`toolcalls` with no page errors, plus `product-chat` with nine checks and no page
+errors. The Product test now opens the process disclosure before toggling a child
+tool; compact multiline/wrapped drafts, cancellation, scope restoration and the
+embedded permission card retain their prior assertions. Its existing CJS
+`import.meta` build warning remains. Native capture of that Product shell was not
+part of this run.

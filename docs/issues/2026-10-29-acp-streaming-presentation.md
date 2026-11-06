@@ -36,3 +36,28 @@ Timestamp-only metadata does not clear a title; an explicit empty/null title
 restores the prompt fallback. History replay uses the same transition.
 
 Verification: [ACP streaming presentation](../fitness/streaming-presentation.md).
+
+## 2026-11-06 follow-up: process density and reply actions
+
+The Native transcript still exposed every generic `read_file`/`shell` call as a
+separate row, without argument detail, because ACP `other` bypassed typed read
+aggregation. Every progress reply also carried a full-width Save as document
+button. This made transient narration look like a deliverable and displaced the
+actual answer.
+
+Reference: local DeepSeek Harness `fcc0ad4621`, its process grouping,
+ReasoningRow, and TurnTailNodeView/MessageIconActions. Shared Chat now groups
+adjacent reasoning and tools across categories, preserving replies as boundaries.
+Known generic tool names gain semantic presentation without changing wire data.
+Current activity and deterministic reasoning previews stay in compact headers;
+full input/output and Markdown remain available on demand. Errors, approvals,
+charts and App result links must remain reachable outside collapsed process.
+
+The former per-segment Save as document text button is replaced by one compact
+copy/save action row on each normally completed final reply. Insights raw replies
+use that same action component. Existing Host artifact registration, versions,
+source navigation and the catalog remain the owners of saved documents.
+
+Native, Workbench Wasm and Product Chat are affected consumers. No new display
+settings or third whole-Turn disclosure are introduced in this migration.
+Validation is recorded in the existing streaming-presentation fitness record.

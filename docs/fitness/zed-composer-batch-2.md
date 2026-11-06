@@ -172,3 +172,23 @@ bounds, since opening a tool can move its toggle above the visible viewport.
 These are local fixture/development results. Real-provider behavior, signed
 packages, other operating systems, physical IME and native clipboard remain
 outside this follow-up's acceptance scope.
+
+## Composer density and conversation surface — 2026-11-06
+
+On master `01ec7f0d` plus the current uncommitted changes, the ordinary editor
+starts at one text row and grows with explicit lines and wrapping up to its
+existing seven-row cap. The compound field changes from 12px to 8px padding;
+Kit's XSmall textarea removes its extra 8px vertical padding and reduces its
+horizontal inset from 10px to 4px. Body typography remains explicitly set after
+that size choice. Environment-to-field and field-to-toolbar gaps change from
+8px to 4px; the outer top/bottom padding changes from 8/12px to 4/8px. Toolbar
+controls retain their shared minimum 28px targets.
+
+The shared conversation surface now consumes `palette.surface`, matching the
+session list and artifact reader: white in the light palette, its existing dark
+surface in the dark palette. This changes the conversation background without
+changing application chrome or adding a new color token. Native Workbench,
+Electron Workbench and standalone App Chat share these owners.
+
+Verification is recorded with the conversation changes run in
+[session-artifacts](session-artifacts.md#workspace-comparisons--2026-11-06).

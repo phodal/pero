@@ -137,3 +137,139 @@ build-verified; a physical native window, signed package and other platforms
 remain separate acceptance targets. The live Qoder check proves a real Read
 tool round trip, while Search/Fetch presentation and provider-title updates use
 the deterministic ACP fixture.
+
+## 2026-11-06: grouped process and completed-reply actions
+
+Source: uncommitted changes on `5aca2731`; reference checkout DeepSeek Harness
+`fcc0ad4621`. Migration context remains in the existing
+[streaming incident](../issues/2026-10-29-acp-streaming-presentation.md).
+
+The old read/search/fetch-only tool grouping and automatically expanded thought
+body are replaced by `ProcessGroup` boundaries and independent, initially closed
+reasoning disclosures. Adjacent thoughts and tools share one process group across
+activity categories. Ordinary replies and user input remain visible boundaries.
+Opening an individual item before its group grows keeps that item visible;
+explicitly closing the group also closes its child disclosures. No third
+whole-Turn fold or new settings are added in this change.
+
+`ToolActivity` derives presentation once when applying ACP updates: an explicit
+known ACP kind wins, with exact known tool names supplementing `other` for DSH,
+Pero and historical records. Raw wire kind, tool IDs, input and output are kept.
+Running headers show current tool detail or a completed reasoning paragraph's
+first line; settled headers show ranked activity counts. Full text is retained.
+Errors, permission choices, App result links and chart results stay outside the
+collapsed details. This presentation does not claim that all counted calls
+succeeded.
+
+The repeated Save as document label on every Assistant segment is replaced by
+one copy/save icon row on each final reply with an actual `end_turn` receipt.
+Intermediate narration, in-flight replies, thoughts and unsuccessful endings do
+not receive a final-reply action row. Insights raw replies and tool result actions
+use the same output-action component, existing shared icons and tooltips. Host
+artifact registration, versioning and the catalog are unchanged; source navigation
+opens the containing process and the individual tool.
+
+Validation on macOS arm64 with Electron 45.1.0 and an isolated ACP fixture:
+
+- `npm run check` passed locale, design, theme, protocol, icon and TypeScript gates.
+- `node scripts/cargo.mjs +nightly-2026-10-28 test -p pero-chat-ui --features native --lib`
+  passed 30 tests, including process boundaries, normal-completion actions,
+  semantic activity, ranked counts and streaming reasoning previews.
+- Workbench Wasm and standalone Product Chat built, as did the Native binary.
+- `node tests/e2e/streaming-presentation.mjs` passed with no page errors. Actual
+  pointer actions cover independent reasoning/input/output disclosure, permission
+  handling with a closed process, generic read/shell activity, retained failure
+  and App links, a single final-reply save action, artifact creation with the
+  correct source message, reload/restart, dark mode and a 1000 px window.
+- `node tests/e2e/toolcalls.mjs` passed the nine-call matrix, including structured
+  diff, terminal, failure, cancellation, group/individual disclosure and dark/
+  narrow layout, with no page errors.
+
+Screenshots inspected under `test-results/streaming-presentation/fixture/`:
+`thinking-streaming.png`, `collapsed-approval.png`, `completed-actions.png`,
+`saved-final-reply.png`, `dark.png` and `narrow.png`. They show compact process
+summaries, permission/error visibility, the final action icons and saved catalog
+entry. These are synthetic results, not live model or scientific acceptance.
+
+Native uses the same compiled ChatPanel. The existing Native window was inspected,
+but the Chat view could not be reached through that window's UI interaction during
+this run; physical Native Chat interaction acceptance remains unverified.
+Signed packages, other operating systems and live DSH provider timing are also
+outside this verification.
+
+## DeepSeek tool presentation audit — 2026-11-06
+
+A second source inspection of local DeepSeek Harness found that the previous
+process-disclosure increment did not port its typed tool bodies. `ToolCallTree`
+recursively dispatches each wire tool name through a keyed toolview; the generic
+fallback derives separate terminal/read/diff/search/web models before rendering
+one ToolRow. A specialized card replaces generic input/output sections. Read rows
+use an independently clickable recorded path and omit the argument body. Search
+and read inline bodies cap at eight lines; diff caps at nine. Terminal rows expose
+command, cwd, output and recorded exit/signal/background state, with failing exits
+classified as errors even if the outer call settled successfully. Unsupported
+metadata retains the generic fallback rather than inventing structured facts.
+
+Disclosure is not one global rule: `useDisclosure` starts each call/reasoning
+collapsed, process groups and completed-turn folding have separate owners. Desktop
+initializes Standard mode (`ui-chat/src/client/apply.ts:171`); non-Desktop Web
+initializes Detailed. The shared default collapse timing is completion; next-input
+is separately configurable. Interrupted/error turns and interleaved user input
+are kept accessible. Closing the outer turn advances/reset disclosure state.
+Tool title/summary use secondary typography (default 13px), a 24px row and 14px
+glyphs inside a 16px leading box. This is a different role from answer typography.
+
+In Pero's screenshot, the extra `shell` title comes from tool detail chrome and
+again from `ContentReader` using `reader_frame(document.title, ...)` even for
+inline Markdown. That reader creates answer-appearance StreamText, so tool output
+loses its secondary typography. Tool calls are not yet terminal/read/search/diff
+cards; structured diff currently renders Before/After blocks. These are remaining
+implementation gaps, not accepted parity. Provider-specific DSH metadata cannot
+be assumed to exist in arbitrary ACP output; typed adapters need actual recorded
+ACP fields and a lossless generic fallback.
+
+## Typed tool bodies — 2026-11-06 implementation
+
+The follow-up ports the generic ToolRow's typed-body precedence into the shared
+GPUI Chat. `ToolBody` is derived at ACP update admission and consumed by
+`tool_body_view`; raw ACP transcript data remains retained separately. Terminal
+cards show authored command/cwd, stdout/stderr and recorded exit status. Nonzero
+exits mark the row and its retained failure notice even if ACP says completed.
+Read cards show the path and numbered content; search cards support recorded
+path lists and grouped/flat matches, including Pero's actual `fstools.SearchResult`
+and native Glob shapes. Read/search previews expose eight rows; unified diffs
+use a nine-row preview with three context lines and actual addition/deletion
+counts from `similar::TextDiff`. Explicit expansion retains all available rows.
+Terminal bodies retain all output in a bounded scroll area. Specialized bodies
+replace generic parameter/result/reader chrome. Unknown schemas keep the
+existing lossless generic reader and raw-input disclosure.
+
+The duplicated wire-name label is removed. Inline Markdown no longer wraps its
+content in the document workspace's titled reader frame, and uses Tool stream
+appearance. Workspace document reading retains its title and typography. Body
+default is 13px at the user's request; tool/think body and tool-summary typography
+are one pixel below the chat preference with the shared 12px floor. Existing
+explicit font preferences remain owned by Host. The isolated Native profile's
+Chat size was changed from 14 to 13 through the actual Settings UI, and the
+returned conversation visibly updated. Terminal copy/save actions share its
+command header; the original result remains the saved/copied source.
+
+Verification: contracts 105 tests and Native-feature Chat 31 tests pass. The
+model test pins stdout/stderr formats, nonzero exits, unknown-shape fallback,
+read offsets, search truncation and contextual diffs. Native and all Wasm/Web
+builds and `npm run check` pass. Electron `toolcalls` asserts typed read, terminal
+and diff results; `streaming-presentation` and `workspace-changes` pass without
+page errors. Product Chat passes its nine existing checks. Light/dark and narrow
+captures come from these production-renderer fixture runs, with real Host I/O.
+Native CUA opened the retained shell call, observed command/output without the
+old headings, and exercised persisted chat-font adjustment. Binaries are listed
+in `test-results/workspace-changes/native-launch.json`.
+
+Compatibility boundaries: the path action currently opens the recorded tool
+snapshot through the existing document owner. Live-file navigation to an original
+line, DSH-only keyed plugin cards and recursive subcalls unsupported by the ACP
+source are not claimed as implemented parity. Search metadata not present in ACP
+is not reconstructed from prose. Four selectable DSH detail modes and whole-turn
+collapse timing remain outside this body-rendering increment; the existing
+Standard-like process/call disclosures remain. These distinctions must not be
+reported as complete DSH equivalence.
