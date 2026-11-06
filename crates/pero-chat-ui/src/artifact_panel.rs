@@ -562,7 +562,7 @@ impl ChatPanel {
             ArtifactSource::File { path } => {
                 path.rsplit(['/', '\\']).next().unwrap_or(path).to_owned()
             }
-            ArtifactSource::Text => artifact.title.clone(),
+            ArtifactSource::Text | ArtifactSource::Research { .. } => artifact.title.clone(),
         };
         let previous_thread = thread.to_owned();
         let previous_id = artifact.id.clone();
