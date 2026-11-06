@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: active
+status: resolved
 date: 2026-11-06
 ---
 
@@ -28,8 +28,9 @@ both now have regression coverage. All 45 Connectors tests and 14 actual App fra
 scenarios passed, alongside shared Tabs tests and root checks. The shared catalog
 contains the navigation variant; the App consumes SDK Card and control styles.
 
-Pending acceptance: the final Native preview was rebuilt and restarted, but the
-Mac locked before the SDK pointer-focus/Card delta could be observed. Keep this
-tracker active until that visible-window check is completed. Earlier actual
-Native observations and final browser evidence are recorded separately in
-`packages/pero-design/VERIFICATION.md`.
+Acceptance completed after unlock on source `17a67bcc`: actual Native catalog
+and installed views use the shared Card surface and spaced Tabs with the shared
+selected underline. Pointer switching has no lingering focus rectangle; Left
+returns to the catalog with visible keyboard focus. Screenshots are linked in
+`packages/pero-design/VERIFICATION.md`. The saved Compute cluster selection was
+also observed after restart; scheduler execution remains outside this change.

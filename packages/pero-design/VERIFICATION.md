@@ -313,8 +313,8 @@ accepted in this pass. The PR remains draft.
 
 ## Empty states, Compute and Customize follow-up — 2026-11-06
 
-Source: `4a781972` plus `42aab97b`, `40dca903` and `63f53a49` on
-`codex/desktop-design-system`. The last three commits follow a separate read-only
+Source: `4a781972` plus `42aab97b`, `40dca903`, `63f53a49` and `17a67bcc` on
+`codex/desktop-design-system`. The Customize changes follow a separate read-only
 review, “Review Pero Customize page usability”. No review chat modified source.
 
 | Consumer | Shared migration and behavior |
@@ -325,8 +325,9 @@ review, “Review Pero Customize page usability”. No review chat modified sour
 | Customize catalog | Public Tabs navigation variant, SearchField, Select, Button, Card and InfoTip replace competing raw button styles. No persistent snapshot timestamp. Titles wrap, built-in actions have real icons, full prerequisites remain visible before setup and retained results are identified after refresh failure. |
 | Installed connections / installation | Paused means disabled in both counts and results; unverified connections appear under Needs attention instead of Ready. Installation previews the actual draft tool allowlist and effect groups, with unclassified effects explicit. Shared credential deletion requires a confirmation naming the reference and its effect on all sharing connections. Host authorization, allowlists, revisions and system secret storage are unchanged. |
 
-Shared `TabsList variant="navigation"` has no outer border or baseline, uses
-shared spacing and medium-weight selected text, and wraps at narrow widths.
+Shared `TabsList variant="navigation"` has no outer border or full-width baseline,
+uses shared spacing, medium-weight selected text and the standard 2px selected
+underline, and wraps at narrow widths.
 Tabs distinguish pointer selection from keyboard focus, including WebKit's
 programmatic Radix focus. Page-local raw button/focus overrides and obsolete
 GuideArt were removed; the production component catalog includes the variant.
@@ -338,12 +339,14 @@ Validation:
   confirmation/cancellation. Actual five-App browser frames: **14** tests.
 - Shared Tabs: **8 unit + 2 browser** tests. The final navigation refinement also
   passed the two actual Connectors frame scenarios at 1200px/light/14px and
-  440px/dark/24px: readable long titles, no document overflow, no tab borders,
-  shared gap, pointer selection without outline, keyboard focus visible, and
+  440px/dark/24px: readable long titles, no document overflow, no top/side tab
+  borders, a 2px underline visible only on the selected tab, shared gap, pointer
+  selection without outline, keyboard focus visible, and
   built-in Try it only composing the inspection prompt.
 - Root generated/type/locale/icon checks passed (**972** messages, **84** icons).
   Connectors and catalog typechecks, component catalog build and all **12** App
-  builds passed; Connectors was rebuilt after the final navigation wrapping.
+  builds passed; Connectors was rebuilt after the final selected-underline
+  refinement.
 - Native executable build passed with 12 existing library warnings. The Native
   library tests on the earlier content-tab/Compute source passed **64 pero-ui +
   2 pero-theme**. Earlier Compute acceptance used its actual Python backend:
@@ -358,12 +361,19 @@ layout, wrapped service names, missing timestamp and spaced borderless navigatio
 were observed. Pointer switching then exposed a lingering focus outline; that
 issue was fixed in the SDK and passed browser pointer/keyboard regressions.
 
-The preview was rebuilt and restarted for the final SDK focus/Card delta, but
-macOS locked before a final Native screenshot could be captured. Final Native
-pointer focus, the new Card surface and draft persistence after this restart
-remain **unverified** until unlock. No real cluster, credentials, installation or
-scheduler execution was attempted. Dark/24px screenshots here are isolated
+After unlock, actual Native acceptance on `17a67bcc` superseded the earlier
+lock-screen blocker. Catalog and installed views displayed the shared Card
+surface and selected-tab underline. Pointer selection switched the view without
+a focus rectangle; Left returned to the catalog with a visible inset keyboard
+focus outline. After restart, Compute showed the saved “Preview cluster” selection
+and correctly unavailable jobs. No real cluster, credentials, installation or
+scheduler execution was attempted. Dark/24px screenshots here remain isolated
 browser fixtures, not Native acceptance. The PR remains draft.
+
+Final actual Native screenshots:
+[catalog and selected underline](https://github.com/user-attachments/assets/484f822b-b826-46c2-b7e6-7a684567f2fb),
+[installed view after pointer selection](https://github.com/user-attachments/assets/78a1499d-0ca0-483c-9fa2-997f0b8eea90),
+[keyboard focus](https://github.com/user-attachments/assets/e032da6e-3133-43cc-8371-757ea1c527cc).
 
 Screenshot artifacts for this pass live outside Git under the task's
 `pero-native-followup/` and `customize-browser/` visualization folders. Published
