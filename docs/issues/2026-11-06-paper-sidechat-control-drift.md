@@ -39,3 +39,7 @@ Validation: 16 actual App browser scenarios, 7 Paper workspace tests, 10 shared
 Tabs tests, 25 chat-ui and 64 pero-ui tests passed; Paper typecheck/build, root
 checks, Native build and Wasm checks passed. Dark/24px acceptance is browser
 fixture evidence; Native acceptance was light theme. No Agent request was sent.
+
+PR #139 merge validation found one remaining CI reader fixture expecting PDF as
+a button after the exclusive ToggleGroup migration. The fixture now follows
+the PDF radio role while retaining the Back button and focus/Escape assertions.

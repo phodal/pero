@@ -209,7 +209,7 @@ test('closing Paper question mode focuses a native App control before one Escape
         // The helper owns toolbar layout; this seam models native controls by
         // accessible name, so moving a toolbar does not change keyboard behavior.
         return { getByRole: (role, options) => {
-          assert.equal(role, 'button');
+          assert.equal(role, options.name === 'PDF' ? 'radio' : 'button');
           assert.ok(['PDF', 'Back to library'].includes(options.name));
           assert.equal(options.exact, true);
           if (options.name === 'Back to library') assert.equal(pdf, false);
