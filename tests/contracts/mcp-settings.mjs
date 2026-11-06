@@ -84,7 +84,7 @@ try {
   assert.deepEqual(observed.sessions.map(session => [session.thread_id, session.revision, session.observable]).sort(),
     [['disabled', current.revision - 1, false], ['enabled', current.revision, false]],
     'external Agent without negotiated reporting remains unobservable; each revision is frozen');
-  assert.deepEqual(observed.sessions.find(session => session.thread_id === 'enabled').servers.map(server => server.server), ['local-docs']);
+  assert.deepEqual(observed.sessions.find(session => session.thread_id === 'enabled').servers.map(server => server.server), ['operator-only', 'local-docs']);
   // Existing sessions are not recreated when future-session configuration changes.
   assert.equal((await fixture.sessions()).length, 2);
   const edited = { ...enabled, name: 'renamed-docs', transport: { type: 'stdio', command: process.execPath, args: ['--version'] } };
@@ -124,7 +124,14 @@ try {
   if (process.platform !== 'win32') assert.equal((await stat(fixture.settings)).mode & 0o777, 0o600);
   const publicText = JSON.stringify(publicEvents);
   assert(!publicText.includes(fixture.secret), 'operator credential reached Host events');
-  assert(!publicText.includes('operator-only'), 'operator-only metadata reached Host events');
+  assert(publicText.includes('operator-only'), 'operator server identity missing from runtime observations');
+  const snapshots = publicEvents.flatMap(event => event.kind === 'mcp_settings' ? event.data.sessions
+    : event.kind === 'mcp_runtime' ? [event.data]
+    : event.kind === 'session_ready' && event.data?.peroMcp ? [event.data.peroMcp] : []);
+  for (const snapshot of snapshots) for (const server of snapshot.servers) {
+    assert.deepEqual(Object.keys(server).sort(), ['generation', 'server', 'status', 'tools'],
+      'runtime observation exposed operator transport, environment or credentials');
+  }
   assert(!publicText.includes('"connected":true'), 'configuration falsely claimed MCP connectivity');
   assert.equal(fixture.requests(), 0, 'settings or ACP fixture unexpectedly connected to MCP');
   await host.stop(); host = undefined;
@@ -132,7 +139,7 @@ try {
   await mkdir(output, { recursive: true });
   await writeFile(resolve(output, 'host-result.json'), JSON.stringify({ passed: true, checks: [
     'disabled omitted from ACP', 'enabled HTTP injected', 'stdio edit injected for new session only',
-    'existing session remains usable', 'unnegotiated Agent is unobservable and live revisions remain frozen', 'operator configuration retained but not disclosed',
+    'existing session remains usable', 'unnegotiated Agent is unobservable and live revisions remain frozen', 'operator identity observed without transport or credentials',
     'restart persistence', 'remove omitted from ACP', 'unrelated preferences preserved',
     'operator-name collision remains readable and repairable while sessions fail closed', 'private settings file', 'no credentials in public events or stderr', 'no MCP connection or connected claim',
   ] }, null, 2));

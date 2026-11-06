@@ -72,6 +72,18 @@ impl ChatWindow {
                     ChatAction::Selected{thread_id}=>json!({"action":"app_use_selection","thread_id":thread_id}),
                     ChatAction::CompactNeedsSpace => json!({"action":"chat_expand"}),
                     ChatAction::Content(intent) => serde_json::to_value(intent).expect("content intent"),
+                    ChatAction::Artifacts(request) => serde_json::to_value(request).expect("artifact request"),
+                    ChatAction::ArtifactPreview(_) => return,
+                    ChatAction::ArtifactComposeResult{id,error} => json!({"action":"artifact_compose_result","id":id,"error":error}),
+                    ChatAction::ArtifactPaneWidth { width } => {
+                        this.preferences.layout.resize_artifact_pane(*width);
+                        json!({"method":"settings.workbench","preferences":this.preferences})
+                    }
+                    ChatAction::ArtifactView { view } => {
+                        this.preferences.layout.artifact_view = *view;
+                        json!({"method":"settings.workbench","preferences":this.preferences})
+                    }
+                    ChatAction::ChooseArtifactFile { thread_id } => json!({"action":"choose_artifact_file","thread_id":thread_id}),
                     ChatAction::ChooseWorkspace => json!({"action":"choose_workspace"}),
                     ChatAction::ChooseContext { kind, request_id } => {
                         json!({"action":"choose_context","kind":kind,"request_id":request_id})
@@ -233,6 +245,12 @@ pub fn receive_host_event(json: &str) -> Result<(), JsValue> {
         if event.kind == "workbench_settings" {
             if let Ok(preferences) = serde_json::from_value(event.data.clone()) {
                 ui.preferences = preferences;
+                let width = ui.preferences.layout.artifact_pane_width();
+                let view = ui.preferences.layout.artifact_view;
+                ui.panel.update(cx, |panel, cx| {
+                    panel.set_artifact_pane_width(width, cx);
+                    panel.set_artifact_view(view, cx);
+                });
                 pero_theme::ResolvedAppearance::resolve(
                     &ui.preferences,
                     ui.system_dark,

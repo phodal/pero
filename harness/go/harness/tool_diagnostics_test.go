@@ -61,3 +61,22 @@ func TestDiagnosticReminderFollowsCompleteResultBatch(t *testing.T) {
 		t.Fatal("diagnostic observation was not persisted")
 	}
 }
+
+func TestMaskedSuccessDoesNotClearFailedDiagnostic(t *testing.T) {
+	var p diagnosticProgress
+	call := ContentBlock{Name: "Bash", Arguments: json.RawMessage(`{"command":"check"}`), ToolCallID: "check"}
+	fail := ToolResult{Content: []ContentBlock{{Type: BlockText, Text: `{"exitCode":1,"stderr":"AssertionError: wrong"}`}}}
+	p.observe(call, fail)
+	warning := p.observe(call, ToolResult{Content: []ContentBlock{{Type: BlockText, Text: `{"exitCode":0,"stderr":"FAILED (failures=1)"}`}}})
+	if warning == nil {
+		t.Fatal("zero exit hid validation failure")
+	}
+	p.observe(call, fail)
+	if p.observe(call, fail) == nil {
+		t.Fatal("masked exit cleared diagnostic history")
+	}
+	p.observe(call, ToolResult{Content: []ContentBlock{{Type: BlockText, Text: `{"exitCode":0,"stdout":"passed"}`}}})
+	if p.observe(call, fail) != nil {
+		t.Fatal("settled clean check did not reset history")
+	}
+}

@@ -42,14 +42,22 @@ pub struct Manager {
     automation_rx: Option<mpsc::Receiver<automation_agent::AutomationReceipt>>,
 }
 impl Manager {
+    /// A delivery uses the original conversation workspace, including after restart.
+    pub(crate) fn artifact_workspace(&self, thread_id: &str) -> Option<PathBuf> {
+        self.visible_history().iter().rev().find_map(|event| {
+            if event.kind != "session_created" || event.thread_id.as_deref() != Some(thread_id) { return None; }
+            event.data.get("workspace").and_then(serde_json::Value::as_str).map(PathBuf::from)
+                .filter(|path| path.is_absolute())
+        })
+    }
     pub fn new(root: PathBuf) -> Self {
         let history_file = std::env::var_os("PERO_HISTORY_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|| root.join("target/sessions.jsonl"));
         let mut stored = pero_contracts::session_history::SessionHistory::default();
         if let Ok(file) = std::fs::File::open(&history_file) {
-            for line in std::io::BufReader::new(file).lines().map_while(Result::ok) {
-                if let Ok(event) = serde_json::from_str::<HostEvent>(&line) { stored.record(event); }
+            for line in std::io::BufReader::new(file).split(b'\n').map_while(Result::ok) {
+                if let Ok(event) = serde_json::from_slice::<HostEvent>(&line) { stored.record(event); }
             }
         }
         let app_bindings = stored
@@ -316,6 +324,15 @@ impl Manager {
                     "",
                     serde_json::json!({"events":events,"active":active}),
                 );
+                // Readiness is historical; reconnecting renderers need the live
+                // session owner's current observations after replay completes.
+                for session in self.sessions.values().filter(|session| !session.tx.is_closed()) {
+                    let snapshot = session.mcp_runtime.lock().unwrap();
+                    let mut event = HostEvent::new("mcp_runtime", None, String::new());
+                    event.thread_id = Some(snapshot.thread_id.clone());
+                    event.data = serde_json::json!(&*snapshot);
+                    let _ = self.tx.send(event);
+                }
             }
             HostCommand::Workspace { path } => match std::fs::canonicalize(path) {
                 Ok(path) if path.is_dir() => {
@@ -468,7 +485,7 @@ impl Manager {
                         text,
                         contexts,
                     } if (!text.trim().is_empty() || !contexts.is_empty())
-                        && text.chars().count() <= 64000 =>
+                        && pero_contracts::context::validate_prompt_text(&text).is_ok() =>
                     {
                         if let Err(error) = ContextReference::validate_all(&contexts) {
                             let mut event = HostEvent::new("session_error", None, error.into());

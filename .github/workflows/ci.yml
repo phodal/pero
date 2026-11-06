@@ -66,12 +66,17 @@ jobs:
       - name: Verify imported files, charts, molecules and responsive themes
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: node tests/e2e/scientific-viewer-browser.mjs
+      - name: Verify artifact previews and Gallery keyboard behavior
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: node apps/scientific-viewer/test/artifact-browser.mjs
       - name: Viewer screenshots and exact bundle evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: scientific-viewer-browser-${{ github.sha }}
-          path: test-results/scientific-viewer-browser/
+          path: |
+            test-results/scientific-viewer-browser/
+            test-results/session-artifacts-viewer/
           if-no-files-found: warn
 
   data:
@@ -454,6 +459,7 @@ jobs:
       - run: npm ci --prefix apps/paper-agent --ignore-scripts
       - run: node scripts/codegen/contracts.mjs --check
       - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs tests/build/product-chat-startup.test.mjs tests/build/product-shutdown.test.mjs
+      - run: node --experimental-vm-modules --test tests/build/native-dev.test.mjs
 
   # Keep one runner and one install per dependency set. Each check depends only
   # on its setup/build inputs, so assertion failures stay red without hiding peers.

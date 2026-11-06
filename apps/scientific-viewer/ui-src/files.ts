@@ -1,4 +1,5 @@
 /** Local bounded file inspection. Imported bytes are never evaluated as code. */
+import { previewKind, type PreviewKind } from './preview-source.ts';
 export const MAX_FILE = 10 * 1024 * 1024;
 export type Asset = { id: string; name: string; size: number; sha256: string; source: string; license: string; synthetic: boolean; bytes: Uint8Array };
 export type Table = { headers: string[]; rows: string[][]; missing: number };
@@ -22,15 +23,12 @@ export function parseTable(text: string): Table {
   if (!headers.length || rows.some(row => row.length !== headers.length)) throw new Error('Inconsistent table columns');
   return { headers, rows, missing: rows.flat().filter(value => !value.trim()).length };
 }
-export function inspect(name: string): 'table' | 'structure' | 'molecule' | 'pdf' | 'json' | 'notebook' | 'opaque' {
+export function inspect(name: string): PreviewKind | 'structure' | 'molecule' | 'json' {
   const ext = name.split('.').at(-1)?.toLowerCase();
-  if (['csv', 'tsv'].includes(ext ?? '')) return 'table';
   if (['pdb', 'cif', 'mmcif'].includes(ext ?? '')) return 'structure';
   if (['smi', 'smiles', 'mol', 'sdf'].includes(ext ?? '')) return 'molecule';
-  if (ext === 'pdf') return 'pdf';
-  if (ext === 'ipynb') return 'notebook';
   if (ext === 'json') return 'json';
-  return 'opaque';
+  return previewKind({ name, mediaType: '' });
 }
 export type NumericPoint = { x: number; y: number; row: number };
 function finiteNumber(value: string): number | null {

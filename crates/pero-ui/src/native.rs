@@ -410,6 +410,7 @@ pub fn run() -> anyhow::Result<()> {
                     | "choose_context"
                     | "choose_worker_workspace"
                     | "choose_document"
+                    | "choose_artifact_file"
                     | "choose_document_save"
                     | "choose_icon_theme"
                     | "apps_install"
@@ -556,11 +557,12 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 if matches!(
                     event.kind.as_str(),
-                    "native_apps_install" | "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace" | "native_choose_document" | "native_choose_icon_theme"
+                    "native_apps_install" | "native_choose_workspace" | "native_choose_context" | "native_choose_worker_workspace" | "native_choose_document" | "native_choose_artifact_file" | "native_choose_icon_theme"
                 ) {
                     let app_install=event.kind=="native_apps_install";
                     let icon_theme=event.kind=="native_choose_icon_theme";
                     let file_document=event.kind=="native_choose_document";
+                    let artifact_file=event.kind=="native_choose_artifact_file";
                     let worker_workspace=event.kind=="native_choose_worker_workspace";
                     let workspace = event.kind == "native_choose_workspace" || worker_workspace;
                     let typed_context = !workspace && event.data["request_id"].is_string();
@@ -570,7 +572,7 @@ pub fn run() -> anyhow::Result<()> {
                         cx.prompt_for_paths(PathPromptOptions {
                             files: !directory,
                             directories: directory,
-                            multiple: !directory && !typed_context && !file_document && !icon_theme,
+                            multiple: !directory && !typed_context && !file_document && !artifact_file && !icon_theme,
                             prompt: if icon_theme {Some("Icon theme JSON".into())}else{(typed_context && context_kind == "image").then(|| "Image (PNG, JPEG, GIF, WebP)".into())},
                         })
                     });
@@ -605,6 +607,8 @@ pub fn run() -> anyhow::Result<()> {
                                 serde_json::json!({"method":"icons","action":"install","request_id":"icons","path":path})
                             } else if file_document {
                                 serde_json::json!({"method":"documents","action":"open","request_id":"open-file","path":path})
+                            } else if artifact_file {
+                                serde_json::json!({"method":"artifacts","action":"register_file","request_id":"artifact-file-picker","thread_id":event.data["thread_id"],"path":path})
                             } else if workspace {
                                 serde_json::json!({"action":"workspace","path":path})
                             } else if typed_context {

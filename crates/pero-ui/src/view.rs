@@ -298,9 +298,13 @@ impl Render for Workbench {
             layout = layout.hide_sidebar(width, &self.preferences.layout);
         }
         self.layout = layout;
+        self.chat.update(cx,|chat,cx|chat.set_artifact_surface_covered(covered,cx));
+        self.sync_artifact_preview(cx);
         let sidebar_width = layout.sidebar_width;
         let sessions = (self.navigation.page() == WorkbenchPage::Conversation && self.tab == ConversationTab::Chat)
-            .then(|| self.sessions_panel(if width - sidebar_width < 680. {220.} else {280.}, cx).into_any_element());
+            .then(|| self.preferences.layout.visible_sessions_width(width - sidebar_width))
+            .flatten()
+            .map(|width| self.sessions_panel(width, window, cx).into_any_element());
         let chat_width = layout.chat_width;
         let dock = layout.chat == ChatPlacement::Dock;
         let narrow = layout.narrow;
@@ -575,6 +579,11 @@ impl Render for Workbench {
             ))
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
                 this.resize_document_pane(event.position, cx);
+                if this.resizing_sessions {
+                    let x: f32 = event.position.x.into();
+                    this.preferences.layout.resize_sessions(x - this.layout.sidebar_width);
+                    cx.notify();
+                }
                 if this.resizing_chat {
                     let width: f32 = window.viewport_size().width.into();
                     let x: f32 = event.position.x.into();
@@ -598,6 +607,11 @@ impl Render for Workbench {
                     }
                     if this.resizing_chat {
                         this.resizing_chat = false;
+                        this.save_preferences(this.preferences.clone(), cx);
+                        cx.notify();
+                    }
+                    if this.resizing_sessions {
+                        this.resizing_sessions = false;
                         this.save_preferences(this.preferences.clone(), cx);
                         cx.notify();
                     }

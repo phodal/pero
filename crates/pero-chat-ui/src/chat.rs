@@ -11,11 +11,11 @@ use gpui_kit::{
 use pero_contracts::HostEvent;
 use serde_json::json;
 
-enum RenderItem {
+pub(crate) enum RenderItem {
     Message(usize),
     Tools(Vec<usize>),
 }
-fn render_items(chat: &Conversation) -> Vec<RenderItem> {
+pub(crate) fn render_items(chat: &Conversation) -> Vec<RenderItem> {
     let mut rows = Vec::new();
     for item in &chat.timeline {
         match *item {
@@ -116,7 +116,8 @@ impl ChatPanel {
         self.active_chat = index;
         let thread_id = index.and_then(|i| self.chats.get(i)).map(|c| c.id.clone());
         if previous != thread_id {
-            cx.emit(crate::ChatAction::Selected { thread_id });
+            cx.emit(crate::ChatAction::Selected { thread_id: thread_id.clone() });
+            if let Some(thread) = thread_id { self.refresh_artifacts(&thread, cx); }
         }
         self.prepare_chat(cx);
         self.sync_follow(cx);
@@ -311,7 +312,7 @@ impl ChatPanel {
             content: self.composer.read(cx).content(),
             references: self.composer_state.references.clone(),
         };
-        if !self.submit_prompt(text, self.attachments.clone(), cx) {
+        if !self.submit_prompt(text, crate::conversation::ComposerDraft::contexts(&draft.content, &draft.references), cx) {
             return;
         }
         self.attachments.clear();
@@ -362,6 +363,7 @@ impl ChatPanel {
                 text,
                 contexts,
                 replace: false,
+                surface_request: None,
             });
         }
     }
@@ -373,9 +375,15 @@ impl ChatPanel {
         cx: &mut Context<Self>,
     ) -> bool {
         if text.trim().is_empty() && contexts.is_empty()
-            || text.chars().count() > 64000
             || !self.connected
         {
+            return false;
+        }
+        if let Err(error) = pero_contracts::context::validate_prompt_text(&text)
+            .and_then(|()| pero_contracts::context::ContextReference::validate_all(&contexts))
+        {
+            self.error = Some(error.into());
+            cx.notify();
             return false;
         }
         if self.active_chat.is_none() {
@@ -803,6 +811,10 @@ impl ChatPanel {
         let id = chat.map(|c| c.id.clone()).unwrap_or_default();
         let credential_reminder = chat
             .is_some_and(|c| c.messages.is_empty() && c.error.as_deref() == Some(credential_text));
+        let tools_unavailable = chat.filter(|c| c.state != SessionState::Closed)
+            .and_then(|c| c.mcp.as_ref()).map(|mcp| mcp.failed_servers())
+            .filter(|servers| !servers.is_empty())
+            .map(|servers| self.t("chat.tools_unavailable").replace("{servers}", &servers.join(", ")));
         div().flex_1().min_h_0().min_w_0().flex().flex_col()
             .when(self.show_return_to_review,|el|el.child(
                 div().px(px(12.)).py(px(8.)).border_b_1().border_color(p.border).child(
@@ -838,15 +850,21 @@ impl ChatPanel {
                             }
                             let user = message.role == "user";
                             Some(div().id(("message",i)).mb(px(pero_theme::SPACE_12)).flex().flex_col().gap(px(pero_theme::SPACE_8))
+                                .anchor_scroll(self.artifacts.anchors.get(&format!("{}/message:{index}",conversation.id)).cloned())
                                 .child(div().when(user, |el| el.w_full().px(px(pero_theme::SPACE_12)).py(px(pero_theme::SPACE_8)).bg(p.surface).border_1().border_color(p.border).rounded(px(pero_theme::RADIUS_PANEL))).child(message.view.clone()))
                                 .when(!message.attached_files.is_empty(),|el|el.child(div().flex().flex_wrap().gap(px(8.)).text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted)
                                     .children(message.attached_files.iter().map(|name|div().flex().items_center().gap(px(4.)).child(self.icon("file").size(px(13.))).child(name.clone())))))
+                                .when(!user && !message.text.trim().is_empty(), |el| {
+                                    let thread=conversation.id.clone();
+                                    el.child(Button::new(("save-reply-artifact",index)).relative().children(self.artifacts.bounds.get(&format!("{}/save-reply:{index}",conversation.id)).map(|bounds|bounds.probe())).ghost().small().self_end().text_color(p.text_muted).label(self.t("artifacts.save_reply"))
+                                        .on_click(cx.listener(move |this,_,_,cx|this.save_reply_artifact(&thread,index,cx))))
+                                })
                                 .into_any_element())
                         },
                         RenderItem::Tools(indices)=>{
                             let tools=indices.iter().filter_map(|index|conversation.tools.get(*index)).collect::<Vec<_>>();
                             if tools.is_empty() { return None; }
-                            Some(self.tool_group(&conversation.id, tools, i, cx))
+                            Some(div().id(("tool-source-anchor",i)).anchor_scroll(self.artifacts.anchors.get(&format!("{}/tool:{}",conversation.id,tools[0].id)).cloned()).child(self.tool_group(&conversation.id, tools, i, cx)).into_any_element())
                         }
 
                     }
@@ -855,7 +873,7 @@ impl ChatPanel {
                     .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
                     .text_color(p.text_muted)
                     .child(self.t(if chat.is_some_and(|c|c.state==SessionState::Connecting){"chat.preparing"}else{"chat.thinking"}))))
-                .when_some(chat.filter(|c| c.state != SessionState::Closed).and_then(|c| c.mcp.as_ref()).map(|mcp| mcp.failed_servers()).filter(|servers| !servers.is_empty()), |el, servers| el.child(div().p(px(12.)).bg(p.warning_bg).text_color(p.warning).rounded(px(4.)).child(self.t("chat.tools_unavailable").replace("{servers}", &servers.join(", ")))))
+                .when_some(tools_unavailable.clone(), |el, warning| el.child(div().p(px(12.)).bg(p.warning_bg).text_color(p.warning).rounded(px(4.)).child(warning)))
                 .when(chat.is_some_and(|c|c.error.is_some() && c.state!=SessionState::AuthRequired) && !credential_reminder,|el|el.child(div().p(px(14.)).bg(p.error_bg).text_color(p.error).rounded(px(6.)).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))))))
             .children(chat.filter(|c|c.state==SessionState::AuthRequired).into_iter().map(|chat|{
                 div().w_full().max_w(px(pero_theme::COMPOSER_MAX)).min_w_0().mx_auto().mb(px(10.)).p(px(12.)).bg(p.warning_bg).rounded(px(4.))
@@ -877,6 +895,9 @@ impl ChatPanel {
             }))
             .children(self.approval(&id, None, cx))
             .children(self.user_questions(window, cx))
+            .when_some(tools_unavailable.filter(|_| self.compact), |el, warning| {
+                el.child(div().px(px(12.)).py(px(6.)).bg(p.warning_bg).text_color(p.warning).child(warning))
+            })
             .when(self.compact && chat.is_some_and(|c| c.error.is_some() && c.state != SessionState::AuthRequired), |el| {
                 el.child(div().px(px(12.)).py(px(6.)).bg(p.error_bg).text_color(p.error).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))
             })

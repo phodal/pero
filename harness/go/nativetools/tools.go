@@ -16,6 +16,7 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/sandbox"
 	"github.com/phodal/pero/harness/go/shell"
+	"github.com/phodal/pero/harness/go/tool"
 )
 
 type Options struct {
@@ -160,7 +161,11 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			if e != nil {
 				return nil, e
 			}
-			return fstools.FormatRead(v, a.Offset, a.Limit)
+			window, err := fstools.FormatRead(v, a.Offset, a.Limit)
+			if err != nil {
+				return nil, err
+			}
+			return nativeReadResult(window, a.Offset, a.Limit, ""), nil
 		}},
 		{"write_file", "Create or replace a bounded UTF-8 file under the configured workspace. Parent directory must already exist. Requires approval.", `"path":{"type":"string"},"content":{"type":"string","maxLength":1048576}`, `"path","content"`, true, func(c context.Context, a arguments) (any, error) {
 			return workspaceFrom(c, files).Write(c, a.Path, a.Content)
@@ -436,7 +441,12 @@ func renderResult(value any, operationErr error) (harness.ToolResult, error) {
 	if e != nil {
 		return harness.ToolResult{}, e
 	}
+	var readMeta json.RawMessage
+	if read, ok := value.(reusableReadWindow); ok && operationErr == nil {
+		readMeta = tool.ReusableReadMetadata(read.Path, read.Digest, string(raw))
+	}
 	if len(raw) > fstools.MaxOutputBytes {
+		readMeta = nil
 		// Read/list/search can have huge escaped names. This fallback never asserts
 		// completion or discards a mutation receipt/shell status (bounded above).
 		fallback := map[string]any{"truncated": true, "message": "Result exceeds encoded output budget; narrow the request. Do not infer mutation completion from this response."}
@@ -448,5 +458,5 @@ func renderResult(value any, operationErr error) (harness.ToolResult, error) {
 			return harness.ToolResult{}, e
 		}
 	}
-	return harness.ToolResult{IsError: operationErr != nil, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(raw)}}}, nil
+	return harness.ToolResult{IsError: operationErr != nil, Meta: readMeta, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(raw)}}}, nil
 }

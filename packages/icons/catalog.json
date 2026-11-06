@@ -44,6 +44,7 @@
   "refresh": {},
   "player-play": { "aliases": ["play"] },
   "layout-grid": { "kit": "LayoutGrid", "aliases": ["app"] },
+  "gallery-horizontal": { "kit": "GalleryHorizontal" },
   "chevron-left": { "kit": "ChevronLeft" },
   "panel-right-open": { "kit": "PanelRightOpen" },
   "panel-right-close": { "kit": "PanelRightClose" },

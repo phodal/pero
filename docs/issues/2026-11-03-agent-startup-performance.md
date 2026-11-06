@@ -7,6 +7,62 @@ title: Agent startup latency, Connector MCP failure and recovery gaps
 
 # Agent startup performance (Preparing Agent)
 
+## Post-merge follow-up: 2026-11-05
+
+PR #131 merged as `1263c39506191b8e97b0e67e4abd5e2122c47b55`. Review of that
+exact master revision found remaining gaps: renderer reconnect replay restored
+the startup MCP receipt instead of live observations; one invalid UTF-8 journal
+line stopped recovery of later records; compact Chat hid the tool warning; and
+Native preview missed worker manifest changes and retained stale chart Python
+payloads. The follow-up repairs those paths without rewriting the journal,
+changing retry eligibility, or exposing MCP transport configuration.
+
+The MCP Settings verification claim below describes the earlier implementation
+session, not the merged tree: its committed contract still expected operator
+names to be hidden. The [master CI run](https://github.com/phodal/pero/actions/runs/42010799467)
+failed that assertion and independently failed on stale Bazel npm repository
+metadata. The follow-up updates the expected identities while checking the exact
+sanitized observation fields and retaining credential checks.
+
+Available local checks passed: three Native entry-point regressions (all three
+fail against unmodified master), the 933-message locale/reference check,
+JavaScript syntax checks and `git diff --check`. Native tests use real temporary
+Python payloads with mocked build/process/watch seams and now run in CI. They
+do not establish actual macOS watcher or native-build behavior.
+The existing aggregate Node CI test command was also attempted: 11 tests passed,
+while 14 test modules failed to load because `yaml`, `esbuild` or
+`@playwright/test` is not installed. It is not a full CI pass.
+
+At initial draft submission, local Rust/Host execution and running UI/screenshots
+were unverified: the assistant environment has no Rust/Bazel toolchains or
+installed locked dependencies, and no tools were installed. CI subsequently
+passed at `84db9c439cec7901e2f330c283f96c21a051ae2f`, including core Rust, real
+Host contracts, Bazel and Native regression tests. Running UI/screenshots remain
+unverified. The initial draft reused the Bazel npm metadata unchanged from
+[`2ff5a6f7`](https://github.com/phodal/pero/commit/2ff5a6f7ad7fb1648b70212400171e6d878de6ae).
+Its [verification record](https://github.com/phodal/pero/blob/b138759c14ceccd6f35d482a29ac01ef5b410a29/docs/issues/2026-11-05-claude-merge-permission-blockers.md#integration-findings-against-current-master)
+reports npm sync. All six input files have identical Git blob SHAs at that
+snapshot and this base. The generator was not run again here; final-head CI must
+verify the reused artifact. Dependencies and frozen-lock checks are unchanged.
+
+PR #132 merged into the #116 branch at `66066a717082d5438c40d081b08f7dccca7b0cea`;
+#116 then merged into master at `d949f0d13c1ccaf661e219bb0966b21beeef46ba`.
+That integration limits public MCP observations to managed/required servers,
+dropping ordinary Chat's builtin Connector observation: its binding adds a
+server to `agent.mcp_servers`, not those sets. The follow-up integrates that
+master, retaining upstream user-question rendering/lifecycle and restoring
+`config.mcp_server_names()` as the startup observation source. Only sanitized
+identity/status fields are public; transport configuration and credentials stay
+private. The existing Host contract also creates an actual Host-bound builtin
+Connector with synthetic credentials: its ACP fixture reports an optional error
+without any MCP request, and the ready snapshot must retain that error with
+exactly the public fields and no transport/credential data. Existing live
+replay and MCP Settings projection contracts remain. The Bazel cache now matches master, with no remaining
+cache diff. CI must be rerun for the integrated head; earlier green results do
+not verify this new source snapshot.
+The measurements and screenshots in the historical sections below are not new
+verification of this follow-up.
+
 ## Current diagnosis: 2026-11-05
 
 The Native Preview's 17–23 second preparation is reproducible in the builtin

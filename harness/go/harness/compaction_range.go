@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/phodal/pero/harness/go/tool"
 )
 
 type compactionSelection struct {
@@ -385,6 +387,7 @@ func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, compaction
 	for _, node := range measurement.Nodes[selection.startIndex : selection.endIndex+1] {
 		messages = append(messages, cloneMessage(node.Message))
 	}
+	messages = tool.ExpandReadReferences(agent.session, selection.seqs, messages)
 	messages = append(messages, Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: compactionInstruction}}})
 	system, err := agent.session.EffectiveSystemPrompt()
 	if err != nil {
@@ -431,6 +434,7 @@ func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, compaction
 		if refreshErr != nil {
 			return nil, nil, nil, "", "", refreshErr
 		}
+		refreshed = tool.ExpandReadReferences(agent.session, selection.seqs, refreshed)
 		request.Messages = append(refreshed, Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: compactionInstruction}}})
 	}
 	// Provider usage belongs to the completed request even when its summary is

@@ -53,6 +53,7 @@ pub fn canonical(name: &str) -> Option<&'static str> {
         "play" => Some("player-play"),
         "layout-grid" => Some("layout-grid"),
         "app" => Some("layout-grid"),
+        "gallery-horizontal" => Some("gallery-horizontal"),
         "chevron-left" => Some("chevron-left"),
         "panel-right-open" => Some("panel-right-open"),
         "panel-right-close" => Some("panel-right-close"),

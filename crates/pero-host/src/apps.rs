@@ -58,6 +58,12 @@ enum Request {
         id: String,
         name: AppName,
     },
+    #[serde(rename = "resolve_static")]
+    ResolveStatic {
+        method: Method,
+        id: String,
+        name: AppName,
+    },
     Projectresources {
         method: Method,
         id: String,
@@ -354,6 +360,10 @@ impl Apps {
                 Request::Resolve { method, id, name } => {
                     let _ = (method, id);
                     serde_json::to_value(store.resolve_with_progress(&name, &mut progress)?)
+                }
+                Request::ResolveStatic { method, id, name } => {
+                    let _ = (method, id);
+                    serde_json::to_value(store.resolve_static(&name)?)
                 }
                 Request::Projectresources { method, id, name } => {
                     let _ = (method, id);

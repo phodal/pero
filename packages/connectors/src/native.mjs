@@ -34,7 +34,8 @@ const appUse = new DesktopAppUse({
   page: (scope, request) => effect('surface', { value: { action: 'page', scope, request } }),
   capture: async () => { throw new Error('Native App capture is unavailable'); },
   presence: () => {},
-}, () => {}, join(dirname(root), 'app-evidence'), { describe: () => routes.describe(), apply: (write, signal, goal) => routes.apply(write, signal, goal) });
+}, () => {}, join(dirname(root), 'app-evidence'), { describe: () => routes.describe(), apply: (write, signal, goal) => routes.apply(write, signal, goal) }, undefined,
+  (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }));
 
 let closing;
 const close = () => closing ??= (async () => {

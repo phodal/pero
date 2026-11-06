@@ -24,13 +24,13 @@ addEventListener('message',event=>{
  if(event.source!==window)return;
  const message=event.data;
  if(!message||typeof message.type!=='string')return;
- if(message.type==='pero:app:sdk'||message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
+ if(message.type==='pero:app:sdk'||message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:artifact:compose'||message.type==='pero:artifact:select'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
  if(message.type==='pero:app:chat-slot')window.postMessage({type:'pero:app:chat-slot-result',id:message.id,active:false},'*');
 });
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);
 "#;
 impl NativeAppPage {
-    fn new(name: String, entry: String, frame_origins: Vec<String>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(name: String, entry: String, frame_origins: Vec<String>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (sender, receiver) = async_channel::unbounded();
         let loads = sender.clone();
         let links = sender.clone();
@@ -191,7 +191,7 @@ impl NativeAppPage {
                 .evaluate_script(&format!("window.postMessage({message},'*')"));
         }
     }
-    fn sync(&mut self, mut context: Value, cx: &mut Context<Self>) {
+    pub(crate) fn sync(&mut self, mut context: Value, cx: &mut Context<Self>) {
         context["titlebar"]=json!(true);
         if !context["active"].as_bool().unwrap_or(false) || self.error.is_some() {
             if let Some(view) = &self.view {
@@ -241,7 +241,7 @@ impl Drop for NativeAppPage {
 }
 impl Render for NativeAppPage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if let Some(view) = self.view.as_ref().filter(|_| self.error.is_none()) {
+        if let Some(view) = self.view.as_ref().filter(|_| self.error.is_none() && self.context["active"] != false) {
             view.update(cx, |view, _| {
                 if !view.visible() {
                     view.show();
@@ -261,7 +261,7 @@ impl Render for NativeAppPage {
                     "apps.loading_panel",
                 ))
             })
-            .children(self.view.clone().filter(|_| self.error.is_none()))
+            .children(self.view.clone().filter(|_| self.error.is_none() && self.context["active"] != false))
     }
 }
 pub(crate) struct RetainedApp {

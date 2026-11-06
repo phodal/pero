@@ -21,6 +21,8 @@ type Diagnostic struct {
 	Settled       bool   `json:"settled"`
 	Failed        bool   `json:"failed"`
 	Hint          string `json:"hint,omitempty"`
+	// ValidationSignal is an output observation, independent of the shell status.
+	ValidationSignal string `json:"validation_signal,omitempty"`
 	// Deduplicable excludes incomplete/spilled output and task identities.
 	Deduplicable bool `json:"-"`
 }
@@ -104,6 +106,9 @@ func ObserveDiagnostic(name string, arguments json.RawMessage, content []model.C
 			d.Fingerprint = diagnosticHash(string(raw))
 		}
 		d.Deduplicable = d.Failed && !identity && d.CommandSHA256 != "" && d.Fingerprint != "" && completeDiagnosticReceipt([]byte(content[0].Text))
+		if !d.Failed {
+			d.ValidationSignal = validationFailureSignal(diagnosticText(r.Stdout), diagnosticText(r.Stderr))
+		}
 	} else if isError {
 		d.Settled, d.Failed, d.Fingerprint = true, true, diagnosticHash(text)
 	}

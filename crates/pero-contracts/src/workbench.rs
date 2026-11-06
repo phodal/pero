@@ -34,6 +34,15 @@ pub struct ProjectBinding {
     pub project_id: String,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactView {
+    #[default]
+    Icons,
+    List,
+    Gallery,
+}
+
 /// Persistent layout choices, independent of the current viewport's available space.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
@@ -46,14 +55,25 @@ pub struct LayoutPreferences {
         deserialize_with = "LayoutPreferences::deserialize_sidebar_width"
     )]
     sidebar_width: u16,
+    #[serde(deserialize_with = "LayoutPreferences::deserialize_sessions_width")]
+    sessions_width: u16,
+    #[serde(
+        default = "LayoutPreferences::default_artifact_pane_width",
+        deserialize_with = "LayoutPreferences::deserialize_artifact_pane_width"
+    )]
+    artifact_pane_width: u16,
+    pub artifact_view: ArtifactView,
 }
 
 impl Default for LayoutPreferences {
     fn default() -> Self {
         Self {
+            sessions_width: 280,
             chat_width: 420,
             chat_open: false,
             sidebar_width: Self::DEFAULT_SIDEBAR_WIDTH,
+            artifact_pane_width: Self::DEFAULT_ARTIFACT_PANE_WIDTH,
+            artifact_view: ArtifactView::Icons,
         }
     }
 }
@@ -64,6 +84,9 @@ impl LayoutPreferences {
     pub const MIN_SIDEBAR_WIDTH: u16 = 200;
     pub const MAX_SIDEBAR_WIDTH: u16 = 480;
     const DEFAULT_SIDEBAR_WIDTH: u16 = 260;
+    const MIN_ARTIFACT_PANE_WIDTH: u16 = 280;
+    const MAX_ARTIFACT_PANE_WIDTH: u16 = 1200;
+    const DEFAULT_ARTIFACT_PANE_WIDTH: u16 = 400;
 
     pub fn chat_width(&self) -> f32 {
         self.chat_width.into()
@@ -112,6 +135,73 @@ impl LayoutPreferences {
         if !(Self::MIN_SIDEBAR_WIDTH..=Self::MAX_SIDEBAR_WIDTH).contains(&width) {
             return Err(serde::de::Error::custom(
                 "Sidebar width must be between 200 and 480",
+            ));
+        }
+        Ok(width)
+    }
+
+    pub const MIN_SESSIONS_WIDTH: u16 = 200;
+    pub const MAX_SESSIONS_WIDTH: u16 = 480;
+    pub const DEFAULT_SESSIONS_WIDTH: u16 = 280;
+
+    pub fn sessions_width(&self) -> f32 {
+        self.sessions_width.into()
+    }
+
+    pub fn resize_sessions(&mut self, width: f32) {
+        self.sessions_width = width.round().clamp(
+            Self::MIN_SESSIONS_WIDTH.into(), Self::MAX_SESSIONS_WIDTH.into(),
+        ) as u16;
+    }
+
+    /// Preserve at least 320px for the conversation; hide the list on narrow windows.
+    pub fn visible_sessions_width(&self, available: f32) -> Option<f32> {
+        (available >= 520.).then(|| self.sessions_width().min(available - 320.))
+    }
+
+    /// Move the displayed divider, retaining the preference when it cannot move.
+    pub fn resize_sessions_by(&mut self, available: f32, delta: f32) {
+        if let Some(width) = self.visible_sessions_width(available) {
+            let mut resized = *self;
+            resized.resize_sessions(width + delta);
+            if resized.visible_sessions_width(available) != Some(width) {
+                self.sessions_width = resized.sessions_width;
+            }
+        }
+    }
+
+    fn deserialize_sessions_width<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<u16, D::Error> {
+        let width = u16::deserialize(deserializer)?;
+        if !(Self::MIN_SESSIONS_WIDTH..=Self::MAX_SESSIONS_WIDTH).contains(&width) {
+            return Err(serde::de::Error::custom("Sessions width must be between 200 and 480"));
+        }
+        Ok(width)
+    }
+
+    pub fn artifact_pane_width(&self) -> f32 {
+        self.artifact_pane_width.into()
+    }
+
+    pub fn resize_artifact_pane(&mut self, width: f32) {
+        self.artifact_pane_width = width
+            .round()
+            .max(Self::MIN_ARTIFACT_PANE_WIDTH.into())
+            .min(Self::MAX_ARTIFACT_PANE_WIDTH.into()) as u16;
+    }
+
+    fn default_artifact_pane_width() -> u16 {
+        Self::DEFAULT_ARTIFACT_PANE_WIDTH
+    }
+
+    fn deserialize_artifact_pane_width<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<u16, D::Error> {
+        let width = u16::deserialize(deserializer)?;
+        if !(Self::MIN_ARTIFACT_PANE_WIDTH..=Self::MAX_ARTIFACT_PANE_WIDTH).contains(&width) {
+            return Err(serde::de::Error::custom(
+                "Artifact pane width must be between 280 and 1200",
             ));
         }
         Ok(width)
@@ -283,6 +373,32 @@ mod layout_tests {
             layout.resize_chat(requested);
             assert_eq!(layout.chat_width(), expected);
         }
+        for (input, expected) in [
+            (serde_json::json!({}), Some(400.)),
+            (serde_json::json!({"artifact_pane_width":640}), Some(640.)),
+            (serde_json::json!({"artifact_pane_width":279}), None),
+            (serde_json::json!({"artifact_pane_width":1201}), None),
+        ] {
+            assert_eq!(
+                serde_json::from_value::<LayoutPreferences>(input)
+                    .ok()
+                    .map(|layout| layout.artifact_pane_width()),
+                expected
+            );
+        }
+        for (requested, expected) in [(100., 280.), (640.4, 640.), (1600., 1200.)] {
+            layout.resize_artifact_pane(requested);
+            assert_eq!(layout.artifact_pane_width(), expected);
+        }
+        for (input, expected) in [
+            (serde_json::json!({}), Some(ArtifactView::Icons)),
+            (serde_json::json!({"artifact_view":"icons"}), Some(ArtifactView::Icons)),
+            (serde_json::json!({"artifact_view":"list"}), Some(ArtifactView::List)),
+            (serde_json::json!({"artifact_view":"gallery"}), Some(ArtifactView::Gallery)),
+            (serde_json::json!({"artifact_view":"unknown"}), None),
+        ] {
+            assert_eq!(serde_json::from_value::<LayoutPreferences>(input).ok().map(|layout| layout.artifact_view), expected);
+        }
     }
 
     #[test]
@@ -309,4 +425,55 @@ mod layout_tests {
         layout.resize_sidebar(360.4);
         assert_eq!(layout.sidebar_width(), 360.);
     }
+    #[test]
+    fn sessions_width_preserves_preferences_when_space_is_limited() {
+        let mut layout: LayoutPreferences = serde_json::from_str("{}").unwrap();
+        assert_eq!(layout.sessions_width(), 280.);
+        for (requested, saved, available, visible) in [
+            (100., 200., 900., Some(200.)),
+            (900., 480., 900., Some(480.)),
+            (360.4, 360., 600., Some(280.)),
+            (360., 360., 519., None),
+        ] {
+            layout.resize_sessions(requested);
+            assert_eq!(layout.visible_sessions_width(available), visible);
+            let restored: LayoutPreferences = serde_json::from_value(serde_json::to_value(layout).unwrap()).unwrap();
+            assert_eq!(restored.sessions_width(), saved);
+        }
+        for width in [199, 481] {
+            assert!(serde_json::from_value::<LayoutPreferences>(
+                serde_json::json!({"sessions_width": width})).is_err());
+        }
+    }
+
+    #[test]
+    fn sessions_width_adjustments_start_at_the_displayed_divider() {
+        for (saved, available, delta, expected, visible) in [
+            (480., 740., -20., 400., Some(400.)),
+            (360., 600., -20., 260., Some(260.)),
+            (280., 900., 20., 300., Some(300.)),
+            (200., 900., -20., 200., Some(200.)),
+            (480., 900., 20., 480., Some(480.)),
+            (480., 740., 20., 480., Some(420.)),
+            (480., 520., -20., 480., Some(200.)),
+            (360., 519., -20., 360., None),
+        ] {
+            let mut layout = LayoutPreferences::default();
+            layout.resize_sessions(saved);
+            layout.resize_sessions_by(available, delta);
+            assert_eq!(layout.sessions_width(), expected);
+            assert_eq!(layout.visible_sessions_width(available), visible);
+            let restored: LayoutPreferences =
+                serde_json::from_value(serde_json::to_value(layout).unwrap()).unwrap();
+            assert_eq!(restored.sessions_width(), expected);
+        }
+        let mut layout = LayoutPreferences::default();
+        layout.resize_sessions(480.);
+        for expected in [400., 380., 360.] {
+            layout.resize_sessions_by(740., -20.);
+            assert_eq!(layout.sessions_width(), expected);
+            assert_eq!(layout.visible_sessions_width(740.), Some(expected));
+        }
+    }
+
 }

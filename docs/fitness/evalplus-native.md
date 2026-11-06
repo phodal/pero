@@ -241,3 +241,12 @@ zero matches. Binaries, raw traces and dataset/test records remain outside Git.
 
 Related: [benchmark candidates](coding-benchmark-candidates.md),
 [Session reporting](../../harness/tools/session_report/README.md).
+
+
+## Live feedback follow-up
+
+The next frozen run (`cb364a60`) remains 4/5 with 58 requests, 50 tools and
+420,212 recorded tokens. It records two masked check failures and one delivered
+warning; no read-reuse or long-discovery phase occurs in these five small tasks.
+See [live coding feedback](live-coding-feedback.md) for implementation,
+verification, per-task verdicts and the separate later local performance change.

@@ -10,6 +10,7 @@ gpui_kit::assets::icon_assets!(
         FlaskConical,
         Square,
         LayoutGrid,
+        GalleryHorizontal,
         ChevronLeft,
         PanelRightOpen,
         PanelRightClose,
@@ -98,6 +99,7 @@ pub enum UiIcon {
     Refresh,
     PlayerPlay,
     LayoutGrid,
+    GalleryHorizontal,
     ChevronLeft,
     PanelRightOpen,
     PanelRightClose,
@@ -190,6 +192,7 @@ impl UiIcon {
             "refresh" => Some(Self::Refresh),
             "player-play" | "play" => Some(Self::PlayerPlay),
             "layout-grid" | "app" => Some(Self::LayoutGrid),
+            "gallery-horizontal" => Some(Self::GalleryHorizontal),
             "chevron-left" => Some(Self::ChevronLeft),
             "panel-right-open" => Some(Self::PanelRightOpen),
             "panel-right-close" => Some(Self::PanelRightClose),
@@ -279,6 +282,7 @@ impl UiIcon {
             Self::Refresh => "refresh",
             Self::PlayerPlay => "player-play",
             Self::LayoutGrid => "layout-grid",
+            Self::GalleryHorizontal => "gallery-horizontal",
             Self::ChevronLeft => "chevron-left",
             Self::PanelRightOpen => "panel-right-open",
             Self::PanelRightClose => "panel-right-close",
@@ -399,6 +403,7 @@ impl UiIcon {
             Self::Refresh => "icons/refresh.svg",
             Self::PlayerPlay => "icons/player-play.svg",
             Self::LayoutGrid => "icons/layout-grid.svg",
+            Self::GalleryHorizontal => "icons/gallery-horizontal.svg",
             Self::ChevronLeft => "icons/chevron-left.svg",
             Self::PanelRightOpen => "icons/panel-right-open.svg",
             Self::PanelRightClose => "icons/panel-right-close.svg",
@@ -584,6 +589,9 @@ impl AssetSource for UiAssets {
                 "../../../web/public/icons/player-play.svg"
             ))),
             Some(UiIcon::LayoutGrid) => SelectedKitIcons.load("icons/layout-grid.svg")?,
+            Some(UiIcon::GalleryHorizontal) => {
+                SelectedKitIcons.load("icons/gallery-horizontal.svg")?
+            }
             Some(UiIcon::ChevronLeft) => SelectedKitIcons.load("icons/chevron-left.svg")?,
             Some(UiIcon::PanelRightOpen) => SelectedKitIcons.load("icons/panel-right-open.svg")?,
             Some(UiIcon::PanelRightClose) => {
@@ -677,6 +685,7 @@ impl AssetSource for UiAssets {
             UiIcon::Refresh,
             UiIcon::PlayerPlay,
             UiIcon::LayoutGrid,
+            UiIcon::GalleryHorizontal,
             UiIcon::ChevronLeft,
             UiIcon::PanelRightOpen,
             UiIcon::PanelRightClose,

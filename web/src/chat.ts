@@ -6,6 +6,7 @@ import type { HostEvent } from './bootstrap';
 import type { ChatSurfaceContext } from './chat-surface';
 import './chat.css';
 import { applyAppearance, readAppearance } from '../../packages/app-sdk/src/appearance';
+import { mountArtifactPreview, type ArtifactSurface } from './artifact-preview';
 
 declare global {
   interface Window {
@@ -62,7 +63,13 @@ window.addEventListener('message', event => {
     window.parent.postMessage({type:'pero:chat:selection',id:event.data.id,thread:state.chats?.[state.activeChat]?.id,draft:{threadId:state.chats?.[state.activeChat]?.id,scope:state.scope}},parentOrigin);
   } else if (event.data?.type === 'pero:chat:compose' && initialized && typeof event.data.text === 'string') compose(event.data.text);
 });
-window.peroSessionCommand = json => window.parent.postMessage({ type: 'pero:chat:command', command: JSON.parse(json) }, parentOrigin);
+window.peroSessionCommand = json => {
+  const command = JSON.parse(json);
+  if (command.action === 'artifact_compose_result') { artifactPreview.reply(command.id, command.error); return; }
+  window.parent.postMessage({ type: 'pero:chat:command', command }, parentOrigin);
+};
+const artifactPreview = mountArtifactPreview((target, text, id) => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_compose', request_id: id, text, data: target })), target => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_select', request_id: null, text: '', data: target })));
+window.peroArtifactSurface = json => artifactPreview.update(JSON.parse(json) as ArtifactSurface);
 window.parent.postMessage({ type: 'pero:chat:connect' }, parentOrigin);
 try {
   context = await readyContext;

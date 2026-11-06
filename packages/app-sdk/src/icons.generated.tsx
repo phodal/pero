@@ -161,6 +161,8 @@ const artwork = {
   "player-play": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M7 4v16l13 -8l-13 -8" /></> },
   // gpui-kit/assets/icons/layout-grid.svg (Lucide, LICENSE-LUCIDE)
   "layout-grid": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><rect width="7" height="7" x="3" y="3" rx="1" /> <rect width="7" height="7" x="14" y="3" rx="1" /> <rect width="7" height="7" x="14" y="14" rx="1" /> <rect width="7" height="7" x="3" y="14" rx="1" /></> },
+  // gpui-kit/assets/icons/gallery-horizontal.svg (Lucide, LICENSE-LUCIDE)
+  "gallery-horizontal": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M2 3v18" /> <rect width="12" height="18" x="6" y="3" rx="2" /> <path d="M22 3v18" /></> },
   // gpui-kit/assets/icons/chevron-left.svg (Lucide, LICENSE-LUCIDE)
   "chevron-left": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="m15 18-6-6 6-6" /></> },
   // gpui-kit/assets/icons/panel-right-open.svg (Lucide, LICENSE-LUCIDE)

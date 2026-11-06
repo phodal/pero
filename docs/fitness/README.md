@@ -9,6 +9,9 @@ procedure limits: [Coding benchmark](coding-benchmark.md).
 Five native HumanEval+ tasks without Docker, official controls and token/tool
 failure analysis: [Native EvalPlus sample](evalplus-native.md).
 
+Live masked-validation warnings, complete-read reuse, discovery phase reminders
+and the third native sample: [Live coding feedback](live-coding-feedback.md).
+
 Pinned DSH/Pi/Qwen comparison, native tool changes and verification:
 [Native coding follow-up](dsh-native-improvements.md).
 
@@ -48,6 +51,9 @@ acceptance: [HPC Benchmarks](hpc.md).
 
 Global appearance, scoped typography and current Settings shell limits:
 [appearance](appearance.md).
+
+Ordinary Chat delivery, immutable versions and Scientific Viewer previews:
+[Conversation artifacts](session-artifacts.md).
 
 Independent App Agent Plugin declarations, local dependencies and scoped ACP
 assembly: [App Agent Plugins](app-agent-plugins.md).

@@ -2,6 +2,7 @@ pub mod acp;
 pub mod agent_plugins;
 pub mod context;
 pub mod file_documents;
+pub mod session_artifacts;
 pub mod roadmap;
 pub mod apps;
 pub mod environments;
