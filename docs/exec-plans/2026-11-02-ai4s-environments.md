@@ -1,7 +1,7 @@
 ---
 kind: execution_plan
 date: 2026-11-02
-status: p1_complete
+status: core_extension_in_progress
 ---
 
 # AI4S Environments 分阶段实施
@@ -12,6 +12,25 @@ status: p1_complete
 依据：[ADR 0029](../adr/0029-ai4s-environments.md)、[领域与接口设计](../design-docs/ai4s-environments.md)、
 [两场景映射](../design-docs/ai4s-environments-scenarios.md)、[研究依据](../design-docs/ai4s-environments-research.md)。
 与 [ADR 0026](../adr/0026-hpc-benchmark-library.md) 的 Compute 分工一致；没有新的执行服务。
+
+## ADR 0030：2026-11-06 实现进展
+
+[组合环境设计](../design-docs/2026-11-06-compute-environment-capabilities.md) 已以
+[ADR 0030](../adr/0030-compute-environment-capabilities.md) 登记，设计提交 `ca28c9d1`。
+本批完成 A 阶段的纯核心扩展，以独立 PR 交付：
+
+- [x] V2 具名 Python/原生程序/OCI 软件组件，包要求关联指定解释器；保留旧观察字节结构和摘要。
+- [x] 多槽位、能力连接依赖闭包、实际资源与运行代次；相同资源的槽位别名合并为一次 Use target。
+- [x] 明确 V2 快照；旧单资源快照摘要不变；未知、过期、不就绪、能力缺失、身份漂移均阻塞。
+- [x] 扩展唯一 `apply_use` 核心：逐项准入、部分失败释放、取消后迟到授权、未知效果和重复回执。
+- [x] 真实既有 Python 元数据探针、Runtime/Host 与 Environments SDK 回归。
+- [ ] A 后续与 B：持久化/恢复格式、Host 准入与原执行入口交接、本机与 Docker 具体 Owner、显式准备与真实执行/取消。
+- [ ] C/D/E：Compose 服务组合、Tart/QEMU/KubeVirt、PC-Gym 独立计算环境与真实 Slurm。
+
+`ResourceTemplate` 是 V2 多槽位定义；`EnvironmentSnapshot` 保留旧投影并包容组合快照。
+本轮没有开放接收 V2 的 App 公共 API，没有真实 ResourceOwner，也没有把 effects 当作
+已经执行。验收数据见 [环境核心验证](../fitness/ai4s-environments.md#2026-11-06adr-0030-核心扩展)。
+P2–P4 的真实执行门槛仍保持未完成。
 
 ## P0：文档与场景检查（已完成）
 
