@@ -5169,6 +5169,166 @@
       ],
       "additionalProperties": false
     },
+    "ChangedFile": {
+      "title": "ChangedFile",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "old_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "added": {
+          "type": "integer"
+        },
+        "deleted": {
+          "type": "integer"
+        },
+        "binary": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path",
+        "old_path",
+        "added",
+        "deleted",
+        "binary"
+      ],
+      "additionalProperties": false
+    },
+    "ChangesCurrent": {
+      "title": "ChangesCurrent",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "current"
+        },
+        "method": {
+          "type": "string",
+          "const": "workspace_changes"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "request_id",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "ChangesList": {
+      "title": "ChangesList",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "list"
+        },
+        "method": {
+          "type": "string",
+          "const": "workspace_changes"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "request_id",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "ChangesRead": {
+      "title": "ChangesRead",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "read"
+        },
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "method": {
+          "type": "string",
+          "const": "workspace_changes"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        }
+      },
+      "required": [
+        "action",
+        "id",
+        "index",
+        "method",
+        "request_id",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "ChangesRequest": {
+      "title": "ChangesRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ChangesList"
+        },
+        {
+          "$ref": "#/$defs/ChangesCurrent"
+        },
+        {
+          "$ref": "#/$defs/ChangesRead"
+        }
+      ]
+    },
+    "ChangesRequestBase": {
+      "title": "ChangesRequestBase",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace_changes"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        }
+      },
+      "required": [
+        "method",
+        "request_id",
+        "thread_id"
+      ]
+    },
     "ChooseDocumentSave": {
       "title": "ChooseDocumentSave",
       "type": "object",
@@ -5312,6 +5472,52 @@
         "request_id",
         "text",
         "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "ComparisonBinary": {
+      "title": "ComparisonBinary",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "binary"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "ComparisonOversized": {
+      "title": "ComparisonOversized",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "oversized"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "ComparisonText": {
+      "title": "ComparisonText",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "text"
+        },
+        "patch": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "patch"
       ],
       "additionalProperties": false
     },
@@ -6923,6 +7129,20 @@
       ],
       "additionalProperties": false
     },
+    "FileComparison": {
+      "title": "FileComparison",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComparisonText"
+        },
+        {
+          "$ref": "#/$defs/ComparisonBinary"
+        },
+        {
+          "$ref": "#/$defs/ComparisonOversized"
+        }
+      ]
+    },
     "FileCopy": {
       "title": "FileCopy",
       "type": "object",
@@ -7385,6 +7605,18 @@
           "$ref": "#/$defs/FileDocumentErrorEvent"
         },
         {
+          "$ref": "#/$defs/WorkspaceChangesEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceChangesCatalogEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceChangeDiffEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceChangesErrorEvent"
+        },
+        {
           "$ref": "#/$defs/ArtifactCatalogEvent"
         },
         {
@@ -7571,6 +7803,9 @@
         },
         {
           "$ref": "#/$defs/ArtifactRequest"
+        },
+        {
+          "$ref": "#/$defs/ChangesRequest"
         },
         {
           "$ref": "#/$defs/LocalWorkerRequest"
@@ -14347,6 +14582,259 @@
       "required": [
         "kind",
         "value"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceChangeDiffEvent": {
+      "title": "WorkspaceChangeDiffEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_change_diff"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "index": {
+              "type": "integer"
+            },
+            "comparison": {
+              "$ref": "#/$defs/FileComparison"
+            }
+          },
+          "required": [
+            "id",
+            "index",
+            "comparison"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceChanges": {
+      "title": "WorkspaceChanges",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "turn"
+            },
+            {
+              "type": "string",
+              "const": "worktree"
+            }
+          ]
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChangedFile"
+          }
+        },
+        "total": {
+          "type": "integer"
+        },
+        "added": {
+          "type": "integer"
+        },
+        "deleted": {
+          "type": "integer"
+        },
+        "created_at": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "scope",
+        "files",
+        "total",
+        "added",
+        "deleted",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceChangesCatalogEvent": {
+      "title": "WorkspaceChangesCatalogEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_changes_catalog"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "changes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkspaceChanges"
+              }
+            }
+          },
+          "required": [
+            "changes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceChangesErrorEvent": {
+      "title": "WorkspaceChangesErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_changes_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AcpPayload"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceChangesEvent": {
+      "title": "WorkspaceChangesEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_changes"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "changes": {
+              "$ref": "#/$defs/WorkspaceChanges"
+            }
+          },
+          "required": [
+            "changes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
       ],
       "additionalProperties": false
     },

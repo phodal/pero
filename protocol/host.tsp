@@ -5,6 +5,7 @@ import "./apps.tsp";
 import "./contributions.tsp";
 import "./automation.tsp";
 import "./session-artifacts.tsp";
+import "./workspace-changes.tsp";
 
 using JsonSchema;
 
@@ -319,7 +320,7 @@ union HostInput {
   McpSourceRequest,
   WorkspaceSessionRequest,
   FileDocumentRequest,
-  ArtifactRequest,
+  ArtifactRequest,ChangesRequest,
   LocalWorkerRequest,
   EchoRequest,
   SetLocaleRequest,
@@ -536,6 +537,7 @@ union HostEvent {
   DocumentChooseEvent,
   FileDocumentEvent,
   FileDocumentErrorEvent,
+  WorkspaceChangesEvent,WorkspaceChangesCatalogEvent,WorkspaceChangeDiffEvent,WorkspaceChangesErrorEvent,
   ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
   ContentDocumentEvent,
   LocalWorkerStateEvent,
