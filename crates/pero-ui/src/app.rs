@@ -253,6 +253,8 @@ impl Workbench {
                 ChatAction::AppLink(href)=>this.open_app_link(href,window,cx),
                 ChatAction::OpenDocument(document)=>this.open_document(document.clone(),window,cx),
                 ChatAction::Content(intent) => this.command(serde_json::to_value(intent).expect("content intent"), cx),
+                ChatAction::WorkspaceFiles(request) => this.command(serde_json::to_value(request).expect("workspace file request"), cx),
+                ChatAction::ResourceTab { tab } => {let mut preferences=this.preferences.clone();preferences.layout.resource_tab=*tab;this.save_preferences(preferences,cx);},
                 ChatAction::Artifacts(request) => this.command(serde_json::to_value(request).expect("artifact request"), cx),
                 ChatAction::ArtifactPreview(target) => {
                     #[cfg(not(target_family="wasm"))]
@@ -642,6 +644,7 @@ impl Workbench {
                             self.chat.update(cx, |chat, cx| {
                                 chat.set_artifact_pane_width(width, cx);
                                 chat.set_artifact_view(view, cx);
+                                chat.set_resource_tab(self.preferences.layout.resource_tab, cx);
                             });
                             self.research_saved(window, cx);
                             if self.preferences_status
