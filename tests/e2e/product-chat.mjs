@@ -232,6 +232,28 @@ try {
   expect((await state()).composer).toBe('Keep this draft');
   expect((await active()).id).toBe(primaryThread);
   await page.screenshot({ path: join(output, 'embedded.png') });
+  await domainFrame.locator('body').evaluate(() => parent.postMessage({type:'pero:app:chat',options:{message:'permission',mode:'replace'}},'*'));
+  await expect.poll(async () => (await state()).composer).toBe('permission');
+  const permissionInput = (await state()).composerBounds.input;
+  await chat.locator('canvas:not([role="textbox"])').click({ position: {
+    x: permissionInput.x + permissionInput.width / 2, y: permissionInput.y + permissionInput.height / 2,
+  } });
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await primary()).permission !== null).toBe(true);
+  await chat.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.screenshot({ path: join(output, 'permission-embedded.png') });
+  const approval = (await state()).permissionBounds.find(item => item.index === 0).bounds;
+  expect(approval.x).toBeGreaterThanOrEqual(0);
+  expect(approval.x + approval.width).toBeLessThanOrEqual(360);
+  expect(approval.y).toBeGreaterThanOrEqual(0);
+  expect(approval.y + approval.height).toBeLessThanOrEqual(300);
+  await chat.locator('canvas:not([role="textbox"])').click({ position: {
+    x: approval.x + approval.width / 2, y: approval.y + approval.height / 2,
+  } });
+  await expect.poll(async () => (await primary()).state).toBe('idle');
+  expect((await primary()).messages.at(-1).text).toBe('Permission handled: allow');
+  await fill('Keep this draft');
+  checks.push('embedded permission card keeps its actions visible and completes the Host approval');
   await page.getByRole('combobox', { name: 'Switch App' }).selectOption('other');
   await expect.poll(async () => (await state()).scope?.app).toBe('other');
   await expect(page.locator('#product-chat header')).toBeVisible();

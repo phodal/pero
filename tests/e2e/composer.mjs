@@ -183,10 +183,51 @@ try {
   await input('permission');
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await state()).chats[0].permission !== null).toBe(true);
+  await frame();
   await page.screenshot({ path: resolve(output, 'permission.png') });
   const permission = (await state()).permissionBounds.find(item => item.index === 0).bounds;
   await page.mouse.click(permission.x + permission.width / 2, permission.y + permission.height / 2);
   await expect.poll(async () => (await state()).chats[0].state).toBe('idle');
+  expect((await state()).chats[0].messages.at(-1).text).toBe('Permission handled: allow');
+
+  await input('permission extended');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state()).chats[0].permission?.options.map(option => option.optionId)).toEqual(['reject', 'always', 'allow']);
+  await frame();
+  await page.screenshot({ path: resolve(output, 'permission-long.png') });
+  await setAppearance(page, 'dark');
+  await frame();
+  await page.screenshot({ path: resolve(output, 'permission-dark.png') });
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 788));
+  await page.waitForFunction(() => innerWidth === 1000);
+  for (const theme of ['dark', 'light']) {
+    await setAppearance(page, theme);
+    await frame();
+    const snapshot = await state();
+    for (const { bounds } of snapshot.permissionBounds) {
+      expect(bounds.width).toBeGreaterThan(0);
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(1000);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(await height());
+    }
+    await page.screenshot({ path: resolve(output, `permission-narrow-${theme}.png`) });
+  }
+  // The first option is a rejection; emphasis must follow kind without changing order.
+  const reject = (await state()).permissionBounds.find(item => item.index === 0).bounds;
+  await page.mouse.click(reject.x + reject.width / 2, reject.y + reject.height / 2);
+  await expect.poll(async () => (await state()).chats[0].state).toBe('idle');
+  expect((await state()).chats[0].messages.at(-1).text).toBe('Permission handled: reject');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1086));
+  await page.waitForFunction(() => innerWidth === 1488);
+
+  await input('permission extended');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state()).chats[0].permission !== null).toBe(true);
+  await frame();
+  const always = (await state()).permissionBounds.find(item => item.index === 1).bounds;
+  await page.mouse.click(always.x + always.width / 2, always.y + always.height / 2);
+  await expect.poll(async () => (await state()).chats[0].state).toBe('idle');
+  expect((await state()).chats[0].messages.at(-1).text).toBe('Permission handled: always');
 
   await input('@');
   await expect.poll(async () => (await state()).completion.open).toBe(true);
