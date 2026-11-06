@@ -20,21 +20,45 @@ export type TableColumn<T> = {
   meta?: TableColumnMeta;
 };
 
-export type TableProps<T> = {
-  rows: readonly T[];
-  rowId: (row: T) => string;
-  columns: readonly TableColumn<T>[];
+type TableSurfaceProps = {
   label?: string;
   labelledBy?: string;
   className?: string;
+  tableClassName?: string;
   density?: 'compact' | 'comfortable';
+  layout?: 'auto' | 'fixed';
   unstyled?: boolean;
 };
+
+export type TableProps<T> = TableSurfaceProps & {
+  rows: readonly T[];
+  rowId: (row: T) => string;
+  columns: readonly TableColumn<T>[];
+};
+
+/** Source/scientific tables own their spans, sorting and row selection markup. */
+export type TableMarkupProps = TableSurfaceProps & {
+  children: React.ReactNode;
+};
+
+/** Both table forms share one named, focusable scroll surface and table skin. */
+export function Table<T>(props: TableProps<T> | TableMarkupProps) {
+  return 'rows' in props ? <DataTable {...props} /> : <TableSurface {...props} />;
+}
+
+function TableSurface({ label, labelledBy, className, tableClassName, density = 'comfortable', unstyled, children, minWidth, layout }: TableMarkupProps & { minWidth?: number }) {
+  return <div className={['pero-ui-table-wrap', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined} data-density={density} tabIndex={0} role={label || labelledBy ? 'region' : undefined} aria-label={label} aria-labelledby={labelledBy}
+    ref={node => { if (node) ensureUiStyles(node.ownerDocument); }}>
+    <table className={['pero-ui-table', tableClassName].filter(Boolean).join(' ')} style={{ minWidth, tableLayout: layout ?? (minWidth === undefined ? 'auto' : 'fixed') }} aria-label={label} aria-labelledby={labelledBy}>
+      {children}
+    </table>
+  </div>;
+}
 
 type ColumnMeta = TableColumnMeta;
 
 /** Data table driven by TanStack Table. Callers set column sizes so dense cells do not crush the rest. */
-export function Table<T>({ rows, rowId, columns, label, labelledBy, className, density = 'comfortable', unstyled }: TableProps<T>) {
+function DataTable<T>({ rows, rowId, columns, ...surface }: TableProps<T>) {
   const defs = useMemo<ColumnDef<T, unknown>[]>(() => columns.map(column => ({
     id: column.id,
     header: () => column.header,
@@ -56,9 +80,7 @@ export function Table<T>({ rows, rowId, columns, label, labelledBy, className, d
   });
   const minWidth = table.getCenterTotalSize();
 
-  return <div className={['pero-ui-table-wrap', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined} data-density={density} tabIndex={0} role={label || labelledBy ? 'region' : undefined} aria-label={label} aria-labelledby={labelledBy}
-    ref={node => { if (node) ensureUiStyles(node.ownerDocument); }}>
-    <table className="pero-ui-table" style={{ minWidth }} aria-label={label} aria-labelledby={labelledBy}>
+  return <TableSurface {...surface} minWidth={minWidth}>
       <colgroup>{table.getAllLeafColumns().map(column => <col key={column.id} style={{ width: column.getSize() }} />)}</colgroup>
       <thead>{table.getHeaderGroups().map(group => <tr key={group.id}>
         {group.headers.map(header => {
@@ -79,6 +101,5 @@ export function Table<T>({ rows, rowId, columns, label, labelledBy, className, d
             : <td key={cell.id} data-align={meta?.align} data-nowrap={meta?.nowrap || undefined} style={style}>{content}</td>;
         })}
       </tr>)}</tbody>
-    </table>
-  </div>;
+  </TableSurface>;
 }

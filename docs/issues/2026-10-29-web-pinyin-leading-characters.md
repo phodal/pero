@@ -93,3 +93,14 @@ The user manually retested local Pero with macOS Simplified Chinese Pinyin
 on 2026-10-29 and confirmed the fix works. The browser and OS version were
 not recorded. This resolves the local leading-character incident; the deployed
 upstream Demo was not changed. No deployment or packaged release was made.
+
+## Kit 0.9.0 review (2026-11-06)
+
+The stock `gpui-pre-web 0.3.11` still lacks the early keyCode 229 guard.
+The local fix is now carried by `patches/gpui-pre-web-0.3.11-ime.patch`;
+the upgraded Electron/Wasm IME suite passes, including consecutive Chinese
+composition and commit/cancel. Physical macOS Pinyin was not retested in this
+upgrade. Upstream native issues #3605 and #3456 are still open as of this
+review; they remain separate from the locally resolved Web incident.
+See [upgrade verification](../fitness/gpui-kit-0.9.md) for the other patches
+and acceptance limits.

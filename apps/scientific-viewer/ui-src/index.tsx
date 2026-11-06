@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppChat, openPaperApp } from '@pero/app-sdk';
-import { AppBar, Button, Feedback, FilePicker, Select, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@pero/app-sdk/ui';
+import { Disclosure, AppBar, Button, Feedback, FilePicker, Select, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@pero/app-sdk/ui';
 import { assetFrom, inspect, type Asset } from './files';
 import { files, saveFile, removeFile } from './store';
 import { examples } from './examples';
@@ -63,8 +63,8 @@ export default function ScientificViewer() {
   return <main className="scientific-viewer"><h1 className="sr-only">Scientific Viewer</h1>
     <AppBar className="viewer-toolbar" aria-label="File actions" tools={<>
       <Select id="viewer-file" className="file-select" label={t.file} value={selected} disabled={loading || importing} onChange={value => { setPendingRemoval(null); setSelected(value); }} options={[{ value: '', label: t.molecules }, ...assets.map(item => ({ value: item.id, label: item.name }))]} />
-      {asset && <details className="source-details" key={asset.id}>
-        <summary aria-label={t.source} aria-describedby="source-status"><span id="source-status">{asset.synthetic ? t.synthetic : t.unverified}</span></summary><div className="source-panel">
+      {asset && <Disclosure variant="inline" className="source-details" key={asset.id} summaryProps={{ 'aria-label': t.source, 'aria-describedby': 'source-status' }} summary={<><span id="source-status">{asset.synthetic ? t.synthetic : t.unverified}</span></>}>
+        <div className="source-panel">
           <h2>{t.source}</h2><dl><dt>{t.size}</dt><dd>{asset.size.toLocaleString('en-US')} bytes</dd><dt>{t.origin}</dt><dd>{asset.source}</dd><dt>{t.license}</dt><dd>{asset.license}</dd><dt>SHA-256</dt><dd className="hash">{asset.sha256}</dd></dl>
           <div className="source-actions"><Button onClick={() => void chat.compose(`Inspect metadata for ${asset.name}. SHA-256 ${asset.sha256}; source: ${asset.source}; license: ${asset.license}. Unverified. File contents have not been shared.`).catch(error => setError(String(error)))}>{t.discuss}</Button>
             <Button ref={removeButton} disabled={removing} onClick={() => setPendingRemoval({ id: asset.id, name: asset.name })}>{t.remove}</Button></div>
@@ -72,7 +72,7 @@ export default function ScientificViewer() {
             <p>{t.removal(pendingRemoval.name)}</p><div className="source-actions"><Button autoFocus disabled={removing} onClick={() => { setPendingRemoval(null); removeButton.current?.focus(); }}>{t.cancel}</Button>
               <Button variant="danger" disabled={removing} onClick={() => void confirmRemoval()}>{removing ? t.removing : t.confirm}</Button></div>
           </div>}
-        </div></details>}
+        </div></Disclosure>}
       </>} actions={<>
         <DropdownMenu><DropdownMenuTrigger asChild><Button disabled={importing}>{t.examples}</Button></DropdownMenuTrigger><DropdownMenuContent align="end">
           {examples.map(example => <DropdownMenuItem key={example.name} onSelect={() => void importFile(new File([example.text], example.name), true)}>{example.name}</DropdownMenuItem>)}

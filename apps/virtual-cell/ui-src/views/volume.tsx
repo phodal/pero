@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Checkbox, Field, Select } from '@pero/app-sdk/ui';
+import { Checkbox, Field, Select, Slider as RangeSlider } from '@pero/app-sdk/ui';
 import type { Volume } from '../science';
 import { color, num, Pane } from '../components/plots';
 import { SourceStamp } from '../components/source';
@@ -8,7 +8,7 @@ import type { Translate } from '../messages';
 
 function Slider({ label, value, min = 0, max = 1, step = .01, onChange }: { label: string; value: number; min?: number; max?: number; step?: number; onChange(n: number): void }) {
   const id = React.useId();
-  return <label className="vc-slider" htmlFor={id}><span>{label}<output aria-hidden="true">{num(value)}</output></span><input id={id} type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(Number(e.target.value))}/></label>;
+  return <label className="vc-slider" htmlFor={id}><span>{label}<output aria-hidden="true">{num(value)}</output></span><RangeSlider id={id} min={min} max={max} step={step} value={value} onChange={e => onChange(Number(e.target.value))}/></label>;
 }
 export function VolumeView({ document, t, isExample = false }: { document: Volume; t: Translate; isExample?: boolean }) {
   const [visible, setVisible] = useState(document.channels.map(() => true)), [density, setDensity] = useState(3), [threshold, setThreshold] = useState(.08), [cut, setCut] = useState(1), [slices, setSlices] = useState([.5, .5, .5]);

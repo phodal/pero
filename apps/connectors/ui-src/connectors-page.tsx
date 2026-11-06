@@ -380,7 +380,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
           <span className="point-connectors-symbol"><StatusDot state={view.state} /></span>
           <div className="point-connectors-row-copy">
             <div className="point-connectors-row-title">
-              <Button variant="unstyled" className="point-connectors-link" onClick={() => openDetail(view.connectionId)}>{cardTitle(view)}</Button>
+              <Button variant="link" className="point-connectors-link" onClick={() => openDetail(view.connectionId)}>{cardTitle(view)}</Button>
               <span className="point-connectors-pill" data-state={view.state}>{(locale === 'en' ? STATE_LABELS_EN : STATE_LABELS)[view.state] ?? view.state}</span>
               {view.badges.filter(b => ['lease-held', 'probe-released', 'source-builtin'].includes(b)).map(b => <span key={b} className="point-connectors-badge">{(locale === 'en' ? BADGE_LABELS_EN : BADGE_LABELS)[b] ?? b}</span>)}
             </div>

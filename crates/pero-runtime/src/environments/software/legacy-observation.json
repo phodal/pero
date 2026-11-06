@@ -1,0 +1,15 @@
+{
+  "name": "control-lab",
+  "python": {
+    "major": 3,
+    "minor": 12,
+    "patch": 11
+  },
+  "system": "Linux",
+  "machine": "x86_64",
+  "interpreter_sha256": null,
+  "packages": {
+    "control": "0.10.2"
+  },
+  "native": {}
+}

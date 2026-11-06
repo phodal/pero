@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React, { useId, useLayoutEffect, useRef, useState } from 'react';
 import { Button, Card, CardHeader, Icon, IconButton } from '@pero/app-sdk/ui';
 import { seriesStyle } from '@pero/app-sdk/chart';
 
@@ -15,11 +15,20 @@ export function Legend({ items }: { items: { name: string; color: string }[] }) 
   return <div className="vc-legend">{items.map((s, i) => <span key={i}><i style={{ background: s.color }}/>{s.name}</span>)}</div>;
 }
 export function Heatmap({ columns, rows, selected, onSelect, label, diverging = false }: { columns: string[]; rows: { id: string; values: number[] }[]; selected?: string; onSelect?(id: string): void; label: string; diverging?: boolean }) {
-  const width = 720, left = 125, top = 16, cellH = Math.max(13, Math.min(27, 330 / Math.max(1, rows.length))), height = rows.length * cellH + 82;
+  const axisLabel = (value: string) => Array.from(value).length > 20 ? `${Array.from(value).slice(0, 19).join('')}…` : value;
+  // SVG labels use 16-unit type; grow the drawing with the user's caption size.
+  const svg = useRef<SVGSVGElement>(null), [left, setLeft] = useState(125);
+  useLayoutEffect(() => {
+    const labels = svg.current?.querySelectorAll<SVGTextElement>('[data-row-label]') ?? [];
+    setLeft(Math.ceil(Math.max(115, ...Array.from(labels, text => text.getComputedTextLength()))) + 20);
+  }, [rows, selected]);
+  const bottom = Math.max(82, ...columns.map(column => Array.from(axisLabel(column)).length * 12 + 24));
+  const width = left + Math.max(360, columns.length * 32) + 12, top = 16;
+  const cellH = Math.max(20, Math.min(27, 330 / Math.max(1, rows.length))), height = top + rows.length * cellH + bottom;
   const values = rows.flatMap(r => r.values), max = Math.max(...values.map(Math.abs), .001), cellW = (width - left - 12) / Math.max(1, columns.length), signed = diverging || values.some(v => v < 0);
-  return <div className="vc-heatmap"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}><title>{label}</title>
-    {rows.map((r, y) => <g key={r.id}><text x={left - 10} y={top + y * cellH + cellH * .7} textAnchor="end" className={r.id === selected ? 'vc-axis-selected' : 'vc-axis'}>{r.id.length > 20 ? `${r.id.slice(0, 19)}…` : r.id}</text>{r.values.map((v, x) => <rect key={x} x={left + x * cellW} y={top + y * cellH} width={cellW - .5} height={cellH - .5} fill={`color-mix(in srgb, ${color(signed && v < 0 ? 5 : 1)} ${Math.abs(v) / max * 100}%, var(--pero-surface))`} stroke={r.id === selected ? 'var(--pero-text)' : 'none'} strokeWidth={.6} onClick={() => onSelect?.(r.id)}><title>{`${r.id} · ${columns[x]}: ${num(v)}`}</title></rect>)}</g>)}
-    {columns.map((g, x) => <text key={g} className="vc-axis" transform={`translate(${left + (x + .5) * cellW},${top + rows.length * cellH + 10}) rotate(-45)`} textAnchor="end">{g}</text>)}
+  return <div className="vc-heatmap" role="region" aria-label={label} tabIndex={0}><svg ref={svg} style={{ minWidth: `calc(var(--pero-font-caption) * ${width / 16})` }} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}><title>{label}</title>
+    {rows.map((r, y) => <g key={r.id}><text data-row-label="" x={left - 10} y={top + y * cellH + cellH * .7} textAnchor="end" className={r.id === selected ? 'vc-axis-selected' : 'vc-axis'}>{axisLabel(r.id)}<title>{r.id}</title></text>{r.values.map((v, x) => <rect key={x} x={left + x * cellW} y={top + y * cellH} width={cellW - .5} height={cellH - .5} fill={`color-mix(in srgb, ${color(signed && v < 0 ? 5 : 1)} ${Math.abs(v) / max * 100}%, var(--pero-surface))`} stroke={r.id === selected ? 'var(--pero-text)' : 'none'} strokeWidth={.6} onClick={() => onSelect?.(r.id)}><title>{`${r.id} · ${columns[x]}: ${num(v)}`}</title></rect>)}</g>)}
+    {columns.map((g, x) => <text key={g} className="vc-axis" transform={`translate(${left + (x + .5) * cellW},${top + rows.length * cellH + 10}) rotate(-45)`} textAnchor="end">{axisLabel(g)}<title>{g}</title></text>)}
   </svg><div className="vc-color-scale"><span>{signed ? num(-max) : '0'}</span><i style={{ background: signed ? `linear-gradient(90deg, ${color(5)}, var(--pero-surface), ${color(1)})` : `linear-gradient(90deg, var(--pero-surface), ${color(1)})` }}/><span>{num(max)}</span></div></div>;
 }
 export function Bars({ rows, label, selected, onSelect }: { rows: { id: string; value: number; color?: string }[]; label: string; selected?: string; onSelect?(id: string): void }) {

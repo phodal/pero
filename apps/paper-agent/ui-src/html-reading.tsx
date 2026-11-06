@@ -79,7 +79,7 @@ export function HtmlReading({ id, sourceUrl, onDiscuss, renderSelection, childre
   return <div className="pa-html-reading">
     <div className="pa-html-chrome">
       {!!outline.length && <Popover className="pa-html-toc" label={t('contents')} align="end" triggerVariant="ghost" trigger={<><Icon name="layout-list" size={14}/><span>{t('contents')}</span></>} contentClassName="pa-html-toc-panel" popupRole="menu">
-        {close => <nav aria-label={t('contents')}>{outline.map(item => <button key={item.id} type="button" role="menuitem" className="pa-text-contents-item" data-level={item.level} onClick={() => { reader.current?.reveal(item.id); close(); }}>{item.title}</button>)}</nav>}
+        {close => <nav aria-label={t('contents')}>{outline.map(item => <Button variant="ghost" key={item.id} type="button" role="menuitem" className="pa-text-contents-item" data-level={item.level} onClick={() => { reader.current?.reveal(item.id); close(); }}>{item.title}</Button>)}</nav>}
       </Popover>}
       {imageStatus === 'loading' && <p className="pa-html-image-status" role="status">{t('images')}</p>}
       {selection && <div className="pa-html-selection">{onDiscuss && <Button onClick={() => onDiscuss(selection.text)}>{t('discuss')}</Button>}{renderSelection?.(selection)}</div>}

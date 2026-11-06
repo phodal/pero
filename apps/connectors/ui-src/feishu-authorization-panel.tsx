@@ -1,3 +1,4 @@
+import { Disclosure } from '@pero/app-sdk/ui';
 import { connectorRequest } from './bridge';
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Button, Checkbox, Feedback } from './ui';
@@ -81,10 +82,10 @@ function AuthorizationPanel({ connectionId, locale, onAuthorized, actionsTarget,
       <span role="status">{checking ? copy('正在核验…', 'Checking…') : account ? account.userName || account.openId : copy('未核验', 'Not verified')}{connectionState && <> · {connectionLabel}</>}</span>
       {actionError && <span role="alert">{feishuMessage(actionError, locale)}</span>}
     </div>
-    {(error || connectionSummary) && <details className="point-feishu-diagnostics"><summary>{copy('诊断详情', 'Diagnostics')}</summary>
+    {(error || connectionSummary) && <Disclosure variant="inline" className="point-feishu-diagnostics" summary={<>{copy('诊断详情', 'Diagnostics')}</>}>
       {connectionSummary && <p>{connectionSummary}</p>}
       {error && <><p>{error === 'FEISHU_DESKTOP_REQUIRED' ? copy('需要本机 Pero Host 才能检查和授权。', 'The local Pero Host is required to check and authorize.') : feishuMessage(error, locale)}</p><code>{error}</code></>}
-    </details>}
+    </Disclosure>}
     <fieldset className="point-feishu-permissions" disabled={busy || restoring || !!attempt} aria-describedby={`${id}-hint`}>
       <legend>{copy('用户权限', 'User permissions')}</legend>
       <p id={`${id}-hint`}>{copy('勾选要申请的权限，右侧为当前授权状态。', 'Select permissions to request. Current consent is shown on the right.')}</p>
@@ -112,6 +113,6 @@ function AuthorizationPanel({ connectionId, locale, onAuthorized, actionsTarget,
           <Button disabled={busy} onClick={() => void act('cancel')}>{copy('取消授权', 'Cancel authorization')}</Button></>}
     </div></ActionPortal>
     {message && <Feedback>{message}</Feedback>}
-    {account && <details className="point-feishu-diagnostics"><summary>{copy('账号详情', 'Account details')}</summary><dl><dt>{copy('用户', 'User')}</dt><dd>{account.openId}</dd><dt>{copy('租户', 'Tenant')}</dt><dd>{account.tenantId}</dd></dl></details>}
+    {account && <Disclosure variant="inline" className="point-feishu-diagnostics" summary={<>{copy('账号详情', 'Account details')}</>}><dl><dt>{copy('用户', 'User')}</dt><dd>{account.openId}</dd><dt>{copy('租户', 'Tenant')}</dt><dd>{account.tenantId}</dd></dl></Disclosure>}
   </section>;
 }

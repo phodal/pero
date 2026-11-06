@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Dialog, Feedback, Icon } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Dialog, Feedback, Icon } from '@pero/app-sdk/ui';
 import type { Api, PdfFocus } from './types';
 import { assetSize, type ResearchBundle } from './research-types';
 import { SourceBrowser } from './research-source-browser';
@@ -106,7 +106,7 @@ export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQue
   }, [loading, busy, running, error, queue.length, values, onState]);
   if (!resources.length) return null;
   return <section className="pa-research-downloads pa-research-sources" aria-label={t('title')}>
-    {error && <Feedback kind="error"><span>{t('statusFailed')}</span><Button disabled={busy || loading} onClick={() => void refresh()}>{t('refresh')}</Button><details><summary>{t('errorDetails')}</summary>{error}</details></Feedback>}
+    {error && <Feedback kind="error"><span>{t('statusFailed')}</span><Button disabled={busy || loading} onClick={() => void refresh()}>{t('refresh')}</Button><Disclosure variant="inline" summary={<>{t('errorDetails')}</>}>{error}</Disclosure></Feedback>}
     <ul>{resources.map(resource => {
       const value = values[resource.id], receipt = value?.receipt, available = value?.localAvailable === true;
       return <li key={resource.id}>
@@ -119,8 +119,8 @@ export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQue
           {value?.status === 'running' ? <Button disabled={busy || loading} onClick={() => void operate('cancel', resource.id)}>{t('cancel')}</Button> : value && (!terminal.includes(value.status) || !available) && <Button disabled={busy || loading || !!running || !!error} onClick={() => void operate('start', resource.id)}>{t(value.status === 'unavailable' || !available && terminal.includes(value.status) ? 'restore' : receipt ? 'retryRestore' : value.status === 'not_started' ? 'get' : 'retry')}</Button>}
           {!error && <Button variant="ghost" aria-label={t('refresh')} title={t('refresh')} disabled={loading || busy} onClick={() => void refresh()}><Icon name="refresh" size={14}/></Button>}
         </div></div>
-        {value?.error && <Feedback kind="error"><details><summary>{t('errorDetails')}</summary>{value.error}</details></Feedback>}
-        <details className="pa-source-provenance"><summary>{t('details')}</summary>
+        {value?.error && <Feedback kind="error"><Disclosure variant="inline" summary={<>{t('errorDetails')}</>}>{value.error}</Disclosure></Feedback>}
+        <Disclosure variant="inline" className="pa-source-provenance" summary={<>{t('details')}</>}>
           {receipt && <dl className="pa-resource-provenance">
             <dt>{t('sourcePage')}</dt><dd><a href={receipt.sourcePageUrl} target="_blank" rel="noreferrer">{receipt.sourcePageUrl}</a></dd><dt>{t('request')}</dt><dd>{receipt.requestUrl}</dd><dt>{t('final')}</dt><dd>{receipt.finalUrl}</dd>
             <dt>{t('retrieved')}</dt><dd>{receipt.fetchedAt}</dd><dt>{t('format')}</dt><dd>{receipt.format} / {receipt.mime}</dd><dt>SHA-256</dt><dd>{receipt.archiveDigest}</dd>
@@ -130,7 +130,7 @@ export function ResearchSources({ api, bundle, startSourceIds, onRead, onAutoQue
           </dl>}
           <p className="pa-muted">{t('discovery')}</p><p>{resource.title}</p><a href={resource.url} target="_blank" rel="noreferrer">{resource.url}</a>
           {!!resource.unresolved?.length && <ul>{resource.unresolved.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
-        </details>
+        </Disclosure>
         {open === resource.id && receipt && (dialog ? <Dialog title={`${t('title')} ${receipt.revision ?? ''}`} size="lg" className="pa-tex-source-dialog" closeLabel={t('dialogClose')} onClose={() => setOpen(null)}><SourceBrowser api={api} bundle={bundle} resourceId={resource.id} receipt={receipt} available={available} onRead={async (id, focus) => {
           const opening = openingEpoch.current;
           const opened = await onRead(id, focus);

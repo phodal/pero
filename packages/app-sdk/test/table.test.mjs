@@ -33,3 +33,23 @@ test('table keeps sized columns and does not let a long cell crush neighbors', a
   await React.act(async () => document.querySelector('.job').click());
   assert.deepEqual(opened, ['a']);
 });
+
+
+test('source table preserves spans, sort ownership and selected rows in the shared scroll surface', async t => {
+  const env = await createUiRuntime(t, 'table');
+  if (!env) return;
+  const { React, ui, render } = env;
+  await render(React.createElement(ui.Table, { label: 'Scientific evidence', tableClassName: 'evidence' },
+    React.createElement('thead', null, React.createElement('tr', null,
+      React.createElement('th', { scope: 'col', colSpan: 2, 'aria-sort': 'descending' }, 'Measurements'))),
+    React.createElement('tbody', null, React.createElement('tr', { 'aria-selected': true },
+      React.createElement('th', { scope: 'row', rowSpan: 2 }, 'Source A'), React.createElement('td', null, '0.25')))));
+  const region = document.querySelector('[role=region]');
+  assert.equal(region.getAttribute('aria-label'), 'Scientific evidence');
+  assert.equal(region.tabIndex, 0);
+  const table = region.querySelector('table.evidence');
+  assert.equal(table.querySelector('[aria-sort]').getAttribute('aria-sort'), 'descending');
+  assert.equal(table.querySelector('thead th').colSpan, 2);
+  assert.equal(table.querySelector('tbody th').rowSpan, 2);
+  assert.equal(table.querySelector('tbody tr').getAttribute('aria-selected'), 'true');
+});

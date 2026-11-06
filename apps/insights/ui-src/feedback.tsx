@@ -1,4 +1,4 @@
-import { Feedback } from '@pero/app-sdk/ui';
+import { Disclosure, Feedback } from '@pero/app-sdk/ui';
 
 const copy = {
   zh: {
@@ -34,6 +34,6 @@ export function InsightsError({ error, locale, context = 'generation', retained 
       {credential ? <><strong>{t.credential}</strong><span className="point-insights-error-hint">{t.credentialHint}</span></> : t[context]}
       {retained && <span className="point-insights-error-hint">{t.retained}</span>}
     </Feedback>
-    {!credential && <details className="point-insights-diagnostics"><summary>{t.details}</summary><pre>{error.slice(0, 1000)}</pre></details>}
+    {!credential && <Disclosure variant="inline" className="point-insights-diagnostics" summary={<>{t.details}</>}><pre>{error.slice(0, 1000)}</pre></Disclosure>}
   </div>;
 }

@@ -1,5 +1,5 @@
 import type { ScientificMethod } from './view.mjs';
-export interface Method { readonly id: ScientificMethod; readonly name: string; readonly app: string; readonly software: string }
+export interface Method { readonly id: ScientificMethod; readonly name: string; readonly app: string; readonly software: string; readonly icon: string; readonly tone: 'neutral' | 'blue' | 'apricot' }
 export const METHODS: readonly Method[];
 export const METHOD_IDS: readonly ScientificMethod[];
 export const OBSERVATION_MAX_AGE_MS: number;

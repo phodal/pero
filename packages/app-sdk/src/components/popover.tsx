@@ -253,7 +253,7 @@ export const Popover = forwardRef<HTMLButtonElement, PopoverProps>(function Popo
   return <div className={classes('pero-ui-popover', className)} onKeyDown={onKeyDown}>
     <Button variant={triggerVariant} data-unstyled={triggerClassName ? true : undefined} ref={setTrigger} type="button" disabled={disabled} className={classes('pero-ui-popover-trigger', triggerClassName)} title={triggerTitle ?? label}
       aria-haspopup={popupRole === false ? false : popupRole} aria-expanded={!!displayed} aria-controls={displayed ? panelId : undefined} aria-label={label}
-      onClick={() => commit(!displayed, false)}>{trigger}</Button>
+      onClick={event => { event.currentTarget.focus(); commit(!displayed, false); }}>{trigger}</Button>
     {displayed && portal && createPortal(<div ref={panelRef} id={panelId} data-pero-popup-container="" role={role} aria-label={role ? label : undefined} data-align={align} style={{visibility:'hidden'}} tabIndex={-1}
       className={classes('pero-ui-popover-panel', className, contentClassName)} onKeyDown={onKeyDown}>{children(requestClose)}</div>, portal)}
   </div>;

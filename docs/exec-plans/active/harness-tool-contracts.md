@@ -173,3 +173,106 @@ go -C harness/go test -race ./nativetools \
 Add `PERO_EVAL_DEFER_TOOL_LOADING=1` to select the deferred profile. The Go test
 does not load `.env` automatically. Run profiles serially when measuring
 latency or investigating provider limits; no automatic retry is added.
+
+## Combined evaluation follow-up, 2026-11-06
+
+The earlier results answer different questions and must retain their boundaries:
+
+| Evidence | Observed result | Decision |
+| --- | --- | --- |
+| DeepSeek guidance A/B | Both variants pass 6/6; 26 versus 28 requests. | No demonstrated guidance efficiency gain. |
+| Sol eager guidance A/B | Both variants pass 6/6; 18 versus 30 requests. | Inspect actual operations before changing guidance. |
+| Sol deferred guidance A/B | 11/12 pass; one provider 429 before tool execution. | Preserve the failure; run follow-ups serially. |
+| Original coder review | DeepSeek uses 56 requests, sol uses 44; the three workflow scripts match their prior hashes. | Both prove the selected review subflow; different models and single samples do not establish savings. |
+| Earlier native HumanEval+ | The first sample passes 5/5; two later samples pass 4/5. | Correctness remains decisive: fewer tokens did not resolve the source/specification mistake in task 116. |
+| New-code / SAD | Earlier DeepSeek trials cover local two-repository publication and a standards/validator/reviewer subflow. | Retain those scopes; this follow-up does not repeat their whole business workflows. |
+
+The opt-in guidance experiment now records each sample's actual tool sequence.
+`PERO_EVAL_OUTPUT_DIR` also preserves Harness request snapshots and Session
+events in private trace files. Each repetition gets its own directory, so
+`-count` does not overwrite earlier evidence. `PERO_EVAL_GUIDANCE_FIRST=1`
+reverses variant order without changing the tasks, tools or validation rules.
+
+A first serial diagnostic pair passes 4/4. Without guidance, both tasks read
+their input with Grep/NotebookRead and write the report. With guidance, each
+also searches for AGENTS.md and reads the saved report. These additional calls
+have instruction-discovery and verification purposes. This is insufficient
+evidence to remove the guidance or weaken those checks. These minimal native
+fixtures do not mount the CLI's workspace-instruction loader and do not measure
+all of its instruction handling.
+
+The next coding control reuses the same five public HumanEval+ prompts and
+unchanged official evaluator from the prior run. Fresh reference controls pass
+5/5 and empty controls fail 5/5. Each isolated workspace contains only the
+public solution skeleton; judge inputs and references stay outside it. The
+run selects current master runtime, gpt-6.1-sol Responses and a 64-request
+ceiling per task, versus the earlier unlimited DeepSeek configuration. It has
+one submission per task, zero retries and no hidden-test feedback. Runtime,
+provider/model and the ceiling differ, so this is a fresh acceptance sample,
+not a single-factor benchmark comparison.
+
+That fresh sample passes **5/5 base and plus**, using 37 requests, 27 tools and
+276,011 provider-reported total tokens; all prompts and cleanup complete
+normally. The four nonzero process exits are three empty file searches and one
+missing `python`, recovered with `python3`. No zero-exit validation candidates
+are detected. The complete classification, independent judge/control results
+and provenance are in [the native verification](../../fitness/evalplus-native.md#sol-responses-follow-up-2026-11-06)
+and [machine-readable report](../../design-docs/harness-evaluation-followup.json).
+
+The follow-up guidance set also finishes 12/12: forward eager, reversed eager
+and reversed deferred runs execute serially and preserve their traces. The
+eager call pattern is the same in both variant orders. No prompt/runtime
+behavior is changed on the basis of those extra verification calls. The older
+429 sample, old 4/5 coding result and all prior partial plugin acceptances stay
+unchanged. Remaining compatibility features require their own source and
+workflow evidence, as recorded in the compatibility plan.
+
+## Complex task follow-up, 2026-11-06
+
+At frozen master snapshot `fbc8c668`, five selected Terminal-Bench tasks run with native
+deferred tools and `gpt-6.1-sol` nonstreaming Responses. Fresh original-solution
+controls pass 5/5; empty submissions fail 5/5. One submission per task, zero
+retries and original independent verifiers produce **4/5 task acceptances**:
+cancellation 6/6 tests, WAL recovery 7/7, gRPC 7/7 and compression 3/3.
+The polyglot submission fails its file-set check because local compilation
+leaves `cmain` beside the requested source. No hidden-feedback repair is scored.
+
+The five submissions use 41 requests, 39 tools and 326,617 reported tokens.
+All end normally and their agent processes stop. The gRPC environment service
+survives agent exit and passes independent RPC verification. The three failed
+shell calls remain recorded; they do not become successful tool calls merely
+because four tasks pass. Both input/runner audits pass, with no credential hits.
+
+This profile leaves optional engineering feedback/contracts off; older
+contract-enabled DeepSeek reruns are not matched controls. Native task success
+does not establish full original-plugin Workflow compatibility. The
+[verification](../../fitness/terminal-bench-sol-complex.md),
+[machine report](../../design-docs/harness-complex-sol-evaluation.json) and
+[open delivery record](../../issues/2026-11-06-coding-delivery-residue.md)
+retain the failure and exact execution boundaries. OCaml GC repair, a MIPS
+interpreter and Cython/NumPy migration are researched next candidates.
+
+## Repository feature sample, 2026-11-06
+
+The requested Agentic Coding Durability sources are cloned under
+`/Users/phodal/benchmarks/ai4se`. Three isolated projects run serially from
+master `5e87d45a`, using the native deferred tools, existing feedback profile
+and `gpt-6.1-sol` Responses. Gin receives two sequential prompts in one Session;
+FastAPI and OpenManus each receive one. No independent judge feedback or manual
+feature repairs are supplied to the model.
+
+Gin's JWT plus SQLite CRUD and FastAPI's blog feature pass independent HTTP,
+schema and persistence checks. OpenManus passes four search-module cases and
+ten scoped tests, while ordinary pytest collection fails on the unprovisioned
+browser dependency; full application startup remains unverified. FastAPI's
+17 tests pass, but inherited repository lint/type debt remains. All prompts
+and native cleanup end normally. The total is 99 requests, 152 tool calls,
+eight retained failed calls and 2,166,073 reported tokens.
+
+This locally adapted sample is not an official Qoder score or a matched
+comparison to the feedback-off Terminal-Bench run. It adds repository feature
+and regression evidence; the earlier delivery issue stays open and full
+plugin development/review/merge parity remains unproven. The
+[verification](../../fitness/agentic-coding-durability.md) and
+[machine report](../../design-docs/harness-durability-sol-evaluation.json)
+retain the preparation, failures, source hashes and acceptance scope.

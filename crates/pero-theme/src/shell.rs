@@ -93,22 +93,32 @@ pub fn content_tab(
         .max_w(px(if state.pinned { 160. } else { 220. }))
         .px(chrome.geo(SPACE_8))
         .gap(chrome.geo(SPACE_4))
+        .rounded(chrome.geo(crate::RADIUS_SELECTION))
         .cursor_pointer()
-        .bg(if state.active {
+        .bg(if state.active && state.focused {
+            p.accent_soft
+        } else if state.active {
             p.surface
         } else {
             p.text.opacity(0.)
         })
-        .text_color(if state.active { p.text } else { p.text_muted })
-        .border_b_1()
-        .border_color(if state.active && state.focused {
-            p.action
+        .text_color(if state.active && state.focused {
+            p.accent_text
         } else if state.active {
+            p.text
+        } else {
+            p.text_muted
+        })
+        .border_1()
+        .border_color(if state.active {
             p.border
         } else {
             p.text.opacity(0.)
         })
-        .when(!state.active, |el| el.hover(|el| el.bg(p.surface_hover)))
+        .when(!state.active, |el| el
+            .hover(|el| el.bg(p.surface_hover).text_color(p.text))
+            .active(|el| el.bg(p.surface_pressed)))
+        .when(state.active && state.focused, |el| el.hover(|el| el.border_color(p.action)))
 }
 
 /// Truncation is visual only; the host supplies the full title as the accessible name/tooltip.
@@ -130,4 +140,5 @@ pub fn content_tab_close_button(id: impl Into<ElementId>, chrome: Chrome, cx: &A
     crate::ghost_icon_button(id, chrome, cx)
         .w(chrome.control(crate::CONTENT_TAB_CLOSE))
         .h(chrome.control(crate::CONTENT_TAB_CLOSE))
+        .max_h_full()
 }

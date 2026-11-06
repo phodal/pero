@@ -10,10 +10,10 @@ if (!existsSync(resolve(source, 'crates/kit/Cargo.toml'))) {
   throw new Error('Set PERO_GPUI_KIT_PATH to your gpui-kit checkout (see desktop/README.md).');
 }
 export const kit = realpathSync(source);
-const patches = ['gpui-base-0.8.1-source-search.patch','gpui-base-0.8.1-edit-events.patch','gpui-component-0.8.1-menu-height.patch'].map(name=>resolve(root,'patches',name));
+const patches = ['gpui-base-0.9.0-source-search.patch','gpui-base-0.9.0-edit-events.patch','gpui-component-0.9.0-menu-height.patch'].map(name=>resolve(root,'patches',name));
 const version = readFileSync(resolve(kit, 'crates/base/Cargo.toml'), 'utf8');
-if (!/^version\s*=\s*"0\.8\.1"\s*$/m.test(version)) {
-  throw new Error('The source-search patch requires gpui-base 0.8.1. Revalidate it before updating Kit.');
+if (!/^version\s*=\s*"0\.9\.0"\s*$/m.test(version)) {
+  throw new Error('The source-search patch requires gpui-base 0.9.0. Revalidate it before updating Kit.');
 }
 const excluded = new Set(['.git', 'target', 'node_modules']);
 const hash = createHash('sha256');
@@ -33,7 +33,7 @@ fingerprint(kit);
 const digest = hash.digest('hex');
 const target = resolve(root, process.env.CARGO_TARGET_DIR || 'target');
 mkdirSync(target, { recursive:true });
-export const patchedKit = resolve(realpathSync(target), `patched-dependencies/gpui-kit-0.8.1-${digest.slice(0,12)}`);
+export const patchedKit = resolve(realpathSync(target), `patched-dependencies/gpui-kit-0.9.0-${digest.slice(0,12)}`);
 
 // The stamp records the patched tree's own contents. A CI target cache may restore a
 // pruned or partial copy beside a valid-looking stamp, so the stamp alone is not trusted.

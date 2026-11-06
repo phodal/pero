@@ -8,7 +8,7 @@ import { Product } from '../../packages/product/product.ts';
 
 const root = resolve(import.meta.dirname, '../..');
 const taskCenter = 'https://app.openpero.com';
-const kitRevision = 'ec89cfc36404667b7947aeb3d40b1c2859d729dd';
+const kitRevision = '7591a35eced761e3613c01e71ff04c10129dae1a';
 const tag = process.env.RELEASE_TAG || null;
 const operation = process.argv[2];
 const localSmoke = operation === 'smoke' && process.env.GITHUB_ACTIONS !== 'true';

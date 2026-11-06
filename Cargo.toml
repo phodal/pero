@@ -16,7 +16,7 @@ session-analysis = { path = "crates/session-analysis" }
 pero-runtime = { path = "crates/pero-runtime" }
 pero-theme = { path = "crates/pero-theme" }
 pero-chat-ui = { path = "crates/pero-chat-ui" }
-gpui-kit = "=0.8.1"
+gpui-kit = "=0.9.0"
 
 [profile.dev]
 debug = 0

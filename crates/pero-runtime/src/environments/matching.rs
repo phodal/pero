@@ -41,12 +41,7 @@ pub fn match_profile(
     now_ms: u64,
     max_age_ms: u64,
 ) -> Result<EnvironmentMatch, EnvironmentError> {
-    if max_age_ms == 0
-        || binding.observed_at_ms > now_ms
-        || now_ms - binding.observed_at_ms > max_age_ms
-    {
-        return Err(EnvironmentError::ObservationMissing);
-    }
+    ObservationWindow::new(now_ms, max_age_ms)?.require(binding.observed_at_ms)?;
     match_software(requirements, &binding.profile)
 }
 
@@ -56,35 +51,7 @@ pub fn match_software(
     requirements: &EnvironmentRequirements,
     software: &SoftwareProfile,
 ) -> Result<EnvironmentMatch, EnvironmentError> {
-    let profile = software.observation();
-    let satisfied = |rule: &Requirement| match rule {
-        Requirement::Profile { digest } => software.id() == digest,
-        Requirement::Python {
-            major,
-            minor,
-            patch,
-        } => {
-            profile.python.major == *major
-                && profile.python.minor == *minor
-                && patch.is_none_or(|patch| profile.python.patch == patch)
-        }
-        Requirement::Package { name, version } => profile
-            .packages
-            .get(name)
-            .and_then(Option::as_ref)
-            .is_some_and(|actual| version.as_ref().is_none_or(|expected| expected == actual)),
-        Requirement::Native { name, sha256 } => profile.native.get(name).is_some_and(|actual| {
-            actual.status == NativeStatus::Observed
-                && actual.version.is_some()
-                && actual.sha256.is_some()
-                && sha256
-                    .as_ref()
-                    .is_none_or(|expected| actual.sha256.as_ref() == Some(expected))
-        }),
-        Requirement::Platform { system, machine } => {
-            profile.system == *system && profile.machine == *machine
-        }
-    };
+    let satisfied = |rule: &Requirement| software.satisfies(rule);
     let missing: Vec<_> = requirements
         .required()
         .iter()

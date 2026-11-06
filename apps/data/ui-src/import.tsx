@@ -42,7 +42,7 @@ export function ImportDialog({ state, target, busy, error, onClose, onImport, on
         <Field label={t('license')}>{control => <Input {...control} name="license" placeholder={t('unknownLicense')} maxLength={300} disabled={busy} />}</Field>
         {!target ? <Field label={t('projectRef')} description={t('projectHelp')}>{control => <Input {...control} name="projectRef" maxLength={200} disabled={busy} />}</Field> : null}
       </Disclosure>
-      {fileError || error ? <Feedback kind="error">{fileError || <>{t('requestFailed')}<details><summary>{t('errorDetails')}</summary>{error}</details></>}</Feedback> : null}
+      {fileError || error ? <Feedback kind="error">{fileError || <>{t('requestFailed')}<Disclosure variant="inline" summary={<>{t('errorDetails')}</>}>{error}</Disclosure></>}</Feedback> : null}
     </DataForm>
     {!target && state.sources.length ? <Disclosure className="data-sources" summary={t('publicSources')}>
       {state.sources.map(source => <section key={source.id}><h3>{source.name}</h3>

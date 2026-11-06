@@ -24,8 +24,12 @@
       ],
       "@pero/app-sdk/ui": [
         "../../packages/app-sdk/src/ui.tsx"
+      ],
+      "@pero/app-sdk/core": [
+        "../../packages/app-sdk/src/core.mjs"
       ]
     },
+    "allowJs": true,
     "allowImportingTsExtensions": true
   },
   "include": [

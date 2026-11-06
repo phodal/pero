@@ -15,7 +15,7 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
   const { locale } = useAppContext(), zh = locale === 'zh-CN';
   const [context, setContext] = useState<ArtifactBrowserContext | null>(null), [error, setError] = useState('');
   const [quickLook, setQuickLook] = useState(false);
-  const items = useRef(new Map<string, HTMLButtonElement>()), grid = useRef<HTMLDivElement>(null);
+  const items = useRef(new Map<string, HTMLElement>()), grid = useRef<HTMLDivElement>(null);
   const browserScroll = useRef<HTMLDivElement>(null), savedScroll = useRef(0), restoreFocus = useRef(false);
   const quickReturn = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -69,7 +69,7 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
   const tile = (item: SessionArtifact, index: number, film = false) => {
     const version = versionFor(item), target = artifactTarget(item, context?.selected);
     const chosen = context?.selected?.artifact_id === item.id;
-    return <button key={`${item.id}/${version.version}`} type="button" role="option" aria-selected={chosen} data-artifact-id={item.id}
+    return <Button variant="unstyled" key={`${item.id}/${version.version}`} type="button" role="option" aria-selected={chosen} data-artifact-id={item.id}
       aria-label={`${item.title}, ${artifactType(version)}, v${version.version}`} title={version.filename ?? item.title}
       className={`artifact-tile${chosen ? ' is-selected' : ''}${film ? ' artifact-film-tile' : ''}`}
       tabIndex={chosen || (!context?.selected && index === 0) ? 0 : -1}
@@ -77,7 +77,7 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
       onClick={() => select(target)} onDoubleClick={() => preview(target)}>
       <ArtifactThumbnail artifact={item} version={version} />
       <span className="artifact-tile-name">{item.title}</span><span className="artifact-tile-version">v{version.version}</span>
-    </button>;
+    </Button>;
   };
   const documentBar = (artifact: SessionArtifact, version: SessionArtifactVersion) => <div className="artifact-browser-document-bar">
     {quickLook && <Button ref={quickReturn} variant="ghost" aria-label={zh ? '返回产物' : 'Back to artifacts'} onClick={closePreview}><Icon name="arrow-left" size={14} /></Button>}
@@ -106,13 +106,13 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
         <div className="artifact-list-heading" aria-hidden="true"><span>{zh ? '名称' : 'Name'}</span><span>{zh ? '类型' : 'Kind'}</span><span>{zh ? '大小' : 'Size'}</span><span>{zh ? '版本' : 'Version'}</span></div>
         {context.artifacts.map((item, index) => {
           const version = versionFor(item), target = artifactTarget(item, context.selected), chosen = context.selected?.artifact_id === item.id;
-          return <button type="button" key={item.id} role="option" aria-selected={chosen} data-artifact-id={item.id}
+          return <Button variant="unstyled" type="button" key={item.id} role="option" aria-selected={chosen} data-artifact-id={item.id}
             className={`artifact-list-row${chosen ? ' is-selected' : ''}`} tabIndex={chosen || (!context.selected && index === 0) ? 0 : -1}
             ref={node => { if (node) items.current.set(item.id, node); else items.current.delete(item.id); }}
             onClick={() => select(target)} onDoubleClick={() => preview(target)}>
             <span className="artifact-list-name"><ContentIcon source={{ path: version.filename ?? item.title }} /><span>{item.title}</span></span>
             <span>{artifactType(version)}</span><span>{artifactSize(version.bytes)}</span><span>v{version.version}</span>
-          </button>;
+          </Button>;
         })}
       </div> : <div className="artifact-icon-grid" ref={node => { grid.current = node; browserScroll.current = node; }} role="listbox" aria-label={zh ? '产物图标' : 'Artifact icons'}>{context.artifacts.map((item, index) => tile(item, index))}</div>}
   </main>;

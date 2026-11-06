@@ -10,6 +10,8 @@ date: 2026-11-02
 [ADR 0029](../adr/0029-ai4s-environments.md) 与 [计划](../exec-plans/2026-11-02-ai4s-environments.md)
 规定后续接线；原 App 的批准、预算、Spec 和执行所有者继续生效。
 
+2026-11-06 的 ADR 0030 核心扩展及最新检查记录见本文末尾；以下 P1 历史数据保持原版本含义。
+
 ## 测试版本与实现
 
 - `7d416af5`：领域值、匹配、固定快照和纯 Use 转换；`4bbba881`：候选选择规则。
@@ -73,3 +75,92 @@ Rust 集成测试实际解析三个探针的规范内容身份，再调用同一
 无安装、依赖求解、prepared Profile claim、受管 Use 持久化/准入桥或独立科学解释器选择。
 未建立实际 Control 双引擎通过、PC-Gym smoke/table6 新运行、UI/真实模型、GPU/HPC、
 安装包、生产或论文科学接受。新的环境字段不修改原 Spec，也不补造历史运行观察。
+
+## 2026-11-06：ADR 0030 核心扩展
+
+设计提交 `ca28c9d1`，验证包含本批 Rust 环境核心改动；Darwin arm64，
+Rust nightly-2026-10-28。只是核心/既有接线回归（L0），不是 Docker/VM 或产品验收。
+
+- `software.rs` 增加明确 schema 的组件观察：Python 与所属包、原生工具版本/文件摘要、
+  OCI index/manifest/config 的不同身份。V2 要求必须明确选择组件；不同解释器的包不混用。
+- `composition.rs` 记录方法所选能力、必需连接闭包和实际 Owner/资源/scope/运行代次。
+  只检查所需槽位；不需要的可选服务不会阻塞。资源别名不能伪造另一运行代次，且去重取得使用权。
+- `usage.rs` 仍为唯一 Use 转换。多资源依次准入，全部满足才 Active；部分拒绝释放已授权项，
+  未派发项标为 skipped；未知获取/释放不重放；晚到授权只释放；不同 target/快照/消费者不能混用。
+- 历史 Profile 和单绑定 Snapshot 有固定 JSON 与独立计算的摘要金样；新的 enum 包装不改变它们。
+  旧 `/host/environment` 继续只返回既有 v1 Python 观察。V2 核心类型不是已发布的 Host wire API。
+- Use 原来就没有 live 持久化/恢复接线，本轮仍没有。成员事实是纯转换结果，不宣称能加载历史
+  Use 日志或从磁盘恢复多资源执行；持久化格式、Owner effects 和真正执行在下一批接线。
+
+实际检查：
+
+| 命令 | 结果 | 范围 |
+| --- | --- | --- |
+| `node scripts/cargo.mjs test --locked -p pero-runtime --lib` | 122 passed，1 ignored | 核心、既有 App/ACP 回归及真实 Python 元数据探针；ignored 是既有可选软件/模型下载测试 |
+| `node scripts/cargo.mjs test --locked -p pero-host` | 44 passed | 现有 Host 的授权、私有调用和生命周期回归 |
+| `node --test packages/app-sdk/test/environments.test.mjs packages/app-sdk/test/environments-ui.test.mjs` | 23 passed | 现有观察合同、保留数据、错误恢复和组件交互；不是 Desktop 验收 |
+
+本轮没有修改产品 UI，没有创建 Docker/VM、拉镜像、启动科学训练或运行真实模型请求。
+未实现：ResourceOwner I/O、本次执行批准/持久化/派发、真实容器取消/回收、VM/服务组合、
+PC-Gym 计算解释器切换和 Slurm。不能用上述核心 PASS 宣称这些后端已支持。
+COBOL App 代码没有纳入设计提交；本批平台核心实现通过独立 PR 提交。
+
+PR 隔离 worktree 复核：显式设置 `PERO_GPUI_KIT_PATH=/Users/phodal/test/gpui-kit`，
+并把 Rust nightly 与 `/opt/homebrew/bin` 放入测试 PATH。最初 worktree 的系统 Python
+解析为 Xcode Python 3.9，不能加载现有 PC-Gym 注解；切换到已有 Homebrew Python 后
+Runtime 全套再次通过。SDK 测试使用已有包内 jsdom 依赖。没有降低探针要求或把失败计为通过。
+
+## 2026-11-06: live local, Docker, Compose and Slurm owner evidence
+
+Branch `codex/environment-runtime`, commits through `b9e98821`, macOS arm64.
+ADR/core PR #147 merged to the repository default `master` as `08a0e6a2`.
+This follow-up implements validated Use replay, Host SQLite commit-before-effect,
+shared local process supervision, and local/Docker process owners. The private
+Host handoff is exercised with an existing-attempt reference; it is not yet wired
+to the production Control/Paper scientific admission routes.
+
+Actual Docker context `colima-pero-benchmark-rosetta` runs a Linux arm64 daemon;
+the explicit scientific fixture image uses linux/amd64 emulation. Daemon
+`beede0d6-387a-4e23-8547-dce7482ae7c6` returned a containerd image index for ordinary
+inspect and a platform manifest for `--platform`. The model now preserves unknown
+config digests instead of calling either value an image config ID.
+
+Verified independently of the default suite's opt-in skips:
+
+- Local method output, real container method output, readiness-observed running
+  cancellation, and absence of the original container after cleanup.
+- Actual ngspice 42 voltage divider under Host `BoundProcess`: numerical output
+  5 V within 1e-6, Released Use retained after SQLite reopen. Evidence in
+  `test-results/compute/ngspice-57363/{stdout.log,use.json,uses.sqlite}`.
+- Native Compose deploys two healthy services on an internal network, client
+  reads the original service's output, resource evidence survives reopen, and
+  removing exact containers/networks retains named-volume data. The test then
+  explicitly removes its own fixture volume.
+- Slurm 23.11.4 single-node fixture: actual submitted job, allocation-side payload
+  hash check, output, terminal observation, and separately running-job cancellation.
+  The submission intent prevents a second `sbatch`; numeric job ID is checked
+  against cluster, comment/operation and submit time. Missing controller history
+  remains unknown, requiring accounting reconciliation. No accounting fallback
+  or production scheduler integration is claimed.
+- Slurm evidence: `test-results/compute/pero-compute-68638762-4abe-429c-9e53-c0970fcc89e9`
+  (completion) and `pero-compute-6b9dd47f-f9e3-4764-9e7b-4bc2b58582fd` (cancel),
+  including submission/receipt, allocation and terminal JSON.
+
+`pero-runtime --lib`: 126 passed, 4 explicit opt-in ignored. The Docker, Compose
+and Slurm opt-ins listed above were separately run successfully. This is L2 for
+these adapter paths, not full App/Native/release acceptance. Docker CLI waits are
+bounded to 30 seconds and observations to 8 MiB; timeouts never authorize retries.
+
+Authorized local VM resources are being prepared separately: official Alpine
+3.22.6 arm64 SHA-512-verified cloud image with per-instance QEMU overlay/SSH key,
+Tart Ubuntu 24.04 clone, and an isolated k3d/KubeVirt 1.9.1 cluster using emulation.
+QEMU and Tart both returned actual guest boot IDs and executed commands; both
+also confirmed stopping. KubeVirt VM startup and production VM owner integration
+remain in progress. Keys, images, overlays and kubeconfig remain ignored.
+
+Remaining product gates: trusted method registration and bounded input staging,
+Control/Paper reserve-admit-dispatch integration, independent PC-Gym runtime,
+Compute/Environments management UI for nonlocal resources, Compose member Use
+projection, VM adapters and KubeVirt control-plane binding, Slurm allocation-side
+Use binding/accounting reconciliation, and backend-specific release evidence.
+No COBOL App code is included in these commits.

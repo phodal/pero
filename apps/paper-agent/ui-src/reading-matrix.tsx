@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Feedback } from '@pero/app-sdk/ui';
+import { Table, Button, Feedback } from '@pero/app-sdk/ui';
 import type { Api, Paper, PdfAnnotation } from './types';
 import type { Translator } from './i18n';
 
@@ -21,6 +21,6 @@ export function ReadingMatrix({ api, active, count, papers, onOpen, t }: {
     {loading && <p role="status">{t('loading')}</p>}
     {error && <Feedback kind="error">{error}<Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback>}
     {!loading && !cells.length && <p>{t('pdfMatrixEmpty')}</p>}
-    {!!cells.length && <div className="pa-table-scroll" role="region" tabIndex={0} aria-label={t('matrix')}><table><thead><tr><th scope="col">{t('papers')}</th>{columns.map(column => <th scope="col" key={column}>{column}</th>)}</tr></thead><tbody>{paperIds.map(id => <tr key={id}><th scope="row">{papers.find(paper => paper.id === id)?.title ?? id}</th>{columns.map(column => <td key={column}>{cells.filter(cell => cell.annotation.paperId === id && cell.column === column).map(cell => <article key={cell.id} data-matrix-annotation={cell.annotation.id}>{cell.annotation.kind === 'figure' ? <img src={`/api/annotations/${cell.annotation.id}/image`} alt={`${t('pdfFigure')} · ${t('pdfPage')} ${cell.annotation.page}`}/> : <blockquote>{cell.annotation.quote}</blockquote>}{cell.annotation.note && <p>{cell.annotation.note}</p>}<Button variant="ghost" onClick={() => onOpen(cell.annotation)}>{t('pdfPage')} {cell.annotation.page} ↗</Button></article>)}</td>)}</tr>)}</tbody></table></div>}
+    {!!cells.length && <Table label={t('matrix')} className="pa-table-scroll"><thead><tr><th scope="col">{t('papers')}</th>{columns.map(column => <th scope="col" key={column}>{column}</th>)}</tr></thead><tbody>{paperIds.map(id => <tr key={id}><th scope="row">{papers.find(paper => paper.id === id)?.title ?? id}</th>{columns.map(column => <td key={column}>{cells.filter(cell => cell.annotation.paperId === id && cell.column === column).map(cell => <article key={cell.id} data-matrix-annotation={cell.annotation.id}>{cell.annotation.kind === 'figure' ? <img src={`/api/annotations/${cell.annotation.id}/image`} alt={`${t('pdfFigure')} · ${t('pdfPage')} ${cell.annotation.page}`}/> : <blockquote>{cell.annotation.quote}</blockquote>}{cell.annotation.note && <p>{cell.annotation.note}</p>}<Button variant="ghost" onClick={() => onOpen(cell.annotation)}>{t('pdfPage')} {cell.annotation.page} ↗</Button></article>)}</td>)}</tr>)}</tbody></Table>}
   </section>;
 }
