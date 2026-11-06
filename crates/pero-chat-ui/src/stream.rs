@@ -383,7 +383,9 @@ impl Render for StreamText {
                     .py(px(6.))
                     .px(px(10.)),
             );
-        let mut view = TextView::new(&self.document).selectable(true).style(style);
+        let mut view = TextView::new(&self.document).selectable(true).style(style)
+            .plugin(crate::scientific_math::view::MathPlugin { block: false })
+            .plugin(crate::scientific_math::view::MathPlugin { block: true });
         if let Some(images) = &self.images {
             let images = images.clone();
             view = view.image_source(move |uri| images.resolve(uri));
