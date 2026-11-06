@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Icon, Split, SplitPane } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Icon, Split, SplitPane } from '@pero/app-sdk/ui';
 import type { LabState } from './types';
 import { formatNumber } from './presentation';
 
@@ -26,10 +26,10 @@ export function Deck({ state, preview = false, compact = false, title = '96-well
         <div><dt>Volume</dt><dd>{formatNumber(well?.volume_ul)} µL</dd></div><div><dt>Capacity</dt><dd>{formatNumber(well?.capacity_ul)} µL</dd></div><div><dt>Predicted red fraction</dt><dd>{formatNumber(well?.red_fraction)}</dd></div>
       </dl></section>
       <section className="deck-resources"><div className="section-toolbar"><h2>Pipette</h2><span className="muted">{state.pipette.tip_id ? `Tip ${state.pipette.tip_id}` : 'No tip attached'}</span></div><p className="pipette-volume">{formatNumber(state.pipette.volume_ul)} <span className="muted">/ {state.pipette.capacity_ul} µL</span></p>
-        <details><summary>Tip inventory <span>{state.available_tips.length} available / {state.consumed_tips.length} consumed</span></summary>
+        <Disclosure variant="inline" summary={<>Tip inventory <span>{state.available_tips.length} available / {state.consumed_tips.length} consumed</span></>}>
           <dl className="tip-inventory"><dt>Available</dt><dd>{state.available_tips.join(', ') || 'None'}</dd><dt>Consumed</dt><dd>{state.consumed_tips.join(', ') || 'None'}</dd></dl>
           <p className="muted">Returned tips are retired.</p>
-        </details>
+        </Disclosure>
       </section>
     </>;
   if (compact) return <section className="deck-compact">{plate}<div className="well-inspector">{resources}</div></section>;

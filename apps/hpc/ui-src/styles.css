@@ -107,7 +107,6 @@ tr.selected { background: var(--pero-accent-soft); }
 .check-heading h3 svg { color: var(--pero-text-muted); }
 .error-text { color: var(--pero-error); overflow-wrap: anywhere; margin: 8px 0; }
 details { margin: 12px 0; }
-summary { padding: 2px 0; min-height: 24px; font-size: var(--pero-font-caption); }
 details > :not(summary) { margin-top: 8px; }
 .digest { font-family: var(--pero-font-family-mono); font-size: var(--pero-font-caption); overflow-wrap: anywhere; word-break: break-all; }
 .log { white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; padding: 12px; font: var(--pero-font-caption)/1.5 var(--pero-font-family-mono); background: var(--pero-surface-muted); }

@@ -18,9 +18,6 @@ button, input, select, textarea { font: inherit; }
 .toolbar, .fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .lab-header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 8px 12px; background: var(--pero-surface); border-bottom: .5px solid var(--pero-border); }
 .app-title { display: flex; align-items: center; gap: 8px; flex: none; }
-.simulation-details { position: relative; font-size: var(--pero-font-caption); color: var(--pero-text-muted); }
-.lab .simulation-details > summary { padding: 1px 6px; border: .5px solid var(--pero-border); border-radius: 4px; line-height: 1.4; }
-.lab .simulation-details > p { position: absolute; z-index: 3; top: 28px; left: 0; width: 260px; margin: 0; padding: 12px; background: var(--pero-surface); border: 1px solid var(--pero-border); border-radius: 4px; }
 .context-row { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-height: 40px; padding: 8px 12px; border-bottom: .5px solid var(--pero-border); background: var(--pero-surface); }
 .lab .context-row label { flex-direction: row; align-items: center; gap: 8px; margin: 0; font-size: var(--pero-font-caption); color: var(--pero-text-muted); }
 .experiment-picker { flex: 1; min-width: 220px; max-width: 660px; }
@@ -130,7 +127,6 @@ button, input, select, textarea { font: inherit; }
 .timeline { padding-left: 24px; }
 .timeline > li { padding: 8px 0 16px; border-bottom: .5px solid var(--pero-border); }
 .timeline p { font-size: var(--pero-font-caption); }
-summary { cursor: pointer; color: var(--pero-text-muted); padding: 6px 0; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 450px; overflow-y: auto; background: var(--pero-surface-muted); padding: 12px; font-size: var(--pero-font-caption); }
 .hashes { overflow-wrap: anywhere; font-size: var(--pero-font-caption); }
 .hashes dd { margin: 4px 0 12px; }

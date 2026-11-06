@@ -1,6 +1,6 @@
 import React from "react";
 import { useAppContext } from "@pero/app-sdk";
-import { Table, Button, Checkbox, Icon } from "@pero/app-sdk/ui";
+import { Disclosure, Table, Button, Checkbox, Icon } from "@pero/app-sdk/ui";
 import type { Benchmark, Comparison, Run, Value, Verification } from "./types";
 import type { Message } from "./messages";
 import { RunPlots } from "./plots";
@@ -42,7 +42,7 @@ function CheckReport({ report, t }: { report: Verification; t: Translate }) {
       <th scope="row">{propertyLabel(check.id, chinese, check.label)}</th><td>{number(check.value)}</td><td>{typeof check.threshold === "number" && upperBoundChecks.has(check.id) ? "≤ " : ""}{number(check.threshold)}</td>
       <td>{check.passed === undefined ? "—" : <Status value={check.passed ? "pass" : "fail"} t={t} />}</td>
     </tr>)}</tbody></Table>
-    {!report.checks?.length && <details><summary>{t("criteria")}</summary><Facts values={report.thresholds} /></details>}
+    {!report.checks?.length && <Disclosure variant="inline" summary={<>{t("criteria")}</>}><Facts values={report.thresholds} /></Disclosure>}
 
     {report.errors.length > 0 && <ul className="error-text">{report.errors.map((error, index) => <li key={index}>{error}</li>)}</ul>}
   </>;
@@ -70,12 +70,12 @@ export function RunEvidence({ run, t, busy, exporting, onVerify, onCancel, onExp
     {run.error && <p role="alert" className="error-text">{run.error}</p>}
     <RunPlots run={run} />
     {run.verification ? <CheckReport report={run.verification} t={t} /> : <p className="muted" role="status">{t("checkPending")}</p>}
-    <details className="evidence-files"><summary>{t("artifacts")} ({run.artifacts.length})</summary>
+    <Disclosure variant="inline" className="evidence-files" summary={<>{t("artifacts")} ({run.artifacts.length})</>}>
       {run.artifacts.length ? <Table label={t("artifacts")} density="compact" className="table-scroll"><thead><tr><th>{t("file")}</th><th>{t("size")}</th><th>SHA-256</th></tr></thead>
         <tbody>{run.artifacts.map(file => <tr key={file.name}><td>{file.name}</td><td>{number(file.bytes)}</td><td className="digest">{file.sha256}</td></tr>)}</tbody></Table> : <p>{t("noArtifacts")}</p>}
-    </details>
-    <details><summary>{t("logs")}</summary><pre className="log">{run.logs || t("noLogs")}</pre></details>
-    <details><summary>{t("details")}</summary>    <dl className="run-summary">
+    </Disclosure>
+    <Disclosure variant="inline" summary={<>{t("logs")}</>}><pre className="log">{run.logs || t("noLogs")}</pre></Disclosure>
+    <Disclosure variant="inline" summary={<>{t("details")}</>}>    <dl className="run-summary">
       <div><dt>{t("created")}</dt><dd>{new Date(run.createdAt).toLocaleString()}</dd></div>
       <div><dt>{t("exit")}</dt><dd>{number(run.exitCode)}</dd></div>
       <div><dt>ReFrame</dt><dd>{run.reframeVersion || "—"}</dd></div>
@@ -83,7 +83,7 @@ export function RunEvidence({ run, t, busy, exporting, onVerify, onCancel, onExp
 <dl className="facts">
       <dt>{t("runId")}</dt><dd className="digest">{run.id}</dd>
       <dt>{t("digest")}</dt><dd className="digest">{run.specDigest}</dd>
-    </dl></details>
+    </dl></Disclosure>
   </section>;
 }
 
@@ -112,6 +112,6 @@ export function ComparisonTable({ comparison, t }: { comparison: Comparison; t: 
       <tr><th>{t("elapsed")}</th>{comparison.rows.map(row => <td key={row.runId}>{number(row.elapsedSeconds)}</td>)}</tr>
       {metrics.map(key => <tr key={key}><th>{propertyLabel(key, chinese)}</th>{comparison.rows.map(row => <td key={row.runId}>{number(row.metrics[key])}</td>)}</tr>)}
     </tbody></Table>
-    <details><summary>{t("details")}</summary><p className="digest">{comparison.specDigest}</p>{comparison.runIds.map(id => <p key={id} className="digest">{id}</p>)}</details>
+    <Disclosure variant="inline" summary={<>{t("details")}</>}><p className="digest">{comparison.specDigest}</p>{comparison.runIds.map(id => <p key={id} className="digest">{id}</p>)}</Disclosure>
   </>;
 }

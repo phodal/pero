@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { appObjectProps, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from "@pero/app-sdk";
-import { AppBar, Button, Feedback, Icon, IconButton, Input, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from "@pero/app-sdk/ui";
+import { Disclosure, AppBar, Button, Feedback, Icon, IconButton, Input, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from "@pero/app-sdk/ui";
 import { messages, type Message } from "./messages";
 import { ComparisonTable, RunEvidence, RunTable } from "./results";
 import { MethodSpec } from "./method";
@@ -177,11 +177,11 @@ export default function HpcBenchmarks() {
           <TabsContent value="runs" className="runs-content">
             {selectedRun && <RunEvidence run={selectedRun} t={t} busy={busy} exporting={exporting} onVerify={() => void act("verify")} onCancel={() => void act("cancel")} onExport={() => void exportEvidence()} />}
             {!selectedRun && <p className="empty">{t(data?.runs.length ? "selectRun" : "noRuns")}</p>}
-            <details className="run-history"><summary>{t("history")}</summary>
+            <Disclosure variant="inline" className="run-history" summary={<>{t("history")}</>}>
             <div className="section-heading"><h3>{t("history")}</h3><Button disabled={!canCompare} onClick={() => void compareRuns()}><Icon name="changes" size={14} />{t("compareSelected")}{chosen.length ? ` (${chosen.length})` : ""}</Button></div>
             {differentSpecs && <p className="error-text" role="alert">{t("differentSpecs")}</p>}
             {data?.runs.length ? <RunTable benchmarks={data.benchmarks} runs={data.runs} selectedId={selectedRun?.id ?? ""} chosen={chosen} t={t} onOpen={run => void openRun(run).catch(onError)} onChoose={chooseRun} /> : <p className="empty">{t("noRuns")}</p>}
-            </details>
+            </Disclosure>
           </TabsContent>
           <TabsContent value="compare" className="compare-content"><div className="section-heading"><h3>{t("compare")}</h3><Button disabled={!canCompare} onClick={() => void compareRuns()}><Icon name="changes" size={14} />{busy ? t("comparing") : t("compareSelected")}</Button></div>
             <p className="muted">{t("comparisonHint")}</p>{differentSpecs && <p className="error-text" role="alert">{t("differentSpecs")}</p>}
