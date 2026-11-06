@@ -17,6 +17,9 @@ go_library(
 
 go_test(
     name = "charts_test",
-    srcs = ["tool_test.go", "table_test.go"],
+    srcs = [
+        "table_test.go",
+        "tool_test.go",
+    ],
     embed = [":charts"],
 )
