@@ -1064,5 +1064,6 @@
   "files.truncated": "Showing up to 2,000 entries",
   "files.failed": "Could not refresh folder",
   "files.retry": "Retry",
-  "files.close": "Close files"
+  "files.close": "Close files",
+  "chat.process_more": "More"
 }
