@@ -290,3 +290,15 @@ was cleared without sending. Original light theme and UI size 14 were restored.
 Native images include wide-light-final.jpg, wide-dark.jpg, evidence.jpg,
 stacked-topics-dark.jpg, narrow-dark24.jpg, keyboard-focus.jpg and discussion.jpg. These images
 are local evidence, not committed files or signed-package acceptance.
+
+### Regeneration action polish
+
+The top-level outlined Regenerate text button competed with the reading
+content. Existing briefs now use the shared ghost IconButton and refresh
+icon, with the same accessible name and native hover title. Initial generation
+keeps its labeled primary action. Busy/disabled admission, retained-content
+status, retries and paused-session recovery retain their existing owners.
+Native Preview visibly shows the compact refresh icon in the page header;
+`test-results/insights-topics-native/refresh-action.jpg` records the actual
+saved brief. All 15 existing Insights browser scenarios and npm run check pass,
+including regeneration busy admission and retained results on failure.

@@ -1,6 +1,6 @@
 import { openAppSession, useAppAgent, useAppI18n } from '@pero/app-sdk';
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Feedback, LibraryHeader } from '@pero/app-sdk/ui';
+import { Button, Card, Feedback, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
 import { analysisRequest, briefFromReply, briefResultPrompt } from './work-recap-model.mjs';
 import { PulseHomeResult, type ResultBrief } from './pulse-home-result';
 import type { RecapSession, RecapTurn, WorkRecap } from './pulse-work-recap';
@@ -231,8 +231,11 @@ export default function Insights() {
     ? (locale === 'zh' ? '继续检查生成结果' : 'Check generation') : brief
     ? (locale === 'zh' ? '重新生成' : 'Regenerate') : generationError
     ? (locale === 'zh' ? '重试生成' : 'Retry generation') : (locale === 'zh' ? '生成简报' : 'Generate brief');
-  const generate = <Button variant={brief ? 'secondary' : 'primary'} busy={running} disabled={waiting || !recap || !modelReady}
-    onClick={() => recap && runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale))}>{generateLabel}</Button>;
+  const generate = brief
+    ? <IconButton label={generateLabel} busy={running} disabled={waiting || !recap || !modelReady}
+        onClick={() => recap && runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale))}><Icon name="refresh" size={16}/></IconButton>
+    : <Button variant="primary" busy={running} disabled={waiting || !recap || !modelReady}
+        onClick={() => recap && runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale))}>{generateLabel}</Button>;
   const feedback = <>
     {error && <><InsightsError error={error} locale={locale} context="records" /><Button disabled={loading} onClick={() => { started.current = false; setAttempt(value => value + 1); }}>{locale === 'zh' ? '重试' : 'Retry'}</Button></>}
     {restoreError && <>
