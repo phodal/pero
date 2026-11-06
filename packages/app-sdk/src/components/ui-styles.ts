@@ -28,9 +28,9 @@ export const uiStyles = `
 .pero-ui-command-line .cm-editor { height:auto; }
 .pero-ui-command-line-fallback { margin:0; padding:4px 8px; overflow-x:auto; white-space:pre; font:12px/20px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .pero-ui-file-tree { outline:none; min-width:0; color:var(--pero-text); font:inherit; }
-.pero-ui-file-tree-item { outline:none; border-radius:var(--pero-radius-sm,6px); border-inline-start:2px solid transparent; cursor:default; }
+.pero-ui-file-tree-item { outline:none; border-radius:var(--pero-radius-sm,6px); cursor:default; }
 .pero-ui-file-tree-item[data-hovered] { background:var(--pero-surface-hover); }
-.pero-ui-file-tree-item[data-selected] { background:var(--pero-active); border-inline-start-color:var(--pero-accent); }
+.pero-ui-file-tree-item[data-selected] { background:var(--pero-active); }
 .pero-ui-file-tree-item[data-focus-visible] { outline:var(--pero-focus-ring-width, 2px) solid var(--pero-focus); outline-offset:calc(-1 * var(--pero-focus-ring-width, 2px)); }
 .pero-ui-file-tree-row { display:flex; align-items:center; gap:var(--pero-space-2,4px); min-height:30px; padding-inline-end:var(--pero-space-4,8px); }
 .pero-ui-file-tree-row>svg, .pero-ui-file-tree-toggle { flex:none; }
