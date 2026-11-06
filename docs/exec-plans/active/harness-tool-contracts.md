@@ -226,3 +226,28 @@ behavior is changed on the basis of those extra verification calls. The older
 429 sample, old 4/5 coding result and all prior partial plugin acceptances stay
 unchanged. Remaining compatibility features require their own source and
 workflow evidence, as recorded in the compatibility plan.
+
+## Complex task follow-up, 2026-11-06
+
+At frozen master snapshot `fbc8c668`, five selected Terminal-Bench tasks run with native
+deferred tools and `gpt-6.1-sol` nonstreaming Responses. Fresh original-solution
+controls pass 5/5; empty submissions fail 5/5. One submission per task, zero
+retries and original independent verifiers produce **4/5 task acceptances**:
+cancellation 6/6 tests, WAL recovery 7/7, gRPC 7/7 and compression 3/3.
+The polyglot submission fails its file-set check because local compilation
+leaves `cmain` beside the requested source. No hidden-feedback repair is scored.
+
+The five submissions use 41 requests, 39 tools and 326,617 reported tokens.
+All end normally and their agent processes stop. The gRPC environment service
+survives agent exit and passes independent RPC verification. The three failed
+shell calls remain recorded; they do not become successful tool calls merely
+because four tasks pass. Both input/runner audits pass, with no credential hits.
+
+This profile leaves optional engineering feedback/contracts off; older
+contract-enabled DeepSeek reruns are not matched controls. Native task success
+does not establish full original-plugin Workflow compatibility. The
+[verification](../../fitness/terminal-bench-sol-complex.md),
+[machine report](../../design-docs/harness-complex-sol-evaluation.json) and
+[open delivery record](../../issues/2026-11-06-coding-delivery-residue.md)
+retain the failure and exact execution boundaries. OCaml GC repair, a MIPS
+interpreter and Cython/NumPy migration are researched next candidates.

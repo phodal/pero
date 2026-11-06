@@ -124,3 +124,28 @@ gate claims are not local execution results.
 Pin the evaluator and actual registry dataset release/revision together for a
 run; a moving source checkout is not automatically the `terminal-bench@2.0`
 registry release. Preserve task/config hashes in the run manifest.
+
+## Harder concrete tasks, 2026-11-06
+
+The follow-up selects cancellation, WAL recovery, C/Python polyglot compilation,
+gRPC deployment and constrained compression. These add observable tool chains
+and process/data contracts beyond five HumanEval+ functions. Upstream labels
+cancellation and compression hard, and the other three medium. Selection is
+diagnostic; a short prompt or a difficulty label does not establish the number
+of files, model requests or reasoning steps actually needed.
+The independent outcomes and execution settings are recorded in the
+[Sol verification](terminal-bench-sol-complex.md).
+
+Public instructions also identify these deeper follow-up candidates:
+
+| Task | Work required | Upstream agent timeout |
+| --- | --- | ---: |
+| `fix-ocaml-gc` | Repair a major-heap sweeping change that crashes compiler bootstrap; build the compiler and run its basic testsuite | 3,600 seconds |
+| `make-mips-interpreter` | Implement a JavaScript MIPS ELF interpreter and system calls sufficient to boot DOOM and save the checked frame | 1,800 seconds |
+| `build-cython-ext` | Repair and build pyknotid 0.5.3 Cython extensions against NumPy 2.3.0, retaining its package layout and relevant tests | 900 seconds |
+
+These three are researched candidates, not new Sol acceptances. SWE-bench
+Verified remains the separate route to issue-driven repairs across real
+repositories; Pro V2 adds a longer budget and a stricter evaluation protocol.
+Terminal-Bench native-tool verdicts also do not replace an original plugin's
+full Workflow development/review/merge acceptance.
