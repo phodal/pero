@@ -31,6 +31,7 @@
     "build:desktop": "node scripts/build/desktop.mjs",
     "check": "tsc --noEmit && node scripts/codegen/theme.mjs --check && node scripts/codegen/design.mjs --check && node scripts/build/app-sdk-tokens.mjs --check && node scripts/check/locales.mjs && node scripts/codegen/contracts.mjs --check && node scripts/generate-icons.mjs --check",
     "gen:icons": "node scripts/generate-icons.mjs",
+    "test:shortcuts": "node tests/e2e/shortcuts.mjs",
     "test:workspace": "node tests/e2e/workspace.mjs",
     "gen:theme": "node scripts/codegen/theme.mjs",
     "gen:design": "node scripts/codegen/design.mjs && node scripts/build/app-sdk-tokens.mjs",
