@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { runInNewContext } from 'node:vm';
+import { AppApiError } from '../../packages/app-sdk/src/core.mjs';
 
 // Execute complete production components, not source fragments. This shallow
 // hook host leaves DOM/PDF rendering to e2e; effects and handlers run unchanged.
@@ -29,7 +30,7 @@ export function paperComponents(api, environment = {}) {
       }
     },
   };
-  const sdk = { useAppApi: () => api, useAppChat: () => ({}), useAppInfo: () => ({ active: true }),
+  const sdk = { AppApiError, useAppApi: () => api, useAppChat: () => ({}), useAppInfo: () => ({ active: true }),
     useAppI18n: () => ({ t: key => key }), useAppContext: () => ({ active: true, locale: 'en', dark: false }), useAppObject() {}, useAppDataChanged() {}, appObjectProps: () => ({}) };
   const cache = new Map();
   function load(name) {
@@ -43,7 +44,7 @@ export function paperComponents(api, environment = {}) {
       if (specifier === 'react-dom') return { createPortal: children => children };
       if (specifier === '@pero/app-sdk') return sdk;
       if (['./documents', './pdf-reader', './structured-reading'].includes(specifier)) return load(`${specifier.slice(2)}.tsx`);
-      if (['./reader-state', './shelf', './research-types'].includes(specifier)) return load(`${specifier.slice(2)}.ts`);
+      if (['./reader-state', './shelf', './research-types', './library-data'].includes(specifier)) return load(`${specifier.slice(2)}.ts`);
       // Child views are opaque elements; no child domain behavior is faked.
       return new Proxy({}, { get: (_, key) => key === '__esModule' ? false : String(key) });
     };
