@@ -86,8 +86,8 @@ test('observation recheck retains visible evidence and timestamp; permission los
 
 test('creation uses visible radio choices and respects IME confirmation before one native form submission', async t => {
   const {React,dom,ui,render,click,button,fill} = await runtime(t);
-  const calls=[];
-  const fetchFn=async (_,options) => {const input=JSON.parse(options.body);calls.push(input);return response(input.operation==='list'?[]:[{...profile,label:input.label??'实验',state:input.operation==='prepare'?'preparing':'created'}]);};
+  const calls=[];let refuse=true;
+  const fetchFn=async (_,options) => {const input=JSON.parse(options.body);calls.push(input);if(input.operation==='create' && refuse)return new Response('Name rejected by Host',{status:400});return response(input.operation==='list'?[]:[{...profile,label:input.label??'实验',state:input.operation==='prepare'?'preparing':'created'}]);};
   await render(React.createElement(ui.EnvironmentManager,{fetchFn}));
   await click(button('Create environment'));
   const name=document.querySelector('#env-name');await fill(name,'实验');
@@ -101,7 +101,13 @@ test('creation uses visible radio choices and respects IME confirmation before o
   assert.equal(control.getAttribute('aria-checked'),'true');
   assert.equal(document.querySelectorAll('[role=radio]').length,3);
   await React.act(async () => document.querySelector('form').requestSubmit());
-  assert.deepEqual(calls.map(input=>input.operation),['list','create','prepare']);
+  assert.match(document.querySelector('[role=alert]').textContent,/Could not create the environment/);
+  assert.equal(name.value,'实验');assert.equal(button('Retry'),undefined);
+  await click(button('Cancel'));await click(button('Create environment'));
+  assert.equal(document.querySelector('#env-name').value,'实验');
+  assert.equal(document.querySelector('[role=radio][aria-label=Control]').getAttribute('aria-checked'),'true');
+  refuse=false;await React.act(async () => document.querySelector('form').requestSubmit());
+  assert.deepEqual(calls.map(input=>input.operation),['list','create','create','prepare']);
   assert.equal(calls[1].label,'实验');assert.equal(calls[1].target,target);
 });
 
