@@ -178,3 +178,38 @@ Feedback's paragraph root could not contain the existing nested diagnostics
 (details/pre/div). Use a div root with the same roles and styles so recovery
 controls and diagnostic content remain inside the alert after HTML parsing.
 A regression test exercises that actual markup boundary.
+
+
+## Shared disclosure migration
+
+Ordinary source details, logs, history and diagnostics now use SDK Disclosure.
+Add an inline variant for these compact metadata actions; keep the existing
+block default for established callers. Preserve native details, mounted drafts,
+refs, current summary names, controlled open callbacks and initially-open panels.
+Keep nontrivial auto-opening panels explicit until their existing state owner
+is migrated; do not accidentally make a user-toggleable panel permanently open.
+
+All 89 former native details controls are now shared Disclosure (88) or, for
+Lab's floating simulation explanation, Popover. Auto-open install failures,
+Feishu configuration/error reveal and reproduction setup remain explicit local
+UI states, preserving user toggles; Lab rationale keeps its parent-keyed initial
+open state. Remove duplicate chevrons and matching summary skins.
+Control Lab's existing SDK core import needed allowJs for its runtime JS path
+to participate in TypeScript resolution; typecheck and all 46 UI tests pass.
+
+
+## Final delivery evidence
+
+The 12 shipping Apps have no raw button/input/textarea/select/table/progress/details
+in their ui-src TSX. Final SDK tests pass 161/161; affected App checks and all 12
+production bundles pass. Actual Data sorting/selection, Paper shared disclosure,
+and Native Lab shared Popover are captured in evidence 52–54. Native Cell long
+labels are confirmed in evidence 51. The detailed report records fixture boundaries.
+
+The implementation migration is delivered, while this tracker remains in_progress
+for unverified Native keyboard, VoiceOver, physical IME and full state coverage.
+Native Escape did not visibly close the Lab Popover; horizontal heatmap access
+was not observed. A later concurrent Native restart remained at App opening on
+last observation; no cause is asserted. Temporary theme/font restoration remains
+unverified. These observations do not invalidate the completed screenshots, and
+passing source inventory/build alone does not close product acceptance.

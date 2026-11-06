@@ -209,3 +209,60 @@ check通过（984条双语消息、85个图标）。证据继续保存在忽略�
 - `51-native-heatmap-dark24.png`：Native最终统计行与长标签。
 
 其余标准组件迁移继续使用同一个 tracker；以上不代表全套状态矩阵完成。
+
+
+## 最终批次：标准组件全面迁移
+
+在前三批基础上，本轮继续覆盖产品清单内 12 个 App 的普通控件。迁移清单及保留行为
+记录在同一个问题 tracker，避免把组件替换与领域规则重写混在一起。
+
+| 范围 | 最终实现与保留行为 |
+| --- | --- |
+| Paper 阅读与文库 | 目录、引用、证据单元格、文库预览使用 Button，保留阅读定位、草稿、引用身份及双击阅读 |
+| 科学选择 | Lab 孔位、Viewer 分子、Control Lab 检查使用 ghost Button；Viewer 文件选项使用 unstyled Button 基础，保留 listbox、方向焦点、缩略图与双击语义 |
+| 表格 | SDK 增加 children 形式，Data、HPC、Lab、Viewer、Paper 使用统一的表格皮肤和命名滚动区；保留排序、原始行号、选择、行列合并、来源 caption 和精确数值 |
+| 进度 | Paper 研究下载、Cell 数据集下载和验证使用 Progress；无总量时保持不确定进度 |
+| 反馈 | Connectors 复用 Feedback 和 link Button；Feedback 根节点由 p 改为 div，保证嵌套日志和恢复按钮实际保留在 alert 内 |
+| 详情 | 89 处原生 details 迁移为 88 处 Disclosure 和 1 处 Lab 说明 Popover；共享 inline 变体取代重复箭头、焦点和 summary 皮肤 |
+| 自动展开 | 安装失败日志、飞书配置、Paper 复现准备保留显式局部状态，既响应状态变化，也允许用户自行收起 |
+| 旧模块 | Insights legacy recap 同步共享按钮和用途 token；当前首页不挂载该模块，仅记源码覆盖 |
+
+最终源码盘点：这些 App 的 `ui-src` TSX 中没有直接声明普通 button、input、textarea、
+select、table、progress 或 details。此结论仅限上述入口与标签范围，不能代替视觉或交互验收。
+第三方 PDF/科学绘图、外部超链接、论文原文布局和专用 listbox 仍保留各自语义。
+没有用空壳通用组件承接原有领域状态、权限、调度或科学执行规则。
+
+共享库的必要扩展集中在 Table、Disclosure 和 Feedback，已同步公开组件契约。
+Table 回归覆盖排序、选择和来源行列跨度；Feedback 回归重新解析 HTML，确认嵌套诊断
+仍在 alert 内。Control Lab 的 SDK core 运行时路径通过 allowJs 纳入类型解析，
+保留真实 AppApiError 状态码行为，没有将运行时入口指向仅声明文件。
+
+### 最终自动验证
+
+所有 12 个 App 在最终组件迁移后重新构建成功，复用已有 `web/dist-reader`。
+SDK 类型检查及全部 161 项测试通过。受影响 App 的类型检查与 UI 测试通过：
+Paper 7、Data 8、Lab 10、HPC 1、Viewer 23、Cell 7、Connectors 45、
+Control Lab 46、Insights 6；Compute 类型检查通过。根目录 `npm run check` 通过，
+包含生成文件一致性、984 条双语消息及 85 个共享图标；`git diff --check` 通过。
+这些计数是本轮实际执行结果，不代表真实科学运行或远端服务已验收。
+已有 KaTeX/JSDOM、Node localStorage 实验功能和 reader Wasm direct eval 提示仍存在。
+
+### 最终运行证据与限制
+
+- Data 最终生产 bundle 连接隔离目录中的真实后端；共享 Table 按数值升序，选中记录仍为原始 record 2，未因排序改变记录身份。
+- Paper 最终生产 bundle 中点击长标题后共享 Disclosure 打开，aria-expanded 与 details.open 均为 true，只有一个共享展开指示器。
+- Native 深色24px中 Cell 最终长标签与热图已确认；Lab 96孔板及数值可读，实际共享 Simulation only Popover 可打开。
+- Native 中 Escape 未观察到关闭该浮层，热图方向键/水平滚轮也未观察到横向移动。浏览器对应路径的通过不能替代 WebKit/Native；目前未确定是焦点路由、工具输入还是产品问题。
+- 后续另一项 Native 工作重启应用，最后一次观察停留在“正在打开应用”。此前已完成截图仍有效；不将该状态归因于本批组件迁移，也不宣称重启后全部恢复已验收。
+- 临时字号/主题的恢复未完成。物理中文 IME、VoiceOver、跨平台和完整主题/字号/业务状态矩阵仍未验证。
+
+最终证据位于同一忽略目录：
+
+| 证据 | 路径 |
+| --- | --- |
+| 共享 Table 排序与选择 | [52-data-shared-table.png](../../test-results/ux-review-2026-11-06/52-data-shared-table.png) |
+| 共享 Disclosure 展开 | [53-paper-shared-disclosure.png](../../test-results/ux-review-2026-11-06/53-paper-shared-disclosure.png) |
+| Native 共享 Popover 与孔板 | [54-native-lab-shared-popover.png](../../test-results/ux-review-2026-11-06/54-native-lab-shared-popover.png) |
+
+本轮标准组件替换与代码交付完成；完整 Native 辅助技术与键盘验收继续保留在原 tracker，
+不能据源码盘点归零宣布全产品验收完成。截图未加入 Git，避免提交二进制证据。

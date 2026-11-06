@@ -91,6 +91,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 - 业务状态使用 neutral / info / success / warning / error，始终带文字；正常未执行使用 neutral。
 - `Feedback` 默认 inline，跨行恢复动作使用 `variant="block"`；error 是 alert，
   其他消息是 status，empty 不主动播报。重复错误应在最接近问题的位置呈现一次。
+  根节点为 div，支持恢复按钮、日志与 Disclosure；不要将 Feedback 放在段落内部。
 - Native `feedback` 使用同一层级：状态图标、简短标题、说明、紧凑动作；原始日志
   放在可展开的技术详情。环境尚未准备、准备中、准备失败分别呈现，不把缺少环境当作执行失败。
 - `Field` 通过 children 回调把 id、aria-describedby、aria-invalid 交给输入。
@@ -99,6 +100,25 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 - `Progress` 只接收实际完成值与总量；没有依据时使用不确定进度，不能伪造百分比。
 - Dialog 长标题和 footer 可换行；嵌套 Select 的第一次 Escape 关闭选择框，
   第二次关闭 Dialog，逐层返回焦点。Table 的命名滚动区域可以聚焦后用方向键滚动。
+
+`Table` 支持数据驱动的 `rows` / `columns`，也支持保留来源结构的 children 形式：
+
+```tsx
+<Table label="观测记录" density="compact">
+  <thead><tr><th scope="col">时间</th><th scope="col">数值</th></tr></thead>
+  <tbody><tr><th scope="row">1</th><td>30</td></tr></tbody>
+</Table>
+```
+
+两种形式共用命名、可聚焦的滚动区域与表格皮肤。children 形式默认自动列宽，
+使用固定 colgroup 时可指定 `layout="fixed"`。消费者保留来源 caption、rowSpan、
+colSpan、排序及选择状态，通过 `aria-sort` / `aria-selected` 表达；组件不拥有领域规则。
+`className` 指向滚动容器，`tableClassName` 指向 table，避免迁移后 CSS 误指向容器。
+
+`Disclosure` 默认 `variant="block"`；元数据、来源、诊断日志用 `variant="inline"`。
+共享组件提供单一展开指示器和键盘焦点，调用方不叠加私有箭头。内容关闭时保持挂载。
+`defaultOpen` 仅决定首次状态；自动展开/收起的面板使用 `open` 和 `onOpenChange`，
+由现有状态所有者处理失败、配置或证据变化，并保留用户手动切换。
 
 异步页面分别管理数据可用性、请求进度与领域结论。已有内容刷新时保留草稿、选中和焦点；
 刷新失败说明正在显示旧数据并提供局部重试。取消请求的等待状态与确认取消分开显示。
