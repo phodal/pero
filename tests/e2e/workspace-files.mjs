@@ -15,7 +15,8 @@ const request='{"format":"smiles","records":["CCO","C[C@H](O)C(=O)O","invalid@@"
 const result='{"rows":[{"input":"CCO","MolWt":46.069,"exact":9007199254740993}]}\n';
 await writeFile(join(workspace,'request.json'),request);
 await writeFile(join(workspace,'result.json'),result);
-await writeFile(join(workspace,'README.md'),'[Open result](runs/result.json)\n');
+const markdown='[Open result](runs/result.json)\n\n'+Array.from({length:100},(_,i)=>`Paragraph ${i}`).join('\n\n');
+await writeFile(join(workspace,'README.md'),markdown);
 await writeFile(join(workspace,'runs','result.json'),result);
 await writeFile(join(other,'other-only.txt'),'different workspace');
 for(let i=0;i<2050;i++)await writeFile(join(workspace,'large',`record-${String(i).padStart(4,'0')}.json`),'{}');
@@ -67,6 +68,15 @@ try {
   let markdownBounds;
   await expect.poll(async()=>{markdownBounds=(await state()).files.browser.reader?.bounds;return !!markdownBounds?.width;}).toBe(true);
   await page.screenshot({path:join(output,'markdown-link.png'),scale:'css'});
+  await page.mouse.move(markdownBounds.x+100,markdownBounds.y+160);await page.mouse.wheel(0,500);
+  await expect.poll(async()=>(await state()).files.browser.reader.previewScroll[1]).toBeLessThan(-100);
+  const scroll=(await state()).files.browser.reader.previewScroll;
+  await writeFile(join(workspace,'README.md'),markdown+'\n\nNew paragraph');await control('preview-refresh');
+  await expect.poll(async()=>(await state()).files.browser.reader.bytes).toBe(Buffer.byteLength(markdown+'\n\nNew paragraph'));
+  expect((await state()).files.browser.reader.previewScroll).toEqual(scroll);
+  await page.mouse.move(markdownBounds.x+100,markdownBounds.y+160);await page.mouse.wheel(0,-5000);
+  await expect.poll(async()=>(await state()).files.browser.reader.previewScroll[1]).toBe(0);
+
   await page.mouse.click(markdownBounds.x+50,markdownBounds.y+82);
   await expect.poll(async()=>(await state()).files.browser.previewPath).toBe('runs/result.json');
   await expect.poll(async()=>(await state()).files.browser.reader?.bytes).toBe(Buffer.byteLength(result));
@@ -113,9 +123,12 @@ try {
   await expect.poll(async()=>(await state()).files.tab).toBe('files');
   await click(s=>s.artifacts?.bounds.toggle);
   await expect.poll(async()=>(await state()).files.browser.rows.some(r=>r.path==='request.json')).toBe(true);
+  await rename(workspace,workspace+'-unavailable');await control('refresh');
+  await expect.poll(async()=>(await state()).files.browser.rows.some(r=>r.notice.startsWith('Some(WorkspaceUnavailable'))).toBe(true);
+  expect((await state()).files.browser.rows.some(r=>r.path==='request.json')).toBe(true);
   expect(await readFile(history,'utf8')).toBe(events.map(e=>JSON.stringify(e)).join('\n')+'\n');
   expect(errors).toEqual([]);
-  await writeFile(join(output,'result.json'),JSON.stringify({workspace,history,renderedRowsFor2000Entries:painted,checks:['real Host and filesystem','session isolation','keyboard','relative Markdown link','retained tabs','snapshot preserved','reload','truncation','narrow dark','restart preference'],errors},null,2));
+  await writeFile(join(output,'result.json'),JSON.stringify({workspace,history,renderedRowsFor2000Entries:painted,checks:['real Host and filesystem','session isolation','keyboard','relative Markdown link','reload retains scroll','missing workspace retains rows','retained tabs','snapshot preserved','reload','truncation','narrow dark','restart preference'],errors},null,2));
   console.log('Workspace Files: real Host, lazy tree, preview, keyboard, isolation, immutable artifact and restart passed');
 } catch(error) {
   if(page){await page.screenshot({path:join(output,'failure.png')});await writeFile(join(output,'failure.json'),JSON.stringify(await state(),null,2));}
