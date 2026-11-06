@@ -93,6 +93,8 @@ type Server struct {
 	pending             map[string]chan clientResponse
 	writer              *wireWriter
 	mcpRuntime          bool
+	mcpToolPolicy       bool
+	mcpSession          bool
 	questionTools       bool
 	userQuestions       bool
 	holdAssistantText   func(*harness.Agent) bool
@@ -317,6 +319,8 @@ func (s *Server) handle(ctx context.Context, message request) (any, *rpcError) {
 		}, nil
 	case "authenticate":
 		return map[string]any{}, nil
+	case MCPSessionMethod:
+		return s.mcpSessionRequest(ctx, message.Params)
 	case "session/new":
 		var params NewSessionParams
 		if err := decodeParams(message.Params, &params); err != nil {
@@ -444,6 +448,7 @@ func (s *Server) handleNotification(message request) {
 		}
 		// Preserve synchronous cancellation of an already active turn; the
 		// prompt context also covers admission before that turn exists.
+		record.agent.MCPAccess().Cancel()
 		record.agent.Cancel(context.Canceled)
 	}
 }
@@ -460,7 +465,7 @@ func (s *Server) newSession(ctx context.Context, params NewSessionParams) (harne
 	if len(params.AdditionalDirectories) > 0 {
 		return "", invalidError("additionalDirectories is not supported")
 	}
-	servers, err := decodeMCPServers(params.MCPServers, params.CWD)
+	servers, err := s.decodeSessionMCPServers(params.MCPServers, params.CWD)
 	if err != nil {
 		return "", err
 	}
@@ -481,7 +486,7 @@ func (s *Server) newSession(ctx context.Context, params NewSessionParams) (harne
 			if _, err := s.h.Approvals().Register(run, s.requestApproval); err != nil {
 				return err
 			}
-			return harness.MountMCPServers(setup, run, s.h.Tools(), s.h.Prompts(), servers)
+			return harness.MountAgentMCPServers(setup, run, s.h.Tools(), s.h.Prompts(), owner, servers)
 		},
 	})
 	if err != nil {
@@ -677,7 +682,7 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 	if err := s.checkRestoredModel(ctx, session); err != nil {
 		return err
 	}
-	servers, err := decodeMCPServers(params.MCPServers, params.CWD)
+	servers, err := s.decodeSessionMCPServers(params.MCPServers, params.CWD)
 	if err != nil {
 		return err
 	}
@@ -693,7 +698,7 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 			if _, err := s.h.Approvals().Register(run, s.requestApproval); err != nil {
 				return err
 			}
-			return harness.MountMCPServers(setup, run, s.h.Tools(), s.h.Prompts(), servers)
+			return harness.MountAgentMCPServers(setup, run, s.h.Tools(), s.h.Prompts(), owner, servers)
 		},
 	})
 	if err != nil {
@@ -748,7 +753,7 @@ func (s *Server) requestApproval(ctx context.Context, request harness.ApprovalRe
 	}
 	params := map[string]any{
 		"sessionId": controller.ID(),
-		"toolCall":  map[string]any{"toolCallId": request.CallID},
+		"toolCall":  map[string]any{"toolCallId": request.CallID, "title": request.ToolName},
 		"options": []any{
 			map[string]any{"optionId": "allow-once", "name": "Allow once", "kind": "allow_once"},
 			map[string]any{"optionId": "reject-once", "name": "Reject", "kind": "reject_once"},
@@ -764,6 +769,14 @@ func (s *Server) requestApproval(ctx context.Context, request harness.ApprovalRe
 			params["_meta"] = meta
 		}
 		meta["pero.dev/native-approval"] = *request.Native
+	}
+	if binding := harness.MCPApprovalBinding(ctx, request); binding != "" {
+		meta, ok := params["_meta"].(map[string]any)
+		if !ok {
+			meta = map[string]any{}
+			params["_meta"] = meta
+		}
+		meta["pero.mcpBinding"] = binding
 	}
 	raw, err := s.requestClient(ctx, "session/request_permission", params)
 	if err != nil {

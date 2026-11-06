@@ -40,7 +40,9 @@ func (s *Server) negotiateMCPRuntime(raw json.RawMessage) error {
 	var params struct {
 		Capabilities struct {
 			Meta struct {
-				Runtime int `json:"pero.mcpRuntime"`
+				Runtime    int `json:"pero.mcpRuntime"`
+				ToolPolicy int `json:"pero.mcpToolPolicy"`
+				Session    int `json:"pero.mcpSession"`
 			} `json:"_meta"`
 		} `json:"clientCapabilities"`
 	}
@@ -51,6 +53,8 @@ func (s *Server) negotiateMCPRuntime(raw json.RawMessage) error {
 	}
 	s.mu.Lock()
 	s.mcpRuntime = params.Capabilities.Meta.Runtime == 1
+	s.mcpToolPolicy = params.Capabilities.Meta.ToolPolicy == 1
+	s.mcpSession = params.Capabilities.Meta.Session == 1
 	s.mu.Unlock()
 	return nil
 }
