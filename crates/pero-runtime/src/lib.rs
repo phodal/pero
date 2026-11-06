@@ -7,6 +7,7 @@ pub mod roadmap;
 pub mod apps;
 pub mod environments;
 pub mod owned_process;
+pub mod compute;
 pub mod contribution;
 pub mod contribution_git;
 pub mod settings;
