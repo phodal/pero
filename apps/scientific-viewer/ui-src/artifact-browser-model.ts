@@ -44,7 +44,11 @@ export function admitArtifactBrowser(value: unknown, threadId: string): Artifact
         || (version.source_message_id !== undefined && typeof version.source_message_id !== 'string')
         || (version.source_tool_call_id !== undefined && typeof version.source_tool_call_id !== 'string')
         || !record(version.source) || !(version.source.kind === 'text'
-          || (version.source.kind === 'file' && identity(version.source.path)))) {
+          || (version.source.kind === 'file' && identity(version.source.path))
+          || (version.source.kind === 'research' && record(version.source.provenance)
+            && identity(version.source.provenance.slot)
+            && [version.source.provenance.program_id, version.source.provenance.checkpoint_id,
+              version.source.provenance.export_digest].every(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value))))) {
         throw new Error('Invalid artifact browser version');
       }
     }
