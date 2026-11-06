@@ -32,6 +32,7 @@ pub(super) fn prepare(
     managed: PythonEnvironment,
     dependencies: &[PythonDependency],
     python_minor: &str,
+    required_minor: Option<&str>,
     progress: &mut impl FnMut(AppPreparation),
 ) -> Result<PythonPreparation, String> {
     let mut report = |phase, message: String| {
@@ -46,7 +47,7 @@ pub(super) fn prepare(
         "Checking Python dependencies".into(),
     );
     let result: Result<PythonPreparation, String> = (|| {
-        let target = selection(name, selected, managed, dependencies)?;
+        let target = selection(selected, managed, required_minor)?;
         let environment = target.environment();
         if !environment.executable().is_file() {
             report(
@@ -118,12 +119,12 @@ pub(super) fn prepare(
 
 /// Read-only admission for opening an App. Acquisition belongs to `prepare`.
 pub(super) fn check(
-    name: &AppName,
     selected: Option<&PythonEnvironment>,
     managed: PythonEnvironment,
     dependencies: &[PythonDependency],
+    required_minor: Option<&str>,
 ) -> Result<PythonEnvironment, String> {
-    let target = selection(name, selected, managed, dependencies)?;
+    let target = selection(selected, managed, required_minor)?;
     let environment = target.environment();
     if selected.is_some_and(|selected| selected.root() != environment.root()) {
         return Err("This App needs a compatible Python environment. Choose Prepare environment to update its binding.".into());
@@ -144,10 +145,9 @@ pub(super) fn check(
 }
 
 fn selection(
-    name: &AppName,
     selected: Option<&PythonEnvironment>,
     managed: PythonEnvironment,
-    dependencies: &[PythonDependency],
+    required_minor: Option<&str>,
 ) -> Result<PythonPreparation, String> {
     let config = selected
         .map(|environment| {
@@ -164,12 +164,11 @@ fn selection(
         .transpose()?
         .flatten();
     PythonPreparation::for_app(
-        name,
         selected,
         managed,
         config.as_deref(),
         selected.is_some_and(|environment| environment.executable().is_file()),
-        !dependencies.is_empty(),
+        required_minor,
     )
 }
 

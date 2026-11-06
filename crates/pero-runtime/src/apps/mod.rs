@@ -463,8 +463,8 @@ impl AppStore {
         Ok(self.list())
     }
 
-    /// Explicit preparation before enable, preserving selected environments. Control Lab
-    /// alone binds the bundled minor when its valid selection is incompatible.
+    /// Explicit preparation before enable. A declared `backend.python` minor replaces a
+    /// selected interpreter of another minor; Apps that omit it keep their selection.
     pub fn prepare(&mut self, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<(), String> {
         self.prepare_agent_plugins(name)?;
         let app = self.installed.get(name).ok_or("App is not installed")?;
@@ -473,8 +473,10 @@ impl AppStore {
         if !matches!(backend.kind, definition::BackendKind::Python) || backend.dependencies.is_empty() && self.python.select(name).is_none() { return Ok(()); }
         let managed = self.managed_python_directory(name)?;
         let dependencies = backend.dependencies.clone();
+        let required_minor = backend.python.as_ref().map(|minor| minor.as_str());
+        let install_minor = required_minor.unwrap_or(python::BUNDLED_PYTHON_MINOR);
         let target = preparation::prepare(name, self.python.select(name),
-            PythonEnvironment::try_from(managed)?, &dependencies, python::BUNDLED_PYTHON_MINOR, progress)?;
+            PythonEnvironment::try_from(managed)?, &dependencies, install_minor, required_minor, progress)?;
         let environment = target.environment().clone();
         if let python::PythonPreparation::Managed(_) = &target {
             self.python.bind(name.clone(), environment.root().to_path_buf())?;
@@ -535,7 +537,8 @@ impl AppStore {
                 && (!backend.dependencies.is_empty() || python.is_some())
             {
                 let managed = PythonEnvironment::try_from(self.managed_python_directory(name)?)?;
-                let checked = preparation::check(name, self.python.select(name), managed, &backend.dependencies);
+                let required_minor = backend.python.as_ref().map(|minor| minor.as_str());
+                let checked = preparation::check(self.python.select(name), managed, &backend.dependencies, required_minor);
                 progress(AppPreparation {
                     name: name.clone(),
                     phase: if checked.is_ok() { preparation::PreparationPhase::Ready } else { preparation::PreparationPhase::Required },

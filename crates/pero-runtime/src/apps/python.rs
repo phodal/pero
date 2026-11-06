@@ -2,7 +2,7 @@
 //!
 //! New environments use the bundled CPython minor, 3.12
 //! (`scripts/release/python.json`). An existing environment of another version
-//! is left in place; Control Lab is bound to a 3.12 environment instead.
+//! stays selected unless the App manifest declares `backend.python`.
 use super::AppName;
 use serde::Deserialize;
 use std::{
@@ -15,16 +15,18 @@ use std::{
 pub const BUNDLED_PYTHON_MINOR: &str = "3.12";
 
 pub fn matches_bundled_python(version: &str) -> bool {
+    python_minor_matches(version, BUNDLED_PYTHON_MINOR)
+}
+
+fn python_minor_matches(version: &str, minor: &str) -> bool {
     let version = version.trim();
-    version == BUNDLED_PYTHON_MINOR
-        || version
-            .strip_prefix(BUNDLED_PYTHON_MINOR)
-            .is_some_and(|rest| {
-                let Some(patch) = rest.strip_prefix('.') else {
-                    return false;
-                };
-                !patch.is_empty() && patch.bytes().all(|byte| byte.is_ascii_digit())
-            })
+    version == minor
+        || version.strip_prefix(minor).is_some_and(|rest| {
+            let Some(patch) = rest.strip_prefix('.') else {
+                return false;
+            };
+            !patch.is_empty() && patch.bytes().all(|byte| byte.is_ascii_digit())
+        })
 }
 
 /// `version` in pyvenv.cfg. uv records the same value as `version_info`.
@@ -51,12 +53,11 @@ pub(super) enum PythonPreparation {
 
 impl PythonPreparation {
     pub(super) fn for_app(
-        app: &AppName,
         selected: Option<&PythonEnvironment>,
         managed: PythonEnvironment,
         config: Option<&str>,
         executable_exists: bool,
-        requirements_present: bool,
+        required_minor: Option<&str>,
     ) -> Result<Self, String> {
         let Some(selected) = selected else {
             return Ok(Self::Managed(managed));
@@ -78,12 +79,12 @@ impl PythonPreparation {
                 selected.executable().display()
             ));
         }
-        if app.as_str() == "control-lab" && requirements_present {
+        if let Some(required) = required_minor {
             let version = configured_python_version(config).ok_or_else(|| format!(
                 "Python environment {} does not declare its version in pyvenv.cfg; repair the selected venv",
                 selected.root().display()
             ))?;
-            if !matches_bundled_python(version) {
+            if !python_minor_matches(version, required) {
                 return Ok(Self::Managed(managed));
             }
         }
@@ -380,7 +381,7 @@ mod tests {
         let compatible = "version = 3.12.16\ninclude-system-site-packages = false\n";
         let other_minor = "version = 3.14.7\ninclude-system-site-packages = false\n";
         let invalid = "version = 3.14.7\ninclude-system-site-packages = true\n";
-        for (app, selection, config, executable, requirements, expected) in [
+        for (app, selection, config, executable, _requirements, expected) in [
             (
                 "paper-agent",
                 "external",
@@ -448,6 +449,22 @@ mod tests {
                 "managed",
             ),
             (
+                "lcms2yield",
+                "external",
+                Some(other_minor),
+                true,
+                true,
+                "managed",
+            ),
+            (
+                "lcms2yield",
+                "external",
+                Some(compatible),
+                true,
+                true,
+                "existing",
+            ),
+            (
                 "control-lab",
                 "external",
                 Some(compatible),
@@ -477,7 +494,7 @@ mod tests {
                 Some(other_minor),
                 true,
                 false,
-                "existing",
+                "managed",
             ),
             (
                 "control-lab",
@@ -493,14 +510,13 @@ mod tests {
                 "managed" => Some(&managed),
                 _ => None,
             };
-            let app_name = AppName::try_from(app.to_owned()).unwrap();
+            let required_minor = matches!(app, "control-lab" | "lcms2yield").then_some("3.12");
             let result = PythonPreparation::for_app(
-                &app_name,
                 selected,
                 managed.clone(),
                 config,
                 executable,
-                requirements,
+                required_minor,
             );
             match expected {
                 "existing" => assert!(
@@ -521,5 +537,16 @@ mod tests {
                 }
             }
         }
+        let declared = PythonPreparation::for_app(
+            Some(&external),
+            managed,
+            Some(other_minor),
+            true,
+            Some("3.12"),
+        );
+        assert!(
+            matches!(declared, Ok(PythonPreparation::Managed(_))),
+            "{declared:?}"
+        );
     }
 }

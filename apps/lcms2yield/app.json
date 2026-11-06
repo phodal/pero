@@ -12,6 +12,7 @@
   "backend": {
     "type": "python",
     "entry": "backend/server.py",
+    "python": "3.12",
     "dependencies": [
       "numpy==1.26.4",
       "pandas==2.3.2",

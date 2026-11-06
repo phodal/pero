@@ -219,6 +219,7 @@ impl EnvironmentPreparation {
                 PythonEnvironment::try_from(root.clone())?,
                 &dependencies,
                 value.target.python_minor(),
+                None,
                 &mut |event| {
                     value.log.push(event.message.clone());
                     if value.log.len() > 80 {
