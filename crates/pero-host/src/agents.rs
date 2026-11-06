@@ -111,6 +111,7 @@ impl Manager {
                             | "configuration_changed"
                             | "turn_started"
                             | "turn_finished"
+                            | "workspace_changes"
                             | "session_error"
                             | "session_closed"
                             | "session_deleted"

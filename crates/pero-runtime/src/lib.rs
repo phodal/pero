@@ -70,3 +70,5 @@ pub mod workspace_store;
 pub mod workspace_drafts;
 
 mod workspace_source_upload;
+
+pub mod workspace_changes;

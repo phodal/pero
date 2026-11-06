@@ -5,6 +5,7 @@ use std::io::{self, BufRead, Write};
 mod terminal;
 mod agents;
 mod artifacts;
+mod workspace_changes;
 mod automation;
 mod automation_store;
 mod environment_uses;
@@ -46,6 +47,7 @@ fn main() -> io::Result<()> {
         .map(pero_runtime::workspace_store::WorkspaceStore::new);
     let mut documents = pero_runtime::file_documents::FileDocuments::default();
     let artifacts = artifacts::Artifacts::new(settings_path.as_deref());
+    let changes = workspace_changes::Changes::new(settings_path.as_deref());
     let workers = local_worker::LocalWorkers::new(settings_path.as_deref());
     let mut mcp = mcp::Mcp::new(settings_path.as_deref());
     let mut icons = icons::Icons::new(settings_path.as_deref());
@@ -86,6 +88,9 @@ fn main() -> io::Result<()> {
         if value.get("method").and_then(|v| v.as_str()) == Some("workspace_files") {
             workspace_files::dispatch(value, &agents);
             continue;
+        }
+        if value.get("method").and_then(|v| v.as_str()) == Some("workspace_changes") {
+            emit(changes.dispatch(value, &agents))?; continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("artifacts") {
             emit(artifacts.dispatch(value, &agents))?;
