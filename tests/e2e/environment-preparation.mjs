@@ -45,6 +45,10 @@ try{
  });
  expect(narrowOrder).toBe(true);
  await frame.getByRole('button',{name:'创建并准备',exact:true}).scrollIntoViewIfNeeded();
+ await expect.poll(()=>frame.getByRole('button',{name:'创建并准备',exact:true}).evaluate(button=>{
+  const rect=button.getBoundingClientRect();
+  return rect.top>=0 && rect.bottom<=window.innerHeight;
+ })).toBe(true);
  await page.screenshot({path:resolve(out,'create-dark-narrow-summary-zh.png')});
  await frame.getByLabel('环境名称',{exact:true}).scrollIntoViewIfNeeded();
  await app.evaluate(({BrowserWindow,Menu})=>{BrowserWindow.getAllWindows()[0].setSize(1280,850);Menu.getApplicationMenu().getMenuItemById('locale-en').click();});
