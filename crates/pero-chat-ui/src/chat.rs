@@ -420,6 +420,7 @@ impl ChatPanel {
         true
     }
     pub fn receive_chat(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
+        if self.changes_event(event,cx) {return true;}
         if event
             .thread_id
             .as_ref()

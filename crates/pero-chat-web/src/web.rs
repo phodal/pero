@@ -74,6 +74,7 @@ impl ChatWindow {
                     ChatAction::Content(intent) => serde_json::to_value(intent).expect("content intent"),
                     ChatAction::WorkspaceFiles(request) => serde_json::to_value(request).expect("workspace file request"),
                     ChatAction::ResourceTab { tab } => {this.preferences.layout.resource_tab=*tab;json!({"method":"settings.workbench","preferences":this.preferences})},
+                    ChatAction::Changes(request) => serde_json::to_value(request).expect("changes request"),
                     ChatAction::Artifacts(request) => serde_json::to_value(request).expect("artifact request"),
                     ChatAction::ArtifactPreview(_) => return,
                     ChatAction::ArtifactComposeResult{id,error} => json!({"action":"artifact_compose_result","id":id,"error":error}),

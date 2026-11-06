@@ -86,6 +86,7 @@ impl ChatPanel {
         }
         let state = self.artifacts.conversations.get(&thread);
         let open = state.is_some_and(|state| state.open);
+        let reviewing = state.is_some_and(|state| state.show_changes);
         let count = state.map_or(0, |state| state.items.len());
         let toggle_thread = thread.clone();
         let title = self.t(
@@ -104,7 +105,7 @@ impl ChatPanel {
         let header_height = pero_theme::WorkbenchStyle::TAB
             .max(pero_theme::UiAppearance::global(cx).typography.row_height() + 4.)
             .max(36.);
-        let header = (!thread.is_empty() || self.docked).then(|| {
+        let header = ((!thread.is_empty() && !reviewing) || self.docked).then(|| {
             div()
                 .h(px(header_height))
                 .min_h(px(header_height))
@@ -129,7 +130,7 @@ impl ChatPanel {
                             })),
                     )
                 })
-                .when(open, |el| {
+                .when(open && !reviewing, |el| {
                     let toolbar = if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
                     {
                         self.files_toolbar(&thread, cx)
@@ -170,10 +171,13 @@ impl ChatPanel {
             .child(self.chat_view(window, cx))
             .into_any_element();
         let body = if open {
-            let pane = if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files {
+            let collection = state.expect("open artifact catalog");
+            let pane = if collection.show_changes {
+                self.changes_panel(&thread, collection, cx)
+            } else if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files {
                 self.file_panel(&thread, cx)
             } else {
-                self.artifact_panel(&thread, state.expect("open artifact catalog"), cx)
+                self.artifact_panel(&thread, collection, cx)
             };
             if self.artifacts.narrow {
                 pane
@@ -398,6 +402,7 @@ impl ChatPanel {
             .flex()
             .flex_col()
             .bg(p.surface)
+            .child(self.output_tabs(thread,state,cx))
             .when(state.path_open, |el| {
                 let thread = thread.to_owned();
                 let dismiss_thread = thread.clone();

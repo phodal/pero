@@ -201,6 +201,7 @@ impl Workbench {
                 ChatAction::Content(intent) => this.command(serde_json::to_value(intent).expect("content intent"), cx),
                 ChatAction::WorkspaceFiles(request) => this.command(serde_json::to_value(request).expect("workspace file request"), cx),
                 ChatAction::ResourceTab { tab } => {let mut preferences=this.preferences.clone();preferences.layout.resource_tab=*tab;this.save_preferences(preferences,cx);},
+                ChatAction::Changes(request) => this.command(serde_json::to_value(request).expect("changes request"),cx),
                 ChatAction::Artifacts(request) => this.command(serde_json::to_value(request).expect("artifact request"), cx),
                 ChatAction::ArtifactPreview(target) => {
                     #[cfg(not(target_family="wasm"))]

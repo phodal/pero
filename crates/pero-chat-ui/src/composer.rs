@@ -468,6 +468,7 @@ impl ChatPanel {
                     .when(self.compact, |el| el.flex().items_center().gap(px(4.)))
                     .children(normal_attachments)
                     .children(compact_context)
+                    .when(self.compact, |el|el.child(self.output_controls(cx)))
                     .child(
                         div()
                             .relative()
@@ -519,6 +520,7 @@ impl ChatPanel {
                                         .gap(px(pero_theme::SPACE_8))
                                         .children(normal_context)
                                         .children(self.session_extra_controls(cx))
+                                        .child(self.output_controls(cx))
                                         .children(chat.and_then(|chat| chat.usage.as_ref()).map(
                                             |usage| {
                                                 crate::usage::render_usage(

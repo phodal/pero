@@ -265,6 +265,8 @@ pub struct Conversation {
     pub session_id: String,
     pub messages: Vec<Message>,
     pub tools: Vec<Tool>,
+    #[serde(skip)]
+    pub changes: crate::changes_view::ChangeReview,
     pub timeline: Vec<StreamItem>,
     pub queued: Option<String>,
     pub queued_contexts: Vec<pero_contracts::context::ContextReference>,
@@ -315,6 +317,7 @@ impl Conversation {
             session_id: String::new(),
             messages: vec![],
             tools: vec![],
+            changes: Default::default(),
             timeline: vec![],
             queued: None,
             queued_contexts: vec![],
