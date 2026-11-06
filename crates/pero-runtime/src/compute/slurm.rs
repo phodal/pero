@@ -13,6 +13,10 @@ pub struct SlurmSite {
     cluster: Identity,
 }
 #[derive(Deserialize)]
+struct Controller {
+    meta: Meta,
+}
+#[derive(Deserialize)]
 struct JobList {
     jobs: Vec<Job>,
     meta: Meta,
@@ -55,15 +59,22 @@ impl SlurmSite {
             binaries,
             cluster: expected_cluster,
         };
-        site.jobs(None)?;
+        let output =
+            command_output(Command::new(site.binaries.join("scontrol")).args(["--json", "ping"]))?;
+        if !output.status.success() {
+            return Err("Slurm controller is unavailable".into());
+        }
+        let controller: Controller =
+            serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+        if controller.meta.slurm.cluster != site.cluster {
+            return Err("Slurm cluster identity changed".into());
+        }
         Ok(site)
     }
-    fn jobs(&self, job_id: Option<u64>) -> Result<Vec<Job>, String> {
+    fn jobs(&self, job_id: u64) -> Result<Vec<Job>, String> {
         let mut command = Command::new(self.binaries.join("scontrol"));
         command.args(["--json", "show", "jobs"]);
-        if let Some(id) = job_id {
-            command.arg(id.to_string());
-        }
+        command.arg(job_id.to_string());
         let output = command_output(&mut command)?;
         if !output.status.success() {
             return Err("Slurm observation unavailable; original job state is unknown".into());
@@ -166,11 +177,17 @@ impl SlurmSite {
         {
             return Err("Slurm submission receipt belongs to another cluster".into());
         }
+        let reconcile = |reason: String| {
+            format!(
+                "Submitted Slurm job {job_id}, marker {marker}: {reason}; reconcile original job, do not resubmit"
+            )
+        };
         let job = self
-            .jobs(Some(job_id))?
+            .jobs(job_id)
+            .map_err(&reconcile)?
             .into_iter()
             .find(|j| j.job_id == job_id && j.comment == marker && j.cluster == self.cluster)
-            .ok_or("Submitted job cannot be reconciled; do not resubmit")?;
+            .ok_or_else(|| reconcile("Job identity unavailable".into()))?;
         let submission = BatchSubmission {
             operation,
             cluster: self.cluster.clone(),
@@ -180,21 +197,23 @@ impl SlurmSite {
             submit_time: job
                 .submit_time
                 .value()
-                .ok_or("Slurm submit time unavailable")?,
+                .ok_or_else(|| reconcile("Submit time unavailable".into()))?,
         };
         let receipt = record.with_extension("receipt.json");
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(receipt)
-            .map_err(|e| e.to_string())?;
-        file.write_all(&serde_json::to_vec_pretty(&submission).map_err(|e| e.to_string())?)
-            .and_then(|_| file.sync_all())
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| reconcile(e.to_string()))?;
+        file.write_all(
+            &serde_json::to_vec_pretty(&submission).map_err(|e| reconcile(e.to_string()))?,
+        )
+        .and_then(|_| file.sync_all())
+        .map_err(|e| reconcile(e.to_string()))?;
         Ok(submission)
     }
     pub fn observe(&self, submission: &BatchSubmission) -> Result<BatchObservation, String> {
-        let job = self.jobs(Some(submission.job_id))?.into_iter().find(|j| j.job_id == submission.job_id)
+        let job = self.jobs(submission.job_id)?.into_iter().find(|j| j.job_id == submission.job_id)
             .ok_or("Original job is absent from controller history; reconcile accounting, do not infer stopped")?;
         let marker = format!("pero:{}", ContentDigest::of(&submission.operation).as_str());
         if job.cluster != submission.cluster
@@ -218,12 +237,15 @@ impl SlurmSite {
         }
         let result = command_output(
             Command::new(self.binaries.join("scancel")).arg(submission.job_id.to_string()),
-        )?;
-        if !result.status.success() {
-            return Err("Original Slurm cancellation is unconfirmed".into());
+        );
+        // A job may finish while scancel is in flight. Its observed terminal
+        // receipt is authoritative even if the cancellation reply was lost.
+        let observed = self.observe(submission)?;
+        if observed.stopped() || result.as_ref().is_ok_and(|r| r.status.success()) {
+            Ok(observed)
+        } else {
+            Err("Original Slurm cancellation is unconfirmed".into())
         }
-        // scancel success is an intent. Caller polls until the original job is terminal.
-        self.observe(submission)
     }
 }
 fn quote(s: &str) -> String {

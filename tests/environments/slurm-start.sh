@@ -25,5 +25,11 @@ PartitionName=validation Nodes=ALL Default=YES MaxTime=00:05:00 State=UP
 CONFIG
 printf 'CgroupPlugin=cgroup/v1\n' > /etc/slurm/cgroup.conf
 runuser -u munge -- munged --foreground --origin=127.0.0.1 &
+attempt=0
+until [ -S /run/munge/munge.socket.2 ]; do
+  attempt=$((attempt + 1))
+  [ "$attempt" -lt 50 ] || { echo 'Munge socket did not become ready' >&2; exit 1; }
+  sleep 0.1
+done
 slurmctld -D &
 exec slurmd -D
