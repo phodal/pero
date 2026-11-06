@@ -109,9 +109,31 @@ impl ComposeDeployment {
         if !resolved.status.success() {
             return Err(String::from_utf8_lossy(&resolved.stderr).into_owned());
         }
-        let recipe = ContentDigest::of(&resolved.stdout);
+        // Compose's resolved document is an external format, kept only at this
+        // boundary. Pin every selected local platform image before freezing it.
+        let mut config: serde_json::Value =
+            serde_json::from_slice(&resolved.stdout).map_err(|e| e.to_string())?;
+        let services = config
+            .get_mut("services")
+            .and_then(serde_json::Value::as_object_mut)
+            .ok_or("Compose recipe has no services")?;
+        for service in services.values_mut() {
+            let image = service
+                .get("image")
+                .and_then(serde_json::Value::as_str)
+                .ok_or("Prepare every Compose image explicitly first")?;
+            let platform = service
+                .get("platform")
+                .and_then(serde_json::Value::as_str)
+                .ok_or("Select an explicit platform for every Compose service")?;
+            let selected =
+                super::DockerOwner::resolve(docker.clone(), context.clone(), image, platform)?;
+            service["image"] = format!("sha256:{}", selected.image().reference.as_str()).into();
+        }
+        let frozen = serde_json::to_vec(&config).map_err(|e| e.to_string())?;
+        let recipe = ContentDigest::of(&frozen);
         let recipe_path = record.join("compose.json");
-        fs::write(&recipe_path, &resolved.stdout).map_err(|e| e.to_string())?;
+        fs::write(&recipe_path, &frozen).map_err(|e| e.to_string())?;
         let evidence = ComposeEvidence {
             project,
             daemon,

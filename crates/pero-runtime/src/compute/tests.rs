@@ -146,15 +146,16 @@ fn compose_preserves_member_identity_and_retains_service_data() {
     let platform = std::env::var("PERO_TEST_DOCKER_PLATFORM").unwrap();
     let dir = directory();
     let recipe = dir.join("recipe.json");
-    let image = DockerOwner::resolve("docker".into(), context.clone(), &image, &platform).unwrap();
-    let pinned = format!("sha256:{}", image.image().reference.as_str());
+    let selected =
+        DockerOwner::resolve("docker".into(), context.clone(), &image, &platform).unwrap();
+    let pinned = format!("sha256:{}", selected.image().reference.as_str());
     let config = serde_json::json!({
         "services": {
-            "data": {"image":pinned, "platform":platform,
+            "data": {"image":image, "platform":platform,
                 "command":["python3","-m","http.server","8000","--directory","/data"],
                 "volumes":["results:/data"],
                 "healthcheck":{"test":["CMD","python3","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000')"], "interval":"1s", "timeout":"2s", "retries":10}},
-            "client": {"image":pinned, "platform":platform,
+            "client": {"image":image, "platform":platform,
                 "command":["sleep","infinity"],
                 "depends_on":{"data":{"condition":"service_healthy"}},
                 "healthcheck":{"test":["CMD","python3","-c","import urllib.request; urllib.request.urlopen('http://data:8000')"], "interval":"1s", "timeout":"2s", "retries":10}}
