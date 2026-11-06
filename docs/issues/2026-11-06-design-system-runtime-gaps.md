@@ -173,3 +173,8 @@ The legacy Insights recap also uses SDK Button and maps its old fixed colour/
 font variables to purpose-specific Pero tokens. Remove private button/focus
 skins. Current homepage does not mount this legacy module, so this is source
 coverage rather than an observed production homepage defect.
+
+Feedback's paragraph root could not contain the existing nested diagnostics
+(details/pre/div). Use a div root with the same roles and styles so recovery
+controls and diagnostic content remain inside the alert after HTML parsing.
+A regression test exercises that actual markup boundary.
