@@ -196,3 +196,14 @@ entries missing from the integrated pnpm lock, and refreshes the input cache
 for the Harness build scripts. No existing package versions are upgraded.
 `bazel run @npm//:sync` and all seven `bazel test --config=ci //:checks`
 targets pass locally.
+
+
+## Conversation Files integration cache (2026-11-07)
+
+PR #155 CI run `42259406691` failed the frozen Bazel generated checks after
+integrating current master: the rules_js package.json input stamp was stale.
+This is the same script-input cache invalidation; regenerate with the pinned
+`bazel run @npm//:sync` and retain dependency versions and frozen checks.
+
+Only the package.json input hash changed. All seven frozen generated checks
+passed locally with `bazel test --config=ci //:checks`; dependency locks were unchanged.
