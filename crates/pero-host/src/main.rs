@@ -69,6 +69,7 @@ fn main() -> io::Result<()> {
         }
     });
     loop {
+        for event in mcp.poll(&mut agents) { emit(event)?; }
         if let Ok(owner) = &mut automation {
             if let Some(event) = owner.tick(&mut agents) { emit(event)?; }
         }
@@ -102,12 +103,16 @@ fn main() -> io::Result<()> {
             agents.dispatch_mcp(value);
             continue;
         }
+        if value.get("method").and_then(|value| value.as_str()) == Some("mcp.session") {
+            agents.dispatch_mcp_session(value);
+            continue;
+        }
         if value.get("method").and_then(|value| value.as_str()) == Some("icons") {
             emit(icons.dispatch(value))?;
             continue;
         }
         if value.get("method").and_then(|value| value.as_str()) == Some("mcp") {
-            emit(mcp.dispatch(value, &agents, &locale))?;
+            if let Some(event) = mcp.dispatch(value, &agents, &locale) { emit(event)?; }
             continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("settings.harness") {

@@ -13,6 +13,8 @@ mod app_agent_run;
 pub mod automation_agent;
 #[path = "mcp_settings.rs"]
 mod mcp_settings;
+#[path = "mcp_session.rs"]
+mod mcp_session;
 use std::{
     collections::HashMap,
     io::{BufRead, Write},
@@ -503,7 +505,12 @@ impl Manager {
                     } if (!text.trim().is_empty() || !contexts.is_empty())
                         && pero_contracts::context::validate_prompt_text(&text).is_ok() =>
                     {
-                        if let Err(error) = ContextReference::validate_all(&contexts) {
+                        let snapshot = self.mcp_session_snapshot(&thread_id);
+                        let admission = ContextReference::validate_all(&contexts).and_then(|_| {
+                            contexts.iter().try_for_each(|reference|
+                                pero_contracts::mcp_resource::admit_context(reference, snapshot.as_ref()))
+                        });
+                        if let Err(error) = admission {
                             let mut event = HostEvent::new("session_error", None, error.into());
                             event.thread_id = Some(thread_id);
                             let _ = self.tx.send(event);
