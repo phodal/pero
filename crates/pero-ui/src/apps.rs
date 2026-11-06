@@ -45,7 +45,7 @@ impl InstalledApp {
         match self.name.as_str() {
             "insights" => AppPlacement::Primary,
             "paper-agent" | "data" => AppPlacement::Workspace,
-            "environments" | "compute" | "hpc" => AppPlacement::WorkspaceCatalog,
+            "environments" | "compute" => AppPlacement::WorkspaceCatalog,
             "connectors" => AppPlacement::Customize,
             "automations" => AppPlacement::Automation,
             _ => AppPlacement::Catalog,
@@ -514,7 +514,7 @@ mod tests {
     #[test]
     fn workspace_tools_remain_discoverable_before_activation() {
         for (name, enabled, shortcut, catalog) in [
-            ("hpc", false, true, true),
+            ("hpc", false, false, true),
             ("hpc", true, true, true),
             ("compute", false, true, true),
             ("compute", true, true, true),
