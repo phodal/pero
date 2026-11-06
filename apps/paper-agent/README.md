@@ -1,5 +1,11 @@
 # Paper Agent
 
+**自动研究 / Autonomous research** connects saved seed papers, literature discovery,
+source reading and round reports to the existing Pero Session and artifact area.
+Save a bounded plan, then explicitly start it; pause/resume keeps the same Run and
+cumulative budget. Reports retain exact source references and remain `needs_review`.
+See [usage, verified behavior and limits](../../docs/fitness/paper-autonomous-research.md).
+
 Selected PDF figure annotations now include a **Values** proof of concept:
 local OCR, source-bound numeric candidates, explicit review, immutable reference
 freezing and deterministic reports. See [usage, verification and limits](../../docs/fitness/paper-numeric-reference.md).
@@ -428,3 +434,12 @@ The bundled `tools/locate-source.py --arxiv <id>vN` checks approved managed data
 and existing export copies offline; `--cache` selects an explicit profile. It
 does not download or move data. Actual skill, source and figure checks are in
 [source discovery verification](../../docs/fitness/paper-source-locations.md).
+
+
+Autonomous rounds also create immutable revisions in the existing ResearchRecord
+history. HTML source reports retain their own evidence type; findings remain
+`needs_review` and `not_run`. The bundled
+[paper-autoresearch Skill](agent-plugins/paper-autoresearch/SKILL.md) activates only
+for a Host-bound approved program. Pending acquisition waits do not consume model
+requests. On Windows, background acquisition uses `pythonw.exe` from the selected
+Python environment; an environment missing it returns a recoverable error.
