@@ -138,10 +138,10 @@
 }
 .pa-workbench .pa-records-header .pero-ui-button {
   height: auto;
-  min-height: auto;
+  min-height: var(--pero-control-height);
   padding-inline: 8px;
   color: var(--pero-text-muted);
-  font-size: 16px;
+  font-size: var(--pero-font-body);
 }
 .pa-workbench .pa-records-scroll {
   padding: 20px 24px 28px;
@@ -157,7 +157,7 @@
 .pa-workbench .pa-records .pa-record-note > summary {
   padding: 0;
   color: var(--pero-text);
-  font-size: 16px;
+  font-size: var(--pero-font-body);
   font-weight: 600;
   line-height: 1.45;
 }
