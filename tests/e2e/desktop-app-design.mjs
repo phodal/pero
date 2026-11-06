@@ -139,18 +139,21 @@ test('Connectors has explicit views, visible prerequisites, and preserves the ca
     return json({ok:true,result:[]});
   },{size:24});
   await page.goto(origin+'/connectors/index.html');
-  await expect(page.getByText('Requires: Requires organization access',{exact:true})).toBeVisible();
-  await page.getByRole('radio',{name:'Installed connections',exact:true}).click();
-  await expect(page.getByRole('radio',{name:'Installed connections',exact:true})).toHaveAttribute('aria-checked','true');
-  await expect(page.getByRole('radio',{name:'Service catalog',exact:true})).toBeVisible();
-  await page.getByRole('radio',{name:'Service catalog',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Fixture service',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Requirements',exact:true}).click();
+  await expect(page.getByRole('tooltip')).toContainText('Requires organization access');
+  await page.keyboard.press('Escape');
+  await page.getByRole('tab',{name:'Installed connections',exact:true}).click();
+  await expect(page.getByRole('tab',{name:'Installed connections',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('tab',{name:'Service catalog',exact:true})).toBeVisible();
+  await page.getByRole('tab',{name:'Service catalog',exact:true}).click();
   await page.getByRole('button',{name:'Refresh',exact:true}).click();
   await expect(page.getByRole('button',{name:'Refresh',exact:true})).toBeDisabled();
   await expect(page.getByRole('status')).toContainText('Refreshing');
-  await expect(page.getByText('Requires: Requires organization access',{exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Fixture service',exact:true})).toBeVisible();
   assert.equal(snapshots,2);await expect.poll(()=>!!release).toBe(true);release();
   await expect(page.getByRole('alert')).toContainText('Connection management is unavailable');
-  await expect(page.getByText('Requires: Requires organization access',{exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Fixture service',exact:true})).toBeVisible();
   await shot(page,'connectors-catalog24');
 });
 
@@ -353,4 +356,39 @@ test('Insights initial read failure offers one recovery path and secondary diagn
   await page.getByRole('button',{name:'Retry',exact:true}).click();
   await expect(page.getByText('No new personal work updates.',{exact:true})).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+
+for (const appearance of [{ size:14, dark:false, width:1200 }, { size:24, dark:true, width:440 }]) test(`Connectors catalog stays readable and builtin actions only compose drafts (${appearance.size})`, async t=>{
+  const title='Ansys Electronics Desktop engineering service';
+  const page=await pageFor(t,'connectors',async({body})=>json(body.operation==='snapshot' ? {ok:true,directory:[{providerId:'fixture-engineering',displayName:title,category:'research',transport:'stdio',auth:{mode:'none'},requires:[],summary:'Inspect simulation projects and prepare engineering work.',listed:true,prerequisiteEn:'Requires local software and a valid license.'}],connections:[]} : {ok:true,result:[],records:[],running:[]}),appearance);
+  await page.goto(origin+'/connectors/index.html');
+  const heading=page.getByRole('heading',{name:title,exact:true});
+  await expect(heading).toBeVisible();
+  const metrics=await heading.evaluate(node=>({font:parseFloat(getComputedStyle(node).fontSize),wrapped:node.clientHeight>parseFloat(getComputedStyle(node).lineHeight),overflow:document.documentElement.scrollWidth>innerWidth}));
+  assert.equal(metrics.font,appearance.size);assert.equal(metrics.overflow,false);
+  if(appearance.size===24)assert.ok(metrics.wrapped);
+  const navigation=page.getByRole('tablist',{name:'View',exact:true});
+  const tabGeometry=await navigation.evaluate(node=>({border:getComputedStyle(node).borderBottomWidth,gap:parseFloat(getComputedStyle(node).columnGap),buttons:[...node.querySelectorAll('[role=tab]')].map(tab=>({border:getComputedStyle(tab).borderWidth,radius:getComputedStyle(tab).borderRadius}))}));
+  assert.equal(tabGeometry.border,'0px');assert.ok(tabGeometry.gap>=16);
+  for(const tab of tabGeometry.buttons){assert.equal(tab.border,'0px');assert.equal(tab.radius,'0px');}
+  await page.getByRole('tab',{name:'Installed connections',exact:true}).click();
+  assert.equal(await page.getByRole('tab',{name:'Installed connections',exact:true}).evaluate(node=>getComputedStyle(node).outlineStyle),'none', await page.getByRole('tab',{name:'Installed connections',exact:true}).evaluate(node=>node.outerHTML));
+  await page.getByRole('tab',{name:'Service catalog',exact:true}).click();
+  await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab',{name:'Installed connections',exact:true})).toHaveAttribute('aria-selected','true');
+  assert.equal(await page.getByRole('tab',{name:'Installed connections',exact:true}).evaluate(node=>getComputedStyle(node).outlineStyle),'solid');
+  await shot(page,`customize-selected-${appearance.dark?'dark':'light'}${appearance.size}`);
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('tab',{name:'Service catalog',exact:true})).toHaveAttribute('aria-selected','true');
+  await page.getByRole('tab',{name:'Service catalog',exact:true}).click();
+  await shot(page,`customize-${appearance.dark?'dark':'light'}${appearance.size}`);
+  await page.getByRole('button',{name:'Computer Use',exact:true}).click();
+  await expect(page.getByRole('dialog')).toContainText('Try it fills the composer without sending the message.');
+  await page.getByRole('button',{name:'Try it',exact:true}).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  const messages=await page.evaluate(()=>window.fixtureMessages);
+  assert.equal(messages.filter(m=>m.type==='pero:app:chat').length,1);
+  assert.match(messages.find(m=>m.type==='pero:app:chat').options.message,/Only inspect; do not click/);
 });

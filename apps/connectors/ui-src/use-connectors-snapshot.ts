@@ -13,7 +13,6 @@ export function useConnectorsSnapshot(locale: 'zh' | 'en') {
   const [entries, setEntries] = useState<RawEntry[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true), [refreshing, setRefreshing] = useState(false);
-  const [updatedAt, setUpdatedAt] = useState('');
   const scope = useRef<RefreshScope | null>(null);
 
   useEffect(() => {
@@ -37,7 +36,6 @@ export function useConnectorsSnapshot(locale: 'zh' | 'en') {
             throw new Error(errorText(snap.code, locale));
           }
           setDirectory(snap.directory); setConnections(snap.connections);
-          setUpdatedAt(new Date().toLocaleTimeString());
           setError(''); setLoading(false);
           const list = await connectorRequest({ operation: 'list' }).catch(() => ({ ok: false as const }));
           if (!active()) return;
@@ -68,5 +66,5 @@ export function useConnectorsSnapshot(locale: 'zh' | 'en') {
     if (current?.pending) await current.pending;
     if (current && scope.current === current) await current.load();
   }, []);
-  return { directory, connections, entries, error, loading, refreshing, updatedAt, reload };
+  return { directory, connections, entries, error, loading, refreshing, reload };
 }
