@@ -60,8 +60,8 @@ impl WorkbenchStyle {
             .bg(p.surface)
             .text_color(p.text)
             .font_weight(FontWeight::NORMAL)
-            .px(px(if compact { crate::SPACE_8 } else { crate::SPACE_12 }))
-            .py(px(if compact { crate::SPACE_4 } else { crate::SPACE_12 }))
+            .px(px(crate::SPACE_8))
+            .py(px(if compact { crate::SPACE_4 } else { crate::SPACE_8 }))
     }
 }
 
