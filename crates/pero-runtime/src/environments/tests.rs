@@ -287,6 +287,7 @@ fn use_lifecycle() {
         snapshot: snapshot(),
     };
     let receipt = OwnerReceipt {
+        target: None,
         use_id: request.id.clone(),
         snapshot: request.snapshot.digest(),
         receipt: digest("grant"),
@@ -429,6 +430,7 @@ fn use_lifecycle() {
         .is_err()
     );
     let refusal = OwnerReceipt {
+        target: None,
         use_id: state.request().id.clone(),
         snapshot: state.request().snapshot.digest(),
         receipt: digest("not-started"),
