@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Feedback, Select, Toolbar } from '@pero/app-sdk/ui';
+import { Table, Button, Feedback, Select, Toolbar } from '@pero/app-sdk/ui';
 import type { Api } from './types';
 import './structured-reading.css';
 import type { DocumentEvidenceScope } from './research-types';
@@ -45,12 +45,12 @@ function readingHeadings(blocks: Block[]) {
 function TextContents({ blocks, current, onOpen }: { blocks: Block[]; current: string; onOpen(id: string): void }) {
   const headings = readingHeadings(blocks);
   if (!headings.length) return null;
-  return <nav className="pa-text-contents" aria-label="Contents">{headings.map(heading => <button type="button" key={heading.id} className="pa-text-contents-item" aria-current={current === heading.id ? 'location' : undefined} onClick={() => onOpen(heading.id)}>{heading.title}</button>)}</nav>;
+  return <nav className="pa-text-contents" aria-label="Contents">{headings.map(heading => <Button variant="ghost" type="button" key={heading.id} className="pa-text-contents-item" aria-current={current === heading.id ? 'location' : undefined} onClick={() => onOpen(heading.id)}>{heading.title}</Button>)}</nav>;
 }
 function Contents({ tokens, onTarget }: { tokens: Inline[]; onTarget(target: string): void }) {
   return <>{tokens.map((token, index) => {
     const content = token.kind === 'math' ? <MathValue token={token}/> : token.text;
-    return token.target ? <button key={index} className="pa-inline-citation" onClick={() => onTarget(token.target)}>{content}</button>
+    return token.target ? <Button variant="link" key={index} className="pa-inline-citation" onClick={() => onTarget(token.target)}>{content}</Button>
       : token.url.startsWith('https://') ? <a key={index} href={token.url} target="_blank" rel="noreferrer noopener">{content}</a>
       : <React.Fragment key={index}>{content}</React.Fragment>;
   })}</>;
@@ -219,7 +219,7 @@ export function StructuredReading({ api, paperId, openToken, onReady, onPrepared
         const rowCount = block.cells.reduce((count, cell) => Math.max(count, cell.row + cell.row_span), 0);
         return <section key={block.id} tabIndex={-1} data-block-id={block.id} data-focused={target === block.id} className={`pa-document-block pa-block-${block.kind}`}>
           {block.kind === 'title' ? <h1>{content}</h1> : block.kind === 'heading' ? React.createElement(`h${Math.min(6, Math.max(2, block.level))}`, {}, content)
-            : block.kind === 'table' && block.cells.length ? <div className="pa-table-scroll" tabIndex={0}><table><caption>{content}</caption><tbody>{Array.from({ length: rowCount }, (_, row) => <tr key={row}>{(rows.get(row) ?? []).map((cell, index) => React.createElement(cell.header ? 'th' : 'td', { key: index, rowSpan: cell.row_span, colSpan: cell.column_span }, <Contents tokens={cell.content} onTarget={followTarget}/>))}</tr>)}</tbody></table></div>
+            : block.kind === 'table' && block.cells.length ? <Table label="Scientific table" className="pa-table-scroll"><caption>{content}</caption><tbody>{Array.from({ length: rowCount }, (_, row) => <tr key={row}>{(rows.get(row) ?? []).map((cell, index) => React.createElement(cell.header ? 'th' : 'td', { key: index, rowSpan: cell.row_span, colSpan: cell.column_span }, <Contents tokens={cell.content} onTarget={followTarget}/>))}</tr>)}</tbody></Table>
             : block.kind === 'figure' ? <figure><figcaption>{content}</figcaption><p className="pa-document-meta">Image bytes not acquired or visually observed.</p>{block.images.map((image, index) => <span key={index}>{image.alt || `Image ${index + 1}`} · metadata only </span>)}</figure>
             : block.kind === 'code' ? <pre>{content}</pre> : <div>{content}</div>}
           {block.limitations.length > 0 && <p className="pa-document-meta">{block.limitations.join('; ')}</p>}

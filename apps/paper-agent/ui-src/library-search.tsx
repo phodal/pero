@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Button, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, SearchField, LoadingSkeleton, SkeletonText } from '@pero/app-sdk/ui';
+import { Disclosure, Button, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, SearchField, LoadingSkeleton, SkeletonText } from '@pero/app-sdk/ui';
 import type { Api, LocalSearchHit, LocalSearchResult } from './types';
 import type { Translator } from './i18n';
 
@@ -82,7 +82,7 @@ export function LibrarySearch({ api, t, onOpen, activeHitId, onQueryChange, onFi
           </div>
         </div>
         <p className="pa-local-passage">{markedPassage(hit.content, result.queryTerms ?? [])}</p>
-        <details><summary>{t('sourceDetails')}</summary><p>{hit.content}</p><small>{hit.source.url}</small><code>{hit.source.fileDigest ?? hit.source.contentDigest}</code></details>
+        <Disclosure variant="inline" summary={<>{t('sourceDetails')}</>}><p>{hit.content}</p><small>{hit.source.url}</small><code>{hit.source.fileDigest ?? hit.source.contentDigest}</code></Disclosure>
       </li>)}</ol>
       <small>{t('localScope')}</small>
     </> : !busy && !error && children}

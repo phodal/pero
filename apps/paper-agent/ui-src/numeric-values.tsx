@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { appObjectProps, useAppChat, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { Button, Checkbox, Input, Textarea, Select, Feedback } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Checkbox, Input, Textarea, Select, Feedback } from '@pero/app-sdk/ui';
 import type { Api, PdfAnnotation, PdfSource } from './types';
 import { requestDoclingRuntime, type RuntimeComponent, type RuntimeStatus } from './docling-runtime';
 import './numeric-values.css';
@@ -177,7 +177,7 @@ export function NumericValues({ api, annotation, onSource, onLayoutSource }: { a
     {!loading && !history?.assessments.length && <p>{t('empty')}</p>}
     <div className="pa-actions"><Button disabled={busy || loading} onClick={() => void perform(prepareCandidates)}>{t('prepare')}</Button><Button variant="ghost" disabled={busy || loading} onClick={() => setAttempt(n => n + 1)}>{t('refresh')}</Button></div>
     {prepared && <p role="status">{t('prepared')}</p>}
-    <details><summary>{t('inspect')}</summary>
+    <Disclosure variant="inline" summary={<>{t('inspect')}</>}>
     <p className="pa-muted">{t('observation')}</p>
     <Button disabled={busy || loading} onClick={() => void perform(async () => { const result = await api.post<Extraction>('/api/numeric/extract', { annotationId: annotation.id }); setExtractionId(result.id); })}>{t('extract')}</Button>
     {extraction && <div>
@@ -187,13 +187,13 @@ export function NumericValues({ api, annotation, onSource, onLayoutSource }: { a
       {['image_based', 'mixed'].includes(extraction.result.classification) && <p>{t('scannedRegion')}</p>}
       <a href={extraction.imageUrl ?? `/api/annotations/${annotation.id}/image`} target="_blank" rel="noreferrer">{t('fullImage')}</a>
       <p>{t('regionText')}</p><pre tabIndex={0}>{extraction.result.nativeRegionText || '—'}</pre>
-      <details><summary>{t('pageText')}</summary><pre tabIndex={0}>{extraction.result.nativePageText || '—'}</pre></details>
+      <Disclosure variant="inline" summary={<>{t('pageText')}</>}><pre tabIndex={0}>{extraction.result.nativePageText || '—'}</pre></Disclosure>
       {extraction.result.ocr && <><p>OCR: {extraction.result.ocr.status}</p><pre tabIndex={0}>{extraction.result.ocr.text || '—'}</pre></>}
-      <details><summary>{t('details')}</summary><pre tabIndex={0}>{JSON.stringify(extraction, null, 2)}</pre></details>
+      <Disclosure variant="inline" summary={<>{t('details')}</>}><pre tabIndex={0}>{JSON.stringify(extraction, null, 2)}</pre></Disclosure>
     </div>}
-    </details>
+    </Disclosure>
     <DoclingLayout api={api} annotationId={annotation.id} records={history?.layouts ?? []} onSource={onLayoutSource} onSaved={() => setAttempt(n => n + 1)}/>
-    <details open={manualOpen} onToggle={event => setManualOpen(event.currentTarget.open)}><summary>{t('manualEdit')}</summary>
+    <Disclosure variant="inline" open={manualOpen} onOpenChange={setManualOpen} summary={<>{t('manualEdit')}</>}>
     <form onSubmit={event => { event.preventDefault(); void perform(() => assess(false)); }}>
       <h4>{t('candidate')}</h4>
       <Button variant="ghost" disabled={busy || loading} onClick={() => { setPreviousId(undefined); setCandidateExtractionId(undefined); setPreviousAssessmentId(undefined); setIdentity(emptyIdentity); setTicks(''); setScale('auto'); setMultiplier('1'); setPixel(''); setSourceKind('figure'); setMethod('visual'); setRawText(''); setValue(''); setComparison(''); setComparisonText(''); setReviewer(''); setReason(''); setConfirmed(false); setTrendConfirmed(false); setAxisReviewed(false); setError(''); }}>{t('newCandidate')}</Button>
@@ -204,36 +204,36 @@ export function NumericValues({ api, annotation, onSource, onLayoutSource }: { a
         <label>{t('value')}<Input type="number" step="any" value={value} onChange={event => setValue(event.target.value)}/></label>
         <label>{t('sourceKind')}<Select label={t('sourceKind')} value={sourceKind} onChange={setSourceKind} options={(['figure', 'caption', 'table', 'text'] as const).map(key => ({ value: key, label: t(key) }))}/></label>
         <label>{t('method')}<Select label={t('method')} value={method} onChange={setMethod} options={(['manual', 'native_text', 'ocr', 'visual', 'pixel_calibration'] as const).map(key => ({ value: key, label: t(key) }))}/></label>
-        {(method === 'pixel_calibration' || sourceKind === 'figure') && <details><summary>{t('axis')}</summary>
+        {(method === 'pixel_calibration' || sourceKind === 'figure') && <Disclosure variant="inline" summary={<>{t('axis')}</>}>
           <label>{t('ticks')}<Textarea rows={4} value={ticks} placeholder={'0,0\n100,10\n200,20'} onChange={event => { setTicks(event.target.value); setAxisReviewed(false); }}/></label>
           <label>{t('scale')}<Select label={t('scale')} value={scale} onChange={value => { setScale(value); setAxisReviewed(false); }} options={(['auto', 'linear', 'log'] as const).map(key => ({ value: key, label: t(key) }))}/></label>
           <label>{t('multiplier')}<Input type="number" step="any" value={multiplier} onChange={event => { setMultiplier(event.target.value); setAxisReviewed(false); }}/></label>
           <label>{t('pixel')}<Input type="number" step="any" value={pixel} onChange={event => setPixel(event.target.value)}/></label>
           <label className="pa-numeric-check"><Checkbox checked={axisReviewed} onCheckedChange={checked => setAxisReviewed(checked === true)}/>{t('axisReviewed')}</label>
-        </details>}
+        </Disclosure>}
         {(method === 'manual' || previousId) && <><label>{t('reviewer')}<Input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label><label>{t('reason')}<Textarea required rows={2} value={reason} maxLength={2000} onChange={event => setReason(event.target.value)}/></label></>}
-        <details><summary>{t('comparison')}</summary><label>{t('value')}<Input type="number" step="any" value={comparison} onChange={event => setComparison(event.target.value)}/></label><label>{t('comparisonText')}<Textarea rows={2} value={comparisonText} onChange={event => setComparisonText(event.target.value)}/></label></details>
+        <Disclosure variant="inline" summary={<>{t('comparison')}</>}><label>{t('value')}<Input type="number" step="any" value={comparison} onChange={event => setComparison(event.target.value)}/></label><label>{t('comparisonText')}<Textarea rows={2} value={comparisonText} onChange={event => setComparisonText(event.target.value)}/></label></Disclosure>
         <Button type="submit">{t('assess')}</Button>
       </fieldset>
-    </form></details>
+    </form></Disclosure>
     {results.length > 1 && <nav aria-label={t('candidates')}><h4>{t('candidates')}</h4><ul>{results.map(({ assessment, evidence }) => <li key={assessment.id}><Button variant="ghost" aria-pressed={selected?.id === assessment.id} onClick={() => { setAssessmentId(assessment.id); setReport(null); }}>{evidence?.identity.metric || t('missing')}: {evidence?.value ?? '—'} {evidence?.identity.unit || t('missing')} / {evidence?.identity.series || t('missing')} / {evidence?.identity.condition || t('missing')} ({statusLabel(assessment.assessment.status)})</Button></li>)}</ul></nav>}
     {selected && <section aria-label={t('assessment')}>
       <h4>{t('result')}</h4>
-      <details><summary>{t('history')}</summary><label>{t('history')}<Select label={t('history')} value={selected.id} disabled={busy} onChange={value => { setAssessmentId(value); setConfirmed(false); setTrendConfirmed(false); setReport(null); }} options={(history?.assessments ?? []).map((item, index) => ({ value: item.id, label: `${index + 1}: ${statusLabel(item.assessment.status)}` }))}/></label></details>
+      <Disclosure variant="inline" summary={<>{t('history')}</>}><label>{t('history')}<Select label={t('history')} value={selected.id} disabled={busy} onChange={value => { setAssessmentId(value); setConfirmed(false); setTrendConfirmed(false); setReport(null); }} options={(history?.assessments ?? []).map((item, index) => ({ value: item.id, label: `${index + 1}: ${statusLabel(item.assessment.status)}` }))}/></label></Disclosure>
       <p role="status"><strong>{statusLabel(selected.assessment.status)}</strong></p>
       <ul>{selected.assessment.issues.filter(item => !['semantic_identity_unconfirmed', 'unit_unconfirmed', 'transcription_unconfirmed', 'explicit_review_required'].includes(item)).map((item, index) => <li key={index}>{["semantic_identity_missing", "semantic_identity_unconfirmed", "unit_unconfirmed", "unit_missing", "transcription_unconfirmed", "explicit_review_required", "numeric_value_missing", "raw_value_mismatch", "axis_calibration_missing", "point_pixel_missing", "value_not_calibrated_point", "invalid_correction_target", "source_conflict", "semantic_identity_mismatch", "insufficient_ticks", "ambiguous_scale", "axis_unit_unconfirmed", "axis_multiplier_unconfirmed", "axis_geometry_inconsistent", "declared_scale_inconsistent", "point_outside_axis", "tick_transcription_unconfirmed", "tick_transcription_mismatch", "tick_geometry_degenerate", "tick_values_not_monotonic", "reproduction_output_not_reference"].includes(item) ? t(item as 'unit_unconfirmed') : item}</li>)}</ul>
-      <details><summary>{t('details')}</summary><p>{t('crosscheck')}: {selected.assessment.crossCheck.status === 'not_checked' ? t('notPerformed') : selected.assessment.crossCheck.status === 'no_conflict' ? t('no_conflict') : t('conflict')}</p>
+      <Disclosure variant="inline" summary={<>{t('details')}</>}><p>{t('crosscheck')}: {selected.assessment.crossCheck.status === 'not_checked' ? t('notPerformed') : selected.assessment.crossCheck.status === 'no_conflict' ? t('no_conflict') : t('conflict')}</p>
       {selected.assessment.confidence && <p>{t('confidenceLabel')}: {selected.assessment.confidence.level}</p>}
       <p>{t('captionAxis')}: {selected.assessment.captionAxisCrossCheck?.status === 'conflict' ? t('conflict') : selected.assessment.captionAxisCrossCheck?.status === 'no_conflict' ? t('no_conflict') : t('notPerformed')}</p>
       <Button variant="ghost" disabled={busy} onClick={() => void perform(async () => setReport(await api.get<NumericReport>(`/api/numeric/assessments/${encodeURIComponent(selected.id)}/report`)))}>{t('report')}</Button>
-      <pre tabIndex={0}>{JSON.stringify(selected, null, 2)}</pre></details>
-      {selected.evidence.filter(item => !selected.assessment.supersededIds.includes(item.id ?? '')).map((item, index) => <div className="pa-numeric-result" key={item.id ?? index}><p><strong>{item.identity.metric || t('missing')}: {item.value ?? '—'} {item.identity.unit || t('missing')}</strong></p><dl>{(['condition', 'series', 'statistic'] as const).map(key => <React.Fragment key={key}><dt>{t(key)}</dt><dd>{item.identity[key] || t('missing')}</dd></React.Fragment>)}</dl><details><summary>{t('source')}</summary><p>{t('rawText')}: {item.rawText || t('missing')}</p><p>{item.sourceKind} / {item.method}</p></details><Button variant="ghost" disabled={busy} onClick={() => edit(item)}>{t('manualEdit')}</Button></div>)}
+      <pre tabIndex={0}>{JSON.stringify(selected, null, 2)}</pre></Disclosure>
+      {selected.evidence.filter(item => !selected.assessment.supersededIds.includes(item.id ?? '')).map((item, index) => <div className="pa-numeric-result" key={item.id ?? index}><p><strong>{item.identity.metric || t('missing')}: {item.value ?? '—'} {item.identity.unit || t('missing')}</strong></p><dl>{(['condition', 'series', 'statistic'] as const).map(key => <React.Fragment key={key}><dt>{t(key)}</dt><dd>{item.identity[key] || t('missing')}</dd></React.Fragment>)}</dl><Disclosure variant="inline" summary={<>{t('source')}</>}><p>{t('rawText')}: {item.rawText || t('missing')}</p><p>{item.sourceKind} / {item.method}</p></Disclosure><Button variant="ghost" disabled={busy} onClick={() => edit(item)}>{t('manualEdit')}</Button></div>)}
       <form onSubmit={event => { event.preventDefault(); void perform(() => assess(true)); }}>
         <h4>{t('review')}</h4><p>{t('reviewNote')}</p>
         <fieldset disabled={busy || loading}>
-          <details><summary>{t('reviewDetails')}</summary><label>{t('reviewer')}<Input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label>
-          <label>{t('reason')}<Textarea required value={reason} maxLength={2000} rows={2} onChange={event => setReason(event.target.value)}/></label></details>
-          {selected.evidence.some(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')) && <><details><summary>{t('axis')}</summary>{selected.evidence.filter(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')).map((item, index) => <p key={item.id ?? index}>{t('scale')}: {item.axis!.scale}; {t('unit')}: {item.identity.unit || t('missing')}; {t('multiplier')}: {item.axis!.multiplier}<br/>{t('ticks')}: {item.axis!.ticks.map(tick => `${tick.pixel},${tick.rawText}`).join(' / ')}<br/>{t('pixel')}: {item.axis!.pixel ?? t('missing')}</p>)}</details><label className="pa-numeric-check"><Checkbox checked={reviewAxesConfirmed} onCheckedChange={checked => setReviewAxesConfirmed(checked === true)}/>{t('axisReviewed')}</label></>}
+          <Disclosure variant="inline" summary={<>{t('reviewDetails')}</>}><label>{t('reviewer')}<Input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label>
+          <label>{t('reason')}<Textarea required value={reason} maxLength={2000} rows={2} onChange={event => setReason(event.target.value)}/></label></Disclosure>
+          {selected.evidence.some(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')) && <><Disclosure variant="inline" summary={<>{t('axis')}</>}>{selected.evidence.filter(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')).map((item, index) => <p key={item.id ?? index}>{t('scale')}: {item.axis!.scale}; {t('unit')}: {item.identity.unit || t('missing')}; {t('multiplier')}: {item.axis!.multiplier}<br/>{t('ticks')}: {item.axis!.ticks.map(tick => `${tick.pixel},${tick.rawText}`).join(' / ')}<br/>{t('pixel')}: {item.axis!.pixel ?? t('missing')}</p>)}</Disclosure><label className="pa-numeric-check"><Checkbox checked={reviewAxesConfirmed} onCheckedChange={checked => setReviewAxesConfirmed(checked === true)}/>{t('axisReviewed')}</label></>}
           <label className="pa-numeric-check"><Checkbox checked={trendConfirmed} onCheckedChange={checked => setTrendConfirmed(checked === true)}/>{t('trendReview')}</label>
           <label className="pa-numeric-check"><Checkbox checked={confirmed} onCheckedChange={checked => setConfirmed(checked === true)}/>{t('reviewed')}</label>
           <Button type="submit" disabled={!confirmed || !reviewer.trim() || !reason.trim()}>{t('confirm')}</Button>
@@ -312,15 +312,15 @@ function DoclingLayout({ api, annotationId, records, onSource, onSaved }: {
     </li>)}</ul>;
   }
   const layout = selected?.result.layout;
-  return <details className="pa-numeric-layout" onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>{t('title')}</summary>
+  return <Disclosure variant="inline" className="pa-numeric-layout" onOpenChange={setOpen} summary={<>{t('title')}</>}>
+
     {open && <>
       <p>{t('warning')}</p><p className="pa-muted">{t('policy')}</p>
       {checking && <p role="status">{t('checking')}</p>}
       {status && <><p>{status.provider}{status.version ? ` ${status.version}` : ''}: {status.available ? t('available') : t('unavailable')}</p>{!!status.reasons.length && <ul>{status.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul>}</>}
       {error && <Feedback kind="error">{error}</Feedback>}
       <OptionalDoclingRuntime onChanged={() => setStatusAttempt(n => n + 1)}/>
-      <details><summary>{t('setup')}</summary><p>{t('setupConsent')}</p><p>{t('storage')}</p><ul><li><a href="https://pypi.org/project/docling/" target="_blank" rel="noreferrer">{t('softwareSource')}</a></li><li><a href="https://huggingface.co/docling-project/docling-layout-heron" target="_blank" rel="noreferrer">{t('modelSource')}</a></li></ul></details>
+      <Disclosure variant="inline" summary={<>{t('setup')}</>}><p>{t('setupConsent')}</p><p>{t('storage')}</p><ul><li><a href="https://pypi.org/project/docling/" target="_blank" rel="noreferrer">{t('softwareSource')}</a></li><li><a href="https://huggingface.co/docling-project/docling-layout-heron" target="_blank" rel="noreferrer">{t('modelSource')}</a></li></ul></Disclosure>
       <div className="pa-actions"><Button disabled={busy || checking} variant="ghost" onClick={() => setStatusAttempt(n => n + 1)}>{t('retry')}</Button><Button disabled={busy || checking || !status?.available} onClick={() => void readOrConvert()}>{t('convert')}</Button></div>
       {busy && <p role="status">{t(reading ? 'reading' : 'running')}</p>}
       {!selected && <p>{t('empty')}</p>}
@@ -339,13 +339,13 @@ function DoclingLayout({ api, annotationId, records, onSource, onSaved }: {
             return <div key={`${relationship.role}:${relationship.targetRef}:${index}`}><p>{t(relationship.role)}: {text ? text.text : `${t('unresolved')} (${relationship.targetRef})`}</p>{text && provenance(text.provenance)}</div>;
           })}
         </section>)}
-        <details><summary>{t('text')} ({layout.texts.length})</summary>
+        <Disclosure variant="inline" summary={<>{t('text')} ({layout.texts.length})</>}>
           {!layout.texts.length && <p>{t('noText')}</p>}
-          {layout.texts.map((text, index) => <details key={text.ref}><summary>{text.label} {index + 1}</summary><p>{text.text}</p>{provenance(text.provenance)}{text.originalText && text.originalText !== text.text && <details><summary>{t('original')}</summary><p>{text.originalText}</p></details>}</details>)}
-        </details>
+          {layout.texts.map((text, index) => <Disclosure variant="inline" key={text.ref} summary={<>{text.label} {index + 1}</>}><p>{text.text}</p>{provenance(text.provenance)}{text.originalText && text.originalText !== text.text && <Disclosure variant="inline" summary={<>{t('original')}</>}><p>{text.originalText}</p></Disclosure>}</Disclosure>)}
+        </Disclosure>
       </>}
     </>}
-  </details>;
+  </Disclosure>;
 }
 
 /** Only the trusted Host can show approval and provision its fixed local profile. */

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Dialog, Feedback, Field, Input } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Dialog, Feedback, Field, Input } from '@pero/app-sdk/ui';
 import { messages, type Cluster, type ClusterInput } from './messages';
 
 export function ClusterDialog({ cluster, busy, error, onClose, onSave }: {
@@ -27,6 +27,6 @@ export function ClusterDialog({ cluster, busy, error, onClose, onSave }: {
       </Field>)}
     </form>
     {error ? <Feedback kind="error" variant="block">{t('actionFailed')}</Feedback> : null}
-    {error ? <details className="compute-error-details"><summary>{t('details')}</summary><p>{error}</p></details> : null}
+    {error ? <Disclosure variant="inline" className="compute-error-details" summary={<>{t('details')}</>}><p>{error}</p></Disclosure> : null}
   </Dialog>;
 }

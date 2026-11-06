@@ -15,7 +15,7 @@
 .sv-molecule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 12px; align-items: start; }
 .sv-molecule-card { min-width: 0; border: 1px solid var(--pero-border, #dce4ed); border-radius: 6px; overflow: hidden; background: var(--pero-surface, #fff); }
 .sv-molecule-card[data-selected] { border-color: var(--pero-focus, #007f86); }
-.sv-molecule-card .sv-molecule-select { display: flex; flex-direction: column; width: 100%; min-width: 0; text-align: left; padding: 0; border: 0; border-radius: 5px; background: transparent; }
+.sv-molecule-card .sv-molecule-select.pero-ui-button { display: flex; flex-direction: column; width: 100%; min-width: 0; text-align: left; padding: 0; border-radius: 5px; }
 .sv-molecule-card .sv-molecule-select:focus-visible { outline-offset: -2px; }
 .sv-molecule-card-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-weight: 600; }
 .sv-molecule-selected-label { color: var(--pero-accent-text, #00777d); font-size: var(--pero-font-caption, 12px); font-weight: 400; }

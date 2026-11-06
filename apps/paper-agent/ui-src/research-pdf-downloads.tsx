@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Feedback, Icon } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Feedback, Icon } from '@pero/app-sdk/ui';
 import type { Api } from './types';
 import { assetSize, type ResearchBundle } from './research-types';
 
@@ -111,7 +111,7 @@ export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitFor
   if (!resources.length) return null;
   return <section className="pa-research-downloads" aria-label={t('title')}>
     {waitForSources && queue.length > 0 && <p role="status">{t('wait')}</p>}
-    {error && <Feedback kind="error"><span>{t('statusFailed')}</span><Button disabled={busy || loading} onClick={() => void refresh()}>{t('refresh')}</Button><details><summary>{t('errorDetails')}</summary>{error}</details></Feedback>}
+    {error && <Feedback kind="error"><span>{t('statusFailed')}</span><Button disabled={busy || loading} onClick={() => void refresh()}>{t('refresh')}</Button><Disclosure variant="inline" summary={<>{t('errorDetails')}</>}>{error}</Disclosure></Feedback>}
     <ul>{resources.map(resource => {
       const value = values[resource.id], receipt = value?.receipt, readPages = value?.readPages ?? [];
       const unavailable = value?.status === 'unavailable' || (!!receipt && value?.localAvailable === false);
@@ -124,12 +124,12 @@ export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitFor
           {value?.status === 'running' ? <Button disabled={busy || loading} onClick={() => void operate('cancel', resource.id)}>{t('cancel')}</Button> : value && (value.status !== 'completed' || unavailable) && <Button disabled={busy || loading || !!running || !!error} onClick={() => void operate('start', resource.id)}>{t(value.status === 'unavailable' || value.status === 'completed' && unavailable ? 'restore' : receipt ? 'retryRestore' : value.status === 'not_started' ? 'start' : 'retry')}</Button>}
           {!error && <Button variant="ghost" aria-label={t('refresh')} title={t('refresh')} disabled={busy || loading} onClick={() => void refresh()}><Icon name="refresh" size={14}/></Button>}
         </div></div>
-        {value?.error && <Feedback kind="error"><details><summary>{t('errorDetails')}</summary>{value.error}</details></Feedback>}
+        {value?.error && <Feedback kind="error"><Disclosure variant="inline" summary={<>{t('errorDetails')}</>}>{value.error}</Disclosure></Feedback>}
         {receipt && <>
           {receipt.textPages === 0 && <Feedback>{t('scanned')}</Feedback>}
           {(receipt.extractionWarnings ?? []).map((warning, index) => <Feedback key={index}>{warning}</Feedback>)}
         </>}
-        <details className="pa-source-provenance"><summary>{t('details')}</summary><p>{resource.title}</p>
+        <Disclosure variant="inline" className="pa-source-provenance" summary={<>{t('details')}</>}><p>{resource.title}</p>
           {receipt && <><p>{readPages.length ? t('consulted', { pages: readPages.join(', ') }) : t('unread')}</p><dl className="pa-resource-provenance">
             <dt>{t('sourcePage')}</dt><dd><a href={receipt.sourcePageUrl} target="_blank" rel="noreferrer">{receipt.sourcePageUrl}</a></dd>
             <dt>{t('request')}</dt><dd>{receipt.requestUrl}</dd><dt>{t('final')}</dt><dd>{receipt.finalUrl}</dd>
@@ -138,7 +138,7 @@ export function ResearchPdfDownloads({ api, bundle, startPdfIds, onRead, waitFor
             <dt>{t('identity')}</dt><dd>{receipt.workIdentity || t('unresolved')}</dd>
           </dl><p className="pa-muted">{t('limits')}</p></>}
           <a href={resource.url} target="_blank" rel="noreferrer">{resource.url}</a>
-        </details>
+        </Disclosure>
       </li>;
     })}</ul>
   </section>;

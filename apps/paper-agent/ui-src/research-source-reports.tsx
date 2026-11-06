@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Checkbox, Feedback, Input, Textarea } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Checkbox, Feedback, Input, Textarea } from '@pero/app-sdk/ui';
 import type { Api } from './types';
 import type { OpenSourceEvidenceReport, SourceEvidenceReport, SourceObservation, SourceEvidenceLocation, SourceEvidenceMatch, DocumentEvidenceScope } from './research-types';
 
@@ -83,15 +83,15 @@ export function SourceReports({ api, bundleId, refresh, navigating, canOpenSourc
     <h4>{t('title')}</h4>
     {error && <Feedback kind="error">{error}<Button disabled={busy || loading} onClick={() => setAttempt(value => value + 1)}>{t('retry')}</Button></Feedback>}
     {loading && <p role="status">{t('loading')}</p>}
-    {!loading && !observations.length ? <p>{t('empty')}</p> : !!observations.length && <details>
-      <summary>{t('create')}</summary>
+    {!loading && !observations.length ? <p>{t('empty')}</p> : !!observations.length && <Disclosure variant="inline" summary={<>{t('create')}</>}>
+
       <fieldset disabled={busy || loading}><legend>{t('include', { count: selected.length })}</legend>
         {observations.map(item => <label key={item.id} className="pa-source-report-choice"><Checkbox disabled={selected.length >= 64 && !selected.includes(item.id)} checked={selected.includes(item.id)} onCheckedChange={checked => setSelected(ids => checked === true ? [...ids, item.id] : ids.filter(id => id !== item.id))}/><span>{observationLabel(item)}</span></label>)}
       </fieldset>
       <label>{t('reportTitle')}<Input value={title} maxLength={200} placeholder={t('defaultTitle')} disabled={busy} onChange={event => setTitle(event.target.value)}/></label>
       <label>{t('interpretation')}<Textarea value={interpretation} maxLength={1000} rows={2} disabled={busy} onChange={event => setInterpretation(event.target.value)}/></label>
       <Button disabled={busy || loading || !selected.length} onClick={() => void openOrSave()}>{t(busy ? 'saving' : 'save')}</Button>
-    </details>}
+    </Disclosure>}
     {!!reports.length && <ul className="pa-source-report-list">{reports.map(report => <li key={report.id}><Button variant="ghost" disabled={busy} aria-pressed={opened?.id === report.id} onClick={() => void openOrSave(report.id)}>{report.title}</Button><small>{t('observations', { count: report.observationIds.length })}</small></li>)}</ul>}
     {opened && <article aria-label={t('saved')}><h4>{opened.title}</h4><p role="status">{t('unresolved')}</p>
       <ul>{opened.observations.map(item => <li key={item.id}><strong>{observationLabel(item)}</strong>
@@ -103,7 +103,7 @@ export function SourceReports({ api, bundleId, refresh, navigating, canOpenSourc
           <div className="pa-actions">{canOpenSource(item, match.source) && <Button disabled={busy || navigating || !opened.currentAvailability.find(value => value.observationId === item.id)?.available} onClick={() => openSource(item, match.source)}>{t('source')}</Button>}
           {canOpenPdf(item) && <Button disabled={busy || navigating || !opened.currentAvailability.find(value => value.observationId === item.id)?.available} onClick={() => openPdf(item, match)}>{t('pdf', { page: match.pdf.page })}</Button>}</div>
         </li>)}</ul>}
-        <details><summary>{t('identity')}</summary><pre className="pa-source-text">{JSON.stringify(item.anchor, null, 2)}</pre><ul>{item.limitations.map((limit, index) => <li key={index}>{limit}</li>)}</ul></details>
+        <Disclosure variant="inline" summary={<>{t('identity')}</>}><pre className="pa-source-text">{JSON.stringify(item.anchor, null, 2)}</pre><ul>{item.limitations.map((limit, index) => <li key={index}>{limit}</li>)}</ul></Disclosure>
       </li>)}</ul>
       {!!opened.interpretations.length && <section aria-label={t('interpretations')}><h4>{t('interpretations')}</h4>{opened.interpretations.map((item, index) => <p key={index}>{item.text}</p>)}</section>}
     </article>}

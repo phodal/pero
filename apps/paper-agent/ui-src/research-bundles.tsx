@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Feedback, Icon } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Feedback, Icon } from '@pero/app-sdk/ui';
 import type { Api, PdfFocus } from './types';
 import { ResourceDetails } from './research-import';
 import { ResearchSources } from './research-sources';
@@ -67,10 +67,10 @@ export function ResearchBundleView({ api, id, startDownloadIds, startPdfIds, sta
       <ResearchPdfDownloads key={`pdf:${bundle.id}`} api={api} bundle={bundle} startPdfIds={startPdfIds} onRead={onRead} waitForSources={waitForSources}/>
       <ResearchSources dialog key={`source:${bundle.id}`} api={api} bundle={bundle} startSourceIds={startSourceIds} onRead={onRead} onAutoQueueComplete={sourceBatchComplete}/>
       <ResearchDownloads key={bundle.id} bundle={bundle} startDownloadIds={startDownloadIds}/>
-      {(!!bundle.htmlDownloadIds?.length || bundle.resources.some(resource => ['paper', 'pdf_candidate'].includes(resource.kind) && resource.workIdentity?.startsWith('arxiv:') && /^v[1-9]\d*$/.test(resource.revision ?? ''))) && <details className="pa-bundle-evidence"><summary>{t('evidence')}</summary>
+      {(!!bundle.htmlDownloadIds?.length || bundle.resources.some(resource => ['paper', 'pdf_candidate'].includes(resource.kind) && resource.workIdentity?.startsWith('arxiv:') && /^v[1-9]\d*$/.test(resource.revision ?? ''))) && <Disclosure variant="inline" className="pa-bundle-evidence" summary={<>{t('evidence')}</>}>
         <SourceReports key={`evidence:${bundle.id}`} api={api} bundleId={bundle.id} refresh={attempt} navigating={false}
           canOpenSource={() => false} openSource={() => {}} canOpenPdf={() => false} openPdf={() => {}}/>
-      </details>}
+      </Disclosure>}
     </>}
   </div>;
 }

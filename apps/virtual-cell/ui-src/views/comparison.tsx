@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { downloadFile, openDocument } from '@pero/app-sdk';
-import { Button, Disclosure, EmptyState, Feedback, Input, ListRow, ResultView, Select, Toolbar } from '@pero/app-sdk/ui';
+import { Progress, Button, Disclosure, EmptyState, Feedback, Input, ListRow, ResultView, Select, Toolbar } from '@pero/app-sdk/ui';
 import { comparisonActive, conditionRows, datasetAction, datasetActive, type ComparisonStatus } from '../comparison';
 import type { Translate } from '../messages';
 import type { InputRevision } from '../use-workbench';
@@ -34,7 +34,7 @@ function DatasetPanel({ download: d, t }: { download: Download; t: Translate }) 
       {dataset.error && <Feedback kind="error">{dataset.error}</Feedback>}
       {(dataset.status === 'downloading' || verifying) && <div className="vc-dataset-progress">
         <span>{t(verifying ? 'datasetVerifiedBytes' : 'datasetReceivedBytes')}: {(verifying ? dataset.verifiedBytes : dataset.receivedBytes).toLocaleString()} / {dataset.expectedBytes.toLocaleString()} {t('datasetBytes')}</span>
-        <progress aria-label={t(verifying ? 'datasetVerificationProgress' : 'datasetDownloadProgress')} value={verifying ? dataset.verifiedBytes : dataset.receivedBytes} max={dataset.expectedBytes}/>
+        <Progress label={t(verifying ? 'datasetVerificationProgress' : 'datasetDownloadProgress')} value={verifying ? dataset.verifiedBytes : dataset.receivedBytes} max={dataset.expectedBytes}/>
       </div>}
       {dataset.status === 'cancelling' && <p>{t('datasetReceivedBytes')}: {dataset.receivedBytes.toLocaleString()} {t('datasetBytes')}. {t('datasetVerifiedBytes')}: {dataset.verifiedBytes.toLocaleString()} {t('datasetBytes')}.</p>}
       {(dataset.status === 'ready' || dataset.status === 'cached') && <p>{t('datasetLocalFile')}: <code>{dataset.path}</code></p>}

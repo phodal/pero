@@ -211,7 +211,7 @@ impl Workbench {
     pub(crate) fn pane_tab_bar(&self, leaf: &PaneLeaf, placement: TabBarPlacement, cx: &mut Context<Self>) -> AnyElement {
         let appearance = pero_theme::UiAppearance::global(cx);
         let p = appearance.palette.clone();
-        let height = f32::from(pero_theme::Chrome::from_app(cx).control(pero_theme::CONTENT_TAB));
+        let height = f32::from(pero_theme::Chrome::from_app(cx).control(pero_theme::CONTENT_TAB)) + pero_theme::SPACE_8;
         let pane = leaf.id;
         let connector = matches!(leaf.route(), Some(WorkspaceRoute::Content(
             WorkspaceItem::App { name, .. }
@@ -299,7 +299,7 @@ impl Workbench {
             })
             .flex()
             .items_center()
-            .bg(p.bg)
+            .bg(p.surface_muted)
             .when(count > 0, |bar| {
                 bar.child(
                     div()
@@ -310,6 +310,7 @@ impl Workbench {
                         .max_w(relative(0.45))
                         .overflow_x_scroll()
                         .items_center().track_scroll(&pinned_scroll)
+                        .gap(px(pero_theme::SPACE_4)).px(px(pero_theme::SPACE_4))
                         .children(pinned)
                         .border_r(px(0.5))
                         .border_color(p.border),
@@ -319,6 +320,7 @@ impl Workbench {
                 div()
                     .id(("pane-tab-scroll", pane.0 as usize))
                     .flex()
+                    .gap(px(pero_theme::SPACE_4)).px(px(pero_theme::SPACE_4))
                     .h_full()
                     .flex_1()
                     .min_w_0()
