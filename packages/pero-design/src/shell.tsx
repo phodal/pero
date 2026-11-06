@@ -20,7 +20,7 @@ export function Sidebar({ label, collapsed = false, children, className = '', ..
 
 /** Labels are optional. Use one only when spacing cannot explain the grouping. */
 export function SidebarGroup({ label, separated = false, children, className = '', ...props }: React.HTMLAttributes<HTMLDivElement> & { label?: string; separated?: boolean }) {
-  return <div {...props} data-separated={separated || undefined} className={`pero-sidebar-group ${className}`}>
+  return <div role={label ? 'group' : undefined} aria-label={label} {...props} data-separated={separated || undefined} className={`pero-sidebar-group ${className}`}>
     {label && <div className="pero-sidebar-group-label">{label}</div>}{children}
   </div>;
 }

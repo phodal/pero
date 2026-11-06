@@ -37,7 +37,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pero-sidebar-label { flex: 1; }
+.pero-sidebar-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .pero-library-header {
   box-sizing: border-box;
