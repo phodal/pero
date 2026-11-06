@@ -50,26 +50,83 @@ def clip(text):
     return raw[:LIMIT].decode("utf-8", "ignore") + "\n...[truncated]"
 
 
+class CredentialUnavailable(RuntimeError):
+    pass
+
+
+class Credentials:
+    def request(self, name):
+        raise CredentialUnavailable(f"no {name} credential is configured")
+
+
 class Host:
+    def _call(self, method, **fields):
+        if method == "mcp" and not REPL:
+            raise RuntimeError("host.mcp is available only in the repl kernel")
+        fields["method"] = method
+        write_frame("HOST", json.dumps(fields).encode("utf-8"))
+        kind, payload = read_frame()
+        if kind != "MCPRESULT":
+            raise RuntimeError("host call did not receive a result")
+        message = json.loads(payload.decode("utf-8"))
+        if not message.get("ok"):
+            raise RuntimeError(message.get("error") or "host call failed")
+        return message.get("value")
+
     def mcp(self, server, tool, **kwargs):
         if not isinstance(server, str) or not isinstance(tool, str) or server == "" or tool == "":
             raise RuntimeError("host.mcp requires a server and a tool")
-        write_frame("MCP", json.dumps({"server": server, "tool": tool, "arguments": kwargs}).encode("utf-8"))
-        kind, payload = read_frame()
-        if kind != "MCPRESULT":
-            raise RuntimeError("host.mcp did not receive a result")
-        message = json.loads(payload.decode("utf-8"))
-        if not message.get("ok"):
-            raise RuntimeError(message.get("error") or "host.mcp failed")
-        return message.get("value")
+        return self._call("mcp", server=server, tool=tool, arguments=kwargs)
+
+    def get_user_email(self):
+        return self._call("get_user_email")
+
+    def artifact_path(self, version_id):
+        if not isinstance(version_id, str) or version_id == "":
+            raise RuntimeError("host.artifact_path requires a version id")
+        return self._call("artifact_path", version_id=version_id)
 
 
-if REPL:
+def install_host():
     host = Host()
     module = types.ModuleType("host")
     module.mcp = host.mcp
+    module.get_user_email = host.get_user_email
+    module.artifact_path = host.artifact_path
+    module.credentials = Credentials()
+    module.CredentialUnavailable = CredentialUnavailable
     sys.modules["host"] = module
     NS["host"] = module
+
+
+install_host()
+
+
+def constant(node):
+    if isinstance(node, ast.Constant):
+        return True
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return all(constant(item) for item in node.elts)
+    if isinstance(node, ast.Dict):
+        return all(key is not None and constant(key) and constant(value) for key, value in zip(node.keys, node.values))
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub, ast.Not, ast.Invert)):
+        return constant(node.operand)
+    return False
+
+
+def load_skill(source):
+    tree = ast.parse(source, "<skill>", "exec")
+    for node in tree.body:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+            continue
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Import, ast.ImportFrom, ast.Pass)):
+            continue
+        if isinstance(node, ast.Assign) and constant(node.value):
+            continue
+        if isinstance(node, ast.AnnAssign) and (node.value is None or constant(node.value)):
+            continue
+        raise ValueError(f"skill kernel.py line {getattr(node, 'lineno', '?')} is not a function or constant")
+    exec(compile(tree, "<skill>", "exec"), NS, NS)
 
 
 def run(code):
@@ -101,10 +158,23 @@ def run(code):
 def main():
     while True:
         kind, payload = read_frame()
+        source = payload.decode("utf-8")
+        if kind == "LOAD":
+            error = ""
+            try:
+                load_skill(source)
+            except ValueError as exc:
+                error = str(exc)
+            except BaseException as exc:
+                if isinstance(exc, KeyboardInterrupt):
+                    raise
+                error = traceback.format_exc()
+            write_frame("RESULT", json.dumps({"stdout": "", "stderr": "", "error": error}).encode("utf-8"))
+            continue
         if kind != "EXEC":
             write_frame("RESULT", json.dumps({"stdout": "", "stderr": "", "error": "unexpected frame " + kind}).encode("utf-8"))
             continue
-        stdout, stderr, error = run(payload.decode("utf-8"))
+        stdout, stderr, error = run(source)
         write_frame("RESULT", json.dumps({"stdout": stdout, "stderr": stderr, "error": error}).encode("utf-8"))
 
 

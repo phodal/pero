@@ -70,6 +70,10 @@ func run() (resultErr error) {
 	scienceEnv := flag.Bool("science-env", false, "enable persistent python, repl, and r kernels in --workspace; repl host.mcp calls this agent's MCP tools; requires approval")
 	sciencePython := flag.String("science-python", "python3", "Python interpreter for the python and repl kernels")
 	scienceR := flag.String("science-rscript", "Rscript", "Rscript interpreter for the r kernel")
+	scienceSkills := flag.String("science-skills-root", "", "read-only root of science skill directories; skill loads SKILL.md and injects kernel.py into the python kernel")
+	scienceEmail := flag.String("science-contact-email", "", "optional address returned by host.get_user_email; empty returns none")
+	scienceMCPRoot := flag.String("science-mcp-root", "", "bio-tools directory containing run_server.py; connects every lib/<name>/server.py MCP server")
+	scienceMCPPython := flag.String("science-mcp-python", "", "absolute Python for --science-mcp-root; required when that root is set")
 	shellPath := flag.String("shell", "", "absolute shell executable; defaults to /bin/bash on Unix; Windows requires explicit pwsh.exe")
 	pdfRenderer := flag.String("pdf-renderer", "", "absolute Poppler pdftoppm path with adjacent pdfinfo; empty auto-detects, '-' disables PDF page rendering")
 	deferToolLoading := flag.Bool("defer-tool-loading", false, "declare caller-authorized tools after ToolSearch returns their schemas")
@@ -291,7 +295,12 @@ func run() (resultErr error) {
 		if *workspace == "" {
 			return errors.New("--science-env requires --workspace")
 		}
-		science, err = scienceenv.Mount(ctx, h, scienceenv.Options{Workspace: *workspace, Python: *sciencePython, Rscript: *scienceR, MCP: scienceenv.AgentMCP(h)})
+		science, err = scienceenv.Mount(ctx, h, scienceenv.Options{
+			Workspace: *workspace, Python: *sciencePython, Rscript: *scienceR,
+			SkillRoot: *scienceSkills, ContactEmail: *scienceEmail,
+			MCPPython: *scienceMCPPython, MCPServersRoot: *scienceMCPRoot,
+			MCP: scienceenv.AgentMCP(h),
+		})
 		if err != nil {
 			return err
 		}
