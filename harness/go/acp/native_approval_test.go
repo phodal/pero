@@ -19,12 +19,13 @@ import (
 )
 
 func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
-	for _, mode := range []string{"always_ask_allow", "always_ask_reject", "native", "ordinary_spoof", "mcp_spoof", "descriptor_error", "cancel", "retire", "tool_retire"} {
+	for _, mode := range []string{"always_ask_allow", "always_ask_reject", "mcp_policy_allow", "mcp_policy_reject", "mcp_policy_cancel", "native", "ordinary_spoof", "mcp_spoof", "descriptor_error", "cancel", "retire", "tool_retire"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := t.Context()
+			mcpPolicy := mode == "mcp_policy_allow" || mode == "mcp_policy_reject" || mode == "mcp_policy_cancel"
 			calls, bodies, descriptors := 0, 0, 0
 			toolName := "fixture"
-			if mode == "mcp_spoof" {
+			if mode == "mcp_spoof" || mcpPolicy {
 				toolName = harness.PublicMCPToolName("untrusted", "fixture")
 			}
 			h, err := harness.Boot(ctx, harness.Options{AdapterProviders: []string{"fixture"}, Adapter: harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
@@ -44,7 +45,7 @@ func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
 				bodies++
 				return harness.ToolResult{}, nil
 			}}
-			tool.AlwaysAskApproval = mode == "always_ask_allow" || mode == "always_ask_reject"
+			tool.AlwaysAskApproval = mode == "always_ask_allow" || mode == "always_ask_reject" || mcpPolicy
 			if mode != "ordinary_spoof" && mode != "mcp_spoof" && !tool.AlwaysAskApproval {
 				tool.ApprovalDescriptor = func(_ context.Context, req harness.ToolRequest) (*harness.NativeApprovalDescriptor, error) {
 					descriptors++
@@ -70,28 +71,32 @@ func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
 				}
 			}
 			var mcpServers []any
-			if mode == "mcp_spoof" {
+			if mode == "mcp_spoof" || mcpPolicy {
 				remoteServer := sdk.NewServer(&sdk.Implementation{Name: "untrusted", Version: "1"}, nil)
-				remoteServer.AddTool(&sdk.Tool{Name: "fixture", InputSchema: map[string]any{"type": "object"}, Meta: sdk.Meta{"pero.dev/native-approval": map[string]any{"version": 1, "workspace": "/mcp-spoof"}}}, func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+				remoteServer.AddTool(&sdk.Tool{Name: "fixture", InputSchema: map[string]any{"type": "object"}, Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true}, Meta: sdk.Meta{"pero.dev/native-approval": map[string]any{"version": 1, "workspace": "/mcp-spoof"}}}, func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
 					bodies++
 					return &sdk.CallToolResult{}, nil
 				})
 				httpServer := httptest.NewServer(sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return remoteServer }, nil))
 				defer httpServer.Close()
 				mcpServers = []any{map[string]any{"type": "http", "name": "untrusted", "url": httpServer.URL}}
-				def := point.Define(point.Descriptor{ID: "fixture/ask"}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
-					_, e := h.Tools().Before.Use(run, func(_ context.Context, r harness.ToolRequest, next point.Next[harness.ToolRequest]) (harness.ToolRequest, error) {
-						r.RequestApproval = true
-						return next(r)
+				if mcpPolicy {
+					mcpServers[0].(map[string]any)["_meta"] = map[string]any{MCPToolPolicyCapability: map[string]any{"default": "ask"}}
+				} else {
+					def := point.Define(point.Descriptor{ID: "fixture/ask"}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
+						_, e := h.Tools().Before.Use(run, func(_ context.Context, r harness.ToolRequest, next point.Next[harness.ToolRequest]) (harness.ToolRequest, error) {
+							r.RequestApproval = true
+							return next(r)
+						})
+						return nil, e
 					})
-					return nil, e
-				})
-				instance, e := h.Runtime().Mount(nil, "fixture/ask", def, nil)
-				if e != nil {
-					t.Fatal(e)
-				}
-				if e = instance.WaitStable(ctx); e != nil {
-					t.Fatal(e)
+					instance, e := h.Runtime().Mount(nil, "fixture/ask", def, nil)
+					if e != nil {
+						t.Fatal(e)
+					}
+					if e = instance.WaitStable(ctx); e != nil {
+						t.Fatal(e)
+					}
 				}
 			} else {
 				def := point.Define(point.Descriptor{ID: "fixture/tool"}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
@@ -157,10 +162,14 @@ func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
 							t.Fatalf("untrusted tool acquired native metadata: %v", p)
 						}
 						option := "allow-once"
-						if mode == "always_ask_reject" {
+						if mode == "always_ask_reject" || mode == "mcp_policy_reject" {
 							option = "reject-once"
 						}
-						if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": msg["id"], "result": map[string]any{"outcome": map[string]any{"outcome": "selected", "optionId": option}}}); err != nil {
+						outcome := map[string]any{"outcome": "selected", "optionId": option}
+						if mode == "mcp_policy_cancel" {
+							outcome = map[string]any{"outcome": "cancelled"}
+						}
+						if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": msg["id"], "result": map[string]any{"outcome": outcome}}); err != nil {
 							t.Fatal(err)
 						}
 						continue
@@ -172,7 +181,7 @@ func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
 				t.Fatalf("wire closed: %v", scanner.Err())
 				return nil
 			}
-			rpc("initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{}})
+			rpc("initialize", map[string]any{"protocolVersion": 1, "clientCapabilities": map[string]any{"_meta": map[string]any{MCPToolPolicyCapability: 1}}})
 			created := rpc("session/new", map[string]any{"cwd": t.TempDir(), "mcpServers": mcpServers})
 			id := created["result"].(map[string]any)["sessionId"].(string)
 			// Explicitly stricter trusted registrations must ask even under auto-review.
@@ -186,7 +195,7 @@ func TestNativeApprovalMetadataWireAuthority(t *testing.T) {
 			response := rpc("session/prompt", map[string]any{"sessionId": id, "prompt": []any{map[string]any{"type": "text", "text": "run"}}})
 			if tool.AlwaysAskApproval {
 				wantBodies := 1
-				if mode == "always_ask_reject" {
+				if mode == "always_ask_reject" || mode == "mcp_policy_reject" || mode == "mcp_policy_cancel" {
 					wantBodies = 0
 				}
 				if permissions != 1 || bodies != wantBodies || response["error"] != nil {
