@@ -62,7 +62,7 @@ impl ChartView {
     }
 }
 impl ChatPanel {
-    fn open_chart_document(&mut self, thread: &str, tool: &str, document: ContentDocument, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_result_document(&mut self, thread: &str, tool: &str, document: ContentDocument, window: &mut Window, cx: &mut Context<Self>) {
         if self.can_open_documents { cx.emit(ChatAction::OpenDocument(document)); return; }
         let locale = self.locale.clone();
         if let Some(tool) = self.chats.iter_mut().find(|chat| chat.id == thread).and_then(|chat|chat.tools.iter_mut().find(|item|item.id == tool)) {
@@ -86,8 +86,8 @@ impl ChatPanel {
             .child(div().text_sm().text_color(palette.text_muted).child(chart.document["source"]["label"].as_str().unwrap_or_default().to_string()))
             .children(chart.document["source"]["caveats"].as_array().into_iter().flatten().filter_map(Value::as_str).map(|text|div().text_sm().text_color(palette.text_muted).child(text.to_string())))
             .child(div().flex().gap_2()
-                .child(Button::new(SharedString::from(format!("chart-data-{tool}"))).small().ghost().relative().child(chart.data_bounds.probe()).label(if zh {"数据与来源"} else {"Data and sources"}).on_click(cx.listener(move |this,_,window,cx|this.open_chart_document(&thread_id,&tool_id,data.clone(),window,cx))))
-                .when(chart.source.is_some(),|el|el.child(Button::new(SharedString::from(format!("chart-source-{tool}"))).small().ghost().relative().child(chart.source_bounds.probe()).label(if zh {"原始记录"} else {"Original records"}).on_click(cx.listener(move |this,_,window,cx|this.open_chart_document(&source_thread,&source_tool,source.clone(),window,cx))))))
+                .child(Button::new(SharedString::from(format!("chart-data-{tool}"))).small().ghost().relative().child(chart.data_bounds.probe()).label(if zh {"数据与来源"} else {"Data and sources"}).on_click(cx.listener(move |this,_,window,cx|this.open_result_document(&thread_id,&tool_id,data.clone(),window,cx))))
+                .when(chart.source.is_some(),|el|el.child(Button::new(SharedString::from(format!("chart-source-{tool}"))).small().ghost().relative().child(chart.source_bounds.probe()).label(if zh {"原始记录"} else {"Original records"}).on_click(cx.listener(move |this,_,window,cx|this.open_result_document(&source_thread,&source_tool,source.clone(),window,cx))))))
             .when_some(reader, |el,reader|el.child(reader))
             .into_any_element()
     }

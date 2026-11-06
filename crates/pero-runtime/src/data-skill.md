@@ -26,6 +26,24 @@ Verify the displayed chart and keep relevant source qualifications in the answer
 A source label is still a declaration, not an independently verified source.
 If `chart_render` is not advertised, use the available App workflow below.
 
+## Scientific content in this conversation
+
+Use `$...$` for inline mathematics and `$$` on separate lines for display math.
+Keep original LaTeX, assumptions and symbol definitions. Multiline `aligned`,
+matrices and standard mathematical symbols render directly in shared Chat.
+Typesetting does not establish an identity, a proof, dimensional consistency or
+an experimental result. Unsupported syntax stays visible as source.
+
+When `table_render` is advertised, use it for exact experimental tables. Supply
+`dataset:{name,content,format}`, `tableDocument:{title,description,columns}` where
+columns are `{field,label?,unit?}`, and optionally an explicit view filter/sort/
+selection. Keep sample counts, confidence intervals, statistical definitions,
+units and failed observations in the actual source records. The tool preserves
+numeric tokens, missing/null differences, source rows and the source digest;
+it does not run statistics or verify units. Use only data you have observed,
+identify supplied/illustrative data, and do not invent an experiment identity.
+A changed result produces a new receipt; never transfer an old check to it.
+
 ## Work with Data
 
 Use the existing `app_use` workflow. Discover the installed and mounted Data
