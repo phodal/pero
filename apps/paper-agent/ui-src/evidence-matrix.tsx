@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Table, Button, Feedback, Field, Input, Select, Textarea } from '@pero/app-sdk/ui';
+import { Disclosure, Table, Button, Feedback, Field, Input, Select, Textarea } from '@pero/app-sdk/ui';
 import type { Api, Evidence, Intent, Report } from './types';
 import type { Translator } from './i18n';
 import type { Citation } from './documents';
@@ -70,6 +70,6 @@ export function EvidenceMatrix({ matrix, intent, onCite, t, api, reportId }: {
       </tr>)}</tbody>
     </Table>
     {editing && <CellEditor key={`${editing.paperId}:${editing.columnId}`} title={shown.columns.find(column => column.id === editing.columnId)!.label} cell={editing} intent={intent} busy={busy} onSave={(value, reason) => void save(value, reason)} onClose={closeEditor} t={t}/>}
-    {!!state?.revisions.length && <details className="pa-matrix-history"><summary>{t('correctionHistory')}</summary><ol>{state.revisions.map(revision => <li key={revision.id}>{revision.version}: {revision.cell.value || t('missing')}{revision.reason && <p>{revision.reason}</p>}</li>)}</ol></details>}
+    {!!state?.revisions.length && <Disclosure variant="inline" className="pa-matrix-history" summary={<>{t('correctionHistory')}</>}><ol>{state.revisions.map(revision => <li key={revision.id}>{revision.version}: {revision.cell.value || t('missing')}{revision.reason && <p>{revision.reason}</p>}</li>)}</ol></Disclosure>}
   </section>;
 }

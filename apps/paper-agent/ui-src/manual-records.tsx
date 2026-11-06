@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile } from '@pero/app-sdk';
-import { Button, Checkbox, Select, Feedback, Input, Textarea } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Checkbox, Select, Feedback, Input, Textarea } from '@pero/app-sdk/ui';
 import type { Api, Library, Paper, Report } from './types';
 import { reviseEvidence, reportsCitingPaper, type ManualEvidence as Evidence } from './manual-evidence';
 import { ResearchWatch, researchHost, type DataPin, type Dataset } from './research-watch';
@@ -192,7 +192,7 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
       <ul>{opened.decisions.map(item => <li key={item.paperId}><strong>{title(item.paperId)}</strong><p>{item.decision}: {item.reason}</p></li>)}</ul>
       {!!opened.evidence.length && <><h3>Evidence references</h3><ul>{opened.evidence.map((item, index) => <li key={index}>{title(item.paperId)} — {item.stance}<p>{item.note}</p><small>{item.reportId ? library.reports.find(report => report.id === item.reportId)?.title ?? 'Saved report reference' : 'No source evidence yet'}</small></li>)}</ul></>}
       {opened.review && <p>Local review: {opened.review.decision} — {opened.review.note}. Identity is self-declared, not independent review.</p>}
-      {!!opened.attempts?.length && <details open><summary>Execution history</summary>
+      {!!opened.attempts?.length && <Disclosure variant="inline" defaultOpen summary={<>Execution history</>}>
         <ul>{opened.attempts.map(attempt => <li key={`${attempt.itemId}/${attempt.attemptId}`}><p>{attemptLabel(attempt)}</p>
           <Button variant="ghost" disabled={busy} onClick={() => onAttempt(attempt)}>Open result in PDF</Button>
           {attempt.status === 'completed' && <Button disabled={busy || !handoffNotes} onClick={() => void act(() => exportHandoff(opened, attempt))}>Export research handoff</Button>}
@@ -201,16 +201,16 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
           <Checkbox checked={handoffNotes} disabled={busy} onCheckedChange={checked => setHandoffNotes(checked === true)}/>
           <span>Include this revision’s notes, the bound PDF excerpt, and the selected attempt’s numeric evidence.</span>
         </label>}
-      </details>}
+      </Disclosure>}
       <div className="pa-actions"><Button disabled={busy || editing} onClick={() => edit(opened)}>Revise</Button>
         <Button disabled={busy} onClick={() => void act(async () => { const version = epoch.current, result = await request<Impact>({ operation: 'impact', recordId: opened.id }); if (mounted.current && version === epoch.current) { setImpact(result); setSelected([]); } })}>Check saved source updates</Button>
         <Button disabled={busy} onClick={() => void act(async () => { const result = await request<object>({ operation: 'export', recordId: opened.id }); if (mounted.current) downloadFile(`research-record-${opened.id.slice(0,12)}.json`, JSON.stringify(result, null, 2), 'application/json'); })}>Export references</Button>
       </div>
-      <details onToggle={event => setWatchOpen(event.currentTarget.open)}><summary>Watch for updates</summary>
+      <Disclosure variant="inline" onOpenChange={setWatchOpen} summary={<>Watch for updates</>}>
         {watchOpen && <ResearchWatch key={opened.id} recordId={opened.id} versions={opened.dataVersions ?? []} reports={library.reports} onAttempt={onAttempt}/>}
-      </details>
-      {!!opened.selections?.length && <details><summary>Saved reread selections</summary><ul>{opened.selections.map(selection => <li key={selection.id}>{selection.createdAt}
-        {selection.paperIds.map(id => <Button key={id} variant="ghost" disabled={busy} onClick={() => onRead(id)}>{title(id)}</Button>)}</li>)}</ul></details>}
+      </Disclosure>
+      {!!opened.selections?.length && <Disclosure variant="inline" summary={<>Saved reread selections</>}><ul>{opened.selections.map(selection => <li key={selection.id}>{selection.createdAt}
+        {selection.paperIds.map(id => <Button key={id} variant="ghost" disabled={busy} onClick={() => onRead(id)}>{title(id)}</Button>)}</li>)}</ul></Disclosure>}
       {impact && <section aria-label="Source update impact">
         <p>Saved versions only. Upstream freshness is unknown.</p>
         {impact.methodStatus === 'changed' && <p>The installed PC-Gym method has changed. Freeze a new item before running it.</p>}
