@@ -15,6 +15,7 @@ export type HostInput =
   | FileDocumentRequest
   | WorkspaceFilesRequest
   | ArtifactRequest
+  | ChangesRequest
   | LocalWorkerRequest
   | EchoRequest
   | SetLocaleRequest
@@ -82,6 +83,7 @@ export type ArtifactRequest =
   | ReadArtifact
   | ResolveArtifactSnapshot
   | ArtifactContextRequest;
+export type ChangesRequest = ChangesList | ChangesCurrent | ChangesRead;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type KeySequence = string;
 export type ArtifactView = "icons" | "list" | "gallery";
@@ -188,6 +190,10 @@ export type HostEvent =
   | WorkspaceFilesDocumentEvent
   | WorkspaceFilesErrorEvent
   | FileDocumentErrorEvent
+  | WorkspaceChangesEvent
+  | WorkspaceChangesCatalogEvent
+  | WorkspaceChangeDiffEvent
+  | WorkspaceChangesErrorEvent
   | ArtifactCatalogEvent
   | ArtifactRegisteredEvent
   | ArtifactDocumentEvent
@@ -243,6 +249,7 @@ export type HostEvent =
   | InsightsEvent;
 export type TerminalData = TerminalOpened | TerminalOutput | TerminalExited | TerminalError;
 export type WebLoad = WebLoading | WebReady | WebFailed;
+export type FileComparison = ComparisonText | ComparisonBinary | ComparisonOversized;
 export type ArtifactMedia = ArtifactDocumentMedia | ArtifactSimpleMedia | ArtifactImageMedia;
 export type ArtifactImageType = "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/svg+xml";
 export type ArtifactSource = ArtifactTextSource | ArtifactFileSource | ArtifactResearchSource;
@@ -907,6 +914,26 @@ export interface ArtifactContextRequest {
   thread_id: ThreadId;
   artifact_id: string;
   version: number;
+}
+export interface ChangesList {
+  action: "list";
+  method: "workspace_changes";
+  request_id: string;
+  thread_id: ThreadId;
+}
+export interface ChangesCurrent {
+  action: "current";
+  method: "workspace_changes";
+  request_id: string;
+  thread_id: ThreadId;
+}
+export interface ChangesRead {
+  action: "read";
+  id: string;
+  index: number;
+  method: "workspace_changes";
+  request_id: string;
+  thread_id: ThreadId;
 }
 export interface LocalWorkerStartCommand {
   action: "local_worker_start";
@@ -2219,6 +2246,78 @@ export interface FileDocumentErrorEvent {
     reason: "conflict" | "unsupported" | "unavailable" | "read_write";
   };
 }
+export interface WorkspaceChangesEvent {
+  kind: "workspace_changes";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    changes: WorkspaceChanges;
+  };
+}
+export interface WorkspaceChanges {
+  id: string;
+  scope: "turn" | "worktree";
+  files: ChangedFile[];
+  total: number;
+  added: number;
+  deleted: number;
+  created_at: number;
+}
+export interface ChangedFile {
+  path: string;
+  old_path: string | null;
+  added: number;
+  deleted: number;
+  binary: boolean;
+}
+export interface WorkspaceChangesCatalogEvent {
+  kind: "workspace_changes_catalog";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    changes: WorkspaceChanges[];
+  };
+}
+export interface WorkspaceChangeDiffEvent {
+  kind: "workspace_change_diff";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    id: string;
+    index: number;
+    comparison: FileComparison;
+  };
+}
+export interface ComparisonText {
+  kind: "text";
+  patch: string;
+}
+export interface ComparisonBinary {
+  kind: "binary";
+}
+export interface ComparisonOversized {
+  kind: "oversized";
+}
+export interface WorkspaceChangesErrorEvent {
+  kind: "workspace_changes_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id?: string;
+  data?: AcpPayload;
+}
+/**
+ * ACP payload forwarded unchanged; its shape is owned by the ACP schema.
+ */
+export interface AcpPayload {
+  [k: string]: unknown | undefined;
+}
 export interface ArtifactCatalogEvent {
   kind: "artifact_catalog";
   version: 1;
@@ -2670,12 +2769,6 @@ export interface SessionUpdateEvent {
   text: string;
   thread_id: string;
   data: AcpPayload;
-}
-/**
- * ACP payload forwarded unchanged; its shape is owned by the ACP schema.
- */
-export interface AcpPayload {
-  [k: string]: unknown | undefined;
 }
 export interface SessionUsageEvent {
   kind: "session_usage";
