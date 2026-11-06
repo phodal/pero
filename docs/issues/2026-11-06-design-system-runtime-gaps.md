@@ -161,3 +161,15 @@ shared typography. Remove private generic cell/header skins.
 Paper research inspection/download and Cell dataset download/verification use
 SDK Progress. Keep unknown inspection progress indeterminate and byte counts/
 expected totals unchanged; remove private progress colour/height overrides.
+
+
+Connectors setup/docs/manual-config and detail-title links use link Button;
+setup feedback uses the shared inline/block presentation rather than unstyled
+private notice/error skins. Preserve connector state mapping, validation and
+installation actions. Control Lab check rows use ghost Button with aria-pressed
+for the focused scientific check; retain grid content and concept selection.
+
+The legacy Insights recap also uses SDK Button and maps its old fixed colour/
+font variables to purpose-specific Pero tokens. Remove private button/focus
+skins. Current homepage does not mount this legacy module, so this is source
+coverage rather than an observed production homepage defect.
