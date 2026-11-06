@@ -6,7 +6,7 @@ import { ensureUiStyles } from './ui-styles';
 export type ButtonProps = React.ComponentPropsWithoutRef<'button'> & {
   asChild?: boolean;
   busy?: boolean;
-  variant?: 'secondary' | 'primary' | 'danger' | 'ghost' | 'unstyled';
+  variant?: 'secondary' | 'primary' | 'danger' | 'ghost' | 'link' | 'unstyled';
 };
 
 /** A leaf control: callers own execution, translated content and busy state. */

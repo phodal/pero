@@ -72,11 +72,13 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 ## 颜色与状态契约
 
 - 中性色面用 `surface` / `surface-muted`；hover、pressed 使用各自角色，不能复用选中态。
+- `Button variant="link"` 用于内容中的继续动作和对象链接，使用 link 前景、透明底及普通中性 hover，保留共享焦点和禁用语义。
 - 普通控件悬停统一使用中性 `surface-hover`，不添加强调色侧线。选中态保持，
   键盘焦点独立描边；主操作使用 `action-hover`，保持文字对比。
 - 主操作用 `action` / `action-hover` / `action-pressed` 配 `on-action`。
   选中内容用 `accent-soft` 配 `accent-text`，键盘焦点独立使用 `focus`。
 - 文本输入、Textarea 与搜索框的焦点细线使用 `text-muted`，不外扩；校验失败时沿用 `error` 边界，禁用状态保持不可编辑。明暗主题都检查细线与实际输入表面的对比。
+- `CardHeader tone="blue" | "apricot"` 只为卡头提供内容身份色，正文可保留中性 `Card`；缺少明确内容类别时使用默认 neutral，不按列位置上色。
 - `Card tone="blue" | "apricot"` 和对应 Badge 表达内容身份；`variant="soft"`
   用轻染色底。两种 tone 都有 surface / soft / strong / text，明暗主题分别生成。
 - 业务状态使用 neutral / info / success / warning / error，始终带文字；正常未执行使用 neutral。
