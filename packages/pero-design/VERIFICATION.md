@@ -258,3 +258,54 @@ retaining value, focus, actual chart-axis and Gallery-selection assertions.
 Production Viewer build/typecheck and all **8 artifact browser scenarios** passed
 in Chrome with zero page errors. These follow-ups change test wiring and test
 consumers, not App behavior. Remote CI results are tracked on the PR.
+
+## Native visible-window follow-up (2026-11-06)
+
+Source through `99615f15` adds the screenshot-driven Data import, Insights,
+HPC navigation, shared Tabs focus and Native splitter fixes. The running macOS
+arm64 preview was built from this worktree with nightly-2026-10-28, GPUI Kit
+0.8.1 and GPUI Fast 0.1.12, using an isolated ephemeral-secret profile and the
+normal product App list. Its executable SHA-256 is
+`dee2e5880c8fc8f4febbd714a201e2ca737a3e7e5c45dce3b6a1d5aa307c1011`.
+The all-11-App production build passed; the six affected Apps were rebuilt after
+the final SDK Tabs change. This is a local development preview.
+
+| Consumer | Screenshot-driven change | Observed in the running Native window |
+| --- | --- | --- |
+| Sidebar / Chat splitters | Keep composited WebViews painted; transparent deferred input overlay; capture release and apply its final coordinates before existing preference/checkpoint save | Sidebar 200→305→224px, Paper 224→320px, Chat 420→530→420px; App content visible after each gesture and Tabs usable after release. Restart restored 320px; a final drag restored 224px. Feedback is a 1px line within the 4px mouse target. |
+| Data | One import action in the empty state; shared Dialog footer, file-first flow, type selection, optional metadata and bilingual import text | Chinese empty state and import Dialog show the file picker, readable labels and visible cancel/import footer. No file was imported in this Native pass. |
+| Insights | Compact shared typography, one first-use task area, actionable translated credential failure; empty briefing Tabs omitted | The saved missing-credential state shows Settings → Models & Agent guidance and a normal-size retry action; clicking retry returns the same readable recovery state. No live Agent generation was performed. |
+| HPC | Restore discoverability in the research sidebar, preserve enable/open ownership, shared CPU icon, AppBar and typography | HPC opens from the sidebar; Pi and OpenFOAM/Slurm methods and result Tabs render. Slurm correctly reports the missing environment and disables Run. |
+| Shared Tabs | Focus outline inset inside the scrolling tab viewport | Browser geometry/keyboard regressions pass for ordinary and content Tabs at 14px/light and 24px/dark; this is not full Native keyboard acceptance. |
+
+The current `compute_view.rs` has always been an empty reserved view in the
+available Git history. HPC exposes the existing local benchmark library;
+real Slurm submission/query/cancellation remains an implementation and acceptance
+gap in `docs/fitness/hpc.md`. Generic Cloud Agent/Worker tasks remain in the
+project task workspace. Restoring HPC navigation does not establish a working
+cluster scheduler.
+
+Validation on this source:
+
+- Native `pero-ui --features native --lib`: **63/63**. The first run exposed an
+  older research-asset test using 4KiB after the route moved to 64KiB; its boundary
+  case now tests 64KiB+1. The production route was unchanged.
+- Native executable build and Wasm `pero-ui` check passed; existing warnings
+  remain. Root `npm run check` and affected Data/HPC/Insights typechecks passed.
+- Data **17 browser + 8 UI** tests; Insights **6 browser + 4 model** tests;
+  actual five-App frame suite **10/10**; shared Tabs **8 unit + 2 browser** tests;
+  HPC navigation and UI semantics **1 each**. Tests include Data's actual Python
+  backend and sandbox form footer/Enter, retained brief/recovery behavior and
+  Tabs focus geometry with custom ring width.
+
+Native screenshots uploaded to the PR:
+[Data import](https://github.com/user-attachments/assets/a493ca01-35c9-421f-8203-c66943ce2138),
+[Insights recovery](https://github.com/user-attachments/assets/ddf594bb-09e9-47a5-bb2c-570b563d33ce),
+[HPC Slurm unavailable](https://github.com/user-attachments/assets/b41ba98f-17e5-47e4-b488-fc218f72e927),
+[Chat splitter after release](https://github.com/user-attachments/assets/e1c65b9e-0db8-4ae5-b98f-e73cfd7b2d37).
+
+The Native automation observes completed OS drag gestures and their resulting
+frames. It does not sample a held slow drag frame by frame. Continuous drag
+feedback, document pane/session splitters, Native dark/24px variants, other OSes,
+physical IME, screen readers and real scientific/cluster execution were not
+accepted in this pass. The PR remains draft.
