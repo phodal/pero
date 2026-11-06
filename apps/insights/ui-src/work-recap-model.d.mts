@@ -1,0 +1,12 @@
+import type { MemoryContext, RecapSession, RecapTurn, WorkRecap } from './pulse-work-recap';
+import type { ResultBrief, ResultCard } from './pulse-home-result';
+export function analysisRequest(input: { recapReady: boolean; modelReady: boolean; started: boolean }): 'wait' | 'regenerate' | 'start';
+export function recapDisplayTurns(session: RecapSession): RecapTurn[];
+export function recapLatestTurn(session: RecapSession): RecapTurn | undefined;
+export function workRecapPrompt(recap?: WorkRecap, memory?: MemoryContext, locale?: 'zh' | 'en'): string;
+export function cardKind(card: ResultCard): 'needs_you' | 'risk' | 'change' | 'done' | 'watch' | 'filtered';
+export function pulseFeed(cards: ResultCard[], tab?: string): ResultCard[];
+export function projectBrief(brief: ResultBrief): { needCards: ResultCard[]; cards: ResultCard[] };
+export const pulseBriefPrompt: string;
+export function briefFromReply(text: string): ResultBrief | null;
+export function briefResultPrompt(recap: WorkRecap | null, repositories?: unknown[], conflicts?: unknown[], locale?: 'zh' | 'en'): string;

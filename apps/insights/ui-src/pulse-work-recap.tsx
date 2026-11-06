@@ -50,7 +50,7 @@ export function PulseWorkRecap({ recap, memory, locale = 'zh', openSession, dele
 }) {
   const [all, setAll] = useState(false);
   const t = copy[locale];
-  const fmt = (value: string, vars: Record<string, number>) => value.replace(/\{(\w+)\}/g, (match, key) => key in vars ? String(vars[key]) : match);
+  const fmt = (value: string, vars: Record<string, number | boolean>) => value.replace(/\{(\w+)\}/g, (match, key) => key in vars ? String(vars[key]) : match);
   const responseLabel = (turn: RecapTurn) => turn.responseKind === 'final' ? t.response : turn.responseKind === 'intermediate' ? t.intermediate : t.unknownResponse;
   if (!recap || (!recap.sessions.length && !memory?.items.length && !recap.coverage.omitted && !recap.coverage.unreadable)) return null;
   const sessions = all ? recap.sessions : recap.sessions.slice(0, 3);
