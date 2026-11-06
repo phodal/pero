@@ -114,6 +114,7 @@ pub enum StreamAppearance {
     Answer,
     Thought,
     Tool,
+    ScientificTable,
 }
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
@@ -347,7 +348,7 @@ impl Render for StreamText {
         }
         let typography = pero_theme::UiAppearance::global(cx).typography;
         let (size, color) = match self.appearance {
-            StreamAppearance::Answer => (typography.chat, cx.theme().foreground),
+            StreamAppearance::Answer | StreamAppearance::ScientificTable => (typography.chat, cx.theme().foreground),
             StreamAppearance::Thought => (typography.chat, cx.theme().muted_foreground),
             StreamAppearance::Tool => (
                 pero_theme::TextRole::Caption.pixels(typography.chat),
@@ -383,7 +384,12 @@ impl Render for StreamText {
                     .py(px(6.))
                     .px(px(10.)),
             );
-        let mut view = TextView::new(&self.document).selectable(true).style(style);
+        let style = if matches!(self.appearance, StreamAppearance::ScientificTable) {
+            pero_theme::research_table_style(style, pero_theme::Chrome::from_app(cx))
+        } else { style };
+        let mut view = TextView::new(&self.document).selectable(true).style(style)
+            .plugin(crate::scientific_math::view::MathPlugin { block: false })
+            .plugin(crate::scientific_math::view::MathPlugin { block: true });
         if let Some(images) = &self.images {
             let images = images.clone();
             view = view.image_source(move |uri| images.resolve(uri));

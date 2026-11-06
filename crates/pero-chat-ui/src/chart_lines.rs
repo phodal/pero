@@ -165,11 +165,7 @@ impl Plot for LinePlot {
             });
         let y_labels = (0..=4).map(|i| {
             let value = min + span * i as f64 / 4.;
-            let label = if value != 0. && (value.abs() < 0.01 || value.abs() >= 1_000_000.) {
-                format!("{value:.2e}")
-            } else {
-                format!("{value:.2}")
-            };
+            let label = crate::chart::numeric_tick(value);
             AxisText::new(label, px(y(value)), color).align(TextAlign::Right)
         });
         let plot_bounds = Bounds::new(

@@ -27,6 +27,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 | LibraryHeader / library_header | 当前页面标题、必要副标题、局部动作 | 应用名和页面名重复、固定大块留白 |
 | ListRow / list_row | 标题在前、元信息在后、独立行操作 | 多层卡片、整行嵌套按钮 |
 | SessionRow / session_row（GPUI） | 常规字重会话标题、右侧状态、独立行尾菜单 | 状态挤占标题左对齐、读取即解决权限、重复状态文字 |
+| ResearchResult / research_result（GPUI） | 会话中的结果标题与内容；research_note 保留来源和核验边界，research_table_style 复用可选择、可横向滚动的表格 | 格式标签、执行状态机、由显示文案推断验证结果 |
 | ReaderFrame / reader_frame | 单行阅读工具栏与正文面 | 第二套标题或装饰性摘要 |
 | SettingsGroup / settings_group | 无卡片的相关设置行 | 嵌套面板和逐行分隔 |
 | ContentTab / content_tab | 内容名称、固定 / 预览 / 未保存状态、关闭 | 额外的大标题、固定宽度空白、嵌套按钮 |

@@ -15,6 +15,7 @@ serde_json.workspace = true
 base64 = "0.22"
 data-url = "0.3"
 markdown = "1"
+latex-rust = "=3.0.1"
 sha2 = "0.10"
 anyhow = "1"
 

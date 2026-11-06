@@ -33,6 +33,8 @@ export async function stageWorkbench(payload, product) {
 }
 
 export async function stageWorkbenchRuntime(payload, product, node) {
+  mkdirSync(payload, { recursive: true });
+  cpSync(resolve(root, "web/public/licenses/scientific-math.txt"), join(payload, "Scientific-Math-NOTICE.txt"));
   mkdirSync(join(payload, 'bin'), { recursive: true });
   for (const appName of product.apps) stageBuiltinApp(resolve(root, 'apps', appName), appName, join(payload, 'apps', appName));
   const host = process.platform === 'win32' ? 'pero-host.exe' : 'pero-host';
