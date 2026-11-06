@@ -121,3 +121,58 @@ Scientific Authoring + Computational Verification 是整体方向，但展示、
 - `6e01d808` — harness 实验表格领域与工具。
 - `4931551d` — 内联实验表格与来源阅读。
 - `1118d6af` — 科学数值轴刻度修正。
+
+## 真实 GPT / ACP 与分子 skill 验证
+
+用户要求补充真实 GPT 理解/生成验收，并设计 RDKit 输入/输出 skill。本轮沿用
+现有 Go harness、ACP、Host 和 GPUI，使用用户已配置的 GPT API；默认测试仍不联网。
+
+已观察到：配置的 `gpt-6.1-sol` 经 Responses 完成两轮自然语言任务，主动选择
+`table_render`/`chart_render`，保留原始误差和来源 run，生成公式、变量定义、单位矩阵；
+追问中保留旧表并产生新哈希，零值与新 run 正确，未声称运行或验证实验。
+Chat Completions 入口首次返回 HTTP 503；Responses 的第三轮首次遇到 HTTP 429。
+这些是实际失败记录，不计为模型通过。当前 Responses adapter 非 token streaming，
+ACP 仍有真实工具/消息更新；尚不声称 GPT token 流验收。
+
+新增 App 所有的 `molecular-report` skill，复用现有 Scientific Viewer worker，
+规定原始分子文本、JSON 请求、逐条错误、实际描述符、SVG 与科学结论的边界。
+通过 `--skills-root` 广告/摘要加载，且加入 Pero 的 skill 上下文入口和 App 打包清单。
+不新增 RDKit 计算实现或凭空定义会话内分子回执。
+
+首次独立分子测试发现测试驱动把 `--approval never` 当成“无提示执行”，实际含义是
+拒绝需批准的写文件/命令。因此 GPT 正确发现和读取 skill，但 worker 未执行；它
+如实报告未计算，没有编造数值。后续测试改为现有 `ask` + ACP 默认 Auto-review，
+使用用户授权的临时工作区执行。生产权限规则不修改。
+
+
+分子正向验收已完成：11 次真实 GPT 请求，经 skill 发现/读取、ACP Auto-review、
+现有 Scientific Viewer worker 和 `table_render`，用 RDKit 2026.09.1 处理
+`CCO`、`C[C@H](O)C(=O)O`、`invalid@@`。前两条产生真实描述符与 SVG；
+第三条保留 `Invalid molecule`，没有补造数值或图。MolWt 为 46.069 / 90.07799999999999，
+TPSA 为 20.23 / 57.53 Å²。模型调用实际 `deliver_artifact` 交付结果 JSON，并明确
+SVG 保存在文件内、尚未内联显示；没有把解析成功表述为实验/生物活性验证。
+完整记录在 `test-results/scientific-molecules-real-approved/`，随后用同一历史离线回放检查 UI。
+
+## 会话科学内容的视觉迁移
+
+按用户要求，由两个 subagent 制作公式、控制实验、分子部分失败三类明暗/窄宽原型，
+再落实到共享 GPUI，原型在 `test-results/scientific-design/`；它们不作为产品验收替代品。
+
+- 旧公式下方的 `LaTeX` 文本按钮 → `pero_theme::ghost_icon_button`，保留动作名称、提示和原始源码复制。
+- 旧图表/表格上方工具名称 → 内容标题优先，成功结果下方显示可展开的执行详情。运行、失败和审批仍由原会话状态决定。
+- 旧结果的零散标题/页脚 → `research_result` / `research_note`；来源和未核验说明保持可见。
+- 旧表格样式 → `research_table_style`，轻染表头、适当行距和按 CellKind 右对齐的数字列。
+  不舍入原始数字；只有实际出现 null/缺失时才显示对应图例，不凭 PASS/FAIL 字符串生成验证徽章。
+- 修复 JSON Lines 来源身份前缀；共享 `ScientificSource` 以 json/jsonl + 原始字节绑定来源。
+- 补充科学单位字体子集，防止 `Å²` 等在 Wasm 显示缺字；生成字体不提交 Git。
+
+实际 Native 窗口已检查浅/深色公式、控制表格、局部公式失败、源码复制、原始记录打开、
+执行详情展开，以及键盘调整为较窄会话分栏；证据在 `test-results/scientific-chat/native-*.png`。
+Electron GPUI/Wasm 的两主题、较窄窗口、原始 JSON 精确复制和完整重启回放自动回归通过。
+分子表格另已验证窄窗横向滚到最后一列，科学单元格保持单行以避免拆断小数和 SMILES。
+这些不代表超宽公式滚动、完整键盘/屏幕阅读器、签名安装包或所有科学领域均已验收。
+
+
+补充本地提交：`1720a622`（来源绑定）、`4b3ad893`（分子 skill）、
+`f88d015f`（科学单位字体）、`0cfeaf11`（共享结果呈现）及 `0d2aa4cd`（会话 UI）。
+均关联 #145，尚未推送。完整范围仍未完成，GitHub issue 保持 OPEN。

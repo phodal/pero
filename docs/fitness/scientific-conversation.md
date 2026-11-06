@@ -16,7 +16,7 @@ reader navigation, and full Desktop restart without additional model requests.
 
 Inspected `test-results/scientific-chat/{table-light,equations-light,equations-dark,narrow-dark,original-records}.png`:
 
-- Table is visible below the collapsed tool, with source and unverified status.
+- Table is visible before its optional execution details, with source and unverified status.
   `0.0100`, `9007199254740993`, zero, explicit null and missing cells remain distinct.
 - Inline state equation, PDE, aligned optimization, matrix, negative binomial
   notation and simple reaction are legible in both themes. Unsupported LaTeX
@@ -58,7 +58,7 @@ No automatic rerun graph or trusted verification badge has been introduced.
 ## Checks and boundaries
 
 - `go -C harness/go test -race ./charts ./cmd/pero-agent-acp -run 'Test(ExperimentalTable|ChartReceipt|Windows)' -count=1` passes.
-- `node scripts/cargo.mjs test -p pero-chat-ui --features native`: 31 unit tests
+- `node scripts/cargo.mjs test -p pero-chat-ui --features native`: 32 unit tests
   and 1 integration test pass, including math syntax, table escaping and small numeric axes.
 - Native executable and Wasm compile; Web production bundle builds.
 - `npm run check` passes with Rust tools on PATH and `PERO_GPUI_KIT_PATH` set to
@@ -67,10 +67,85 @@ No automatic rerun graph or trusted verification badge has been introduced.
   managed Python 3.12 on PATH; system Python 3.9 fails the existing Paper CLI test.
 - `git diff --check` passes; changed source files remain below 1000 lines.
 
-Native window inspection is blocked by macOS lock screen: the computer-use tool
-could not unlock it. Native compilation and shared Rust tests are not Native
-visual acceptance. Standalone Chat-specific Wasm, signed packages, Windows/Linux,
-full accessibility and all scientific disciplines remain unverified.
+Native visual checks now pass after unlocking macOS. The isolated development
+bundle `Pero Scientific.app` uses this worktree's executable and test data home;
+other running Pero checkouts were not modified. Inspected saved
+`test-results/scientific-chat/native-{equations-light,equations-dark,results-light,results-dark,source,narrow-pane}.png`.
+Copying the PDE and pasting it into an unsent draft returned its original source;
+the draft was cleared. Original records opened in the shared Native reader.
+Execution details remained available. Keyboard resizing of the session list
+narrowed the conversation pane without clipping the observed formulas.
+
+Standalone Chat-specific Wasm, signed packages, Windows/Linux, full accessibility,
+arbitrary wide formula scrolling and all scientific disciplines
+remain unverified. The Web bundle used existing standalone Chat/Reader artifacts
+only to satisfy unrelated entries; acceptance concerns the rebuilt workbench.
 
 Library choice and remaining product scope are in the canonical
 [issue record](../issues/2026-11-06-conversation-scientific-content.md).
+
+
+## Real GPT, skill and RDKit
+
+`tests/e2e/scientific-chat-real.mjs` is opt-in (`PERO_SCIENTIFIC_REAL=1`). It
+requires explicit OPENAI_BASE_URL, OPENAI_MODEL, OPENAI_API_KEY and
+SCIENTIFIC_PYTHON; credentials are inherited by Host and never written into the
+agent config. The normal ACP Auto-review policy owns permitted shell/file work
+inside a temporary selected workspace. No production approval rules changed.
+
+Observed with configured `gpt-6.1-sol`:
+
+- `test-results/scientific-chat-real-responses/turn-{1,2}.json`: six model requests
+  completed natural tool selection, exact table/chart data, equation generation,
+  and a revision to zero/new run while retaining the old table hash.
+- `test-results/scientific-molecules-real-approved/result.json`: independent
+  molecular scenario passed in eleven model requests. GPT discovered/read
+  `molecular-report`, ran the existing worker with RDKit 2026.09.1, published an
+  inline descriptor table, and delivered the actual result JSON artifact.
+  Valid inputs yielded MolWt 46.069 / 90.07799999999999 and TPSA 20.23 / 57.53 Å²;
+  stereo input was preserved, and `invalid@@` retained a per-row error without
+  descriptors or SVG. The worker SVGs are in the result file, not an inline
+  molecular renderer. The tested skill SHA256 is
+  `462286b54d10f5cad68b2ea683c02c2f4d10a04db0a25e70a8dc176e0d029630`.
+- The configured Chat Completions endpoint returned HTTP 503 on its first
+  attempt; the initial combined Responses run hit HTTP 429 on the third turn.
+  An earlier molecular run used the wrong test policy (`--approval never`), so
+  file/shell calls were denied and GPT truthfully reported no RDKit execution.
+  These failures are retained, not counted as successful end-to-end runs.
+
+Current Responses transport is nonstreaming; ACP tool/message updates are real,
+but this does not certify token streaming from GPT. Independent scientific
+verification, biological claims, general dimensional/statistical checks and an
+automatic simulation rerun graph remain out of scope.
+
+## Content-first GPUI follow-up
+
+Three scenario prototypes informed the shared GPUI implementation: equations,
+control experiments and molecular partial failures. User-facing technical labels
+were removed: formulas use an icon-only copy action; successful charts/tables
+show content first and disclose execution details below. Shared Pero theme
+components own result headings, provenance notes, table spacing and tonal roles.
+Numeric cells stay exact and right aligned; null and missing remain distinct.
+The source reader and stored ACP content retain their original behavior.
+
+`node tests/e2e/scientific-chat.mjs` passed again after the redesign, including
+formula copying, precise source copying, theme/width changes and restart. Saved
+real GPT/RDKit history is replayed with no configured model provider for visual
+checks in `test-results/scientific-molecules-real-approved/replay/`.
+
+Additional checks: molecular skill validation, one existing context-discovery
+Rust test, four App payload tests, eight font-tool tests, Native/Wasm builds,
+32 chat unit tests plus one integration test, and `npm run check` pass. The font
+build includes explicit scientific unit glyphs and rejects old incomplete local
+subsets; generated font binaries stay ignored. Rebuilt Wasm replay screenshots
+confirm Å² is now visible in the molecular table and answer in both themes.
+
+The real molecular table was also inspected in the narrower workbench window,
+including a horizontal wheel gesture to its rightmost error column. This caught
+a long decimal wrapping onto a second line: scientific cells now keep one line
+and use horizontal scrolling, preserving the exact value and SMILES together.
+
+Native also replayed the saved real GPT molecular conversation with no configured
+provider after rebuilding the final font/table changes. The observed window
+showed both exact descriptor rows, intact stereo input, Å², the invalid row and
+its null values; this was a visual CUA observation, not a second model run.
