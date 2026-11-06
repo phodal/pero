@@ -11,6 +11,8 @@ const scenarios = ['lifecycle', 'persistence', 'transport'];
 const scenarioChecks = {
   lifecycle: ['actual GPUI add disabled', 'explicit server-wide enable confirmation', 'real ACP injection',
     'Host connector builtin has scoped loopback HTTP identity and auth shape; user-managed assertions remain exact',
+    'explicit tool policy defaults and overrides survive editing; cancel preserves saved policy; invalid rules retain draft',
+    'policy enable confirmation preserves disabled state on cancel; legacy fallback requires explicit selection',
     'edit revokes grant for new sessions', 'confirmed removal', 'configured state does not imply connected or discovered tools', 'external Agent is explicitly unobservable with frozen per-session revision', 'fixture runtime projection renders connected tools, refresh and cleanup', 'pending settings snapshot cannot overwrite newer live catalog',
     'pending session startup closure replaces connecting without a refresh',
     'no operator credential disclosure', 'cleanup completes before success receipt'],
@@ -241,6 +243,34 @@ async function lifecycle() {
   expect((await mcp()).config.servers).toHaveLength(1);
   await click('mcp-confirm'); await settled(); expect((await mcp()).config.servers).toEqual([]);
   expect(await session('ui-removed')).toEqual([]); await capture('removed');
+  // Policy editing stays a draft until Save; cancellation and transport edits
+  // must not discard saved explicit rules or silently grant tools.
+  const policy = { default: 'ask', tools: { search: 'allow', delete: 'deny' } };
+  await click('mcp-add'); await click('mcp-http'); await input(0, 'Policy docs'); await input(1, fixture.url);
+  await click('mcp-policy-ask'); await input(4, JSON.stringify(policy.tools));
+  await capture('tool-policy-draft');
+  await click('mcp-save'); await settled();
+  expect((await mcp()).config.servers[0]).toMatchObject({ enabled: false, tool_policy: policy });
+  await click('mcp-edit-0');
+  expect((await mcp()).policy_default).toBe('ask');
+  expect(JSON.parse((await mcp()).inputs[4].value)).toEqual(policy.tools);
+  await click('mcp-policy-allow'); await click('mcp-cancel-edit');
+  expect((await mcp()).config.servers[0].tool_policy).toEqual(policy);
+  await click('mcp-edit-0'); await input(4, '{"search":"invalid"}'); await click('mcp-save');
+  await expect.poll(async () => (await mcp()).error).toBe('mcp.error.policy');
+  expect((await mcp()).editing).toBe(true);
+  expect((await mcp()).config.servers[0].tool_policy).toEqual(policy);
+  await input(4, JSON.stringify(policy.tools)); await input(0, 'Policy renamed'); await click('mcp-save'); await settled();
+  expect((await mcp()).config.servers[0]).toMatchObject({ name: 'Policy renamed', enabled: false, tool_policy: policy });
+  await click('mcp-edit-0'); await click('mcp-policy-allow'); await click('mcp-save'); await settled();
+  expect((await mcp()).config.servers[0].tool_policy).toEqual({ ...policy, default: 'allow' });
+  await click('mcp-edit-0'); await click('mcp-policy-deny'); await click('mcp-save'); await settled();
+  expect((await mcp()).config.servers[0].tool_policy).toEqual({ ...policy, default: 'deny' });
+  await click('mcp-toggle-0'); await capture('tool-policy-enable-confirmation'); await click('mcp-cancel-confirm');
+  expect((await mcp()).config.servers[0].enabled).toBe(false);
+  await click('mcp-edit-0'); await click('mcp-policy-legacy'); await click('mcp-save'); await settled();
+  expect((await mcp()).config.servers[0].tool_policy).toBeUndefined();
+  await click('mcp-remove-0'); await click('mcp-confirm'); await settled();
   // Exercise the existing trusted Host-event seam for presentation only. The Go
   // transport fixtures separately prove these observations come from real MCP.
   const projection = { incarnation: 1, agent_id: 'fixture', thread_id: 'ui-runtime-projection', session_id: 'fixture-session',

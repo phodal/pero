@@ -75,7 +75,7 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> bool {
         match event.kind.as_str() {
-            "mcp_choose" => self.choose_mcp(cx),
+            "mcp_choose" => self.choose_mcp(event.data["mode"].as_str().unwrap_or("session"), cx),
             "mcp_sources" => {
                 if let Some(url) = event.data["url"].as_str() {
                     self.web_command(json!({"action":"web_open","url":url}), window, cx);
@@ -404,10 +404,16 @@ impl Workbench {
         }
         toolbar.into_any_element()
     }
-    fn choose_mcp(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn choose_mcp(&mut self, mode: &str, cx: &mut Context<Self>) {
+        if !matches!(mode, "session" | "standalone") { return; }
         let chat = self.chat.read(cx);
-        let thread = chat.active_chat.and_then(|index| chat.chats.get(index)).map(|chat|chat.id.clone());
-        self.command(json!({"method":"mcp","action":"open","request_id":"mcp-sources","thread_id":thread}),cx);
+        let thread = chat.active_chat.and_then(|index| chat.chats.get(index)).map(|chat| chat.id.clone());
+        if mode == "session" && thread.is_none() {
+            self.error = Some(self.t("mcp.no_active_session").into());
+            cx.notify();
+            return;
+        }
+        self.command(json!({"method":"mcp","action":"open","mode":mode,"request_id":"mcp-sources","thread_id":thread}),cx);
     }
     pub(crate) fn forward_web_editing(&self, command: &str, cx: &App) -> bool {
         #[cfg(not(target_family = "wasm"))]

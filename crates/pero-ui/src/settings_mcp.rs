@@ -16,7 +16,10 @@ use gpui_kit::{
 use pero_chat_ui::conversation::AgentChoice;
 use pero_contracts::{
     HostEvent,
-    mcp::{McpConfiguration, McpServerConfig, McpSettingsProjection, McpTransport},
+    mcp::{
+        McpConfiguration, McpServerConfig, McpSettingsProjection, McpToolDecision,
+        McpToolPolicy, McpTransport,
+    },
     mcp_runtime::{McpRuntimeSession, McpRuntimeStatus, McpSessionPresentation},
 };
 use pero_theme::SettingMessage;
@@ -40,8 +43,10 @@ pub(crate) struct McpEditor {
     inputs: [Entity<InputState>; 3],
     import: Entity<TextareaState>,
     importing: bool,
+    policy_default: Option<McpToolDecision>,
+    policy_tools: Entity<TextareaState>,
     controls: std::rc::Rc<std::cell::RefCell<std::collections::BTreeMap<String, Bounds<Pixels>>>>,
-    confirm: Option<(usize, bool)>, // true: enable with server-wide grant; false: remove
+    confirm: Option<(usize, bool)>, // true: enable with saved permissions; false: remove
 }
 impl McpEditor {
     pub fn new(window: &mut Window, cx: &mut Context<SettingsPanel>) -> Self {
@@ -62,6 +67,8 @@ impl McpEditor {
             http: false,
             import: cx.new(|cx| TextareaState::new(window, cx)),
             importing: false,
+            policy_default: None,
+            policy_tools: cx.new(|cx| TextareaState::new(window, cx)),
             controls: Default::default(),
             inputs: std::array::from_fn(|_| cx.new(|cx| InputState::new(window, cx))),
             confirm: None,
@@ -84,7 +91,7 @@ impl McpEditor {
     pub fn snapshot(&self, cx: &App) -> serde_json::Value {
         json!({"controls":self.controls.borrow().iter().map(|(key,b)| (key.clone(),json!({"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)}))).collect::<std::collections::BTreeMap<_,_>>(),"agent":self.agent,"config":self.config,"sessions":self.sessions,"pending":self.request.is_some(),"request_id":self.request,"saving":self.saving,"needs_reload":self.needs_reload,
             "error":self.error,"saved":self.saved,"editing":self.editing,"selected":self.selected,"http":self.http,"confirm":self.confirm,
-            "importing":self.importing,"inputs":self.inputs.iter().map(|input| {let input=input.read(cx);let b=input.input_bounds();json!({"value":input.value().as_ref(),"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)})}).chain(std::iter::once({let input=self.import.read(cx);let b=input.input_bounds();json!({"value":input.value().as_ref(),"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)})})).collect::<Vec<_>>()})
+            "policy_default":self.policy_default,"importing":self.importing,"inputs":self.inputs.iter().map(|input| {let input=input.read(cx);let b=input.input_bounds();json!({"value":input.value().as_ref(),"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)})}).chain(std::iter::once({let input=self.import.read(cx);let b=input.input_bounds();json!({"value":input.value().as_ref(),"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)})})).chain(std::iter::once({let input=self.policy_tools.read(cx);let b=input.input_bounds();json!({"value":input.value().as_ref(),"x":f32::from(b.origin.x),"y":f32::from(b.origin.y),"width":f32::from(b.size.width),"height":f32::from(b.size.height)})})).collect::<Vec<_>>()})
     }
 }
 impl Workbench {
@@ -261,6 +268,12 @@ impl SettingsPanel {
             },
             None => (String::new(), String::new(), "[]".into(), false),
         };
+        self.mcp.policy_default = server.and_then(|s| s.tool_policy.as_ref().map(|p| p.default));
+        let tools = server
+            .and_then(|s| s.tool_policy.as_ref())
+            .map(|p| serde_json::to_string_pretty(&p.tools).unwrap())
+            .unwrap_or_else(|| "{}".into());
+        self.mcp.policy_tools.update(cx, |input, cx| input.set_value(tools, window, cx));
         self.mcp.selected = selected;
         self.mcp.http = http;
         self.mcp.editing = true;
@@ -287,12 +300,23 @@ impl SettingsPanel {
                 args,
             }
         };
+        let tool_policy = if let Some(default) = self.mcp.policy_default {
+            let Ok(tools) = serde_json::from_str(&self.mcp.policy_tools.read(cx).value()) else {
+                self.mcp.error = Some("mcp.error.policy".into());
+                cx.notify();
+                return;
+            };
+            Some(McpToolPolicy { default, tools })
+        } else {
+            None
+        };
         let mut servers = self.mcp.config.as_ref().unwrap().servers.clone();
         // Edits are disabled again: changed endpoints must receive a fresh explicit grant.
         let server = McpServerConfig {
             name: value(0),
             enabled: false,
             transport,
+            tool_policy,
         };
         if let Some(i) = self.mcp.selected {
             servers[i] = server;
@@ -606,13 +630,14 @@ impl SettingsPanel {
     }
     fn mcp_confirmation(&self, index: usize, enable: bool, cx: &mut Context<Self>) -> AnyElement {
         let busy = self.mcp.request.is_some();
+        let policy = self.mcp.config.as_ref().is_some_and(|c| c.servers[index].tool_policy.is_some());
         div()
             .id("mcp-confirmation")
             .flex()
             .flex_col()
             .child(pero_theme::settings_message(
                 self.t(if enable {
-                    "mcp.grant"
+                    if policy { "mcp.policy.grant" } else { "mcp.grant" }
                 } else {
                     "mcp.remove_confirm"
                 }),
@@ -628,7 +653,7 @@ impl SettingsPanel {
                                 .small()
                                 .primary()
                                 .label(self.t(if enable {
-                                    "mcp.grant_enable"
+                                    if policy { "mcp.policy.enable" } else { "mcp.grant_enable" }
                                 } else {
                                     "mcp.remove"
                                 }))
@@ -729,6 +754,36 @@ impl SettingsPanel {
             ))
             .into_any_element()
     }
+    fn mcp_policy_editor(&self, cx: &mut Context<Self>) -> AnyElement {
+        let busy = self.mcp.request.is_some();
+        let chrome = pero_theme::Chrome::from_app(cx);
+        let choices = [
+            ("legacy", None, "mcp.policy.legacy"),
+            ("allow", Some(McpToolDecision::Allow), "mcp.policy.allow"),
+            ("ask", Some(McpToolDecision::Ask), "mcp.policy.ask"),
+            ("deny", Some(McpToolDecision::Deny), "mcp.policy.deny"),
+        ];
+        let mut section = div().flex().flex_col().min_w_0()
+            .child(pero_theme::settings_message(self.t("mcp.policy.default"), SettingMessage::Status, chrome))
+            .child(pero_theme::settings_message(self.t("mcp.policy.help"), SettingMessage::Help, chrome))
+            .child(pero_theme::settings_actions(choices.into_iter().map(|(id, decision, label)| {
+                let id = format!("mcp-policy-{id}");
+                self.mcp.measured(id.clone(), Button::new(SharedString::from(id))
+                    .small().outline().label(self.t(label))
+                    .selected(self.mcp.policy_default == decision).disabled(busy)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.mcp.policy_default = decision;
+                        cx.notify();
+                    }))).into_any_element()
+            }), chrome));
+        if self.mcp.policy_default.is_some() {
+            section = section.child(pero_theme::settings_field(
+                self.t("mcp.policy.tools"), Some(self.t("mcp.policy.tools_hint").into()),
+                Textarea::new(&self.mcp.policy_tools).aria_label(self.t("mcp.policy.tools"))
+                    .h(px(96.)).disabled(busy).into_any_element(), chrome));
+        }
+        section.into_any_element()
+    }
     fn mcp_editor(&self, cx: &mut Context<Self>) -> AnyElement {
         let busy = self.mcp.request.is_some();
         let mut editor = div()
@@ -799,6 +854,7 @@ impl SettingsPanel {
             ));
         }
         editor
+            .child(self.mcp_policy_editor(cx))
             .child(pero_theme::settings_message(
                 self.t("mcp.no_secrets"),
                 SettingMessage::Help,

@@ -328,6 +328,18 @@ impl ChatPanel {
                     if let Some(scope)=scope { self.open_app_draft(scope,cx); } else { self.set_scope(None,cx); }
                 }
             }
+            "mcp_resource_selected" => {
+                let result = serde_json::from_value::<pero_contracts::mcp_resource::McpResourceSelection>(event.data.clone())
+                    .map_err(|_| "Invalid MCP resource selection")
+                    .and_then(|selection| selection.into_context(event.thread_id.as_deref().unwrap_or_default()));
+                match result {
+                    Ok(reference) => self.pending_prompts.push(ComposerInsertion {
+                        thread_id: event.thread_id.clone().unwrap_or_default(), text: String::new(),
+                        contexts: vec![reference], replace: false, surface_request: None,
+                    }),
+                    Err(error) => self.error = Some(error.into()),
+                }
+            }
             "compose_context" => {
                 match serde_json::from_value::<ComposerInsertion>(event.data.clone()) {
                     Ok(mut insertion)=>{insertion.text=event.text.clone();self.pending_prompts.push(insertion);},
