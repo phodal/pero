@@ -9,8 +9,7 @@ const run = { id: 'current-run', benchmarkId: benchmark.id, benchmarkName: bench
 test('method summary separates execution from verification and keeps earlier specifications in history', async t => {
   const { React, dom, ui, render, click } = await createUiRuntime(t, {
     resolveDir: resolve(import.meta.dirname, '../ui-src'),
-    contents: `export { default as Hpc } from './index'; export { MethodSpec } from './method'; export { AppApiProvider } from '@pero/app-sdk'; export { messages } from './messages'; export { default as css } from './styles.css';`,
-    cssText: true,
+    contents: `export { default as Hpc } from './index'; export { MethodSpec } from './method'; export { AppApiProvider } from '@pero/app-sdk'; export { messages } from './messages';`,
   });
   const h = React.createElement;
   const selectTab = async label => React.act(async () => {
@@ -31,8 +30,9 @@ test('method summary separates execution from verification and keeps earlier spe
   await render(null);
   const old = { ...run, id: 'old-run', specDigest: 'previous', verification: { status: 'pass', metrics: {}, thresholds: {}, errors: [] } };
   let runs = [old, run];
+  let reframeAvailable = true;
   const fetch = async url => new Response(JSON.stringify(String(url).endsWith('/api/state')
-    ? { benchmarks: [benchmark], runs, runtime: { reframeAvailable: true } }
+    ? { benchmarks: [benchmark], runs, runtime: { reframeAvailable, message: 'ReFrame is unavailable in the selected environment' } }
     : { run: old }), { headers: { 'Content-Type': 'application/json' } });
   const props = { appName: 'hpc', locale: 'en', allowedApiPaths: ['/api'], allowedEvents: [], fetch, subscribeFn: () => () => {}, navigateFn() {}, notifyFn() {} };
   await render(h(ui.AppApiProvider, props, h(ui.Hpc)));
@@ -49,13 +49,14 @@ test('method summary separates execution from verification and keeps earlier spe
   await selectTab('Method');
   assert.equal(document.querySelector('.latest-run'), null);
 
-  // jsdom checks the responsive CSS contract, not browser geometry.
-  const style = document.createElement('style'); style.textContent = ui.css; document.head.append(style);
-  t.after(() => style.remove());
-  assert.equal(getComputedStyle(document.querySelector('.app-header')).flexWrap, 'wrap');
-  assert.equal(getComputedStyle(document.querySelector('.app-header')).minHeight, '44px');
-  assert.equal(getComputedStyle(document.querySelector('.app-header')).height, 'auto');
-  assert.equal(getComputedStyle(document.querySelector('.app-header .toolbar')).flexWrap, 'wrap');
-  assert.equal(getComputedStyle(document.querySelector('.app-header h1')).whiteSpace, '');
+  assert.equal(document.querySelector('.app-header').getAttribute('aria-label'), 'HPC Benchmarks');
+  assert.equal(document.querySelector('.app-header h1'), null, 'the workbench tab already names the App');
+  assert.equal(document.querySelector('.workspace-heading h2').textContent, benchmark.name);
+  assert.equal(document.querySelector('button[aria-label=Refresh]').disabled, false);
   assert.ok([...document.querySelectorAll('.app-header button')].some(el => el.textContent === 'Run local reference'));
+
+  reframeAvailable = false;
+  await click(document.querySelector('button[aria-label=Refresh]'));
+  assert.equal([...document.querySelectorAll('.app-header button')].find(el => el.textContent === 'Run local reference').disabled, true);
+  assert.match([...document.querySelectorAll('[role=status]')].map(el => el.textContent).join(' '), /ReFrame is unavailable/);
 });
