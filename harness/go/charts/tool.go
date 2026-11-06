@@ -20,6 +20,12 @@ import (
 //go:embed python/*.py
 var core embed.FS
 
+// Presentation keeps a complete scientific receipt available to clients when
+// the model-facing text exceeds the configured spill limit.
+type Presentation struct {
+	ScientificReceipt json.RawMessage `json:"scientificReceipt,omitempty"`
+}
+
 const ToolName = "chart_render"
 const inputSchema = `{"type":"object","additionalProperties":false,"properties":{"document":{"type":"object"},"dataset":{"type":"object","additionalProperties":false,"properties":{"name":{"type":"string"},"content":{"type":"string"},"format":{"type":"string","enum":["json","json_lines"]}},"required":["name","content","format"]},"view":{"type":"object"},"chartDocument":{"type":"object"},"aggregation":{"type":"object"}}}`
 
@@ -83,12 +89,20 @@ func Mount(ctx context.Context, h *harness.Harness, python string) error {
 		if _, err := h.RegisterTool(ctx, "data/"+schema.Name, harness.Tool{
 			Schema:  schema,
 			Timeout: 30 * time.Second,
-			Execute: func(ctx context.Context, input json.RawMessage) (harness.ToolResult, error) {
-				output, err := Render(ctx, python, input)
+			ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+				output, err := Render(ctx, python, request.Arguments)
 				if err != nil {
 					return harness.ToolResult{IsError: true, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: err.Error()}}}, nil
 				}
-				return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(output)}}}, nil
+				result := harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(output)}}}
+				limit, enabled, err := h.Spills().InlineLimit(request.Agent)
+				if err != nil {
+					return harness.ToolResult{}, err
+				}
+				if enabled && len(output) > limit {
+					result.Meta, err = json.Marshal(Presentation{ScientificReceipt: output})
+				}
+				return result, err
 			},
 		}); err != nil {
 			return err

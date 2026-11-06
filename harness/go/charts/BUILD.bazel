@@ -18,8 +18,10 @@ go_library(
 go_test(
     name = "charts_test",
     srcs = [
+        "presentation_test.go",
         "table_test.go",
         "tool_test.go",
     ],
     embed = [":charts"],
+    deps = ["//harness"],
 )

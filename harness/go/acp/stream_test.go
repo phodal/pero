@@ -238,6 +238,33 @@ func TestLiveProjectionAttemptAndContentLanes(t *testing.T) {
 	if !strings.Contains(string(raw), `"sessionUpdate":"tool_call_update"`) || !strings.Contains(string(raw), "tool output") {
 		t.Fatalf("tool output crossed lanes: %s", raw)
 	}
+	// Scientific presentation survives spilled model output on live and replay paths.
+	receipt := `{"kind":"pero.table.v1","content":"complete receipt"}`
+	meta, _ := json.Marshal(map[string]json.RawMessage{"scientificReceipt": json.RawMessage(receipt)})
+	block := harness.ContentBlock{Type: harness.BlockToolResult, ToolCallID: "table", Meta: meta, Content: []harness.ContentBlock{text("truncated model preview")}}
+	data, _ := json.Marshal(block)
+	for _, live := range []bool{true, false} {
+		ev := harness.Event{Type: "tool/result", Data: data}
+		if live {
+			server.projectLive(record, ev)
+		} else {
+			server.project(record, ev)
+		}
+		raw := <-sink
+		var envelope struct {
+			Params struct {
+				Update struct {
+					Content []struct{ Content struct{ Text string } }
+				}
+			}
+		}
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			t.Fatal(err)
+		}
+		if len(envelope.Params.Update.Content) != 1 || envelope.Params.Update.Content[0].Content.Text != receipt {
+			t.Fatalf("lost presentation: %s", raw)
+		}
+	}
 	// A revised final cannot retract already emitted bytes; do not duplicate it.
 	chunk("original")
 	final(text("revised"))

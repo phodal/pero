@@ -17,6 +17,7 @@ go_library(
     importpath = "github.com/phodal/pero/harness/go/acp",
     visibility = ["//visibility:public"],
     deps = [
+        "//charts",
         "//harness",
         "//runtime",
     ],
