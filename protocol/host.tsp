@@ -152,18 +152,34 @@ model SelectIconTheme {method:"icons";action:"select";request_id:string;id:strin
 model RemoveIconTheme {method:"icons";action:"remove";request_id:string;id:string;...Closed}
 @oneOf union IconThemeRequest {GetIconThemes,InstallIconTheme,SelectIconTheme,RemoveIconTheme}
 model IconThemesEvent {kind:"icon_themes"|"icon_themes_error";...EventBase;data:IconThemeState}
-model McpSourceRequest {method:"mcp";action:"open";request_id:string;thread_id?:string|null;...Closed}
+model McpSourceRequest {method:"mcp";action:"open";request_id:string;thread_id?:string|null;mode?:"standalone"|"session"="standalone";...Closed}
+model McpSourceSession {thread_id:string;incarnation:safeint;revision:safeint;...Closed}
 model McpAppBinding {id:string;server:string;resource_uri:string;tool:string;tool_call:string;thread_id:string;...Closed}
-model McpPermittedEvent {kind:"mcp_permitted";...EventBase;thread_id?:string;data:{locale:string;...Closed}}
+model McpPermittedEvent {kind:"mcp_permitted";...EventBase;thread_id?:string;data:{locale:string;mode?:"standalone"|"session";session?:McpSourceSession|null;...Closed}}
 model McpSourcesEvent {kind:"mcp_sources";...EventBase;thread_id?:string;data:{url:string;...Closed}}
 model McpErrorEvent {kind:"mcp_error";...EventBase}
 model McpAppOpenedEvent {kind:"mcp_app_opened";...ThreadEventBase;data:McpAppBinding}
+
+model McpSessionArguments is Record<unknown>;
+// Operations on the existing Agent-owned MCP session; the shell never supplies an ACP session ID.
+model McpSessionRequest {
+  method:"mcp.session";request_id:string;thread_id:string;incarnation:safeint;revision:safeint;
+  action:"list"|"resources"|"templates"|"read"|"prepare"|"tool"|"resource"|"close";
+  server?:string;generation?:safeint;name?:string;uri?:string;cursor?:string;arguments?:McpSessionArguments;binding?:string;...Closed
+}
+model McpResourceText {uri:string;text:string;mimeType?:string;...Closed}
+model McpResourceSelectedEvent {kind:"mcp_resource_selected";...ThreadEventBase;data:{incarnation:safeint;revision:safeint;server:string;generation:safeint;uri:string;contents:McpResourceText[];...Closed}}
+model McpSessionEvent {kind:"mcp_session";...ThreadEventBase;data:{incarnation:safeint;revision:safeint;result:unknown;...Closed}}
+model McpSessionErrorEvent {kind:"mcp_session_error";...ThreadEventBase;data:{incarnation:safeint;revision:safeint;reason:"invalid"|"unavailable"|"stale"|"unsupported"|"denied";...Closed}}
 
 // User-managed non-secret MCP configuration, scoped to one local ACP Agent.
 model McpStdioTransport { type:"stdio";command:string;args?:string[];...Closed }
 model McpHttpTransport { type:"http";url:string;...Closed }
 @oneOf union McpTransport { McpStdioTransport,McpHttpTransport }
-model McpServerConfig {name:string;enabled?:boolean=false;transport:McpTransport;...Closed}
+union McpToolDecision {"allow","ask","deny"}
+model McpToolRules is Record<McpToolDecision>;
+model McpToolPolicy {default:McpToolDecision;tools?:McpToolRules;...Closed}
+model McpServerConfig {name:string;enabled?:boolean=false;transport:McpTransport;tool_policy?:McpToolPolicy|null;...Closed}
 model GetMcpSettingsRequest {method:"settings.mcp.get";request_id:string;agent_id:string;...Closed}
 model SetMcpSettingsRequest {method:"settings.mcp.set";request_id:string;agent_id:string;revision:safeint;servers:McpServerConfig[];...Closed}
 @oneOf union McpSettingsRequest {GetMcpSettingsRequest,SetMcpSettingsRequest}
@@ -314,7 +330,7 @@ model TerminalEvent {kind:"terminal";...EventBase;data:TerminalData}
 union HostInput {
   Pero.Automation.AutomationRequest,
   TerminalRequest,
-  McpSettingsRequest,
+  McpSettingsRequest, McpSessionRequest,
   IconThemeRequest,
   McpSourceRequest,
   WorkspaceSessionRequest,
@@ -527,7 +543,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 @oneOf
 union HostEvent {
   TerminalEvent,
-  McpSettingsEvent, McpSettingsErrorEvent, McpRuntimeEvent,
+  McpSettingsEvent, McpSettingsErrorEvent, McpRuntimeEvent, McpSessionEvent, McpSessionErrorEvent, McpResourceSelectedEvent,
   DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
   WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,WorkspaceSourceStoredEvent,DraftStoredEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,WebFocusedEvent,IconThemesEvent,

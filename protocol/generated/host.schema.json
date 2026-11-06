@@ -7307,6 +7307,15 @@
           "$ref": "#/$defs/McpRuntimeEvent"
         },
         {
+          "$ref": "#/$defs/McpSessionEvent"
+        },
+        {
+          "$ref": "#/$defs/McpSessionErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/McpResourceSelectedEvent"
+        },
+        {
           "$ref": "#/$defs/DocumentSaveChooseEvent"
         },
         {
@@ -7556,6 +7565,9 @@
         },
         {
           "$ref": "#/$defs/McpSettingsRequest"
+        },
+        {
+          "$ref": "#/$defs/McpSessionRequest"
         },
         {
           "$ref": "#/$defs/IconThemeRequest"
@@ -9025,6 +9037,28 @@
           "properties": {
             "locale": {
               "type": "string"
+            },
+            "mode": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "standalone"
+                },
+                {
+                  "type": "string",
+                  "const": "session"
+                }
+              ]
+            },
+            "session": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/McpSourceSession"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -9039,6 +9073,100 @@
         "request_id",
         "text",
         "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpResourceSelectedEvent": {
+      "title": "McpResourceSelectedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_resource_selected"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "incarnation": {
+              "type": "integer"
+            },
+            "revision": {
+              "type": "integer"
+            },
+            "server": {
+              "type": "string"
+            },
+            "generation": {
+              "type": "integer"
+            },
+            "uri": {
+              "type": "string"
+            },
+            "contents": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/McpResourceText"
+              }
+            }
+          },
+          "required": [
+            "incarnation",
+            "revision",
+            "server",
+            "generation",
+            "uri",
+            "contents"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpResourceText": {
+      "title": "McpResourceText",
+      "type": "object",
+      "properties": {
+        "uri": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "text"
       ],
       "additionalProperties": false
     },
@@ -9197,11 +9325,252 @@
         },
         "transport": {
           "$ref": "#/$defs/McpTransport"
+        },
+        "tool_policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/McpToolPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
         "name",
         "transport"
+      ],
+      "additionalProperties": false
+    },
+    "McpSessionArguments": {
+      "title": "McpSessionArguments",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    },
+    "McpSessionErrorEvent": {
+      "title": "McpSessionErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_session_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "incarnation": {
+              "type": "integer"
+            },
+            "revision": {
+              "type": "integer"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "invalid"
+                },
+                {
+                  "type": "string",
+                  "const": "unavailable"
+                },
+                {
+                  "type": "string",
+                  "const": "stale"
+                },
+                {
+                  "type": "string",
+                  "const": "unsupported"
+                },
+                {
+                  "type": "string",
+                  "const": "denied"
+                }
+              ]
+            }
+          },
+          "required": [
+            "incarnation",
+            "revision",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpSessionEvent": {
+      "title": "McpSessionEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_session"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "incarnation": {
+              "type": "integer"
+            },
+            "revision": {
+              "type": "integer"
+            },
+            "result": {}
+          },
+          "required": [
+            "incarnation",
+            "revision",
+            "result"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "McpSessionRequest": {
+      "title": "McpSessionRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "mcp.session"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "incarnation": {
+          "type": "integer"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "list"
+            },
+            {
+              "type": "string",
+              "const": "resources"
+            },
+            {
+              "type": "string",
+              "const": "templates"
+            },
+            {
+              "type": "string",
+              "const": "read"
+            },
+            {
+              "type": "string",
+              "const": "prepare"
+            },
+            {
+              "type": "string",
+              "const": "tool"
+            },
+            {
+              "type": "string",
+              "const": "resource"
+            },
+            {
+              "type": "string",
+              "const": "close"
+            }
+          ]
+        },
+        "server": {
+          "type": "string"
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": "string"
+        },
+        "arguments": {
+          "$ref": "#/$defs/McpSessionArguments"
+        },
+        "binding": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "request_id",
+        "thread_id",
+        "incarnation",
+        "revision",
+        "action"
       ],
       "additionalProperties": false
     },
@@ -9373,12 +9742,46 @@
               "type": "null"
             }
           ]
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "standalone"
+            },
+            {
+              "type": "string",
+              "const": "session"
+            }
+          ],
+          "default": "standalone"
         }
       },
       "required": [
         "method",
         "action",
         "request_id"
+      ],
+      "additionalProperties": false
+    },
+    "McpSourceSession": {
+      "title": "McpSourceSession",
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "type": "string"
+        },
+        "incarnation": {
+          "type": "integer"
+        },
+        "revision": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "thread_id",
+        "incarnation",
+        "revision"
       ],
       "additionalProperties": false
     },
@@ -9455,6 +9858,47 @@
         "command"
       ],
       "additionalProperties": false
+    },
+    "McpToolDecision": {
+      "title": "McpToolDecision",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "allow"
+        },
+        {
+          "type": "string",
+          "const": "ask"
+        },
+        {
+          "type": "string",
+          "const": "deny"
+        }
+      ]
+    },
+    "McpToolPolicy": {
+      "title": "McpToolPolicy",
+      "type": "object",
+      "properties": {
+        "default": {
+          "$ref": "#/$defs/McpToolDecision"
+        },
+        "tools": {
+          "$ref": "#/$defs/McpToolRules"
+        }
+      },
+      "required": [
+        "default"
+      ],
+      "additionalProperties": false
+    },
+    "McpToolRules": {
+      "title": "McpToolRules",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "$ref": "#/$defs/McpToolDecision"
+      }
     },
     "McpTransport": {
       "title": "McpTransport",
