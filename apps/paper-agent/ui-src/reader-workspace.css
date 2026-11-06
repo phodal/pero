@@ -232,33 +232,22 @@
   padding: 0 0 12px;
   border-bottom: var(--pero-hairline);
 }
-.pa-workbench .pa-text-contents-item {
+.pa-workbench .pa-text-contents-item.pero-ui-button {
   display: block;
   width: 100%;
   margin: 0;
   padding: 4px 8px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
   color: var(--pero-text-muted);
-  font: 500 var(--pero-font-caption)/1.4 system-ui, sans-serif;
+  font: 500 var(--pero-font-caption)/1.4 var(--pero-font-family-sans);
   text-align: start;
   white-space: normal;
   overflow-wrap: anywhere;
-  cursor: pointer;
-}
-.pa-workbench .pa-text-contents-item:hover {
-  background: var(--pero-surface-muted);
-  color: var(--pero-text);
 }
 .pa-workbench .pa-text-contents-item[aria-current="location"] {
   background: var(--pero-accent-soft);
   color: var(--pero-accent-text);
 }
-.pa-workbench .pa-text-contents-item:focus-visible {
-  outline: 2px solid var(--pero-focus);
-  outline-offset: 2px;
-}
+
 @container (max-width: 760px) {
   .pa-workbench .pa-records-scroll {
     padding: 16px;
@@ -269,8 +258,7 @@
 }
 
 .pa-source-line { display: block; white-space: pre-wrap; }
-.pa-source-line > button { color: var(--pero-text-muted); background: none; border: 0; border-right: .5px solid var(--pero-border); min-width: 36px; padding: 0 8px 0 0; margin-right: 8px; font: inherit; cursor: pointer; }
-.pa-source-line > button:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
+.pa-workbench .pa-source-line > .pero-ui-button { min-width: 3ch; min-height: 0; padding: 0 8px 0 0; margin-right: 8px; font: inherit; color: var(--pero-text-muted); }
 .pa-source-line mark { background: var(--pero-accent-soft); color: var(--pero-text); }
 @media (max-width: 660px) {
   .pa-tex-source-dialog .pa-source-files { max-height: 160px; overflow-y: auto; }

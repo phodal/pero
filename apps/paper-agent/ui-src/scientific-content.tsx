@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from '@pero/app-sdk/ui';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -19,7 +20,7 @@ export function ScientificContent({ content, evidence = [], onCite, citationLabe
         const match = /^evidence:([1-9]\d*)$/.exec(href ?? '');
         if (match) {
           const ref = evidence[Number(match[1]) - 1];
-          return ref && onCite ? <button type="button" className="pa-inline-citation" aria-label={`${citationLabel} ${match[1]}`} onClick={() => onCite(ref)}>{children}<sup>{match[1]}</sup></button> : <span>{children} [?]</span>;
+          return ref && onCite ? <Button variant="link" type="button" className="pa-inline-citation" aria-label={`${citationLabel} ${match[1]}`} onClick={() => onCite(ref)}>{children}<sup>{match[1]}</sup></Button> : <span>{children} [?]</span>;
         }
         return <a href={href} target={href?.startsWith('#') ? undefined : '_blank'} rel="noreferrer">{children}</a>;
       },

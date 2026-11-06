@@ -102,3 +102,16 @@ Remove the matching private skins and let filters wrap when enlarged. Preserve
 search IME handling, retained results, query/source/sort, per-hit busy/error
 state, details disclosure and already-saved paper navigation. This follow-up
 does not move search, acquisition or reading state into the component library.
+
+
+## Paper reading action migration
+
+Structured/HTML/saved-text outlines and source-line preview now use ghost Button;
+scientific inline citations use link Button. Shared focus/hover/disabled behavior
+replaces private skins. Preserve current section, outline levels, reader reveal,
+source coordinates, citation resolution, and content typography. Citation actions
+remain inline within scientific prose rather than acquiring toolbar geometry.
+
+Evidence-matrix source/citation actions also use link Button and editable cells
+use ghost Button. Preserve correction drafts, evidence IDs, aria-expanded and
+return focus to the original cell after closing the editor.

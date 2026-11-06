@@ -45,12 +45,12 @@ function readingHeadings(blocks: Block[]) {
 function TextContents({ blocks, current, onOpen }: { blocks: Block[]; current: string; onOpen(id: string): void }) {
   const headings = readingHeadings(blocks);
   if (!headings.length) return null;
-  return <nav className="pa-text-contents" aria-label="Contents">{headings.map(heading => <button type="button" key={heading.id} className="pa-text-contents-item" aria-current={current === heading.id ? 'location' : undefined} onClick={() => onOpen(heading.id)}>{heading.title}</button>)}</nav>;
+  return <nav className="pa-text-contents" aria-label="Contents">{headings.map(heading => <Button variant="ghost" type="button" key={heading.id} className="pa-text-contents-item" aria-current={current === heading.id ? 'location' : undefined} onClick={() => onOpen(heading.id)}>{heading.title}</Button>)}</nav>;
 }
 function Contents({ tokens, onTarget }: { tokens: Inline[]; onTarget(target: string): void }) {
   return <>{tokens.map((token, index) => {
     const content = token.kind === 'math' ? <MathValue token={token}/> : token.text;
-    return token.target ? <button key={index} className="pa-inline-citation" onClick={() => onTarget(token.target)}>{content}</button>
+    return token.target ? <Button variant="link" key={index} className="pa-inline-citation" onClick={() => onTarget(token.target)}>{content}</Button>
       : token.url.startsWith('https://') ? <a key={index} href={token.url} target="_blank" rel="noreferrer noopener">{content}</a>
       : <React.Fragment key={index}>{content}</React.Fragment>;
   })}</>;
