@@ -67,3 +67,13 @@ Open #139 was checked at `0312562bd38c5d68878cc7d79d58a26c8d572880`.
 Its code changes do not overlap these implementation files. Both touch the
 component README, so retain both documentation changes during integration.
 This follow-up does not alter or resolve #139.
+
+## Integration with updated master
+
+After #139 and the DSH reference mapping fix landed, master advanced to
+`6bdb05ed02d30f187e406ee6bb9930cf7a4860cb`. This branch integrates that master
+without replacing its shared control, token, Native or reference-mapping changes.
+The only overlapping file, the component README, merged cleanly in a three-way
+merge and retains both sets of additions. The earlier DSH failure describes the
+original base only; the new master has a passing DSH check. CI must be evaluated
+against the updated PR head rather than excusing a new failure using that history.

@@ -96,6 +96,9 @@ model Metrics {
   contentTabIcon: 14;
   contentTabClose: 24;
   sidebarNavRow: 32;
+  /** Compact conversation navigation; grows with UI typography. */
+  sessionRow: 28;
+  sessionStatus: 14;
   /** Account and choice menus use the same row box as sidebar navigation. */
   menuRow: 32;
   subRow: 26;

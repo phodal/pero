@@ -39,6 +39,8 @@ export const designContract = {
     "contentTabIcon": 14,
     "contentTabClose": 24,
     "sidebarNavRow": 32,
+    "sessionRow": 28,
+    "sessionStatus": 14,
     "menuRow": 32,
     "subRow": 26,
     "leadBox": 18,

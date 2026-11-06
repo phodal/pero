@@ -366,7 +366,11 @@ impl Render for Workbench {
             layout = layout.hide_sidebar(width, &self.preferences.layout);
         }
         self.layout = layout;
-        self.chat.update(cx,|chat,cx|chat.set_artifact_surface_covered(covered,cx));
+        self.chat.update(cx,|chat,cx| {
+            chat.set_artifact_surface_covered(covered,cx);
+            let docked = layout.chat == ChatPlacement::Dock;
+            if chat.docked != docked { chat.docked = docked; cx.notify(); }
+        });
         self.sync_artifact_preview(cx);
         let sidebar_width = layout.sidebar_width;
         let sessions = (self.navigation.page() == WorkbenchPage::Conversation && self.tab == ConversationTab::Chat)

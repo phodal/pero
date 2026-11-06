@@ -130,3 +130,40 @@ now retains its owned child-process handle immediately after launch and uses it
 for both event listeners and final status. Normal close and cleanup remain strict;
 no timeout or production behavior changed. Existing owned-close behavioral tests,
 script syntax and diff checks pass; local GUI/provider execution was not used.
+
+## 2026-11-06 Native recurrence
+
+The Native follow-up profile reproduces the same App-store preparation rejection
+in an untouched new-chat view while a Paper conversation dock is restored. The
+scoped draft starts before App catalog/environment preparation completes; the
+result becomes a red session error even though no prompt has been submitted.
+Host now reports this transient rejection as session_preparing rather than
+session_error. ChatPanel retains the original draft and queued prompt in
+AwaitingApp, with a neutral preparation notice. App catalog/open completion
+(including a failed App operation releasing the store) resumes only these
+waiting drafts through the existing preparation path; Host still validates the
+App and its grants. Already running, failed and authentication states are not
+reset by readiness signals. Genuine execution errors remain visible.
+
+Validation: Native state tests cover preparation-only resume and preservation
+of running/authentication/closed states. Native UI/Host builds, 44 Host tests,
+27 chat-ui tests and Wasm checks passed. An isolated Native event fixture
+confirmed neutral waiting, unchanged thread/title and retained unsent input
+after App completion; no model prompt was sent. Original preview startup using
+the rebuilt real Host no longer showed this banner. This does not establish
+all App API operations as completion signals or resolve the separate historical
+Electron shutdown investigation above.
+
+## PR #139: shared recovery for standalone Chat
+
+Review found that App completion resumed waiting sessions only in Workbench.
+Standalone Chat forwards Host events directly to ChatPanel, so the same transient
+preparation event left its original draft in AwaitingApp with no recovery path.
+The completion handling now belongs to ChatPanel::receive, shared by both shells;
+Workbench no longer owns a separate resume hook. The existing preparation path
+retains the draft, queued prompt and Host access checks.
+
+The standalone Product regression intercepts a new scoped conversation preparation at
+the real shell bridge, then verifies that a completion signal recovers the same
+conversation and preserves unsent input without submitting a model request.
+Validation results are recorded in packages/pero-design/VERIFICATION.md.

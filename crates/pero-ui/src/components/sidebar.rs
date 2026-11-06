@@ -9,12 +9,13 @@ use gpui_kit::{
     *,
 };
 pub(crate) struct RecentRow {
+    pub key: String,
     pub bounds: Option<AnyElement>,
     pub label: String,
-    pub icon: Option<&'static str>,
     pub active: bool,
-    pub busy: bool,
-    pub attention: bool,
+    pub status: pero_chat_ui::session_state::SessionListStatus,
+    pub unread: bool,
+    pub menu_open: bool,
     pub action: SidebarAction,
     pub delete: Option<DeleteAffordance>,
 }
@@ -26,6 +27,7 @@ pub(crate) struct DeleteAffordance {
 pub(crate) struct ProjectGroup {
     pub key: String,
     pub name: String,
+    pub workspace: Option<String>,
     pub collapsed: bool,
     pub revealed: usize,
     pub rows: Vec<RecentRow>,
@@ -48,6 +50,7 @@ pub(crate) struct SidebarProps<'a> {
 }
 pub(crate) struct SessionsProps {
     pub empty_text: &'static str,
+    pub searching: bool,
     pub groups: Vec<ProjectGroup>, pub ungrouped: Vec<RecentRow>,
 }
 
@@ -56,6 +59,9 @@ pub(crate) enum SidebarAction {
     Terminal,
     Account,
     NewChat,
+    NewProjectChat(String),
+    ToggleSessionSearch,
+    SessionMenu(Option<String>),
     Navigate(WorkbenchPage),
     OpenApp { name: String, panel: String },
     ToggleProject(String),
@@ -73,63 +79,33 @@ fn recent_row(
     on_action: &ActionHandler<SidebarAction>,
     cx: &App,
 ) -> impl IntoElement {
+    use pero_chat_ui::session_state::SessionListStatus as S;
     let chrome = ui.chrome();
-    let title = row.label.clone();
-    let accessible = if row.attention {
-        format!("{} · {}", title, ui.t("insights.attention"))
-    } else {
-        title.clone()
+    let (icon, color, status) = match row.status {
+        S::Quiet => (None, ui.palette.info, None),
+        S::Preparing => (Some("clock"), ui.palette.info, Some(ui.t("chat.preparing_app"))),
+        S::Running => (Some("loader-circle"), ui.palette.info, Some(ui.t("filter.running"))),
+        S::NeedsInput => (Some("message-circle"), ui.palette.warning, Some(ui.t("chat.question_waiting"))),
+        S::Failed => (Some("alert-circle"), ui.palette.error, Some(ui.t("cloud.phase.failed"))),
+        S::Authentication => (Some("shield"), ui.palette.warning, Some(ui.t("roadmap.auth_required"))),
     };
-    let lead = if row.attention {
-        Some("alert-circle")
-    } else {
-        row.icon
-    };
-    let trailing = row
-        .delete
-        .map(|delete| session_menu(ui, index, &title, delete, on_action, chrome, cx));
-    pero_theme::interaction_row(
-        ("recent-work", index),
-        row.active,
-        pero_theme::ROW_NAV,
-        chrome,
-    )
-    .relative().children(row.bounds)
-    .cursor_pointer()
-    .overflow_hidden()
-    .pl(chrome.geo(pero_theme::SPACE_8))
-    .pr(chrome.geo(pero_theme::SPACE_8))
-    .gap(chrome.geo(pero_theme::ICON_GAP))
-    .aria_label(accessible)
-    .on_click(click(on_action, row.action))
-    .child(
-        div()
-            .w(chrome.geo(pero_theme::LEAD_BOX))
-            .h(chrome.geo(pero_theme::LEAD_BOX))
-            .flex_shrink_0()
-            .flex()
-            .items_center()
-            .justify_center()
-            .children(lead.map(|name| ui.icon(name))),
-    )
-    .child(
-        div()
-            .flex_1()
-            .min_w_0()
-            .overflow_hidden()
-            .whitespace_nowrap()
-            .text_ellipsis()
-            .line_height(relative(1.2))
-            .child(row.label),
-    )
-    .when(row.attention || row.busy, |el| el.child(div().text_size(px(12.)).text_color(if row.attention {ui.palette.warning} else {ui.palette.text_muted})
-        .child(ui.t(if row.attention {"cloud.group.attention"} else {"filter.running"}))))
-    .children(trailing)
+    let mut accessible = status.map(|status| format!("{} · {}", row.label, status)).unwrap_or_else(|| row.label.clone());
+    if row.unread { accessible = format!("{} · {}", accessible, ui.t("sessions.unread")); }
+    let lead = icon.map(|name| ui.icon(name).size(chrome.geo(pero_theme::SESSION_STATUS)).text_color(color).into_any_element())
+        .or_else(|| row.unread.then(|| div().size(px(6.)).rounded_full().bg(ui.palette.info).into_any_element()));
+    let trailing = row.delete.map(|delete| {
+        pero_theme::session_actions(("session-actions", index), row.active || row.menu_open,
+            session_menu(ui, index, &row.key, &row.label, delete, on_action, chrome, cx)).into_any_element()
+    });
+    pero_theme::session_row(row.key, row.label, accessible, row.active,
+        lead, trailing, chrome, cx, click(on_action, row.action))
+        .relative().children(row.bounds)
 }
 
 fn session_menu(
     ui: Ui<'_>,
     index: usize,
+    key: &str,
     title: &str,
     delete: DeleteAffordance,
     on_action: &ActionHandler<SidebarAction>,
@@ -142,6 +118,7 @@ fn session_menu(
     let cancel = delete.cancel;
     let on_delete = on_action.clone();
     let on_dismiss = on_action.clone();
+    let key = key.to_owned();
     div()
         .id(("recent-actions", index))
         .flex_shrink_0()
@@ -164,9 +141,8 @@ fn session_menu(
                         }))
                 })
                 .on_open_change(move |open, window, cx| {
-                    if !*open {
-                        on_dismiss(&cancel, window, cx);
-                    }
+                    on_dismiss(&SidebarAction::SessionMenu(open.then(|| key.clone())), window, cx);
+                    if !*open { on_dismiss(&cancel, window, cx); }
                 }),
         )
 }
@@ -180,13 +156,23 @@ fn project_header(
     cx: &App,
 ) -> impl IntoElement + use<> {
     let label = format!("{} {}", ui.t(if group.collapsed {"project.expand"} else {"project.collapse"}), group.name);
-    pero_theme::ghost_icon_button(("session-group",group_index),chrome,cx)
-        .w_full().h(chrome.geo(pero_theme::ROW_NAV))
-        .child(div().w_full().flex().items_center().gap(chrome.geo(pero_theme::ICON_GAP))
-            .child(Icon::default().path(if group.collapsed {"icons/chevron-right.svg"} else {"icons/chevron-down.svg"}))
-            .child(div().min_w_0().text_ellipsis().child(group.name.clone())))
-        .accessibility_label(label)
-        .on_click(click(on_action,SidebarAction::ToggleProject(group.key.clone())))
+    let accent = pero_theme::project_accent(&group.key, chrome);
+    div().w_full().flex().items_center().mt(chrome.geo(pero_theme::SPACE_8)).mb(chrome.geo(pero_theme::SPACE_4))
+        .child(pero_theme::ghost_icon_button(("session-group",group_index),chrome,cx)
+            .flex_1().min_w_0().h(chrome.control(pero_theme::SESSION_ROW))
+            .px(chrome.geo(pero_theme::SPACE_8)).text_size(chrome.text(pero_theme::TYPE_TAB))
+            .child(div().w_full().flex().items_center().gap(chrome.geo(pero_theme::ICON_GAP))
+                .child(Icon::default().path(if group.collapsed {"icons/chevron-right.svg"} else {"icons/chevron-down.svg"}).size(px(12.)))
+                .child(Icon::default().path("icons/folder.svg").size(chrome.geo(pero_theme::SESSION_STATUS)).text_color(accent))
+                .child(div().min_w_0().text_ellipsis().child(group.name.clone())))
+            .accessibility_label(label)
+            .on_click(click(on_action,SidebarAction::ToggleProject(group.key.clone()))))
+        .children(group.workspace.clone().map(|workspace| {
+            let label = format!("{} · {}", ui.t("chat.new"), group.name);
+            pero_theme::ghost_icon_button(("project-new-chat", group_index), chrome, cx)
+                .icon(Icon::default().path("icons/plus.svg")).tooltip(label.clone()).accessibility_label(label)
+                .on_click(click(on_action, SidebarAction::NewProjectChat(workspace)))
+        }))
 }
 
 fn show_more(
@@ -195,36 +181,13 @@ fn show_more(
     key: String,
     on_action: &ActionHandler<SidebarAction>,
     chrome: pero_theme::Chrome<'_>,
+    cx: &App,
 ) -> impl IntoElement {
-    let hover = chrome.palette.text.opacity(0.14);
-    let muted = chrome.palette.text_muted;
-    div()
-        .flex()
-        .items_start()
-        .pl(chrome.geo(
-            pero_theme::SPACE_8
-                + pero_theme::SUB_INDENT
-                + pero_theme::LEAD_BOX
-                + pero_theme::ICON_GAP,
-        ))
-        .pr(chrome.geo(pero_theme::SPACE_8))
-        .py(chrome.geo(pero_theme::SPACE_4))
-        .child(
-            div()
-                .id(("project-show-more", group_index))
-                .self_start()
-                .h(chrome.geo(pero_theme::ROW_SUB))
-                .px(chrome.geo(pero_theme::SPACE_4))
-                .rounded(chrome.geo(pero_theme::RADIUS_SELECTION))
-                .flex()
-                .items_center()
-                .cursor_pointer()
-                .hover(move |row| row.bg(hover))
-                .text_size(chrome.text(pero_theme::TYPE_BODY))
-                .text_color(muted)
-                .child(ui.t("project.show_more"))
-                .on_click(click(on_action, SidebarAction::RevealSessions(key))),
-        )
+    div().pl(chrome.geo(pero_theme::SPACE_8)).child(
+        pero_theme::action_button(("project-show-more", group_index), ui.t("project.show_more"),
+            pero_theme::ActionKind::Ghost, chrome, cx)
+            .text_color(chrome.palette.text_muted).text_size(chrome.text(pero_theme::TYPE_CAPTION))
+            .on_click(click(on_action, SidebarAction::RevealSessions(key))))
 }
 
 /// Shared window metric; native traffic lights occupy the leading inset.
@@ -272,9 +235,13 @@ pub(crate) fn sessions(ui: Ui<'_>, width: f32, props: SessionsProps, search: Any
     let empty = props.groups.is_empty() && props.ungrouped.is_empty();
     div().id("sessions-list").w(px(width)).flex_shrink_0().h_full().flex().flex_col()
         .bg(p.surface).border_r(px(0.5)).border_color(p.border).p(px(8.))
-        .child(div().flex().items_center().justify_between().gap(px(8.)).mb(px(8.))
-            .child(div().font_weight(FontWeight::SEMIBOLD).child(ui.t("nav.sessions"))))
-        .child(div().mb(px(8.)).child(search))
+        .child(div().flex().items_center().justify_between().gap(chrome.geo(pero_theme::SPACE_8))
+            .child(div().pl(chrome.geo(pero_theme::SPACE_8)).text_size(chrome.text(pero_theme::TYPE_TAB)).text_color(p.text_muted).child(ui.t("nav.sessions")))
+            .child(pero_theme::ghost_icon_button("session-search-toggle", chrome, cx)
+                .selected(props.searching).icon(Icon::default().path("icons/search.svg"))
+                .tooltip(ui.t("sessions.search")).accessibility_label(ui.t("sessions.search"))
+                .on_click(click(&on_action, SidebarAction::ToggleSessionSearch))))
+        .when(props.searching, |el| el.child(div().mt(chrome.geo(pero_theme::SPACE_4)).mb(chrome.geo(pero_theme::SPACE_8)).child(search)))
         .when(empty, |el| el.child(div().p(px(8.)).text_color(p.text_muted).child(props.empty_text)))
 .child(
                     div()
@@ -324,6 +291,7 @@ pub(crate) fn sessions(ui: Ui<'_>, width: f32, props: SessionsProps, search: Any
                                                     key,
                                                     &on_action,
                                                     chrome,
+                                                    cx,
                                                 ))
                                             })
                                             .children(task_rows)

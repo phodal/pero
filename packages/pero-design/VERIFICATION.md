@@ -378,3 +378,113 @@ Final actual Native screenshots:
 Screenshot artifacts for this pass live outside Git under the task's
 `pero-native-followup/` and `customize-browser/` visualization folders. Published
 PR screenshots distinguish actual Native observations from final browser frames.
+
+## Paper and side chat controls — 2026-11-06
+
+Source: `2778f5e7`, before the subsequent session-state follow-up.
+
+Paper library search now composes SearchField and named IconButton actions;
+reader formats use the public single ToggleGroup. Obsolete outer search focus
+and reader pressed skins were removed. Tabs and ToggleGroup share pointer versus
+keyboard focus handling and an inset keyboard outline. Native chat combines
+artifact navigation and dock close in one header; zero counts are hidden and
+composer retry is a named icon action.
+
+- Actual App browser suite: **16 passed**, including Paper at 1200px/light/14px
+  and 600px/dark/24px. Search has one focus boundary, Clear does not submit,
+  Enter submits once, reader selection stays exclusive, disabled choices are
+  skipped and pointer/keyboard outlines remain distinct.
+- Paper workspace tests **7**, shared Tabs tests **10**, Native chat-ui **25**
+  and pero-ui **64** passed. Paper typecheck and production bundle, root checks,
+  Native executable build and Wasm checks passed.
+- Actual macOS GPUI/WKWebView: typed and cleared library search, opened the
+  existing Harness-Zero paper, switched saved text/PDF with pointer and keyboard,
+  observed one selected format and an unclipped keyboard outline. Artifact entry
+  and dock close share one row, empty counts are absent in both views, closing
+  the dock works while artifacts are open, and the composer remains bottom
+  aligned with its icon retry action. Native was light theme; dark/24px remains
+  browser evidence. No model request or scientific execution was performed.
+
+Screenshots are outside Git in this task's `paper-chat-controls/` visualization
+folder. Browser operation was disabled in Work settings during final acceptance,
+so new screenshots could not be uploaded to GitHub; prior PR attachments remain.
+
+
+## Native session navigation and App preparation — 2026-11-06
+
+Source: `507a2d1b`, the session follow-up based on `2778f5e7`.
+The final small delta removes 8px between the right status slot and the menu
+without reducing the shared menu hit target; it was rebuilt and inspected in
+the original Native preview profile. SessionRow is a GPUI component; no Web
+SessionRow implementation is claimed. Sources and generated outputs now include
+28px session-row and 14px status metrics.
+
+- Shared compact rows replace the old interaction_row, empty leading slot and
+  repeated running/attention labels. Regular titles align at the left, statuses
+  align at the right, selection uses surface-muted, and project folders use
+  stable palette accents. Menu and navigation remain independent controls.
+- Actual macOS GPUI observations: light/dark state visibility, long-title
+  ellipsis, hover/selected menu disclosure, Tab focus on an otherwise hidden
+  nonselected-row menu, Enter opening without navigation and Escape closing.
+  Search filtering/clear and expanded pagination were observed. Project plus
+  switched the confirmed workspace before creating its draft.
+- Session events were explicitly synthetic and injected into an isolated test
+  profile; fixture commands never reached an Agent. Reading cleared unread
+  while preserving the pending authorization icon and Allow/Reject controls.
+  Unread is window-local; restored history is not implicitly unread.
+- Controlled session_preparing → App completion → session_ready retained the
+  thread, title and unsent composer text, removed the neutral waiting notice,
+  and sent no prompt. This validates Native event handling, not an induced
+  real App-store lock. Separately, original-profile startup with the real rebuilt
+  Host showed no App-preparation error banner. Missing API credentials still
+  produce their existing setup guidance. Host revalidates Apps/grants on resume.
+- Native libraries: chat-ui **27**, theme **1**, UI **64**; Host **44** passed.
+  Native UI/Host builds, Wasm chat-web/UI checks and root generated/type/locale/
+  icon checks passed (**974** bilingual messages, **84** icons). The final
+  spacing-only change was rebuilt and visually inspected; no new state tests
+  were needed for that delta. Existing build warnings remain.
+
+Actual captures are outside Git under this task's `session-list-followup/`:
+`native-status-right.png`, `native-menu-keyboard-focus.png`,
+`native-preparation-resumed.png`, `native-sessions-dark.png`,
+`native-empty-no-environment-error.png`, `native-final-compact-status.png`.
+The final spacing capture supersedes earlier spacing. Browser automation was
+previously disabled during this task, so these are local Native captures, not
+new GitHub image attachments. Earlier Paper/browser evidence above still applies
+to those unchanged consumers.
+
+The isolated large-font setting was changed to 24px, but its resulting session
+view was not inspected before the user closed the preview. Native large-font
+acceptance, physical IME, screen readers, other operating systems, real provider
+requests and scientific execution remain unverified. The original preview
+profile was restored for the final spacing check; synthetic sessions were never
+added to it.
+
+## PR #139 merge follow-up — 2026-11-06
+
+Source: `0312562b` (PR head `507a2d1` merged with `master` at `01ec7f0d`),
+plus the final Workbench event-routing correction in this follow-up.
+The Composer conflict retains master's reconnect label and geometry probe with
+the PR's named RotateCcw icon. App readiness recovery now lives in ChatPanel;
+Workbench forwards App lifecycle events to it even when an App feature also
+consumes them; App scope requests retain the existing panel-availability check.
+
+- L0: root checks passed (984 bilingual messages, 85 shared icons). Native
+  chat-ui 28/28 and UI 64/64, Host 44/44 and theme 1/1 passed. Standalone Chat
+  Wasm build and Workbench Wasm check passed. Tabs/design/Product startup tests
+  passed 25/25. Fast CI contracts passed 107, with five conditional skips.
+- L1: actual hidden macOS Electron Product Chat passed all ten scenario checks
+  with zero page errors. A controlled App-store rejection on a new App scope
+  produced AwaitingApp; a completion event recovered the same thread, retained
+  the unsent text and created no extra conversation or user message. Existing
+  scope, cancellation, permission, dark theme, locale and narrow-window checks
+  also passed. The Agent is the local ACP fixture; no real model was called.
+- Captures: `test-results/product-chat/preparation-waiting.png` and
+  `preparation-resumed.png`, plus `compact-light.png`, `embedded.png`,
+  `permission-embedded.png`, `dark.png` and `narrow.png`. The preparation pair
+  was inspected for retained Composer content. The standalone shell's existing
+  Hide messages / Close chat labels overlap in this fixture; this follow-up
+  changes event recovery, not that shell header's layout.
+- This follow-up does not add new Native runtime visual acceptance, physical
+  IME, screen-reader, other OS or signed-package evidence. Earlier Native
+  evidence above retains its own source and scope.

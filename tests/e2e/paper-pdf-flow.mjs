@@ -109,8 +109,8 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await expect(first).toHaveAttribute('data-selection-ready', 'true', { timeout: 30000 });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
   const tools = frame.locator('.pa-reader-tools');
-  await expect(tools.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('title', paper.url);
-  const toolBoxes = await Promise.all(['Read', 'PDF', 'Zoom out', 'Zoom in'].map(name => tools.getByRole('button', { name, exact: true }).boundingBox()));
+  await expect(tools.getByRole('radio', { name: 'Source', exact: true })).toHaveAttribute('title', paper.url);
+  const toolBoxes = await Promise.all(['Read', 'PDF', 'Zoom out', 'Zoom in'].map(name => tools.getByRole(['Read', 'PDF'].includes(name) ? 'radio' : 'button', { name, exact: true }).boundingBox()));
   expect(toolBoxes.every(box => box && Math.abs(box.y - toolBoxes[0].y) <= 4)).toBe(true);
   expect(await frame.locator('.pa-reading-bar .pa-reader-title').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(16);
   await nav.getByRole('button', { name: 'Fit page', exact: true }).click();
@@ -145,13 +145,13 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   const viewport = viewer.locator('.pa-pdf-viewport');
   const beforeText = await scrollPdfAndRead(page, viewport, storedView, 60);
   await first.locator('img,canvas').first().evaluate(element => element.dataset.readingIdentity = 'retained');
-  await frame.locator('.pa-reader-tools').getByRole('button', { name: 'Read', exact: true }).click();
+  await frame.locator('.pa-reader-tools').getByRole('radio', { name: 'Read', exact: true }).click();
   await expect(viewer).toHaveCount(0);
   await expect(frame.locator('.pa-pdf-view-slot')).toHaveAttribute('inert', '');
   await expect(frame.locator('[data-reading-identity="retained"]')).toHaveCount(1);
   await expect(nav.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveCount(0);
   await expect.poll(async () => (await storedView()).mode).toBe('text');
-  await frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true }).click();
+  await frame.locator('.pa-reader-tools').getByRole('radio', { name: 'PDF', exact: true }).click();
   await expect(viewer).toBeVisible();
   await expect(first.locator('[data-reading-identity="retained"]')).toHaveCount(1);
   await expect(nav.getByRole('button', { name: 'Fit page', exact: true })).toHaveText(retainedZoom);
@@ -238,7 +238,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   await frame.locator('.pa-library-list .pero-list-open').filter({ has: frame.getByText(unavailable.title, { exact: true }) }).dblclick();
   // Opening metadata cannot initiate acquisition; the old implicit-download
   // error is now an explicit Save action, while its abstract stays readable.
-  await frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true }).click();
+  await frame.locator('.pa-reader-tools').getByRole('radio', { name: 'PDF', exact: true }).click();
   const unavailableSave = frame.getByRole('region', { name: 'Download', exact: true });
   const attempts = async () => {
     try { return (await readFile(resolve(profile, 'desktop/app-data/paper-agent/reader-retry-attempts.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse); }
@@ -261,7 +261,7 @@ export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   // The one-click action has attached these bytes to the original metadata paper.
   await unavailableSave.getByRole('button', { name: 'Close', exact: true }).click();
   expect((await frame.locator('body').evaluate(async (_element, id) => (await (await fetch(`/api/pdf?paperId=${id}`)).json()).document, unavailable.id)).paperId).toBe(unavailable.id);
-  await frame.getByRole('button', { name: 'Read', exact: true }).click();
+  await frame.getByRole('radio', { name: 'Read', exact: true }).click();
   await expect(frame.locator('.pa-source-text')).toContainText('Synthetic source remains readable.');
   await expect(frame.locator('.pa-pdf-reading [role="alert"]')).toHaveCount(0);
   await backToLibrary(frame);
