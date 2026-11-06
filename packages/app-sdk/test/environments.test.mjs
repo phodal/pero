@@ -102,12 +102,13 @@ test('parallel clicks for one method share a single in-flight check', async () =
   resolve(observation()); await Promise.all([a, b]); assert.equal(session.records[target].state, 'observed');
   session.dispose();
 });
-test('failed refresh removes the previous success instead of masking the failure', async () => {
+test('failed refresh retains the previous observation with its original timestamp', async () => {
   let fail = false;
   const session = createInspectionSession({ inspect: async () => { if (fail) throw new Error('Probe failed'); return observation(); } });
   await session.check(target); assert.equal(session.records[target].report.matched, true);
   fail = true; await session.check(target);
-  assert.equal(session.records[target].state, 'error'); assert.equal(session.records[target].report, undefined);
+  assert.equal(session.records[target].state, 'error'); assert.equal(session.records[target].report.observed_at_ms, 1000);
+  assert.equal(session.records[target].error, 'Probe failed');
   session.dispose();
 });
 test('late observation after disposal cannot repaint the task or mutate its verdict', async () => {
@@ -117,4 +118,28 @@ test('late observation after disposal cannot repaint the task or mutate its verd
   const done = session.check(target); await Promise.resolve();
   const count = updates; session.dispose(); assert.equal(observedSignal.aborted, true);
   resolve(observation()); await done; assert.equal(updates, count);
+});
+
+test('authorization and removed-source replies revoke the previous observation', async () => {
+  for (const status of [401, 403, 404, 410]) {
+    let denied = false;
+    const session = createInspectionSession({ inspect: (method, {signal}) => inspectEnvironment(method, {signal, fetchFn: async () => denied ? new Response('Access revoked', {status}) : response(observation())}) });
+    await session.check(target); assert.ok(session.records[target].report);
+    denied = true; await session.check(target);
+    assert.equal(session.records[target].state, 'error'); assert.equal(session.records[target].report, undefined);
+    session.dispose();
+  }
+});
+
+test('background recheck retains evidence while pending and replaces it on success', async () => {
+  let release;
+  let next = Promise.resolve(observation());
+  const session = createInspectionSession({inspect: () => next});
+  await session.check(target);
+  next = new Promise(resolve => {release = resolve;});
+  const check = session.check(target);
+  assert.equal(session.records[target].state, 'loading');
+  assert.equal(session.records[target].report.observed_at_ms, 1000);
+  release({...observation(),observed_at_ms:2000}); await check;
+  assert.equal(session.records[target].report.observed_at_ms, 2000); session.dispose();
 });
