@@ -241,7 +241,7 @@ func TestLiveProjectionAttemptAndContentLanes(t *testing.T) {
 	// Scientific presentation survives spilled model output on live and replay paths.
 	receipt := `{"kind":"pero.table.v1","content":"complete receipt"}`
 	meta, _ := json.Marshal(map[string]string{"displayText": receipt})
-	block := harness.ContentBlock{Type: harness.BlockToolResult, ToolCallID: "table", Meta: meta, Content: []harness.ContentBlock{text("truncated model preview")}}
+	block := harness.ContentBlock{Type: harness.BlockToolResult, ToolCallID: "table", Meta: meta, Content: []harness.ContentBlock{text("truncated model preview"), {Type: harness.BlockImage, Data: []byte{1, 2}, MIMEType: "image/png"}}}
 	data, _ := json.Marshal(block)
 	for _, live := range []bool{true, false} {
 		ev := harness.Event{Type: "tool/result", Data: data}
@@ -254,14 +254,16 @@ func TestLiveProjectionAttemptAndContentLanes(t *testing.T) {
 		var envelope struct {
 			Params struct {
 				Update struct {
-					Content []struct{ Content struct{ Text string } }
+					Content []struct {
+						Content struct{ Text, Type, Data, MimeType string }
+					}
 				}
 			}
 		}
 		if err := json.Unmarshal(raw, &envelope); err != nil {
 			t.Fatal(err)
 		}
-		if len(envelope.Params.Update.Content) != 1 || envelope.Params.Update.Content[0].Content.Text != receipt {
+		if len(envelope.Params.Update.Content) != 2 || envelope.Params.Update.Content[0].Content.Text != receipt || envelope.Params.Update.Content[1].Content.Data != "AQI=" || envelope.Params.Update.Content[1].Content.MimeType != "image/png" {
 			t.Fatalf("lost presentation: %s", raw)
 		}
 	}
