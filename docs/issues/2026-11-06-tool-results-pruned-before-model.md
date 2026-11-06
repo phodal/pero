@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: resolved
 date: 2026-11-06
 ---
 
@@ -44,8 +44,8 @@ add a separate cache or change tool effects. A focused regression should cover
 a batch larger than `keepRecent` under pressure and subsequent pruning after
 the first request. Failure evidence and call/result pairing must survive.
 
-This record contains analysis and repetition evidence. No runtime repair is
-included, and the original scoped acceptance remains unchanged.
+The analysis and repetitions above preceded the runtime repair below. Original
+attempts and their scoped acceptance remain unchanged.
 
 Evidence: `/Users/phodal/benchmarks/ai4se/runs/20261106-sol-durability-01/`,
 Session `450c4cc6-6bf5-4848-8e52-3c7da4b0e246`; trace SHA-256 and the offline
@@ -73,8 +73,8 @@ traces contain this defect; this is not a population-rate estimate.
 
 Scoped Google-only checks still pass. R3 also changes default exception
 behavior outside the frozen judge coverage, recorded separately in the
-[repeat report](../fitness/durability-repeat-verification.md). The issue stays
-open; successful feature checks do not repair first-use visibility.
+[repeat report](../fitness/durability-repeat-verification.md). Those successful
+feature checks alone did not repair first-use visibility.
 
 ## Repair
 
@@ -96,4 +96,12 @@ response, a pending batch larger than the recent count, no recent protection,
 and pending duplicate errors. The tests also confirm the batch becomes eligible
 after a response, consumed recent results survive, and original readback/replay
 is retained. `go test -race ./...` passes in `harness/go` (36 packages).
-Fresh model verification is the remaining check before closing this record.
+
+Repair `6dc2c921` also retains all six originally lost Read results when replaying
+the five affected historical boundaries. Two fresh serial OpenManus trials
+record zero history results cleared before their first request, while still
+performing 37 and 29 ordinary history replacements. Four frozen search behavior
+checks and 9/7 scoped candidate tests pass. Full application startup remains
+unverified. This closes the visibility defect, without claiming reduced token
+usage or resolving other context-efficiency findings. Evidence and source
+comparisons: [first-use verification](../fitness/tool-result-first-use.md).

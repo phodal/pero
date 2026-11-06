@@ -77,7 +77,13 @@ func TestToolHistoryWatermarksAndReplay(t *testing.T) {
 					t.Fatal(err)
 				}
 				after, err := p.PruneHistorySession(s)
-				if err != nil || len(after.Pruned) == 0 {
+				consumedBatchPruned := false
+				for _, entry := range after.Pruned {
+					if strings.HasPrefix(string(entry.ToolCallID), "pending-") {
+						consumedBatchPruned = true
+					}
+				}
+				if err != nil || !consumedBatchPruned {
 					t.Fatalf("consumed batch never became eligible: %+v %v", after, err)
 				}
 			}

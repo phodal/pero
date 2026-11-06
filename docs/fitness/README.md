@@ -38,6 +38,9 @@ priorities: [Durability trace analysis](durability-trace-analysis.md).
 Fresh problem-case repetitions, recurring first-use pruning and default-mode
 review coverage: [Durability repeats](durability-repeat-verification.md).
 
+Pending-result protection, comparison with local reference runtimes and matched
+verification: [Tool-result first use](tool-result-first-use.md).
+
 Deferred discovery, output budgets, continuation cursors and Session boundary
 measurements: [Tool-call efficiency](tool-call-efficiency.md).
 
