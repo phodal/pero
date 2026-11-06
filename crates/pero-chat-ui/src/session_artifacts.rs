@@ -552,6 +552,11 @@ impl ChatPanel {
                     .entry(format!("{thread}/message:{index}"))
                     .or_insert_with(|| ScrollAnchor::for_handle(self.chat_scroll.clone()));
             }
+            for row in crate::chat::render_items(chat) {
+                if let crate::chat::RenderItem::Process(group) = row {
+                    self.artifacts.bounds.entry(format!("{thread}/process:{}", group.first().key())).or_default();
+                }
+            }
             for tool in &chat.tools {
                 self.artifacts
                     .bounds
@@ -676,10 +681,10 @@ impl ChatPanel {
         if let Some(tool) = source.strip_prefix("tool:") {
             if let Some(chat) = self.chats.iter().find(|chat| chat.id == thread) {
                 for entry in crate::chat::render_items(chat) {
-                    if let crate::chat::RenderItem::Tools(indices) = entry {
-                        if indices.iter().any(|index| chat.tools[*index].id == tool) {
-                            self.expanded_tools
-                                .insert(format!("{thread}/{}", chat.tools[indices[0]].id));
+                    if let crate::chat::RenderItem::Process(group) = entry {
+                        if group.members().iter().any(|entry| matches!(entry, crate::process::ProcessEntry::Tool(index) if chat.tools[*index].id == tool)) {
+                            self.expanded_tools.insert(format!("{thread}/process:{}", group.first().key()));
+                            self.expanded_tools.insert(format!("{thread}/{tool}"));
                             break;
                         }
                     }

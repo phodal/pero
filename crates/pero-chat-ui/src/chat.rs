@@ -10,44 +10,36 @@ use gpui_kit::{
 };
 use pero_contracts::HostEvent;
 use serde_json::json;
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 
-pub(crate) enum RenderItem {
-    Message(usize),
-    Tools(Vec<usize>),
-}
+pub(crate) use crate::process::TranscriptRow as RenderItem;
 pub(crate) fn render_items(chat: &Conversation) -> Vec<RenderItem> {
-    let mut rows = Vec::new();
-    for item in &chat.timeline {
-        match *item {
-            StreamItem::Message(i) => rows.push(RenderItem::Message(i)),
-            StreamItem::Tool(i) => {
-                if chat.tools.get(i).is_some_and(|tool| {
-                    tool.cancelled && !crate::tool_ui::visible_output(&tool.content, &tool.output)
-                }) {
-                    continue;
-                }
-                let compact = chat
-                    .tools
-                    .get(i)
-                    .is_some_and(|t| matches!(t.kind.as_str(), "read" | "search" | "fetch"));
-                if compact {
-                    if let Some(RenderItem::Tools(tools)) = rows.last_mut() {
-                        if tools.iter().all(|index| {
-                            chat.tools.get(*index).is_some_and(|t| {
-                                matches!(t.kind.as_str(), "read" | "search" | "fetch")
-                            })
-                        }) {
-                            tools.push(i);
-                            continue;
-                        }
-                    }
-                }
-                rows.push(RenderItem::Tools(vec![i]));
-            }
+    use crate::process::ProcessEntry;
+    crate::process::transcript_rows(chat.timeline.iter().filter_map(|item| match *item {
+        StreamItem::Message(index) => {
+            let message = &chat.messages[index];
+            if message.role == "thought" {
+                (!message.text.trim().is_empty()).then_some(ProcessEntry::Thought(index))
+            } else { Some(ProcessEntry::Reply(index)) }
         }
-    }
-    rows
+        StreamItem::Tool(index) => {
+            let tool = &chat.tools[index];
+            (!(tool.cancelled && !crate::tool_ui::visible_output(&tool.content, &tool.output)))
+                .then_some(ProcessEntry::Tool(index))
+        }
+    }))
+}
+
+pub(crate) fn process_open(chat: &Conversation, group: &crate::process::ProcessGroup, expanded: &std::collections::HashSet<String>) -> bool {
+    group.members().len() == 1 || expanded.contains(&format!("{}/process:{}", chat.id, group.first().key()))
+        || group.members().iter().any(|entry| match *entry {
+            crate::process::ProcessEntry::Thought(index) => chat.thinking.open(index),
+            crate::process::ProcessEntry::Tool(index) => expanded.contains(&format!("{}/{}", chat.id, chat.tools[index].id)),
+            _ => false,
+        })
+}
+
+pub(crate) fn process_member_visible(chat: &Conversation, member: crate::process::ProcessEntry, expanded: &std::collections::HashSet<String>) -> bool {
+    render_items(chat).iter().any(|row| matches!(row, RenderItem::Process(group) if group.members().contains(&member) && process_open(chat, group, expanded)))
 }
 
 impl ChatPanel {
@@ -55,22 +47,13 @@ impl ChatPanel {
         for (i, chat) in self.chats.iter_mut().enumerate() {
             let enabled = self.active_chat == Some(i) && self.visible;
             let open_tools = if enabled {
-                render_items(chat)
-                    .into_iter()
-                    .filter_map(|item| match item {
-                        RenderItem::Tools(indices) => {
-                            let first = chat.tools.get(*indices.first()?)?;
-                            self.expanded_tools
-                                .contains(&format!("{}/{}", chat.id, first.id))
-                                .then_some(indices)
-                        }
-                        _ => None,
-                    })
-                    .flatten()
-                    .collect::<std::collections::HashSet<_>>()
-            } else {
-                std::collections::HashSet::new()
-            };
+                render_items(chat).into_iter().flat_map(|row| match row {
+                    RenderItem::Process(group) if process_open(chat, &group, &self.expanded_tools) => group.members().iter().filter_map(|member| match member {
+                            crate::process::ProcessEntry::Tool(index) if self.expanded_tools.contains(&format!("{}/{}", chat.id, chat.tools[*index].id)) => Some(*index), _ => None,
+                        }).collect::<Vec<_>>(),
+                    _ => vec![],
+                }).collect::<std::collections::HashSet<_>>()
+            } else { std::collections::HashSet::new() };
             for message in &chat.messages {
                 message.view.update(cx, |view, _| {
                     view.set_scroll_handle(enabled.then(|| self.chat_scroll.clone()))
@@ -734,6 +717,11 @@ impl ChatPanel {
             "turn_started" => chat.state = SessionState::Running,
             "turn_finished" => {
                 chat.thinking.streaming(None);
+                let reply = chat.timeline.last().and_then(|entry| match entry {
+                    StreamItem::Message(index) if chat.messages[*index].role == "assistant" && !chat.messages[*index].text.trim().is_empty() => Some(*index),
+                    _ => None,
+                });
+                chat.reply_actions.finish(reply, event.data["stopReason"] == "end_turn");
                 chat.flush(cx);
                 chat.state = SessionState::Idle;
                 chat.permission = None;
@@ -851,67 +839,11 @@ impl ChatPanel {
                     self.t("chat.welcome"),
                     Some(self.t(if self.connected && !self.agents.iter().any(|agent|agent.available){"chat.install_agent"}else if credential_reminder{"chat.credential_required"}else{"chat.description"}).into()),
                     pero_theme::Chrome::from_app(cx))))
-                .children(chat.into_iter().flat_map(render_items).enumerate().filter_map(|(i,item)|{
-                    let conversation=chat?;
+                .children(chat.into_iter().flat_map(render_items).enumerate().map(|(row, item)| {
+                    let conversation = chat.unwrap();
                     match item {
-                        RenderItem::Message(index)=>{
-                            let message=conversation.messages.get(index)?;
-                            if message.role=="thought" {
-                                let thread = conversation.id.clone();
-                                let open = conversation.thinking.open(index);
-                                return Some(div().id(("thought",i)).mb(px(8.)).flex().flex_col()
-                                    .child(Button::new(("thought-toggle",i)).relative().child(message.toggle_bounds.probe())
-                                        .ghost().small().w_full().justify_start().px_0()
-                                        .text_color(p.text_muted)
-                                        .accessibility_label(self.t("chat.reasoning"))
-                                        .child(self.icon(if open { "chevron-down" } else { "chevron-right" }).size(px(14.)).text_color(p.text_muted))
-                                        .child(div().flex_1().text_left().text_color(p.text_muted).child(self.t("chat.reasoning")))
-                                        .on_click(cx.listener(move |this,_,_,cx|{
-                                            if let Some(chat) = this.chats.iter_mut().find(|chat|chat.id==thread) { chat.thinking.toggle(index); }
-                                            cx.notify();
-                                        })))
-                                    .when(open,|el|el.child(div().pl(px(20.)).child(message.view.clone()))).into_any_element());
-                            }
-                            let user = message.role == "user";
-                            if let Some(brief) = conversation.brief.as_ref().filter(|_| !user && conversation.messages[..index].iter().filter(|message| message.role == "user").count() == 1) {
-                                let thread = conversation.id.clone();
-                                let location = format!("pero-app-location://insights/main/brief/{}", URL_SAFE_NO_PAD.encode(thread.as_bytes()));
-                                let open = Button::new(("brief-open", i)).outline().small().label(self.t("chat.brief_open"))
-                                    .on_click(cx.listener(move |_, _, _, cx| { cx.emit(crate::ChatAction::AppLink(location.clone())); }));
-                                let raw = Button::new(("brief-raw", i)).ghost().small().label(self.t("chat.brief_raw"))
-                                    .child(self.icon(if brief.raw_open { "chevron-down" } else { "chevron-right" }).size(px(14.)))
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        if let Some(brief) = this.chats.iter_mut().find(|chat| chat.id == thread).and_then(|chat| chat.brief.as_mut()) { brief.raw_open = !brief.raw_open; }
-                                        cx.notify();
-                                    }));
-                                return Some(div().id(("brief-result", i)).mb(px(pero_theme::SPACE_12)).flex().flex_col().gap(px(pero_theme::SPACE_8))
-                                    .anchor_scroll(self.artifacts.anchors.get(&format!("{}/message:{index}", conversation.id)).cloned())
-                                    .child(div().text_color(p.text_muted).child(self.t("chat.brief_result")))
-                                    .child(div().flex().flex_wrap().gap(px(8.)).child(open).child(raw))
-                                    .when(brief.raw_open, |el| {
-                                        let thread = conversation.id.clone();
-                                        el.child(div().id(("brief-raw-body", i)).max_h(px(360.)).overflow_y_scroll().child(message.view.clone())).child(Button::new(("save-reply-artifact", index)).relative().children(self.artifacts.bounds.get(&format!("{}/save-reply:{index}", conversation.id)).map(|bounds| bounds.probe())).ghost().small().self_end().text_color(p.text_muted).label(self.t("artifacts.save_reply"))
-                                            .on_click(cx.listener(move |this, _, _, cx| this.save_reply_artifact(&thread, index, cx))))
-                                    }).into_any_element());
-                            }
-                            Some(div().id(("message",i)).mb(px(pero_theme::SPACE_12)).flex().flex_col().gap(px(pero_theme::SPACE_8))
-                                .anchor_scroll(self.artifacts.anchors.get(&format!("{}/message:{index}",conversation.id)).cloned())
-                                .child(div().when(user, |el| el.w_full().px(px(pero_theme::SPACE_12)).py(px(pero_theme::SPACE_8)).bg(p.surface).border_1().border_color(p.border).rounded(px(pero_theme::RADIUS_PANEL))).child(message.view.clone()))
-                                .when(!message.attached_files.is_empty(),|el|el.child(div().flex().flex_wrap().gap(px(8.)).text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted)
-                                    .children(message.attached_files.iter().map(|name|div().flex().items_center().gap(px(4.)).child(self.icon("file").size(px(13.))).child(name.clone())))))
-                                .when(!user && !message.text.trim().is_empty(), |el| {
-                                    let thread=conversation.id.clone();
-                                    el.child(Button::new(("save-reply-artifact",index)).relative().children(self.artifacts.bounds.get(&format!("{}/save-reply:{index}",conversation.id)).map(|bounds|bounds.probe())).ghost().small().self_end().text_color(p.text_muted).label(self.t("artifacts.save_reply"))
-                                        .on_click(cx.listener(move |this,_,_,cx|this.save_reply_artifact(&thread,index,cx))))
-                                })
-                                .into_any_element())
-                        },
-                        RenderItem::Tools(indices)=>{
-                            let tools=indices.iter().filter_map(|index|conversation.tools.get(*index)).collect::<Vec<_>>();
-                            if tools.is_empty() { return None; }
-                            Some(div().id(("tool-source-anchor",i)).anchor_scroll(self.artifacts.anchors.get(&format!("{}/tool:{}",conversation.id,tools[0].id)).cloned()).child(self.tool_group(&conversation.id, tools, i, cx)).into_any_element())
-                        }
-
+                        RenderItem::Reply(index) => self.reply_view(conversation, index, row, cx),
+                        RenderItem::Process(group) => self.process_view(conversation, &group, row, cx),
                     }
                 }))
                 .when(busy,|el|el.child(div()

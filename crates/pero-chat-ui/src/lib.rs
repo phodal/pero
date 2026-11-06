@@ -66,6 +66,8 @@ pub mod thinking;
 pub mod process;
 pub mod tool_activity;
 pub mod tool_body;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod transcript_view;
 pub mod tool_transcript;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
