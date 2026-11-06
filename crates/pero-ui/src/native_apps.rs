@@ -843,7 +843,7 @@ mod research_assets_tests {
         }
         for (method, origin, body, status) in [
             ("GET", "pero-app://paper-agent", vec![], 405),
-            ("POST", "pero-app://paper-agent", vec![b' '; 4097], 413),
+            ("POST", "pero-app://paper-agent", vec![b' '; 64 * 1024 + 1], 413),
             ("POST", "pero-app://other-app", vec![], 503),
         ] {
             let response = apps.serve("paper-agent", Request::builder().uri("pero-app://paper-agent/host/research-assets")
