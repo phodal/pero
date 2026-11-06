@@ -86,6 +86,8 @@ pub struct Tool {
     pub title: String,
     pub kind: String,
     pub activity: crate::tool_activity::ToolActivity,
+    pub body: crate::tool_body::ToolBody,
+    pub output_expanded: bool,
     pub locations: Vec<String>,
     pub status: String,
     pub content: String,
@@ -117,7 +119,7 @@ impl Tool {
     /// Materialize Markdown on first disclosure; retain reading state thereafter.
     pub fn set_body_open(&mut self, open: bool, cx: &mut App) {
         if open {
-            if self.document.is_none() && self.view.is_none() {
+            if !self.body.specialized() && self.document.is_none() && self.view.is_none() {
                 self.view = Some(cx.new(|cx| { let mut view = StreamText::new(&self.content, cx); view.appearance = crate::stream::StreamAppearance::Tool; view }));
             }
         }
@@ -416,6 +418,8 @@ impl Conversation {
                             title: "Tool".into(),
                             kind: "other".into(),
                             activity: Default::default(),
+                            body: Default::default(),
+                            output_expanded: false,
                             locations: vec![],
                             status: "pending".into(),
                             content: String::new(),
@@ -485,6 +489,7 @@ impl Conversation {
                     })
                     .collect::<Vec<_>>()
                     .join("\n");
+                tool.body = crate::tool_body::ToolBody::derive(tool.activity.kind, tool.transcript.input.as_ref(), tool.transcript.raw_output.as_ref(), &next, &tool.output, &tool.locations);
                 if next != tool.content {
                     tool.chart_reader = None;
                     tool.source_revision+=1;
