@@ -1,4 +1,4 @@
-import { Button } from '@pero/app-sdk/ui';
+import { Disclosure, Button } from '@pero/app-sdk/ui';
 import React, { useEffect, useRef, useState } from 'react';
 import { structureText, moleculeRecords, type Asset } from './files';
 import { useAppApi } from '@pero/app-sdk';
@@ -59,7 +59,7 @@ export function Molecules({ asset }: { asset: Asset }) {
       <SplitPane as="aside" id="sv-molecule-details" aria-label="Molecule details" min={240} size={280} resizeLabel="Resize molecule details" className="sv-molecule-inspector">
         {current && <>
           <h3>Molecule {selected + 1}</h3>
-          {format === 'SMILES' ? <dl className="sv-molecule-source"><dt>SMILES</dt><dd><code>{current.input}</code></dd></dl> : <details className="sv-molecule-source-record"><summary>Source record ({format})</summary><pre>{current.input}</pre></details>}
+          {format === 'SMILES' ? <dl className="sv-molecule-source"><dt>SMILES</dt><dd><code>{current.input}</code></dd></dl> : <Disclosure variant="inline" className="sv-molecule-source-record" summary={<>Source record ({format})</>}><pre>{current.input}</pre></Disclosure>}
           {current.error ? <p className="sv-molecule-invalid-details">Descriptors unavailable for this record.</p> : <section aria-label="Computed descriptors" className="sv-molecule-properties">
             <h4>Computed descriptors</h4>
             <dl>{Object.entries(current.descriptors ?? {}).map(([key, value]) => {
