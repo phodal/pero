@@ -281,3 +281,7 @@ pub mod mcp_runtime;
 pub mod project_resources;
 
 pub mod research_project;
+
+pub mod mcp_session;
+
+pub mod mcp_resource;

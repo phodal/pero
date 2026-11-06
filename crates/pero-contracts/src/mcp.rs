@@ -1,6 +1,39 @@
 //! User-managed local ACP connectors. No credentials belong in this contract.
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::Path,
+};
+
+/// Execution policy is supplied by Host, never inferred from server annotations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum McpToolDecision {
+    Allow,
+    Ask,
+    Deny,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct McpToolPolicy {
+    pub default: McpToolDecision,
+    #[serde(default)]
+    pub tools: BTreeMap<String, McpToolDecision>,
+}
+
+impl McpToolPolicy {
+    pub fn validate(&self) -> Result<(), McpSettingsError> {
+        if self.tools.len() > 256
+            || self.tools.keys().any(|name| {
+                name.trim().is_empty() || name.len() > 128 || name.chars().any(char::is_control)
+            })
+        {
+            return Err(McpSettingsError::Invalid);
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
@@ -22,6 +55,8 @@ pub struct McpServerConfig {
     #[serde(default)]
     pub enabled: bool,
     pub transport: McpTransport,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_policy: Option<McpToolPolicy>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
@@ -68,6 +103,9 @@ impl McpConfiguration {
         names.insert("pero-app-use");
         names.insert("pero-connectors");
         for server in &self.servers {
+            if let Some(policy) = &server.tool_policy {
+                policy.validate()?;
+            }
             if server.name.trim().is_empty()
                 || server.name.len() > 128
                 || server.name.chars().any(char::is_control)
@@ -209,5 +247,46 @@ mod tests {
         ] {
             assert!(serde_json::from_str::<McpServerConfig>(input).is_err());
         }
+    }
+    #[test]
+    fn tool_policy_admission_is_bounded_and_explicit() {
+        for value in [
+            serde_json::json!({"tools":{}}),
+            serde_json::json!({"default":"unknown"}),
+            serde_json::json!({"default":"deny","tools":{"read":"unknown"}}),
+            serde_json::json!({"default":"deny","readOnlyHint":true}),
+        ] {
+            assert!(serde_json::from_value::<McpToolPolicy>(value).is_err());
+        }
+        let policy: McpToolPolicy =
+            serde_json::from_value(serde_json::json!({"default":"ask"})).unwrap();
+        assert!(policy.validate().is_ok());
+        for name in [
+            "".into(),
+            "  ".into(),
+            "bad\nname".into(),
+            "x".repeat(129),
+            "文".repeat(43),
+        ] {
+            let mut item = server();
+            item.tool_policy = Some(McpToolPolicy {
+                default: McpToolDecision::Deny,
+                tools: BTreeMap::from([(name, McpToolDecision::Allow)]),
+            });
+            assert_eq!(
+                McpConfiguration::default().replace(0, vec![item], &[]),
+                Err(McpSettingsError::Invalid)
+            );
+        }
+        let mut policy = McpToolPolicy {
+            default: McpToolDecision::Deny,
+            tools: (0..256)
+                .map(|i| (format!("tool_{i}"), McpToolDecision::Ask))
+                .collect(),
+        };
+        assert!(policy.validate().is_ok());
+        policy.tools.insert("extra".into(), McpToolDecision::Allow);
+        assert_eq!(policy.validate(), Err(McpSettingsError::Invalid));
+        assert!(server().tool_policy.is_none()); // old saved configuration retains server-level grants
     }
 }
