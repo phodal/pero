@@ -218,14 +218,28 @@ impl Manager {
 
     pub fn insights_catalog(&self) -> Vec<serde_json::Value> {
         let mut ids = Vec::new();
-        for event in self.visible_history() {
+        let mut activity = HashMap::new();
+        for (index, event) in self.visible_history().into_iter().enumerate() {
             let Some(id) = event.thread_id else { continue };
             if super::insights::session_id_ok(&id) && !ids.contains(&id) {
-                ids.push(id);
+                ids.push(id.clone());
+            }
+            if matches!(event.kind.as_str(), "user_message" | "turn_finished" | "session_error")
+                || (event.kind == "session_update" && matches!(event.data["sessionUpdate"].as_str(),
+                    Some("user_message_chunk" | "agent_message_chunk" | "tool_call" | "tool_call_update"))) {
+                activity.insert(id, index);
             }
         }
+        // Oldest activity first; consumers can take the tail or reverse for recovery.
+        ids.sort_by_key(|id| activity.get(id).copied());
         ids.into_iter()
-            .filter_map(|id| self.insights_value(&id).ok())
+            .filter_map(|id| {
+                let mut value = self.insights_value(&id).ok()?;
+                if let Some(binding) = self.app_bindings.get(&id).filter(|binding| binding.run.is_none()) {
+                    value["app"] = serde_json::json!(binding.app.as_str());
+                }
+                Some(value)
+            })
             .filter(|value| {
                 value
                     .get("turn_count")
