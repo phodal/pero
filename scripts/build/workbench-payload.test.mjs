@@ -52,7 +52,7 @@ test('Workbench payload drops standalone Chat while retaining its own runtime an
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Builtin staging ships only the exact Paper CLI and skill additions', async () => {
+test('Builtin staging ships only each App’s declared CLI and skill additions', async () => {
   const { stageBuiltinApp } = await import('./builtin-app-payload.mjs');
   const { existsSync, symlinkSync } = await import('node:fs');
   const paperEntries = ['tools/research.py', 'tools/locate-source.py', 'skills/research-resource-import/SKILL.md',
@@ -68,15 +68,15 @@ test('Builtin staging ships only the exact Paper CLI and skill additions', async
   try {
     const source = join(directory, 'source');
     const files = ['app.json', 'backend/server.py', 'backend/__pycache__/server.pyc', 'dist/index.html',
-      ...paperEntries, 'tools/unrelated.py', 'skills/paper-code-audit/references/private.md',
+      ...paperEntries, 'skills/molecular-report/SKILL.md', 'tools/unrelated.py', 'skills/paper-code-audit/references/private.md',
       'skills/other/SKILL.md', 'node_modules/private.js'];
     for (const path of files) {
       mkdirSync(join(source, path, '..'), { recursive: true }); writeFileSync(join(source, path), path);
     }
-    for (const app of ['paper-agent', 'other-app']) {
+    for (const app of ['paper-agent', 'scientific-viewer', 'other-app']) {
       const output = join(directory, app); stageBuiltinApp(source, app, output);
       for (const path of files) {
-        const included = ['app.json', 'backend/server.py', 'dist/index.html'].includes(path) || app === 'paper-agent' && paperEntries.includes(path);
+        const included = ['app.json', 'backend/server.py', 'dist/index.html'].includes(path) || app === 'paper-agent' && paperEntries.includes(path) || app === 'scientific-viewer' && path === 'skills/molecular-report/SKILL.md';
         assert.equal(existsSync(join(output, path)), included, `${app}: ${path}`);
         if (included) assert.equal(readFileSync(join(output, path), 'utf8'), path);
       }

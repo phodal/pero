@@ -41,13 +41,14 @@ export function deduplicatePayload(directory) {
 /** Builtin distribution payload, shared by Workbench and standalone Products. */
 export function stageBuiltinApp(source, name, destination) {
   const root = realpathSync(source);
-  const extra = name === 'paper-agent' ? PAPER_ENTRIES : [];
-  // Paper's advertised installed CLI/skill must ship together. Do not include an
+  const extra = name === 'paper-agent' ? PAPER_ENTRIES
+    : name === 'scientific-viewer' ? ['skills/molecular-report/SKILL.md'] : [];
+  // Each App's advertised installed CLI/skill must ship together. Do not include an
   // arbitrary tools or skills tree, or follow an extra entry outside the App.
   for (const entry of extra) {
     const path = resolve(root, entry);
     if (!existsSync(path) || !lstatSync(path).isFile() || !realpathSync(path).startsWith(root + sep)) {
-      throw new Error(`Paper payload requires a regular file inside its App: ${entry}`);
+      throw new Error(`${name} payload requires a regular file inside its App: ${entry}`);
     }
   }
   for (const entry of [...APP_ENTRIES, ...extra]) {
