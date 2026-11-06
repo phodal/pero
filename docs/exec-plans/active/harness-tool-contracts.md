@@ -226,3 +226,53 @@ behavior is changed on the basis of those extra verification calls. The older
 429 sample, old 4/5 coding result and all prior partial plugin acceptances stay
 unchanged. Remaining compatibility features require their own source and
 workflow evidence, as recorded in the compatibility plan.
+
+## Complex task follow-up, 2026-11-06
+
+At frozen master snapshot `fbc8c668`, five selected Terminal-Bench tasks run with native
+deferred tools and `gpt-6.1-sol` nonstreaming Responses. Fresh original-solution
+controls pass 5/5; empty submissions fail 5/5. One submission per task, zero
+retries and original independent verifiers produce **4/5 task acceptances**:
+cancellation 6/6 tests, WAL recovery 7/7, gRPC 7/7 and compression 3/3.
+The polyglot submission fails its file-set check because local compilation
+leaves `cmain` beside the requested source. No hidden-feedback repair is scored.
+
+The five submissions use 41 requests, 39 tools and 326,617 reported tokens.
+All end normally and their agent processes stop. The gRPC environment service
+survives agent exit and passes independent RPC verification. The three failed
+shell calls remain recorded; they do not become successful tool calls merely
+because four tasks pass. Both input/runner audits pass, with no credential hits.
+
+This profile leaves optional engineering feedback/contracts off; older
+contract-enabled DeepSeek reruns are not matched controls. Native task success
+does not establish full original-plugin Workflow compatibility. The
+[verification](../../fitness/terminal-bench-sol-complex.md),
+[machine report](../../design-docs/harness-complex-sol-evaluation.json) and
+[open delivery record](../../issues/2026-11-06-coding-delivery-residue.md)
+retain the failure and exact execution boundaries. OCaml GC repair, a MIPS
+interpreter and Cython/NumPy migration are researched next candidates.
+
+## Repository feature sample, 2026-11-06
+
+The requested Agentic Coding Durability sources are cloned under
+`/Users/phodal/benchmarks/ai4se`. Three isolated projects run serially from
+master `5e87d45a`, using the native deferred tools, existing feedback profile
+and `gpt-6.1-sol` Responses. Gin receives two sequential prompts in one Session;
+FastAPI and OpenManus each receive one. No independent judge feedback or manual
+feature repairs are supplied to the model.
+
+Gin's JWT plus SQLite CRUD and FastAPI's blog feature pass independent HTTP,
+schema and persistence checks. OpenManus passes four search-module cases and
+ten scoped tests, while ordinary pytest collection fails on the unprovisioned
+browser dependency; full application startup remains unverified. FastAPI's
+17 tests pass, but inherited repository lint/type debt remains. All prompts
+and native cleanup end normally. The total is 99 requests, 152 tool calls,
+eight retained failed calls and 2,166,073 reported tokens.
+
+This locally adapted sample is not an official Qoder score or a matched
+comparison to the feedback-off Terminal-Bench run. It adds repository feature
+and regression evidence; the earlier delivery issue stays open and full
+plugin development/review/merge parity remains unproven. The
+[verification](../../fitness/agentic-coding-durability.md) and
+[machine report](../../design-docs/harness-durability-sol-evaluation.json)
+retain the preparation, failures, source hashes and acceptance scope.

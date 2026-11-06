@@ -124,3 +124,52 @@ gate claims are not local execution results.
 Pin the evaluator and actual registry dataset release/revision together for a
 run; a moving source checkout is not automatically the `terminal-bench@2.0`
 registry release. Preserve task/config hashes in the run manifest.
+
+## Harder concrete tasks, 2026-11-06
+
+The follow-up selects cancellation, WAL recovery, C/Python polyglot compilation,
+gRPC deployment and constrained compression. These add observable tool chains
+and process/data contracts beyond five HumanEval+ functions. Upstream labels
+cancellation and compression hard, and the other three medium. Selection is
+diagnostic; a short prompt or a difficulty label does not establish the number
+of files, model requests or reasoning steps actually needed.
+The independent outcomes and execution settings are recorded in the
+[Sol verification](terminal-bench-sol-complex.md).
+
+Public instructions also identify these deeper follow-up candidates:
+
+| Task | Work required | Upstream agent timeout |
+| --- | --- | ---: |
+| `fix-ocaml-gc` | Repair a major-heap sweeping change that crashes compiler bootstrap; build the compiler and run its basic testsuite | 3,600 seconds |
+| `make-mips-interpreter` | Implement a JavaScript MIPS ELF interpreter and system calls sufficient to boot DOOM and save the checked frame | 1,800 seconds |
+| `build-cython-ext` | Repair and build pyknotid 0.5.3 Cython extensions against NumPy 2.3.0, retaining its package layout and relevant tests | 900 seconds |
+
+These three are researched candidates, not new Sol acceptances. SWE-bench
+Verified remains the separate route to issue-driven repairs across real
+repositories; Pro V2 adds a longer budget and a stricter evaluation protocol.
+Terminal-Bench native-tool verdicts also do not replace an original plugin's
+full Workflow development/review/merge acceptance.
+
+## Agentic Coding Durability sample, 2026-11-06
+
+[Qoder's evaluation set](https://github.com/QoderAI/agentic-coding-durability-evalset)
+adds practical feature work across existing repositories. Its README explicitly
+provides no automated completion verdict and asks for human iteration. At index
+revision `993d6a5a`, the organization lists 19 sample projects plus `.github`;
+projects can contain multiple prompts, so this is not a count of 19 tasks.
+
+The requested sources are cloned under `/Users/phodal/benchmarks/ai4se`.
+A serial native `gpt-6.1-sol` sample runs four original prompts across Gin,
+FastAPI and OpenManus, with acceptance criteria frozen before execution.
+Gin's two-turn JWT/SQLite delivery and FastAPI's blog delivery pass independent
+HTTP/persistence checks. OpenManus passes scoped Google-only selection/fallback
+checks; full startup remains unverified because its search-only environment
+omits browser dependencies. Ordinary pytest collection failure is retained.
+
+The sample consumes 99 requests and 2,166,073 reported tokens. It uses the
+existing feedback profile, unlike the preceding Terminal-Bench run; it is not
+a controlled score or efficiency comparison. These tasks add feature/regression
+coverage but do not establish greater algorithmic difficulty or long-horizon
+durability. Keep independently judged repair tasks and full plugin workflows
+as separate coverage. Exact sources, preparation, results and limitations are
+in the [verification](agentic-coding-durability.md).
