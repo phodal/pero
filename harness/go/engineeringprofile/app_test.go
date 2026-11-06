@@ -57,7 +57,7 @@ func setup(t *testing.T, mode Mode, maxSteps int, responses ...harness.Completio
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := h.Dispose(context.Background()); err != nil {
+		if err := h.Dispose(context.Background()); err != nil && !errors.Is(err, harness.ErrHarnessDisposalInProgress) {
 			t.Error(err)
 		}
 		if err := h.Drain(context.Background()); err != nil {
