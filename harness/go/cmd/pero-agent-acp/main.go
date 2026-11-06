@@ -26,6 +26,7 @@ import (
 	"github.com/phodal/pero/harness/go/plugins"
 	"github.com/phodal/pero/harness/go/providers/openai"
 	point "github.com/phodal/pero/harness/go/runtime"
+	"github.com/phodal/pero/harness/go/scienceenv"
 	"github.com/phodal/pero/harness/go/skills"
 	"github.com/phodal/pero/harness/go/subagents"
 	"github.com/phodal/pero/harness/go/tasks"
@@ -66,6 +67,9 @@ func run() (resultErr error) {
 	workspace := flag.String("workspace", "", "explicit native file tool authority root; absent disables native tools")
 	enableResearchClone := flag.Bool("enable-research-clone", false, "enable approved pinned GitHub acquisition without checkout; requires --workspace; Unix only")
 	enableShell := flag.Bool("enable-shell", false, "enable approved shell execution (Unix unsandboxed unless --sandbox supplied; Windows requires windows-acl; requires --workspace)")
+	scienceEnv := flag.Bool("science-env", false, "enable persistent python, repl, and r kernels in --workspace; repl host.mcp calls this agent's MCP tools; requires approval")
+	sciencePython := flag.String("science-python", "python3", "Python interpreter for the python and repl kernels")
+	scienceR := flag.String("science-rscript", "Rscript", "Rscript interpreter for the r kernel")
 	shellPath := flag.String("shell", "", "absolute shell executable; defaults to /bin/bash on Unix; Windows requires explicit pwsh.exe")
 	pdfRenderer := flag.String("pdf-renderer", "", "absolute Poppler pdftoppm path with adjacent pdfinfo; empty auto-detects, '-' disables PDF page rendering")
 	deferToolLoading := flag.Bool("defer-tool-loading", false, "declare caller-authorized tools after ToolSearch returns their schemas")
@@ -233,6 +237,7 @@ func run() (resultErr error) {
 	var pluginWorkflows *workflow.App
 	var webApp *webtools.App
 	var lspApp *lsp.App
+	var science *scienceenv.Env
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -241,7 +246,7 @@ func run() (resultErr error) {
 			// Drain supplies the final receipt for asynchronous disposal.
 			disposeErr = nil
 		}
-		resultErr = errors.Join(resultErr, disposeErr, h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), webApp.Close(), lspApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
+		resultErr = errors.Join(resultErr, disposeErr, h.Drain(cleanup), native.Close(), science.Close(), pluginWorkflows.Close(), webApp.Close(), lspApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
 	if paperResearch != nil {
 		if err := mountPaperResearch(ctx, h, *paperResearch); err != nil {
@@ -278,6 +283,15 @@ func run() (resultErr error) {
 			nativeOptions.BashTiming = nativetools.BashTimingOptions{HostMode: nativetools.BashHostMode(*bashHostMode), DisableBackground: *disableBashBackground}
 		}
 		native, err = nativetools.Mount(ctx, h, nativeOptions)
+		if err != nil {
+			return err
+		}
+	}
+	if *scienceEnv {
+		if *workspace == "" {
+			return errors.New("--science-env requires --workspace")
+		}
+		science, err = scienceenv.Mount(ctx, h, scienceenv.Options{Workspace: *workspace, Python: *sciencePython, Rscript: *scienceR, MCP: scienceenv.AgentMCP(h)})
 		if err != nil {
 			return err
 		}
