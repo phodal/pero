@@ -13,6 +13,7 @@ export const designContract = {
     "title": 24,
     "heading": 18,
     "body": 14,
+    "tab": 13,
     "caption": 12,
     "label": 12
   },
@@ -35,6 +36,8 @@ export const designContract = {
     "sidebarPadding": 10,
     "sidebarGroupGap": 16,
     "contentTab": 30,
+    "contentTabIcon": 14,
+    "contentTabClose": 24,
     "sidebarNavRow": 32,
     "menuRow": 32,
     "subRow": 26,

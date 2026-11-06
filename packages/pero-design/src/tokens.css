@@ -11,6 +11,7 @@
   --pero-font-title: calc(24px * var(--pero-font-scale, 1));
   --pero-font-heading: calc(18px * var(--pero-font-scale, 1));
   --pero-font-body: calc(14px * var(--pero-font-scale, 1));
+  --pero-font-tab: max(12px, calc(13px * var(--pero-font-scale, 1)));
   --pero-font-caption: max(12px, calc(12px * var(--pero-font-scale, 1)));
   --pero-font-label: max(12px, calc(12px * var(--pero-font-scale, 1)));
   --pero-radius-panel: 12px;
@@ -24,6 +25,8 @@
   --pero-sidebar-padding: 10px;
   --pero-sidebar-group-gap: 16px;
   --pero-content-tab: 30px;
+  --pero-content-tab-icon: 14px;
+  --pero-content-tab-close: 24px;
   --pero-row-nav: 32px;
   --pero-row-menu: 32px;
   --pero-row-sub: 26px;
