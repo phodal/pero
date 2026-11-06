@@ -18,6 +18,7 @@ pub(crate) fn navigation_roots(panel: &SettingsPanel, cx: &App) -> Vec<TreeItem>
         ));
     }
     for section in [
+        SettingsSection::Shortcuts,
         SettingsSection::Agents,
         SettingsSection::Harness,
         SettingsSection::Workers,

@@ -158,3 +158,8 @@ mod workspace_tools;
 
 #[cfg(any(target_family="wasm", feature="native"))]
 mod compute_view;
+
+#[cfg(any(target_family="wasm", feature="native"))]
+mod shortcuts;
+#[cfg(any(target_family="wasm", feature="native"))]
+mod settings_shortcuts;

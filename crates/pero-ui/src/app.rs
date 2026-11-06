@@ -144,64 +144,10 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        crate::shortcuts::install(&Default::default(), cx);
         cx.bind_keys([
-            KeyBinding::new("cmd-alt-shift-left",crate::workspace_pane_views::SplitPaneLeft,None),
-            KeyBinding::new("ctrl-alt-shift-left",crate::workspace_pane_views::SplitPaneLeft,None),
-            KeyBinding::new("ctrl-alt-left",crate::workspace_pane_views::FocusPaneLeft,None),
-            KeyBinding::new("cmd-alt-shift-right",crate::workspace_pane_views::SplitPaneRight,None),
-            KeyBinding::new("ctrl-alt-shift-right",crate::workspace_pane_views::SplitPaneRight,None),
-            KeyBinding::new("ctrl-alt-right",crate::workspace_pane_views::FocusPaneRight,None),
-            KeyBinding::new("cmd-alt-shift-up",crate::workspace_pane_views::SplitPaneUp,None),
-            KeyBinding::new("ctrl-alt-shift-up",crate::workspace_pane_views::SplitPaneUp,None),
-            KeyBinding::new("ctrl-alt-up",crate::workspace_pane_views::FocusPaneUp,None),
-            KeyBinding::new("cmd-alt-shift-down",crate::workspace_pane_views::SplitPaneDown,None),
-            KeyBinding::new("ctrl-alt-shift-down",crate::workspace_pane_views::SplitPaneDown,None),
-            KeyBinding::new("ctrl-alt-down",crate::workspace_pane_views::FocusPaneDown,None),
-            KeyBinding::new("cmd-shift-w",crate::workspace_pane_views::ClosePane,None),
-            KeyBinding::new("ctrl-shift-w",crate::workspace_pane_views::ClosePane,None),
-            KeyBinding::new("alt-left",crate::workspace_view::WorkspaceBack,None),
-            KeyBinding::new("alt-right",crate::workspace_view::WorkspaceForward,None),
-            KeyBinding::new("cmd-alt-right",crate::workspace_view::NextContent,None),
-            KeyBinding::new("cmd-alt-left",crate::workspace_view::PreviousContent,None),
-            KeyBinding::new("cmd-\\",crate::workspace_pane_views::SplitPaneRight,None),
-            KeyBinding::new("ctrl-\\",crate::workspace_pane_views::SplitPaneRight,None),
-            KeyBinding::new("cmd-w",crate::workspace_tab_actions::ClosePaneTab,None),
-            KeyBinding::new("ctrl-w",crate::workspace_tab_actions::ClosePaneTab,None),
-            KeyBinding::new("cmd-shift-t",crate::workspace_tab_actions::ReopenClosedPaneTab,None),
-            KeyBinding::new("ctrl-shift-t",crate::workspace_tab_actions::ReopenClosedPaneTab,None),
-            KeyBinding::new("cmd-k v",crate::workspace_tab_actions::OpenPreviewToSide,None),
-            KeyBinding::new("ctrl-k v",crate::workspace_tab_actions::OpenPreviewToSide,None),
             KeyBinding::new("enter",crate::workspace_pane_tabs::ConfirmPaneTabSwitch,Some("PaneTabSwitcher")),
             KeyBinding::new("escape",crate::workspace_pane_tabs::CancelPaneTabSwitch,Some("PaneTabSwitcher")),
-
-            KeyBinding::new("cmd-l",crate::web_documents::OpenWeb,None),
-            KeyBinding::new("ctrl-l",crate::web_documents::OpenWeb,None),
-            KeyBinding::new("cmd-p",crate::workspace_recent::OpenRecentContent,None),
-            KeyBinding::new("ctrl-p",crate::workspace_recent::OpenRecentContent,None),
-            KeyBinding::new("cmd-shift-k",crate::spotlight::OpenSpotlight,None),
-            KeyBinding::new("ctrl-shift-k",crate::spotlight::OpenSpotlight,None),
-            KeyBinding::new("ctrl-tab", crate::workspace_pane_tabs::NextPaneTabMru, None),
-            KeyBinding::new("ctrl-shift-tab", crate::workspace_pane_tabs::PreviousPaneTabMru, None),
-        ]);
-        cx.bind_keys([
-            KeyBinding::new("cmd-1",crate::workspace_tab_actions::FocusPane1,None),
-            KeyBinding::new("ctrl-1",crate::workspace_tab_actions::FocusPane1,None),
-            KeyBinding::new("cmd-2",crate::workspace_tab_actions::FocusPane2,None),
-            KeyBinding::new("ctrl-2",crate::workspace_tab_actions::FocusPane2,None),
-            KeyBinding::new("cmd-3",crate::workspace_tab_actions::FocusPane3,None),
-            KeyBinding::new("ctrl-3",crate::workspace_tab_actions::FocusPane3,None),
-            KeyBinding::new("cmd-4",crate::workspace_tab_actions::FocusPane4,None),
-            KeyBinding::new("ctrl-4",crate::workspace_tab_actions::FocusPane4,None),
-            KeyBinding::new("cmd-5",crate::workspace_tab_actions::FocusPane5,None),
-            KeyBinding::new("ctrl-5",crate::workspace_tab_actions::FocusPane5,None),
-            KeyBinding::new("cmd-6",crate::workspace_tab_actions::FocusPane6,None),
-            KeyBinding::new("ctrl-6",crate::workspace_tab_actions::FocusPane6,None),
-            KeyBinding::new("cmd-7",crate::workspace_tab_actions::FocusPane7,None),
-            KeyBinding::new("ctrl-7",crate::workspace_tab_actions::FocusPane7,None),
-            KeyBinding::new("cmd-8",crate::workspace_tab_actions::FocusPane8,None),
-            KeyBinding::new("ctrl-8",crate::workspace_tab_actions::FocusPane8,None),
-            KeyBinding::new("cmd-9",crate::workspace_tab_actions::FocusPane9,None),
-            KeyBinding::new("ctrl-9",crate::workspace_tab_actions::FocusPane9,None),
         ]);
         #[cfg(all(feature = "native", not(target_family = "wasm")))]
         cx.bind_keys([
@@ -580,6 +526,12 @@ impl Workbench {
             if let Some(id)=event.data["sessionId"].as_str(){self.open_automation_session(id,cx);}
             return;
         }
+        if event.kind == "shortcut_command" {
+            if let Ok(command) = serde_json::from_value::<pero_contracts::shortcuts::CommandId>(event.data.clone()) {
+                self.execute_shortcut(command, window, cx);
+            }
+            return;
+        }
         if event.kind == "automation_open" { self.open_automations(window, cx); return; }
         let event_kind = event.kind.clone();
         let feature_handled = self.receive_terminal(&event,cx) || self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
@@ -637,6 +589,7 @@ impl Workbench {
                         >(event.data.clone())
                         {
                             self.preferences = preferences;
+                            self.install_shortcuts(cx);
                             let width = self.preferences.layout.artifact_pane_width();
                             let view = self.preferences.layout.artifact_view;
                             self.chat.update(cx, |chat, cx| {
