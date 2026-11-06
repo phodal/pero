@@ -1,0 +1,24 @@
+diff --git a/crates/component/src/menu/popup_menu.rs b/crates/component/src/menu/popup_menu.rs
+--- a/crates/component/src/menu/popup_menu.rs
++++ b/crates/component/src/menu/popup_menu.rs
+@@ -1241,6 +1241,10 @@
+             Size::Small => (px(20.), options.radius.half()),
+             _ => (px(26.), options.radius),
+         };
++
++        // A menu row must accommodate the current UI font. Keep the compact
++        // Kit minimum, but allow large text and wrapped labels to grow the row.
++        let item_height = item_height.max(cx.theme().font_size * 1.4 + px(4.));
+-
++
+         let this = MenuItemElement::new(ix)
+             .relative()
+@@ -1339,7 +1343,7 @@
+                     }))
+                 })
+                 .disabled(*disabled)
+-                .h(item_height)
++                .min_h(item_height)
+                 .gap_x_1()
+                 .children(Self::render_icon(
+                     has_left_icon,
