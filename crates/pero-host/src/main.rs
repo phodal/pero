@@ -19,6 +19,7 @@ mod insights;
 mod local_worker;
 mod mcp;
 mod workspace;
+mod workspace_files;
 
 fn emit(event: HostEvent) -> io::Result<()> {
     let mut stdout = io::stdout().lock();
@@ -78,6 +79,10 @@ fn main() -> io::Result<()> {
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         };
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
+        if value.get("method").and_then(|v| v.as_str()) == Some("workspace_files") {
+            workspace_files::dispatch(value, &agents);
+            continue;
+        }
         if value.get("method").and_then(|v| v.as_str()) == Some("artifacts") {
             emit(artifacts.dispatch(value, &agents))?;
             continue;
