@@ -9,6 +9,8 @@ use pero_runtime::context::ContextSources;
 mod app_agent;
 #[path = "app_agent_run.rs"]
 mod app_agent_run;
+#[path = "paper_research.rs"]
+mod paper_research;
 #[path = "automation_agent.rs"]
 pub mod automation_agent;
 #[path = "mcp_settings.rs"]
@@ -31,6 +33,7 @@ pub struct Manager {
     history: Arc<Mutex<pero_contracts::session_history::SessionHistory>>,
     app_bindings: HashMap<String, AppSessionBinding>,
     run_journal: app_agent_run::Journal,
+    paper_run_projection: HashMap<String, (String, u64)>,
     app_use: Option<acp::AppUseEndpoint>,
     pub(crate) apps: Option<crate::apps::Apps>,
     app_plugins: HashMap<String, pero_runtime::apps::AppSessionPlugins>,
@@ -169,6 +172,7 @@ impl Manager {
             history,
             app_bindings,
             run_journal,
+            paper_run_projection: HashMap::new(),
             app_use: acp::AppUseEndpoint::from_environment(),
             apps: None,
             app_plugins: HashMap::new(),

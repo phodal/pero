@@ -72,6 +72,7 @@ fn main() -> io::Result<()> {
         }
     });
     loop {
+        agents.reconcile_paper_runs();
         if let Ok(owner) = &mut automation {
             if let Some(event) = owner.tick(&mut agents) { emit(event)?; }
         }
