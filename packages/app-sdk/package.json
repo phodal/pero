@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "typecheck": "tsc --ignoreConfig --noEmit --jsx react-jsx --moduleResolution bundler --module esnext --target es2022 --esModuleInterop --skipLibCheck --types node,vite/client src/client.tsx src/ui.tsx src/chart.ts",
-    "test": "node --test --test-concurrency=1 src/components/code-compare-blocks.test.mjs test/*.test.mjs"
+    "test": "node --test --test-concurrency=1 src/components/code-compare-blocks.test.mjs test/*.test.mjs",
+    "test:tabs-browser": "node --test test/tabs-browser.mjs"
   },
   "type": "module",
   "exports": {
