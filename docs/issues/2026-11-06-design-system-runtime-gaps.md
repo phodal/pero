@@ -213,3 +213,22 @@ was not observed. A later concurrent Native restart remained at App opening on
 last observation; no cause is asserted. Temporary theme/font restoration remains
 unverified. These observations do not invalidate the completed screenshots, and
 passing source inventory/build alone does not close product acceptance.
+
+
+## Pointer-opened Popover keyboard focus
+
+Native follow-up reproduced the Escape failure while Tab successfully advanced
+focus and dismissed the popup. The shared Popover listens for Escape within its
+trigger/content boundary, while browsers may leave a pointer-activated button unfocused.
+Explicitly focus the trigger on activation so a mouse-opened popup receives the
+next Escape/Tab. Menu content still receives its existing initial menu focus.
+A regression drives pointer activation, then Escape from the actual active
+node, without manually focusing the trigger; it fails before the change.
+
+Final follow-up: SDK tests pass 162/162, SDK typecheck and all 12 production
+bundles pass. Native Lab was reopened with the rebuilt bundle; Escape still did
+not visibly dismiss the popup, despite the corrected activation focus contract.
+The Native event/focus route is therefore not accepted or attributed to a proven
+root cause. Native heatmap horizontal movement also remains unverified. Evidence
+55 records the remaining Escape observation. The user requested wrap-up; no
+further Native routing changes are included in this delivery.

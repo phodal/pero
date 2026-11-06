@@ -278,3 +278,18 @@ Control Lab 46、Insights 6；Compute 类型检查通过。根目录 `npm run ch
 `PERO_GPUI_KIT_PATH=/Users/phodal/test/gpui-kit`；工作树复用现有 reader Wasm
 及已安装依赖，初次缺少这些环境路径的失败不记为源码缺陷。
 本复验没有扩大前文 Native 键盘、物理 IME、VoiceOver 或真实执行的验收范围。
+
+
+## 收尾复查
+
+用户要求收尾，本轮不再扩展 Native 事件路由排查。共享 Popover 现在在触发按钮
+激活时明确获取焦点，使鼠标打开后能从当前焦点接收 Escape/Tab；菜单仍沿用首项
+聚焦行为。新增回归直接从实际 activeElement 发送 Escape，不预先手动聚焦触发器。
+SDK 类型检查、全部162项测试和12个App生产构建通过。
+
+实际 Native 已恢复显示 Lab 和 Cell，取代前文最后停留“正在打开应用”的观察。
+Lab 使用重新构建的 bundle 关闭并重开后，鼠标说明浮层仍未观察到 Escape 关闭；
+因此本轮不能将该 Native 问题标为修复。Cell 热图虽出现明确焦点轮廓，方向键与
+横向滚轮也仍未观察到移动；没有据此扩展科学绘图或 Native 壳层实现。
+证据为 `test-results/ux-review-2026-11-06/55-native-popover-escape-followup.png`。
+未验收范围继续保留在原 tracker，临时外观设置未恢复，截图仍只在本地忽略目录。
