@@ -2,6 +2,7 @@
 import React, { forwardRef } from 'react';
 import * as Primitive from '@radix-ui/react-toggle-group';
 import { ensureUiStyles } from './ui-styles';
+import { useSelectionFocus } from './selection-focus';
 
 function useUiRef<T extends { ownerDocument: Document }>(forwardedRef: React.ForwardedRef<T>) {
   return React.useCallback((node: T | null) => {
@@ -31,8 +32,9 @@ export type ToggleGroupItemProps = Omit<React.ComponentPropsWithoutRef<typeof Pr
   unstyled?: boolean;
 };
 
-/** One option in a ToggleGroup. Renders a button with pressed state; never submits a form. */
-export const ToggleGroupItem = forwardRef<HTMLButtonElement, ToggleGroupItemProps>(function ToggleGroupItem({ unstyled, className, ...props }, forwardedRef) {
+/** One option in a ToggleGroup. Renders a button with checked (single) or pressed (multiple) state; never submits a form. */
+export const ToggleGroupItem = forwardRef<HTMLButtonElement, ToggleGroupItemProps>(function ToggleGroupItem({ unstyled, className, onPointerDown, onKeyDown, onBlur, ...props }, forwardedRef) {
   const { asChild: _asChild, ...itemProps } = props as ToggleGroupItemProps & { asChild?: boolean };
-  return <Primitive.Item {...itemProps} className={classes('pero-ui-toggle-item', className)} data-unstyled={unstyled || undefined} ref={useUiRef(forwardedRef)} />;
+  const focus = useSelectionFocus({ onPointerDown, onKeyDown, onBlur });
+  return <Primitive.Item {...itemProps} {...focus} className={classes('pero-ui-toggle-item', className)} data-unstyled={unstyled || undefined} ref={useUiRef(forwardedRef)} />;
 });
