@@ -112,16 +112,28 @@ fn static_panel_access_does_not_start_its_backend() {
     let workspace = Workspace::new();
     let source = workspace.package(Some("python"));
     let name = AppName::try_from("virtual-cell".to_owned()).unwrap();
-    let mut store = AppStore::open(workspace.0.join("managed/apps"), PythonEnvironments::default()).unwrap();
+    let mut store = AppStore::open(
+        workspace.0.join("managed/apps"),
+        PythonEnvironments::default(),
+    )
+    .unwrap();
     assert!(store.resolve_static(&name).is_err());
     store.install(&source).unwrap();
     assert!(store.resolve_static(&name).is_err());
     store.set_enabled(&name, true).unwrap();
     let access = store.resolve_static(&name).unwrap();
-    assert_eq!(fs::read_to_string(access.root.join(access.entry)).unwrap(), "<h1>Cell atlas</h1>");
+    assert_eq!(
+        fs::read_to_string(access.root.join(access.entry)).unwrap(),
+        "<h1>Cell atlas</h1>"
+    );
     assert!(access.backend.is_none());
     assert!(store.running_backend(&name).is_err());
-    assert!(!workspace.0.join("managed/app-data/virtual-cell/observed").exists());
+    assert!(
+        !workspace
+            .0
+            .join("managed/app-data/virtual-cell/observed")
+            .exists()
+    );
     store.set_enabled(&name, false).unwrap();
     assert!(store.resolve_static(&name).is_err());
 }
@@ -330,8 +342,20 @@ fn required_tenure_rejects_disable_and_reinstalls_a_tampered_record() {
     for (required, action, enabled, installed, code) in [
         (false, "disable", Some(false), true, None),
         (false, "remove", None, false, None),
-        (true, "disable", Some(true), true, Some(super::tenure::TenureFault::CODE)),
-        (true, "remove", Some(true), true, Some(super::tenure::TenureFault::CODE)),
+        (
+            true,
+            "disable",
+            Some(true),
+            true,
+            Some(super::tenure::TenureFault::CODE),
+        ),
+        (
+            true,
+            "remove",
+            Some(true),
+            true,
+            Some(super::tenure::TenureFault::CODE),
+        ),
         (true, "reopen", Some(true), true, None),
     ] {
         let workspace = Workspace::new();
@@ -343,7 +367,9 @@ fn required_tenure_rejects_disable_and_reinstalls_a_tampered_record() {
         } else {
             std::collections::BTreeSet::new()
         };
-        let mut store = AppStore::open_required(root.clone(), PythonEnvironments::default(), names.clone()).unwrap();
+        let mut store =
+            AppStore::open_required(root.clone(), PythonEnvironments::default(), names.clone())
+                .unwrap();
         store.install(&source).unwrap();
         store.set_enabled(&name, true).unwrap();
         let result = match action {
@@ -356,17 +382,34 @@ fn required_tenure_rejects_disable_and_reinstalls_a_tampered_record() {
                     br#"{"enabled":false}"#,
                 )
                 .unwrap();
-                store = AppStore::open_required(root.clone(), PythonEnvironments::default(), names).unwrap();
+                store = AppStore::open_required(root.clone(), PythonEnvironments::default(), names)
+                    .unwrap();
                 Ok(())
             }
             _ => unreachable!(),
         };
-        assert_eq!(result.as_ref().err().map(|error| error.to_string()).as_deref(), code, "{action}/{required}");
+        assert_eq!(
+            result
+                .as_ref()
+                .err()
+                .map(|error| error.to_string())
+                .as_deref(),
+            code,
+            "{action}/{required}"
+        );
         let listed = store.list();
-        assert_eq!(listed.iter().any(|app| app.name == name), installed, "{action}");
+        assert_eq!(
+            listed.iter().any(|app| app.name == name),
+            installed,
+            "{action}"
+        );
         if let Some(enabled) = enabled {
             assert_eq!(listed[0].enabled, enabled, "{action}");
-            assert_eq!(listed[0].tenure == super::Tenure::Required, required, "{action}");
+            assert_eq!(
+                listed[0].tenure == super::Tenure::Required,
+                required,
+                "{action}"
+            );
         }
         if action == "reopen" {
             let record: serde_json::Value = serde_json::from_slice(
@@ -381,19 +424,30 @@ fn required_tenure_rejects_disable_and_reinstalls_a_tampered_record() {
 #[test]
 fn app_run_access_uses_enabled_pero_agent_grants() {
     for granted in [false, true] {
-        let workspace = Workspace::new(); let source = workspace.package(None);
+        let workspace = Workspace::new();
+        let source = workspace.package(None);
         let path = source.join("app.json");
-        let mut declaration: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-        if granted { declaration["permissions"] = serde_json::json!({"host":["agent"]}); }
+        let mut declaration: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        if granted {
+            declaration["permissions"] = serde_json::json!({"host":["agent"]});
+        }
         fs::write(path, serde_json::to_vec(&declaration).unwrap()).unwrap();
-        let mut store = AppStore::open(workspace.0.join("installed"), PythonEnvironments::default()).unwrap();
+        let mut store =
+            AppStore::open(workspace.0.join("installed"), PythonEnvironments::default()).unwrap();
         store.install(&source).unwrap();
         let name = AppName::try_from("virtual-cell".to_owned()).unwrap();
         store.set_enabled(&name, true).unwrap();
         assert_eq!(store.agent_panel(&name).is_ok(), granted);
         assert_eq!(store.agent_declaration_revision(&name).is_ok(), granted);
-        for path in ["/api/workspaces", "/api/harnesses"] { assert_eq!(store.agent_catalog_permission(&name, path).is_ok(), granted); }
-        assert!(store.agent_catalog_permission(&name, "/api/projects").is_err());
+        for path in ["/api/workspaces", "/api/harnesses"] {
+            assert_eq!(store.agent_catalog_permission(&name, path).is_ok(), granted);
+        }
+        assert!(
+            store
+                .agent_catalog_permission(&name, "/api/projects")
+                .is_err()
+        );
         store.set_enabled(&name, false).unwrap();
         assert!(store.agent_panel(&name).is_err());
         assert!(store.agent_declaration_revision(&name).is_err());

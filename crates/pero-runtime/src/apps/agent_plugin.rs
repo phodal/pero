@@ -17,7 +17,8 @@ pub struct AppAgentPlugin {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_schema: Option<serde_json::Value>,
     #[serde(skip)]
-    pub(crate) preparation: Option<std::sync::Arc<super::agent_preparation::AgentContextPreparation>>,
+    pub(crate) preparation:
+        Option<std::sync::Arc<super::agent_preparation::AgentContextPreparation>>,
 }
 
 /// A frozen declaration, not a second session or execution owner.
@@ -86,11 +87,16 @@ impl AppDefinition {
             }
         }
         match (&plugin.prepare_tool, &plugin.context_schema) {
-            (None,None) => {},
-            (Some(name),Some(schema)) => {
+            (None, None) => {}
+            (Some(name), Some(schema)) => {
                 let route=self.contributes.writes.iter().find(|route| &route.name==name && !plugin.tools.contains(name))
                     .ok_or("App preparation must name a declared write outside the Agent tool allowlist")?;
-                plugin.preparation=Some(std::sync::Arc::new(super::agent_preparation::AgentContextPreparation::compile(route.clone(),schema)?));
+                plugin.preparation = Some(std::sync::Arc::new(
+                    super::agent_preparation::AgentContextPreparation::compile(
+                        route.clone(),
+                        schema,
+                    )?,
+                ));
             }
             _ => return Err("App preparation needs both prepareTool and contextSchema".into()),
         }
@@ -138,7 +144,7 @@ impl AppDefinition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
 
     fn manifest() -> Value {
         json!({
@@ -160,8 +166,18 @@ mod tests {
     #[test]
     fn app_plugin_declaration_contract() {
         for (label, pointer, value, accepted) in [
-            ("unpaired preparation", "/contributes/agentPlugin/prepareTool", json!("publish"), false),
-            ("unpaired context", "/contributes/agentPlugin/contextSchema", json!({"type":"object"}), false),
+            (
+                "unpaired preparation",
+                "/contributes/agentPlugin/prepareTool",
+                json!("publish"),
+                false,
+            ),
+            (
+                "unpaired context",
+                "/contributes/agentPlugin/contextSchema",
+                json!({"type":"object"}),
+                false,
+            ),
             ("valid", "/contributes/agentPlugin/maxCalls", json!(4), true),
             (
                 "wrong schema",
@@ -250,7 +266,7 @@ mod tests {
             ),
         ] {
             let mut candidate = manifest();
-            let (parent,key)=pointer.rsplit_once('/').unwrap();
+            let (parent, key) = pointer.rsplit_once('/').unwrap();
             candidate.pointer_mut(parent).unwrap()[key] = value;
             let result = AppDefinition::parse(&serde_json::to_vec(&candidate).unwrap());
             assert_eq!(result.is_ok(), accepted, "{label}: {result:?}");

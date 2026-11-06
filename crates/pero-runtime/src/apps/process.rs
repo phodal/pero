@@ -20,22 +20,38 @@ pub struct BackendAccess {
 
 impl std::fmt::Debug for BackendAccess {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("BackendAccess").field("url", &self.url)
+        formatter
+            .debug_struct("BackendAccess")
+            .field("url", &self.url)
             .field("token", &"[redacted]")
-            .field("reproduction_enabled", &self.reproduction_token.is_some()).finish()
+            .field("reproduction_enabled", &self.reproduction_token.is_some())
+            .finish()
     }
 }
 
 /// Explicit Host deployment configuration, not an App manifest or request field.
-struct ReproductionDeployment { checkout: PathBuf }
+struct ReproductionDeployment {
+    checkout: PathBuf,
+}
 impl ReproductionDeployment {
     fn resolve(app: &str, configured: Option<std::ffi::OsString>) -> Result<Option<Self>, String> {
-        if app != "paper-agent" { return Ok(None); }
-        let Some(configured) = configured else { return Ok(None); };
+        if app != "paper-agent" {
+            return Ok(None);
+        }
+        let Some(configured) = configured else {
+            return Ok(None);
+        };
         let checkout = PathBuf::from(configured);
-        if !checkout.is_absolute() || !checkout.is_dir()
-            || checkout.canonicalize().map_err(|_| "Paper compute checkout is unavailable")? != checkout {
-            return Err("Paper compute requires a canonical existing absolute checkout directory".into());
+        if !checkout.is_absolute()
+            || !checkout.is_dir()
+            || checkout
+                .canonicalize()
+                .map_err(|_| "Paper compute checkout is unavailable")?
+                != checkout
+        {
+            return Err(
+                "Paper compute requires a canonical existing absolute checkout directory".into(),
+            );
         }
         Ok(Some(Self { checkout }))
     }
@@ -56,9 +72,13 @@ impl AppProcess {
         let backend = definition.backend.as_ref().ok_or("App has no backend")?;
         std::fs::create_dir_all(data).map_err(|error| error.to_string())?;
         let token = uuid::Uuid::new_v4().to_string();
-        let reproduction = ReproductionDeployment::resolve(definition.name.as_str(),
-            std::env::var_os("PERO_PAPER_PCGYM_CHECKOUT"))?;
-        let reproduction_token = reproduction.as_ref().map(|_| uuid::Uuid::new_v4().to_string());
+        let reproduction = ReproductionDeployment::resolve(
+            definition.name.as_str(),
+            std::env::var_os("PERO_PAPER_PCGYM_CHECKOUT"),
+        )?;
+        let reproduction_token = reproduction
+            .as_ref()
+            .map(|_| uuid::Uuid::new_v4().to_string());
         let (executable, label) = match (&backend.kind, python) {
             (BackendKind::Python, Some(environment)) => {
                 let config = environment.root().join("pyvenv.cfg");
@@ -79,10 +99,7 @@ impl AppProcess {
                 }
                 (executable.into_os_string(), "Python")
             }
-            (BackendKind::Python, None) => (
-                super::python::default_executable(),
-                "Python",
-            ),
+            (BackendKind::Python, None) => (super::python::default_executable(), "Python"),
             (BackendKind::Node, _) => (
                 std::env::var_os("PERO_APP_NODE").unwrap_or_else(|| "node".into()),
                 "Node",
@@ -98,7 +115,15 @@ impl AppProcess {
             .arg(root.join(&backend.entry))
             .current_dir(root)
             .env_clear();
-        for key in ["PATH", "HOME", "LANG", "SYSTEMROOT", "USERPROFILE", "HOMEDRIVE", "HOMEPATH"] {
+        for key in [
+            "PATH",
+            "HOME",
+            "LANG",
+            "SYSTEMROOT",
+            "USERPROFILE",
+            "HOMEDRIVE",
+            "HOMEPATH",
+        ] {
             if let Some(value) = std::env::var_os(key) {
                 command.env(key, value);
             }
@@ -107,8 +132,12 @@ impl AppProcess {
             environment.configure_command(&mut command)?;
         }
         if let Some(deployment) = reproduction {
-            command.env("PERO_PAPER_PCGYM_CHECKOUT", deployment.checkout)
-                .env("PERO_PAPER_COMPUTE_TOKEN", reproduction_token.as_ref().expect("configured capability"));
+            command
+                .env("PERO_PAPER_PCGYM_CHECKOUT", deployment.checkout)
+                .env(
+                    "PERO_PAPER_COMPUTE_TOKEN",
+                    reproduction_token.as_ref().expect("configured capability"),
+                );
         }
         command
             .env("ELECTRON_RUN_AS_NODE", "1")
@@ -208,17 +237,22 @@ impl Drop for AppProcess {
     }
 }
 
-
 #[cfg(test)]
 mod reproduction_tests {
     use super::*;
 
     #[test]
     fn private_capability_is_not_serialized_or_debugged() {
-        let access = BackendAccess { url: "http://127.0.0.1:1".into(), token: "ordinary-secret".into(),
-            reproduction_token: Some("compute-secret".into()) };
+        let access = BackendAccess {
+            url: "http://127.0.0.1:1".into(),
+            token: "ordinary-secret".into(),
+            reproduction_token: Some("compute-secret".into()),
+        };
         let encoded = serde_json::to_value(&access).unwrap();
-        assert_eq!(encoded, serde_json::json!({"url":"http://127.0.0.1:1","token":"ordinary-secret"}));
+        assert_eq!(
+            encoded,
+            serde_json::json!({"url":"http://127.0.0.1:1","token":"ordinary-secret"})
+        );
         let debug = format!("{access:?}");
         assert!(!debug.contains("ordinary-secret"));
         assert!(!debug.contains("compute-secret"));
@@ -226,18 +260,40 @@ mod reproduction_tests {
 
     #[test]
     fn deployment_is_explicit_fixed_to_paper_and_requires_a_real_canonical_directory() {
-        assert!(ReproductionDeployment::resolve("paper-agent", None).unwrap().is_none());
-        assert!(ReproductionDeployment::resolve("other-app", Some("ignored".into())).unwrap().is_none());
+        assert!(
+            ReproductionDeployment::resolve("paper-agent", None)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            ReproductionDeployment::resolve("other-app", Some("ignored".into()))
+                .unwrap()
+                .is_none()
+        );
         for path in ["", ".", "/does-not-exist/pero-compute"] {
             assert!(ReproductionDeployment::resolve("paper-agent", Some(path.into())).is_err());
         }
-        let root = std::env::temp_dir().canonicalize().unwrap().join(format!("pero-compute-config-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir()
+            .canonicalize()
+            .unwrap()
+            .join(format!("pero-compute-config-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir(&root).unwrap();
-        assert!(ReproductionDeployment::resolve("paper-agent", Some(root.clone().into_os_string())).unwrap().is_some());
-        #[cfg(unix)] {
+        assert!(
+            ReproductionDeployment::resolve("paper-agent", Some(root.clone().into_os_string()))
+                .unwrap()
+                .is_some()
+        );
+        #[cfg(unix)]
+        {
             let alias = root.with_extension("alias");
             std::os::unix::fs::symlink(&root, &alias).unwrap();
-            assert!(ReproductionDeployment::resolve("paper-agent", Some(alias.clone().into_os_string())).is_err());
+            assert!(
+                ReproductionDeployment::resolve(
+                    "paper-agent",
+                    Some(alias.clone().into_os_string())
+                )
+                .is_err()
+            );
             std::fs::remove_file(alias).unwrap();
         }
         std::fs::remove_dir(root).unwrap();

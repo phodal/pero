@@ -136,10 +136,21 @@ impl TryFrom<PathBuf> for PythonEnvironment {
 impl PythonEnvironment {
     pub(super) fn configure_command(&self, command: &mut Command) -> Result<(), String> {
         let executable = self.executable();
-        let mut paths = vec![executable.parent().ok_or("Python interpreter needs a parent")?.to_path_buf()];
-        if let Some(path) = std::env::var_os("PATH") { paths.extend(std::env::split_paths(&path)); }
-        command.env("VIRTUAL_ENV", self.root()).env("PATH", std::env::join_paths(paths)
-            .map_err(|error| format!("Cannot configure App Python environment PATH: {error}"))?);
+        let mut paths = vec![
+            executable
+                .parent()
+                .ok_or("Python interpreter needs a parent")?
+                .to_path_buf(),
+        ];
+        if let Some(path) = std::env::var_os("PATH") {
+            paths.extend(std::env::split_paths(&path));
+        }
+        command.env("VIRTUAL_ENV", self.root()).env(
+            "PATH",
+            std::env::join_paths(paths).map_err(|error| {
+                format!("Cannot configure App Python environment PATH: {error}")
+            })?,
+        );
         Ok(())
     }
 

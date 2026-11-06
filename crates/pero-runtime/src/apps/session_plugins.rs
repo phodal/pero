@@ -1,5 +1,5 @@
 //! Installed App declarations and local dependencies frozen for one Host session.
-use super::{agent_plugin::AppPluginAssembly, AppName, AppStore};
+use super::{AppName, AppStore, agent_plugin::AppPluginAssembly};
 use crate::agent_plugins::{AgentPluginSnapshot, AgentPluginStore};
 
 pub struct AppSessionPlugins {

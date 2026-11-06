@@ -47,7 +47,11 @@ pub struct AppPanel {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AppPermissions {
-    #[serde(default, rename = "frameOrigins", skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        rename = "frameOrigins",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub frame_origins: Vec<AppFrameOrigin>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api: Option<Vec<String>>,
@@ -65,14 +69,21 @@ impl TryFrom<String> for AppFrameOrigin {
     type Error = String;
     fn try_from(value: String) -> Result<Self, String> {
         let parsed = url::Url::parse(&value).map_err(|_| "Invalid App frame origin")?;
-        if value.len() > 256 || parsed.scheme() != "https" || parsed.origin().ascii_serialization() != value {
-            return Err("App frame origins must be exact HTTPS origins without paths or credentials".into());
+        if value.len() > 256
+            || parsed.scheme() != "https"
+            || parsed.origin().ascii_serialization() != value
+        {
+            return Err(
+                "App frame origins must be exact HTTPS origins without paths or credentials".into(),
+            );
         }
         Ok(Self(value))
     }
 }
 impl From<AppFrameOrigin> for String {
-    fn from(value: AppFrameOrigin) -> Self { value.0 }
+    fn from(value: AppFrameOrigin) -> Self {
+        value.0
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -88,9 +99,13 @@ pub struct AppWriteRoute {
 #[serde(deny_unknown_fields)]
 pub struct AppContributions {
     pub panels: Vec<AppPanel>,
-    #[serde(default,skip_serializing_if="Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub writes: Vec<AppWriteRoute>,
-    #[serde(default, rename = "agentPlugin", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "agentPlugin",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub agent_plugin: Option<super::agent_plugin::AppAgentPlugin>,
 }
 
@@ -109,23 +124,36 @@ pub struct AppBackend {
 #[serde(try_from = "String", into = "String")]
 pub struct PythonDependency(String);
 impl PythonDependency {
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 impl TryFrom<String> for PythonDependency {
     type Error = String;
     fn try_from(value: String) -> Result<Self, String> {
-        let (name, version) = value.split_once("==").ok_or("Python dependency must be pinned as package==version")?;
-        if name.is_empty() || version.is_empty() || value.len() > 200
+        let (name, version) = value
+            .split_once("==")
+            .ok_or("Python dependency must be pinned as package==version")?;
+        if name.is_empty()
+            || version.is_empty()
+            || value.len() > 200
             || !name.starts_with(|c: char| c.is_ascii_alphanumeric())
-            || !name.bytes().all(|c| c.is_ascii_alphanumeric() || b"-_.".contains(&c))
-            || !version.bytes().all(|c| c.is_ascii_alphanumeric() || b".+!-_".contains(&c)) {
+            || !name
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || b"-_.".contains(&c))
+            || !version
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || b".+!-_".contains(&c))
+        {
             return Err("Invalid pinned Python dependency".into());
         }
         Ok(Self(value))
     }
 }
 impl From<PythonDependency> for String {
-    fn from(value: PythonDependency) -> Self { value.0 }
+    fn from(value: PythonDependency) -> Self {
+        value.0
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -165,7 +193,7 @@ pub struct AppSummary {
     pub enabled: bool,
     pub tenure: super::Tenure,
     pub panels: Vec<AppPanel>,
-    #[serde(skip_serializing_if="Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub writes: Vec<AppWriteRoute>,
 }
 
@@ -199,18 +227,43 @@ impl AppDefinition {
             return Err("App frame permissions allow at most 16 origins".into());
         }
         for grant in &value.permissions.host {
-            if !matches!(grant.as_str(), "agent" | "agent-plugin" | "insights" | "connectors" | "automation" | "research-assets" | "environments") || !seen.insert(grant.as_str()) {
+            if !matches!(
+                grant.as_str(),
+                "agent"
+                    | "agent-plugin"
+                    | "insights"
+                    | "connectors"
+                    | "automation"
+                    | "research-assets"
+                    | "environments"
+            ) || !seen.insert(grant.as_str())
+            {
                 return Err(
                     "This Host supports only the App agent, agent-plugin, insights, connectors, automation, research-assets and environments permissions".into(),
                 );
             }
         }
         if let Some(paths) = &value.permissions.api {
-            if paths.len() > 64 || paths.iter().any(|path| !path.starts_with("/api") || (path != "/api" && !path.starts_with("/api/")) || path.contains(['?', '#', '\\']) || !relative_entry(&path[1..])) {
+            if paths.len() > 64
+                || paths.iter().any(|path| {
+                    !path.starts_with("/api")
+                        || (path != "/api" && !path.starts_with("/api/"))
+                        || path.contains(['?', '#', '\\'])
+                        || !relative_entry(&path[1..])
+                })
+            {
                 return Err("App API permissions require at most 64 local /api prefixes".into());
             }
         }
-        if value.permissions.events.len() > 64 || value.permissions.events.iter().any(|event| event.is_empty() || event.len() > 128 || !event.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"_.:-*".contains(&byte))) {
+        if value.permissions.events.len() > 64
+            || value.permissions.events.iter().any(|event| {
+                event.is_empty()
+                    || event.len() > 128
+                    || !event
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || b"_.:-*".contains(&byte))
+            })
+        {
             return Err("App event permissions require at most 64 named events".into());
         }
         if value.contributes.panels.is_empty() || value.contributes.panels.len() > 8 {
@@ -225,10 +278,26 @@ impl AppDefinition {
                 return Err("App panel needs a title and relative HTML entry".into());
             }
         }
-        if value.contributes.writes.len()>32 || !value.contributes.writes.is_empty()&&value.backend.is_none(){return Err("App write routes require a backend and at most 32 declarations".into());}
-        let mut names=std::collections::BTreeSet::new();
+        if value.contributes.writes.len() > 32
+            || !value.contributes.writes.is_empty() && value.backend.is_none()
+        {
+            return Err("App write routes require a backend and at most 32 declarations".into());
+        }
+        let mut names = std::collections::BTreeSet::new();
         for route in &value.contributes.writes {
-            if !names.insert(route.name.as_str())||route.description.trim().is_empty()||route.description.len()>1000||!route.path.starts_with("/api/")||!relative_entry(&route.path[1..])||!route.schema.is_object()||serde_json::to_vec(&route.schema).map_err(|e|e.to_string())?.len()>16384{return Err("App write route needs a unique name, description, local /api path and bounded schema".into());}
+            if !names.insert(route.name.as_str())
+                || route.description.trim().is_empty()
+                || route.description.len() > 1000
+                || !route.path.starts_with("/api/")
+                || !relative_entry(&route.path[1..])
+                || !route.schema.is_object()
+                || serde_json::to_vec(&route.schema)
+                    .map_err(|e| e.to_string())?
+                    .len()
+                    > 16384
+            {
+                return Err("App write route needs a unique name, description, local /api path and bounded schema".into());
+            }
         }
         if let Some(backend) = &value.backend {
             let supported = match backend.kind {
@@ -239,8 +308,12 @@ impl AppDefinition {
                         || backend.entry.ends_with(".cjs")
                 }
             };
-            if backend.dependencies.len() > 64 || matches!(backend.kind, BackendKind::Node) && !backend.dependencies.is_empty() {
-                return Err("Dependencies require a Python backend and at most 64 pinned packages".into());
+            if backend.dependencies.len() > 64
+                || matches!(backend.kind, BackendKind::Node) && !backend.dependencies.is_empty()
+            {
+                return Err(
+                    "Dependencies require a Python backend and at most 64 pinned packages".into(),
+                );
             }
             if !relative_entry(&backend.entry) || !supported {
                 return Err(
@@ -273,12 +346,20 @@ mod tests {
     #[test]
     fn frame_origins_are_exact_https_origins() {
         for (origin, accepted) in [
-            ("https://arxiv.org", true), ("https://example.org:8443", true),
-            ("http://arxiv.org", false), ("https://arxiv.org/html/1234.56789v1", false),
-            ("https://user@arxiv.org", false), ("https://arxiv.org/", false),
-            ("*", false), ("https://arxiv.org; script-src *", false),
+            ("https://arxiv.org", true),
+            ("https://example.org:8443", true),
+            ("http://arxiv.org", false),
+            ("https://arxiv.org/html/1234.56789v1", false),
+            ("https://user@arxiv.org", false),
+            ("https://arxiv.org/", false),
+            ("*", false),
+            ("https://arxiv.org; script-src *", false),
         ] {
-            assert_eq!(AppFrameOrigin::try_from(origin.to_owned()).is_ok(), accepted, "{origin}");
+            assert_eq!(
+                AppFrameOrigin::try_from(origin.to_owned()).is_ok(),
+                accepted,
+                "{origin}"
+            );
         }
     }
     #[test]
@@ -287,7 +368,13 @@ mod tests {
         // a valid JSON/UI build alone does not guarantee App registration.
         let bytes = include_bytes!("../../../../apps/paper-agent/app.json");
         let paper = AppDefinition::parse(bytes).expect("builtin Paper manifest must register");
-        assert!(paper.contributes.writes.iter().any(|route| route.name.as_str() == "scientific-document"));
+        assert!(
+            paper
+                .contributes
+                .writes
+                .iter()
+                .any(|route| route.name.as_str() == "scientific-document")
+        );
         let mut candidate: serde_json::Value = serde_json::from_slice(bytes).unwrap();
         for (count, accepted) in [(32, true), (33, false)] {
             candidate["contributes"]["writes"] = serde_json::json!((0..count).map(|index| {
@@ -295,8 +382,14 @@ mod tests {
                     "path":format!("/api/route-{index}"), "schema":{"type":"object"}})
             }).collect::<Vec<_>>());
             let result = AppDefinition::parse(&serde_json::to_vec(&candidate).unwrap());
-            assert_eq!(result.is_ok(), accepted, "{count} unique routes: {result:?}");
-            if !accepted { assert!(result.unwrap_err().contains("at most 32 declarations")); }
+            assert_eq!(
+                result.is_ok(),
+                accepted,
+                "{count} unique routes: {result:?}"
+            );
+            if !accepted {
+                assert!(result.unwrap_err().contains("at most 32 declarations"));
+            }
         }
     }
 
@@ -310,20 +403,64 @@ mod tests {
             ("name", serde_json::json!("../escape"), false),
             ("name", serde_json::json!("-cell"), false),
             ("displayName", serde_json::json!(" "), false),
-            ("permissions", serde_json::json!({"api":["/api/data"],"events":["app:written"]}), true),
-            ("permissions", serde_json::json!({"api":["https://example.invalid/api"]}), false),
-            ("permissions", serde_json::json!({"api":["/api/../private"]}), false),
-            ("permissions", serde_json::json!({"api":["/api/data?token=x"]}), false),
+            (
+                "permissions",
+                serde_json::json!({"api":["/api/data"],"events":["app:written"]}),
+                true,
+            ),
+            (
+                "permissions",
+                serde_json::json!({"api":["https://example.invalid/api"]}),
+                false,
+            ),
+            (
+                "permissions",
+                serde_json::json!({"api":["/api/../private"]}),
+                false,
+            ),
+            (
+                "permissions",
+                serde_json::json!({"api":["/api/data?token=x"]}),
+                false,
+            ),
             ("permissions", serde_json::json!({"events":[""]}), false),
             ("permissions", serde_json::json!({"host":["shell"]}), false),
             ("permissions", serde_json::json!({"host":["agent"]}), true),
-            ("permissions", serde_json::json!({"host":["insights"]}), true),
-            ("permissions", serde_json::json!({"host":["connectors"]}), true),
-            ("permissions", serde_json::json!({"host":["research-assets"]}), true),
-            ("permissions", serde_json::json!({"host":["environments"]}), true),
-            ("permissions", serde_json::json!({"host":["environments","environments"]}), false),
-            ("permissions", serde_json::json!({"host":["agent","insights"]}), true),
-            ("permissions", serde_json::json!({"host":["agent","agent"]}), false),
+            (
+                "permissions",
+                serde_json::json!({"host":["insights"]}),
+                true,
+            ),
+            (
+                "permissions",
+                serde_json::json!({"host":["connectors"]}),
+                true,
+            ),
+            (
+                "permissions",
+                serde_json::json!({"host":["research-assets"]}),
+                true,
+            ),
+            (
+                "permissions",
+                serde_json::json!({"host":["environments"]}),
+                true,
+            ),
+            (
+                "permissions",
+                serde_json::json!({"host":["environments","environments"]}),
+                false,
+            ),
+            (
+                "permissions",
+                serde_json::json!({"host":["agent","insights"]}),
+                true,
+            ),
+            (
+                "permissions",
+                serde_json::json!({"host":["agent","agent"]}),
+                false,
+            ),
             (
                 "backend",
                 serde_json::json!({"type":"python","entry":"../server.py"}),
@@ -349,11 +486,31 @@ mod tests {
                 serde_json::json!({"type":"ruby","entry":"server.rb"}),
                 false,
             ),
-            ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["numpy==2.2.6"]}), true),
-            ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["--index-url==bad"]}), false),
-            ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["https://example.org/pkg"]}), false),
-            ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["numpy"]}), false),
-            ("backend", serde_json::json!({"type":"node","entry":"server.mjs","dependencies":["numpy==2.2.6"]}), false),
+            (
+                "backend",
+                serde_json::json!({"type":"python","entry":"server.py","dependencies":["numpy==2.2.6"]}),
+                true,
+            ),
+            (
+                "backend",
+                serde_json::json!({"type":"python","entry":"server.py","dependencies":["--index-url==bad"]}),
+                false,
+            ),
+            (
+                "backend",
+                serde_json::json!({"type":"python","entry":"server.py","dependencies":["https://example.org/pkg"]}),
+                false,
+            ),
+            (
+                "backend",
+                serde_json::json!({"type":"python","entry":"server.py","dependencies":["numpy"]}),
+                false,
+            ),
+            (
+                "backend",
+                serde_json::json!({"type":"node","entry":"server.mjs","dependencies":["numpy==2.2.6"]}),
+                false,
+            ),
             ("extra", serde_json::json!(true), false),
         ] {
             let mut candidate = valid.clone();
@@ -365,19 +522,70 @@ mod tests {
             );
         }
         for (path, backend, schema, copies, accepted) in [
-            ("/api/import", true, serde_json::json!({"type":"object"}), 1, true),
-            ("/api/import", false, serde_json::json!({"type":"object"}), 1, false),
-            ("https://example.org/api/import", true, serde_json::json!({"type":"object"}), 1, false),
-            ("/api/../../private", true, serde_json::json!({"type":"object"}), 1, false),
-            ("/host/agent", true, serde_json::json!({"type":"object"}), 1, false),
+            (
+                "/api/import",
+                true,
+                serde_json::json!({"type":"object"}),
+                1,
+                true,
+            ),
+            (
+                "/api/import",
+                false,
+                serde_json::json!({"type":"object"}),
+                1,
+                false,
+            ),
+            (
+                "https://example.org/api/import",
+                true,
+                serde_json::json!({"type":"object"}),
+                1,
+                false,
+            ),
+            (
+                "/api/../../private",
+                true,
+                serde_json::json!({"type":"object"}),
+                1,
+                false,
+            ),
+            (
+                "/host/agent",
+                true,
+                serde_json::json!({"type":"object"}),
+                1,
+                false,
+            ),
             ("/api/import", true, serde_json::json!([]), 1, false),
-            ("/api/import", true, serde_json::json!({"type":"object"}), 2, false),
-            ("/api/import", true, serde_json::json!({"type":"object"}), 17, false),
+            (
+                "/api/import",
+                true,
+                serde_json::json!({"type":"object"}),
+                2,
+                false,
+            ),
+            (
+                "/api/import",
+                true,
+                serde_json::json!({"type":"object"}),
+                17,
+                false,
+            ),
         ] {
-            let mut candidate=valid.clone();
-            if backend {candidate["backend"]=serde_json::json!({"type":"python","entry":"server.py"});}
-            candidate["contributes"]["writes"]=serde_json::json!(vec![serde_json::json!({"name":"import","description":"Import a document","path":path,"schema":schema});copies]);
-            assert_eq!(AppDefinition::parse(&serde_json::to_vec(&candidate).unwrap()).is_ok(),accepted,"{path}, {copies} writes");
+            let mut candidate = valid.clone();
+            if backend {
+                candidate["backend"] = serde_json::json!({"type":"python","entry":"server.py"});
+            }
+            candidate["contributes"]["writes"] = serde_json::json!(vec![
+                serde_json::json!({"name":"import","description":"Import a document","path":path,"schema":schema});
+                copies
+            ]);
+            assert_eq!(
+                AppDefinition::parse(&serde_json::to_vec(&candidate).unwrap()).is_ok(),
+                accepted,
+                "{path}, {copies} writes"
+            );
         }
         for entry in [
             "/index.html",

@@ -3,33 +3,70 @@ use super::{AppName, AppStore};
 use serde::Serialize;
 
 #[derive(Serialize)]
-pub struct Permissions { api: Vec<String>, events: Vec<String>, host: Vec<String> }
+pub struct Permissions {
+    api: Vec<String>,
+    events: Vec<String>,
+    host: Vec<String>,
+}
 #[derive(Serialize)]
-pub struct Context { name: AppName, version: String, permissions: Permissions }
+pub struct Context {
+    name: AppName,
+    version: String,
+    permissions: Permissions,
+}
 
 impl AppStore {
     pub fn sdk_context(&self, name: &AppName) -> Result<Context, String> {
-        let app = self.installed.get(name).filter(|app| app.enabled).ok_or("App is not installed or enabled")?;
+        let app = self
+            .installed
+            .get(name)
+            .filter(|app| app.enabled)
+            .ok_or("App is not installed or enabled")?;
         let definition = &app.definition;
         let api = definition.permissions.api.clone().unwrap_or_else(|| {
-            if definition.backend.is_some() { vec!["/api".into()] }
-            else if definition.permissions.host.iter().any(|grant| grant == "agent") { vec!["/api/workspaces".into(), "/api/harnesses".into()] }
-            else { Vec::new() }
+            if definition.backend.is_some() {
+                vec!["/api".into()]
+            } else if definition
+                .permissions
+                .host
+                .iter()
+                .any(|grant| grant == "agent")
+            {
+                vec!["/api/workspaces".into(), "/api/harnesses".into()]
+            } else {
+                Vec::new()
+            }
         });
-        Ok(Context { name: name.clone(), version: definition.version.clone(), permissions: Permissions {
-            api, events: definition.permissions.events.clone(), host: definition.permissions.host.clone(),
-        } })
+        Ok(Context {
+            name: name.clone(),
+            version: definition.version.clone(),
+            permissions: Permissions {
+                api,
+                events: definition.permissions.events.clone(),
+                host: definition.permissions.host.clone(),
+            },
+        })
     }
 }
 
 impl Permissions {
-    fn require_api(&self,path:&str)->Result<(),String> {
-        if self.api.iter().any(|prefix| path==prefix || path.strip_prefix(prefix).is_some_and(|tail| tail.starts_with('/'))) {Ok(())}
-        else {Err("App API path is not declared".into())}
+    fn require_api(&self, path: &str) -> Result<(), String> {
+        if self.api.iter().any(|prefix| {
+            path == prefix
+                || path
+                    .strip_prefix(prefix)
+                    .is_some_and(|tail| tail.starts_with('/'))
+        }) {
+            Ok(())
+        } else {
+            Err("App API path is not declared".into())
+        }
     }
 }
 impl AppStore {
-    pub fn require_api(&self,name:&AppName,path:&str)->Result<(),String> { self.sdk_context(name)?.permissions.require_api(path) }
+    pub fn require_api(&self, name: &AppName, path: &str) -> Result<(), String> {
+        self.sdk_context(name)?.permissions.require_api(path)
+    }
 }
 
 #[cfg(test)]
@@ -37,9 +74,19 @@ mod tests {
     use super::*;
     #[test]
     fn declared_api_prefix() {
-        let permissions=Permissions{api:vec!["/api/data".into()],events:vec![],host:vec![]};
-        for (path,allowed) in [("/api/data",true),("/api/data/item",true),("/api/data-other",false),("/api/private",false),("https://example.invalid/api/data",false)] {
-            assert_eq!(permissions.require_api(path).is_ok(),allowed,"{path}");
+        let permissions = Permissions {
+            api: vec!["/api/data".into()],
+            events: vec![],
+            host: vec![],
+        };
+        for (path, allowed) in [
+            ("/api/data", true),
+            ("/api/data/item", true),
+            ("/api/data-other", false),
+            ("/api/private", false),
+            ("https://example.invalid/api/data", false),
+        ] {
+            assert_eq!(permissions.require_api(path).is_ok(), allowed, "{path}");
         }
     }
 }
