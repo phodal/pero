@@ -252,7 +252,7 @@ export function Results({
           </div>
           {summary.verdict !== "NOT_RUN" && <div className="verify-list">
             {concepts.map((concept) => (
-              <Button variant="unstyled" type="button" key={concept.name} className={`check-row ${focused === concept.name ? "focused" : ""}`} onClick={() => focusConcept(concept)}>
+              <Button variant="ghost" aria-pressed={focused === concept.name} type="button" key={concept.name} className={`check-row ${focused === concept.name ? "focused" : ""}`} onClick={() => focusConcept(concept)}>
                 <span>{concept.name}</span>
                 {concept.limit != null && <small>Limit {numeric(concept.limit)}</small>}
                 {concept.actual != null && <strong>{numeric(concept.actual)}</strong>}
