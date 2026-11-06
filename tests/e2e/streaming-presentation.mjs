@@ -81,9 +81,8 @@ try {
     }
   } else {
     await expect.poll(async () => (await state()).reasoningBounds.length).toBe(1);
-    await expect.poll(async () => (await state()).reasoningBounds[0].open).toBe(true);
+    await expect.poll(async () => (await state()).reasoningBounds[0].open).toBe(false);
     await shot('thinking-streaming');
-    await clickBounds('reasoningBounds');
     await writeFile(phase, '1');
     await expect.poll(async () => (await chat()).messages.at(-1).text).toContain('More reasoning');
     expect((await state()).reasoningBounds[0].open).toBe(false);
@@ -103,23 +102,52 @@ try {
     await expect.poll(async () => Boolean((await chat()).permission)).toBe(true);
     expect((await chat()).tools[0].content).not.toContain('must not duplicate');
     expect(JSON.parse((await chat()).tools[1].content)).toEqual({ url: 'https://example.test/weather', prompt: 'Extract the weather forecast.' });
+    await clickBounds('toolBounds', item => item.tool === 'fetch');
     await clickBounds('inputBounds', item => item.tool === 'fetch');
     expect((await chat()).tools[1].input_open).toBe(true);
     await shot('fetch-parameters');
     await clickBounds('inputBounds', item => item.tool === 'fetch');
     await shot('search-and-approval');
+    await page.mouse.move(1100, 300); await page.mouse.wheel(0, -2000);
+    await expect.poll(async () => (await state()).scroll.y).toBe(0);
+    await clickBounds('processBounds');
+    await expect.poll(async () => (await state()).processBounds[0].open).toBe(false);
+    await shot('collapsed-approval');
     await clickBounds('permissionBounds', item => item.index === 0);
     await expect.poll(async () => (await state()).reasoningBounds.length).toBe(2);
-    expect((await state()).reasoningBounds[1].open).toBe(true);
+    expect((await state()).reasoningBounds[1].open).toBe(false);
+    await clickBounds('processBounds');
     await clickBounds('toolBounds', item => item.tool === 'search');
-    await clickBounds('toolBounds', item => item.tool === 'search');
+    await clickBounds('toolBounds', item => item.tool === 'fetch');
     const readerFor = async id => (await state()).contentReaders.find(reader => reader.id.endsWith(`/${id}`));
     await expect.poll(async () => (await readerFor('search'))?.bounds?.height).toBeLessThan(200);
     await expect.poll(async () => (await readerFor('fetch'))?.bounds?.height).toBeLessThan(200);
     await shot('compact-json-result');
     await writeFile(phase, '4');
     await expect.poll(async () => (await chat()).state).toBe('idle');
-    expect((await state()).reasoningBounds.map(item => item.open)).toEqual([true, false]);
+    expect((await state()).reasoningBounds.map(item => item.open)).toEqual([false, false]);
+    expect((await chat()).tools.find(tool => tool.id === 'read').activity).toEqual({ kind: 'read', detail: 'notes.txt' });
+    expect((await chat()).tools.find(tool => tool.id === 'shell').activity).toEqual({ kind: 'execute', detail: 'git status' });
+    // Closing the process hides its detail rows, while its failure remains in the actual UI.
+    await page.mouse.move(1100, 300); await page.mouse.wheel(0, -2000);
+    await expect.poll(async () => (await state()).scroll.y).toBe(0);
+    await clickBounds('processBounds');
+    await expect.poll(async () => (await state()).processBounds[0].open).toBe(false);
+    expect((await state()).toolBounds.every(item => item.bounds === null)).toBe(true);
+    await expect.poll(async () => (await state()).appLinkBounds.find(link => link.label === 'Open fixture report')?.bounds?.height).toBeGreaterThan(0);
+    const c = await chat();
+    const finalIndex = c.messages.findLastIndex(message => message.role === 'assistant');
+    await expect.poll(async () => Object.entries((await state()).artifacts.bounds).filter(([key, bounds]) => key.startsWith('save-reply:') && bounds?.height > 0).map(([key]) => key)).toEqual([`save-reply:${finalIndex}`]);
+    const save = (await state()).artifacts.bounds[`save-reply:${finalIndex}`];
+    await shot('completed-actions');
+    await page.mouse.click(save.x + save.width / 2, save.y + save.height / 2);
+    await expect.poll(async () => (await state()).artifacts.items.length).toBe(1);
+    const artifact = (await state()).artifacts.items[0];
+    expect(artifact.versions.at(-1).source_message_id).toBe(`message:${finalIndex}`);
+    await shot('saved-final-reply');
+    // Close the catalog so the same transcript can be checked in dark/narrow layouts.
+    const close = (await state()).artifacts.bounds.close;
+    if (close?.height > 0) await page.mouse.click(close.x + close.width / 2, close.y + close.height / 2);
     expect((await chat()).title).toBe('杭州天气检索');
     await shot('final');
     await setAppearance(page, 'dark'); await shot('dark');
@@ -128,6 +156,7 @@ try {
     const id = (await chat()).id;
     await page.reload();
     await expect.poll(async () => (await state()).chats?.find(chat => chat.id === id)?.title, { timeout: 30000 }).toBe('杭州天气检索');
+    await expect.poll(async () => (await state()).artifacts.items.length).toBe(1);
     await app.close(); await launch();
     await expect.poll(async () => (await state()).chats?.find(chat => chat.id === id)?.title).toBe('杭州天气检索');
   }

@@ -133,6 +133,17 @@ try {
   expect((await primary()).messages.some(message => message.role === 'assistant' && message.text.includes('中文流式回复'))).toBe(true);
   expect((await primary()).usage).toMatchObject({ context_used: 5000, context_capacity: 20000, cost: { amount: 0.02, currency: 'USD' } });
   checks.push('cross-origin Chat, Host ACP reply, App compose does not send, real keyboard input');
+  await chat.locator('canvas:not([role="textbox"])').hover({ position: { x: 180, y: 100 } });
+  await page.mouse.wheel(0, -((await state()).scroll.max + 1));
+  const processGroup = (await state()).processBounds.find(item => item.chat === primaryThread);
+  if (!processGroup.open) {
+    const bounds = processGroup.bounds;
+    await chat.locator('canvas:not([role="textbox"])').click({ position: {
+      x: bounds.x + 24, y: bounds.y + bounds.height / 2,
+    } });
+    await expect.poll(async () => (await state()).processBounds.find(item => item.key === processGroup.key).open).toBe(true);
+  }
+  const expandedProcesses = (await state()).expandedTools.length;
   const clickTool = async () => {
     await chat.locator('canvas:not([role="textbox"])').hover({ position: { x: 180, y: 100 } });
     await page.mouse.wheel(0, -((await state()).scroll.max + 1));
@@ -144,9 +155,9 @@ try {
     } });
   };
   await clickTool();
-  await expect.poll(async () => (await state()).expandedTools.length).toBe(1);
+  await expect.poll(async () => (await state()).expandedTools.length).toBe(expandedProcesses + 1);
   await clickTool();
-  await expect.poll(async () => (await state()).expandedTools.length).toBe(0);
+  await expect.poll(async () => (await state()).expandedTools.length).toBe(expandedProcesses);
   const fill = async text => {
     await domainFrame.locator('body').evaluate((_, text) => parent.postMessage({ type: 'pero:app:chat', text }, '*'), text);
     await expect.poll(async () => (await state()).composer).toBe(text);
