@@ -590,3 +590,14 @@ Not re-verified: Native drag/drop, split-pane transitions, Project/Task fallback
 strip interaction, full Native keyboard/accessibility coverage, Electron/Wasm and
 signed installation packages. Native compilation and catalog evidence do not certify
 those paths. No Agent request or scientific computation was submitted.
+
+
+## Settings sidebar font alignment — 2026-11-06
+
+On `acd7a54a` plus this fix, `sidebar_menu_button` no longer overrides the
+inherited compact button text size inside its label container. The Settings
+entry now follows the same label typography as adjacent sidebar actions.
+Native development build passed; inspected the rebuilt macOS window and verified
+Settings opens its menu and Escape dismisses it. Local before/after captures:
+`target/tabs-review/screenshots/settings-before.png` and `settings-after.png`.
+Electron/Wasm and other font sizes were not re-verified for this follow-up.
