@@ -4,6 +4,7 @@ import * as Primitive from '@radix-ui/react-tabs';
 import { ensureUiStyles } from './ui-styles';
 import { IconButton } from './icon-button';
 import { Icon } from './icon';
+import { useSelectionFocus } from './selection-focus';
 
 const SelectionContext = React.createContext<string | undefined>(undefined);
 
@@ -49,13 +50,8 @@ export type TabsTriggerProps = Omit<React.ComponentPropsWithoutRef<typeof Primit
 
 /** Trigger id and aria-controls stay on Radix so the panel association is the one Radix renders. */
 export const TabsTrigger = forwardRef<HTMLButtonElement, TabsTriggerProps>(function TabsTrigger({ unstyled, className, onPointerDown, onKeyDown, onBlur, ...props }, forwardedRef) {
-  // WebKit can retain :focus-visible after Radix focuses a pointer-selected tab.
-  // Keep the ring for keyboard navigation, independently of the selected state.
-  const [pointerFocus, setPointerFocus] = useState(false);
-  return <Primitive.Trigger {...props} data-pointer-focus={pointerFocus || undefined}
-    onPointerDown={event => { setPointerFocus(true); onPointerDown?.(event); }}
-    onKeyDown={event => { setPointerFocus(false); onKeyDown?.(event); }}
-    onBlur={event => { setPointerFocus(false); onBlur?.(event); }} asChild={false} type="button" className={classes('pero-ui-tabs-trigger', className)} data-unstyled={unstyled || undefined} ref={useUiRef(forwardedRef)} />;
+  const focus = useSelectionFocus({ onPointerDown, onKeyDown, onBlur });
+  return <Primitive.Trigger {...props} {...focus} asChild={false} type="button" className={classes('pero-ui-tabs-trigger', className)} data-unstyled={unstyled || undefined} ref={useUiRef(forwardedRef)} />;
 });
 
 export type TabsContentProps = Omit<React.ComponentPropsWithoutRef<typeof Primitive.Content>, 'asChild' | 'id' | 'aria-labelledby'> & {
