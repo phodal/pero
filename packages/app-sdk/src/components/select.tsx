@@ -49,6 +49,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
   const [innerOpen, setInnerOpen] = useState(false), [filter, setFilter] = useState(''), [active, setActive] = useState('');
   const [invalid, setInvalid] = useState(false), [keyboardActive, setKeyboardActive] = useState(false);
   const open = openProp ?? innerOpen;
+  const composing = useRef(false);
   const trigger = useRef<HTMLButtonElement | null>(null), panel = useRef<HTMLDivElement>(null), list = useRef<HTMLDivElement>(null), search = useRef<HTMLInputElement>(null), wasOpen = useRef(false);
   const setOpen = useCallback((next: boolean) => {
     if (!controlled) setInnerOpen(next);
@@ -73,6 +74,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
 
   useEffect(() => {
     if (open && !wasOpen.current) { setFilter(''); setActive(value); }
+    if (!open) composing.current = false;
     wasOpen.current = !!open;
   }, [open, value]);
   useEffect(() => { if (disabled && open) close(); }, [disabled, open, close]);
@@ -142,6 +144,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     return [...root.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), [tabindex]:not([tabindex="-1"])')];
   }
   function key(e: React.KeyboardEvent) {
+    // Candidate navigation and confirmation belong to the IME, not the menu.
+    if (composing.current || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) { e.stopPropagation(); return; }
     const inFooter = !!panel.current?.querySelector('.pero-select-footer')?.contains(e.target as Node);
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); }
     else if (e.key === 'Tab') {
@@ -177,7 +181,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       {leading}{<span className="pero-select-value">{shownLabel}</span>}{trailing ? <span className="pero-select-trailing">{trailing}</span> : <Icon name="chevron-down" size={12} strokeWidth={2} />}
     </button>
     {open && portal && createPortal(<div className={['pero-select-panel', panelClassName].filter(Boolean).join(' ')} data-pane-overlay="" ref={panel} style={{ visibility: 'hidden' }} onKeyDown={key}>
-      {canSearch && <input ref={search} className="pero-select-search" type="search" role="combobox" aria-label={searchLabel} aria-expanded="true" aria-controls={listId} aria-activedescendant={current ? optionId(current) : undefined} autoComplete="off" placeholder={searchLabel} value={filter} onChange={e => { setFilter(e.target.value); setActive(''); }} />}
+      {canSearch && <input ref={search} className="pero-select-search" type="search" role="combobox" aria-label={searchLabel} aria-expanded="true" aria-controls={listId} aria-activedescendant={current ? optionId(current) : undefined} autoComplete="off" placeholder={searchLabel} value={filter} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onBlur={() => { composing.current = false; }} onChange={e => { setFilter(e.target.value); setActive(''); }} />}
       <div ref={list} id={listId} role="listbox" className="pero-select-list" aria-label={label} tabIndex={canSearch ? -1 : 0} aria-activedescendant={current ? optionId(current) : undefined}>
         {groups.map(group => <div key={group} role={group ? 'group' : undefined} aria-label={group || undefined}>
           {group && <div className="pero-select-group-label" aria-hidden="true">{group}</div>}
