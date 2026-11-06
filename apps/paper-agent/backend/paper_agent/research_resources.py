@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass, replace
 import re
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from .model import Invalid, digest, text
+from .model import ID, Invalid, digest, text
 from .literature import ARXIV, PaperIdentity
 
 KINDS = ('web_article', 'paper', 'pdf_candidate', 'source_archive', 'code', 'model', 'dataset', 'benchmark', 'service')
@@ -396,6 +396,27 @@ class ImportSelection:
 
 
 @dataclass(frozen=True)
+class ProgramHtmlAuthorization:
+    """An explicit program policy, distinct from manual download confirmation."""
+    programId: str
+    protocolDigest: str
+    checkpoint: str
+    candidateId: str
+    sourceUrl: str
+
+    def validate(self, program, resource):
+        if any(not isinstance(v, str) or not ID.fullmatch(v) for v in (self.programId, self.protocolDigest, self.checkpoint, self.candidateId)):
+            raise Invalid('Invalid program HTML authorization')
+        candidate = program.candidate(self.candidateId)
+        candidate_source = OfficialHtml.from_resource(ResearchResource.linked(candidate.officialHtmlUrl or candidate.url, candidate.url, candidate.title))
+        if (program.id != self.programId or digest(program.protocol.to_dict()) != self.protocolDigest
+                or program.checkpoint != self.checkpoint or program.protocol.acquisition != 'public_fulltext'
+                or candidate.decision != 'include' or candidate_source.url != self.sourceUrl
+                or OfficialHtml.from_resource(resource).url != self.sourceUrl):
+            raise Invalid('Official HTML is outside the approved program snapshot', 403)
+
+
+@dataclass(frozen=True)
 class ResearchBundle:
     id: str
     seedUrl: str
@@ -408,20 +429,25 @@ class ResearchBundle:
     pdfDownloadIds: tuple[str, ...] = ()
     sourceDownloadIds: tuple[str, ...] = ()
     htmlDownloadIds: tuple[str, ...] = ()
+    programAuthorization: ProgramHtmlAuthorization | None = None
 
     def approved_html(self, resource_id):
-        if resource_id not in self.htmlDownloadIds:
+        if resource_id not in self.htmlDownloadIds and self.programAuthorization is None:
             raise Invalid('This official HTML was not independently confirmed in the research review', 403)
         resource = next((r for r in self.resources if r.id == resource_id), None)
         if resource is None:
             raise Invalid('Approved HTML reference is unavailable; inspect the source again', 409)
-        OfficialHtml.from_resource(resource)
+        target = OfficialHtml.from_resource(resource)
+        if self.programAuthorization and target.url != self.programAuthorization.sourceUrl:
+            raise Invalid('HTML resource differs from the program authorization', 403)
         return resource
 
     def to_dict(self):
         result = {**asdict(self), 'resources': [r.to_dict() for r in self.resources]}
         if not self.htmlDownloadIds:
             result.pop('htmlDownloadIds')
+        if self.programAuthorization is None:
+            result.pop('programAuthorization')
         return result
 
     @classmethod
@@ -430,7 +456,8 @@ class ResearchBundle:
                       'downloadIds': tuple(value['downloadIds']), 'identities': tuple(value['identities']),
                       'pdfDownloadIds': tuple(value.get('pdfDownloadIds', ())),
                       'sourceDownloadIds': tuple(value.get('sourceDownloadIds', ())),
-                      'htmlDownloadIds': tuple(value.get('htmlDownloadIds', ()))})
+                      'htmlDownloadIds': tuple(value.get('htmlDownloadIds', ())),
+                      'programAuthorization': ProgramHtmlAuthorization(**value['programAuthorization']) if value.get('programAuthorization') else None})
 
     @classmethod
     def selected(cls, draft, selection, now, previous=None):

@@ -19,8 +19,8 @@ from .resource_fetch import PublicMetadata
 from .scientific_document import DocumentError, PARSER, ScientificDocument
 
 
-def prepare_html(output, directory, url, paper_id, transport):
-    response = transport.fetch_html(url)
+def prepare_html(output, directory, url, paper_id, transport, byte_limit=None):
+    response = transport.fetch_html(url, limit=byte_limit) if byte_limit is not None else transport.fetch_html(url)
     if response.url != url or response.mime != 'text/html':
         raise Invalid('Official HTML changed its source URL or type; keep using PDF', 422)
     output.send(('stage', 'parsing'))
@@ -96,6 +96,10 @@ class PaperDocuments:
             if bundle_id is not None and bundle.id != bundle_id:
                 continue
             resource = bundle.approved_html(receipt['resourceId'])
+            if bundle.programAuthorization:
+                from .research_program_store import ResearchPrograms
+                grant = bundle.programAuthorization
+                grant.validate(ResearchPrograms(self.store).read(grant.programId, grant.checkpoint), resource)
             if OfficialHtml.from_resource(resource).url == receipt['sourceUrl']:
                 matches.append((bundle.id, receipt))
         if not matches:
@@ -120,6 +124,10 @@ class PaperDocuments:
         # fixed-version grant. It never creates authority to fetch or restore.
         current = self.store.imports.bundle(bundle.id)
         approved = current.approved_html(resource.id)
+        if current.programAuthorization:
+            from .research_program_store import ResearchPrograms
+            grant = current.programAuthorization
+            grant.validate(ResearchPrograms(self.store).read(grant.programId, grant.checkpoint), approved)
         if (digest(current.to_dict()) != digest(bundle.to_dict())
                 or OfficialHtml.from_resource(approved).url != document.source.url
                 or self._paper_for_resource(bundle.id, approved, document.paper_id) != document.paper_id):
