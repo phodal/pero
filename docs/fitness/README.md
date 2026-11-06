@@ -169,3 +169,5 @@ Local research goals, Overview and links to App-owned records: [research Project
 Independent scientific HTML reader package and Paper integration: [Paper reader](paper-reader.md).
 
 - [Validation-driven coding recovery](validation-driven-coding.md): diagnostic evidence, reproducible profiles, atomic edits and offline recovery-window accounting.
+
+Scientific inline formulas, exact experimental tables, real harness wiring and scoped solver evidence: [Scientific conversation](scientific-conversation.md).
