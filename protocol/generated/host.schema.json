@@ -6978,6 +6978,10 @@
             {
               "type": "string",
               "const": "control-lab.ngspice"
+            },
+            {
+              "type": "string",
+              "const": "lcms2yield.inference"
             }
           ]
         },
@@ -7020,6 +7024,10 @@
             {
               "type": "string",
               "const": "control-lab.ngspice"
+            },
+            {
+              "type": "string",
+              "const": "lcms2yield.inference"
             }
           ]
         },
@@ -8540,6 +8548,10 @@
             {
               "type": "string",
               "const": "control-lab.ngspice"
+            },
+            {
+              "type": "string",
+              "const": "lcms2yield.inference"
             }
           ]
         },
@@ -8626,6 +8638,10 @@
             {
               "type": "string",
               "const": "control-lab.ngspice"
+            },
+            {
+              "type": "string",
+              "const": "lcms2yield.inference"
             }
           ]
         },

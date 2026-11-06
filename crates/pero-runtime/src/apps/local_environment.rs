@@ -120,6 +120,12 @@ impl AppStore {
                             .map_err(|e| e.to_string())?;
                     dependencies.extend(pins);
                 }
+                if matches!(target, ScientificMethod::Lcms2Yield) {
+                    let pins: Vec<PythonDependency> =
+                        serde_json::from_str(include_str!("lcms2yield-dependencies.json"))
+                            .map_err(|e| e.to_string())?;
+                    dependencies.extend(pins);
+                }
                 let value = LocalEnvironment {
                     id: AppName::try_from(format!("env-{}", uuid::Uuid::new_v4()))?,
                     label,
@@ -217,6 +223,7 @@ impl EnvironmentPreparation {
                 None,
                 PythonEnvironment::try_from(root.clone())?,
                 &dependencies,
+                value.target.python_minor(),
                 &mut |event| {
                     value.log.push(event.message.clone());
                     if value.log.len() > 80 {
@@ -226,6 +233,27 @@ impl EnvironmentPreparation {
                     progress(event);
                 },
             )?;
+            if matches!(value.target, ScientificMethod::Lcms2Yield) {
+                preparation::install_from_index(
+                    &PythonEnvironment::try_from(root.clone())?,
+                    "https://data.pyg.org/whl/torch-2.3.0+cpu.html",
+                    &[
+                        "pyg_lib",
+                        "torch_scatter",
+                        "torch_sparse",
+                        "torch_cluster",
+                        "torch_spline_conv",
+                    ],
+                    &mut |line| {
+                        progress(super::AppPreparation {
+                            name: app.clone(),
+                            phase: preparation::PreparationPhase::Installing,
+                            message: line.clone(),
+                        });
+                        value.log.push(line);
+                    },
+                )?;
+            }
             if matches!(value.target, ScientificMethod::Circuit) {
                 let mut command = std::process::Command::new("brew");
                 command

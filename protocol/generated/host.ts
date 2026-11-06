@@ -1123,7 +1123,7 @@ export interface LocalEnvironmentApp {
 }
 export interface LocalEnvironmentCreate {
   operation: "create";
-  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice";
+  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
   label: string;
 }
 export interface LocalEnvironmentList {
@@ -1143,7 +1143,7 @@ export interface LocalEnvironmentBind {
 export interface EnvironmentInspectionApp {
   action: "environment";
   name: AppName;
-  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice";
+  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
   method: "apps";
   id: RequestId;
 }
@@ -2706,7 +2706,7 @@ export interface AppSuccess {
 export interface LocalEnvironmentRecord {
   id: AppName;
   label: string;
-  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice";
+  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
   dependencies: string[];
   state: "created" | "preparing" | "ready" | "failed";
   log: string[];
@@ -2715,7 +2715,7 @@ export interface LocalEnvironmentRecord {
 }
 export interface EnvironmentInspectionReport {
   schema: "pero.environment.inspection.v1";
-  method: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice";
+  method: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
   scope: "configured-interpreter";
   evidence: "metadata_only";
   observed_at_ms: string;
