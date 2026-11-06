@@ -6,9 +6,8 @@ import os
 from urllib.parse import parse_qs, urlsplit
 
 from lcms2yield.domain import Invalid
-from lcms2yield.service import build_state, execute_rerun, save_checkout
+from lcms2yield.service import build_state, execute_rerun
 from lcms2yield.catalog import load_rows
-from lcms2yield.rerun import verify_checkout
 
 
 def structure_svg(smiles):
@@ -72,16 +71,9 @@ def handler(secret):
                     smiles = rows[position].product_smiles
                     svg = structure_svg(smiles)
                     return self.reply(200, {'index': position, 'smiles': smiles, 'svg': svg, 'available': svg is not None})
-                if self.command != 'POST' or parsed.path not in ('/api/checkout', '/api/rerun'):
+                if self.command != 'POST' or parsed.path != '/api/rerun':
                     return self.reply(404, {'detail': 'Route not found'})
-                value = self.body(4096 if parsed.path == '/api/checkout' else 256)
-                if parsed.path == '/api/checkout':
-                    path = value.get('path') if isinstance(value, dict) else None
-                    if not isinstance(path, str) or not path:
-                        raise ValueError('Provide the pinned checkout path')
-                    verify_checkout(path)
-                    save_checkout(path)
-                    return self.reply(200, build_state())
+                value = self.body(256)
                 if value.get('confirm') is not True:
                     raise ValueError('Confirm this weight run before it starts')
                 execute_rerun(load_rows())

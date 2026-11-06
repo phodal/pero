@@ -1,5 +1,4 @@
 """App state for the pinned case. Environment matching and cluster jobs stay with their owners."""
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -8,8 +7,8 @@ import csv
 
 from .catalog import load_rows
 from .identity import model_canonical, overlap
-from .domain import COMMIT, DATA_TABLES, METHOD, PAPER, POPULATION, REPORTED_MAE_PP, UPSTREAM, Invalid, cf_agreement, product_smiles, type_counts, unique_products, yield_table_verdict
-from .rerun import run_predictions, score, verify_checkout
+from .domain import COMMIT, METHOD, PAPER, POPULATION, REPORTED_MAE_PP, UPSTREAM, Invalid, cf_agreement, product_smiles, type_counts, unique_products, yield_table_verdict
+from .rerun import pinned_tables, run_predictions, score, verify_checkout
 
 PAPER_REASON = 'The released yield columns match 4.74 percentage points only as published arithmetic. Chromatograms were not remeasured, and a correction-factor rerun does not recompute those yields.'
 
@@ -32,20 +31,13 @@ def _read_json(path):
 
 def checkout_path():
     root = _data_root()
-    saved = _read_json(root / 'checkout.json') if root else None
-    if isinstance(saved, dict) and isinstance(saved.get('path'), str):
-        return saved['path']
-    return None
-
-
-def save_checkout(path):
-    root = _data_root()
     if root is None:
-        raise OSError('PERO_APP_DATA is not set')
-    verified = verify_checkout(path)
-    payload = {'commit': COMMIT, 'path': str(verified)}
-    _write(root / 'checkout.json', payload)
-    return payload
+        return None
+    candidate = root / 'upstream'
+    try:
+        return str(verify_checkout(candidate))
+    except Invalid:
+        return None
 
 
 def _write(path, value):
@@ -68,7 +60,7 @@ def load_rerun():
 def execute_rerun(rows):
     path = checkout_path()
     if not path:
-        raise FileNotFoundError('Choose the pinned LCMS2Yield checkout before running weights')
+        raise FileNotFoundError('Prepare the environment before running weights')
     predicted = run_predictions(path, [row.product_smiles for row in rows])
     report = score([row.cf_pred for row in rows], predicted)
     report['commit'] = COMMIT
@@ -76,16 +68,6 @@ def execute_rerun(rows):
     if root is not None:
         _write(root / 'rerun.json', report)
     return report
-
-
-def _table_bytes(root, relative, expected):
-    path = root / relative
-    if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(root):
-        raise Invalid('asset', f'Missing pinned table {relative}')
-    data = path.read_bytes()
-    if hashlib.sha256(data).hexdigest() != expected:
-        raise Invalid('asset', f'{relative} is not the pinned {COMMIT[:12]} release')
-    return data
 
 
 def identity_status(checkout):
@@ -96,13 +78,13 @@ def identity_status(checkout):
     checked before RDKit is imported.
     """
     if not checkout:
-        return {'status': 'UNRUN', 'reason': 'The pinned checkout is not selected'}
+        return {'status': 'UNRUN', 'reason': 'The pinned release is not in app data'}
     root = Path(checkout)
     if root.is_symlink() or not root.is_dir():
         return {'status': 'FAIL', 'reason': 'The pinned checkout is not a canonical directory'}
     root = root.resolve()
     try:
-        tables = [(name, kind, _table_bytes(root, relative, digest)) for name, relative, digest, kind in DATA_TABLES]
+        tables = pinned_tables(root)
     except Invalid as error:
         return {'status': 'FAIL', 'reason': error.detail}
     try:

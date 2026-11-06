@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAppApi, useAppContext, useAppI18n, useNavigate } from '@pero/app-sdk';
-import { AppFrame, Badge, Button, Card, Dialog, EnvironmentInspector, Feedback, Input, LoadingSkeleton, Select, SkeletonText } from '@pero/app-sdk/ui';
+import { AppFrame, Badge, Button, Card, Dialog, EnvironmentInspector, Feedback, LoadingSkeleton, Select, SkeletonText } from '@pero/app-sdk/ui';
 import { messages, type CaseState, type Reaction } from './messages';
 import { showsRerun, yieldPercent } from './plot';
 import { YieldPlot } from './yield-plot';
@@ -20,13 +20,13 @@ export default function Lcms2Yield() {
   const [state, setState] = useState<CaseState | null>(null);
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [selected, setSelected] = useState<number | null>(null), [filter, setFilter] = useState('all');
-  const [checkout, setCheckout] = useState(''), [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [structure, setStructure] = useState<{ index: number; svg: string | null; available: boolean } | null>(null);
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const next = await api.get<CaseState>('/api/state');
-      setState(next); setCheckout(next.checkout ?? ''); setError('');
+      setState(next); setError('');
       setSelected(current => current ?? next.reactions[0]?.index ?? null);
     } catch (cause) { setError(String(cause)); }
     finally { setLoading(false); }
@@ -43,7 +43,7 @@ export default function Lcms2Yield() {
 
   async function post(path: string, value: unknown) {
     setBusy(true); setError('');
-    try { const next = await api.post<CaseState>(path, value); setState(next); setCheckout(next.checkout ?? ''); setConfirming(false); }
+    try { const next = await api.post<CaseState>(path, value); setState(next); setConfirming(false); }
     catch (cause) { setError(String(cause)); }
     finally { setBusy(false); }
   }
@@ -85,12 +85,10 @@ export default function Lcms2Yield() {
           <p className="yield-help">{t('environmentHelp')}</p>
           <EnvironmentInspector targets={['lcms2yield.inference']} />
         </div>
-        <form onSubmit={event => { event.preventDefault(); if (checkout.trim()) void post('/api/checkout', { path: checkout }); }}>
-          <label htmlFor="checkout">{t('checkout')}</label>
-          <Input id="checkout" value={checkout} onChange={event => setCheckout(event.target.value)} autoComplete="off" spellCheck={false} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); if (checkout.trim()) void post('/api/checkout', { path: checkout }); } }} />
-          <p className="yield-help">{t('checkoutHelp')}</p>
-          <Button type="button" disabled={busy || !checkout.trim()} onClick={() => void post('/api/checkout', { path: checkout })}>{t('saveCheckout')}</Button>
-        </form>
+        <div>
+          <h2>{t('release')}</h2>
+          <p className="yield-help">{state.checkout ? t('releaseReady') : t('releaseMissing')}</p>
+        </div>
         <div>
           <h2>{t('prediction')}</h2>
           <p className="yield-help">{t('rerunHelp')}</p>
