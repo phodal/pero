@@ -98,88 +98,14 @@
 
 .pa-local-search .pa-query-line {
   display: flex;
-  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
-  box-sizing: border-box;
-  inline-size: 100%;
+  gap: var(--pero-spacing-1);
   min-inline-size: 0;
-  block-size: 44px;
-  height: 44px;
-  min-block-size: 44px;
-  padding: 0 4px 0 14px;
-  border: 1px solid var(--pero-input-border);
-  border-radius: 8px;
-  background: var(--pero-surface);
 }
-
-.pa-workbench .pa-local-search .pa-query-line:focus-within {
-  border-color: var(--pero-focus);
-  outline: 2px solid var(--pero-focus);
-  outline-offset: 2px;
-}
-
-.pa-local-search .pa-query-icon {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  color: var(--pero-text-muted);
-}
-
-.pa-local-search .pa-query-field {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 4px;
-  min-inline-size: 0;
-  block-size: 100%;
-}
-
-.pa-local-search .pa-query-field .pero-ui-input {
-  flex: 1 1 auto;
-  inline-size: auto;
-  block-size: 36px;
-  height: 36px;
-  min-inline-size: 0;
-  min-block-size: 0;
-  padding-inline: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  font-size: var(--pero-font-body);
-  line-height: 1.4;
-}
-
-.pa-local-search .pa-search-clear.pero-ui-button {
-  flex: none;
-  align-self: center;
-  inline-size: 32px;
-  block-size: 32px;
-  min-inline-size: 32px;
-  min-block-size: 32px;
-  padding: 0;
-}
-
-.pa-local-search .pa-search-go.pero-ui-button,
-.pa-local-search .pa-search-go.pero-ui-button:disabled {
-  flex: none;
-  align-self: center;
-  inline-size: 36px;
-  block-size: 36px;
-  min-inline-size: 36px;
-  min-block-size: 36px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: var(--pero-action);
-  color: var(--pero-on-action);
-  opacity: 1;
-}
-
-.pa-local-search .pa-search-go.pero-ui-button:disabled {
-  opacity: 0.72;
-}
+.pa-local-search .pa-query-line .pero-search-field { flex: 1; min-inline-size: 0; }
+.pa-local-search .pa-query-line .pero-ui-icon-button { flex: none; }
+/* The named Clear button supplies a keyboard-accessible equivalent. */
+.pa-local-search .pero-search-field::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 
 .pa-library-toolbar {
   display: flex;
@@ -543,8 +469,6 @@
 .pa-reading-first .pa-reading-bar .pa-ask.pero-ui-button { width: auto; min-width: 0; height: auto; min-height: var(--pero-control-height); padding: 2px 6px; font-size: var(--pero-font-body); }
 .pa-reading-first .pa-reading-canvas,
 .pa-reading-first .pa-text-reading { background: var(--pero-surface); }
-.pa-reading-first .pa-reader-tools .pa-reader-modes { background: transparent; }
-.pa-reading-first .pa-reader-tools .pa-reader-modes > .pero-ui-button[aria-pressed=true] { background: var(--pa-selection); color: var(--pero-text); box-shadow: none; }
 .pa-reading-first .pa-text-reading > .pero-reader-content { padding: 24px 32px 40px; }
 .pa-reading-first .pa-records-header { min-height: 36px; padding-inline: 12px; }
 .pa-reading-first .pa-records-scroll { padding: 12px; }
