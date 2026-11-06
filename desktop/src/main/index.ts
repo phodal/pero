@@ -1,3 +1,5 @@
+import type { ShortcutMenu } from '../../../protocol/generated/shortcuts';
+import { embeddedShortcut } from './shortcuts';
 import { HarnessPreferences } from './harness-settings';
 import {ConversationContentRead} from '../../../packages/content-source/index.ts';
 import { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, shell, globalShortcut, safeStorage } from 'electron';
@@ -134,6 +136,7 @@ const changeLocale = (value: string) => {
   if (!ready || !['en', 'zh-CN'].includes(value)) throw new Error('Invalid locale');
   host.stdin.write(JSON.stringify({ method: 'settings.locale', locale: value }) + '\n');
 };
+let shortcutMenu: ShortcutMenu = {entries:[]};
 function updateMenus() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'Pero', submenu: [{ role: 'about', label: t('menu.about') }, { type: 'separator' }, { role: 'quit', label: t('menu.quit') }] },
@@ -142,7 +145,17 @@ function updateMenus() {
       { role: 'cut', label: t('menu.cut') }, { role: 'copy', label: t('menu.copy') },
       { role: 'paste', label: t('menu.paste') }, { role: 'selectAll', label: t('menu.select_all') },
     ] },
-    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, { id: 'automation', label: t('automation.title'), accelerator: 'CmdOrCtrl+Shift+A', click: () => send({version:1,kind:'automation_open',request_id:null,text:''}) }, { id: 'automation-operations', label: t('automation.operations'), click: () => send({version:1,kind:'automation_operations_open',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
+    { label: t('menu.workbench'), submenu: [
+      ...shortcutMenu.entries.map(entry => ({
+        id: ({open_web:'open-url',remote_tasks:'remote-tasks'} as Partial<Record<string,string>>)[entry.command] ?? entry.command,
+        label: t(entry.label_key as Parameters<typeof t>[0]), accelerator: entry.accelerators[0],
+        registerAccelerator: false,
+        click: () => send({version:1,kind:'shortcut_command',request_id:null,text:'',data:entry.command}),
+      })),
+      { id: 'automation-operations', label: t('automation.operations'), click: () => send({version:1,kind:'automation_operations_open',request_id:null,text:''}) },
+      { id: 'connection-message', label: t('menu.connection'), click: () => send(event('notice', 'notice.desktop')) },
+      { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') },
+    ] },
     { label: t('menu.language'), submenu: [
       { id: 'locale-zh-CN', label: '简体中文', type: 'radio', checked: locale === 'zh-CN', click: () => changeLocale('zh-CN') },
       { id: 'locale-en', label: 'English', type: 'radio', checked: locale === 'en', click: () => changeLocale('en') },
@@ -299,6 +312,11 @@ app.whenReady().then(async () => {
   const trusted = (sender: Electron.IpcMainInvokeEvent) => {
     if (sender.sender !== window.webContents || sender.senderFrame?.url !== 'pero://workbench/') throw new Error('Untrusted sender');
   };
+  ipcMain.handle('pero:shortcuts', (sender, menu: ShortcutMenu) => {
+    trusted(sender);
+    shortcutMenu = menu;
+    updateMenus();
+  });
   ipcMain.handle('pero:connect', async (sender) => {
     trusted(sender);
     // The child normally starts before the renderer; wait for its actual ready event.
@@ -435,6 +453,13 @@ app.whenReady().then(async () => {
   mcpHost=new McpHost(resolve(dirname(runtimeSettingsPath),'mcp-servers.json'),__dirname,url=>shell.openExternal(url),binding=>send({version:1,kind:'mcp_app_opened',request_id:null,thread_id:binding.thread_id,text:'',data:binding}));
   window.on('closed',()=>webPages?.dispose());
   bindAppFrameEditing(window.webContents);
+  window.webContents.on('before-input-event', (event, input) => {
+    const command = embeddedShortcut(shortcutMenu, input, window.webContents.focusedFrame?.url);
+    if (!command) return;
+    event.preventDefault();
+    send({version:1,kind:'shortcut_command',request_id:null,text:'',data:command});
+  });
+
   window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
   window.webContents.on('render-process-gone', () => appUse?.reset());
   let workspaceWindowPending=false;

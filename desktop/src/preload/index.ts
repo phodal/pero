@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('pero', {
   readContent: (request: object) => ipcRenderer.invoke('pero:content-read', request),
   appUseCommand: (command: object) => ipcRenderer.invoke('pero:app-use', command),
   webCommand: (command:object)=>ipcRenderer.invoke('pero:web',command),
+  shortcutMenu: (menu: object) => ipcRenderer.invoke('pero:shortcuts', menu),
   sessionCommand: (command: object) => ipcRenderer.invoke('pero:session', command),
   remoteCommand: (command: object) => ipcRenderer.invoke('pero:remote', command),
   appsCommand: (command: object) => ipcRenderer.invoke('pero:apps', command),
