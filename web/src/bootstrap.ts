@@ -5,6 +5,7 @@ import { loadContentResult, cancelContentResult } from './content-results';
 import type { ContentChunk, ConversationReadParameters } from '../../packages/content-source/index';
 import init, { run, receive_host_event, snapshot, has_unsaved_documents, checkpoint_workspace, request_window_close, paste_image, set_system_theme } from './wasm/pero_ui';
 import { appChatLauncher } from './app-chat';
+import { openExistingAppSession } from './app-session';
 import { previewContext } from './context-preview';
 import themes from './theme.generated.json';
 import './shell.css';
@@ -92,7 +93,15 @@ try {
       }
       throw new Error('Paper App did not open');
     }
-    if('action' in value && value.action==='automation_session_open'){receive_host_event(JSON.stringify({version:1,kind:'automation_session_open',request_id:null,text:'',data:value}));return Promise.resolve();}return window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser')));},launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})),async slot=>{
+    if ('action' in value && value.action === 'automation_session_open') {
+      return openExistingAppSession((value as {action:'automation_session_open';sessionId:string}).sessionId, {
+        snapshot: () => JSON.parse(snapshot()),
+        open: () => receive_host_event(JSON.stringify({version:1,kind:'automation_session_open',request_id:null,text:'',data:value})),
+        frame: () => new Promise<void>(resolve => requestAnimationFrame(() => resolve())),
+        now: () => performance.now(),
+      });
+    }
+    return window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser')));},launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})),async slot=>{
     receive_host_event(JSON.stringify({version:1,kind:'app_chat_slot',request_id:null,text:'',data:slot}));
     if(!slot)return false;
     const deadline=performance.now()+5000;

@@ -380,6 +380,13 @@ impl Workbench {
                     anyhow::ensure!(this.navigation.current()==Some(&item), "Open the App before using Host presentation");
                     let input = &message["input"];
                     match message["operation"].as_str() {
+                        Some("open-session") => {
+                            anyhow::ensure!(["insights", "automations"].contains(&scope.app.as_str()), "This App cannot open Host sessions");
+                            let id = input["sessionId"].as_str().filter(|id| !id.trim().is_empty() && id.len() <= 128).ok_or_else(|| anyhow::anyhow!("Invalid session"))?;
+                            anyhow::ensure!(input.as_object().is_some_and(|value| value.len() == 1), "Invalid session request");
+                            anyhow::ensure!(this.chat.read(cx).chats.iter().any(|chat| chat.id == id), "Session is no longer available");
+                            this.open_automation_session(id, cx);
+                        }
                         Some("navigate") => {
                             let path=input["path"].as_str().ok_or_else(||anyhow::anyhow!("Choose a Pero page"))?;
                             if let Some(target)=path.strip_prefix("/apps/") {

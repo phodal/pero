@@ -13,6 +13,7 @@ export * from './host';
 import { mountAppConversation } from './chat-slot';
 import { AppApiProvider } from './host';
 import { subscribeAppEvent, navigateApp, notifyApp, setAppBadge, launchAppChat, callAppHost } from './iframe-host';
+export { openAppSession } from './iframe-host';
 export { openPaperApp } from './navigation';
 export { openDocument } from './document';
 export type { AppDocumentInput } from './document';
