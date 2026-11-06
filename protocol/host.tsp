@@ -2,6 +2,7 @@
 // Source of truth for protocol/generated/; run `npm run gen:contracts` after edits.
 import "@typespec/json-schema";
 import "./apps.tsp";
+import "./shortcuts.tsp";
 import "./contributions.tsp";
 import "./automation.tsp";
 import "./session-artifacts.tsp";
@@ -216,7 +217,7 @@ model TypographyPreferences {
 }
 model ProjectResourceRef { app: "paper-agent" | "control-lab" | "lab"; kind: "paper" | "study" | "experiment"; @minLength(1) @maxLength(128) id: string; @minLength(1) @maxLength(128) revision: string; ...Closed }
 model ResearchProject { @minLength(1) @maxLength(128) id: string; @minLength(1) @maxLength(200) title: string; @maxLength(4000) goal: string; workspace: string | null; @maxItems(256) resources: ProjectResourceRef[]; ...Closed }
-model WorkbenchPreferences { accent?: "teal" | "blue" | "neutral"; typography?: TypographyPreferences; appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; @maxItems(128) research_projects?: ResearchProject[]; layout?: LayoutPreferences; ...Closed }
+model WorkbenchPreferences { shortcuts?: Pero.Shortcuts.ShortcutOverrides; accent?: "teal" | "blue" | "neutral"; typography?: TypographyPreferences; appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; @maxItems(128) research_projects?: ResearchProject[]; layout?: LayoutPreferences; ...Closed }
 model GetWorkbenchSettingsRequest { method: "settings.workbench.get"; ...Closed }
 model SetWorkbenchSettingsRequest { method: "settings.workbench"; preferences: WorkbenchPreferences; ...Closed }
 

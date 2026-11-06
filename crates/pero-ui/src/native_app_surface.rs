@@ -12,6 +12,7 @@ pub(crate) struct NativeAppPage {
     view: Option<Entity<WebView>>,
     error: Option<String>,
     ready: bool,
+    shortcuts: pero_contracts::shortcuts::ShortcutMenu,
     location: Option<String>,
     context: Value,
     pending: std::collections::HashSet<String>,
@@ -30,6 +31,17 @@ addEventListener('message',event=>{
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);
 "#;
 impl NativeAppPage {
+    pub(crate) fn set_shortcuts(&mut self, menu:pero_contracts::shortcuts::ShortcutMenu,cx:&App) {
+        self.shortcuts=menu;
+        self.publish_shortcuts(cx);
+    }
+    fn publish_shortcuts(&self,cx:&App) {
+        if let Some(view)=&self.view {
+            let menu=serde_json::to_string(&self.shortcuts).expect("shortcut menu");
+            let _=view.read(cx).raw().evaluate_script(&format!("window.peroShortcutMenu={menu}"));
+        }
+    }
+
     pub(crate) fn new(name: String, entry: String, frame_origins: Vec<String>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (sender, receiver) = async_channel::unbounded();
         let loads = sender.clone();
@@ -46,7 +58,8 @@ impl NativeAppPage {
         let ipc_origin = allowed.clone();
         let builder = wry::WebViewBuilder::new()
             .with_url(format!("pero-app://{name}/{entry}"))
-            .with_initialization_script_for_main_only(BRIDGE, true);
+            .with_initialization_script_for_main_only(BRIDGE, true)
+            .with_initialization_script_for_main_only(include_str!("native_shortcuts.js"), true);
         #[cfg(target_os = "macos")]
         let builder = builder.with_initialization_script_for_main_only(include_str!("native_docling_bridge.js"), true);
         let builder = builder
@@ -106,6 +119,7 @@ impl NativeAppPage {
                     .update(cx, |this, cx| {
                         match message["type"].as_str() {
                             Some("loaded" | "pero:app:ready") => {
+                                this.publish_shortcuts(cx);
                                 this.ready |= message["type"] == "pero:app:ready";
                                 if this.ready {
                                     if let Some(location)=this.location.take() {this.navigate(location,cx);}
@@ -143,6 +157,7 @@ impl NativeAppPage {
         })
         .detach();
         Self {
+            shortcuts: pero_contracts::shortcuts::ShortcutMenu {entries:vec![]},
             view,
             error,
             ready: false,
@@ -362,6 +377,8 @@ impl Workbench {
             return;
         }
         let view = cx.new(|cx| NativeAppPage::new(key.0.clone(), open.entry, open.frame_origins, window, cx));
+        let menu=self.preferences.shortcuts.menu(crate::shortcuts::platform(cx));
+        view.update(cx,|view,cx|view.set_shortcuts(menu,cx));
         // The parent owns the failure view, including a WebView's loading timeout.
         let observation = cx.observe(&view, |_, _, cx| cx.notify());
         let scope = pero_contracts::AppChatScope {
@@ -375,6 +392,12 @@ impl Workbench {
         let subscription = cx.subscribe_in(&view, window, move |this, view, event: &NativeAppMessage, window, cx| {
             let message = &event.0;
             let item = WorkspaceItem::App { name: scope.app.clone(), panel: scope.panel.clone() };
+            if message["type"] == "pero:shortcut" && this.navigation.current()==Some(&item) {
+                if let Ok(command)=serde_json::from_value::<pero_contracts::shortcuts::CommandId>(message["command"].clone()) {
+                    if command.application_entry() {this.execute_shortcut(command,window,cx);}
+                }
+                return;
+            }
             if message["type"] == "pero:app:sdk" {
                 let result = (|| -> anyhow::Result<()> {
                     anyhow::ensure!(this.navigation.current()==Some(&item), "Open the App before using Host presentation");

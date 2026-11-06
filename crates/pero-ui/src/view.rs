@@ -62,7 +62,7 @@ impl Workbench {
         }, settings, actions, cx)
     }
 
-    fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
         self.sidebar_collapsed = !self.sidebar_collapsed;
         cx.notify();
     }
@@ -85,6 +85,7 @@ impl Workbench {
             self.sidebar_collapsed,
             self.layout.sidebar_width,
             tabs,
+            self.shortcut_label(pero_contracts::shortcuts::CommandId::SearchWorkspace,cx),
             cx.listener(|this, _, _, cx| this.toggle_sidebar(cx)),
             cx.listener(|this, _, window, cx| this.toggle_spotlight(window, cx)),
             dragging,
@@ -400,12 +401,13 @@ impl Render for Workbench {
         div()
             .id("workbench")
             .relative()
+            .map(|el| self.shortcut_handlers(el, cx))
             .track_focus(&self.workspace_focus)
             .when(self.pane_tabs.switching(), |el| {
-                el.key_context("PaneTabSwitcher")
+                el.key_context("PeroWorkbench PaneTabSwitcher")
             })
             .when(!self.pane_tabs.switching(), |el| {
-                el.key_context(crate::web_documents::SURFACE_KEY_CONTEXT)
+                el.key_context(if window.has_active_dialog(cx) { "WebSurface" } else { "PeroWorkbench WebSurface" })
             })
             .on_modifiers_changed(
                 cx.listener(|this, event, window, cx| this.pane_tab_modifiers(event, window, cx)),

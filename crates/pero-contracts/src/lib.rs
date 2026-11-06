@@ -282,3 +282,5 @@ pub mod mcp_runtime;
 pub mod project_resources;
 
 pub mod research_project;
+
+pub mod shortcuts;
