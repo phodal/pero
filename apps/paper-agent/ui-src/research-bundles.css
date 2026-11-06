@@ -15,7 +15,6 @@
 .pa-research-bundle .pa-resource-info{padding-left:30px}
 .pa-research-bundle .pa-resource-actions{margin-top:6px;font-size:var(--pero-font-caption)}
 .pa-research-bundle .pa-resource-actions summary{display:list-item;list-style:revert}
-.pa-research-bundle .pa-resource-actions summary::-webkit-details-marker{display:revert}
 .pa-research-bundle .pa-research-downloads{margin-top:0}
 .pa-research-bundle .pa-research-downloads>ul{margin:0}
 .pa-research-bundle .pa-source-provenance{margin:6px 0 0 30px;color:var(--pero-text-muted)}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Progress, Button, Feedback } from '@pero/app-sdk/ui';
+import { Disclosure, Progress, Button, Feedback } from '@pero/app-sdk/ui';
 import { assetSize, type ResearchBundle } from './research-types';
 
 type DownloadReply = {
@@ -76,7 +76,7 @@ export function ResearchDownloads({ bundle, startDownloadIds }: { bundle: Resear
         {job?.status === 'running' && <Progress label={`Download progress: ${asset.filename}`} value={job.received} max={job.total || asset.size}/>}
         {job?.error && <Feedback kind="error">{job.error}</Feedback>}
         {job?.status === 'running' ? <Button disabled={busy} onClick={() => void operate('cancel', asset.id)}>Cancel download</Button> : (!job || reply.receipt.retryable) && <Button disabled={loading || busy || !!running || !!error} onClick={() => void operate('start', asset.id)}>{job ? 'Retry download' : 'Start download'}</Button>}
-        {reply?.receipt.jobId && <details><summary>Download receipt</summary><dl className="pa-resource-provenance"><dt>Job</dt><dd>{reply.receipt.jobId}</dd><dt>Data asset</dt><dd>{reply.receipt.catalogAssetId || 'Not published'}</dd><dt>Reused</dt><dd>{reply.receipt.reused ? 'Yes' : 'No'}</dd>{reply.asset?.sha256 && <><dt>SHA-256</dt><dd>{reply.asset.sha256}</dd></>}</dl></details>}
+        {reply?.receipt.jobId && <Disclosure variant="inline" summary={<>Download receipt</>}><dl className="pa-resource-provenance"><dt>Job</dt><dd>{reply.receipt.jobId}</dd><dt>Data asset</dt><dd>{reply.receipt.catalogAssetId || 'Not published'}</dd><dt>Reused</dt><dd>{reply.receipt.reused ? 'Yes' : 'No'}</dd>{reply.asset?.sha256 && <><dt>SHA-256</dt><dd>{reply.asset.sha256}</dd></>}</dl></Disclosure>}
       </li>;
     })}</ul>
   </section>;

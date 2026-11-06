@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Select, Feedback, Split, SplitPane } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Select, Feedback, Split, SplitPane } from '@pero/app-sdk/ui';
 import type { Api, PdfFocus, SourceFocus } from './types';
 import type { ResearchBundle, SourceObservation, SourceEvidenceLocation } from './research-types';
 import { SourceReports } from './research-source-reports';
@@ -127,7 +127,7 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
       </SplitPane>
       <SplitPane id={`source-content-${resourceId}`} min={240} as="section" aria-label={copy('source')}>
         {!member ? <p>{copy('choose')}</p> : <><h4>{member.path}</h4>
-          {member.warning && <Feedback>{member.warning}</Feedback>}<details><summary>{copy('identity')}</summary><dl className="pa-resource-provenance"><dt>Archive SHA-256</dt><dd>{receipt.archiveDigest}</dd><dt>Original member SHA-256</dt><dd>{member.sha256}</dd><dt>Original size</dt><dd>{member.size.toLocaleString()} B</dd>{member.previewSha256 && <><dt>Preview SHA-256</dt><dd>{member.previewSha256}</dd></>}<dt>Member</dt><dd>{member.id}</dd></dl></details>
+          {member.warning && <Feedback>{member.warning}</Feedback>}<Disclosure variant="inline" summary={<>{copy('identity')}</>}><dl className="pa-resource-provenance"><dt>Archive SHA-256</dt><dd>{receipt.archiveDigest}</dd><dt>Original member SHA-256</dt><dd>{member.sha256}</dd><dt>Original size</dt><dd>{member.size.toLocaleString()} B</dd>{member.previewSha256 && <><dt>Preview SHA-256</dt><dd>{member.previewSha256}</dd></>}<dt>Member</dt><dd>{member.id}</dd></dl></Disclosure>
           {member.kind === 'image' && <p>Original image: {originalDimensions}. Preview: {previewDimensions}.</p>}
           {reading && <><p>{copy('lines', { start: reading.startLine, end: reading.endLine, total: reading.totalLines })}</p><pre className="pa-source-text" tabIndex={0} aria-label={`Original source: ${reading.memberPath}`}>{onPreview ? (reading.content.match(/[^\r\n]*(?:\r\n|\r|\n|$)/g) ?? []).filter(Boolean).map((text, index) => {
             const line = reading.startLine + index;
@@ -135,21 +135,21 @@ export function SourceBrowser({ api, bundle, resourceId, receipt, available = tr
           }) : reading.content}</pre><div className="pa-actions"><Button disabled={busy || reading.start === 0} onClick={() => void readMember(member)}>{copy('start')}</Button><Button disabled={busy || reading.nextStart == null} onClick={() => void readMember(member, reading.nextStart!)}>{copy('next')}</Button></div></>}
           {image && <figure><img className="pa-source-image" src={image} alt={`Source image ${member.path}`}/><figcaption>Validated raster preview. Its dimensions and SHA-256 describe the preview, not the original file. Not experiment code or data.</figcaption></figure>}
           {!busy && !reading && !image && <p>{member.kind === 'unknown_encoding' ? copy('encoding') : copy('unavailable')}</p>}
-          {!!member.structures.length && <details className="pa-source-structures"><summary>{copy('structures')} ({member.structures.length})</summary><p>These are source locations, not compiled numbering or complete TeX interpretation. Nearby text is context only.</p><ul>{member.structures.map((item, i) => <li key={i}><Button variant="ghost" disabled={busy} onClick={() => void readMember(member, item.start)}>{item.kind}{item.name ? `: ${item.name}` : ''} / lines {item.startLine}–{item.endLine}</Button>{item.caption && <p>{item.caption}</p>}{item.reference && <p>Reference: {item.reference}</p>}{item.context && <p className="pa-muted">Context: {item.context}</p>}</li>)}</ul></details>}
+          {!!member.structures.length && <Disclosure variant="inline" className="pa-source-structures" summary={<>{copy('structures')} ({member.structures.length})</>}><p>These are source locations, not compiled numbering or complete TeX interpretation. Nearby text is context only.</p><ul>{member.structures.map((item, i) => <li key={i}><Button variant="ghost" disabled={busy} onClick={() => void readMember(member, item.start)}>{item.kind}{item.name ? `: ${item.name}` : ''} / lines {item.startLine}–{item.endLine}</Button>{item.caption && <p>{item.caption}</p>}{item.reference && <p>Reference: {item.reference}</p>}{item.context && <p className="pa-muted">Context: {item.context}</p>}</li>)}</ul></Disclosure>}
         </>}
       </SplitPane>
     </Split>}
-    {!inspectionOnly && <details className="pa-source-analysis"><summary>{copy('advanced')}</summary><section className="pa-source-compare" aria-label={copy('compare')}><h4>{copy('compare')}</h4>
+    {!inspectionOnly && <Disclosure variant="inline" className="pa-source-analysis" summary={<>{copy('advanced')}</>}><section className="pa-source-compare" aria-label={copy('compare')}><h4>{copy('compare')}</h4>
       <p>{copy('compareScope')}</p>
       {pdfs.length ? <div className="pa-actions"><label>{copy('choosePdf')} <Select label={copy('choosePdf')} value={pdfId} disabled={busy} onChange={value => { setPdfId(value); setComparison(null); }} options={[{ value: '', label: copy('choosePdf') }, ...pdfs.map(pdf => ({ value: pdf.id, label: pdf.title, hint: pdf.originalUrl }))]} showHint/></label><Button disabled={busy || !pdfId || !available} onClick={() => void compare()}>{copy('compareAction')}</Button></div> : <p>{copy('noPdf')}</p>}
-      {comparison && <><p role="status">{comparison.status === 'matched' ? 'Evidence-backed caption matches' : 'Comparison unresolved'}: {comparison.reason}</p><ul>{comparison.matches.map((match, i) => <li key={i}><p>{match.source.memberPath}, lines {match.source.startLine}–{match.source.endLine}</p><blockquote>{match.pdf.quote}</blockquote><Button disabled={busy} onClick={() => void reveal(match)}>Open matched PDF page {match.pdf.page}</Button><details><summary>Match versions</summary><dl className="pa-resource-provenance"><dt>Archive SHA-256</dt><dd>{match.source.archiveDigest}</dd><dt>Member SHA-256</dt><dd>{match.source.memberDigest}</dd><dt>PDF SHA-256</dt><dd>{match.pdf.fileDigest}</dd><dt>PDF document</dt><dd>{match.pdf.documentId}</dd></dl></details></li>)}</ul></>}
+      {comparison && <><p role="status">{comparison.status === 'matched' ? 'Evidence-backed caption matches' : 'Comparison unresolved'}: {comparison.reason}</p><ul>{comparison.matches.map((match, i) => <li key={i}><p>{match.source.memberPath}, lines {match.source.startLine}–{match.source.endLine}</p><blockquote>{match.pdf.quote}</blockquote><Button disabled={busy} onClick={() => void reveal(match)}>Open matched PDF page {match.pdf.page}</Button><Disclosure variant="inline" summary={<>Match versions</>}><dl className="pa-resource-provenance"><dt>Archive SHA-256</dt><dd>{match.source.archiveDigest}</dd><dt>Member SHA-256</dt><dd>{match.source.memberDigest}</dd><dt>PDF SHA-256</dt><dd>{match.pdf.fileDigest}</dd><dt>PDF document</dt><dd>{match.pdf.documentId}</dd></dl></Disclosure></li>)}</ul></>}
     </section>
     <SourceReports key={bundle.id} api={api} bundleId={bundle.id} refresh={reportRefresh} navigating={busy}
       canOpenSource={(observation, location) => !!originalMember(observation, location)}
       openSource={(observation, location) => { const item = originalMember(observation, location); if (item) void readMember(item, location.start ?? 0, location.end ?? undefined); }}
       canOpenPdf={observation => !!observation.anchor.pdfResourceId && pdfs.some(pdf => pdf.id === observation.anchor.pdfResourceId)}
       openPdf={(observation, match) => { if (observation.anchor.pdfResourceId && pdfs.some(pdf => pdf.id === observation.anchor.pdfResourceId)) void reveal(match, observation.anchor.pdfResourceId); }}/>
-      {!!listing?.limitations.length && <details><summary>{copy('limits')}</summary><ul>{listing.limitations.map((limitation, i) => <li key={i}>{limitation}</li>)}</ul></details>}
-    </details>}
+      {!!listing?.limitations.length && <Disclosure variant="inline" summary={<>{copy('limits')}</>}><ul>{listing.limitations.map((limitation, i) => <li key={i}>{limitation}</li>)}</ul></Disclosure>}
+    </Disclosure>}
   </div>;
 }
