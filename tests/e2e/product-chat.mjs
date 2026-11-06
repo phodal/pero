@@ -59,12 +59,14 @@ try {
   await expect(domainFrame.getByRole('heading', { name: 'Experiment' })).toBeVisible();
   await expect(page.locator('#product-chat')).toBeHidden();
   await domainFrame.getByLabel('Notes').fill('Retained App state');
+  await expect.poll(() => page.evaluate(async () => (await window.product.connect()).connected), { timeout: 60000 }).toBe(true);
   await page.locator('#product-chat-toggle').click();
   await page.waitForFunction(() => [...document.querySelectorAll('iframe')].some(frame => frame.dataset.peroChat !== undefined));
   await expect.poll(() => page.frames().some(frame => frame.url().startsWith('pero://chat/'))).toBe(true);
   const chat = page.frames().find(frame => frame.url().startsWith('pero://chat/'));
   await chat.waitForFunction(() => window.peroChatDiagnostics && JSON.parse(window.peroChatDiagnostics.snapshot()).connected, undefined, { timeout: 60000 });
   const state = () => chat.evaluate(() => JSON.parse(window.peroChatDiagnostics.snapshot()));
+  const active = async () => { const s = await state(); return s.chats[s.activeChat]; };
   await expect.poll(async () => (await state()).agents?.length || 0).toBeGreaterThan(0);
   if (process.platform === 'darwin') {
     await expect.poll(() => app.evaluate(({Menu}) => Menu.getApplicationMenu().getMenuItemById('computer-enable').checked)).toBe(false);
@@ -84,12 +86,15 @@ try {
   await expect.poll(async () => (await state()).workspace).toBe(temp);
   await domainFrame.getByRole('button', { name: 'Discuss selection' }).click();
   await expect.poll(async () => (await state()).composer).toBe('Selected experiment');
+  await expect.poll(async () => (await active())?.state).toBe('idle');
+  const primaryThread = (await active()).id;
+  const primary = async () => (await state()).chats.find(value => value.id === primaryThread);
   expect(await page.locator('#product-chat').getAttribute('data-pero-app-chat-overlay')).toBe('');
   await expect(page.locator('#pero-app-surface')).toBeVisible();
   const appUseStatus = () => page.evaluate(async () => (await window.peroAppUse({ scope: { app: 'fixture', panel: 'main' }, request: { action: 'status' } })).value);
   await expect.poll(async () => (await appUseStatus()).capturable).toBe(false);
   await page.screenshot({ path: join(output, 'compact-light.png') });
-  expect((await state()).chats[(await state()).activeChat].agent).toBe('codex');
+  expect((await active()).agent).toBe('codex');
   expect((await state()).chats.flatMap(value => value.messages).length).toBe(0);
   // Complex input needs room for the real Composer, not a clipped iframe.
   await page.keyboard.insertText('\nSecond line\nThird line');
@@ -124,13 +129,23 @@ try {
   await expect.poll(async () => (await state()).composer).toBe('Selected experiment typed');
   await page.keyboard.press('Enter');
   await expect(page.locator('#product-chat header button').first()).toHaveAttribute('aria-expanded', 'true');
-  await expect.poll(async () => (await state()).chats[0]?.state, { timeout: 15000 }).toBe('idle');
-  expect((await state()).chats[0].messages.some(message => message.role === 'assistant' && message.text.includes('中文流式回复'))).toBe(true);
-  expect((await state()).chats[0].usage).toMatchObject({ context_used: 5000, context_capacity: 20000, cost: { amount: 0.02, currency: 'USD' } });
+  await expect.poll(async () => (await primary())?.state, { timeout: 15000 }).toBe('idle');
+  expect((await primary()).messages.some(message => message.role === 'assistant' && message.text.includes('中文流式回复'))).toBe(true);
+  expect((await primary()).usage).toMatchObject({ context_used: 5000, context_capacity: 20000, cost: { amount: 0.02, currency: 'USD' } });
   checks.push('cross-origin Chat, Host ACP reply, App compose does not send, real keyboard input');
-  await chat.locator('canvas:not([role="textbox"])').click({ position: { x: 180, y: 105 } });
+  const clickTool = async () => {
+    await chat.locator('canvas:not([role="textbox"])').hover({ position: { x: 180, y: 100 } });
+    await page.mouse.wheel(0, -((await state()).scroll.max + 1));
+    await expect.poll(async () => (await state()).toolBounds[0].bounds?.y ?? -1).toBeGreaterThanOrEqual(0);
+    await chat.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const bounds = (await state()).toolBounds[0].bounds;
+    await chat.locator('canvas:not([role="textbox"])').click({ position: {
+      x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2,
+    } });
+  };
+  await clickTool();
   await expect.poll(async () => (await state()).expandedTools.length).toBe(1);
-  await chat.locator('canvas:not([role="textbox"])').click({ position: { x: 180, y: 105 } });
+  await clickTool();
   await expect.poll(async () => (await state()).expandedTools.length).toBe(0);
   const fill = async text => {
     await domainFrame.locator('body').evaluate((_, text) => parent.postMessage({ type: 'pero:app:chat', text }, '*'), text);
@@ -138,39 +153,38 @@ try {
   };
   await fill('wait');
   await page.keyboard.press('Enter');
-  await expect.poll(async () => (await state()).chats[0]?.state).toBe('running');
+  await expect.poll(async () => (await primary())?.state).toBe('running');
   await page.getByRole('button', { name: 'Close chat' }).click();
   await expect(page.locator('#product-chat')).toBeHidden();
   await expect.poll(async () => (await appUseStatus()).capturable).toBe(true);
-  await expect.poll(async () => (await state()).chats[0]?.state).toBe('running');
+  await expect.poll(async () => (await primary())?.state).toBe('running');
   await expect(page.locator('#product-chat-toggle')).toContainText('Thinking');
   await expect(domainFrame.getByLabel('Notes')).toHaveValue('Retained App state');
   await page.locator('#product-chat-toggle').click();
-  const runningMessages = (await state()).chats[0].messages.length;
+  const runningMessages = (await primary()).messages.length;
   await page.evaluate(() => window.product.sessionCommand({ action: 'list_agents' }));
-  await expect.poll(async () => (await state()).chats[0]?.state).toBe('running');
-  expect((await state()).chats[0].messages.length).toBe(runningMessages);
-  await page.evaluate(thread_id => window.product.sessionCommand({ action: 'cancel', thread_id }), (await state()).chats[0].id);
-  await expect.poll(async () => (await state()).chats[0]?.state).toBe('idle');
+  await expect.poll(async () => (await primary())?.state).toBe('running');
+  expect((await primary()).messages.length).toBe(runningMessages);
+  await page.evaluate(thread_id => window.product.sessionCommand({ action: 'cancel', thread_id }), (await primary()).id);
+  await expect.poll(async () => (await primary())?.state).toBe('idle');
   checks.push('tool disclosure and Host cancellation after minimizing a running conversation');
   await fill('Keep this draft');
-  const before = await state();
   await page.getByRole('button', { name: 'Close chat' }).click();
   await expect(page.locator('#product-chat')).toBeHidden();
   await page.getByRole('button', { name: 'Open chat' }).click();
   expect((await state()).composer).toBe('Keep this draft');
-  expect((await state()).chats[0].id).toBe(before.chats[0].id);
+  expect((await active()).id).toBe(primaryThread);
   await page.getByRole('combobox', { name: 'Switch App' }).selectOption('other');
   await expect.poll(async () => (await state()).scope?.app).toBe('other');
   const otherFrame = page.frameLocator('iframe[title="other"]');
   await otherFrame.getByRole('button', { name: 'Discuss selection' }).click();
   await expect.poll(async () => (await state()).composer).toBe('Selected experiment');
-  expect((await state()).chats[(await state()).activeChat].id).not.toBe(before.chats[0].id);
+  expect((await active()).id).not.toBe(primaryThread);
   await page.getByRole('combobox', { name: 'Switch App' }).selectOption('fixture');
   await expect.poll(async () => (await state()).composer).toBe('Keep this draft');
   await page.evaluate(() => window.product.sessionCommand({ action: 'list_agents' }));
   await expect.poll(async () => (await state()).composer).toBe('Keep this draft');
-  expect((await state()).chats[(await state()).activeChat].id).toBe(before.chats[0].id);
+  expect((await active()).id).toBe(primaryThread);
   checks.push('App scope switches preserve separate drafts; replay preserves draft and running turn');
   const requestSlot = rect => domainFrame.locator('body').evaluate((_, rect) => new Promise(resolve => {
     const id = 'product-chat-test-slot';
@@ -216,7 +230,7 @@ try {
   await expect(page.locator('#product-chat-toggle')).toBeHidden();
   await expect.poll(async () => Math.round((await page.locator('#product-chat').boundingBox()).width)).toBe(360);
   expect((await state()).composer).toBe('Keep this draft');
-  expect((await state()).chats[(await state()).activeChat].id).toBe(before.chats[0].id);
+  expect((await active()).id).toBe(primaryThread);
   await page.screenshot({ path: join(output, 'embedded.png') });
   await page.getByRole('combobox', { name: 'Switch App' }).selectOption('other');
   await expect.poll(async () => (await state()).scope?.app).toBe('other');
