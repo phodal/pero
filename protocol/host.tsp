@@ -63,6 +63,14 @@ model DocumentOpenEvent {kind:"document_open";...EventBase;data:DocumentHeader|L
 model FileDocumentEvent {kind:"document_file";...EventBase;data:DocumentHeader}
 model FileDocumentErrorEvent {kind:"document_error";...EventBase;data:{source:string;reason:"conflict"|"unsupported"|"unavailable"|"read_write";...Closed}}
 
+// Workspace browsing is UI-only and scoped by the original conversation.
+model WorkspaceFilesRequest {method:"workspace_files";action:"list"|"read";request_id:string;thread_id:ThreadId;path:string;...Closed}
+model WorkspaceEntry {name:string;kind:"directory"|"file"|"symlink"|"other";...Closed}
+model DirectoryListing {workspace:string;path:string;entries:WorkspaceEntry[];truncated:boolean;...Closed}
+model WorkspaceFilesListEvent {kind:"workspace_files_list";...EventBase;data:DirectoryListing}
+model WorkspaceFilesDocumentEvent {kind:"workspace_files_document";...EventBase;data:DocumentHeader}
+model WorkspaceFilesErrorEvent {kind:"workspace_files_error";...EventBase}
+
 // Durable recovery is separate from tool execution and Desktop preference settings.
 model ReaderRange {start:safeint;end:safeint;...Closed}
 model ReaderSearch {case_insensitive:boolean;regex:boolean;whole_word:boolean;...Closed}
@@ -197,6 +205,7 @@ model LayoutPreferences {
   @minValue(280) @maxValue(1200) artifact_pane_width?: uint16 = 400;
   @minValue(200) @maxValue(480) sessions_width?: uint16 = 280;
   artifact_view?: ArtifactView = "icons";
+  resource_tab?: "files" | "artifacts" = "artifacts";
   ...Closed;
 }
 model TypographyPreferences {
@@ -319,6 +328,7 @@ union HostInput {
   McpSourceRequest,
   WorkspaceSessionRequest,
   FileDocumentRequest,
+  WorkspaceFilesRequest,
   ArtifactRequest,
   LocalWorkerRequest,
   EchoRequest,
@@ -535,6 +545,7 @@ union HostEvent {
   McpPermittedEvent,McpSourcesEvent,McpErrorEvent,McpAppOpenedEvent,
   DocumentChooseEvent,
   FileDocumentEvent,
+  WorkspaceFilesListEvent, WorkspaceFilesDocumentEvent, WorkspaceFilesErrorEvent,
   FileDocumentErrorEvent,
   ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
   ContentDocumentEvent,
