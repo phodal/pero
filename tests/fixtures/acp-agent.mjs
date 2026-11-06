@@ -100,7 +100,13 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
   if(text.includes('longstream')){
    let i=0;timer=setInterval(()=>{notify({sessionUpdate:'agent_message_chunk',content:{type:'text',text:`中文片段${i} `}});if(++i===1000)finish('end_turn');},2);return;
   }
-  if(text.includes('permission')){permission=900;send({id:permission,method:'session/request_permission',params:{sessionId:'fixture-session',toolCall:{toolCallId:'tool-1',title:'Read test fixture',status:'pending'},options:[{optionId:'allow',name:'Allow once',kind:'allow_once'},{optionId:'reject',name:'Reject',kind:'reject_once'}]}});return;}
+  if(text.includes('permission')){
+   const extended=text.includes('extended');
+   permission=900;
+   send({id:permission,method:'session/request_permission',params:{sessionId:'fixture-session',toolCall:{toolCallId:'tool-1',title:extended?'Read experiment measurements and calibration notes from workspace/research/experiments/2026-11-06/baseline-observations.csv before comparing the results with the previous run':'Read test fixture',status:'pending'},options:extended?
+    [{optionId:'reject',name:'Reject',kind:'reject_once'},{optionId:'always',name:'Always allow',kind:'allow_always'},{optionId:'allow',name:'Allow once',kind:'allow_once'}]:
+    [{optionId:'allow',name:'Allow once',kind:'allow_once'},{optionId:'reject',name:'Reject',kind:'reject_once'}]}});return;
+  }
   if(text.includes('wait'))return;
   notify({sessionUpdate:'tool_call',toolCallId:`tool-${turn}`,title:'Read project context',kind:'read',status:'in_progress'});
   notify({sessionUpdate:'tool_call_update',toolCallId:`tool-${turn}`,status:'completed',content:[{type:'content',content:{type:'text',text:'Project context loaded'}}]});
@@ -108,6 +114,6 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
   notify({sessionUpdate:'agent_message_chunk',content:{type:'text',text:`Fixture turn ${turn}: **中文流式回复**\n\n`}});
   setTimeout(()=>{notify({sessionUpdate:'agent_message_chunk',content:{type:'text',text:'```rust\nprintln!("hello");\n```'}});finish('end_turn');},180);
  }else if(method==='session/cancel')finish('cancelled');
- else if(id===permission){send({method:'session/update',params:{sessionId:'fixture-session',update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:'Permission handled'}}}});finish('end_turn');}
+ else if(id===permission){send({method:'session/update',params:{sessionId:'fixture-session',update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:`Permission handled: ${message.result.outcome.optionId}`}}}});finish('end_turn');}
  else if(id!==undefined)send({id,error:{code:-32601,message:'Method not found'}});
 });
