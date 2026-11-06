@@ -171,8 +171,13 @@ test('loading and navigation failures recover while keyboard, locale and appeara
   await expect(frame.getByRole('alert')).toContainText('暂时无法打开该页面');
   await page.evaluate(() => { window.failNavigation = false; });
   await frame.getByRole('button', { name: '管理执行节点', exact: true }).click();
+  await page.evaluate(() => { window.failNavigation = true; });
   await frame.getByRole('button', { name: '软件环境', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => window.hostNavigations)).toEqual(['/workers', '/workers', '/apps/environments']);
+  await expect(frame.getByRole('alert')).toContainText('请在应用目录检查是否已启用');
+  await page.evaluate(() => { window.failNavigation = false; });
+  await frame.getByRole('button', { name: '打开应用目录', exact: true }).click();
+  await frame.getByRole('button', { name: '软件环境', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.hostNavigations)).toEqual(['/workers', '/workers', '/apps/environments', '/apps', '/apps/environments']);
   await frame.getByRole('tab', { name: '作业', exact: true }).focus();
   await page.keyboard.press('ArrowRight');
   await expect(frame.getByRole('tab', { name: '集群', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -196,6 +201,31 @@ test('loading and navigation failures recover while keyboard, locale and appeara
   await expect(frame.getByRole('button', { name: 'Add cluster draft', exact: true })).toBeInViewport({ ratio: 1 });
   assert.ok(await frame.locator('html').evaluate(node => node.scrollWidth <= innerWidth));
   await page.screenshot({ path: resolve(captures, 'clusters-narrow-dark-24px.png'), fullPage: true });
+});
+
+test('a pending cluster selection disables other choices until persistence completes', async t => {
+  const { frame, page, request, requests } = await fixture(t);
+  for (const name of ['Cluster A', 'Cluster B', 'Cluster C']) await request('/api/clusters', { name, host: `${name.at(-1).toLowerCase()}.example.test` });
+  await frame.getByRole('button', { name: '刷新配置', exact: true }).click();
+  await frame.getByRole('tab', { name: '集群', exact: true }).click();
+  const row = name => frame.locator('.compute-list .pero-list-open').filter({ hasText: name });
+  await expect(frame.getByRole('heading', { name: 'Cluster C', exact: true })).toBeVisible();
+  let release;
+  const pending = new Promise(resolvePending => { release = resolvePending; });
+  await page.route('**/api/selection', async route => { await pending; await route.continue(); }, { times: 1 });
+  await row('Cluster B').click();
+  await expect(row('Cluster A')).toBeDisabled();
+  await expect(row('Cluster C')).toBeDisabled();
+  await expect(frame.getByRole('status')).toContainText('正在保存集群选择');
+  // A native click on a disabled control cannot create another selection request.
+  await row('Cluster C').evaluate(button => button.click());
+  release();
+  await expect(frame.getByRole('heading', { name: 'Cluster B', exact: true })).toBeVisible();
+  await expect(row('Cluster C')).toBeEnabled();
+  assert.equal(requests.filter(item => item.path === '/api/selection').length, 1);
+  await row('Cluster C').click();
+  await expect(frame.getByRole('heading', { name: 'Cluster C', exact: true })).toBeVisible();
+  assert.equal(requests.filter(item => item.path === '/api/selection').length, 2);
 });
 
 test('an initial configuration failure is recoverable and never presented as an empty queue', async t => {

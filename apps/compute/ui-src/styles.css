@@ -16,6 +16,7 @@ html, body, #app { height: 100%; }
 .compute-help { color: var(--pero-text-muted); font-size: var(--pero-font-caption); overflow-wrap: anywhere; }
 .compute-split { flex: 1; min-height: 0; }
 .compute-list { overflow: auto; }
+.compute-cluster-choices { min-width: 0; margin: 0; padding: 0; border: 0; }
 .compute-list ul { list-style: none; margin: 0; padding: var(--pero-spacing-1); }
 .compute-list .pero-list-title { white-space: normal; overflow-wrap: anywhere; }
 .compute-list .pero-list-meta { white-space: normal; overflow-wrap: anywhere; }

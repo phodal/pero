@@ -39,7 +39,7 @@ export default function Compute() {
   async function open(path: string) {
     setError('');
     try { await navigate(path); }
-    catch (cause) { setError(String(cause)); setFailure('navigationFailed'); }
+    catch (cause) { setError(String(cause)); setFailure(path === '/apps/environments' ? 'environmentUnavailable' : 'navigationFailed'); }
   }
   useAppObject({ id: 'compute-workspace', kind: 'cluster-workspace', label: 'Compute',
     state: { loading, busy, clusters: state?.clusters ?? null, selectedClusterId: state?.selectedClusterId ?? null,
@@ -50,9 +50,11 @@ export default function Compute() {
   } actions={<><Button disabled={busy || loading} onClick={() => void refresh()}>{t('refresh')}</Button>
     {tab === 'clusters' && Boolean(state?.clusters.length) ? <Button variant="primary" disabled={busy} onClick={() => edit(null)}>{t('add')}</Button> : null}</>}>
     {loading && state ? <p className="compute-status" role="status">{t('refreshing')}</p> : null}
+    {busy && editing === undefined ? <p className="compute-status" role="status">{t('selecting')}</p> : null}
     {notice ? <p className="compute-status" role="status">{notice}</p> : null}
     {error && editing === undefined ? <div className="compute-recovery"><Feedback kind="error" variant="block">{t(failure)} {state && failure === 'loadFailed' ? t('retained') : ''}</Feedback>
       {failure === 'loadFailed' ? <Button disabled={loading || busy} onClick={() => void refresh()}>{t('retry')}</Button> : null}
+      {failure === 'environmentUnavailable' ? <Button onClick={() => void open('/apps')}>{t('manageApps')}</Button> : null}
       <details className="compute-error-details"><summary>{t('details')}</summary><p>{error}</p></details></div> : null}
     {!state ? loading ? <LoadingSkeleton label={t('loading')} className="compute-loading"><SkeletonText /></LoadingSkeleton> : null : <>
       <TabsContent value="jobs" className="compute-panel">
@@ -65,8 +67,8 @@ export default function Compute() {
           actions={<Button variant="primary" disabled={busy} onClick={() => edit(null)}>{t('add')}</Button>} />
           : <Split storageKey="pero.compute.cluster-width" collapseBelow={760} className="compute-split">
             <SplitPane id="compute-clusters" as="section" size={300} min={240} aria-label={t('clusters')} className="compute-list">
-              <ul>{state.clusters.map(cluster => <li key={cluster.id}><ListRow title={cluster.name} meta={<>{cluster.host} · {t('notConnected')}</>}
-                current={cluster.id === selected?.id} onOpen={() => { if (cluster.id !== selected?.id) void update('/api/selection', { clusterId: cluster.id }); }} /></li>)}</ul>
+              <fieldset className="compute-cluster-choices" disabled={busy} aria-label={t('clusters')}><ul>{state.clusters.map(cluster => <li key={cluster.id}><ListRow title={cluster.name} meta={<>{cluster.host} · {t('notConnected')}</>}
+                current={cluster.id === selected?.id} onOpen={() => { if (cluster.id !== selected?.id) void update('/api/selection', { clusterId: cluster.id }); }} /></li>)}</ul></fieldset>
             </SplitPane>
             <SplitPane id="compute-cluster-detail" as="section" min={320} className="compute-detail">
               {selected ? <Card tone="blue" variant="soft"><header className="compute-detail-header"><h2>{selected.name}</h2><Badge>{t('notConnected')}</Badge>
