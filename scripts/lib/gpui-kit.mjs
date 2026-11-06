@@ -10,7 +10,7 @@ if (!existsSync(resolve(source, 'crates/kit/Cargo.toml'))) {
   throw new Error('Set PERO_GPUI_KIT_PATH to your gpui-kit checkout (see desktop/README.md).');
 }
 export const kit = realpathSync(source);
-const patches = ['gpui-base-0.8.1-source-search.patch','gpui-base-0.8.1-edit-events.patch'].map(name=>resolve(root,'patches',name));
+const patches = ['gpui-base-0.8.1-source-search.patch','gpui-base-0.8.1-edit-events.patch','gpui-component-0.8.1-menu-height.patch'].map(name=>resolve(root,'patches',name));
 const version = readFileSync(resolve(kit, 'crates/base/Cargo.toml'), 'utf8');
 if (!/^version\s*=\s*"0\.8\.1"\s*$/m.test(version)) {
   throw new Error('The source-search patch requires gpui-base 0.8.1. Revalidate it before updating Kit.');

@@ -6,13 +6,15 @@ import { ensureUiStyles } from './ui-styles';
 export type CardProps = React.ComponentPropsWithoutRef<'div'> & {
   asChild?: boolean;
   unstyled?: boolean;
+  tone?: 'neutral' | 'blue' | 'apricot';
+  variant?: 'outline' | 'soft';
 };
 
 /** Decorative frame. Callers keep the native tag, title, and actions.
  * Compositions may set --pero-card-padding / --pero-card-background / --pero-card-border-color; the frame stays shared. */
-export const Card = forwardRef<HTMLElement, CardProps>(function Card({ asChild, unstyled, className, ...props }, ref) {
+export const Card = forwardRef<HTMLElement, CardProps>(function Card({ asChild, unstyled, tone = 'neutral', variant = 'outline', className, ...props }, ref) {
   const Surface = asChild ? Slot : 'div';
-  return <Surface {...props} className={['pero-ui-card', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined}
+  return <Surface {...props} className={['pero-ui-card', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined} data-tone={tone} data-variant={variant}
     ref={node => {
       if (node) ensureUiStyles(node.ownerDocument);
       if (typeof ref === 'function') ref(node);

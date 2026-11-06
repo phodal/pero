@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { createUiRuntime } from './ui-test-runtime.mjs';
 
 test('paragraph empty state keeps native text, ref, and ARIA without slots', async (t) => {
@@ -24,9 +25,9 @@ test('paragraph empty state keeps native text, ref, and ARIA without slots', asy
 });
 
 test('composed empty state slots submit through a native form', async (t) => {
-  const runtime = await createUiRuntime(t, 'empty-state');
+  const runtime = await createUiRuntime(t, { contents: "export * from './components/empty-state'; export * from './components/empty-illustration';", resolveDir: fileURLToPath(new URL('../src', import.meta.url)) });
   if (!runtime) return;
-  const { React, ui: { EmptyState }, render, click } = runtime;
+  const { React, ui: { EmptyState, EmptyIllustration }, render, click } = runtime;
   const h = React.createElement;
   let submits = 0;
   const ref = React.createRef();
@@ -34,7 +35,7 @@ test('composed empty state slots submit through a native form', async (t) => {
     onSubmit: event => { event.preventDefault(); submits += 1; },
   }, h(EmptyState, {
     ref,
-    icon: h('svg', { 'data-mark': 'mark' }),
+    icon: h(EmptyIllustration, { kind: 'data' }),
     heading: h('h2', null, 'Heading'),
     description: h('p', null, 'Details'),
     actions: h('button', { type: 'submit' }, 'Create'),
@@ -45,7 +46,9 @@ test('composed empty state slots submit through a native form', async (t) => {
   assert.equal(node.getAttribute('aria-live'), null);
   const icon = node.querySelector('.pero-ui-empty-icon');
   assert.equal(icon.getAttribute('aria-hidden'), 'true');
-  assert.equal(icon.querySelector('svg').getAttribute('data-mark'), 'mark');
+  assert.equal(icon.querySelector('svg').getAttribute('aria-hidden'), 'true');
+  assert.equal(icon.querySelector('svg').getAttribute('focusable'), 'false');
+  assert.equal(icon.querySelector('[tabindex], [role="status"], [role="img"], animate'), null);
   assert.equal(node.querySelector('.pero-ui-empty-heading').firstElementChild.tagName, 'H2');
   assert.equal(node.querySelector('.pero-ui-empty-description').firstElementChild.tagName, 'P');
   assert.equal(node.querySelector('.pero-ui-empty-actions > button').type, 'submit');

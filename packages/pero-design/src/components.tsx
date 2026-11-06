@@ -6,10 +6,10 @@ type RowClick = { onClick?(event: React.MouseEvent<HTMLButtonElement>): void; di
 export function SidebarRow({ label, count, lead, level = 'nav', selected, className = '', ...props }: RowClick & React.ButtonHTMLAttributes<HTMLButtonElement> & {
   label: React.ReactNode; count?: React.ReactNode; lead?: React.ReactNode; level?: 'nav' | 'sub'; selected?: boolean;
 }) {
-  return <button {...props} type="button" data-level={level} aria-current={selected ? 'page' : undefined} className={`pero-sidebar-row ${className}`}>
+  return <button {...props} type="button" aria-label={props['aria-label'] ?? (typeof label === 'string' ? label : undefined)} data-level={level} aria-current={selected ? 'page' : undefined} className={`pero-sidebar-row ${className}`}>
     <span className="pero-lead">{lead}</span>
     <span className="pero-sidebar-label">{label}</span>
-    {count != null && count !== '' && <Badge>{count}</Badge>}
+    {count != null && count !== '' && <span className="pero-sidebar-count">{count}</span>}
   </button>;
 }
 
@@ -29,11 +29,12 @@ export function ListRow({ title, meta, icon, badge, time, trailing, current, cla
   title: React.ReactNode; meta?: React.ReactNode; icon?: React.ReactNode; badge?: React.ReactNode; time?: React.ReactNode;
   trailing?: React.ReactNode; current?: boolean; className?: string; onOpen?(): void;
 }) {
+  const Content = onOpen ? 'button' : 'div';
   return <div className={`pero-list-row ${className}`} data-current={current ? 'true' : undefined}>
-    <button type="button" className="pero-list-open" onClick={onOpen}>
+    <Content type={onOpen ? 'button' : undefined} className="pero-list-open" onClick={onOpen}>
       <span className="pero-list-title">{title}</span>
       {(meta != null || icon || badge || time) && <span className="pero-list-meta">{icon}{badge}<span>{meta}</span>{time != null && <time>{time}</time>}</span>}
-    </button>
+    </Content>
     {trailing}
   </div>;
 }
@@ -46,8 +47,11 @@ export function ReaderFrame({ header, children, className = '', ...props }: Reac
   </article>;
 }
 
-export function Badge({ children, className = '', ...props }: React.HTMLAttributes<HTMLSpanElement>) {
-  return <span {...props} className={`pero-badge ${className}`}>{children}</span>;
+export function Badge({ children, tone = 'neutral', className = '', ...props }: React.HTMLAttributes<HTMLSpanElement> & {
+  /** Presentation only. Callers supply the domain status and its visible label. */
+  tone?: 'neutral' | 'info' | 'success' | 'warning' | 'error' | 'blue' | 'apricot';
+}) {
+  return <span {...props} data-tone={tone} className={`pero-badge ${className}`}>{children}</span>;
 }
 export function OutlineBadge({ children, className = '', ...props }: React.HTMLAttributes<HTMLSpanElement>) {
   return <span {...props} className={`pero-badge pero-badge-outline ${className}`}>{children}</span>;
@@ -56,7 +60,7 @@ export function Kbd({ children, className = '', ...props }: React.HTMLAttributes
   return <kbd {...props} className={`pero-kbd ${className}`}>{children}</kbd>;
 }
 
-/** One reading-surface panel. Rows inside are separated by a hairline. */
+/** Related settings grouped by spacing, without nested cards or row separators. */
 export function SettingsGroup({ label, children, className = '', ...props }: React.HTMLAttributes<HTMLElement> & { label?: React.ReactNode }) {
   return <section {...props} className={`pero-settings ${className}`}>
     {label != null && label !== '' && <h2 className="pero-settings-label">{label}</h2>}

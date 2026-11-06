@@ -48,6 +48,17 @@ colors:
     info: "#3C65A0"
     on-info: "#FFFFFF"
     info-bg: "#EEF3FC"
+    surface-hover: "#E5EDF3"
+    surface-pressed: "#D7E5ED"
+    action-pressed: "#00565C"
+    tint-blue-surface: "#F1F6FC"
+    tint-blue-soft: "#DFEAF9"
+    tint-blue-strong: "#3B6FD8"
+    tint-blue-text: "#31568A"
+    tint-apricot-surface: "#FCF5EC"
+    tint-apricot-soft: "#F8E6CF"
+    tint-apricot-strong: "#A35D27"
+    tint-apricot-text: "#80502E"
     disabled: "#E3EAF1"
     disabled-text: "#596B7D"
   dark:
@@ -79,6 +90,17 @@ colors:
     info: "#9ABCEB"
     on-info: "#0B1420"
     info-bg: "#1A2D46"
+    surface-hover: "#23384B"
+    surface-pressed: "#2D475B"
+    action-pressed: "#38B8C2"
+    tint-blue-surface: "#14263A"
+    tint-blue-soft: "#223D5C"
+    tint-blue-strong: "#8EB6F2"
+    tint-blue-text: "#BED5F5"
+    tint-apricot-surface: "#2A231F"
+    tint-apricot-soft: "#463325"
+    tint-apricot-strong: "#E7AC76"
+    tint-apricot-text: "#F1CEAD"
     disabled: "#293B4D"
     disabled-text: "#ACBBCB"
   data:
@@ -198,6 +220,27 @@ Pero 是围绕研究项目、资料、实验与结果组织的工作台。研究
 不是重复；截断的 Tab 名称也不能替代完整内容标题。每个操作区有清晰的主要动作。
 Select 选择值，Menu 执行动作；保留可识别的触发方式和原有键盘语义。
 
+## 图标
+
+图标应帮助识别对象和操作，在实际使用的小尺寸下清晰，与相邻图标具有一致的视觉重量。
+先查已有图标及语义映射；只有现有图形不能表达目标概念时才新增绘制。
+
+- **语义稳定。** 同一对象在侧栏、Tab 和列表中使用同一映射。为已知应用选择可识别的领域图形，通用网格仅作未知应用回退。关闭、删除、取消、停止等不同动作不能随意共用图形；不直观的动作保留文字。
+- **形态协调。** 操作图标沿用现有线性图标族的画布、描边、端点和转角。同一行统一容器尺寸并校正视觉居中；避免混入粗重实心、细线和拟物图形。应用标识可以有独立轮廓与颜色，但在小尺寸下仍需可辨。
+- **小尺寸优先。** 先检查实际侧栏、工具栏和 Tab 尺寸，再检查放大图。去掉缩小后粘连的细节、微小文字和多重叠加符号。图形尺寸与按钮点击区域分别处理，缩小图形不缩小可操作范围。
+- **颜色与状态。** 操作图标默认继承语义前景色，应用身份可使用稳定的局部配色；选中、焦点和禁用沿用控件状态。未知、加载、失败不能都画成同一个通用图标，状态不能只靠颜色区分。
+- **可访问名称。** 纯图标按钮由控件提供准确动作名称，切换后更新名称或状态；Tooltip 是补充。与文字重复的装饰图标不重复朗读，也不单独获得焦点。
+
+新增绘制前说明用途、相邻参考图标、目标显示尺寸、画布与描边、颜色角色、必要的状态变体。
+界面图标使用可维护的 SVG，按实际渲染器支持的能力绘制；GPUI 当前单色绘制不能用 Web
+中的多色预览冒充已支持。品牌插画与界面操作图标分别处理，避免将复杂位图缩成工具栏图标。
+
+Web 的公共 `Icon` 封装与语义名见 [icon.tsx](packages/app-sdk/src/components/icon.tsx) 和
+[icon-lucide.tsx](packages/app-sdk/src/components/icon-lucide.tsx)；跨端内容图标与主题约定见
+[共享图标库](packages/icons/README.md)。共享图形登记在 `packages/icons/catalog.json`，
+内容关联维护在 `packages/icons/content.json`，通过 `npm run gen:icons` 生成 Rust / TS 产物。
+保留来源和许可证；先为一个真实入口验证图形与映射，再扩展到其他入口。
+
 ## 来源与实现
 
 | 内容 | 维护入口 |
@@ -287,7 +330,7 @@ hover、pressed、selected 和 focus 按控件含义设计；选中是持续状�
 - 浅色链接与强调文字使用 `#00777D`，链接保留下划线。
 - 强调背景与文字使用 `accent-soft` / `accent-text` 配对，亮青使用 `on-accent` 深色文字。
 - 成功、警告、错误、信息使用各主题中的语义色，配明确文字或图标。实色状态背景使用对应 `on-*` 前景。
-- 装饰分隔使用 `border`；输入边界使用 `input-border`；键盘焦点使用 `focus`。
+- 装饰分隔使用 `border`；输入边界使用 `input-border`；键盘焦点使用 `focus`。文本输入、Textarea 与搜索框使用贴合边框的 1px `text-muted` 焦点细线；校验失败时保留 `error` 边界。
 
 默认侧栏使用 `surface-muted`，页面使用 `bg`，阅读面使用 `surface`。
 输入边界与焦点应清晰；分隔线、阴影和边框按分组与层级需要选择，避免叠加重复容器。

@@ -55,11 +55,16 @@ export type OkInspection = {
   rows: InspectionRow[];
 };
 export type Inspection = OkInspection | { status: 'invalid' | 'changed' | 'missing' | 'unsupported'; datasetId: string; assetId: string; message: string };
-export type InspectionOutcome = Inspection | { status: 'rejected' | 'unavailable'; message: string };
+export type InspectionOutcome = Inspection | { status: 'rejected' | 'unavailable' | 'forbidden'; message: string };
 export type ChartDataset = {
   datasetId: string; assetId: string; sha256: string; name: string; view: ViewSpec; viewId: string; parserVersion: string;
   fields: { name: string; kinds: string[] }[];
 };
+
+/** Only these catalog formats have a table/field inspection capability. */
+export function canInspect(asset: Pick<Asset, 'kind' | 'format'>): boolean {
+  return asset.kind === 'dataset' && ['csv', 'tsv', 'json', 'jsonl', 'json_lines', 'ndjson'].includes(asset.format.toLowerCase());
+}
 
 export function visibleDatasets(state: CatalogState, query: string, project: string, archived: boolean): Dataset[] {
   const term = query.trim().toLocaleLowerCase();

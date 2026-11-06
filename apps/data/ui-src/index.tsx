@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppApiError, AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, EmptyState, Feedback, SearchField, Select, Split, SplitPane } from '@pero/app-sdk/ui';
-import { availabilityLabel, emptyView, encodeBytes, fieldRule, formatBytes, querySchema, retainSelection, sampleRows, summary, visibleDatasets,
+import { AppApiError, AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
+import { AppFrame, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Progress, SearchField, Select, Split, SplitPane } from '@pero/app-sdk/ui';
+import { availabilityLabel, canInspect, emptyView, encodeBytes, fieldRule, formatBytes, querySchema, retainSelection, sampleRows, summary, visibleDatasets,
   type CatalogState, type Dataset, type Inspection, type InspectionOutcome, type OkInspection, type SavedView, type Selection, type ViewSpec } from './model';
 import { ImportDialog, type ImportDetails } from './import';
 import { Workspace } from './workspace';
+import { messages } from './i18n';
 import './styles.css';
 
-type InspectionSnapshot = { scope: string; view: ViewSpec; offset: number; result: InspectionOutcome };
+type InspectionSnapshot = { scope: string; attempt: number; view: ViewSpec; offset: number; result: InspectionOutcome };
 type Focus = { selection: Selection | null; view: ViewSpec; offset: number; parserVersion: string };
 type SourceBody = { datasetId: string; assetId: string; sha256: string; name: string; format: string; content: string };
 const focused = (selection: Selection | null, parserVersion: string): Focus => ({ selection, view: emptyView(), offset: 0, parserVersion });
@@ -21,6 +22,7 @@ function sourceKind(format: string) {
 
 export default function Data() {
   const api = useAppApi(), chat = useAppChat(), { active } = useAppContext();
+  const { t } = useAppI18n(messages);
   const [state, setState] = useState<CatalogState | null>(null);
   const [focus, setFocus] = useState<Focus>(focused(null, ''));
   const [query, setQuery] = useState(''), [project, setProject] = useState(''), [archived, setArchived] = useState(false);
@@ -36,11 +38,12 @@ export default function Data() {
   const dataset = visible.find(item => item.id === focus.selection?.datasetId) ?? null;
   const asset = dataset ? state?.assets.find(item => item.id === focus.selection?.assetId) ?? null : null;
   const selectedId = dataset?.id, assetId = asset?.id;
-  const inspectionScope = JSON.stringify([selectedId, assetId, asset?.sha256, asset?.availability, focus.parserVersion, inspectionEpoch]);
-  const sameInput = active && snapshot?.scope === inspectionScope ? snapshot : null;
-  const result = sameInput?.view === focus.view && sameInput.offset === focus.offset ? sameInput.result : null;
-  const fields = active && fieldSnapshot?.scope === inspectionScope && fieldSnapshot.result.status === 'ok' ? fieldSnapshot.result : null;
+  const inspectionScope = JSON.stringify([selectedId, assetId, asset?.sha256, asset?.availability, focus.parserVersion]);
+  const sameInput = snapshot?.scope === inspectionScope ? snapshot : null;
+  const result = sameInput?.attempt === inspectionEpoch && sameInput.view === focus.view && sameInput.offset === focus.offset ? sameInput.result : null;
+  const fields = fieldSnapshot?.scope === inspectionScope && fieldSnapshot.result.status === 'ok' ? fieldSnapshot.result : null;
   const ready = result?.status === 'ok' ? result : null;
+  const retained = fields && fieldSnapshot ? { result: fields, view: fieldSnapshot.view } : null;
   const canClearFilter = focus.parserVersion === state?.parserVersion && focus.view.filter !== null;
   const fail = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
 
@@ -49,7 +52,8 @@ export default function Data() {
     setFocus(previous => {
       if (next.selectedDatasetId && next.selectedAssetId) {
         home.current = false;
-        return focused({ datasetId: next.selectedDatasetId, assetId: next.selectedAssetId }, next.parserVersion);
+        return previous.selection?.datasetId === next.selectedDatasetId && previous.selection.assetId === next.selectedAssetId && previous.parserVersion === next.parserVersion
+          ? previous : focused({ datasetId: next.selectedDatasetId, assetId: next.selectedAssetId }, next.parserVersion);
       }
       if (home.current) return { ...previous, selection: null, parserVersion: next.parserVersion };
       const selection = retainSelection(next, previous.selection);
@@ -63,7 +67,14 @@ export default function Data() {
     try {
       const next = await api.get<CatalogState>('/api/state');
       if (generation === requests.current) { adopt(next); setError(''); if (recheck) setInspectionEpoch(value => value + 1); }
-    } catch (cause) { if (generation === requests.current) fail(cause); }
+    } catch (cause) {
+      if (generation === requests.current) {
+        fail(cause);
+        if (cause instanceof AppApiError && [401, 403].includes(cause.status)) {
+          setState(null); setSnapshot(null); setFieldSnapshot(null);
+        }
+      }
+    }
     finally { if (generation === requests.current) setLoading(false); }
   }, [api, adopt]);
 
@@ -78,13 +89,14 @@ export default function Data() {
   }, [active, state?.download?.status, refresh]);
 
   useEffect(() => {
-    if (!active || !selectedId || !assetId) { setSnapshot(null); setInspecting(false); return; }
+    if (!active) { setInspecting(false); return; }
+    if (!selectedId || !assetId || !asset || !canInspect(asset)) { setSnapshot(null); setFieldSnapshot(null); setInspecting(false); return; }
     let current = true;
     setInspecting(true);
     void api.post<Inspection>('/api/inspect', { datasetId: selectedId, assetId, view: focus.view,
       offset: focus.offset, limit: 50, parserVersion: focus.parserVersion }).then(value => {
       if (current) {
-        const next = { scope: inspectionScope, view: focus.view, offset: focus.offset, result: value };
+        const next = { scope: inspectionScope, attempt: inspectionEpoch, view: focus.view, offset: focus.offset, result: value };
         setSnapshot(next);
         if (value.status === 'ok') setFieldSnapshot(next);
         else if (value.status !== 'invalid') setFieldSnapshot(null);
@@ -98,17 +110,18 @@ export default function Data() {
           if (typeof body?.detail === 'string') message = body.detail;
         } catch { /* The proxy may return a non-JSON response. */ }
       }
-      setSnapshot({ scope: inspectionScope, view: focus.view, offset: focus.offset,
-        result: { status: cause instanceof AppApiError && cause.status === 400 ? 'rejected' : 'unavailable', message } });
-      setFieldSnapshot(null);
+      setSnapshot({ scope: inspectionScope, attempt: inspectionEpoch, view: focus.view, offset: focus.offset,
+        result: { status: cause instanceof AppApiError && [401, 403].includes(cause.status) ? 'forbidden'
+          : cause instanceof AppApiError && cause.status === 400 ? 'rejected' : 'unavailable', message } });
+      if (cause instanceof AppApiError && [401, 403, 404, 409].includes(cause.status)) setFieldSnapshot(null);
     }).finally(() => { if (current) setInspecting(false); });
     return () => { current = false; };
-  }, [active, selectedId, assetId, focus.view, focus.offset, focus.parserVersion, inspectionScope, api]);
+  }, [active, selectedId, assetId, focus.view, focus.offset, focus.parserVersion, inspectionScope, inspectionEpoch, api]);
 
   async function perform(work: () => Promise<unknown>) {
-    if (pending.current) return;
+    if (pending.current) return false;
     pending.current = true; requests.current += 1; setBusy(true); setError(''); setNotice('');
-    try { await work(); } catch (cause) { fail(cause); }
+    try { await work(); return true; } catch (cause) { fail(cause); return false; }
     finally { pending.current = false; setBusy(false); }
   }
 
@@ -123,7 +136,7 @@ export default function Data() {
     void perform(async () => {
       const next = await api.post<CatalogState>('/api/import', { name: file.name, ...details,
         content: encodeBytes(await file.arrayBuffer()), ...(importTarget ? { datasetId: importTarget.id } : {}) });
-      adopt(next); setQuery(''); setProject(''); setArchived(false); setImportTarget(undefined); setNotice('Saved to Data.');
+      adopt(next); setQuery(''); setProject(''); setArchived(false); setImportTarget(undefined); setNotice(t('saved'));
     });
   }
 
@@ -149,8 +162,9 @@ export default function Data() {
     setFocus(previous => ({ ...previous, view: next, offset }));
     const value = await api.post<Inspection>('/api/inspect', { datasetId: dataset.id, assetId: asset.id, view: next,
       offset, limit: 50, parserVersion: focus.parserVersion });
-    setSnapshot({ scope: inspectionScope, view: next, offset, result: value });
+    setSnapshot({ scope: inspectionScope, attempt: inspectionEpoch, view: next, offset, result: value });
     if (value.status !== 'ok') throw new Error(value.message);
+    setFieldSnapshot({ scope: inspectionScope, attempt: inspectionEpoch, view: next, offset, result: value });
     return value;
   }
 
@@ -192,56 +206,53 @@ export default function Data() {
     const id = item.id === dataset?.id && asset ? asset.id : item.versions[item.versions.length - 1];
     return state?.assets.find(entry => entry.id === id);
   };
-  return <AppFrame className="data-page" label="Data" aria-busy={busy} actions={<>
-    <Button variant="primary" disabled={!state || busy} onClick={() => { setError(''); setImportTarget(null); }}>Add data</Button>
-    {ready ? <>
-      <Button disabled={busy} onClick={() => void perform(() => loadSource())}>Source</Button>
-      <Button disabled={busy} onClick={() => void perform(() => exportRows())}>Export records</Button>
-      <Button variant="primary" disabled={busy || window.parent === window} onClick={() => void perform(() => chat.compose(
+  const openImport = () => { setError(''); setImportTarget(null); };
+  return <AppFrame className="data-page" label="Data" aria-busy={busy} actions={state?.datasets.length ? <>
+    <Button variant="primary" disabled={busy} onClick={openImport}>{t('addData')}</Button>
+    {ready || retained ? <>
+      <Button disabled={busy || !ready} onClick={() => void perform(() => loadSource())}>Source</Button>
+      <Button disabled={busy || !ready} onClick={() => void perform(() => exportRows())}>Export records</Button>
+      <Button variant="primary" disabled={busy || !ready || window.parent === window} onClick={() => void perform(() => chat.compose(
         'Analyze this dataset view. Check missingness and provenance, and support conclusions with record references.',
-        { attachments: [chat.objectReference('dataset-view', { datasetId: dataset!.id, assetId: asset!.id, sha256: asset!.sha256, viewId: ready.viewId ?? '', selectedCount: focus.view.selection.length })] }))}>Ask Agent</Button>
+        { attachments: [chat.objectReference('dataset-view', { datasetId: dataset!.id, assetId: asset!.id, sha256: asset!.sha256, viewId: ready?.viewId ?? '', selectedCount: focus.view.selection.length })] }))}>Ask Agent</Button>
       {window.parent !== window ? <Button variant="ghost" aria-label={showChat ? 'Close chat' : 'Open chat'} aria-expanded={showChat} onClick={() => setShowChat(value => !value)}>{showChat ? 'Close chat' : 'Open chat'}</Button> : null}
     </> : null}
-  </>}>
-    {error && importTarget === undefined ? <Feedback kind="error">{error} <Button disabled={busy} onClick={() => void refresh(true)}>Retry</Button></Feedback> : null}
+  </> : undefined}>
+    {error && state && state.datasets.length > 0 && importTarget === undefined ? <Feedback kind="error">{error} <Button disabled={busy} onClick={() => void refresh(true)}>{t('retry')}</Button></Feedback> : null}
     {notice ? <p className="data-notice" role="status">{notice}</p> : null}
     {download ? <div className="data-download" role="status">
-      <span>Download: {download.status} / {formatBytes(download.received)} / {formatBytes(download.total)}</span>
-      {download.status === 'running' ? <><progress aria-label="Download progress" value={download.received} max={download.total} />
-        <Button disabled={busy} onClick={() => void perform(async () => { adopt(await api.post<CatalogState>('/api/cancel', {})); setNotice('Cancellation requested.'); })}>Cancel download</Button></> : null}
+      <span>{t('download')}: {messages[download.status] ? t(download.status) : download.status} / {formatBytes(download.received)} / {formatBytes(download.total)}</span>
+      {download.status === 'running' ? <><Progress label={t('downloadProgress')} value={download.total > 0 ? download.received : undefined} max={download.total || 1} />
+        <Button disabled={busy} onClick={() => void perform(async () => { adopt(await api.post<CatalogState>('/api/cancel', {})); setNotice(t('cancelRequested')); })}>{t('cancelDownload')}</Button></> : null}
       {download.error ? <span>{download.error}</span> : null}
     </div> : null}
-    <Split storageKey="pero.data.catalog-width" collapseBelow={860}>
-      <SplitPane as="section" id="data-datasets" aria-label="Datasets" className="data-list" size={360} min={280} resizeLabel="Resize datasets">
-        <Button variant="ghost" className="data-all" aria-current={dataset ? undefined : 'page'} disabled={busy} onClick={() => { home.current = true; setFocus(previous => ({ ...previous, selection: null })); setShowChat(false); }}>All data</Button>
+    {loading ? <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton> : !state ? <Feedback kind="error" variant="block">{error || t('unavailable')} <Button onClick={() => void refresh(true)}>{t('retry')}</Button></Feedback>
+      : !state.datasets.length ? <EmptyState className="data-first-use" icon={<EmptyIllustration kind="data" />} heading={<h2>{t('emptyHeading')}</h2>} description={t('emptyDescription')}
+        actions={<Button variant="primary" disabled={busy} onClick={openImport}>{t('addData')}</Button>} />
+      : <Split storageKey="pero.data.catalog-width" collapseBelow={860}>
+      <SplitPane as="section" id="data-datasets" aria-label={t('datasets')} className="data-list" size={360} min={280} resizeLabel={t('resizeDatasets')}>
+        <Button variant="ghost" className="data-all" aria-current={dataset ? undefined : 'page'} disabled={busy} onClick={() => { home.current = true; setFocus(previous => ({ ...previous, selection: null })); setShowChat(false); }}>{t('allData')}</Button>
         <div className="data-tools">
-          <SearchField aria-label="Search data" placeholder="Search data" value={query} onChange={event => setQuery(event.target.value)} />
-          <div className="data-actions"><Select label="Project filter" value={project} onChange={setProject}
-            options={[{ value: '', label: 'All project references' }, ...projectRefs.map(ref => ({ value: ref, label: ref }))]} />
-            <label className="data-checkbox"><input type="checkbox" checked={archived} onChange={event => setArchived(event.target.checked)} /> Archived</label>
-            <Button disabled={busy} onClick={() => void refresh(true)}>Refresh</Button></div>
+          <SearchField aria-label={t('search')} placeholder={t('search')} value={query} onChange={event => setQuery(event.target.value)} />
+          <div className="data-actions"><Select label={t('projectFilter')} value={project} onChange={setProject}
+            options={[{ value: '', label: t('allProjects') }, ...projectRefs.map(ref => ({ value: ref, label: ref }))]} />
+            <label className="data-checkbox"><Checkbox checked={archived} onCheckedChange={value => setArchived(value === true)} /> {t('archived')}</label>
+            <Button disabled={busy} onClick={() => void refresh(true)}>{t('refresh')}</Button></div>
         </div>
         <div className="data-table-scroll">
-          {loading ? <p role="status">Loading data…</p> : !state ? <EmptyState heading="Data is unavailable" description="Retry the connection to your Data backend." /> : visible.length ? <table className="data-table">
-            <thead><tr><th scope="col">Name</th><th scope="col">Kind</th><th scope="col">Size</th><th scope="col">Versions</th><th scope="col">State</th></tr></thead>
-            <tbody>{visible.map(item => {
-              const current = versionFor(item);
-              return <tr key={item.id} aria-selected={item.id === dataset?.id} onClick={() => choose(item)}>
-                <td><button type="button" title={item.name} aria-pressed={item.id === dataset?.id} onClick={event => { event.stopPropagation(); choose(item); }}>{item.name}</button></td>
-                <td>{item.kind === 'model' ? 'Model' : 'Dataset'}</td>
-                <td>{current ? formatBytes(current.size) : '—'}</td>
-                <td>{item.versions.length}</td>
-                <td>{current ? availabilityLabel(current, result) : 'Missing'}</td>
-              </tr>;
-            })}</tbody>
-          </table> : <EmptyState heading={query || project ? 'No matches' : archived ? 'No archived datasets' : 'No data yet'} description={query || project ? 'Change the search or project filter.' : archived ? 'Archived datasets appear here.' : 'Add a file to start your data library.'} />}
+          {visible.length ? <ul className="data-catalog" aria-label={t('library')}>{visible.map(item => {
+            const current = versionFor(item);
+            return <li key={item.id}><ListRow title={item.name} current={item.id === dataset?.id} onOpen={() => choose(item)}
+              meta={<>{item.kind === 'model' ? 'Model' : 'Dataset'} · {current ? formatBytes(current.size) : 'Missing'} · {item.versions.length} {item.versions.length === 1 ? 'version' : 'versions'}
+                {current ? <> · {availabilityLabel(current, item.id === dataset?.id ? result : null)}</> : null}</>} /></li>;
+          })}</ul> : <EmptyState icon={<EmptyIllustration kind={query || project ? 'search' : 'data'} size="compact" />} heading={t(query || project ? 'noMatches' : archived ? 'noArchived' : 'noActive')} description={t(query || project ? 'filterHelp' : archived ? 'archivedHelp' : 'activeHelp')} />}
         </div>
       </SplitPane>
-      <SplitPane as="aside" id="data-preview" aria-label="Preview" className="data-preview">
+      <SplitPane as="aside" id="data-preview" aria-label={t('preview')} className="data-preview">
         <Split className="data-content" data-chat={showChat || undefined} storageKey="pero.data.chat-width" collapseBelow={820}>
           <SplitPane id="data-workspace" min={360} className="data-workspace">
-            {dataset && asset && state ? <Workspace key={`${dataset.id}:${asset.id}`} dataset={dataset} asset={asset} assets={state.assets}
-              views={state.views.filter(view => view.datasetId === dataset.id)} result={result} fields={fields} loading={inspecting} busy={busy}
+            {dataset && asset && state ? <Workspace key={`${dataset.id}:${asset.id}:${asset.sha256}:${asset.availability}:${focus.parserVersion}`} dataset={dataset} asset={asset} assets={state.assets}
+              views={state.views.filter(view => view.datasetId === dataset.id)} result={result} retained={retained} error={error} fields={fields} loading={inspecting} busy={busy}
               view={focus.view} parserVersion={focus.parserVersion} tab={tab} maxColumns={state.limits.columns} onTab={setTab}
               recoveryLabel={canClearFilter ? 'Clear filter' : 'Reset view'}
               onVersion={id => choose(dataset, id)} onView={next => { setError(''); setFocus(previous => ({ ...previous, view: next, offset: 0 })); }}
@@ -252,21 +263,21 @@ export default function Data() {
               }}
               onPage={offset => setFocus(previous => ({ ...previous, offset }))}
               onAddVersion={() => { setError(''); setImportTarget(dataset); }}
-              onEdit={value => { void perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, ...value })); setNotice(value.archived ? 'Archived. Original files remain stored.' : 'Saved.'); }); }}
+              onEdit={value => perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, ...value })); setNotice(value.archived ? 'Archived. Original files remain stored.' : 'Saved.'); })}
               onSave={name => { void perform(async () => { adopt(await api.post<CatalogState>('/api/views', { name, preview: { datasetId: dataset.id, assetId: asset.id, view: focus.view, parserVersion: focus.parserVersion } })); setNotice('View and checks saved against this exact version.'); }); }}
               onOpen={(saved: SavedView) => { home.current = false; setFocus({ selection: { datasetId: saved.datasetId, assetId: saved.assetId }, view: saved.view, offset: 0, parserVersion: saved.report.parserVersion }); setNotice('Opened the saved version and view. Current bytes are checked again.'); }}
               onExport={saved => { const source = state.assets.find(item => item.id === saved.assetId)!; downloadFile(`${saved.name.replace(/[^a-z0-9_-]+/gi, '-') || 'dataset'}-reference.json`, JSON.stringify({ schemaVersion: 1, type: 'pero-dataset-view', ...saved, source: { name: source.name, kind: source.kind, size: source.size, source: source.source, revision: source.revision, license: source.license, sha256: source.sha256, bundleId: source.bundleId, sourceId: source.sourceId } }, null, 2), 'application/json'); }}
               onRecord={row => void perform(() => loadSource(row))} />
-              : <EmptyState heading="No dataset selected" description="Select a dataset to inspect its files and versions." />}
+              : visible.length ? <EmptyState heading={t('noSelection')} description={t('selectionHelp')} /> : null}
           </SplitPane>
           <SplitPane id="data-conversation" min={280} size={360} resizeLabel="Resize chat" className="data-chat" hidden={!showChat}>
             {showChat ? <AppConversation fallback={<p role="status">Chat is unavailable here. Close and reopen it to retry.</p>} /> : null}
           </SplitPane>
         </Split>
       </SplitPane>
-    </Split>
+    </Split>}
     {importTarget !== undefined && state ? <ImportDialog state={state} target={importTarget} busy={busy} error={error}
       onClose={() => { if (!pending.current) setImportTarget(undefined); }} onImport={importFile}
-      onDownload={sourceId => void perform(async () => { adopt(await api.post<CatalogState>('/api/download', { sourceId })); setImportTarget(undefined); setNotice('Download started.'); })} /> : null}
+      onDownload={sourceId => void perform(async () => { adopt(await api.post<CatalogState>('/api/download', { sourceId })); setImportTarget(undefined); setNotice(t('downloadStarted')); })} /> : null}
   </AppFrame>;
 }

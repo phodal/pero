@@ -1,5 +1,5 @@
 import React from 'react';
-import { Icon, SidebarRow } from '@pero/app-sdk/ui';
+import { Icon, Select, SidebarRow } from '@pero/app-sdk/ui';
 import type { Translator } from './i18n';
 import type { ShelfFilter } from './shelf';
 
@@ -21,7 +21,13 @@ export function WorkspaceNav({ t, paperCount, readingCount, toReadCount, bundles
   onBundle(id: string): void;
 }) {
   const onPapers = libraryScreen === 'papers';
-  return <nav className="pa-workspace-nav" aria-label={t('papers')}>
+  const value = libraryScreen === 'bundle' && openBundleId ? `bundle:${openBundleId}` : libraryScreen === 'find' || libraryScreen === 'discovery' ? 'discover' : libraryScreen === 'results' ? 'results' : libraryScreen === 'papers' && shelfFilter !== 'all' ? shelfFilter : 'library';
+  return <><div className="pa-workspace-switch"><Select label={t('papers')} value={value} onChange={next => {
+    if (next === 'library') onLibrary(); else if (next === 'discover') onDiscover(); else if (next === 'results') onResults();
+    else if (next === 'reading' || next === 'to-read') onShelf(next); else if (next.startsWith('bundle:')) onBundle(next.slice(7));
+  }} options={[{ value: 'library', label: `${t('library')} (${paperCount})` }, { value: 'discover', label: t('discoverNav') }, { value: 'results', label: t('researchResults') },
+    { value: 'reading', label: `${t('statusReading')} (${readingCount})` }, { value: 'to-read', label: `${t('statusToRead')} (${toReadCount})` },
+    ...(shelfFilter === 'reviewed' ? [{ value: 'reviewed', label: t('statusReviewed') }] : []), ...bundles.map(bundle => ({ value: `bundle:${bundle.id}`, label: bundle.title }))]}/></div><nav className="pa-workspace-nav" aria-label={t('papers')}>
     <SidebarRow label={t('library')} count={paperCount} lead={<Icon name="list" size={15}/>} selected={(libraryScreen === 'papers' || libraryScreen === 'import') && shelfFilter === 'all'} onClick={onLibrary}/>
     <SidebarRow label={t('discoverNav')} lead={<Icon name="drafting-compass" size={15}/>} selected={libraryScreen === 'find' || libraryScreen === 'discovery'} onClick={onDiscover}/>
     <SidebarRow label={t('researchResults')} lead={<Icon name="file-text" size={15}/>} selected={libraryScreen === 'results'} onClick={onResults}/>
@@ -32,5 +38,5 @@ export function WorkspaceNav({ t, paperCount, readingCount, toReadCount, bundles
       <p className="pa-nav-label">{t('collections')}</p>
       {bundles.map(bundle => <SidebarRow key={bundle.id} label={bundle.title} lead={<Icon name="folder" size={15}/>} selected={libraryScreen === 'bundle' && openBundleId === bundle.id} onClick={() => onBundle(bundle.id)}/>)}
     </>}
-  </nav>;
+  </nav></>;
 }

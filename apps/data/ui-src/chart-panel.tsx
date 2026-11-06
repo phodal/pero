@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { downloadFile, openDocument, useAppApi, useAppContext, useAppObject } from '@pero/app-sdk';
-import { Button, FilePicker, Select } from '@pero/app-sdk/ui';
+import { AppApiError, downloadFile, openDocument, useAppApi, useAppContext, useAppObject } from '@pero/app-sdk';
+import { Button, Dialog, Feedback, FilePicker, Select } from '@pero/app-sdk/ui';
 import { mountChartSurface } from '../../../packages/app-sdk/src/chart-surface';
 import type { ChartDataset, ViewSpec } from './model';
 
@@ -39,8 +39,8 @@ function ChartSurface({ document }: { document: ChartDocument }) {
   return <div ref={container} className="data-chart-surface" />;
 }
 
-export function ChartPanel({ data, busy, aggregationControls, onActivate }: {
-  data: ChartDataset | null; busy: boolean; aggregationControls?: ReactNode; onActivate?: () => void;
+export function ChartPanel({ data, busy, inspectionPending, aggregationControls, onActivate }: {
+  data: ChartDataset | null; busy: boolean; inspectionPending: boolean; aggregationControls?: ReactNode; onActivate?: () => void;
 }) {
   const api = useAppApi();
   const [kind, setKind] = useState<Kind>('bar'), [mode, setMode] = useState<'aggregate' | 'records'>('aggregate');
@@ -49,13 +49,21 @@ export function ChartPanel({ data, busy, aggregationControls, onActivate }: {
   const [result, setResult] = useState<ChartResult | null>(null), [pending, setPending] = useState(false), [error, setError] = useState('');
   const [saved, setSaved] = useState<{ artifactId: string; title: string; type: string; source: string }[]>([]);
   const [savedOpen, setSavedOpen] = useState(!data), [savedLoading, setSavedLoading] = useState(false), [savedError, setSavedError] = useState('');
-  const serial = useRef(0);
+  const serial = useRef(0), retry = useRef<(() => Promise<unknown>) | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false), [resultScope, setResultScope] = useState<string | null>(null);
   const options = [{ value: '', label: 'Choose field' }, ...(data?.fields ?? []).map(field => ({ value: field.name, label: field.name }))];
   const chartView = JSON.stringify(data?.view);
+  const configuration = JSON.stringify([chartView, kind, mode, x, y, target, series, open, high, low, close]);
+  const retained = Boolean(result && (pending || inspectionPending || error || !data || (resultScope !== null && resultScope !== configuration)));
+  function failed(reason: unknown) {
+    setError(reason instanceof Error ? reason.message : String(reason));
+    if (reason instanceof AppApiError && [401, 403, 404, 409].includes(reason.status)) setResult(null);
+  }
   async function create(mapping?: Record<string, string>, useAggregation = mode === 'aggregate') {
     if (!data) throw new Error('Open a dataset first');
     const request = ++serial.current;
-    setPending(true); setError(''); setResult(null);
+    setPending(true); setError('');
+    retry.current = () => create(mapping, useAggregation);
     const chart = mapping ?? (mode === 'aggregate' ? { type: kind, x: 'label', y: 'value' }
       : kind === 'candlestick' ? { type: kind, x, open, high, low, close }
         : kind === 'sankey' ? { type: kind, x, y, target } : { type: kind, x, y, ...(kind === 'line' && series ? { series } : {}) });
@@ -64,13 +72,14 @@ export function ChartPanel({ data, busy, aggregationControls, onActivate }: {
         datasetId: data.datasetId, assetId: data.assetId, view: data.view, parserVersion: data.parserVersion,
         chartDocument: { title: data.name, chart }, ...(useAggregation && data.view.chart ? { aggregation: data.view.chart } : {}),
       });
-      if (request === serial.current) setResult(value);
+      if (request === serial.current) { setResult(value); setResultScope(configuration); }
       return value;
-    } catch (reason) { if (request === serial.current) setError(String(reason)); throw reason; }
+    } catch (reason) { if (request === serial.current) failed(reason); throw reason; }
     finally { if (request === serial.current) setPending(false); }
   }
   useEffect(() => {
-    ++serial.current; setPending(false); setResult(null); setError('');
+    ++serial.current; setPending(false);
+    if (data) setError('');
     if (mode === 'aggregate' && data?.view.chart) void create().catch(() => {});
   }, [data?.datasetId, data?.assetId, data?.parserVersion, data?.viewId, chartView, kind, mode]);
   async function listSaved() {
@@ -82,21 +91,23 @@ export function ChartPanel({ data, busy, aggregationControls, onActivate }: {
   useEffect(() => { if (savedOpen) void listSaved(); }, [savedOpen, result?.artifactId]);
   async function acceptDocument(content: string) {
     const request = ++serial.current;
-    setPending(true); setResult(null); setError('');
+    setPending(true); setError('');
+    retry.current = () => acceptDocument(content);
     try {
       const value = await api.post<ChartResult>('/api/chart/validate', { content });
-      if (request === serial.current) setResult(value);
+      if (request === serial.current) { setResult(value); setResultScope(null); }
       return value;
-    } catch (reason) { if (request === serial.current) setError(String(reason)); throw reason; }
+    } catch (reason) { if (request === serial.current) failed(reason); throw reason; }
     finally { if (request === serial.current) setPending(false); }
   }
   async function openSaved(id: string) {
     const request = ++serial.current;
-    setPending(true); setResult(null); setError('');
+    setPending(true); setError('');
+    retry.current = () => openSaved(id);
     try {
       const value = await api.get<ChartResult>(`/api/chart/${id}`);
-      if (request === serial.current) setResult(value);
-    } catch (reason) { if (request === serial.current) setError(String(reason)); }
+      if (request === serial.current) { setResult(value); setResultScope(null); }
+    } catch (reason) { if (request === serial.current) failed(reason); }
     finally { if (request === serial.current) setPending(false); }
   }
   async function showSource(record?: number) {
@@ -107,10 +118,12 @@ export function ChartPanel({ data, busy, aggregationControls, onActivate }: {
     await openDocument({ id: value.assetId, title: value.name, text: value.content, format: { kind: sourceFormat(value.format) }, ...(record === undefined ? {} : { location: { record } }) });
     return { dataset: value.datasetId, assetId: value.assetId, sha256: value.sha256 };
   }
-  useAppObject({ id: 'chart-document', kind: 'chart-document', label: 'Chart', state: { phase: result ? 'ready' : 'empty',
+  useAppObject({ id: 'chart-document', kind: 'chart-document', label: 'Chart', state: { phase: result ? retained ? 'retained' : 'ready' : pending ? 'loading' : 'empty', updating: pending || inspectionPending,
     ...(result ? { artifactId: result.artifactId, title: result.document.title, type: result.document.chart.type, source: result.document.source.label,
-      dataset: result.document.source.catalogDatasetId, datasetId: result.document.source.catalogDatasetId,
-      assetId: result.document.source.assetId, sha256: result.document.source.sha256, viewId: result.document.source.viewId } : {}) },
+      ...(result.document.source.catalogDatasetId ? { dataset: result.document.source.catalogDatasetId, datasetId: result.document.source.catalogDatasetId } : {}),
+      ...(result.document.source.assetId ? { assetId: result.document.source.assetId } : {}),
+      ...(result.document.source.sha256 ? { sha256: result.document.source.sha256 } : {}),
+      ...(result.document.source.viewId ? { viewId: result.document.source.viewId } : {}) } : {}) },
   actions: {
     render: { description: 'Validate and display a chart document. Its source label is a declaration, not verified dataset provenance.', parameters: { type: 'object', properties: { document: { type: 'string', maxLength: 65536 } }, required: ['document'], additionalProperties: false }, run: async params => {
       onActivate?.();
@@ -143,7 +156,8 @@ export function ChartPanel({ data, busy, aggregationControls, onActivate }: {
       </>}
     </div>}
     {pending && <p role="status">Preparing chart…</p>}
-    {error && <p role="alert" className="data-chart-error">{error}</p>}
+    {error && <Feedback kind="error">{error} {retry.current ? <Button disabled={busy || pending || inspectionPending} onClick={() => void retry.current?.().catch(() => {})}>Retry chart</Button> : null}</Feedback>}
+    {retained && <p className="data-retained" role="status">Showing the previous chart from {result!.document.source.label}. {pending || inspectionPending ? 'Updating; the current controls may differ.' : error ? 'The latest request failed; this chart has not been updated.' : 'Create a chart to apply the current controls.'}</p>}
     {data && !result && !pending && !error && <p className="data-muted">{mode === 'aggregate' ? 'Choose a grouping field.' : 'Choose chart fields.'}</p>}
     {result && <>
       <div className="data-chart-result-heading"><h3>{result.document.title}</h3><div className="data-chart-actions">
@@ -159,20 +173,23 @@ export function ChartPanel({ data, busy, aggregationControls, onActivate }: {
         {!!result.document.source.omittedGroups && <p>Omitted groups: {result.document.source.omittedGroups}</p>}
       </div>
       <details><summary>Chart data ({result.document.rows.length})</summary><div className="data-chart-table"><table><thead><tr>{columns.map(key => <th key={key} scope="col">{key}</th>)}</tr></thead><tbody>{result.document.rows.map((row, index) => <tr key={index}>{columns.map(key => <td key={key}>{key === result.document.chart.y && result.document.source.exactValues?.[index] !== undefined ? result.document.source.exactValues[index] : row[key] == null ? '—' : String(row[key])}</td>)}</tr>)}</tbody></table></div></details>
-      <details className="data-chart-source"><summary>Chart source</summary>
-        {result.document.description && <p>{result.document.description}</p>}
-        <p>Chart digest: <code>{result.artifactId}</code></p>
-        {result.document.source.catalogDatasetId && <>
-          <p>Dataset: <code>{result.document.source.catalogDatasetId}</code></p>
-          <p>Asset: <code>{result.document.source.assetId}</code></p>
-          <p>Source digest: <code>{result.document.source.sha256}</code></p>
-          <p>View: <code>{result.document.source.viewId}</code></p>
-          <details><summary>Filter and selection</summary><pre>{JSON.stringify({ view: result.document.source.view, aggregation: result.document.source.aggregation }, null, 2)}</pre></details>
-        </>}
-        {result.document.source.executedAt && <p>{result.document.source.executedAt}</p>}
-        {result.document.source.sql && <details><summary>SQL</summary><pre>{result.document.source.sql}</pre></details>}
-        {result.document.source.records && <details><summary>Source records ({result.document.source.records.length})</summary><ul>{result.document.source.records.map(record => <li key={record.ordinal}><button type="button" onClick={() => void showSource(record.ordinal).catch(reason => setError(String(reason)))}>{record.pointer}{record.line == null ? '' : ` (line ${record.line})`}</button></li>)}</ul></details>}
-      </details>
+      {result.document.source.records?.length ? <section className="data-chart-records" aria-label="Chart source records"><h4>Source records ({result.document.source.records.length})</h4>
+        <ul>{result.document.source.records.map(record => <li key={record.ordinal}><Button variant="ghost" disabled={pending || inspectionPending} onClick={() => void showSource(record.ordinal).catch(failed)}>{record.pointer || `Record ${record.ordinal + 1}`}{record.line == null ? '' : ` (line ${record.line})`}</Button></li>)}</ul>
+      </section> : null}
+      <Button variant="ghost" onClick={() => setDetailsOpen(true)}>Chart details</Button>
+      {detailsOpen ? <Dialog title="Chart source details" closeLabel="Close chart details" onClose={() => setDetailsOpen(false)}>
+        <div className="data-chart-source">
+          {result.document.description && <p>{result.document.description}</p>}
+          <dl className="data-facts"><dt>Chart digest</dt><dd><code>{result.artifactId}</code></dd>
+          {result.document.source.catalogDatasetId ? <><dt>Dataset</dt><dd><code>{result.document.source.catalogDatasetId}</code></dd>
+            <dt>Asset</dt><dd><code>{result.document.source.assetId}</code></dd>
+            <dt>Source digest</dt><dd><code>{result.document.source.sha256}</code></dd>
+            <dt>View</dt><dd><code>{result.document.source.viewId}</code></dd></> : null}</dl>
+          {result.document.source.executedAt && <p>{result.document.source.executedAt}</p>}
+          <h3>Filter and selection</h3><pre>{JSON.stringify({ view: result.document.source.dataView ?? result.document.source.view, aggregation: result.document.source.aggregation }, null, 2)}</pre>
+          {result.document.source.sql ? <><h3>SQL</h3><pre>{result.document.source.sql}</pre></> : null}
+        </div>
+      </Dialog> : null}
     </>}
     <section className="data-saved">
       <div className="data-saved-heading"><h2><Button variant="ghost" aria-expanded={savedOpen} aria-controls="data-saved-charts" onClick={() => setSavedOpen(value => !value)}>Saved charts</Button></h2>

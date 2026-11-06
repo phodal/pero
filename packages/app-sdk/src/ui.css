@@ -1,65 +1,12 @@
 @import "../../pero-design/src/tokens.css";
 @import "../../pero-design/src/components.css";
+@import "../../pero-design/src/shell.css";
 
 html, body, #app { margin: 0; min-height: 100%; font: var(--pero-font-body) system-ui, sans-serif; color: var(--pero-text); background: var(--pero-material-chrome); }
 button, input, select, textarea { font: inherit; color: inherit; }
 button, select, input[type=checkbox], input[type=range], summary { cursor: pointer; }
 button:disabled, input:disabled, select:disabled { cursor: default; opacity: .5; }
 :focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
-.pero-ui-button {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--pero-icon-gap);
-  max-width: 100%;
-  min-height: var(--pero-control-height);
-  padding: 0 var(--pero-space-3);
-  border: 1px solid var(--pero-border);
-  border-radius: var(--pero-radius-button);
-  background: var(--pero-material-reading);
-  color: var(--pero-text);
-  font-size: var(--pero-font-body);
-  font-weight: 500;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-.pero-ui-button:hover:not(:disabled, .primary) { background: var(--pero-fill-hover); }
-.pero-ui-button.primary { background: var(--pero-action); color: var(--pero-on-action); border-color: transparent; }
-.pero-ui-button.primary:hover:not(:disabled) { background: var(--pero-action-hover); }
-.pero-ui-button.ghost { background: transparent; border-color: transparent; }
-.pero-ui-button.ghost:hover:not(:disabled) { background: var(--pero-fill-hover); }
-.pero-ui-button.pero-icon-button { width: var(--pero-icon-button); height: var(--pero-icon-button); min-height: var(--pero-icon-button); padding: 0; }
-.pero-ui-button[aria-pressed=true] { color: var(--pero-text); background: var(--pero-fill-selected); border-color: transparent; }
-.pero-ui-input, .pero-ui-select {
-  box-sizing: border-box;
-  min-width: 0;
-  max-width: 100%;
-  min-height: var(--pero-control-height);
-  border: 1px solid var(--pero-input-border);
-  border-radius: var(--pero-radius-button);
-  padding: 1px var(--pero-space-3);
-  background: var(--pero-material-reading);
-  font-size: var(--pero-font-body);
-  line-height: 1.4;
-}
-.pero-ui-input { width: 100%; }
-input.pero-ui-input.pero-search {
-  height: var(--pero-control-height);
-  border: 0;
-  border-radius: var(--pero-radius-selection);
-  background: var(--pero-material-list);
-}
-textarea.pero-ui-input { height: auto; }
-.pero-ui-checkbox { accent-color: var(--pero-action); width: 14px; height: 14px; margin: 0; flex: none; }
-.pero-ui-field { display: grid; gap: var(--pero-icon-gap); min-width: 0; }
-.pero-ui-field > label, .pero-ui-field > small { overflow-wrap: anywhere; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
-.pero-ui-input[aria-invalid=true] { border-color: var(--pero-error); }
-.pero-ui-file-picker { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-space-2); min-width: 0; }
-.pero-ui-file-name { color: var(--pero-text-muted); font-size: var(--pero-font-caption); overflow-wrap: anywhere; min-width: 0; }
-.pero-ui-card { border: 0; border-radius: var(--pero-radius-panel); background: var(--pero-material-reading); min-width: 0; }
-.pero-ui-card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--pero-space-2); padding: var(--pero-space-2) var(--pero-space-3); }
-.pero-ui-card-actions { display: flex; gap: var(--pero-space-1); }
 .pero-ui-split {
   flex: 1;
   min-width: 0;
@@ -89,7 +36,8 @@ textarea.pero-ui-input { height: auto; }
   inset-inline-start: -3px;
   width: 7px;
 }
-.pero-ui-split-handle:hover,
+.pero-ui-split-handle:hover { background:var(--pero-text-muted); }
+.pero-ui-split-handle:hover::before { background:var(--pero-surface-hover); }
 .pero-ui-split-handle:focus-visible,
 .pero-ui-split[data-resizing] > .pero-ui-split-handle { background: var(--pero-focus); }
 .pero-ui-split[data-stacked] { flex-direction: column; }
@@ -125,18 +73,18 @@ textarea.pero-ui-input { height: auto; }
   gap: var(--pero-icon-gap);
   min-width: 0;
   min-height: 0;
-  padding: 2px var(--pero-space-3);
+  padding: 2px var(--pero-spacing-3);
   border-bottom: var(--pero-hairline);
   background: var(--pero-material-chrome);
 }
-.pero-app-bar-tools { display: flex; align-items: center; gap: var(--pero-icon-gap); min-width: 0; flex: 1; }
+.pero-app-bar-tools { display: flex; align-items: center; gap: var(--pero-icon-gap); min-width: 0; flex: 1 1 240px; flex-wrap:wrap; }
 .pero-app-bar-title { min-width: 0; }
 .pero-app-bar-title h1 {
   margin: 0;
   overflow: hidden;
   font: 600 var(--pero-font-heading)/1.25 system-ui, sans-serif;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap:anywhere;
+  white-space:normal;
 }
 .pero-app-bar-title p { margin: 0; color: var(--pero-text-muted); font: var(--pero-font-caption)/1.3 system-ui, sans-serif; }
 .pero-app-bar-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--pero-icon-gap); max-width: 100%; margin-inline-start: auto; }
@@ -152,46 +100,18 @@ textarea.pero-ui-input { height: auto; }
   white-space: nowrap;
   border: 0;
 }
-.pero-ui-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-icon-gap); min-width: 0; }
-.pero-ui-toolbar > * { min-width: 0; max-width: 100%; }
-.pero-ui-toolbar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-icon-gap); margin-inline-start: auto; max-width: 100%; }
-.pero-ui-feedback { padding: var(--pero-space-2) var(--pero-space-3); display: flex; align-items: center; gap: var(--pero-space-2); border: var(--pero-hairline); background: var(--pero-info-bg); color: var(--pero-text); border-radius: var(--pero-radius-button); }
-.pero-ui-feedback.error { background: var(--pero-error-bg); border-color: var(--pero-error); }
-.pero-ui-tabs-list { display: flex; align-items: center; gap: var(--pero-space-1); flex-wrap: wrap; }
-.pero-ui-tabs-trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--pero-icon-gap);
-  min-height: var(--pero-control-height);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  padding: var(--pero-space-1) var(--pero-space-2);
-  background: transparent;
-  color: var(--pero-text-muted);
-  font-size: var(--pero-font-body);
-  white-space: nowrap;
-}
-.pero-ui-tabs-trigger[aria-selected=true] { border-color: var(--pero-action); color: var(--pero-text); font-weight: 600; }
-.pero-ui-tabs-trigger:hover { background: var(--pero-fill-hover); }
-.pero-ui-disclosure > summary { min-height: var(--pero-row-nav); display: list-item; align-content: center; }
-.pero-ui-disclosure-body { padding: var(--pero-space-2) 0; }
-.pero-ui-result { padding: var(--pero-space-3); display: flex; flex-direction: column; gap: var(--pero-space-2); }
 .pero-ui-table-scroll { max-width: 100%; overflow: auto; }
-.pero-ui-result table { border-collapse: collapse; width: 100%; font-size: var(--pero-font-caption); }
-.pero-ui-result th, .pero-ui-result td { padding: var(--pero-space-2); text-align: start; border-bottom: var(--pero-hairline); }
-.pero-ui-result th { background: var(--pero-material-sidebar); font-weight: 600; }
-.pero-ui-result-source { font-size: var(--pero-font-caption); color: var(--pero-text-muted); overflow-wrap: anywhere; }
 
 .pero-standalone-reader { position: relative; box-sizing: border-box; width: 100%; height: 65vh; min-height: 280px; overflow: hidden; background: var(--pero-material-reading); }
 .pero-standalone-reader iframe { display: block; border: 0; width: 100%; height: 100%; }
-.pero-reader-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: var(--pero-space-2); flex-wrap: wrap; padding: var(--pero-space-3); background: var(--pero-material-reading); }
+.pero-reader-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: var(--pero-spacing-2); flex-wrap: wrap; padding: var(--pero-spacing-3); background: var(--pero-material-reading); }
 .pero-reader-status[hidden] { display: none; }
-.pero-reader-status button { font: inherit; color: inherit; background: var(--pero-material-reading); border: 1px solid var(--pero-border); border-radius: var(--pero-radius-button); padding: 0 var(--pero-space-3); min-height: var(--pero-control-height); }
+.pero-reader-status button { font: inherit; color: inherit; background: var(--pero-material-reading); border: 1px solid var(--pero-border); border-radius: var(--pero-radius-button); padding: 0 var(--pero-spacing-3); min-height: var(--pero-control-height); }
 .pero-standalone-document { box-sizing: border-box; width: 94vw; height: 90vh; max-width: 1600px; max-height: none; padding: 0; border: 0; color: var(--pero-text); background: var(--pero-material-reading); overflow: hidden; border-radius: var(--pero-radius-panel); }
 .pero-standalone-document[open] { display: flex; flex-direction: column; }
 .pero-standalone-document::backdrop { background: color-mix(in oklab, black 32%, transparent); }
-.pero-standalone-document > header { min-height: 44px; display: flex; align-items: center; gap: var(--pero-space-2); padding: 0 var(--pero-space-3); border-bottom: var(--pero-hairline); background: var(--pero-material-chrome); flex-shrink: 0; }
+.pero-standalone-document > header { min-height: 44px; display: flex; align-items: center; gap: var(--pero-spacing-2); padding: 0 var(--pero-spacing-3); border-bottom: var(--pero-hairline); background: var(--pero-material-chrome); flex-shrink: 0; }
 .pero-standalone-document > header strong { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pero-standalone-document > header button { font: inherit; min-height: var(--pero-icon-button); padding: 0 var(--pero-space-2); color: inherit; background: transparent; border: 0; border-radius: var(--pero-radius-button); }
+.pero-standalone-document > header button { font: inherit; min-height: var(--pero-icon-button); padding: 0 var(--pero-spacing-2); color: inherit; background: transparent; border: 0; border-radius: var(--pero-radius-button); }
 .pero-standalone-document-body { position: relative; flex: 1; min-height: 0; background: var(--pero-material-reading); }
 .pero-standalone-document-body iframe { width: 100%; height: 100%; border: 0; display: block; }

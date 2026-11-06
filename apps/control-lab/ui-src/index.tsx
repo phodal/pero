@@ -1,3 +1,4 @@
+import { AppBar, Button, Feedback, Select, Progress } from '@pero/app-sdk/ui';
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { EnvironmentInspector } from "@pero/app-sdk/ui";
 import {
@@ -9,8 +10,9 @@ import {
   useAppDataChanged,
   useAppObject,
 } from "@pero/app-sdk";
-import type { Capability, Experiment, Field, Summary, Template } from "./types";
+import type { Capability, Experiment, Summary, Template } from "./types";
 import { applyTranscriptDraft, draftRangeError, generationPrompt, matchingCandidate, parseGeneratedDraft, unsavedExperiment } from "./presentation";
+import { Specification } from "./specification";
 import { Results, Evidence } from "./results";
 import "./styles.css";
 const emptySchema = {
@@ -27,43 +29,6 @@ const generatedDraftSchema = {
   },
   additionalProperties: true,
 };
-function Fields({
-  fields,
-  values,
-  change,
-}: {
-  fields: Field[];
-  values: Record<string, number>;
-  change: (name: string, value: number) => void;
-}) {
-  return (
-    <>
-      {fields.map((field) => (
-        <label className="field" key={field.name}>
-          <span>
-            {field.label}
-            {field.unit && <small> ({field.unit})</small>}
-          </span>
-          <input
-            type="number"
-            required
-            aria-label={field.label}
-            min={field.min}
-            max={field.max}
-            step={field.name === "samples" ? 1 : "any"}
-            readOnly={field.min === field.max}
-            value={
-              Number.isNaN(values[field.name])
-                ? ""
-                : (values[field.name] ?? field.value)
-            }
-            onChange={(event) => change(field.name, event.target.valueAsNumber)}
-          />
-        </label>
-      ))}
-    </>
-  );
-}
 export default function ControlLab() {
   const api = useAppApi(),
     chat = useAppChat(),
@@ -79,11 +44,15 @@ export default function ControlLab() {
   const [budget, setBudget] = useState(6),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
+    [refreshing, setRefreshing] = useState(false),
+    [refreshError, setRefreshError] = useState(""),
+    [cancelRequested, setCancelRequested] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [draftError, setDraftError] = useState(""),
     [generating, setGenerating] = useState(false),
     [draft, setDraft] = useState<Record<string, number> | null>(null);
+  const templateInitialized = useRef(false);
   const selection = useRef(0),
     pending = useRef(false),
     pendingSelect = useRef<Record<string, number> | null>(null),
@@ -123,7 +92,7 @@ export default function ControlLab() {
       }>("/api/templates");
       setTemplates(data.templates);
       setCapabilities(data.capabilities);
-      if (data.templates[0]) chooseTemplate(data.templates[0]);
+      if (data.templates[0] && !templateInitialized.current) { chooseTemplate(data.templates[0]); templateInitialized.current = true; }
       await refreshHistory();
     } catch (error) {
       onError(error);
@@ -144,8 +113,11 @@ export default function ControlLab() {
     return () => window.removeEventListener('message', receive);
   }, [api]);
   async function open(id: string) {
-    const revision = ++selection.current;
-    setBusy(true);
+    const sameObject = experimentNow.current?.id === id;
+    const revision = sameObject ? selection.current : ++selection.current;
+    if (sameObject) setRefreshing(true);
+    else setBusy(true);
+    setRefreshError("");
     setError("");
     try {
       const result = await api.get<Experiment>(
@@ -153,6 +125,8 @@ export default function ControlLab() {
       );
       if (revision === selection.current) {
         setExperiment(result);
+        if (!sameObject) {
+        setCancelRequested(false);
         setSelectedId(
           result.lockedCandidateId ??
             result.candidates.at(-1)?.id ??
@@ -161,11 +135,15 @@ export default function ControlLab() {
         setDraft(null);
         pendingSelect.current = null;
         setBudget(result.candidateBudget);
+        }
       }
     } catch (error) {
-      if (revision === selection.current) onError(error);
+      if (revision === selection.current) {
+        if (sameObject) setRefreshError(String(error instanceof Error ? error.message : error));
+        else onError(error);
+      }
     } finally {
-      if (revision === selection.current) setBusy(false);
+      if (revision === selection.current) { setBusy(false); setRefreshing(false); }
     }
   }
   useAppDataChanged(async () => {
@@ -189,11 +167,12 @@ export default function ControlLab() {
         );
         if (disposed || revision !== selection.current) return;
         setExperiment(next);
+        setRefreshError("");
         if (next.status === "running") timer = setTimeout(poll, 600);
         else await refreshHistory();
       } catch (error) {
         if (!disposed && revision === selection.current) {
-          onError(error);
+          setRefreshError(String(error instanceof Error ? error.message : error));
           timer = setTimeout(poll, 2000);
         }
       }
@@ -210,16 +189,15 @@ export default function ControlLab() {
     return () => clearTimeout(timer);
   }, [notice]);
   useEffect(() => {
-    if (!experiment || experiment.status === "running" || !pendingSelect.current) return;
-    const wanted = pendingSelect.current;
-    pendingSelect.current = null;
+    if (!experiment || busy || experiment.status === "running" || !pendingSelect.current) return;
     const names = Object.keys(experiment.searchSpace);
-    const match = matchingCandidate(experiment.candidates, wanted, names);
-    if (!match) return;
-    setSelectedId(match.id);
-    setDraft(null);
-    setNotice(experiment.error ? "Run finished with a solver error." : "Run finished.");
-  }, [experiment]);
+    const observed = experiment.candidates.filter(candidate => experiment.trials.some(trial => trial.phase === "search" && trial.candidateId === candidate.id));
+    const match = matchingCandidate(observed.reverse(), pendingSelect.current, names);
+    if (!match && !experiment.error) return;
+    pendingSelect.current = null;
+    if (match) { setSelectedId(match.id); setDraft(null); }
+    setNotice(experiment.status === "cancelled" ? "Run cancelled." : experiment.error ? "Run finished with a solver error." : "Run finished.");
+  }, [experiment, busy]);
   async function create(source?: Experiment) {
     if (pending.current) throw new Error("An operation is already pending.");
     pending.current = true;
@@ -279,12 +257,14 @@ export default function ControlLab() {
     if (loading || busy || generating || pending.current || !form?.reportValidity()) return;
     void create().catch(onError);
   }
+  useEffect(() => { if (!running) setCancelRequested(false); }, [running]);
   async function act(action: string, body: object = {}) {
     if (!experiment) throw new Error("Freeze a specification first.");
     if (pending.current) throw new Error("An operation is already pending.");
     pending.current = true;
     const revision = selection.current;
     const id = experiment.id;
+    if (action === "cancel") setCancelRequested(true);
     setBusy(true);
     setError("");
     try {
@@ -295,6 +275,9 @@ export default function ControlLab() {
       if (revision === selection.current) setExperiment(result);
       await refreshHistory();
       return result;
+    } catch (error) {
+      if (action === "cancel") setCancelRequested(false);
+      throw error;
     } finally {
       pending.current = false;
       setBusy(false);
@@ -304,6 +287,8 @@ export default function ControlLab() {
     if (pending.current) return;
     selection.current++;
     setExperiment(null);
+    setRefreshError("");
+    setCancelRequested(false);
     if (template) chooseTemplate(template);
     setDraft(null);
     pendingSelect.current = null;
@@ -421,7 +406,7 @@ export default function ControlLab() {
       setNotice(problem);
       return;
     }
-    const existing = matchingCandidate(current.candidates, parameters, names);
+    const existing = matchingCandidate(current.candidates.filter(candidate => current.trials.some(trial => trial.phase === "search" && trial.candidateId === candidate.id)).reverse(), parameters, names);
     if (existing) {
       setSelectedId(existing.id);
       setDraft(null);
@@ -543,24 +528,26 @@ export default function ControlLab() {
   const capability = capabilities.find(
     (item) => item.engine === (experiment ? templates.find((item) => item.id === experiment.templateId)?.engine : template?.engine),
   );
-  const canRun = Boolean((experiment || preview) && tunable.length && !busy && !running && !experiment?.lockedCandidateId);
+  const canRun = Boolean((experiment || preview) && tunable.length && capability?.available && !busy && !generating && !running && !experiment?.lockedCandidateId);
   return (
     <div className="control-lab" {...appObjectProps("control-lab")}>
-      <header>
-        <h1>Control Lab</h1>
-        <span className="engine-status" role="status">
-          {capability
-            ? capability.available
-              ? `${capability.engine} ${capability.version ?? "available"}`
-              : `${capability.engine} unavailable`
-            : "Engine status pending"}
-        </span>
-        <button disabled={!experiment || busy} onClick={() => experiment && void exportEvidence(experiment.id).catch(onError)}>Export</button>
-        <button className="primary" disabled={!canRun} onClick={() => void runDraft().catch(onError)}>
+      <h1 className="pero-visually-hidden">Control Lab</h1>
+      <AppBar title={experiment?.title} tools={<>
+        {!experiment && <Select label="Template" value={templateId} disabled={loading || busy || generating}
+          options={templates.map(item => ({ value: item.id, label: item.title }))}
+          onChange={value => { const item = templates.find(item => item.id === value); if (item) chooseTemplate(item); }}/>}
+        {!!history.length && <Select label="Open experiment" value={experiment?.id ?? ''} disabled={busy || generating}
+          options={[{ value: '', label: 'New draft' }, ...history.map(item => ({ value: item.id, label: item.title,
+            hint: `${new Date(item.createdAt).toLocaleString()} · ${item.report?.verdict ?? item.status}` }))]}
+          showHint onChange={value => value ? void open(value) : newExperiment()}/>}
+      </>} actions={<>
+        {capability?.available && <span title={`${capability.engine} ${capability.version ?? 'available'}`}><EnvironmentInspector targets={[capability.engine === 'ngspice' ? 'control-lab.ngspice' : 'control-lab.python-control']} /></span>}
+        {experiment && <Button disabled={busy} onClick={() => void exportEvidence(experiment.id).catch(onError)}>Export</Button>}
+        <Button variant="primary" disabled={!canRun} onClick={() => void runDraft().catch(onError)}>
           {running && experiment?.operation === "evaluate" ? "Running…" : "Run experiment"}
-        </button>
-        <button
-          disabled={!experiment || busy}
+        </Button>
+        {experiment && <Button
+          disabled={busy}
           onClick={() =>
             void chat
               .compose(
@@ -571,227 +558,53 @@ export default function ControlLab() {
           }
         >
           Approve goal and discuss
-        </button>
-        <button disabled={busy} onClick={newExperiment}>
+        </Button>}
+        <Button disabled={busy || generating} onClick={newExperiment}>
           New experiment
-        </button>
-      </header>
-      {notice && <p className="notice" role="status">{notice}</p>}
-      {draftError && <div className="error" role="alert">{draftError}</div>}
+        </Button>
+      </>}/>
+      {notice && <Feedback kind="info" variant="block">{notice}</Feedback>}
+      {draftError && <Feedback kind="error" variant="block">{draftError}</Feedback>}
       {error && (
-        <div className="error" role="alert">
+        <Feedback kind="error" variant="block">
           {error}{" "}
-          <button
+          <Button
             onClick={() =>
               experiment ? void open(experiment.id) : void initialize()
             }
           >
             Retry loading
-          </button>
-        </div>
+          </Button>
+        </Feedback>
       )}
       <div className="layout">
-        <aside>
-          <details className="experiment-history">
-          <summary>Experiments ({history.length})</summary>
-          {loading ? (
-            <p role="status">Loading templates and history…</p>
-          ) : !history.length ? (
-            <p className="muted">
-              Freeze a specification to save your first experiment.
-            </p>
-          ) : (
-            <ul className="history">
-              {history.map((item) => (
-                <li key={item.id}>
-                  <button
-                    disabled={busy}
-                    title={item.id}
-                    aria-current={experiment?.id === item.id}
-                    onClick={(event) => {
-                      const disclosure = event.currentTarget.closest("details");
-                      if (disclosure) disclosure.open = false;
-                      void open(item.id);
-                    }}
-                  >
-                    {item.title}
-                    <br />
-                    <small>
-                      {new Date(item.createdAt).toLocaleString()} —{" "}
-                      {item.report?.verdict ?? item.status}
-                    </small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          </details>
-          <details>
-            <summary>Engine availability</summary>
-            <EnvironmentInspector targets={['control-lab.python-control', 'control-lab.ngspice']} />
-            {capabilities.map((item) => (
-              <p key={item.engine}>
-                {item.engine}:{" "}
-                {item.available ? (item.version ?? "Available") : "Unavailable"}
-                {item.error && <span className="error"> {item.error}</span>}
-              </p>
-            ))}
-          </details>
-        </aside>
         <main aria-busy={loading || busy || generating}>
-          {!experiment && preview && (
-            <>
-              <p className="muted">Example setup from this template. Run saves it and records the response with the local solver.</p>
-              <Results
-                experiment={preview}
-                selectedId="baseline"
-                template={template}
-                draft={parameters}
-                onDraft={(values) => setParameters((prior) => ({ ...prior, ...values }))}
-                onSelect={() => {}}
-              />
-            </>
-          )}
-          {!experiment ? (
-            <section>
-              <div className="spec-heading">
-                <h2>Design specification</h2>
-                <div className="toolbar">
-                  <button
-                    type="button"
-                    disabled={loading || busy || generating || !template}
-                    onClick={() => void generateParameters()}
-                  >
-                    {generating ? "Generating…" : "Generate parameters"}
-                  </button>
-                  {generating && (
-                    <button type="button" onClick={cancelGeneration}>
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </div>
-              <form
-                onSubmit={(event) => event.preventDefault()}
-                onKeyDown={(event) => {
-                  if (
-                    event.key === "Enter" &&
-                    !event.nativeEvent.isComposing &&
-                    event.target instanceof HTMLInputElement
-                  ) {
-                    event.preventDefault();
-                    freezeSpecification(event.currentTarget);
-                  }
-                }}
-              >
-                <label>
-                  Template
-                  <select
-                    aria-label="Template"
-                    value={templateId}
-                    disabled={loading || busy || generating}
-                    onChange={(event) => {
-                      const item = templates.find(
-                        (item) => item.id === event.target.value,
-                      );
-                      if (item) chooseTemplate(item);
-                    }}
-                  >
-                    {templates.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {template && (
-                  <>
-
-                    {capability && !capability.available && (
-                      <p className="error">
-                        {capability.engine} is unavailable. You can freeze this
-                        specification, but execution needs the engine installed.{" "}
-                        {capability.error}
-                      </p>
-                    )}
-                    <fieldset disabled={busy || generating}>
-                      <legend>Plant and simulation</legend>
-                      <Fields
-                        fields={template.parameters.filter((field) => !preview?.searchSpace[field.name])}
-                        values={parameters}
-                        change={(name, value) =>
-                          setParameters((prior) => ({
-                            ...prior,
-                            [name]: value,
-                          }))
-                        }
-                      />
-                    </fieldset>
-                    <fieldset disabled={busy || generating}>
-                      <legend>Acceptance criteria</legend>
-                      <Fields
-                        fields={template.criteria}
-                        values={criteria}
-                        change={(name, value) =>
-                          setCriteria((prior) => ({ ...prior, [name]: value }))
-                        }
-                      />
-                    </fieldset>
-                    <details>
-                      <summary>
-                        Frozen scenarios ({template.scenarios.length})
-                      </summary>
-                      <ul>
-                        {template.scenarios.map((item) => (
-                          <li key={item.id}>
-                            {item.label} — {item.role}
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                    <label>
-                      Total candidate budget
-                      <input
-                        aria-label="Total candidate budget"
-                        type="number"
-                        required
-                        min="1"
-                        max={template.candidateBudgetMax}
-                        step="1"
-                        value={Number.isNaN(budget) ? "" : budget}
-                        disabled={busy || generating}
-                        onChange={(event) =>
-                          setBudget(event.target.valueAsNumber)
-                        }
-                      />
-                    </label>
-                    <p className="muted">Ledger limit: 80 attempts / 40,000 samples. Specification locks on freeze.</p>
-                    <button
-                      className="primary"
-                      type="button"
-                      onClick={(event) =>
-                        freezeSpecification(event.currentTarget.form)
-                      }
-                      disabled={busy || loading || generating}
-                    >
-                      {busy ? "Freezing…" : "Freeze specification"}
-                    </button>
-                  </>
-                )}
-              </form>
-            </section>
+          {capability && !capability.available && <div className="environment-notice">
+            <Feedback kind="warning" variant="block">{capability.engine} is unavailable. You can edit and freeze settings; execution requires a prepared environment. {capability.error}</Feedback>
+            <EnvironmentInspector targets={[capability.engine === 'ngspice' ? 'control-lab.ngspice' : 'control-lab.python-control']}/>
+          </div>}
+          {loading && <Feedback>Loading templates and history…</Feedback>}
+          {refreshing && <Feedback>Updating this experiment…</Feedback>}
+          {refreshError && <Feedback kind="warning" variant="block">Could not refresh this experiment. Showing the last loaded evidence. {refreshError}<Button onClick={() => experiment && void open(experiment.id)}>Retry refresh</Button></Feedback>}
+          {!experiment ? (preview && template && <Results
+            experiment={preview} selectedId="baseline" template={template} draft={parameters}
+            disabled={loading || busy || generating} onDraft={values => setParameters(prior => ({ ...prior, ...values }))} onSelect={() => {}}
+            setup={<Specification template={template} tunable={tunable} parameters={parameters} criteria={criteria} budget={budget}
+              disabled={loading || busy || generating} generating={generating}
+              onParameter={(name, value) => setParameters(prior => ({ ...prior, [name]: value }))}
+              onCriterion={(name, value) => setCriteria(prior => ({ ...prior, [name]: value }))}
+              onBudget={setBudget} onGenerate={() => void generateParameters()} onCancel={cancelGeneration} onFreeze={freezeSpecification}/>} />
           ) : (
             <>
               <section className="experiment-heading">
-                <div><h2>{experiment.title}</h2>
-                <span className="muted">Frozen specification: {experiment.status}
+                <div><span className="muted">Frozen specification: {experiment.status}
                   {experiment.operation && ` (${experiment.operation})`}
                 </span></div>
                 <div className="toolbar">
-                  <button disabled={busy || running} onClick={() => void create(experiment).catch(onError)}>
+                  <Button disabled={busy || running} onClick={() => void create(experiment).catch(onError)}>
                     Rerun as new experiment
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     disabled={busy || running || !!experiment.lockedCandidateId}
                     onClick={() =>
                       void act("search", {
@@ -800,24 +613,26 @@ export default function ControlLab() {
                     }
                   >
                     Run bounded search
-                  </button>
+                  </Button>
                   {running && (
-                    <button
-                      disabled={busy}
+                    <Button
+                      disabled={busy || cancelRequested}
                       onClick={() => void act("cancel").catch(onError)}
                     >
-                      {experiment.operation === "verify"
+                      {cancelRequested ? "Cancelling…" : experiment.operation === "verify"
                         ? "Cancel verification"
                         : experiment.operation === "evaluate"
                           ? "Cancel evaluation"
                           : "Cancel search"}
-                    </button>
+                    </Button>
                   )}
                 </div>
               </section>
-              {experiment.error && <p className="error" role="alert">{experiment.error}</p>}
+              {experiment.error && <Feedback kind="error" variant="block">{experiment.error}</Feedback>}
               <Results
+                key={`results-${experiment.id}`}
                 experiment={experiment}
+                disabled={busy || running || !!experiment.lockedCandidateId}
                 selectedId={selectedId}
                 template={templates.find((item) => item.id === experiment.templateId)}
                 draft={currentDraft}
@@ -826,8 +641,9 @@ export default function ControlLab() {
               />
               <section className="candidate-actions">
                 {running && (
+                  <div>
                   <p role="status">
-                    {experiment.operation === "verify"
+                    {cancelRequested ? "Cancelling" : experiment.operation === "verify"
                       ? "Verifying"
                       : experiment.operation === "evaluate"
                         ? "Evaluating proposal"
@@ -835,9 +651,11 @@ export default function ControlLab() {
                     : {experiment.progress.completed} /{" "}
                     {experiment.progress.total} trials
                   </p>
+                  <Progress label="Completed trials" value={experiment.progress.completed} max={Math.max(1, experiment.progress.total)} />
+                  </div>
                 )}
                 <div className="toolbar">
-                  <button
+                  <Button
                     disabled={
                       busy ||
                       running ||
@@ -851,26 +669,26 @@ export default function ControlLab() {
                     }
                   >
                     Lock candidate
-                  </button>
-                  <button
-                    className="primary"
+                  </Button>
+                  <Button
+                    variant="primary"
                     disabled={busy || running || !experiment.lockedCandidateId}
                     onClick={() => void act("verify").catch(onError)}
                   >
                     Verify locked candidate
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     disabled={busy || running || !experiment.report}
                     onClick={() => void act("reevaluate").catch(onError)}
                   >
                     Re-evaluate evidence
-                  </button>
+                  </Button>
                 </div>
                 <p className="muted">
                   Locking a candidate is permanent.
                 </p>
               </section>
-              <Evidence experiment={experiment} />
+              <Evidence key={`evidence-${experiment.id}`} experiment={experiment} />
             </>
           )}
         </main>

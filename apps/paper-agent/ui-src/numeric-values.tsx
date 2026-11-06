@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { appObjectProps, useAppChat, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { Button, Feedback } from '@pero/app-sdk/ui';
+import { Button, Checkbox, Input, Textarea, Select, Feedback } from '@pero/app-sdk/ui';
 import type { Api, PdfAnnotation, PdfSource } from './types';
 import { requestDoclingRuntime, type RuntimeComponent, type RuntimeStatus } from './docling-runtime';
 import './numeric-values.css';
@@ -181,7 +181,7 @@ export function NumericValues({ api, annotation, onSource, onLayoutSource }: { a
     <p className="pa-muted">{t('observation')}</p>
     <Button disabled={busy || loading} onClick={() => void perform(async () => { const result = await api.post<Extraction>('/api/numeric/extract', { annotationId: annotation.id }); setExtractionId(result.id); })}>{t('extract')}</Button>
     {extraction && <div>
-      {history && history.extractions.length > 1 && <label>{t('inspect')}<select value={extraction.id} disabled={busy} onChange={event => setExtractionId(event.target.value)}>{history.extractions.map((item, index) => <option key={item.id} value={item.id}>{index + 1}: {item.result.status}</option>)}</select></label>}
+      {history && history.extractions.length > 1 && <label>{t('inspect')}<Select label={t('inspect')} value={extraction.id} disabled={busy} onChange={setExtractionId} options={history.extractions.map((item, index) => ({ value: item.id, label: `${index + 1}: ${item.result.status}` }))}/></label>}
       <img src={extraction.imageUrl ?? `/api/annotations/${annotation.id}/image`} alt={t('source')}/>
       <p>{extraction.result.classification}: {extraction.result.status}</p>
       {['image_based', 'mixed'].includes(extraction.result.classification) && <p>{t('scannedRegion')}</p>}
@@ -199,27 +199,27 @@ export function NumericValues({ api, annotation, onSource, onLayoutSource }: { a
       <Button variant="ghost" disabled={busy || loading} onClick={() => { setPreviousId(undefined); setCandidateExtractionId(undefined); setPreviousAssessmentId(undefined); setIdentity(emptyIdentity); setTicks(''); setScale('auto'); setMultiplier('1'); setPixel(''); setSourceKind('figure'); setMethod('visual'); setRawText(''); setValue(''); setComparison(''); setComparisonText(''); setReviewer(''); setReason(''); setConfirmed(false); setTrendConfirmed(false); setAxisReviewed(false); setError(''); }}>{t('newCandidate')}</Button>
       {previousId && <p>{t('newResultHint')}</p>}
       <fieldset disabled={busy || loading}>
-        {(Object.keys(emptyIdentity) as (keyof Identity)[]).map(key => <label key={key}>{t(key)}<input value={identity[key]} maxLength={500} onChange={event => setIdentity(current => ({ ...current, [key]: event.target.value }))}/></label>)}
-        <label>{t('rawText')}<textarea value={rawText} maxLength={4000} rows={2} onChange={event => setRawText(event.target.value)}/></label>
-        <label>{t('value')}<input type="number" step="any" value={value} onChange={event => setValue(event.target.value)}/></label>
-        <label>{t('sourceKind')}<select value={sourceKind} onChange={event => setSourceKind(event.target.value)}>{(['figure', 'caption', 'table', 'text'] as const).map(key => <option key={key} value={key}>{t(key)}</option>)}</select></label>
-        <label>{t('method')}<select value={method} onChange={event => setMethod(event.target.value)}>{(['manual', 'native_text', 'ocr', 'visual', 'pixel_calibration'] as const).map(key => <option key={key} value={key}>{t(key)}</option>)}</select></label>
+        {(Object.keys(emptyIdentity) as (keyof Identity)[]).map(key => <label key={key}>{t(key)}<Input value={identity[key]} maxLength={500} onChange={event => setIdentity(current => ({ ...current, [key]: event.target.value }))}/></label>)}
+        <label>{t('rawText')}<Textarea value={rawText} maxLength={4000} rows={2} onChange={event => setRawText(event.target.value)}/></label>
+        <label>{t('value')}<Input type="number" step="any" value={value} onChange={event => setValue(event.target.value)}/></label>
+        <label>{t('sourceKind')}<Select label={t('sourceKind')} value={sourceKind} onChange={setSourceKind} options={(['figure', 'caption', 'table', 'text'] as const).map(key => ({ value: key, label: t(key) }))}/></label>
+        <label>{t('method')}<Select label={t('method')} value={method} onChange={setMethod} options={(['manual', 'native_text', 'ocr', 'visual', 'pixel_calibration'] as const).map(key => ({ value: key, label: t(key) }))}/></label>
         {(method === 'pixel_calibration' || sourceKind === 'figure') && <details><summary>{t('axis')}</summary>
-          <label>{t('ticks')}<textarea rows={4} value={ticks} placeholder={'0,0\n100,10\n200,20'} onChange={event => { setTicks(event.target.value); setAxisReviewed(false); }}/></label>
-          <label>{t('scale')}<select value={scale} onChange={event => { setScale(event.target.value); setAxisReviewed(false); }}>{(['auto', 'linear', 'log'] as const).map(key => <option key={key} value={key}>{t(key)}</option>)}</select></label>
-          <label>{t('multiplier')}<input type="number" step="any" value={multiplier} onChange={event => { setMultiplier(event.target.value); setAxisReviewed(false); }}/></label>
-          <label>{t('pixel')}<input type="number" step="any" value={pixel} onChange={event => setPixel(event.target.value)}/></label>
-          <label className="pa-numeric-check"><input type="checkbox" checked={axisReviewed} onChange={event => setAxisReviewed(event.target.checked)}/>{t('axisReviewed')}</label>
+          <label>{t('ticks')}<Textarea rows={4} value={ticks} placeholder={'0,0\n100,10\n200,20'} onChange={event => { setTicks(event.target.value); setAxisReviewed(false); }}/></label>
+          <label>{t('scale')}<Select label={t('scale')} value={scale} onChange={value => { setScale(value); setAxisReviewed(false); }} options={(['auto', 'linear', 'log'] as const).map(key => ({ value: key, label: t(key) }))}/></label>
+          <label>{t('multiplier')}<Input type="number" step="any" value={multiplier} onChange={event => { setMultiplier(event.target.value); setAxisReviewed(false); }}/></label>
+          <label>{t('pixel')}<Input type="number" step="any" value={pixel} onChange={event => setPixel(event.target.value)}/></label>
+          <label className="pa-numeric-check"><Checkbox checked={axisReviewed} onCheckedChange={checked => setAxisReviewed(checked === true)}/>{t('axisReviewed')}</label>
         </details>}
-        {(method === 'manual' || previousId) && <><label>{t('reviewer')}<input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label><label>{t('reason')}<textarea required rows={2} value={reason} maxLength={2000} onChange={event => setReason(event.target.value)}/></label></>}
-        <details><summary>{t('comparison')}</summary><label>{t('value')}<input type="number" step="any" value={comparison} onChange={event => setComparison(event.target.value)}/></label><label>{t('comparisonText')}<textarea rows={2} value={comparisonText} onChange={event => setComparisonText(event.target.value)}/></label></details>
+        {(method === 'manual' || previousId) && <><label>{t('reviewer')}<Input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label><label>{t('reason')}<Textarea required rows={2} value={reason} maxLength={2000} onChange={event => setReason(event.target.value)}/></label></>}
+        <details><summary>{t('comparison')}</summary><label>{t('value')}<Input type="number" step="any" value={comparison} onChange={event => setComparison(event.target.value)}/></label><label>{t('comparisonText')}<Textarea rows={2} value={comparisonText} onChange={event => setComparisonText(event.target.value)}/></label></details>
         <Button type="submit">{t('assess')}</Button>
       </fieldset>
     </form></details>
     {results.length > 1 && <nav aria-label={t('candidates')}><h4>{t('candidates')}</h4><ul>{results.map(({ assessment, evidence }) => <li key={assessment.id}><Button variant="ghost" aria-pressed={selected?.id === assessment.id} onClick={() => { setAssessmentId(assessment.id); setReport(null); }}>{evidence?.identity.metric || t('missing')}: {evidence?.value ?? '—'} {evidence?.identity.unit || t('missing')} / {evidence?.identity.series || t('missing')} / {evidence?.identity.condition || t('missing')} ({statusLabel(assessment.assessment.status)})</Button></li>)}</ul></nav>}
     {selected && <section aria-label={t('assessment')}>
       <h4>{t('result')}</h4>
-      <details><summary>{t('history')}</summary><label>{t('history')}<select value={selected.id} disabled={busy} onChange={event => { setAssessmentId(event.target.value); setConfirmed(false); setTrendConfirmed(false); setReport(null); }}>{history?.assessments.map((item, index) => <option key={item.id} value={item.id}>{index + 1}: {statusLabel(item.assessment.status)}</option>)}</select></label></details>
+      <details><summary>{t('history')}</summary><label>{t('history')}<Select label={t('history')} value={selected.id} disabled={busy} onChange={value => { setAssessmentId(value); setConfirmed(false); setTrendConfirmed(false); setReport(null); }} options={(history?.assessments ?? []).map((item, index) => ({ value: item.id, label: `${index + 1}: ${statusLabel(item.assessment.status)}` }))}/></label></details>
       <p role="status"><strong>{statusLabel(selected.assessment.status)}</strong></p>
       <ul>{selected.assessment.issues.filter(item => !['semantic_identity_unconfirmed', 'unit_unconfirmed', 'transcription_unconfirmed', 'explicit_review_required'].includes(item)).map((item, index) => <li key={index}>{["semantic_identity_missing", "semantic_identity_unconfirmed", "unit_unconfirmed", "unit_missing", "transcription_unconfirmed", "explicit_review_required", "numeric_value_missing", "raw_value_mismatch", "axis_calibration_missing", "point_pixel_missing", "value_not_calibrated_point", "invalid_correction_target", "source_conflict", "semantic_identity_mismatch", "insufficient_ticks", "ambiguous_scale", "axis_unit_unconfirmed", "axis_multiplier_unconfirmed", "axis_geometry_inconsistent", "declared_scale_inconsistent", "point_outside_axis", "tick_transcription_unconfirmed", "tick_transcription_mismatch", "tick_geometry_degenerate", "tick_values_not_monotonic", "reproduction_output_not_reference"].includes(item) ? t(item as 'unit_unconfirmed') : item}</li>)}</ul>
       <details><summary>{t('details')}</summary><p>{t('crosscheck')}: {selected.assessment.crossCheck.status === 'not_checked' ? t('notPerformed') : selected.assessment.crossCheck.status === 'no_conflict' ? t('no_conflict') : t('conflict')}</p>
@@ -231,11 +231,11 @@ export function NumericValues({ api, annotation, onSource, onLayoutSource }: { a
       <form onSubmit={event => { event.preventDefault(); void perform(() => assess(true)); }}>
         <h4>{t('review')}</h4><p>{t('reviewNote')}</p>
         <fieldset disabled={busy || loading}>
-          <details><summary>{t('reviewDetails')}</summary><label>{t('reviewer')}<input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label>
-          <label>{t('reason')}<textarea required value={reason} maxLength={2000} rows={2} onChange={event => setReason(event.target.value)}/></label></details>
-          {selected.evidence.some(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')) && <><details><summary>{t('axis')}</summary>{selected.evidence.filter(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')).map((item, index) => <p key={item.id ?? index}>{t('scale')}: {item.axis!.scale}; {t('unit')}: {item.identity.unit || t('missing')}; {t('multiplier')}: {item.axis!.multiplier}<br/>{t('ticks')}: {item.axis!.ticks.map(tick => `${tick.pixel},${tick.rawText}`).join(' / ')}<br/>{t('pixel')}: {item.axis!.pixel ?? t('missing')}</p>)}</details><label className="pa-numeric-check"><input type="checkbox" checked={reviewAxesConfirmed} onChange={event => setReviewAxesConfirmed(event.target.checked)}/>{t('axisReviewed')}</label></>}
-          <label className="pa-numeric-check"><input type="checkbox" checked={trendConfirmed} onChange={event => setTrendConfirmed(event.target.checked)}/>{t('trendReview')}</label>
-          <label className="pa-numeric-check"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/>{t('reviewed')}</label>
+          <details><summary>{t('reviewDetails')}</summary><label>{t('reviewer')}<Input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label>
+          <label>{t('reason')}<Textarea required value={reason} maxLength={2000} rows={2} onChange={event => setReason(event.target.value)}/></label></details>
+          {selected.evidence.some(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')) && <><details><summary>{t('axis')}</summary>{selected.evidence.filter(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')).map((item, index) => <p key={item.id ?? index}>{t('scale')}: {item.axis!.scale}; {t('unit')}: {item.identity.unit || t('missing')}; {t('multiplier')}: {item.axis!.multiplier}<br/>{t('ticks')}: {item.axis!.ticks.map(tick => `${tick.pixel},${tick.rawText}`).join(' / ')}<br/>{t('pixel')}: {item.axis!.pixel ?? t('missing')}</p>)}</details><label className="pa-numeric-check"><Checkbox checked={reviewAxesConfirmed} onCheckedChange={checked => setReviewAxesConfirmed(checked === true)}/>{t('axisReviewed')}</label></>}
+          <label className="pa-numeric-check"><Checkbox checked={trendConfirmed} onCheckedChange={checked => setTrendConfirmed(checked === true)}/>{t('trendReview')}</label>
+          <label className="pa-numeric-check"><Checkbox checked={confirmed} onCheckedChange={checked => setConfirmed(checked === true)}/>{t('reviewed')}</label>
           <Button type="submit" disabled={!confirmed || !reviewer.trim() || !reason.trim()}>{t('confirm')}</Button>
         </fieldset>
       </form>
@@ -324,7 +324,7 @@ function DoclingLayout({ api, annotationId, records, onSource, onSaved }: {
       <div className="pa-actions"><Button disabled={busy || checking} variant="ghost" onClick={() => setStatusAttempt(n => n + 1)}>{t('retry')}</Button><Button disabled={busy || checking || !status?.available} onClick={() => void readOrConvert()}>{t('convert')}</Button></div>
       {busy && <p role="status">{t(reading ? 'reading' : 'running')}</p>}
       {!selected && <p>{t('empty')}</p>}
-      {!!records.length && <label>{t('history')}<select disabled={busy} value={selected?.id ?? ''} onChange={event => { setSelectedId(event.target.value); setReadback(null); }}>{records.map((record, index) => <option key={record.id} value={record.id}>{index + 1}: {record.createdAt}</option>)}</select></label>}
+      {!!records.length && <label>{t('history')}<Select label={t('history')} disabled={busy} value={selected?.id ?? ''} onChange={value => { setSelectedId(value); setReadback(null); }} options={records.map((record, index) => ({ value: record.id, label: `${index + 1}: ${record.createdAt}` }))}/></label>}
       {selected && <Button disabled={busy} variant="ghost" onClick={() => void readOrConvert(selected)}>{t('reload')}</Button>}
       {layout && <>
         {selected?.result.ocr?.resultStatus === 'no_text_observed' && <Feedback kind="error">{t('emptyOcr')}</Feedback>}

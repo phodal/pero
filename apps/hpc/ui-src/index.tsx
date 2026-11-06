@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { appObjectProps, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from "@pero/app-sdk";
-import { Button, Icon, Input, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from "@pero/app-sdk/ui";
+import { AppBar, Button, Feedback, Icon, IconButton, Input, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from "@pero/app-sdk/ui";
 import { messages, type Message } from "./messages";
 import { ComparisonTable, RunEvidence, RunTable } from "./results";
 import { MethodSpec } from "./method";
@@ -148,14 +148,15 @@ export default function HpcBenchmarks() {
   });
 
   return <div className="hpc-app" {...appObjectProps("hpc-benchmarks")}>
-    <header className="app-header"><Icon name="circuit" size={18} /><h1>{t("title")}</h1>
-      <div className="toolbar"><Button variant="ghost" className="icon-button" aria-label={t("refresh")} title={t("refresh")} disabled={loading || busy} onClick={() => void refresh().catch(onError)}><Icon name="sync" size={14} /></Button>
+    <h1 className="visually-hidden">{t("title")}</h1>
+    <AppBar className="app-header" aria-label={t("title")} actions={<>
+      <IconButton label={t("refresh")} disabled={loading || busy} onClick={() => void refresh().catch(onError)}><Icon name="sync" size={16} /></IconButton>
         <Button className="discuss-button" aria-label={t("discuss")} title={t("discuss")} disabled={loading || !selectedBenchmark} onClick={() => void discuss().catch(onError)}><Icon name="agent" size={14} /><span>{t("discuss")}</span></Button>
-        <Button variant="primary" disabled={loading || busy || Boolean(active) || !selectedBenchmark?.available || !data?.runtime.reframeAvailable} onClick={() => void startRun()}><Icon name="play" size={14} />{t(selectedBenchmark?.available ? "run" : "runBenchmark")}</Button></div>
-    </header>
-    {notice && <div className="app-notice" role="status">{t(notice)}</div>}
-    {error && <div className="feedback feedback-error" role="alert"><span>{error}</span><Button onClick={() => void initialize()}>{t("reload")}</Button></div>}
-    {data && !data.runtime.reframeAvailable && <div className="feedback feedback-warning" role="status"><span>{data.runtime.message}</span><Button onClick={() => void initialize()}>{t("reload")}</Button></div>}
+        <Button variant="primary" disabled={loading || busy || Boolean(active) || !selectedBenchmark?.available || !data?.runtime.reframeAvailable} onClick={() => void startRun()}><Icon name="play" size={14} />{t(selectedBenchmark?.available ? "run" : "runBenchmark")}</Button>
+    </>}/>
+    {notice && <Feedback className="app-notice">{t(notice)}</Feedback>}
+    {error && <div className="app-feedback"><Feedback kind="error" variant="block">{error}</Feedback><Button onClick={() => void initialize()}>{t("reload")}</Button></div>}
+    {data && !data.runtime.reframeAvailable && <div className="app-feedback"><Feedback kind="warning" variant="block">{data.runtime.message}</Feedback><Button onClick={() => void initialize()}>{t("reload")}</Button></div>}
     {loading ? <main className="loading" role="status">{t("loading")}</main> : <Split storageKey="hpc:benchmark-explorer-width" collapseBelow={760} className="workbench">
       <SplitPane id="hpc-benchmarks" size={232} min={210} stackedBasis="auto" resizeLabel={t("methods")} as="aside" className="benchmark-explorer">
         <div className="explorer-header"><h2>{t("methods")}</h2><div className="benchmark-search"><Icon name="search" size={14} /><Input type="search" aria-label={t("search")} placeholder={t("search")} value={query} onChange={event => setQuery(event.target.value)} /></div></div>

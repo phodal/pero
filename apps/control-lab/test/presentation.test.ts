@@ -440,3 +440,15 @@ for (const phase of ["search", "verification"] as const) {
     }
   });
 }
+
+test('verification presentation separates not started, partial, failed and passed evidence', () => {
+  for (const [verdicts, expected] of [
+    [[], 'NOT_RUN'], [['NOT_RUN', 'NOT_RUN'], 'NOT_RUN'],
+    [['PASS', 'NOT_RUN'], 'INCONCLUSIVE'], [['PASS', 'INCONCLUSIVE'], 'INCONCLUSIVE'],
+    [['PASS', 'FAIL'], 'FAIL'], [['PASS', 'PASS'], 'PASS'],
+  ] as const) {
+    const summary = verdictSummary(verdicts.map(verdict => ({ verdict })), 2);
+    assert.equal(summary.verdict, expected);
+    assert.match(summary.detail, /2 (frozen )?scenarios/);
+  }
+});

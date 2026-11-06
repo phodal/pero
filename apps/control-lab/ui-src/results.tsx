@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import { Badge, Button, Card, Checkbox, Dialog, EmptyState, Feedback, Input, Select, RadioGroup, RadioGroupItem, Slider, Table, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import React, { useState } from "react";
 import { Split, SplitPane } from "@pero/app-sdk/ui";
 import type { Experiment, Report, Series, Template } from "./types";
 import {
@@ -17,32 +18,17 @@ import {
 } from "./presentation";
 
 export function Checks({ report }: { report: Report }) {
-  return (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Check</th>
-            <th>Verdict</th>
-            <th>Actual</th>
-            <th>Limit</th>
-            <th>Evidence</th>
-          </tr>
-        </thead>
-        <tbody>
-          {report.checks.map((check, index) => (
-            <tr key={index}>
-              <td>{check.name}</td>
-              <td className={`status ${check.verdict}`}>{check.verdict}</td>
-              <td>{numeric(check.actual)}</td>
-              <td>{numeric(check.limit)}</td>
-              <td>{check.message}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <Table label="Verification checks" density="compact" rows={report.checks.map((check, index) => ({ ...check, key: String(index) }))} rowId={row => row.key} columns={[
+    { id: 'name', header: 'Check', cell: row => row.name },
+    { id: 'verdict', header: 'Verdict', cell: row => <Badge tone={verdictTone(row.verdict)}>{row.verdict}</Badge> },
+    { id: 'actual', header: 'Actual', size: 90, meta: { align: 'end' }, cell: row => numeric(row.actual) },
+    { id: 'limit', header: 'Limit', size: 90, meta: { align: 'end' }, cell: row => numeric(row.limit) },
+    { id: 'evidence', header: 'Evidence', size: 240, cell: row => row.message },
+  ]} />;
+}
+
+function verdictTone(verdict: string) {
+  return verdict === 'PASS' ? 'success' : verdict === 'FAIL' ? 'error' : verdict === 'NOT_RUN' ? 'neutral' : 'warning';
 }
 
 function ticks(min: number, max: number, count: number) {
@@ -142,10 +128,14 @@ export function Results({
   draft,
   onDraft,
   onSelect,
+  setup,
+  disabled = false,
 }: {
   experiment: Experiment;
   selectedId: string;
   template?: Template;
+  setup?: React.ReactNode;
+  disabled?: boolean;
   draft: Record<string, number>;
   onDraft: (values: Record<string, number>) => void;
   onSelect: (id: string) => void;
@@ -155,12 +145,14 @@ export function Results({
   const [showBaseline, setShowBaseline] = useState(true);
   const [policyOpen, setPolicyOpen] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const { scenarios, scenario, selected, series } = responseComparison(experiment, selectedId, scenarioId);
+  const { scenarios, scenario, baseline, selected, series } = responseComparison(experiment, selectedId, scenarioId);
+  const hasTrials = experiment.trials.length > 0;
+  const hasResponses = experiment.trials.some(trial => trial.phase === "search" && trial.observation?.series.length);
   const signal = series.find((item) => item.name === signalName) ?? series[0];
   const candidate = experiment.candidates.find((item) => item.id === selectedId);
   const saved = candidate?.parameters ?? experiment.parameters;
-  const names = Object.keys(experiment.searchSpace);
+  const names = [...(template?.parameters.map(field => field.name) ?? []), ...Object.keys(experiment.searchSpace)]
+    .filter((name, index, all) => name in experiment.searchSpace && all.indexOf(name) === index);
   const dirty = names.some((name) => Math.abs((draft[name] ?? NaN) - (saved[name] ?? NaN)) > 1e-9);
   const verified = Boolean(experiment.lockedCandidateId && experiment.verificationOperationId);
   const phase = verified ? "verification" : "search";
@@ -177,12 +169,7 @@ export function Results({
     : experiment.templateId === "p-golden" || experiment.templateId === "pi-golden"
       ? "G(s) = 1 / (s + 1)" : "Sallen–Key low-pass";
   const fixed = Object.entries(experiment.parameters).filter(([name]) => !names.includes(name));
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (policyOpen && !dialog.open) dialog.showModal();
-    if (!policyOpen && dialog.open) dialog.close();
-  }, [policyOpen]);
+
 
   function focusConcept(concept: Concept) {
     setFocused(concept.name);
@@ -193,12 +180,12 @@ export function Results({
 
   return (
     <>
-      <Split className="workbench" storageKey="control-lab.results.panes" collapseBelow={980}>
-        <SplitPane as="section" id="model" className="model-panel panel" size={260} min={220} resizeLabel="Resize model setup">
+      <Split key={hasTrials ? "results" : "setup"} className="workbench" data-preparing={!hasTrials || undefined} storageKey={hasTrials ? "control-lab.results.panes" : "control-lab.setup.panes"} collapseBelow={hasTrials ? 1080 : 760}>
+        <SplitPane as="section" id="model" className="model-panel panel" size={setup ? 420 : 300} min={280} resizeLabel="Resize model setup">
           <h2>Model and setup</h2>
-          <div className="model-expression">{model}</div>
+          <Card tone="apricot" variant="soft" className="model-expression">{model}</Card>
           <p className="muted">{experiment.templateId === "active-filter" ? "Equal R/C, idealized op-amp" : "Continuous SISO, unit feedback"}</p>
-          {dirty && <p className="draft-label" role="status">Draft. The chart still shows the saved candidate.</p>}
+          {dirty && <Feedback kind="warning" variant="block">Draft. The chart still shows the saved candidate.</Feedback>}
           {names.map((name) => {
             const field = template?.parameters.find((item) => item.name === name);
             const range = experiment.searchSpace[name];
@@ -208,67 +195,71 @@ export function Results({
               <div className="param" key={name}>
                 <div className="param-head">
                   <label htmlFor={`${name}-value`}>{field?.label ?? name}</label>
-                  <input id={`${name}-value`} type="number" inputMode="decimal" aria-label={field?.label ?? name}
+                  <Input disabled={disabled} id={`${name}-value`} type="number" inputMode="decimal" aria-label={field?.label ?? name}
                     min={range.min} max={range.max} step={field?.step ?? "any"}
                     value={Number.isFinite(value) ? value : ""}
                     onChange={(event) => onDraft({ [name]: event.target.valueAsNumber })} />
                 </div>
-                <input type="range" aria-label={`${field?.label ?? name} slider`} min={range.min} max={range.max} step={field?.step ?? "any"}
+                <Slider disabled={disabled} aria-label={`${field?.label ?? name} slider`} min={range.min} max={range.max} step={field?.step ?? "any"}
                   value={slider} onChange={(event) => onDraft({ [name]: event.target.valueAsNumber })} />
                 <div className="slider-bounds"><span>{numeric(range.min)}</span><span>{numeric(range.max)}{field?.unit ? ` ${field.unit}` : ""}</span></div>
               </div>
             );
           })}
-          <dl className="facts">
+          {!setup && <dl className="facts">
             {fixed.map(([name, value]) => {
               const field = template?.parameters.find((item) => item.name === name);
               return <React.Fragment key={name}><dt>{field?.label ?? name}</dt><dd>{numeric(value)}{field?.unit ? ` ${field.unit}` : ""}</dd></React.Fragment>;
             })}
             <dt>Search cases</dt><dd>{experiment.scenarios.filter((item) => item.role === "search").length}</dd>
             <dt>Final cases</dt><dd>{rows.length}</dd>
-          </dl>
-          <button type="button" onClick={() => setPolicyOpen(true)}>View verification policy</button>
+          </dl>}
+          <Button type="button" onClick={() => setPolicyOpen(true)}>View verification policy</Button>
         </SplitPane>
         <SplitPane as="section" id="response" className="response-panel panel" min={300}>
+          {setup ?? <>
           <div className="panel-heading">
             <h2>Response analysis</h2>
-            <select aria-label="Response scenario" value={scenario?.id ?? ""} onChange={(event) => setScenarioId(event.target.value)}>
-              {scenarios.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
+            {hasResponses && <Select label="Response scenario" value={scenario?.id ?? ""} onChange={setScenarioId}
+              options={scenarios.map(item => ({ value: item.id, label: item.label }))}/>}
           </div>
-          <p className="muted">{candidate?.label ?? "Initial parameters"}{dirty ? " (saved run)" : ""}</p>
-          {series.length > 0 && <div className="signal-tabs" role="group" aria-label="Response signal">
-            {series.map((item) => <button key={item.name} type="button" aria-pressed={signal?.name === item.name}
-              onClick={() => setSignalName(item.name)}>{signalLabel(item.name)}</button>)}
-          </div>}
-          {signal ? <Curve {...signal} showBaseline={showBaseline} target={chartTarget(experiment.templateId, signal.name)} /> : <div className="chart-empty"><h3>No response yet</h3><p>Run the draft to compare candidates.</p></div>}
-          <div className="curve-legend">
-            <label className="baseline-toggle"><input type="checkbox" checked={showBaseline} onChange={(event) => setShowBaseline(event.target.checked)} /> Baseline</label>
-            <span className="candidate-key">Selected</span>
+          {candidate && <p className="muted">{candidate.label}{dirty ? " (saved run)" : ""}</p>}
+          {signal ? <Tabs value={signal.name} onValueChange={setSignalName}>
+            <TabsList aria-label="Response signal">{series.map(item => <TabsTrigger key={item.name} value={item.name}>{signalLabel(item.name)}</TabsTrigger>)}</TabsList>
+            {series.map(item => <TabsContent key={item.name} value={item.name}>
+              <Curve {...item} showBaseline={showBaseline} target={chartTarget(experiment.templateId, item.name)} />
+            </TabsContent>)}
+          </Tabs> : <EmptyState heading={experiment.status === 'running' ? 'Simulation running' : selected?.status === 'failed' ? 'Simulation failed' : selected?.status === 'cancelled' ? 'Simulation cancelled' : hasTrials ? 'No response for this scenario' : 'Ready for the first response'}
+            description={experiment.status === 'running' ? 'Completed observations will appear here.' : hasTrials ? 'Review execution evidence below. Missing observations do not establish a pass.' : 'Review the parameters and acceptance criteria, then choose Run experiment.'} />}
+          {signal && <div className="curve-legend">
+            {signal.baseline && <label className="baseline-toggle"><Checkbox checked={showBaseline} onCheckedChange={value => setShowBaseline(value === true)} /> Baseline</label>}
+            {signal.candidate && <span className="candidate-key">Selected</span>}
             {signal && chartTarget(experiment.templateId, signal.name) != null && <span className="target-key">Target</span>}
-          </div>
-          <div className="run-summary">
+          </div>}
+          {metrics.some(item => item.value != null) && <div className="run-summary">
             {metrics.map((item) => <div key={item.label}><strong>{numeric(item.value)}</strong><span>{item.label}</span></div>)}
-          </div>
-          {selected?.error && <p className="error" role="alert">{selected.error}</p>}
-          {selected?.report && <details className="search-checks"><summary>Selected search checks: {selected.report.verdict}</summary><Checks report={selected.report} /></details>}
+          </div>}
+          {selected?.error && <Feedback kind="error" variant="block">{selected.error}</Feedback>}
+          {baseline?.error && baseline !== selected && <Feedback kind="error" variant="block">Baseline: {baseline.error}</Feedback>}
+          {!hasTrials && <Card variant="soft" className="preflight-summary"><strong>Not yet verified</strong><p>{scenarios.length} search scenarios · {rows.length} final scenarios</p><p>{setup ? "Acceptance criteria remain editable until the specification is frozen." : "The acceptance criteria are frozen for this experiment."} A completed simulation is not a verified design.</p></Card>}
+          </>}
         </SplitPane>
-        <SplitPane as="section" id="verification" className="verification-panel panel" size={280} min={240} resizeLabel="Resize verification">
+        {hasTrials && <SplitPane as="section" id="verification" className="verification-panel panel" size={300} min={260} resizeLabel="Resize verification">
           <div className="panel-heading"><h2>Verification</h2><span className="muted">{verified ? "Final scenarios" : "Search evidence"}</span></div>
-          <div className={`verdict-header status ${summary.title === "All checks passed" ? "PASS" : summary.title.includes("failed") ? "FAIL" : "INCONCLUSIVE"}`}>
+          <div className={`verdict-header status ${summary.verdict}`}>
             <strong>{summary.title}</strong>
             <span>{summary.detail}</span>
           </div>
-          <div className="verify-list">
+          {summary.verdict !== "NOT_RUN" && <div className="verify-list">
             {concepts.map((concept) => (
-              <button type="button" key={concept.name} className={`check-row ${focused === concept.name ? "focused" : ""}`} onClick={() => focusConcept(concept)}>
+              <Button variant="unstyled" type="button" key={concept.name} className={`check-row ${focused === concept.name ? "focused" : ""}`} onClick={() => focusConcept(concept)}>
                 <span>{concept.name}</span>
-                <small>Limit {numeric(concept.limit)}</small>
-                <strong>{numeric(concept.actual)}</strong>
-                <span className={`verdict-pill ${concept.verdict}`}>{concept.verdict}</span>
-              </button>
+                {concept.limit != null && <small>Limit {numeric(concept.limit)}</small>}
+                {concept.actual != null && <strong>{numeric(concept.actual)}</strong>}
+                <Badge tone={verdictTone(concept.verdict)}>{concept.verdict}</Badge>
+              </Button>
             ))}
-          </div>
+          </div>}
           {focused && concepts.find((concept) => concept.name === focused) && (
             <p className="check-message">
               {concepts.find((concept) => concept.name === focused)?.message}
@@ -278,60 +269,44 @@ export function Results({
             </p>
           )}
           <p className="muted">Read-only policy. A check focuses a search scenario when that observation is on the chart.</p>
-          {experiment.report && <details><summary>Final report checks</summary><Checks report={experiment.report} /></details>}
+          {verified && <Table label="Final scenario coverage" density="compact" rows={rows} rowId={row => row.scenario.id} columns={[
+            { id: 'scenario', header: 'Final scenario', cell: row => row.scenario.label },
+            { id: 'state', header: 'Evidence', cell: row => <Badge tone={verdictTone(row.trial ? row.verdict : 'NOT_RUN')}>{row.trial ? `${row.trial.status} · ${row.verdict}` : 'Not run'}</Badge> },
+          ]}/>}
+          {experiment.report && <Checks report={experiment.report} />}
           <div className="suggestion">
             <div className="panel-heading"><h3>Suggested draft</h3><span className="muted">Suggested</span></div>
             <p>{suggestion.message}</p>
             {suggestion.values && (
               <div className="suggestion-actions">
                 <span>{names.map((name) => `${name} ${numeric(suggestion.values?.[name])}`).join(", ")}</span>
-                <button type="button" onClick={() => suggestion.values && onDraft(suggestion.values)}>Use proposal</button>
+                <Button type="button" onClick={() => suggestion.values && onDraft(suggestion.values)}>Use proposal</Button>
               </div>
             )}
           </div>
-        </SplitPane>
+        </SplitPane>}
       </Split>
-      <section className="candidate-panel panel">
+      {experiment.candidates.length > 0 && <section className="candidate-panel panel">
         <div className="panel-heading">
           <h2>Candidates {experiment.candidates.length}</h2>
           <span className="muted">{experiment.candidates.length} / {experiment.candidateBudget} slots</span>
         </div>
         {experiment.candidates.length ? (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Candidate</th>
-                  <th>{names.length ? names.join(" / ") : "Parameters"}</th>
-                  {worstMetrics(experiment, "").map((metric) => <th key={metric.label}>{metric.label}</th>)}
-                  <th>Search verdict</th>
-                </tr>
-              </thead>
-              <tbody>
-                {experiment.candidates.map((item) => (
-                  <tr key={item.id} className={selectedId === item.id ? "selected" : undefined} tabIndex={0} role="button"
-                    aria-pressed={selectedId === item.id} aria-label={`Select ${item.label}`}
-                    onClick={() => onSelect(item.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onSelect(item.id);
-                      }
-                    }}>
-                    <td>{item.label}{experiment.lockedCandidateId === item.id ? " (locked)" : ""}</td>
-                    <td>{names.length ? names.map((name) => numeric(item.parameters[name])).join(" / ") : "Fixed controller"}</td>
-                    {worstMetrics(experiment, item.id).map((metric) => <td key={metric.label}>{numeric(metric.value)}</td>)}
-                    <td><span className={`verdict-pill ${item.verdict}`}>{item.verdict}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : <p>No candidates yet. Run the draft to record the first one.</p>}
-      </section>
-      <dialog ref={dialogRef} className="policy-dialog" aria-label="Verification policy" onClose={() => setPolicyOpen(false)}>
-        <div className="panel-heading"><h2>Verification policy</h2><button type="button" onClick={() => setPolicyOpen(false)}>Close</button></div>
-        <p>Every listed condition uses the frozen criteria. A completed simulation is not a verified design.</p>
+          <RadioGroup aria-label="Selected candidate" value={selectedId} onValueChange={onSelect}>
+            <Table label="Candidates" density="compact" rows={experiment.candidates} rowId={item => item.id} columns={[
+              { id: 'candidate', header: 'Candidate', size: 200, cell: item => <label className="candidate-option"><RadioGroupItem value={item.id} />{item.label}{experiment.lockedCandidateId === item.id ? ' (locked)' : ''}</label> },
+              { id: 'parameters', header: names.length ? names.join(' / ') : 'Parameters', cell: item => names.length ? names.map(name => numeric(item.parameters[name])).join(' / ') : 'Fixed controller' },
+              ...worstMetrics(experiment, '').map((metric, index) => ({ metric, index }))
+                .filter(({ index }) => experiment.candidates.some(item => worstMetrics(experiment, item.id)[index]?.value != null))
+                .map(({ metric, index }) => ({ id: metric.label, header: metric.label, meta: { align: 'end' as const }, cell: (item: Experiment['candidates'][number]) => numeric(worstMetrics(experiment, item.id)[index]?.value) })),
+              { id: 'verdict', header: 'Search verdict', cell: item => <Badge tone={verdictTone(item.verdict)}>{item.verdict === 'NOT_RUN' ? 'Not run' : item.verdict}</Badge> },
+            ]} />
+          </RadioGroup>
+        ) : <EmptyState heading="No candidates yet" description="Run the draft to record the first one." />}
+      </section>}
+      {policyOpen && <Dialog title="Verification policy" closeLabel="Close verification policy" onClose={() => setPolicyOpen(false)}>
+
+        <Card tone="blue" variant="soft"><p>Every listed condition uses the frozen criteria. A completed simulation is not a verified design.</p></Card>
         {template?.criteria.map((field) => (
           <div className="meta-row" key={field.name}><span>{field.label}</span><strong>{numeric(experiment.criteria[field.name])}{field.unit ? ` ${field.unit}` : ""}</strong></div>
         ))}
@@ -347,18 +322,35 @@ export function Results({
           <summary>Specification hash and raw policy</summary>
           <pre>{JSON.stringify({ specHash: experiment.specHash, candidateBudget: experiment.candidateBudget, parameters: experiment.parameters, criteria: experiment.criteria, scenarios: experiment.scenarios }, null, 2)}</pre>
         </details>
-      </dialog>
+      </Dialog>}
     </>
   );
 }
 
 export function Evidence({ experiment }: { experiment: Experiment }) {
-  return <details className="evidence-panel">
-    <summary>Evidence ({experiment.trials.length} trials)</summary>
-    <p className="muted">Simulation evidence only; not physical validation.</p>
-    {experiment.trials.map((trial) => <details key={trial.id}>
-      <summary>{experiment.candidates.find((c) => c.id === trial.candidateId)?.label ?? trial.candidateId} / {trial.scenarioId} / {trial.phase}: {trial.status}, {trial.report?.verdict ?? "INCONCLUSIVE"}</summary>
-      {trial.error && <p className="error">{trial.error}</p>}<pre>{JSON.stringify(trial, null, 2)}</pre>
-    </details>)}
-  </details>;
+  const [trialId, setTrialId] = useState('');
+  const [rawOpen, setRawOpen] = useState(false);
+  const trial = experiment.trials.find(item => item.id === trialId) ?? experiment.trials.at(-1);
+  if (!trial) return null;
+  return <section className="evidence-panel" aria-label="Execution evidence">
+    <h2>Evidence · {experiment.trials.length} trials</h2>
+    <p className="muted">Simulation evidence only; not physical validation. Execution status and verification verdict are separate.</p>
+    <RadioGroup aria-label="Selected evidence" value={trial.id} onValueChange={setTrialId}>
+      <Table label="Execution evidence" density="compact" rows={experiment.trials} rowId={item => item.id} columns={[
+        { id: 'trial', header: 'Trial', size: 200, cell: item => <label className="candidate-option"><RadioGroupItem value={item.id}/>{experiment.candidates.find(candidate => candidate.id === item.candidateId)?.label ?? item.candidateId}</label> },
+        { id: 'scenario', header: 'Scenario', size: 200, cell: item => experiment.scenarios.find(scenario => scenario.id === item.scenarioId)?.label ?? item.scenarioId },
+        { id: 'phase', header: 'Phase', cell: item => item.phase },
+        { id: 'execution', header: 'Execution', cell: item => item.status },
+        { id: 'verdict', header: 'Verification', cell: item => item.report ? <Badge tone={verdictTone(item.report.verdict)}>{item.report.verdict}</Badge> : 'No check report' },
+      ]}/>
+    </RadioGroup>
+    <div className="evidence-detail">
+      <div className="panel-heading"><h3>{experiment.scenarios.find(item => item.id === trial.scenarioId)?.label ?? trial.scenarioId} · {trial.phase}</h3><Button onClick={() => setRawOpen(true)}>Raw evidence / hash</Button></div>
+      {trial.error && <Feedback kind="error" variant="block">{trial.error}</Feedback>}
+      {trial.observation && <p className="muted">{trial.observation.engine} {trial.observation.engineVersion} · observation {trial.observation.id}</p>}
+      {trial.observation?.diagnostics.map((message, index) => <Feedback key={index} kind="warning">{message}</Feedback>)}
+      {trial.report ? <Checks report={trial.report}/> : <Feedback>No check report is available for this trial.</Feedback>}
+    </div>
+    {rawOpen && <Dialog title="Raw execution evidence" closeLabel="Close raw evidence" size="lg" onClose={() => setRawOpen(false)}><p>Specification hash: {experiment.specHash}</p><pre>{JSON.stringify(trial, null, 2)}</pre></Dialog>}
+  </section>;
 }

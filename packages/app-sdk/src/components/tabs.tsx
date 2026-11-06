@@ -2,6 +2,8 @@
 import React, { forwardRef, useState } from 'react';
 import * as Primitive from '@radix-ui/react-tabs';
 import { ensureUiStyles } from './ui-styles';
+import { IconButton } from './icon-button';
+import { Icon } from './icon';
 
 const SelectionContext = React.createContext<string | undefined>(undefined);
 
@@ -33,11 +35,12 @@ export const Tabs = forwardRef<HTMLDivElement, TabsProps>(function Tabs({ unstyl
 });
 
 export type TabsListProps = Omit<React.ComponentPropsWithoutRef<typeof Primitive.List>, 'asChild'> & {
+  variant?: 'page' | 'content' | 'navigation';
   unstyled?: boolean;
 };
 
-export const TabsList = forwardRef<HTMLDivElement, TabsListProps>(function TabsList({ unstyled, className, ...props }, forwardedRef) {
-  return <Primitive.List {...props} asChild={false} className={classes('pero-ui-tabs-list', className)} data-unstyled={unstyled || undefined} ref={useUiRef(forwardedRef)} />;
+export const TabsList = forwardRef<HTMLDivElement, TabsListProps>(function TabsList({ unstyled, variant = 'page', className, ...props }, forwardedRef) {
+  return <Primitive.List {...props} asChild={false} className={classes('pero-ui-tabs-list', className)} data-variant={variant} data-unstyled={unstyled || undefined} ref={useUiRef(forwardedRef)} />;
 });
 
 export type TabsTriggerProps = Omit<React.ComponentPropsWithoutRef<typeof Primitive.Trigger>, 'asChild' | 'type' | 'id' | 'aria-controls'> & {
@@ -45,8 +48,14 @@ export type TabsTriggerProps = Omit<React.ComponentPropsWithoutRef<typeof Primit
 };
 
 /** Trigger id and aria-controls stay on Radix so the panel association is the one Radix renders. */
-export const TabsTrigger = forwardRef<HTMLButtonElement, TabsTriggerProps>(function TabsTrigger({ unstyled, className, ...props }, forwardedRef) {
-  return <Primitive.Trigger {...props} asChild={false} type="button" className={classes('pero-ui-tabs-trigger', className)} data-unstyled={unstyled || undefined} ref={useUiRef(forwardedRef)} />;
+export const TabsTrigger = forwardRef<HTMLButtonElement, TabsTriggerProps>(function TabsTrigger({ unstyled, className, onPointerDown, onKeyDown, onBlur, ...props }, forwardedRef) {
+  // WebKit can retain :focus-visible after Radix focuses a pointer-selected tab.
+  // Keep the ring for keyboard navigation, independently of the selected state.
+  const [pointerFocus, setPointerFocus] = useState(false);
+  return <Primitive.Trigger {...props} data-pointer-focus={pointerFocus || undefined}
+    onPointerDown={event => { setPointerFocus(true); onPointerDown?.(event); }}
+    onKeyDown={event => { setPointerFocus(false); onKeyDown?.(event); }}
+    onBlur={event => { setPointerFocus(false); onBlur?.(event); }} asChild={false} type="button" className={classes('pero-ui-tabs-trigger', className)} data-unstyled={unstyled || undefined} ref={useUiRef(forwardedRef)} />;
 });
 
 export type TabsContentProps = Omit<React.ComponentPropsWithoutRef<typeof Primitive.Content>, 'asChild' | 'id' | 'aria-labelledby'> & {
@@ -60,3 +69,31 @@ export const TabsContent = forwardRef<HTMLDivElement, TabsContentProps>(function
   return <Primitive.Content {...props} asChild={false} value={value} forceMount={forceMount ? true : undefined} hidden={!!hidden || !isSelected}
     className={classes('pero-ui-tabs-content', className)} data-unstyled={unstyled || undefined} ref={useUiRef(forwardedRef)} />;
 });
+
+export type ContentTabProps = Omit<TabsTriggerProps, 'children'> & {
+  label: string;
+  leading?: React.ReactNode;
+  pinned?: boolean;
+  preview?: boolean;
+  dirty?: boolean;
+  /** Localized state description, for example “Preview, unsaved”. */
+  stateLabel?: string;
+  closeLabel: string;
+  /** The workspace owns close confirmation and selection/focus after removal. */
+  onClose?: () => void;
+};
+
+/** Workspace tabs use the existing roving-focus Tabs primitive. Close is never nested in a button. */
+export function ContentTab({ label, leading, pinned, preview, dirty, stateLabel, closeLabel, onClose, onKeyDown, className, ...props }: ContentTabProps) {
+  return <div className="pero-content-tab" role="presentation" data-pinned={pinned || undefined}>
+    <TabsTrigger {...props} title={props.title ?? label} aria-label={label} aria-description={stateLabel}
+      className={['pero-content-tab-title', className].filter(Boolean).join(' ')} data-preview={preview || undefined}
+      onKeyDown={event => { onKeyDown?.(event); if (!event.defaultPrevented && event.key === 'Delete' && onClose) { event.preventDefault(); onClose(); } }}>
+      {leading && <span aria-hidden="true" className="pero-content-tab-leading">{leading}</span>}
+      <span className="pero-content-tab-label">{label}</span>
+      {dirty && <span className="pero-content-tab-dirty" aria-hidden="true"/>}
+      {pinned && <Icon name="pin" size={16} className="pero-content-tab-pin"/>}
+    </TabsTrigger>
+    {onClose && <IconButton className="pero-content-tab-close" label={`${closeLabel}: ${label}`} disabled={props.disabled} onClick={onClose}><Icon name="close" size={16}/></IconButton>}
+  </div>;
+}

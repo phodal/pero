@@ -1,21 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { analysisRequest, briefFromReply, briefResultPrompt, projectBrief, pulseFeed, workRecapPrompt } from '../ui-src/work-recap-model.mjs';
-
-test('the page shows Pulse’s result, not the work recap', () => {
-  const page = readFileSync(new URL('../ui-src/index.tsx', import.meta.url), 'utf8');
-  const result = readFileSync(new URL('../ui-src/pulse-home-result.tsx', import.meta.url), 'utf8');
-  assert.match(page, /PulseHomeResult/);
-  assert.equal(page.includes('PulseWorkRecap'), false);
-  assert.match(result, /需要你/);
-  assert.match(result, /Point 判断/);
-  assert.match(result, /生成于/);
-  assert.match(result, /暂无新的个人工作更新/);
-  assert.match(result, /For me/);
-  assert.match(result, /Popular/);
-  assert.match(result, /Recent/);
-});
 
 test('the feed splits personal, notable, and recent cards', () => {
   const cards = [

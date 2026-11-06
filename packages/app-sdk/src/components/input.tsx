@@ -20,6 +20,14 @@ export const MultiSelect = forwardRef<HTMLSelectElement, MultiSelectProps>(funct
     }} />;
 });
 
+/** A compact native selector for short, form-bound choices; keeps the platform indicator. */
+export const NativeSelect = forwardRef<HTMLSelectElement, React.ComponentPropsWithoutRef<'select'>>(function NativeSelect({className, ...props}, ref) {
+  return <select {...props} className={['pero-ui-input', 'pero-ui-native-select', className].filter(Boolean).join(' ')} ref={node => {
+    if (node) ensureUiStyles(node.ownerDocument);
+    if (typeof ref === 'function') ref(node); else if (ref) ref.current = node;
+  }}/>;
+});
+
 /** Text-like native inputs; checkbox, radio and other control families keep their own semantics. */
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ unstyled, className, ...props }, ref) {
   return <input {...props} className={['pero-ui-input', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined}
@@ -42,23 +50,30 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
 export type FilePickerProps = {
   label: string;
   emptyLabel: string;
-  accept: string;
+  accept?: string;
+  /** Use in an AppBar when the current file already has its own selector. */
+  compact?: boolean;
+  variant?: React.ComponentProps<typeof Button>['variant'];
+  title?: string;
   disabled?: boolean;
   busy?: boolean;
-  onFile(file: File): void;
-};
+} & ({ multiple?: false; onFile(file: File): void } | { multiple: true; onFiles(files: File[]): void });
 
 /** A translated native file choice. File validation and import belong to the App. */
-export function FilePicker({ label, emptyLabel, accept, disabled, busy, onFile }: FilePickerProps) {
+export function FilePicker(props: FilePickerProps) {
+  const {label, emptyLabel, accept, disabled, busy, compact, variant, title} = props;
   const input = useRef<HTMLInputElement>(null);
   const [name, setName] = useState('');
-  return <div className="pero-ui-file-picker">
-    <input ref={input} type="file" aria-label={label} accept={accept} disabled={disabled || busy} hidden onChange={event => {
-      const file = event.target.files?.[0];
+  return <div className="pero-ui-file-picker" data-compact={compact || undefined}>
+    <input ref={input} type="file" multiple={props.multiple} aria-label={label} accept={accept} disabled={disabled || busy} hidden onChange={event => {
+      const files = Array.from(event.target.files ?? []);
       event.target.value = '';
-      if (file) { setName(file.name); onFile(file); }
+      if (files.length) {
+        setName(files.map(file => file.name).join(', '));
+        if ('onFiles' in props) props.onFiles(files); else props.onFile(files[0]);
+      }
     }}/>
-    <Button disabled={disabled} busy={busy} onClick={() => input.current?.click()}>{label}</Button>
+    <Button variant={variant} title={title} disabled={disabled} busy={busy} onClick={() => input.current?.click()}>{label}</Button>
     <span className="pero-ui-file-name" role="status">{name || emptyLabel}</span>
   </div>;
 }

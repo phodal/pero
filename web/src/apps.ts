@@ -229,6 +229,10 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       const apply = async () => {
         if (!slot?.surface.visible) throw new Error('Open the App before using its Host presentation');
         const value = appPresentation(operation,input);
+        if (value.kind === 'session') {
+          if (!['insights', 'automations'].includes(frame.name)) throw new Error('This App cannot open Host sessions');
+          return command({action:'automation_session_open',sessionId:value.sessionId});
+        }
         if (value.kind === 'app') return command({action:'open',name:value.name,panel:value.panel});
         if (value.kind === 'page') return command({action:'sdkpage',page:value.page});
         if (value.kind === 'badge') return command({action:'sdkbadge',name:frame.name,count:value.count});

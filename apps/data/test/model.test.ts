@@ -107,3 +107,12 @@ test('semantic samples omit absent optional values and pass the SDK JSON boundar
     assert.equal(input.rows[0].cells[0].exact, exact);
   }
 });
+
+
+test('file capabilities distinguish supported tables from models and opaque files', async () => {
+  const { canInspect } = await import('../ui-src/model.ts');
+  assert.equal(canInspect({ kind: 'dataset', format: 'CSV' }), true);
+  assert.equal(canInspect({ kind: 'dataset', format: 'jsonl' }), true);
+  assert.equal(canInspect({ kind: 'model', format: 'json' }), false);
+  assert.equal(canInspect({ kind: 'dataset', format: 'bin' }), false);
+});

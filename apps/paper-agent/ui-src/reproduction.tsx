@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile } from '@pero/app-sdk';
-import { Button, Feedback, Input, EnvironmentInspector } from '@pero/app-sdk/ui';
+import { Button, Select, Feedback, Input, EnvironmentInspector } from '@pero/app-sdk/ui';
 import type { Api, PdfAnnotation } from './types';
 import type { Translator } from './i18n';
 
@@ -179,23 +179,18 @@ export function Reproduction({ api, annotation, initial, t }: { api: Api; annota
     </section>}
     <details open={!evidence?.items.length}>
       <summary>{t('reproductionFreeze')}</summary>
-      <label>{t('reproductionProfile')}<select value={profile} onChange={event => setProfile(event.target.value as typeof profile)}>
-        <option value="smoke">{t('reproductionSmoke')}</option><option value="table6">{t('reproductionTable6')}</option>
-      </select></label>
+      <label>{t('reproductionProfile')}<Select label={t('reproductionProfile')} value={profile} onChange={value => setProfile(value as typeof profile)} options={[{ value: 'smoke', label: t('reproductionSmoke') }, { value: 'table6', label: t('reproductionTable6') }]}/></label>
       <p>{t(profile === 'smoke' ? 'reproductionBudget' : 'reproductionTable6Budget')}</p>
       <label>{t('reproductionSeed')}<Input type="number" min={0} max={2147483647} step={1} value={seed} onChange={event => setSeed(event.target.value)} /></label>
       <p>{t('reproductionDiagnostic')}</p>
       <label>{t('reproductionPolicy')}<input readOnly value={policy ?? '—'} /></label>
-      <label>{t('reproductionRange')}<select value={mode} onChange={event => setMode(event.target.value as Comparison['mode'])}>
-        <option value="absolute">{t('reproductionAbsolute')}</option><option value="relative">{t('reproductionRelative')}</option><option value="bounds">{t('reproductionBounds')}</option>
-      </select></label>
+      <label>{t('reproductionRange')}<Select label={t('reproductionRange')} value={mode} onChange={value => setMode(value as Comparison['mode'])} options={[{ value: 'absolute', label: t('reproductionAbsolute') }, { value: 'relative', label: t('reproductionRelative') }, { value: 'bounds', label: t('reproductionBounds') }]}/></label>
       {mode === 'bounds' ? <><label>{t('reproductionLower')}<Input type="number" value={lower} onChange={event => setLower(event.target.value)} /></label><label>{t('reproductionUpper')}<Input type="number" value={upper} onChange={event => setUpper(event.target.value)} /></label></> :
         <label>{t('reproductionTolerance')}<Input type="number" min="0" step="any" value={tolerance} onChange={event => setTolerance(event.target.value)} /></label>}
       <Button onClick={() => void freeze()} disabled={busy || loading || !policy || !evidence?.executionAvailable || !!unresolved || uncertain || !/^\d+$/.test(seed) || Number(seed) > 2147483647}>{t('reproductionFreeze')}</Button>
     </details>
-    {!!evidence?.items.length && <label>{t('reproductionItem')}<select disabled={busy || uncertain || !!unresolved} value={selected?.item.id ?? ''} onChange={event => { setItemId(event.target.value); setAttemptId(''); setLaunch(null); setUncertain(false); setError(''); }}>
-      {evidence.items.map(row => <option key={row.item.id} value={row.item.id}>{row.item.policy} · {row.item.comparison.mode} · {row.item.id.slice(0, 10)}</option>)}
-    </select></label>}
+    {!!evidence?.items.length && <label>{t('reproductionItem')}<Select label={t('reproductionItem')} disabled={busy || uncertain || !!unresolved} value={selected?.item.id ?? ''} onChange={value => { setItemId(value); setAttemptId(''); setLaunch(null); setUncertain(false); setError(''); }}
+      options={evidence.items.map(row => ({ value: row.item.id, label: `${row.item.policy} · ${row.item.comparison.mode} · ${row.item.id.slice(0, 10)}` }))}/></label>}
     {selected && <>
       <p className="pa-muted">{selected.spec.profile} · {selected.spec.steps} steps · {selected.spec.episodes} × {selected.spec.samples} · {selected.spec.timeout_seconds}s · seed {selected.spec.seed}</p>
       <details><summary>{t('reproductionInputs')}</summary><code>{selected.item.spec_id}</code><pre>{JSON.stringify({ comparison: selected.item.comparison, spec: selected.spec }, null, 2)}</pre></details>
@@ -204,7 +199,7 @@ export function Reproduction({ api, annotation, initial, t }: { api: Api; annota
         <Button variant="ghost" onClick={() => { setError(''); void refresh(); }}>{t('reproductionRefresh')}</Button></div>
       {(launch || unresolved) && <p role="status">{t('reproductionExecution')}: {unresolved?.status ?? launchReceipt?.status ?? launch?.status ?? launch?.state ?? t('reproductionAwaiting')}</p>}
       {uncertain && <p role="status">{t('reproductionUnknown')}</p>}
-      {!!selected.attempts.length && <label>{t('reproductionAttempt')}<select value={attemptId} onChange={event => setAttemptId(event.target.value)}><option value="">—</option>{selected.attempts.map(attempt => <option key={attempt.attempt_id} value={attempt.attempt_id}>{attempt.status} · {attempt.attempt_id.slice(0, 10)}</option>)}</select></label>}
+      {!!selected.attempts.length && <label>{t('reproductionAttempt')}<Select label={t('reproductionAttempt')} value={attemptId} onChange={setAttemptId} options={[{ value: '', label: '—' }, ...selected.attempts.map(attempt => ({ value: attempt.attempt_id, label: `${attempt.status} · ${attempt.attempt_id.slice(0, 10)}` }))]}/></label>}
       {chosen && <><p>{t('reproductionExecution')}: {chosen.status === 'failed' && chosen.phase === 'preflight' ? t('reproductionEnvironmentFailed') : chosen.status}{chosen.phase ? ` · ${chosen.phase}` : ''}</p>{chosen.error && <Feedback kind="error">{chosen.error}</Feedback>}{chosen.origin?.includes('fixture') && <p>{t('reproductionFixture')}</p>}<Button variant="ghost" onClick={() => void readLogs()}>{t('reproductionLogs')}</Button></>}
       {logs && <><pre tabIndex={0}>{logs.text}</pre>{logs.truncated && <p>{t('reproductionLogTruncated')}</p>}</>}
       {chosen?.status === 'completed' && <Button disabled={busy} onClick={() => void exportEvidence()}>{t('reproductionExport')}</Button>}

@@ -37,6 +37,7 @@ pub(crate) struct AppShortcut {
 }
 pub(crate) struct SidebarProps<'a> {
     pub shortcut_bounds: &'a crate::view_bounds::ViewBounds,
+    pub new_chat_bounds: &'a crate::view_bounds::ViewBounds,
     pub navigation: WorkbenchPage,
     pub catalog_open: bool,
     pub terminal_open: bool,
@@ -45,10 +46,9 @@ pub(crate) struct SidebarProps<'a> {
     pub collapsed: bool,
     pub apps: Vec<AppShortcut>,
 }
-pub(crate) struct SessionsProps<'a> {
+pub(crate) struct SessionsProps {
     pub empty_text: &'static str,
     pub groups: Vec<ProjectGroup>, pub ungrouped: Vec<RecentRow>,
-    pub new_chat_bounds: &'a crate::view_bounds::ViewBounds,
 }
 
 #[derive(Clone)]
@@ -227,8 +227,8 @@ fn show_more(
         )
 }
 
-/// Split window chrome. The search field is 32px; macOS traffic lights sit in the left inset.
-pub(crate) const WINDOW_CHROME: f32 = 40.;
+/// Shared window metric; native traffic lights occupy the leading inset.
+pub(crate) const WINDOW_CHROME: f32 = pero_theme::WINDOW_TITLEBAR;
 
 pub(crate) fn traffic_inset(window: &Window) -> f32 {
     if cfg!(target_os = "macos") && !window.is_fullscreen() {
@@ -267,17 +267,13 @@ pub(crate) fn keep_click(el: Div) -> Div {
     el.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
 }
 
-pub(crate) fn sessions(ui: Ui<'_>, width: f32, props: SessionsProps<'_>, search: AnyElement, on_action: ActionHandler<SidebarAction>, cx: &App) -> Stateful<Div> {
+pub(crate) fn sessions(ui: Ui<'_>, width: f32, props: SessionsProps, search: AnyElement, on_action: ActionHandler<SidebarAction>, cx: &App) -> Stateful<Div> {
     let p = ui.palette; let chrome = ui.chrome(); let mut index = 0;
     let empty = props.groups.is_empty() && props.ungrouped.is_empty();
     div().id("sessions-list").w(px(width)).flex_shrink_0().h_full().flex().flex_col()
         .bg(p.surface).border_r(px(0.5)).border_color(p.border).p(px(8.))
         .child(div().flex().items_center().justify_between().gap(px(8.)).mb(px(8.))
-            .child(div().font_weight(FontWeight::SEMIBOLD).child(ui.t("nav.sessions")))
-            .child(pero_theme::action_button("sessions-new", ui.t("chat.new"), pero_theme::ActionKind::Primary, chrome, cx)
-                .icon(Icon::default().path("icons/plus.svg"))
-                .relative().child(props.new_chat_bounds.probe("new-chat".into()))
-                .on_click(click(&on_action, SidebarAction::NewChat))))
+            .child(div().font_weight(FontWeight::SEMIBOLD).child(ui.t("nav.sessions"))))
         .child(div().mb(px(8.)).child(search))
         .when(empty, |el| el.child(div().p(px(8.)).text_color(p.text_muted).child(props.empty_text)))
 .child(
@@ -381,7 +377,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                 .tooltip(label).accessibility_label(label).on_click(click(&on_action, action)).into_any_element()
         } else {
             pero_theme::sidebar_row(id, label, None, None, selected, pero_theme::RowLevel::Nav,
-                Some(Icon::default().path(icon).into_any_element()), chrome, click(&on_action, action)).into_any_element()
+                Some(Icon::default().path(icon).into_any_element()), chrome, cx, click(&on_action, action)).into_any_element()
         };
         div().w_full().flex().justify_center().child(element)
     };
@@ -405,39 +401,36 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                         .on_click(click(&on_action, action)).into_any_element()
                 } else {
                     pero_theme::sidebar_row(("sidebar-app", index), app.label, None, app.badge.map(Into::into), app.active, pero_theme::RowLevel::Nav,
-                        Some(Icon::default().path(app.icon).into_any_element()), chrome, click(&on_action, action)).into_any_element()
+                        Some(Icon::default().path(app.icon).into_any_element()), chrome, cx, click(&on_action, action)).into_any_element()
                 };
                 div().relative().w_full().flex().justify_center().child(element).child(props.shortcut_bounds.probe(app.name))
             }).collect::<Vec<_>>();
-    div().id("sidebar").w(px(width)).h_full().flex_shrink_0().flex().flex_col()
-        .bg(p.surface_muted).text_color(p.text).text_size(chrome.text(pero_theme::TYPE_BODY))
-        .border_r(px(0.5)).border_color(p.border).p(px(8.)).gap(px(4.))
-        .child(nav("sidebar-sessions", ui.t("nav.sessions"), "icons/message-circle.svg", props.navigation == WorkbenchPage::Conversation, SidebarAction::Navigate(WorkbenchPage::Conversation))
-            .relative().child(props.shortcut_bounds.probe("sessions".into())))
+    pero_theme::sidebar_surface("sidebar", width, chrome)
+        .text_size(chrome.text(pero_theme::TYPE_BODY))
+        .child(div().w_full().flex().items_center().gap(chrome.geo(pero_theme::SPACE_4))
+            .when(collapsed, |row| row.flex_col())
+            .child(nav("sidebar-sessions", ui.t("nav.sessions"), "icons/message-circle.svg", props.navigation == WorkbenchPage::Conversation, SidebarAction::Navigate(WorkbenchPage::Conversation))
+                .flex_1().min_w_0().relative().child(props.shortcut_bounds.probe("sessions".into())))
+            // Independent sibling controls keep navigation and creation separate.
+            .child(div().relative().flex_shrink_0()
+                .child(pero_theme::ghost_icon_button("sidebar-new", chrome, cx)
+                    .icon(Icon::default().path("icons/plus.svg"))
+                    .tooltip(ui.t("chat.new")).accessibility_label(ui.t("chat.new"))
+                    .on_click(click(&on_action, SidebarAction::NewChat)))
+                .child(props.new_chat_bounds.probe("new-chat".into()))))
         .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)).relative().child(props.shortcut_bounds.probe("projects".into())))
         .children(app_rows(primary))
         .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
-            .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(8.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.workspace"))))
-            .children(app_rows(workspace))
-            .child(div().w_full().flex().justify_center().child(
-                pero_theme::ghost_icon_button("sidebar-compute", chrome, cx)
-                    .disabled(true).accessibility_label(ui.t("nav.compute"))
-                    .icon(Icon::default().path(pero_chat_ui::assets::UiIcon::Cpu.path()))
-                    .when(collapsed, |button| button.tooltip(ui.t("nav.compute")))
-                    .when(!collapsed, |button| button.w_full().h(chrome.geo(pero_theme::ROW_NAV))
-                        .px(px(8.)).text_size(chrome.text(pero_theme::TYPE_BODY))
-                        .child(div().w_full().flex().items_center().justify_between()
-                            .child(ui.t("nav.compute"))
-                            .child(div().text_size(px(12.)).child(ui.t("nav.todo")))))))
-            .when(!collapsed, |el| el.child(div().px(px(8.)).pt(px(8.)).pb(px(4.)).text_color(p.text_muted).text_size(px(12.)).child(ui.t("nav.apps"))))
+            .when(!workspace.is_empty(), |scroll| scroll.child(pero_theme::sidebar_group(None, true, chrome).children(app_rows(workspace))))
+            .child(pero_theme::sidebar_group(None, true, chrome)
             .child(nav("sidebar-apps", ui.t("apps.manage"), "icons/layout-grid.svg", props.navigation == WorkbenchPage::Apps && props.catalog_open, SidebarAction::Navigate(WorkbenchPage::Apps)).relative().child(props.shortcut_bounds.probe("apps".into())))
-            .children(app_rows(catalog)))
+            .children(app_rows(catalog))))
         .child(nav("sidebar-terminal", ui.t("terminal.title"), "icons/terminal.svg", props.terminal_open, SidebarAction::Terminal).relative().child(props.shortcut_bounds.probe("terminal".into())))
         .when(!props.local_connected && !collapsed, |el| el.child(div().px(px(8.)).py(px(6.)).text_color(p.warning).text_size(px(12.)).child(ui.t("status.disconnected"))))
         .children(app_rows(customize))
         .children(app_rows(automation))
         .child(settings)
-        .child(div().mt(px(4.)).border_t(px(0.5)).border_color(p.border).pt(px(4.))
+        .child(div().mt(chrome.geo(pero_theme::SPACE_8))
             .relative().child(props.shortcut_bounds.probe("account".into()))
             .child(if collapsed {
                 pero_theme::ghost_icon_button("sidebar-account", chrome, cx)
@@ -447,6 +440,6 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
             } else {
                 pero_theme::sidebar_row("sidebar-account", props.identity, None, None, false,
                     pero_theme::RowLevel::Nav, Some(ui.icon("brand-github").into_any_element()),
-                    chrome, click(&on_action, SidebarAction::Account)).into_any_element()
+                    chrome, cx, click(&on_action, SidebarAction::Account)).into_any_element()
             }))
 }

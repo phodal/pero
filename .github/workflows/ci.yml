@@ -594,7 +594,7 @@ jobs:
       - name: Paper setup and numeric component contracts
         id: paper_components
         if: ${{ !cancelled() && steps.paper_npm.outcome == 'success' }}
-        run: node --test apps/paper-agent/test/docling-runtime.test.mjs apps/paper-agent/test/numeric-values.test.mjs
+        run: node --test apps/paper-agent/test/docling-runtime.test.mjs apps/paper-agent/test/numeric-values.test.mjs apps/paper-agent/test/workspace-ui.test.mjs
       - name: Paper TypeScript
         id: paper_types
         if: ${{ !cancelled() && steps.paper_npm.outcome == 'success' }}

@@ -1,9 +1,13 @@
-import { useAppAgent, useAppI18n } from '@pero/app-sdk';
+import { openAppSession, useAppAgent, useAppI18n } from '@pero/app-sdk';
 import { useEffect, useRef, useState } from 'react';
+import { Button, Card, Feedback } from '@pero/app-sdk/ui';
 import { analysisRequest, briefFromReply, briefResultPrompt } from './work-recap-model.mjs';
 import { PulseHomeResult, type ResultBrief } from './pulse-home-result';
 import type { RecapSession, RecapTurn, WorkRecap } from './pulse-work-recap';
 import { ResearchUpdates } from './research-updates';
+import { InsightsError } from './feedback';
+
+type GenerationFailure = { kind: 'host'; message: string } | { kind: 'needs_input' | 'incomplete' };
 
 type HostTurn = { status?: string; request?: string; response?: string; response_kind?: string; boundary?: string; seq_start?: number; seq_end?: number; truncated?: boolean };
 type HostSession = {
@@ -87,15 +91,22 @@ export default function Insights() {
   const [repositories, setRepositories] = useState<unknown[]>([]);
   const [conflicts, setConflicts] = useState<unknown[]>([]);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [generationError, setGenerationError] = useState<GenerationFailure | null>(null);
   const [brief, setBrief] = useState<ResultBrief | null>(null);
   const [generatedAt, setGeneratedAt] = useState('');
   const [running, setRunning] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const started = useRef(false);
+  const inFlight = useRef(false), pendingSession = useRef('');
+  const [generationSession, setGenerationSession] = useState('');
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
     const controller = new AbortController();
     setError('');
+    setLoading(true);
     fetch('/host/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error((await response.text()).slice(0, 500) || 'Insights failed');
@@ -107,40 +118,46 @@ export default function Insights() {
         setConflicts(Array.isArray(body.conflicts) ? body.conflicts : []);
         setRecap(toRecap(body.sessions ?? []));
       })
-      .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Insights failed'); });
+      .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Insights failed'); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [attempt]);
 
   const modelReady = agent.available && agent.agents.some(item => item.available);
   const runAnalysis = (prompt: string) => {
     const agentId = agent.agents.find(item => item.available)?.id;
-    if (!agentId) return;
-    setBrief(null);
+    if (!agentId || inFlight.current) return;
+    inFlight.current = true;
+    setGenerationError(null);
     setRunning(true);
     const requestId = `insights-${Date.now()}`;
-    void agent.start({ requestId, prompt, agentId }).then(async startedSession => {
-      let cursor = 0;
-      let text = '';
-      let status = 'running';
-      for (let i = 0; i < 90 && status === 'running'; i++) {
+    const session = pendingSession.current ? Promise.resolve({ sessionId: pendingSession.current }) : agent.start({ requestId, prompt, agentId });
+    void session.then(async startedSession => {
+      pendingSession.current = startedSession.sessionId;
+      setGenerationSession(startedSession.sessionId);
+      let cursor = 0, text = '', status = 'running';
+      for (let i = 0; i < 90 && status === 'running' && mounted.current; i++) {
         const transcript = await agent.events({ sessionId: startedSession.sessionId, after: cursor });
         cursor = transcript.cursor;
-        status = transcript.status === 'needs_input' ? 'running' : transcript.status;
+        status = transcript.status;
         if (transcript.text) text = transcript.text;
         if (status !== 'running') break;
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      setRunning(false);
+      if (!mounted.current) return;
+      if (['completed', 'failed', 'cancelled'].includes(status)) { pendingSession.current = ''; setGenerationSession(''); }
       const published = briefFromReply(text);
-      if (status === 'failed' || status === 'cancelled' || !published) {
-        setError(locale === 'zh' ? '上次生成失败。' : 'The last brief failed.');
+      if (status !== 'completed' || !published) {
+        setGenerationError({ kind: status === 'needs_input' ? 'needs_input' : 'incomplete' });
         return;
       }
       setGeneratedAt(new Date().toISOString());
       setBrief(published);
     }).catch(reason => {
-      setRunning(false);
-      setError(reason instanceof Error ? reason.message : (locale === 'zh' ? '上次生成失败。' : 'The last brief failed.'));
+      if (mounted.current) setGenerationError({ kind: 'host', message: reason instanceof Error ? reason.message : String(reason) });
+    }).finally(() => {
+      inFlight.current = false;
+      if (mounted.current) setRunning(false);
     });
   };
   useEffect(() => {
@@ -148,9 +165,50 @@ export default function Insights() {
     started.current = true;
     runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale));
   }, [recap, repositories, conflicts, modelReady, locale]);
-  return <div className="point-pulse-page">
-    <ResearchUpdates />
-    {error && <p className="point-pulse-banner" role="alert">{error} <button type="button" onClick={() => { started.current = false; setAttempt(value => value + 1); }}>{locale === 'zh' ? '重试' : 'Retry'}</button></p>}
-    <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} />
-  </div>;
+  const waiting = loading || agent.infoLoading;
+  const generateLabel = running ? (locale === 'zh' ? '正在更新…' : 'Updating…') : generationSession
+    ? (locale === 'zh' ? '继续检查生成结果' : 'Check generation') : brief
+    ? (locale === 'zh' ? '重新生成' : 'Regenerate') : generationError
+    ? (locale === 'zh' ? '重试生成' : 'Retry generation') : (locale === 'zh' ? '生成简报' : 'Generate brief');
+  const generate = <Button variant={brief ? 'secondary' : 'primary'} busy={running} disabled={waiting || !recap || !modelReady}
+    onClick={() => recap && runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale))}>{generateLabel}</Button>;
+  const feedback = <>
+    {error && <><InsightsError error={error} locale={locale} context="records" /><Button disabled={loading} onClick={() => { started.current = false; setAttempt(value => value + 1); }}>{locale === 'zh' ? '重试' : 'Retry'}</Button></>}
+    {generationError && <>
+      {generationError.kind === 'host' ? <InsightsError error={generationError.message} locale={locale} retained={!!brief} />
+        : <Feedback kind="error" variant="block">
+          {generationError.kind === 'needs_input'
+            ? (locale === 'zh' ? '生成已暂停，需要在会话中补充信息。' : 'Generation paused and needs input in its session.')
+            : (locale === 'zh' ? '上次生成未完成，请重试。' : 'The last brief did not complete. Please retry.')}
+          {brief && <span className="point-insights-error-hint">{locale === 'zh' ? '下方保留上次生成的简报。' : 'The previous brief remains below.'}</span>}
+        </Feedback>}
+      {generationSession && <Button onClick={() => void openAppSession(generationSession).catch(reason => setGenerationError({ kind: 'host', message: String(reason) }))}>{locale === 'zh' ? '打开生成会话' : 'Open generation session'}</Button>}
+    </>}
+  </>;
+  return <main className="point-pulse-page">
+    <div className="point-pulse-main">
+      <header className="point-pulse-top">
+        <div><h1>{locale === 'zh' ? '工作简报' : 'Work brief'}</h1>
+          <p>{locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'}</p></div>
+        {brief && generate}
+      </header>
+      {brief ? <>
+        <div className="point-insights-feedback">{feedback}</div>
+        <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} />
+      </> : <Card tone="blue" variant="soft" className="point-insights-start">
+        <h2>{locale === 'zh' ? '今天有哪些值得关注的事？' : 'What deserves your attention today?'}</h2>
+        {error || generationError ? <div className="point-insights-feedback">{feedback}</div>
+          : waiting || running ? <Feedback kind="status">{waiting
+            ? (locale === 'zh' ? '正在读取工作记录与 Agent 状态…' : 'Loading work records and Agent availability…')
+            : (locale === 'zh' ? '正在整理工作记录，生成你的简报…' : 'Reading your work records and preparing your brief…')}</Feedback>
+          : <p className="point-insights-start-copy">{!modelReady
+            ? (locale === 'zh' ? '未连接可用 Agent。请先在设置 → 模型与 Agent 中配置，再检查连接。' : 'No Agent is connected. Connect an Agent to generate a brief.')
+            : (locale === 'zh' ? '从工作会话和研究变化中整理重点，生成后可查看来源并继续处理。' : 'Bring together the important changes from your work and research, with sources you can review.')}</p>}
+        <div className="point-insights-start-actions">{generate}
+          {!modelReady && !waiting && <Button variant="ghost" onClick={() => void agent.refresh()}>{locale === 'zh' ? '检查 Agent 连接' : 'Check Agent connection'}</Button>}
+        </div>
+      </Card>}
+      <ResearchUpdates />
+    </div>
+  </main>;
 }

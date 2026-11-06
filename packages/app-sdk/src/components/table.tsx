@@ -56,7 +56,7 @@ export function Table<T>({ rows, rowId, columns, label, labelledBy, className, d
   });
   const minWidth = table.getCenterTotalSize();
 
-  return <div className={['pero-ui-table-wrap', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined} data-density={density}
+  return <div className={['pero-ui-table-wrap', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined} data-density={density} tabIndex={0} role={label || labelledBy ? 'region' : undefined} aria-label={label} aria-labelledby={labelledBy}
     ref={node => { if (node) ensureUiStyles(node.ownerDocument); }}>
     <table className="pero-ui-table" style={{ minWidth }} aria-label={label} aria-labelledby={labelledBy}>
       <colgroup>{table.getAllLeafColumns().map(column => <col key={column.id} style={{ width: column.getSize() }} />)}</colgroup>

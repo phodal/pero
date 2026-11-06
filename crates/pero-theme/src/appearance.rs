@@ -104,6 +104,28 @@ pub struct Palette {
     #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
     pub info_bg: Hsla,
     #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub surface_hover: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub surface_pressed: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub action_pressed: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub tint_blue_surface: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub tint_blue_soft: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub tint_blue_strong: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub tint_blue_text: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub tint_apricot_surface: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub tint_apricot_soft: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub tint_apricot_strong: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
+    pub tint_apricot_text: Hsla,
+    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
     pub disabled: Hsla,
     #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
     pub disabled_text: Hsla,
@@ -152,6 +174,17 @@ impl Palette {
             "info" => self.info,
             "on-info" => self.on_info,
             "info-bg" => self.info_bg,
+            "surface-hover" => self.surface_hover,
+            "surface-pressed" => self.surface_pressed,
+            "action-pressed" => self.action_pressed,
+            "tint-blue-surface" => self.tint_blue_surface,
+            "tint-blue-soft" => self.tint_blue_soft,
+            "tint-blue-strong" => self.tint_blue_strong,
+            "tint-blue-text" => self.tint_blue_text,
+            "tint-apricot-surface" => self.tint_apricot_surface,
+            "tint-apricot-soft" => self.tint_apricot_soft,
+            "tint-apricot-strong" => self.tint_apricot_strong,
+            "tint-apricot-text" => self.tint_apricot_text,
             "disabled" => self.disabled,
             "disabled-text" => self.disabled_text,
             _ => panic!("Unknown design token: {token}"),
@@ -197,6 +230,9 @@ impl ResolvedAppearance {
                 palette.action_hover = palette.info;
                 palette.action_hover.l =
                     (palette.action_hover.l + if dark { 0.06 } else { -0.06 }).clamp(0., 1.);
+                palette.action_pressed = palette.action_hover;
+                palette.action_pressed.l =
+                    (palette.action_pressed.l + if dark { -0.1 } else { -0.06 }).clamp(0., 1.);
                 palette.accent = palette.info;
                 palette.on_accent = palette.on_info;
                 palette.accent_soft = palette.info_bg;
@@ -208,6 +244,7 @@ impl ResolvedAppearance {
                 palette.action = palette.text;
                 palette.on_action = palette.surface;
                 palette.action_hover = palette.text_muted;
+                palette.action_pressed = palette.text;
                 palette.accent = palette.text;
                 palette.on_accent = palette.surface;
                 palette.accent_soft = palette.surface_muted;
@@ -270,11 +307,11 @@ impl ResolvedAppearance {
             c.primary = p.action;
             c.primary_foreground = p.on_action;
             c.primary_hover = p.action_hover;
-            c.primary_active = p.action_hover;
+            c.primary_active = p.action_pressed;
             c.button_primary = p.action;
             c.button_primary_foreground = p.on_action;
             c.button_primary_hover = p.action_hover;
-            c.button_primary_active = p.action_hover;
+            c.button_primary_active = p.action_pressed;
             c.button_danger = p.error;
             c.button_danger_foreground = p.on_error;
             c.button_danger_hover = p.error;
@@ -282,7 +319,7 @@ impl ResolvedAppearance {
             c.ring = p.focus;
             c.selection = p.accent_soft;
             c.list_active = p.accent_soft;
-            c.list_hover = p.text.opacity(0.08);
+            c.list_hover = p.surface_hover;
             c.table = p.surface;
             c.table_head = p.surface_muted;
             c.table_head_foreground = p.text;
@@ -303,8 +340,8 @@ impl ResolvedAppearance {
             c.sidebar_primary_foreground = p.on_action;
             c.secondary = p.surface_muted;
             c.secondary_foreground = p.text;
-            c.secondary_hover = p.surface_muted;
-            c.secondary_active = p.accent_soft;
+            c.secondary_hover = p.surface_hover;
+            c.secondary_active = p.surface_pressed;
             c.accent = p.accent_soft;
             // Selected rows keep primary text on the soft fill.
             c.accent_foreground = p.text;

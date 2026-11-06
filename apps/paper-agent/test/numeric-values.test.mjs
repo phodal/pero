@@ -15,6 +15,8 @@ const assessed = (item = candidate(), id = 'assessment-one') => ({ id, extractio
 async function fixture(t, initial = emptyHistory()) {
   const env = await createUiRuntime(t, { resolveDir: resolve(import.meta.dirname, '../ui-src'), contents: `export { NumericValues } from './numeric-values'; export { AppApiProvider, appSurface } from '@pero/app-sdk';` });
   const { React, ui, dom, render } = env;
+  if (!dom.window.HTMLElement.prototype.scrollIntoView) dom.window.HTMLElement.prototype.scrollIntoView = () => {};
+  dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({ x: 10, y: 10, width: 240, height: 32, top: 10, left: 10, right: 250, bottom: 42, toJSON() { return this; } });
   let history = initial;
   const writes = [], reads = [], chats = [];
   const api = { get: async path => { reads.push(path); return history; }, post: async (path, body) => { writes.push({ path, body }); return assessed(body.evidence?.[0]); } };
@@ -84,7 +86,8 @@ test('manual correction opens saved values and preserves their provenance until 
   const form = f.details('Enter or correct manually').querySelector('form');
   assert.equal(form.querySelector('input[type="number"]').value, '12');
   assert.equal(form.querySelector('textarea').value, '12');
-  assert.deepEqual([...form.querySelectorAll('select')].slice(0, 2).map(node => node.value), ['caption', 'native_text']);
+  assert.equal(form.querySelector('[aria-label="Source kind"]').textContent, 'Caption');
+  assert.equal(form.querySelector('[aria-label="Acquisition method"]').textContent, 'Native text');
   assert.deepEqual(f.writes, []);
 });
 
@@ -103,14 +106,14 @@ test('switching selected annotations ignores an earlier history response', async
 
 test('new Agent results revoke a checked review rather than inheriting approval', async t => {
   const f = await fixture(t, { ...emptyHistory(), assessments: [assessed()] });
-  const review = () => [...document.querySelectorAll('label')].find(node => node.textContent === 'I checked these details against the source').querySelector('input');
+  const review = () => [...document.querySelectorAll('label')].find(node => node.textContent === 'I checked these details against the source').querySelector('[role=checkbox]');
   await f.click(review());
-  assert.equal(review().checked, true);
+  assert.equal(review().getAttribute('aria-checked'), 'true');
   assert.equal(f.button('Confirm review as new revision').disabled, false);
   const next = candidate(); next.value = 13; next.rawText = '13';
   await f.refresh({ ...emptyHistory(), assessments: [assessed(), assessed(next, 'assessment-two')] });
   assert.match(document.querySelector('.pa-numeric-result').textContent, /Force: 13 N/);
-  assert.equal(review().checked, false);
+  assert.equal(review().getAttribute('aria-checked'), 'false');
   assert.equal(f.button('Confirm review as new revision').disabled, true);
   assert.deepEqual(f.writes, []);
 });
@@ -140,14 +143,19 @@ test('editing older evidence keeps its extraction, while independent candidates 
   ] };
   const f = await fixture(t, history);
   const manualForm = () => f.details('Enter or correct manually').querySelector('form');
-  const control = label => [...manualForm().querySelectorAll('label')].find(node => node.firstChild?.textContent === label)?.querySelector('input,textarea,select');
+  const control = label => [...manualForm().querySelectorAll('label')].find(node => node.firstChild?.textContent === label)?.querySelector('input,textarea,button[aria-haspopup="listbox"]');
   const change = async (label, value) => {
     const node = control(label); assert.ok(node, `Missing input: ${label}`);
-    await f.React.act(async () => {
-      const prototype = node instanceof f.dom.window.HTMLTextAreaElement ? f.dom.window.HTMLTextAreaElement.prototype
-        : node instanceof f.dom.window.HTMLSelectElement ? f.dom.window.HTMLSelectElement.prototype : f.dom.window.HTMLInputElement.prototype;
+    if (node.getAttribute('aria-haspopup') === 'listbox') {
+      await f.click(node);
+      const optionLabel = { caption: 'Caption', native_text: 'Native text' }[value];
+      const option = [...document.querySelectorAll('[role=option]')].find(item => item.textContent === optionLabel);
+      assert.ok(option, `Missing option: ${optionLabel}`);
+      await f.click(option);
+    } else await f.React.act(async () => {
+      const prototype = node instanceof f.dom.window.HTMLTextAreaElement ? f.dom.window.HTMLTextAreaElement.prototype : f.dom.window.HTMLInputElement.prototype;
       Object.getOwnPropertyDescriptor(prototype, 'value').set.call(node, value);
-      node.dispatchEvent(new f.dom.window.Event(node instanceof f.dom.window.HTMLSelectElement ? 'change' : 'input', { bubbles: true }));
+      node.dispatchEvent(new f.dom.window.Event('input', { bubbles: true }));
     });
   };
   await f.click(f.button('Enter or correct manually'));
@@ -199,8 +207,9 @@ test('saved candidate navigation exposes different quantities and keeps only the
   assert.match(firstButton.textContent, /Ready to freeze/);
   await f.click(firstButton);
   assert.equal(f.button('Freeze reference').disabled, false);
-  const history = f.details('Assessment history').querySelector('select');
-  assert.equal(history.options.length, 3, 'Earlier unreviewed evidence remains in the history');
-  assert.equal(history.value, 'reviewed-assessment');
+  const history = f.details('Assessment history').querySelector('[aria-label="Assessment history"]');
+  await f.click(history);
+  assert.equal(document.querySelectorAll('[role=option]').length, 3, 'Earlier unreviewed evidence remains in the history');
+  assert.equal(document.querySelector('[role=option][aria-selected=true]').textContent, '3: Ready to freeze');
   assert.deepEqual(f.writes, []);
 });

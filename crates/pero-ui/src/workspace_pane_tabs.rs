@@ -13,7 +13,6 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use pero_chat_ui::theme::WorkbenchStyle as W;
 use pero_contracts::{
     pane_tabs::{PaneItem, PaneItemKind, ViewId},
     workspace_panes::{PaneId, PaneLayout, PaneLeaf},
@@ -212,7 +211,7 @@ impl Workbench {
     pub(crate) fn pane_tab_bar(&self, leaf: &PaneLeaf, placement: TabBarPlacement, cx: &mut Context<Self>) -> AnyElement {
         let appearance = pero_theme::UiAppearance::global(cx);
         let p = appearance.palette.clone();
-        let height = W::TAB.max(appearance.typography.row_height() + 4.);
+        let height = f32::from(pero_theme::Chrome::from_app(cx).control(pero_theme::CONTENT_TAB));
         let pane = leaf.id;
         let connector = matches!(leaf.route(), Some(WorkspaceRoute::Content(
             WorkspaceItem::App { name, .. }
@@ -294,9 +293,9 @@ impl Workbench {
             .id(("pane-tab-bar", pane.0 as usize))
             .relative()
             .flex_shrink_0()
-            .when(placement == TabBarPlacement::WindowChrome, |bar| bar.h(px(crate::components::sidebar::WINDOW_CHROME - 1.)))
+            .when(placement == TabBarPlacement::WindowChrome, |bar| bar.h(pero_theme::Chrome::from_app(cx).control(crate::components::sidebar::WINDOW_CHROME)))
             .when(placement == TabBarPlacement::Pane, |bar| {
-                bar.h(px(height)).border_b_1().border_color(p.border)
+                bar.h(px(height)).border_b(px(0.5)).border_color(p.border)
             })
             .flex()
             .items_center()
@@ -310,9 +309,9 @@ impl Workbench {
                         .min_w_0()
                         .max_w(relative(0.45))
                         .overflow_x_scroll()
-                        .track_scroll(&pinned_scroll)
+                        .items_center().track_scroll(&pinned_scroll)
                         .children(pinned)
-                        .border_r_1()
+                        .border_r(px(0.5))
                         .border_color(p.border),
                 )
             })
@@ -324,7 +323,7 @@ impl Workbench {
                     .flex_1()
                     .min_w_0()
                     .overflow_x_scroll()
-                    .track_scroll(&ordinary_scroll)
+                    .items_center().track_scroll(&ordinary_scroll)
                     .children(ordinary)
                     .child(
                         div()
@@ -348,9 +347,7 @@ impl Workbench {
             )
             .children(self.app_examples_button(leaf,cx))
             .children((!connector).then(||
-                Button::new(("pane-tab-list", pane.0 as usize))
-                    .ghost()
-                    .small()
+                pero_theme::ghost_icon_button(("pane-tab-list", pane.0 as usize), pero_theme::Chrome::from_app(cx), cx)
                     .icon(IconName::ChevronDown)
                     .tooltip(self.t("workspace.switch_tabs"))
                     .accessibility_label(self.t("workspace.switch_tabs"))
@@ -381,9 +378,7 @@ impl Workbench {
                     ))),
                 |bar| {
                     bar.child(
-                        Button::new(("pane-chat-open", pane.0 as usize))
-                            .ghost()
-                            .small()
+                        pero_theme::ghost_icon_button(("pane-chat-open", pane.0 as usize), pero_theme::Chrome::from_app(cx), cx)
                             .icon(Icon::default().path("icons/panel-right-open.svg"))
                             .tooltip(self.t("chat.open_panel"))
                             .accessibility_label(self.t("chat.open_panel"))
@@ -415,6 +410,7 @@ impl Workbench {
         let view = item.id;
         let active = leaf.tabs.active_id() == Some(view);
         let pinned = leaf.tabs.is_pinned(view);
+        let tab_icon_size = pero_theme::Chrome::from_app(cx).text(pero_theme::CONTENT_TAB_ICON);
         let preview = leaf.tabs.preview_id() == Some(view);
         let dirty = self
             .documents
@@ -437,67 +433,27 @@ impl Workbench {
             view,
             title: title.clone(),
         };
-        div()
-            .id(("pane-tab", view.0 as usize))
+        pero_theme::content_tab(
+            ("pane-tab", view.0 as usize),
+            pero_theme::ContentTabState { active, focused, pinned },
+            pero_theme::Chrome::from_app(cx),
+        )
             .tooltip({
                 let title = title.clone();
                 move |window, cx| Tooltip::new(title.clone()).build(window, cx)
             })
-            .h_full()
-            .flex()
-            .items_center()
-            .flex_shrink_0()
-            .min_w(px(if pinned { 65. } else { 110. }))
-            .max_w(px(if pinned { 150. } else { 220. }))
-            .px(px(W::GAP))
-            .gap_1()
-            .cursor_pointer()
-            .bg(if active { p.surface } else { p.bg })
-            .text_color(if active { p.text } else { p.text_muted })
-            .border_b_2()
-            .border_color(if active && focused {
-                p.action
-            } else if active {
-                p.border
-            } else {
-                p.bg
-            })
-            .hover(|el| el.bg(p.surface_muted))
-            .child(
-                Icon::default()
-                    .size(px(W::ICON))
-                    .path(pero_chat_ui::icon_theme::asset_path(&icon)),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .h_full()
-                    .overflow_hidden()
-                    .flex()
-                    .items_center()
-                    .whitespace_nowrap()
-                    .text_ellipsis()
-                    .line_height(relative(1.2))
-                    .text_size(
-                        pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body),
-                    )
-                    .when(preview, |label| label.italic())
-                    .child(title.clone()),
-            )
+            .child(Icon::default().size(tab_icon_size)
+                .path(pero_chat_ui::icon_theme::asset_path(&icon)))
+            .child(pero_theme::content_tab_label(title.clone().into(), preview, pero_theme::Chrome::from_app(cx)))
             .when(dirty, |tab| {
                 tab.child(div().size(px(6.)).rounded_full().bg(p.text))
             })
             .when(pinned, |tab| {
-                tab.child(Icon::default().size(px(12.)).path("icons/pin.svg"))
+                tab.child(Icon::default().size(tab_icon_size).path("icons/pin.svg"))
             })
             .child(
-                Button::new(("pane-tab-close", view.0 as usize))
-                    .ghost()
-                    .small()
-                    .w(px(22.))
-                    .h(px(22.))
-                    .icon(Icon::default().path("icons/x.svg"))
+                pero_theme::content_tab_close_button(("pane-tab-close", view.0 as usize), pero_theme::Chrome::from_app(cx), cx)
+                    .child(Icon::default().size(tab_icon_size).path("icons/x.svg"))
                     .tooltip(close_label)
                     .accessibility_label(format!("{close_label}: {title}"))
                     .on_click(cx.listener(move |this, _, window, cx| {

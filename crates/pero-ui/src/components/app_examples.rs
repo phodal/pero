@@ -1,6 +1,6 @@
 //! App-owned example controllers, presented in the existing pane titlebar.
 use crate::{app::Workbench,workspace::{WorkspaceItem,WorkspaceRoute},view_bounds::ViewBounds};
-use gpui_kit::{component::{button::*,menu::{DropdownMenu,PopupMenuItem},*},prelude::*,*};
+use gpui_kit::{component::{menu::{DropdownMenu,PopupMenuItem},*},prelude::*,*};
 use pero_contracts::{AppChatScope,workspace_panes::PaneLeaf};
 use serde::Deserialize;
 use serde_json::{json,Value};
@@ -42,7 +42,7 @@ impl Workbench {
         let entries=state.entries.clone();let selected=state.selected_id.clone();let source=state.source;let failed=!state.error.is_empty();
         let source_label=self.t("apps.example_source").to_string();let retry_label=self.t("apps.env_retry").to_string();
         let owner=cx.entity().downgrade();
-        let button=Button::new(("app-examples",leaf.id.0 as usize)).ghost().small().label(self.t("apps.examples"))
+        let button=pero_theme::action_button(("app-examples",leaf.id.0 as usize),self.t("apps.examples"),pero_theme::ActionKind::Ghost,pero_theme::Chrome::from_app(cx),cx)
             .accessibility_label(self.t("apps.examples")).disabled(!state.ready||state.busy)
             .dropdown_menu(move|mut menu,_,_|{
                 for entry in &entries {

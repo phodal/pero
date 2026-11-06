@@ -15,6 +15,7 @@ async function request<T>(body: object): Promise<T> {
 type LegacyStart = { requestId: string; prompt: string; agentId: string };
 type LegacyRef = { sessionId: string };
 type LegacyAgent = Info & {
+  infoLoading: boolean;
   refresh(): Promise<Info>;
   start(input: LegacyStart): Promise<{sessionId: string}>;
   events(input: LegacyRef & {after: number}): Promise<AppTranscript>;
@@ -25,7 +26,9 @@ export function useAppAgent(): AppAgent & LegacyAgent {
   const capability = useHostCapability('agent');
   const modern = useMemo(() => createAppAgent(capability), [capability]);
   const [info, setInfo] = useState<Info>({ available: false, agents: [], workspace: '' });
+  const [infoLoading, setInfoLoading] = useState(true);
   const refresh = useCallback(async () => {
+    setInfoLoading(true);
     try {
       const next = await request<Info>({ operation: 'info' });
       setInfo(next);
@@ -34,6 +37,8 @@ export function useAppAgent(): AppAgent & LegacyAgent {
       const next: Info = { available: false, agents: [], workspace: '' };
       setInfo(next);
       return next;
+    } finally {
+      setInfoLoading(false);
     }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
@@ -42,7 +47,7 @@ export function useAppAgent(): AppAgent & LegacyAgent {
       if (!modern) throw new Error('This App has no agent Host capability');
       return modern;
     };
-    return { ...info, refresh,
+    return { ...info, infoLoading, refresh,
       prepare: input => supported().prepare(input),
       lookup: input => supported().lookup(input),
       status: input => supported().status(input),
@@ -55,5 +60,5 @@ export function useAppAgent(): AppAgent & LegacyAgent {
       cancel: ((input: LegacyRef | Parameters<AppAgent['cancel']>[0]) => 'scope' in input
         ? supported().cancel(input) : request<void>({operation:'cancel', ...input})) as AppAgent['cancel'] & LegacyAgent['cancel'],
     } satisfies AppAgent & LegacyAgent;
-  }, [info, refresh, modern]);
+  }, [info, infoLoading, refresh, modern]);
 }

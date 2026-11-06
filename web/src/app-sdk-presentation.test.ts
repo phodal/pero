@@ -9,10 +9,12 @@ test('App presentation maps native pages and panels and bounds visible messages 
     ['navigate',{path:'/apps/data'},{kind:'app',name:'data',panel:'main'}],
     ['navigate',{path:'/apps/lab/workbench'},{kind:'app',name:'lab',panel:'workbench'}],
     ['notify',{message:'Saved',type:'success'},{kind:'notify',message:'Saved',tone:'success'}],
+    ['open-session',{sessionId:'existing-session'},{kind:'session',sessionId:'existing-session'}],
     ['badge',{count:0},{kind:'badge',count:0}],
   ] as const) assert.deepEqual(appPresentation(operation,input),expected);
   for (const [operation,input] of [
     ['navigate',{path:'https://example.org'}],['navigate',{path:'/apps/../lab'}],['navigate',{path:'/unknown'}],
+    ['open-session',{sessionId:''}],['open-session',{sessionId:' '.repeat(2)}],['open-session',{sessionId:'x'.repeat(129)}],['open-session',{sessionId:'existing',submit:true}],
     ['notify',{message:''}],['notify',{message:'x'.repeat(4001)}],['badge',{count:-1}],['badge',{count:1.5}],['badge',{count:Infinity}],
   ] as const) assert.throws(() => appPresentation(operation,input));
 });

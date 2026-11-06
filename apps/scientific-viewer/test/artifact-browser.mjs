@@ -131,7 +131,7 @@ try {
   checks.push('Markdown/table/source preview, actual selected text with immutable version chat context and byte-exact download');
   await open('code'); await expect(page.locator('.cm-content')).toContainText('from statistics import mean'); await screenshot('code-light');
   await open('csv'); await expect(page.locator('.numeric-point')).toHaveCount(2); await expect(page.getByRole('alert')).toContainText('1 missing'); await screenshot('csv-light');
-  await page.getByRole('button', { name: 'Table', exact: true }).click(); await expect(page.getByRole('cell', { name: 'Missing', exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: 'Table', exact: true }).click(); await expect(page.getByRole('cell', { name: 'Missing', exact: true })).toBeVisible();
   checks.push('Existing CodeMirror and CSV graph/table keep original missing values');
   await page.goto(`${origin}/artifact.html?thread_id=fixture-thread`);
   await expect(page.getByRole('main', { name: 'Artifact browser' })).toBeVisible();
@@ -151,9 +151,12 @@ try {
   await chart.focus(); await chart.press('ArrowRight');
   await expect(page.locator('.numeric-chart output')).toContainText('Row 3:');
   await expect(chart).toBeFocused();
-  const xAxis = page.getByRole('combobox', { name: 'X axis' });
-  await xAxis.focus(); await xAxis.press('End');
-  await expect(xAxis).toHaveValue('1'); await expect(xAxis).toBeFocused();
+  const xAxis = page.getByRole('button', { name: 'X axis', exact: true });
+  await xAxis.focus(); await xAxis.press('ArrowDown');
+  const axes = page.getByRole('listbox', { name: 'X axis', exact: true });
+  await axes.press('End'); await axes.press('Enter');
+  await expect(xAxis).toHaveText('voltage[V]'); await expect(xAxis).toBeFocused();
+  await expect(chart).toHaveAttribute('aria-label', 'Chart of voltage[V] against voltage[V]');
   await expect.poll(() => page.evaluate(() => window.__artifactBrowserContext.selected.artifact_id)).toBe('csv');
   const csvTile = page.getByRole('option', { name: 'voltage.csv, CSV, v2' });
   const markdownTile = page.getByRole('option', { name: 'report.md, Markdown, v2' });

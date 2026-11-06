@@ -1,6 +1,7 @@
 export type AppPresentation =
   | { kind: 'page'; page: 'conversation' | 'document' | 'web' | 'projects' | 'agents' | 'tasks' | 'workers' | 'apps' | 'insights' | 'connections' }
   | { kind: 'app'; name: string; panel: string }
+  | { kind: 'session'; sessionId: string }
   | { kind: 'notify'; message: string; tone: 'info' | 'success' | 'error' }
   | { kind: 'badge'; count: number };
 
@@ -8,6 +9,8 @@ export type AppPresentation =
 export function appPresentation(operation: unknown, input: unknown): AppPresentation {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid App presentation request');
   const value = input as Record<string, unknown>;
+  if (operation === 'open-session' && typeof value.sessionId === 'string' && value.sessionId.trim() && value.sessionId.length <= 128 && Object.keys(value).every(key => key === 'sessionId'))
+    return { kind: 'session', sessionId: value.sessionId };
   if (operation === 'navigate' && typeof value.path === 'string') {
     const app = /^\/apps\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/([a-z0-9]+(?:-[a-z0-9]+)*))?$/.exec(value.path);
     if (app) return {kind:'app',name:app[1],panel:app[2] || 'main'};

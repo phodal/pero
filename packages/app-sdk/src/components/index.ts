@@ -6,7 +6,7 @@ export { RadioGroup, RadioGroupItem, type RadioGroupProps, type RadioGroupItemPr
 export { Tabs, TabsList, TabsTrigger, TabsContent, type TabsProps, type TabsListProps, type TabsTriggerProps, type TabsContentProps } from './tabs';
 export { ToggleGroup, ToggleGroupItem, type ToggleGroupProps, type ToggleGroupItemProps } from './toggle-group';
 export { Stepper, type StepperProps, type StepperItem, type StepperEnd, type StepperStatus, type StepperView } from './stepper';
-export { Input, Textarea, MultiSelect, type InputProps, type TextareaProps, type MultiSelectProps } from './input';
+export { Input, Textarea, MultiSelect, NativeSelect, type InputProps, type TextareaProps, type MultiSelectProps } from './input';
 export { TimeField, type TimeFieldProps } from './time-field';
 export { Field, type FieldProps, type FieldControlProps } from './field';
 export { Feedback, type FeedbackProps } from './feedback';
@@ -20,6 +20,7 @@ export { Card, CardHeader, type CardProps, type CardHeaderProps } from './card';
 export { Icon, iconFamily, type IconProps, type IconGlyph, type UiIconName, type ShellIconName } from './icon';
 
 export { EmptyState, type EmptyStateProps } from './empty-state';
+export { EmptyIllustration, type EmptyIllustrationProps, type EmptyIllustrationKind } from './empty-illustration';
 export { Table, type TableProps, type TableColumn, type TableColumnMeta } from './table';
 export { Toolbar, type ToolbarProps } from './toolbar';
 export { Popover, type PopoverProps } from './popover';
@@ -40,3 +41,6 @@ export { FileTree, type FileTreeProps } from './file-tree';
 export { TreeView, type TreeViewProps, type TreeViewNode } from './tree-view';
 export { SuggestionList, suggestionListKey, type Suggestion, type SuggestionListProps } from './suggestion-list';
 export { MarkdownText, type MarkdownTextProps } from './markdown-text';
+
+export { ContentTab, type ContentTabProps } from './tabs';
+export { Slider, type SliderProps } from './slider';

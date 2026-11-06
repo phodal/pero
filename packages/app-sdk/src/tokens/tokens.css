@@ -3,3 +3,4 @@
 @import "./theme-contrast.css";
 @import "./structure.css";
 @import "./appearance.css";
+@import "../../../pero-design/src/tokens.css";

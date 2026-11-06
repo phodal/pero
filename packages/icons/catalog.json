@@ -2,6 +2,7 @@
   "settings": {},
   "pin": { "kit": "Pin" },
   "microscope": { "kit": "Microscope" },
+  "flask-conical": { "kit": "FlaskConical" },
   "alert-circle": {},
   "database": {},
   "languages": {},
@@ -76,5 +77,10 @@
   "cpu": { "kit": "Cpu", "aliases": ["circuit"] },
   "dna": { "kit": "Dna", "aliases": ["protein"] },
   "rotate-ccw": { "kit": "RotateCcw", "aliases": ["replay"] },
-  "dots": {}
+  "dots": {},
+  "info": { "kit": "Info" },
+  "loader-circle": { "kit": "LoaderCircle" },
+  "circle-check": { "kit": "CircleCheck" },
+  "circle-alert": { "kit": "CircleAlert" },
+  "circle-x": { "kit": "CircleX" }
 }

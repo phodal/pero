@@ -1,18 +1,19 @@
 /* Generated from spec/pero-design/design.tsp. Do not edit. Geometry is emitted from the TypeSpec contract; materials follow. */
 /* Generated from spec/pero-design/design.tsp. Do not edit. */
 :root {
-  --pero-space-1: 4px;
-  --pero-space-2: 8px;
-  --pero-space-3: 12px;
-  --pero-space-4: 16px;
-  --pero-space-5: 20px;
-  --pero-space-6: 24px;
+  --pero-spacing-1: 4px;
+  --pero-spacing-2: 8px;
+  --pero-spacing-3: 12px;
+  --pero-spacing-4: 16px;
+  --pero-spacing-5: 20px;
+  --pero-spacing-6: 24px;
   --pero-icon-gap: 6px;
-  --pero-font-title: calc(22px * var(--pero-font-scale, 1));
-  --pero-font-heading: calc(16px * var(--pero-font-scale, 1));
+  --pero-font-title: calc(24px * var(--pero-font-scale, 1));
+  --pero-font-heading: calc(18px * var(--pero-font-scale, 1));
   --pero-font-body: calc(14px * var(--pero-font-scale, 1));
-  --pero-font-caption: calc(12px * var(--pero-font-scale, 1));
-  --pero-font-label: calc(11px * var(--pero-font-scale, 1));
+  --pero-font-tab: max(12px, calc(13px * var(--pero-font-scale, 1)));
+  --pero-font-caption: max(12px, calc(12px * var(--pero-font-scale, 1)));
+  --pero-font-label: max(12px, calc(12px * var(--pero-font-scale, 1)));
   --pero-radius-panel: 12px;
   --pero-radius-selection: 8px;
   --pero-radius-button: 6px;
@@ -20,15 +21,21 @@
   --pero-radius-badge: 4px;
   --pero-radius-cell: 2px;
   --pero-lead: 18px;
+  --pero-window-titlebar: 42px;
+  --pero-sidebar-padding: 10px;
+  --pero-sidebar-group-gap: 16px;
+  --pero-content-tab: 30px;
+  --pero-content-tab-icon: 14px;
+  --pero-content-tab-close: 24px;
   --pero-row-nav: 32px;
   --pero-row-menu: 32px;
   --pero-row-sub: 26px;
   --pero-sub-indent: 12px;
-  --pero-library-header: 88px;
-  --pero-action-button-height: 32px;
+  --pero-library-header: 64px;
+  --pero-action-button-height: 24px;
   --pero-action-button-padding: 12px;
   --pero-ghost-icon-button: 28px;
-  --pero-search-height: 32px;
+  --pero-search-height: 24px;
   --pero-reading-width: 720px;
   --pero-composer-max: 800px;
   --pero-sidebar-width: 224px;
@@ -85,19 +92,19 @@
   --pero-font-ui: var(--pero-font-body);
   --pero-radius-xs: var(--pero-radius-kbd);
   --pero-radius-2xs: var(--pero-radius-cell);
-  --pero-sidebar-edge: 10px;
-  --pero-control-height: max(var(--pero-action-button-height), calc(var(--pero-font-ui) + 18px));
+  --pero-sidebar-edge: var(--pero-spacing-2);
+  --pero-control-height: max(var(--pero-action-button-height), calc(var(--pero-font-ui) * 1.4 + 4px));
   --pero-icon-button: max(var(--pero-ghost-icon-button), calc(var(--pero-font-ui) + 14px));
   --pero-page-width: 1000px;
-  --pero-page-gutter: var(--pero-space-3);
-  --pero-space-section: var(--pero-space-3);
+  --pero-page-gutter: var(--pero-spacing-3);
+  --pero-spacing-section: var(--pero-spacing-3);
   --pero-material-sidebar: var(--pero-role-sidebar);
   --pero-material-list: var(--pero-role-list);
   --pero-material-chrome: var(--pero-role-page);
   --pero-material-reading: var(--pero-role-reading);
   --pero-fill-selected: var(--pero-role-accent-soft);
-  --pero-fill-hover: color-mix(in oklab, var(--pero-text) 8%, transparent);
-  --pero-hairline: 1px solid var(--pero-role-border);
+  --pero-fill-hover: var(--pero-surface-hover);
+  --pero-hairline: 0.5px solid var(--pero-role-border);
 }
 
 @media (forced-colors: active) {

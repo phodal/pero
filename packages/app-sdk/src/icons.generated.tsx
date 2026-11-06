@@ -77,6 +77,8 @@ const artwork = {
   "pin": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M12 17v5" /> <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></> },
   // gpui-kit/assets/icons/microscope.svg (Lucide, LICENSE-LUCIDE)
   "microscope": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M6 18h8" /> <path d="M3 22h18" /> <path d="M14 22a7 7 0 1 0 0-14h-1" /> <path d="M9 14h2" /> <path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z" /> <path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3" /></> },
+  // gpui-kit/assets/icons/flask-conical.svg (Lucide, LICENSE-LUCIDE)
+  "flask-conical": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" /> <path d="M6.453 15h11.094" /> <path d="M8.5 2h7" /></> },
   // web/public/icons/alert-circle.svg (LICENSE.txt)
   "alert-circle": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /> <path d="M12 8v4" /> <path d="M12 16h.01" /></> },
   // web/public/icons/database.svg (LICENSE.txt)
@@ -227,6 +229,16 @@ const artwork = {
   "rotate-ccw": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /> <path d="M3 3v5h5" /></> },
   // web/public/icons/dots.svg (LICENSE.txt)
   "dots": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /> <path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /> <path d="M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /></> },
+  // gpui-kit/assets/icons/info.svg (Lucide, LICENSE-LUCIDE)
+  "info": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><circle cx="12" cy="12" r="10" /> <path d="M12 16v-4" /> <path d="M12 8h.01" /></> },
+  // gpui-kit/assets/icons/loader-circle.svg (Lucide, LICENSE-LUCIDE)
+  "loader-circle": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M21 12a9 9 0 1 1-6.219-8.56" /></> },
+  // gpui-kit/assets/icons/circle-check.svg (Lucide, LICENSE-LUCIDE)
+  "circle-check": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><circle cx="12" cy="12" r="10" /> <path d="m16 9-5.5 5.5L8 12" /></> },
+  // gpui-kit/assets/icons/circle-alert.svg (Lucide, LICENSE-LUCIDE)
+  "circle-alert": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><circle cx="12" cy="12" r="10" /> <line x1="12" x2="12" y1="8" y2="12" /> <line x1="12" x2="12.01" y1="16" y2="16" /></> },
+  // gpui-kit/assets/icons/circle-x.svg (Lucide, LICENSE-LUCIDE)
+  "circle-x": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><circle cx="12" cy="12" r="10" /> <path d="m15 9-6 6" /> <path d="m9 9 6 6" /></> },
 } satisfies Record<string, { props: React.SVGProps<SVGSVGElement>; children: React.ReactNode }>;
 
 const aliases = {

@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { downloadFile, useAppInfo } from '@pero/app-sdk';
-import { Button, EmptyState, Feedback, Icon } from '@pero/app-sdk/ui';
-import { Experiments, ReportView, type Citation } from './documents';
+import { Button, Select, EmptyState, Feedback, Icon, Input } from '@pero/app-sdk/ui';
+import { Experiments, ReportView, type Citation } from './report-content';
 import { ReadingMatrix } from './reading-matrix';
 import { ManualRecords, type ResearchAttempt } from './manual-records';
 import type { Api, Intent, Library, Paper, PdfAnnotation, Report, ResearchStudy, StudySummary } from './types';
@@ -18,7 +18,7 @@ function HistorySummary({ question, kind, date, papers, t }: RecordSummary & {
   kind: RecordKind;
   t: Translator;
 }) {
-  return <summary className="pa-history-summary">
+  return <span className="pa-history-summary">
     {kind === 'reportSaved' ? <Icon name="file-text" size={15}/> : <Icon family="shell" name="clock" size={15}/>}
     <span className="pa-history-item">
       <span className="pa-history-question">{question}</span>
@@ -26,16 +26,16 @@ function HistorySummary({ question, kind, date, papers, t }: RecordSummary & {
       <span className="pa-history-meta"><span>{t(kind)}</span>{date && <time dateTime={date.value}>{date.time}</time>}</span>
     </span>
     <Icon className="pa-history-chevron" name="chevron-right" size={14}/>
-  </summary>;
+  </span>;
 }
 
 function StudyRecord({ study, complete, t }: { study: ResearchStudy; complete: boolean; t: Translator }) {
   const labels = { read: 'readingSource', search: 'searchingSource', note: 'recordingFinding', finalize: 'submittingReport' } as const;
   return <div className="pa-study-record" data-study-id={study.id}>
-    <details open={complete ? undefined : true}><summary>{t('researchProgress')} {study.budget.used} / {study.budget.limit} {t('researchSteps')}</summary>
+    <section><h3>{t('researchProgress')} {study.budget.used} / {study.budget.limit} {t('researchSteps')}</h3>
       <ol>{study.steps.map((step, index) => <li key={index}>{t(labels[step.action])}{step.page ? ` — ${t('pdfPage')} ${step.page}` : ''}{step.query ? `: ${step.query}` : ''}</li>)}</ol>
       {!!study.findings.length && <><h3>{t('researchFindings')}</h3><ul>{study.findings.map((finding, index) => <li key={index}>{finding.text}</li>)}</ul></>}
-    </details>
+    </section>
     {!complete && !!study.gaps.length && <div role="note"><h3>{t('researchGaps')}</h3><ul>{study.gaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul></div>}
   </div>;
 }
@@ -48,50 +48,45 @@ function Answer({ report, intent, api, onCite, t }: { report: Report; intent: In
   }
   return <div className="pa-answer">
     <ReportView api={api} report={report} intent={intent} onCite={value => onCite(value, intent)} t={t}/>
-    {!!report.experiments?.length && <details><summary>{t('experiments')}</summary><Experiments report={report} intent={intent} onCite={value => onCite(value, intent)} t={t}/></details>}
-    <details className="pa-answer-actions"><summary>{t('reportActions')}</summary><div className="pa-actions"><Button onClick={() => void exportReport('markdown')}>{t('exportMarkdown')}</Button><Button onClick={() => void exportReport('json')}>{t('exportJson')}</Button><Button onClick={() => window.print()}>{t('print')}</Button></div></details>
+    {!!report.experiments?.length && <section aria-label={t('experiments')}><h3>{t('experiments')}</h3><Experiments report={report} intent={intent} onCite={value => onCite(value, intent)} t={t}/></section>}
+    <div className="pa-answer-actions" aria-label={t('reportActions')}><div className="pa-actions"><Button onClick={() => void exportReport('markdown')}>{t('exportMarkdown')}</Button><Button onClick={() => void exportReport('json')}>{t('exportJson')}</Button><Button onClick={() => window.print()}>{t('print')}</Button></div></div>
     {error && <Feedback kind="error">{error}<Button onClick={() => setError('')}>{t('dismiss')}</Button></Feedback>}
   </div>;
 }
 
-function SavedTurn({ entry, reports, date, papers, api, onCite, onResume, opening, t }: RecordSummary & { entry: Intent; reports: Report[]; api: Api; onCite(citation: Citation, intent: Intent): void; onResume(intent: Intent): void; opening?: number; t: Translator }) {
-  const details = useRef<HTMLDetailsElement>(null);
-  useEffect(() => { if (opening && details.current) { details.current.open = true; details.current.scrollIntoView({ block: 'nearest' }); } }, [opening]);
-  const [loaded, setLoaded] = useState<{ intent: Intent; reports: Report[] } | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false);
-  async function load() {
-    if (loaded || loading) return;
+function SavedTurn({ entry, reports, api, onCite, onResume, t }: { entry: Intent; reports: Report[]; api: Api; onCite(citation: Citation, intent: Intent): void; onResume(intent: Intent): void; t: Translator }) {
+  const [loaded, setLoaded] = useState<{ intent: Intent; reports: Report[] } | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let alive = true;
     setLoading(true); setError('');
-    try { const [intent, answers] = await Promise.all([api.get<Intent>(`/api/intents/${entry.id}`), Promise.all(reports.map(report => api.get<Report>(`/api/reports/${report.id}`)))]); setLoaded({ intent, reports: answers }); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setLoading(false); }
-  }
-  return <details ref={details} className="pa-turn-history pa-record-note" data-turn-id={entry.id} onToggle={event => { if (event.currentTarget.open) void load(); }}>
-    <HistorySummary question={entry.question} kind={reports.length ? 'reportSaved' : 'questionSaved'} date={date} papers={papers} t={t}/>
+    Promise.all([api.get<Intent>(`/api/intents/${entry.id}`), Promise.all(reports.map(report => api.get<Report>(`/api/reports/${report.id}`)))])
+      .then(([intent, answers]) => { if (alive) setLoaded({ intent, reports: answers }); }, reason => { if (alive) setError(reason instanceof Error ? reason.message : String(reason)); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [api, entry.id, reports.length, retry]);
+  return <article className="pa-record-detail" data-turn-id={entry.id} aria-busy={loading}>
+    <h2>{entry.question}</h2>
     {loading && <p role="status">{t('loading')}</p>}
-    {error && <Feedback kind="error">{error}<Button onClick={() => void load()}>{t('retry')}</Button></Feedback>}
+    {error && <Feedback kind="error">{error}<Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback>}
     {loaded?.intent.contextFile?.anchor && <Button onClick={() => onCite({ paperId: loaded.intent.contextFile!.paperId, anchor: loaded.intent.contextFile!.anchor }, loaded.intent)}>{loaded.intent.contextFile.anchor.rects?.length ? 'Show discussed region' : 'Show discussed page'}</Button>}
     {loaded?.reports.map(report => <Answer key={report.id} report={report} intent={loaded.intent} api={api} onCite={onCite} t={t}/>)}
     {loaded && <Button onClick={() => onResume(loaded.intent)}>{t(reports.length ? 'continueFromHere' : 'resumeQuestion')}</Button>}
-  </details>;
+  </article>;
 }
 
-function SavedStudy({ entry, date, papers, api, onContinue, opening, t }: RecordSummary & { entry: StudySummary; api: Api; onContinue(): void; opening?: number; t: Translator }) {
-  const details = useRef<HTMLDetailsElement>(null);
-  useEffect(() => { if (opening && details.current) { details.current.open = true; details.current.scrollIntoView({ block: 'nearest' }); } }, [opening]);
-  const [study, setStudy] = useState<ResearchStudy | null>(null), [error, setError] = useState('');
-  const [open, setOpen] = useState(false), [retry, setRetry] = useState(0);
+function SavedStudy({ entry, api, onContinue, t }: { entry: StudySummary; api: Api; onContinue(): void; t: Translator }) {
+  const [study, setStudy] = useState<ResearchStudy | null>(null), [error, setError] = useState(''), [retry, setRetry] = useState(0);
   useEffect(() => {
-    if (!open) return;
-    let active = true;
-    setError('');
-    api.get<ResearchStudy>(`/api/studies/${entry.id}`).then(value => { if (active) setStudy(value); }, error => { if (active) setError(String(error)); });
-    return () => { active = false; };
-  }, [api, entry.id, entry.budget.used, open, retry]);
-  return <details ref={details} className="pa-turn-history pa-record-note" data-saved-study-id={entry.id} onToggle={event => setOpen(event.currentTarget.open)}>
-    <HistorySummary question={entry.question} kind="studyUnfinished" date={date} papers={papers} t={t}/>
-    {error ? <Feedback kind="error">{error}<Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback> : study ? <StudyRecord study={study} complete={false} t={t}/> : <p role="status">{t('loading')}</p>}
+    let alive = true; setError('');
+    api.get<ResearchStudy>(`/api/studies/${entry.id}`).then(value => { if (alive) setStudy(value); }, reason => { if (alive) setError(String(reason)); });
+    return () => { alive = false; };
+  }, [api, entry.id, entry.budget.used, retry]);
+  return <article className="pa-record-detail" data-saved-study-id={entry.id}>
+    <h2>{entry.question}</h2>
+    {error && <Feedback kind="error">{error}<Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback>}
+    {study ? <StudyRecord study={study} complete={false} t={t}/> : !error && <p role="status">{t('loading')}</p>}
     <Button onClick={onContinue}>{t('continueStudy')}</Button>
-  </details>;
+  </article>;
 }
 
 /** Paper owns persisted research output; the Host owns the conversation and execution. */
@@ -106,6 +101,9 @@ export function ResearchRecords({ api, library, paper, results = false, onFollow
   const { locale } = useAppInfo();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<RecordKind | 'all'>('all');
+  const detailId = useId();
+  const [selectedId, setSelectedId] = useState('');
+  useEffect(() => { if (opening) setSelectedId(opening.intentId ? `turn:${opening.intentId}` : `study:${opening.studyId}`); }, [opening]);
   const term = query.trim().toLocaleLowerCase(locale);
   const titles = new Map(library.papers.map(paper => [paper.id, paper.title]));
   const dayFormat = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' });
@@ -131,25 +129,36 @@ export function ResearchRecords({ api, library, paper, results = false, onFollow
     items.push({ record, date, papers: results ? papers : undefined });
     days.set(day, items);
   }
+  const visible = [...days.values()].flat();
+  const selected = visible.find(item => `${item.record.kind}:${item.record.entry.id}` === selectedId) ?? visible[0];
   return <div className="pa-records-scroll" aria-label={t(results ? 'researchResults' : 'researchProgress')}>
     {results && <div className="pa-results-tools">
-      <input type="search" aria-label={t('searchResearchResults')} placeholder={t('searchResearchResults')} value={query} onChange={event => setQuery(event.currentTarget.value)}/>
-      <select aria-label={t('researchResultStatus')} value={filter} onChange={event => setFilter(event.currentTarget.value as typeof filter)}>
-        <option value="all">{t('allResearchResults')}</option>
-        {(['reportSaved', 'studyUnfinished', 'questionSaved'] as const).map(kind => <option key={kind} value={kind}>{t(kind)}</option>)}
-      </select>
+      <Input type="search" aria-label={t('searchResearchResults')} placeholder={t('searchResearchResults')} value={query} onChange={event => setQuery(event.currentTarget.value)}/>
+      <Select label={t('researchResultStatus')} value={filter} onChange={value => setFilter(value as typeof filter)}
+        options={[{ value: 'all', label: t('allResearchResults') }, ...(['reportSaved', 'studyUnfinished', 'questionSaved'] as const).map(kind => ({ value: kind, label: t(kind) }))]}/>
     </div>}
-    {(!results || (!term && filter === 'all')) && <ManualRecords api={api} library={library} paper={paper} onRead={onRead} onAttempt={onAttempt}/>}
+    <div hidden={results && (!!term || filter !== 'all')}><ManualRecords api={api} library={library} paper={paper} onRead={onRead} onAttempt={onAttempt}/></div>
     {!days.size && <EmptyState heading={t(history.length ? 'noResearchMatches' : 'noResearchRecords')}/>}
-    {[...days].map(([day, items]) => <section className="pa-history-day" key={day}>
-      <h3>{day}</h3>
-      {items.map(({ record, date, papers }) => record.kind === 'study'
-        ? <SavedStudy key={record.entry.id} entry={record.entry} date={date} papers={papers} api={api} opening={opening?.studyId === record.entry.id ? opening.token : undefined} onContinue={() => onContinue(record.entry)} t={t}/>
-        : <SavedTurn key={`${record.entry.id}:${record.reports.length}`} entry={record.entry} date={date} papers={papers} api={api} opening={opening?.intentId === record.entry.id ? opening.token : undefined} reports={record.reports} onCite={onCite} onResume={onFollowUp} t={t}/>)}
-    </section>)}
-    {!!library.matrixCount && (!results || (!term && filter === 'all')) && <details className="pa-output-matrix pa-record-note pa-history-matrix" open={matrixOpen} onToggle={event => onMatrixOpen(event.currentTarget.open)}>
-      <summary>{t('matrix')}</summary>
-      <ReadingMatrix api={api} active={matrixOpen} count={library.matrixCount} papers={library.papers} onOpen={onAnnotation} t={t}/>
-    </details>}
+    {!!days.size && <div className="pa-result-browser">
+      <nav aria-label={t('researchResults')} className="pa-result-list">
+        {[...days].map(([day, items]) => <section className="pa-history-day" key={day}>
+          <h3>{day}</h3><ul>{items.map(({ record, date, papers }) => {
+            const kind = record.kind === 'study' ? 'studyUnfinished' : record.reports.length ? 'reportSaved' : 'questionSaved';
+            return <li key={`${record.kind}:${record.entry.id}`}><Button variant="ghost" aria-pressed={selected?.record === record} aria-controls={detailId} onClick={() => setSelectedId(`${record.kind}:${record.entry.id}`)}>
+              <HistorySummary question={record.entry.question} kind={kind} date={date} papers={papers} t={t}/>
+            </Button></li>;
+          })}</ul>
+        </section>)}
+      </nav>
+      <section id={detailId} aria-label={t('researchResultDetail')} className="pa-result-content">
+        {selected?.record.kind === 'study'
+          ? <SavedStudy key={selected.record.entry.id} entry={selected.record.entry} api={api} onContinue={() => onContinue(selected.record.entry as StudySummary)} t={t}/>
+          : selected?.record.kind === 'turn' && <SavedTurn key={`${selected.record.entry.id}:${selected.record.reports.length}`} entry={selected.record.entry} reports={selected.record.reports} api={api} onCite={onCite} onResume={onFollowUp} t={t}/>}
+      </section>
+    </div>}
+    {!!library.matrixCount && <section className="pa-output-matrix pa-history-matrix">
+      <Button variant="ghost" aria-expanded={matrixOpen} aria-controls="paper-reading-matrix" onClick={() => onMatrixOpen(!matrixOpen)}>{t('matrix')}</Button>
+      <div id="paper-reading-matrix" hidden={!matrixOpen}><ReadingMatrix api={api} active={matrixOpen} count={library.matrixCount} papers={library.papers} onOpen={onAnnotation} t={t}/></div>
+    </section>}
   </div>;
 }

@@ -10,6 +10,7 @@ export { FilePicker, type FilePickerProps } from './components/input';
 export { AppBar, AppFrame, PageHeader } from './components/layout';
 export { Split, SplitPane, type SplitPaneProps } from './components/split';
 export { Badge, ChatMarkdown, Composer, Kbd, LibraryHeader, ListRow, OutlineBadge, ReaderFrame, SearchField, SettingsGroup, SettingsRow, SidebarRow } from '../../pero-design/src/components';
+export { Sidebar, SidebarGroup, WindowTitlebar } from '../../pero-design/src/shell';
 export type { IconName } from './icons.generated';
 export { EnvironmentBrowser, EnvironmentInspector, type ScientificMethod } from './environments';
 

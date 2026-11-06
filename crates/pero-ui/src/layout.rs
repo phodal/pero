@@ -119,15 +119,18 @@ impl WorkspaceLayout {
     }
 
     /// Uncomposited children step aside for popups that can overlap them.
-    /// Dock menus stay in the dock; composited children stay below popup menus.
+    /// Dock menus stay in the dock; composited children remain visible during
+    /// layout drags and underneath popup menus.
     pub(crate) fn embedded_surface_covered(
         window_overlay: bool,
         deferred_popover: bool,
         chat_dock_menu: bool,
+        resizing: bool,
         stacking: SurfaceStacking,
     ) -> bool {
         window_overlay
-            || (stacking == SurfaceStacking::AboveWorkbench && deferred_popover && !chat_dock_menu)
+            || (stacking == SurfaceStacking::AboveWorkbench
+                && (resizing || (deferred_popover && !chat_dock_menu)))
     }
 
     /// Fold the sidebar down to an icon rail. Saved dock width and the narrow breakpoint stay.
@@ -421,19 +424,22 @@ mod tests {
     }
 
     #[test]
-    fn embedded_surface_menu_coverage() {
+    fn embedded_surface_coverage() {
         use SurfaceStacking::{AboveWorkbench, Composited};
-        for (overlay, menu, chat_menu, stacking, covered) in [
-            (false, true, true, AboveWorkbench, false),
-            (false, true, false, AboveWorkbench, true),
-            (true, false, true, AboveWorkbench, true),
-            (false, false, false, AboveWorkbench, false),
-            (false, true, false, Composited, false),
-            (false, true, true, Composited, false),
-            (true, true, false, Composited, true),
+        for (overlay, menu, chat_menu, resizing, stacking, covered) in [
+            (false, true, true, false, AboveWorkbench, false),
+            (false, true, false, false, AboveWorkbench, true),
+            (true, false, true, false, AboveWorkbench, true),
+            (false, false, false, false, AboveWorkbench, false),
+            (false, true, false, false, Composited, false),
+            (false, true, true, false, Composited, false),
+            (true, true, false, false, Composited, true),
+            (false, false, false, true, Composited, false),
+            (false, false, false, true, AboveWorkbench, true),
+            (true, false, false, true, Composited, true),
         ] {
             assert_eq!(
-                WorkspaceLayout::embedded_surface_covered(overlay, menu, chat_menu, stacking),
+                WorkspaceLayout::embedded_surface_covered(overlay, menu, chat_menu, resizing, stacking),
                 covered,
             );
         }

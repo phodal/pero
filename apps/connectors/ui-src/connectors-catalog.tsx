@@ -143,13 +143,6 @@ const BRAND_LOGOS: Record<string, string> = {
   'cyanheads-orcid': orcidLogo, 'cyanheads-paleobiology': paleobiologyLogo, 'cyanheads-pubchem': pubchemLogo,
   'cyanheads-pubmed': ncbiLogo, 'cyanheads-uniprot': uniprotLogo,
 };
-export function GuideArt({ tone }: { tone: string }) {
-  return <span className="point-connectors-guide-art" data-tone={tone} aria-hidden="true">
-    <span className="point-connectors-guide-art-bar" />
-    <span className="point-connectors-guide-art-line" />
-    <span className="point-connectors-guide-art-line" data-short="true" />
-  </span>;
-}
 export function ProviderIcon({ entry }: { entry: DirectoryEntry }) {
   const logo = BRAND_LOGOS[entry.providerId];
   if (logo) return <img className="point-connectors-logo" src={logo} width={22} height={22} alt="" aria-hidden="true" />;

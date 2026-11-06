@@ -33,7 +33,7 @@ try {
   await expect(frame.locator('.point-connectors-tile').filter({ hasText: 'GitHub' })).toHaveCount(1);
   await frame.getByLabel('Search', { exact: true }).fill('');
   await page.screenshot({ path: resolve(out, 'catalog-light.png') });
-  await frame.getByRole('button', { name: 'Add custom MCP', exact: true }).click();
+  await frame.getByRole('button', { name: 'Custom MCP', exact: true }).click();
   const dialog = frame.getByRole('dialog');
   await dialog.locator('textarea').fill(JSON.stringify({ mcpServers: { fixture: { type: 'http', url: remote.origin + '/mcp' } } }));
   await dialog.getByRole('button', { name: 'Import and continue' }).click();
@@ -45,8 +45,8 @@ try {
   await expect(dialog.getByText('Configuration saved.', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Close', exact: true }).last().click();
   await expect(dialog).toBeHidden();
-  const installed = frame.getByRole('button', { name: /Installed connections/ });
-  if (await installed.getAttribute('aria-pressed') !== 'true') await installed.click();
+  const installed = frame.getByRole('tab', { name: /Installed connections/ });
+  if (await installed.getAttribute('aria-selected') !== 'true') await installed.click();
   await expect(frame.getByRole('button', { name: 'Details fixture', exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'Details fixture', exact: true }).click();
   await dialog.getByRole('textbox', { name: 'Secret value', exact: true }).fill('fixture-private-token');

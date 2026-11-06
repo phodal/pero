@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { ActionPortal } from './components.tsx';
 import type { DirectoryEntry, Discovery } from './connector-types.ts';
+import { EFFECT_LABELS, EFFECT_LABELS_EN } from './shared/connection-copy.mjs';
 import { errorMessage } from './error-message.ts';
 import { Button, Feedback, Select, Textarea } from './ui';
 
@@ -59,6 +60,13 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
     value: <code>{argValue('--extension-file')}</code>,
     missing: <>{copy('未找到 Simulink Agentic Toolkit。把它解压到主目录、“文稿”或“下载”文件夹后点“重新检测”。', 'Simulink Agentic Toolkit was not found. Extract it into Home, Documents or Downloads, then check again.')}</>,
   });
+  const allowedTools: string[] = definition?.tools ?? provider.defaultTools ?? (provider.operations ?? []).map(op => op.tool);
+  const effectLabels = locale === 'en' ? EFFECT_LABELS_EN : EFFECT_LABELS;
+  const toolEffects = allowedTools.reduce<Record<string, string[]>>((groups, tool) => {
+    const effect = provider.operations?.find(op => op.tool === tool)?.effect ?? 'unknown';
+    (groups[effect] ??= []).push(tool);
+    return groups;
+  }, {});
   const ready = !running && rows.every(row => row.ok);
   // One primary action: install the server first when it is the only thing missing, then add the connector.
   const installServerFirst = !!discovery.installable && !command?.executable;
@@ -85,7 +93,13 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
       <Button type="button" disabled={running || busy} onClick={onRetry}>{copy('重新检测', 'Check again')}</Button>
       {!isFeishu && <Button type="button" variant="unstyled" className="point-connectors-link" disabled={busy} onClick={onManual}>{copy('手动配置', 'Configure manually')}</Button>}
     </div></ActionPortal>
-    {ready && <p className="point-connectors-hint">{copy(`将允许 ${(provider.defaultTools ?? provider.operations ?? []).length} 个工具。`, `${(provider.defaultTools ?? provider.operations ?? []).length} tools will be allowed.`)}</p>}
+    <section className="point-connector-install-scope" aria-label={copy('安装后的工具权限', 'Tool access after installation')}>
+      <h3>{copy('安装后的工具权限', 'Tool access after installation')}</h3>
+      <p className="point-connectors-hint">{allowedTools.length ? Object.entries(toolEffects).map(([effect, tools]) => `${effectLabels[effect] ?? copy('未分类（请检查工具）', 'Unclassified (review tools)')} ${tools.length}`).join(' · ') : copy('未允许任何工具。', 'No tools allowed.')}</p>
+      {allowedTools.length > 0 && <details><summary>{copy(`查看 ${allowedTools.length} 个工具`, `Review ${allowedTools.length} tools`)}</summary>
+        {Object.entries(toolEffects).map(([effect, tools]) => <div key={effect} className="point-connector-tool-group"><span className="point-connector-tool-effect">{effectLabels[effect] ?? copy('未分类', 'Unclassified')}</span><div className="point-connector-tool-list">{tools.map(tool => <code key={tool} className="point-connector-tool">{tool}</code>)}</div></div>)}
+      </details>}
+    </section>
   </section>;
 }
 /** Locates a JSON.parse failure so the editor can point at the line instead of repeating V8's message. */

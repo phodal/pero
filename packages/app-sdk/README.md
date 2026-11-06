@@ -22,6 +22,10 @@ App 界面、Agent 对象与宿主交互的公共契约。App 使用自己的 Re
 内置 App 构建器从 package exports 解析全部子路径。每个 App 的 SDK 与界面
 使用同一个 App 自有 React；不同 App 与 Workbench 不共享 React。
 
+`openAppSession(sessionId)` 由可见的 Insights / Automations 请求宿主打开已存在会话，
+不提交提示词。目标已删除或无法打开时 Promise 拒绝，App 应显示错误。
+`useAppChat().compose(text)` 只填入草稿；会话导航和 Agent 执行分别由 Host 管理。
+
 ## UI 功能
 
 - 表单：Button、IconButton、Input、Textarea、FilePicker、Field、Select、

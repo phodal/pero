@@ -23,6 +23,8 @@ export const subscribeAppEvent: AppHost['subscribe'] = (name, callback) => {
   return () => window.removeEventListener('message', receive);
 };
 export const navigateApp: AppHost['navigate'] = path => requestAppShell<void>('navigate', { path });
+/** Opens an existing session through the owning Host; never submits a prompt. */
+export const openAppSession = (sessionId: string): Promise<void> => requestAppShell<void>('open-session', { sessionId });
 export const notifyApp: AppHost['notify'] = (message, options) => { void requestAppShell('notify', { message, ...options }); };
 export const setAppBadge: AppHost['setBadge'] = count => { void requestAppShell('badge', { count }); };
 export const callAppHost: HostCallFn = async (capability, operation, input) => {

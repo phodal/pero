@@ -7,6 +7,7 @@ gpui_kit::assets::icon_assets!(
     [
         Pin,
         Microscope,
+        FlaskConical,
         Square,
         LayoutGrid,
         GalleryHorizontal,
@@ -41,7 +42,12 @@ gpui_kit::assets::icon_assets!(
         Factory,
         Cpu,
         Dna,
-        RotateCcw
+        RotateCcw,
+        Info,
+        LoaderCircle,
+        CircleCheck,
+        CircleAlert,
+        CircleX
     ]
 );
 
@@ -51,6 +57,7 @@ pub enum UiIcon {
     Settings,
     Pin,
     Microscope,
+    FlaskConical,
     AlertCircle,
     Database,
     Languages,
@@ -126,6 +133,11 @@ pub enum UiIcon {
     Dna,
     RotateCcw,
     Dots,
+    Info,
+    LoaderCircle,
+    CircleCheck,
+    CircleAlert,
+    CircleX,
 }
 
 impl UiIcon {
@@ -138,6 +150,7 @@ impl UiIcon {
             "settings" => Some(Self::Settings),
             "pin" => Some(Self::Pin),
             "microscope" => Some(Self::Microscope),
+            "flask-conical" => Some(Self::FlaskConical),
             "alert-circle" => Some(Self::AlertCircle),
             "database" => Some(Self::Database),
             "languages" => Some(Self::Languages),
@@ -213,6 +226,11 @@ impl UiIcon {
             "dna" | "protein" => Some(Self::Dna),
             "rotate-ccw" | "replay" => Some(Self::RotateCcw),
             "dots" => Some(Self::Dots),
+            "info" => Some(Self::Info),
+            "loader-circle" => Some(Self::LoaderCircle),
+            "circle-check" => Some(Self::CircleCheck),
+            "circle-alert" => Some(Self::CircleAlert),
+            "circle-x" => Some(Self::CircleX),
             _ => None,
         }
     }
@@ -222,6 +240,7 @@ impl UiIcon {
             Self::Settings => "settings",
             Self::Pin => "pin",
             Self::Microscope => "microscope",
+            Self::FlaskConical => "flask-conical",
             Self::AlertCircle => "alert-circle",
             Self::Database => "database",
             Self::Languages => "languages",
@@ -297,6 +316,11 @@ impl UiIcon {
             Self::Dna => "dna",
             Self::RotateCcw => "rotate-ccw",
             Self::Dots => "dots",
+            Self::Info => "info",
+            Self::LoaderCircle => "loader-circle",
+            Self::CircleCheck => "circle-check",
+            Self::CircleAlert => "circle-alert",
+            Self::CircleX => "circle-x",
         }
     }
 
@@ -337,6 +361,7 @@ impl UiIcon {
             Self::Settings => "icons/settings.svg",
             Self::Pin => "icons/pin.svg",
             Self::Microscope => "icons/microscope.svg",
+            Self::FlaskConical => "icons/flask-conical.svg",
             Self::AlertCircle => "icons/alert-circle.svg",
             Self::Database => "icons/database.svg",
             Self::Languages => "icons/languages.svg",
@@ -412,6 +437,11 @@ impl UiIcon {
             Self::Dna => "icons/dna.svg",
             Self::RotateCcw => "icons/rotate-ccw.svg",
             Self::Dots => "icons/dots.svg",
+            Self::Info => "icons/info.svg",
+            Self::LoaderCircle => "icons/loader-circle.svg",
+            Self::CircleCheck => "icons/circle-check.svg",
+            Self::CircleAlert => "icons/circle-alert.svg",
+            Self::CircleX => "icons/circle-x.svg",
         }
     }
 
@@ -439,6 +469,7 @@ impl AssetSource for UiAssets {
             ))),
             Some(UiIcon::Pin) => SelectedKitIcons.load("icons/pin.svg")?,
             Some(UiIcon::Microscope) => SelectedKitIcons.load("icons/microscope.svg")?,
+            Some(UiIcon::FlaskConical) => SelectedKitIcons.load("icons/flask-conical.svg")?,
             Some(UiIcon::AlertCircle) => Some(Cow::Borrowed(include_bytes!(
                 "../../../web/public/icons/alert-circle.svg"
             ))),
@@ -598,6 +629,11 @@ impl AssetSource for UiAssets {
             Some(UiIcon::Dots) => Some(Cow::Borrowed(include_bytes!(
                 "../../../web/public/icons/dots.svg"
             ))),
+            Some(UiIcon::Info) => SelectedKitIcons.load("icons/info.svg")?,
+            Some(UiIcon::LoaderCircle) => SelectedKitIcons.load("icons/loader-circle.svg")?,
+            Some(UiIcon::CircleCheck) => SelectedKitIcons.load("icons/circle-check.svg")?,
+            Some(UiIcon::CircleAlert) => SelectedKitIcons.load("icons/circle-alert.svg")?,
+            Some(UiIcon::CircleX) => SelectedKitIcons.load("icons/circle-x.svg")?,
             None => None,
         })
     }
@@ -607,6 +643,7 @@ impl AssetSource for UiAssets {
             UiIcon::Settings,
             UiIcon::Pin,
             UiIcon::Microscope,
+            UiIcon::FlaskConical,
             UiIcon::AlertCircle,
             UiIcon::Database,
             UiIcon::Languages,
@@ -682,6 +719,11 @@ impl AssetSource for UiAssets {
             UiIcon::Dna,
             UiIcon::RotateCcw,
             UiIcon::Dots,
+            UiIcon::Info,
+            UiIcon::LoaderCircle,
+            UiIcon::CircleCheck,
+            UiIcon::CircleAlert,
+            UiIcon::CircleX,
         ]
         .into_iter()
         .map(UiIcon::path)

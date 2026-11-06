@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Feedback, Input, Textarea } from '@pero/app-sdk/ui';
+import { Button, Checkbox, Feedback, Input, Textarea } from '@pero/app-sdk/ui';
 import type { Api } from './types';
 import type { OpenSourceEvidenceReport, SourceEvidenceReport, SourceObservation, SourceEvidenceLocation, SourceEvidenceMatch, DocumentEvidenceScope } from './research-types';
 
@@ -86,7 +86,7 @@ export function SourceReports({ api, bundleId, refresh, navigating, canOpenSourc
     {!loading && !observations.length ? <p>{t('empty')}</p> : !!observations.length && <details>
       <summary>{t('create')}</summary>
       <fieldset disabled={busy || loading}><legend>{t('include', { count: selected.length })}</legend>
-        {observations.map(item => <label key={item.id} className="pa-source-report-choice"><input type="checkbox" disabled={selected.length >= 64 && !selected.includes(item.id)} checked={selected.includes(item.id)} onChange={event => setSelected(ids => event.target.checked ? [...ids, item.id] : ids.filter(id => id !== item.id))}/><span>{observationLabel(item)}</span></label>)}
+        {observations.map(item => <label key={item.id} className="pa-source-report-choice"><Checkbox disabled={selected.length >= 64 && !selected.includes(item.id)} checked={selected.includes(item.id)} onCheckedChange={checked => setSelected(ids => checked === true ? [...ids, item.id] : ids.filter(id => id !== item.id))}/><span>{observationLabel(item)}</span></label>)}
       </fieldset>
       <label>{t('reportTitle')}<Input value={title} maxLength={200} placeholder={t('defaultTitle')} disabled={busy} onChange={event => setTitle(event.target.value)}/></label>
       <label>{t('interpretation')}<Textarea value={interpretation} maxLength={1000} rows={2} disabled={busy} onChange={event => setInterpretation(event.target.value)}/></label>

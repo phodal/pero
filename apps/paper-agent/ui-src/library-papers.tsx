@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Button, EmptyState, Icon, LibraryHeader, Select, Split, SplitPane } from '@pero/app-sdk/ui';
+import { Button, EmptyIllustration, EmptyState, Icon, LibraryHeader, LoadingSkeleton, Select, SkeletonBlock, Split, SplitPane } from '@pero/app-sdk/ui';
 import { addedText, contentKind, PaperList, paperSource } from './library';
 import { LibrarySearch } from './library-search';
 import { cycleStatus, isShelfStatus, statusOf, type Shelf, type ShelfFilter, type ShelfStatus } from './shelf';
@@ -7,8 +7,8 @@ import type { Api, LocalSearchHit, Paper } from './types';
 import type { Translator } from './i18n';
 
 /** Preview owns no source copy: every action uses the selected saved Paper. */
-export function LibraryPapers({ api, papers, shelf, filter, loading, savingId, activeHitId, locked, showDetails, t, onFilter, onStatus, onRefresh, onImport, onRead, onRecords, onDiscover, onDownload, onSearchHit, onFind, onCompare }: {
-  api: Api; papers: Paper[]; shelf: Shelf; filter: ShelfFilter; loading: boolean; savingId?: string; activeHitId?: string; locked: boolean; showDetails: boolean; t: Translator;
+export function LibraryPapers({ api, papers, shelf, filter, loading, unavailable = false, savingId, activeHitId, locked, showDetails, t, onFilter, onStatus, onRefresh, onImport, onRead, onRecords, onDiscover, onDownload, onSearchHit, onFind, onCompare }: {
+  api: Api; papers: Paper[]; shelf: Shelf; filter: ShelfFilter; loading: boolean; unavailable?: boolean; savingId?: string; activeHitId?: string; locked: boolean; showDetails: boolean; t: Translator;
   onFilter(value: ShelfFilter): void; onStatus(id: string, value: ShelfStatus): void; onRefresh(): void; onImport(): void;
   onRead(paper: Paper): void; onRecords(paper: Paper): void; onDiscover(paper: Paper): void; onDownload(paper: Paper, format: 'pdf' | 'tex'): void;
   onSearchHit(hit: LocalSearchHit): Promise<void>; onFind(): void; onCompare(ids: string[]): void;
@@ -28,8 +28,10 @@ export function LibraryPapers({ api, papers, shelf, filter, loading, savingId, a
   return <Split storageKey="paper-agent.library-preview" collapseBelow={940} className="pa-library-papers">
     <SplitPane id="paper-library-list" min={360} className="pa-library-list-pane">
       <LibraryHeader className="pa-library-heading" title={t(title)} subtitle={`${rows.length} ${t('sourcesCount')}`} actions={<><Button variant="ghost" aria-label={t('refresh')} onClick={onRefresh}><Icon name="refresh" size={15}/></Button><Button variant="primary" onClick={onImport}><Icon name="plus" size={15}/>{t('add')}</Button></>}/>
-      {loading ? <p role="status">{t('loading')}</p> : <LibrarySearch api={api} t={t} activeHitId={activeHitId} onOpen={onSearchHit} onQueryChange={setQuery} onFind={onFind}>
-        {!papers.length ? <EmptyState heading={t('emptyLibrary')} description={t('emptyLibraryCopy')}/> : <>
+      {loading ? <LoadingSkeleton label={t('loading')}>{[0, 1, 2].map(row => <div className="pa-library-placeholder" key={row}>
+        <SkeletonBlock shape="title" width={row === 1 ? '68%' : '84%'}/><SkeletonBlock width="42%"/>
+      </div>)}</LoadingSkeleton> : !unavailable && <LibrarySearch api={api} t={t} activeHitId={activeHitId} onOpen={onSearchHit} onQueryChange={setQuery} onFind={onFind}>
+        {!papers.length ? <EmptyState icon={<EmptyIllustration kind="documents"/>} heading={t('emptyLibrary')} description={t('emptyLibraryCopy')}/> : <>
           <PaperList papers={rows} sort={sort} onSort={setSort} selected={selectedIds} previewId={paper?.id ?? ''} locked={locked} shelf={shelf} shelfFilter={filter} onShelfFilter={onFilter}
             onCycleStatus={id => onStatus(id, cycleStatus(statusOf(shelf, id)))}
             onFindMore={onFind} onRead={onRead} onPreview={preview} onSelect={(id, checked) => setSelected(current => checked ? [...current, id] : current.filter(value => value !== id))} t={t}/>

@@ -3,6 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "dev": "vite catalog --config catalog/vite.config.ts --host 127.0.0.1",
+    "build": "vite build catalog --config catalog/vite.config.ts",
+    "typecheck": "tsc -p catalog/tsconfig.json"
+  },
+  "peerDependencies": { "react": ">=19" },
+  "devDependencies": {
+    "lucide-react": "1.59.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./tokens.css": "./src/tokens.css"

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppChat, openPaperApp } from '@pero/app-sdk';
-import { Button, Feedback, Icon, Select } from '@pero/app-sdk/ui';
+import { AppBar, Button, Feedback, FilePicker, Select, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@pero/app-sdk/ui';
 import { assetFrom, inspect, type Asset } from './files';
 import { files, saveFile, removeFile } from './store';
 import { examples } from './examples';
@@ -32,7 +32,7 @@ export default function ScientificViewer() {
   const [pendingRemoval, setPendingRemoval] = useState<{ id: string; name: string } | null>(null), [removing, setRemoving] = useState(false);
   const [loading, setLoading] = useState(true), [importing, setImporting] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const input = useRef<HTMLInputElement>(null), removeButton = useRef<HTMLElement>(null);
+  const removeButton = useRef<HTMLElement>(null);
   const t = { molecules: 'Molecular illustrations', paper: 'Open Paper App', import: 'Import file', importing: 'Importing…', examples: 'Examples', file: 'Current file', source: 'Source details', unverified: 'Unverified', synthetic: 'Synthetic example, unverified', size: 'Size', origin: 'Source', license: 'License', discuss: 'Discuss metadata', remove: 'Remove local copy', removing: 'Removing…', cancel: 'Cancel', confirm: 'Confirm removal', loading: 'Loading files…', retry: 'Retry', limit: 'Up to 10 MiB per file', removal: (name: string) => `Remove “${name}” from this App? The original file is unchanged.` };
   const chat = useAppChat(); const asset = assets.find(item => item.id === selected);
   const refresh = async () => setAssets(await files());
@@ -61,7 +61,7 @@ export default function ScientificViewer() {
     finally { setRemoving(false); }
   }
   return <main className="scientific-viewer"><h1 className="sr-only">Scientific Viewer</h1>
-    <header className="viewer-toolbar">
+    <AppBar className="viewer-toolbar" aria-label="File actions" tools={<>
       <Select id="viewer-file" className="file-select" label={t.file} value={selected} disabled={loading || importing} onChange={value => { setPendingRemoval(null); setSelected(value); }} options={[{ value: '', label: t.molecules }, ...assets.map(item => ({ value: item.id, label: item.name }))]} />
       {asset && <details className="source-details" key={asset.id}>
         <summary aria-label={t.source} aria-describedby="source-status"><span id="source-status">{asset.synthetic ? t.synthetic : t.unverified}</span></summary><div className="source-panel">
@@ -73,12 +73,13 @@ export default function ScientificViewer() {
               <Button variant="danger" disabled={removing} onClick={() => void confirmRemoval()}>{removing ? t.removing : t.confirm}</Button></div>
           </div>}
         </div></details>}
-      <div className="viewer-actions"><Select className="example-select" label="Example" value="" disabled={importing} onChange={value => { const example = examples.find(item => item.name === value); if (example) void importFile(new File([example.text], example.name), true); }} options={[{ value: '', label: t.examples }, ...examples.map(item => ({ value: item.name, label: item.name }))]} />
+      </>} actions={<>
+        <DropdownMenu><DropdownMenuTrigger asChild><Button disabled={importing}>{t.examples}</Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+          {examples.map(example => <DropdownMenuItem key={example.name} onSelect={() => void importFile(new File([example.text], example.name), true)}>{example.name}</DropdownMenuItem>)}
+        </DropdownMenuContent></DropdownMenu>
         <Button onClick={() => void openPaperApp().catch(error => setError(String(error)))}>{t.paper}</Button>
-        <Button variant="primary" title={t.limit} disabled={importing} onClick={() => input.current?.click()}><Icon name="upload" size={14} />{importing ? t.importing : t.import}</Button>
-        <input ref={input} aria-label={t.import} type="file" hidden onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }} />
-      </div>
-    </header>
+        <FilePicker compact variant="primary" title={t.limit} label={importing ? t.importing : t.import} emptyLabel="" busy={importing} onFile={file => void importFile(file)}/>
+      </>}/>
     {loading && <p role="status">{t.loading}</p>}
     {loadError && <div className="viewer-error"><Feedback kind="error">{loadError}</Feedback><Button disabled={loading} onClick={() => void loadFiles()}>{t.retry}</Button></div>}
     {error && <div className="viewer-error"><Feedback kind="error">{error}</Feedback><Button onClick={() => setError('')}>Dismiss</Button></div>}

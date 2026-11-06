@@ -1,26 +1,26 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { openAppSession, useAppChat } from '@pero/app-sdk';
+import { Button, EmptyIllustration, EmptyState, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { cardKind, pulseFeed } from './work-recap-model.mjs';
+import { InsightsError } from './feedback';
 import './pulse-home-result.css';
 
-/** Strings copied from pulse-home-copy.ts. This page is PulseBrief, not the work recap. */
 const copy = {
   zh: {
     title: 'Insights', forMe: '给我的', popular: '热门', recent: '最近', today: '今天',
-    needs: '需要你', agent: 'Point 判断', review: '查看冲突', openSession: '打开会话', ahead: '接下来',
-    generatedAt: '生成于 {time}', personalEmpty: '暂无新的个人工作更新。', popularEmpty: '还没有值得广传的变化。', recentEmpty: '还没有更新。',
-    generating: 'Point 正在读今天发生的事，写你的简报…',
-    evidence: '依据', why: '为什么给你看', sources: '{n} 个来源', handled: 'Agent 报告已完成', more: '更多',
+    openSession: '打开会话', ahead: '接下来', generatedAt: '生成于 {time}',
+    personalEmpty: '暂无新的个人工作更新。', popularEmpty: '还没有值得广传的变化。', recentEmpty: '还没有更新。',
+    generating: '正在更新简报，当前内容继续保留。',
+    evidence: '依据', why: '为什么给你看', sources: '来源', handled: 'Agent 报告已完成', more: '查看依据',
     needs_you: '需要你', risk: '风险', change: '变化', done: '已完成', watch: '在盯', filtered: '已过滤',
-    project: '项目', session: '会话', file: '文件', pr: 'PR', issue: 'Issue', commit: '提交', branch: '分支', meeting: '会议', automation: '自动化',
   },
   en: {
     title: 'Insights', forMe: 'For me', popular: 'Popular', recent: 'Recent', today: 'Today',
-    needs: 'Needs you', agent: 'Point’s judgment', review: 'Review conflict', openSession: 'Open session', ahead: 'Ahead',
-    generatedAt: 'Generated at {time}', personalEmpty: 'No new personal work updates.', popularEmpty: 'Nothing notable to share yet.', recentEmpty: 'No updates yet.',
-    generating: 'Point is reading today and writing your brief…',
-    evidence: 'Evidence', why: 'Why you are seeing this', sources: '{n} sources', handled: 'Agent reported this done', more: 'More',
+    openSession: 'Open session', ahead: 'Ahead', generatedAt: 'Generated at {time}',
+    personalEmpty: 'No new personal work updates.', popularEmpty: 'Nothing notable to share yet.', recentEmpty: 'No updates yet.',
+    generating: 'Updating your brief. The current edition is kept.',
+    evidence: 'Evidence', why: 'Why you are seeing this', sources: 'Sources', handled: 'Agent reported this done', more: 'View evidence',
     needs_you: 'Needs you', risk: 'Risk', change: 'Change', done: 'Done', watch: 'Watching', filtered: 'Filtered',
-    project: 'Project', session: 'Session', file: 'File', pr: 'PR', issue: 'Issue', commit: 'Commit', branch: 'Branch', meeting: 'Meeting', automation: 'Automation',
   },
 };
 
@@ -30,82 +30,89 @@ export type ResultCard = {
   action?: { label: string; sessionId?: string; prompt?: string } | null;
   sources?: { label: string; url?: string; sessionId?: string }[];
 };
-
 export type ResultBrief = {
-  cards: ResultCard[];
-  tomorrow?: string;
+  cards: ResultCard[]; tomorrow?: string;
   view?: { schemaVersion: number; sections: { title?: string; layout?: string; cardIds?: string[] }[] } | null;
 };
-
 type Feed = 'for-me' | 'popular' | 'recent';
 
 function when(value?: string) {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  const sameDay = new Date().toDateString() === date.toDateString();
-  return sameDay
+  return new Date().toDateString() === date.toDateString()
     ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : date.toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function lines(value?: string) {
-  return (value ?? '').split(/\n+/).map(line => line.replace(/^[-*•]\s*/, '').trim()).filter(Boolean);
-}
-
-function Post({ card, time, t }: { card: ResultCard; time: string; t: typeof copy.zh }) {
-  const [open, setOpen] = useState(false);
+function Post({ card, time, t, locale }: { card: ResultCard; time: string; t: typeof copy.zh; locale: 'zh' | 'en' }) {
+  const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const detailId = useId(), chat = useAppChat();
   const kind = cardKind(card);
-  const bullets = lines(card.body);
+  const bullets = (card.body ?? '').split(/\n+/).map(line => line.replace(/^[-*•]\s*/, '').trim()).filter(Boolean);
   const showList = bullets.length > 1;
+  const hasDetails = (!showList && !!card.body) || !!card.why || card.handled;
+  const act = (operation: () => Promise<unknown>) => {
+    if (busy) return;
+    setBusy(true); setError('');
+    void operation().catch(reason => setError(String(reason))).finally(() => setBusy(false));
+  };
+  const action = card.action;
   return <article className="point-pulse-post" data-kind={kind}>
     <header>
       <h3>{card.title}</h3>
-      <button type="button" className="point-pulse-more" aria-expanded={open} aria-label={t.more} onClick={() => setOpen(!open)}>•••</button>
+      {hasDetails && <Button variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}>{t.more}</Button>}
     </header>
-    <p className="point-pulse-status">
-      <i aria-hidden="true" />
-      <span>{t[kind as keyof typeof t] || kind}</span>
+    <p className="point-pulse-status"><i aria-hidden="true" /><span>{t[kind as keyof typeof t] || kind}</span>
       {card.entity?.label && <span className="point-pulse-dot">{card.entity.label}</span>}
       {time && <span className="point-pulse-dot">{time}</span>}
     </p>
     {card.conclusion && <p className="point-pulse-body">{card.conclusion}</p>}
-    {showList && <ul>{bullets.map(line => <li key={line}>{line}</li>)}</ul>}
-    {open && <div className="point-pulse-detail">
+    {showList && <ul>{bullets.map((line, index) => <li key={index}>{line}</li>)}</ul>}
+    <div className="point-pulse-actions">
+      {action && (action.sessionId || action.prompt) && <Button disabled={busy} onClick={() => act(() => action.sessionId ? openAppSession(action.sessionId) : chat.compose(action.prompt!))}>{action.label}</Button>}
+      {card.entity?.sessionId && card.entity.sessionId !== action?.sessionId && <Button disabled={busy} onClick={() => act(() => openAppSession(card.entity!.sessionId!))}>{t.openSession}</Button>}
+    </div>
+    {!!card.sources?.length && <div className="point-pulse-sources"><span>{t.sources}</span><ul>
+      {card.sources.map((source, index) => <li key={index}>{source.sessionId
+        ? <Button variant="ghost" disabled={busy} onClick={() => act(() => openAppSession(source.sessionId!))}>{source.label}</Button>
+        : /^https?:\/\//i.test(source.url ?? '') ? <a href={source.url} target="_blank" rel="noopener noreferrer">{source.label}</a> : <span>{source.label}</span>}</li>)}
+    </ul></div>}
+    {error && <InsightsError error={error} locale={locale} context="action" />}
+    {hasDetails && <div id={detailId} hidden={!open} className="point-pulse-detail">
       {!showList && card.body && <section><h4>{t.evidence}</h4><p>{card.body}</p></section>}
       {card.why && <section><h4>{t.why}</h4><p>{card.why}</p></section>}
       {card.handled && <p>{t.handled}</p>}
-      {(card.sources?.length ?? 0) > 0 && <p>{t.sources.replace('{n}', String(card.sources?.length))}</p>}
     </div>}
   </article>;
 }
 
-/**
- * A Pulse feed. For me is the default. needs_you stays available as Point 判断
- * through the status line, and the edition is the other two tabs.
- */
-export function PulseHomeResult({ brief, createdAt, running, locale }: { brief?: ResultBrief | null; createdAt?: string; running?: boolean; locale: 'zh' | 'en' }) {
-  const t = copy[locale];
-  const [feed, setFeed] = useState<Feed>('for-me');
-  const cards = pulseFeed(brief?.cards ?? [], feed) as ResultCard[];
+export function PulseHomeResult({ brief, createdAt, running, locale }: {
+  brief: ResultBrief; createdAt?: string; running?: boolean; locale: 'zh' | 'en';
+}) {
+  const t = copy[locale], [feed, setFeed] = useState<Feed>('for-me');
   const stamp = when(createdAt);
   const day = createdAt && new Date(createdAt).toDateString() === new Date().toDateString();
-  const empty = feed === 'popular' ? t.popularEmpty : feed === 'recent' ? t.recentEmpty : t.personalEmpty;
   const tabs: [Feed, string][] = [['for-me', t.forMe], ['popular', t.popular], ['recent', t.recent]];
-  return <div className="point-pulse-main">
-    <header className="point-pulse-top">
-      <h1>{t.title}</h1>
-    </header>
-    <div className="point-pulse-tabs" role="tablist">
-      {tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={feed === id} onClick={() => setFeed(id)}>{label}</button>)}
-    </div>
+  if (!brief.cards.length && !brief.tomorrow) return <section className="point-insights-empty-result" aria-label={t.title}>
+    <EmptyState icon={<EmptyIllustration kind="brief"/>} description={t.personalEmpty}/>
     {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
-    <div className="point-pulse-day"><span>{day || !stamp ? t.today : stamp}</span></div>
     {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
-    {cards.length === 0 && !running && <p className="point-pulse-muted">{empty}</p>}
-    <div className="point-pulse-feed">
-      {cards.map(card => <Post key={card.id} card={card} time={stamp} t={t} />)}
-    </div>
-    {brief?.tomorrow && feed !== 'popular' && <section className="point-pulse-ahead"><h2>{t.ahead}</h2><p>{brief.tomorrow}</p></section>}
-  </div>;
+  </section>;
+  return <section aria-label={t.title}>
+    {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
+    <Tabs value={feed} onValueChange={next => setFeed(next as Feed)}>
+      <TabsList className="point-pulse-tabs" aria-label={t.title}>{tabs.map(([id, label]) => <TabsTrigger key={id} value={id}>{label}</TabsTrigger>)}</TabsList>
+      <div className="point-pulse-day"><span>{day || !stamp ? t.today : stamp}</span></div>
+      {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
+      {tabs.map(([id]) => {
+        const cards = pulseFeed(brief.cards, id) as ResultCard[];
+        return <TabsContent key={id} value={id} forceMount>
+          {cards.length === 0 && <p className="point-pulse-muted">{id === 'popular' ? t.popularEmpty : id === 'recent' ? t.recentEmpty : t.personalEmpty}</p>}
+          <div className="point-pulse-feed">{cards.map(card => <Post key={card.id} card={card} time={stamp} t={t} locale={locale} />)}</div>
+          {brief.tomorrow && id !== 'popular' && <section className="point-pulse-ahead"><h2>{t.ahead}</h2><p>{brief.tomorrow}</p></section>}
+        </TabsContent>;
+      })}
+    </Tabs>
+  </section>;
 }

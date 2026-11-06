@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import JSX = React.JSX;
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Checkbox, Icon, LoadingSkeleton, SearchField, Select, SkeletonBlock } from '@pero/app-sdk/ui';
+import { Button, Checkbox, EmptyIllustration, EmptyState, Feedback, Icon, LoadingSkeleton, SearchField, Select, SkeletonBlock } from '@pero/app-sdk/ui';
 import type { Api, Paper, SearchItem } from './types';
 import './discover-search.css';
 
@@ -14,6 +14,8 @@ const messages = {
   placeholder: { zh: '搜索论文、主题或作者…', en: 'Search papers, topics, or authors…' },
   search: { zh: '搜索', en: 'Search' },
   searching: { zh: '搜索中', en: 'Searching' },
+  refreshing: { zh: '正在更新检索，下方保留上次结果。', en: 'Updating the search. Previous results remain below.' },
+  retained: { zh: '更新未完成，下方仍显示上次检索结果。', en: 'The update did not finish. Previous search results remain below.' },
   sourceLabel: { zh: '文献来源', en: 'Literature source' },
   allSources: { zh: '全部来源', en: 'All sources' },
   fullTextAvailable: { zh: '有全文', en: 'Full text available' },
@@ -102,6 +104,7 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
   const epoch = useRef(0);
   const burst = useRef(false);
   const attempted = useRef('');
+  const resolvedSearch = useRef<{ query: string; source: string; sort: Sort } | null>(null);
   const [query, setQuery] = useState('');
   const [source, setSource] = useState('all');
   const [sort, setSort] = useState<Sort>('relevance');
@@ -125,7 +128,11 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
     if (!trimmed) return;
     const version = ++epoch.current;
     attempted.current = trimmed;
-    setBusy(true); setError(''); setWarnings([]);
+    const previous = resolvedSearch.current;
+    if (!previous || previous.query !== trimmed || previous.source !== src || previous.sort !== order) {
+      setResults(null); setWarnings([]); resolvedSearch.current = null;
+    }
+    setBusy(true); setError('');
     try {
       const result = await api.post<{ items?: SearchItem[]; warnings?: WarningValue[] }>('/api/search', {
         query: trimmed, limit: 12,
@@ -134,12 +141,12 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
       });
       if (!mounted.current || version !== epoch.current) return;
       const items = Array.isArray(result.items) ? result.items : [];
+      resolvedSearch.current = { query: trimmed, source: src, sort: order };
       setResults(order === 'title' ? [...items].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true })) : items);
       setSubmitted(trimmed);
       setWarnings(warningLines(result.warnings));
     } catch (caught) {
       if (!mounted.current || version !== epoch.current) return;
-      setResults(null);
       setError(caught instanceof Error && caught.message ? caught.message : t('searchFailed'));
     } finally { if (mounted.current && version === epoch.current) setBusy(false); }
   }
@@ -214,22 +221,23 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
       </div>
       <button type="button" className="pa-discover-retry" onClick={retry}>{t('retry')}<Icon name="refresh" size={14}/></button>
     </div>}
-    {error && <div className="pa-discover-error" role="alert"><p>{error}</p><button type="button" className="pa-discover-retry" onClick={retry}>{t('retry')}<Icon name="refresh" size={14}/></button></div>}
-    {busy && <LoadingSkeleton className="pa-discover-loading" label={t('searching')}>{[0, 1, 2].map(row => <div className="pa-discover-skeleton" key={row}>
+    {error && <div className="pa-discover-error" role="alert"><p>{error}{results && ` ${t('retained')}`}</p><button type="button" className="pa-discover-retry" onClick={retry}>{t('retry')}<Icon name="refresh" size={14}/></button></div>}
+    {busy && (results ? <Feedback kind="status">{t('refreshing')}</Feedback> : <LoadingSkeleton className="pa-discover-loading" label={t('searching')}>{[0, 1, 2].map(row => <div className="pa-discover-skeleton" key={row}>
       <SkeletonBlock width="28%"/>
       <SkeletonBlock shape="title" width={row === 1 ? '72%' : '88%'}/>
       <SkeletonBlock width="46%"/>
       <SkeletonBlock width="100%"/>
       <SkeletonBlock width="64%"/>
-    </div>)}</LoadingSkeleton>}
-    {!busy && !!visible.length && <p className="pa-discover-count" role="status">{t(visible.length === 1 ? 'countOne' : 'count', { n: visible.length })} <strong>{submitted}</strong></p>}
-    {!busy && !!visible.length && <ul className="pa-discover-results">{visible.map(item => {
+    </div>)}</LoadingSkeleton>)}
+    {!!visible.length && <p className="pa-discover-count" role="status">{t(visible.length === 1 ? 'countOne' : 'count', { n: visible.length })} <strong>{submitted}</strong></p>}
+    {!!visible.length && <ul className="pa-discover-results">{visible.map(item => {
       const key = hitKey(item);
       const paper = saved[key] ?? papers.find(candidate => (candidate.source === item.source && candidate.sourceId === item.id) || (!!item.url && candidate.url === item.url));
       return <DiscoverHit key={key} item={item} paper={paper} adding={adding === key} locked={!!adding} error={addError?.key === key ? addError.message : ''} open={!!open[key]} onOpenChange={next => setOpen(current => current[key] === next ? current : { ...current, [key]: next })} onAdd={() => void add(item)} onOpen={onOpenSaved} t={t}/>;
     })}</ul>}
-    {!error && !busy && !results && !menu && <div className="pa-discover-empty"><p>{t('idle')}</p></div>}
-    {!error && !busy && results && visible.length === 0 && <div className="pa-discover-empty"><p>{t('empty')}</p>{canClear && <button type="button" className="pa-discover-secondary" onClick={clearFilters}>{t('clear')}</button>}</div>}
+    {!error && !busy && !results && !menu && <EmptyState icon={<EmptyIllustration kind="documents"/>} description={t('idle')}/>}
+    {!error && !busy && results && visible.length === 0 && <EmptyState icon={<EmptyIllustration kind="search" size="compact"/>} heading={t('empty')}
+      actions={canClear && <Button variant="ghost" onClick={clearFilters}>{t('clear')}</Button>}/>}
   </section>;
 }
 

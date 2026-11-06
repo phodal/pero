@@ -1,1 +1,1 @@
-export function mountEnvironmentManager(root: HTMLElement, options?: {locale?: string;inspect?: (root: HTMLElement, options: {locale:string})=>{dispose():void}}): {setLocale(locale:string):void;dispose():void};
+export function mountEnvironmentManager(root: HTMLElement, options?: {locale?: string}): {setLocale(locale:string):void;dispose():void};

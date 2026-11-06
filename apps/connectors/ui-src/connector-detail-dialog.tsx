@@ -80,12 +80,13 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
   if (provider?.discovery && !quickInstall) moreActions.unshift({ label: copy('重新检测运行环境', 'Detect runtime again'), danger: false, disabled: !!busy || discovery.state === 'running', onSelect: () => void discover(provider.providerId) });
   const errorFor = (field: string) => fieldError?.field === field ? fieldError.message : undefined;
   const text = (zh?: string, en?: string) => locale === 'en' ? en ?? zh : zh;
-  // Provider description and prerequisites are reference, not steps: one help icon beside the title.
-  const about = isFeishu ? '' : [text(provider?.summary, provider?.summaryEn), text(provider?.prerequisiteCopy, provider?.prerequisiteEn)]
+  // Background description stays in help; prerequisites remain visible next to configuration.
+  const about = isFeishu ? '' : [text(provider?.summary, provider?.summaryEn)]
     .map(part => part?.trim()).filter(Boolean).map(part => /[。.！!？?]$/.test(part!) ? part : `${part}${copy('。', '.')}`).join(locale === 'zh' ? '' : ' ');
   const status = view && !isFeishu ? explain(view, locale) : '';
   const gotcha = !isFeishu ? text(provider?.gotchaCopy, provider?.gotchaEn) : undefined;
-  const help = [STATE_TONES[view?.state ?? ''] === 'error' ? '' : status, about, gotcha, view && !isFeishu ? [view.connectionId, view.origin].filter(Boolean).join(' · ') : ''].filter(Boolean).join('\n');
+  const prerequisite = text(provider?.prerequisiteCopy, provider?.prerequisiteEn);
+  const help = [STATE_TONES[view?.state ?? ''] === 'error' ? '' : status, about, view && !isFeishu ? [view.connectionId, view.origin].filter(Boolean).join(' · ') : ''].filter(Boolean).join('\n');
   const name = isFeishu ? copy('飞书连接', 'Feishu connection') : view ? cardTitle(view) : (locale === 'en' ? PROVIDER_NAMES_EN[provider?.providerId ?? ''] : undefined) ?? provider?.displayName ?? copy('自定义连接', 'Custom connection');
   const formAvailable = !!parsedDefinition;
   const researchKeys = new Set((researchFields[provider?.providerId ?? ''] ?? []).map(field => field.key));
@@ -114,6 +115,8 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
         {view?.primary && <Button disabled={!!busy} onClick={() => perform(view.primary)}>{labels[view.primary] ?? view.primary}</Button>}
         <div className="point-connector-action-slot" ref={setActionTarget} />
       </>}>
+      {!isFeishu && prerequisite && <Feedback kind="status">{copy('使用前需要：', 'Requires: ')}{prerequisite}</Feedback>}
+      {gotcha && <Feedback kind="status">{gotcha}</Feedback>}
       {notice && <Feedback kind={noticeError ? 'error' : 'status'} unstyled className={noticeError ? 'point-error' : 'point-connectors-notice'}>{notice}</Feedback>}
       {view && !isFeishu && STATE_TONES[view.state] === 'error' && <Feedback kind="error" unstyled className="point-connectors-warning">{status}</Feedback>}
       {view && isFeishu && <FeishuAuthorizationPanel key={view.connectionId} connectionId={view.connectionId} locale={locale} actionsTarget={actionTarget} connectionState={view.state} connectionSummary={explain(view, locale)} onAuthorized={() => void discover('feishu-workspace')}/>}

@@ -16,14 +16,16 @@ before(async () => {
     import { createRoot } from 'react-dom/client';
     import { DataForm, SubmitButton } from './ui-src/submit-button';
     function Fixture() {
-      const [count, setCount] = useState(0), [busy, setBusy] = useState(false);
+      const [count, setCount] = useState(0), [busy, setBusy] = useState(false), [footer, setFooter] = useState(false);
       return <><label><input type="checkbox" checked={busy} onChange={e => setBusy(e.target.checked)} />Busy</label>
-        <DataForm onSubmit={e => { e.preventDefault(); setCount(n => n + 1); }}>
+        <label><input type="checkbox" checked={footer} onChange={e => setFooter(e.target.checked)} />Footer action</label>
+        <DataForm id="data-form" onSubmit={e => { e.preventDefault(); setCount(n => n + 1); }}>
           <label>Name<input name="name" required /></label>
           <label>Notes<textarea /></label>
           <label>Choice<select><option>One</option><option>Two</option></select></label>
-          <SubmitButton disabled={busy}>Save</SubmitButton>
-        </DataForm><output aria-label="Submissions">{count}</output></>;
+          {!footer && <SubmitButton disabled={busy}>Save</SubmitButton>}
+        </DataForm>{footer && <footer><SubmitButton form="data-form" disabled={busy}>Save</SubmitButton></footer>}
+        <output aria-label="Submissions">{count}</output></>;
     }
     createRoot(document.getElementById('app')).render(<Fixture />);
   `, resolveDir: appRoot, loader: 'tsx' }, outfile: resolve(directory, 'fixture.js'), write: false,
@@ -38,7 +40,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); if (directory) await rm(directory, { recursive: true, force: true }); });
 
-for (const sandboxed of [true, false]) test(`validated submission ${sandboxed ? 'without allow-forms' : 'outside sandbox'}`, async t => {
+for (const footer of [false, true]) for (const sandboxed of [true, false]) test(`validated ${footer ? 'footer' : 'inline'} submission ${sandboxed ? 'without allow-forms' : 'outside sandbox'}`, async t => {
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -53,6 +55,7 @@ for (const sandboxed of [true, false]) test(`validated submission ${sandboxed ? 
   const count = frame.getByLabel('Submissions');
   const save = frame.getByRole('button', { name: 'Save', exact: true });
   await expect(name).toBeVisible();
+  if (footer) await frame.getByRole('checkbox', { name: 'Footer action', exact: true }).check();
   await save.click(); await expect(count).toHaveText('0');
   await expect(name).toBeFocused();
   await name.press('Enter'); await expect(count).toHaveText('0');

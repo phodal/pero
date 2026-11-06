@@ -5,7 +5,6 @@ use crate::{
 };
 use gpui_kit::{
     component::{
-        button::*,
         menu::{DropdownMenu, PopupMenuItem},
         *,
     },
@@ -39,7 +38,7 @@ pub(crate) struct PaneReader {
 }
 pub(crate) struct PaneResize {
     split: u64,
-    axis: PaneAxis,
+    pub(crate) axis: PaneAxis,
     bounds: PaneBounds,
 }
 impl Workbench {
@@ -337,9 +336,7 @@ impl Workbench {
                 .is_some_and(|layout| layout.neighbor(id, *direction).is_some())
         })
         .collect::<Vec<_>>();
-        Button::new(("pane-actions", id.0 as usize))
-            .ghost()
-            .small()
+        pero_theme::ghost_icon_button(("pane-actions", id.0 as usize), pero_theme::Chrome::from_app(cx), cx)
             .icon(Icon::default().path("icons/dots.svg"))
             .tooltip(self.t("workspace.pane_actions"))
             .accessibility_label(self.t("workspace.pane_actions"))
@@ -491,6 +488,7 @@ impl Workbench {
                                             axis,
                                             bounds: *bounds,
                                         });
+                                        cx.notify();
                                     }
                                     cx.stop_propagation();
                                 }),

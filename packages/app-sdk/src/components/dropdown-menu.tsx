@@ -1,25 +1,10 @@
 // Upstream attribution and license: packages/app-sdk/NOTICE.md.
-import React, { forwardRef, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import * as Primitive from '@radix-ui/react-dropdown-menu';
 import { ensureUiStyles } from './ui-styles';
 import { Icon } from './icon';
+import { menuThemeStyle, useMenuTheme } from './menu-theme';
 import { resolvePopupContainer, topLayerDialog } from './popup-container';
-
-/** Tokens the shared dropdown skin reads. Resolved from the trigger when content portals to body. */
-const THEME_TOKENS = [
-  '--pero-border',
-  '--pero-accent-color',
-  '--pero-muted',
-  '--dsw-alias-border-primary',
-  '--dsw-alias-bg-base',
-  '--dsw-alias-label-primary',
-  '--dsw-alias-label-secondary',
-  '--dsw-alias-interactive-bg-hover',
-  '--dsw-alias-state-error-primary',
-  '--dsw-alias-brand-primary',
-  '--dsw-alias-button-info-fill',
-  '--dsw-alias-button-info-label',
-] as const;
 
 type AnchorValue = {
   trigger: HTMLElement | null;
@@ -40,33 +25,6 @@ function useStableRef<T extends { ownerDocument: Document }>(forwardedRef: React
     if (typeof forwardedRef === 'function') forwardedRef(node);
     else if (forwardedRef) forwardedRef.current = node;
   }, [forwardedRef]);
-}
-
-function readToken(trigger: HTMLElement, token: string) {
-  const view = trigger.ownerDocument.defaultView;
-  const resolved = view?.getComputedStyle(trigger).getPropertyValue(token).trim();
-  if (resolved) return resolved;
-  let node: HTMLElement | null = trigger;
-  while (node) {
-    const inline = node.style.getPropertyValue(token).trim();
-    if (inline) return inline;
-    node = node.parentElement;
-  }
-  return '';
-}
-
-function themeStyle(trigger: HTMLElement | null, container: HTMLElement | undefined): React.CSSProperties {
-  if (!trigger || container !== trigger.ownerDocument.body) return {};
-  const view = trigger.ownerDocument.defaultView;
-  const computed = view?.getComputedStyle(trigger);
-  const style: Record<string, string> = {};
-  for (const token of THEME_TOKENS) {
-    const value = readToken(trigger, token);
-    if (value) style[token] = value;
-  }
-  if (computed?.font) style.font = computed.font;
-  if (computed?.color) style.color = computed.color;
-  return style;
 }
 
 function focusedOpenDialog(doc: Document) {
@@ -160,32 +118,11 @@ export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuConten
   const outerRef = useStableRef(forwardedRef);
   const [content, setContent] = useState<HTMLDivElement | null>(null);
   const ref = useCallback((node: HTMLDivElement | null) => { setContent(node); outerRef(node); }, [outerRef]);
-  useLayoutEffect(() => {
-    if (!content || !trigger || container !== trigger.ownerDocument.body) return;
-    const view = trigger.ownerDocument.defaultView;
-    if (!view) return;
-    const customFont = Object.entries(style ?? {}).some(([key, value]) => value !== undefined && (key === 'lineHeight' || key.startsWith('font')));
-    const updateTheme = () => {
-      const resolved = themeStyle(trigger, container);
-      for (const token of THEME_TOKENS) {
-        if (!(token in (style ?? {}))) content.style.setProperty(token, (resolved as Record<string, string>)[token] ?? '');
-      }
-      if (!customFont) content.style.font = resolved.font ?? '';
-      if (style?.color === undefined) content.style.color = resolved.color ?? '';
-    };
-    updateTheme();
-    const observer = new view.MutationObserver(updateTheme);
-    for (let scope: HTMLElement | null = trigger; scope; scope = scope.parentElement) {
-      observer.observe(scope, { attributes: true, attributeFilter: ['style', 'class', 'data-theme'] });
-    }
-    const scheme = view.matchMedia?.('(prefers-color-scheme: dark)');
-    scheme?.addEventListener('change', updateTheme);
-    return () => { observer.disconnect(); scheme?.removeEventListener('change', updateTheme); };
-  }, [content, trigger, container, style]);
+  useMenuTheme(content, trigger, container, style);
   return <Primitive.Portal container={container}>
     <Primitive.Content {...props} loop={loop} sideOffset={sideOffset} collisionPadding={collisionPadding}
       className={classes('pero-ui-dropdown-content', className)} data-unstyled={unstyled || undefined}
-      style={{ ...themeStyle(trigger, container ?? undefined), ...style }}
+      style={{ ...menuThemeStyle(trigger, container ?? undefined), ...style }}
       onKeyDown={event => {
         onKeyDown?.(event);
         if (event.key === 'Tab' && !event.defaultPrevented && anchor) {
@@ -287,12 +224,16 @@ export const DropdownMenuSubContent = forwardRef<HTMLDivElement, DropdownMenuSub
   const anchor = useContext(AnchorContext);
   const trigger = anchor?.trigger ?? null;
   const container = trigger ? resolvePopupContainer(trigger, containerOverride) : containerOverride ?? undefined;
+  const outerRef = useStableRef(forwardedRef);
+  const [content, setContent] = useState<HTMLDivElement | null>(null);
+  const ref = useCallback((node: HTMLDivElement | null) => { setContent(node); outerRef(node); }, [outerRef]);
+  useMenuTheme(content, trigger, container, style);
   return <Primitive.Portal container={container}>
     <Primitive.SubContent {...props} sideOffset={sideOffset} collisionPadding={collisionPadding}
       className={classes('pero-ui-dropdown-content pero-ui-dropdown-sub-content', className)} data-unstyled={unstyled || undefined}
-      style={{ ...themeStyle(trigger, container ?? undefined), ...style }}
+      style={{ ...menuThemeStyle(trigger, container ?? undefined), ...style }}
       onEscapeKeyDown={event => { event.stopPropagation(); onEscapeKeyDown?.(event); }}
-      ref={useStableRef(forwardedRef)} />
+      ref={ref} />
   </Primitive.Portal>;
 });
 

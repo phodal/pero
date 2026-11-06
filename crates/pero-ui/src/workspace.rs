@@ -7,6 +7,8 @@ mod pane_navigation;
 pub(crate) mod tab_navigation;
 #[path="workspace_source_registry.rs"]
 mod source_registry;
+#[path = "workspace_legacy_compute.rs"]
+mod legacy_compute;
 pub(crate) use pero_contracts::workspace_session::{
     HistoryEntry, PaneSide, WorkbenchPage, WorkspaceHistory, WorkspaceItem, WorkspaceRoute,
     WorkspaceSnapshot,
@@ -150,6 +152,7 @@ impl WorkspaceNavigation {
         self.other = snapshot.other;
         self.focused = snapshot.focused;
         self.history = snapshot.history;
+        self.migrate_legacy_compute();
     }
     pub(crate) fn can_back(&self) -> bool {
         if self.pane_layout_visible() {self.focused_tabs().is_some_and(|tabs|tabs.can_step_history(false))}else{self.history.can_step(&self.route,false)}
