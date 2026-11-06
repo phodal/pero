@@ -378,3 +378,31 @@ Final actual Native screenshots:
 Screenshot artifacts for this pass live outside Git under the task's
 `pero-native-followup/` and `customize-browser/` visualization folders. Published
 PR screenshots distinguish actual Native observations from final browser frames.
+
+## Paper and side chat controls — 2026-11-06
+
+Paper library search now composes SearchField and named IconButton actions;
+reader formats use the public single ToggleGroup. Obsolete outer search focus
+and reader pressed skins were removed. Tabs and ToggleGroup share pointer versus
+keyboard focus handling and an inset keyboard outline. Native chat combines
+artifact navigation and dock close in one header; zero counts are hidden and
+composer retry is a named icon action.
+
+- Actual App browser suite: **16 passed**, including Paper at 1200px/light/14px
+  and 600px/dark/24px. Search has one focus boundary, Clear does not submit,
+  Enter submits once, reader selection stays exclusive, disabled choices are
+  skipped and pointer/keyboard outlines remain distinct.
+- Paper workspace tests **7**, shared Tabs tests **10**, Native chat-ui **25**
+  and pero-ui **64** passed. Paper typecheck and production bundle, root checks,
+  Native executable build and Wasm checks passed.
+- Actual macOS GPUI/WKWebView: typed and cleared library search, opened the
+  existing Harness-Zero paper, switched saved text/PDF with pointer and keyboard,
+  observed one selected format and an unclipped keyboard outline. Artifact entry
+  and dock close share one row, empty counts are absent in both views, closing
+  the dock works while artifacts are open, and the composer remains bottom
+  aligned with its icon retry action. Native was light theme; dark/24px remains
+  browser evidence. No model request or scientific execution was performed.
+
+Screenshots are outside Git in this task's `paper-chat-controls/` visualization
+folder. Browser operation was disabled in Work settings during final acceptance,
+so new screenshots could not be uploaded to GitHub; prior PR attachments remain.
