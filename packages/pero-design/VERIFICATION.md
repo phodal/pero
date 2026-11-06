@@ -381,6 +381,8 @@ PR screenshots distinguish actual Native observations from final browser frames.
 
 ## Paper and side chat controls — 2026-11-06
 
+Source: `2778f5e7`, before the subsequent session-state follow-up.
+
 Paper library search now composes SearchField and named IconButton actions;
 reader formats use the public single ToggleGroup. Obsolete outer search focus
 and reader pressed skins were removed. Tabs and ToggleGroup share pointer versus
@@ -410,7 +412,7 @@ so new screenshots could not be uploaded to GitHub; prior PR attachments remain.
 
 ## Native session navigation and App preparation — 2026-11-06
 
-Source: the session follow-up on `codex/paper-chat-controls`, based on `2778f5e7`.
+Source: `507a2d1b`, the session follow-up based on `2778f5e7`.
 The final small delta removes 8px between the right status slot and the menu
 without reducing the shared menu hit target; it was rebuilt and inspected in
 the original Native preview profile. SessionRow is a GPUI component; no Web
@@ -460,11 +462,12 @@ added to it.
 
 ## PR #139 merge follow-up — 2026-11-06
 
-Source: PR head `507a2d1` merged with `master` at `01ec7f0d`, plus the shared
-ChatPanel completion dispatch and standalone regression in this follow-up.
+Source: `0312562b` (PR head `507a2d1` merged with `master` at `01ec7f0d`),
+plus the final Workbench event-routing correction in this follow-up.
 The Composer conflict retains master's reconnect label and geometry probe with
 the PR's named RotateCcw icon. App readiness recovery now lives in ChatPanel;
-Workbench forwards events to it even when an App feature also consumes them.
+Workbench forwards App lifecycle events to it even when an App feature also
+consumes them; App scope requests retain the existing panel-availability check.
 
 - L0: root checks passed (984 bilingual messages, 85 shared icons). Native
   chat-ui 28/28 and UI 64/64, Host 44/44 and theme 1/1 passed. Standalone Chat

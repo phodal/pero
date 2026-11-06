@@ -589,7 +589,9 @@ impl Workbench {
             || self.receive_research_resources(&event, cx)
             || self.receive_apps(&event, cx)
             || self.receive_remote(&event, cx);
-        let handled = self.chat.update(cx, |chat, cx| chat.receive(&event, cx));
+        // App lifecycle notifications also reach Chat; scope admission stays with Apps.
+        let handled = (!feature_handled || event.kind.starts_with("apps_"))
+            && self.chat.update(cx, |chat, cx| chat.receive(&event, cx));
         if !feature_handled {
             if event.kind == "agents" {
                 self.workspace = event.text.clone();
