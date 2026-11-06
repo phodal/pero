@@ -5,6 +5,28 @@ status: open
 
 # Large source reading can block the Wasm thread
 
+## Kit 0.9.0 upgrade review (2026-11-06)
+
+The upgraded Kit 0.9.0 / Web 0.3.11 development build passes the 8,000-row,
+1,086,892-byte reader's functional suite after updating stale pointer targets
+and respecting wrapped visual-line selection in the clipboard assertion.
+However, the single cold Source sample is 48,233.4 ms with a 48,199 ms long task;
+the single retained switch is 38.4 ms. This is not performance acceptance and
+does not resolve this incident. Debug receipt:
+`target/gpui-upgrade-review/reader-debug-performance.json`.
+
+Release verification and the full dependency/patch review are recorded in
+[Kit upgrade verification](../fitness/gpui-kit-0.9.md). The local EditContext,
+search and folding patches remain necessary.
+
+The Cargo release workbench also passes the complete functional suite. Without
+an additional Binaryen pass, its single cold Source sample is 2,930.5 ms with a
+2,919 ms long task; preview is 15.3 ms and retained switching 18.5 ms. This still
+does not meet interactive first-open expectations. Receipt:
+`target/gpui-upgrade-review/reader-release-performance.json`. This is not a
+same-source comparison against Kit 0.8.1, so it does not establish which version
+introduced the cost.
+
 ## What
 
 In background Electron on macOS arm64, the new reader received a 1,086,892-byte

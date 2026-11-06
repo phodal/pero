@@ -22,7 +22,7 @@ conversation. Closing the app closes those processes.
 
 Requirements: Node.js 22.12+, Go 1.27.3 for the bundled harness, Rust stable and
 nightly-2026-10-28, and the local
-gpui-kit checkout at snapshot `ec89cfc` (0.8.1). Keep this checkout outside Pero
+gpui-kit checkout at snapshot `7591a35` (0.9.0). Keep this checkout outside Pero
 and use LF source files, including on Windows (clone with
 `git -c core.autocrlf=false clone ...`). The pinned source patches require exact
 source context; an existing CRLF checkout should be replaced by a fresh LF clone,
@@ -46,11 +46,11 @@ The maintainer checkout detects `../../test/gpui-kit` automatically. The Cargo
 wrapper copies Kit into the content-addressed `target/patched-dependencies`
 cache before applying the tracked source patches. The root Cargo workspace
 excludes `target`, preserving Kit's inherited workspace dependencies. The original
-Kit checkout remains unchanged. The wrapper also prepares `gpui-pre-web =0.3.10` with the
-tracked [IME patch](../patches/gpui-pre-web-0.3.10-ime.patch) under
+Kit checkout remains unchanged. The wrapper also prepares `gpui-pre-web =0.3.11` with the
+tracked [IME patch](../patches/gpui-pre-web-0.3.11-ime.patch) under
 `target/patched-dependencies`. It verifies the original crate's crates.io
 checksum before applying the patch; the Cargo registry cache stays unchanged.
-Other matching `gpui-pre-* =0.3.10` snapshots come from the registry.
+Other matching `gpui-pre-* =0.3.11` snapshots come from the registry.
 `/Users/phodal/test/zed` remains a source reference, not a second GPUI dependency.
 
 After `npm run build:wasm && npm run build:web`, run `npm run test:ime` for

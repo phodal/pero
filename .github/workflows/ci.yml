@@ -1,7 +1,7 @@
 # Toolchains follow the repo, not a compatibility matrix:
 # Node.js 22 (desktop/README.md: 22.12+), npm from package-lock.json
 # Rust stable, plus nightly-2026-10-28 for Wasm (scripts/build/wasm.mjs)
-# gpui-kit ec89cfc (desktop/README.md, scripts/build/fonts.manifest.json)
+# gpui-kit 7591a35 (desktop/README.md)
 # Go 1.26.4 (MODULE.bazel). server/go.mod's `go 1.24` is the language version.
 # Bazel 9.2.0 (.bazelversion). pnpm-lock.yaml is the Bazel translation of the npm lock.
 # PR/push runs Linux core contracts without Desktop compilation or GUI.
@@ -518,7 +518,7 @@ jobs:
           git init --quiet "$kit"
           git -C "$kit" config core.autocrlf false
           git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
-          git -C "$kit" fetch --depth 1 origin ec89cfc36404667b7947aeb3d40b1c2859d729dd
+          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
           git -C "$kit" checkout --detach FETCH_HEAD
         id: gpui
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
