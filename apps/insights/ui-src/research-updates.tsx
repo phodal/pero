@@ -1,6 +1,7 @@
 import { useAppInfo, useAppI18n, useNavigate } from '@pero/app-sdk';
-import { Button, Feedback } from '@pero/app-sdk/ui';
+import { Button } from '@pero/app-sdk/ui';
 import { useEffect, useState } from 'react';
+import { InsightsError } from './feedback';
 
 type Input = { subject: string; name: string; status: 'changed' | 'unchanged' | 'unknown' | 'unsupported'; latest: string | null };
 type Check = { researchRecordId: string; checkedAt: number; error?: string; result?: {
@@ -14,7 +15,8 @@ export function ResearchUpdates() {
     openPaper: { en: 'Open Paper', zh: '打开 Paper' },
     refreshing: { en: 'Updating checks…', zh: '正在更新检查…' },
     loading: { en: 'Loading checks…', zh: '正在加载检查…' },
-    empty: { en: 'No research checks yet. Start one from a saved Paper record.', zh: '暂无研究检查。可从已保存的 Paper 记录发起。' },
+    empty: { en: 'Track sources and linked results from saved records in Paper.', zh: '在 Paper 中从已保存的记录发起检查，跟踪来源与关联结果的变化。' },
+    locale: { en: 'en', zh: 'zh' },
     unknown: { en: 'Latest could not be verified', zh: '无法确认最新版本' }, unsupported: { en: 'No upstream resolver', zh: '暂无上游解析方式' },
     unchanged: { en: 'Up to date', zh: '版本一致' }, changed: { en: 'Update available', zh: '有更新' },
     affected: { en: 'Linked results to review', zh: '需要复核的关联结果' }, failed: { en: 'Research check failed', zh: '研究检查失败' },
@@ -37,18 +39,18 @@ export function ResearchUpdates() {
       .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     return () => controller.abort();
   }, [active, refresh]);
-  return <section className="point-research-updates" aria-label={t('title')}>
+  return <section className="point-research-updates" data-empty={!updates?.length || undefined} aria-label={t('title')}>
     <header><h2>{t('title')}</h2>
     <Button variant="ghost" onClick={() => void navigate('/apps/paper-agent')}>{t('openPaper')}</Button>
     <Button variant="ghost" disabled={busy} onClick={() => setRefresh(value => value + 1)}>{t('refresh')}</Button></header>
     {busy && updates && <p role="status">{t('refreshing')}</p>}
-    {error && <Feedback kind="error">{error}</Feedback>}
+    {error && <InsightsError error={error} locale={t('locale') === 'zh' ? 'zh' : 'en'} context="research" />}
     {!updates && !error && <p role="status">{t('loading')}</p>}
     {updates?.length === 0 && !error && !busy && <p>{t('empty')}</p>}
     {!!updates?.length && <ul>{updates.map(update => <li key={update.researchRecordId}>
       <strong>{update.result?.question ?? t('failed')}</strong>{' '}
       <time>{new Date(update.checkedAt * 1000).toLocaleString()}</time>
-      {update.error && <p>{update.error}</p>}
+      {update.error && <InsightsError error={update.error} locale={t('locale') === 'zh' ? 'zh' : 'en'} context="research" />}
       {update.result && <>
         <ul>{[...update.result.papers, ...update.result.datasets].map(input => <li key={input.subject}>
           {input.name} — {t(input.status)}{input.status === 'changed' && input.latest ? ` (${input.latest.slice(0, 16)})` : ''}

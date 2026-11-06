@@ -26,7 +26,7 @@ before(async () => {
 });
 after(async()=>{await browser?.close();await new Promise(r=>server?server.close(r):r());if(temporary)await rm(temporary,{recursive:true,force:true});});
 const json=value=>({value});
-async function pageFor(t,app,handler,{size=14,dark=false,width=1000}={}){
+async function pageFor(t,app,handler,{size=14,dark=false,width=1000,locale='en'}={}){
   const page=await browser.newPage({viewport:{width,height:800}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   t.after(async()=>{await page.close();assert.deepEqual(errors,[],'browser page errors');});
@@ -48,7 +48,7 @@ async function pageFor(t,app,handler,{size=14,dark=false,width=1000}={}){
     const request=route.request(),path=new URL(request.url()).pathname;
     const body=request.postData()?request.postDataJSON():{};
     let result;
-    if(path==='/host/sdk')result=json({name:app,locale:'en',dark,active:true,appearance:{dark,accent:'teal',typography:{ui:size,chat:14,code:13},palette:dark?themes.dark:themes.light}});
+    if(path==='/host/sdk')result=json({name:app,locale,dark,active:true,appearance:{dark,accent:'teal',typography:{ui:size,chat:14,code:13},palette:dark?themes.dark:themes.light}});
     else result=await handler({path,body,page})??json({});
     await route.fulfill({status:result.status??200,contentType:'application/json',body:typeof result.value==='string'?result.value:JSON.stringify(result.value??{})});
   });
@@ -121,6 +121,9 @@ test('Insights distinguishes no available Agent from a successfully generated em
   available=true;await page.reload();
   await expect(page.getByText('No new personal work updates.',{exact:true})).toBeVisible();
   await expect(page.getByText('No Agent is connected. Connect an Agent to generate a brief.')).not.toBeVisible();
+  await expect(page.getByRole('tablist')).toHaveCount(0);
+  await expect(page.locator('.point-pulse-day')).toHaveCount(0);
+  await expect(page.locator('.point-pulse-generated')).toBeVisible();
 });
 
 test('Connectors has explicit views, visible prerequisites, and preserves the catalog during a single refresh',async t=>{
@@ -224,4 +227,58 @@ test('Insights resumes the same paused generation without starting a duplicate A
   status='completed';await page.getByRole('button',{name:'Check generation',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Source change needs review'})).toBeVisible();
   assert.equal(starts,1);
+});
+
+for (const locale of ['en', 'zh']) test(`Insights explains missing credentials before showing feeds (${locale})`,async t=>{
+  let starts=0;
+  const page=await pageFor(t,'insights',async({path,body})=>{
+    if(path==='/host/insights')return json({sessions:[]});
+    if(path==='/host/automation')return json({status:200,body:{updates:[]}});
+    if(path==='/host/agent'){
+      if(body.operation==='info')return json({available:true,agents:[{id:'fixture',available:true}],workspace:''});
+      if(body.operation==='start'){
+        starts++;
+        return starts===1?{status:400,value:'chat.credential_required'}:json({sessionId:'configured-fixture'});
+      }
+      if(body.operation==='events')return json({cursor:1,status:'completed',text:JSON.stringify(fixtureBrief)});
+    }
+  },{locale,size:locale==='zh'?24:14,dark:locale==='zh',width:locale==='zh'?420:1000});
+  await page.goto(origin+'/insights/index.html');
+  await expect(page.getByRole('heading',{name:locale==='zh'?'工作简报':'Work brief',exact:true})).toBeVisible();
+  await expect(page.getByText(locale==='zh'?'请先配置 Agent 的 API Key':'Add an API key for your Agent',{exact:true})).toBeVisible();
+  await expect(page.getByRole('status')).toContainText(locale==='zh'?'设置 → 模型与 Agent':'Settings → Models & Agents');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByRole('tablist')).toHaveCount(0);
+  await expect(page.locator('.point-pulse-day')).toHaveCount(0);
+  assert.equal(await page.locator('body').innerText().then(text=>text.includes('chat.credential_required')),false);
+  const retry=page.getByRole('button',{name:locale==='zh'?'重试生成':'Retry generation',exact:true});
+  await expect(retry).toHaveAttribute('data-variant','primary');
+  const typography=await retry.evaluate(button=>({button:getComputedStyle(button).fontFamily,page:getComputedStyle(document.querySelector('.point-pulse-page')).fontFamily,size:parseFloat(getComputedStyle(button).fontSize)}));
+  assert.equal(typography.button,typography.page,'primary action follows the same interface font');
+  assert.equal(typography.size,locale==='zh'?24:14);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await shot(page,`insights-credentials-${locale}`);
+  await retry.click();
+  await expect(page.getByRole('heading',{name:'Source change needs review',exact:true})).toBeVisible();
+  await expect(page.getByRole('tablist')).toBeVisible();
+  await expect(page.getByText(locale==='zh'?'请先配置 Agent 的 API Key':'Add an API key for your Agent',{exact:true})).toHaveCount(0);
+  assert.equal(starts,2);
+});
+
+test('Insights initial read failure offers one recovery path and secondary diagnostics',async t=>{
+  let reads=0;
+  const page=await pageFor(t,'insights',async({path,body})=>{
+    if(path==='/host/insights')return ++reads===1?{status:503,value:'fixture.records_unavailable'}:json({sessions:[]});
+    if(path==='/host/automation')return json({status:200,body:{updates:[]}});
+    if(path==='/host/agent')return json(body.operation==='info'?{available:true,agents:[{id:'fixture',available:true}],workspace:''}:body.operation==='start'?{sessionId:'recovered-fixture'}:{cursor:1,status:'completed',text:'{"cards":[]}'});
+  });
+  await page.goto(origin+'/insights/index.html');
+  await expect(page.getByRole('alert')).toHaveText('Work records could not be loaded. Please retry.');
+  await expect(page.getByRole('tablist')).toHaveCount(0);
+  await expect(page.getByText('fixture.records_unavailable',{exact:true})).not.toBeVisible();
+  await page.getByText('Technical details',{exact:true}).click();
+  await expect(page.getByText('fixture.records_unavailable',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Retry',exact:true}).click();
+  await expect(page.getByText('No new personal work updates.',{exact:true})).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });

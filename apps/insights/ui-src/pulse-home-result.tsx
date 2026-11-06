@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import { openAppSession, useAppChat } from '@pero/app-sdk';
 import { Button, Feedback, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { cardKind, pulseFeed } from './work-recap-model.mjs';
+import { InsightsError } from './feedback';
 import './pulse-home-result.css';
 
 const copy = {
@@ -9,8 +10,7 @@ const copy = {
     title: 'Insights', forMe: '给我的', popular: '热门', recent: '最近', today: '今天',
     openSession: '打开会话', ahead: '接下来', generatedAt: '生成于 {time}',
     personalEmpty: '暂无新的个人工作更新。', popularEmpty: '还没有值得广传的变化。', recentEmpty: '还没有更新。',
-    generating: 'Point 正在读今天发生的事，写你的简报…', loading: '正在读取工作记录与 Agent 状态…',
-    noAgent: '未连接可用 Agent。连接后可生成简报。', notGenerated: '工作记录已就绪，可以生成简报。',
+    generating: '正在更新简报，当前内容继续保留。',
     evidence: '依据', why: '为什么给你看', sources: '来源', handled: 'Agent 报告已完成', more: '查看依据',
     needs_you: '需要你', risk: '风险', change: '变化', done: '已完成', watch: '在盯', filtered: '已过滤',
   },
@@ -18,8 +18,7 @@ const copy = {
     title: 'Insights', forMe: 'For me', popular: 'Popular', recent: 'Recent', today: 'Today',
     openSession: 'Open session', ahead: 'Ahead', generatedAt: 'Generated at {time}',
     personalEmpty: 'No new personal work updates.', popularEmpty: 'Nothing notable to share yet.', recentEmpty: 'No updates yet.',
-    generating: 'Point is reading today and writing your brief…', loading: 'Loading work records and Agent availability…',
-    noAgent: 'No Agent is connected. Connect an Agent to generate a brief.', notGenerated: 'Work records are ready. You can generate a brief.',
+    generating: 'Updating your brief. The current edition is kept.',
     evidence: 'Evidence', why: 'Why you are seeing this', sources: 'Sources', handled: 'Agent reported this done', more: 'View evidence',
     needs_you: 'Needs you', risk: 'Risk', change: 'Change', done: 'Done', watch: 'Watching', filtered: 'Filtered',
   },
@@ -36,7 +35,6 @@ export type ResultBrief = {
   view?: { schemaVersion: number; sections: { title?: string; layout?: string; cardIds?: string[] }[] } | null;
 };
 type Feed = 'for-me' | 'popular' | 'recent';
-type BriefState = 'loading' | 'no-agent' | 'not-generated' | 'error' | 'ready';
 
 function when(value?: string) {
   if (!value) return '';
@@ -47,7 +45,7 @@ function when(value?: string) {
     : date.toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function Post({ card, time, t }: { card: ResultCard; time: string; t: typeof copy.zh }) {
+function Post({ card, time, t, locale }: { card: ResultCard; time: string; t: typeof copy.zh; locale: 'zh' | 'en' }) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const detailId = useId(), chat = useAppChat();
   const kind = cardKind(card);
@@ -80,7 +78,7 @@ function Post({ card, time, t }: { card: ResultCard; time: string; t: typeof cop
         ? <Button variant="ghost" disabled={busy} onClick={() => act(() => openAppSession(source.sessionId!))}>{source.label}</Button>
         : /^https?:\/\//i.test(source.url ?? '') ? <a href={source.url} target="_blank" rel="noopener noreferrer">{source.label}</a> : <span>{source.label}</span>}</li>)}
     </ul></div>}
-    {error && <Feedback kind="error">{error}</Feedback>}
+    {error && <InsightsError error={error} locale={locale} context="action" />}
     {hasDetails && <div id={detailId} hidden={!open} className="point-pulse-detail">
       {!showList && card.body && <section><h4>{t.evidence}</h4><p>{card.body}</p></section>}
       {card.why && <section><h4>{t.why}</h4><p>{card.why}</p></section>}
@@ -89,26 +87,30 @@ function Post({ card, time, t }: { card: ResultCard; time: string; t: typeof cop
   </article>;
 }
 
-export function PulseHomeResult({ brief, createdAt, running, locale, state = 'ready' }: {
-  brief?: ResultBrief | null; createdAt?: string; running?: boolean; locale: 'zh' | 'en'; state?: BriefState;
+export function PulseHomeResult({ brief, createdAt, running, locale }: {
+  brief: ResultBrief; createdAt?: string; running?: boolean; locale: 'zh' | 'en';
 }) {
   const t = copy[locale], [feed, setFeed] = useState<Feed>('for-me');
   const stamp = when(createdAt);
   const day = createdAt && new Date(createdAt).toDateString() === new Date().toDateString();
   const tabs: [Feed, string][] = [['for-me', t.forMe], ['popular', t.popular], ['recent', t.recent]];
+  if (!brief.cards.length && !brief.tomorrow) return <section className="point-insights-empty-result" aria-label={t.title}>
+    <Feedback kind="empty" variant="block">{t.personalEmpty}</Feedback>
+    {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
+    {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
+  </section>;
   return <section aria-label={t.title}>
     {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
-    {!brief && !running && state !== 'ready' && state !== 'error' && <p className="point-pulse-muted" role="status">{state === 'loading' ? t.loading : state === 'no-agent' ? t.noAgent : t.notGenerated}</p>}
     <Tabs value={feed} onValueChange={next => setFeed(next as Feed)}>
       <TabsList className="point-pulse-tabs" aria-label={t.title}>{tabs.map(([id, label]) => <TabsTrigger key={id} value={id}>{label}</TabsTrigger>)}</TabsList>
       <div className="point-pulse-day"><span>{day || !stamp ? t.today : stamp}</span></div>
       {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
       {tabs.map(([id]) => {
-        const cards = pulseFeed(brief?.cards ?? [], id) as ResultCard[];
+        const cards = pulseFeed(brief.cards, id) as ResultCard[];
         return <TabsContent key={id} value={id} forceMount>
-          {brief && cards.length === 0 && <p className="point-pulse-muted">{id === 'popular' ? t.popularEmpty : id === 'recent' ? t.recentEmpty : t.personalEmpty}</p>}
-          <div className="point-pulse-feed">{cards.map(card => <Post key={card.id} card={card} time={stamp} t={t} />)}</div>
-          {brief?.tomorrow && id !== 'popular' && <section className="point-pulse-ahead"><h2>{t.ahead}</h2><p>{brief.tomorrow}</p></section>}
+          {cards.length === 0 && <p className="point-pulse-muted">{id === 'popular' ? t.popularEmpty : id === 'recent' ? t.recentEmpty : t.personalEmpty}</p>}
+          <div className="point-pulse-feed">{cards.map(card => <Post key={card.id} card={card} time={stamp} t={t} locale={locale} />)}</div>
+          {brief.tomorrow && id !== 'popular' && <section className="point-pulse-ahead"><h2>{t.ahead}</h2><p>{brief.tomorrow}</p></section>}
         </TabsContent>;
       })}
     </Tabs>
