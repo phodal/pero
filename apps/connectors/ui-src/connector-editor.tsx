@@ -28,16 +28,16 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
       ? <>{copy('找到', 'Found')} <code>{command.path}</code>{copy('，但没有执行权限：', ', but it is not executable: ')}<code>chmod +x "{command.path}"</code></>
       : discovery.installable
         ? <>{copy(`未找到 ${spec.executables[0]}。`, `${spec.executables[0]} was not found. `)}
-            <span className="point-connectors-discovery-note">{job?.state === 'running' ? <>{copy('正在后台安装…', 'Installing in the background…')} <Button type="button" variant="unstyled" className="point-connectors-link" onClick={onCancelInstall}>{copy('取消', 'Cancel')}</Button></> : job?.state === 'failed' ? copy('安装失败', 'Install failed') : job?.state === 'cancelled' ? copy('已取消', 'Cancelled') : <>{copy('将执行：', 'Command: ')}{discovery.installSummary}</>}</span>
+            <span className="point-connectors-discovery-note">{job?.state === 'running' ? <>{copy('正在后台安装…', 'Installing in the background…')} <Button type="button" variant="link" className="point-connectors-link" onClick={onCancelInstall}>{copy('取消', 'Cancel')}</Button></> : job?.state === 'failed' ? copy('安装失败', 'Install failed') : job?.state === 'cancelled' ? copy('已取消', 'Cancelled') : <>{copy('将执行：', 'Command: ')}{discovery.installSummary}</>}</span>
             {job?.log && <details className="point-connectors-install-details" open={job.state === 'failed'}><summary>{copy('安装日志', 'Install log')}</summary><pre className="point-connectors-install-log">{job.log}</pre></details>}</>
       : provider.installHint?.startsWith('https://')
-        ? <>{copy(`未找到 ${spec.executables[0]}。`, `${spec.executables[0]} was not found. `)}<Button type="button" variant="unstyled" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</Button></>
+        ? <>{copy(`未找到 ${spec.executables[0]}。`, `${spec.executables[0]} was not found. `)}<Button type="button" variant="link" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</Button></>
         : <>{copy(`未找到 ${spec.executables[0]}。在终端运行`, `${spec.executables[0]} was not found. Run in a terminal:`)} <code>{provider.installHint}</code> {copy('然后点“重新检测”。', 'Then check again.')}</>,
   }];
   if (provider.providerId.startsWith('science-')) rows.push({
     key: 'scienceRuntime', label: 'Claude Science', ok: !discovery.setupError && !!definition?.env?.POINT_SCIENCE_SOURCE_SHA256,
     value: <code>0.1.60-release</code>,
-    missing: <>{copy('未找到兼容服务或 Pero 适配器。', 'Compatible servers or the Pero adapter were not found.')} <code>{discovery.setupError}</code> <Button type="button" variant="unstyled" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</Button></>,
+    missing: <>{copy('未找到兼容服务或 Pero 适配器。', 'Compatible servers or the Pero adapter were not found.')} <code>{discovery.setupError}</code> <Button type="button" variant="link" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</Button></>,
   });
   if (provider.providerId === 'feishu-workspace') {
     rows.push({ key: 'feishuCli', label: copy('飞书 CLI', 'Feishu CLI'), ok: !!discovery.nativeCli?.length,
@@ -91,7 +91,7 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
     <ActionPortal target={actionsTarget}><div className="point-connectors-actions">
       <Button variant="primary" type="button" disabled={busy || (ready ? false : !installServerFirst || running || discovery.state === 'preparing' || job?.state === 'running')} onClick={ready ? onInstall : onInstallServer}>{installing || job?.state === 'running' || discovery.state === 'preparing' ? copy('正在安装…', 'Installing…') : job?.state === 'failed' && !ready ? copy('重试安装', 'Retry install') : copy('安装', 'Install')}</Button>
       <Button type="button" disabled={running || busy} onClick={onRetry}>{copy('重新检测', 'Check again')}</Button>
-      {!isFeishu && <Button type="button" variant="unstyled" className="point-connectors-link" disabled={busy} onClick={onManual}>{copy('手动配置', 'Configure manually')}</Button>}
+      {!isFeishu && <Button type="button" variant="link" className="point-connectors-link" disabled={busy} onClick={onManual}>{copy('手动配置', 'Configure manually')}</Button>}
     </div></ActionPortal>
     <section className="point-connector-install-scope" aria-label={copy('安装后的工具权限', 'Tool access after installation')}>
       <h3>{copy('安装后的工具权限', 'Tool access after installation')}</h3>

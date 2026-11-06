@@ -117,14 +117,14 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
       </>}>
       {!isFeishu && prerequisite && <Feedback kind="status">{copy('使用前需要：', 'Requires: ')}{prerequisite}</Feedback>}
       {gotcha && <Feedback kind="status">{gotcha}</Feedback>}
-      {notice && <Feedback kind={noticeError ? 'error' : 'status'} unstyled className={noticeError ? 'point-error' : 'point-connectors-notice'}>{notice}</Feedback>}
-      {view && !isFeishu && STATE_TONES[view.state] === 'error' && <Feedback kind="error" unstyled className="point-connectors-warning">{status}</Feedback>}
+      {notice && <Feedback kind={noticeError ? 'error' : 'status'} variant="block">{notice}</Feedback>}
+      {view && !isFeishu && STATE_TONES[view.state] === 'error' && <Feedback kind="error" variant="block">{status}</Feedback>}
       {view && isFeishu && <FeishuAuthorizationPanel key={view.connectionId} connectionId={view.connectionId} locale={locale} actionsTarget={actionTarget} connectionState={view.state} connectionSummary={explain(view, locale)} onAuthorized={() => void discover('feishu-workspace')}/>}
 
       {quickInstall && <DiscoveryPanel actionsTarget={actionTarget} locale={locale} provider={provider!} discovery={discovery} definition={parsedDefinition} busy={!!busy}
         onPick={patchDefinition} onRetry={() => void discover(provider!.providerId)} onManual={useManual}
         onInstall={save} installing={busy === 'put'} onDocs={() => onDocs(provider!.providerId)} onInstallServer={() => void installServer(provider!.providerId)} onCancelInstall={cancelInstall} />}
-      {fieldError && (quickInstall || isFeishu) && <Feedback kind="error" unstyled className="point-error">{fieldError.message}</Feedback>}
+      {fieldError && (quickInstall || isFeishu) && <Feedback kind="error">{fieldError.message}</Feedback>}
 
       {view && <ConnectorToolAccess view={view} scopeEffects={scopeEffects} selection={toolSelection} disabled={!!view.sealed || !!busy} locale={locale}
         title={isFeishu ? copy('Pero 工具权限', 'Pero tool access') : undefined}
@@ -176,7 +176,7 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
             <TabsContent value="json">
               <JsonEditor locale={locale} value={definitionText} onChange={setDefinitionText} rows={12} invalid={fieldError?.field === 'json'}
                 actions={!view && <Button type="button" disabled={!!busy} onClick={importPasted}>{copy('导入 JSON', 'Import JSON')}</Button>} />
-              {errorFor('json') && <Feedback kind="error" unstyled className="point-error">{errorFor('json')}</Feedback>}
+              {errorFor('json') && <Feedback kind="error">{errorFor('json')}</Feedback>}
             </TabsContent>
           </fieldset>
         </ConnectorSection>
