@@ -1,8 +1,8 @@
 /** Presentation of Host observations. Scientific matching remains in Rust. */
 export const METHODS = Object.freeze([
-  Object.freeze({ id: 'paper-agent.pcgym', name: 'PC-Gym', app: 'Paper', software: 'PC-Gym, SB3, CasADi' }),
-  Object.freeze({ id: 'control-lab.python-control', name: 'Control', app: 'Control Lab', software: 'python-control, SciPy' }),
-  Object.freeze({ id: 'control-lab.ngspice', name: 'Circuit', app: 'Control Lab', software: 'ngspice' }),
+  Object.freeze({ id: 'paper-agent.pcgym', name: 'PC-Gym', icon: 'skill', tone: 'blue', app: 'Paper', software: 'PC-Gym, SB3, CasADi' }),
+  Object.freeze({ id: 'control-lab.python-control', name: 'Control', icon: 'activity', tone: 'neutral', app: 'Control Lab', software: 'python-control, SciPy' }),
+  Object.freeze({ id: 'control-lab.ngspice', name: 'Circuit', icon: 'circuit', tone: 'apricot', app: 'Control Lab', software: 'ngspice' }),
 ]);
 export const METHOD_IDS = Object.freeze(METHODS.map(method => method.id));
 export const OBSERVATION_MAX_AGE_MS = 300_000;

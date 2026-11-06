@@ -179,3 +179,11 @@ This does not close the remaining Docker/VM/Compose/Slurm execution gates.
 
 These checked items are adapter/fixture evidence only; they do not close P2–P4.
 See the [live owner report](../fitness/ai4s-environments.md#2026-11-06-live-local-docker-compose-and-slurm-owner-evidence).
+
+## 2026-11-06 creation page redesign
+
+The user rejected the initial creation-page appearance and explicitly requested
+an HTML design by a sub-agent before integration. The HTML proposal has
+been integrated using public radio cards and a responsive form/software layout.
+Actual Electron creation, dependency installation, keyboard/locale/theme behavior,
+binding and Control computation passed; see the updated preparation fitness report.

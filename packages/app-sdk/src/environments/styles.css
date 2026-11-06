@@ -31,18 +31,49 @@
 .env-footer{justify-content:space-between;align-items:flex-start;border-top:.5px solid var(--pero-border);padding-top:var(--pero-spacing-3)}
 .env-footer .env-note{max-width:60ch;flex:1;min-width:min(180px,100%)}
 .pero-env-trigger{display:inline-flex}
-.env-workspace{min-height:100vh;background:var(--pero-bg);align-content:start;padding:var(--pero-spacing-5) var(--pero-spacing-6);gap:var(--pero-spacing-4)}
-.env-workspace>.pero-library-header{padding:0;background:transparent;align-items:flex-start;flex-wrap:wrap}
+.env-workspace{min-height:100vh;background:var(--pero-bg);display:block;padding:calc(var(--pero-spacing-4) * 2) var(--pero-spacing-6)}
+.env-workspace-content{width:100%;max-width:1120px;margin:0 auto;display:grid;gap:var(--pero-spacing-6);align-content:start}
+.env-workspace-content>.pero-library-header{padding:0;background:transparent;align-items:center;flex-wrap:wrap}
 .env-workspace .pero-library-heading h1{white-space:normal;overflow-wrap:anywhere}
 .env-workspace .pero-library-heading p{max-width:64ch;margin-top:var(--pero-spacing-2);line-height:1.5}
 .env-back{justify-self:start}
-.env-create-form{width:100%;max-width:560px;display:grid;gap:var(--pero-spacing-5)}
-.env-recipe-summary{display:grid;gap:var(--pero-spacing-3)}
-.env-recipe-facts{display:grid;gap:var(--pero-spacing-2);margin:0}
-.env-recipe-facts>div{display:grid;grid-template-columns:6em minmax(0,1fr);gap:var(--pero-spacing-3)}
-.env-recipe-facts dt{font-size:var(--pero-font-caption);color:var(--pero-text-muted)}
-.env-recipe-facts dd{margin:0;overflow-wrap:anywhere}
-.env-form-actions{justify-content:flex-end}
+.env-local-label{display:inline-flex;align-items:center;gap:var(--pero-spacing-2);padding:var(--pero-spacing-2) var(--pero-spacing-3);font-weight:400}
+.env-recipe-summary .env-runtime strong,.env-recipe-summary dd{color:var(--pero-text)}
+.env-create-form{display:grid;grid-template-columns:minmax(0,1fr) 296px;column-gap:var(--pero-spacing-6);align-items:start;width:100%;margin:0}
+.env-create-main{grid-column:1;grid-row:1;display:grid;gap:calc(var(--pero-spacing-4) * 2);--pero-card-padding:var(--pero-spacing-6);--pero-card-radius:var(--pero-radius-panel) var(--pero-radius-panel) 0 0;min-width:0}
+.env-method-section{display:grid;gap:var(--pero-spacing-4);min-width:0}
+.env-method-choices.pero-ui-radio-group{grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pero-spacing-3)}
+.env-method-copy{display:grid;gap:var(--pero-spacing-1);min-width:0}
+.env-method-copy strong{font-weight:600}
+.env-method-copy>span{font-size:var(--pero-font-caption);color:var(--pero-text-muted);overflow-wrap:anywhere}
+.env-method-icon{display:inline-grid;place-items:center;width:calc(var(--pero-spacing-4) * 2);height:calc(var(--pero-spacing-4) * 2);border-radius:var(--pero-radius-selection);background:var(--pero-accent-soft);color:var(--pero-accent-text);flex:none}
+.env-method-icon[data-tone=blue]{background:var(--pero-tint-blue-surface);color:var(--pero-tint-blue-text)}
+.env-method-icon[data-tone=apricot]{background:var(--pero-tint-apricot-surface);color:var(--pero-tint-apricot-text)}
+.env-destination{display:flex;gap:var(--pero-spacing-3);align-items:center;border-top:.5px solid var(--pero-border);padding-top:var(--pero-spacing-5)}
+.env-destination strong{font-weight:600}.env-destination p{margin-top:var(--pero-spacing-1)}
+.env-create-aside{grid-column:2;grid-row:1/3;display:grid;gap:var(--pero-spacing-5);min-width:0}
+.env-recipe-summary{display:grid;gap:var(--pero-spacing-6);--pero-card-padding:var(--pero-spacing-6)}
+.env-recipe-summary h3{display:flex;align-items:center;gap:var(--pero-spacing-3);color:var(--pero-tint-blue-text)}
+.env-runtime,.env-package-summary{display:grid;gap:var(--pero-spacing-2)}
+.env-runtime strong{font-size:var(--pero-font-heading);font-weight:600}
+.env-package-list{display:flex;gap:var(--pero-spacing-2);flex-wrap:wrap}
+.env-package-list>.pero-badge{font-family:var(--pero-font-family-mono);background:var(--pero-surface)}
+.env-recipe-facts{display:grid;gap:var(--pero-spacing-2);margin:0;padding-top:var(--pero-spacing-4);border-top:.5px solid var(--pero-border)}
+.env-recipe-facts>div{display:flex;justify-content:space-between;gap:var(--pero-spacing-3);font-size:var(--pero-font-caption)}
+.env-recipe-facts dt{color:var(--pero-text-muted)}
+.env-recipe-facts dd{margin:0;overflow-wrap:anywhere;text-align:end}
+.env-prepare-note{display:flex;align-items:flex-start;gap:var(--pero-spacing-3);font-size:var(--pero-font-caption);line-height:1.7;color:var(--pero-text-muted);padding:0 var(--pero-spacing-1)}
+.env-prepare-note svg{flex:none;margin-top:3px}
+.env-create-footer{grid-column:1;grid-row:2;display:flex;align-items:center;justify-content:space-between;gap:var(--pero-spacing-4);flex-wrap:wrap;--pero-card-padding:var(--pero-spacing-4) var(--pero-spacing-6);--pero-card-background:var(--pero-bg);--pero-card-radius:0 0 var(--pero-radius-panel) var(--pero-radius-panel);margin-top:-1px}
+.env-create-footer>.env-note{flex:1;min-width:160px;max-width:28ch}
+.env-form-actions{justify-content:flex-end;margin-left:auto;gap:var(--pero-spacing-2)}
+.env-catalog-name{display:flex;align-items:center;gap:var(--pero-spacing-3);min-width:0}
+.env-catalog-name>div{min-width:0}
+.env-catalog-name .env-muted{margin-top:var(--pero-spacing-1)}
+.env-catalog-table{background:var(--pero-surface);border-radius:var(--pero-radius-panel)}
+.env-workspace-content>.pero-ui-tabs>.pero-ui-tabs-content{padding-top:var(--pero-spacing-5)}
+@media(max-width:880px){.env-create-form{grid-template-columns:minmax(0,1fr);row-gap:var(--pero-spacing-4)}.env-create-main{grid-column:1;grid-row:1;--pero-card-radius:var(--pero-radius-panel)}.env-create-aside{grid-column:1;grid-row:2}.env-create-footer{grid-column:1;grid-row:3;--pero-card-radius:var(--pero-radius-panel);margin-top:0}.env-recipe-summary{gap:var(--pero-spacing-4)}}
+@media(max-width:480px){.env-workspace{padding:var(--pero-spacing-4)}.env-create-main{--pero-card-padding:var(--pero-spacing-4)}.env-method-choices.pero-ui-radio-group{grid-template-columns:1fr}.env-method-choices .pero-ui-radio-card-content{grid-template-columns:auto minmax(0,1fr);align-items:center;padding-right:var(--pero-spacing-5)}.env-method-choices .pero-ui-radio-card-marker{top:var(--pero-spacing-6)}.env-create-footer{--pero-card-padding:var(--pero-spacing-4)}}
 .env-install-log{font-size:var(--pero-font-caption)}
 .pero-env summary{cursor:pointer;padding:var(--pero-spacing-1) 0}
 .pero-env summary:focus-visible{outline:2px solid var(--pero-focus);outline-offset:2px}
