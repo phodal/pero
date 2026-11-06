@@ -8,7 +8,7 @@
 .pa-workbench .pa-research-description {
   margin: 12px 0;
   color: var(--pero-text-muted);
-  font-size: 12px;
+  font-size: var(--pero-font-caption);
 }
 
 .pa-comparison-table {
@@ -29,7 +29,7 @@
 
 .pa-comparison-table thead th {
   color: var(--pero-text-muted);
-  font-size: 12px;
+  font-size: var(--pero-font-caption);
   font-weight: 500;
 }
 
@@ -46,17 +46,6 @@
   margin: 12px 0;
 }
 
-.pa-results-tools > input {
-  min-block-size: 28px;
-  border: 1px solid var(--pero-border);
-  border-radius: 4px;
-  padding: 2px 8px;
-  background: var(--pero-surface);
-  color: var(--pero-text);
-  font: inherit;
-}
-
 .pa-results-tools > input { flex: 1 1 200px; min-inline-size: 0; }
-.pa-results-tools > :focus-visible { outline: 2px solid var(--pero-focus); }
-.pa-history-papers { display: block; margin-top: 3px; color: var(--pero-text-muted); font-size: 12px; font-weight: 400; }
+.pa-history-papers { display: block; margin-top: 3px; color: var(--pero-text-muted); font-size: var(--pero-font-caption); font-weight: 400; }
 .pa-results .pa-record-evidence { margin: 12px 0; }

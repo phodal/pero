@@ -5,7 +5,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--pero-font-caption);
   color: var(--pero-text-muted);
 }
 .pa-workbench .pa-crumb-library {
@@ -16,109 +16,28 @@
   background: none;
   color: var(--pero-text-muted);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--pero-font-caption);
 }
 .pa-workbench .pa-reader-crumb .pa-reader-title {
   flex: 1 1 auto;
   max-width: none;
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--pero-font-body);
   font-weight: 600;
 }
 
-.pa-workbench .pa-reading-bar > .pa-records-toggle.pero-ui-button,
-.pa-workbench .pa-reading-bar .pa-ask.pero-ui-button {
-  box-sizing: border-box;
-  height: 28px;
-  min-height: 28px;
-  border: 0;
-  border-radius: 6px;
-  box-shadow: none;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1;
-}
+/* Shared controls own typography, interaction states and minimum hit areas. */
 .pa-workbench .pa-reading-bar > .pa-records-toggle.pero-ui-button {
-  width: 28px;
-  min-width: 28px;
-  padding: 0;
-  background: transparent;
-  color: var(--pero-text);
+  flex: none;
+  min-inline-size: var(--pero-control-height);
 }
-.pa-workbench .pa-reading-bar .pa-ask.pero-ui-button {
-  width: 28px;
-  min-width: 28px;
-  padding: 0;
-  background: transparent;
-}
-.pa-workbench .pa-reading-bar .pa-ask.pero-ui-button:hover:not(:disabled) {
-  background: var(--pero-surface-muted);
-}
-
-.pa-workbench .pa-reader-tools .pa-reader-modes {
-  align-self: center;
-  gap: 0;
-  padding: 2px;
-  border-radius: 6px;
-  background: var(--pero-surface-muted);
-}
-.pa-workbench .pa-reader-tools .pa-reader-modes > .pero-ui-button[data-variant=ghost] {
-  height: 28px;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  box-shadow: none;
-  color: var(--pero-text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1;
-}
-.pa-workbench .pa-reader-tools .pa-reader-modes > .pero-ui-button[data-variant=ghost]:hover:not(:disabled) {
-  background: var(--pero-surface);
-  color: var(--pero-text);
-}
-.pa-workbench .pa-reader-tools .pa-reader-modes > .pero-ui-button[data-variant=ghost][aria-pressed=true],
-.pa-workbench .pa-reader-tools .pa-reader-modes > .pero-ui-button[data-variant=ghost][aria-pressed=true]:hover:not(:disabled) {
-  background: var(--pero-surface);
-  color: var(--pero-accent-text);
-  font-weight: 600;
-  box-shadow: inset 0 -2px 0 var(--pero-action);
-}
-.pa-workbench .pa-reader-tools .pa-reader-pager {
+.pa-workbench .pa-reader-tools :is(.pa-reader-modes, .pa-reader-pager) {
   align-items: center;
 }
-.pa-workbench .pa-reader-tools .pa-reader-pager > .pero-ui-button {
-  height: 28px;
-  min-height: 28px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  box-shadow: none;
-  font-size: 12px;
-  line-height: 1;
-}
-.pa-workbench .pa-reader-tools .pa-reader-pager > .pero-ui-button:hover:not(:disabled) {
-  background: var(--pero-surface-muted);
-}
-.pa-workbench .pa-reader-tools .pa-pdf-page-input {
-  height: 28px;
-}
-.pa-workbench .pa-reader-tools .pa-pdf-page-input input {
-  height: 28px;
-  min-height: 0;
-  padding: 0 4px;
-  box-sizing: border-box;
-  border: 1px solid var(--pero-border);
-  border-radius: 4px;
-  font-size: 12px;
-}
-@container (max-width: 760px) {
-  .pa-workbench .pa-reader-tools .pa-reader-modes > .pero-ui-button[data-variant=ghost] {
-    padding-inline: 8px;
-  }
+.pa-workbench .pa-reader-tools :is(.pero-ui-button, .pa-pdf-page-input input) {
+  font-size: var(--pero-font-body);
+  min-block-size: var(--pero-control-height);
+  block-size: auto;
 }
 
 .pa-workbench .pa-pdf-viewer,
@@ -162,29 +81,29 @@
   width: 240px;
   min-width: min(100%, 8rem);
   max-width: 240px;
-  height: 24px;
-  min-height: 24px;
+  height: auto;
+  min-height: var(--pero-control-height);
   padding: 0 8px;
   border: 1px solid var(--pero-border);
   border-radius: 4px;
   background: var(--pero-surface);
   box-shadow: none;
-  font-size: 12px;
+  font-size: var(--pero-font-caption);
 }
 .pa-workbench .pa-pdf-selection .pa-pdf-selection-close {
   color: var(--pero-text-muted);
 }
 .pa-workbench .pa-pdf-selection .pero-ui-button {
-  height: 24px;
-  min-height: 24px;
+  height: auto;
+  min-height: var(--pero-control-height);
   padding: 0 8px;
   border: 0;
   border-radius: 4px;
   background: transparent;
   box-shadow: none;
-  font-size: 12px;
+  font-size: var(--pero-font-caption);
   font-weight: 500;
-  line-height: 1;
+  line-height: 1.4;
 }
 .pa-workbench .pa-pdf-selection .pero-ui-button:hover:not(:disabled) {
   background: var(--pero-surface-muted);
@@ -202,7 +121,7 @@
   color: var(--pero-text);
   border-inline-start: var(--pero-hairline);
   font-family: system-ui, sans-serif;
-  font-size: 14px;
+  font-size: var(--pero-font-body);
   line-height: 1.6;
   box-shadow: none;
 }
@@ -214,13 +133,13 @@
   border-bottom: var(--pero-hairline);
 }
 .pa-workbench .pa-records-header h2 {
-  font-size: 14px;
+  font-size: var(--pero-font-body);
   font-weight: 600;
   line-height: 1.4;
 }
 .pa-workbench .pa-records-header .pero-ui-button {
-  height: 28px;
-  min-height: 28px;
+  height: auto;
+  min-height: auto;
   padding-inline: 8px;
   color: var(--pero-text-muted);
   font-size: 16px;
@@ -250,14 +169,14 @@
 .pa-workbench .pa-records .pa-prose,
 .pa-workbench .pa-records .pa-study-record,
 .pa-workbench .pa-records .pa-report-section {
-  font-size: 14px;
+  font-size: var(--pero-font-body);
   line-height: 1.7;
   color: var(--pero-text);
 }
 .pa-workbench .pa-records .pa-report-section > h2,
 .pa-workbench .pa-records .pa-study-record h3,
 .pa-workbench .pa-records .pa-answer .pa-document-heading h1 {
-  font-size: 14px;
+  font-size: var(--pero-font-body);
   font-weight: 600;
   line-height: 1.45;
 }
@@ -273,7 +192,7 @@
   border-radius: 4px;
   background: var(--pero-accent-soft);
   color: var(--pero-accent-text);
-  font-size: 12px;
+  font-size: var(--pero-font-caption);
   font-weight: 500;
   box-shadow: none;
 }
