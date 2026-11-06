@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 // Exercise Git's real checkout conversion, independent of the host platform.
 test('pinned GPUI patch retains canonical bytes with Windows checkout defaults', t => {
-  const canonical = readFileSync(new URL('../../patches/gpui-pre-web-0.3.10-ime.patch', import.meta.url));
+  const canonical = readFileSync(new URL('../../patches/gpui-pre-web-0.3.11-ime.patch', import.meta.url));
   const attributes = readFileSync(new URL('../../.gitattributes', import.meta.url));
   const root = mkdtempSync(join(tmpdir(), 'pero-patch-checkout-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -19,7 +19,7 @@ test('pinned GPUI patch retains canonical bytes with Windows checkout defaults',
   writeFileSync(emptyAttributes, '');
   git('config', '--local', 'core.attributesFile', emptyAttributes);
   mkdirSync(join(root, 'patches'));
-  const patch = join(root, 'patches/gpui-pre-web-0.3.10-ime.patch');
+  const patch = join(root, 'patches/gpui-pre-web-0.3.11-ime.patch');
   writeFileSync(patch, canonical);
   git('add', 'patches');
   rmSync(patch);
