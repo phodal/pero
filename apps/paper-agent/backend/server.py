@@ -36,6 +36,7 @@ def main():
     try:
         server.serve_forever()
     finally:
+        store.program_jobs.close()
         store.pcgym.close()
         store.source_downloads.close()
         store.pdf_downloads.close()
