@@ -1,4 +1,4 @@
-// Package charts mounts the App-independent chart_render capability.
+// Package charts mounts the App-independent chart_render and table_render capabilities.
 // The embedded Python value core is also packaged with Data Agent.
 package charts
 
@@ -27,7 +27,7 @@ const inputSchema = `{"type":"object","additionalProperties":false,"properties":
 // the normal Session journal, so replay never executes Python again.
 func Render(ctx context.Context, python string, input json.RawMessage) (json.RawMessage, error) {
 	if len(input) > 2*1024*1024 {
-		return nil, errors.New("chart request exceeds 2 MiB")
+		return nil, errors.New("data request exceeds 2 MiB")
 	}
 	directory, err := os.MkdirTemp("", "pero-chart-")
 	if err != nil {
@@ -63,7 +63,7 @@ func Render(ctx context.Context, python string, input json.RawMessage) (json.Raw
 		if len(message) > 1000 {
 			message = message[:1000]
 		}
-		return nil, fmt.Errorf("chart core unavailable (Python 3.9+ required): %w: %s", err, message)
+		return nil, fmt.Errorf("data core unavailable (Python 3.9+ required): %w: %s", err, message)
 	}
 	return json.RawMessage(bytes.TrimSpace(output.Bytes())), nil
 }
@@ -75,16 +75,24 @@ func Mount(ctx context.Context, h *harness.Harness, python string) error {
 	if python == "" {
 		python = "python3"
 	}
-	_, err := h.RegisterTool(ctx, "data/charts", harness.Tool{
-		Schema:  harness.ToolSchema{Name: ToolName, InputSchema: json.RawMessage(inputSchema), Description: `Render reviewed data as an inline GPUI chart in this conversation; no Data Agent App is required. Supply document (schemaVersion:1,id,title,chart,rows,source:{label,caveats}). chart uses type and x/y fields; line optionally series and null gaps; candlestick uses x/open/high/low/close; sankey uses x/target/y. Types: line,bar,area,pie,radar,candlestick,sankey. Alternatively supply dataset:{name,content,format}, chartDocument:{title,chart}, optional view (filter/sort/selection) and aggregation:{category,measure,aggregation:sum|count} to retain exact source records. Missing is not zero; source labels are declarations. Success publishes the chart; do not repeat its JSON in prose.`},
-		Timeout: 30 * time.Second,
-		Execute: func(ctx context.Context, input json.RawMessage) (harness.ToolResult, error) {
-			output, err := Render(ctx, python, input)
-			if err != nil {
-				return harness.ToolResult{IsError: true, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: err.Error()}}}, nil
-			}
-			return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(output)}}}, nil
-		},
-	})
-	return err
+	schemas := []harness.ToolSchema{
+		{Name: ToolName, InputSchema: json.RawMessage(inputSchema), Description: `Render reviewed data as an inline GPUI chart in this conversation; no Data Agent App is required. Supply document (schemaVersion:1,id,title,chart,rows,source:{label,caveats}). chart uses type and x/y fields; line optionally series and null gaps; candlestick uses x/open/high/low/close; sankey uses x/target/y. Types: line,bar,area,pie,radar,candlestick,sankey. Alternatively supply dataset:{name,content,format}, chartDocument:{title,chart}, optional view (filter/sort/selection) and aggregation:{category,measure,aggregation:sum|count} to retain exact source records. Missing is not zero; source labels are declarations. Success publishes the chart; do not repeat its JSON in prose.`},
+		{Name: "table_render", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"dataset":{"type":"object","additionalProperties":false,"properties":{"name":{"type":"string"},"content":{"type":"string"},"format":{"enum":["json","json_lines"]}},"required":["name","content","format"]},"view":{"type":"object"},"tableDocument":{"type":"object","additionalProperties":false,"properties":{"title":{"type":"string"},"description":{"type":"string"},"columns":{"type":"array","minItems":1,"maxItems":16,"items":{"type":"object","additionalProperties":false,"properties":{"field":{"type":"string"},"label":{"type":"string"},"unit":{"type":"string"}},"required":["field"]}}},"required":["title","columns"]}},"required":["dataset","tableDocument"]}`), Description: `Publish an inline experimental table from supplied JSON/JSON Lines records. Use tableDocument:{title,description?,columns:[{field,label?,unit?}]} and optional view filter/sort/selection. Retains exact numeric tokens, missing/null cells, original records and source hash. Supports 1–100 rows and 1–16 columns; never silently truncates. Describe statistical method, sample counts and uncertainty in the supplied data/description. Units and source are declarations, not dimensional or scientific checks. Success publishes the table without opening an App; do not repeat receipt JSON. For equations in accompanying prose use $LaTeX$ inline or $$ on separate lines for display math; rendering does not verify mathematics.`},
+	}
+	for _, schema := range schemas {
+		if _, err := h.RegisterTool(ctx, "data/"+schema.Name, harness.Tool{
+			Schema:  schema,
+			Timeout: 30 * time.Second,
+			Execute: func(ctx context.Context, input json.RawMessage) (harness.ToolResult, error) {
+				output, err := Render(ctx, python, input)
+				if err != nil {
+					return harness.ToolResult{IsError: true, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: err.Error()}}}, nil
+				}
+				return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(output)}}}, nil
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

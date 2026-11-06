@@ -7,6 +7,7 @@ go_library(
         "python/chart_document.py",
         "python/dataset.py",
         "python/render.py",
+        "python/table_document.py",
         "python/view.py",
     ],
     importpath = "github.com/phodal/pero/harness/go/charts",
@@ -16,6 +17,6 @@ go_library(
 
 go_test(
     name = "charts_test",
-    srcs = ["tool_test.go"],
+    srcs = ["tool_test.go", "table_test.go"],
     embed = [":charts"],
 )
