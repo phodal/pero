@@ -243,17 +243,6 @@ impl ChatPanel {
                     ContentReader::new(document, locale, window, cx).workspace(window, cx)
                 }));
         }
-        for key in [
-            "files-tab",
-            "artifacts-tab",
-            "refresh",
-            "back",
-            "copy",
-            "preview-refresh",
-            "close",
-        ] {
-            browser.bounds.entry(key.into()).or_default();
-        }
     }
 
     pub(crate) fn file_key(

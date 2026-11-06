@@ -5,6 +5,7 @@ use crate::{
     panel::ChatPanel,
 };
 use gpui_kit::{
+    base::Selectable,
     component::{Icon, Sizable, button::*},
     prelude::*,
     *,
@@ -40,6 +41,7 @@ impl ChatPanel {
                         .small()
                         .label(self.t(key))
                         .toggled(self.files.tab == tab)
+                        .selected(self.files.tab == tab)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.choose_resource_tab(&thread, tab, cx)
                         }))
@@ -384,6 +386,7 @@ impl ChatPanel {
             .min_h_0()
             .flex()
             .flex_col()
+            .child(header)
             .when(browser.pending.is_some(), |el| {
                 el.child(
                     div()
