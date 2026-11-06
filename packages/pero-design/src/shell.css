@@ -18,10 +18,21 @@
   flex-direction: column;
   gap: var(--pero-spacing-1);
   min-width: 0;
+  position: relative;
   padding: var(--pero-sidebar-padding);
   background: var(--pero-material-sidebar);
   color: var(--pero-text);
-  border-inline-end: var(--pero-hairline);
+}
+/* The rule separates the column from the page and stays clear of the top edge. */
+.pero-sidebar::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset-block: var(--pero-spacing-3) 0;
+  inset-inline-end: calc(var(--pero-sidebar-padding) * -1);
+  inline-size: 0.5px;
+  background: var(--pero-border);
+  pointer-events: none;
 }
 .pero-sidebar-group { display: flex; flex-direction: column; gap: var(--pero-spacing-1); padding-block-start: var(--pero-sidebar-group-gap); min-width: 0; }
 .pero-sidebar-group[data-separated] { margin-block-start:var(--pero-spacing-2); padding-block-start:var(--pero-spacing-1); border-block-start:0.5px solid var(--pero-border); }

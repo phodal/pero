@@ -1,7 +1,8 @@
 //! Workbench chrome. These components own presentation; navigation and window
 //! dragging remain in the host. The React shell uses the same design contract.
 use crate::{
-    Chrome, SIDEBAR_GROUP_GAP, SIDEBAR_PADDING, SPACE_4, SPACE_8, TYPE_CAPTION, WINDOW_TITLEBAR,
+    Chrome, SIDEBAR_GROUP_GAP, SIDEBAR_PADDING, SPACE_4, SPACE_8, SPACE_12, TYPE_CAPTION,
+    WINDOW_TITLEBAR,
 };
 use gpui_kit::{prelude::*, *};
 
@@ -35,22 +36,31 @@ pub fn window_bar(
         .child(div().flex_shrink_0().pr(chrome.geo(SPACE_8)).child(actions))
 }
 
-/// An opaque navigation surface. Tone marks the column; a trailing hairline
-/// separates it from the page.
+/// An opaque navigation surface. Tone marks the column. The trailing hairline
+/// separates it from the page and starts below the top, so it does not meet
+/// the window bar.
 pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> Stateful<Div> {
     div()
         .id(id)
         .w(px(width))
         .h_full()
         .flex_shrink_0()
+        .relative()
         .flex()
         .flex_col()
         .bg(chrome.palette.surface_muted)
-        .border_r(px(0.5))
-        .border_color(chrome.palette.border)
         .text_color(chrome.palette.text)
         .p(chrome.geo(SIDEBAR_PADDING))
         .gap(chrome.geo(SPACE_4))
+        .child(
+            div()
+                .absolute()
+                .top(chrome.geo(SPACE_12))
+                .right(px(-SIDEBAR_PADDING))
+                .bottom_0()
+                .w(px(0.5))
+                .bg(chrome.palette.border),
+        )
 }
 
 /// Group related navigation; a separator marks a change of navigation scope,
