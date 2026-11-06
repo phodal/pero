@@ -29,6 +29,7 @@
         "../../packages/app-sdk/src/core.mjs"
       ]
     },
+    "allowJs": true,
     "allowImportingTsExtensions": true
   },
   "include": [
