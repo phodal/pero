@@ -199,7 +199,7 @@ export async function exercisePdfSearch({ frame, page, out, realPdf, paperTitle 
       } else {
         await expect(viewer).toHaveCount(0);
         await expect(frame.locator('.pa-source-text')).toBeVisible();
-        await frame.locator('.pa-reader-tools').getByRole('button', { name: 'PDF', exact: true }).click();
+        await frame.locator('.pa-reader-tools').getByRole('radio', { name: 'PDF', exact: true }).click();
         await expect(viewer).toBeVisible();
       }
       await page.screenshot({ path: resolve(out, `local-search-deferred-${action}.png`) });
