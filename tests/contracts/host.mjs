@@ -211,6 +211,13 @@ try {
   const created = await host.next('session_created', inThread);
   if (!isDeepStrictEqual(created.data.scope, { app: 'fixture', panel: 'main' })) failures.push('App scope did not survive session creation');
   await host.next('session_ready', inThread, 10000);
+  writeFileSync(resolve(temp,'workspace-preview.json'),'[1,2,3]');
+  for (const [action,path,kind] of [['list','.','workspace_files_list'],['read','workspace-preview.json','workspace_files_document'],['read','../outside','workspace_files_error']]) {
+    host.send({method:'workspace_files',action,path,thread_id:thread,request_id:`files-${action}-${path}`});
+    const event=await host.next(kind, inThread);
+    if(event.thread_id!==thread) failures.push('Workspace file response lost conversation identity');
+  }
+
 
   // Current Host wire contains pane-owned tabs; old local checkpoint shapes are
   // deliberately excluded from new save commands, even though Rust migrates them on load.

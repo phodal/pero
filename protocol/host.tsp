@@ -68,9 +68,9 @@ model FileDocumentErrorEvent {kind:"document_error";...EventBase;data:{source:st
 model WorkspaceFilesRequest {method:"workspace_files";action:"list"|"read";request_id:string;thread_id:ThreadId;path:string;...Closed}
 model WorkspaceEntry {name:string;kind:"directory"|"file"|"symlink"|"other";...Closed}
 model DirectoryListing {workspace:string;path:string;entries:WorkspaceEntry[];truncated:boolean;...Closed}
-model WorkspaceFilesListEvent {kind:"workspace_files_list";...EventBase;data:DirectoryListing}
-model WorkspaceFilesDocumentEvent {kind:"workspace_files_document";...EventBase;data:DocumentHeader}
-model WorkspaceFilesErrorEvent {kind:"workspace_files_error";...EventBase}
+model WorkspaceFilesListEvent {kind:"workspace_files_list";...ThreadEventBase;data:DirectoryListing}
+model WorkspaceFilesDocumentEvent {kind:"workspace_files_document";...ThreadEventBase;data:DocumentHeader}
+model WorkspaceFilesErrorEvent {kind:"workspace_files_error";...ThreadEventBase}
 
 // Durable recovery is separate from tool execution and Desktop preference settings.
 model ReaderRange {start:safeint;end:safeint;...Closed}

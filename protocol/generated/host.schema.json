@@ -15176,6 +15176,9 @@
         "text": {
           "type": "string"
         },
+        "thread_id": {
+          "type": "string"
+        },
         "data": {
           "$ref": "#/$defs/DocumentHeader"
         }
@@ -15185,6 +15188,7 @@
         "version",
         "request_id",
         "text",
+        "thread_id",
         "data"
       ],
       "additionalProperties": false
@@ -15213,13 +15217,17 @@
         },
         "text": {
           "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
         }
       },
       "required": [
         "kind",
         "version",
         "request_id",
-        "text"
+        "text",
+        "thread_id"
       ],
       "additionalProperties": false
     },
@@ -15248,6 +15256,9 @@
         "text": {
           "type": "string"
         },
+        "thread_id": {
+          "type": "string"
+        },
         "data": {
           "$ref": "#/$defs/DirectoryListing"
         }
@@ -15257,6 +15268,7 @@
         "version",
         "request_id",
         "text",
+        "thread_id",
         "data"
       ],
       "additionalProperties": false

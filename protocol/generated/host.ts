@@ -2098,6 +2098,7 @@ export interface WorkspaceFilesListEvent {
   version: 1;
   request_id: string | null;
   text: string;
+  thread_id: string;
   data: DirectoryListing;
 }
 export interface DirectoryListing {
@@ -2115,6 +2116,7 @@ export interface WorkspaceFilesDocumentEvent {
   version: 1;
   request_id: string | null;
   text: string;
+  thread_id: string;
   data: DocumentHeader;
 }
 export interface WorkspaceFilesErrorEvent {
@@ -2122,6 +2124,7 @@ export interface WorkspaceFilesErrorEvent {
   version: 1;
   request_id: string | null;
   text: string;
+  thread_id: string;
 }
 export interface FileDocumentErrorEvent {
   kind: "document_error";
