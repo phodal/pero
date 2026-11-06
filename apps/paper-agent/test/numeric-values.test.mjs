@@ -106,14 +106,14 @@ test('switching selected annotations ignores an earlier history response', async
 
 test('new Agent results revoke a checked review rather than inheriting approval', async t => {
   const f = await fixture(t, { ...emptyHistory(), assessments: [assessed()] });
-  const review = () => [...document.querySelectorAll('label')].find(node => node.textContent === 'I checked these details against the source').querySelector('input');
+  const review = () => [...document.querySelectorAll('label')].find(node => node.textContent === 'I checked these details against the source').querySelector('[role=checkbox]');
   await f.click(review());
-  assert.equal(review().checked, true);
+  assert.equal(review().getAttribute('aria-checked'), 'true');
   assert.equal(f.button('Confirm review as new revision').disabled, false);
   const next = candidate(); next.value = 13; next.rawText = '13';
   await f.refresh({ ...emptyHistory(), assessments: [assessed(), assessed(next, 'assessment-two')] });
   assert.match(document.querySelector('.pa-numeric-result').textContent, /Force: 13 N/);
-  assert.equal(review().checked, false);
+  assert.equal(review().getAttribute('aria-checked'), 'false');
   assert.equal(f.button('Confirm review as new revision').disabled, true);
   assert.deepEqual(f.writes, []);
 });

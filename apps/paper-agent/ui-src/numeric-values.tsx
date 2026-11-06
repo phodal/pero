@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { appObjectProps, useAppChat, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { Button, Select, Feedback } from '@pero/app-sdk/ui';
+import { Button, Checkbox, Input, Textarea, Select, Feedback } from '@pero/app-sdk/ui';
 import type { Api, PdfAnnotation, PdfSource } from './types';
 import { requestDoclingRuntime, type RuntimeComponent, type RuntimeStatus } from './docling-runtime';
 import './numeric-values.css';
@@ -199,20 +199,20 @@ export function NumericValues({ api, annotation, onSource, onLayoutSource }: { a
       <Button variant="ghost" disabled={busy || loading} onClick={() => { setPreviousId(undefined); setCandidateExtractionId(undefined); setPreviousAssessmentId(undefined); setIdentity(emptyIdentity); setTicks(''); setScale('auto'); setMultiplier('1'); setPixel(''); setSourceKind('figure'); setMethod('visual'); setRawText(''); setValue(''); setComparison(''); setComparisonText(''); setReviewer(''); setReason(''); setConfirmed(false); setTrendConfirmed(false); setAxisReviewed(false); setError(''); }}>{t('newCandidate')}</Button>
       {previousId && <p>{t('newResultHint')}</p>}
       <fieldset disabled={busy || loading}>
-        {(Object.keys(emptyIdentity) as (keyof Identity)[]).map(key => <label key={key}>{t(key)}<input value={identity[key]} maxLength={500} onChange={event => setIdentity(current => ({ ...current, [key]: event.target.value }))}/></label>)}
-        <label>{t('rawText')}<textarea value={rawText} maxLength={4000} rows={2} onChange={event => setRawText(event.target.value)}/></label>
-        <label>{t('value')}<input type="number" step="any" value={value} onChange={event => setValue(event.target.value)}/></label>
+        {(Object.keys(emptyIdentity) as (keyof Identity)[]).map(key => <label key={key}>{t(key)}<Input value={identity[key]} maxLength={500} onChange={event => setIdentity(current => ({ ...current, [key]: event.target.value }))}/></label>)}
+        <label>{t('rawText')}<Textarea value={rawText} maxLength={4000} rows={2} onChange={event => setRawText(event.target.value)}/></label>
+        <label>{t('value')}<Input type="number" step="any" value={value} onChange={event => setValue(event.target.value)}/></label>
         <label>{t('sourceKind')}<Select label={t('sourceKind')} value={sourceKind} onChange={setSourceKind} options={(['figure', 'caption', 'table', 'text'] as const).map(key => ({ value: key, label: t(key) }))}/></label>
         <label>{t('method')}<Select label={t('method')} value={method} onChange={setMethod} options={(['manual', 'native_text', 'ocr', 'visual', 'pixel_calibration'] as const).map(key => ({ value: key, label: t(key) }))}/></label>
         {(method === 'pixel_calibration' || sourceKind === 'figure') && <details><summary>{t('axis')}</summary>
-          <label>{t('ticks')}<textarea rows={4} value={ticks} placeholder={'0,0\n100,10\n200,20'} onChange={event => { setTicks(event.target.value); setAxisReviewed(false); }}/></label>
+          <label>{t('ticks')}<Textarea rows={4} value={ticks} placeholder={'0,0\n100,10\n200,20'} onChange={event => { setTicks(event.target.value); setAxisReviewed(false); }}/></label>
           <label>{t('scale')}<Select label={t('scale')} value={scale} onChange={value => { setScale(value); setAxisReviewed(false); }} options={(['auto', 'linear', 'log'] as const).map(key => ({ value: key, label: t(key) }))}/></label>
-          <label>{t('multiplier')}<input type="number" step="any" value={multiplier} onChange={event => { setMultiplier(event.target.value); setAxisReviewed(false); }}/></label>
-          <label>{t('pixel')}<input type="number" step="any" value={pixel} onChange={event => setPixel(event.target.value)}/></label>
-          <label className="pa-numeric-check"><input type="checkbox" checked={axisReviewed} onChange={event => setAxisReviewed(event.target.checked)}/>{t('axisReviewed')}</label>
+          <label>{t('multiplier')}<Input type="number" step="any" value={multiplier} onChange={event => { setMultiplier(event.target.value); setAxisReviewed(false); }}/></label>
+          <label>{t('pixel')}<Input type="number" step="any" value={pixel} onChange={event => setPixel(event.target.value)}/></label>
+          <label className="pa-numeric-check"><Checkbox checked={axisReviewed} onCheckedChange={checked => setAxisReviewed(checked === true)}/>{t('axisReviewed')}</label>
         </details>}
-        {(method === 'manual' || previousId) && <><label>{t('reviewer')}<input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label><label>{t('reason')}<textarea required rows={2} value={reason} maxLength={2000} onChange={event => setReason(event.target.value)}/></label></>}
-        <details><summary>{t('comparison')}</summary><label>{t('value')}<input type="number" step="any" value={comparison} onChange={event => setComparison(event.target.value)}/></label><label>{t('comparisonText')}<textarea rows={2} value={comparisonText} onChange={event => setComparisonText(event.target.value)}/></label></details>
+        {(method === 'manual' || previousId) && <><label>{t('reviewer')}<Input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label><label>{t('reason')}<Textarea required rows={2} value={reason} maxLength={2000} onChange={event => setReason(event.target.value)}/></label></>}
+        <details><summary>{t('comparison')}</summary><label>{t('value')}<Input type="number" step="any" value={comparison} onChange={event => setComparison(event.target.value)}/></label><label>{t('comparisonText')}<Textarea rows={2} value={comparisonText} onChange={event => setComparisonText(event.target.value)}/></label></details>
         <Button type="submit">{t('assess')}</Button>
       </fieldset>
     </form></details>
@@ -231,11 +231,11 @@ export function NumericValues({ api, annotation, onSource, onLayoutSource }: { a
       <form onSubmit={event => { event.preventDefault(); void perform(() => assess(true)); }}>
         <h4>{t('review')}</h4><p>{t('reviewNote')}</p>
         <fieldset disabled={busy || loading}>
-          <details><summary>{t('reviewDetails')}</summary><label>{t('reviewer')}<input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label>
-          <label>{t('reason')}<textarea required value={reason} maxLength={2000} rows={2} onChange={event => setReason(event.target.value)}/></label></details>
-          {selected.evidence.some(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')) && <><details><summary>{t('axis')}</summary>{selected.evidence.filter(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')).map((item, index) => <p key={item.id ?? index}>{t('scale')}: {item.axis!.scale}; {t('unit')}: {item.identity.unit || t('missing')}; {t('multiplier')}: {item.axis!.multiplier}<br/>{t('ticks')}: {item.axis!.ticks.map(tick => `${tick.pixel},${tick.rawText}`).join(' / ')}<br/>{t('pixel')}: {item.axis!.pixel ?? t('missing')}</p>)}</details><label className="pa-numeric-check"><input type="checkbox" checked={reviewAxesConfirmed} onChange={event => setReviewAxesConfirmed(event.target.checked)}/>{t('axisReviewed')}</label></>}
-          <label className="pa-numeric-check"><input type="checkbox" checked={trendConfirmed} onChange={event => setTrendConfirmed(event.target.checked)}/>{t('trendReview')}</label>
-          <label className="pa-numeric-check"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/>{t('reviewed')}</label>
+          <details><summary>{t('reviewDetails')}</summary><label>{t('reviewer')}<Input required value={reviewer} maxLength={200} onChange={event => setReviewer(event.target.value)}/></label>
+          <label>{t('reason')}<Textarea required value={reason} maxLength={2000} rows={2} onChange={event => setReason(event.target.value)}/></label></details>
+          {selected.evidence.some(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')) && <><details><summary>{t('axis')}</summary>{selected.evidence.filter(item => item.axis && !selected.assessment.supersededIds.includes(item.id ?? '')).map((item, index) => <p key={item.id ?? index}>{t('scale')}: {item.axis!.scale}; {t('unit')}: {item.identity.unit || t('missing')}; {t('multiplier')}: {item.axis!.multiplier}<br/>{t('ticks')}: {item.axis!.ticks.map(tick => `${tick.pixel},${tick.rawText}`).join(' / ')}<br/>{t('pixel')}: {item.axis!.pixel ?? t('missing')}</p>)}</details><label className="pa-numeric-check"><Checkbox checked={reviewAxesConfirmed} onCheckedChange={checked => setReviewAxesConfirmed(checked === true)}/>{t('axisReviewed')}</label></>}
+          <label className="pa-numeric-check"><Checkbox checked={trendConfirmed} onCheckedChange={checked => setTrendConfirmed(checked === true)}/>{t('trendReview')}</label>
+          <label className="pa-numeric-check"><Checkbox checked={confirmed} onCheckedChange={checked => setConfirmed(checked === true)}/>{t('reviewed')}</label>
           <Button type="submit" disabled={!confirmed || !reviewer.trim() || !reason.trim()}>{t('confirm')}</Button>
         </fieldset>
       </form>
