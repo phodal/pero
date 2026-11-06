@@ -393,6 +393,12 @@ impl ChatPanel {
             "composer":self.composer.read(cx).value().as_ref(),"composerFocused":self.composer_focused,
             "workspace":self.workspace,"attachments":self.attachments.iter().map(|r|r.label.as_str()).collect::<Vec<_>>(),
             "expandedTools":self.expanded_tools,"expandedReasoning":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(i,m)|m.role=="thought" && chat.thinking.open(*i)).map(|(i,_)|(&chat.id,i))).collect::<Vec<_>>(),
+            "processBounds":self.chats.iter().flat_map(|chat| crate::chat::render_items(chat).into_iter().filter_map(move |row| {
+                if let crate::chat::RenderItem::Process(group) = row {
+                    let key = format!("{}/process:{}", chat.id, group.first().key());
+                    Some(json!({"chat":chat.id,"key":key,"members":group.members(),"open":crate::chat::process_open(chat,&group,&self.expanded_tools),"bounds":self.artifacts.bounds.get(&key).map(|bounds|bounds.snapshot())}))
+                } else { None }
+            })).collect::<Vec<_>>(),
             "modelMenu":self.model_menu,"deletingChat":self.deleting_chat,
             "stopButtonBounds":self.stop_button_bounds.snapshot(),
             "composerBounds":self.composer_bounds.snapshot(),
@@ -402,10 +408,10 @@ impl ChatPanel {
             "contextPreviewBounds":self.attachments.iter().map(|reference|json!({"id":reference.id,"image":matches!(reference.content, pero_contracts::context::ContextContent::Image{..}),"bounds":self.context_preview_bounds.get(&reference.id).map(|bounds|bounds.snapshot())})).collect::<Vec<_>>(),
             "permissionBounds":self.chats.iter().flat_map(|chat|chat.permission_bounds.iter().enumerate().map(move |(index,bounds)|json!({"chat":chat.id,"index":index,"bounds":bounds.snapshot()}))).collect::<Vec<_>>(),
             "userQuestionBounds":self.chats.iter().flat_map(|chat|chat.user_questions.iter().map(|form|form.bounds())).collect::<Vec<_>>(),
-            "reasoningBounds":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(_,m)|m.role=="thought").map(move |(index,message)|json!({"chat":chat.id,"index":index,"open":chat.thinking.open(index),"bounds":message.toggle_bounds.snapshot()}))).collect::<Vec<_>>(),
+            "reasoningBounds":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(_,m)|m.role=="thought").map(move |(index,message)|json!({"chat":chat.id,"index":index,"open":chat.thinking.open(index),"bounds":if crate::chat::process_member_visible(chat,crate::process::ProcessEntry::Thought(index),&self.expanded_tools) {message.toggle_bounds.snapshot()} else {Value::Null}}))).collect::<Vec<_>>(),
             "inputBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().map(move |tool|json!({"chat":chat.id,"tool":tool.id,"bounds":tool.input_bounds.snapshot()}))).collect::<Vec<_>>(),
             "appLinkBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().flat_map(move |tool|tool.app_links.iter().map(move |link|json!({"chat":chat.id,"url":link.url,"label":link.label,"bounds":link.bounds.snapshot()})))).collect::<Vec<_>>(),
-            "toolBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().map(move |tool|json!({"chat":chat.id,"tool":tool.id,"bounds":tool.toggle_bounds.snapshot(),"artifact":tool.artifact_bounds.snapshot()}))).collect::<Vec<_>>(),
+            "toolBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().enumerate().map(move |(index,tool)|json!({"chat":chat.id,"tool":tool.id,"bounds":if crate::chat::process_member_visible(chat,crate::process::ProcessEntry::Tool(index),&self.expanded_tools) {tool.toggle_bounds.snapshot()} else {Value::Null},"artifact":tool.artifact_bounds.snapshot()}))).collect::<Vec<_>>(),
             "chartBounds":self.chats.iter().flat_map(|chat|chat.tools.iter()).filter_map(|tool|tool.chart.as_ref().map(|chart|json!({"id":chart.artifact_id,"data":chart.data_bounds.snapshot(),"source":chart.source_bounds.snapshot()}))).collect::<Vec<_>>(),
             "contentReaders":self.chats.iter().flat_map(|chat|chat.tools.iter()).filter_map(|tool|tool.reader.as_ref().map(|reader|reader.read(cx).snapshot(cx))).collect::<Vec<_>>(),
             "toolViews":self.chats.iter().map(|c|c.tools.iter().filter(|t|t.view.is_some()).count()).collect::<Vec<_>>(),

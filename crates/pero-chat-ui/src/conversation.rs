@@ -84,6 +84,7 @@ pub struct Tool {
     pub id: String,
     pub title: String,
     pub kind: String,
+    pub activity: crate::tool_activity::ToolActivity,
     pub locations: Vec<String>,
     pub status: String,
     pub content: String,
@@ -253,6 +254,8 @@ pub struct Conversation {
     pub title: crate::conversation_title::ConversationTitle,
     #[serde(skip)]
     pub thinking: crate::thinking::ThinkingState,
+    #[serde(skip)]
+    pub reply_actions: crate::process::ReplyActions,
     pub agent: String,
     pub state: SessionState,
     pub notice: crate::session_state::SessionNotice,
@@ -303,6 +306,7 @@ impl Conversation {
             agent,
             title: crate::conversation_title::ConversationTitle::new(title),
             thinking: Default::default(),
+            reply_actions: Default::default(),
             state: SessionState::Draft,
             notice: Default::default(),
             session_id: String::new(),
@@ -409,6 +413,7 @@ impl Conversation {
                             id: id.clone(),
                             title: "Tool".into(),
                             kind: "other".into(),
+                            activity: Default::default(),
                             locations: vec![],
                             status: "pending".into(),
                             content: String::new(),
@@ -462,6 +467,7 @@ impl Conversation {
                     Err(error) => { self.error = Some(error.to_string()); return true; }
                 };
                 tool.transcript.apply(patch);
+                tool.activity = crate::tool_activity::ToolActivity::from_acp(&tool.kind, &tool.title, &tool.locations, tool.transcript.input.as_ref());
                 tool.output = tool.transcript.output();
                 if tool.status == "completed" && !tool.cancelled { self.images.observe(&tool.output); }
                 if let Some(view) = &tool.input_view {

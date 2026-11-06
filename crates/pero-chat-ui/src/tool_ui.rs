@@ -90,64 +90,23 @@ mod rendering {
     };
 
     impl ChatPanel {
-        pub(crate) fn tool_group(
+        pub(crate) fn tool_row(
             &self,
             conversation_id: &str,
-            tools: Vec<&Tool>,
+            tool: &Tool,
             row: usize,
             cx: &mut Context<Self>,
         ) -> AnyElement {
-            let first = tools[0];
-            let key = format!("{conversation_id}/{}", first.id);
+            let key = format!("{conversation_id}/{}", tool.id);
             let open = self.expanded_tools.contains(&key);
             let p = &pero_theme::UiAppearance::global(cx).palette.clone();
-            let failed = tools
-                .iter()
-                .any(|tool| tool.status == "failed" && !tool.cancelled);
-            let running = tools.iter().any(|tool| {
-                !tool.cancelled && !matches!(tool.status.as_str(), "completed" | "failed")
-            });
-            let cancelled = tools.iter().all(|tool| tool.cancelled);
-            let (action_key, mut icon) = action(&first.kind);
-            let summary = if tools.len() == 1 {
-                short_label(
-                    self.t(action_key),
-                    &first.title,
-                    first.locations.first().map(String::as_str),
-                )
-            } else {
-                let reads = tools.iter().filter(|tool| tool.kind == "read").count();
-                let searches = tools.iter().filter(|tool| tool.kind == "search").count();
-                let fetches = tools.iter().filter(|tool| tool.kind == "fetch").count();
-                if searches > 0 {
-                    icon = "search";
-                }
-                if reads + searches + fetches == tools.len() {
-                    let mut parts = vec![];
-                    if reads > 0 {
-                        parts.push(
-                            self.t("chat.read_count")
-                                .replace("{count}", &reads.to_string()),
-                        );
-                    }
-                    if searches > 0 {
-                        parts.push(
-                            self.t("chat.search_count")
-                                .replace("{count}", &searches.to_string()),
-                        );
-                    }
-                    if fetches > 0 {
-                        parts.push(
-                            self.t("chat.fetch_count")
-                                .replace("{count}", &fetches.to_string()),
-                        );
-                    }
-                    parts.join(", ")
-                } else {
-                    self.t("chat.tool_group")
-                        .replace("{count}", &tools.len().to_string())
-                }
-            };
+            let failed = tool.status == "failed" && !tool.cancelled;
+            let running = !tool.cancelled && !matches!(tool.status.as_str(), "completed" | "failed");
+            let cancelled = tool.cancelled;
+            let (action_key, icon) = action(tool.activity.kind.as_str());
+            let summary = if !tool.activity.detail.is_empty() {
+                format!("{} · {}", self.t(action_key), tool.activity.detail)
+            } else { short_label(self.t(action_key), &tool.title, tool.locations.first().map(String::as_str)) };
             let status = if failed {
                 Some("chat.tool_failed")
             } else if running {
@@ -157,24 +116,13 @@ mod rendering {
             } else {
                 None
             };
-            let reader_tools = tools.iter().map(|tool| tool.id.clone()).collect::<Vec<_>>();
+            let reader_tool = tool.id.clone();
             let reader_chat = conversation_id.to_string();
             let disclosure = self.t(if open {
                 "chat.tool_collapse"
             } else {
                 "chat.tool_expand"
             });
-            let failure = tools
-                .iter()
-                .find(|tool| tool.status == "failed" && !tool.cancelled)
-                .and_then(|tool| {
-                    tool.content
-                        .lines()
-                        .map(str::trim)
-                        .find(|line| !line.is_empty() && !line.starts_with("```"))
-                })
-                .map(|line| line.chars().take(180).collect::<String>())
-                .unwrap_or_else(|| self.t("chat.tool_expand").into());
 
             div()
                 .id(("tool-group", row))
@@ -183,7 +131,7 @@ mod rendering {
                 .child(
                     Button::new(("tool-toggle", row))
                         .relative()
-                        .child(first.toggle_bounds.probe())
+                        .child(tool.toggle_bounds.probe())
                         .ghost()
                         .w_full()
                         .h(px(pero_theme::UiAppearance::global(cx).typography.row_height()))
@@ -202,7 +150,7 @@ mod rendering {
                                 .flex_1()
                                 .min_w_0()
                                 .truncate()
-                                .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
+                                .text_size(px((pero_theme::UiAppearance::global(cx).typography.chat - 1.).max(12.)))
                                 .text_color(p.text_muted)
                                 .child(summary.clone()),
                         )
@@ -220,10 +168,11 @@ mod rendering {
                                 this.expanded_tools.insert(key.clone());
                                 let locale = this.locale.clone();
                                 if let Some(chat) = this.chats.iter_mut().find(|chat| chat.id == reader_chat) {
-                                    for tool in chat.tools.iter_mut().filter(|tool| reader_tools.contains(&tool.id)) {
-                                        if let Some(document) = &tool.document {
-                                            if tool.reader.is_some() { continue; }
-                                            tool.reader = Some(cx.new(|cx| crate::content_reader::ContentReader::new(document.clone(), locale.clone(), window, cx)));
+                                    if let Some(tool) = chat.tools.iter_mut().find(|tool| tool.id == reader_tool) {
+                                        if let Some(document) = tool.document.as_ref() {
+                                            if tool.reader.is_none() {
+                                                tool.reader = Some(cx.new(|cx| crate::content_reader::ContentReader::new(document.clone(), locale.clone(), window, cx)));
+                                            }
                                         }
                                     }
                                 }
@@ -232,12 +181,6 @@ mod rendering {
                             cx.notify();
                         })),
                 )
-                .child(div().flex().flex_wrap().gap(px(4.)).children(tools.iter().flat_map(|tool|tool.app_links.iter()).enumerate().map(|(index,link)|{
-                    let url=link.url.clone();
-                    Button::new(("app-source",row*64+index)).relative().child(link.bounds.probe()).ghost().small()
-                        .label(link.label.clone()).accessibility_label(link.label.clone())
-                        .on_click(cx.listener(move|_,_,_,cx|cx.emit(crate::ChatAction::AppLink(url.clone()))))
-                })))
                 .when(open, |el| {
                     el.child(
                         div()
@@ -245,7 +188,8 @@ mod rendering {
                             .pl(px(22.))
                             .border_l_1()
                             .border_color(p.border)
-                            .children(tools.iter().enumerate().map(|(index, tool)| {
+                            .child({
+                                let index = row;
                                 div()
                                     .id(("tool-detail", index))
                                     .anchor_scroll(self.artifacts.anchors.get(&format!("{conversation_id}/tool:{}",tool.id)).cloned())
@@ -254,9 +198,6 @@ mod rendering {
                                     .flex()
                                     .flex_col()
                                     .gap(px(6.))
-                                    .when(tools.len() > 1 || display_tool_title(&tool.title) != summary, |el| {
-                                        el.child(div().text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption)).text_color(p.text_muted).child(display_tool_title(&tool.title)))
-                                    })
                                     .when_some(tool.transcript.input_text(), |el, input| {
                                         let chat_id = conversation_id.to_owned();
                                         let tool_id = tool.id.clone();
@@ -311,9 +252,7 @@ mod rendering {
                                             .when(load_failed, |el|el.child(div().text_color(p.error).child(self.t("content.load_failed"))))
                                     })
                                     .when(tool.document.is_some() && tool.status=="completed" && !tool.cancelled && tool.artifact.as_ref().is_none_or(|artifact|matches!(artifact.status,crate::artifact_read::ArtifactStatus::Loaded)), |el| {
-                                        let thread=conversation_id.to_owned();let tool_id=tool.id.clone();
-                                        el.child(Button::new(("save-tool-artifact",index)).relative().children(self.artifacts.bounds.get(&format!("{conversation_id}/save-tool:{}",tool.id)).map(|bounds|bounds.probe())).ghost().small().self_start().text_color(p.text_muted).label(self.t("artifacts.save_result"))
-                                            .on_click(cx.listener(move |this,_,_,cx|this.save_tool_artifact(&thread,&tool_id,cx))))
+                                        el.child(self.tool_actions(conversation_id, tool, cx))
                                     })
                                     .when_some(tool.document.as_ref().filter(|_| tool.reader.is_none()), |el, document| {
                                         let document = document.clone();
@@ -337,23 +276,30 @@ mod rendering {
                                             self.structured_tool_output(row, index, part, item, cx)
                                         },
                                     ))
-                            })),
+                            }),
                     )
                 })
-                .children(tools.iter().filter_map(|tool|tool.chart_error.as_ref().map(|error|div().text_color(p.error).child(error.clone()))))
-                .children(tools.iter().filter_map(|tool|tool.chart.as_ref().map(|chart|self.inline_chart(conversation_id, &tool.id, chart, cx))))
-                .children(tools.iter().filter_map(|tool|self.approval(conversation_id, Some(&tool.id), cx)))
-                .when(failed && !open, |el| {
-                    el.child(
-                        div()
-                            .ml(px(24.))
-                            .mb(px(2.))
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
-                            .text_color(p.error)
-                            .child(failure),
-                    )
-                })
+                .child(self.tool_notices(conversation_id, tool, !open, cx))
                 .into_any_element()
+        }
+
+        pub(crate) fn tool_notices(&self, conversation_id: &str, tool: &Tool, show_failure: bool, cx: &mut Context<Self>) -> AnyElement {
+            let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+            div().flex().flex_col()
+                .child(div().flex().flex_wrap().gap(px(4.)).children(tool.app_links.iter().enumerate().map(|(index, link)| {
+                    let url = link.url.clone();
+                    Button::new(SharedString::from(format!("app-source-{}-{index}", tool.id))).relative().child(link.bounds.probe()).ghost().small()
+                        .label(link.label.clone()).accessibility_label(link.label.clone())
+                        .on_click(cx.listener(move |_, _, _, cx| cx.emit(crate::ChatAction::AppLink(url.clone()))))
+                })))
+                .children(tool.chart_error.as_ref().map(|error| div().text_color(p.error).child(error.clone())))
+                .children(tool.chart.as_ref().map(|chart| self.inline_chart(conversation_id, &tool.id, chart, cx)))
+                .children(self.approval(conversation_id, Some(&tool.id), cx))
+                .when(show_failure && tool.status == "failed" && !tool.cancelled, |el| {
+                    let failure = tool.content.lines().map(str::trim).find(|line| !line.is_empty() && !line.starts_with("```"))
+                        .map(|line| crate::tool_activity::preview(line, 180)).unwrap_or_else(|| self.t("chat.tool_failed").into());
+                    el.child(div().ml(px(24.)).text_color(p.error).child(format!("{} · {failure}", display_tool_title(&tool.title))))
+                }).into_any_element()
         }
 
         fn structured_tool_output(
