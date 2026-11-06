@@ -457,7 +457,8 @@ acceptance, physical IME, screen readers, other operating systems, real provider
 requests and scientific execution remain unverified. The original preview
 profile was restored for the final spacing check; synthetic sessions were never
 added to it.
-# PR #139 merge follow-up — 2026-11-06
+
+## PR #139 merge follow-up — 2026-11-06
 
 Source: PR head `507a2d1` merged with `master` at `01ec7f0d`, plus the shared
 ChatPanel completion dispatch and standalone regression in this follow-up.
@@ -483,5 +484,4 @@ Workbench forwards events to it even when an App feature also consumes them.
   changes event recovery, not that shell header's layout.
 - This follow-up does not add new Native runtime visual acceptance, physical
   IME, screen-reader, other OS or signed-package evidence. Earlier Native
-  evidence below retains its own source and scope.
-
+  evidence above retains its own source and scope.
