@@ -13,6 +13,8 @@ import { FormsExample } from './forms';
 import { MenusExample } from './menus';
 import { Feedback } from '../../app-sdk/src/components/feedback';
 import { EmptyState } from '../../app-sdk/src/components/empty-state';
+import { EmptyIllustration } from '../../app-sdk/src/components/empty-illustration';
+import { LoadingSkeleton, SkeletonText } from '../../app-sdk/src/components/skeleton';
 import { WorkbenchExample } from './workbench';
 import { Select } from '../../app-sdk/src/components/select';
 import { IconButton } from '../../app-sdk/src/components/icon-button';
@@ -55,14 +57,15 @@ function Catalog() {
               <SearchField id="catalog-search" aria-label="搜索论文" placeholder="搜索论文…" value={query} onChange={e => setQuery(e.target.value)}/>
               <Tabs defaultValue="papers"><TabsList aria-label="资料类别"><TabsTrigger value="papers">论文</TabsTrigger><TabsTrigger value="notes">研究记录</TabsTrigger></TabsList><TabsContent value="papers">
                 {['scGPT','GEARS'].filter(t => t.toLowerCase().includes(query.toLowerCase())).map(title => <ListRow key={title} title={title} meta="Paper" current={selected === title} onOpen={() => { setSelected(title); setMessage('已选择 ' + title); }} trailing={<Button variant="ghost" onClick={() => setMessage(title + ' 已加入当前任务上下文')}>加入上下文</Button>}/>)}
-                {!['scGPT','GEARS'].some(t => t.toLowerCase().includes(query.toLowerCase())) && <EmptyState heading="没有匹配论文" actions={<Button onClick={() => setQuery('')}>清除搜索</Button>}/>}
+                {!['scGPT','GEARS'].some(t => t.toLowerCase().includes(query.toLowerCase())) && <EmptyState icon={<EmptyIllustration kind="search" size="compact"/>} heading="没有匹配论文" actions={<Button onClick={() => setQuery('')}>清除搜索</Button>}/>}
               </TabsContent><TabsContent value="notes"><ListRow title="评估口径对照" meta="引用待核对" onOpen={() => setMessage('研究记录已打开；保留未核验状态')}/></TabsContent></Tabs>
               <p className="catalog-muted">标题先于元信息。只有当前任务需要的状态才常驻显示。</p>
             </>}
             {screen === '输入与状态' && <>
               <SettingsGroup label="任务设置"><SettingsRow><label htmlFor="catalog-name">任务名称</label><Input id="catalog-name" placeholder="输入任务名称"/></SettingsRow><SettingsRow><label htmlFor="catalog-mode">呈现状态</label><Select id="catalog-mode" label="呈现状态" value={status} onChange={setStatus} options={[['idle','空闲'],['loading','加载中'],['running','运行中'],['success','完成'],['error','错误'],['disabled','不可用']].map(([value,label]) => ({value,label}))}/></SettingsRow></SettingsGroup>
               <FilePicker multiple label="导入附件" emptyLabel="尚未选择附件" disabled={status === 'disabled'} busy={['loading','running'].includes(status)} onFiles={files => setMessage('已选择 ' + files.map(file => file.name).join('，'))}/>
-              {status === 'loading'  && <p role="status">正在读取任务上下文…</p>}
+              {status === 'idle' && <EmptyState icon={<EmptyIllustration kind="documents"/>} heading="添加任务资料" description="导入附件后开始分析。"/>}
+              {status === 'loading' && <LoadingSkeleton label="正在读取任务上下文…"><SkeletonText/></LoadingSkeleton>}
               {status === 'running' && <div className="catalog-row" role="status"><span>正在分析示例资料…</span><Button onClick={() => { setStatus('idle'); setMessage('已停止演示任务'); }}>停止</Button></div>}
               {status === 'success' && <p role="status">示例任务已完成。</p>}
               {status === 'error' && <Feedback kind="error" variant="block">无法读取资料，草稿已保留。<Button onClick={() => { setStatus('idle'); setMessage('已恢复，可以再次提交'); }}>重试</Button></Feedback>}

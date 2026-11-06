@@ -40,6 +40,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 | Checkbox / RadioGroup / Switch | 多选、单选和即时开关；选中与焦点分别呈现 | 用状态颜色代替名称和选中语义 |
 | Card / Badge | 中性、蓝色、杏色内容身份；明确标注的结果状态 | 把暖色内容卡片当作警告、每个分组都加卡片 |
 | Feedback / EmptyState / Progress | 局部状态、无数据下一步、真实进度 | 把加载当空态、把执行完成当领域通过 |
+| EmptyIllustration / LoadingSkeleton | 成功空态的静态 SVG 插画 / 首次请求的结构占位 | 用骨架表示无数据、用空态表示失败或缺权限 |
 | Dialog / Popover / Tooltip | 独立任务或低频细节、关联提示、返回触发器的焦点 | 主任务多层折叠、错误只放浮层里 |
 | Table | 有名称的滚动区域、表头与真实行数据、键盘滚动 | 隐去缺失分母、把排序或结果判定放进通用组件 |
 | Composer | 输入、附件、工具和提交状态 | 自动执行、第二份会话状态 |
@@ -63,6 +64,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 - 每个操作区有清晰的主要动作；“新聊天”使用会话行尾的独立 +，侧栏不重复品牌标题或大按钮。折叠后仍可达。
 - Insights / 论文、执行环境 / 应用商店之间用 `SidebarGroup separated` 明确划分任务域，避免每行加分隔。
 - 状态由调用方传入。加载、运行、成功、错误、禁用要能区分；出错保留用户输入。
+- 主内容成功为空时，用 `EmptyState` 的 `icon={<EmptyIllustration kind="data" />}`、说明与下一步操作；筛选无匹配用 `kind="search" size="compact"`。插画为装饰，不另报读或获取焦点；已有内容刷新时保留内容。`LoadingSkeleton` 只用于真实加载，形状对应即将出现的内容。
 - 内容标签标识打开的对象；页面保留不同作用域的标题和完整文档标题，只删除没有导航价值的重复名称。
 - 多栏 Web 页面使用 App SDK 的 Split / SplitPane，配置最小宽度、窄窗堆叠和持久化键。
 

@@ -20,6 +20,7 @@ export { Card, CardHeader, type CardProps, type CardHeaderProps } from './card';
 export { Icon, iconFamily, type IconProps, type IconGlyph, type UiIconName, type ShellIconName } from './icon';
 
 export { EmptyState, type EmptyStateProps } from './empty-state';
+export { EmptyIllustration, type EmptyIllustrationProps, type EmptyIllustrationKind } from './empty-illustration';
 export { Table, type TableProps, type TableColumn, type TableColumnMeta } from './table';
 export { Toolbar, type ToolbarProps } from './toolbar';
 export { Popover, type PopoverProps } from './popover';

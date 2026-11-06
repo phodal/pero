@@ -88,6 +88,7 @@ export const uiStyles = `
 .pero-ui-empty-state:not([data-unstyled]) { padding:var(--pero-spacing-6); color:var(--pero-text-muted); overflow-wrap:anywhere; }
 .pero-ui-empty-state:not(p):not([data-unstyled]) { display:grid; justify-items:center; gap:var(--pero-space-5, 10px); text-align:center; }
 .pero-ui-empty-icon { display:inline-flex; }
+.pero-ui-empty-illustration { display:block; max-width:100%; height:auto; flex:none; }
 .pero-ui-empty-heading { color:var(--pero-text); font-size:var(--pero-font-heading); font-weight:600; }
 .pero-ui-empty-heading > *, .pero-ui-empty-description > * { margin:0; }
 .pero-ui-empty-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:var(--pero-space-4, 8px); max-width:100%; }
