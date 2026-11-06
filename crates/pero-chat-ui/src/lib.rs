@@ -63,12 +63,12 @@ pub mod brief_conversation;
 pub mod thinking;
 pub mod process;
 pub mod tool_activity;
-pub mod tool_body;
-#[cfg(any(target_family="wasm",feature="native"))]
-mod tool_body_view;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod transcript_view;
 pub mod tool_transcript;
+pub mod tool_body;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod tool_body_view;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod approvals;
@@ -82,3 +82,6 @@ pub mod chart;
 mod chart_lines;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod chart_view;
+
+#[cfg(any(target_family="wasm",feature="native"))]
+mod changes_view;

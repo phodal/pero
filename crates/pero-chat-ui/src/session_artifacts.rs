@@ -23,6 +23,7 @@ pub(crate) struct ArtifactCollection {
     pub requested: bool,
     pub loading: bool,
     pub open: bool,
+    pub show_changes: bool,
     pub selected: Option<(String, u64)>,
     pub chart: Option<crate::chart_view::ChartView>,
     pub chart_source_open: bool,
@@ -86,6 +87,7 @@ impl ChatPanel {
         state.requested = true;
         state.loading = true;
         state.error = None;
+        self.request_changes(thread,false,cx);
         cx.emit(ChatAction::Artifacts(ArtifactRequest::List {
             method: ArtifactMethod::Artifacts,
             request_id,
@@ -554,6 +556,9 @@ impl ChatPanel {
                     self.artifacts.bounds.entry(format!("{thread}/process:{}", group.first().key())).or_default();
                 }
             }
+            for record in &chat.changes.records {
+                for index in 0..record.files.len() {self.artifacts.bounds.entry(format!("{thread}/change:{}:{index}",record.id)).or_default();}
+            }
             for tool in &chat.tools {
                 self.artifacts
                     .bounds
@@ -566,6 +571,11 @@ impl ChatPanel {
             }
         }
         for action in [
+            "changes-current",
+            "changes-toggle",
+            "changes-history",
+            "changes-layout",
+            "changes-list",
             "toggle",
             "add-file",
             "path",

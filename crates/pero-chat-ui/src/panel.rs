@@ -20,6 +20,7 @@ pub enum ChatAction {
     Command(HostCommand),
     Content(crate::artifact_read::ContentReadIntent),
     Artifacts(pero_contracts::session_artifact::ArtifactRequest),
+    Changes(pero_contracts::workspace_changes::ChangesRequest),
     ChooseArtifactFile { thread_id: String },
     ArtifactPaneWidth { width: f32 },
     ArtifactPreview(Option<pero_contracts::session_artifact::ArtifactBrowserState>),
@@ -288,6 +289,7 @@ impl ChatPanel {
     }
 
     pub fn receive(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
+        if self.changes_event(event,cx) {return true;}
         if self.receive_artifacts(event, cx) { return true; }
         if self.receive_composer(event, cx) {
             return true;
@@ -389,7 +391,7 @@ impl ChatPanel {
     /// Diagnostic projection used by both shells; never a second history store.
     pub fn snapshot(&self, cx: &App) -> Value {
         json!({"chats":self.chats,"activeChat":self.active_chat,"agents":self.agents,
-            "connected":self.connected,"error":self.error,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),
+            "changes":self.changes_snapshot(),"connected":self.connected,"error":self.error,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),
             "composer":self.composer.read(cx).value().as_ref(),"composerFocused":self.composer_focused,
             "workspace":self.workspace,"attachments":self.attachments.iter().map(|r|r.label.as_str()).collect::<Vec<_>>(),
             "expandedTools":self.expanded_tools,"expandedReasoning":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(i,m)|m.role=="thought" && chat.thinking.open(*i)).map(|(i,_)|(&chat.id,i))).collect::<Vec<_>>(),

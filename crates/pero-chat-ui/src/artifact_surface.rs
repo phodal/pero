@@ -28,7 +28,7 @@ impl ChatPanel {
     pub fn artifact_preview_target(&self) -> Option<ArtifactPreviewTarget> {
         let thread = &self.chats.get(self.active_chat?)?.id;
         let state = self.artifacts.conversations.get(thread)?;
-        if !state.open {
+        if !state.open || state.show_changes {
             return None;
         }
         let (id, version) = state.selected.as_ref()?;

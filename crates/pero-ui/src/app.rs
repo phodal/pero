@@ -253,6 +253,7 @@ impl Workbench {
                 ChatAction::AppLink(href)=>this.open_app_link(href,window,cx),
                 ChatAction::OpenDocument(document)=>this.open_document(document.clone(),window,cx),
                 ChatAction::Content(intent) => this.command(serde_json::to_value(intent).expect("content intent"), cx),
+                ChatAction::Changes(request) => this.command(serde_json::to_value(request).expect("changes request"),cx),
                 ChatAction::Artifacts(request) => this.command(serde_json::to_value(request).expect("artifact request"), cx),
                 ChatAction::ArtifactPreview(target) => {
                     #[cfg(not(target_family="wasm"))]

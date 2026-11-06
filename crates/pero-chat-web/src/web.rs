@@ -72,6 +72,7 @@ impl ChatWindow {
                     ChatAction::Selected{thread_id}=>json!({"action":"app_use_selection","thread_id":thread_id}),
                     ChatAction::CompactNeedsSpace => json!({"action":"chat_expand"}),
                     ChatAction::Content(intent) => serde_json::to_value(intent).expect("content intent"),
+                    ChatAction::Changes(request) => serde_json::to_value(request).expect("changes request"),
                     ChatAction::Artifacts(request) => serde_json::to_value(request).expect("artifact request"),
                     ChatAction::ArtifactPreview(_) => return,
                     ChatAction::ArtifactComposeResult{id,error} => json!({"action":"artifact_compose_result","id":id,"error":error}),

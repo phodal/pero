@@ -73,17 +73,9 @@ impl ChatPanel {
             .unwrap_or_default();
         let state = self.artifacts.conversations.get(&thread);
         let open = state.is_some_and(|state| state.open);
-        let count = state.map_or(0, |state| state.items.len());
-        let toggle_thread = thread.clone();
-        let title = self.t("artifacts.title");
-        let label = if count == 0 {
-            title.to_owned()
-        } else {
-            format!("{title} {count}")
-        };
         let header_height = pero_theme::WorkbenchStyle::TAB
             .max(pero_theme::UiAppearance::global(cx).typography.row_height() + 4.);
-        let header = (!thread.is_empty() || self.docked).then(|| {
+        let header = self.docked.then(|| {
             div()
                 .h(px(header_height))
                 .min_h(px(header_height))
@@ -91,36 +83,16 @@ impl ChatPanel {
                 .flex()
                 .items_center()
                 .justify_end()
-                .when(!thread.is_empty(), |el| {
-                    el.child(
-                        self.artifact_button(&thread, "session-artifacts-toggle", "toggle", &label)
-                            .icon(Icon::default().path(UiIcon::Columns2.path()))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                let state = this
-                                    .artifacts
-                                    .conversations
-                                    .entry(toggle_thread.clone())
-                                    .or_default();
-                                state.open = !state.open;
-                                if this.compact {
-                                    cx.emit(ChatAction::CompactNeedsSpace);
-                                }
-                                cx.notify();
-                            })),
+                .child(
+                    self.artifact_icon_button(
+                        &thread,
+                        "workspace-chat-close",
+                        "close-chat",
+                        "panel-right-close",
+                        self.t("chat.close_panel"),
                     )
-                })
-                .when(self.docked, |el| {
-                    el.child(
-                        self.artifact_icon_button(
-                            &thread,
-                            "workspace-chat-close",
-                            "close-chat",
-                            "panel-right-close",
-                            self.t("chat.close_panel"),
-                        )
-                        .on_click(cx.listener(|_, _, _, cx| cx.emit(ChatAction::ClosePanel))),
-                    )
-                })
+                    .on_click(cx.listener(|_, _, _, cx| cx.emit(ChatAction::ClosePanel))),
+                )
                 .into_any_element()
         });
         let chat = div()
@@ -188,6 +160,7 @@ impl ChatPanel {
         state: &ArtifactCollection,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        if state.show_changes {return self.changes_panel(thread,state,cx);}
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
         let picker_thread = thread.to_owned();
         let menu_owner = cx.entity().downgrade();
@@ -359,6 +332,7 @@ impl ChatPanel {
                         })),
                     ),
             )
+            .child(self.output_tabs(thread,state,cx))
             .when(state.path_open, |el| {
                 let thread = thread.to_owned();
                 let dismiss_thread = thread.clone();
