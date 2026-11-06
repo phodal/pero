@@ -178,7 +178,7 @@ fn matching_conditions() {
             .preferred_satisfied,
         0
     );
-    let mut with_numpy = profile().observation().clone();
+    let mut with_numpy = legacy_observation(&profile());
     with_numpy
         .packages
         .insert(id("numpy"), Some(version("2.2.6")));
@@ -226,7 +226,7 @@ fn matching_conditions() {
         NativeStatus::Unsupported,
         NativeStatus::ProbeFailed,
     ] {
-        let mut observed = profile().observation().clone();
+        let mut observed = legacy_observation(&profile());
         observed.native.get_mut(&id("ngspice")).unwrap().status = status;
         let mut b = binding();
         b.profile = SoftwareProfile::observed(observed);
@@ -259,7 +259,7 @@ fn binding_identity_and_historical_observations() {
             "owner" => changed.owner = id("different-host"),
             "incarnation" => changed.incarnation = id("backend-2"),
             _ => {
-                let mut obs = changed.profile.observation().clone();
+                let mut obs = legacy_observation(&changed.profile);
                 obs.python.patch = 12;
                 changed.profile = SoftwareProfile::observed(obs);
             }
@@ -440,4 +440,11 @@ fn use_lifecycle() {
             .1
             .is_empty()
     );
+}
+
+fn legacy_observation(profile: &SoftwareProfile) -> ProfileObservation {
+    let SoftwareObservation::Legacy(value) = profile.observation() else {
+        panic!("legacy fixture")
+    };
+    value.clone()
 }

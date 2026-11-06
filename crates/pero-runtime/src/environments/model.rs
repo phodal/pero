@@ -1,3 +1,4 @@
+use super::SoftwareProfile;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::collections::BTreeMap;
@@ -86,6 +87,9 @@ impl From<ContentDigest> for String {
     }
 }
 impl ContentDigest {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
     pub fn of(value: &impl Serialize) -> Self {
         fn canonical(value: serde_json::Value, out: &mut Vec<u8>) {
             match value {
@@ -166,29 +170,13 @@ pub struct ProfileObservation {
     pub native: BTreeMap<Identity, NativeProgram>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct SoftwareProfile {
-    id: ContentDigest,
-    observation: ProfileObservation,
-}
-impl SoftwareProfile {
-    pub fn observed(observation: ProfileObservation) -> Self {
-        Self {
-            id: ContentDigest::of(&observation),
-            observation,
-        }
-    }
-    pub fn id(&self) -> &ContentDigest {
-        &self.id
-    }
-    pub fn observation(&self) -> &ProfileObservation {
-        &self.observation
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Requirement {
+    Component {
+        name: Identity,
+        condition: super::ComponentRequirement,
+    },
     Profile {
         digest: ContentDigest,
     },
@@ -321,7 +309,7 @@ impl EnvironmentInstance {
         let old = &self.snapshot.binding;
         if old.owner != binding.owner
             || old.incarnation != binding.incarnation
-            || old.profile.id != binding.profile.id
+            || old.profile.id() != binding.profile.id()
         {
             return Err(EnvironmentError::IdentityChanged);
         }

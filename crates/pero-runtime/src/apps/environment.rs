@@ -241,7 +241,10 @@ mod tests {
             ("paper-agent", ScientificMethod::Pcgym),
         ] {
             let inspection = EnvironmentInspection::inspect(&root.join(app), None, method).unwrap();
-            assert_eq!(inspection.profile.observation().name.as_str(), app);
+            let crate::environments::SoftwareObservation::Legacy(observed) = inspection.profile.observation() else {
+                panic!("legacy probe contract")
+            };
+            assert_eq!(observed.name.as_str(), app);
             let binding = EnvironmentBinding {
                 owner: "probe".to_owned().try_into().unwrap(),
                 incarnation: "inspection".to_owned().try_into().unwrap(),

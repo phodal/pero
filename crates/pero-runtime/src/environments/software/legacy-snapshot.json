@@ -1,0 +1,39 @@
+{
+  "template": {
+    "identity": "legacy-env",
+    "version": "1",
+    "requirements": {
+      "method": "legacy-method",
+      "required": [
+        {
+          "kind": "profile",
+          "digest": "100b9bd9734b6d20e9cc2e327b9a73fed15de10117fa047b95dc54be8e3626f0"
+        }
+      ],
+      "preferred": []
+    }
+  },
+  "binding": {
+    "owner": "host",
+    "incarnation": "backend-1",
+    "observed_at_ms": 100,
+    "profile": {
+      "id": "100b9bd9734b6d20e9cc2e327b9a73fed15de10117fa047b95dc54be8e3626f0",
+      "observation": {
+        "name": "control-lab",
+        "python": {
+          "major": 3,
+          "minor": 12,
+          "patch": 11
+        },
+        "system": "Linux",
+        "machine": "x86_64",
+        "interpreter_sha256": null,
+        "packages": {
+          "control": "0.10.2"
+        },
+        "native": {}
+      }
+    }
+  }
+}
