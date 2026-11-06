@@ -43,7 +43,7 @@
 .point-connectors-card-title{margin:0;font-size:var(--pero-font-ui);font-weight:var(--pero-font-weight-medium);line-height:var(--pero-line-height-normal)}
 .point-connectors-card-meta{font-size:var(--pero-font-caption);color:var(--pero-text-secondary)}
 .point-connectors-summary{font-size:var(--pero-font-ui);color:var(--pero-text-secondary);margin:0}
-.point-connectors-warning{background:var(--pero-warning-surface);color:var(--pero-warning);border-left:var(--pero-border-width-accent, 3px) solid var(--pero-warning);border-radius:var(--pero-radius-sm, 6px);padding:var(--pero-space-3, 6px) var(--pero-space-5, 10px);font-size:var(--pero-font-size-sm, 12px);line-height:var(--pero-line-height-normal, 1.5);margin:0}
+.point-connectors-warning{background:var(--pero-warning-surface);color:var(--pero-warning);border-radius:var(--pero-radius-sm, 6px);padding:var(--pero-space-3, 6px) var(--pero-space-5, 10px);font-size:var(--pero-font-size-sm, 12px);line-height:var(--pero-line-height-normal, 1.5);margin:0}
 .point-connectors-card-actions{margin-top:auto;display:flex;gap:var(--pero-space-4, 8px);align-items:center;justify-content:flex-end;padding-top:var(--pero-space-2)}
 .point-connectors-card-actions>.pero-ui-help-tip{margin-right:auto}
 .point-connectors-row-card{display:flex;align-items:center;gap:var(--pero-space-6, 12px)}

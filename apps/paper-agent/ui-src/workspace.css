@@ -397,7 +397,6 @@
 .pa-local-passage {
   margin: 12px 0 0 40px;
   padding-inline-start: 16px;
-  border-inline-start: 2px solid var(--pero-border);
   color: var(--pero-text-muted);
   font-size: var(--pero-font-body);
   line-height: 1.6;

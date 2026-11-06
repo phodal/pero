@@ -488,3 +488,49 @@ consumes them; App scope requests retain the existing panel-availability check.
 - This follow-up does not add new Native runtime visual acceptance, physical
   IME, screen-reader, other OS or signed-package evidence. Earlier Native
   evidence above retains its own source and scope.
+
+## Reviewed workspace recovery and Web emphasis cleanup — 2026-11-06
+
+Source: `185673fc` plus this eight-source-file cleanup, reviewed against the
+142 files saved in stash `797b85ff`. The saved snapshot includes earlier design
+implementations; restoring it wholesale would undo subsequent session retry,
+shared input/focus, sidebar accessibility and experiment request-state fixes.
+Those newer implementations and their verification records remain authoritative.
+The two saved Native pane-tab drag-over removals were rejected: the left marker
+is the existing drop-position cue, with no replacement in the saved changes.
+
+| Consumer | Old decoration → retained presentation and behavior |
+| --- | --- |
+| HPC benchmark selection and unavailable note | Left borders → selected background, `aria-current`, warning text and warning background; selection and execution admission stay with the App |
+| Paper search, scientific quotes, reader evidence and local passages | Inset shadows / left borders → selected background, quote indentation, evidence text and existing keyboard focus; pane separators remain |
+| Connectors warnings | Left border → warning text and warning surface, preserving current typography and actions |
+| Shared FileTree, CodeCompare and chat blockquotes | Left borders / inset shadows → selection backgrounds, keyboard focus, comment text and quote indentation; controlled selection and source correspondence remain |
+
+Validation on this recovered source:
+
+- App SDK typecheck passed. Existing FileTree controlled-selection and
+  CodeCompare source-correspondence tests passed **2/2**, with no skips.
+- Root `npm run check` passed: TypeScript, generated theme/design/token and
+  protocol checks, **984** bilingual messages and **85** shared icons. The shell
+  initially omitted `rustfmt`; rerunning with the installed stable toolchain's
+  `bin` directory on PATH passed without changing generated files.
+- All **12** built-in App bundles rebuilt with the existing `web/dist-reader`
+  assets; reader Wasm did not change and was not rebuilt.
+- Actual Paper / Connectors App entries passed **8/8** Chromium fixture scenarios:
+  retained results, loading/empty states, navigation, shared search and reader
+  controls, including light/14px and dark/24px layouts. No page errors occurred.
+- Rebuilt HPC ran in Chromium at 1200 × 800 against its real local Python
+  catalog backend and isolated empty data. In light/dark themes, the selected
+  OpenFOAM row and unavailable note both had `0px` left borders; selected
+  backgrounds remained visible and switching to Poisson changed selection.
+  ReFrame was unavailable; no benchmark or remote computation ran.
+
+Visually inspected the current [HPC light](../../target/design-review/left-border-removal/hpc-light.png)
+and [dark](../../target/design-review/left-border-removal/hpc-dark.png) captures,
+[Paper reader dark/24px](../../target/design-review/stash-recovery-review/paper-reader-shared-24.png)
+and [Connectors dark/24px](../../target/design-review/stash-recovery-review/customize-dark24.png).
+The selected HPC row, warning, Paper reader toolbar and narrow catalog remain
+readable. Screenshots and HPC measurements are ignored local artifacts, not
+committed binaries. Shared FileTree/CodeCompare and quote-specific visual states
+were source/behavior reviewed but not visually exercised. This pass adds no
+Native, physical IME, screen-reader, signed-package or other-OS acceptance.

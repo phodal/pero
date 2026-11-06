@@ -15,7 +15,7 @@ input[type=checkbox] { accent-color: var(--pero-action); width: 16px; height: 16
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .prior-specification { display: block; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .hpc-app .app-notice { padding: 4px 12px; border-bottom: 1px solid var(--pero-border); font-size: var(--pero-font-caption); color: var(--pero-text-muted); }
-.unavailable-note { margin-bottom: 12px; padding: 8px 12px; border-left: 2px solid var(--pero-warning); font-size: var(--pero-font-caption); }
+.unavailable-note { margin-bottom: 12px; padding: 8px 12px; font-size: var(--pero-font-caption); }
 .workbench { overflow: hidden; }
 .benchmark-explorer { display: flex; flex-direction: column; overflow: hidden; background: var(--pero-bg); }
 .explorer-header { flex: none; padding: 12px; }
@@ -24,10 +24,10 @@ input[type=checkbox] { accent-color: var(--pero-action); width: 16px; height: 16
 .benchmark-search > svg { position: absolute; top: 50%; transform: translateY(-50%); left: 7px; color: var(--pero-text-muted); pointer-events: none; }
 .hpc-app .benchmark-search .pero-ui-input { padding-left: 26px; }
 .benchmark-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 12px; }
-.hpc-app .benchmark-item { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; min-height: 60px; padding: 8px 10px; border: 0; border-left: 2px solid transparent; border-radius: 3px; background: transparent; color: var(--pero-text); text-align: left; font: inherit; }
+.hpc-app .benchmark-item { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; min-height: 60px; padding: 8px 10px; border: 0; border-radius: 3px; background: transparent; color: var(--pero-text); text-align: left; font: inherit; }
 .hpc-app .benchmark-item:hover:not([aria-current=page]) { background: var(--pero-surface-hover); }
 .hpc-app .benchmark-item:active:not([aria-current=page]) { background: var(--pero-surface-pressed); }
-.hpc-app .benchmark-item[aria-current=page] { background: var(--pero-accent-soft); border-left-color: var(--pero-action); }
+.hpc-app .benchmark-item[aria-current=page] { background: var(--pero-accent-soft); }
 .benchmark-name { font-size: var(--pero-font-body); line-height: 1.45; font-weight: 550; overflow-wrap: anywhere; }
 .benchmark-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: var(--pero-font-caption); line-height: 1.4; color: var(--pero-text-muted); }
 .unavailable-label { color: var(--pero-warning); }

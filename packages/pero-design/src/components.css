@@ -190,7 +190,6 @@
 .pero-chat :where(ul, ol) { padding-left: calc(var(--pero-prose-list-indent) * 1em); }
 .pero-chat :where(blockquote) {
   padding-left: calc(var(--pero-prose-quote-pad) * 1em);
-  border-left: var(--pero-prose-quote-border) solid var(--pero-border);
   color: var(--pero-text-muted);
 }
 .pero-chat :where(hr) {

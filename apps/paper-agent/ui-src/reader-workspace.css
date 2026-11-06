@@ -58,7 +58,6 @@
   margin: 8px 0;
   padding: 8px 12px;
   border: 0;
-  border-inline-start: 2px solid var(--pero-action);
   border-radius: 0;
   background: var(--pero-surface-muted);
   box-shadow: none;
