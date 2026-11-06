@@ -19,7 +19,7 @@
 .numeric-chart-caption { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:8px 12px; padding:8px 0; border-top:.5px solid var(--pero-border,#dce4ed); color:var(--pero-text-muted,#596b7d); font-size:var(--pero-font-caption,12px); }
 .numeric-chart-caption output { color:var(--pero-text,#172536); overflow-wrap:anywhere; }
 .numeric-empty { padding:32px 12px; color:var(--pero-text-muted,#596b7d); }
-.numeric-empty h2 { color:var(--pero-text,#172536); font-size:18px; margin:0 0 8px; }
+.numeric-empty h2 { color:var(--pero-text,#172536); font-size:var(--pero-font-heading); margin:0 0 8px; }
 .numeric-empty p { margin:0; }
 .numeric-table-scroll { overflow:auto; min-width:0; min-height:0; max-height:calc(100vh - 220px); }
 .numeric-table { border-collapse:collapse; width:100%; max-width:960px; font-size:var(--pero-font-ui,14px); font-variant-numeric:tabular-nums; }
