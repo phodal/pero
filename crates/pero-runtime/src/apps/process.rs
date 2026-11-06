@@ -1,12 +1,13 @@
 use super::PythonEnvironment;
+use crate::owned_process::OwnedProcess;
 use super::definition::{AppDefinition, BackendKind};
 use serde::Serialize;
 use std::{
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     sync::mpsc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 #[derive(Clone, Serialize)]
@@ -42,7 +43,7 @@ impl ReproductionDeployment {
 }
 
 pub(super) struct AppProcess {
-    child: Child,
+    child: OwnedProcess,
     access: BackendAccess,
 }
 
@@ -120,13 +121,7 @@ impl AppProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::CommandExt;
-            command.process_group(0);
-        }
-        let child = command
-            .spawn()
+        let child = OwnedProcess::spawn(&mut command)
             .map_err(|error| format!("Cannot start App {label} backend {}: {error}. Check its configured interpreter and environment.", definition.name.as_str()))?;
         let mut process = Self {
             child,
@@ -136,7 +131,7 @@ impl AppProcess {
                 reproduction_token,
             },
         };
-        let stdout = process.child.stdout.take().expect("piped stdout");
+        let stdout = process.child.child_mut().stdout.take().expect("piped stdout");
         let (send, receive) = mpsc::sync_channel(1);
         std::thread::spawn(move || {
             let mut reader = BufReader::new(stdout);
@@ -183,30 +178,6 @@ impl AppProcess {
     }
 }
 
-impl Drop for AppProcess {
-    fn drop(&mut self) {
-        #[cfg(unix)]
-        {
-            // The Host owns the entire backend process group, including children.
-            let group = -(self.child.id() as i32);
-            unsafe {
-                libc::kill(group, libc::SIGTERM);
-            }
-            let deadline = Instant::now() + Duration::from_secs(2);
-            while self.child.try_wait().ok().flatten().is_none() && Instant::now() < deadline {
-                std::thread::sleep(Duration::from_millis(10));
-            }
-            unsafe {
-                libc::kill(group, libc::SIGKILL);
-            }
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = self.child.kill();
-        }
-        let _ = self.child.wait();
-    }
-}
 
 
 #[cfg(test)]
