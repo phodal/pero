@@ -43,6 +43,10 @@ export function FormsExample() {
     </section>
     {message && <Feedback kind="success" variant="block">{message}</Feedback>}
     <section><h2>状态与恢复</h2><Feedback kind="warning" variant="block">这是一组演示数据，未进行科学核验。</Feedback><>{readError ? <Feedback kind="error" variant="block">读取失败，输入已保留。<Button onClick={() => { setReadError(false); setMessage('演示恢复完成，表单输入未重置。'); }}>重试</Button></Feedback> : <Button onClick={() => { setReadError(true); setMessage(''); }}>模拟读取失败</Button>}</><Progress label="演示进度" value={quantity} max={8}/></section>
+    <section><h2>内容型单选</h2><RadioGroup aria-label="准备来源" value={source} onValueChange={setSource} className="catalog-tones">
+      <RadioGroupItem variant="card" value="local"><strong>本机环境</strong><span>使用已准备的软件。</span></RadioGroupItem>
+      <RadioGroupItem variant="card" value="example"><strong>演示配置</strong><span>查看示例，不执行任务。</span></RadioGroupItem>
+    </RadioGroup></section>
     <section><h2>结果选择</h2><RadioGroup aria-label="选择结果" value={choice} onValueChange={setChoice}><Table label="演示结果" density="compact" rows={rows} rowId={row => row.id} columns={[
       { id: 'name', header: '结果', size: 180, cell: row => <label className="catalog-choice"><RadioGroupItem value={row.id}/>{row.name}</label> },
       { id: 'samples', header: '观测数', size: 90, meta: { align: 'end' }, cell: row => row.observations },

@@ -4,7 +4,7 @@ import { Icon } from '../components/icon';
 import { Card } from '../components/card';
 import { Input } from '../components/input';
 import { Field } from '../components/field';
-import { Select } from '../components/select';
+import { RadioGroup, RadioGroupItem } from '../components/radio-group';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/tabs';
 import { Table } from '../components/table';
 import { Feedback } from '../components/feedback';
@@ -12,14 +12,14 @@ import { EmptyState } from '../components/empty-state';
 import { EmptyIllustration } from '../components/empty-illustration';
 import { LoadingSkeleton, SkeletonText } from '../components/skeleton';
 import { Dialog } from '../components/dialog';
-import { Badge, LibraryHeader } from '../../../pero-design/src/components';
+import { Badge, OutlineBadge, LibraryHeader } from '../../../pero-design/src/components';
 import { METHODS } from './model.mjs';
 import { EnvironmentChecks, type InspectionProps } from './inspection';
 
 export const managerMessages = (locale: string) => locale.startsWith('zh') ? {
- createNote:'选择方法，在本机准备所需软件。准备完成后可切换应用环境。', software:'将准备的软件', runtime:'运行时', packages:'依赖包', title:'执行环境', environments:'本机环境', inspect:'软件检查', create:'创建环境', createTitle:'创建本机环境', name:'环境名称', method:'方法', prepare:'准备环境', createPrepare:'创建并准备', bind:'使用此环境', back:'返回', refresh:'刷新', empty:'尚未创建本机环境', emptyNote:'创建一个环境，为方法安装所需软件。', loading:'正在读取环境…', created:'待准备', preparing:'准备中', ready:'准备完成', failed:'准备失败', status:'状态', usedBy:'用于', actions:'操作', dependencies:'Python 依赖', log:'安装日志', cancel:'取消', confirm:'绑定并重启', confirmTitle:'切换应用环境', confirmText:'将重启应用后端并停止其中的计算。请先保存工作。', shared:'Control 和 Circuit 共用 Control Lab 的环境。', native:'准备 Circuit 时会通过 Homebrew 安装 ngspice，并将该程序绑定到环境。', python:'Python 3.12', failedLoad:'环境列表无法读取', active:'当前使用', description:'环境名称用于区分同一方法的不同软件配置。', retry:'重试', version:'版本', retained:'正在显示上次读取的环境，请重试更新。'
+ createNote:'选择方法，安装它需要的软件。准备完成后，再切换应用环境。', local:'本机环境', destination:'在本机准备', installNote:'安装所需运行时与方法依赖', preparationNote:'准备完成后，可在详情中切换应用环境。', catalogNote:'管理方法所需的软件，让计算有据可查。', controlNote:'控制系统仿真', circuitNote:'电路仿真', pcgymNote:'过程控制复现', relatedApp:'关联应用', software:'将准备的软件', runtime:'运行时', packages:'依赖包', title:'执行环境', environments:'本机环境', inspect:'软件检查', create:'创建环境', createTitle:'为下一次计算准备环境', name:'环境名称', method:'方法', prepare:'准备环境', createPrepare:'创建并准备', bind:'使用此环境', back:'返回', refresh:'刷新', empty:'尚未创建本机环境', emptyNote:'创建一个环境，为方法安装所需软件。', loading:'正在读取环境…', created:'待准备', preparing:'准备中', ready:'准备完成', failed:'准备失败', status:'状态', usedBy:'用于', actions:'操作', dependencies:'Python 依赖', log:'安装日志', cancel:'取消', confirm:'绑定并重启', confirmTitle:'切换应用环境', confirmText:'将重启应用后端并停止其中的计算。请先保存工作。', shared:'Control 和 Circuit 共用 Control Lab 的环境。', native:'准备 Circuit 时会通过 Homebrew 安装 ngspice，并将该程序绑定到环境。', python:'Python 3.12', failedLoad:'环境列表无法读取', active:'当前使用', description:'环境名称用于区分同一方法的不同软件配置。', retry:'重试', version:'版本', retained:'正在显示上次读取的环境，请重试更新。'
 } : {
- createNote:'Choose a method and prepare its software locally. Switch the App environment when preparation is complete.', software:'Software to prepare', runtime:'Runtime', packages:'Packages', title:'Environments', environments:'Local environments', inspect:'Software checks', create:'Create environment', createTitle:'Create local environment', name:'Environment name', method:'Method', prepare:'Prepare environment', createPrepare:'Create and prepare', bind:'Use this environment', back:'Back', refresh:'Refresh', empty:'No local environments yet', emptyNote:'Create an environment to install the software a method needs.', loading:'Loading environments…', created:'Not prepared', preparing:'Preparing', ready:'Prepared', failed:'Preparation failed', status:'Status', usedBy:'Used by', actions:'Actions', dependencies:'Python dependencies', log:'Installation log', cancel:'Cancel', confirm:'Bind and restart', confirmTitle:'Switch App environment', confirmText:'This restarts the App backend and stops its calculations. Save your work first.', shared:'Control and Circuit share the Control Lab environment.', native:'Circuit preparation installs ngspice through Homebrew and binds the program to this environment.', python:'Python 3.12', failedLoad:'Could not load environments', active:'Currently in use', description:'Use a name that distinguishes this software configuration.', retry:'Retry', version:'Version', retained:'Showing the previous environment list. Retry to update it.'
+ createNote:'Choose a method and install its software. Switch the App environment when it is ready.', local:'Local environment', destination:'Prepare on this computer', installNote:'Install the runtime and method dependencies', preparationNote:'When ready, switch the App environment from its details.', catalogNote:'Manage the software behind your scientific methods.', controlNote:'Control system simulation', circuitNote:'Circuit simulation', pcgymNote:'Process control reproduction', relatedApp:'Related App', software:'Software to prepare', runtime:'Runtime', packages:'Packages', title:'Environments', environments:'Local environments', inspect:'Software checks', create:'Create environment', createTitle:'Prepare your next calculation', name:'Environment name', method:'Method', prepare:'Prepare environment', createPrepare:'Create and prepare', bind:'Use this environment', back:'Back', refresh:'Refresh', empty:'No local environments yet', emptyNote:'Create an environment to install the software a method needs.', loading:'Loading environments…', created:'Not prepared', preparing:'Preparing', ready:'Prepared', failed:'Preparation failed', status:'Status', usedBy:'Used by', actions:'Actions', dependencies:'Python dependencies', log:'Installation log', cancel:'Cancel', confirm:'Bind and restart', confirmTitle:'Switch App environment', confirmText:'This restarts the App backend and stops its calculations. Save your work first.', shared:'Control and Circuit share the Control Lab environment.', native:'Circuit preparation installs ngspice through Homebrew and binds the program to this environment.', python:'Python 3.12', failedLoad:'Could not load environments', active:'Currently in use', description:'Use a name that distinguishes this software configuration.', retry:'Retry', version:'Version', retained:'Showing the previous environment list. Retry to update it.'
 };
 interface LocalEnvironment {
   id: string; label: string; target: string; dependencies: string[]; state: 'created' | 'preparing' | 'ready' | 'failed'; log: string[]; error: string | null; bound: boolean;
@@ -109,22 +109,38 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
   const createEnvironment = (form: HTMLFormElement) => {
     if (!busy && form.reportValidity()) void request({ operation: 'create', label, target });
   };
-  return <main className="pero-env env-workspace">
+  return <main className="pero-env env-workspace"><div className="env-workspace-content">
     {(creating || value) && <nav className="env-back" aria-label={t.back}><Button variant="ghost" disabled={busy} onClick={back}><Icon family="shell" name="back" />{t.back}</Button></nav>}
     <LibraryHeader density="compact" title={<span ref={heading} tabIndex={-1}>{creating ? t.createTitle : value?.label ?? t.title}</span>}
-      subtitle={creating ? t.createNote : undefined}
-      actions={<>{value && status(value)}{value ? value.bound ? <span className="env-muted">{t.active}</span> : value.state !== 'preparing' && <Button variant="primary" busy={busy} onClick={() => value.state === 'ready' ? setConfirming(true) : void request({ operation: 'prepare', id: value.id })}>{value.state === 'ready' ? t.bind : t.prepare}</Button>
+      subtitle={creating ? t.createNote : value ? `${method.name} · ${t.local}` : t.catalogNote}
+      actions={<>{creating && <Badge tone="apricot" className="env-local-label"><Icon family="shell" name="computer" />{t.local}</Badge>}{value && status(value)}{value ? value.bound ? <span className="env-muted">{t.active}</span> : value.state !== 'preparing' && <Button variant="primary" busy={busy} onClick={() => value.state === 'ready' ? setConfirming(true) : void request({ operation: 'prepare', id: value.id })}>{value.state === 'ready' ? t.bind : t.prepare}</Button>
         : !creating && <><Button busy={busy} onClick={() => void request({ operation: 'list' })}>{t.refresh}</Button>{(!loaded || values.length > 0 || tab !== 'environments') && <Button variant="primary" disabled={busy} onClick={startCreating}>{t.create}</Button>}</>}</>} />
     {error && <div className="env-load-error"><Feedback kind="error" variant="block">{!loaded && `${t.failedLoad}: `}{error}{loaded && ` ${t.retained}`}</Feedback><Button disabled={busy} onClick={() => void request({ operation: 'list' })}>{t.retry}</Button></div>}
     {creating ? <form className="env-create-form" onSubmit={event => { event.preventDefault(); createEnvironment(event.currentTarget); }}>
-      <Field label={t.name} description={t.description} controlId="env-name">{control => <Input {...control} ref={input} required maxLength={80} autoComplete="off" value={label} disabled={busy} onChange={event => setLabel(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) createEnvironment(event.currentTarget.form!); } }} />}</Field>
-      <Field label={t.method} controlId="env-method">{control => <Select {...control} label={t.method} value={target} disabled={busy} onChange={setTarget} options={METHODS.map(item => ({ value: item.id, label: item.name }))} />}</Field>
-      <Card tone="blue" variant="soft" className="env-recipe-summary" asChild><section aria-labelledby="env-software-title">
-        <h3 id="env-software-title">{t.software}</h3>
-        <dl className="env-recipe-facts"><div><dt>{t.runtime}</dt><dd>{t.python}</dd></div><div><dt>{t.packages}</dt><dd>{method.software}</dd></div></dl>
-        {method.app === 'Control Lab' && <p className="env-note">{t.shared}</p>}
-      </section></Card>{target === 'control-lab.ngspice' && <Feedback kind="warning" variant="block">{t.native}</Feedback>}
-      <footer className="env-form-actions"><Button disabled={busy} onClick={back}>{t.cancel}</Button><Button type="submit" variant="primary" busy={busy} onClick={event => { event.preventDefault(); createEnvironment(event.currentTarget.form!); }}>{t.createPrepare}</Button></footer>
+      <Card className="env-create-main">
+        <section className="env-method-section" aria-labelledby="env-method-label">
+          <h3 id="env-method-label">{t.method}</h3>
+          <RadioGroup id="env-method" aria-labelledby="env-method-label" value={target} disabled={busy} onValueChange={setTarget} className="env-method-choices">
+            {[...METHODS.slice(1), METHODS[0]].map(item => <RadioGroupItem key={item.id} variant="card" value={item.id} aria-label={item.name}>
+              <span className="env-method-icon" data-tone={item.tone}><Icon name={item.icon} size={18} /></span>
+              <span className="env-method-copy"><strong>{item.name}</strong><span>{item.id === 'paper-agent.pcgym' ? t.pcgymNote : item.id === 'control-lab.ngspice' ? t.circuitNote : t.controlNote}</span></span>
+            </RadioGroupItem>)}
+          </RadioGroup>
+        </section>
+        <Field label={t.name} description={t.description} controlId="env-name">{control => <Input {...control} ref={input} required maxLength={80} autoComplete="off" value={label} disabled={busy} onChange={event => setLabel(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) createEnvironment(event.currentTarget.form!); } }} />}</Field>
+        <div className="env-destination"><span className="env-method-icon" data-tone="apricot"><Icon family="shell" name="computer" size={18}/></span><div><strong>{t.destination}</strong><p className="env-note">{t.installNote}</p></div></div>
+        {target === 'control-lab.ngspice' && <Feedback kind="warning" variant="block">{t.native}</Feedback>}
+      </Card>
+      <aside className="env-create-aside" aria-label={t.software}>
+        <Card tone="blue" variant="soft" className="env-recipe-summary" asChild><section aria-labelledby="env-software-title">
+          <h3 id="env-software-title"><Icon name="cube" size={18}/>{t.software}</h3>
+          <div className="env-runtime"><span className="env-muted">{t.runtime}</span><strong>{t.python}</strong></div>
+          <div className="env-package-summary"><span className="env-muted">{t.packages}</span><div className="env-package-list">{method.software.split(', ').map(name => <OutlineBadge key={name}>{name}</OutlineBadge>)}</div></div>
+          <dl className="env-recipe-facts"><div><dt>{t.method}</dt><dd>{method.name}</dd></div><div><dt>{t.relatedApp}</dt><dd>{method.app}</dd></div></dl>
+        </section></Card>
+        <p className="env-prepare-note"><Icon name="info"/><span>{method.app === 'Control Lab' ? t.shared : t.preparationNote}</span></p>
+      </aside>
+      <Card className="env-create-footer" asChild><footer><p className="env-note">{t.preparationNote}</p><div className="env-form-actions"><Button variant="ghost" disabled={busy} onClick={back}>{t.cancel}</Button><Button type="submit" variant="primary" busy={busy} onClick={event => { event.preventDefault(); createEnvironment(event.currentTarget.form!); }}>{t.createPrepare}<Icon name="arrow"/></Button></div></footer></Card>
     </form> : value ? <>
       <dl className="env-facts">{[[t.method, method.name], ['Python', '3.12'], [t.usedBy, value.bound ? method.app : '—']].map(([name, text]) => <div key={name}><dt>{name}</dt><dd>{text}</dd></div>)}</dl>
       {method.app === 'Control Lab' && <p className="env-note">{t.shared}</p>}{value.error && <Feedback kind="error" variant="block">{value.error}</Feedback>}
@@ -136,10 +152,10 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
       {!!value.log.length && <details className="env-install-log"><summary>{t.log}</summary><pre className="env-json">{value.log.join('\n')}</pre></details>}
       {confirming && <Dialog title={t.confirmTitle} closeLabel={t.cancel} onClose={() => setConfirming(false)} footer={<><Button onClick={() => setConfirming(false)}>{t.cancel}</Button><Button variant="primary" busy={busy} onClick={() => { setConfirming(false); void request({ operation: 'bind', id: value.id }); }}>{t.confirm}</Button></>}><Feedback kind="warning" variant="block">{t.confirmText}</Feedback></Dialog>}
     </> : <Tabs value={tab} onValueChange={setTab}>
-      <TabsList aria-label={t.title}><TabsTrigger value="environments">{t.environments}</TabsTrigger><TabsTrigger value="inspect">{t.inspect}</TabsTrigger></TabsList>
+      <TabsList variant="navigation" aria-label={t.title}><TabsTrigger value="environments">{t.environments}</TabsTrigger><TabsTrigger value="inspect">{t.inspect}</TabsTrigger></TabsList>
       <TabsContent value="environments" forceMount>
-        {!loaded ? busy ? <LoadingSkeleton label={t.loading}><SkeletonText /></LoadingSkeleton> : null : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment" />} heading={t.empty} description={t.emptyNote} actions={<Button variant="primary" disabled={busy} onClick={startCreating}>{t.create}</Button>} /> : <Table label={t.environments} density="compact" rows={values} rowId={item => item.id} columns={[
-          { id: 'name', header: t.name, size: 220, cell: item => <Button variant="ghost" onClick={() => setSelected(item.id)}>{item.label}</Button> },
+        {!loaded ? busy ? <LoadingSkeleton label={t.loading}><SkeletonText /></LoadingSkeleton> : null : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment" />} heading={t.empty} description={t.emptyNote} actions={<Button variant="primary" disabled={busy} onClick={startCreating}>{t.create}</Button>} /> : <Table className="env-catalog-table" label={t.environments} density="comfortable" rows={values} rowId={item => item.id} columns={[
+          { id: 'name', header: t.name, size: 320, cell: item => <div className="env-catalog-name"><span className="env-method-icon" data-tone={METHODS.find(method => method.id === item.target)!.tone}><Icon name={METHODS.find(method => method.id === item.target)!.icon} size={18}/></span><div><Button variant="link" onClick={() => setSelected(item.id)}>{item.label}</Button><p className="env-muted">{t.python} · {t.local}</p></div></div> },
           { id: 'method', header: t.method, size: 130, cell: item => METHODS.find(method => method.id === item.target)!.name },
           { id: 'status', header: t.status, size: 140, cell: item => status(item) },
           { id: 'usedBy', header: t.usedBy, size: 120, cell: item => item.bound ? METHODS.find(method => method.id === item.target)!.app : '—' },
@@ -147,5 +163,5 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
       </TabsContent>
       <TabsContent value="inspect" forceMount>{!accessRevoked && <EnvironmentChecks locale={locale} inspect={inspect} embedded />}</TabsContent>
     </Tabs>}
-  </main>;
+  </div></main>;
 }

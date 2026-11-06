@@ -22,8 +22,7 @@ try{
  await page.screenshot({path:resolve(out,'catalog-empty.png')});
  await frame.getByRole('button',{name:'Create environment',exact:true}).click();
  await frame.getByLabel('Environment name',{exact:true}).fill('Control acceptance');
- await frame.getByLabel('Method',{exact:true}).click();
- await frame.getByRole('option',{name:'Control',exact:true}).click();
+ await frame.getByRole('radio',{name:'Control',exact:true}).click();
  await page.screenshot({path:resolve(out,'create-light.png')});
  await setAppearance(page,'dark');
  await expect.poll(()=>frame.locator('html').evaluate(el=>el.style.colorScheme)).toBe('dark');
@@ -32,12 +31,26 @@ try{
  await page.screenshot({path:resolve(out,'create-dark-zh.png')});
  await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].setMinimumSize(480,600);BrowserWindow.getAllWindows()[0].setSize(720,800);});
  expect(await frame.locator('html').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
- await frame.getByLabel('方法',{exact:true}).focus();
- await page.keyboard.press('ArrowDown');
- await expect(frame.getByRole('listbox')).toBeVisible();
- await page.keyboard.press('Escape');
- await expect(frame.getByLabel('方法',{exact:true})).toBeFocused();
+ await frame.getByRole('radio',{name:'Control',exact:true}).focus();
+ await page.keyboard.press('ArrowRight');
+ await expect(frame.getByRole('radio',{name:'Circuit',exact:true})).toBeChecked();
+ await page.keyboard.press('ArrowLeft');
+ await expect(frame.getByRole('radio',{name:'Control',exact:true})).toBeChecked();
+ await expect(frame.getByRole('radio',{name:'Control',exact:true})).toBeFocused();
  await page.screenshot({path:resolve(out,'create-dark-narrow-zh.png')});
+ const narrowOrder=await frame.locator('.env-create-form').evaluate(form=>{
+  const summary=form.querySelector('.env-create-aside').getBoundingClientRect();
+  const footer=form.querySelector('.env-create-footer').getBoundingClientRect();
+  return summary.bottom<=footer.top;
+ });
+ expect(narrowOrder).toBe(true);
+ await frame.getByRole('button',{name:'创建并准备',exact:true}).scrollIntoViewIfNeeded();
+ await expect.poll(()=>frame.getByRole('button',{name:'创建并准备',exact:true}).evaluate(button=>{
+  const rect=button.getBoundingClientRect();
+  return rect.top>=0 && rect.bottom<=window.innerHeight;
+ })).toBe(true);
+ await page.screenshot({path:resolve(out,'create-dark-narrow-summary-zh.png')});
+ await frame.getByLabel('环境名称',{exact:true}).scrollIntoViewIfNeeded();
  await app.evaluate(({BrowserWindow,Menu})=>{BrowserWindow.getAllWindows()[0].setSize(1280,850);Menu.getApplicationMenu().getMenuItemById('locale-en').click();});
  await setAppearance(page,'light');
  await expect(frame.getByLabel('Environment name',{exact:true})).toHaveValue('Control acceptance');

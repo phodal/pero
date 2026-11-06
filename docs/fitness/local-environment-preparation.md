@@ -102,3 +102,39 @@ The real iframe check found and fixed blocked native form submission; see the
 form-submit evidence predates the shared selector/native form migration and does
 not establish that broken revision. Creation now validates and dispatches through
 explicit pointer/Enter handling without enabling frame navigation.
+
+
+## 2026-11-06 HTML design integrated into the real App
+
+After the user rejected the first visual revision, a dedicated design sub-agent
+produced and inspected a standalone HTML proposal. The production page now uses
+a centered content column, directly visible method choices and a blue software
+summary beside the main form. At narrow widths, software and App impact precede
+the submit region in both DOM and visual order. The catalog retains its real
+comparison table with method identity icons and subordinate runtime information.
+
+Migration: `Select` for the three methods becomes shared
+`RadioGroup` / `RadioGroupItem variant="card"`; shared `Card`, `Field`, `Input`,
+`Button`, `Badge`, `Table` and `LibraryHeader` remain in use. The radio's selection,
+hover, focus, disabled states and keyboard behavior belong to the public library,
+with a real catalog example. Card exposes a radius composition token for the
+joined form/footer. Page styles use generated theme roles; no token output or
+icon artwork is edited. Consumers are Environments' shared workspace manager
+and its component catalog. Host preparation, polling, status, bind/restart
+confirmation, permission revocation and saved state retain their original owners.
+
+Actual macOS Electron acceptance reran `tests/e2e/environment-preparation.mjs`:
+creation, real Python wheels, name retained across locale/theme switches, radio
+arrow-key selection/focus, narrow summary-before-submit order, cancel/accept
+binding, backend restart, persisted binding, and actual Control pi-golden output.
+Observed screenshots are in ignored local `test-results/environment-preparation/`:
+`create-light.png`, `create-dark-zh.png`, `create-dark-narrow-zh.png`,
+`create-dark-narrow-summary-zh.png`, `catalog-light.png`, and the prepared/bound
+states. Light/dark show distinct canvas, form, selection and software surfaces;
+keyboard focus remains separate from selection. Narrow content scrolls vertically
+without horizontal page overflow. These local artifacts are attached to the UI PR.
+
+The initial standalone proposal and its screenshots remain in ignored
+`test-results/environment-design/`. They are design evidence, not production
+acceptance. Native GPUI, signed packages, screen-reader output and other operating
+systems remain unverified for this change.

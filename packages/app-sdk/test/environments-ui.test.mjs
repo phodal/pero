@@ -84,7 +84,7 @@ test('observation recheck retains visible evidence and timestamp; permission los
   assert.match(document.querySelector('[role=alert]').textContent,/Access revoked/);
 });
 
-test('creation uses shared selector and respects IME confirmation before one native form submission', async t => {
+test('creation uses visible radio choices and respects IME confirmation before one native form submission', async t => {
   const {React,dom,ui,render,click,button,fill} = await runtime(t);
   const calls=[];
   const fetchFn=async (_,options) => {const input=JSON.parse(options.body);calls.push(input);return response(input.operation==='list'?[]:[{...profile,label:input.label??'实验',state:input.operation==='prepare'?'preparing':'created'}]);};
@@ -96,10 +96,10 @@ test('creation uses shared selector and respects IME confirmation before one nat
   await React.act(async () => name.dispatchEvent(ime));
   assert.equal(ime.defaultPrevented,true);assert.equal(calls.length,1);
   assert.equal(document.querySelector('select'),null);
-  await click(document.querySelector('#env-method'));
-  assert.ok(document.querySelector('[role=listbox]'));
-  await React.act(async () => document.querySelector('[role=listbox]').dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})));
-  assert.equal(document.activeElement.id,'env-method');
+  const control=document.querySelector('[role=radio][aria-label=Control]');
+  await click(control);
+  assert.equal(control.getAttribute('aria-checked'),'true');
+  assert.equal(document.querySelectorAll('[role=radio]').length,3);
   await React.act(async () => document.querySelector('form').requestSubmit());
   assert.deepEqual(calls.map(input=>input.operation),['list','create','prepare']);
   assert.equal(calls[1].label,'实验');assert.equal(calls[1].target,target);
