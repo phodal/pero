@@ -32,7 +32,7 @@ interface ManagerProps { locale?: string; fetchFn?: typeof fetch; inspect?: Insp
 export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, inspect, pollMs = 1000 }: ManagerProps) {
   const t = managerMessages(locale), [values, setValues] = useState<LocalEnvironment[]>([]), [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [selected, setSelected] = useState(''), [tab, setTab] = useState('environments');
-  const [accessRevoked, setAccessRevoked] = useState(false);
+  const [accessRevoked, setAccessRevoked] = useState(false), [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false), [confirming, setConfirming] = useState(false), [label, setLabel] = useState(''), [target, setTarget] = useState<string>(METHODS[1].id);
   const mounted = useRef(false), pending = useRef(false), latestValues = useRef(values), generation = useRef(0), heading = useRef<HTMLSpanElement>(null), input = useRef<HTMLInputElement>(null);
   const previousPage = useRef('catalog'); latestValues.current = values;
@@ -48,7 +48,9 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
   const request = useCallback(async (operation: Request) => {
     if (pending.current) return;
     pending.current = true; const current = ++generation.current;
+    let activeOperation = operation.operation;
     setBusy(true); setError('');
+    if (activeOperation === 'create') setCreateError('');
     try {
       const previous = latestValues.current, result = await call(operation);
       if (!mounted.current || current !== generation.current) return;
@@ -56,6 +58,7 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
       if (operation.operation === 'create') {
         const created = result.find(value => !previous.some(item => item.id === value.id));
         setCreating(false); setLabel('');
+        activeOperation = 'prepare';
         if (created) {
           setSelected(created.id);
           const prepared = await call({ operation: 'prepare', id: created.id });
@@ -65,7 +68,7 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
     } catch (failure) {
       if (mounted.current && current === generation.current) {
         if (failure instanceof Error && 'status' in failure && [401, 403, 404, 410].includes(Number(failure.status))) { setValues([]); setLoaded(false); setAccessRevoked(true); }
-        setError(failure instanceof Error ? failure.message : String(failure));
+        (activeOperation === 'create' ? setCreateError : setError)(failure instanceof Error ? failure.message : String(failure));
       }
     } finally {
       if (current === generation.current) { pending.current = false; if (mounted.current) setBusy(false); }
@@ -103,7 +106,7 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
     previousPage.current = page;
   }, [page, creating]);
   const status = (item: LocalEnvironment) => <Badge tone={item.state === 'ready' ? 'success' : item.state === 'failed' ? 'error' : item.state === 'preparing' ? 'info' : 'neutral'}>{t[item.state]}</Badge>;
-  const back = () => { setCreating(false); setSelected(''); setConfirming(false); setError(''); };
+  const back = () => { setCreating(false); setSelected(''); setConfirming(false); setError(''); setCreateError(''); };
   const startCreating = () => { setCreating(true); setSelected(''); };
   // App frames disallow native form navigation. Keep validation and dispatch
   // explicit so pointer and Enter work in both the sandbox and Native WebView.
@@ -139,7 +142,7 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
         {method.app === 'Control Lab' && <p className="env-note">{t.shared}</p>}
         {target === 'control-lab.ngspice' && <Feedback kind="warning" variant="block">{t.native}</Feedback>}
       </section></Card>
-      {error && <Feedback kind="error" variant="block">{t.createFailed} {error}</Feedback>}
+      {createError && <Feedback kind="error" variant="block">{t.createFailed} {createError}</Feedback>}
       <footer className="env-create-footer"><p className="env-note">{t.preparationNote}</p><div className="env-form-actions"><Button variant="ghost" disabled={busy} onClick={back}>{t.cancel}</Button><Button type="submit" variant="primary" busy={busy} onClick={event => { event.preventDefault(); createEnvironment(event.currentTarget.form!); }}>{t.createPrepare}</Button></div></footer>
     </form> : value ? <>
       <dl className="env-facts">{[[t.method, method.name], ['Python', '3.12'], [t.usedBy, value.bound ? method.app : '—']].map(([name, text]) => <div key={name}><dt>{name}</dt><dd>{text}</dd></div>)}</dl>

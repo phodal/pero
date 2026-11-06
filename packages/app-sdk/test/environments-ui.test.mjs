@@ -86,8 +86,9 @@ test('observation recheck retains visible evidence and timestamp; permission los
 
 test('creation uses visible radio choices and respects IME confirmation before one native form submission', async t => {
   const {React,dom,ui,render,click,button,fill} = await runtime(t);
-  const calls=[];let refuse=true;
-  const fetchFn=async (_,options) => {const input=JSON.parse(options.body);calls.push(input);if(input.operation==='create' && refuse)return new Response('Name rejected by Host',{status:400});return response(input.operation==='list'?[]:[{...profile,label:input.label??'实验',state:input.operation==='prepare'?'preparing':'created'}]);};
+  t.mock.timers.enable({apis:['setInterval']});
+  const calls=[];let refuse=true,listFails=false;
+  const fetchFn=async (_,options) => {const input=JSON.parse(options.body);calls.push(input);if(input.operation==='create' && refuse)return new Response('Name rejected by Host',{status:400});if(input.operation==='list' && listFails)return new Response('List unavailable',{status:503});return response(input.operation==='list'?[profile]:[{...profile,id:'new-control',label:input.label??'实验',state:input.operation==='prepare'?'preparing':'created'}]);};
   await render(React.createElement(ui.EnvironmentManager,{fetchFn}));
   await click(button('Create environment'));
   const name=document.querySelector('#env-name');await fill(name,'实验');
@@ -103,11 +104,17 @@ test('creation uses visible radio choices and respects IME confirmation before o
   await React.act(async () => document.querySelector('form').requestSubmit());
   assert.match(document.querySelector('[role=alert]').textContent,/Could not create the environment/);
   assert.equal(name.value,'实验');assert.equal(button('Retry'),undefined);
+  for (const fail of [false,true]) {
+    listFails=fail;await React.act(async () => t.mock.timers.tick(1000));
+    assert.match(document.querySelector('[role=alert]').textContent,/Name rejected by Host/);
+    assert.doesNotMatch(document.querySelector('[role=alert]').textContent,/List unavailable/);
+  }
+  listFails=false;
   await click(button('Cancel'));await click(button('Create environment'));
   assert.equal(document.querySelector('#env-name').value,'实验');
   assert.equal(document.querySelector('[role=radio][aria-label=Control]').getAttribute('aria-checked'),'true');
   refuse=false;await React.act(async () => document.querySelector('form').requestSubmit());
-  assert.deepEqual(calls.map(input=>input.operation),['list','create','create','prepare']);
+  assert.deepEqual(calls.map(input=>input.operation),['list','create','list','list','create','prepare']);
   assert.equal(calls[1].label,'实验');assert.equal(calls[1].target,target);
 });
 

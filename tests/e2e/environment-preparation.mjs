@@ -24,12 +24,19 @@ try{
  await frame.getByLabel('Environment name',{exact:true}).fill('Control acceptance');
  await frame.getByRole('radio',{name:'Control',exact:true}).click();
  await page.screenshot({path:resolve(out,'create-light.png')});
+ await frame.getByRole('radio',{name:'Circuit',exact:true}).click();
  await frame.getByRole('button',{name:'Cancel',exact:true}).click();
  await frame.getByRole('button',{name:'Create environment',exact:true}).click();
  await expect(frame.getByLabel('Environment name',{exact:true})).toHaveValue('Control acceptance');
+ await expect(frame.getByRole('radio',{name:'Circuit',exact:true})).toBeChecked();
+ await frame.getByRole('radio',{name:'Control',exact:true}).click();
  // The real Host rejects a whitespace-only name; HTML required accepts it.
  await frame.getByLabel('Environment name',{exact:true}).fill('   ');
+ const refused=page.waitForResponse(response=>response.url().endsWith('/host/environment/profiles') && response.request().postDataJSON()?.operation==='create');
  await frame.getByRole('button',{name:'Create and prepare',exact:true}).click();
+ const refusedResponse=await refused;
+ expect(refusedResponse.ok()).toBe(false);
+ expect(await refusedResponse.text()).toContain('Use an environment name of 1–80 characters');
  await expect(frame.getByRole('alert')).toContainText('Could not create the environment');
  await expect(frame.getByLabel('Environment name',{exact:true})).toHaveValue('   ');
  await expect(frame.getByRole('button',{name:'Create and prepare',exact:true})).toBeEnabled();
