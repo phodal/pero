@@ -277,7 +277,7 @@ func (b *ApprovalBroker) Request(ctx context.Context, request ApprovalRequest) (
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if !hasOpenApprovalTurn(request.Agent.Session().Events()) {
+	if !hasOpenApprovalTurn(request.Agent.Session().Events()) && !hasMCPAppApprovalScope(ctx, request) {
 		return ApprovalUnavailable, errors.New("harness: approval request must be enclosed by an open turn")
 	}
 	policy, err := b.EffectivePolicy(request.Agent.Session())

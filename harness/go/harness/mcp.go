@@ -35,6 +35,8 @@ const (
 // Harness and ACP session creation. TestTransport is intentionally excluded
 // from wire formats and lets conformance tests use the SDK's in-memory link.
 type MCPServerConfig struct {
+	// ToolPolicy is trusted configuration, admitted through negotiated ACP metadata or local composition.
+	ToolPolicy              *harnessmcp.ToolPolicy                           `json:"-"`
 	Name                    string                                           `json:"name"`
 	Transport               MCPTransport                                     `json:"transport"`
 	Command                 string                                           `json:"command,omitempty"`
@@ -67,6 +69,10 @@ type MCPServerConfig struct {
 // registry is the Harness root registry: agent-loop does not declare the
 // system-prompt service, so this mount cannot resolve it from the agent run.
 func MountMCPServers(ctx context.Context, run *point.Run, registry *ToolRegistry, prompts *PromptRegistry, servers []MCPServerConfig) error {
+	return mountMCPServers(ctx, run, registry, prompts, servers, nil)
+}
+
+func mountMCPServers(ctx context.Context, run *point.Run, registry *ToolRegistry, prompts *PromptRegistry, servers []MCPServerConfig, sessionAccess *MCPAccess) error {
 	if run == nil || !run.Active() {
 		return point.ErrInactiveRun
 	}
@@ -76,6 +82,11 @@ func MountMCPServers(ctx context.Context, run *point.Run, registry *ToolRegistry
 	configs, err := validateMCPConfigs(servers)
 	if err != nil {
 		return err
+	}
+	if sessionAccess != nil {
+		for _, config := range configs {
+			sessionAccess.policies[config.Name] = config.ToolPolicy
+		}
 	}
 	directory := harnessmcp.NewResourceDirectory(mcpResourceTimeouts(configs))
 	if len(configs) > 0 {
@@ -90,7 +101,7 @@ func MountMCPServers(ctx context.Context, run *point.Run, registry *ToolRegistry
 		}
 	}
 	for _, config := range configs {
-		if err := mountMCPServer(ctx, run, registry, config, directory); err != nil {
+		if err := mountMCPServer(ctx, run, registry, config, directory, sessionAccess); err != nil {
 			return fmt.Errorf("harness: MCP server %q: %w", config.Name, err)
 		}
 	}
@@ -105,7 +116,7 @@ func mcpResourceTimeouts(configs []MCPServerConfig) map[string]time.Duration {
 	return timeouts
 }
 
-func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry, config MCPServerConfig, directory *harnessmcp.ResourceDirectory) error {
+func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry, config MCPServerConfig, directory *harnessmcp.ResourceDirectory, access *MCPAccess) error {
 	transportFactory, err := mcpTransportFactory(config)
 	if err != nil {
 		return err
@@ -118,23 +129,19 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 	if filepath.IsAbs(config.CWD) {
 		roots = []string{config.CWD}
 	}
+	var connections *harnessmcp.SessionAccess
+	if access != nil {
+		connections = access.connections
+	}
 	return harnessmcp.MountConnection(ctx, run, harnessmcp.ConnectionOptions{
 		ServerName: config.Name, Reconnect: policy, ToolCallTimeout: config.resolvedToolCallTimeout,
 		FailOnStartupError: config.FailOnStartupError, TransportFactory: transportFactory, ListTools: config.testListTools,
-		Resources: directory, Observe: config.Observe, Elicit: config.Elicit, ElicitationCompleted: config.ElicitationCompleted,
+		Resources: directory, Access: connections, Observe: config.Observe, Elicit: config.Elicit, ElicitationCompleted: config.ElicitationCompleted,
 		Roots: roots,
 	}, func(owner *point.Run, generation string, definitions []harnessmcp.Tool) (point.Dispose, error) {
 		tools := make([]Tool, len(definitions))
 		for i, definition := range definitions {
-			tools[i] = Tool{
-				Schema: definition.Schema, Execute: definition.Execute,
-				RequiresApproval:          definition.RequiresApproval,
-				PreserveInitialOutputPair: true,
-				RenderOutput: func(_ context.Context, _ ToolRequest, value json.RawMessage) (ToolOutputProjection, error) {
-					content, err := harnessmcp.RenderToolOutput(value)
-					return ToolOutputProjection{Content: content}, err
-				},
-			}
+			tools[i] = mcpTool(definition, config.ToolPolicy)
 		}
 		return registry.replaceGeneration(owner, generation, tools)
 	})
@@ -180,6 +187,11 @@ func validateMCPConfigs(servers []MCPServerConfig) ([]MCPServerConfig, error) {
 			return nil, fmt.Errorf("harness: duplicate normalized MCP server name %q", server.Name)
 		}
 		names[server.Name] = struct{}{}
+		frozen, err := server.ToolPolicy.Freeze()
+		if err != nil {
+			return nil, fmt.Errorf("harness: MCP server %q: %w", server.Name, err)
+		}
+		server.ToolPolicy = frozen
 		if server.TestTransport == nil && server.testTransportFactory == nil {
 			switch server.Transport {
 			case MCPStdio:
