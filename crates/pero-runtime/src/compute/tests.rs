@@ -245,6 +245,7 @@ fn compose_preserves_member_identity_and_retains_service_data() {
 
 #[test]
 #[ignore = "requires an explicit live Slurm site and shared attempt directory"]
+#[cfg(unix)]
 fn slurm_tracks_submission_allocation_and_confirmed_cancellation() {
     use std::os::unix::fs::PermissionsExt;
     let site = SlurmSite::connect(
