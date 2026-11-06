@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, EmptyState, Feedback, Icon, Select, ToggleGroup, ToggleGroupItem, Toolbar } from '@pero/app-sdk/ui';
+import { Disclosure, Button, EmptyState, Feedback, Icon, Select, ToggleGroup, ToggleGroupItem, Toolbar } from '@pero/app-sdk/ui';
 import type { Api, DiscoveryBatch, DiscoveryPaper, DiscoveryRelation, Library, Paper } from './types';
 import type { Translator } from './i18n';
 import './discover-search.css';
@@ -82,7 +82,7 @@ export function Discovery({ api, opening, library, locked, selected, onRefresh, 
     {notice && <p role="status" className="pa-discovery-notice">{notice}</p>}
     {choices ? <div className="pa-discovery-confirm"><h2>{t('confirmSeed')}</h2><p className="pa-muted">{t('confirmSeedCopy')}</p>{!choices.length && <p>{t('seedNotFoundCopy')}</p>}<ul className="pa-discovery-results">{choices.map(p => <li key={p.id} className="pa-hit"><div className="pa-hit-body"><h3 className="pa-discovery-title">{p.title}</h3><p className="pa-document-meta"><span>{p.authors.join(', ')}</span><span>{p.publicationDate}</span></p></div><Toolbar className="pa-hit-actions"><a href={p.fullTextUrl ?? p.url} target="_blank" rel="noreferrer">{t('original')}</a><Button onClick={() => void load(relation, 1, p.id)}>{t('useMatchingPaper')}</Button></Toolbar></li>)}</ul></div>
       : batch ? <>
-        <details className="pa-retrieval-details"><summary>{t('retrievalDetails')}</summary><p>OpenAlex / {t(batch.relation)} / {batch.page}</p><p>{batch.work.title}</p><p>{batch.fetchedAt}</p></details>
+        <Disclosure variant="inline" className="pa-retrieval-details" summary={<>{t('retrievalDetails')}</>}><p>OpenAlex / {t(batch.relation)} / {batch.page}</p><p>{batch.work.title}</p><p>{batch.fetchedAt}</p></Disclosure>
         {!batch.items.length && <EmptyState heading={t('noDiscovery')} description={t('tryOtherRelation')}/>}
         <ul className="pa-discovery-results">{batch.items.map(paper => {
           const saved = (library.favorites ?? []).some(f => f.paper.id === paper.id);
@@ -94,7 +94,7 @@ export function Discovery({ api, opening, library, locked, selected, onRefresh, 
               <p className="pa-document-meta"><span>{paper.publicationDate?.slice(0, 4) || t('dateUnavailable')}</span><span>{paper.citations == null ? t('citationsUnavailable') : `${paper.citations.toLocaleString()} ${t('citationCount')} (OpenAlex)`}</span></p>
               <p className="pa-muted">{paper.authors.join(', ')}</p>
               {paper.abstract ? <p className="pa-discovery-preview">{paper.abstract}</p> : <p className="pa-muted">{t('noDiscoveryAbstract')}</p>}
-              <details className="pa-result-details"><summary>{t('details')}</summary>{paper.abstract && <p className="pa-prose">{paper.abstract}</p>}<a href={paper.fullTextUrl ?? paper.url} target="_blank" rel="noreferrer">{t('original')}</a></details>
+              <Disclosure variant="inline" className="pa-result-details" summary={<>{t('details')}</>}>{paper.abstract && <p className="pa-prose">{paper.abstract}</p>}<a href={paper.fullTextUrl ?? paper.url} target="_blank" rel="noreferrer">{t('original')}</a></Disclosure>
             </div>
             <Toolbar className="pa-hit-actions">
               <Button disabled={busy || !!action || saved} onClick={() => void act(paper, false, true)}>{saved ? t('favorited') : action === paper.id ? t('loading') : t('favorite')}</Button>

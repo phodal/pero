@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Checkbox, Feedback, Field, FilePicker, Icon, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Checkbox, Feedback, Field, FilePicker, Icon, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
 import type { Api, Paper, SearchItem } from './types';
 import type { Translator } from './i18n';
 import { ResearchImport } from './research-import';
@@ -114,7 +114,7 @@ export function LiteratureHits({ results, resultPriority, adding, addError, onAd
           {adding === key && <p role="status">{t('addingPaper')}</p>}
           {addError?.key === key && <Feedback kind="error">{addError.message}</Feedback>}
           <div className="pa-search-links">{item.url && item.url !== item.paperUrl && <a href={item.url} target="_blank" rel="noreferrer">{t('searchOriginal')}</a>}{item.paperUrl && <a href={item.paperUrl} target="_blank" rel="noreferrer">Hugging Face</a>}{item.pdfUrl && <a href={item.pdfUrl} target="_blank" rel="noreferrer">PDF</a>}{item.githubUrl && <a href={item.githubUrl} target="_blank" rel="noreferrer">GitHub</a>}{item.projectUrl && item.projectUrl !== item.githubUrl && <a href={item.projectUrl} target="_blank" rel="noreferrer">{t('projectPage')}</a>}{item.thumbnailUrl && <a href={item.thumbnailUrl} target="_blank" rel="noreferrer">{t('searchImage')}</a>}{item.doi && <span>DOI: {item.doi}</span>}</div>
-          {!!item.alternatives?.length && <details className="pa-search-alternatives"><summary>{t('otherSources')} ({item.alternatives.length})</summary><ul>{item.alternatives.map(alternative => <li key={`${alternative.source}:${alternative.id}`}>{alternative.url ? <a href={alternative.url} target="_blank" rel="noreferrer">{sourceNames[alternative.source] ?? alternative.source}</a> : sourceNames[alternative.source] ?? alternative.source}</li>)}</ul></details>}
+          {!!item.alternatives?.length && <Disclosure variant="inline" className="pa-search-alternatives" summary={<>{t('otherSources')} ({item.alternatives.length})</>}><ul>{item.alternatives.map(alternative => <li key={`${alternative.source}:${alternative.id}`}>{alternative.url ? <a href={alternative.url} target="_blank" rel="noreferrer">{sourceNames[alternative.source] ?? alternative.source}</a> : sourceNames[alternative.source] ?? alternative.source}</li>)}</ul></Disclosure>}
         </div>
         {item.thumbnailId && <img className="pa-search-thumbnail" src={`/api/paper-thumbnails/${encodeURIComponent(item.thumbnailId)}.png`} alt="" loading="lazy" onError={event => { event.currentTarget.hidden = true; }}/>}
         <Button busy={adding === key} disabled={!!adding} onClick={() => void onAdd({ id: item.id, source: item.source }, key)}>{adding === key ? t('addingPaper') : addError?.key === key ? t('retry') : t('addShort')}</Button>

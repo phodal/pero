@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import JSX = React.JSX;
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Checkbox, EmptyIllustration, EmptyState, Feedback, Icon, LoadingSkeleton, SearchField, Select, SkeletonBlock } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Checkbox, EmptyIllustration, EmptyState, Feedback, Icon, LoadingSkeleton, SearchField, Select, SkeletonBlock } from '@pero/app-sdk/ui';
 import type { Api, Paper, SearchItem } from './types';
 import './discover-search.css';
 
@@ -217,7 +217,7 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
       <Icon name="info" size={16}/>
       <div className="pa-discover-warn-copy">
         {!!results.length && <p>{warnings.length > 1 ? t('warnMany') : t('warnOne')}</p>}
-        <details><summary>{t('warnDetails')}</summary><ul>{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>
+        <Disclosure variant="inline" summary={<>{t('warnDetails')}</>}><ul>{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></Disclosure>
       </div>
       <Button variant="ghost" className="pa-discover-retry" onClick={retry}>{t('retry')}<Icon name="refresh" size={14}/></Button>
     </div>}
@@ -269,14 +269,13 @@ function DiscoverHit({ item, paper, adding, locked, error, open, onOpenChange, o
       {item.abstract && <p className="pa-hit-abstract">{item.abstract}</p>}
       {(item.citations != null || showDetails) && <div className="pa-hit-foot">
         {item.citations != null && <span>{t('citations', { n: item.citations.toLocaleString() })}</span>}
-        {showDetails && <details ref={detailsRef} id={panelId} className="pa-hit-details" onToggle={event => onOpenChange(event.currentTarget.open)}>
-          <summary>{t('viewDetails')}<Icon className="pa-hit-chevron" name="chevron-right" size={14}/></summary>
+        {showDetails && <Disclosure variant="inline" ref={detailsRef} id={panelId} className="pa-hit-details" onOpenChange={onOpenChange} summary={<>{t('viewDetails')}</>}>
           <div className="pa-hit-extra">
             {item.abstract && <p className="pa-hit-full">{item.abstract}</p>}
             {!!links.length && <div className="pa-hit-links">{links.map(link => <a key={link.label + link.href} href={link.href} target="_blank" rel="noreferrer">{link.label}</a>)}</div>}
             {!!item.alternatives?.length && <ul className="pa-hit-alts">{item.alternatives.map(alternative => <li key={`${alternative.source}:${alternative.id}`}>{alternative.url ? <a href={alternative.url} target="_blank" rel="noreferrer">{sourceName(alternative.source)}</a> : sourceName(alternative.source)}</li>)}</ul>}
           </div>
-        </details>}
+        </Disclosure>}
       </div>}
     </div>
     <div className="pa-hit-side">
