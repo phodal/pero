@@ -22,6 +22,13 @@ function tick() {
     send({ id: 'approval', method: 'session/request_permission', params: { sessionId: 'presentation', toolCall: { toolCallId: 'fetch', title: 'Fetch weather source' }, options: [{ optionId: 'once', name: 'Allow once', kind: 'allow_once' }, { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] } });
   }
   if (phase === 4) {
+    for (const [id, title, rawInput, result, status] of [
+      ['read', 'read_file', { path: 'notes.txt' }, JSON.stringify({ text: 'Preserved file contents', appLinks: [{ label: 'Open fixture report', url: 'pero-app-location://paper-agent/main/report/fixture' }] }), 'completed'],
+      ['shell', 'shell', { command: 'git status' }, 'Permission denied: fixture command failure', 'failed'],
+    ]) {
+      update({ sessionUpdate: 'tool_call', toolCallId: id, title, kind: 'other', rawInput });
+      update({ sessionUpdate: 'tool_call_update', toolCallId: id, status, content: [text(result)] });
+    }
     update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '杭州今天多云，23°C。' } });
     update({ sessionUpdate: 'session_info_update', updatedAt: '2026-10-29T12:00:00Z' });
     send({ id: active, result: { stopReason: 'end_turn' } });
@@ -34,7 +41,8 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   else if (method === 'session/new') send({ id, result: { sessionId: 'presentation', configOptions: [] } });
   else if (method === 'session/prompt') {
     active = id;
-    update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Inspecting the weather sources.' } });
+    update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'I will inspect the weather sources.' } });
+    update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: '**Inspect weather sources**\nReading the forecast sources.' } });
     timer = setInterval(tick, 20);
   } else if (id === 'approval' && params === undefined) {
     update({ sessionUpdate: 'tool_call_update', toolCallId: 'fetch', status: 'completed', content: [text('{"forecast":"Cloudy","temperature_c":23}')] });
