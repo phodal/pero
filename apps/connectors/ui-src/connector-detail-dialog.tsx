@@ -1,3 +1,4 @@
+import { Disclosure } from '@pero/app-sdk/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBadge } from './components.tsx';
 import { DiscoveryPanel, JsonEditor } from './connector-editor.tsx';
@@ -51,11 +52,14 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
   const editable = !quickInstall && !isFeishu;
   const configuration = useRef<HTMLDivElement>(null);
   const runtime = useRef<HTMLDetailsElement>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(!!fieldError);
+  const hasFieldError = !!fieldError;
+  useEffect(() => setAdvancedOpen(hasFieldError), [hasFieldError]);
   useEffect(() => {
     if (!configurationRequest) return;
     const target = isFeishu ? runtime.current : configuration.current;
     if (!target) return;
-    if (isFeishu) runtime.current!.open = true;
+    if (isFeishu) setAdvancedOpen(true);
     target.scrollIntoView?.({ block: 'nearest' });
     const control = [...target.querySelectorAll<HTMLElement>('input:not([disabled]):not([readonly]),textarea:not([disabled]),summary')]
       .find(node => !node.closest('[hidden],[data-state="inactive"]'));
@@ -185,8 +189,8 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
       {editable && references.length > 0 && <ConnectorCredentials references={references} reference={secretReference} onReference={setSecretReference}
         value={secretValue} onValue={setSecretValue} onSave={saveSecret} onDelete={deleteSecret} busy={!!busy || !!view?.sealed} providerId={provider?.providerId} locale={locale} />}
 
-      {isFeishu && <details ref={runtime} className="point-connectors-advanced" {...(fieldError ? { open: true } : {})}>
-        <summary>{copy('运行环境', 'Runtime')}</summary>
+      {isFeishu && <Disclosure variant="inline" ref={runtime} className="point-connectors-advanced" open={advancedOpen} onOpenChange={setAdvancedOpen} summary={<>{copy('运行环境', 'Runtime')}</>}>
+
         {discovery.state === 'done' && <Feedback kind={discovery.account && !discovery.setupError ? 'status' : 'error'}>{discovery.account && !discovery.setupError
           ? copy('账号与组件已核验，可以应用检测结果。', 'Account and tools verified. You can apply the detected configuration.')
           : feishuMessage(discovery.setupError ?? 'FEISHU_AUTH_REQUIRED', locale)}</Feedback>}
@@ -194,6 +198,6 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
           <dt>{copy('启动程序', 'Executable')}</dt><dd>{parsedDefinition.command}</dd>
           <dt>{copy('飞书 CLI', 'Feishu CLI')}</dt><dd>{parsedDefinition.env?.POINT_FEISHU_CLI ?? '—'}</dd>
         </dl>}
-      </details>}
+      </Disclosure>}
     </Dialog>;
 }
