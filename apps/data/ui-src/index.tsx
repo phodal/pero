@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppApiError, AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Checkbox, EmptyState, Feedback, ListRow, Progress, SearchField, Select, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Progress, SearchField, Select, Split, SplitPane } from '@pero/app-sdk/ui';
 import { availabilityLabel, canInspect, emptyView, encodeBytes, fieldRule, formatBytes, querySchema, retainSelection, sampleRows, summary, visibleDatasets,
   type CatalogState, type Dataset, type Inspection, type InspectionOutcome, type OkInspection, type SavedView, type Selection, type ViewSpec } from './model';
 import { ImportDialog, type ImportDetails } from './import';
@@ -226,8 +226,8 @@ export default function Data() {
         <Button disabled={busy} onClick={() => void perform(async () => { adopt(await api.post<CatalogState>('/api/cancel', {})); setNotice(t('cancelRequested')); })}>{t('cancelDownload')}</Button></> : null}
       {download.error ? <span>{download.error}</span> : null}
     </div> : null}
-    {loading ? <p className="data-landing" role="status">{t('loading')}</p> : !state ? <Feedback kind="error" variant="block">{error || t('unavailable')} <Button onClick={() => void refresh(true)}>{t('retry')}</Button></Feedback>
-      : !state.datasets.length ? <EmptyState className="data-first-use" heading={<h2>{t('emptyHeading')}</h2>} description={t('emptyDescription')}
+    {loading ? <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton> : !state ? <Feedback kind="error" variant="block">{error || t('unavailable')} <Button onClick={() => void refresh(true)}>{t('retry')}</Button></Feedback>
+      : !state.datasets.length ? <EmptyState className="data-first-use" icon={<EmptyIllustration kind="data" />} heading={<h2>{t('emptyHeading')}</h2>} description={t('emptyDescription')}
         actions={<Button variant="primary" disabled={busy} onClick={openImport}>{t('addData')}</Button>} />
       : <Split storageKey="pero.data.catalog-width" collapseBelow={860}>
       <SplitPane as="section" id="data-datasets" aria-label={t('datasets')} className="data-list" size={360} min={280} resizeLabel={t('resizeDatasets')}>
@@ -245,7 +245,7 @@ export default function Data() {
             return <li key={item.id}><ListRow title={item.name} current={item.id === dataset?.id} onOpen={() => choose(item)}
               meta={<>{item.kind === 'model' ? 'Model' : 'Dataset'} · {current ? formatBytes(current.size) : 'Missing'} · {item.versions.length} {item.versions.length === 1 ? 'version' : 'versions'}
                 {current ? <> · {availabilityLabel(current, item.id === dataset?.id ? result : null)}</> : null}</>} /></li>;
-          })}</ul> : <EmptyState heading={t(query || project ? 'noMatches' : archived ? 'noArchived' : 'noActive')} description={t(query || project ? 'filterHelp' : archived ? 'archivedHelp' : 'activeHelp')} />}
+          })}</ul> : <EmptyState icon={<EmptyIllustration kind={query || project ? 'search' : 'data'} size="compact" />} heading={t(query || project ? 'noMatches' : archived ? 'noArchived' : 'noActive')} description={t(query || project ? 'filterHelp' : archived ? 'archivedHelp' : 'activeHelp')} />}
         </div>
       </SplitPane>
       <SplitPane as="aside" id="data-preview" aria-label={t('preview')} className="data-preview">

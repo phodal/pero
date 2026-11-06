@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Checkbox, EmptyState, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { InterpretationPreview } from './interpretation';
 import { ChartPanel } from './chart-panel';
 import { DatasetDetails } from './dataset-details';
@@ -143,7 +143,7 @@ export function Workspace(props: Props) {
               </tr>)}</tbody>
             </table>
           </div>
-          {!inspected.rows.length ? <EmptyState heading="No matching records" description="Change the filter or open another version." /> : null}
+          {!inspected.rows.length ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />} heading="No matching records" description="Change the filter or open another version." /> : null}
           <DataForm className="data-filter" onSubmit={event => { event.preventDefault(); props.onSave(String(new FormData(event.currentTarget).get('viewName'))); }}>
             <Input aria-label="View name" name="viewName" placeholder="View name" required maxLength={120} disabled={busy} />
             <SubmitButton disabled={busy || loading || stale || dataset.archived}>Save view</SubmitButton>
