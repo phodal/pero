@@ -180,12 +180,12 @@ export function PaperList({ papers, sort, onSort, selected, previewId, locked, s
       return <li key={paper.id} className="pa-paper-row" data-current={previewId === paper.id ? 'true' : undefined}>
         <div className="pa-paper-main">
           <Checkbox checked={selected.includes(paper.id)} disabled={locked || selected.length >= 5 && !selected.includes(paper.id)} aria-label={`${t('usePaper')}: ${paper.title}`} onCheckedChange={checked => onSelect(paper.id, checked === true)}/>
-          <button type="button" className="pero-list-open" aria-pressed={previewId === paper.id} onClick={() => onPreview(paper)} onDoubleClick={() => onRead(paper)}>
+          <Button variant="ghost" className="pero-list-open" aria-pressed={previewId === paper.id} onClick={() => onPreview(paper)} onDoubleClick={() => onRead(paper)}>
             <span className="pa-paper-name">
               <span className="pero-list-title">{paper.title}</span>
               {authors && <span className="pa-meta-line pa-paper-authors">{authors}{paper.authors.length > 4 ? ' et al.' : ''}</span>}
             </span>
-          </button>
+          </Button>
         </div>
         <span className="pa-paper-source">{paperSource(paper, t)}</span>
         <Button variant="ghost" className="pa-status" data-status={status} onClick={() => onCycleStatus(paper.id)}>

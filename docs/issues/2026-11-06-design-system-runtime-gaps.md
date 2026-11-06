@@ -115,3 +115,7 @@ remain inline within scientific prose rather than acquiring toolbar geometry.
 Evidence-matrix source/citation actions also use link Button and editable cells
 use ghost Button. Preserve correction drafts, evidence IDs, aria-expanded and
 return focus to the original cell after closing the editor.
+
+Paper library preview and related-paper title actions now use ghost Button.
+Preserve single-click preview, double-click reading, aria-pressed selection and
+abstract-dependent disabled state. Remove their competing private control skin.

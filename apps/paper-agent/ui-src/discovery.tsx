@@ -90,7 +90,7 @@ export function Discovery({ api, opening, library, locked, selected, onRefresh, 
           const included = !!reading && selected.includes(reading.id);
           return <li key={paper.id} data-work-id={paper.id} className="pa-hit">
             <div className="pa-hit-body">
-              <h2><button type="button" className="pa-discovery-title" disabled={busy || !!action || !paper.abstract.trim()} onClick={() => void act(paper, false)}>{paper.title}</button></h2>
+              <h2><Button variant="ghost" className="pa-discovery-title" disabled={busy || !!action || !paper.abstract.trim()} onClick={() => void act(paper, false)}>{paper.title}</Button></h2>
               <p className="pa-document-meta"><span>{paper.publicationDate?.slice(0, 4) || t('dateUnavailable')}</span><span>{paper.citations == null ? t('citationsUnavailable') : `${paper.citations.toLocaleString()} ${t('citationCount')} (OpenAlex)`}</span></p>
               <p className="pa-muted">{paper.authors.join(', ')}</p>
               {paper.abstract ? <p className="pa-discovery-preview">{paper.abstract}</p> : <p className="pa-muted">{t('noDiscoveryAbstract')}</p>}
