@@ -155,6 +155,9 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-tabs-trigger:not([data-unstyled]) { flex:none; min-height:max(var(--pero-content-tab),var(--pero-control-height)); padding:2px var(--pero-spacing-3); border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; color:var(--pero-text-muted); font:var(--pero-font-weight-regular, 400) var(--pero-font-body)/1.4 var(--pero-font-family-sans); cursor:pointer; }
 .pero-ui-tabs-trigger:not([data-unstyled]):not(.pero-content-tab-title):hover:not(:disabled):not([data-state=active]) { background:var(--pero-surface-hover); }
 .pero-ui-tabs-trigger:not([data-unstyled])[data-state=active] { border-bottom-color:var(--pero-action); color:var(--pero-text); font-weight:600; }
+.pero-ui-tabs-list[data-variant=navigation]:not([data-unstyled]) { border:0; gap:var(--pero-spacing-1) var(--pero-spacing-4); flex-wrap:wrap; overflow:visible; }
+.pero-ui-tabs-list[data-variant=navigation]>.pero-ui-tabs-trigger:not([data-unstyled]) { border:0; padding:2px var(--pero-spacing-2); }
+.pero-ui-tabs-list[data-variant=navigation]>.pero-ui-tabs-trigger:not([data-unstyled])[data-state=active] { font-weight:var(--pero-font-weight-medium, 500); }
 .pero-ui-tabs-list[data-variant=content]:not([data-unstyled]) { border:0; align-items:center; flex-wrap:nowrap; }
 .pero-content-tab { display:flex; align-items:center; flex:none; max-width:220px; min-width:0; height:max(var(--pero-content-tab),var(--pero-control-height)); border-bottom:1px solid transparent; box-sizing:border-box; }
 .pero-content-tab[data-pinned] { max-width:160px; }
@@ -221,9 +224,10 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-stepper[data-view=focus] .pero-ui-stepper-node[aria-pressed=false] .pero-ui-stepper-head { gap:var(--pero-space-3, 6px); }
 @media (prefers-reduced-motion: reduce) { .pero-ui-stepper-node { transition:none; } }
 .pero-ui-checkbox:not([data-unstyled]):disabled, .pero-ui-radio-item:not([data-unstyled]):disabled, .pero-ui-tabs-trigger:not([data-unstyled]):disabled, .pero-ui-toggle-item:not([data-unstyled]):disabled { opacity:.5; cursor:default; }
-.pero-ui-checkbox:focus-visible, .pero-ui-radio-item:focus-visible, .pero-ui-tabs-trigger:focus-visible, .pero-ui-tabs-content:focus-visible, .pero-ui-toggle-item:focus-visible { outline:var(--pero-focus-ring-width, 2px) solid var(--pero-focus); outline-offset:var(--pero-focus-ring-offset, 2px); }
+.pero-ui-checkbox:focus-visible, .pero-ui-radio-item:focus-visible, .pero-ui-tabs-trigger:focus-visible:not([data-pointer-focus]), .pero-ui-tabs-content:focus-visible, .pero-ui-toggle-item:focus-visible { outline:var(--pero-focus-ring-width, 2px) solid var(--pero-focus); outline-offset:var(--pero-focus-ring-offset, 2px); }
 /* Tab strips scroll: draw their focus ring inside the trigger's visible bounds. */
-.pero-ui-tabs-trigger:focus-visible { outline-offset:calc(-1 * var(--pero-focus-ring-width, 2px)); }
+.pero-ui-tabs-trigger[data-pointer-focus]:focus { outline:none; }
+.pero-ui-tabs-trigger:focus-visible:not([data-pointer-focus]) { outline-offset:calc(-1 * var(--pero-focus-ring-width, 2px)); }
 .pero-ui-dropdown-content { z-index:1000; box-sizing:border-box; max-width:min(var(--radix-dropdown-menu-content-available-width,var(--radix-context-menu-content-available-width,calc(100vw - 16px))),calc(100vw - 16px)); max-height:var(--radix-dropdown-menu-content-available-height,var(--radix-context-menu-content-available-height,calc(100vh - 16px))); overflow:auto; }
 .pero-ui-context-trigger:not([data-unstyled]) { display:contents; }
 .pero-ui-dropdown-content:not([data-unstyled]) { min-width:min(160px,calc(100vw - 16px)); padding:var(--pero-spacing-1); border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle); border-radius:var(--pero-radius-button); background:var(--pero-surface); color:var(--pero-text); font:var(--pero-font-weight-regular, 400) var(--pero-font-body)/1.4 var(--pero-font-family-sans); box-shadow:0 4px 16px var(--pero-domain-app-sdk-pero-ui-tooltip-shadow, rgb(0 0 0 / .2)); }

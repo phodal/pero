@@ -55,6 +55,7 @@ function Catalog() {
             {screen === '标签与控件' && <WorkbenchExample/>}
             {screen === '标题与列表' && <>
               <SearchField id="catalog-search" aria-label="搜索论文" placeholder="搜索论文…" value={query} onChange={e => setQuery(e.target.value)}/>
+              <Tabs defaultValue="catalog"><TabsList variant="navigation" aria-label="服务视图"><TabsTrigger value="catalog">服务目录</TabsTrigger><TabsTrigger value="installed">已安装连接 1</TabsTrigger></TabsList><TabsContent value="catalog"><p>搜索服务与能力</p></TabsContent><TabsContent value="installed"><p>管理已有连接</p></TabsContent></Tabs>
               <Tabs defaultValue="papers"><TabsList aria-label="资料类别"><TabsTrigger value="papers">论文</TabsTrigger><TabsTrigger value="notes">研究记录</TabsTrigger></TabsList><TabsContent value="papers">
                 {['scGPT','GEARS'].filter(t => t.toLowerCase().includes(query.toLowerCase())).map(title => <ListRow key={title} title={title} meta="Paper" current={selected === title} onOpen={() => { setSelected(title); setMessage('已选择 ' + title); }} trailing={<Button variant="ghost" onClick={() => setMessage(title + ' 已加入当前任务上下文')}>加入上下文</Button>}/>)}
                 {!['scGPT','GEARS'].some(t => t.toLowerCase().includes(query.toLowerCase())) && <EmptyState icon={<EmptyIllustration kind="search" size="compact"/>} heading="没有匹配论文" actions={<Button onClick={() => setQuery('')}>清除搜索</Button>}/>}
