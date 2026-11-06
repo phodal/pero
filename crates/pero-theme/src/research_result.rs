@@ -46,5 +46,5 @@ pub fn research_table_style(style: TextViewStyle, chrome: Chrome) -> TextViewSty
                 .text_color(chrome.palette.text_muted)
                 .font_weight(FontWeight::MEDIUM),
         )
-        .with_table_cell(StyleRefinement::default().px(px(SPACE_16)).py(px(SPACE_12)))
+        .with_table_cell(StyleRefinement::default().whitespace_nowrap().px(px(SPACE_16)).py(px(SPACE_12)))
 }
