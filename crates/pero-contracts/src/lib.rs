@@ -287,3 +287,5 @@ pub mod mcp_session;
 
 pub mod mcp_resource;
 pub mod shortcuts;
+
+pub mod workspace_changes;
