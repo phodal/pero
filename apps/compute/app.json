@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "compute",
+  "version": "0.1.0",
+  "displayName": "Compute",
+  "description": "Prepare HPC cluster connection drafts and inspect cluster job availability. Slurm connections and execution are not connected yet.",
+  "contributes": { "panels": [{ "id": "main", "title": "Compute", "entry": "dist/index.html" }] },
+  "backend": { "type": "python", "entry": "backend/server.py" }
+}
