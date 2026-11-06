@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Button, Feedback, FilePicker, Input } from '@pero/app-sdk/ui';
+import { useState } from 'react';
+import { Button, Dialog, Feedback, FilePicker, Input } from '@pero/app-sdk/ui';
 import { FormSelect } from './form-select';
 import { DataForm, SubmitButton } from './submit-button';
 import { formatBytes, type CatalogState, type Dataset } from './model';
@@ -9,12 +9,10 @@ export function ImportDialog({ state, target, busy, error, onClose, onImport, on
   state: CatalogState; target: Dataset | null; busy: boolean; error: string; onClose(): void;
   onImport(file: File, details: ImportDetails): void; onDownload(sourceId: string): void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  useEffect(() => { dialog.current?.showModal(); }, []);
   const fileError = file && (!file.size || file.size > state.limits.importBytes) ? `Choose a file between 1 byte and ${formatBytes(state.limits.importBytes)}.` : '';
-  return <dialog ref={dialog} className="data-add" aria-labelledby="data-add-title" onClose={onClose} onCancel={event => { if (busy) event.preventDefault(); }}>
-    <header><h2 id="data-add-title">{target ? 'Add version' : 'Add data'}</h2><Button onClick={onClose} disabled={busy}>Close</Button></header>
+  return <Dialog className="data-add" title={target ? 'Add version' : 'Add data'} closeLabel="Close" onClose={() => { if (!busy) onClose(); }}
+    onKeyDown={event => { if (busy && event.key === 'Escape') event.preventDefault(); }} onCancel={event => { if (busy) event.preventDefault(); }}>
     {target ? <p>New version of {target.name}. Existing versions stay unchanged.</p> : null}
     <DataForm onSubmit={event => {
       event.preventDefault(); if (!file || fileError) return;
@@ -39,5 +37,5 @@ export function ImportDialog({ state, target, busy, error, onClose, onImport, on
         <Button onClick={() => onDownload(source.id)} disabled={busy || state.download?.status === 'running'}>Download {source.name}</Button>
       </section>)}
     </details> : null}
-  </dialog>;
+  </Dialog>;
 }
