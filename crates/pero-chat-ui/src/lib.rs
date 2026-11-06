@@ -24,6 +24,7 @@ mod panel;
 mod session_controls;
 pub mod stream;
 pub mod scientific_math;
+mod scientific_source;
 pub mod inline_images;
 pub mod image_references;
 pub mod artifact_read;

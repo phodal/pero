@@ -1,5 +1,5 @@
 //! Source-bound tables published by the harness, visible outside collapsed tools.
-use crate::{panel::ChatPanel, stream::StreamText};
+use crate::{panel::ChatPanel, stream::StreamText, scientific_source::{ScientificSource, SourceFormat}};
 use gpui_kit::{
     component::{Sizable, button::*},
     prelude::*,
@@ -12,21 +12,13 @@ use pero_contracts::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct SourceDocument {
-    title: String,
-    text: String,
-    format: String,
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Receipt {
     kind: String,
     artifact_id: String,
     content: String,
-    source_document: SourceDocument,
+    source_document: ScientificSource,
 }
 
 #[derive(Deserialize)]
@@ -59,7 +51,7 @@ pub struct TableView {
     pub title: String,
     pub rows: usize,
     pub total_records: usize,
-    source: SourceDocument,
+    source: ScientificSource,
     content: String,
     #[serde(skip)]
     view: Entity<StreamText>,
@@ -91,17 +83,7 @@ impl TableView {
         }
         let table: TableDocument =
             serde_json::from_str(&receipt.content).map_err(|_| "Invalid table content")?;
-        if !matches!(
-            receipt.source_document.format.as_str(),
-            "json" | "json_lines"
-        ) || format!(
-            "{:x}",
-            Sha256::digest(format!(
-                "{}\n{}",
-                receipt.source_document.format, receipt.source_document.text
-            ))
-        ) != table.source.dataset
-        {
+        if !receipt.source_document.matches_dataset(&table.source.dataset) {
             return Err("Table source identity does not match".into());
         }
         if table.columns.is_empty()
@@ -184,10 +166,9 @@ impl ChatPanel {
             },
             1,
             table.source.text.clone(),
-            if table.source.format == "json_lines" {
-                ContentFormat::JsonLines
-            } else {
-                ContentFormat::Json
+            match table.source.format {
+                SourceFormat::JsonLines => ContentFormat::JsonLines,
+                SourceFormat::Json => ContentFormat::Json,
             },
         );
         let thread_id = thread.to_owned();

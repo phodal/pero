@@ -4,15 +4,12 @@ use gpui_kit::{component::{button::*, Sizable}, prelude::*, *};
 use pero_contracts::{content_document::{ContentDocument, ContentFormat, DocumentSource}, content_origin::ContentOrigin};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use crate::scientific_source::{ScientificSource, SourceFormat};
 use sha2::{Digest, Sha256};
-
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct SourceDocument { title: String, text: String, format: String }
 
 #[derive(Deserialize)]
 #[serde(rename_all="camelCase", deny_unknown_fields)]
-struct Receipt { kind: String, artifact_id: String, content: String, source_document: Option<SourceDocument> }
+struct Receipt { kind: String, artifact_id: String, content: String, source_document: Option<ScientificSource> }
 
 #[derive(Clone, Serialize)]
 pub struct ChartView {
@@ -26,7 +23,7 @@ pub struct ChartView {
     #[serde(skip)]
     content: String,
     #[serde(skip)]
-    source: Option<SourceDocument>,
+    source: Option<ScientificSource>,
     #[serde(skip)]
     geometry: Chart,
 }
@@ -39,16 +36,13 @@ impl ChartView {
         let document:Value = serde_json::from_str(&receipt.content).map_err(|e|e.to_string())?;
         let title = document["title"].as_str().ok_or("Chart title is missing")?.to_string();
         if let Some(source) = &receipt.source_document {
-            let prefix = match source.format.as_str() {"json" => "json\n", "json_lines" => "jsonl\n", _ => return Err("Unsupported chart source format".into())};
-            let mut digest = Sha256::new(); digest.update(prefix.as_bytes()); digest.update(source.text.as_bytes());
-            let digest = format!("{:x}",digest.finalize());
-            if document["source"]["dataset"].as_str() != Some(digest.as_str()) { return Err("Chart source identity does not match".into()); }
+            if !document["source"]["dataset"].as_str().is_some_and(|id| source.matches_dataset(id)) { return Err("Chart source identity does not match".into()); }
         }
         Ok(Self {data_bounds:Default::default(),source_bounds:Default::default(),artifact_id:receipt.artifact_id,title,document,geometry,content:receipt.content,source:receipt.source_document})
     }
     pub(crate) fn document(&self, thread:&str, source:bool) -> ContentDocument {
         let (title,text,format)=if let Some(source)=self.source.as_ref().filter(|_|source) {
-            (source.title.clone(),source.text.clone(),if source.format=="json_lines" {ContentFormat::JsonLines} else {ContentFormat::Json})
+            (source.title.clone(),source.text.clone(),match source.format {SourceFormat::JsonLines => ContentFormat::JsonLines, SourceFormat::Json => ContentFormat::Json})
         } else {(format!("{}.json",self.title),self.content.clone(),ContentFormat::Json)};
         ContentDocument::new(DocumentSource{id:format!("chart/{}/{source}",self.artifact_id),title,origin:ContentOrigin::Conversation{thread_id:thread.into()}},1,text,format)
     }
