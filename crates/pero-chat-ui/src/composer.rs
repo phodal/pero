@@ -1,5 +1,5 @@
-use crate::session_state::SessionState;
 use crate::panel::ChatPanel;
+use crate::session_state::SessionState;
 use crate::theme::WorkbenchStyle as W;
 use gpui_kit::{
     component::{
@@ -26,19 +26,36 @@ impl ChatPanel {
             .or_else(|| self.agents.get(self.agent_index).map(|a| a.id.clone()))
             .unwrap_or_else(|| "codex".into());
         let editor = self.composer.read(cx);
-        let rows = editor.value().split('\n').count()
+        let rows = editor
+            .value()
+            .split('\n')
+            .count()
             .max(editor.display_map().wrap_row_count())
-            .clamp(if self.compact { 1 } else { 2 }, if self.compact { 3 } else { 7 });
-        let workspace = self
-            .workspace
+            .clamp(
+                if self.compact { 1 } else { 3 },
+                if self.compact { 3 } else { 7 },
+            );
+        let workspace_path = chat
+            .map(|chat| chat.workspace.as_str())
+            .filter(|path| !path.is_empty())
+            .unwrap_or(&self.workspace);
+        let workspace = workspace_path
             .rsplit('/')
             .next()
             .unwrap_or("Workspace")
             .to_string();
+        let can_retry = chat.is_some_and(|chat| chat.can_retry());
+        let can_send = self.connected
+            && self
+                .agents
+                .iter()
+                .any(|choice| choice.id == agent && choice.available)
+            && !(self.composer_state.loading && self.composer_state.resolve_range.is_some())
+            && (!editor.value().trim().is_empty() || !self.attachments.is_empty())
+            && chat.is_none_or(|chat| chat.can_submit());
         let model_pending =
             chat.is_some_and(|chat| chat.pending_model.is_some() || chat.pending_setting.is_some());
         let selected_agent = agent.clone();
-        let agent_available = self.agents.iter().any(|choice| choice.id == agent && choice.available);
         let agent_choices = self.agents.clone();
         let agent_workbench = cx.entity().downgrade();
         let agent_menu = agent_workbench.clone();
@@ -80,8 +97,9 @@ impl ChatPanel {
             let thread = id.clone();
             let workbench = cx.entity().downgrade();
             let open_workbench = workbench.clone();
-            W::chat_control(Button::new("model-picker").ghost(), cx)
-                .label(label).max_w(px(if self.compact { 100. } else { 220. })).dropdown_caret(false)
+            W::composer_control(Button::new("model-picker").ghost(), cx)
+                .relative().child(self.composer_bounds.model.probe())
+                .tooltip(label.clone()).label(label).max_w(px(if self.compact { 100. } else { 180. })).dropdown_caret(true)
                 .loading(model_pending).loading_icon(Icon::default().path("icons/clock.svg"))
                 .disabled(busy || model_pending || chat.state != SessionState::Idle)
                 .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
@@ -113,8 +131,61 @@ impl ChatPanel {
                     });
                 })
         });
-        let context_button = W::chat_control(Button::new("attach-context").ghost(), cx)
+        let agent_picker = W::composer_control(Button::new("agent-picker").ghost(), cx)
+            .icon(Icon::default().path("icons/terminal.svg"))
+            .relative()
+            .child(self.composer_bounds.agent.probe())
+            .max_w(px(if self.compact { 100. } else { 240. }))
+            .label(if self.compact {
+                agent.clone()
+            } else {
+                let name = self
+                    .agents
+                    .iter()
+                    .find(|choice| choice.id == agent)
+                    .map(|choice| choice.name.as_str())
+                    .unwrap_or(&agent);
+                format!("{}: {name}", self.t("composer.agent"))
+            })
+            .tooltip(self.t("composer.acp"))
+            .dropdown_caret(true)
+            .disabled(chat.is_some_and(|chat| !chat.can_retarget()))
+            .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
+                agent_choices.iter().enumerate().fold(
+                    menu.min_w(px(W::MENU_WIDTH)).check_side(Side::Right),
+                    |menu, (i, choice)| {
+                        let workbench = agent_workbench.clone();
+                        menu.item(
+                            PopupMenuItem::new(choice.name.clone())
+                                .checked(choice.id == selected_agent)
+                                .disabled(!choice.available)
+                                .on_click(move |_, _, cx| {
+                                    let _ =
+                                        workbench.update(cx, |this, cx| this.select_agent(i, cx));
+                                }),
+                        )
+                    },
+                )
+            })
+            .on_open_change(move |open, _, cx| {
+                let _ = agent_menu.update(cx, |this, _| this.dock_menu = *open);
+            });
+        let (compact_agent, normal_agent) = if self.compact {
+            (Some(agent_picker), None)
+        } else {
+            (None, Some(agent_picker))
+        };
+        let context_button = W::composer_control(Button::new("attach-context").ghost(), cx)
+            .relative()
+            .child(self.composer_bounds.context.probe())
             .icon(IconName::Plus)
+            .rounded_full()
+            .w(px(pero_theme::UiAppearance::global(cx)
+                .typography
+                .control_height()
+                .max(pero_theme::GHOST_ICON_BUTTON)))
+            .p_0()
+            .bg(p.surface_muted)
             .accessibility_label(self.t("composer.context"))
             .tooltip(self.t("composer.context"))
             .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
@@ -125,14 +196,10 @@ impl ChatPanel {
                         let workbench = context_workbench.clone();
                         menu.item(
                             PopupMenuItem::new(label.clone())
-                                .icon(
-                                    Icon::default()
-                                        .path(Self::context_kind_icon(kind)),
-                                )
+                                .icon(Icon::default().path(Self::context_kind_icon(kind)))
                                 .disabled(
                                     kind == ContextKind::Selection
-                                        || kind == ContextKind::Image
-                                            && !supports_images,
+                                        || kind == ContextKind::Image && !supports_images,
                                 )
                                 .on_click(move |_, window, cx| {
                                     let _ = workbench.update(cx, |this, cx| {
@@ -142,28 +209,22 @@ impl ChatPanel {
                         )
                     },
                 );
-                browse_sources.iter().fold(
-                    menu.separator(),
-                    |menu, (kind, label)| {
+                browse_sources
+                    .iter()
+                    .fold(menu.separator(), |menu, (kind, label)| {
                         let kind = *kind;
                         let workbench = context_workbench.clone();
                         menu.item(
                             PopupMenuItem::new(label.clone())
-                                .icon(
-                                    Icon::default()
-                                        .path(Self::context_kind_icon(kind)),
-                                )
-                                .disabled(
-                                    kind == ContextKind::Image && !supports_images,
-                                )
+                                .icon(Icon::default().path(Self::context_kind_icon(kind)))
+                                .disabled(kind == ContextKind::Image && !supports_images)
                                 .on_click(move |_, _, cx| {
                                     let _ = workbench.update(cx, |this, cx| {
                                         this.browse_composer_context(kind, cx)
                                     });
                                 }),
                         )
-                    },
-                )
+                    })
             })
             .on_open_change(move |open, _, cx| {
                 let _ = context_open_workbench.update(cx, |this, cx| {
@@ -178,6 +239,98 @@ impl ChatPanel {
         } else {
             (None, Some(context_button))
         };
+        let attachments = (!self.attachments.is_empty()).then(|| {
+            div()
+                .min_w_0()
+                .w_full()
+                .flex()
+                .flex_wrap()
+                .gap(px(6.))
+                .mb(px(6.))
+                .children(self.attachments.iter().enumerate().map(|(i, file)| {
+                    let open = file.clone();
+                    let preview = file.clone();
+                    let thread_id = self
+                        .active_chat
+                        .and_then(|index| self.chats.get(index))
+                        .map(|chat| chat.id.clone())
+                        .unwrap_or_default();
+                    let can_open = matches!(
+                        file.kind,
+                        ContextKind::AppObject
+                            | ContextKind::File
+                            | ContextKind::Directory
+                            | ContextKind::Selection
+                    );
+                    div()
+                        .min_w_0()
+                        .max_w_full()
+                        .flex()
+                        .items_center()
+                        .gap(px(2.))
+                        .rounded(px(pero_theme::RADIUS_BUTTON))
+                        .bg(p.surface_muted)
+                        .child(
+                            W::composer_control(Button::new(("attached-file", i)).ghost(), cx)
+                                .flex_1()
+                                .min_w_0()
+                                .icon(Icon::default().path(Self::context_kind_icon(file.kind)))
+                                .label(file.label.clone())
+                                .tooltip(if can_open {
+                                    format!("{}\n{}", file.label, file.source)
+                                } else {
+                                    format!("{}: {}", self.t("composer.remove"), file.source)
+                                })
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    if can_open {
+                                        cx.emit(crate::ChatAction::OpenContext {
+                                            reference: open.clone(),
+                                        });
+                                    } else {
+                                        this.remove_composer_context(i, window, cx);
+                                    }
+                                })),
+                        )
+                        .child(
+                            W::composer_control(Button::new(("remove-context", i)).ghost(), cx)
+                                .label("×")
+                                .accessibility_label(self.t("composer.remove"))
+                                .tooltip(self.t("composer.remove"))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.remove_composer_context(i, window, cx);
+                                })),
+                        )
+                        .when(cfg!(target_family = "wasm"), |row| {
+                            row.child(
+                                W::composer_control(
+                                    Button::new(("preview-context", i))
+                                        .relative()
+                                        .children(
+                                            self.context_preview_bounds
+                                                .get(&file.id)
+                                                .map(|bounds| bounds.probe()),
+                                        )
+                                        .ghost(),
+                                    cx,
+                                )
+                                .label(self.t("composer.preview"))
+                                .on_click(cx.listener(
+                                    move |_, _, _, cx| {
+                                        cx.emit(crate::ChatAction::PreviewContext {
+                                            reference: preview.clone(),
+                                            thread_id: thread_id.clone(),
+                                        })
+                                    },
+                                )),
+                            )
+                        })
+                }))
+        });
+        let (compact_attachments, normal_attachments) = if self.compact {
+            (attachments, None)
+        } else {
+            (None, attachments)
+        };
         let composer = div()
             .id("chat-composer")
             .relative()
@@ -187,12 +340,10 @@ impl ChatPanel {
                     .max_w(px(pero_theme::COMPOSER_MAX))
                     .min_w_0()
                     .mx_auto()
-                    .border_t_1()
-                    .border_color(p.border)
             })
-            .bg(p.surface)
-            .pt(px(W::INSET))
-            .pb(px(W::INSET))
+            .font_weight(FontWeight::NORMAL)
+            .pt(px(pero_theme::SPACE_8))
+            .pb(px(pero_theme::SPACE_12))
             .capture_action(cx.listener(|this, action: &Enter, window, cx| {
                 if action.shift || !this.composer_action("enter", window, cx) {
                     cx.propagate();
@@ -233,7 +384,10 @@ impl ChatPanel {
                 el.child(
                     div()
                         .mb(px(8.))
-                        .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                        .text_size(
+                            pero_theme::UiAppearance::global(cx)
+                                .text(pero_theme::TextRole::Caption),
+                        )
                         .text_color(p.error)
                         .child(
                             self.error
@@ -249,177 +403,234 @@ impl ChatPanel {
                         ),
                 )
             })
-            .when(!self.attachments.is_empty(), |el| {
-                el.child(div().min_w_0().w_full().flex().flex_wrap().gap(px(6.)).mb(px(6.)).children(
-                    self.attachments.iter().enumerate().map(|(i, file)| {
-                        let open=file.clone();
-                        let preview=file.clone();
-                        let thread_id=self.active_chat.and_then(|index|self.chats.get(index)).map(|chat|chat.id.clone()).unwrap_or_default();
-                        let can_open = matches!(
-                            file.kind,
-                            ContextKind::AppObject
-                                | ContextKind::File
-                                | ContextKind::Directory
-                                | ContextKind::Selection
-                        );
-                        div().min_w_0().max_w_full().flex().items_center().gap(px(2.)).child(
-                        W::chat_control(Button::new(("attached-file", i)).ghost(), cx)
-                            .flex_1().min_w_0()
-                            .icon(IconName::File)
-                            .label(file.label.clone())
-                            .tooltip(if can_open {
-                                format!("{}\n{}", file.label, file.source)
-                            } else {
-                                format!("{}: {}", self.t("composer.remove"), file.source)
-                            })
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                if can_open {
-                                    cx.emit(crate::ChatAction::OpenContext { reference: open.clone() });
-                                } else {
-                                    this.remove_composer_context(i, window, cx);
-                                }
-                            }))
-                        ).child(
-                            W::chat_control(Button::new(("remove-context", i)).ghost(), cx)
-                                .label("×")
-                                .accessibility_label(self.t("composer.remove"))
-                                .tooltip(self.t("composer.remove"))
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    this.remove_composer_context(i, window, cx);
-                                }))
-                        ).when(cfg!(target_family="wasm"), |row| row.child(
-                            W::chat_control(Button::new(("preview-context",i)).relative().children(self.context_preview_bounds.get(&file.id).map(|bounds|bounds.probe())).ghost(), cx).label(self.t("composer.preview"))
-                                .on_click(cx.listener(move|_,_,_,cx|cx.emit(crate::ChatAction::PreviewContext{reference:preview.clone(),thread_id:thread_id.clone()})))
-                        ))
-                    }),
-                ))
-            })
-            .child(
-                div()
-                    .id("composer-field")
-                    .border_1()
-                    .border_color(if focused { p.focus } else { p.input_border })
-                    .rounded(px(W::RADIUS))
-                    .bg(p.surface)
-                    .when(self.compact, |el| el.flex().items_center().gap(px(4.)))
-                    .px(px(W::INSET))
-                    .pt(px(W::GAP))
-                    .pb(px(W::GAP))
-                    .children(compact_context)
-                    .child(div().min_w_0().when(self.compact, |el| el.flex_1()).child(
-                Textarea::new(&self.composer)
-                    .bordered(false)
-                    .appearance(false)
-
-                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
-                    .aria_label(self.t("chat.placeholder"))
-                    .accessibility_id("chat-input")
-                    .on_paste(move |clipboard, window, cx| {
-                        paste_workbench
-                            .update(cx, |this, cx| this.composer_paste(clipboard, window, cx))
-                            .unwrap_or(false)
-                    })
-                    .h(px(rows as f32 * pero_theme::UiAppearance::global(cx).typography.ui * 1.4 + 4.)),
-            ))
-            .child(
-                div()
-                    .when(!self.compact, |el| el.mt(px(6.)).flex_wrap())
-                    .flex()
-                    .items_center()
-                    .gap(px(W::GAP))
-                    .children(normal_context)
-                    .when(!self.compact, |el| el.children(self.session_extra_controls(cx))
-                        .children(chat.and_then(|chat| chat.usage.as_ref()).map(|usage| {
-                            crate::usage::render_usage(usage, &self.locale, p, cx)
-                        }))
-                        .child(div().flex_1())
-                    .child(
-                        W::chat_control(Button::new("agent-picker").ghost(), cx)
-                            .icon(Icon::default().path("icons/terminal.svg"))
-                            .label(agent.clone())
-                            .tooltip(self.t("composer.acp"))
-                            .dropdown_caret(false)
-                            .disabled(chat.is_some_and(|chat| !chat.can_retarget()))
-                            .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
-                                agent_choices.iter().enumerate().fold(
-                                    menu.min_w(px(W::MENU_WIDTH)).check_side(Side::Right),
-                                    |menu, (i, choice)| {
-                                        let workbench = agent_workbench.clone();
-                                        menu.item(
-                                            PopupMenuItem::new(choice.name.clone())
-                                                .checked(choice.id == selected_agent)
-                                                .disabled(!choice.available)
-                                                .on_click(move |_, _, cx| {
-                                                    let _ = workbench.update(cx, |this, cx| this.select_agent(i, cx));
-                                                }),
-                                        )
-                                    },
-                                )
-                            })
-                            .on_open_change(move |open, _, cx| {
-                                let _ = agent_menu.update(cx, |this, _| this.dock_menu = *open);
-                            }),
-                    ))
-                    .children(model_picker)
-                    .when(!self.compact, |el| el.children(self.session_setting_controls("thought_level", cx)))
-                    .when(!self.compact && chat.is_none_or(|chat| chat.can_retarget()), |el| {
-                        el.child(
-                            W::chat_control(Button::new("workspace-picker").ghost(), cx)
+            .when(!self.compact, |el| {
+                el.child(
+                    div()
+                        .id("composer-environment")
+                        .flex()
+                        .flex_wrap()
+                        .items_center()
+                        .gap(px(pero_theme::SPACE_8))
+                        .mb(px(pero_theme::SPACE_8))
+                        .text_color(p.text_muted)
+                        .children(normal_agent)
+                        .child(
+                            W::composer_control(Button::new("workspace-picker").ghost(), cx)
+                                .relative()
+                                .child(self.composer_bounds.workspace.probe())
                                 .icon(IconName::Folder)
                                 .label(workspace)
+                                .tooltip(format!(
+                                    "{}: {}",
+                                    self.t("chat.workspace"),
+                                    workspace_path
+                                ))
+                                .max_w(px(280.))
+                                .disabled(chat.is_some_and(|chat| !chat.can_retarget()))
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.command(json!({"action":"choose_workspace"}), cx)
                                 })),
+                        ),
+                )
+            })
+            .when(can_retry, |el| {
+                el.child(
+                    div()
+                        .id("composer-session-status")
+                        .flex()
+                        .flex_wrap()
+                        .items_center()
+                        .gap(px(pero_theme::SPACE_8))
+                        .mb(px(pero_theme::SPACE_8))
+                        .text_size(
+                            pero_theme::UiAppearance::global(cx)
+                                .text(pero_theme::TextRole::Caption),
                         )
-                    })
-                    .when(chat.is_some_and(|c| c.can_retry()), |el| {
-                        el.child(
-                            W::chat_control(Button::new("retry-chat").outline().relative().child(self.retry_button_bounds.probe()), cx)
-                                .label(self.t("chat.retry"))
+                        .text_color(p.text_muted)
+                        .when(chat.is_some_and(|chat| chat.state == SessionState::Closed), |el| {
+                            el.child(self.t("chat.session_closed"))
+                        })
+                        .child(
+                            W::composer_control(Button::new("retry-chat").ghost(), cx)
+                                .relative()
+                                .child(self.composer_bounds.reconnect.probe())
+                                .icon(Icon::default().path("icons/refresh.svg"))
+                                .label(if chat.is_some_and(|chat| chat.state == SessionState::Closed) {
+                                    self.t("chat.reconnect")
+                                } else {
+                                    self.t("chat.retry")
+                                })
                                 .disabled(!self.connected)
                                 .on_click(cx.listener(|this, _, _, cx| this.retry_chat(cx))),
-                        )
-                    })
-                    .when(chat.is_some_and(|c| c.state == SessionState::Running || c.state == SessionState::Stopping || c.queued.is_some()), |el| {
-                        el.child(
-                            W::chat_control(Button::new("stop-agent")
-                                .relative().children([self.stop_button_bounds.probe()])
-                                .outline(), cx)
-                                .icon(IconName::Square)
-                                .accessibility_label(self.t("chat.stop"))
-                                .when(!self.compact, |button| button.label(self.t("chat.stop")))
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    if let Some(i) = this.active_chat {
-                                        let id = this.chats[i].id.clone();
-                                        this.chats[i].state = SessionState::Stopping;
-                                        this.command(json!({"action":"cancel","thread_id":id}), cx);
-                                    }
-                                })),
-                        )
-                    })
-                    .when(chat.is_none_or(|c| !matches!(c.state, SessionState::Running | SessionState::Stopping) && c.queued.is_none()), |el| {
-                        el.child(
-                            W::chat_control(Button::new("send-chat").primary(), cx)
-                                .icon(IconName::ArrowRight)
-                                .accessibility_label(self.t("probe.send"))
-                                .when(!self.compact, |button| button.label(self.t("probe.send")))
-                                .disabled(
-                                    !self.connected
-                                        || !agent_available
-                                        || self.composer_state.loading
-                                            && self.composer_state.resolve_range.is_some()
-                                        || self.composer.read(cx).value().trim().is_empty()
-                                            && self.attachments.is_empty()
-                                        || chat.is_some_and(|c| {
-                                            !c.can_submit()
-                                        }),
+                        ),
+                )
+            })
+            .children(compact_attachments)
+            .child(
+                W::composer_field(self.compact, focused, cx)
+                    .when(self.compact, |el| el.flex().items_center().gap(px(4.)))
+                    .children(normal_attachments)
+                    .children(compact_context)
+                    .child(
+                        div()
+                            .relative()
+                            .min_w_0()
+                            .when(self.compact, |el| el.flex_1())
+                            .child(self.composer_bounds.input.probe())
+                            .child(
+                                Textarea::new(&self.composer)
+                                    .bordered(false)
+                                    .appearance(false)
+                                    .font_weight(FontWeight::NORMAL)
+                                    .text_color(p.text)
+                                    .text_size(
+                                        pero_theme::UiAppearance::global(cx)
+                                            .text(pero_theme::TextRole::Body),
+                                    )
+                                    .aria_label(self.t("chat.placeholder"))
+                                    .accessibility_id("chat-input")
+                                    .on_paste(move |clipboard, window, cx| {
+                                        paste_workbench
+                                            .update(cx, |this, cx| {
+                                                this.composer_paste(clipboard, window, cx)
+                                            })
+                                            .unwrap_or(false)
+                                    })
+                                    .h(px(rows as f32
+                                        * pero_theme::UiAppearance::global(cx).typography.ui
+                                        * 1.4
+                                        + 4.)),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .when(!self.compact, |el| {
+                                el.mt(px(pero_theme::SPACE_8)).flex_wrap()
+                            })
+                            .flex()
+                            .items_center()
+                            .gap(px(pero_theme::SPACE_8))
+                            .when(!self.compact, |el| {
+                                el.child(
+                                    div()
+                                        .flex()
+                                        .flex_wrap()
+                                        .items_center()
+                                        .gap(px(pero_theme::SPACE_8))
+                                        .children(normal_context)
+                                        .children(self.session_extra_controls(cx))
+                                        .children(chat.and_then(|chat| chat.usage.as_ref()).map(
+                                            |usage| {
+                                                crate::usage::render_usage(
+                                                    usage,
+                                                    &self.locale,
+                                                    p,
+                                                    cx,
+                                                )
+                                            },
+                                        )),
                                 )
-                                .on_click(
-                                    cx.listener(|this, _, window, cx| this.send_chat(window, cx)),
-                                ),
+                            })
+                            .child(
+                                div()
+                                    .ml_auto()
+                                    .max_w_full()
+                                    .flex_shrink_0()
+                                    .flex()
+                                    .items_center()
+                                    .justify_end()
+                                    .gap(px(pero_theme::SPACE_8))
+                                    .when(!self.compact, |el| el.flex_wrap())
+                                    .children(compact_agent)
+                                    .children(model_picker)
+                                    .when(!self.compact, |el| {
+                                        el.children(
+                                            self.session_setting_controls("thought_level", cx),
+                                        )
+                                    })
+                                    .when(
+                                        chat.is_some_and(|c| {
+                                            c.state == SessionState::Running
+                                                || c.state == SessionState::Stopping
+                                                || c.queued.is_some()
+                                        }),
+                                        |el| {
+                                            el.child(
+                                                W::composer_control(
+                                                    Button::new("stop-agent")
+                                                        .relative()
+                                                        .children([self.stop_button_bounds.probe()])
+                                                        .outline(),
+                                                    cx,
+                                                )
+                                                .icon(IconName::Square)
+                                                .accessibility_label(self.t("chat.stop"))
+                                                .when(!self.compact, |button| {
+                                                    button.label(self.t("chat.stop"))
+                                                })
+                                                .on_click(cx.listener(|this, _, _, cx| {
+                                                    if let Some(i) = this.active_chat {
+                                                        let id = this.chats[i].id.clone();
+                                                        this.chats[i].state =
+                                                            SessionState::Stopping;
+                                                        this.command(
+                                                        json!({"action":"cancel","thread_id":id}),
+                                                        cx,
+                                                    );
+                                                    }
+                                                })),
+                                            )
+                                        },
+                                    )
+                                    .when(
+                                        chat.is_none_or(|c| {
+                                            !matches!(
+                                                c.state,
+                                                SessionState::Running | SessionState::Stopping
+                                            ) && c.queued.is_none()
+                                        }),
+                                        |el| {
+                                            el.child(
+                                                W::composer_control(
+                                                    Button::new("send-chat")
+                                                        .when(can_send, |button| button.primary())
+                                                        .when(!can_send, |button| {
+                                                            button.ghost().bg(p.disabled)
+                                                        }),
+                                                    cx,
+                                                )
+                                                .icon(IconName::ArrowUp)
+                                                .accessibility_label(self.t("probe.send"))
+                                                .tooltip(self.t("chat.composer_hint"))
+                                                .when(!self.compact, |button| {
+                                                    button.label(self.t("probe.send"))
+                                                })
+                                                .disabled(!can_send)
+                                                .on_click(cx.listener(|this, _, window, cx| {
+                                                    this.send_chat(window, cx)
+                                                })),
+                                            )
+                                        },
+                                    ),
+                            ),
+                    ),
+            )
+            .when(!self.compact, |el| {
+                el.child(
+                    div()
+                        .mt(px(pero_theme::SPACE_8))
+                        .px(px(pero_theme::SPACE_12))
+                        .h(px(pero_theme::UiAppearance::global(cx).typography.ui * 1.4))
+                        .text_size(
+                            pero_theme::UiAppearance::global(cx)
+                                .text(pero_theme::TextRole::Caption),
                         )
-                    }),
-            ));
+                        .text_color(p.text_muted)
+                        .when(focused && !self.composer_state.open, |el| {
+                            el.child(self.t("composer.input_hint"))
+                        }),
+                )
+            });
         if self.compact {
             return composer;
         }

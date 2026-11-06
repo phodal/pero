@@ -1,6 +1,7 @@
 // Composer behavior against the actual Electron/GPUI renderer and a bounded ACP fixture.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { clickNewChat, setAppearance } from './sidebar-controls.mjs';
 import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -35,8 +36,17 @@ try {
   const frame = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const height = () => page.evaluate(() => innerHeight);
   const promptLog = async () => (await readFile(capture, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  const clickComposer = async name => {
+    await frame();
+    await expect.poll(async () => {
+      const bounds = (await state()).composerBounds[name];
+      return !!bounds && bounds.width > 0 && bounds.height > 0;
+    }).toBe(true);
+    const bounds = (await state()).composerBounds[name];
+    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  };
   const input = async text => {
-    await page.mouse.click(950, await height() - 55);
+    await clickComposer('input');
     await page.keyboard.press(`${modifier}+a`);
     await page.keyboard.press('Backspace');
     const cdp = await page.context().newCDPSession(page);
@@ -65,7 +75,7 @@ try {
   await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, workspace);
   await page.evaluate(() => window.pero.chooseWorkspace());
   await expect.poll(async () => (await state()).workspace).toBe(await realpath(workspace));
-  await page.mouse.click(100, 28);
+  await clickNewChat(page);
   await expect.poll(async () => (await state()).navigation).toBe(0);
   await frame();
   await expect.poll(async () => (await state()).chats.length).toBe(1);
@@ -78,10 +88,10 @@ try {
   expect((await state()).chats[0].capabilities.images).toBe(true);
   expect((await state()).chats[0].settings.options.map(option => option.id)).toEqual(['mode', 'effort', 'approval']);
   await page.screenshot({ path: resolve(output, 'controls.png') });
-  const setting = async (id, x, expected, screenshot, previous = 1) => {
+  const setting = async (id, expected, screenshot, previous = 1) => {
     await expect.poll(async () => (await state()).chats[0].pending_setting).toBe(null);
     await frame();
-    await page.mouse.click(x, await height() - 20);
+    await clickComposer(id === 'effort' ? 'effort' : 'permissions');
     await frame();
     if (id === 'mode') { await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowRight'); }
     if (id === 'approval') { await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowRight'); }
@@ -92,17 +102,17 @@ try {
     await expect.poll(async () => (await state()).chats[0].settings.options.find(option => option.id === id)?.current).toBe(expected);
     await expect.poll(async () => (await state()).chats[0].pending_setting).toBe(null);
   };
-  await setting('effort', 1388, 'high', 'effort-menu.png');
-  await setting('effort', 1388, 'none', 'thinking-off-menu.png', 4);
+  await setting('effort', 'high', 'effort-menu.png');
+  await setting('effort', 'none', 'thinking-off-menu.png', 4);
   await frame();
   await page.screenshot({ path: resolve(output, 'thinking-off.png'), clip: { x: 260, y: await height() - 130, width: await page.evaluate(() => innerWidth - 260), height: 130 } });
-  await setting('effort', 1388, 'high', 'effort-menu.png');
-  await setting('approval', 322, 'read', 'permission-profile-menu.png');
-  await setting('mode', 322, 'minimal', 'mode-menu.png');
+  await setting('effort', 'high', 'effort-menu.png');
+  await setting('approval', 'read', 'permission-profile-menu.png');
+  await setting('mode', 'minimal', 'mode-menu.png');
   await frame();
   await page.screenshot({ path: resolve(output, 'toolbar.png'), clip: { x: 260, y: await height() - 130, width: await page.evaluate(() => innerWidth - 260), height: 130 } });
 
-  await page.mouse.click(290, await height() - 20);
+  await clickComposer('context');
   await frame();
   await page.screenshot({ path: resolve(output, 'context-types.png') });
   await page.keyboard.press('Escape');
@@ -148,7 +158,7 @@ try {
   expect((await promptLog()).at(-1).some(block => block.type === 'image' && block.mimeType === 'image/png')).toBe(true);
 
   await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, resolve(workspace, 'notes.txt'));
-  await page.mouse.click(290, await height() - 20);
+  await clickComposer('context');
   // Footer order is files, image, directory. Up begins at the final enabled item.
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('ArrowUp');
@@ -187,14 +197,7 @@ try {
   await expect.poll(async () => (await state()).composer).toBe('@directory ');
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await state()).completion.open).toBe(false);
-  await page.mouse.click(100, await height() - 28);
-  await page.keyboard.press('ArrowUp');
-  await page.keyboard.press('ArrowUp');
-  await page.keyboard.press('ArrowUp');
-  await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('ArrowUp');
-  await page.keyboard.press('ArrowUp');
-  await page.keyboard.press('Enter');
+  await setAppearance(page, 'dark');
   await expect.poll(async () => (await state()).dark).toBe(true);
   await input('/');
   await expect.poll(async () => (await state()).completion.loading).toBe(false);
@@ -206,11 +209,11 @@ try {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1086));
   await page.waitForFunction(() => innerWidth === 1488);
   await frame();
-  await page.mouse.click(100, 28);
+  await clickNewChat(page);
   await expect.poll(async () => (await state()).chats.length).toBe(2);
   await expect.poll(async () => (await state()).chats[1].state).toBe('idle');
   await frame();
-  await page.mouse.click(1130, await height() - 20);
+  await clickComposer('agent');
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await state()).chats[1].agent).toBe('unsupported-fixture');

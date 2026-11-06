@@ -1,7 +1,7 @@
 // Actual GPUI/Electron interactions, with file-controlled ACP readiness.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { setAppearance } from './sidebar-controls.mjs';
+import { clickNewChat, setAppearance } from './sidebar-controls.mjs';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -43,12 +43,21 @@ try {
   const active = async () => { const s = await state(); return s.chats[s.activeChat]; };
   const wire = async () => (await readFile(log, 'utf8')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
   const frame = () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  await page.mouse.click(100, 28);
+  const clickComposer = async name => {
+    await frame();
+    await expect.poll(async () => {
+      const bounds = (await state()).composerBounds[name];
+      return !!bounds && bounds.width > 0 && bounds.height > 0;
+    }).toBe(true);
+    const bounds = (await state()).composerBounds[name];
+    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  };
+  await clickNewChat(page);
   await expect.poll(async () => (await active())?.state).toBe('connecting');
   await expect.poll(async () => (await wire()).filter(entry => entry.method === 'session/new').length).toBe(1);
   await frame();
   await page.screenshot({ path: resolve(output, 'preparing.png') });
-  await page.mouse.click(800, await page.evaluate(() => innerHeight - 75));
+  await clickComposer('input');
   await page.keyboard.type('send while preparing');
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await active()).queued).toBe('send while preparing');
@@ -57,13 +66,13 @@ try {
   await expect.poll(async () => (await active()).messages.filter(message => message.role === 'assistant').length).toBe(1);
   await expect.poll(async () => (await active()).state).toBe('idle');
   expect((await wire()).filter(entry => entry.method === 'session/prompt')).toHaveLength(1);
-  await page.mouse.click(100, 28);
+  await clickNewChat(page);
   await expect.poll(async () => (await state()).chats.length).toBe(2);
   await expect.poll(async () => (await active()).state).toBe('idle');
   await frame();
   await page.screenshot({ path: resolve(output, 'ready.png') });
   const input = async text => {
-    await page.mouse.click(800, await page.evaluate(() => innerHeight - 75));
+    await clickComposer('input');
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
     await page.keyboard.press('Backspace');
     await page.keyboard.type(text);
@@ -71,10 +80,7 @@ try {
   };
   const select = async name => {
     await frame();
-    const current = await active();
-    const folderExtra = Math.max(0, (await state()).workspace.split('/').at(-1).length - 4) * 6;
-    const offset = (current.models.length ? 280 + Math.max(0, current.models[0][1].length - 13) * 6 : current.state === 'closed' ? 240 : 180) + folderExtra;
-    await page.mouse.click(await page.evaluate(() => innerWidth) - offset, await page.evaluate(() => innerHeight - 20));
+    await clickComposer('agent');
     await page.screenshot({ path: resolve(output, `agent-menu-${name}.png`) });
     const available = (await state()).agents.filter(agent => agent.available);
     const count = available.length - available.findIndex(agent => agent.id === name);
@@ -123,12 +129,12 @@ try {
   expect((await state()).composer).toBe(frozenDraft);
   await frame();
   await page.screenshot({ path: resolve(output, 'startup-error.png') });
-  await page.mouse.click(await page.evaluate(() => innerWidth - 105), await page.evaluate(() => innerHeight - 20));
+  await clickComposer('reconnect');
   await expect.poll(async () => (await active()).state).toBe('idle');
   expect((await state()).attachments).toEqual(['notes.txt']);
   await select('auth');
   await expect.poll(async () => (await active()).state).toBe('connecting');
-  await page.mouse.click(800, await page.evaluate(() => innerHeight - 75));
+  await clickComposer('input');
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await active()).queued).toBe(frozenDraft);
   await input('follow-up draft');
@@ -140,7 +146,7 @@ try {
   expect((await wire()).filter(entry => entry.method === 'authenticate')).toHaveLength(0);
   await frame();
   await page.screenshot({ path: resolve(output, 'authentication.png') });
-  await page.mouse.click(315, await page.evaluate(() => innerHeight - 178));
+  await clickComposer('authentication');
   await expect.poll(async () => (await active()).state).toBe('idle');
   expect((await wire()).filter(entry => entry.method === 'session/prompt')).toHaveLength(1);
   expect((await state()).composer).toBe(frozenDraft);
@@ -149,7 +155,7 @@ try {
   expect((await wire()).filter(entry => entry.method === 'authenticate')).toHaveLength(1);
   await frame();
   await page.screenshot({ path: resolve(output, 'terminal-login.png') });
-  await page.mouse.click(360, await page.evaluate(() => innerHeight - 178));
+  await clickComposer('authentication');
   await expect.poll(async () => (await active()).state).toBe('idle');
   expect((await state()).composer).toBe(frozenDraft);
   expect((await wire()).filter(entry => entry.method === 'session/prompt')).toHaveLength(1);
@@ -158,7 +164,7 @@ try {
   await input('');
   const emptyId = (await active()).id;
   const starts = (await wire()).filter(entry => entry.method === 'initialize').length;
-  await page.mouse.click(100, 28);
+  await clickNewChat(page);
   await frame();
   expect((await active()).id).toBe(emptyId);
   expect((await wire()).filter(entry => entry.method === 'initialize')).toHaveLength(starts);
@@ -172,7 +178,7 @@ try {
   expect(JSON.parse(await readFile(settings, 'utf8'))).toMatchObject({ chat_agent: 'fast', other: 42 });
   await app.close();
   page = await launch();
-  await page.mouse.click(100, 28);
+  await clickNewChat(page);
   await expect.poll(async () => (await active())?.state).toBe('idle');
   expect((await active()).agent).toBe('fast');
   expect((await wire()).filter(entry => entry.method === 'session/prompt')).toHaveLength(1);
@@ -183,7 +189,7 @@ try {
   await writeFile(agents, JSON.stringify(unavailable));
   const beforeUnavailable = (await wire()).length;
   page = await launch();
-  await page.mouse.click(100, 28);
+  await clickNewChat(page);
   await input('keep this until an Agent is installed');
   await page.keyboard.press('Enter');
   expect((await state()).composer).toBe('keep this until an Agent is installed');

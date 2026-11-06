@@ -5,6 +5,35 @@ use std::{cell::Cell, rc::Rc};
 #[derive(Clone, Default)]
 pub(crate) struct ViewBounds(Rc<Cell<Option<Bounds<Pixels>>>>);
 
+#[derive(Default)]
+pub(crate) struct ComposerBounds {
+    pub input: ViewBounds,
+    pub context: ViewBounds,
+    pub agent: ViewBounds,
+    pub workspace: ViewBounds,
+    pub model: ViewBounds,
+    pub effort: ViewBounds,
+    pub permissions: ViewBounds,
+    pub reconnect: ViewBounds,
+    pub authentication: ViewBounds,
+}
+
+impl ComposerBounds {
+    pub fn snapshot(&self) -> serde_json::Value {
+        serde_json::json!({
+            "input":self.input.snapshot(),
+            "context":self.context.snapshot(),
+            "agent":self.agent.snapshot(),
+            "workspace":self.workspace.snapshot(),
+            "model":self.model.snapshot(),
+            "effort":self.effort.snapshot(),
+            "permissions":self.permissions.snapshot(),
+            "reconnect":self.reconnect.snapshot(),
+            "authentication":self.authentication.snapshot(),
+        })
+    }
+}
+
 impl ViewBounds {
     pub fn probe(&self) -> impl IntoElement + use<> {
         let value = self.0.clone();

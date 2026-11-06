@@ -922,6 +922,7 @@ impl ChatPanel {
                                 .child(div().font_family("monospace").child(command)))
                             .when(command.is_none() && !method.description.is_empty(),|el|el.child(method.description.clone()))
                             .child(Button::new(("auth-method",i)).outline().small()
+                                .relative().child(self.composer_bounds.authentication.probe())
                                 .label(if command.is_some(){self.t("chat.login_complete").to_string()}else if interactive{self.t("chat.terminal_login").to_string()}else{method.name.clone()})
                                 .disabled(interactive && command.is_none())
                                 .on_click(cx.listener(move|this,_,_,cx|this.command(json!({"action":"authenticate","thread_id":thread,"method_id":method_id}),cx))))
