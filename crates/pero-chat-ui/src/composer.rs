@@ -374,8 +374,10 @@ impl ChatPanel {
                     })
                     .when(chat.is_some_and(|c| c.can_retry()), |el| {
                         el.child(
-                            W::chat_control(Button::new("retry-chat").outline().relative().child(self.retry_button_bounds.probe()), cx)
-                                .label(self.t("chat.retry"))
+                            W::chat_control(Button::new("retry-chat").ghost().relative().child(self.retry_button_bounds.probe()), cx)
+                                .icon(Icon::default().path(crate::assets::UiIcon::RotateCcw.path()))
+                                .tooltip(self.t("chat.retry"))
+                                .accessibility_label(self.t("chat.retry"))
                                 .disabled(!self.connected)
                                 .on_click(cx.listener(|this, _, _, cx| this.retry_chat(cx))),
                         )

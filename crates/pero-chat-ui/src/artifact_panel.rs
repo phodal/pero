@@ -75,47 +75,61 @@ impl ChatPanel {
         let open = state.is_some_and(|state| state.open);
         let count = state.map_or(0, |state| state.items.len());
         let toggle_thread = thread.clone();
+        let title = self.t("artifacts.title");
+        let label = if count == 0 {
+            title.to_owned()
+        } else {
+            format!("{title} {count}")
+        };
+        let header_height = pero_theme::WorkbenchStyle::TAB
+            .max(pero_theme::UiAppearance::global(cx).typography.row_height() + 4.);
+        let header = (!thread.is_empty() || self.docked).then(|| {
+            div()
+                .h(px(header_height))
+                .min_h(px(header_height))
+                .px(px(6.))
+                .flex()
+                .items_center()
+                .justify_end()
+                .when(!thread.is_empty(), |el| {
+                    el.child(
+                        self.artifact_button(&thread, "session-artifacts-toggle", "toggle", &label)
+                            .icon(Icon::default().path(UiIcon::Columns2.path()))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                let state = this
+                                    .artifacts
+                                    .conversations
+                                    .entry(toggle_thread.clone())
+                                    .or_default();
+                                state.open = !state.open;
+                                if this.compact {
+                                    cx.emit(ChatAction::CompactNeedsSpace);
+                                }
+                                cx.notify();
+                            })),
+                    )
+                })
+                .when(self.docked, |el| {
+                    el.child(
+                        self.artifact_icon_button(
+                            &thread,
+                            "workspace-chat-close",
+                            "close-chat",
+                            "panel-right-close",
+                            self.t("chat.close_panel"),
+                        )
+                        .on_click(cx.listener(|_, _, _, cx| cx.emit(ChatAction::ClosePanel))),
+                    )
+                })
+                .into_any_element()
+        });
         let chat = div()
+            .flex()
+            .flex_col()
             .w_full()
             .h_full()
             .min_h_0()
             .min_w_0()
-            .flex()
-            .flex_col()
-            .when(!thread.is_empty(), |el| {
-                el.child(
-                    div()
-                        .h(px(30.))
-                        .min_h(px(30.))
-                        .px(px(12.))
-                        .flex()
-                        .items_center()
-                        .justify_end()
-                        .child(
-                            self.artifact_button(
-                                &thread,
-                                "session-artifacts-toggle",
-                                "toggle",
-                                &format!("{} {count}", self.t("artifacts.title")),
-                            )
-                            .icon(Icon::default().path(UiIcon::Columns2.path()))
-                            .on_click(cx.listener(
-                                move |this, _, _, cx| {
-                                    let state = this
-                                        .artifacts
-                                        .conversations
-                                        .entry(toggle_thread.clone())
-                                        .or_default();
-                                    state.open = !state.open;
-                                    if this.compact {
-                                        cx.emit(ChatAction::CompactNeedsSpace);
-                                    }
-                                    cx.notify();
-                                },
-                            )),
-                        ),
-                )
-            })
             .child(self.chat_view(window, cx))
             .into_any_element();
         let body = if open {
@@ -163,7 +177,8 @@ impl ChatPanel {
             .min_h_0()
             .flex()
             .flex_col()
-            .child(body)
+            .children(header)
+            .child(div().flex_1().min_h_0().min_w_0().flex().child(body))
             .into_any_element()
     }
 
@@ -211,12 +226,12 @@ impl ChatPanel {
                             .font_weight(FontWeight::MEDIUM)
                             .child(self.t("artifacts.title")),
                     )
-                    .child(
+                    .when(!state.items.is_empty(), |el| el.child(
                         div()
                             .text_sm()
                             .text_color(p.text_muted)
                             .child(state.items.len().to_string()),
-                    )
+                    ))
                     .child(div().flex_1())
                     .child(
                         div()

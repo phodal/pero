@@ -301,6 +301,7 @@ impl Workbench {
                     this.error = None;
                     this.sync_follow(cx);
                 }
+                ChatAction::ClosePanel => this.set_chat_dock(false, cx),
                 ChatAction::CompactNeedsSpace => {
                     if this.floating_chat && this.chat_dock_visible() && !this.floating_chat_expanded {
                         this.floating_chat_expanded = true;

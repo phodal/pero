@@ -38,6 +38,7 @@ pub enum ChatAction {
     Selected { thread_id: Option<String> },
     /// A compact surface needs room for a picker or a larger draft.
     CompactNeedsSpace,
+    ClosePanel,
     Activated,
     ReturnToReview,
 }
@@ -84,6 +85,8 @@ pub struct ChatPanel {
     pub can_open_documents: bool,
     /// Render only the composer and required attention controls in compact shells.
     pub compact: bool,
+    /// The shell places this conversation in a dock with a close action.
+    pub docked: bool,
     pub(crate) pending_prompts: Vec<ComposerInsertion>,
     pub scope: Option<pero_contracts::AppChatScope>,
     pub(crate) scope_selection: HashMap<Option<pero_contracts::AppChatScope>, String>,
@@ -158,6 +161,7 @@ impl ChatPanel {
             show_return_to_review: false,
             can_open_documents: false,
             compact: false,
+            docked: false,
             pending_prompts: vec![],
             scope: None,
             scope_selection: HashMap::new(),
