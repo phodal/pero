@@ -369,9 +369,9 @@ for (const appearance of [{ size:14, dark:false, width:1200 }, { size:24, dark:t
   assert.equal(metrics.font,appearance.size);assert.equal(metrics.overflow,false);
   if(appearance.size===24)assert.ok(metrics.wrapped);
   const navigation=page.getByRole('tablist',{name:'View',exact:true});
-  const tabGeometry=await navigation.evaluate(node=>({border:getComputedStyle(node).borderBottomWidth,gap:parseFloat(getComputedStyle(node).columnGap),buttons:[...node.querySelectorAll('[role=tab]')].map(tab=>({border:getComputedStyle(tab).borderWidth,radius:getComputedStyle(tab).borderRadius}))}));
+  const tabGeometry=await navigation.evaluate(node=>({border:getComputedStyle(node).borderBottomWidth,gap:parseFloat(getComputedStyle(node).columnGap),buttons:[...node.querySelectorAll('[role=tab]')].map(tab=>({top:getComputedStyle(tab).borderTopWidth,left:getComputedStyle(tab).borderLeftWidth,right:getComputedStyle(tab).borderRightWidth,bottom:getComputedStyle(tab).borderBottomWidth,color:getComputedStyle(tab).borderBottomColor,selected:tab.getAttribute('aria-selected'),radius:getComputedStyle(tab).borderRadius}))}));
   assert.equal(tabGeometry.border,'0px');assert.ok(tabGeometry.gap>=16);
-  for(const tab of tabGeometry.buttons){assert.equal(tab.border,'0px');assert.equal(tab.radius,'0px');}
+  for(const tab of tabGeometry.buttons){assert.equal(tab.top,'0px');assert.equal(tab.left,'0px');assert.equal(tab.right,'0px');assert.equal(tab.bottom,'2px');assert.equal(tab.radius,'0px');assert.equal(tab.color==='rgba(0, 0, 0, 0)',tab.selected!=='true');}
   await page.getByRole('tab',{name:'Installed connections',exact:true}).click();
   assert.equal(await page.getByRole('tab',{name:'Installed connections',exact:true}).evaluate(node=>getComputedStyle(node).outlineStyle),'none', await page.getByRole('tab',{name:'Installed connections',exact:true}).evaluate(node=>node.outerHTML));
   await page.getByRole('tab',{name:'Service catalog',exact:true}).click();

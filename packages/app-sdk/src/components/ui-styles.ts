@@ -156,7 +156,7 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-tabs-trigger:not([data-unstyled]):not(.pero-content-tab-title):hover:not(:disabled):not([data-state=active]) { background:var(--pero-surface-hover); }
 .pero-ui-tabs-trigger:not([data-unstyled])[data-state=active] { border-bottom-color:var(--pero-action); color:var(--pero-text); font-weight:600; }
 .pero-ui-tabs-list[data-variant=navigation]:not([data-unstyled]) { border:0; gap:var(--pero-spacing-1) var(--pero-spacing-4); flex-wrap:wrap; overflow:visible; }
-.pero-ui-tabs-list[data-variant=navigation]>.pero-ui-tabs-trigger:not([data-unstyled]) { border:0; padding:2px var(--pero-spacing-2); }
+.pero-ui-tabs-list[data-variant=navigation]>.pero-ui-tabs-trigger:not([data-unstyled]) { padding:2px var(--pero-spacing-2); }
 .pero-ui-tabs-list[data-variant=navigation]>.pero-ui-tabs-trigger:not([data-unstyled])[data-state=active] { font-weight:var(--pero-font-weight-medium, 500); }
 .pero-ui-tabs-list[data-variant=content]:not([data-unstyled]) { border:0; align-items:center; flex-wrap:nowrap; }
 .pero-content-tab { display:flex; align-items:center; flex:none; max-width:220px; min-width:0; height:max(var(--pero-content-tab),var(--pero-control-height)); border-bottom:1px solid transparent; box-sizing:border-box; }
