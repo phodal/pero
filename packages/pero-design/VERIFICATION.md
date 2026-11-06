@@ -244,3 +244,17 @@ Production build SHA-256 on this source:
 | Environments | `36ce8b81b2dc404f525a75aa38ccfd6db4ac9283faf24493391accdc11cd740f` | `7e78482404e00d569e1af6e7455f3c9e8e0e2c8724028e01c8b6a6ac6c1c6585` |
 | Connectors | `1881106d36290a7622864a0ca7ec9c9ea837719bc03cfdbe3affc52cfcd9ced2` | `d8f9153da6967eab44b4b5eddba84ee87a0d1565124a9798347ad798d6713011` |
 | Insights | `9b02cd52b2a1075a7e29a30aa23105326437e7ebc9b8dc1b863665594667288f` | `8a674e61da21b075a5179ba376a98a8fd493e498653fcaee477535dc58b104b5` |
+
+CI integration follow-up: the fast Paper harness had classified the extracted
+`useLibraryData` hook as a child-view placeholder, causing 11 identical type
+errors. It now executes the real hook and uses the real `AppApiError`. The full
+fast group passed **107 tests**, with **5 Linux-only tests skipped on macOS**;
+Native dev tests passed **3/3**, and generated contracts passed. The Paper
+workspace regression is included in the existing CI component step.
+
+Master's new Viewer artifact browser test still used pre-migration button/native
+Select semantics. Updated it to the shared Tabs/Select keyboard contract while
+retaining value, focus, actual chart-axis and Gallery-selection assertions.
+Production Viewer build/typecheck and all **8 artifact browser scenarios** passed
+in Chrome with zero page errors. These follow-ups change test wiring and test
+consumers, not App behavior. Remote CI results are tracked on the PR.
