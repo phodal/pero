@@ -31,3 +31,4 @@
 - [0027: App Agent Plugins and local dependencies](0027-app-agent-plugins.md)
 - [0028: Local research Projects and App-owned resources](0028-local-research-projects.md)
 - [0029: AI4S environments bound to scientific attempts](0029-ai4s-environments.md) — P1 implemented
+- [0030: Composable compute environments for AI4S](0030-compute-environment-capabilities.md) — accepted; implementation in progress

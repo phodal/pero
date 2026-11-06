@@ -16,6 +16,11 @@ P1 已实现纯值模型、匹配、配置解释器的只读观察及新执行�
 [Control Lab / PC-Gym 映射](ai4s-environments-scenarios.md)，交付顺序见
 [实施计划](../exec-plans/2026-11-02-ai4s-environments.md)。
 
+2026-11-06 的 [Compute、Docker、VM 与服务组合设计](2026-11-06-compute-environment-capabilities.md)
+扩展本文的软件组件、多资源槽位和实际 Owner 边界，并用 COBOL、AI4S 和 HPC 场景检验。
+该补充已由 [ADR 0030](../adr/0030-compute-environment-capabilities.md) 接受；不改变本文 P1
+已实现范围，也不表示 live Use 或新后端已接通。
+
 ## 1. 问题与范围
 
 现有基础包括 Rust Host 的 App/Python 准备、App 自有实验台账和进程、工作区租约，
