@@ -47,6 +47,13 @@ class TableTests(unittest.TestCase):
         self.assertEqual(cf_agreement(published, ['1.00005'] * POPULATION), 'PASS')
         self.assertEqual(cf_agreement(published, ['1.0002'] + ['1'] * (POPULATION - 1)), 'FAIL')
         self.assertEqual(cf_agreement(published, published[:-1]), 'FAIL')
+        from lcms2yield.domain import example_agreement, published_fit
+        self.assertEqual(example_agreement(['1.1300693', '0.43467927']), 'PASS')
+        self.assertEqual(example_agreement(['1.1302', '0.43467927']), 'FAIL')
+        fit = published_fit(load_rows())
+        self.assertTrue(fit['mae'].startswith('4.74'))
+        self.assertGreater(float(fit['r2']), 0.9)
+        self.assertGreater(float(fit['pearson']), 0.9)
 
     def test_environment_probe_declares_python_312_for_this_trial(self):
         from lcms2yield.environment import inspect_environment

@@ -14,7 +14,7 @@ export function YieldPlot({ points, selected, onSelect, label }: {
   const map = (value: number) => ((value - bounds.low) / span) * 100;
   const color = new Map<string, string>(TYPES.map((type, index) => [type, seriesStyle(index).stroke]));
   const ordered = [...points.filter(point => point.index !== selected), ...points.filter(point => point.index === selected)];
-  return <svg className="yield-plot" viewBox="0 0 100 100" width="100%" height="320" preserveAspectRatio="xMidYMid meet" role="img" aria-label={label}>
+  return <svg className="yield-plot" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" role="img" aria-label={label}>
     <line x1={map(bounds.low)} y1={100 - map(bounds.low)} x2={map(bounds.high)} y2={100 - map(bounds.high)} className="yield-diagonal" />
     {ordered.map(point => <circle key={point.index} cx={map(point.x)} cy={100 - map(point.y)} r={selected === point.index ? 2.2 : 1.15}
       fill={color.get(point.reactionType) ?? 'currentColor'} className={selected === point.index ? 'is-selected' : undefined}
