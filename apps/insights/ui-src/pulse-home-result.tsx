@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { openAppSession, useAppChat, useAppObject } from '@pero/app-sdk';
-import { Badge, Button, Card, EmptyIllustration, EmptyState, Icon } from '@pero/app-sdk/ui';
+import { Badge, Button, Card, CardHeader, EmptyIllustration, EmptyState, Icon } from '@pero/app-sdk/ui';
 import { cardKind, projectBrief } from './work-recap-model.mjs';
 import { InsightsError } from './feedback';
 import { RichText } from './rich-text';
@@ -8,7 +8,7 @@ import './pulse-home-result.css';
 
 const copy = {
   zh: {
-    title: 'Insights', summary: 'AI 工作摘要', findings: '关键结论', attention: '需要你决定', discussion: '继续讨论',
+    engineering: '工程进展', research: '研究进展', title: 'Insights', summary: 'AI 工作摘要', findings: '关键结论', attention: '需要你决定', discussion: '继续讨论',
     openSession: '打开会话', ahead: '接下来', generatedAt: '生成于 {time}', personalEmpty: '暂无新的个人工作更新。',
     legacy: '这份历史简报尚无综合摘要，已有发现与来源仍可查看。',
     summaryNote: '关键结论可沿来源回查；会话完成不代表成果已验收。',
@@ -21,7 +21,7 @@ const copy = {
     sessionSource: '会话', webSource: '网页',
   },
   en: {
-    title: 'Insights', summary: 'AI work summary', findings: 'Key findings', attention: 'Needs your decision', discussion: 'Continue the conversation',
+    engineering: 'Engineering', research: 'Research', title: 'Insights', summary: 'AI work summary', findings: 'Key findings', attention: 'Needs your decision', discussion: 'Continue the conversation',
     openSession: 'Open session', ahead: 'Ahead', generatedAt: 'Generated at {time}', personalEmpty: 'No new personal work updates.',
     legacy: 'A summary is not available for this saved brief. Its findings and sources remain available.',
     summaryNote: 'Follow the sources to review each conclusion; a completed conversation is not result acceptance.',
@@ -36,7 +36,7 @@ const copy = {
 };
 
 export type ResultCard = {
-  id: string; kind?: string; title: string; conclusion?: string; body?: string; why?: string; impact?: string; handled?: boolean;
+  id: string; topic?: string; topicType?: 'engineering' | 'research' | 'general'; kind?: string; title: string; conclusion?: string; body?: string; why?: string; impact?: string; handled?: boolean;
   entity?: { type?: string; id?: string; label: string; sessionId?: string } | null;
   action?: { label: string; sessionId?: string; prompt?: string } | null;
   sources?: { label: string; url?: string; sessionId?: string }[];
@@ -72,19 +72,19 @@ function Post({ card, t, locale }: { card: ResultCard; t: typeof copy.zh; locale
   return <article className="point-pulse-post" data-kind={kind}>
     <h3>{card.title}</h3>
     <div className="point-pulse-status">
-      <Badge tone={kind === 'needs_you' || kind === 'risk' ? 'warning' : kind === 'done' ? 'success' : kind === 'change' ? 'info' : 'neutral'}>{t[kind as keyof typeof t] || kind}</Badge>
+      <Badge tone={kind === 'needs_you' || kind === 'risk' ? 'warning' : kind === 'change' ? 'info' : 'neutral'}>{t[kind as keyof typeof t] || kind}</Badge>
       {objectLabel && <span>{objectLabel}</span>}
     </div>
     {card.conclusion && <p className="point-pulse-body">{card.conclusion}</p>}
     {!card.conclusion && card.body && <RichText text={card.body} />}
     <div className="point-pulse-actions">
-      {action && (action.sessionId || action.prompt) && <Button disabled={busy} onClick={() => act(() => action.sessionId ? openAppSession(action.sessionId) : chat.compose(action.prompt!))}>{action.label}</Button>}
-      {card.entity?.sessionId && card.entity.sessionId !== action?.sessionId && <Button disabled={busy} onClick={() => act(() => openAppSession(card.entity!.sessionId!))}>{t.openSession}</Button>}
+      {action && (action.sessionId || action.prompt) && <Button variant="link" disabled={busy} onClick={() => act(() => action.sessionId ? openAppSession(action.sessionId) : chat.compose(action.prompt!))}>{action.label}</Button>}
+      {card.entity?.sessionId && card.entity.sessionId !== action?.sessionId && <Button variant="link" disabled={busy} onClick={() => act(() => openAppSession(card.entity!.sessionId!))}>{t.openSession}</Button>}
       {hasDetails && <Button variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}>{t.more}</Button>}
     </div>
     {!!card.sources?.length && <div className="point-pulse-sources"><span>{t.sources}</span><ul>
       {card.sources.map((source, index) => <li key={index}>{source.sessionId
-        ? <Button variant="ghost" disabled={busy} title={source.sessionId} onClick={() => act(() => openAppSession(source.sessionId!))}>{source.label === source.sessionId ? `${t.sessionSource} ${index + 1}` : source.label}</Button>
+        ? <Button variant="link" disabled={busy} title={source.sessionId} onClick={() => act(() => openAppSession(source.sessionId!))}>{source.label === source.sessionId ? `${t.sessionSource} ${index + 1}` : source.label}</Button>
         : /^https?:\/\//i.test(source.url ?? '') ? <a href={source.url} title={source.url} target="_blank" rel="noopener noreferrer">{source.label === source.url ? `${t.webSource} ${index + 1}` : source.label}</a> : <span>{source.label}</span>}</li>)}
     </ul></div>}
     {error && <InsightsError error={error} locale={locale} context="action" />}
@@ -121,7 +121,6 @@ export function PulseHomeResult({ brief, createdAt, running, locale }: {
   return <section aria-label={t.title}>
     {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
     <div className="point-brief-layout" data-attention={edition.needCards.length ? 'true' : undefined}>
-      <Card className="point-brief-reading-surface" aria-hidden="true" />
       <section className="point-brief-summary" aria-labelledby={`${id}-summary`}>
         <div className="point-brief-summary-head"><h2 id={`${id}-summary`}><Icon name="ai-sparkles" size={20}/>{t.summary}</h2>
           {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
@@ -135,7 +134,12 @@ export function PulseHomeResult({ brief, createdAt, running, locale }: {
       </aside></Card>}
       {!!edition.cards.length && <section className="point-brief-findings" aria-labelledby={`${id}-findings`}>
         <h2 id={`${id}-findings`} className="point-brief-section-title">{t.findings}</h2>
-        <div className="point-pulse-feed">{edition.cards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}</div>
+        <div className="point-brief-topics">{edition.topics.map(topic => <Card asChild key={`${topic.type}:${topic.label}`} className="point-brief-topic"><section aria-label={topic.type === 'general' ? topic.label || undefined : t[topic.type]}>
+          <CardHeader tone={topic.type === 'engineering' ? 'blue' : topic.type === 'research' ? 'apricot' : 'neutral'}>
+            <h2 className="point-brief-topic-title">{topic.type === 'general' ? topic.label || t.findings : t[topic.type]}</h2>
+          </CardHeader>
+          <div className="point-pulse-feed">{topic.cards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}</div>
+        </section></Card>)}</div>
       </section>}
       <section className="point-brief-discussion" aria-labelledby={`${id}-discussion`}>
         <div className="point-brief-discussion-head"><div><h2 id={`${id}-discussion`}>{t.discussion}</h2><p>{t.discussHint}</p></div>

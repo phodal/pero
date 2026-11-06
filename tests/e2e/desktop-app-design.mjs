@@ -148,9 +148,9 @@ for (const appearance of [{locale:'en',size:14,width:1200,dark:false},{locale:'z
     'The existing result remains available, while a follow-up still needs a decision.',
   ];
   const brief={...fixtureBrief,summary:paragraphs.join('\n\n'),cards:[...fixtureBrief.cards.map(card=>{
-    if(card.kind!=='change')return card;
+    if(card.kind!=='change')return {...card,topic:'Research',topicType:'research'};
     const {kind,...publication}=card;
-    return {...publication,sources:[{label:'Implementation discussion',sessionId:'implementation-session'}]};
+    return {...publication,topic:'Runtime work',topicType:'engineering',sources:[{label:'Implementation discussion',sessionId:'implementation-session'}]};
   }),{kind:'filtered',title:'Routine build output omitted',body:'filtered_source remains inspectable.',sources:[{label:'Filtered source evidence',sessionId:'filtered-source-session'}]}]};
   const page=await pageFor(t,'insights',async({path,body})=>{
     if(path==='/host/insights')return json({sessions:[{threadId:'summary-brief',app:'insights',status:'completed',response_kind:'final'}]});
@@ -171,6 +171,14 @@ for (const appearance of [{locale:'en',size:14,width:1200,dark:false},{locale:'z
   await expect(attention.getByRole('heading',{name:'Prepare a follow-up',exact:true})).toBeVisible();
   await expect(findings.getByRole('heading',{name:'Source change needs review',exact:true})).toBeVisible();
   await expect(findings.getByRole('heading',{name:'A notable update',exact:true})).toBeVisible();
+  const topics=page.locator('.point-brief-topic');
+  await expect(topics).toHaveCount(2);
+  await expect(topics.nth(0).locator('.pero-ui-card-header')).toHaveAttribute('data-tone','apricot');
+  await expect(topics.nth(1).locator('.pero-ui-card-header')).toHaveAttribute('data-tone','blue');
+  const boxes=await topics.evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};}));
+  if(appearance.width>=700) assert.ok(boxes[1].left>=boxes[0].right && Math.abs(boxes[1].top-boxes[0].top)<1,'wide topics sit side by side');
+  else assert.ok(boxes[1].top>=boxes[0].bottom,'narrow topics stack without overlap');
+
   await expect(page.getByRole('heading',{name:'Routine build output omitted',exact:true})).toHaveCount(0);
   await expect(page.getByRole('link',{name:'Original source',exact:true})).toHaveAttribute('href','https://example.org/evidence');
   await expect(page.getByRole('button',{name:'Session evidence',exact:true})).toHaveAttribute('title','fixture-session');

@@ -233,3 +233,60 @@ The two deliberate summary-generation checks are separate from the earlier
 Observations concern the local macOS Native Preview, originally based on
 `9cf2df12`, with the scoped commits and working changes from this task. Signed
 packages and other platforms are not verified here.
+
+## Approved parallel topic cards (2026-11-06)
+
+Design reference: the approved interactive HTML at
+`/Users/phodal/.codex/visualizations/2026/11/06/01a1af83-3cb9-7d81-a69a-5cf286d8089e/insights-work-brief.html`.
+Its edited summary and screenshot-derived examples are not production data.
+The previous single reading-surface Card is replaced with an unboxed short
+summary followed by peer topic Cards, approximately 1,040px overall with the
+shared 20px gap. Below 700px of actual App content width the cards stack.
+The old reading-surface overlay and attention-side-column styles are removed.
+
+Insights previously had status kinds but no content grouping. Its publication
+entry now normalizes optional topic and topicType values once. The Agent
+identifies engineering/research/general from the supplied work evidence;
+projectBrief owns the grouping. Engineering and research entries each form a
+single category, even when the Agent names narrower subtopics. Other named
+and unclassified findings retain neutral groups. No title keyword matching,
+array splitting or silent item loss is used. Legacy publications retain their
+findings in a neutral group; original records are not rewritten.
+
+Shared CardHeader gains blue/apricot content tones; neutral Card bodies keep
+primary text readable. Shared Button gains a link variant for teal source and
+continuation actions. Hover, keyboard focus and disabled behavior remain in
+the public component. Status remains separate: needs_you and actual risks
+use warning, while reported completion and unreviewed findings use neutral
+badges rather than implying scientific acceptance. Base page/sidebar/text/
+muted/border colors match the reference's corresponding shared palette;
+content header tones use the design system's paired blue/apricot tokens.
+No prototype hex values or competing control skins are copied into Insights.
+Token contrast calculations in both themes: body text >=14.62:1, muted text
+>=5.49:1, topic header text >=6.25:1, link text >=5.34:1, action text >=4.79:1
+and focus against the neutral surface >=4.79:1. Decorative card separators
+are not asserted as meaningful control boundaries.
+
+Verification uses source 61faa581 plus this follow-up. Six model tests and
+15 Insights browser scenarios pass, including explicit grouping, missing or
+unknown categories, decisions outside topic cards, retained original
+publications, side-by-side wide cards, 420px dark/24px stacked content,
+recovery failures and frozen discussion references. npm run check passes.
+Browser fixture captures in `test-results/insights-topics-fixture/` are
+separate from the actual Native captures in
+`test-results/insights-topics-native/`.
+
+A real generation, `app:insights:insights-1793946930926`, completed and supplied
+eight findings: three engineering and five research. The actual macOS Native
+Preview restored all eight into two peer cards. Both light/dark wide views,
+hover on the evidence control, a visible keyboard focus ring on a teal source
+button (Tab from the evidence control), evidence expansion and long paper names were
+visually inspected. At the default 1440px window with the actual 640px shared
+chat pane, App content narrows to about 583px and the cards stack; the bottom
+of engineering and start of research were observed together. The same real
+brief was also inspected with UI size 24 in dark mode. The shared Composer
+received a natural question and frozen Work brief attachment; the test draft
+was cleared without sending. Original light theme and UI size 14 were restored.
+Native images include wide-light-final.jpg, wide-dark.jpg, evidence.jpg,
+stacked-topics-dark.jpg, narrow-dark24.jpg, keyboard-focus.jpg and discussion.jpg. These images
+are local evidence, not committed files or signed-package acceptance.

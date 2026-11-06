@@ -56,10 +56,16 @@ export function pulseFeed(cards, tab = 'for-me') {
 export function projectBrief(brief) {
   const cards = Array.isArray(brief?.cards) ? brief.cards : [];
   const byKind = kind => cards.filter(card => cardKind(card) === kind && !card.dismissed);
-  return {
-    needCards: byKind('needs_you'),
-    cards: ['risk', 'change', 'watch', 'done'].flatMap(byKind),
-  };
+  const findings = ['risk', 'change', 'watch', 'done'].flatMap(byKind);
+  const topics = [];
+  for (const card of findings) {
+    const type = card.topicType ?? 'general';
+    const label = type === 'general' ? (card.topic ?? '') : '';
+    let topic = topics.find(topic => topic.type === type && topic.label === label);
+    if (!topic) { topic = { label, type, cards: [] }; topics.push(topic); }
+    topic.cards.push(card);
+  }
+  return { needCards: byKind('needs_you'), cards: findings, topics };
 }
 
 /** The Agent synthesizes the selected work evidence; cards retain its sources and continuation paths. */
@@ -72,7 +78,8 @@ export const pulseBriefPrompt = `你是 Pero 的工作简报 Agent。目标：�
 跨会话的时态与冲突：历史对话里的资料可用性、失败和读取状态，只能描述为那次会话当时的观察，不是当前事实。除非输入提供本轮明确的当前 I/O 快照，否则不得把历史记录写成“目前仍只有摘要”“现在没有全文”或其它持续至今的判断。同一篇论文、同一版本的不同会话同时出现完整 TeX / 图表已读取与仅有摘要的记录时，先核对论文对象、版本、读取入口和记录先后，分别保留各条证据的范围；不能把某次单一入口的限制扩大成整篇论文或整个项目缺资料，也不能臆造这些记录为何不同。已有完整材料的记录时，可以建议回到已有材料核对、整理或继续讨论，不能直接宣告需要补缺全文。无法核对差异就明确当前资料状态尚未确认，不用一个历史失败覆盖另一个会话已交付的材料；不同论文仍分开处理。
 5. kind 使用 change（值得知道的变化）、done（会话报告已完成，同时 handled: true）、watch（值得继续核对）、risk（有具体证据的实际风险）、needs_you（记录明确表明只有用户的决定或信息才能推进）、filtered（噪音或覆盖诊断）。引用缺失、截断和未接入的来源是覆盖限制，不能单独制造修复待办；生成本简报的会话也不是用户工作成果。
 6. 输出一个 JSON 对象，字段为 summary 字符串、cards 数组和 tomorrow 字符串。每张卡片必须写 kind（必填，取第5条允许值）、title（结论式标题）、conclusion（一句话关键结论）、body（简洁依据）、why（与当前工作的关系），可选 impact。entity 为 null 或 {"type":"session","label":"工作对象名称","sessionId":"原会话 ID"}；type 可选 pr / issue / commit / session / file / meeting / automation / branch / project，也可写原对象 id。action 为 null 或 {"label":"继续这段讨论","sessionId":"原会话 ID"}，也可用 {"label":"交给 Agent","prompt":"交给 Agent 的完整提示词"}；不要把 entity 或 action 写成字符串。sources 为数组，会话来源写 {"label":"来源名称","sessionId":"原会话 ID"}，网页来源写 {"label":"来源名称","url":"原 URL"}。所有 ID 和 URL 必须来自输入证据，不编造引用。合适时用 action 指向最适合接续该主题的真实会话，不能指向生成简报自身。
-写作契约：summary、title、conclusion、why、impact、entity.label、action.label、sources.label、tomorrow 全部面向读者，用本次 locale 的自然语言说明工作含义。禁止在这些字段复制 chat- 或 app: 会话 ID、裸 hash、seq / digest、r4 / r6 内部简称、status / toolCalls= 等日志枚举与计数、仅 “Now” / “I'll read…” 这样的占位回复、APP_SESSION_INACTIVE 等错误码，或完整 Conventional Commit 原文。不得用“会话 chat-…”作为一句话的工作对象。论文名、模型名和有识别意义的技术名词可以保留英文，并在需要时简短解释；不要一刀切禁止英文。
+主题契约：每张卡片增加 topic 字符串，按输入中的实际工作主线命名，同一主线使用完全相同的简短名称。通常归纳为 1–2 个主题；仅在证据确实支持时分组，不为凑两栏而拆分或编造分类。无法归组时 topic 写空字符串，不遗漏发现。不预设“工程进展”或“论文阅读”，它们不是每份简报都有的工作。每张卡片同时写 topicType：engineering（工程实现与运行时工作）、research（研究与论文阅读）、general（其他或无法确定）；必须来自实际工作内容，同一主题保持一致，不按列位置选类型。topic 只组织内容，不改变 kind、结论、来源、验收状态或行动。
+写作契约：topic、summary、title、conclusion、why、impact、entity.label、action.label、sources.label、tomorrow 全部面向读者，用本次 locale 的自然语言说明工作含义。禁止在这些字段复制 chat- 或 app: 会话 ID、裸 hash、seq / digest、r4 / r6 内部简称、status / toolCalls= 等日志枚举与计数、仅 “Now” / “I'll read…” 这样的占位回复、APP_SESSION_INACTIVE 等错误码，或完整 Conventional Commit 原文。不得用“会话 chat-…”作为一句话的工作对象。论文名、模型名和有识别意义的技术名词可以保留英文，并在需要时简短解释；不要一刀切禁止英文。
 body 也先用自然语言交代依据，不把原始日志碎片当正文摘要；只有需要追溯时才在技术依据中保留必要原文、错误码或提交标题。raw ID / URL 精确保留在 sessionId / id / url 专用字段，不翻译、不改写，不为了文案简洁删掉事实。归纳错误或提交的工作含义时必须有原文依据，不能仅凭错误码猜故障原因，也不能把提交说成已上线或验收。
 sources.label 用简短且有含义的来源名称，例如“图表提取记录”“论文概述对话”“桌面设计改动”，不能用原会话 ID、hash 或长提交标题充当名称。entity.label 写真实工作对象，不能只写类型名或标识；action.label 写具体动词和对象，例如“核对图表依据”“继续论文概述”，不能只写“处理”或“打开”。这些只是写作示例，不是要生成的事实；不能照抄示例来虚构原文没有的成果或当前阻塞。
 7. tomorrow 是一个字符串，最多两条简短的后续建议用换行分隔，没有建议时为 ""；它是建议，不表示已经安排或执行。界面负责组织卡片，不生成 view 或布局字段。coverage 只描述 Host 返回的会话摘要与本次选取范围，不代表读完全天或所有外部来源。complete=false、omitted>0、truncated=true 必须在相关结论中保留限制，不能补写被截掉的结果。
@@ -95,6 +102,8 @@ function publishedCard(card, index) {
   return {
     id: `c${index + 1}`,
     kind: cardKind(card),
+    topicType: ['engineering', 'research'].includes(card.topicType) ? card.topicType : 'general',
+    topic: typeof card.topic === 'string' ? card.topic.trim() : '',
     title: card.title,
     conclusion: typeof card.conclusion === 'string' ? card.conclusion : '',
     body: typeof card.body === 'string' ? card.body : '',

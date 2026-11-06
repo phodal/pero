@@ -45,6 +45,25 @@ test('brief publications preserve sources, actions, and next steps across reply 
   }
 });
 
+test('topics keep explicit membership, unresolved findings and decisions without guessing from titles', () => {
+  const brief = briefFromReply(JSON.stringify({cards: [
+    {title:'A paper title is not a category',kind:'change',topic:'  Runtime work  ',topicType:'engineering',sources:[{sessionId:'source-a'}]},
+    {title:'Code in a research discussion',kind:'watch',topic:'Research',topicType:'unrecognized'},
+    {title:'Unclassified finding',kind:'risk'},
+    {title:'Another runtime finding',kind:'done',topic:'Runtime work',topicType:'engineering'},
+    {title:'Decision',kind:'needs_you',topic:'Research',topicType:'unrecognized'},
+    {title:'Diagnostic',kind:'filtered',topic:'Research',topicType:'unrecognized'},
+  ]}));
+  const edition = projectBrief(brief);
+  assert.deepEqual(edition.topics.map(topic => [topic.label, topic.cards.map(card => card.id)]), [
+    ['', ['c3']], ['', ['c1','c4']], ['Research', ['c2']],
+  ]);
+  assert.deepEqual(edition.topics.map(topic => topic.type), ['general','engineering','general']);
+  assert.deepEqual(edition.needCards.map(card => card.id), ['c5']);
+  assert.equal(edition.topics[1].cards[0].sources[0].sessionId, 'source-a');
+  assert.equal(brief.cards.length, 6, 'Original brief retains the diagnostic');
+});
+
 test('the next-step prompt keeps Point’s analysis contract', () => {
   const prompt = workRecapPrompt({
     sessions: [{ sessionId: 'chat-1793283309757-2', turns: [{ turnId: '1', request: '杭州', response: '我来搜一下杭州今天的天气。', responseKind: 'intermediate', status: 'unfinished' }] }],
