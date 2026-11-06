@@ -1,6 +1,8 @@
 //! Host I/O adapters. Scientific method owners supply the frozen invocation and
 //! retain budgets, attempt records, verification, and acceptance.
+mod compose;
 mod docker;
+pub use compose::{ComposeDeployment, ComposeEvidence, ComposeMember};
 mod local;
 use crate::environments::{Identity, ResourceBinding};
 use crate::owned_process::OwnedProcess;

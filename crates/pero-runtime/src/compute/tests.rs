@@ -137,3 +137,107 @@ fn docker_method_uses_actual_container_identity_and_cancellation_removes_it() {
     }
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+#[ignore = "requires an explicitly selected Docker context and validation image with Python"]
+fn compose_preserves_member_identity_and_retains_service_data() {
+    let context = std::env::var("PERO_TEST_DOCKER_CONTEXT").unwrap();
+    let image = std::env::var("PERO_TEST_DOCKER_IMAGE").unwrap();
+    let platform = std::env::var("PERO_TEST_DOCKER_PLATFORM").unwrap();
+    let dir = directory();
+    let recipe = dir.join("recipe.json");
+    let image = DockerOwner::resolve("docker".into(), context.clone(), &image, &platform).unwrap();
+    let pinned = format!("sha256:{}", image.image().reference.as_str());
+    let config = serde_json::json!({
+        "services": {
+            "data": {"image":pinned, "platform":platform,
+                "command":["python3","-m","http.server","8000","--directory","/data"],
+                "volumes":["results:/data"],
+                "healthcheck":{"test":["CMD","python3","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000')"], "interval":"1s", "timeout":"2s", "retries":10}},
+            "client": {"image":pinned, "platform":platform,
+                "command":["sleep","infinity"],
+                "depends_on":{"data":{"condition":"service_healthy"}},
+                "healthcheck":{"test":["CMD","python3","-c","import urllib.request; urllib.request.urlopen('http://data:8000')"], "interval":"1s", "timeout":"2s", "retries":10}}
+        },
+        "networks":{"default":{"internal":true}}, "volumes":{"results":{}}
+    });
+    fs::write(&recipe, serde_json::to_vec_pretty(&config).unwrap()).unwrap();
+    let operation = dir.join("operation");
+    let deployment =
+        ComposeDeployment::prepare("docker".into(), context.clone(), &recipe, &operation).unwrap();
+    assert_eq!(deployment.evidence().members.len(), 2);
+    assert!(
+        deployment
+            .evidence()
+            .members
+            .iter()
+            .all(|m| m.running && m.health.as_deref() == Some("healthy"))
+    );
+    let data = deployment
+        .evidence()
+        .members
+        .iter()
+        .find(|m| m.service.as_str() == "data")
+        .unwrap();
+    let result = command_output(Command::new("docker").args([
+        "--context",
+        &context,
+        "exec",
+        data.container.as_str(),
+        "python3",
+        "-c",
+        "from pathlib import Path; Path('/data/result').write_text('service-result')",
+    ]))
+    .unwrap();
+    assert!(result.status.success());
+    let client = deployment
+        .evidence()
+        .members
+        .iter()
+        .find(|m| m.service.as_str() == "client")
+        .unwrap();
+    let result = command_output(Command::new("docker").args(["--context", &context, "exec", client.container.as_str(),
+        "python3", "-c", "import urllib.request; print(urllib.request.urlopen('http://data:8000/result').read().decode())"])).unwrap();
+    assert!(result.status.success());
+    assert_eq!(
+        String::from_utf8(result.stdout).unwrap().trim(),
+        "service-result"
+    );
+    let mut reopened =
+        ComposeDeployment::reopen("docker".into(), context.clone(), operation).unwrap();
+    reopened.refresh().unwrap();
+    let volume = reopened.evidence().retained_volumes[0].clone();
+    reopened.dispose().unwrap();
+    let result = command_output(Command::new("docker").args([
+        "--context",
+        &context,
+        "run",
+        "--rm",
+        "--pull=never",
+        "--platform",
+        &platform,
+        "--network=none",
+        "--mount",
+        &format!("type=volume,src={volume},dst=/data,readonly"),
+        &pinned,
+        "cat",
+        "/data/result",
+    ]))
+    .unwrap();
+    assert!(result.status.success());
+    assert_eq!(String::from_utf8(result.stdout).unwrap(), "service-result");
+    // The test explicitly deletes its own fixture data after proving retention.
+    assert!(
+        command_output(Command::new("docker").args([
+            "--context",
+            &context,
+            "volume",
+            "rm",
+            &volume
+        ]))
+        .unwrap()
+        .status
+        .success()
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
