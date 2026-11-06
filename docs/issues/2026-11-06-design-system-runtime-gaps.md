@@ -53,6 +53,37 @@ See the [detailed runtime review](../fitness/2026-11-06-design-system-runtime-re
 for the 12-App coverage matrix, completed checks and screenshot evidence.
 This tracker stays in progress: full Native keyboard/VoiceOver/physical IME
 acceptance and deeper Paper/Viewer states remain unverified. Virtual Cell's
-scientific heatmap still clips long axis labels; mixed-language App UI also
-remains visible. Do not equate the successful first batch with complete
+scientific heatmap's first review found clipped long axis labels; the follow-up
+fix below has browser evidence but still needs Native acceptance. Mixed-language
+App UI also remains visible. Do not equate the successful first batch with complete
 product-wide design-system acceptance.
+
+## Follow-up public control migration
+
+The next batch replaces raw comparison checkboxes in HPC with SDK Checkbox,
+Virtual Cell's raw volume range input with SDK Slider, Paper's numeric PDF page
+and read-only policy fields with SDK Input, and Insights/Virtual Cell error
+boundaries with LibraryHeader, Feedback and Button. Preserve comparison limits
+(completed runs only, at most eight), numeric bounds/steps, page navigation and
+explicit reload behavior. Scientific hit targets and document content retain
+their domain semantics. Insights' legacy recap stylesheet is not imported by the
+current entry; it is not treated as a confirmed current-page typography defect.
+
+
+## Follow-up heatmap layout and verification
+
+Virtual Cell now consumes SDK Slider without its old private accent/focus skin.
+The heatmap's fixed 125-unit label gutter and 720-unit compressed drawing become
+measured row-label space, readable row heights and a caption-scaled minimum
+canvas with a named, focusable horizontal scroll region. Preserve cell values,
+colour normalization, selected IDs, tooltips and export data. Long identifiers
+retain full text in titles. This is scientific drawing layout, not a change to
+the atlas or comparison domain.
+
+The actual Cell bundle was checked in a browser Host-context fixture at dark24,
+default and 420px widths. Long labels fit; whole-page width remains 420px; keyboard
+scroll exposes additional columns; opacity changes 0.55→0.56 with ArrowRight.
+The fixture has no backend (visible API 404), so no execution acceptance is
+inferred. HPC/Cell UI tests, four Apps' type checks/builds and root check pass.
+See the detailed review for screenshots and exact limitations. Native remained
+locked, so the tracker stays in_progress pending the existing acceptance scope.
