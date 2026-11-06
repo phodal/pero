@@ -65,3 +65,40 @@ PERO_ENVIRONMENT_PREPARATION_REAL=1 node tests/e2e/environment-preparation.mjs
 
 These opt-in suites download real packages. Circuit invokes Homebrew. Outputs
 and created venvs stay in their isolated temporary profiles for inspection.
+
+## 2026-11-06: creation page Design correction
+
+Source: PR #147 core head `faa1919c` plus the local page changes in this commit.
+The migration replaces the page-local heading with LibraryHeader, the outlined
+Back control with the shared ghost Button and Shell ArrowLeft, and the two ruled
+software lines with a shared blue soft Card containing named software facts.
+The App workspace now fills its viewport with `bg`; embedded inspections retain
+their existing surfaces. Field, Input, Select, Button and Card own control skins.
+No theme token values or sandbox permissions changed. Actual consumers are the
+Environments App and its Native shared manager; task inspectors are unaffected.
+Name/method input, IME handling, preparation logs, retry and binding confirmation
+remain owned by the existing manager/Host.
+
+Real macOS arm64 Electron verification passed with the rebuilt App, Desktop main
+and Host; the unchanged GPUI/Web shell assets were reused from the primary
+checkout. `environment-preparation.mjs` created and installed a real Python 3.12.16
+Control environment, cancelled and accepted binding, read its persisted setting,
+and ran the existing pi-golden calculation with actual solver trials. Evidence:
+`test-results/environment-preparation/result.json`, `calculation.json`;
+isolated data home `/var/folders/wh/2vh0v5g106jbhjxmzgj2zcvc0000gp/T/pero-env-page-drA7XW`.
+
+Inspected `create-light.png`, `create-dark-zh.png` and
+`create-dark-narrow-zh.png`: consistent full-height canvas, distinct input and
+software surfaces, single primary submit action, legible labels, no narrow-window
+horizontal overflow, and visible Select keyboard focus. Live language/theme
+switching retains the entered name; ArrowDown opens Select and Escape restores
+focus. The suite also checks actual creation response and unchanged preparation,
+confirmation, binding and calculation behavior. SDK regression: 23 tests; App
+TypeScript and build passed. Native visual acceptance and signed installers have
+not been rerun, so this evidence is Electron-only.
+
+The real iframe check found and fixed blocked native form submission; see the
+[incident](../issues/2026-11-06-environment-form-submission.md). The older report's
+form-submit evidence predates the shared selector/native form migration and does
+not establish that broken revision. Creation now validates and dispatches through
+explicit pointer/Enter handling without enabling frame navigation.
