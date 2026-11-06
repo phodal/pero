@@ -103,6 +103,7 @@ export const uiStyles = `
 .pero-ui-button:not([data-variant=unstyled]):active:not(:disabled):not([aria-disabled=true]) { background:var(--pero-surface-pressed); }
 .pero-ui-button[data-variant=primary]:active:not(:disabled):not([aria-disabled=true]) { background:var(--pero-action-pressed); }
 .pero-ui-button[data-variant=danger] { color:var(--pero-danger); }
+.pero-ui-button[data-variant=link] { background:transparent; border-color:transparent; color:var(--pero-link); }
 .pero-ui-button[data-variant=ghost] { background:transparent; border-color:transparent; }
 .pero-ui-button[data-variant=ghost]:hover:not(:disabled):not([aria-disabled=true]):not([aria-pressed=true]):not([aria-current=page]) { background:var(--pero-surface-hover); }
 .pero-ui-button:not([data-variant=unstyled])[aria-pressed=true], .pero-ui-button:not([data-variant=unstyled])[aria-current=page] { background:var(--pero-accent-soft); border-color:var(--pero-action); color:var(--pero-accent-text); }
@@ -268,6 +269,8 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-card:not([data-unstyled]) { box-sizing:border-box; padding:var(--pero-card-padding,16px); border:var(--pero-border-width-thin, 1px) solid var(--pero-card-border-color,var(--pero-border-subtle, #ddd)); border-radius:var(--pero-radius-xl, 12px); background:var(--pero-card-background,var(--pero-surface, #fff)); color:var(--pero-text); overflow-wrap:anywhere; }
 .pero-ui-card:not([data-unstyled])[data-variant=soft] { border-color:transparent; }
 .pero-ui-card:not([data-unstyled])[data-variant=soft][data-tone=neutral] { background:var(--pero-surface-muted); }
+.pero-ui-card-header:not([data-unstyled])[data-tone=blue] { background:var(--pero-tint-blue-surface); color:var(--pero-tint-blue-text); }
+.pero-ui-card-header:not([data-unstyled])[data-tone=apricot] { background:var(--pero-tint-apricot-surface); color:var(--pero-tint-apricot-text); }
 .pero-ui-card:not([data-unstyled])[data-tone=blue] { background:var(--pero-tint-blue-surface); color:var(--pero-tint-blue-text); }
 .pero-ui-card:not([data-unstyled])[data-tone=apricot] { background:var(--pero-tint-apricot-surface); color:var(--pero-tint-apricot-text); }
 .pero-ui-card-header:not([data-unstyled]) { display:flex; align-items:center; justify-content:space-between; gap:var(--pero-space-6, 12px); flex-wrap:wrap; min-width:0; }

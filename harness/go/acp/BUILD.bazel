@@ -32,6 +32,7 @@ go_test(
         "permission_test.go",
         "prompt_test.go",
         "stream_test.go",
+        "title_test.go",
         "user_questions_test.go",
     ],
     embed = [":acp"],

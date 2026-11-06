@@ -30,7 +30,7 @@ function tick() {
 }
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const { id, method, params } = JSON.parse(line);
-  if (method === 'initialize') send({ id, result: { protocolVersion: 1, agentCapabilities: {}, agentInfo: { name: 'presentation-fixture', version: '1' } } });
+  if (method === 'initialize') send({ id, result: { protocolVersion: 1, agentCapabilities: { mcpCapabilities: { http: true } }, agentInfo: { name: 'presentation-fixture', version: '1' } } });
   else if (method === 'session/new') send({ id, result: { sessionId: 'presentation', configOptions: [] } });
   else if (method === 'session/prompt') {
     active = id;

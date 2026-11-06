@@ -12,7 +12,7 @@ readline.createInterface({ input: process.stdin }).on('line', async line => {
   appendFileSync(log, `${JSON.stringify({ name, method, params, pid: process.pid })}\n`);
   if (method === 'initialize') {
     if (failure && !existsSync(failure)) { writeFileSync(failure, 'failed'); process.exit(1); }
-    send({ id, result: { protocolVersion: 1, agentCapabilities: { promptCapabilities: { image: true, embeddedContext: true } },
+    send({ id, result: { protocolVersion: 1, agentCapabilities: { promptCapabilities: { image: true, embeddedContext: true }, mcpCapabilities: { http: true } },
       authMethods: [{ id: name === 'external' ? 'opencode-login' : 'login', name: name === 'external' ? 'Login with opencode' : 'Sign in' }], agentInfo: { name, version: '1' } } });
   } else if (method === 'session/new') {
     if (gate && !existsSync(gate)) await new Promise(resolve => {

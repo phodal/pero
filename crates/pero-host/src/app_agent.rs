@@ -153,7 +153,7 @@ impl Manager {
                 let context = ContextReference {
                     id: binding.request_id.clone(),
                     kind: ContextKind::Selection,
-                    label: "Frozen paper research input".into(),
+                    label: format!("{} request", binding.app.as_str()),
                     source: format!("app:{}", binding.app.as_str()),
                     content: ContextContent::Text {
                         text: binding.prompt.clone(),

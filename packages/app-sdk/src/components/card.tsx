@@ -23,13 +23,14 @@ export const Card = forwardRef<HTMLElement, CardProps>(function Card({ asChild, 
 });
 
 export type CardHeaderProps = React.ComponentPropsWithoutRef<'div'> & {
+  tone?: 'neutral' | 'blue' | 'apricot';
   actions?: React.ReactNode;
   unstyled?: boolean;
 };
 
 /** Heading row with an optional actions slot. No title level, region, or busy state. */
-export const CardHeader = forwardRef<HTMLDivElement, CardHeaderProps>(function CardHeader({ actions, unstyled, className, children, ...props }, ref) {
-  return <div {...props} className={['pero-ui-card-header', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined}
+export const CardHeader = forwardRef<HTMLDivElement, CardHeaderProps>(function CardHeader({ actions, tone = 'neutral', unstyled, className, children, ...props }, ref) {
+  return <div {...props} data-tone={tone} className={['pero-ui-card-header', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined}
     ref={node => {
       if (node) ensureUiStyles(node.ownerDocument);
       if (typeof ref === 'function') ref(node);

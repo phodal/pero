@@ -9,6 +9,24 @@ const root = resolve(import.meta.dirname, '../..');
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-app-agent-'));
 const capture = resolve(temp, 'turns.jsonl');
 const registry = resolve(temp, 'agents.json');
+const recoveredSession = 'app:paper-alpha:brief';
+const brief = JSON.stringify({ cards: [{ title: 'Saved brief', sources: [{ sessionId: 'original-session' }] }], tomorrow: '' });
+const journal = [];
+for (const [thread, binding] of [[recoveredSession, { app: 'paper-alpha', requestId: 'brief', agentId: 'fixture', prompt: 'Frozen brief input' }], ['revisited-session', undefined], ['app:paper-alpha:ordinary', undefined]]) {
+  for (const [kind, text, data] of [
+    ['session_created', '', { agent: 'fixture', ...(binding ? { appBinding: binding } : {}) }],
+    ['user_message', 'Frozen App request', {}],
+    ['session_update', '', { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: brief } }],
+    ['turn_finished', 'EndTurn', { stopReason: 'end_turn' }],
+  ]) journal.push({ version: 1, kind, text, thread_id: thread, data });
+}
+for (const [kind, thread, text, data] of [
+  ['user_message', 'revisited-session', 'Continue the earlier work', {}],
+  ['turn_finished', 'revisited-session', 'Cancelled', { stopReason: 'cancelled' }],
+  ['session_closed', 'app:paper-alpha:ordinary', '', {}],
+  ['session_update', recoveredSession, '', { sessionUpdate: 'session_info_update', title: 'Restored title' }],
+]) journal.push({ version: 1, kind, text, thread_id: thread, data });
+await writeFile(resolve(temp, 'history.jsonl'), journal.map(event => JSON.stringify(event)).join('\n') + '\n');
 await writeFile(registry, JSON.stringify([{ id: 'fixture', name: 'Synthetic paper fixture', command: process.execPath,
   args: [resolve(root, 'tests/fixtures/paper-agent.mjs'), `--capture=${capture}`] }]));
 const launches = [];
@@ -56,7 +74,7 @@ try {
     await mkdir(resolve(source, 'dist'), { recursive: true });
     await writeFile(resolve(source, 'dist/index.html'), '<h1>Synthetic fixture</h1>');
     await writeFile(resolve(source, 'app.json'), JSON.stringify({ schemaVersion: 1, name, version: '0.1.0', displayName: name,
-      permissions: { host: ['agent'] }, contributes: { panels: [{ id: 'main', title: name, entry: 'dist/index.html' }] } }));
+      permissions: { host: ['agent', 'insights'] }, contributes: { panels: [{ id: 'main', title: name, entry: 'dist/index.html' }] } }));
     assert.equal((await host.request('install', { path: source })).ok, true);
     assert.equal((await host.request('enable', { name })).ok, true);
   }
@@ -75,6 +93,16 @@ try {
   await until(() => call('paper-alpha', { operation: 'events', sessionId: first.value.sessionId, after: 0 }), value => value.value?.status === 'cancelled');
   await host.close();
   host = await launch();
+  const restoredCatalog = await host.request('insights', { name: 'paper-alpha' });
+  assert.equal(restoredCatalog.ok, true, restoredCatalog.error);
+  assert.equal(restoredCatalog.value.sessions.find(session => session.threadId === recoveredSession).app, 'paper-alpha');
+  assert.equal(restoredCatalog.value.sessions.find(session => session.threadId === 'app:paper-alpha:ordinary').app, undefined);
+  const ordered = restoredCatalog.value.sessions.map(session => session.threadId);
+  assert.ok(ordered.indexOf('revisited-session') > ordered.indexOf('app:paper-alpha:ordinary'), 'Continuing older work makes it more recent than a later-created session');
+  assert.ok(ordered.indexOf(recoveredSession) < ordered.indexOf('app:paper-alpha:ordinary'), 'Title replay and session close do not change work activity order');
+  const restoredBrief = await call('paper-alpha', { operation: 'events', sessionId: recoveredSession, after: 0 });
+  assert.equal(restoredBrief.value.status, 'completed');
+  assert.equal(restoredBrief.value.text, brief);
   assert.deepEqual(await call('paper-alpha', start), first);
   assert.equal((await call('paper-alpha', { operation: 'events', sessionId: first.value.sessionId, after: 0 })).value.status, 'cancelled');
   assert.equal(await turns(), 1);

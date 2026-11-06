@@ -25,6 +25,7 @@
   "file-code": {},
   "terminal": {},
   "arrow-right": {},
+  "arrow-up": { "kit": "ArrowUp" },
   "player-pause": { "aliases": ["pause"] },
   "external-link": {},
   "file": { "source": "file-text", "aliases": ["file-text"] },

@@ -6,7 +6,7 @@ export function recapLatestTurn(session: RecapSession): RecapTurn | undefined;
 export function workRecapPrompt(recap?: WorkRecap, memory?: MemoryContext, locale?: 'zh' | 'en'): string;
 export function cardKind(card: ResultCard): 'needs_you' | 'risk' | 'change' | 'done' | 'watch' | 'filtered';
 export function pulseFeed(cards: ResultCard[], tab?: string): ResultCard[];
-export function projectBrief(brief: ResultBrief): { needCards: ResultCard[]; cards: ResultCard[] };
+export function projectBrief(brief: ResultBrief): { needCards: ResultCard[]; cards: ResultCard[]; topics: { label: string; type: 'engineering' | 'research' | 'general'; cards: ResultCard[] }[] };
 export const pulseBriefPrompt: string;
 export function briefFromReply(text: string): ResultBrief | null;
 export function briefResultPrompt(recap: WorkRecap | null, repositories?: unknown[], conflicts?: unknown[], locale?: 'zh' | 'en'): string;

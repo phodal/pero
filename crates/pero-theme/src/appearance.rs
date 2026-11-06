@@ -36,6 +36,33 @@ impl WorkbenchStyle {
             .h(px(typography.control_height()))
             .text_size(px(typography.ui))
     }
+
+    /// Composer settings are secondary to the editable task text.
+    pub fn composer_control(button: Button, cx: &App) -> Button {
+        let appearance = UiAppearance::global(cx);
+        button
+            .small()
+            .h(px(appearance.typography.control_height().max(crate::GHOST_ICON_BUTTON)))
+            .rounded(px(crate::RADIUS_BUTTON))
+            .text_size(appearance.text(TextRole::Caption))
+            .font_weight(FontWeight::NORMAL)
+    }
+
+    /// One quiet boundary for a compound editor; Kit retains input semantics.
+    pub fn composer_field(compact: bool, focused: bool, cx: &App) -> Stateful<Div> {
+        let p = &UiAppearance::global(cx).palette;
+        div()
+            .id("composer-field")
+            .min_w_0()
+            .border_1()
+            .border_color(if focused { p.focus } else { p.border })
+            .rounded(px(crate::RADIUS_PANEL))
+            .bg(p.surface)
+            .text_color(p.text)
+            .font_weight(FontWeight::NORMAL)
+            .px(px(if compact { crate::SPACE_8 } else { crate::SPACE_12 }))
+            .py(px(if compact { crate::SPACE_4 } else { crate::SPACE_12 }))
+    }
 }
 
 #[derive(Clone, Deserialize)]

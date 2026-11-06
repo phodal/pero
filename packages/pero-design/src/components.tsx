@@ -14,10 +14,10 @@ export function SidebarRow({ label, count, lead, level = 'nav', selected, classN
 }
 
 /** Column or page title, label subtitle, actions on the end. */
-export function LibraryHeader({ title, subtitle, actions, navigation, className = '', ...props }: Omit<React.HTMLAttributes<HTMLElement>, 'title'> & {
-  title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode; navigation?: React.ReactNode;
+export function LibraryHeader({ title, subtitle, actions, navigation, density = 'default', className = '', ...props }: Omit<React.HTMLAttributes<HTMLElement>, 'title'> & {
+  title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode; navigation?: React.ReactNode; density?: 'default' | 'compact';
 }) {
-  return <header {...props} className={`pero-library-header ${className}`}>
+  return <header {...props} data-density={density} className={`pero-library-header ${className}`}>
     {navigation}
     <div className="pero-library-heading"><h1>{title}</h1>{subtitle != null && subtitle !== '' && <p>{subtitle}</p>}</div>
     {actions && <div className="pero-library-actions">{actions}</div>}

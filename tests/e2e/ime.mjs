@@ -1,6 +1,7 @@
 // Drive the compiled Web backend, including the keydown before compositionstart.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { clickNewChat } from './sidebar-controls.mjs';
 import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -21,7 +22,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
-  await page.mouse.click(100, 28);
+  await clickNewChat(page);
   await expect.poll(async () => (await state()).chats.length).toBe(1);
   await expect.poll(async () => (await state()).composerFocused).toBe(true);
 

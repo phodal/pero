@@ -118,13 +118,14 @@ impl ChatPanel {
                 let thread = chat.id.clone();
                 let setting = option.clone();
                 let workbench = cx.entity().downgrade();
-                W::chat_control(Button::new(("session-setting", index)).ghost(), cx)
+                W::composer_control(Button::new(("session-setting", index)).ghost(), cx)
                     .label(label)
                     .when(category == "thought_level", |button| {
-                        button.icon(Icon::default().path("icons/lightbulb.svg"))
+                        button.relative().child(self.composer_bounds.effort.probe())
+                            .icon(Icon::default().path("icons/lightbulb.svg"))
                     })
                     .tooltip(option.name.clone())
-                    .dropdown_caret(false)
+                    .dropdown_caret(true)
                     .max_w(px(160.))
                     .loading(
                         chat.pending_setting
@@ -186,7 +187,8 @@ impl ChatPanel {
         let thread = chat.id.clone();
         let workbench = cx.entity().downgrade();
         Some(
-            W::chat_control(Button::new("session-permissions").ghost(), cx)
+            W::composer_control(Button::new("session-permissions").ghost(), cx)
+                .relative().child(self.composer_bounds.permissions.probe())
                 .icon(Icon::default().path("icons/shield.svg"))
                 .when_some(mode_label, |button, label| button.label(label))
                 .accessibility_label(tooltip.clone())

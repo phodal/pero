@@ -124,6 +124,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
                 "{workspace}".into(),
                 "--enable-agent-instructions".into(),
                 "--enable-todos".into(),
+                "--session-titles".into(),
             ],
             env: BTreeMap::new(),
             model: None,

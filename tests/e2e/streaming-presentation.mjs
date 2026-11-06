@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { setAppearance } from './sidebar-controls.mjs';
+import { clickNewChat, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -47,9 +47,10 @@ try {
   await launch();
   await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, workspace);
   await page.evaluate(() => window.pero.chooseWorkspace());
-  await page.mouse.click(100, 28);
+  await clickNewChat(page);
   await expect.poll(async () => (await chat())?.state, { timeout: 60000 }).toBe('idle');
-  await page.mouse.click(800, await page.evaluate(() => innerHeight - 70));
+  const input = (await state()).composerBounds.input;
+  await page.mouse.click(input.x + input.width / 2, input.y + input.height / 2);
   await page.keyboard.type(real ? 'Use the Read tool to read notes.txt in this workspace. Reply with exactly its full contents. Do not write files, execute commands, or use network tools.' : 'hi');
   await page.keyboard.press('Enter');
   if (real) {

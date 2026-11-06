@@ -50,6 +50,7 @@
   background: var(--pero-material-chrome);
   color: var(--pero-text);
 }
+.pero-library-header[data-density=compact] { min-height: 0; padding-block: var(--pero-spacing-2); }
 .pero-library-heading { min-width: 0; flex: 1; }
 .pero-library-heading h1 {
   margin: 0;
