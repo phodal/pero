@@ -187,3 +187,13 @@ an HTML design by a sub-agent before integration. The HTML proposal has
 been integrated using public radio cards and a responsive form/software layout.
 Actual Electron creation, dependency installation, keyboard/locale/theme behavior,
 binding and Control computation passed; see the updated preparation fitness report.
+
+## 2026-11-06 Design review correction
+
+The user rejected the claim that the integrated HTML satisfied DESIGN. The
+creation form now removes promotional/repeated content and outer frames, uses a
+single-column task order, and keeps radio internals in the shared control.
+Create-refusal messaging stays local and Cancel/reopen retains the draft. The
+installation log uses the public inline Disclosure. Migration, source revision,
+actual screenshots and explicit unverified scope are recorded against each
+review criterion in the [preparation report](../fitness/local-environment-preparation.md#2026-11-06-review-against-design-and-design-review).

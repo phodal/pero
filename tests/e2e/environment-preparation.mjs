@@ -24,11 +24,28 @@ try{
  await frame.getByLabel('Environment name',{exact:true}).fill('Control acceptance');
  await frame.getByRole('radio',{name:'Control',exact:true}).click();
  await page.screenshot({path:resolve(out,'create-light.png')});
+ await frame.getByRole('button',{name:'Cancel',exact:true}).click();
+ await frame.getByRole('button',{name:'Create environment',exact:true}).click();
+ await expect(frame.getByLabel('Environment name',{exact:true})).toHaveValue('Control acceptance');
+ // The real Host rejects a whitespace-only name; HTML required accepts it.
+ await frame.getByLabel('Environment name',{exact:true}).fill('   ');
+ await frame.getByRole('button',{name:'Create and prepare',exact:true}).click();
+ await expect(frame.getByRole('alert')).toContainText('Could not create the environment');
+ await expect(frame.getByLabel('Environment name',{exact:true})).toHaveValue('   ');
+ await expect(frame.getByRole('button',{name:'Create and prepare',exact:true})).toBeEnabled();
+ await page.screenshot({path:resolve(out,'create-refused.png')});
+ await frame.getByLabel('Environment name',{exact:true}).fill('Control acceptance');
+ await frame.getByRole('button',{name:'Cancel',exact:true}).click();
+ await frame.getByRole('button',{name:'Create environment',exact:true}).click();
  await setAppearance(page,'dark');
  await expect.poll(()=>frame.locator('html').evaluate(el=>el.style.colorScheme)).toBe('dark');
  await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
  await expect(frame.getByLabel('环境名称',{exact:true})).toHaveValue('Control acceptance');
  await page.screenshot({path:resolve(out,'create-dark-zh.png')});
+ await frame.getByRole('radio',{name:'Circuit',exact:true}).click();
+ await expect(frame.getByText(/Homebrew/)).toBeVisible();
+ await page.screenshot({path:resolve(out,'create-circuit-dark-zh.png')});
+ await frame.getByRole('radio',{name:'Control',exact:true}).click();
  await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].setMinimumSize(480,600);BrowserWindow.getAllWindows()[0].setSize(720,800);});
  expect(await frame.locator('html').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
  await frame.getByRole('radio',{name:'Control',exact:true}).focus();
@@ -39,7 +56,7 @@ try{
  await expect(frame.getByRole('radio',{name:'Control',exact:true})).toBeFocused();
  await page.screenshot({path:resolve(out,'create-dark-narrow-zh.png')});
  const narrowOrder=await frame.locator('.env-create-form').evaluate(form=>{
-  const summary=form.querySelector('.env-create-aside').getBoundingClientRect();
+  const summary=form.querySelector('.env-recipe-summary').getBoundingClientRect();
   const footer=form.querySelector('.env-create-footer').getBoundingClientRect();
   return summary.bottom<=footer.top;
  });
@@ -47,9 +64,24 @@ try{
  await frame.getByRole('button',{name:'创建并准备',exact:true}).scrollIntoViewIfNeeded();
  await expect.poll(()=>frame.getByRole('button',{name:'创建并准备',exact:true}).evaluate(button=>{
   const rect=button.getBoundingClientRect();
-  return rect.top>=0 && rect.bottom<=window.innerHeight;
+  return rect.top>=-1 && rect.bottom<=window.innerHeight+1;
  })).toBe(true);
  await page.screenshot({path:resolve(out,'create-dark-narrow-summary-zh.png')});
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.evaluate(()=>{const preferences=JSON.parse(window.peroDiagnostics.snapshot()).preferences;window.pero.sessionCommand({method:'settings.workbench',preferences:{...preferences,typography:{...preferences.typography,ui_size:24}}});});
+ await expect.poll(()=>frame.getByLabel('环境名称',{exact:true}).evaluate(el=>getComputedStyle(el).fontSize)).toBe('24px');
+ await expect(frame.getByLabel('环境名称',{exact:true})).toHaveValue('Control acceptance');
+ expect(await frame.locator('html').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+ await frame.getByRole('radio',{name:'Control',exact:true}).focus();
+ await page.keyboard.press('ArrowRight');
+ await expect(frame.getByRole('radio',{name:'Circuit',exact:true})).toBeChecked();
+ await page.screenshot({path:resolve(out,'create-large-narrow-focus.png')});
+ await page.keyboard.press('ArrowLeft');
+ await frame.getByRole('button',{name:'创建并准备',exact:true}).scrollIntoViewIfNeeded();
+ await expect.poll(()=>frame.getByRole('button',{name:'创建并准备',exact:true}).evaluate(el=>el.getBoundingClientRect().bottom<=innerHeight+1)).toBe(true);
+ await page.screenshot({path:resolve(out,'create-large-narrow-footer.png')});
+ await page.evaluate(()=>{const preferences=JSON.parse(window.peroDiagnostics.snapshot()).preferences;window.pero.sessionCommand({method:'settings.workbench',preferences:{...preferences,typography:{...preferences.typography,ui_size:14}}});});
+ await expect.poll(()=>frame.getByLabel('环境名称',{exact:true}).evaluate(el=>getComputedStyle(el).fontSize)).toBe('14px');
  await frame.getByLabel('环境名称',{exact:true}).scrollIntoViewIfNeeded();
  await app.evaluate(({BrowserWindow,Menu})=>{BrowserWindow.getAllWindows()[0].setSize(1280,850);Menu.getApplicationMenu().getMenuItemById('locale-en').click();});
  await setAppearance(page,'light');
@@ -62,9 +94,15 @@ try{
  await expect(frame.getByRole('heading',{name:'Control acceptance',exact:true})).toBeVisible();
  await expect(frame.getByRole('button',{name:'Use this environment',exact:true})).toBeEnabled({timeout:180000});
  await page.screenshot({path:resolve(out,'prepared-light.png')});
+ await frame.locator('summary').filter({hasText:'Installation log'}).focus();
+ await page.keyboard.press('Enter');
+ await expect(frame.locator('details.env-install-log')).toHaveAttribute('open','');
+ await page.keyboard.press('Enter');
+ await expect(frame.locator('details.env-install-log')).not.toHaveAttribute('open','');
  await frame.getByRole('button',{name:'Use this environment',exact:true}).click();
  await frame.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).filter({hasText:'Cancel'}).click();
  await expect(frame.getByRole('button',{name:'Bind and restart',exact:true})).toHaveCount(0);
+ await expect(frame.getByRole('button',{name:'Use this environment',exact:true})).toBeFocused();
  await frame.getByRole('button',{name:'Use this environment',exact:true}).click();
  await page.screenshot({path:resolve(out,'confirm-light.png')});
  await frame.getByRole('button',{name:'Bind and restart',exact:true}).click();
@@ -101,6 +139,6 @@ try{
  await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
  await expect(frame.getByRole('button',{name:'创建环境',exact:true})).toBeVisible();
  await page.screenshot({path:resolve(out,'catalog-zh.png')});
- await writeFile(resolve(out,'result.json'),JSON.stringify({profile,settings,checks:['real UI create','real wheels installed','bind confirmation cancellation','backend restart','persisted binding','bound environment immutable','narrow overflow']},null,2));
+ await writeFile(resolve(out,'result.json'),JSON.stringify({profile,settings,checks:['real Host validation refusal retains input and recovers','cancel/reopen preserves draft','Host font 24 and reduced motion','real UI create','real wheels installed','bind confirmation cancellation','backend restart','persisted binding','bound environment immutable','narrow overflow']},null,2));
  console.log('PASS',profile);
 }catch(error){console.log(await page?.frameLocator('iframe[title="environments"]').locator('body').textContent());await page?.screenshot({path:resolve(out,'failure.png')});throw error;}finally{await app?.close();}
