@@ -121,6 +121,9 @@ pub(crate) struct Workbench {
     pub events: Vec<HostEvent>,
     pub chat: Entity<ChatPanel>,
     pub session_search: Entity<InputState>,
+    pub session_search_open: bool,
+    pub session_menu_open: Option<String>,
+    pub pending_session_workspace: Option<String>,
     pub spotlight: Option<Entity<crate::spotlight::SpotlightList>>,
     pub spotlight_query: String,
     pub workspace: String,
@@ -353,6 +356,9 @@ impl Workbench {
         );
         Self {
             session_search,
+            session_search_open: false,
+            session_menu_open: None,
+            pending_session_workspace: None,
             terminal: Default::default(),
             view_bounds: Default::default(),
             workspace_focus,
@@ -575,6 +581,9 @@ impl Workbench {
             return;
         }
         if event.kind == "automation_open" { self.open_automations(window, cx); return; }
+        if matches!(event.kind.as_str(), "apps_catalog" | "apps_opened" | "apps_error") {
+            self.chat.update(cx, |chat, cx| chat.resume_app_preparation(cx));
+        }
         let event_kind = event.kind.clone();
         let feature_handled = self.receive_terminal(&event,cx) || self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
@@ -620,6 +629,7 @@ impl Workbench {
                     }
                 }
             }
+            self.receive_session_workspace(&event, window, cx);
             if !handled || matches!(event.kind.as_str(), "ready" | "disconnected" | "settings") {
                 match event.kind.as_str() {
                     "workbench_settings" => {
