@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Field, InfoTip, Input, Select } from './ui';
+import { Button, Checkbox, Field, InfoTip, Input, Select } from './ui';
 import type { ConnectionView, ScopeGroup } from './connector-types.ts';
 import {
   BLOCK_REASON_LABELS, BLOCK_REASON_LABELS_EN, EFFECT_LABELS, EFFECT_LABELS_EN, toolSummary,
@@ -46,7 +46,7 @@ export function ConnectorToolAccess({ view, scopeEffects, selection, onToggle, d
         if (!rows.length) return <code key={tool} className="point-connector-tool">{tool}</code>;
         const forced = !!reason && reason !== 'not-host-allowed';
         return <label key={tool} className="point-connector-tool" data-checked={selection.has(tool)}>
-          <input type="checkbox" checked={selection.has(tool)} disabled={disabled} onChange={e => onToggle(tool, e.target.checked)} />
+          <Checkbox checked={selection.has(tool)} disabled={disabled} onCheckedChange={checked => onToggle(tool, checked === true)} />
           <code>{tool}</code>
           {forced && <span className="point-connectors-reason">{reasonLabels[reason!] ?? reason}</span>}
         </label>;
@@ -78,7 +78,7 @@ export function ConnectorCredentials({ references, reference, onReference, value
         : <code title={copy('引用名', 'Reference name')}>{reference}</code>}
       <Input type="password" autoComplete="new-password" aria-label={copy('密钥值', 'Secret value')} value={value} disabled={busy}
         placeholder={placeholder ? copy(...placeholder) : copy('输入新值', 'Enter a new value')} onChange={e => onValue(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && value && !busy) { e.preventDefault(); onSave(); } }} />
+        onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229 && value && !busy) { e.preventDefault(); onSave(); } }} />
       <Button type="button" disabled={busy || !reference || !value} onClick={onSave}>{copy('保存', 'Save')}</Button>
       <Button type="button" variant="danger" disabled={busy || !reference} onClick={onDelete}>{copy('删除', 'Delete')}</Button>
     </div>

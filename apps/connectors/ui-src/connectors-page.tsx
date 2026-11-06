@@ -1,12 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './connectors-page.css';
 import { validateResearchSettings } from './connector-definition.mjs';
 import { matchesProvider } from './shared/catalog-search.mjs';
 import { useConnectorDetail } from './use-connector-detail.ts';
 import { useInstallRecords } from './use-install-records.ts';
+import { useConnectorsSnapshot } from './use-connectors-snapshot';
 import { ConnectorDetailDialog, PROVIDER_NAMES_EN, StatusDot } from './connector-detail-dialog.tsx';
 import { JsonEditor, jsonProblem } from './connector-editor.tsx';
-import type { DirectoryEntry, ConnectionView, RawEntry, Reply, ImportDraft } from './connector-types.ts';
+import type { DirectoryEntry, ConnectionView, Reply, ImportDraft } from './connector-types.ts';
 import { PROVIDER_SUMMARIES_EN, PROVIDER_SUMMARIES, AUTH_MODE_TEXT_EN, GuideArt, ProviderIcon, IMPORT_EXAMPLES } from './connectors-catalog.tsx';
 import {
   ACTION_LABELS, ACTION_LABELS_EN, AUTH_MODE_TEXT, BADGE_LABELS, BADGE_LABELS_EN,
@@ -63,37 +64,6 @@ function validateDraft(connectorId: string, definition: any, locale = 'zh'): { f
   return null;
 }
 
-function useConnectorsSnapshot(locale: 'zh' | 'en') {
-  const [directory, setDirectory] = useState<DirectoryEntry[]>([]);
-  const [connections, setConnections] = useState<ConnectionView[]>([]);
-  const [entries, setEntries] = useState<RawEntry[]>([]);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const timer = useRef<number | null>(null);
-  const load = useCallback(async () => {
-    try {
-      const snap = await connectorsRequest({ operation: 'snapshot' });
-      if (!snap.ok) {
-        if (snap.code === 'MCP_CONTROL_BUSY') { if (timer.current) window.clearTimeout(timer.current); timer.current = window.setTimeout(load, 1000); return; }
-        throw new Error(errorText(snap.code, locale));
-      }
-      setDirectory(snap.directory); setConnections(snap.connections);
-      setError(''); setLoading(false);
-      const list = await connectorsRequest({ operation: 'list' }).catch(() => ({ ok: false as const }));
-      if (list.ok) setEntries(list.result);
-      const waiting = (snap.connections as ConnectionView[]).find(c => c.attempt);
-      if (timer.current) window.clearTimeout(timer.current);
-      if (waiting) timer.current = window.setTimeout(load, waiting.attempt!.pollIntervalMs || 1500);
-      else if ((snap.connections as ConnectionView[]).some(c => ['connecting', 'connected'].includes(c.state) || c.busy)) timer.current = window.setTimeout(load, 2000);
-    } catch (e) {
-      setError(errorMessage(e));
-      setLoading(false);
-    }
-  }, [locale]);
-  useEffect(() => { void load(); return () => { if (timer.current) window.clearTimeout(timer.current); }; }, [load]);
-  return { directory, connections, entries, error, loading, reload: load };
-}
-
 type CapabilityGuide = (typeof CAPABILITY_GUIDES)[number];
 
 /**
@@ -105,7 +75,7 @@ type CapabilityGuide = (typeof CAPABILITY_GUIDES)[number];
 export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openConnection, settingsOnly = false, initialMode = 'catalog', onModeChange, locale = 'zh' }: { locale?: 'zh' | 'en'; initialMode?: 'catalog' | 'manage'; onOpenUrl?: PointBrowserOpener; onModeChange?: (mode: 'catalog' | 'manage') => void; onTry?: (prompt: string) => void | Promise<void>; openProvider?: string; openConnection?: string; settingsOnly?: boolean; onClosed?: () => void } = {}) {
   const categoryLabels = connectorShelfLabels(locale);
   const copy = (zh: string, en: string) => locale === 'zh' ? zh : en;
-  const { directory, connections, entries, error, loading, reload } = useConnectorsSnapshot(locale);
+  const { directory, connections, entries, error, loading, refreshing, updatedAt, reload } = useConnectorsSnapshot(locale);
   const dialogOnly = !!openProvider;
   const openedFor = useRef('');
   const [mode, updateMode] = useState<'catalog' | 'manage'>(initialMode);
@@ -326,18 +296,21 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
   };
 
   return <section className={dialogOnly ? 'point-connectors-dialog-only' : 'point-page point-connectors-page'} aria-label={copy('连接器', 'Connectors')}>
-    {error && <div role="alert"><p className="point-error">{error}</p><Button onClick={() => void reload()} disabled={loading}>{copy('重新加载', 'Reload')}</Button></div>}
+    {error && <div role="alert"><p className="point-error">{error}</p><Button onClick={() => void reload()} disabled={refreshing}>{copy('重新加载', 'Reload')}</Button></div>}
     {loading && !directory.length && <p className="point-page-note" role="status">{copy('正在加载…', 'Loading…')}</p>}
     {!dialogOnly && <>
 
     <Toolbar className="point-page-toolbar">
-      <div className="point-page-tabs" role="group" aria-label={copy('视图', 'View')}>
-        <Button aria-pressed={mode === 'manage'} onClick={() => { setMode(mode === 'manage' ? 'catalog' : 'manage'); setSearch(''); }}>{copy('已安装连接', 'Installed connections')}{connections.length ? ` ${connections.length}` : ''}</Button>
-      </div>
+      <ToggleGroup type="single" value={mode} aria-label={copy('视图', 'View')} onValueChange={next => { if (next === 'catalog' || next === 'manage') { setMode(next); setSearch(''); } }}>
+        <ToggleGroupItem value="catalog">{copy('服务目录', 'Service catalog')}</ToggleGroupItem>
+        <ToggleGroupItem value="manage">{copy('已安装连接', 'Installed connections')}{connections.length ? ` ${connections.length}` : ''}</ToggleGroupItem>
+      </ToggleGroup>
       <Input type="search" placeholder={mode === 'manage' ? copy('搜索已安装连接', 'Search installed connections') : copy('搜索服务', 'Search services')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
-      <div className="point-page-actions"><Button variant="primary" onClick={openImport} disabled={!!error || loading}>{copy('添加自定义 MCP', 'Add custom MCP')}</Button></div>
+      <div className="point-page-actions"><Button disabled={refreshing} onClick={() => void reload()}>{copy('刷新', 'Refresh')}</Button><Button variant="primary" onClick={openImport} disabled={!!error || loading}>{copy('添加自定义 MCP', 'Add custom MCP')}</Button></div>
     </Toolbar>
 
+    {refreshing && !loading && <p className="point-page-note" role="status">{copy('正在刷新，保留上次连接状态…', 'Refreshing; previous connection states remain visible…')}</p>}
+    {updatedAt && !refreshing && <p className="point-page-note">{copy('更新于', 'Updated at')} {updatedAt}{error ? copy(' · 当前显示上次结果', ' · Showing previous results') : ''}</p>}
     {notice && !detailOpen && !importOpen && <p className={noticeError ? 'point-error' : 'point-connectors-notice'} role={noticeError ? 'alert' : 'status'}>{notice}</p>}
 
     {mode === 'catalog' && <div className="point-connectors-catalog">
@@ -377,8 +350,8 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
                   : entry.listed ? <Button className="point-connectors-tile-action" title={prerequisite} onClick={() => openDocs(entry.providerId)}>{copy('查看文档', 'View docs')}</Button>
                   : <Button className="point-connectors-tile-action" disabled={!!entry.sealed} title={entry.sealed ? copy('内置服务由应用提供，不能新建实例', 'Built-in services are provided by the app') : copy('安装这个服务', 'Install this service')} onClick={() => openDetail(null, entry.providerId)}>{entry.sealed ? copy('内置', 'Built-in') : record && record !== 'running' ? copy('添加', 'Add') : copy('安装', 'Install')}</Button>}
               </div>
-              {/* Preparation copy is long; the detail page shows it in full, the tile only hints. */}
-              <p className="point-connectors-summary" title={prerequisite ? copy(`准备：${prerequisite}`, `Preparation: ${prerequisite}`) : summary}>{summary}</p>
+              <p className="point-connectors-summary" >{summary}</p>
+              {prerequisite && <p className="point-connectors-prerequisite">{copy('使用前需要：', 'Requires: ')}{prerequisite}</p>}
             </article>;
           })}
         </div>

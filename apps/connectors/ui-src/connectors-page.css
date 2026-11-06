@@ -6,8 +6,8 @@
 .point-connectors-page button.point-connectors-guide:not(.pero-ui-button):not(.pero-ui-toggle-item):not(.pero-ui-dropdown-trigger):focus-visible{outline: 2px solid var(--pero-focus);outline-offset: var(--pero-focus-offset, 1px)}
 .point-connectors-guide-copy{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;flex:1}
 .point-connectors-guide-badge{padding-right:32px;line-height:1.3;font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}
-.point-connectors-guide-title{padding-right:32px;font-size:14px;font-weight:var(--pero-font-weight-semibold, 600);line-height:var(--pero-line-height-tight, 1.3)}
-.point-connectors-guide-summary{font-size:12px;line-height:1.4;color:var(--pero-text-secondary);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.point-connectors-guide-title{padding-right:32px;font-size:var(--pero-font-ui);font-weight:var(--pero-font-weight-semibold, 600);line-height:var(--pero-line-height-tight, 1.3)}
+.point-connectors-guide-summary{font-size:var(--pero-font-caption);line-height:1.4;color:var(--pero-text-secondary);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .point-connectors-guide-art{position:absolute;top:10px;right:10px;box-sizing:border-box;flex:none;width:28px;border-radius:var(--pero-radius-lg, 10px);background:var(--pero-surface);box-shadow:inset 0 0 0 1px var(--pero-border-subtle);display:flex;flex-direction:column;gap:var(--pero-space-2, 4px);padding:5px;align-self:center}
 .point-connectors-guide-art-bar{height:4px;width:46%;border-radius:99px;background:color-mix(in srgb,var(--pero-text-secondary) 45%,transparent)}
 .point-connectors-guide-art-line{height:3px;border-radius:99px;background:color-mix(in srgb,var(--pero-text-secondary) 22%,transparent)}
@@ -66,7 +66,7 @@
 .point-connectors-advanced summary{cursor:pointer;font-size:var(--pero-font-size-md, 13px);font-weight:550}
 .point-connectors-actions{display:flex;align-items:center;gap:var(--pero-space-5, 10px);flex-wrap:wrap}
 .point-connectors-card{border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-xl, 12px);padding:var(--pero-space-8, 16px);margin-bottom:var(--pero-space-7, 14px)}
-.point-connector-tool code,code.point-connector-tool{font:12px var(--dsw-font-mono);background:var(--pero-hover);border-radius:var(--pero-radius-sm, 6px);padding:var(--pero-space-1, 2px) var(--pero-space-3, 6px)}
+.point-connector-tool code,code.point-connector-tool{font:var(--pero-font-caption) var(--dsw-font-mono);background:var(--pero-hover);border-radius:var(--pero-radius-sm, 6px);padding:var(--pero-space-1, 2px) var(--pero-space-3, 6px)}
 .point-connectors-reason{color:var(--pero-warning);font-size:var(--pero-font-size-xs, 11px)}
 @media(max-width:760px){.point-connectors-grid{grid-template-columns:1fr}}
 .point-connectors-import-preview{border-top:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);padding-top:var(--pero-space-5, 10px);font-size:var(--pero-font-size-sm-plus, 12.5px);display:flex;flex-direction:column;gap:var(--pero-space-2, 4px)}
@@ -74,14 +74,14 @@
 .point-connectors-import-preview .point-connectors-row-meta{font-family:var(--dsw-font-mono);word-break:break-all}
 .point-connectors-import-preview ul{margin:var(--pero-space-2, 4px) 0 0;padding-left:var(--pero-space-9, 18px);color:var(--pero-warning);line-height:var(--pero-line-height-relaxed, 1.6)}
 /* JSON editor: gutter and textarea share font metrics so line numbers stay aligned while scrolling. */
-.point-connectors-json{--json-line:18px;border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-md, 8px);overflow:hidden;background:var(--pero-surface)}
+.point-connectors-json{--json-line:calc(var(--pero-font-ui) * 1.5);border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-md, 8px);overflow:hidden;background:var(--pero-surface)}
 .point-connectors-json:focus-within{outline: 2px solid var(--pero-focus);outline-offset: var(--pero-focus-offset, 1px)}
 .point-connectors-json[data-invalid=true]{border-color:var(--pero-danger)}
 .point-connectors-json-body{display:flex;height:calc(var(--rows) * var(--json-line) + 20px)}
-.point-connectors-json-gutter{flex:none;min-width:38px;padding:var(--pero-space-5, 10px) var(--pero-space-4, 8px) var(--pero-space-5, 10px) 0;overflow:hidden;text-align:right;font:12px/var(--json-line) var(--dsw-font-mono);color:var(--pero-text-secondary);background:var(--pero-hover);user-select:none}
+.point-connectors-json-gutter{flex:none;min-width:38px;padding:var(--pero-space-5, 10px) var(--pero-space-4, 8px) var(--pero-space-5, 10px) 0;overflow:hidden;text-align:right;font:var(--pero-font-ui)/var(--json-line) var(--dsw-font-mono);color:var(--pero-text-secondary);background:var(--pero-hover);user-select:none}
 .point-connectors-json-gutter span{display:block;padding-left:var(--pero-space-4, 8px)}
 .point-connectors-json-gutter span[data-error=true]{color:var(--pero-danger);font-weight:var(--pero-font-weight-bold, 700)}
-.point-connectors-json textarea{flex:1;min-width:0;margin:0;border:0;outline:0;resize:none;padding:var(--pero-space-5, 10px) var(--pero-space-6, 12px);font:12px/var(--json-line) var(--dsw-font-mono);color:inherit;background:transparent;white-space:pre;overflow:auto;tab-size:2}
+.point-connectors-json textarea{flex:1;min-width:0;margin:0;border:0;outline:0;resize:none;padding:var(--pero-space-5, 10px) var(--pero-space-6, 12px);font:var(--pero-font-ui)/var(--json-line) var(--dsw-font-mono);color:inherit;background:transparent;white-space:pre;overflow:auto;tab-size:2}
 .point-connectors-json-actions{display:flex;align-items:center;gap:var(--pero-space-3, 6px)}
 .point-connectors-json-status{display:flex;align-items:center;justify-content:space-between;gap:var(--pero-space-4, 8px);padding:var(--pero-space-2, 4px) var(--pero-space-3, 6px) var(--pero-space-2, 4px) var(--pero-space-6, 12px);border-top:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);font-size:var(--pero-font-size-xs-plus, 11.5px)}
 .point-connectors-json-status span[data-state=ok]{color:var(--pero-success)}
@@ -95,15 +95,15 @@
 .point-connectors-discovery li[data-ok=false] .point-connectors-discovery-mark{color:var(--pero-warning)}
 .point-connectors-discovery-label{font-weight:550}
 .point-connectors-discovery-value{min-width:0;overflow-wrap:anywhere;color:var(--pero-text-secondary)}
-.point-connectors-discovery code{font:12px var(--dsw-font-mono);background:var(--pero-hover);border-radius:var(--pero-radius-sm, 6px);padding:1px 5px}
-.point-connectors-discovery select{max-width:100%;font:12px var(--dsw-font-mono);color:inherit;background:var(--pero-surface);border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-sm, 6px);padding:3px var(--pero-space-3, 6px)}
+.point-connectors-discovery code{font:var(--pero-font-caption) var(--dsw-font-mono);background:var(--pero-hover);border-radius:var(--pero-radius-sm, 6px);padding:1px 5px}
+.point-connectors-discovery select{max-width:100%;font:var(--pero-font-caption) var(--dsw-font-mono);color:inherit;background:var(--pero-surface);border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-sm, 6px);padding:3px var(--pero-space-3, 6px)}
 .pero-ui-dialog-foot .point-connectors-hint{margin:0}
 .point-connectors-page button.point-connectors-link,.point-connectors-page button.point-connectors-link:hover:not(:disabled){border:0;background:none;padding:0;min-height:auto;border-radius:0}
 .point-connectors-page button.point-connectors-inline-action{min-height:24px;padding:1px var(--pero-space-5, 10px);margin:0 var(--pero-space-3, 6px);font-size:var(--pero-font-size-sm, 12px);border-radius:var(--pero-radius-sm, 6px)}
-.point-connectors-discovery-note{display:block;margin-top:var(--pero-space-2, 4px);font:11.5px var(--dsw-font-mono)}
+.point-connectors-discovery-note{display:block;margin-top:var(--pero-space-2, 4px);font:var(--pero-font-caption) var(--dsw-font-mono)}
 .point-connectors-install-details{margin-top:var(--pero-space-3, 6px);font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}
 .point-connectors-install-details summary{cursor:pointer}
-.point-connectors-install-log{margin:var(--pero-space-3, 6px) 0 0;align-self:stretch;max-height:160px;overflow:auto;font:11px/1.45 var(--dsw-font-mono);white-space:pre-wrap;color:var(--pero-text-secondary)}
+.point-connectors-install-log{margin:var(--pero-space-3, 6px) 0 0;align-self:stretch;max-height:160px;overflow:auto;font:var(--pero-font-caption)/1.45 var(--dsw-font-mono);white-space:pre-wrap;color:var(--pero-text-secondary)}
 
 .point-connector-detail.pero-ui-dialog[data-size] .pero-ui-dialog-foot{flex-wrap:wrap}
 .point-connector-detail.pero-ui-dialog[data-size] .pero-ui-dialog-foot-start{flex-wrap:wrap}
@@ -114,7 +114,7 @@
 /* Detail dialog: flat sections, label beside control, actions next to what they change. */
 .point-connector-detail .pero-ui-dialog-body{gap:var(--pero-space-7, 14px);container-type:inline-size}
 .point-connector-title{display:inline-flex;align-items:center;gap:var(--pero-space-4, 8px);max-width:100%}
-.point-connector-state{display:inline-flex;align-items:center;gap:5px;flex:none;padding:1px var(--pero-space-4, 8px);border-radius:var(--pero-radius-full, 999px);font-size:var(--pero-font-size-xs-plus, 11.5px);font-weight:var(--pero-font-weight-medium, 500);line-height:18px;color:var(--pero-text-secondary);background:var(--pero-hover)}
+.point-connector-state{display:inline-flex;align-items:center;gap:5px;flex:none;padding:1px var(--pero-space-4, 8px);border-radius:var(--pero-radius-full, 999px);font-size:var(--pero-font-size-xs-plus, 11.5px);font-weight:var(--pero-font-weight-medium, 500);line-height:1.5;color:var(--pero-text-secondary);background:var(--pero-hover)}
 .point-connector-state-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .point-connector-state[data-state=success]{color:var(--pero-success);background:color-mix(in srgb,var(--pero-success) 12%,transparent)}
 .point-connector-state[data-state=progress]{color:var(--pero-warning);background:color-mix(in srgb,var(--pero-warning) 12%,transparent)}
@@ -130,7 +130,7 @@
 .point-connector-fields:not([hidden]){display:grid;grid-template-columns:subgrid;row-gap:var(--pero-space-4, 8px);align-items:center}
 .point-connector-field.pero-ui-field{grid-template-columns:subgrid;align-items:center;row-gap:var(--pero-space-1, 2px)}
 .point-connector-field>label{font-size:var(--pero-font-size-sm-plus, 12.5px);font-weight:var(--pero-font-weight-medium, 500);color:var(--pero-text-secondary)}
-.point-connector-field>label code{font:11.5px var(--dsw-font-mono);overflow-wrap:anywhere}
+.point-connector-field>label code{font:var(--pero-font-caption) var(--dsw-font-mono);overflow-wrap:anywhere}
 .point-connector-field>small,.point-connector-field>.pero-ui-feedback{grid-column:2;font-size:var(--pero-font-size-xs-plus, 11.5px)}
 .point-connector-tool-group{display:grid;grid-template-columns:48px minmax(0,1fr);gap:var(--pero-space-4, 8px);align-items:baseline}
 .point-connector-tool-effect{font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}
@@ -138,11 +138,9 @@
 label.point-connector-tool{display:inline-flex;align-items:center;gap:var(--pero-space-3, 6px);padding:var(--pero-space-1, 2px) var(--pero-space-4, 8px) var(--pero-space-1, 2px) var(--pero-space-3, 6px);border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:7px;font-size:var(--pero-font-size-sm, 12px);cursor:pointer;max-width:100%} /* point-style-literal: preserve this migrated component's off-tier corner geometry. */
 label.point-connector-tool[data-checked=false]{color:var(--pero-text-secondary)}
 label.point-connector-tool[data-checked=false] code{opacity:.7}
-label.point-connector-tool:has(input:focus-visible){outline:2px solid var(--pero-focus);outline-offset:1px}
-label.point-connector-tool input{margin:0}
 label.point-connector-tool code{background:none;padding:0;overflow-wrap:anywhere}
 .point-connector-secret{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:var(--pero-space-4, 8px)}
-.point-connector-secret>code{font:12px var(--dsw-font-mono);padding:var(--pero-space-1, 2px) var(--pero-space-3, 6px);border-radius:var(--pero-radius-sm, 6px);background:var(--pero-hover);overflow-wrap:anywhere;max-width:16em}
+.point-connector-secret>code{font:var(--pero-font-caption) var(--dsw-font-mono);padding:var(--pero-space-1, 2px) var(--pero-space-3, 6px);border-radius:var(--pero-radius-sm, 6px);background:var(--pero-hover);overflow-wrap:anywhere;max-width:16em}
 @container (max-width:520px){
   .point-connector-form{grid-template-columns:minmax(0,1fr)}
   .point-connector-field.pero-ui-field{gap:var(--pero-space-2, 4px)}
@@ -157,3 +155,5 @@ label.point-connector-tool code{background:none;padding:0;overflow-wrap:anywhere
 .point-connector-detail.pero-ui-dialog:not([data-unstyled]){overflow:visible}
 .point-connector-detail.pero-ui-dialog:not([data-unstyled]) .pero-ui-dialog-head h2{overflow:visible;text-overflow:clip;white-space:normal}
 .point-connector-detail.pero-ui-dialog:not([data-unstyled]) .pero-ui-dialog-body{overflow:auto}
+
+.point-connectors-prerequisite{margin:0;font-size:var(--pero-font-caption);line-height:1.5;overflow-wrap:anywhere;color:var(--pero-text-secondary)}
