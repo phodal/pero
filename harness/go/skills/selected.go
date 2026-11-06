@@ -76,7 +76,7 @@ func OpenSelected(ctx context.Context, roots []string, selected []FileSelection)
 		if statErr != nil || !before.IsDir() {
 			return nil, errors.New("skills: selected root must be an existing directory")
 		}
-		files, openErr := fstools.OpenScopedTextFiles(selection.Root, []string{selection.Path}, MaxFileBytes)
+		files, openErr := fstools.OpenReadOnlyTextFiles(selection.Root, []string{selection.Path}, MaxFileBytes)
 		if openErr != nil {
 			return nil, fmt.Errorf("skills: selected definition unavailable: %w", openErr)
 		}
@@ -127,7 +127,7 @@ func OpenSelected(ctx context.Context, roots []string, selected []FileSelection)
 		for start := 0; start < len(missing); start += 32 {
 			end := min(start+32, len(missing))
 			batch := missing[start:end]
-			scope, openErr := fstools.OpenScopedTextFiles(selection.Root, batch, MaxResourceFileBytes)
+			scope, openErr := fstools.OpenReadOnlyTextFiles(selection.Root, batch, MaxResourceFileBytes)
 			if openErr != nil {
 				return nil, fmt.Errorf("skills: selected resource unavailable: %w", openErr)
 			}
