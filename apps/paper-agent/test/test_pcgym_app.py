@@ -56,7 +56,7 @@ class PcgymAppTests(unittest.TestCase):
                         core_tree='fixture', files=[s.manifest() for s in self.sources])
         self.stack.enter_context(patch('paper_agent.pcgym_app.read_checkout',
             return_value=(self.checkout, self.sources, manifest)))
-        self.stack.enter_context(patch('paper_agent.pcgym_app.package_inventory',
+        self.stack.enter_context(patch('paper_agent.scientific_python.package_inventory',
             return_value={name: 'fixture-version' for name in REQUIRED_PACKAGES}))
         self.fetches = []
         def fetch(url):
@@ -223,7 +223,8 @@ class PcgymAppTests(unittest.TestCase):
             self.assertTrue(process.terminated)
             self.assertEqual(cancelled['requests'][0]['status'], 'unknown')
             reopened = PcgymApp(ResearchStore(self.home), checkout=self.checkout, allow_execution=True)
-            self.assertEqual(reopened.command(command)['requests'][0]['status'], 'unknown')
+            with patch('paper_agent.pcgym_app.observe_scientific_python', side_effect=Invalid('missing', 'Environment removed')):
+                self.assertEqual(reopened.command(command)['requests'][0]['status'], 'unknown')
             self.assertFalse(reopened.command(dict(action='cancel', specId=frozen['id']))['cancellation_requested'])
             with self.assertRaises(RequestInvalid):
                 reopened.command({**command, 'requestId': 'do-not-replay'})

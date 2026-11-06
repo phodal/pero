@@ -7,7 +7,6 @@ from dataclasses import asdict
 from io import BytesIO
 import json
 import secrets
-import platform
 import re
 import subprocess
 import sys
@@ -23,14 +22,16 @@ from .verification import ComparisonEvidence, VerificationItem, ReproductionAppr
 from .research_records import ResearchAttempt
 from .reproduction_approval import (ApprovalCommand, ApprovalState, ApprovalDecision,
     ApprovalDenied, ApprovalUnavailable, PendingApproval, ExecutionFacts, dispatch_failure)
-from .pcgym_sources import (PINS, SourceFile, audit_sources, package_inventory,
+from .pcgym_sources import (PINS, SourceFile, audit_sources,
                             pipeline_digest, read_checkout)
+from .scientific_python import ScientificPython, observe as observe_scientific_python
 
 
 class PcgymApp:
-    def __init__(self, store, *, fetch=None, checkout=None, allow_execution=False):
+    def __init__(self, store, *, fetch=None, checkout=None, allow_execution=False, scientific_python=None):
         self.store, self.fetch = store, fetch
         self.checkout, self.allow_execution = checkout, allow_execution
+        self.scientific_python = str(scientific_python or sys.executable)
         self.lock = threading.RLock()
         self.processes = {}
         self.process_requests = {}
@@ -120,9 +121,10 @@ class PcgymApp:
         checkout, sources, manifest = read_checkout(self.checkout)
         if sorted(audited['audit']['source_manifest'], key=lambda f: f['path']) != sorted(manifest['files'], key=lambda f: f['path']):
             raise Invalid('source_changed', 'Execution checkout differs from the inspected source bytes')
+        runtime = observe_scientific_python(self.scientific_python)
         spec = ReproductionSpec.create(seed=data['seed'], profile=data['profile'],
-            packages=package_inventory(), source_manifest_digest=digest(manifest),
-            python_version=platform.python_version(), pipeline_digest=pipeline_digest(),
+            packages=dict(runtime.packages), source_manifest_digest=digest(manifest),
+            python_version=runtime.python_version, pipeline_digest=pipeline_digest(),
             timeout_seconds=data['maxSeconds'], anchor=PaperAnchor.parse(binding['anchor']),
             include_oracle=data['includeOracle'], paper_binding_digest=digest(binding))
         with self.lock:
@@ -130,7 +132,7 @@ class PcgymApp:
             root.mkdir(parents=True, exist_ok=True)
             for name, value in {'spec': spec.to_dict(), 'audit': audited['audit'], 'claim': audited['claim'],
                                 'source-manifest': manifest, 'paper-binding': binding,
-                                'local': dict(checkout=str(checkout), interpreter=sys.executable)}.items():
+                                'local': dict(checkout=str(checkout), interpreter=runtime.executable, scientific_runtime=runtime.to_dict())}.items():
                 path = root / (name + '.json')
                 if path.exists():
                     if pcgym.read_json(path) != json.loads(canonical(value)):
@@ -199,6 +201,7 @@ class PcgymApp:
             raise Invalid('pdf_changed', 'Paper/PDF version changed since freeze')
         if str(Path(self.checkout).absolute()) != pcgym.read_json(root / 'local.json')['checkout']:
             raise Invalid('checkout_changed', 'Trusted checkout changed since freeze')
+        local = pcgym.read_json(root / 'local.json')
         key = digest(dict(request_id=request_id))
         with self.lock:
             if key in self.store._list('pcgym-requests'):
@@ -214,10 +217,14 @@ class PcgymApp:
                                            for a in current['attempts'])
             if unresolved or any(process.poll() is None for process in self.processes.values()) or (root / 'running.lock').exists():
                 raise RequestInvalid('A live or interrupted operation requires reconciliation before retry', 409)
+            runtime = observe_scientific_python(self.scientific_python)
+            if local.get('interpreter') != runtime.executable:
+                raise Invalid('execution_configuration_changed', 'Scientific interpreter differs from the frozen selection')
+            runtime.require(spec, ScientificPython.parse(local['scientific_runtime']) if 'scientific_runtime' in local else None)
             self.store._write('pcgym-requests', key, dict(spec_id=spec.id, request_id=request_id,
                 prior_attempt_ids=[a['attempt_id'] for a in self.status(spec.id)['attempts']]))
             # Reuse the CLI's sole runtime owner, timeout, cancellation and checker.
-            self.processes[spec.id] = subprocess.Popen([sys.executable, '-m', 'paper_agent.pcgym',
+            self.processes[spec.id] = subprocess.Popen([self.scientific_python, '-E', '-s', '-B', '-m', 'paper_agent.pcgym',
                 'run', '--bundle', str(root), '--spec-sha', spec.id,
                 '--confirm-execution', '--accept-audit-findings'],
                 cwd=str(Path(__file__).resolve().parents[1]), stdin=subprocess.DEVNULL,
@@ -372,9 +379,13 @@ Keep `local.json` out of shared copies; it contains local paths.
             raise Invalid('pdf_changed', 'The selected Paper/PDF changed since freeze')
         local = pcgym.read_json(root / 'local.json')
         if (self.checkout is None or str(Path(self.checkout).absolute()) != local.get('checkout')
-                or local.get('interpreter') != sys.executable):
+                or local.get('interpreter') != self.scientific_python):
             raise Invalid('execution_configuration_changed', 'The trusted checkout or interpreter differs from the frozen specification')
-        return ReproductionApproval.create(item, spec, data['requestId'], binding, local), item, spec
+        runtime = observe_scientific_python(self.scientific_python)
+        runtime.require(spec, ScientificPython.parse(local['scientific_runtime']) if 'scientific_runtime' in local else None)
+        # Legacy bundles retain their bytes; a new approval still binds a fresh observation.
+        return ReproductionApproval.create(item, spec, data['requestId'], binding,
+            {**local, 'scientific_runtime': runtime.to_dict()}), item, spec
 
     def approval_outcome(self, approval, state, reason=''):
         result = dict(state=state, itemId=approval.item_id, specId=approval.spec_id,

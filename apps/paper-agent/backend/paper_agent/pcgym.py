@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
-import platform
 from pathlib import Path
 import signal
 import subprocess
@@ -19,7 +18,7 @@ import zipfile
 
 from .pcgym_domain import (Claim, Invalid, Observation, ReproductionSpec,
                            canonical, digest, verification)
-from .pcgym_sources import audit_sources, package_inventory, read_checkout, pipeline_digest
+from .pcgym_sources import audit_sources, read_checkout, pipeline_digest
 
 MAX_JSON = 8 * 1024 * 1024
 MAX_LOG = 16 * 1024 * 1024
@@ -74,9 +73,11 @@ def prepare(checkout, output, seed=0, profile='table6', timeout_seconds=3600, *,
     checkout, sources, manifest = read_checkout(checkout)
     root = root_path(output)
     root.mkdir(parents=True, exist_ok=False)
-    packages = package_inventory()
+    from .scientific_python import current
+    runtime = current()
+    packages = dict(runtime.packages)
     spec = ReproductionSpec.create(seed=seed, profile=profile, packages=packages,
-                                  source_manifest_digest=digest(manifest), python_version=platform.python_version(),
+                                  source_manifest_digest=digest(manifest), python_version=runtime.python_version,
                                   pipeline_digest=pipeline_digest(), timeout_seconds=timeout_seconds,
                                   include_oracle=include_oracle)
     audit = audit_sources(sources, pinned=True)
@@ -85,7 +86,8 @@ def prepare(checkout, output, seed=0, profile='table6', timeout_seconds=3600, *,
     write_json(root / 'source-manifest.json', manifest)
     write_json(root / 'spec.json', spec.to_dict())
     # Local execution configuration is not part of a public export.
-    write_json(root / 'local.json', {'checkout': str(checkout), 'interpreter': sys.executable})
+    write_json(root / 'local.json', {'checkout': str(checkout), 'interpreter': sys.executable,
+                                    'scientific_runtime': runtime.to_dict()})
     result = {'spec_id': spec.id, 'readiness': 'BLOCKED' if 'MISSING' in packages.values() else 'REQUIRES_APPROVAL',
               'missing_packages': [k for k, v in packages.items() if v == 'MISSING'],
               'audit_findings': [f['id'] for f in audit['findings']],
@@ -172,6 +174,9 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
         local = read_json(root / 'local.json')
         if local.get('interpreter') != sys.executable:
             raise Invalid('interpreter_changed', 'Run with the interpreter used to prepare this specification')
+        if 'scientific_runtime' in local:
+            from .scientific_python import ScientificPython, current
+            current().require(spec, ScientificPython.parse(local['scientific_runtime']))
         preflight(spec, local['checkout'])
         # The parent remains inside the Host-owned process tree; no detached session.
         env = {k: os.environ[k] for k in ('PATH', 'SYSTEMROOT', 'WINDIR') if k in os.environ}
