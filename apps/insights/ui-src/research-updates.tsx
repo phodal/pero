@@ -8,7 +8,7 @@ type Check = { researchRecordId: string; checkedAt: number; error?: string; resu
   question: string; papers: Input[]; datasets: Input[]; affectedAttempts: unknown[]; affectedReportIds: string[];
 } };
 
-export function ResearchUpdates() {
+export function ResearchUpdates({ hideEmpty = false }: { hideEmpty?: boolean }) {
   const { active } = useAppInfo(), navigate = useNavigate();
   const { t } = useAppI18n({
     title: { en: 'Research updates', zh: '研究更新' }, refresh: { en: 'Refresh', zh: '刷新' },
@@ -39,6 +39,7 @@ export function ResearchUpdates() {
       .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     return () => controller.abort();
   }, [active, refresh]);
+  if (hideEmpty && updates?.length === 0 && !busy && !error) return null;
   return <section className="point-research-updates" data-empty={!updates?.length || undefined} aria-label={t('title')}>
     <header><h2>{t('title')}</h2>
     <Button variant="ghost" onClick={() => void navigate('/apps/paper-agent')}>{t('openPaper')}</Button>

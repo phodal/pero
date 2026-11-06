@@ -58,10 +58,10 @@ async function shot(page,name){if(screenshots)await page.screenshot({path:resolv
 const fixtureBrief={cards:[
   {kind:'risk',title:'Source change needs review',conclusion:'The previous result remains available.',body:'Recorded evidence for this review.',why:'A dependency changed.',entity:{label:'Fixture session',sessionId:'fixture-session'},action:{label:'Review session',sessionId:'fixture-session'},sources:[{label:'Original source',url:'https://example.org/evidence'},{label:'Session evidence',sessionId:'fixture-session'},{label:'Unsafe source',url:'javascript:alert(1)'}]},
   {kind:'needs_you',title:'Prepare a follow-up',action:{label:'Prepare review draft',prompt:'Review the existing result before continuing.'}},
-  {kind:'change',title:'A notable update',conclusion:'Available in the popular feed.'},
+  {kind:'change',title:'A notable update',conclusion:'Available in the progress feed.'},
 ]};
 
-test('Insights distinguishes loading, opens evidence, supports keyboard tabs and retains a brief across failed regeneration',async t=>{
+test('Insights distinguishes loading, opens evidence and retains all findings across failed regeneration',async t=>{
   let release,starts=0,regeneration;
   const gate=new Promise(r=>release=r);
   const page=await pageFor(t,'insights',async({path,body})=>{
@@ -81,6 +81,8 @@ test('Insights distinguishes loading, opens evidence, supports keyboard tabs and
   await expect(page.getByText('No new personal work updates.',{exact:true})).not.toBeVisible();
   release();
   await expect(page.getByRole('heading',{name:'Source change needs review'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'A notable update',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Prepare a follow-up',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Review session',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>window.fixtureMessages.filter(m=>m.operation==='open-session').length)).toBe(1);
   assert.deepEqual(await page.evaluate(()=>window.fixtureMessages.find(m=>m.operation==='open-session').input),{sessionId:'fixture-session'});
@@ -89,11 +91,10 @@ test('Insights distinguishes loading, opens evidence, supports keyboard tabs and
   await page.getByRole('button',{name:'Prepare review draft',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>window.fixtureMessages.some(m=>m.type==='pero:app:chat'))).toBe(true);
   assert.deepEqual(await page.evaluate(()=>window.fixtureMessages.find(m=>m.type==='pero:app:chat').options),{message:'Review the existing result before continuing.'});
-  const first=page.getByRole('tab',{name:'For me',exact:true});await first.focus();await first.press('ArrowRight');
-  await expect(page.getByRole('tab',{name:'Popular',exact:true})).toBeFocused();
-  await expect(page.getByRole('tab',{name:'Popular',exact:true})).toHaveAttribute('aria-selected','true');
-  await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby',await page.getByRole('tab',{name:'Popular',exact:true}).getAttribute('id'));
-  await first.click();
+  const evidence=page.getByRole('article').filter({has:page.getByRole('heading',{name:'Source change needs review',exact:true})});
+  await expect(evidence.getByText('Recorded evidence for this review.',{exact:true})).not.toBeVisible();
+  await evidence.getByRole('button',{name:'View evidence',exact:true}).click();
+  await expect(evidence.getByText('Recorded evidence for this review.',{exact:true})).toBeVisible();
   const generated=await page.locator('.point-pulse-generated').innerText();
   await page.getByRole('button',{name:'Regenerate',exact:true}).click();
   await expect(page.getByRole('button',{name:'Updating…',exact:true})).toBeDisabled();
@@ -102,9 +103,287 @@ test('Insights distinguishes loading, opens evidence, supports keyboard tabs and
   await expect(page.getByRole('alert')).toContainText('previous brief remains');
   await expect(page.getByRole('heading',{name:'Source change needs review'})).toBeVisible();
   assert.equal(await page.locator('.point-pulse-generated').innerText(),generated);
-  const edges=await page.evaluate(()=>{const a=document.querySelector('.point-pulse-top').getBoundingClientRect(),b=document.querySelector('.point-research-updates').getBoundingClientRect();return {a:a.left,b:b.left};});
+  await expect(page.getByRole('heading',{level:1})).toHaveText('Work brief');
+  await expect(page.getByRole('region',{name:'Research updates',exact:true})).toHaveCount(0);
+  const edges=await page.evaluate(()=>{const a=document.querySelector('.point-pulse-top').getBoundingClientRect(),b=document.querySelector('.point-brief-layout').getBoundingClientRect();return {a:a.left,b:b.left};});
   assert.equal(edges.a,edges.b);
   await shot(page,'insights-retained-dark24');
+});
+
+for (const appearance of [{locale:'en',size:14,width:1000,dark:false},{locale:'zh',size:24,width:420,dark:true}]) test(`Insights keeps legacy evidence readable and opens the original source (${appearance.locale})`,async t=>{
+  const sessionId='chat-1793940610307-original-source',url='https://example.org/research/original-version';
+  const legacyBrief={cards:[
+    {kind:'risk',title:'Saved source needs review',entity:'session',sources:[{sessionId}]},
+    {kind:'change',title:'Research findings are available',sources:[{url},{label:'Named research source',url:'https://example.org/named-source'}]},
+  ],tomorrow:['Review the saved source.','Continue the existing study.']};
+  const page=await pageFor(t,'insights',async({path,body})=>{
+    if(path==='/host/insights')return json({sessions:[]});
+    if(path==='/host/automation')return json({status:200,body:{updates:[]}});
+    if(path==='/host/agent')return json(body.operation==='info'?{available:true,agents:[{id:'fixture',available:true}],workspace:''}:body.operation==='start'?{sessionId:'legacy-fixture'}:{cursor:1,status:'completed',text:JSON.stringify(legacyBrief)});
+  },appearance);
+  await page.goto(origin+'/insights/index.html');
+  const card=page.getByRole('article').filter({has:page.getByRole('heading',{name:'Saved source needs review',exact:true})});
+  await expect(page.getByText(appearance.locale==='zh'?'这份历史简报尚无综合摘要，已有发现与来源仍可查看。':'A summary is not available for this saved brief. Its findings and sources remain available.',{exact:true})).toBeVisible();
+  await expect(card.getByText(appearance.locale==='zh'?'会话':'Session',{exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Research findings are available',exact:true})).toBeVisible();
+  const sessionSource=card.getByRole('button',{name:appearance.locale==='zh'?'会话 1':'Session 1',exact:true});
+  await expect(sessionSource).toHaveAttribute('title',sessionId);
+  await sessionSource.click();
+  await expect.poll(()=>page.evaluate(()=>window.fixtureMessages.some(m=>m.operation==='open-session'))).toBe(true);
+  assert.deepEqual(await page.evaluate(()=>window.fixtureMessages.find(m=>m.operation==='open-session').input),{sessionId});
+  const webSource=page.getByRole('link',{name:appearance.locale==='zh'?'网页 1':'Web source 1',exact:true});
+  await expect(webSource).toHaveAttribute('title',url);
+  await expect(webSource).toHaveAttribute('href',url);
+  await expect(page.getByRole('link',{name:'Named research source',exact:true})).toHaveAttribute('href','https://example.org/named-source');
+  await expect(page.getByRole('listitem').filter({hasText:'Review the saved source.'})).toBeVisible();
+  await expect(page.getByRole('listitem').filter({hasText:'Continue the existing study.'})).toBeVisible();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await shot(page,`insights-readable-evidence-${appearance.locale}`);
+});
+
+for (const appearance of [{locale:'en',size:14,width:1200,dark:false},{locale:'zh',size:24,width:420,dark:true}]) test(`Insights leads with a cross-session summary and prepares discussion without executing it (${appearance.locale})`,async t=>{
+  let starts=0;
+  const paragraphs=[
+    'The source review and implementation discussion point to one shared next step: verify the changed dependency before continuing the saved work.',
+    'The existing result remains available, while a follow-up still needs a decision.',
+  ];
+  const brief={...fixtureBrief,summary:paragraphs.join('\n\n'),cards:[...fixtureBrief.cards.map(card=>{
+    if(card.kind!=='change')return card;
+    const {kind,...publication}=card;
+    return {...publication,sources:[{label:'Implementation discussion',sessionId:'implementation-session'}]};
+  }),{kind:'filtered',title:'Routine build output omitted',body:'filtered_source remains inspectable.',sources:[{label:'Filtered source evidence',sessionId:'filtered-source-session'}]}]};
+  const page=await pageFor(t,'insights',async({path,body})=>{
+    if(path==='/host/insights')return json({sessions:[{threadId:'summary-brief',app:'insights',status:'completed',response_kind:'final'}]});
+    if(path==='/host/automation')return json({status:200,body:{updates:[]}});
+    if(path==='/host/agent'){
+      if(body.operation==='info')return json({available:true,agents:[{id:'fixture',available:true}],workspace:''});
+      if(body.operation==='start'){starts++;throw Error('Reading or discussing a saved brief must not execute an Agent');}
+      if(body.operation==='events')return json({cursor:1,status:'completed',text:JSON.stringify(brief)});
+    }
+  },appearance);
+  await page.goto(origin+'/insights/index.html');
+  const zh=appearance.locale==='zh';
+  const summary=page.getByRole('region',{name:zh?'AI 工作摘要':'AI work summary',exact:true});
+  const attention=page.getByRole('complementary',{name:zh?'需要你决定':'Needs your decision',exact:true});
+  const findings=page.getByRole('region',{name:zh?'关键结论':'Key findings',exact:true});
+  const discussion=page.getByRole('region',{name:zh?'继续讨论':'Continue the conversation',exact:true});
+  for(const paragraph of paragraphs)await expect(summary.getByText(paragraph,{exact:true})).toBeVisible();
+  await expect(attention.getByRole('heading',{name:'Prepare a follow-up',exact:true})).toBeVisible();
+  await expect(findings.getByRole('heading',{name:'Source change needs review',exact:true})).toBeVisible();
+  await expect(findings.getByRole('heading',{name:'A notable update',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Routine build output omitted',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('link',{name:'Original source',exact:true})).toHaveAttribute('href','https://example.org/evidence');
+  await expect(page.getByRole('button',{name:'Session evidence',exact:true})).toHaveAttribute('title','fixture-session');
+  await expect(page.getByRole('button',{name:'Implementation discussion',exact:true})).toHaveAttribute('title','implementation-session');
+  await page.getByRole('button',{name:zh?'讨论这份简报':'Discuss this brief',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>window.fixtureMessages.some(m=>m.type==='pero:app:chat'))).toBe(true);
+  const draft=await page.evaluate(()=>window.fixtureMessages.find(m=>m.type==='pero:app:chat').options);
+  assert.equal(draft.message,zh?'讨论这份简报':'Discuss this brief');
+  assert.equal(draft.attachments.length,1);
+  const reference=draft.attachments[0];
+  assert.equal(reference.type,'app-object');
+  assert.equal(reference.objectId,'insights-brief');
+  assert.ok(Number.isSafeInteger(reference.revision)&&reference.revision>0);
+  const observed=await page.evaluate(()=>new Promise((resolve,reject)=>{
+    const id='inspect-discussion-brief';
+    const timeout=setTimeout(()=>{window.removeEventListener('message',receive);reject(Error('The App did not expose the discussion brief'));},5000);
+    const receive=event=>{
+      if(event.source!==window||event.data?.type!=='pero:app-use:result'||event.data.id!==id)return;
+      clearTimeout(timeout);window.removeEventListener('message',receive);resolve(event.data);
+    };
+    window.addEventListener('message',receive);
+    window.postMessage({type:'pero:app-use:request',id,request:{action:'semantic',target:'insights-brief'}},'*');
+  }));
+  assert.equal(observed.ok,true);
+  assert.equal(observed.value.objects.length,1);
+  const object=observed.value.objects[0];
+  assert.equal(object.id,reference.objectId);
+  assert.equal(object.revision,reference.revision);
+  assert.equal(object.state.summary,paragraphs.join('\n\n'));
+  assert.deepEqual(object.state.cards.map(card=>card.title),brief.cards.map(card=>card.title));
+  assert.deepEqual(object.state.cards[0].sources,fixtureBrief.cards[0].sources);
+  assert.deepEqual(object.state.cards[2].sources,[{label:'Implementation discussion',sessionId:'implementation-session'}]);
+  assert.equal(object.state.cards[3].body,'filtered_source remains inspectable.');
+  assert.deepEqual(object.state.cards[3].sources,[{label:'Filtered source evidence',sessionId:'filtered-source-session'}]);
+  assert.equal(starts,0);
+  assert.equal(await page.evaluate(()=>window.fixtureMessages.some(m=>m.operation==='open-session')),false);
+  const original=discussion.getByText(zh?'原始简报':'Original brief',{exact:true});
+  await original.click();
+  await expect(discussion.locator('pre')).toContainText('filtered_source remains inspectable.');
+  await expect(discussion.locator('pre')).toContainText('filtered-source-session');
+  await expect(discussion.locator('pre')).toContainText('implementation-session');
+  await original.click();
+  if(zh){
+    const positions=await Promise.all([summary,attention,findings,discussion].map(region=>region.evaluate(node=>({top:node.getBoundingClientRect().top,bottom:node.getBoundingClientRect().bottom}))));
+    for(let i=1;i<positions.length;i++)assert.ok(positions[i].top>=positions[i-1].bottom-1,'narrow reading order is summary, decision, findings, discussion');
+  }
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await shot(page,`insights-cross-session-summary-${appearance.locale}`);
+});
+
+test('Insights keeps populated research checks below the brief and retains them after a failed refresh',async t=>{
+  let reads=0;
+  const page=await pageFor(t,'insights',async({path,body})=>{
+    if(path==='/host/insights')return json({sessions:[]});
+    if(path==='/host/agent')return json(body.operation==='info'?{available:true,agents:[{id:'fixture',available:true}],workspace:''}:body.operation==='start'?{sessionId:'fixture-checks'}:{cursor:1,status:'completed',text:JSON.stringify(fixtureBrief)});
+    if(path==='/host/automation')return ++reads===1?json({status:200,body:{updates:[{researchRecordId:'fixture-record',checkedAt:1,result:{question:'Review the changed source',papers:[{subject:'fixture-paper',name:'Selected paper',status:'changed',latest:'v2'}],datasets:[],affectedAttempts:[],affectedReportIds:[]}}]}}):{status:503,value:'fixture.checks_unavailable'};
+  });
+  await page.goto(origin+'/insights/index.html');
+  const checks=page.getByRole('region',{name:'Research updates',exact:true});
+  await expect(page.getByRole('heading',{name:'Source change needs review'})).toBeVisible();
+  await expect(checks.getByText('Review the changed source',{exact:true})).toBeVisible();
+  await expect(checks.getByText('Selected paper — Update available (v2)',{exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{level:1})).toHaveText('Work brief');
+  const order=await page.evaluate(()=>{const header=document.querySelector('.point-pulse-top'),feed=document.querySelector('.point-pulse-feed'),checks=document.querySelector('.point-research-updates');return {afterHeader:!!(header.compareDocumentPosition(feed)&Node.DOCUMENT_POSITION_FOLLOWING),afterFeed:!!(feed.compareDocumentPosition(checks)&Node.DOCUMENT_POSITION_FOLLOWING),aligned:header.getBoundingClientRect().left===checks.getBoundingClientRect().left};});
+  assert.deepEqual(order,{afterHeader:true,afterFeed:true,aligned:true});
+  await checks.getByRole('button',{name:'Refresh',exact:true}).click();
+  await expect(checks.getByRole('alert')).toBeVisible();
+  await expect(checks.getByText('Review the changed source',{exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Source change needs review'})).toBeVisible();
+  await shot(page,'insights-research-retained');
+});
+
+test('Insights restores the saved App brief without a new Agent run and regenerates only on request',async t=>{
+  let starts=0;
+  const reads=[];
+  const page=await pageFor(t,'insights',async({path,body})=>{
+    if(path==='/host/insights')return json({sessions:[
+      {threadId:'saved-brief',app:'insights',status:'completed',response_kind:'final'},
+      {threadId:'foreign-result',app:'paper-agent',status:'completed',response_kind:'final'},
+      {threadId:'app:insights:ordinary',status:'completed',response_kind:'final'},
+    ]});
+    if(path==='/host/automation')return json({status:200,body:{updates:[]}});
+    if(path==='/host/agent'){
+      if(body.operation==='info')return json({available:true,agents:[{id:'fixture',available:true}],workspace:''});
+      if(body.operation==='start'){starts++;return json({sessionId:'fresh-brief'});}
+      if(body.operation==='events'){
+        reads.push(body.sessionId);
+        return json({cursor:1,status:'completed',text:JSON.stringify(body.sessionId==='fresh-brief'?{cards:[{kind:'risk',title:'Explicitly regenerated brief'}]}:fixtureBrief)});
+      }
+    }
+  });
+  await page.goto(origin+'/insights/index.html');
+  await expect(page.getByRole('heading',{name:'Source change needs review',exact:true})).toBeVisible();
+  assert.equal(starts,0);assert.deepEqual(reads,['saved-brief']);
+  await expect(page.getByRole('link',{name:'Original source',exact:true})).toHaveAttribute('href','https://example.org/evidence');
+  await expect(page.locator('.point-pulse-generated')).toHaveCount(0);
+  await expect(page.locator('.point-pulse-day')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'Source change needs review',exact:true})).toBeVisible();
+  assert.equal(starts,0);assert.deepEqual(reads,['saved-brief','saved-brief']);
+  await shot(page,'insights-restored');
+  await page.getByRole('button',{name:'Regenerate',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Explicitly regenerated brief',exact:true})).toBeVisible();
+  assert.equal(starts,1);assert.equal(reads.at(-1),'fresh-brief');
+});
+
+test('Insights keeps readable history through recovery failures and clears its warning after successful regeneration',async t=>{
+  let starts=0,failed=false;
+  const reads=[];
+  const page=await pageFor(t,'insights',async({path,body})=>{
+    if(path==='/host/insights')return json({sessions:[
+      {threadId:'saved-brief',app:'insights',status:'completed',response_kind:'final'},
+      {threadId:'invalid-brief',app:'insights',status:'completed',response_kind:'final'},
+      {threadId:'unfinished-brief',app:'insights',status:'unfinished',response_kind:'intermediate'},
+    ]});
+    if(path==='/host/automation')return json({status:200,body:{updates:[]}});
+    if(path==='/host/agent'){
+      if(body.operation==='info')return json({available:true,agents:[{id:'fixture',available:true}],workspace:''});
+      if(body.operation==='start'){starts++;return json({sessionId:'fresh-brief'});}
+      if(body.operation==='events'){
+        reads.push(body.sessionId);
+        if(body.sessionId==='fresh-brief')return json({cursor:1,status:'completed',text:JSON.stringify({cards:[{kind:'needs_you',title:'Fresh completed brief'}]})});
+        return failed?{status:503,value:'fixture.history_unavailable'}:json({cursor:1,status:'completed',text:body.sessionId==='invalid-brief'?'unfinished JSON':JSON.stringify(fixtureBrief)});
+      }
+    }
+  });
+  await page.goto(origin+'/insights/index.html');
+  await expect(page.getByRole('heading',{name:'Source change needs review',exact:true})).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('latest readable brief remains');
+  assert.deepEqual(reads,['invalid-brief','saved-brief']);assert.equal(starts,0);
+  failed=true;await page.getByRole('button',{name:'Reload',exact:true}).click();
+  await expect.poll(()=>reads.length).toBe(4);
+  await expect(page.getByRole('status')).toContainText('latest readable brief remains');
+  await expect(page.getByRole('heading',{name:'Source change needs review',exact:true})).toBeVisible();
+  assert.equal(starts,0);
+  await shot(page,'insights-restored-with-warning');
+  await page.getByRole('button',{name:'Regenerate',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Fresh completed brief',exact:true})).toBeVisible();
+  await expect(page.getByRole('status')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Reload',exact:true})).toHaveCount(0);
+  assert.equal(starts,1);
+});
+
+test('Insights App locations restore their exact saved brief without fallback or Agent execution',async t=>{
+  let starts=0;
+  const reads=[];
+  const older='app:insights:older',latest='app:insights:latest';
+  const page=await pageFor(t,'insights',async({path,body})=>{
+    if(path==='/host/insights')return json({sessions:[
+      {threadId:older,app:'insights',status:'completed',response_kind:'final'},
+      {threadId:latest,app:'insights',status:'completed',response_kind:'final'},
+    ]});
+    if(path==='/host/automation')return json({status:200,body:{updates:[]}});
+    if(path==='/host/agent'){
+      if(body.operation==='info')return json({available:false,agents:[],workspace:''});
+      if(body.operation==='start'){starts++;throw Error('An App location must not start an Agent');}
+      if(body.operation==='events'){
+        reads.push(body.sessionId);
+        return json({cursor:1,status:'completed',text:JSON.stringify({cards:[{kind:'needs_you',title:body.sessionId===older?'Selected older brief':'Latest recorded brief'}]})});
+      }
+    }
+  });
+  await page.goto(origin+'/insights/index.html');
+  await expect(page.getByRole('heading',{name:'Latest recorded brief',exact:true})).toBeVisible();
+  const olderLocation='brief/'+Buffer.from(older).toString('base64url');
+  await page.evaluate(location=>window.postMessage({type:'pero:app:location',location},'*'),olderLocation);
+  await expect(page.getByRole('heading',{name:'Selected older brief',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Latest recorded brief',exact:true})).toHaveCount(0);
+  assert.deepEqual(reads,[latest,older]);assert.equal(starts,0);
+  await page.evaluate(location=>window.postMessage({type:'pero:app:location',location},'*'),'brief/'+Buffer.from('missing-brief').toString('base64url'));
+  await expect(page.getByRole('status')).toContainText('This brief could not be restored');
+  await expect(page.getByRole('heading',{name:'Selected older brief',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'Latest recorded brief',exact:true})).toHaveCount(0);
+  assert.deepEqual(reads,[latest,older]);assert.equal(starts,0);
+  await page.evaluate(()=>window.postMessage({type:'pero:app:location',location:'brief/a'},'*'));
+  await expect(page.getByRole('status')).toContainText('This brief could not be restored');
+  await page.getByText('Technical details',{exact:true}).click();
+  await expect(page.getByText('The brief address is invalid.',{exact:true})).toBeVisible();
+  assert.deepEqual(reads,[latest,older]);assert.equal(starts,0);
+  await page.evaluate(location=>window.postMessage({type:'pero:app:location',location},'*'),olderLocation);
+  await expect(page.getByRole('heading',{name:'Selected older brief',exact:true})).toBeVisible();
+  assert.deepEqual(reads,[latest,older,older]);assert.equal(starts,0);
+});
+
+test('Insights gives the Agent recent working conversations with honest cumulative coverage',async t=>{
+  let prompt='';
+  const work=Array.from({length:25},(_,index)=>({threadId:`work-${index}`,status:'completed',response_kind:'final',unfinished:2,unknown_turns:1,repository:'github.com/phodal/pero',turns:[{
+    request:`Goal ${index}`,response:`Reported result ${index}`,status:'completed',response_kind:'final',truncated:index===24,
+  }]}));
+  const self=index=>({threadId:`brief-${index}`,app:'insights',status:'unfinished',response_kind:'intermediate'});
+  const page=await pageFor(t,'insights',async({path,body})=>{
+    if(path==='/host/insights')return json({sessions:[...work.slice(0,5),self(1),...work.slice(5),self(2)]});
+    if(path==='/host/automation')return json({status:200,body:{updates:[]}});
+    if(path==='/host/agent'){
+      if(body.operation==='info')return json({available:true,agents:[{id:'fixture',available:true}],workspace:''});
+      if(body.operation==='start'){prompt=body.prompt;return json({sessionId:'new-brief'});}
+      if(body.operation==='events')return json({cursor:1,status:'completed',text:JSON.stringify(fixtureBrief)});
+    }
+  });
+  await page.goto(origin+'/insights/index.html');
+  await page.getByRole('button',{name:'Generate brief',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Source change needs review',exact:true})).toBeVisible();
+  const context=JSON.parse(prompt.slice(prompt.lastIndexOf('\n{"workRecap":')+1)),recap=context.workRecap;
+  assert.deepEqual(recap.sessions.map(session=>session.sessionId),work.slice(-20).map(session=>session.threadId));
+  assert.deepEqual(recap.coverage,{examined:27,matched:25,shown:20,unreadable:0,omitted:5,complete:false});
+  assert.equal(recap.scope,'cumulative_host_journal');
+  for(const key of ['date','timezone','start','end'])assert.equal(recap[key],'');
+  const last=recap.sessions.at(-1);
+  assert.equal(last.request,'Goal 24');assert.equal(last.response,'Reported result 24');
+  assert.equal(last.truncated,true);assert.equal(last.turns[0].truncated,true);
+  assert.equal(last.repository,'github.com/phodal/pero');
+  assert.equal(last.unfinishedTurns,2);assert.equal(last.unknownTurns,1);
+  assert.equal(Object.hasOwn(last,'harnessId'),false);
 });
 
 test('Insights distinguishes no available Agent from a successfully generated empty brief',async t=>{
@@ -335,7 +614,7 @@ for (const locale of ['en', 'zh']) test(`Insights explains missing credentials b
   await shot(page,`insights-credentials-${locale}`);
   await retry.click();
   await expect(page.getByRole('heading',{name:'Source change needs review',exact:true})).toBeVisible();
-  await expect(page.getByRole('tablist')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'A notable update',exact:true})).toBeVisible();
   await expect(page.getByText(locale==='zh'?'请先配置 Agent 的 API Key':'Add an API key for your Agent',{exact:true})).toHaveCount(0);
   assert.equal(starts,2);
 });
