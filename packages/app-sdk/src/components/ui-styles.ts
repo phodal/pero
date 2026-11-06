@@ -150,11 +150,11 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-radio-item:not([data-unstyled]) { border-radius:50%; }
 .pero-ui-radio-item:not([data-unstyled])[data-state=checked] { border-color:var(--pero-action); }
 .pero-ui-radio-indicator { display:inline-flex; align-items:center; justify-content:center; color:var(--pero-action); }
-.pero-ui-radio-item:not([data-unstyled])[data-variant=card] { width:100%; height:auto; min-width:0; padding:var(--pero-spacing-4); border-radius:var(--pero-radius-selection); border-color:var(--pero-border); text-align:start; align-items:stretch; }
+.pero-ui-radio-item:not([data-unstyled])[data-variant=card] { width:100%; height:auto; min-width:0; padding:var(--pero-spacing-4); border-radius:var(--pero-radius-selection); border-color:var(--pero-border); text-align:start; align-items:flex-start; gap:var(--pero-spacing-3); }
 .pero-ui-radio-item:not([data-unstyled])[data-variant=card]:hover:not(:disabled) { background:var(--pero-surface-hover); }
 .pero-ui-radio-item:not([data-unstyled])[data-variant=card][data-state=checked] { background:var(--pero-accent-soft); border-color:var(--pero-action); }
-.pero-ui-radio-card-content { display:grid; gap:var(--pero-spacing-4); width:100%; min-width:0; }
-.pero-ui-radio-card-marker { position:absolute; right:var(--pero-spacing-4); top:var(--pero-spacing-5); width:16px; height:16px; border:1px solid var(--pero-border-control); border-radius:50%; display:grid; place-items:center; color:var(--pero-on-action); }
+.pero-ui-radio-card-content { display:grid; gap:var(--pero-spacing-2); flex:1; min-width:0; }
+.pero-ui-radio-card-marker { flex:none; margin-block-start:2px; width:18px; height:18px; border:1px solid var(--pero-border-control); border-radius:50%; display:grid; place-items:center; color:var(--pero-on-action); }
 .pero-ui-radio-item[data-state=checked] .pero-ui-radio-card-marker { background:var(--pero-action); border-color:var(--pero-action); }
 .pero-ui-radio-card-marker > span { display:flex; }
 .pero-ui-tabs { min-width:0; }
