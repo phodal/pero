@@ -219,12 +219,15 @@ def execute(base: Path, options) -> dict:
         binary = launcher
     config = parse_config({"plugin_path": str(plugin), "agent_binary": str(binary), "workspace": str(workspace),
                            "endpoint": options.endpoint, "model": options.model, "api_key_env": options.api_key_env,
+                           "api_format": options.api_format, "allow_http": options.allow_http,
+                           "disable_streaming": options.disable_streaming,
                            "plugin_models": {"opus": options.model, "sonnet": options.model}, "prompt": prompt,
                            "success_patterns": [".review/labels/cr/runtime-result.json"], "max_continuations": 0,
                            "session_timeout": options.timeout, "idle_timeout": 150, "max_requests": options.max_requests,
                            "max_tokens": 4096, "enable_shell": True, "shell_policy": "allow-unsandboxed"})
     session = run_session(config, config.sessions[0], workspace, base / "records")
     summary = {"model": options.model, "sameModelAliases": ["opus", "sonnet"], "requestLimit": options.max_requests,
+               "apiFormat": options.api_format, "allowHTTP": options.allow_http, "streamingDisabled": options.disable_streaming,
                "automaticRetries": 0, "thinkingDisabled": options.disable_thinking, "session": asdict(session)}
     if session.success:
         try:
@@ -247,6 +250,9 @@ def main() -> int:
     parser.add_argument("--endpoint")
     parser.add_argument("--model")
     parser.add_argument("--api-key-env", default="DEEPSEEK_API_KEY")
+    parser.add_argument("--api-format", choices=("chat-completions", "responses"), default="chat-completions")
+    parser.add_argument("--allow-http", action="store_true")
+    parser.add_argument("--disable-streaming", action="store_true")
     parser.add_argument("--max-requests", type=int, default=80)
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--disable-thinking", action="store_true")

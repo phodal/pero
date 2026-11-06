@@ -27,7 +27,21 @@ func TestNativeGuidanceModelEvaluationOptIn(t *testing.T) {
 		t.Fatal("evaluation requires an explicit endpoint, model and credential")
 	}
 	zero := 0
-	adapter, err := openai.New(openai.Config{Endpoint: endpoint, APIKey: key, ProviderName: "evaluation", DisableThinking: true, MaxRequests: 24, MaxOutputTokens: 1024, StreamIdleTimeoutMS: 45000, RetryPolicy: &llm.RetryPolicyConfig{Mode: llm.RetryNormal, MaxRetries: &zero}, Models: []openai.ModelConfig{{ID: model, InputModalities: []string{"text"}, ContextWindow: 65536, MaxTokens: 1024}}})
+	apiFormat := openai.APIFormat(os.Getenv("PERO_EVAL_API_FORMAT"))
+	deferred := os.Getenv("PERO_EVAL_DEFER_TOOL_LOADING") == "1"
+	maxSteps, maxRequests := 6, 24
+	if deferred {
+		maxSteps, maxRequests = 12, 48
+	}
+	adapter, err := openai.New(openai.Config{
+		Endpoint: endpoint, APIKey: key, ProviderName: "evaluation", APIFormat: apiFormat,
+		AllowHTTP:        os.Getenv("PERO_EVAL_ALLOW_HTTP") == "1",
+		DisableStreaming: os.Getenv("PERO_EVAL_DISABLE_STREAMING") == "1",
+		DisableThinking:  apiFormat != openai.Responses,
+		MaxRequests:      maxRequests, MaxOutputTokens: 1024, StreamIdleTimeoutMS: 45000,
+		RetryPolicy: &llm.RetryPolicyConfig{Mode: llm.RetryNormal, MaxRetries: &zero},
+		Models:      []openai.ModelConfig{{ID: model, InputModalities: []string{"text"}, ContextWindow: 65536, MaxTokens: 1024}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,14 +89,14 @@ func TestNativeGuidanceModelEvaluationOptIn(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				app, err := Mount(ctx, h, Options{Workspace: root, ClaudeTools: true, PDFRendererPath: "-"})
+				app, err := Mount(ctx, h, Options{Workspace: root, ClaudeTools: true, PDFRendererPath: "-", DeferToolLoading: deferred})
 				if err != nil {
 					h.Dispose(context.Background())
 					h.Drain(context.Background())
 					t.Fatal(err)
 				}
 				defer func() { h.Dispose(context.Background()); h.Drain(context.Background()); app.Close() }()
-				agent, err := h.Agents().Create(ctx, harness.AgentOptions{CWD: root, Provider: "evaluation", Model: model, MaxSteps: 6, MaxTokens: 1024, Configure: func(_ context.Context, run *point.Run, _ *harness.Agent) error {
+				agent, err := h.Agents().Create(ctx, harness.AgentOptions{CWD: root, Provider: "evaluation", Model: model, MaxSteps: maxSteps, MaxTokens: 1024, Configure: func(_ context.Context, run *point.Run, _ *harness.Agent) error {
 					_, err := h.Approvals().Register(run, func(context.Context, harness.ApprovalRequest) (harness.ApprovalOutcome, error) {
 						return harness.ApprovalAllowedOnce, nil
 					})
@@ -112,7 +126,7 @@ func TestNativeGuidanceModelEvaluationOptIn(t *testing.T) {
 					data, err := os.ReadFile(filepath.Join(root, name))
 					passed = passed && err == nil && string(data) == want
 				}
-				metrics, _ := json.Marshal(map[string]any{"task": sample.name, "variant": variant, "model": model, "passed": passed, "requests": calls, "tool_calls": toolCalls, "tool_errors": toolErrors, "input_tokens": inputTokens, "output_tokens": outputTokens, "duration_ms": time.Since(started).Milliseconds()})
+				metrics, _ := json.Marshal(map[string]any{"task": sample.name, "variant": variant, "model": model, "deferred": deferred, "passed": passed, "requests": calls, "tool_calls": toolCalls, "tool_errors": toolErrors, "input_tokens": inputTokens, "output_tokens": outputTokens, "duration_ms": time.Since(started).Milliseconds()})
 				t.Logf("GUIDANCE_EVALUATION %s", metrics)
 				if !passed {
 					t.Errorf("independent artifact validation failed (provider error=%v, report available=%t)", runErr, readErr == nil)

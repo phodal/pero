@@ -30,6 +30,10 @@ fixture; it does not add an OS sandbox. It uses the same specified model for
 the plugin's opus/sonnet aliases, rather than claiming those are Claude models.
 The existing CLI thinking option is passed through an exec launcher when
 requested. There are no automatic HTTP retries or prompt continuations.
+For a Responses endpoint, pass `--api-format responses --disable-streaming`;
+omit `--disable-thinking`, which belongs to the Chat Completions extension.
+An explicitly selected plaintext endpoint also requires `--allow-http`.
+The acceptance receipt records these transport choices.
 
 Acceptance requires a normal session and clean shutdown, one actual Workflow
 call with the exact selector input, an approved source-journal result matching
