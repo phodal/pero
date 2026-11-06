@@ -29,7 +29,7 @@ html, body, #app { height: 100%; }
 .data-rows input:not([type="checkbox"]) { min-width: 5rem; max-width: 9rem; }
 .data-missing { color: var(--pero-text-muted); }
 .data-form { display: grid; gap: var(--pero-spacing-1); margin-top: var(--pero-spacing-2); }
-.data-form label, .data-add form > label { display: grid; gap: var(--pero-spacing-1); }
+.data-form label { display: grid; gap: var(--pero-spacing-1); }
 .data-history section, .data-saved-view { padding: var(--pero-spacing-1) 0; border-bottom: var(--pero-hairline); }
 .data-history code, .data-sources code { display: block; font-size: var(--pero-font-caption); overflow-wrap: anywhere; }
 .data-archive { padding-top: var(--pero-spacing-3); }
@@ -37,6 +37,13 @@ html, body, #app { height: 100%; }
 .data-download { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-spacing-1); border-bottom: var(--pero-hairline); }
 .data-add form { display: flex; flex-direction: column; gap: var(--pero-spacing-3); }
 .data-add p { color: var(--pero-text-muted); font-size: var(--pero-font-caption); overflow-wrap: anywhere; }
+.data-first-use { flex: 1; align-content: center; }
+.data-first-use .pero-ui-empty-description { max-width: 32rem; }
+.data-first-use h2 { margin: 0; font: inherit; }
+.data-import-file { display: grid; gap: var(--pero-spacing-2); }
+.data-import-file h3 { margin: 0; font-size: var(--pero-font-body); }
+.data-import-file p { margin: 0; }
+.data-import-metadata .pero-ui-field { margin-top: var(--pero-spacing-2); }
 .data-sources { margin-top: var(--pero-spacing-3); }
 .data-sources section { display: grid; gap: var(--pero-spacing-1); padding: var(--pero-spacing-2) 0; border-bottom: var(--pero-hairline); }
 .data-sources h3, .data-sources p { margin: 0; }

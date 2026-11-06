@@ -23,6 +23,7 @@ export function DataForm(props: Omit<ComponentProps<'form'>, 'onKeyDown'>) {
       || !['text', 'search', 'email', 'tel', 'url', 'password', 'number'].includes(input.type)) return;
     // Cancel native implicit submission, including key repeat, before clicking.
     event.preventDefault();
-    if (!event.repeat) event.currentTarget.querySelector<HTMLButtonElement>('button[data-submit]')?.click();
+    if (!event.repeat) Array.from(event.currentTarget.elements)
+      .find((control): control is HTMLButtonElement => control instanceof HTMLButtonElement && control.hasAttribute('data-submit'))?.click();
   }} />;
 }

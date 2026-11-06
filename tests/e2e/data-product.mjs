@@ -89,6 +89,7 @@ try {
   await frame.getByRole('button', { name: 'Add data', exact: true }).click();
   const dialog = frame.getByRole('dialog');
   await dialog.locator('input[type="file"]').setInputFiles({ name: 'standalone.csv', mimeType: 'text/csv', buffer: bytes });
+  await dialog.getByText('Source and details (optional)', { exact: true }).click();
   await dialog.getByLabel('Source', { exact: true }).press('Enter');
   await expect(dialog).toBeHidden();
   await expect(frame.locator('.data-catalog .pero-list-open').filter({ has: frame.getByText('standalone.csv', { exact: true }) })).toBeVisible();

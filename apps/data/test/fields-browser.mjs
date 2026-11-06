@@ -196,10 +196,67 @@ test('first loading and an empty catalog share one workspace state', async t => 
   await releaseCatalog();
   await expect(page.getByText('No data yet', { exact: true })).toHaveCount(1);
   await expect(page.getByText('No dataset selected', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add data', exact: true })).toHaveCount(1);
+  await expect(page.locator('.data-first-use').getByRole('button', { name: 'Add data', exact: true })).toBeVisible();
+  await expect(page.locator('.pero-app-bar')).toHaveCount(0);
   await page.getByRole('button', { name: 'Add data', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Add data', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose file', exact: true })).toBeFocused();
   await page.getByRole('dialog').press('Escape');
   await expect(page.getByRole('button', { name: 'Add data', exact: true })).toBeFocused();
+});
+
+test('Chinese first import keeps optional drafts and a selected file through failure and appearance changes', async t => {
+  const { page } = await fixture(t, { catalog: { ...catalog, datasets: [], assets: [] }, inspect: false });
+  const imports = [];
+  const saved = { ...catalog, assets: [{ ...asset('a'), kind: 'model', format: 'bin' }],
+    datasets: [{ ...catalog.datasets[0], kind: 'model', versions: ['a'] }] };
+  await page.route('**/api/import', async route => {
+    imports.push(route.request().postDataJSON());
+    await route.fulfill({ status: imports.length === 1 ? 503 : 200,
+      json: imports.length === 1 ? { detail: 'Temporary import failure' } : saved });
+  });
+  await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'zh-CN', dark: false, active: true } }, '*'));
+  await expect(page.getByRole('heading', { name: '还没有数据', exact: true })).toBeVisible();
+  await page.screenshot({ path: resolve(screenshots, 'first-use-chinese-light.png'), fullPage: true });
+  await page.getByRole('button', { name: '导入数据', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toHaveAccessibleName('导入数据');
+  await expect(dialog.getByRole('button', { name: '选择文件', exact: true })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: '导入', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('textbox', { name: '来源', exact: true })).toBeHidden();
+  await dialog.locator('input[type="file"]').setInputFiles({ name: 'oversize.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(1001) });
+  await expect(dialog.getByRole('alert')).toHaveText('请选择大小为 1 字节至 1000 B 的文件。');
+  await expect(dialog.getByRole('button', { name: '导入', exact: true })).toBeDisabled();
+  await dialog.locator('input[type="file"]').setInputFiles({ name: 'model.bin', mimeType: 'application/octet-stream', buffer: Buffer.from('original model bytes') });
+  await dialog.getByRole('button', { name: '类型', exact: true }).click();
+  await page.getByRole('option', { name: '模型', exact: true }).click();
+  await expect(dialog.getByText('模型文件保留版本记录，不提供表格预览。', { exact: true })).toBeVisible();
+  await page.screenshot({ path: resolve(screenshots, 'import-chinese-light.png'), fullPage: true });
+  await dialog.getByText('来源与详细信息（可选）', { exact: true }).click();
+  await dialog.getByRole('textbox', { name: '来源', exact: true }).fill('Local experiment');
+  await dialog.getByRole('textbox', { name: '项目引用', exact: true }).fill('project-draft');
+  await dialog.getByRole('textbox', { name: '项目引用', exact: true }).press('Enter');
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  await expect(dialog.getByRole('textbox', { name: '项目引用', exact: true })).toHaveValue('project-draft');
+  const palette = JSON.parse(await readFile(resolve(root, 'web/src/theme.generated.json'), 'utf8')).dark;
+  await page.evaluate(palette => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: true, active: true,
+    appearance: { dark: true, accent: 'teal', palette, typography: { ui: 24, chat: 24, code: 24 } } } }, '*'), palette);
+  await page.setViewportSize({ width: 390, height: 650 });
+  await expect(page.locator('html')).toHaveCSS('font-size', '24px');
+  await expect(dialog.getByRole('textbox', { name: 'Project reference', exact: true })).toHaveValue('project-draft');
+  await expect(dialog.getByRole('status')).toContainText('model.bin');
+  await expect(dialog.locator('.pero-ui-dialog-foot').getByRole('button', { name: 'Import', exact: true })).toBeInViewport();
+  assert.ok(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth));
+  await page.screenshot({ path: resolve(screenshots, 'import-narrow-dark-24px.png'), fullPage: true });
+  await dialog.getByText('Source and details (optional)', { exact: true }).click();
+  await dialog.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  assert.equal(imports.length, 2);
+  assert.deepEqual(imports[1], imports[0]);
+  assert.deepEqual({ ...imports[1], content: undefined }, { name: 'model.bin', kind: 'model', source: 'Local experiment', license: 'Unknown', projectRef: 'project-draft', content: undefined });
+  assert.equal(Buffer.from(imports[1].content, 'base64').toString(), 'original model bytes');
+  await expect(page.locator('.pero-app-bar').getByRole('button', { name: 'Add data', exact: true })).toBeVisible();
 });
 
 for (const kind of ['model', 'opaque']) test(`${kind} files expose file and history capabilities`, async t => {

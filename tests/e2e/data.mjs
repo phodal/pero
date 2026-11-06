@@ -75,6 +75,7 @@ try {
   await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toHaveCount(0);
   await frame.getByRole('button', { name: 'Add data', exact: true }).click();
   const dialog = frame.getByRole('dialog');
+  await dialog.getByText('Source and details (optional)', { exact: true }).click();
   await dialog.getByLabel('Source', { exact: true }).press('Enter');
   await expect(dialog).toBeVisible();
   expect(requests.filter(r => r.method === 'POST' && r.path === '/api/import')).toHaveLength(0);
