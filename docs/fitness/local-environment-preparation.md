@@ -138,3 +138,59 @@ The initial standalone proposal and its screenshots remain in ignored
 `test-results/environment-design/`. They are design evidence, not production
 acceptance. Native GPUI, signed packages, screen-reader output and other operating
 systems remain unverified for this change.
+
+## 2026-11-06: review against DESIGN and DESIGN-REVIEW
+
+This review supersedes the creation-page visual conclusion above. Merely using
+shared controls and theme tokens did not establish the requested design quality.
+PR #151 retained a promotional heading, repeated local/method information, and
+unnecessary outer form/footer frames. Its page CSS also reached into the radio
+card's internal content and marker layout. Its acceptance omitted font-size
+changes and the create-refusal recovery path.
+
+Source: `bab57286` (including shared radio correction `f0e55001`), based on
+`ebc13c66`, plus the expanded `environment-preparation.mjs` checks in this commit.
+Built with `node scripts/build/apps.mjs --app environments --reader-dist
+web/dist-reader`. Observed in real macOS arm64 Electron/Chromium with the existing
+Desktop/Host binaries and GPUI Wasm shell, 14px and Host-persisted 24px UI size.
+Before images are attached to [PR #151](https://github.com/phodal/pero/pull/151);
+the new default light/dark captures use the same initial window and Control input.
+
+| Document criterion | Correction and observed evidence |
+| --- | --- |
+| DESIGN: content, hierarchy and density | A concrete Create environment heading, first-field name focus, compact method choices, one software summary and an unframed footer form one column. Removed repeated local badge, destination block, method fact, generic name help and joined outer frames. `create-light.png` / `create-dark-zh.png` show all primary inputs and the action in the initial wide view. |
+| Component boundaries | Radio marker stays in the shared component's flow, reserving space beside content at large fonts. Removed all page overrides of the radio's internal marker/content classes. Installation log now uses public inline Disclosure; existing catalog example consumes the same radio variant. No generated tokens or icons changed. |
+| DESIGN: conditions before action | Python/local placement, dependencies and related App remain visible. Shared Control/Circuit binding is stated once. Circuit's Homebrew consequence appears in the software section; `create-circuit-dark-zh.png` retains the actual installation warning. Preparation is explicitly distinct from starting a calculation. |
+| DESIGN-REVIEW: color and focus | Default light/dark: neutral canvas and input, blue software identity, apricot Circuit identity, teal selection and primary action. Dark narrow 24px screenshot shows a separate exterior keyboard focus outline, an interior selection border and persistent radio dot. Muted descriptions remain legible on selected and unselected surfaces. No new color roles or contrast-certification claim. |
+| DESIGN-REVIEW: input, appearance, narrow window | Real Host rejects a whitespace-only name; `create-refused.png` shows one local error before submit, preserves the input, and offers the original action after correction. Cancel/reopen preserves the draft. Locale/theme/14→24→14px changes preserve name and method; 720×800 window has no horizontal page overflow. `create-large-narrow-focus.png` / `create-large-narrow-footer.png` show wrapped labels, separate indicator space and reachable footer. Scroll checks allow one CSS pixel for fractional device-pixel rounding. |
+| DESIGN-REVIEW: keyboard and recovery | Radio arrows select/focus the next method. Installation Disclosure opens/closes with Enter. Cancelling the bind dialog returns focus to Use this environment. IME non-submission and permission/refresh retention pass the focused component tests. |
+| DESIGN-REVIEW: actual state transitions | Real create → install wheels → ready → cancel/accept bind → restart → persisted setting → Control pi-golden calculation passed again. Name refusal is from the actual Host validator, not an injected response. Existing domain and execution ownership is unchanged. |
+
+Evidence: ignored `test-results/environment-preparation/` contains the named
+screenshots plus `result.json` and actual `calculation.json`. The light, dark,
+refused, Circuit notice, narrow focus/footer and bound states were opened for
+visual inspection. The existing 11 focused environment/radio test cases and App,
+SDK/catalog typechecks plus `npm run check` pass; these are separate from visuals.
+
+Not covered by this correction: Native GPUI/Wry visual acceptance, signed
+packages, screen-reader speech, other OS renderers, network-install failure and
+cancellation, and a full disabled/pressed/hover visual matrix. Reduced-motion
+preference was enabled in the narrow test; this page adds no animation. Shell
+window dragging, sidebars, resizing and tab closing were not changed or re-certified.
+There is no independent pane split in the new single-column form, so Split's
+resizing/persistence contract does not apply. This scoped evidence does not claim
+complete DESIGN compliance for every surface or environment backend.
+
+
+PR #153 follow-up: merged `5085287b` through `06408814` and separated creation
+refusals from catalog/poll failures in `e4d5de9a`. The existing creation test now
+keeps a preparation active and proves that both successful and failed polling
+retain the create refusal. All 18 environment/radio/popover cases, SDK typecheck
+and repository generated checks pass. The actual Electron flow was rebuilt and
+passed again with the response-name assertion in this commit (run data home
+`pero-env-page-KEJmsV`). It verifies the name-validator response and the complete
+rendered message, and preserves a non-default Circuit draft across cancel/reopen.
+The Playwright response text exposes the en dash with incorrect decoding on this
+custom protocol; the response assertion identifies the ASCII validator prefix,
+while the visible alert assertion checks the complete Unicode message. This is
+a test-observation distinction, not a change to Host validation or product copy.

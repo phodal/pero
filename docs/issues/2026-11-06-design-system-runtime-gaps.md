@@ -214,6 +214,22 @@ last observation; no cause is asserted. Temporary theme/font restoration remains
 unverified. These observations do not invalidate the completed screenshots, and
 passing source inventory/build alone does not close product acceptance.
 
+## Environment creation follow-up
+
+The PR #151 visual revision reused library controls but did not complete the
+DESIGN-REVIEW acceptance: promotional and repeated content remained, page CSS
+reached into radio internals, and font/refusal recovery were omitted. Review also
+found that cancelling and reopening creation cleared the name, and a create
+refusal incorrectly offered a list refresh. These are actual workflow gaps,
+not new environment-domain rules.
+
+Corrected in `bab57286` / `f0e55001`: compact single-column creation, shared radio
+marker layout, retained drafts, contextual refusal and public log Disclosure.
+The expanded real Electron check covers Host validation refusal, font changes,
+keyboard and binding recovery. Evidence and remaining Native/renderer/state
+coverage are scoped in [local preparation](../fitness/local-environment-preparation.md#2026-11-06-review-against-design-and-design-review).
+This closes this follow-up's code corrections, not the other active items in
+this canonical design-system tracker.
 
 ## Pointer-opened Popover keyboard focus
 
