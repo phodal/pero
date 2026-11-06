@@ -135,10 +135,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 450px; overflo
 .hashes { overflow-wrap: anywhere; font-size: var(--pero-font-caption); }
 .hashes dd { margin: 4px 0 12px; }
 .table-scroll { overflow-x: auto; margin: 12px 0; }
-table { width: 100%; border-collapse: collapse; text-align: left; }
-th, td { padding: 4px 12px 4px 0; border-bottom: .5px solid var(--pero-border); vertical-align: top; overflow-wrap: anywhere; }
-thead th { color: var(--pero-text-muted); font-weight: 500; }
-tbody th { font-weight: 500; }
+.lab .pero-ui-table td { overflow-wrap: anywhere; }
 .observation, .result-actions { margin-bottom: 12px; }
 .result-actions { border-top: .5px solid var(--pero-border); padding-top: 12px; }
 .empty { padding: 12px; color: var(--pero-text-muted); }

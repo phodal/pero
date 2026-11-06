@@ -26,6 +26,7 @@ type TableSurfaceProps = {
   className?: string;
   tableClassName?: string;
   density?: 'compact' | 'comfortable';
+  layout?: 'auto' | 'fixed';
   unstyled?: boolean;
 };
 
@@ -45,10 +46,10 @@ export function Table<T>(props: TableProps<T> | TableMarkupProps) {
   return 'rows' in props ? <DataTable {...props} /> : <TableSurface {...props} />;
 }
 
-function TableSurface({ label, labelledBy, className, tableClassName, density = 'comfortable', unstyled, children, minWidth }: TableMarkupProps & { minWidth?: number }) {
+function TableSurface({ label, labelledBy, className, tableClassName, density = 'comfortable', unstyled, children, minWidth, layout }: TableMarkupProps & { minWidth?: number }) {
   return <div className={['pero-ui-table-wrap', className].filter(Boolean).join(' ')} data-unstyled={unstyled || undefined} data-density={density} tabIndex={0} role={label || labelledBy ? 'region' : undefined} aria-label={label} aria-labelledby={labelledBy}
     ref={node => { if (node) ensureUiStyles(node.ownerDocument); }}>
-    <table className={['pero-ui-table', tableClassName].filter(Boolean).join(' ')} style={{ minWidth, tableLayout: minWidth === undefined ? 'auto' : undefined }} aria-label={label} aria-labelledby={labelledBy}>
+    <table className={['pero-ui-table', tableClassName].filter(Boolean).join(' ')} style={{ minWidth, tableLayout: layout ?? (minWidth === undefined ? 'auto' : 'fixed') }} aria-label={label} aria-labelledby={labelledBy}>
       {children}
     </table>
   </div>;
