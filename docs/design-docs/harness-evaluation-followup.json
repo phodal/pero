@@ -1,0 +1,497 @@
+{
+  "kind": "verification_report",
+  "date": "2026-11-06",
+  "runtime_source_commit": "41e07f7bbc1a4fedaadca7859600ddf8dbb02415",
+  "evaluation_source_commit": "85de88e06d2d441eaa7b8ce2f505b9a6329a84be",
+  "model": "gpt-6.1-sol",
+  "endpoint": "http://187.124.157.143:8989/v1",
+  "api_format": "responses",
+  "automatic_retries": 0,
+  "guidance_samples": [
+    {
+      "deferred": false,
+      "duration_ms": 11417,
+      "input_tokens": 17920,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 193,
+      "passed": true,
+      "requests": 3,
+      "task": "regex",
+      "tool_calls": 2,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "Grep",
+        "Write"
+      ],
+      "variant": "without-native-guidance",
+      "run": "diagnostic-eager",
+      "guidance_first": false
+    },
+    {
+      "deferred": false,
+      "duration_ms": 22673,
+      "input_tokens": 31324,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 190,
+      "passed": true,
+      "requests": 5,
+      "task": "regex",
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "Glob",
+        "Grep",
+        "Write",
+        "Read"
+      ],
+      "variant": "with-native-guidance",
+      "run": "diagnostic-eager",
+      "guidance_first": false
+    },
+    {
+      "deferred": false,
+      "duration_ms": 22099,
+      "input_tokens": 18010,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 150,
+      "passed": true,
+      "requests": 3,
+      "task": "notebook",
+      "tool_calls": 2,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "NotebookRead",
+        "Write"
+      ],
+      "variant": "without-native-guidance",
+      "run": "diagnostic-eager",
+      "guidance_first": false
+    },
+    {
+      "deferred": false,
+      "duration_ms": 39767,
+      "input_tokens": 31536,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 197,
+      "passed": true,
+      "requests": 5,
+      "task": "notebook",
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "Glob",
+        "NotebookRead",
+        "Write",
+        "Read"
+      ],
+      "variant": "with-native-guidance",
+      "run": "diagnostic-eager",
+      "guidance_first": false
+    },
+    {
+      "deferred": false,
+      "duration_ms": 26995,
+      "input_tokens": 31312,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 183,
+      "passed": true,
+      "requests": 5,
+      "task": "regex",
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "Glob",
+        "Grep",
+        "Write",
+        "Read"
+      ],
+      "variant": "with-native-guidance",
+      "run": "reverse-eager",
+      "guidance_first": true
+    },
+    {
+      "deferred": false,
+      "duration_ms": 41893,
+      "input_tokens": 17916,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 141,
+      "passed": true,
+      "requests": 3,
+      "task": "regex",
+      "tool_calls": 2,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "Grep",
+        "Write"
+      ],
+      "variant": "without-native-guidance",
+      "run": "reverse-eager",
+      "guidance_first": true
+    },
+    {
+      "deferred": false,
+      "duration_ms": 33509,
+      "input_tokens": 29508,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 261,
+      "passed": true,
+      "requests": 5,
+      "task": "notebook",
+      "tool_calls": 4,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "Glob",
+        "NotebookRead",
+        "Write",
+        "Read"
+      ],
+      "variant": "with-native-guidance",
+      "run": "reverse-eager",
+      "guidance_first": true
+    },
+    {
+      "deferred": false,
+      "duration_ms": 36949,
+      "input_tokens": 15976,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 154,
+      "passed": true,
+      "requests": 3,
+      "task": "notebook",
+      "tool_calls": 2,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "NotebookRead",
+        "Write"
+      ],
+      "variant": "without-native-guidance",
+      "run": "reverse-eager",
+      "guidance_first": true
+    },
+    {
+      "deferred": true,
+      "duration_ms": 17895,
+      "input_tokens": 35967,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 222,
+      "passed": true,
+      "requests": 6,
+      "task": "regex",
+      "tool_calls": 5,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "ToolSearch",
+        "Glob",
+        "Grep",
+        "Write",
+        "Read"
+      ],
+      "variant": "with-native-guidance",
+      "run": "reverse-deferred",
+      "guidance_first": true
+    },
+    {
+      "deferred": true,
+      "duration_ms": 14722,
+      "input_tokens": 22552,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 217,
+      "passed": true,
+      "requests": 4,
+      "task": "regex",
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "ToolSearch",
+        "Grep",
+        "Write"
+      ],
+      "variant": "without-native-guidance",
+      "run": "reverse-deferred",
+      "guidance_first": true
+    },
+    {
+      "deferred": true,
+      "duration_ms": 27473,
+      "input_tokens": 34286,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 280,
+      "passed": true,
+      "requests": 6,
+      "task": "notebook",
+      "tool_calls": 6,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "ToolSearch",
+        "Glob",
+        "Read",
+        "Write",
+        "Read",
+        "Read"
+      ],
+      "variant": "with-native-guidance",
+      "run": "reverse-deferred",
+      "guidance_first": true
+    },
+    {
+      "deferred": true,
+      "duration_ms": 23008,
+      "input_tokens": 20828,
+      "model": "gpt-6.1-sol",
+      "output_tokens": 187,
+      "passed": true,
+      "requests": 4,
+      "task": "notebook",
+      "tool_calls": 3,
+      "tool_errors": 0,
+      "tool_sequence": [
+        "ToolSearch",
+        "Read",
+        "Write"
+      ],
+      "variant": "without-native-guidance",
+      "run": "reverse-deferred",
+      "guidance_first": true
+    }
+  ],
+  "coding": {
+    "scope": "Same five public HumanEval+ prompts, one submission per task, current runtime and sol Responses. Provider/model, runtime and nonbinding request ceiling differ from prior DeepSeek run. Not a full-suite or single-factor score.",
+    "evaluator_revision": "e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2",
+    "dataset_sha256": "6e6a8852558f7b885abe0f35c48047b0eb6f3341edb0bcf19fc5847b3b023bfe",
+    "max_requests_per_task": 64,
+    "max_output_tokens": 8192,
+    "controls": {
+      "reference_passed": 5,
+      "empty_failed": 5
+    },
+    "summary": {
+      "passed": 5,
+      "tasks": 5,
+      "http_attempts": 37,
+      "tool_calls": 27,
+      "reported_total_tokens": 276011,
+      "nonzero_exit_calls": 4,
+      "zero_exit_validation_candidates": 0,
+      "normal_cleanup_count": 5
+    },
+    "tasks": [
+      {
+        "task_id": "HumanEval/115",
+        "base_status": "pass",
+        "plus_status": "pass",
+        "passed": true,
+        "stop_reason": "end_turn",
+        "cleanup_succeeded": true,
+        "cleanup_failures": [],
+        "http_attempts": 7,
+        "tool_calls": 5,
+        "nonzero_exit_calls": 0,
+        "zero_exit_validation_candidates": 0,
+        "live_validation_warnings": 0,
+        "usage": {
+          "input_tokens": 51043,
+          "output_tokens": 696,
+          "total_tokens": 51739,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "reasoning_tokens": 0,
+          "reported_completions": 7,
+          "unreported_completions": 0,
+          "unreported_attempts": 0
+        },
+        "solution_sha256": "98e3a7c053732a007aa3942ac1605a7deb60723f8a97ea07197e4d531ac6a32e"
+      },
+      {
+        "task_id": "HumanEval/116",
+        "base_status": "pass",
+        "plus_status": "pass",
+        "passed": true,
+        "stop_reason": "end_turn",
+        "cleanup_succeeded": true,
+        "cleanup_failures": [],
+        "http_attempts": 7,
+        "tool_calls": 5,
+        "nonzero_exit_calls": 1,
+        "zero_exit_validation_candidates": 0,
+        "live_validation_warnings": 0,
+        "usage": {
+          "input_tokens": 50928,
+          "output_tokens": 956,
+          "total_tokens": 51884,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "reasoning_tokens": 167,
+          "reported_completions": 7,
+          "unreported_completions": 0,
+          "unreported_attempts": 0
+        },
+        "solution_sha256": "21f25d8ceadb134bd52f454d4578d50b5dd37beccd66fc6b544f09584234c319"
+      },
+      {
+        "task_id": "HumanEval/123",
+        "base_status": "pass",
+        "plus_status": "pass",
+        "passed": true,
+        "stop_reason": "end_turn",
+        "cleanup_succeeded": true,
+        "cleanup_failures": [],
+        "http_attempts": 7,
+        "tool_calls": 5,
+        "nonzero_exit_calls": 1,
+        "zero_exit_validation_candidates": 0,
+        "live_validation_warnings": 0,
+        "usage": {
+          "input_tokens": 50385,
+          "output_tokens": 736,
+          "total_tokens": 51121,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "reasoning_tokens": 0,
+          "reported_completions": 7,
+          "unreported_completions": 0,
+          "unreported_attempts": 0
+        },
+        "solution_sha256": "7b61a157bf20e78f59f282ad87e5c3355b8308d9e9dea3a1f19e3743279c8c83"
+      },
+      {
+        "task_id": "HumanEval/128",
+        "base_status": "pass",
+        "plus_status": "pass",
+        "passed": true,
+        "stop_reason": "end_turn",
+        "cleanup_succeeded": true,
+        "cleanup_failures": [],
+        "http_attempts": 9,
+        "tool_calls": 7,
+        "nonzero_exit_calls": 2,
+        "zero_exit_validation_candidates": 0,
+        "live_validation_warnings": 0,
+        "usage": {
+          "input_tokens": 67070,
+          "output_tokens": 959,
+          "total_tokens": 68029,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "reasoning_tokens": 0,
+          "reported_completions": 9,
+          "unreported_completions": 0,
+          "unreported_attempts": 0
+        },
+        "solution_sha256": "aa9d70ff9e00f2f6079ea555a47a220041414803d302cd18b2bb9f2a13fe7286"
+      },
+      {
+        "task_id": "HumanEval/129",
+        "base_status": "pass",
+        "plus_status": "pass",
+        "passed": true,
+        "stop_reason": "end_turn",
+        "cleanup_succeeded": true,
+        "cleanup_failures": [],
+        "http_attempts": 7,
+        "tool_calls": 5,
+        "nonzero_exit_calls": 0,
+        "zero_exit_validation_candidates": 0,
+        "live_validation_warnings": 0,
+        "usage": {
+          "input_tokens": 52147,
+          "output_tokens": 1091,
+          "total_tokens": 53238,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "reasoning_tokens": 20,
+          "reported_completions": 7,
+          "unreported_completions": 0,
+          "unreported_attempts": 0
+        },
+        "solution_sha256": "e4342568a86165de6947a486f089125dfb4a4aa0b0ee8711690448e73ad883c8"
+      }
+    ],
+    "nonzero_exit_reviews": [
+      {
+        "task_id": "HumanEval/116",
+        "call_id": "call_521c6c36bd444d429678beeb65174611",
+        "exit_code": 1,
+        "tool_is_error": true,
+        "classification": "empty_file_search",
+        "resolution": "No matching project instruction/test/config file; normal task continued.",
+        "command_sha256": "15b4e1a0bce30a6e066f63fa497a4f4f2de69b08bc515092272d0d48a1e37997",
+        "result_sha256": "ec2ae8dd16a4fba71b7f972b21117b9427f7ba4a78653e79ec678405384cf889"
+      },
+      {
+        "task_id": "HumanEval/123",
+        "call_id": "call_41086ff0a20340ad9101d5d2b11fb5b1",
+        "exit_code": 1,
+        "tool_is_error": false,
+        "classification": "empty_file_search",
+        "resolution": "No matching project instruction/test/config file; normal task continued.",
+        "command_sha256": "2e8db539f23194a3d60acb17d98492e0ae2039d765ab282a7d308547d3d51a2b",
+        "result_sha256": "d28c6fd49dd1272d037379c9db3bdfd2d27ff38a97f30982e921cd36618fa665"
+      },
+      {
+        "task_id": "HumanEval/128",
+        "call_id": "call_a2dfcc90c3e1434db22d2abf30c7430a",
+        "exit_code": 1,
+        "tool_is_error": true,
+        "classification": "empty_file_search",
+        "resolution": "No matching project instruction/test/config file; normal task continued.",
+        "command_sha256": "a488875c10f9a2085f607924b50354108604cc13ecbee036019ce07c1f3d7dcf",
+        "result_sha256": "a367df58bfce47ae8615a89d51aed098d792594c00b000955f45d171061e48bd"
+      },
+      {
+        "task_id": "HumanEval/128",
+        "call_id": "call_28b17e163dac4e4d83f88c43c9433a55",
+        "exit_code": 127,
+        "tool_is_error": true,
+        "classification": "missing_python_command",
+        "resolution": "A later Bash call observes python3, then the same self-check passes with python3.",
+        "command_sha256": "6685af4d978a7b956ad28eeff5ae67f74d4a0dc1b9f53a8e4868817dd1310757",
+        "result_sha256": "a3cd5b4f7ade7c2e65567b2d11c3822249e6b8eb2942ea1cfd17c6c376efb09f"
+      }
+    ],
+    "audit": {
+      "credential_literal_hits": 0,
+      "paths": [],
+      "frozen_inputs_unchanged": true
+    }
+  },
+  "previous_evidence": {
+    "deepseek_guidance": "docs/design-docs/harness-guidance-evaluation.json",
+    "sol_guidance_and_coder": "docs/design-docs/harness-guidance-openapi-evaluation.json",
+    "deepseek_native_coding": "docs/fitness/live-coding-feedback.md",
+    "selected_plugin_flows": "harness/tools/trial/local-plugin-acceptance.json"
+  },
+  "findings": [
+    "Both eager variant orders reproduce the extra AGENTS.md discovery and report readback; those calls have verification purposes, so existing guidance is retained.",
+    "Fresh deferred examples pass and retain all traces; one repeats a notebook read after the report readback. Existing read-reuse behavior saves context where eligible, not tool calls.",
+    "The five-task current acceptance is 5/5 versus 4/5 in the latest old DeepSeek sample. Different models and runtime/configuration mean this is not proof of a causal improvement.",
+    "Four nonzero exits remain recorded: three empty rg file searches and one absent python command, recovered through python3; no zero-exit validation candidates were detected.",
+    "Earlier 429 failure remains in its original report; this fresh serial sample had no provider failures.",
+    "Full latest Claude Code parity and remaining external-service/platform workflows are not established."
+  ],
+  "local_evidence_sha256": {
+    "test-results/claude-openapi-followup-20261106/diagnostic-eager.log": "fc2dec38c85e2a17946dfb83ff7bff19d6fdef1bca72ea5d255ae5897cd629f2",
+    "test-results/claude-openapi-followup-20261106/reverse-eager.log": "b554a30b434a3e9c586803d79e6a8f267f96348a1e47279cd37f4b091ffc20e7",
+    "test-results/claude-openapi-followup-20261106/reverse-deferred.log": "a41eedce4d2fcce69f0bcbe39e337bfdb006d8b70ae8aaffd2a314dd72146b01",
+    "test-results/claude-openapi-followup-20261106/diagnostic-eager/TestNativeGuidanceModelEvaluationOptIn/notebook/with-native-guidance.json": "73e09e9dd4ea2edf320c829df2d261f42811c0ba2a18c07f05ec449dc07447a5",
+    "test-results/claude-openapi-followup-20261106/diagnostic-eager/TestNativeGuidanceModelEvaluationOptIn/notebook/without-native-guidance.json": "2628c802b9c3e7ad0fdc3c88e76e5801235d82df92ab31429609a3b86e5ac8b9",
+    "test-results/claude-openapi-followup-20261106/diagnostic-eager/TestNativeGuidanceModelEvaluationOptIn/regex/with-native-guidance.json": "84425d11fb9339aa2ce67bca030afd13152d417171cb071a31dd46baf5e410f3",
+    "test-results/claude-openapi-followup-20261106/diagnostic-eager/TestNativeGuidanceModelEvaluationOptIn/regex/without-native-guidance.json": "f9fadb222a97b9e8c97df97cb512d20bc0ba0446c042f247dc50527149672379",
+    "test-results/claude-openapi-followup-20261106/reverse-deferred/TestNativeGuidanceModelEvaluationOptIn/notebook/with-native-guidance/sample-1556641393/trace.json": "fb40d29cf3822392433c17b3080f82dac5dcda199e475b84639af206afd1ba45",
+    "test-results/claude-openapi-followup-20261106/reverse-deferred/TestNativeGuidanceModelEvaluationOptIn/notebook/without-native-guidance/sample-3224193927/trace.json": "588b8eb05ce08b96e20fd3713ad3bc666fbae64fe7cb6809c3e897de4d8e5480",
+    "test-results/claude-openapi-followup-20261106/reverse-deferred/TestNativeGuidanceModelEvaluationOptIn/regex/with-native-guidance/sample-2946136118/trace.json": "ba52b81ffc826a80c011deb67c82198a8d2108bd752ba04596bc0bf150f7ac30",
+    "test-results/claude-openapi-followup-20261106/reverse-deferred/TestNativeGuidanceModelEvaluationOptIn/regex/without-native-guidance/sample-2294977444/trace.json": "6b2a688b1ace9f26158a4c9e8f4c7d16a8bdc1f91d01821d54eb904b60f017b9",
+    "test-results/claude-openapi-followup-20261106/reverse-eager/TestNativeGuidanceModelEvaluationOptIn/notebook/with-native-guidance/sample-3972551071/trace.json": "40152fbfd1787c512cc0f28def8c382bb8202bbddff626febc83624045eea75c",
+    "test-results/claude-openapi-followup-20261106/reverse-eager/TestNativeGuidanceModelEvaluationOptIn/notebook/without-native-guidance/sample-3600755109/trace.json": "d9439c907554fb75ebf88f91683d80944e939c5921dde8c0e2600b482e28010f",
+    "test-results/claude-openapi-followup-20261106/reverse-eager/TestNativeGuidanceModelEvaluationOptIn/regex/with-native-guidance/sample-3252417506/trace.json": "6391ad759517b6c2927c9cfeaa4512b0ebfff936715334b9cd183f37825c4717",
+    "test-results/claude-openapi-followup-20261106/reverse-eager/TestNativeGuidanceModelEvaluationOptIn/regex/without-native-guidance/sample-2160588959/trace.json": "712ef630f8b5b457e4138c93fb1749d3aa08c37ef4851bb70182d5a9376ffc49",
+    "test-results/claude-openapi-followup-20261106/evalplus/manifest.json": "a9fb0d06997753bb23f6dd90cb33f59b6f96e477aad4eb4b7ed29db40ab1b686",
+    "test-results/claude-openapi-followup-20261106/evalplus/run.py": "7683828d8c2766ca44b9e675f7735f1514ee92d287c8e10fd6be86e8e125468a",
+    "test-results/claude-openapi-followup-20261106/evalplus/complete.json": "670ebff1b8c295b781e4880775d00684961f0be1447ff7295f9e246c8769d14c",
+    "test-results/claude-openapi-followup-20261106/evalplus/artifact-audit.json": "14155ed9767377b09f9301688c3c763f0b295dabac2d69ebfa0cc841bf62c3bf",
+    "test-results/claude-openapi-followup-20261106/evalplus/judge/samples_eval_results.json": "58400cc5169c469d720f50f746134f41efb509c904bd7e1ac16542597746fac0",
+    "test-results/claude-openapi-followup-20261106/evalplus/judge/reference-native_eval_results.json": "9a08bda5356fdb07b845348ad1726d05e444cc96529e55e741ac5b86c11ff58e",
+    "test-results/claude-openapi-followup-20261106/evalplus/judge/baseline-native_eval_results.json": "e1685391f3e82ac63a7de89229873ccb5537f69eed3b11bf59e1ee620b2707b1"
+  },
+  "agent_binary_sha256": "419c7e3b8723f77a7d49d3fccafb23311ad8a0f3bef3f5e034c9c0e19f3e6d2b",
+  "trace_layout_note": "The initial diagnostic used flat trace files before the writer was changed to retain each repetition in a unique directory. Native tool/guidance behavior is identical; reverse-order runs exercise the final writer."
+}

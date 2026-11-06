@@ -250,3 +250,45 @@ The next frozen run (`cb364a60`) remains 4/5 with 58 requests, 50 tools and
 warning; no read-reuse or long-discovery phase occurs in these five small tasks.
 See [live coding feedback](live-coding-feedback.md) for implementation,
 verification, per-task verdicts and the separate later local performance change.
+
+## Sol Responses follow-up, 2026-11-06
+
+Current runtime `41e07f7b` passes **5/5** of the same selected public tasks with
+gpt-6.1-sol through the explicitly configured Responses endpoint. The official
+EvalPlus evaluator remains at `e5d0ed0bab96280b60b637ec7f15b5e4841b0cb2`;
+selected dataset SHA-256 remains
+`6e6a8852558f7b885abe0f35c48047b0eb6f3341edb0bcf19fc5847b3b023bfe`.
+Fresh reference controls pass 5/5 and empty controls fail 5/5 before model
+execution. Each task has a fresh public-prompt-only workspace, one submitted
+candidate, no hidden-test feedback and zero automatic retries. The model,
+provider/transport, runtime and a nonbinding 64-request ceiling differ from the
+older DeepSeek run; this is a new acceptance sample, not a causal comparison.
+
+| Task | Base / plus | Requests | Tools | Reported total tokens |
+| --- | --- | ---: | ---: | ---: |
+| 115 | pass / pass | 7 | 5 | 51,739 |
+| 116 | pass / pass | 7 | 5 | 51,884 |
+| 123 | pass / pass | 7 | 5 | 51,121 |
+| 128 | pass / pass | 9 | 7 | 68,029 |
+| 129 | pass / pass | 7 | 5 | 53,238 |
+| Total | **5/5** | **37** | **27** | **276,011** |
+
+All prompts end normally and cleanup succeeds. Four observed nonzero exits
+remain in the reports: three empty `rg --files` searches and one missing
+`python` executable. The latter is followed by observing `python3` and rerunning
+the self-check successfully. These are process facts; they are not four failed
+implementation tests. The Session reporter detects zero zero-exit validation
+candidates. This does not turn output-pattern observation into a correctness
+oracle; the separate original evaluator supplies the 5/5 verdict.
+
+The same follow-up preserves twelve new guidance A/B samples and their tool
+sequences, all passing. Eager variants run in both orders; deferred controls run
+serially. Additional calls largely check AGENTS.md and read back reports, so the
+existing guidance is retained. The earlier provider 429 failure is preserved
+in its original report rather than replaced by these fresh successful samples.
+
+Metrics, nonzero-exit classifications and private evidence hashes are in
+[the combined report](../design-docs/harness-evaluation-followup.json).
+Raw records live under `test-results/claude-openapi-followup-20261106/` in the
+evaluation worktree. No new production prompt/runtime behavior, full-suite
+score, Claude Code parity, or stable token-saving claim follows from this run.
