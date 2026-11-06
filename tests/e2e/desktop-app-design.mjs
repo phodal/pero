@@ -392,3 +392,44 @@ for (const appearance of [{ size:14, dark:false, width:1200 }, { size:24, dark:t
   assert.equal(messages.filter(m=>m.type==='pero:app:chat').length,1);
   assert.match(messages.find(m=>m.type==='pero:app:chat').options.message,/Only inspect; do not click/);
 });
+
+for (const variant of [{size:14,width:1200},{size:24,width:600,dark:true}]) test(`Paper shared search focus and exclusive reader modes (${variant.size})`,async t=>{
+  const paper={id:'controls-paper',title:'Saved control regression source',source:'local',sourceId:'controls',authors:[],url:'https://example.invalid/paper',contentKind:'abstract',content:'A saved reading passage.',fetchedAt:'2026-11-06',contentDigest:'controls-digest'};
+  let searches=0;
+  const page=await pageFor(t,'paper-agent',async()=>json({}),variant);
+  await page.route('**/api/**',async route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path==='/api/library/search'){searches++;return route.fulfill({json:{items:[],returned:0,queryTerms:[]}});}
+    return route.fulfill({json:path==='/api/library'?{papers:[paper],intents:[],reports:[]}:path===`/api/papers/${paper.id}`?paper:path==='/api/pdf'?{document:null,annotations:[]}:path==='/api/paper-documents'?{revisions:[],sources:[]}:path.endsWith('/tex')?{sources:[],engineAvailable:false,sourceNavigationAvailable:false}:path==='/api/research/record'?{records:[]}:[]});
+  });
+  await page.goto(origin+'/paper-agent/index.html');
+  const search=page.locator('.pa-local-search').getByRole('searchbox');
+  await search.fill('harness');
+  const focus=await search.evaluate(node=>({input:getComputedStyle(node).outlineWidth,offset:getComputedStyle(node).outlineOffset,parents:[node.parentElement,node.parentElement.parentElement].map(n=>getComputedStyle(n).outlineStyle==='none'?'0px':getComputedStyle(n).outlineWidth)}));
+  assert.deepEqual(focus,{input:'1px',offset:'-1px',parents:['0px','0px']});
+  await shot(page,`paper-search-shared-${variant.size}`);
+  const clear=page.getByRole('button',{name:'Clear search',exact:true});
+  await clear.focus();await clear.press('Enter');
+  await expect(search).toHaveValue('');await expect(search).toBeFocused();assert.equal(searches,0,'Clear must not submit');
+  await search.fill('harness');await search.press('Enter');
+  await expect(page.getByText(/^No matching passages\./)).toBeVisible();assert.equal(searches,1);
+  await page.getByRole('button',{name:'Clear search',exact:true}).click();
+  await page.locator('.pero-list-open').filter({hasText:paper.title}).dblclick();
+  const modes=page.locator('.pa-reader-modes');
+  const text=modes.getByRole('radio',{name:'Read',exact:true}), tex=modes.getByRole('radio',{name:'TeX',exact:true});
+  await expect(text).toHaveAttribute('aria-checked','true');
+  await expect(modes.getByRole('radio',{name:'PDF',exact:true})).toBeDisabled();
+  await text.focus();await text.press('ArrowRight');await expect(tex).toBeFocused();await tex.press('Space');
+  await expect(page.locator('[data-reader-view]')).toHaveAttribute('data-reader-view','tex');
+  await expect(page.getByText('No TeX source has been downloaded for this paper.',{exact:true})).toBeVisible();
+  await tex.press('ArrowLeft');await expect(text).toBeFocused();await text.press('Space');
+  await expect(page.locator('[data-reader-view]')).toHaveAttribute('data-reader-view','text');
+  await text.click();await expect(text).toHaveAttribute('aria-checked','true');
+  assert.equal(await text.evaluate(n=>getComputedStyle(n).outlineStyle),'none','pointer selection has no keyboard ring');
+  await text.press('ArrowRight');await expect(tex).toBeFocused();
+  assert.deepEqual(await tex.evaluate(n=>[getComputedStyle(n).outlineStyle,getComputedStyle(n).outlineOffset]),['solid','-2px'],'keyboard ring stays inside the toolbar');
+  await text.click();
+  assert.equal(await modes.locator('[aria-checked=true]').count(),1,'one representation remains selected');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await shot(page,`paper-reader-shared-${variant.size}`);
+});

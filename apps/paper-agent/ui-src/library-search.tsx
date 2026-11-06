@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Button, EmptyIllustration, EmptyState, Feedback, Icon, Input, LoadingSkeleton, SkeletonText } from '@pero/app-sdk/ui';
+import { Button, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, SearchField, LoadingSkeleton, SkeletonText } from '@pero/app-sdk/ui';
 import type { Api, LocalSearchHit, LocalSearchResult } from './types';
 import type { Translator } from './i18n';
 
@@ -54,17 +54,14 @@ export function LibrarySearch({ api, t, onOpen, activeHitId, onQueryChange, onFi
   const papers = result ? new Set(result.items.map(hit => hit.source.paperId)).size : 0;
   return <section className="pa-local-search" aria-label={t('localSearch')}>
     <form ref={form} className="pa-query-line" role="search" onSubmit={event => { event.preventDefault(); submit(); }}>
-      <Icon className="pa-query-icon" name="search" size={18}/>
-      <div className="pa-query-field">
-        <label className="pa-sr-only" htmlFor={inputId}>{t('localSearch')}</label>
-        <Input id={inputId} type="search" name="q" enterKeyHint="search" maxLength={2000} value={query} placeholder={t('librarySearchPlaceholder')} onChange={event => change(event.target.value)} onKeyDown={event => {
-          if (event.key !== 'Enter') return;
-          event.preventDefault();
-          if (!event.nativeEvent.isComposing) submit();
-        }}/>
-        {!!query && <Button variant="ghost" className="pa-search-clear" aria-label={t('clearSearch')} onClick={clear}><Icon name="close" size={15}/></Button>}
-      </div>
-      <Button className="pa-search-go" variant="primary" aria-label={t('search')} busy={busy} disabled={busy || !query.trim()} onClick={submit}><Icon name="arrow" size={18}/></Button>
+      <label className="pa-sr-only" htmlFor={inputId}>{t('localSearch')}</label>
+      <SearchField id={inputId} name="q" enterKeyHint="search" maxLength={2000} value={query} placeholder={t('librarySearchPlaceholder')} onChange={event => change(event.target.value)} onKeyDown={event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        if (!event.nativeEvent.isComposing) submit();
+      }}/>
+      {!!query && <IconButton label={t('clearSearch')} onClick={clear}><Icon name="close" size={16}/></IconButton>}
+      <IconButton label={t('search')} busy={busy} disabled={busy || !query.trim()} onClick={submit}><Icon name="search" size={18}/></IconButton>
     </form>
     {busy && (result ? <Feedback kind="status">{t('searching')}</Feedback> : <LoadingSkeleton label={t('searching')}><SkeletonText/></LoadingSkeleton>)}
     {!!error && <Feedback kind="error">{error}{result && ` ${t('localSearchRetained')}`}<Button disabled={busy} onClick={submit}>{t('retry')}</Button></Feedback>}
