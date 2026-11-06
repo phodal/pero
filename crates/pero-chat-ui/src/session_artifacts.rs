@@ -101,6 +101,7 @@ impl ChatPanel {
         compose: bool,
         cx: &mut Context<Self>,
     ) {
+        self.files.tab=pero_contracts::workbench::ResourceTab::Artifacts;
         let request_id = self.artifact_request_id("read");
         let state = self
             .artifacts

@@ -982,5 +982,17 @@
   "research.verification": "Recorded check",
   "research.missing_title": "Original record unavailable",
   "research.idle": "Not run yet",
-  "research.simulation": "Simulation"
+  "research.simulation": "Simulation",
+  "files.title": "Files",
+  "files.workspace": "Workspace",
+  "files.refresh": "Refresh folders",
+  "files.reload": "Reload file",
+  "files.back": "Back to files",
+  "files.copy_path": "Copy relative path",
+  "files.loading": "Loading…",
+  "files.empty": "Empty folder",
+  "files.truncated": "Showing up to 2,000 entries",
+  "files.failed": "Could not refresh folder",
+  "files.retry": "Retry",
+  "files.close": "Close files"
 }

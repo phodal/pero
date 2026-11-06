@@ -982,5 +982,17 @@
   "research.verification": "检查结果",
   "research.missing_title": "原记录不可用",
   "research.idle": "尚未运行",
-  "research.simulation": "模拟实验"
+  "research.simulation": "模拟实验",
+  "files.title": "文件",
+  "files.workspace": "工作区",
+  "files.refresh": "刷新目录",
+  "files.reload": "重新读取文件",
+  "files.back": "返回文件列表",
+  "files.copy_path": "复制相对路径",
+  "files.loading": "正在读取…",
+  "files.empty": "空目录",
+  "files.truncated": "最多显示 2,000 项",
+  "files.failed": "无法刷新目录",
+  "files.retry": "重试",
+  "files.close": "关闭文件面板"
 }
