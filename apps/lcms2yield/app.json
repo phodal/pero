@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "name": "lcms2yield",
+  "version": "0.1.0",
+  "displayName": "LCMS2Yield",
+  "description": "Compare the pinned LCMS2Yield yield table and, when the inference environment is ready, rerun its correction-factor weights.",
+  "contributes": {
+    "panels": [
+      { "id": "main", "title": "LCMS2Yield", "entry": "dist/index.html" }
+    ]
+  },
+  "backend": {
+    "type": "python",
+    "entry": "backend/server.py"
+  }
+}

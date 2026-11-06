@@ -13,6 +13,15 @@ pub enum ScientificMethod {
     Circuit,
     #[serde(rename = "paper-agent.pcgym")]
     Pcgym,
+    #[serde(rename = "lcms2yield.inference")]
+    Lcms2Yield,
+}
+impl ScientificMethod {
+    /// This trial runs every method, including LCMS2Yield, on the bundled 3.12 minor.
+    pub(super) fn python_minor(self) -> &'static str {
+        let _ = self;
+        super::python::BUNDLED_PYTHON_MINOR
+    }
 }
 impl ScientificMethod {
     pub(super) fn target(
@@ -40,6 +49,12 @@ impl ScientificMethod {
                 "paper-agent",
                 "paper-agent.pcgym",
                 "paper_agent.environment",
+                None,
+            ),
+            Self::Lcms2Yield => (
+                "lcms2yield",
+                "lcms2yield.inference",
+                "lcms2yield.environment",
                 None,
             ),
         }
@@ -239,6 +254,7 @@ mod tests {
             ("control-lab", ScientificMethod::Control),
             ("control-lab", ScientificMethod::Circuit),
             ("paper-agent", ScientificMethod::Pcgym),
+            ("lcms2yield", ScientificMethod::Lcms2Yield),
         ] {
             let inspection = EnvironmentInspection::inspect(&root.join(app), None, method).unwrap();
             let crate::environments::SoftwareObservation::Legacy(observed) = inspection.profile.observation() else {

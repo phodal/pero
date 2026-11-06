@@ -474,7 +474,7 @@ impl AppStore {
         let managed = self.root.parent().ok_or("App root needs a parent")?.join("environment/pero-python312");
         let dependencies = backend.dependencies.clone();
         let target = preparation::prepare(name, self.python.select(name),
-            PythonEnvironment::try_from(managed)?, &dependencies, progress)?;
+            PythonEnvironment::try_from(managed)?, &dependencies, python::BUNDLED_PYTHON_MINOR, progress)?;
         if let python::PythonPreparation::Managed(environment) = target {
             self.python.bind(name.clone(), environment.root().to_path_buf())?;
             if let Some(path) = &self.settings {

@@ -31,6 +31,7 @@ pub(super) fn prepare(
     selected: Option<&PythonEnvironment>,
     managed: PythonEnvironment,
     dependencies: &[PythonDependency],
+    python_minor: &str,
     progress: &mut impl FnMut(AppPreparation),
 ) -> Result<PythonPreparation, String> {
     let mut report = |phase, message: String| {
@@ -62,13 +63,12 @@ pub(super) fn prepare(
             let uv = installer(environment, &mut |line| {
                 report(PreparationPhase::Creating, line)
             })?;
-            let python =
-                super::python::bundled_python_executable().unwrap_or_else(|_| "3.12".into());
             let mut command = uv_command(&uv, environment);
-            // Reuse local CPython 3.12, or let uv prepare it when absent.
+            // The bundled minor resolves a real interpreter. Another minor is
+            // requested by version so uv can fetch it without a PATH shim.
             command
                 .args(["venv", "--python"])
-                .arg(&python)
+                .arg(interpreter_request(python_minor))
                 .arg(environment.root());
             run(&mut command, &mut |line| {
                 report(PreparationPhase::Creating, line)
@@ -260,6 +260,34 @@ fn installer(
         return Err("uv installer did not create its executable".into());
     }
     Ok(uv)
+}
+
+fn interpreter_request(minor: &str) -> std::ffi::OsString {
+    if minor == super::python::BUNDLED_PYTHON_MINOR {
+        super::python::bundled_python_executable()
+            .map(|path| path.into_os_string())
+            .unwrap_or_else(|_| minor.into())
+    } else {
+        minor.into()
+    }
+}
+
+/// Install wheels that are not ordinary pinned requirements, such as PyG builds
+/// published on a find-links index. Failure stays a preparation failure.
+pub(super) fn install_from_index(
+    environment: &PythonEnvironment,
+    find_links: &str,
+    packages: &[&str],
+    log: &mut impl FnMut(String),
+) -> Result<(), String> {
+    let uv = installer(environment, log)?;
+    let mut command = uv_command(&uv, environment);
+    command
+        .args(["pip", "install", "--python"])
+        .arg(environment.executable())
+        .args(["--only-binary", ":all:", "-f", find_links])
+        .args(packages);
+    run(&mut command, log)
 }
 
 fn uv_command(uv: &std::path::Path, environment: &PythonEnvironment) -> Command {
