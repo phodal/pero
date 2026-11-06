@@ -10,6 +10,7 @@ use gpui_kit::{
 };
 use pero_contracts::HostEvent;
 use serde_json::json;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 
 pub(crate) enum RenderItem {
     Message(usize),
@@ -617,6 +618,9 @@ impl ChatPanel {
             self.forget_chat(index, cx);
             return true;
         }
+        let brief_title = self.t("chat.brief_title").to_string();
+        let brief_request = self.t("chat.brief_request").to_string();
+        let brief_context = self.t("chat.brief_context").to_string();
         let chat = &mut self.chats[index];
         let mut followup = None;
         let mut restore_queue = false;
@@ -627,6 +631,10 @@ impl ChatPanel {
                     .data
                     .get("scope")
                     .and_then(|value| serde_json::from_value(value.clone()).ok());
+                chat.brief = crate::brief_conversation::BriefConversation::from_origin(
+                    chat.scope.as_ref(), event.data["appBinding"]["app"].as_str(),
+                    event.data["appBinding"]["run"].is_object(),
+                );
             }
             "agent_info" => {
                 chat.capabilities =
@@ -650,12 +658,17 @@ impl ChatPanel {
             }
             "user_message" => {
                 if chat.messages.is_empty() {
-                    chat.title.prompt(&event.text);
+                    chat.title.prompt(if chat.brief.is_some() { &brief_title } else { &event.text });
                 }
                 chat.push_user(event.text.clone(), cx);
                 if let Some(message) = chat.messages.last_mut() {
                     let contexts = event.data["contexts"].as_array().map(Vec::as_slice).unwrap_or(&[]);
                     message.attached_files = crate::message_attachments::attachment_labels(&event.text, contexts);
+                }
+                if chat.brief.is_some() && chat.messages.len() == 1 {
+                    let message = &mut chat.messages[0];
+                    message.view.update(cx, |view, cx| view.replace(&brief_request, cx));
+                    message.attached_files = vec![brief_context];
                 }
             }
             "session_connecting" => chat.state = SessionState::Connecting,
@@ -849,6 +862,27 @@ impl ChatPanel {
                                     .when(open,|el|el.child(div().pl(px(20.)).child(message.view.clone()))).into_any_element());
                             }
                             let user = message.role == "user";
+                            if let Some(brief) = conversation.brief.as_ref().filter(|_| !user && conversation.messages[..index].iter().filter(|message| message.role == "user").count() == 1) {
+                                let thread = conversation.id.clone();
+                                let location = format!("pero-app-location://insights/main/brief/{}", URL_SAFE_NO_PAD.encode(thread.as_bytes()));
+                                let open = Button::new(("brief-open", i)).outline().small().label(self.t("chat.brief_open"))
+                                    .on_click(cx.listener(move |_, _, _, cx| { cx.emit(crate::ChatAction::AppLink(location.clone())); }));
+                                let raw = Button::new(("brief-raw", i)).ghost().small().label(self.t("chat.brief_raw"))
+                                    .child(self.icon(if brief.raw_open { "chevron-down" } else { "chevron-right" }).size(px(14.)))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        if let Some(brief) = this.chats.iter_mut().find(|chat| chat.id == thread).and_then(|chat| chat.brief.as_mut()) { brief.raw_open = !brief.raw_open; }
+                                        cx.notify();
+                                    }));
+                                return Some(div().id(("brief-result", i)).mb(px(pero_theme::SPACE_12)).flex().flex_col().gap(px(pero_theme::SPACE_8))
+                                    .anchor_scroll(self.artifacts.anchors.get(&format!("{}/message:{index}", conversation.id)).cloned())
+                                    .child(div().text_color(p.text_muted).child(self.t("chat.brief_result")))
+                                    .child(div().flex().flex_wrap().gap(px(8.)).child(open).child(raw))
+                                    .when(brief.raw_open, |el| {
+                                        let thread = conversation.id.clone();
+                                        el.child(div().id(("brief-raw-body", i)).max_h(px(360.)).overflow_y_scroll().child(message.view.clone())).child(Button::new(("save-reply-artifact", index)).relative().children(self.artifacts.bounds.get(&format!("{}/save-reply:{index}", conversation.id)).map(|bounds| bounds.probe())).ghost().small().self_end().text_color(p.text_muted).label(self.t("artifacts.save_reply"))
+                                            .on_click(cx.listener(move |this, _, _, cx| this.save_reply_artifact(&thread, index, cx))))
+                                    }).into_any_element());
+                            }
                             Some(div().id(("message",i)).mb(px(pero_theme::SPACE_12)).flex().flex_col().gap(px(pero_theme::SPACE_8))
                                 .anchor_scroll(self.artifacts.anchors.get(&format!("{}/message:{index}",conversation.id)).cloned())
                                 .child(div().when(user, |el| el.w_full().px(px(pero_theme::SPACE_12)).py(px(pero_theme::SPACE_8)).bg(p.surface).border_1().border_color(p.border).rounded(px(pero_theme::RADIUS_PANEL))).child(message.view.clone()))
