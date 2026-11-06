@@ -31,6 +31,7 @@ test('sidebar collapse preserves names, navigation and group boundaries', async 
     const settings = remaining.at(-1);
     const label = papers.querySelector('.pero-sidebar-label');
     assert.equal(nav.getAttribute('aria-label'), 'Main navigation');
+    assert.notEqual(getComputedStyle(nav).borderInlineEndWidth, '0px');
     assert.equal(group.getAttribute('aria-label'), 'Research');
     assert.equal(group.hasAttribute('data-separated'), true);
     assert.equal(nav.querySelectorAll('[role="group"]').length, 1);

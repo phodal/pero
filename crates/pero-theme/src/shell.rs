@@ -35,7 +35,8 @@ pub fn window_bar(
         .child(div().flex_shrink_0().pr(chrome.geo(SPACE_8)).child(actions))
 }
 
-/// An opaque navigation surface, separated by tone rather than an extra rule.
+/// An opaque navigation surface. Tone marks the column; a trailing hairline
+/// separates it from the page.
 pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> Stateful<Div> {
     div()
         .id(id)
@@ -45,6 +46,8 @@ pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> 
         .flex()
         .flex_col()
         .bg(chrome.palette.surface_muted)
+        .border_r(px(0.5))
+        .border_color(chrome.palette.border)
         .text_color(chrome.palette.text)
         .p(chrome.geo(SIDEBAR_PADDING))
         .gap(chrome.geo(SPACE_4))
