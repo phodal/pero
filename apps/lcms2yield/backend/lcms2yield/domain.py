@@ -113,6 +113,54 @@ def cf_agreement(published, rerun):
     return 'PASS'
 
 
+# The two SMILES in the upstream README demo, with the correction factors printed there.
+README_EXAMPLES = (
+    ('readme-1', 'CN(N=C1)C=C1CC2(CC(F)(F)C2)NC(CC3=CC(C=C(Br)C=N4)=C4C=C3)C5=C(O)C=CC=N5', '1.1300693'),
+    ('readme-2', 'Nc1[nH]c(=O)nc[c:1]1[N:1]1CSC[C@H]1C(=O)O', '0.43467927'),
+)
+# One published product from each reaction type. The correction factor is CF (Pred).
+SHOWCASE = (
+    ('buchwald', 'CC(=O)Nc1cccc(F)c1', '0.40145972'),
+    ('sn2', 'O=C(O)c1cn(Cc2ccc(F)cc2)c2ccccc12', '0.7827761'),
+    ('suzuki', 'O=Cc1ccc(-c2ccncc2)cc1', '0.8695432'),
+    ('amide', 'O=C1CCN(C(=O)c2ccccc2)CC1', '0.32431915'),
+)
+EXAMPLE_SETS = {'readme': README_EXAMPLES, 'showcase': SHOWCASE}
+
+
+def example_agreement(predicted, examples=README_EXAMPLES):
+    """Compare a rerun with the correction factors published for that example set."""
+    published = [item[2] for item in examples]
+    if len(predicted) != len(published):
+        return 'FAIL'
+    for left, right in zip(published, predicted):
+        if abs(_decimal(left, 'published CF') - _decimal(right, 'rerun CF')) > CF_ABSOLUTE_TOLERANCE:
+            return 'FAIL'
+    return 'PASS'
+
+
+def published_fit(rows):
+    """Fit of the published yield columns. These are not a new model evaluation."""
+    import math
+    if len(rows) < 2:
+        raise Invalid('population', 'The yield table needs at least two rows')
+    experimental = [float(row.yield_exp) for row in rows]
+    predicted = [float(row.yield_pred) for row in rows]
+    count = len(experimental)
+    mean_exp = sum(experimental) / count
+    mean_pred = sum(predicted) / count
+    residual = sum((left - right) ** 2 for left, right in zip(experimental, predicted))
+    total = sum((value - mean_exp) ** 2 for value in experimental)
+    covariance = sum((left - mean_exp) * (right - mean_pred) for left, right in zip(experimental, predicted))
+    spread = math.sqrt(sum((value - mean_exp) ** 2 for value in experimental) * sum((value - mean_pred) ** 2 for value in predicted))
+    return {
+        'mae': format(yield_mae_percentage_points(rows), 'f'),
+        'rmse': f'{math.sqrt(residual / count) * 100:.6f}',
+        'r2': f'{1 - residual / total:.6f}',
+        'pearson': f'{covariance / spread:.6f}',
+    }
+
+
 def unique_products(rows):
     return len({row.product_smiles for row in rows})
 

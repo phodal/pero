@@ -5,8 +5,8 @@ import json
 import os
 from urllib.parse import parse_qs, urlsplit
 
-from lcms2yield.domain import Invalid
-from lcms2yield.service import build_state, execute_rerun
+from lcms2yield.domain import EXAMPLE_SETS, Invalid
+from lcms2yield.service import build_state, execute_custom, execute_examples, execute_rerun
 from lcms2yield.catalog import load_rows
 
 
@@ -61,7 +61,15 @@ def handler(secret):
                 if self.command == 'GET' and parsed.path == '/api/state':
                     return self.reply(200, build_state())
                 if self.command == 'GET' and parsed.path == '/api/structure':
-                    index = parse_qs(parsed.query).get('index', [''])[0]
+                    query = parse_qs(parsed.query)
+                    example = query.get('example', [''])[0]
+                    if example:
+                        match = next((item for items in EXAMPLE_SETS.values() for item in items if item[0] == example), None)
+                        if match is None:
+                            raise ValueError('Choose an official example')
+                        svg = structure_svg(match[1])
+                        return self.reply(200, {'example': example, 'smiles': match[1], 'svg': svg, 'available': svg is not None})
+                    index = query.get('index', [''])[0]
                     if not index.isdigit():
                         raise ValueError('Choose a reaction row')
                     rows = load_rows()
@@ -71,12 +79,18 @@ def handler(secret):
                     smiles = rows[position].product_smiles
                     svg = structure_svg(smiles)
                     return self.reply(200, {'index': position, 'smiles': smiles, 'svg': svg, 'available': svg is not None})
-                if self.command != 'POST' or parsed.path != '/api/rerun':
+                if self.command != 'POST' or parsed.path not in ('/api/rerun', '/api/examples', '/api/predict'):
                     return self.reply(404, {'detail': 'Route not found'})
-                value = self.body(256)
+                value = self.body(32768 if parsed.path == '/api/predict' else 256)
                 if value.get('confirm') is not True:
                     raise ValueError('Confirm this weight run before it starts')
-                execute_rerun(load_rows())
+                kind = value.get('set', 'readme')
+                if parsed.path == '/api/predict':
+                    execute_custom(value.get('smiles'))
+                elif parsed.path == '/api/examples':
+                    execute_examples(kind if isinstance(kind, str) else 'readme')
+                else:
+                    execute_rerun(load_rows())
                 return self.reply(200, build_state())
             except Invalid as error:
                 return self.reply(409, {'detail': error.detail, 'code': error.code, 'paper': 'INCONCLUSIVE'})

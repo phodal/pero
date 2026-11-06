@@ -111,7 +111,7 @@ test('released yield table is visible while the weight rerun and cluster jobs st
   await expect(frame.getByText('Unsettled', { exact: true })).toBeVisible();
   await expect(frame.locator('.yield-plot circle')).toHaveCount(178);
   await expect(frame.getByText('Mean absolute error 4.74 percentage points', { exact: true })).toBeVisible();
-  await expect(frame.getByRole('button', { name: 'Run pinned weights', exact: true })).toBeDisabled();
+  await expect(frame.getByRole('button', { name: 'Run prediction', exact: true })).toBeDisabled();
   await expect(frame.getByText('Not connected', { exact: true })).toBeVisible();
   await frame.locator('.yield-rows button').nth(1).click();
   await expect(frame.getByText('Structure drawing needs RDKit', { exact: false })).toBeVisible();

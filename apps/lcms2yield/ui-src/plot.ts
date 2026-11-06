@@ -21,6 +21,29 @@ export function plotBounds(points: YieldPoint[]) {
 }
 
 /** A correction-factor rerun is drawn only after a real comparison exists. */
+export function readCsv(text: string) {
+  const lines = text.split(/\r?\n/).filter(line => line.trim());
+  if (!lines.length) return { columns: [] as string[], rows: [] as Record<string, string>[] };
+  const columns = splitCsv(lines[0]);
+  const rows = lines.slice(1, 501).map(line => Object.fromEntries(columns.map((column, index) => [column, splitCsv(line)[index] ?? ''])));
+  return { columns, rows };
+}
+
+export function detectColumns(columns: string[]) {
+  const find = (pattern: RegExp) => columns.find(column => pattern.test(column)) ?? '';
+  return {
+    smiles: find(/smiles/i),
+    yieldExp: find(/yield \(exp\)|experimental yield|^yield$/i),
+    yieldPred: find(/yield \(pred\)|predicted yield/i),
+    name: find(/exp_name|^name$|reaction id/i),
+  };
+}
+
+function splitCsv(line: string) {
+  return line.split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
+}
+
+/** A correction-factor rerun is drawn only after a real comparison exists. */
 export function showsRerun(status: string) {
   return status === 'PASS' || status === 'FAIL';
 }

@@ -7,7 +7,7 @@ import csv
 
 from .catalog import load_rows
 from .identity import model_canonical, overlap
-from .domain import COMMIT, METHOD, PAPER, POPULATION, REPORTED_MAE_PP, UPSTREAM, Invalid, cf_agreement, product_smiles, type_counts, unique_products, yield_table_verdict
+from .domain import COMMIT, EXAMPLE_SETS, METHOD, PAPER, POPULATION, REPORTED_MAE_PP, UPSTREAM, Invalid, cf_agreement, example_agreement, product_smiles, published_fit, type_counts, unique_products, yield_table_verdict
 from .rerun import pinned_tables, run_predictions, score, verify_checkout
 
 PAPER_REASON = 'The released yield columns match 4.74 percentage points only as published arithmetic. Chromatograms were not remeasured, and a correction-factor rerun does not recompute those yields.'
@@ -55,6 +55,53 @@ def load_rerun():
     if not isinstance(saved, dict) or saved.get('commit') != COMMIT:
         return None
     return saved
+
+
+def load_examples(name):
+    root = _data_root()
+    if root is None:
+        return None
+    saved = _read_json(root / f'examples-{name}.json')
+    if not isinstance(saved, dict) or saved.get('commit') != COMMIT or saved.get('set') != name:
+        return None
+    return saved
+
+
+def execute_examples(name='readme'):
+    examples = EXAMPLE_SETS.get(name)
+    if examples is None:
+        raise Invalid('example', 'Choose the README demo or the reaction-type examples')
+    path = checkout_path()
+    if not path:
+        raise FileNotFoundError('Prepare the environment before running the official examples')
+    predicted = run_predictions(path, [item[1] for item in examples])
+    report = {
+        'status': example_agreement(predicted, examples),
+        'commit': COMMIT,
+        'set': name,
+        'predictions': [
+            {'id': item[0], 'smiles': item[1], 'published': item[2], 'predicted': predicted[index]}
+            for index, item in enumerate(examples)
+        ],
+    }
+    root = _data_root()
+    if root is not None:
+        _write(root / f'examples-{name}.json', report)
+    return report
+
+
+def execute_custom(smiles):
+    if not isinstance(smiles, list) or not 1 <= len(smiles) <= 32 or any(not isinstance(item, str) or not item.strip() or len(item) > 500 for item in smiles):
+        raise Invalid('smiles', 'Provide 1 to 32 SMILES, each at most 500 characters')
+    path = checkout_path()
+    if not path:
+        raise FileNotFoundError('Prepare the environment before running weights')
+    predicted = run_predictions(path, smiles)
+    report = {'commit': COMMIT, 'predictions': [{'smiles': item, 'predicted': predicted[index]} for index, item in enumerate(smiles)]}
+    root = _data_root()
+    if root is not None:
+        _write(root / 'custom.json', report)
+    return report
 
 
 def execute_rerun(rows):
@@ -110,6 +157,22 @@ def identity_status(checkout):
     return {'status': 'RECORDED', **overlap(groups)}
 
 
+def _example_state(name):
+    examples = EXAMPLE_SETS[name]
+    saved = load_examples(name)
+    predictions = {item['id']: item.get('predicted') for item in saved.get('predictions', [])} if isinstance(saved, dict) else {}
+    status = saved.get('status') if isinstance(saved, dict) else 'UNRUN'
+    if status not in ('PASS', 'FAIL'):
+        status = 'UNRUN'
+    return {
+        'status': status,
+        'items': [
+            {'id': item[0], 'smiles': item[1], 'published': item[2], 'predicted': predictions.get(item[0])}
+            for item in examples
+        ],
+    }
+
+
 def build_state():
     rows = load_rows()
     verdict, mae = yield_table_verdict(rows)
@@ -156,6 +219,10 @@ def build_state():
         },
         'paperReason': PAPER_REASON,
         'typeCounts': type_counts(rows),
+        'fit': published_fit(rows),
+        'examples': _example_state('readme'),
+        'showcase': _example_state('showcase'),
+        'custom': _read_json(_data_root() / 'custom.json') if _data_root() else None,
         'checkout': checkout_path(),
         'identity': identity_status(checkout_path()),
         'compute': {'connected': False, 'jobs': None, 'destination': '/apps/compute'},
