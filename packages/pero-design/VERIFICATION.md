@@ -13,7 +13,8 @@ automated behavior checks and observed running surfaces are separate evidence.
 The source checkout began at `5012bacbc48228d878ebd3cd73302a14d4857e42` with this
 migration uncommitted. The PR is assembled on `origin/master` in
 `codex/desktop-design-system`, retaining the design-principles commit and excluding
-unrelated harness commits and the separately synchronized Lab icon artwork.
+unrelated harness commits. The shared icon guidelines and Lab icon mapping were
+added on 2026-11-06 after checking the remaining local-only changes.
 Final build identities and Native observations are recorded below after validation.
 
 ## Migration record
@@ -34,6 +35,7 @@ Final build identities and Native observations are recorded below after validati
 | Hover marker resembling selection | Neutral `surface-hover`, selected `accent-soft`, separate keyboard focus | Shared controls; selected tab/option state remains visible during pointer hover |
 | Differing button/menu fonts | Shared body sans typography and regular control weight | Buttons, IconButton, Select, dropdown/context items and Popover; headings retain hierarchy |
 | Local import controls | `FilePicker` single/multiple | Viewer, Virtual Cell, Lab; import validation and cancellation remain App-owned |
+| Generic Lab app glyph | Shared `flask-conical` association | Web and Native resolve the same Lab identity through the existing registry; explicit artwork and theme overrides retain their authority |
 | Stage-independent Control Lab dashboard | Model plus editable Specification during preparation; response/verification/evidence after execution | Criteria, budgets, approval, freeze and science verdict stay domain-owned; missing checks/denominator retained |
 | Control polling remount / proposal placeholder selection | Stable sibling keys and executed-trial selection | Draft, selection and focus survive same-object refresh; latest executed proposal selected; cancellation pending differs from stopped |
 
@@ -60,6 +62,7 @@ all public Web component exports. The following is the condensed audit matrix.
 
 ## Automated verification
 
+- Icon follow-up (2026-11-06): regenerated and checked **83 shared icons (42 Kit assets)**; all **3 content-icon tests** passed. This source follow-up does not establish additional Native visual acceptance.
 - SDK full suite: **148 passed**; latest focused checks are recorded in the final validation section.
 - Control Lab UI/presentation/retained-state suite: **22 passed**. Covers partial/failed results, zero values, stale refresh recovery, same-object draft/focus retention, cancellation and executed proposal selection.
 - Paper numeric/Docling UI suites: **13 passed** after 17 Select migrations. Actual shared options replace native-select test interaction; local jsdom geometry shim only.
