@@ -1,0 +1,30 @@
+.pa-programs { padding:12px; min-width:0; height:100%; overflow:auto; }
+.pa-programs > .pero-ui-split { min-height:360px; }
+.pa-programs > .pero-ui-split[data-stacked] > #program-list { min-height:0; }
+.pa-program-list { display:flex; flex-direction:column; gap:0; padding-right:12px; }
+.pa-program-list button { display:flex; flex-direction:column; gap:4px; text-align:left; border:0; border-bottom:.5px solid var(--pero-border); background:transparent; color:inherit; padding:8px 4px; cursor:pointer; overflow-wrap:anywhere; }
+.pa-program-list button[aria-current] { background:var(--pero-surface-muted); }
+.pa-program-list button span { font-size:12px; }
+.pa-program-plan,.pa-program-detail { display:flex; flex-direction:column; gap:12px; min-width:0; padding:0 12px; }
+.pa-programs h2 { font-size:18px; margin:0; overflow-wrap:anywhere; }
+.pa-workbench .pa-programs h3 { font-size:14px; margin:0; }
+.pa-programs p { margin:0; overflow-wrap:anywhere; }
+.pa-program-plan label { display:flex; flex-direction:column; gap:4px; }
+.pa-program-plan input,.pa-program-plan textarea,.pa-program-plan select { font:inherit; color:inherit; background:var(--pero-surface); border:1px solid var(--pero-border); border-radius:3px; min-height:24px; max-width:100%; padding:2px 6px; }
+.pa-program-plan input:focus-visible,.pa-program-plan textarea:focus-visible,.pa-program-plan select:focus-visible,.pa-program-list button:focus-visible { outline:2px solid var(--pero-focus); outline-offset:2px; }
+.pa-program-plan fieldset { border:0; margin:0; padding:0; max-height:180px; overflow:auto; }
+.pa-program-plan legend { font-weight:600; margin-bottom:4px; }
+.pa-program-plan .pa-program-seed { flex-direction:row; align-items:center; min-height:24px; }
+.pa-program-seed input { min-height:0; }
+.pa-program-limits { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; }
+.pa-program-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.pa-program-usage { display:grid; grid-template-columns:repeat(auto-fit,minmax(125px,1fr)); gap:8px; margin:0; }
+.pa-program-usage dt { font-size:12px; }
+.pa-program-usage dd { margin:0; font-variant-numeric:tabular-nums; }
+.pa-program-detail details { border-bottom:.5px solid var(--pero-border); padding-bottom:8px; }
+.pa-program-detail summary { cursor:pointer; font-weight:600; }
+.pa-program-detail details p,.pa-program-detail details blockquote { margin:8px 0; }
+.pa-program-detail blockquote { padding-left:12px; border-left:1px solid var(--pero-border); overflow-wrap:anywhere; }
+.pa-program-candidates { list-style:none; padding:0; margin:0; }
+.pa-program-candidates li { display:flex; flex-direction:column; gap:4px; padding:6px 0; border-bottom:.5px solid var(--pero-border); overflow-wrap:anywhere; }
+@media(max-width:760px) { .pa-program-plan,.pa-program-detail { padding:0; } .pa-program-list { max-height:140px; overflow:auto; margin-bottom:12px; } }

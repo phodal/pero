@@ -11,6 +11,7 @@ import type { ResearchBundle } from './research-types';
 import { Reader, EvidencePanel, type Citation } from './documents';
 import { FigureSourceDialog, type FigureReference, type FigureTarget } from './figure-reference';
 import { ResearchRecords } from './research-records';
+import { ResearchPrograms } from './research-programs';
 import type { ResearchAttempt } from './manual-records';
 import { Discovery, type DiscoveryOpening } from './discovery';
 import { DiscoverSearch } from './discover-search';
@@ -53,6 +54,7 @@ export default function PaperAgent() {
   const [comparison, setComparison] = useState<{ paperIds: string[]; papers?: Paper[]; from: 'papers' | 'discovery'; question: string } | null>(null);
   const [bundleOpening, setBundleOpening] = useState<{ id: string; startDownloadIds: string[]; startPdfIds: string[]; startSourceIds: string[]; token: number } | null>(null);
   const [importingPdf, setImportingPdf] = useState(false);
+  const [programSeed, setProgramSeed] = useState<Paper|null>(null);
   const [error, setError] = useState(''), [reading, setReading] = useState<Paper | null>(null), [readingBusy, setReadingBusy] = useState(false);
   const [showResearch, setShowResearch] = useState(false), [questionMode, setQuestionMode] = useState(false);
   const [recordOpening, setRecordOpening] = useState<{ studyId: string; intentId: string | null; token: number } | null>(null);
@@ -316,8 +318,9 @@ export default function PaperAgent() {
       if(event.source!==window.parent || event.data?.type!=='pero:app:location' || typeof event.data.location!=='string')return;
       const resource=/^(paper|study)\/([a-f0-9]{64})$/.exec(event.data.location);
       const match=/^report\/([a-f0-9]{64})\/citation\/(\d+)$/.exec(event.data.location);
+      const passage=/^report\/([a-f0-9]{64})\/passage\/([a-f0-9]{64})$/.exec(event.data.location);
       const figure=/^figure\/([a-f0-9]{64})\/([a-f0-9]{64})$/.exec(event.data.location);
-      if(!resource&&!match&&!figure)return;
+      if(!resource&&!match&&!figure&&!passage)return;
       void (async()=>{
         if(figure){
           const reference=await api.get<FigureReference>(`/api/research/figure-reference/${figure[1]}/${figure[2]}${reading ? `?paperId=${reading.id}` : ''}`);
@@ -345,11 +348,11 @@ export default function PaperAgent() {
           }
           return;
         }
-        if(!match)return;
-        const report=await api.get<import('./types').Report>(`/api/reports/${match[1]}`);
+        if(!match&&!passage)return;
+        const report=await api.get<import('./types').Report>(`/api/reports/${(match??passage)![1]}`);
         const intent=await api.get<Intent>(`/api/intents/${report.intentId}`);
         const refs=report.sections?.flatMap(section=>section.evidence??[])??[];
-        const ref=refs[Number(match[2])];if(!ref)throw Error('Citation is unavailable');
+        const ref=passage?[...refs,...(report.matrix?.cells.flatMap(cell=>cell.evidence)??[])].find(ref=>ref.passageId===passage[2]):refs[Number(match![2])];if(!ref)throw Error('Citation is unavailable');
         await cite(ref,intent);
       })().catch(onError);
     };
@@ -400,7 +403,7 @@ export default function PaperAgent() {
     {error && <div className="pa-global-error"><Feedback kind="error"><span>{error}</span><Button variant="ghost" onClick={() => setError('')}>{t('dismiss')}</Button></Feedback></div>}
     {savingPaper && <LibrarySave key={savingPaper.id} api={api} paper={savingPaper} format={saveFormat} t={t} onRead={id => { pendingAsk.current = null; setSavingPaper(null); void api.get<Paper>(`/api/papers/${id}`).then(paper => read(paper)).catch(onError); }} onClose={() => { pendingAsk.current = null; setSavingPaper(null); }} onSaved={async () => { setSaveRevision(value => value + 1); await refresh().catch(error => onError(`${t('savedRefreshFailed')} ${error instanceof Error ? error.message : String(error)}`)); const queued = pendingAsk.current; pendingAsk.current = null; if (queued) { setSavingPaper(null); await ask(queued.selection, queued.message); } }}/>}
     <Split className="pa-shell" storageKey="paper-agent.library-navigation" collapseBelow={760}>
-    {screen !== 'reading' && <SplitPane id="paper-navigation" size={196} min={160} resizeLabel={t('resizeLibraryNavigation')} stackedBasis="auto"><WorkspaceNav t={t} paperCount={library.papers.length} readingCount={readingCount} toReadCount={toReadCount} bundles={bundles} libraryScreen={libraryScreen} shelfFilter={shelfFilter} openBundleId={bundleOpening?.id ?? null} onLibrary={() => { setShelfFilter('all'); setLibraryScreen('papers'); }} onDiscover={() => setLibraryScreen('find')} onResults={() => setLibraryScreen('results')} onShelf={filter => { setShelfFilter(filter); setLibraryScreen('papers'); }} onBundle={openBundle}/></SplitPane>}
+    {screen !== 'reading' && <SplitPane id="paper-navigation" size={196} min={160} resizeLabel={t('resizeLibraryNavigation')} stackedBasis="auto"><WorkspaceNav t={t} paperCount={library.papers.length} readingCount={readingCount} toReadCount={toReadCount} bundles={bundles} libraryScreen={libraryScreen} shelfFilter={shelfFilter} openBundleId={bundleOpening?.id ?? null} onLibrary={() => { setShelfFilter('all'); setLibraryScreen('papers'); }} onDiscover={() => setLibraryScreen('find')} onResults={() => setLibraryScreen('results')} onPrograms={() => {setProgramSeed(null);setLibraryScreen('programs')}} onShelf={filter => { setShelfFilter(filter); setLibraryScreen('papers'); }} onBundle={openBundle}/></SplitPane>}
     <SplitPane id="paper-workspace" min={320} className="pa-workspace-pane">
     <div className="pa-workspace" data-hit-preview={hitPreview && screen === 'reading' ? 'true' : undefined} data-question={questionMode && screen === 'reading' ? 'true' : undefined}>
     <SearchFrame preview={hitPreview && screen === 'reading'} resizeLabel={t('resizeSearch')}>
@@ -429,6 +432,7 @@ export default function PaperAgent() {
         {screen === 'library' && evidencePanel}
         {libraryLoaded ? <ResearchRecords api={api} library={library} paper={null} results onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} onRead={reread} onAttempt={openAttempt} t={t}/> : loading && <p role="status">{t('loading')}</p>}
       </div>}
+      {libraryScreen === 'programs' && <ResearchPrograms api={api} papers={library.papers} seed={programSeed}/>}
     </section>
     <Split className="pa-reading-screen" storageKey="paper-agent.research-records" collapseBelow={760} hidden={screen !== 'reading'} data-agent={showResearch}>
       <SplitPane id="paper-reading-main" className="pa-reading-main" min={320}>
@@ -436,6 +440,7 @@ export default function PaperAgent() {
           <Button variant="ghost" aria-label={t(libraryScreen === 'results' ? 'researchResults' : libraryScreen === 'compare' ? 'comparePapers' : 'backToLibrary')} onClick={back}><Icon family="shell" name="back" size={16}/>{t(libraryScreen === 'results' ? 'researchResults' : libraryScreen === 'compare' ? 'comparePapers' : 'library')}</Button>
           <div className="pa-reader-crumb"><span className="pa-reader-title" title={reading?.title}>{reading?.title ?? t('loading')}</span></div>
           <div className="pa-reader-tools" ref={setPdfToolbar}/>
+          <Button variant="ghost" disabled={!reading||readingBusy} onClick={()=>{setProgramSeed(reading);setScreen('library');setLibraryScreen('programs')}}>{t('autonomousResearch')}</Button>
           {!questionMode && <>
             <Button ref={recordsButton} className="pa-records-toggle" variant="ghost" aria-label={t('researchProgress')} title={t('researchProgress')} aria-expanded={showResearch} aria-controls={showResearch ? 'paper-research-records' : undefined} onClick={() => { preserveView.current?.(); setShowResearch(value => !value); }}>
               <Icon family="shell" name="clock" size={16}/>

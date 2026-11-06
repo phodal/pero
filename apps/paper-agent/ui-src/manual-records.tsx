@@ -137,7 +137,7 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
                   {citations.map(({ citation, index }) => <fieldset key={index}><legend>Evidence {citations.findIndex(value => value.index === index) + 1}</legend>
                     <label>Saved report<Select label="Saved report" disabled={reportsLoading || !!reportsError} value={citation.reportId ?? '__gap__'} onChange={value => updateEvidence(index, value === '__gap__' ? { reportId: null, stance: 'gap' } : { reportId: value })}
                       options={[{ value: '__gap__', label: 'Unresolved gap (no report)' },
-                        ...(citation.reportId && !options.some(report => report.id === citation.reportId) ? [{ value: citation.reportId, label: 'Saved reference (not currently available)', disabled: true }] : []),
+                        ...(citation.reportId && !options.some(report => report.id === citation.reportId) ? [{ value: citation.reportId, label: citation.sourceKind === 'html' ? 'Saved HTML source report' : 'Saved reference (not currently available)', disabled: true }] : []),
                         ...options.map(report => ({ value: report.id, label: report.title }))]}/></label>
                     <label>Relation<Select label="Relation" disabled={citation.reportId === null} value={citation.stance} onChange={value => updateEvidence(index, { stance: value as Evidence['stance'] })} options={[{ value: 'support', label: 'Support' }, { value: 'counterevidence', label: 'Counterevidence' }, { value: 'gap', label: 'Gap' }]}/></label>
                     <label>Conditions and limitations<Textarea required maxLength={2000} rows={2} value={citation.note} onChange={event => updateEvidence(index, { note: event.target.value })}/></label>
