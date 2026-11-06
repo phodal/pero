@@ -196,3 +196,16 @@ Files/Artifacts 切换，关联 #145；没有关闭仍有未完成科研能力�
   两个真实 mounted 科学工具、实际 spill 及 ACP 两种投影路径已有回归。
 - 已同步主干 GPUI Kit 0.9.0 并重新构建/验收。用户明确要求不提交二进制截图，
   PR 链接 [本地验收记录](../fitness/workspace-files.md)，记录 ignored 截图位置与观察范围。
+
+
+PR #155 收尾审查：Markdown 文件预览使用 workspace Reader 后捕获链接，却未订阅
+`ReaderAction::Link`，导致点击无效果。已接回既有 ContentLink 分类和会话文件读取；
+外部 URL 交给现有 opener，工作区外目标显示局部错误。补充纯路径解析与真实 Markdown 点击回归。
+
+CI run `42248809414` 的 engineeringprofile fixture 在清理时把
+`ErrHarnessDisposalInProgress` 当作失败；Harness 合约明确 Dispose 可以返回 pending，
+Drain 才是最终关闭回执。30 次本地重复未复现调度时序，但 fixture 的断言与合约不符；
+仅修正清理接受该 pending 值，仍检查 Drain 的最终错误，不改变运行时行为。
+
+同一次 CI 的 Host settings 合约期望值尚未包含新增 `resource_tab`，导致旧配置恢复/
+保存/重启的整对象比较失败。已补齐默认 Artifacts、保存 Files 与非法 tab 拒绝的合约案例。

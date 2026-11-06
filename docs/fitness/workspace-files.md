@@ -23,7 +23,7 @@ narrow panels retain a Back action. Files remain distinct from immutable Artifac
 
 - Real Electron/Wasm with real Host and temporary files: `node tests/e2e/workspace-files.mjs` passed.
   Two sessions stay isolated; nested loading, keyboard Down/Enter/Home/End,
-  relative-path copying, tab retention, live reload, directory rename, workspace
+  relative-path copying, Markdown relative-link navigation, tab retention, live reload, directory rename, workspace
   escape rejection and preference restore after restart all pass. Modifying a live
   result leaves its registered artifact unchanged. Conversation history is unchanged.
 - A directory containing 2,050 files reports a 2,000-entry cap and explicit truncation.
@@ -70,3 +70,16 @@ Local machine evidence is ignored by Git: `test-results/workspace-files/result.j
 and its screenshots, plus the real molecular history in
 `test-results/scientific-molecules-real-approved/`. Per the user's explicit instruction,
 no binary screenshots are committed or uploaded; PR review links this record.
+
+
+PR follow-up: the actual Markdown link click now opens `runs/result.json` through
+this session's bounded read path; external URL classification uses `ContentLink`
+and the existing URL opener. The contract tests cover encoded paths and workspace
+escape rejection. Native was rebuilt after subscription wiring; the actual click
+regression was exercised in Electron/Wasm.
+
+The first CI run exposed two test updates: Host preference expectations lacked the
+new default `resource_tab`, and the engineering profile fixture treated a documented
+pending Dispose receipt as final failure. Host contracts now check the default,
+selected tab persistence and invalid-tab rejection. Fixture cleanup still requires
+successful Drain. The engineering profile race suite passes locally after this fix.
