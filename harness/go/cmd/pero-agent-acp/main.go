@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -124,6 +125,16 @@ func run() (resultErr error) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	var paperResearch *paperResearchConfig
+	if raw := os.Getenv("PERO_PAPER_RESEARCH"); raw != "" {
+		paperResearch = &paperResearchConfig{}
+		if err := json.Unmarshal([]byte(raw), paperResearch); err != nil || paperResearch.ProgramID == "" || paperResearch.Deadline.IsZero() || paperResearch.ModelRequests < 1 {
+			return errors.New("invalid Host research launch configuration")
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, paperResearch.Deadline)
+		defer cancel()
+	}
 	profile, err := configuredResearch(ctx, *research, *sessions, *workspace, *enableShell, web.enabled(), pluginConfig.Models)
 	if err != nil {
 		return err
@@ -181,6 +192,9 @@ func run() (resultErr error) {
 		return err
 	}
 	providerConfig.BeforeHTTPAttempt, err = httpAttemptAudit(*auditPath, budget.MaxRequests)
+	if paperResearch != nil {
+		providerConfig.BeforeHTTPAttempt, err = researchAttemptAudit(paperResearch.AuditPath, paperResearch.ModelRequests)
+	}
 	if err != nil {
 		return err
 	}
@@ -229,6 +243,11 @@ func run() (resultErr error) {
 		}
 		resultErr = errors.Join(resultErr, disposeErr, h.Drain(cleanup), native.Close(), pluginWorkflows.Close(), webApp.Close(), lspApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
+	if paperResearch != nil {
+		if err := mountPaperResearch(ctx, h, *paperResearch); err != nil {
+			return err
+		}
+	}
 	spillStore := harness.NewLocalSpillStoreWithOptions(harness.LocalSpillStoreOptions{Root: filepath.Join(*sessions, "tool-output"), RetrievalHint: "Use the current discovery tool with query select:ReadToolOutput if needed, then ReadToolOutput with this exact locator and bounded byte pages."})
 	if *workspace != "" {
 		if _, err := h.RegisterSpillStore(ctx, "native/tool-output-store", spillStore, harness.SpillPolicyOptions{}); err != nil {
