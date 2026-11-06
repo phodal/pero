@@ -5,11 +5,12 @@ import {join} from 'node:path';
 import {McpPanelCommandSchema} from '../../../packages/content-source/mcp-source.ts';
 import type {McpAppBinding} from '../../../packages/content-source/mcp-source.ts';
 import {McpSources} from './mcp-sources.ts';
+import type {McpSessionSources} from './mcp-session-sources.ts';
 import {mcpSandboxCsp} from './mcp-policy.ts';
 
 /** One privileged provider serves the trusted panel and a different-origin sandbox. */
 export class McpHost {
-  readonly sources:McpSources;
+  readonly sources:McpSources|McpSessionSources;
   private panel?:Server;
   private sandbox?:Server;
   private origin='';
@@ -17,8 +18,8 @@ export class McpHost {
   private panels=new Map<string,string|undefined>();
   private assets:string;
   private onBinding:((binding:McpAppBinding)=>void)|undefined;
-  constructor(config:string,assets:string,openLink?:((url:string)=>Promise<void>),onBinding?:((binding:McpAppBinding)=>void)) {
-    this.sources=new McpSources(config,openLink);this.assets=assets;this.onBinding=onBinding;
+  constructor(config:string,assets:string,openLink?:((url:string)=>Promise<void>),onBinding?:((binding:McpAppBinding)=>void),sources?:McpSessionSources) {
+    this.sources=sources??new McpSources(config,openLink);this.assets=assets;this.onBinding=onBinding;
   }
   async start(){
     if(this.panel)return;
@@ -33,7 +34,7 @@ export class McpHost {
     if(thread)this.sources.admitThread(thread);
     const token=[...this.panels].find(([,scope])=>scope===thread)?.[0]||randomBytes(32).toString('hex');
     this.panels.set(token,thread);
-    return `${this.origin}/?token=${token}&thread=${encodeURIComponent(thread||'')}&locale=${encodeURIComponent(locale)}`;
+    return `${this.origin}/?token=${token}&thread=${encodeURIComponent(thread||'')}&locale=${encodeURIComponent(locale)}&mode=${'scope' in this.sources?'session':'standalone'}`;
   }
   forgetThread(thread:string){this.sources.forgetThread(thread);for(const [token,scope] of this.panels)if(scope===thread)this.panels.delete(token);}
   ownsPanel(value:string){if(!URL.canParse(value))return false;const url=new URL(value);return url.origin===this.origin&&this.panels.has(url.searchParams.get('token')||'');}

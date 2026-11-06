@@ -14,6 +14,9 @@ import { confirmDoclingSetup } from './docling-runtime-dialog.ts';
 import { confirmReproduction } from './reproduction-approval.ts';
 import {WebPages} from './web-pages';
 import {McpHost} from './mcp-host.ts';
+import {McpSessionRpc} from './mcp-session-rpc.ts';
+import {McpSessionPanels} from './mcp-session-panels.ts';
+import {z} from 'zod';
 import { DesktopContributions } from './contributions';
 import { LocalExecutionController } from './local-execution';
 import { DesktopAppUse } from './app-use-mcp';
@@ -57,8 +60,14 @@ let appUse: DesktopAppUse | undefined;
 let webPages:WebPages|undefined;
 let mcpHost:McpHost|undefined;
 let mcpReady:Promise<void>|undefined;
+let mcpSessions:McpSessionPanels|undefined;
 let connectorMcp: ConnectorMcp | undefined;
-const mcpRequests=new Map<string,string|undefined>();
+const mcpRequests=new Map<string,{thread:string|undefined;mode:'session'|'standalone'}>();
+const mcpSessionScope=z.object({thread_id:z.string().min(1),incarnation:z.number().int().nonnegative(),revision:z.number().int().nonnegative()}).strict();
+const mcpRpc=new McpSessionRpc(request=>{
+  if(!ready||!host?.stdin.writable)throw new Error('The local runtime is unavailable');
+  host.stdin.write(JSON.stringify(request)+'\n');
+});
 let computer: DesktopComputer | undefined;
 let locale: Locale = 'en';
 const t = (key: MessageKey) => translate(locale, key);
@@ -142,7 +151,7 @@ function updateMenus() {
       { role: 'cut', label: t('menu.cut') }, { role: 'copy', label: t('menu.copy') },
       { role: 'paste', label: t('menu.paste') }, { role: 'selectAll', label: t('menu.select_all') },
     ] },
-    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, { id: 'automation', label: t('automation.title'), accelerator: 'CmdOrCtrl+Shift+A', click: () => send({version:1,kind:'automation_open',request_id:null,text:''}) }, { id: 'automation-operations', label: t('automation.operations'), click: () => send({version:1,kind:'automation_operations_open',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
+    { label: t('menu.workbench'), submenu: [{id:'open-url',label:t('web.open_url'),click:()=>send({version:1,kind:'web_choose',request_id:null,text:''})}, {id:'session-mcp',label:t('mcp.session_sources'),click:()=>send({version:1,kind:'mcp_choose',request_id:null,text:'',data:{mode:'session'}})}, {id:'standalone-mcp',label:t('mcp.standalone_sources'),click:()=>send({version:1,kind:'mcp_choose',request_id:null,text:'',data:{mode:'standalone'}})}, { id: 'automation', label: t('automation.title'), accelerator: 'CmdOrCtrl+Shift+A', click: () => send({version:1,kind:'automation_open',request_id:null,text:''}) }, { id: 'automation-operations', label: t('automation.operations'), click: () => send({version:1,kind:'automation_operations_open',request_id:null,text:''}) }, { id: 'remote-tasks', label: t('nav.remote'), accelerator: 'CmdOrCtrl+Shift+R', click: () => send({version:1,kind:'remote_open',request_id:null,text:''}) }, { id: 'connection-message', label: t('menu.connection'), accelerator: 'CmdOrCtrl+Shift+E', click: () => send(event('notice', 'notice.desktop')) }, { role: 'reload', label: t('menu.reload') }, { role: 'toggleDevTools', label: t('menu.developer_tools') }] },
     { label: t('menu.language'), submenu: [
       { id: 'locale-zh-CN', label: '简体中文', type: 'radio', checked: locale === 'zh-CN', click: () => changeLocale('zh-CN') },
       { id: 'locale-en', label: 'English', type: 'radio', checked: locale === 'en', click: () => changeLocale('en') },
@@ -239,16 +248,26 @@ app.whenReady().then(async () => {
       const message = JSON.parse(line);
       if (artifactDelivery.accept(message)) return;
       connectorMcp?.accept(message);
+      if(mcpRpc.accept(message))return;
+      mcpSessions?.observe(message);
       if(message.kind==='mcp_permitted'||message.kind==='mcp_error'){
         const request=mcpRequests.get(message.request_id);
         if(!mcpRequests.has(message.request_id))return;
         mcpRequests.delete(message.request_id);
         if(message.kind==='mcp_error'){send(message);return;}
-        if((message.thread_id||undefined)!==request)return;
+        if(!request||(message.thread_id||undefined)!==request.thread)return;
         void (async()=>{
-          if(!mcpHost)throw new Error('MCP Apps provider is unavailable');
-          mcpReady ||= mcpHost.start();await mcpReady;
-          send({version:1,kind:'mcp_sources',request_id:message.request_id,thread_id:request,text:'',data:{url:mcpHost.open(request,locale)}});
+          let url:string;
+          if(request.mode==='session'){
+            if(message.data?.mode!=='session'||!mcpSessions)throw new Error('Session MCP provider is unavailable');
+            const scope=mcpSessionScope.parse(message.data.session);
+            if(scope.thread_id!==request.thread)throw new Error('MCP session does not match the requested conversation');
+            url=await mcpSessions.open(scope,locale);
+          }else{
+            if(!mcpHost)throw new Error('MCP Apps provider is unavailable');
+            mcpReady ||= mcpHost.start();await mcpReady;url=mcpHost.open(request.thread,locale);
+          }
+          send({version:1,kind:'mcp_sources',request_id:message.request_id,thread_id:request.thread,text:'',data:{url}});
         })().catch(error=>{mcpReady=undefined;send({version:1,kind:'mcp_error',request_id:message.request_id,text:error instanceof Error?error.message:String(error)});});return;
       }
       if(message.kind==='session_deleted'&&message.thread_id)mcpHost?.forgetThread(message.thread_id);
@@ -293,8 +312,8 @@ app.whenReady().then(async () => {
     catch { console.error('Invalid Host event'); }
   });
   host.stderr.on('data', (data) => console.error(String(data)));
-  host.on('error', () => { ready = false; artifactDelivery.close(); appUse?.reset(); void connectorMcp?.close(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_start')); });
-  host.on('exit', () => { ready = false; artifactDelivery.close(); appUse?.reset(); void connectorMcp?.close(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_stopped')); });
+  host.on('error', () => { ready = false; mcpRequests.clear(); mcpRpc.close(); void mcpSessions?.close(); artifactDelivery.close(); appUse?.reset(); void connectorMcp?.close(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_start')); });
+  host.on('exit', () => { ready = false; mcpRequests.clear(); mcpRpc.close(); void mcpSessions?.close(); artifactDelivery.close(); appUse?.reset(); void connectorMcp?.close(); void computer?.stop(); apps.close(); contributions.close(); rejectPreferenceWrites(); send(event('disconnected', 'error.host_stopped')); });
   void remote.initialize();
   const trusted = (sender: Electron.IpcMainInvokeEvent) => {
     if (sender.sender !== window.webContents || sender.senderFrame?.url !== 'pero://workbench/') throw new Error('Untrusted sender');
@@ -350,11 +369,13 @@ app.whenReady().then(async () => {
     const action = (command as { action?: string }).action;
     const method = (command as { method?: string }).method;
     if(method==='mcp'){
-      const request=command as {action?:unknown;thread_id?:unknown};
+      const request=command as {action?:unknown;thread_id?:unknown;mode?:unknown};
+      if(request.mode!==undefined&&request.mode!=='session'&&request.mode!=='standalone')throw new Error('Invalid MCP source mode');
       if(request.action!=='open'||request.thread_id!==null&&request.thread_id!==undefined&&typeof request.thread_id!=='string')throw new Error('Invalid MCP source intent');
       const id=randomUUID(),thread=typeof request.thread_id==='string'?request.thread_id:undefined;
-      mcpRequests.set(id,thread);
-      host.stdin.write(JSON.stringify({method:'mcp',action:'open',request_id:id,thread_id:thread})+'\n');return;
+      const mode=request.mode==='session'?'session':'standalone';
+      mcpRequests.set(id,{thread,mode});
+      host.stdin.write(JSON.stringify({method:'mcp',action:'open',request_id:id,thread_id:thread,mode})+'\n');return;
     }
     if (action === 'harness_get' || action === 'harness_save') return harness.command(command);
     if (method === 'settings.harness') throw new Error('Use harness controls');
@@ -431,8 +452,9 @@ app.whenReady().then(async () => {
   window = new BrowserWindow({ ...testWindowOptions, width: 1488, height: 1086, minWidth: 1000, minHeight: 680,
     title: t('window.title'), backgroundColor: '#F7F9FC',
     webPreferences: { ...testWindowOptions.webPreferences, preload: resolve(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
-  webPages=new WebPages(window,send,resolve(app.getPath('userData'),'web-sessions.json'),url=>!!mcpHost?.ownsPanel(url));
+  webPages=new WebPages(window,send,resolve(app.getPath('userData'),'web-sessions.json'),url=>!!mcpHost?.ownsPanel(url)||!!mcpSessions?.ownsPanel(url));
   mcpHost=new McpHost(resolve(dirname(runtimeSettingsPath),'mcp-servers.json'),__dirname,url=>shell.openExternal(url),binding=>send({version:1,kind:'mcp_app_opened',request_id:null,thread_id:binding.thread_id,text:'',data:binding}));
+  mcpSessions=new McpSessionPanels(mcpRpc,__dirname,url=>shell.openExternal(url),binding=>send({version:1,kind:'mcp_app_opened',request_id:null,thread_id:binding.thread_id,text:'',data:binding}),selection=>{const {thread_id,...data}=selection;send({version:1,kind:'mcp_resource_selected',request_id:null,thread_id,text:'',data});});
   window.on('closed',()=>webPages?.dispose());
   bindAppFrameEditing(window.webContents);
   window.webContents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main) appUse?.reset(); });
@@ -445,7 +467,7 @@ app.whenReady().then(async () => {
       const ready=await window.webContents.executeJavaScript('window.peroPrepareWindowClose ? window.peroPrepareWindowClose() : true');
       if(!ready)return;
       await webPages?.checkpoint();
-      if(mcpHost)await webPages?.prepareClose(url=>mcpHost!.ownsPanel(url));
+      await webPages?.prepareClose(url=>!!mcpHost?.ownsPanel(url)||!!mcpSessions?.ownsPanel(url));
       await window.webContents.executeJavaScript('window.peroWorkspaceCheckpoint?.(true)');
       await finish();
     } catch(error) {
@@ -492,7 +514,8 @@ app.on('before-quit', quit => {
       await closeWorkspaceForQuit?.();
       if(!window.isDestroyed()){shuttingDown=false;return;}
     }
-  const computerClosed=Promise.all([appUse?.close(),mcpHost?.close(),connectorMcp?.close()]); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();mcpRequests.clear();
+  mcpRpc.close();
+  const computerClosed=Promise.all([appUse?.close(),mcpHost?.close(),mcpSessions?.close(),connectorMcp?.close()]); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();mcpRequests.clear();
   if (!host?.pid || host.exitCode !== null || host.signalCode !== null) {
     void computerClosed.catch(error=>console.error(error)).finally(()=>{shutdownComplete = true; app.quit();}); return;
   }
