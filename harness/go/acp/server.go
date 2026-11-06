@@ -22,6 +22,9 @@ import (
 )
 
 type Options struct {
+	// SessionTitles enables one auxiliary title call after the first completed
+	// turn. The native composition opts in; protocol-only embeddings stay inert.
+	SessionTitles bool
 	// UserQuestions enables the optional Pero input extension when the client
 	// explicitly advertises revision 1. Ordinary ACP has no question transport.
 	UserQuestions bool
@@ -58,6 +61,7 @@ type Options struct {
 }
 
 type Server struct {
+	sessionTitles            bool
 	modelChoices             []harness.ModelCatalogEntry
 	modelCapacity            int
 	modelOutput              int
@@ -155,7 +159,8 @@ func NewServer(options Options) (*Server, error) {
 		return nil, err
 	}
 	return &Server{
-		modelChoices: choices, modelCapacity: capacity, modelOutput: output,
+		sessionTitles: options.SessionTitles,
+		modelChoices:  choices, modelCapacity: capacity, modelOutput: output,
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
 		provider: options.Provider, model: options.Model, maxSteps: options.MaxSteps, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
 		outputLimitRecoveries: options.OutputLimitRecoveries,

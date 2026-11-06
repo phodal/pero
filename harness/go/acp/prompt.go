@@ -84,6 +84,9 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 		}
 		return "", promptErr
 	}
+	if s.sessionTitles {
+		record.agent.StartSessionTitle(result.Turn)
+	}
 	return promptStopReason(result.Reason), nil
 }
 

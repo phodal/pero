@@ -76,6 +76,7 @@ func run() (resultErr error) {
 	budget := bindProviderBudget(flag.CommandLine)
 	maxTurnSteps := flag.Int("max-turn-steps", harness.DefaultMaxSteps, "maximum model/tool steps per turn; 0 disables this ceiling (cancellation and provider budgets still apply)")
 	outputLimitRecoveries := flag.Int("output-limit-recoveries", 0, "ACP-only attributed follow-up turns after output truncation; 0 returns max_tokens immediately")
+	sessionTitles := flag.Bool("session-titles", false, "generate one conversation title after its first completed ACP turn")
 	skillRoots := bindSkillRoots(flag.CommandLine)
 	pluginConfig := bindPluginOptions(flag.CommandLine)
 	compaction := bindCompaction(flag.CommandLine)
@@ -453,7 +454,7 @@ func run() (resultErr error) {
 	if *printMode {
 		return runPrintPrepared(ctx, h, pluginHooks, *model, *workspace, printPrompt, harness.AgentOptions{MaxSteps: *maxTurnSteps, Compaction: compactionConfig}, engineering.preparePrompt(engineeringApp))
 	}
-	serverOptions := acp.Options{UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
+	serverOptions := acp.Options{SessionTitles: *sessionTitles, UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
 	serverOptions.OutputLimitRecoveries = *outputLimitRecoveries
 	serverOptions.PreparePrompt = engineering.preparePrompt(engineeringApp)
 	if pluginHooks != nil {

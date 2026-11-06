@@ -145,6 +145,12 @@ func (s *Server) project(record *activeSession, event harness.Event) {
 	params := map[string]any{"sessionId": record.agent.ID()}
 	var update any
 	switch event.Type {
+	case "session/title":
+		var title harness.SessionTitle
+		if json.Unmarshal(event.Data, &title) != nil || title.Title == "" {
+			return
+		}
+		update = map[string]any{"sessionUpdate": "session_info_update", "title": title.Title}
 	case "assistant/message":
 		s.projectMessage(record, event, false)
 		return
