@@ -430,7 +430,9 @@ impl Manager {
                 scope,
             } => {
                 if let Err(error) = self.create_session(thread_id.clone(), &agent_id, None, scope) {
-                    let mut event = if error == acp::CREDENTIAL_REQUIRED {
+                    let mut event = if error == crate::apps::APP_PREPARING {
+                        HostEvent::message("session_preparing", None, "chat.preparing_app")
+                    } else if error == acp::CREDENTIAL_REQUIRED {
                         HostEvent::message("session_error", None, acp::CREDENTIAL_REQUIRED)
                     } else {
                         HostEvent::new("session_error", None, error)

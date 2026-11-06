@@ -253,10 +253,17 @@ impl ChatPanel {
         }
     }
 
+    /// App completion is a readiness signal, not permission to run a prompt.
+    pub fn resume_app_preparation(&mut self, cx: &mut Context<Self>) {
+        for chat in &mut self.chats { chat.state = chat.state.app_available(); }
+        self.prepare_chat(cx);
+    }
+
     pub fn set_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
         if self.visible != visible {
             self.visible = visible;
             if visible {
+                if let Some(chat) = self.active_chat.and_then(|index| self.chats.get_mut(index)) { chat.notice.read(); }
                 if self.active_chat.is_none() && self.replayed { self.new_draft(cx); }
                 else { self.prepare_chat(cx); }
             }

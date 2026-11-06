@@ -114,6 +114,9 @@ impl ChatPanel {
             .and_then(|i| self.chats.get(i))
             .map(|c| c.id.clone());
         self.active_chat = index;
+        if self.visible {
+            if let Some(chat) = index.and_then(|index| self.chats.get_mut(index)) { chat.notice.read(); }
+        }
         let thread_id = index.and_then(|i| self.chats.get(i)).map(|c| c.id.clone());
         if previous != thread_id {
             cx.emit(crate::ChatAction::Selected { thread_id: thread_id.clone() });
@@ -416,7 +419,7 @@ impl ChatPanel {
             chat.title.prompt(&text);
         }
         chat.error = None;
-        let value = if matches!(chat.state, SessionState::Draft | SessionState::Connecting) {
+        let value = if matches!(chat.state, SessionState::Draft | SessionState::AwaitingApp | SessionState::Connecting) {
             chat.queued = Some(text);
             chat.queued_contexts = contexts;
             None
@@ -466,6 +469,7 @@ impl ChatPanel {
                 }
             }
             for chat in &mut self.chats {
+                if !retained.contains(&chat.id) { chat.notice.read(); }
                 let active = event.data["active"]
                     .as_array()
                     .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(&chat.id)));
@@ -618,6 +622,7 @@ impl ChatPanel {
             return true;
         }
         let chat = &mut self.chats[index];
+        chat.notice.observe(&event.kind, self.visible && self.active_chat == Some(index));
         let mut followup = None;
         let mut restore_queue = false;
         match event.kind.as_str() {
@@ -657,6 +662,10 @@ impl ChatPanel {
                     let contexts = event.data["contexts"].as_array().map(Vec::as_slice).unwrap_or(&[]);
                     message.attached_files = crate::message_attachments::attachment_labels(&event.text, contexts);
                 }
+            }
+            "session_preparing" => {
+                chat.state = SessionState::AwaitingApp;
+                chat.error = None;
             }
             "session_connecting" => chat.state = SessionState::Connecting,
             "session_ready" => {
@@ -823,6 +832,8 @@ impl ChatPanel {
                     })))))
             .when(!self.compact, |el| el.child(div().id("messages").flex_1().min_h_0().overflow_y_scroll().track_scroll(&self.chat_scroll).py(px(8.))
                 .child(div().id("session-column").w_full().max_w(px(pero_theme::COMPOSER_MAX)).min_w_0().mx_auto().px(px(12.)).overflow_x_scroll()
+                .when(chat.is_some_and(|chat| chat.state == SessionState::AwaitingApp), |el| el.child(
+                    div().py(px(8.)).text_color(p.text_muted).child(self.t("chat.preparing_app"))))
                 .when(chat.is_none_or(|c|c.messages.is_empty()),|el|el.child(pero_theme::empty_state(
                     self.t("chat.welcome"),
                     Some(self.t(if self.connected && !self.agents.iter().any(|agent|agent.available){"chat.install_agent"}else if credential_reminder{"chat.credential_required"}else{"chat.description"}).into()),

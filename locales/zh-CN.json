@@ -31,6 +31,8 @@
   "sessions.no_matches": "没有匹配的会话。",
   "apps.actions": "应用操作",
   "apps.manage": "应用商店",
+  "sessions.unread": "未读",
+  "chat.preparing_app": "正在准备应用环境…",
   "sessions.search": "搜索会话…",
   "mcp.import": "导入 JSON",
   "mcp.import_save": "导入为停用",

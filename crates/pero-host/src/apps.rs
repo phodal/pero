@@ -1,4 +1,5 @@
 //! Stdio adapter. App rules, installed state and backend lifetime belong to the runtime.
+pub(crate) const APP_PREPARING: &str = "An App environment is being prepared; retry when installation finishes";
 use pero_contracts::HostEvent;
 use pero_runtime::apps::agent::AgentRequest;
 use pero_runtime::apps::{AppName, AppStore};
@@ -130,11 +131,11 @@ impl Apps {
         if let Ok(guard) = self.store.lock() { if let Ok(store) = guard.as_ref() { store.shutdown_docling_runtime(); } }
     }
     pub(crate) fn agent_panel(&self, name: &AppName) -> Result<String, String> {
-        let guard = self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes")?;
+        let guard = self.store.try_lock().map_err(|_| APP_PREPARING)?;
         guard.as_ref().map_err(Clone::clone)?.agent_panel(name)
     }
     pub(crate) fn session_plugins(&self, name: &AppName, panel: &str) -> Result<Option<pero_runtime::apps::AppSessionPlugins>, String> {
-        let guard = self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes")?;
+        let guard = self.store.try_lock().map_err(|_| APP_PREPARING)?;
         guard.as_ref().map_err(Clone::clone)?.session_plugins(name, panel)
     }
     pub fn new(settings: Option<&Path>) -> Self {
@@ -186,7 +187,7 @@ impl Apps {
     }
 
     pub(crate) fn require_grant(&self, name: &AppName, grant: &str) -> Result<(), String> {
-        let guard=self.store.try_lock().map_err(|_|"An App environment is being prepared; retry when installation finishes".to_string())?;
+        let guard=self.store.try_lock().map_err(|_|APP_PREPARING.to_string())?;
         guard.as_ref().map_err(Clone::clone)?.require_grant(name,grant)
     }
 
@@ -228,7 +229,7 @@ impl Apps {
                 return serde_json::to_value(guard.as_ref().map_err(Clone::clone)?.local_environments(name,pero_runtime::apps::local_environment::Request::List)?).map_err(|e|e.to_string());
             }
             let mut guard = if agents.is_some() {
-                self.store.try_lock().map_err(|_| "An App environment is being prepared; retry when installation finishes".to_string())?
+                self.store.try_lock().map_err(|_| APP_PREPARING.to_string())?
             } else { self.store.lock().map_err(|error| error.to_string())? };
             if self.shutting_down.load(std::sync::atomic::Ordering::SeqCst) { return Err("Host is shutting down".into()); }
             let store = guard.as_mut().map_err(|error| error.clone())?;
