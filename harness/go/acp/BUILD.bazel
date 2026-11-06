@@ -3,8 +3,8 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "acp",
     srcs = [
-        "mcp_access.go",
         "lifecycle.go",
+        "mcp_access.go",
         "mcp_policy.go",
         "mcp_runtime.go",
         "models.go",
@@ -28,8 +28,8 @@ go_library(
 go_test(
     name = "acp_test",
     srcs = [
-        "mcp_access_test.go",
         "extraction_test.go",
+        "mcp_access_test.go",
         "mcp_policy_test.go",
         "mcp_runtime_test.go",
         "models_test.go",

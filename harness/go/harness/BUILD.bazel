@@ -3,7 +3,6 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "harness",
     srcs = [
-        "mcp_access.go",
         "agent.go",
         "agent_activation.go",
         "agent_complete.go",
@@ -51,6 +50,7 @@ go_library(
         "loop.go",
         "main_request.go",
         "mcp.go",
+        "mcp_access.go",
         "mcp_instructions.go",
         "media_compat.go",
         "model_info.go",
@@ -156,7 +156,6 @@ go_library(
 go_test(
     name = "harness_test",
     srcs = [
-        "mcp_access_test.go",
         "agent_delivery_source_test.go",
         "agent_turn_state_test.go",
         "approval_preapproved_test.go",
@@ -167,6 +166,7 @@ go_test(
         "deferred_tools_test.go",
         "extraction_test.go",
         "harness_test.go",
+        "mcp_access_test.go",
         "mcp_list_changed_test.go",
         "mcp_output_test.go",
         "mcp_policy_test.go",

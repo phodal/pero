@@ -244,3 +244,17 @@ passed, but this is not a claim that the whole-project check passed.
 At this documentation checkpoint the changes have not been published, pushed or
 released. Any later draft PR, final CI or release must record its actual revision
 and results rather than treating this working-tree checkpoint as acceptance.
+
+### Draft PR CI follow-up
+
+Draft PR #146 integrates master `b64e415e` (GPUI Kit 0.9.0). Its first final-head
+CI passed core TypeScript, Rust/Host contracts and Harness race/vet/build, but
+failed Gazelle declaration ordering and three pinned AST file receipts after
+reviewed changes to ACP cancellation and MCP audience dispatch. The follow-up
+sorts the new source entries and refreshes only those reviewed receipts; it
+does not remove checks or claim AST semantic equivalence. The unchanged
+`ListTools`/`fromMCPResult` contracts and added MCP operation cancellation are
+recorded in each mapping note. Updated-base local Rust tests (272 passed, one
+ignored), locked Host build, settings contracts and real non-graphical
+Host/panel/Go ACP/MCP test passed without changing the committed lock file.
+Graphical acceptance remains outstanding.
