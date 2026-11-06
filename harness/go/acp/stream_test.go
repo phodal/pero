@@ -240,7 +240,7 @@ func TestLiveProjectionAttemptAndContentLanes(t *testing.T) {
 	}
 	// Scientific presentation survives spilled model output on live and replay paths.
 	receipt := `{"kind":"pero.table.v1","content":"complete receipt"}`
-	meta, _ := json.Marshal(map[string]json.RawMessage{"scientificReceipt": json.RawMessage(receipt)})
+	meta, _ := json.Marshal(map[string]string{"displayText": receipt})
 	block := harness.ContentBlock{Type: harness.BlockToolResult, ToolCallID: "table", Meta: meta, Content: []harness.ContentBlock{text("truncated model preview")}}
 	data, _ := json.Marshal(block)
 	for _, live := range []bool{true, false} {

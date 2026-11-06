@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/phodal/pero/harness/go/charts"
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/model"
 )
 
 func (s *Server) listSessions(ctx context.Context, params ListSessionParams) (map[string]any, error) {
@@ -193,9 +193,9 @@ func (s *Server) project(record *activeSession, event harness.Event) {
 		}
 		// Live delivery and history replay use the same complete receipt. The
 		// spill preview remains the model-facing output in the Session journal.
-		var presentation charts.Presentation
-		if !block.IsError && json.Unmarshal(block.Meta, &presentation) == nil && len(presentation.ScientificReceipt) > 0 {
-			content = []any{map[string]any{"type": "content", "content": map[string]any{"type": "text", "text": string(presentation.ScientificReceipt)}}}
+		var presentation model.ToolPresentation
+		if !block.IsError && json.Unmarshal(block.Meta, &presentation) == nil && presentation.DisplayText != "" {
+			content = []any{map[string]any{"type": "content", "content": map[string]any{"type": "text", "text": presentation.DisplayText}}}
 		}
 		update = map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": block.ToolCallID, "status": status, "content": content}
 	default:

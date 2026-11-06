@@ -15,16 +15,11 @@ import (
 	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/model"
 )
 
 //go:embed python/*.py
 var core embed.FS
-
-// Presentation keeps a complete scientific receipt available to clients when
-// the model-facing text exceeds the configured spill limit.
-type Presentation struct {
-	ScientificReceipt json.RawMessage `json:"scientificReceipt,omitempty"`
-}
 
 const ToolName = "chart_render"
 const inputSchema = `{"type":"object","additionalProperties":false,"properties":{"document":{"type":"object"},"dataset":{"type":"object","additionalProperties":false,"properties":{"name":{"type":"string"},"content":{"type":"string"},"format":{"type":"string","enum":["json","json_lines"]}},"required":["name","content","format"]},"view":{"type":"object"},"chartDocument":{"type":"object"},"aggregation":{"type":"object"}}}`
@@ -100,7 +95,7 @@ func Mount(ctx context.Context, h *harness.Harness, python string) error {
 					return harness.ToolResult{}, err
 				}
 				if enabled && len(output) > limit {
-					result.Meta, err = json.Marshal(Presentation{ScientificReceipt: output})
+					result.Meta, err = json.Marshal(model.ToolPresentation{DisplayText: string(output)})
 				}
 				return result, err
 			},

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/model"
 )
 
 func TestScientificPresentationSurvivesSpill(t *testing.T) {
@@ -40,7 +41,7 @@ func TestScientificPresentationSurvivesSpill(t *testing.T) {
 			if !strings.Contains(outcome.Result.Content[0].Text, "Full formatted result stored at:") {
 				t.Fatal("real spill was not exercised")
 			}
-			var presentation Presentation
+			var presentation model.ToolPresentation
 			if err := json.Unmarshal(outcome.Result.Meta, &presentation); err != nil {
 				t.Fatal(err)
 			}
@@ -48,7 +49,7 @@ func TestScientificPresentationSurvivesSpill(t *testing.T) {
 				SourceDocument struct{ Text string }
 				Content        string
 			}
-			if err := json.Unmarshal(presentation.ScientificReceipt, &receipt); err != nil {
+			if err := json.Unmarshal([]byte(presentation.DisplayText), &receipt); err != nil {
 				t.Fatal(err)
 			}
 			if receipt.SourceDocument.Text != source || !strings.Contains(receipt.Content, "9007199254740993") {
