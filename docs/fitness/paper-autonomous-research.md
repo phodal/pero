@@ -16,7 +16,9 @@ are described under “Gap closure” and “Actual Desktop and Scientific Viewe
 Earlier measurements below are retained as dated development evidence, not as
 the final feature counts or current Desktop verification status.
 
-Implementation is on `codex/paper-autonomous-research`, based on the revision above.
+Implementation started on the revision above and is published from
+`codex/paper-autonomous-research-pr`. The integration check below records the
+subsequent rebase onto upstream `master`.
 The [design](../design-docs/paper-autonomous-research.md) and
 [canonical tracker](../issues/2026-11-06-paper-autonomous-research.md) retain the scope.
 Evidence below is from Windows, Python 3.11, Node 22 and the installed Go/Rust toolchains.
@@ -300,3 +302,48 @@ to the copy and `PERO_RESEARCH_UI_WORKSPACE` to its original workspace binding.
 The final copied-profile rerun passed: versions [4, 3, 2], keyboard preview,
 dark/narrow layout, interim accounting text, and zero browser errors.
 The final screenshots were visually inspected after this rerun.
+
+## Publication verification — 2026-11-07
+
+The isolated PR branch was rebased onto upstream
+`ff7d463b846f3c465b892bfb75449d6e052bfafd`. Other ongoing Skills marketplace,
+lockfile and generated-theme changes are excluded. Independent review found
+one missing build registration: the two new Harness sources and their tests
+now appear in the existing Bazel target. Its dependencies already cover their
+imports. Bazel itself was not run locally; the Go build and focused tests pass.
+
+The following were rerun on the rebased code:
+
+- Python: 24 feature cases, 5 existing ResearchRecord cases and 2 acquisition
+  settlement cases pass.
+- Go: all 9 focused research/budget tests pass with `-race`; the selected-skills
+  and scoped-files packages pass. The broader pluginruntime suite still fails
+  `TestMCPServerBindings` on this Windows environment; the unchanged test also
+  fails in the clean implementation-base checkout.
+- Rust: Host build and both research-artifact persistence tests pass, using the
+  upstream-pinned GPUI Kit 0.9.0 checkout.
+- Root, Paper and Scientific Viewer TypeScript checks, generated contracts,
+  1052 bilingual messages, the budget contract and 9 Viewer/manual-evidence
+  tests pass. Paper and Viewer production builds pass.
+- The real Python/Host/Harness journey again completes 3 rounds with 25 scripted
+  requests, 4 content-reference reads and 4 artifacts × 4 versions. The separate
+  acquisition/restart journey passes with 1 download, the same ACP session,
+  11→18 cumulative requests and 4 artifacts × 3 versions. Both finalize without
+  UI status polling.
+- Production Paper UI fixture: explicit start, original-run resume, stop,
+  error recovery, keyboard focus, light/dark and narrow overflow checks pass.
+
+The rebased Host SHA-256 is
+`8b8bf9f3b4dcf5bc1d5411a2f50ad88e31ba10db417b778b1c0cb1a2ba3d304f`;
+Harness is `2890213e9cbe6e8d9d39cd126b9d33791ff96cc08f7e40e548298cbc879ef9db`.
+The full `npm run check` remains blocked at the SDK token freshness gate;
+this PR does not change that generator or its token inputs. This is not a claim
+that every repository-wide suite is green.
+
+The actual Electron screenshots above were captured and inspected before this
+rebase, on the implementation base with this feature applied. They are not a
+new capture of the upstream unified Files/Artifacts UI. The rebased production
+Paper UI fixture passed; the complete new Electron frame was not recaptured.
+The author will attach the three desktop PNGs to the PR manually; they are not
+committed as repository binaries. Real-model/scientific acceptance remains
+explicitly pending, with no external model requests in this publication pass.

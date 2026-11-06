@@ -95,8 +95,8 @@ could not be loaded through the existing interface; none were exposed or copied
 into evidence. Scientific quality, independent counterevidence coverage and
 actual model cost remain pending, rather than being inferred from script-driven
 tests. See the updated verification report for exact scope and known baseline
-failures. This remains the canonical local tracker; no new upstream issue or PR
-has been published by this gap-closure task.
+failures. This remains the canonical local tracker for the implementation and
+the outstanding real-model/scientific acceptance.
 
 
 Actual Windows Desktop/Scientific Viewer verification is now complete. It
@@ -112,3 +112,13 @@ Historical reports now mark unavailable final accounting explicitly instead of
 presenting pre-terminal zero counters as measured usage. Export regression and
 both controlled runtime journeys passed again; the desktop history assertion
 also checks this distinction.
+
+## Upstream PR preparation — 2026-11-07
+
+Implementation is split into small Conventional Commits on
+`codex/paper-autonomous-research-pr`, rebased onto upstream master
+`ff7d463b846f3c465b892bfb75449d6e052bfafd`. Post-rebase acceptance and known
+suite limits are recorded in the verification report. The author will manually
+attach the inspected desktop screenshots. The PR references #143 without an
+automatic closing keyword; real-model and independent scientific review remain
+outstanding, so this issue stays open.
