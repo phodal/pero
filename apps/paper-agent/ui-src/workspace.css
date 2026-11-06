@@ -26,7 +26,7 @@
 .pa-nav-label,
 .pa-nav-foot {
   margin: 14px 8px 4px;
-  font-size: max(12px, 0.86em);
+  font-size: var(--pero-font-caption);
   color: var(--pero-text-muted);
 }
 
@@ -208,7 +208,7 @@
 .pa-library-toolbar .pero-select-trigger {
   width: auto;
   font: inherit;
-  font-size: max(12px, 1em);
+  font-size: var(--pero-font-body);
   color: var(--pero-text-muted);
   background: transparent;
   border: 0;
@@ -412,7 +412,7 @@
   margin: 0;
   padding-block: 28px;
   color: var(--pero-text-muted);
-  font-size: max(12px, 1em);
+  font-size: var(--pero-font-body);
 }
 
 .pa-library-footer {
@@ -432,7 +432,7 @@
   padding-bottom: 8px;
   border-bottom: 0.5px solid var(--pero-border);
   color: var(--pero-text-muted);
-  font-size: max(12px, 0.86em);
+  font-size: var(--pero-font-caption);
 }
 
 .pa-results-caption strong { color: var(--pero-text); font-weight: 600; }
@@ -473,7 +473,7 @@
   padding-inline-start: 16px;
   border-inline-start: 2px solid var(--pero-border);
   color: var(--pero-text-muted);
-  font-size: max(12px, 1em);
+  font-size: var(--pero-font-body);
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
