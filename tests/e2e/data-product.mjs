@@ -91,7 +91,7 @@ try {
   await dialog.locator('input[type="file"]').setInputFiles({ name: 'standalone.csv', mimeType: 'text/csv', buffer: bytes });
   await dialog.getByLabel('Source', { exact: true }).press('Enter');
   await expect(dialog).toBeHidden();
-  await expect(frame.getByRole('button', { name: 'standalone.csv', exact: true })).toBeVisible();
+  await expect(frame.locator('.data-catalog .pero-list-open').filter({ has: frame.getByText('standalone.csv', { exact: true }) })).toBeVisible();
   const saved = await state();
   expect(saved.assets).toHaveLength(1);
   expect(saved.datasets).toHaveLength(1);
@@ -121,7 +121,7 @@ try {
   expect(reopened.datasets).toEqual(saved.datasets);
   expect(reopened.download).toBeNull();
   await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toHaveCount(0);
-  await expect(frame.getByRole('button', { name: 'standalone.csv', exact: true })).toBeVisible();
+  await expect(frame.locator('.data-catalog .pero-list-open').filter({ has: frame.getByText('standalone.csv', { exact: true }) })).toBeVisible();
   await expect(frame.getByRole('complementary', { name: 'Preview' }).locator('.data-rows tbody tr')).toHaveCount(3);
   expect(requests.filter(request => request.method === 'POST' && request.path === '/api/import')).toHaveLength(1);
   expect(requests.filter(request => request.method === 'POST' && request.path.includes('download'))).toEqual([]);

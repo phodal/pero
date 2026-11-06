@@ -59,12 +59,13 @@ try {
     await expect(panel.locator('[role=alert]')).toHaveCount(0);
     checks.push(`${kind}: GPUI canvas rendered`);
   }
-  await panel.locator('summary').filter({hasText:'Chart source'}).click();
-  await expect(panel.locator('.data-chart-source')).toContainText('Source digest');
-  await expect(panel.locator('.data-chart-source')).toContainText('View:');
-  await panel.locator('summary').filter({hasText:'Source records'}).click();
-  await expect(panel.locator('.data-chart-source')).toContainText('/0');
-  await expect(panel.locator('.data-chart-source')).toContainText('/1');
+  await panel.getByRole('button',{name:'Chart details',exact:true}).click();
+  const sourceDialog=frame.getByRole('dialog',{name:'Chart source details',exact:true});
+  await expect(sourceDialog).toContainText('Source digest');
+  await expect(sourceDialog).toContainText('View');
+  await sourceDialog.getByRole('button',{name:'Close chart details',exact:true}).click();
+  await expect(panel.getByRole('region',{name:'Chart source records',exact:true})).toContainText('/0');
+  await expect(panel.getByRole('region',{name:'Chart source records',exact:true})).toContainText('/1');
   const exported=join(temp,'chart.json');
   await app.evaluate(({BrowserWindow},path)=>{BrowserWindow.getAllWindows()[0].webContents.session.once('will-download',(_,item)=>item.setSavePath(path));},exported);
   await frame.getByRole('button',{name:'Export chart JSON',exact:true}).click();
@@ -83,8 +84,9 @@ try {
   const invalid=join(temp,'invalid.json');await writeFile(invalid,JSON.stringify({...document,source:{label:'fixture'},rows:[{period:'A',target:'B',value:null}]}));
   await frame.locator('input[aria-label="Open chart JSON"]').setInputFiles(invalid);
   await expect(panel.locator('[role=alert]')).toContainText('missing values cannot be plotted');
-  await expect(frame.getByRole('button',{name:'Export chart JSON',exact:true})).toHaveCount(0);
-  checks.push('Missing values show an error without presenting a stale result');
+  await expect(frame.getByRole('button',{name:'Export chart JSON',exact:true})).toBeVisible();
+  await expect(panel.getByText('Showing the previous chart',{exact:false})).toContainText('latest request failed');
+  checks.push('Invalid chart input retains the previous chart with an explicit failed-update status');
   await frame.locator('input[aria-label="Open chart JSON"]').setInputFiles(exported);
   await expect(frame.frameLocator('iframe[data-pero-chart]').locator('canvas').first()).toBeVisible({timeout:60000});
   for(const dark of [false,true]) {
@@ -123,9 +125,7 @@ try {
   await expect.poll(()=>frame.locator('.data-saved-list button').count()).toBeGreaterThan(1);
   await frame.getByRole('button',{name:/\(sankey\)$/}).click();
   await expect(frame.getByRole('button',{name:'Export chart JSON',exact:true})).toBeVisible({timeout:30000});
-  await panel.locator('summary').filter({hasText:'Chart source'}).click();
-  await panel.locator('summary').filter({hasText:'Source records'}).click();
-  await panel.locator('.data-chart-source button').first().click();
+  await panel.getByRole('region',{name:'Chart source records',exact:true}).getByRole('button').first().click();
   await expect.poll(async()=>(await state()).documents?.some(value=>value.item.value.origin?.app==='data'&&value.reader.source)).toBe(true);
   checks.push('Saved chart survives Desktop restart and its original record opens in the shared source reader');
   expect(errors).toEqual([]);

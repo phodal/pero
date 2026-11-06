@@ -42,11 +42,17 @@ before(async () => {
 });
 after(async () => { await browser?.close(); if (directory) await rm(directory, { recursive: true, force: true }); });
 
-async function fixture(t) {
+async function fixture(t, options = {}) {
   const pending = [], errors = [];
+  let releaseCatalog;
+  const value = options.catalog ?? catalog;
   const json = (response, value, status = 200) => { response.writeHead(status, { 'Content-Type': 'application/json' }); response.end(JSON.stringify(value)); };
   const server = createServer(async (request, response) => {
-    if (request.url === '/api/state') return json(response, catalog);
+    if (request.url === '/api/state') {
+      if (options.deferCatalog) { releaseCatalog = () => json(response, value); return; }
+      return json(response, value);
+    }
+    if (request.url === '/api/charts') return json(response, { charts: [] });
     if (request.url === '/host/sdk') return json(response, {});
     if (request.url === '/api/inspect') {
       let body = ''; for await (const chunk of request) body += chunk;
@@ -71,10 +77,14 @@ async function fixture(t) {
   t.after(async () => { await page.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); assert.deepEqual(errors, []); });
   const next = async () => { await expect.poll(() => pending.length).toBeGreaterThan(0); return pending.shift(); };
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
-  await (await next()).reply();
-  await page.getByRole('tab', { name: 'Fields', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: 'Unit for voltage', exact: true })).toBeVisible();
-  return { page, next };
+  if (!options.deferCatalog && options.inspect !== false) {
+    await (await next()).reply();
+    if (options.tab !== 'Table') {
+      await page.getByRole('tab', { name: 'Fields', exact: true }).click();
+      await expect(page.getByRole('textbox', { name: 'Unit for voltage', exact: true })).toBeVisible();
+    }
+  }
+  return { page, next, releaseCatalog: async () => { await expect.poll(() => Boolean(releaseCatalog)).toBe(true); releaseCatalog(); } };
 }
 
 test('field controls retain keyboard focus, drafts and latest selections during delayed reinspection', async t => {
@@ -131,17 +141,21 @@ test('switching version isolates fields and ignores a late response from the pre
   await expect(page.getByRole('columnheader', { name: 'voltage (old-unit)', exact: true })).toHaveCount(0);
 });
 
-for (const failure of ['changed', 'transport']) test(`${failure} failure removes prior field checks rather than claiming current integrity`, async t => {
+for (const failure of ['changed', 'transport', 'permission']) test(`${failure} failure preserves only allowed previous results with an explicit scope`, async t => {
   const { page, next } = await fixture(t);
   const input = page.getByRole('textbox', { name: 'Unit for voltage', exact: true });
   await input.fill('V'); await input.press('Tab');
   const request = await next();
   if (failure === 'changed') await request.reply({ status: 'changed', datasetId: 'measurements', assetId: 'a', message: 'Fixture bytes no longer match' });
-  else await request.reply({ error: 'Fixture inspection unavailable' }, 503);
-  await expect(input).toHaveCount(0);
+  else await request.reply({ detail: 'Fixture inspection unavailable' }, failure === 'permission' ? 403 : 503);
+  if (failure === 'transport') await expect(input).toHaveValue('V');
+  else await expect(input).toHaveCount(0);
   await expect(page.getByText('Bytes matched', { exact: false })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Checks', exact: true }).click();
-  await expect(page.getByText('No current checks.', { exact: true })).toBeVisible();
+  if (failure === 'transport') {
+    await expect(page.getByText('Full input / 1 records', { exact: true })).toBeVisible();
+    await expect(page.getByText('Showing the last successful result', { exact: false })).toBeVisible();
+  } else await expect(page.getByText('No current checks.', { exact: true })).toBeVisible();
   if (failure === 'transport') {
     await page.getByRole('button', { name: 'Retry inspection', exact: true }).click();
     const retry = await next();
@@ -149,4 +163,122 @@ for (const failure of ['changed', 'transport']) test(`${failure} failure removes
     await retry.reply();
     await expect(page.getByText('Full input / 1 records', { exact: true })).toBeVisible();
   }
+});
+
+
+test('table rows and save drafts stay mounted across delayed filters, failure and retry', async t => {
+  const { page, next } = await fixture(t, { tab: 'Table' });
+  const rows = page.getByRole('region', { name: 'Data records', exact: true });
+  await page.getByRole('textbox', { name: 'View name', exact: true }).fill('Unsubmitted view');
+  await page.getByRole('button', { name: 'Filter field', exact: true }).click();
+  await page.getByRole('option', { name: 'voltage', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Filter value', exact: true }).fill('new');
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  const request = await next();
+  await expect(rows.getByRole('cell', { name: '111', exact: true })).toHaveCount(3);
+  await expect(page.getByRole('textbox', { name: 'View name', exact: true })).toHaveValue('Unsubmitted view');
+  await expect(page.getByText('Showing the last successful result', { exact: false })).toContainText('all records');
+  await request.reply({ detail: 'Temporary read failure' }, 503);
+  await expect(rows.getByRole('cell', { name: '111', exact: true })).toHaveCount(3);
+  await expect(page.getByRole('button', { name: 'Save view', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Retry inspection', exact: true }).click();
+  await (await next()).reply();
+  await expect(page.getByText('Showing the last successful result', { exact: false })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'View name', exact: true })).toHaveValue('Unsubmitted view');
+  await expect(page.getByRole('button', { name: 'Save view', exact: true })).toBeEnabled();
+});
+
+test('first loading and an empty catalog share one workspace state', async t => {
+  const { page, releaseCatalog } = await fixture(t, { catalog: { ...catalog, datasets: [], assets: [] }, deferCatalog: true, inspect: false });
+  await expect(page.getByText('Loading data…', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('No dataset selected', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('No data yet', { exact: true })).toHaveCount(0);
+  await releaseCatalog();
+  await expect(page.getByText('No data yet', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('No dataset selected', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add data', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Add data', exact: true })).toBeVisible();
+  await page.getByRole('dialog').press('Escape');
+  await expect(page.getByRole('button', { name: 'Add data', exact: true })).toBeFocused();
+});
+
+for (const kind of ['model', 'opaque']) test(`${kind} files expose file and history capabilities`, async t => {
+  const value = { ...catalog, assets: [{ ...asset('a'), name: 'A long original research file with a name that must remain readable.bin', kind: kind === 'model' ? 'model' : 'dataset', format: 'bin' }],
+    datasets: [{ ...catalog.datasets[0], name: 'A long original research file with a name that must remain readable.bin', kind: kind === 'model' ? 'model' : 'dataset', versions: ['a'] }] };
+  const { page } = await fixture(t, { catalog: value, inspect: false });
+  await expect(page.getByRole('tab', { name: 'File', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'History', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Chart', exact: true })).toHaveCount(0);
+  await expect(page.getByText('Fields are available', { exact: false })).toHaveCount(0);
+  const palette = JSON.parse(await readFile(resolve(root, 'web/src/theme.generated.json'), 'utf8')).dark;
+  await page.evaluate(palette => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: true, active: true, appearance: { dark: true, accent: 'teal', palette, typography: { ui: 24, chat: 24, code: 24 } } } }, '*'), palette);
+  await expect(page.locator('html')).toHaveCSS('font-size', '24px');
+  await page.setViewportSize({ width: 390, height: 900 });
+  await expect(page.getByRole('list', { name: 'Data library', exact: true })).toBeVisible();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.screenshot({ path: resolve(screenshots, `${kind}-dark-narrow.png`), fullPage: true });
+});
+
+
+test('chart requests retain a labelled previous chart and retry without remounting its surface', async t => {
+  const { page, next } = await fixture(t, { tab: 'Table' });
+  const pending = [];
+  await page.route('**/api/chart', route => { pending.push(route); });
+  const nextChart = async () => { await expect.poll(() => pending.length).toBeGreaterThan(0); return pending.shift(); };
+  const response = title => ({ artifactId: title, content: JSON.stringify({ title }), document: {
+    id: title, title, chart: { type: 'bar', y: 'value' }, rows: [{ label: 'A', value: 1 }],
+    source: { label: 'Synthetic chart fixture', catalogDatasetId: 'measurements', assetId: 'a', sha256: 'a'.repeat(64), records: [{ ordinal: 0, pointer: '/0', line: 2 }] },
+  } });
+  await page.getByRole('tab', { name: 'Chart', exact: true }).click();
+  const panel = page.locator('.data-chart-panel');
+  await panel.getByRole('button', { name: 'Chart data', exact: true }).click();
+  await page.getByRole('option', { name: 'Record fields', exact: true }).click();
+  await panel.getByRole('button', { name: 'Create chart', exact: true }).click();
+  await (await nextChart()).fulfill({ json: response('First chart') });
+  await expect(panel.getByRole('heading', { name: 'First chart', exact: true })).toBeVisible();
+  const surface = await panel.locator('iframe[data-pero-chart]').elementHandle();
+  await panel.getByRole('button', { name: 'Create chart', exact: true }).click();
+  const delayed = await nextChart();
+  await expect(panel.getByText('Showing the previous chart', { exact: false })).toBeVisible();
+  assert.equal(await surface.evaluate(node => node.isConnected), true);
+  await delayed.fulfill({ status: 503, json: { detail: 'Temporary chart failure' } });
+  await expect(panel.getByRole('heading', { name: 'First chart', exact: true })).toBeVisible();
+  await expect(panel.getByText('Showing the previous chart', { exact: false })).toContainText('latest request failed');
+  await panel.getByRole('button', { name: 'Retry chart', exact: true }).click();
+  await (await nextChart()).fulfill({ json: response('Updated chart') });
+  await expect(panel.getByRole('heading', { name: 'Updated chart', exact: true })).toBeVisible();
+  assert.equal(await surface.evaluate(node => node.isConnected), true);
+  await expect(panel.getByText('Showing the previous chart', { exact: false })).toHaveCount(0);
+  await expect(panel.getByRole('region', { name: 'Chart source records', exact: true })).toContainText('/0');
+  await panel.getByRole('button', { name: 'Chart details', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Chart source details', exact: true })).toBeVisible();
+  await page.getByRole('dialog').press('Escape');
+  await expect(panel.getByRole('button', { name: 'Chart details', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  const invalid = await next();
+  await invalid.reply({ status: 'changed', datasetId: 'measurements', assetId: 'a', message: 'Original bytes changed' });
+  await expect(panel.getByRole('heading', { name: 'Updated chart', exact: true })).toHaveCount(0);
+  assert.equal(await surface.evaluate(node => node.isConnected), false);
+});
+
+test('metadata editing keeps a failed draft and uses sandbox-safe Enter submission', async t => {
+  const { page } = await fixture(t, { tab: 'Table' });
+  const updates = [];
+  await page.route('**/api/datasets/update', async route => {
+    updates.push(route.request().postDataJSON());
+    await route.fulfill({ status: updates.length === 1 ? 503 : 200,
+      json: updates.length === 1 ? { detail: 'Temporary save failure' } : { ...catalog, datasets: [{ ...catalog.datasets[0], name: updates[1].name }] } });
+  });
+  await page.getByRole('button', { name: 'Edit details', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Dataset details', exact: true });
+  await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('Unlost metadata');
+  await dialog.getByRole('textbox', { name: 'Name', exact: true }).press('Enter');
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  await expect(dialog.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Unlost metadata');
+  await dialog.getByRole('button', { name: 'Save details', exact: true }).click();
+  await expect(dialog.getByText('Details saved.', { exact: true })).toBeVisible();
+  assert.equal(updates.length, 2);
+  assert.equal(updates[1].name, 'Unlost metadata');
+  await dialog.press('Escape');
+  await expect(page.getByRole('button', { name: 'Edit details', exact: true })).toBeFocused();
 });

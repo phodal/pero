@@ -40,10 +40,10 @@ try{
     if(!response.ok)throw new Error(await response.text());
     window.dispatchEvent(new Event('pero:app:data-changed'));
   });
-  await expect(frame.getByRole('button',{name:'background.json',exact:true})).toBeVisible();
+  await expect(frame.locator('.data-catalog .pero-list-open').filter({has:frame.getByText('background.json',{exact:true})})).toBeVisible();
   await expect(frame.locator('main')).toHaveAttribute('aria-busy','false');
   await expect(frame.locator('.data-grid')).toHaveCount(0);
-  await frame.getByRole('button',{name:'observations.json',exact:true}).click();
+  await frame.locator('.data-catalog .pero-list-open').filter({has:frame.getByText('observations.json',{exact:true})}).click();
   await expect(frame.locator('.data-grid tbody tr')).toHaveCount(6);
   checks.push('Background catalog refresh respects All data; an explicit dataset choice returns to the table');
   // The real SDK slot asks the Host to present its existing scoped conversation.
