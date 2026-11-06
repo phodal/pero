@@ -129,3 +129,18 @@ listbox options use Button's unstyled foundation because their file/tile
 layout, roving focus, selected thumbnails and double-click quick look are
 specialized selection surfaces; preserve those semantics and domain layout.
 No execution or scientific model logic changes.
+
+
+## Semantic source tables
+
+Extend SDK Table with a children form sharing the data-driven Table's named,
+focusable scroll surface and skin. Real Data sorting/selection and Paper source
+row/column spans require semantic markup; these remain owned by consumers.
+The children form uses intrinsic column sizing. No table sorting/selection
+state moves into the SDK and the existing data-driven contract is preserved.
+
+Data adopts the semantic Table for records, field profiles, duplicate records,
+interpretation previews and chart source rows. Preserve original row numbers,
+aria-sort/aria-selected, selection limits, exact decimal values and sticky
+headers. All five tables gain named keyboard-focusable scroll regions; remove
+Data's duplicate cell padding/header skin.

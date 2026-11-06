@@ -7,9 +7,9 @@ html, body, #app { height: 100%; }
 .data-filter input { min-width: 0; max-width: 100%; }
 .data-checkbox { display: inline-flex; align-items: center; gap: var(--pero-spacing-1); white-space: nowrap; }
 .data-table-scroll { flex: 1; min-height: 0; overflow: auto; }
-.data-rows { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.data-rows th, .data-rows td { box-sizing: border-box; padding: var(--pero-spacing-2) var(--pero-spacing-3); text-align: start; white-space: nowrap; border-bottom: var(--pero-hairline); }
-.data-rows thead th { position: sticky; top: 0; z-index: 1; font-size: var(--pero-font-caption); font-weight: 600; color: var(--pero-text-muted); background: var(--pero-material-sidebar); }
+.data-rows { font-variant-numeric: tabular-nums; }
+.data-rows th, .data-rows td { box-sizing: border-box; white-space: nowrap; }
+.data-rows thead th { position: sticky; top: 0; z-index: 1; }
 .data-catalog { list-style: none; margin: 0; padding: var(--pero-spacing-1); }
 .data-catalog .pero-list-title { white-space: normal; overflow-wrap: anywhere; }
 .data-catalog .pero-list-meta, .data-catalog .pero-list-meta > span { flex-wrap: wrap; overflow-wrap: anywhere; }

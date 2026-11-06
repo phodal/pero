@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { Table, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { InterpretationPreview } from './interpretation';
 import { ChartPanel } from './chart-panel';
 import { DatasetDetails } from './dataset-details';
@@ -126,8 +126,7 @@ export function Workspace(props: Props) {
           {filterField && ['gte', 'lte'].includes(operator) && !view.interpretations?.[filterField] && fields.report.fields.find(field => field.name === filterField)?.kinds.includes('string') ? <p className="data-note">Numeric comparison requires explicit number interpretation. <Button onClick={() => { props.onTab('fields'); setTypeDraft({ field: filterField, numeric: true }); }}>Preview number type</Button></p> : null}
           {inspected ? <>
           <p className="data-note">Table: {formatInt(inspected.matched)} matching records. Source row numbers stay unchanged.</p>
-          <div className="data-grid" tabIndex={0} role="region" aria-label="Data records">
-            <table className="data-rows">
+          <Table label="Data records" density="compact" className="data-grid" tableClassName="data-rows">
               <thead><tr><th scope="col">#</th>{inspected.columns.map(key => <th key={key} scope="col" aria-sort={displayedView.sort?.field === key ? (displayedView.sort.descending ? 'descending' : 'ascending') : 'none'}>
                 <Button variant="ghost" disabled={busy} onClick={() => props.onView({ ...view, sort: { field: key, descending: view.sort?.field === key ? !view.sort.descending : false } })}>
                   {key}{displayedView.units[key] ? ` (${displayedView.units[key]})` : ''}
@@ -141,8 +140,7 @@ export function Workspace(props: Props) {
                   ? <span className="data-missing">{cell.kind === 'missing' ? 'missing' : cell.kind === 'null' ? 'null' : 'empty'}</span> : cell.text}{cell.conversionError ? <span className="data-conversion-error">Conversion failed</span> : null}</td>)}
                 <td><Button variant="ghost" disabled={busy || stale} aria-label={`Show record source ${row.row}`} onClick={() => props.onRecord(row.row - 1)}>Source</Button></td>
               </tr>)}</tbody>
-            </table>
-          </div>
+            </Table>
           {!inspected.rows.length ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />} heading="No matching records" description="Change the filter or open another version." /> : null}
           <DataForm className="data-filter" onSubmit={event => { event.preventDefault(); props.onSave(String(new FormData(event.currentTarget).get('viewName'))); }}>
             <Input aria-label="View name" name="viewName" placeholder="View name" required maxLength={120} disabled={busy} />
@@ -159,7 +157,7 @@ export function Workspace(props: Props) {
             props.onView(next); setTypeDraft(null);
           }} /> : null}
           <Toolbar className="data-field-controls"><Input type="search" aria-label="Find fields" placeholder="Find fields" value={fieldSearch} onChange={event => setFieldSearch(event.target.value)} /><p>{columns.length} / {props.maxColumns} displayed</p></Toolbar>
-          <div className="data-rows-scroll" tabIndex={0}><table className="data-rows">
+          <Table label="Field profile" density="compact" className="data-rows-scroll" tableClassName="data-rows">
             <thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col">Unit</th><th scope="col">Missing</th><th scope="col">Null</th><th scope="col">Empty</th></tr></thead>
             <tbody>{visibleFields.map(field => <tr key={field.name}>
               <th scope="row"><label><Checkbox aria-label={`Show ${field.name}`} checked={columns.includes(field.name)}
@@ -170,7 +168,7 @@ export function Workspace(props: Props) {
                 onCommit={unit => props.onView({ ...view, units: { ...view.units, [field.name]: unit } })} /></td>
               {(['missing', 'null', 'empty'] as const).map(kind => { const count = kind === 'null' ? field.nulls : field[kind]; return <td key={kind}>{count ? <Button disabled={busy || loading} onClick={() => showIssue({ kind, field: field.name })}>{count}</Button> : '0'}</td>; })}
             </tr>)}</tbody>
-          </table></div>
+          </Table>
         </> : <p className="data-note">Fields are available after a successful inspection.</p>}
       </TabsContent>
       <TabsContent value="chart" forceMount className="data-chart">
@@ -201,10 +199,10 @@ export function Workspace(props: Props) {
             <dt>Parser</dt><dd>{inspected.report.parserVersion}</dd>
           </dl>
           <p className="data-note">Checks describe the full input; missing, null, empty and conversion counts are cells, while duplicate counts are rows. Show issues opens full-input rows and pauses the table filter until you return. Checks do not establish scientific validity. Duplicate rows have identical fields and exact value tokens.</p>
-          {inspected.report.duplicates.length ? <div className="data-rows-scroll"><table className="data-rows">
+          {inspected.report.duplicates.length ? <Table label="Duplicate records" density="compact" className="data-rows-scroll" tableClassName="data-rows">
             <thead><tr><th scope="col">Row</th><th scope="col">Duplicate of</th><th scope="col">Source line</th></tr></thead>
             <tbody>{inspected.report.duplicates.map(item => <tr key={item.row}><td>{item.row}</td><td>{item.duplicateOf}</td><td>{item.sourceLine ?? '—'} <Button disabled={busy || stale} onClick={() => props.onRecord(item.row - 1)}>Source row {item.row}</Button></td></tr>)}</tbody>
-          </table></div> : null}
+          </Table> : null}
         </> : <p className="data-note">No current checks.</p>}
       </TabsContent>
       </> : null}
