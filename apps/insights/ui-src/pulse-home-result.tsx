@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { openAppSession, useAppChat, useAppObject } from '@pero/app-sdk';
-import { Badge, Button, Card, CardHeader, EmptyIllustration, EmptyState, Icon } from '@pero/app-sdk/ui';
+import { Disclosure, Badge, Button, Card, CardHeader, EmptyIllustration, EmptyState, Icon } from '@pero/app-sdk/ui';
 import { cardKind, projectBrief } from './work-recap-model.mjs';
 import { InsightsError } from './feedback';
 import { RichText } from './rich-text';
@@ -148,9 +148,9 @@ export function PulseHomeResult({ brief, createdAt, running, locale }: {
         <div className="point-brief-questions">{[t.continueQuestion, t.verifyQuestion].map(question => <Button key={question} disabled={discussing} onClick={() => discuss(question)}>{question}</Button>)}</div>
         {discussionError && <InsightsError error={discussionError} locale={locale} context="action" />}
         {brief.tomorrow && <section className="point-pulse-ahead"><h3>{t.ahead}</h3><ul>{brief.tomorrow.split(/\n+/).filter(line => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul></section>}
-        <details className="point-insights-diagnostics" onToggle={event => setOriginalOpen(event.currentTarget.open)}><summary>{t.original}</summary>
+        <Disclosure variant="inline" className="point-insights-diagnostics" onOpenChange={setOriginalOpen} summary={<>{t.original}</>}>
           {originalOpen && <><p>{t.originalNote}</p><pre>{JSON.stringify(brief, null, 2)}</pre></>}
-        </details>
+        </Disclosure>
       </section>
     </div>
   </section>;

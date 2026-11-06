@@ -19,8 +19,6 @@
 .point-insights-error { width: 100%; min-width: 0; }
 .point-insights-error-hint { display: block; margin-top: var(--pero-spacing-1); }
 .point-insights-diagnostics { margin-top: var(--pero-spacing-2); color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
-.point-insights-diagnostics summary { cursor: pointer; }
-.point-insights-diagnostics summary:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
 .point-insights-diagnostics pre { max-height: 12em; overflow: auto; white-space: pre-wrap; font: inherit; overflow-wrap: anywhere; }
 .point-pulse-generated, .point-pulse-muted { margin: 0; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .point-pulse-feed { display: grid; }

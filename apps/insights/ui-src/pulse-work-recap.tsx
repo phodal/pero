@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button } from '@pero/app-sdk/ui';
+import { Disclosure, Button } from '@pero/app-sdk/ui';
 import { SectionHead, RichText } from './rich-text';
 import { workRecapPrompt, recapDisplayTurns, recapLatestTurn } from './work-recap-model.mjs';
 import './pulse-work-recap.css';
@@ -69,7 +69,7 @@ export function PulseWorkRecap({ recap, memory, locale = 'zh', openSession, dele
       <p>{latest ? latest.request || (latest.startedBeforeWindow ? t.beforeWindow : t.noText) : session.request || t.noText}</p>
       {latest?.response && <p className="point-pulse-recap-response"><span>{responseLabel(latest)}{locale === 'zh' ? '：' : ': '}</span>{latest.response.split('\n').find(Boolean)}</p>}
       {latest && latest.responseKind !== 'final' && <p className="point-pulse-muted">{t.noFinal}</p>}
-      <details><summary>{t.evidence}</summary>
+      <Disclosure variant="inline" summary={<>{t.evidence}</>}>
         {turns.map((turn, index) => <section className="point-pulse-recap-turn" key={turn.turnId || `${turn.startSeq}:${turn.endSeq}`}>
           <h3>{fmt(t.turn, { n: (session.turnCount ?? turns.length) - turns.length + index + 1 })} · {t[turn.status] || t.unknown}</h3>
           {turn.startedBeforeWindow && <p className="point-pulse-muted">{t.beforeWindow}</p>}
@@ -89,10 +89,10 @@ export function PulseWorkRecap({ recap, memory, locale = 'zh', openSession, dele
         <small>{session.source.durable ? t.durable : t.live} · {session.harnessId || 'Point'}</small>
         <code>{session.sessionId} · seq {session.source.startSeq}–{session.source.endSeq} · {t.asOf}: {session.source.asOfSeq} · {session.source.digest}</code>
         {session.truncated && <small>{t.clipped}</small>}
-      </details>
+      </Disclosure>
     </article>})}</div>
     {recap.sessions.length > 3 && <Button variant="ghost" aria-expanded={all} onClick={() => setAll(value => !value)}>{all ? t.less : fmt(t.more, { n: recap.sessions.length })}</Button>}
-    <details className="point-pulse-recap-memory"><summary>{t.memory} <small>{memory?.items.length ?? 0}</small></summary>
+    <Disclosure variant="inline" className="point-pulse-recap-memory" summary={<>{t.memory} <small>{memory?.items.length ?? 0}</small></>}>
       {!memory?.items.length && <p className="point-pulse-muted">{t.memoryEmpty}</p>}
       {memory?.coverage.omitted ? <p className="point-pulse-muted">{fmt(t.memoryPartial, memory.coverage)}</p> : null}
       {memory?.items.map(item => <article key={`${item.scope}:${item.id}:${item.digest}`}>
@@ -111,7 +111,7 @@ export function PulseWorkRecap({ recap, memory, locale = 'zh', openSession, dele
         <small>{t.cached}: {item.readAt} · {item.sourceRef}</small><code>{item.digest}</code>
         {item.truncated && <small>{t.clipped}</small>}
       </article>)}
-    </details>
+    </Disclosure>
     {(recap.sessions.length > 0 || (memory?.items.length ?? 0) > 0) && <div className="point-pulse-recap-next">
       {delegate && <Button variant="primary" onClick={() => delegate(workRecapPrompt(recap, memory, locale))}>{t.suggestions}</Button>}
       {suggestion ? <RichText text={suggestion} /> : null}
