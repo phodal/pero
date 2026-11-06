@@ -1,6 +1,6 @@
 //! Retained Files view and UI-only transport; no Agent tool calls.
 use crate::{
-    content_reader::ContentReader,
+    content_reader::{ContentReader, ReaderAction},
     file_tree::FileTree,
     panel::{ChatAction, ChatPanel},
 };
@@ -21,6 +21,7 @@ pub(crate) struct FileBrowser {
     pub pending: Option<(String, String)>,
     pub document: Option<ContentDocument>,
     pub reader: Option<Entity<ContentReader>>,
+    reader_subscription: Option<Subscription>,
     pub error: Option<String>,
     pub bounds: HashMap<String, crate::view_bounds::ViewBounds>,
 }
@@ -72,6 +73,7 @@ impl ChatPanel {
                 pending: None,
                 document: None,
                 reader: None,
+                reader_subscription: None,
                 error: None,
                 bounds: HashMap::new(),
             });
@@ -164,6 +166,7 @@ impl ChatPanel {
         };
         if browser.preview_path.as_deref() != Some(path) {
             browser.reader = None;
+            browser.reader_subscription = None;
             browser.document = None;
             browser.preview_path = Some(path.into());
         }
@@ -238,10 +241,33 @@ impl ChatPanel {
         let browser = self.files.conversations.get_mut(thread).unwrap();
         if let Some(document) = browser.document.take() {
             let locale = self.locale.clone();
-            browser.reader =
-                Some(cx.new(|cx| {
-                    ContentReader::new(document, locale, window, cx).workspace(window, cx)
-                }));
+            let origin = document.origin.clone();
+            let workspace = browser.tree.workspace.clone();
+            let link_thread = thread.to_owned();
+            let reader =
+                cx.new(|cx| ContentReader::new(document, locale, window, cx).workspace(window, cx));
+            browser.reader_subscription = Some(cx.subscribe_in(
+                &reader,
+                window,
+                move |this, _, action, _, cx| {
+                    let ReaderAction::Link(href) = action else {
+                        return;
+                    };
+                    let link = pero_contracts::content_link::ContentLink::resolve(&origin, href);
+                    if let Some(path) = link.workspace_file(&origin, &workspace) {
+                        this.read_workspace_file(&link_thread, &path, cx);
+                    } else if let pero_contracts::content_link::ContentLink::External(url) = link {
+                        cx.open_url(&url);
+                    } else {
+                        let error = this.t("content.link_unavailable").to_owned();
+                        if let Some(browser) = this.files.conversations.get_mut(&link_thread) {
+                            browser.error = Some(error);
+                        }
+                        cx.notify();
+                    }
+                },
+            ));
+            browser.reader = Some(reader);
         }
     }
 

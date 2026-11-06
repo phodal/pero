@@ -15,6 +15,7 @@ const request='{"format":"smiles","records":["CCO","C[C@H](O)C(=O)O","invalid@@"
 const result='{"rows":[{"input":"CCO","MolWt":46.069,"exact":9007199254740993}]}\n';
 await writeFile(join(workspace,'request.json'),request);
 await writeFile(join(workspace,'result.json'),result);
+await writeFile(join(workspace,'README.md'),'[Open result](runs/result.json)\n');
 await writeFile(join(workspace,'runs','result.json'),result);
 await writeFile(join(other,'other-only.txt'),'different workspace');
 for(let i=0;i<2050;i++)await writeFile(join(workspace,'large',`record-${String(i).padStart(4,'0')}.json`),'{}');
@@ -51,7 +52,7 @@ const close=async()=>{await app.evaluate(({BrowserWindow})=>{for(const w of Brow
 try {
   await launch();await clickSessionRow(page,'files-a');
   await click(s=>s.artifacts?.bounds.toggle);await control('files-tab');
-  await expect.poll(async()=>(await state()).files?.browser?.rows.filter(r=>r.entry).length).toBe(5);
+  await expect.poll(async()=>(await state()).files?.browser?.rows.filter(r=>r.entry).length).toBe(6);
   await expect.poll(async()=>(await state()).preferences.layout.resource_tab).toBe('files');
   await row('runs');await expect.poll(async()=>(await state()).files.browser.rows.some(r=>r.path==='runs/result.json')).toBe(true);
   await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
@@ -61,6 +62,15 @@ try {
   await control('artifacts-tab');await control('files-tab');
   expect((await state()).files.browser.reader).toEqual(before);
   await page.screenshot({path:join(output,'files-light.png'),scale:'css'});
+  await row('README.md');
+  await expect.poll(async()=>(await state()).files.browser.reader?.markdown).toBe(true);
+  let markdownBounds;
+  await expect.poll(async()=>{markdownBounds=(await state()).files.browser.reader?.bounds;return !!markdownBounds?.width;}).toBe(true);
+  await page.screenshot({path:join(output,'markdown-link.png'),scale:'css'});
+  await page.mouse.click(markdownBounds.x+50,markdownBounds.y+82);
+  await expect.poll(async()=>(await state()).files.browser.previewPath).toBe('runs/result.json');
+  await expect.poll(async()=>(await state()).files.browser.reader?.bytes).toBe(Buffer.byteLength(result));
+
 
   const registered=await hostRequest({method:'artifacts',action:'register_file',request_id:'keep-original',thread_id:'files-a',path:'runs/result.json'});
   expect(registered.kind).toBe('artifact_registered');
@@ -105,7 +115,7 @@ try {
   await expect.poll(async()=>(await state()).files.browser.rows.some(r=>r.path==='request.json')).toBe(true);
   expect(await readFile(history,'utf8')).toBe(events.map(e=>JSON.stringify(e)).join('\n')+'\n');
   expect(errors).toEqual([]);
-  await writeFile(join(output,'result.json'),JSON.stringify({workspace,history,renderedRowsFor2000Entries:painted,checks:['real Host and filesystem','session isolation','keyboard','retained tabs','snapshot preserved','reload','truncation','narrow dark','restart preference'],errors},null,2));
+  await writeFile(join(output,'result.json'),JSON.stringify({workspace,history,renderedRowsFor2000Entries:painted,checks:['real Host and filesystem','session isolation','keyboard','relative Markdown link','retained tabs','snapshot preserved','reload','truncation','narrow dark','restart preference'],errors},null,2));
   console.log('Workspace Files: real Host, lazy tree, preview, keyboard, isolation, immutable artifact and restart passed');
 } catch(error) {
   if(page){await page.screenshot({path:join(output,'failure.png')});await writeFile(join(output,'failure.json'),JSON.stringify(await state(),null,2));}
