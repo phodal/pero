@@ -534,3 +534,14 @@ readable. Screenshots and HPC measurements are ignored local artifacts, not
 committed binaries. Shared FileTree/CodeCompare and quote-specific visual states
 were source/behavior reviewed but not visually exercised. This pass adds no
 Native, physical IME, screen-reader, signed-package or other-OS acceptance.
+
+## Native font and consumer migration review — 2026-11-06
+
+The [detailed runtime review](../../docs/fitness/2026-11-06-design-system-runtime-review.md)
+records the 12-App Native inspection and first optimization batch, based on
+`1766b667` plus the listed UI changes. It includes actual menu coverage fixes,
+Automations' public-control migration, narrow LibraryHeader wrapping, typography
+tokens and Lab/Virtual Cell large-font layouts. Native observations and the
+Automations mock browser fixture are distinguished from builds and unit tests.
+Remaining keyboard, physical IME, VoiceOver, deep reader/preview and scientific
+heatmap label work remains in the canonical tracker linked by that report.
