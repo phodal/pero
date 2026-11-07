@@ -52,7 +52,8 @@ class ScientificPython:
     def require(self, spec, frozen=None):
         if self.python_version != spec.python_version or self.packages != tuple(sorted(spec.packages)):
             raise Invalid('environment_changed', 'Scientific interpreter or dependencies differ from the frozen specification')
-        if frozen is not None and self != frozen:
+        if (spec.scientific_runtime_digest is not None and self.identity != spec.scientific_runtime_digest
+                or frozen is not None and self != frozen):
             raise Invalid('environment_changed', 'Scientific interpreter identity changed; freeze and approve the new environment')
 
 

@@ -78,7 +78,7 @@ def prepare(checkout, output, seed=0, profile='table6', timeout_seconds=3600, *,
     packages = dict(runtime.packages)
     spec = ReproductionSpec.create(seed=seed, profile=profile, packages=packages,
                                   source_manifest_digest=digest(manifest), python_version=runtime.python_version,
-                                  pipeline_digest=pipeline_digest(), timeout_seconds=timeout_seconds,
+                                  pipeline_digest=pipeline_digest(), scientific_runtime_digest=runtime.identity, timeout_seconds=timeout_seconds,
                                   include_oracle=include_oracle)
     audit = audit_sources(sources, pinned=True)
     write_json(root / 'claim.json', Claim().to_dict())

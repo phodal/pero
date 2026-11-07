@@ -110,6 +110,24 @@ class PcgymAppTests(unittest.TestCase):
         self.assertNotEqual(spec.anchor.passage_id, self.annotation.id)
         self.assertEqual(len(self.fetches), 4)
 
+    def test_refreeze_changed_runtime_preserves_historical_bundle(self):
+        from dataclasses import replace
+        from paper_agent.scientific_python import current
+        runtime = current()
+        frozen, command = self.freeze()
+        original = {p.name: p.read_bytes() for p in self.app.bundle(frozen['id']).iterdir() if p.is_file()}
+        for changed in (replace(runtime, executable_sha256='a' * 64),
+                        replace(runtime, executable=runtime.executable + '-replacement')):
+            with self.subTest(runtime=changed.identity), patch('paper_agent.pcgym_app.observe_scientific_python', return_value=changed):
+                fresh = self.app.command(command)
+                self.assertNotEqual(fresh['id'], frozen['id'])
+                spec = pcgym.load_spec(self.app.bundle(fresh['id']))
+                changed.require(spec)
+                with self.assertRaises(Invalid):
+                    runtime.require(spec)
+                self.assertEqual(self.app.command(command), fresh)
+        self.assertEqual(original, {p.name: p.read_bytes() for p in self.app.bundle(frozen['id']).iterdir() if p.is_file()})
+
     def test_wrong_pdf_annotation_and_changed_source_are_refused(self):
         wrong = self.store.save_annotation(PdfAnnotation.create(dict(page=1, kind='highlight',
             quote='arXiv', rects=[dict(x=.1, y=.1, width=.3, height=.1)]), self.document, NOW))

@@ -124,7 +124,7 @@ class PcgymApp:
         runtime = observe_scientific_python(self.scientific_python)
         spec = ReproductionSpec.create(seed=data['seed'], profile=data['profile'],
             packages=dict(runtime.packages), source_manifest_digest=digest(manifest),
-            python_version=runtime.python_version, pipeline_digest=pipeline_digest(),
+            python_version=runtime.python_version, pipeline_digest=pipeline_digest(), scientific_runtime_digest=runtime.identity,
             timeout_seconds=data['maxSeconds'], anchor=PaperAnchor.parse(binding['anchor']),
             include_oracle=data['includeOracle'], paper_binding_digest=digest(binding))
         with self.lock:
