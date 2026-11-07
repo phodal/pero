@@ -1,4 +1,5 @@
 """Host-only approval contracts; no PC-Gym engine or model is invoked."""
+from dataclasses import replace
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 import json
@@ -13,6 +14,7 @@ import test_pcgym_app as fixtures
 from test_pcgym_app import ProcessFixture
 from paper_agent import pcgym
 from paper_agent.pcgym_app import PcgymApp
+from paper_agent.scientific_python import current
 from paper_agent.pcgym_domain import Invalid
 from paper_agent.model import Invalid as RequestInvalid
 from paper_agent.pdf import PdfAnnotation
@@ -55,6 +57,27 @@ class HostApprovalTests(unittest.TestCase):
             self.assertEqual(spawn.call_count, 1)
             saved = ''.join(p.read_text() for p in self.store.root.rglob('*.json'))
             self.assertNotIn(prepared['ticket'], saved)
+
+    def test_scientific_runtime_drift_blocks_approval_but_keeps_cancellation(self):
+        for change in ('executable', 'binary', 'version', 'packages'):
+            with self.subTest(change=change):
+                app, ids = self.prepared()
+                ids['requestId'] = 'runtime-' + change
+                prepared = app.host_command(dict(operation='prepare', **ids))
+                runtime = current()
+                altered = {
+                    'executable': replace(runtime, executable='/different/bin/python'),
+                    'binary': replace(runtime, executable_sha256='0' * 64),
+                    'version': replace(runtime, python_version='0.0.0'),
+                    'packages': replace(runtime, packages=()),
+                }[change]
+                with patch('paper_agent.pcgym_app.observe_scientific_python', return_value=altered), \
+                        patch('paper_agent.pcgym_app.subprocess.Popen') as spawn:
+                    with self.assertRaises(Invalid):
+                        app.host_command(dict(operation='decide', **ids, ticket=prepared['ticket'],
+                            bindingDigest=prepared['bindingDigest'], decision='allow'))
+                    self.assertEqual(app.host_command(dict(operation='cancel', **ids))['state'], 'cancelled')
+                    spawn.assert_not_called()
 
     def test_deny_cancel_close_restart_and_changed_spec_never_launch(self):
         for action in ('deny', 'cancel', 'close', 'restart', 'change-local'):

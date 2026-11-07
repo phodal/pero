@@ -164,3 +164,67 @@ Compute/Environments management UI for nonlocal resources, Compose member Use
 projection, VM adapters and KubeVirt control-plane binding, Slurm allocation-side
 Use binding/accounting reconciliation, and backend-specific release evidence.
 No COBOL App code is included in these commits.
+
+
+## 2026-11-06 independent PC-Gym runtime
+
+The fixed Paper method can now use a trusted `PERO_PAPER_SCIENTIFIC_PYTHON`
+selection independently of its App service interpreter. Workbench and standalone
+Electron forward this setting to Host; Host forwards it only to the authorized
+Paper deployment. App/public request bodies cannot select an executable.
+A `ScientificPython` observation freezes the entry path (preserving venv links),
+executable SHA-256, version and package inventory. Freeze, approval and dispatch
+use this observation. Changed environments refuse new work; existing decisions,
+request reconciliation and original-process cancellation retain their saved owner.
+This is an observed environment, not a complete artifact lock or an attestation.
+
+Historical macOS arm64 acceptance used App Python 3.15.2 and an isolated scientific
+Python 3.12.16 with ten required packages. The opt-in
+`tests/environments/pcgym-runtime.py` performed real PC-Gym CPU smoke using the
+pinned upstream checkout, both DDPG policies and MPC oracle, and independently
+recomputed the exported result with the App interpreter using `-E -s -S`.
+It also started another real worker, changed the configured selection, and
+confirmed that cancellation still stopped the original attempt.
+
+- Spec: `f237e6e5d062f25116aba62404575b2689bf517b478df261e17d4a4db6fb9117`.
+- Completed attempt: `374ea0e241a52ce785440b9c88ca65edd1b16ba30275dd14e70cbc3c4a5d123a`.
+- Cancelled attempt: `695a4b32326be51ba62a6335eab41991985bc1e48802c5326c60f4d05d1bf7eb`.
+- `numeric_recomputation=PASS`, `execution_evidence=CONSISTENT`,
+  `paper_verdict=INCONCLUSIVE`; no claim to reproduce the full paper experiment.
+- Local evidence: ignored `test-results/compute/pcgym-separated-runtime-cancel/result.json`
+  and its export/checker directory. These are local artifacts, not repository files.
+- Regressions: 49 PC-Gym tests and 12 Host approval tests pass; `npm run check` passes.
+
+The Paper/PDF selection metadata in this exercise is explicitly synthetic.
+This proves actual method execution and the App's approval seam, not original PDF
+recognition, Desktop selection, signed packages, or durable Host Use integration.
+Production Profile selection and reserve/admit/dispatch remain separate P2/P3 work.
+
+## 2026-11-06 KubeVirt fixture limits
+
+Two isolated k3d clusters were prepared without changing the user's kubeconfig
+or Docker context. ARM KubeVirt 1.9.1 deployed, but guest startup failed:
+ARM requires host-passthrough, which the selected QEMU software emulation cannot
+provide. An x86 K3s 1.36.4 fixture under Docker/Rosetta reached node Ready but
+containerd refused pod sandboxes with `seccomp is not supported`, including
+with a Pod-level Unconfined setting. Neither is accepted as a running KubeVirt VM.
+Both nodes were stopped after preserving VM/VMI/pod/event JSON under the ignored
+`test-results/compute-tools/pero-*-*.json` paths. Private images/config remain
+available for a suitable Linux execution host. The earlier manually owned QEMU
+process was also stopped via its own QMP socket; Tart and the reproducible QEMU
+fixture were already stopped. Slurm's isolated validation service remains available.
+
+
+### PR #149 review verification — 2026-11-07
+
+The historical real-solver receipt above did not record a source revision or
+exact executable paths/command. It predates the review change `3d204659` and
+must not be read as validation of that change. Its command shape was
+`<App Python> tests/environments/pcgym-runtime.py --science-python <scientific Python> --checkout <pinned PC-Gym checkout> --output <new evidence directory>`;
+the exact historical invocation is unavailable. No solver acceptance was rerun
+in this review. New runtime-bound specifications require the same interpreter
+identity even for imported handoffs lacking local observation metadata; a new
+executable/path requires a fresh freeze and approval. Legacy unbound specs keep
+their original version/package compatibility rule. Launch/decoding failures now
+produce a typed refusal, and interpreter processes receive the existing minimal
+observation environment instead of App/compute credentials.
