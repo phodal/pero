@@ -37,7 +37,7 @@ impl ChatPanel {
             .filter(|path| !path.is_empty())
             .unwrap_or(&self.workspace);
         let workspace = workspace_path
-            .rsplit('/')
+            .rsplit(['/', '\\'])
             .next()
             .unwrap_or("Workspace")
             .to_string();

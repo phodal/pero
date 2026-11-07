@@ -359,7 +359,7 @@ impl Manager {
                     let _ = self.tx.send(event);
                 }
             }
-            HostCommand::Workspace { path } => match std::fs::canonicalize(path) {
+            HostCommand::Workspace { path } => match dunce::canonicalize(path) {
                 Ok(path) if path.is_dir() => {
                     self.workspace = path;
                     self.publish_workspace();
