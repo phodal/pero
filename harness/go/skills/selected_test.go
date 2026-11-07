@@ -93,7 +93,6 @@ func TestSelectedVisibilityAndFrozenDefinition(t *testing.T) {
 }
 
 func TestSelectedResources(t *testing.T) {
-	requireCatalogPlatform(t)
 	root := canonicalTempDir(t)
 	selection := selectedFixture(t, root, "package:source")
 	if err := os.Mkdir(filepath.Join(root, "templates"), 0700); err != nil {

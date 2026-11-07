@@ -51,6 +51,12 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
     documents = documents if documents is not None else PaperDocuments(store)
     tex = TexPreviews(store, pdf_files)
     numeric = NumericRecords(store)
+    from .research_program_store import ResearchPrograms
+    from .research_program_access import program_request
+    programs = ResearchPrograms(store)
+    from .research_jobs import ResearchJobs
+    programs.jobs = ResearchJobs(programs)
+    store.program_jobs = programs.jobs
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -99,6 +105,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     if not self.headers.get("Content-Type", "").startswith("application/json"):
                         raise Invalid("JSON is required", 415)
                     data = mapping(json.loads(body), "request")
+                    if path in ('/api/programs', '/internal/research-program'):
+                        return self.reply(200, program_request(programs, data, now(), internal=path.startswith('/internal/')))
                     if path == '/internal/research-record':
                         from .research_watch import save_with_data
                         return self.reply(200, save_with_data(store, data, now()))

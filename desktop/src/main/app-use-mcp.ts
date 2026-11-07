@@ -75,7 +75,7 @@ export class DesktopAppUse {
   private plugins = new Map<string, AppAgentPluginBinding | null>();
   private writes?: {
     describe(): Promise<AppWriteDefinition[]>;
-    apply(write: PreparedAppWrite, signal: AbortSignal, goal?: ControlLabGoal): Promise<unknown>;
+    apply(write: PreparedAppWrite, signal: AbortSignal, goal?: ControlLabGoal, caller?:{threadId:string;operationId:string}): Promise<unknown>;
   };
   private send: (event: Event) => void;
   private readonly deliverArtifact?: ArtifactDeliveryPort;
@@ -87,7 +87,7 @@ export class DesktopAppUse {
     evidenceRoot: string,
     writes?: {
       describe(): Promise<AppWriteDefinition[]>;
-      apply(write: PreparedAppWrite, signal: AbortSignal, goal?: ControlLabGoal): Promise<unknown>;
+      apply(write: PreparedAppWrite, signal: AbortSignal, goal?: ControlLabGoal, caller?:{threadId:string;operationId:string}): Promise<unknown>;
     },
     computer?: DesktopComputer,
     deliverArtifact?: ArtifactDeliveryPort,
@@ -381,7 +381,7 @@ export class DesktopAppUse {
                 this.plugins.set(thread, plugin.consume(definition, definitions));
               }
               return { app: input.app, tool: input.tool, digest: prepared.digest,
-                result: await this.writes!.apply(prepared, signal, goal) };
+                result: await this.writes!.apply(prepared, signal, goal, {threadId:thread, operationId:crypto.randomUUID()}) };
             },
             controller.signal,
             'app-data',

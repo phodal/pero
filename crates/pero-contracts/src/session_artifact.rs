@@ -134,11 +134,22 @@ impl ArtifactMedia {
 pub enum ArtifactSource {
     Text,
     File { path: String },
+    Research { provenance: ResearchArtifactSource },
+}
+
+/// Immutable Paper export identity, supplied only by Host's research handoff.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResearchArtifactSource {
+    pub program_id: String,
+    pub checkpoint_id: String,
+    pub slot: String,
+    pub export_digest: String,
 }
 impl ArtifactSource {
     fn max_bytes(&self) -> u64 {
         match self {
-            Self::Text => MAX_ARTIFACT_BYTES,
+            Self::Text | Self::Research { .. } => MAX_ARTIFACT_BYTES,
             Self::File { .. } => MAX_ARTIFACT_FILE_BYTES,
         }
     }

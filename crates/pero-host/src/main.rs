@@ -73,6 +73,7 @@ fn main() -> io::Result<()> {
     });
     loop {
         for event in mcp.poll(&mut agents) { emit(event)?; }
+        agents.reconcile_paper_runs();
         if let Ok(owner) = &mut automation {
             if let Some(event) = owner.tick(&mut agents) { emit(event)?; }
         }

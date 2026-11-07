@@ -1,4 +1,4 @@
-"""Persistence shell for manual research revisions. Reuses existing owners."""
+"""Persistence shell for saved research revisions. Reuses existing source owners."""
 from dataclasses import asdict
 from .model import Invalid, digest, sequence
 from .paper_documents import PaperDocuments
@@ -49,6 +49,21 @@ def record_command(store, value, now, *, data_versions=None):
             raise Invalid('Report reference identity mismatch', 409)
         return result
 
+    def evidence(link):
+        if link.reportId is None:
+            return
+        if link.sourceKind == 'pdf':
+            if not _report_cites_paper(report(link.reportId).report, link.paperId):
+                raise Invalid('This report has no cited evidence for the selected paper')
+            return
+        from .source_reports import report_view
+        saved = report_view(store, store._read('source-reports', link.reportId), link.reportId)
+        if not all(item['available'] for item in saved['currentAvailability']):
+            raise Invalid('Observed HTML originals are unavailable', 409)
+        if not any(PaperDocuments(store).read(scope['documentId'])[0].paper_id == link.paperId
+                   for observation in saved['observations'] for scope in observation['anchor'].get('documentScopes', ())):
+            raise Invalid('This HTML report has no observed evidence for the selected paper')
+
     if operation == 'create':
         ids = sequence(value.get('paperIds'), 32, 'saved papers')
         papers = tuple(paper(identity) for identity in ids)
@@ -57,11 +72,7 @@ def record_command(store, value, now, *, data_versions=None):
                                        available_attempts=store.pcgym.research_attempts(ids) if value.get('attempts') else (),
                                        data_versions=data_versions if data_versions is not None else parent.dataVersions if parent else ())
         for link in record.evidence:
-            if link.reportId is None:
-                continue  # An explicitly missing evidence gap is not an observation.
-            saved = report(link.reportId)  # Owner rechecks input and report digests.
-            if not _report_cites_paper(saved.report, link.paperId):
-                raise Invalid('This report has no cited evidence for the selected paper')
+            evidence(link)
         store._write('research-records', record.id, record.to_dict())
         return record.to_dict()
     if operation == 'attempts':
@@ -90,8 +101,7 @@ def record_command(store, value, now, *, data_versions=None):
             if paper(source.paperId).content_digest != source.contentDigest:
                 raise Invalid('Frozen source digest mismatch', 409)
         for link in record.evidence:
-            if link.reportId:
-                report(link.reportId)
+            evidence(link)
         return record.export_index()
     if operation == 'select':
         selection = record.selection(value.get('paperIds'), now)

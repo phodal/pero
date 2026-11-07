@@ -11,7 +11,7 @@ model AppPanel { id: AppName; title: string; entry: string; ...AppClosed; }
 /** Public catalog: no local paths or backend credentials. */
 model AppDocumentSchema is Record<unknown>;
 model AppWriteRoute { name: AppName; description: string; path: string; schema: AppDocumentSchema; ...AppClosed; }
-model AppPluginAssembly { app: AppName; revision: string; instructions: string; tools: AppWriteRoute[]; maxCalls: uint32; ...AppClosed; }
+model AppPluginAssembly { app: AppName; revision: string; instructions: string; tools: AppWriteRoute[]; maxCalls: uint32; hostBudgeted?: boolean; ...AppClosed; }
 model AgentPluginRevision { name: AppName; version: string; revision: string; ...AppClosed; }
 model AgentPluginSummary { ...AgentPluginRevision; enabled: boolean; ...AppClosed; }
 model AppRecord {

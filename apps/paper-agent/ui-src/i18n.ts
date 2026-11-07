@@ -1,4 +1,5 @@
 export const messages = {
+  autonomousResearch: { zh: '自动研究', en: 'Autonomous research' },
   readerText: { zh: '正文', en: 'Read' },
   readingVersion: { zh: '阅读版本', en: 'Reading version' },
   savedText: { zh: '已保存文本', en: 'Saved text' },

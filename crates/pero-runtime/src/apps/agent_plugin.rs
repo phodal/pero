@@ -29,6 +29,9 @@ pub struct AppPluginAssembly {
     pub instructions: String,
     pub tools: Vec<AppWriteRoute>,
     pub max_calls: u32,
+    /// Only Host composition can lend a durable budget owner; manifests cannot.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub host_budgeted: bool,
 }
 
 impl AppDefinition {
@@ -131,6 +134,7 @@ impl AppDefinition {
                 })
                 .collect(),
             max_calls: plugin.max_calls,
+            host_budgeted: false,
         })
     }
 }

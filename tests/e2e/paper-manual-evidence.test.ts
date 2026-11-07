@@ -21,6 +21,9 @@ test('editing or removing one evidence row preserves other references for the sa
   assert.equal(edited[2], rows[2]);
   assert.deepEqual(reviseEvidence(edited, 1, null), [edited[0], rows[2]]);
   assert.deepEqual(reviseEvidence(rows, 2, { reportId: 'report-3', stance: 'support' }).slice(0, 2), rows.slice(0, 2));
+  const html = [{ ...rows[0], sourceKind: 'html' as const }];
+  assert.equal(reviseEvidence(html, 0, { note: 'Review HTML' })[0].sourceKind, 'html');
+  assert.equal(reviseEvidence(html, 0, { reportId: 'pdf-report' })[0].sourceKind, 'pdf');
 });
 
 test('report choices require actual evidence in every report location, not intent membership or paper labels', () => {
