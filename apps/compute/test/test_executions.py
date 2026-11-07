@@ -79,9 +79,24 @@ class ExecutionReceiptTest(unittest.TestCase):
             self.assertEqual(process['host'], 'host')
             self.assertEqual(process['exitCode'], 0)
             self.assertEqual(process['wallMilliseconds'], 10)
+            self.assertFalse(process['unconfirmed'])
             self.assertIsNone(process['scheduler'])
             self.assertIsNone(process['constraints'])
             self.assertIsNone(ClusterStore(directory).state()['jobs'])
+            (root / 'process.json').write_text(json.dumps({
+                'operation': 'use', 'host': 'host', 'payload': DIGEST, 'started': 10, 'unconfirmed': True,
+            }), encoding='utf-8')
+            (root / 'batch.json').unlink()
+            recorded = read_executions(directory)
+            self.assertEqual(recorded.status, 'recorded')
+            self.assertTrue(recorded.executions[0]['unconfirmed'])
+            self.assertIsNone(recorded.executions[0]['exitCode'])
+            self.assertIsNone(recorded.executions[0]['ended'])
+            (root / 'process.json').write_text(json.dumps({
+                'operation': 'use', 'host': 'host', 'payload': DIGEST, 'started': 10,
+                'unconfirmed': True, 'exit_code': 0,
+            }), encoding='utf-8')
+            self.assertEqual(read_executions(directory).status, 'unreadable')
             (root / 'process.json').write_text(json.dumps({
                 'operation': 'use', 'host': 'host', 'payload': DIGEST, 'started': 10, 'verdict': 'pass',
             }), encoding='utf-8')

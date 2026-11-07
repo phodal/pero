@@ -14,6 +14,9 @@ pub struct ProcessReceipt {
     pub started: u64,
     pub ended: Option<u64>,
     pub exit_code: Option<u8>,
+    /// The owner could not confirm how the process stopped. No exit or end is recorded.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unconfirmed: bool,
     pub entry: Option<String>,
     pub snapshot: Option<ContentDigest>,
     pub logs: Vec<String>,
@@ -43,6 +46,9 @@ pub fn store_process_receipt(directory: &Path, receipt: &ProcessReceipt) -> Resu
     }
     if receipt.ended.is_some_and(|ended| ended < receipt.started) {
         return Err("Process receipt end is before its start".into());
+    }
+    if receipt.unconfirmed && (receipt.exit_code.is_some() || receipt.ended.is_some()) {
+        return Err("An unconfirmed process stop has no exit or end".into());
     }
     let body = serde_json::to_vec_pretty(receipt).map_err(|e| e.to_string())?;
     publish(directory, &receipt.receipt_id(), &body)
@@ -112,6 +118,32 @@ mod tests {
             serde_json::from_slice(&fs::read(directory.join(&files[0])).unwrap()).unwrap();
         assert_eq!(body.states, vec![BatchState::Completed]);
         assert!(body.end_time == Some(20));
+        fs::remove_dir_all(&directory).unwrap();
+    }
+
+    #[test]
+    fn an_unconfirmed_stop_records_no_exit() {
+        let directory =
+            std::env::temp_dir().join(format!("pero-receipt-open-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        let mut receipt = ProcessReceipt {
+            operation: id("use"),
+            host: id("host"),
+            payload: ContentDigest::of(&"payload"),
+            started: 10,
+            ended: None,
+            exit_code: None,
+            unconfirmed: true,
+            entry: None,
+            snapshot: None,
+            logs: Vec::new(),
+        };
+        store_process_receipt(&directory, &receipt).unwrap();
+        receipt.exit_code = Some(0);
+        assert!(store_process_receipt(&directory, &receipt).is_err());
+        receipt.exit_code = None;
+        receipt.ended = Some(20);
+        assert!(store_process_receipt(&directory, &receipt).is_err());
         fs::remove_dir_all(directory).unwrap();
     }
 }

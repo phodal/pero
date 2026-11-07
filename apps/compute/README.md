@@ -14,7 +14,9 @@ Separately, `executions/` under the app data directory is the one receipt
 directory the execution owner writes. A batch submission and its later
 scheduler observation share one file. A managed process writes a process
 receipt there too: host, entry, exit code and log names, with no external job
-id and no scientific verdict. A missing directory is
+id and no scientific verdict. When the owner cannot confirm how the process
+stopped, that same file says so and records no exit code. The use is not
+marked released until the file is durable. A missing directory is
 `executionsStatus: none`. A submission receipt and a scheduler observation stay
 distinct. Recorded entry, log and output paths are displayed only when the
 receipt names them. An unreadable receipt returns `executions: null`; it is not

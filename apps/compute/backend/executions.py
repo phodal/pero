@@ -80,7 +80,7 @@ def _batch(value):
 
 
 def _process(value):
-    _reject_unknown(value, {'operation', 'host', 'payload', 'started', 'ended', 'exit_code', 'entry', 'snapshot', 'logs', 'outputs'})
+    _reject_unknown(value, {'operation', 'host', 'payload', 'started', 'ended', 'exit_code', 'unconfirmed', 'entry', 'snapshot', 'logs', 'outputs'})
     started = _count(value.get('started'), 'started', 2**64 - 1)
     ended = _optional_time(value.get('ended'), 'ended')
     if ended is not None and ended < started:
@@ -88,6 +88,11 @@ def _process(value):
     exit_code = value.get('exit_code')
     if exit_code is not None and (isinstance(exit_code, bool) or not isinstance(exit_code, int) or not 0 <= exit_code <= 255):
         raise ValueError('Invalid exit_code')
+    unconfirmed = value.get('unconfirmed', False)
+    if not isinstance(unconfirmed, bool):
+        raise ValueError('Invalid unconfirmed')
+    if unconfirmed and (exit_code is not None or ended is not None):
+        raise ValueError('An unconfirmed process stop has no exit or end')
     return {
         'operation': _identity(value.get('operation'), 'operation'),
         'cluster': None,
@@ -97,7 +102,8 @@ def _process(value):
         'started': started,
         'ended': ended,
         'exitCode': exit_code,
-        'wallMilliseconds': ended - started if ended is not None else None,
+        'unconfirmed': unconfirmed,
+        'wallMilliseconds': None if unconfirmed or ended is None else ended - started,
         'constraints': None,
         'payloadSha256': _digest(value.get('payload'), 'payload'),
         'scheduler': None,
@@ -136,6 +142,7 @@ def _submission(value):
         'started': None,
         'ended': None,
         'exitCode': None,
+        'unconfirmed': False,
         'wallMilliseconds': None,
     }
 

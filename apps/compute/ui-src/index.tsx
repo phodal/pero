@@ -76,7 +76,7 @@ export default function Compute() {
           </SplitPane>
           <SplitPane id="compute-execution" as="section" min={320} className="compute-detail">
             <Card tone="blue" variant="soft"><header className="compute-detail-header"><h2>{openedExecution.operation}</h2>
-              <Badge>{openedExecution.scheduler ? openedExecution.scheduler.states.join(', ') : openedExecution.jobId != null ? t('submittedOnly') : openedExecution.exitCode != null ? t('processExitValue', { code: openedExecution.exitCode }) : t('processOpen')}</Badge></header>
+              <Badge>{openedExecution.scheduler ? openedExecution.scheduler.states.join(', ') : openedExecution.jobId != null ? t('submittedOnly') : processStatus(openedExecution, t)}</Badge></header>
               <dl className="compute-facts">
                 {openedExecution.jobId != null ? <div><dt>{t('externalJob')}</dt><dd>{openedExecution.jobId}</dd></div> : null}
                 {openedExecution.cluster ? <div><dt>{t('receiptCluster')}</dt><dd>{openedExecution.cluster}</dd></div> : null}
@@ -130,6 +130,12 @@ export default function Compute() {
   </AppFrame></Tabs>;
 }
 
+function processStatus(item: ExecutionReceipt, t: (key: string, values?: Record<string, string | number>) => string) {
+  if (item.unconfirmed) return t('processUnconfirmed');
+  if (item.exitCode != null) return t('processExitValue', { code: item.exitCode });
+  return t('processOpen');
+}
+
 function reproduceDraft(item: ExecutionReceipt, t: (key: string, values?: Record<string, string | number>) => string) {
   const lines = [t('reproduceHelp')];
   if (item.jobId != null && item.constraints && item.cluster) {
@@ -138,7 +144,8 @@ function reproduceDraft(item: ExecutionReceipt, t: (key: string, values?: Record
       `${t('requested')}: ${t('requestedValue', { partition: item.constraints.partition, cpus: item.constraints.cpus, memory: item.constraints.memoryMib, wall: item.constraints.walltimeSeconds })}`);
   } else {
     lines.push(t('noExternalJob'), `${t('operation')}: ${item.operation}`, `${t('processHost')}: ${item.host ?? ''}`, `${t('payload')}: ${item.payloadSha256}`, t('processFact'));
-    if (item.exitCode != null) lines.push(`${t('processExit')}: ${item.exitCode}`);
+    if (item.unconfirmed) lines.push(t('processUnconfirmed'));
+    else if (item.exitCode != null) lines.push(`${t('processExit')}: ${item.exitCode}`);
     else lines.push(t('processOpen'));
   }
   if (item.entry) lines.push(`${t('entryLabel')}: ${item.entry}`);

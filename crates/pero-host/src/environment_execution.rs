@@ -3,7 +3,7 @@
 use crate::environment_uses::EnvironmentUses;
 use pero_runtime::{
     compute::{
-        MethodInvocation, ProcessHandle, ProcessOwner, ProcessReceipt, store_process_receipt,
+        store_process_receipt, MethodInvocation, ProcessHandle, ProcessOwner, ProcessReceipt,
     },
     environments::*,
 };
@@ -119,6 +119,7 @@ impl BoundProcess {
                     started: now_ms,
                     ended: None,
                     exit_code: None,
+                    unconfirmed: false,
                     entry: (entry.len() <= 2000).then_some(entry),
                     snapshot: Some(state.request().snapshot.digest()),
                     logs: vec!["stdout.log".into(), "stderr.log".into()],
@@ -161,8 +162,8 @@ impl BoundProcess {
         store: &mut EnvironmentUses,
         now_ms: u64,
     ) -> Result<EnvironmentUse, String> {
-        let id = &self.state.request().id;
-        let (state, effects) = store.apply(id, UseCommand::End)?;
+        let id = self.state.request().id.clone();
+        let (state, effects) = store.apply(&id, UseCommand::End)?;
         if state.state() == UseState::Released {
             self.state = state.clone();
             return Ok(state);
@@ -171,28 +172,44 @@ impl BoundProcess {
             return Err("Use release needs original-owner reconciliation".into());
         };
         let target = target.digest();
-        let status = match self.process.stop() {
-            Ok(status) => status,
-            Err(error) => {
-                store.apply(id, UseCommand::TargetUnknown { target })?;
-                return Err(error);
+        let stopped = self.process.stop();
+        match &stopped {
+            Ok(status) => {
+                self.receipt.unconfirmed = false;
+                self.receipt.exit_code = status
+                    .code()
+                    .filter(|code| (0..=255).contains(code))
+                    .map(|code| code as u8);
+                if now_ms >= self.receipt.started {
+                    self.receipt.ended = Some(now_ms);
+                }
             }
-        };
+            Err(_) => {
+                self.receipt.exit_code = None;
+                self.receipt.ended = None;
+                self.receipt.unconfirmed = true;
+            }
+        }
+        let recorded = store_process_receipt(&self.receipts, &self.receipt);
+        if let Err(stop) = stopped {
+            store.apply(&id, UseCommand::TargetUnknown { target })?;
+            return Err(match recorded {
+                Err(write) => format!("{stop}; execution receipt was not updated: {write}"),
+                Ok(()) => stop,
+            });
+        }
+        if let Err(write) = recorded {
+            store.apply(&id, UseCommand::TargetUnknown { target })?;
+            return Err(write);
+        }
         let (released, _) = store.apply(
-            id,
+            &id,
             UseCommand::Released {
                 stopped: receipt(&state, target.clone(), "stopped"),
                 released: receipt(&state, target, "released"),
             },
         )?;
         self.state = released.clone();
-        if let Some(code) = status.code().filter(|code| (0..=255).contains(code)) {
-            self.receipt.exit_code = Some(code as u8);
-        }
-        if now_ms >= self.receipt.started {
-            self.receipt.ended = Some(now_ms);
-        }
-        store_process_receipt(&self.receipts, &self.receipt)?;
         Ok(released)
     }
 }
@@ -314,17 +331,15 @@ mod tests {
             process.stop(&mut store, 20).unwrap().state(),
             UseState::Released
         );
-        assert!(
-            BoundProcess::start(
-                &mut store,
-                &mut owner,
-                admission(),
-                &invocation,
-                &receipts,
-                10
-            )
-            .is_err()
-        );
+        assert!(BoundProcess::start(
+            &mut store,
+            &mut owner,
+            admission(),
+            &invocation,
+            &receipts,
+            10
+        )
+        .is_err());
         let mut unavailable = ObservationFailure {
             inner: owner,
             calls: std::cell::Cell::new(0),
@@ -333,17 +348,15 @@ mod tests {
             use_id: id("unavailable-use"),
             ..admission()
         };
-        assert!(
-            BoundProcess::start(
-                &mut store,
-                &mut unavailable,
-                failed,
-                &invocation,
-                &receipts,
-                10
-            )
-            .is_err()
-        );
+        assert!(BoundProcess::start(
+            &mut store,
+            &mut unavailable,
+            failed,
+            &invocation,
+            &receipts,
+            10
+        )
+        .is_err());
         assert_eq!(
             store
                 .get(&id("unavailable-use"))
@@ -379,6 +392,82 @@ mod tests {
                 .state(),
             UseState::Released
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    #[cfg(unix)]
+    fn a_receipt_that_cannot_be_written_does_not_count_as_released() {
+        let root = std::env::temp_dir().join(format!(
+            "pero-bound-process-unwritten-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let mut store = EnvironmentUses::open(&root.join("uses.sqlite")).unwrap();
+        let id = |s: &str| Identity::try_from(s.to_owned()).unwrap();
+        let mut owner = LocalOwner::adopt(
+            "/bin/sh".into(),
+            ResourceRef {
+                owner: id("host"),
+                kind: id("workspace"),
+                scope: id("local"),
+                id: id("resource"),
+            },
+            id("boot"),
+        )
+        .unwrap();
+        let profile = owner.observe(10).unwrap().profile;
+        let program = owner.program().to_owned();
+        let receipts = root.join("executions");
+        let mut process = BoundProcess::start(
+            &mut store,
+            &mut owner,
+            ExecutionAdmission {
+                use_id: id("use"),
+                consumer: id("original-attempt"),
+                requirements: EnvironmentRequirements::new(
+                    id("method"),
+                    vec![Requirement::Profile {
+                        digest: profile.id().clone(),
+                    }],
+                    vec![],
+                )
+                .unwrap(),
+            },
+            &MethodInvocation {
+                program,
+                arguments: vec!["-c".into(), "true".into()],
+                directory: root.clone(),
+            },
+            &receipts,
+            10,
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&receipts).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&receipts, permissions).unwrap();
+        let error = process.stop(&mut store, 20).unwrap_err();
+        assert!(!error.is_empty());
+        assert_eq!(
+            store.get(&id("use")).unwrap().unwrap().state().state(),
+            UseState::UnknownRelease
+        );
+        let recorded: Vec<_> = fs::read_dir(&receipts)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+            .collect();
+        assert_eq!(recorded.len(), 1);
+        let body: serde_json::Value =
+            serde_json::from_slice(&fs::read(&recorded[0]).unwrap()).unwrap();
+        assert!(body["exit_code"].is_null());
+        assert!(body["ended"].is_null());
+        assert_ne!(body["unconfirmed"], true);
+        let mut permissions = fs::metadata(&receipts).unwrap().permissions();
+        permissions.set_readonly(false);
+        fs::set_permissions(&receipts, permissions).unwrap();
+        drop(process);
+        drop(store);
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
