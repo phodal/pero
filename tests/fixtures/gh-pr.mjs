@@ -13,6 +13,7 @@ else if(path.includes('/commits?'))data=[{sha:'abcdef0123456789',message:'feat(w
 else if(path.includes('/check-runs?'))data=[{name:'Rust checks',status:'completed',conclusion:'success',url:'https://github.com/phodal/pero/actions'},{name:'Browser inspection',status:'in_progress',conclusion:null,url:null}];
 else if(path.includes('/statuses?'))data=[];
 else if(path.includes('/reviews?'))data=[{author:'reviewer',state:'APPROVED',body:'The content stays available during refresh. Looks good.'}];
-else if(path.includes('/comments?'))data=[{author:'phodal',state:'COMMENTED',body:'<p>Ready <code>review</code><img src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E"> now.</p><p>Another<img src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E"> paragraph.</p>'}];
+else if(path.includes('/comments?'))data=[{author:'phodal',state:'COMMENTED',body:'<p>Ready <code>review</code><img width="12" height="12" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E"> now.</p><p>Another<img width="12" height="12" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E"> paragraph.</p>'}];
 else {console.error('Unexpected GitHub endpoint: '+path);process.exit(1);}
+if(path==='repos/phodal/pero/pulls/164' && process.env.PERO_PR_WEB_URL) data.body=`[Supporting page](${process.env.PERO_PR_WEB_URL})\n\n${data.body}`;
 console.log(JSON.stringify(data));
