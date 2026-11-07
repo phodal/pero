@@ -162,6 +162,6 @@ App 管理领域方法与数据，Host 管理本机进程、凭据和 Agent 会�
 
 <p align="center">
   <a href="https://github.com/openpero/community">
-    <img src="docs/assets/wechat-group.jpg" width="240" alt="微信群：Pero - 瞎摸 AI4S">
+    <img src="https://raw.githubusercontent.com/openpero/community/main/assets/wechat-group.jpg" width="240" alt="微信群：Pero - 瞎摸 AI4S">
   </a>
 </p>
