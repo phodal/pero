@@ -20,11 +20,15 @@ OpenAI4S 由北京大学—元空 AI 联合实验室推出，定位为混合式�
 
 远端任务采用 stage → run → harvest：SSH 或 BYOC provider 提交，查询结果推动状态和产物回收。**文档明确没有自动后台 poller，没人调用 result 就不会自动 harvest。** 输出声明是契约：即使退出码 0，只要必需输出缺失或不能验证，也不能算成功；清单记录路径、大小和 SHA-256，并将无法确认的结果保留为 unknown，而不是乐观完成。未知状态需要先对账，盲重试可能重复执行。[S3]
 
+同一文件后半补充了持久化和失败语义，仍是文档描述，不是本次运行结果。任务行在提交尝试之前写入 SQLite；重启后可以继续 poll、harvest 和 cancel 仍在进行的任务，但不会自动重交。同一 `idempotency_key` 的第二次提交会被拒绝为 `duplicate_request`，这把钥匙在重启后还在；没有钥匙时，对 `unknown` 盲重试仍可能重复执行。`ssh:*` 的 cancel 先向进程组发信号，再升级到 SIGKILL，并确认进程组已经消失。约 100MB 以上的文件，以及声明远端驻留的输出，留在集群上并记入 `left_on_remote_files`。BYOC 容器寿命和单次 `timeout_seconds` 是两只钟，温容器会继承已经消耗的时间；宿主没有 `timeout` 或 `gtimeout` 时拒绝提交。[S3]
+
+计算 helper 的隔离是文件系统边界：替换 `$HOME`，写入限制在 stage 目录，macOS 还拒绝 keychain。`network_isolated` 为 false，网络隔离没有启用。`OPENAI4S_COMPUTE_CONFINEMENT` 的 `auto` 能隔离就隔离并报告降级，`enforce` 在无法建立边界时拒绝，`off` 明确跳过；文档写明 `auto` 不再等同于 `off`。`host.compute` 仍标 Prototype，理由是还没有被点名为生产级的具体云 GPU provider，而不是 helper 的文件边界完全没写。`host.fold` 和 `host.score_mutations` 是另一类经 SSH 的专用服务：没有配置宿主时拒绝并报错，不编造结构或分数；结构检查不证明预测准确，失败也不会自动重跑。`REMOTE_GPU_PROVISIONER` 要先在远端安装并验证，才登记能力。[S3]
+
 ## 3. 架构、部署与运维
 
 核心 engine 与 HTTP/WebSocket 服务官方称使用 Python 标准库，科学库是另外的依赖层；“核心零依赖”不等于科学环境零依赖。当前工作台已经使用 Preact/TypeScript，不能机械沿用旧版 framework-free UI 描述。安装路径包括 PyPI、源码、Linux x86_64 包、Windows/WSL2 包和 linux/amd64 容器。v0.3.1 没有正式 macOS DMG，macOS 使用 PyPI/源码；原生 Windows 内核不受支持，不能将 WSL2 支持写成原生支持。[S1]
 
-SSH 与 NVIDIA NIM 是具体的现有远端路径；一般 remote compute 仍标 Prototype。计算文档把 Slurm、Kubernetes、Modal provider 标为未来能力。**支持把服务部署到 Kubernetes，不代表已实现 Kubernetes 任务计算 provider。** 类似地，模型 endpoint registry 存在也不代表 scoped inference kernel 已接通。[S3]
+SSH 与 NVIDIA NIM 是具体的现有远端路径；一般 remote compute 仍标 Prototype，理由见上一节，不表示文件边界不存在，也不表示网络默认隔离。计算文档把 Slurm、Kubernetes、Modal provider 标为未来能力。**支持把服务部署到 Kubernetes，不代表已实现 Kubernetes 任务计算 provider。** 类似地，模型 endpoint registry 存在也不代表 scoped inference kernel 已接通。[S3]
 
 当前 README 的技能数为 612，而 v0.3.1 新闻写 611，npm 0.2.0 写 603；这是不同交付快照，不能混成同一版本能力。技能主要是可迁移的代码 recipe，不等于相关科学软件、权重、GPU 或外部授权已经就绪。
 
@@ -52,7 +56,7 @@ Pero 比较固定在 master `371ea0895f8dbd12d7fcc97e320f3a9499b3e94b`：Paper �
 
 ## 7. 待验证问题与建议实测
 
-1. 断网、daemon 重启与远端取消后，是否避免重复提交，何时明确保持 unknown？
+1. 文档写明重启不自动重交，相同 idempotency key 的重复提交会被拒绝，unknown 需要先对账。断网、daemon 重启和远端取消后，实现是否遵守这些规则，仍未运行验证。
 2. 有状态 Python/R 分析的恢复覆盖哪些对象，如何显示不可恢复部分？
 3. 声明输出缺失、部分传输、环境漂移时，能否阻止错误完成？
 4. 固定真实模型、同预算对照 Pero 的已验收方法，记录人工修补、结果正确率和总成本。
@@ -62,7 +66,7 @@ Pero 比较固定在 master `371ea0895f8dbd12d7fcc97e320f3a9499b3e94b`：Paper �
 
 - [S1 README：定位、功能、版本、分发与路线图](https://github.com/PKU-YuanGroup/OpenAI4S/blob/main/README.md)，本次读取；文件 blob SHA `7947c647bc4e61633bb73c81256440b196e95853`，不是仓库 commit。
 - [S2 Security：沙箱、凭据、外发与分享边界](https://github.com/PKU-YuanGroup/OpenAI4S/blob/main/docs/security.md)，本次读取。
-- [S3 Remote GPU compute：provider、状态与输出契约](https://github.com/PKU-YuanGroup/OpenAI4S/blob/main/docs/compute.md)，本次读取第 1–100 行。
+- [S3 Remote GPU compute：provider、状态、持久化、隔离与专用折叠/突变服务](https://github.com/PKU-YuanGroup/OpenAI4S/blob/main/docs/compute.md)，2026-11-07 已读全文 184 行。blob SHA `0958a812c8e9e1e140b149c5782148c57d4cbea6`，是检索当时的 main 文件，不是仓库 commit，也不是 v0.3.1 发行包。
 - [v0.3.1 发布页](https://github.com/PKU-YuanGroup/OpenAI4S/releases/tag/v0.3.1)，官方 README 指向；版本日期依据 README，不声称本次逐项检查全部 release asset。
 - [MIT 许可文件](https://github.com/PKU-YuanGroup/OpenAI4S/blob/main/LICENSE)，本次已读取全文，确认为 MIT，Copyright (c) 2026 openai4s contributors；要求保留版权及许可通知，软件按现状提供。LICENSE blob SHA `5ccbc162b2971bf6f5b857218601da2eaa766fb2`。依赖与数据仍需另核。
 

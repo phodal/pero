@@ -20,7 +20,7 @@ OpenResearch 是 Pero 在“既有 coding agent + 本地科研工作区 + 远端
 2. 通过 alphaXiv、bioRxiv 或 PubMed 找到相关研究，抽取假设和实验依据。官方确认文献入口；精确引文对齐、PDF 原文锚点与完整文献库管理需另测，不能从检索能力直接推定。
 3. 让 agent 修改实验代码，选择本机、SSH 或集群执行。README 同时列出 Slurm、Kubernetes、Modal、Tinker、Ray、Hugging Face Jobs 与 managed OpenResearch compute。
 4. 在本地 SQL 实验记录中回看日志、代码和产物，比较结果，再决定下一轮实验。此处是围绕实验的持续上下文，不只是对话摘要。[1]
-5. 整理可交付工作。v0.2.25 发布说明新增 `.orx` 项目分享与 openresearch.sh 项目链接发布，但本次只验证发布说明存在，没有验证归档格式、版本匹配、默认分享范围、访问控制或可重执行性。[3]
+5. 整理可交付工作。v0.2.25 的 `arc/storage.md` 写明：分享只在本机写出 `.orx`，内容包括基线与实验分支的 Git bundle、实验树、不含 descriptor 的已完成 run，以及用户勾选的日志、产物和聊天。聊天、日志或产物看起来像凭据时拒绝分享，代码不扫描。导入后的 run 后端种类为 `imported`，不会被启动、监视或清理。发布到 openresearch.sh 被写成上传同一份文件，持有链接的人可以获取，直到发布者删除。同一 tag 的 `src/local/share.rs` 开头写明这是一个 zip，清单文件是 `project.json`，`FORMAT` 为 1，解压上限是 16 GiB。本次读了 storage 的分享段和该文件开头的格式常量，没有打开真实 `.orx`，没有在第二台机器导入，也没有实测凭据拒绝或链接撤销。[3][5]
 
 发布说明还列出对话中切换 harness、工作区聊天历史搜索、桌面远端机器切换、新实验引擎、租用机器由 orx-host 管理等变化。这些是重要的产品连续性信号；不能据此宣称跨机器迁移任意运行中进程、崩溃后 exactly-once 执行或实验可复现。[3]
 
@@ -68,7 +68,7 @@ Pero 比较基线固定为 master `371ea0895f8dbd12d7fcc97e320f3a9499b3e94b`：P
 
 1. 所列后端在失败、重复派发、取消和日志回收上的语义是否一致？
 2. 实验 SQL 是否记录精确输入版本、环境、代码状态和随机种子，何者仅引用当前文件？
-3. `.orx` 分享与托管链接包含哪些数据，能否逐项预览、撤销和跨环境重执行？
+3. 包内对象、凭据扫描范围和解压上限已经写在 v0.2.25 的 storage 文档和分享源码开头。逐项预览、第二台机器导入、凭据拒绝和链接撤销仍未实测。
 4. 切换 agent/机器后历史工具调用、权限和产物身份是否完整保持？
 5. 关闭遥测后的网络行为、反馈净化与 managed compute 数据保留是否符合实验室要求？
 
@@ -81,5 +81,7 @@ Pero 比较基线固定为 master `371ea0895f8dbd12d7fcc97e320f3a9499b3e94b`：P
 [3] [v0.2.25 发布说明](https://github.com/alphaXiv/OpenResearch/releases/tag/v0.2.25)，通过 GitHub 官方 latest release API 刷新日期与变更。
 
 [4] [官方文档入口](https://openresearch.sh/docs)，本次直接访问返回 403，未作为已读详细机制的证据；以官方仓库文档和发布说明替代，不绕过限制。
+
+[5] [v0.2.25 `arc/storage.md`](https://github.com/alphaXiv/OpenResearch/blob/v0.2.25/arc/storage.md) blob `657c32c09e4456dcd9a1a68abd10d01a769de00d`，读取了 Sharing 与 Published projects；[同 tag `src/local/share.rs`](https://github.com/alphaXiv/OpenResearch/blob/v0.2.25/src/local/share.rs) blob `b1d6261128871b280633ca49904644628e026ea9`，只读了文件开头的格式说明和常量，没有审计整个模块。
 
 [返回竞品索引](../README.md)

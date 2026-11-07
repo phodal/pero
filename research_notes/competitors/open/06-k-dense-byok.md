@@ -80,7 +80,7 @@ Pero 对照基线固定为 master `371ea0895f8dbd12d7fcc97e320f3a9499b3e94b`：P
 
 ## 待验证问题
 
-1. main 的 frozen plans、evidence package、provenance 在哪个发布版本可完整复现？
+1. 源码在场已经核对，发行包行为没有复现。tag `v0.15.0`（commit `da32498a186e15c09e865257d8e903dc324e34b7`，发布于 2026-10-01）与 2026-10-16 的 main 上，`docs/evidence-packages.md`、`docs/provenance.md`、`server/src/agent/notebook-plans.ts` 的 blob 相同，分别是 `c89f07fa2e437d4d3a6f9b9bd9ef9bf65af97f63`、`7e9897f9d6fa3f6df2d04f22eb7cd1b176b819e3`、`2608955c749a21e57b95d9ed7a70bebccc5a5cd9`。main 比该 tag 超前 9 个提交，README blob 不同（tag `335390dcba83daae6ad3ed53c0d0ab79195bd5f8`，main `44b23f8f87fe30e70bbe134828e6e6935cd51386`）。未安装该 tag，不能把文件在场写成可完整复现。
 2. shell 扫描和 specialist harvest 的未覆盖输入，会如何影响真实数据任务的证据完备度？
 3. 预算在并行请求、未知计费、订阅超额和 Modal 回收失败时是否及时阻断？
 4. 容器/VM 部署后，文件预览、Modal、浏览器编辑和 native shell 的体验是否仍顺畅？
@@ -96,6 +96,6 @@ Pero 对照基线固定为 master `371ea0895f8dbd12d7fcc97e320f3a9499b3e94b`：P
 
 [4] [Reviewer evidence packages](https://github.com/K-Dense-AI/k-dense-byok/blob/main/docs/evidence-packages.md)，本次读取全文，版本匹配、RO-Crate、大小限制、校验与不可重执行边界。
 
-[5] [v0.15.0](https://github.com/K-Dense-AI/k-dense-byok/releases/tag/v0.15.0)，本次经官方 latest release API 刷新；发行说明仅提供版本比较链接，不能据此证明 main 全部功能已交付。
+[5] [v0.15.0](https://github.com/K-Dense-AI/k-dense-byok/releases/tag/v0.15.0)。发行说明正文仍只有 compare 链接。2026-11-07 用 GitHub tag、contents 和 compare API 核对了待验证问题第 1 条里的三个文件；这不包含安装或运行。
 
 [返回竞品索引](../README.md)
