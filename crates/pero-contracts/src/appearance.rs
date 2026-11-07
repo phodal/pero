@@ -76,7 +76,8 @@ impl Default for TypographyPreferences {
     fn default() -> Self {
         Self {
             ui_size: FontSize(14),
-            chat_size: Some(FontSize(13)),
+            // System chrome uses 0.875rem of the 14px interface size.
+            chat_size: Some(FontSize(12)),
             code_size: None,
         }
     }
@@ -185,7 +186,7 @@ mod tests {
     #[test]
     fn typography_bounds_and_inheritance() {
         for (input, expected) in [
-            (r#"{}"#, Some((14., 13., 14.))),
+            (r#"{}"#, Some((14., 12., 14.))),
             (r#"{"ui_size":18,"chat_size":null}"#, Some((18., 18., 18.))),
             (
                 r#"{"ui_size":20,"chat_size":16,"code_size":14}"#,
@@ -222,10 +223,10 @@ mod tests {
             );
         }
         for (scope, delta, expected) in [
-            (FontScope::Interface, 1, (15., 13., 15.)),
-            (FontScope::Chat, 1, (14., 14., 14.)),
-            (FontScope::Code, 1, (14., 13., 15.)),
-            (FontScope::Interface, -100, (12., 13., 12.)),
+            (FontScope::Interface, 1, (15., 12., 15.)),
+            (FontScope::Chat, 1, (14., 13., 14.)),
+            (FontScope::Code, 1, (14., 12., 15.)),
+            (FontScope::Interface, -100, (12., 12., 12.)),
             (FontScope::Chat, 100, (14., 24., 14.)),
         ] {
             let mut preferences = TypographyPreferences::default();

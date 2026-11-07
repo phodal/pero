@@ -418,8 +418,12 @@ impl Render for StreamText {
                 let _ = entity.update(cx, |_, cx| cx.emit(MarkdownLink(url.to_string())));
             });
         }
+        // Absolute pixels of the system UI font. A 1rem body inherits the
+        // window's golden-ratio leading and reads larger than the chrome.
         pero_theme::TypographyScope::new(px(size))
-            .text_size(rems(1.))
+            .font_family(".SystemUIFont")
+            .text_size(px(size))
+            .line_height(relative(1.3))
             .text_color(color)
             .child(view)
     }
