@@ -1152,5 +1152,5 @@
   "pr.no_description": "尚未填写描述。",
   "pr.diff_limited": "仅显示前 5,000 行 diff。完整内容可在 GitHub 查看。",
   "pr.refresh_failed": "PR 读取失败 · 保留已有内容",
-  "pr.conversation": "查看对话"
+  "workspace.conversation": "查看对话"
 }

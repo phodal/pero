@@ -69,7 +69,7 @@ impl WorkspaceLayout {
         let available = (viewport_width - sidebar_width).max(0.);
         let panes = panes.filter(|layout| layout.is_active(route));
         let chat_in_pane = panes.is_some_and(|layout| layout.conversation().is_some());
-        let chat = if chat_in_pane || (narrow && matches!(route,WorkspaceRoute::Content(WorkspaceItem::PullRequest(_)))) {
+        let chat = if chat_in_pane || (narrow && matches!(route,WorkspaceRoute::Content(WorkspaceItem::PullRequest(_) | WorkspaceItem::Web(_)))) {
             ChatPlacement::Hidden
         } else {
             Self::chat_placement(route, tab, preferences)
@@ -242,14 +242,14 @@ mod tests {
                 (260., false, Dock, 420., true, true),
             ),
             (
-                "a narrow Web dock hides the child engine",
+                "a narrow Web view keeps the page primary",
                 1000.,
                 Content(WorkspaceItem::Web("https://example.com/".into())),
                 Chat,
                 true,
                 420.,
                 false,
-                (260., true, Dock, 740., false, false),
+                (260., true, Hidden, 0., true, true),
             ),
             (
                 "closing the narrow dock reveals the retained Web engine",

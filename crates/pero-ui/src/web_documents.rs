@@ -364,6 +364,14 @@ impl Workbench {
                 .small()
                 .flex_1(),
         );
+        if current.is_some() && self.layout.narrow && self.chat.read(cx).active_chat.is_some() {
+            toolbar = toolbar.child(Button::new("web-conversation").ghost().small()
+                .label(self.t("workspace.conversation"))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    let active = this.chat.read(cx).active_chat;
+                    this.focus_chat(active, crate::workspace::ConversationTab::Chat, cx);
+                })));
+        }
         if let Some(page) = current {
             match &page.observation.load {
                 WebLoad::Loading => {
