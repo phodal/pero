@@ -20,16 +20,16 @@
 
 | 注册类型 | 代码可确认的能力与身份 | Pero 可复用的现有承载与差距 |
 | --- | --- | --- |
-| `pr` | PR URL/分支身份，Changes、Description、Commits、Checks、Reviews；状态图标；首次激活后保留 | 本次已实现 GitHub 只读 PR 页、后台发现、刷新、恢复；不含合并/审批操作及 Graphite/Origin |
-| `projectPrs` | 项目级 PR 列表，独立稳定 App tab；renderer 管滚动 | 现有连接器拥有 Issue/ROADMAP 来源；后续应由仓库来源提供项目 PR 列表，复用本次 PR 身份 |
-| `file` | `filePath`、行列 selection、`code/diff`、preview、ownerAgentId | 现有 Host 文件读取、ContentReader、来源/版本、搜索和行定位；继续保持当前结果阅读定位 |
-| `agentFiles` | `bcId`、owner、带 requestId 的远端文件和 selection | 现有 Worker/会话产物边界；远端文件同步应归原环境，不由链接推断本机路径 |
-| `plan` | planId/标题/所属 Agent；计划 registry、编辑及 Build；`.cursor/plans` 文件有专门重定向 | Pero 已有执行计划文档和项目任务；可先做带身份的计划阅读/任务入口，不把任意 Markdown 文件当可执行计划 |
+| `pr` | PR URL/分支身份，Changes、Description、Commits、Checks、Reviews；状态图标；首次激活后保留 | 只读页、后台发现、显式刷新和恢复之外，消息用已有摘要显示状态色和 `#编号`。子视图、选中文件和本地已读随身份保存，head 变化后过期。活动路由每 60 秒刷新。不含合并、审批、行内评审写入、像素滚动、GitHub viewed API 和 server stream |
+| `projectPrs` | 项目级 PR 列表，独立稳定 App tab；renderer 管滚动 | 项目 Sources 用只读 `gh pr list` 按仓库列出打开、关闭或全部，最多 30 条，点一行打开现有 PR 页。没有 queued/ready/merged 分组、相对时间、stack 和 blocker |
+| `file` | `filePath`、行列 selection、`code/diff`、preview、ownerAgentId | 工作区相对路径可带 `:line` 或 `:start-end`，以预览打开现有文件并选中对应行。绝对路径和 `..` 拒绝 |
+| `agentFiles` | `bcId`、owner、带 requestId 的远端文件和 selection | `vscode-remote://background-composer+<id>/<path>` 解析为远程文件。没有映射时停在不可用，不拼到本机路径 |
+| `plan` | planId/标题/所属 Agent；计划 registry、编辑及 Build；`.cursor/plans` 文件有专门重定向 | 只承认 `docs/exec-plans/` 下的 Markdown，含子目录。打开即编辑；执行把正文交给对话，并要求不提交、不推送。没有 plan registry、todos 模型和 Build 控件 |
 | `canvas` | 本地 canvasPath 或云端地址、sourceResource、rendered/source、previewEpoch | Scientific Viewer、版本化产物与隔离 HTML 已能承载部分结果；云端分享/画布编辑不能只靠通用 iframe 获得 |
-| `browser` | browserId、initialUrl、owner、agentControlled、preview/transient、激活后持久化策略；有设计模式相关代码 | 现有隔离 WebDocument/真实引擎；本次把普通 HTTP(S) 链接接入已有保留状态和去重路径 |
-| `terminal` | 持久化终端 ID/运行实例 ID、工作区组、owner、Agent 控制标记；终端引用重定向 | Pero 已有终端与执行输出；需要按真实会话 ID 关联，不把终端文本当命令自动执行 |
-| `output` | outputChannelId、outputOpenRequestId 定位输出通道 | 现有 Session 工具输出和执行记录；后续可增加通道入口，复用原运行记录 |
-| `diff` | lastTurn/uncommitted/allChanges/unstaged/staged/branch，commitRange 和指定文件 reveal | 现有 Workspace Changes 与共享 diff；本次 PR diff 复用统一差异语义与颜色 |
+| `browser` | browserId、initialUrl、owner、agentControlled、preview/transient、激活后持久化策略；有设计模式相关代码 | 普通 HTTP(S) 仍走隔离 Web 页。链接偏好可改为外部浏览器，中键或平台修饰键反转。没有 design mode、临时页和浏览器 agent 所有权 |
+| `terminal` | 持久化终端 ID/运行实例 ID、工作区组、owner、Agent 控制标记；终端引用重定向 | `pero-terminal://<id>` 聚焦已有终端。不启动 shell，也不发送命令 |
+| `output` | outputChannelId、outputOpenRequestId 定位输出通道 | `pero-output://<thread>/<tool>` 展开已有工具输出并聚焦该会话 |
+| `diff` | lastTurn/uncommitted/allChanges/unstaged/staged/branch，commitRange 和指定文件 reveal | `pero-changes://<thread>/(turn\|worktree)[/path]` 和 diff 文件按钮揭示已有变更记录里的文件 |
 | `agentChanges` | bcId/owner 关联的 Agent 变更 | 现有会话/Worker 变更来源；不与本地工作树或远端 PR 状态混为一谈 |
 | `vnc` | 按 bcId 连接 Worker Desktop；首次激活后保留 | 现有 Computer Use/环境能力是不同执行边界；不能据注册表宣称已有远端桌面流 |
 | `agentVnc` | 与 Agent 关联的远端桌面，复用 VNC renderer | 同上；应由已有环境/授权层拥有会话和控制权 |
@@ -87,8 +87,8 @@ Chat、ContentReader、PR 描述/评审和上下文引用均经同一 Workbench 
 - 窄窗 PR/Web 以内容为主，并提供返回会话入口；不改已保存的 dock 偏好。
 - 明确的“Open in GitHub”按钮仍使用外部浏览器。
 
-下一步优先级：来源引用/输出通道跳转、项目级 PR 列表、计划对象与任务动作，
-再按真实需求加入远端桌面或 Canvas 编辑。它们需要各自的数据模型和生产来源；
-本次没有为 22 类页面添加空壳或声明已实现 Cursor 全量能力。
+链接呈现、阅读记录、活动页刷新、项目列表、来源跳转和计划执行的落地边界，见
+[剩余内容视图实现](cursor-remaining-content-views.md)。Canvas 分享、持续远端桌面、
+机器指标和语音记录仍然没有生产来源，没有为它们添加空页。
 
 验证与未覆盖范围见 [PR 内容页验收](../docs/fitness/pull-request-view.md)。

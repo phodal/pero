@@ -117,12 +117,36 @@ hash record and passed all seven checks; dependency locks did not change.
 those seven passing results.
 
 GitHub only; no Graphite/Origin or enterprise host admission, PR mutation,
-merge, approval, inline review-thread actions or continuous live polling.
+merge, approval, inline review-thread actions or a server stream of PR updates.
 Reviews include review bodies and issue discussion comments. GitHub's files API
 may limit file coverage and omit patches; the view states those gaps. Text diffs
-are bounded to 5000 lines. Persisted recovery saves PR identity/navigation, then
-reloads current data; it does not persist fetched snapshots or subview selection.
+are bounded to 5000 lines. Persisted recovery saves PR identity, the subview,
+the selected file and local viewed marks, then reloads current data. It does
+not persist fetched snapshots or a pixel scroll offset. A viewed mark stores
+the head it was recorded against and becomes stale when that head changes.
+While that PR route is current, the view refreshes every 60 seconds and also
+when discovery reports the same ref. The timer stops after the route changes.
 A closed discovered PR stays dismissed for this Workbench lifetime; a later
 process and completed turn can discover it again. Discovery failure is silent
 because most workspaces have no branch PR. Private/unauthenticated GitHub UI
 recovery has fixture error coverage, not a separate live private-repository run.
+
+## Follow-up: citations, lists, reading and plans
+
+The same branch now routes one `SourceTarget` to an existing owner: a workspace
+file and line span, `pero-output://thread/tool`, `pero-terminal://id`,
+`pero-changes://thread/(turn|worktree)[/path]`, an unmapped
+`vscode-remote://background-composer+` file, a GitHub PR, or
+`docs/exec-plans/**/*.md`. Terminal citation focuses an existing tab and does
+not start a shell. Project Sources lists up to 30 pull requests for a
+repository with `gh pr list`, filtered open, closed or all, and opens the
+existing PR page. Link-driven opens use preview tabs. The link surface
+preference stays in-app unless reversed by a middle click or the platform
+modifier; the explicit GitHub button still uses the system browser. Plan
+execution submits the plan body and tells the agent not to commit or push.
+
+Concept tests after this follow-up: contracts 125, UI 25, chat UI 32, and the
+Host fixture contract, which now also expects `pull_request_listed` with one
+open and one draft item. Electron, Native window, `npm run check`, Bazel and
+the public GitHub `--live` read were not repeated for these interactions. No
+Canvas, remote-desktop, machine-metrics or voice-transcript page was added.
