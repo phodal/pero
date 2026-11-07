@@ -1,0 +1,8 @@
+.pa-fisher-reproduction { display: grid; gap: var(--pero-spacing-2); margin-top: var(--pero-spacing-3); padding-top: var(--pero-spacing-3); border-top: 1px solid var(--pero-border); overflow-wrap: anywhere; }
+.pa-fisher-reproduction h3 { font-size: var(--pero-font-body); margin: 0; }
+.pa-fisher-reproduction p { margin: var(--pero-spacing-2) 0; }
+.pa-fisher-reproduction label { display: flex; flex-direction: column; gap: var(--pero-spacing-1); margin: var(--pero-spacing-2) 0; }
+.pa-fisher-reproduction label.pa-fisher-confirm { flex-direction: row; align-items: flex-start; }
+.pa-fisher-reproduction pre { white-space: pre-wrap; max-height: 240px; overflow: auto; font-size: var(--pero-font-caption); }
+.pa-fisher-reproduction dd { margin: 0 0 var(--pero-spacing-2); font-variant-numeric: tabular-nums; }
+.pa-fisher-reproduction dt { color: var(--pero-text-muted); }
