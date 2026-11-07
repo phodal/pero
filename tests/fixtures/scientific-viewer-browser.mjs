@@ -4,8 +4,9 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
 import { randomBytes } from 'node:crypto';
-import { access, readFile } from 'node:fs/promises';
-import { extname, resolve, sep } from 'node:path';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { extname, join, resolve, sep } from 'node:path';
 
 const root = resolve(import.meta.dirname, '../..');
 const frame = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scientific Viewer browser acceptance</title><style>html,body{height:100%;margin:0;font:14px system-ui}body{display:flex;flex-direction:column}nav{display:flex;align-items:center;gap:12px;padding:8px 12px;background:#eef3f8;color:#172536;flex-wrap:wrap}nav label{display:flex;align-items:center;gap:6px}select{font:inherit}iframe{border:0;width:100%;flex:1;min-height:0}</style></head><body><nav aria-label="Browser fixture"><span>Browser acceptance</span><label>Theme <select id="theme" aria-label="Theme"><option value="light">Light</option><option value="dark">Dark</option></select></label><label>Locale <select id="locale" aria-label="Locale"><option value="en">English</option><option value="zh-CN">Chinese</option></select></label></nav><iframe title="scientific-viewer" sandbox="allow-scripts allow-same-origin allow-downloads allow-popups" src="/frame/index.html"></iframe><script>
@@ -20,8 +21,9 @@ export async function scientificViewerPreview() {
   const python = process.env.PERO_SCIENTIFIC_PYTHON || 'python3';
   const engine = JSON.parse(execFileSync(python, ['-E', '-s', '-c', 'import json; from rdkit import rdBase; print(json.dumps({"name":"RDKit","version":rdBase.rdkitVersion}))'], { encoding: 'utf8', timeout: 15000 }));
   const token = randomBytes(32).toString('hex');
+  const data = await mkdtemp(join(tmpdir(), 'pero-viewer-'));
   const child = spawn(python, ['-E', '-s', resolve(root, 'apps/scientific-viewer/backend/server.py')], {
-    cwd: root, env: { ...process.env, PERO_APP_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: root, env: { ...process.env, PERO_APP_DATA: data, PERO_APP_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   const exited = once(child, 'exit');
   let server, stderr = '';
@@ -33,6 +35,7 @@ export async function scientificViewerPreview() {
     lines.close();
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
     await exited;
+    await rm(data, { recursive: true, force: true });
   };
   try {
     const { port } = await Promise.race([ready, exited.then(() => { throw Error(stderr || 'Molecule backend exited before readiness'); })]);
