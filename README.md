@@ -43,22 +43,31 @@ Choose the asset for your system and read that release's notes. Archives have ac
 
 ### First experience: read a paper and check an answer (Electron)
 
-![Paper research: import a PDF, read and select evidence, send a question in shared Chat, then review a saved report and follow citations back to the original](docs/assets/openpero-paper-research.svg)
-
-*Simplified UI schematics, not screenshots. Ask AI and Discuss selection prepare a shared Chat draft; you decide when to send. Saved citations help you check the source, not certify a conclusion.*
+*The four illustrations below simplify captured Paper screens and source-checked report controls; they are not screenshots. Some illustrated navigation is newer than the November 4 package; the numbered steps below use that release’s controls.*
 
 Start with **Papers** in the **Electron workbench** sidebar. Bring a public, text-based PDF you want to understand. Importing, reading and highlighting a local PDF do not need a model account or API key. Asking AI is a separate, explicit step.
 
 1. Open **Papers**. If **Prepare environment** appears, select it and wait for **Environment ready**. A fresh profile may download uv, CPython 3.12 and the pinned PDF packages into the managed Python environment. Native has a separate [fresh-profile limitation](DEVELOPMENT.md#native-fresh-profile-limitation).
 2. Select **Add papers → PDF → Import PDF** and choose the file, or drop it into the App. The saved original opens for reading. Use a PDF with selectable text for this first pass; do not assume scanned pages have searchable text.
+
+![Add a paper: library entry and PDF import](docs/assets/openpero-paper-research-01-add.svg)
+
 3. Read the paper, select a passage and choose **Highlight** to keep a source annotation. You can stop here without configuring a model.
+
+![Read the original with the Paper reader controls](docs/assets/openpero-paper-research-02-read.svg)
+
 4. To ask about it, choose **Ask AI**, or select a passage and choose **Discuss selection**. This opens the shared conversation with paper context; it does not send a question for you. Before sending, configure an Agent: the built-in Agent needs an API provider and key in **Settings → Built-in Agent**; external Agents use their own login. Full-PDF research needs an Agent with HTTP MCP support. See [Agent setup](desktop/README.md#agents-and-conversations).
+
+![Ask with context in the shared conversation](docs/assets/openpero-paper-research-03-ask.svg)
+
 5. Send a focused question, such as **“What evidence supports this method, and which limitations should I check in the paper? Cite the original passages.”** When a report is saved, choose **Close chat**, open **Research record** (the clock icon in the reader toolbar), then the saved question/report. Open a citation to inspect the original PDF passage. If **Citation evidence** offers several matches, choose the relevant location rather than assuming one.
 6. Use **Continue from here** on a saved report, then send your follow-up question. Keep unanswered questions and evidence gaps visible; a citation locates a source, not a verified scientific conclusion.
 
+![Review a saved report and follow its citations](docs/assets/openpero-paper-research-04-review.svg)
+
 Once dependencies are prepared, local reading needs no model call. AI questions may send paper content to your selected provider and incur its charges. You do not need the optional control-plane service. For offline environment preparation and saved Python bindings, see [Python setup](DEVELOPMENT.md#python-environments-and-advanced-overrides).
 
-These controls exist in the November 4 source tag and current source. The [recorded Paper journey](docs/fitness/paper-harness-journey.md) separates development-Desktop checks with a fixture Agent from historical real-Agent checks. This README update does not claim a fresh installed-package or real-model acceptance run. See [Paper usage and boundaries](apps/paper-agent/README.md#pdf-reading) for details; newer research workflows below are not promised in the November 4 package.
+The numbered steps above use controls present in the November 4 source tag and current source. The [recorded Paper journey](docs/fitness/paper-harness-journey.md) separates development-Desktop checks with a fixture Agent from historical real-Agent checks. This README update does not claim a fresh installed-package or real-model acceptance run. See [Paper usage and boundaries](apps/paper-agent/README.md#pdf-reading) for details; newer research workflows below are not promised in the November 4 package.
 
 ### Try the latest source
 
@@ -127,12 +136,15 @@ Implementation, runtime acceptance and scientific review are recorded separately
 
 The proposed progression is to verify a published result, compare experiments, then sustain research across people and environments. Each stage needs its own acceptance evidence. The [Roadmap](ROADMAP.md) separates implemented foundations from open work.
 
+![Target research workflow: question, task, execution, review and project memory](docs/assets/openpero-overview.svg)
+
+*Target workflow, not a claim that the complete cross-person research loop is implemented.*
+
 ![Proposed research roadmap: verify published results, compare experiments, then sustain research across people and environments](docs/assets/openpero-research-roadmap.svg)
 
 Apps own domain methods and data. Host owns local processes, credentials and Agent sessions. The optional Go control plane coordinates shared tasks and Workers. Local App calculations do not require running that control-plane service.
 
-<details>
-<summary>Architecture and composition diagrams</summary>
+### Architecture and composition diagrams
 
 These are architecture illustrations, not product screenshots. Solid boxes mark implemented foundations; dashed boxes and links mark planned capabilities or integration. They do not certify an end-to-end workflow.
 
@@ -141,8 +153,6 @@ These are architecture illustrations, not product screenshots. Solid boxes mark 
 ![Pero architecture: clients, coordination, Host execution, environments and delivery](docs/assets/openpero-architecture.svg)
 
 Read the [architecture](docs/ARCHITECTURE.md), [decisions](docs/adr/README.md) and [development guide](DEVELOPMENT.md) for ownership and implementation details.
-
-</details>
 
 ## Contribute
 

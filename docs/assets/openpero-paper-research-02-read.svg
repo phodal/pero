@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="463" viewBox="0 0 1600 463" role="img" aria-labelledby="title desc" xml:lang="en">
+<title id="title">Pero Paper: 02 · Read the original</title>
+<desc id="desc">The PDF reader keeps modes, page navigation, zoom, clock, and Ask AI in one header row. The local-PDF example has no HTTPS Source target. TeX is unselected and does not imply available TeX source. Simplified editorial UI schematic based on user-supplied library and selected-PDF/shared-Chat screenshots reviewed on 2026-11-07, whose application revision is unknown. Older controlled fixture captures inform import and reader layout; Paper source at c12c2ab0 supplements the unscreened record/report state. Titles, collections, counts, page numbers, questions, dates, and document lines are illustrative placeholders, not user data or research findings. Gold is editorial emphasis, not verification. No live GUI, fixed-version, scientific-quality, native-package, or production acceptance is claimed.</desc>
+<metadata id="icon-license">ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot; AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+---
+
+The following Lucide icons are derived from the Feather project:
+
+airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circle, arrow-down-left, arrow-down-right, arrow-down, arrow-left-circle, arrow-left, arrow-right-circle, arrow-right, arrow-up-circle, arrow-up-left, arrow-up-right, arrow-up, at-sign, calendar, cast, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-down, chevrons-left, chevrons-right, chevrons-up, circle, clipboard, clock, code, columns, command, compass, corner-down-left, corner-down-right, corner-left-down, corner-left-up, corner-right-down, corner-right-up, corner-up-left, corner-up-right, crosshair, database, divide-circle, divide-square, dollar-sign, download, external-link, feather, frown, hash, headphones, help-circle, info, italic, key, layout, life-buoy, link-2, link, loader, lock, log-in, log-out, maximize, meh, minimize, minimize-2, minus-circle, minus-square, minus, monitor, moon, more-horizontal, more-vertical, move, music, navigation-2, navigation, octagon, pause-circle, percent, plus-circle, plus-square, plus, power, radio, rss, search, server, share, shopping-bag, sidebar, smartphone, smile, square, table-2, tablet, target, terminal, trash-2, trash, triangle, tv, type, upload, x-circle, x-octagon, x-square, x, zoom-in, zoom-out
+
+The MIT License (MIT) (for the icons listed above)
+
+Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+</metadata>
+<defs><marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto" markerUnits="userSpaceOnUse"><path d="M2 2 L10 6 L2 10" fill="none" stroke="#667075" stroke-width="2"/></marker></defs>
+<style>text{font-family:"Noto Sans CJK SC","Noto Sans CJK",Arial,sans-serif}path,line,rect,polyline,polygon,circle,ellipse{stroke-linecap:round;stroke-linejoin:round}</style>
+<rect x="0" y="0" width="1600" height="463" rx="0" fill="white" stroke="none" stroke-width="0"/>
+<g transform="translate(0 -995)">
+<text x="56" y="1043" font-size="26" fill="#667075" font-weight="600" text-anchor="start">02</text>
+<line x1="103" y1="1033" x2="137" y2="1033" stroke="#A87531" stroke-width="3" />
+<text x="158" y="1043" font-size="31" fill="#20272B" font-weight="650" text-anchor="start">Read the original</text>
+<rect x="56" y="1076" width="1488" height="346" rx="6" fill="#F5F7F7" stroke="#D7DCDF" stroke-width="1.5"/>
+<rect x="56" y="1076" width="1488" height="58" rx="0" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<g transform="translate(74 1094) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></g>
+<text x="108" y="1113" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">Library</text>
+<text x="222" y="1113" font-size="22" fill="#667075" font-weight="400" text-anchor="start">Read</text>
+<text x="300" y="1113" font-size="22" fill="#20272B" font-weight="600" text-anchor="start">PDF</text>
+<text x="368" y="1113" font-size="22" fill="#667075" font-weight="400" text-anchor="start">TeX</text>
+<text x="436" y="1113" font-size="22" fill="#D7DCDF" font-weight="400" text-anchor="start">Source</text>
+<line x1="294" y1="1125" x2="344" y2="1125" stroke="#A87531" stroke-width="3" />
+<g transform="translate(547 1095) scale(0.875)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m15 18-6-6 6-6"/></g>
+<rect x="577" y="1088" width="42" height="35" rx="4" fill="white" stroke="#D7DCDF" stroke-width="1.5"/>
+<text x="598" y="1113" font-size="22" fill="#20272B" font-weight="400" text-anchor="middle">1</text>
+<text x="627" y="1113" font-size="22" fill="#667075" font-weight="400" text-anchor="start">/ 8</text>
+<g transform="translate(673 1095) scale(0.875)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m9 18 6-6-6-6"/></g>
+<text x="712" y="1113" font-size="24" fill="#667075" font-weight="400" text-anchor="start">−</text>
+<text x="746" y="1113" font-size="22" fill="#667075" font-weight="400" text-anchor="start">99%</text>
+<text x="804" y="1113" font-size="24" fill="#667075" font-weight="400" text-anchor="start">+</text>
+<g transform="translate(1383 1093) scale(1.0)" fill="none" stroke="#20272B" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></g>
+<g transform="translate(1427 1094) scale(0.9166666666666666)" fill="none" stroke="#A87531" stroke-width="1.8"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></g>
+<text x="1459" y="1113" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">Ask AI</text>
+<line x1="56" y1="1134" x2="1544" y2="1134" stroke="#D7DCDF" stroke-width="1.5" />
+<rect x="369" y="1155" width="862" height="245" rx="0" fill="white" stroke="#D7DCDF" stroke-width="1"/>
+<line x1="423" y1="1191" x2="854.0" y2="1191" stroke="#667075" stroke-width="3" />
+<line x1="423" y1="1210" x2="1017.78" y2="1210" stroke="#667075" stroke-width="3" />
+<line x1="423" y1="1248" x2="1177" y2="1248" stroke="#D7DCDF" stroke-width="3" />
+<line x1="423" y1="1265" x2="1177" y2="1265" stroke="#D7DCDF" stroke-width="3" />
+<line x1="423" y1="1282" x2="1143" y2="1282" stroke="#D7DCDF" stroke-width="3" />
+<line x1="423" y1="1320" x2="1177" y2="1320" stroke="#D7DCDF" stroke-width="3" />
+<line x1="423" y1="1337" x2="1177" y2="1337" stroke="#D7DCDF" stroke-width="3" />
+<text x="800.0" y="1384" font-size="21" fill="#667075" font-weight="400" text-anchor="middle">1</text>
+</g>
+</svg>

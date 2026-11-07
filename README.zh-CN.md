@@ -43,22 +43,31 @@ Pero 是面向研究者与科研软件开发者的桌面工作台。把论文原
 
 ### 第一次体验：读一篇论文，核对回答中的证据（Electron）
 
-![Paper 研究流程：导入 PDF、阅读并选择证据、在共享对话中发送问题，再查看报告并通过引用回到原文](docs/assets/openpero-paper-research.zh-CN.svg)
-
-*基于真实界面控件绘制的简化示意，不是截图。询问 AI 和讨论选段只准备共享对话草稿，由你决定何时发送。引用帮助核对来源，不代表结论已获验证。*
+*下方四张图依据实际界面截图，并按源码补全报告控件绘制，是简化示意，不是产品截图。图中部分导航晚于 11 月 4 日安装包；下方编号步骤使用该版本已有的控件。*
 
 从 **Electron 工作台**侧栏的**论文 / Papers**开始，准备一篇你想读的公开、可选取文字的 PDF。本地导入、阅读和高亮不需要模型账户或 API Key；向 AI 提问是另一个需要主动发起的步骤。
 
 1. 打开**论文**。若出现**准备环境 / Prepare environment**，点击并等待**环境已就绪**。新配置首次准备可能联网下载 uv、CPython 3.12 和指定版本的 PDF 依赖，放入受管 Python 环境。Native 另有[新配置限制](DEVELOPMENT.md#native-fresh-profile-limitation)。
 2. 选择**添加论文 → PDF → 导入 PDF**，选取文件，也可以把 PDF 拖进 App。导入后会打开保存的原始 PDF。首次建议用可选取文字的文件，不要默认扫描页已有可检索文本。
+
+![入库：从文库添加论文并导入 PDF](docs/assets/openpero-paper-research-01-add.zh-CN.svg)
+
 3. 阅读论文，选中一段文字，点击**高亮**保存原文标注。到这里无需配置模型。
+
+![阅读：使用论文阅读器查看原始 PDF](docs/assets/openpero-paper-research-02-read.zh-CN.svg)
+
 4. 想提问时，点击**询问 AI / Ask AI**，或选中文字后点击**讨论选段 / Discuss selection**。它会带着论文上下文打开共享对话，不会替你发送问题。发送前需配置 Agent：内置 Agent 在**设置 → 内置 Agent**中设置 API 服务和 Key，外部 Agent 使用各自的登录方式。PDF 全文研究需要 Agent 支持 HTTP MCP，见 [Agent 配置](desktop/README.md#agents-and-conversations)。
+
+![提问：将选段带入共享对话并发送问题](docs/assets/openpero-paper-research-03-ask.zh-CN.svg)
+
 5. 发送一个具体问题，例如：**“这篇论文的方法有哪些证据支持？有哪些限制需要回到原文核对？请引用原文片段。”** 报告保存后，收起对话，点击阅读器顶栏的时钟图标（**研究记录**），再打开已保存的问题/报告。点击引用查看原始 PDF 中的对应片段。若**引用证据**列出多个匹配位置，请选择相关位置，不要默认某一个就是答案。
 6. 在已保存的报告上选择**从此处追问 / Continue from here**，再发送追问，继续核对。保留尚未回答的问题和证据缺口；引用只能定位来源，不代表科学结论已获验证。
 
+![回查：打开保存的报告，通过引用核对原文](docs/assets/openpero-paper-research-04-review.zh-CN.svg)
+
 环境准备好后，本地阅读无需模型调用。AI 提问可能把论文内容发送给所选服务商，并产生其模型费用；不需要启动可选的控制面服务。离线准备及已有 Python 绑定见 [Python 环境设置](DEVELOPMENT.md#python-environments-and-advanced-overrides)。
 
-这些控件同时存在于 11 月 4 日源码标签和当前源码。[已有 Paper 流程记录](docs/fitness/paper-harness-journey.md)区分了使用测试 Agent 的开发版 Desktop 检查与历史真实 Agent 检查；本次 README 更新不代表重新验收了安装包或真实模型。详见 [Paper 阅读与提问边界](apps/paper-agent/README.md#pdf-reading)。下文较新的研究工作流不属于 11 月 4 日安装包的能力承诺。
+上述编号步骤使用的控件同时存在于 11 月 4 日源码标签和当前源码。[已有 Paper 流程记录](docs/fitness/paper-harness-journey.md)区分了使用测试 Agent 的开发版 Desktop 检查与历史真实 Agent 检查；本次 README 更新不代表重新验收了安装包或真实模型。详见 [Paper 阅读与提问边界](apps/paper-agent/README.md#pdf-reading)。下文较新的研究工作流不属于 11 月 4 日安装包的能力承诺。
 
 ### 体验最新源码
 
@@ -127,12 +136,15 @@ Data 可以辅助核对科研输入。在 Electron 中打开 **Data**，若提�
 
 拟议路线是先复核已发表结果，再比较实验，最后让研究跨人员、跨环境持续推进。每一阶段都需要自己的验收证据。[路线图](ROADMAP.md)区分了已有基础与待完成工作。
 
+![目标科研工作流：问题、任务、执行、复核与项目记忆](docs/assets/openpero-overview.zh-CN.svg)
+
+*目标工作流示意，不代表完整的跨人员研究闭环已经实现。*
+
 ![科研路线建议：复核已发表结果，比较实验，再跨人员与环境持续研究](docs/assets/openpero-research-roadmap.zh-CN.svg)
 
 App 管理领域方法与数据，Host 管理本机进程、凭据和 Agent 会话；可选的 Go 控制面协调共享任务与 Worker。本地 App 计算无需启动该控制面服务。
 
-<details>
-<summary>展开架构与组合示意图</summary>
+### 架构与组合示意图
 
 以下为架构示意，不是产品截图。实线框表示已有实现基础，虚线框和连线表示规划能力或待接通的关系，不代表端到端流程已通过验收。
 
@@ -141,8 +153,6 @@ App 管理领域方法与数据，Host 管理本机进程、凭据和 Agent 会�
 ![Pero 架构：客户端、协调、Host 执行、环境与交付](docs/assets/openpero-architecture.zh-CN.svg)
 
 职责边界和实现细节见[架构文档](docs/ARCHITECTURE.md)、[决策记录](docs/adr/README.md)与[开发指南](DEVELOPMENT.md)。
-
-</details>
 
 ## 参与贡献
 

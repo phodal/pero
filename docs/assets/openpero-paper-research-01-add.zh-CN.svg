@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="994" viewBox="0 0 1600 994" role="img" aria-labelledby="title desc" xml:lang="zh-CN">
+<title id="title">Pero 论文：01 · 入库</title>
+<desc id="desc">省略后的全局工作台侧栏、顶部论文标签与 Paper 内部导航分别呈现。文库包含论文列表与详情栏，图内连接线指向展开的添加论文页，保留检索、PDF、导入文本和链接导入四个标签。 依据 2026-11-07 审阅的用户文库、PDF 选文与共享对话截图绘制的简化界面示意，截图对应的应用版本未知；旧受控 fixture 截图辅助确认导入与阅读器布局，未截图的研究记录和报告状态以 c12c2ab0 的 Paper 源码补全。标题、合集、计数、页码、问题、日期及正文线条均为示例占位，不含用户数据或研究结论。金色仅表示插画强调，不表示核验通过。本图不代表本次真实界面运行、固定版本认证、科学质量、原生安装包或生产验收。</desc>
+<metadata id="icon-license">ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot; AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+---
+
+The following Lucide icons are derived from the Feather project:
+
+airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circle, arrow-down-left, arrow-down-right, arrow-down, arrow-left-circle, arrow-left, arrow-right-circle, arrow-right, arrow-up-circle, arrow-up-left, arrow-up-right, arrow-up, at-sign, calendar, cast, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-down, chevrons-left, chevrons-right, chevrons-up, circle, clipboard, clock, code, columns, command, compass, corner-down-left, corner-down-right, corner-left-down, corner-left-up, corner-right-down, corner-right-up, corner-up-left, corner-up-right, crosshair, database, divide-circle, divide-square, dollar-sign, download, external-link, feather, frown, hash, headphones, help-circle, info, italic, key, layout, life-buoy, link-2, link, loader, lock, log-in, log-out, maximize, meh, minimize, minimize-2, minus-circle, minus-square, minus, monitor, moon, more-horizontal, more-vertical, move, music, navigation-2, navigation, octagon, pause-circle, percent, plus-circle, plus-square, plus, power, radio, rss, search, server, share, shopping-bag, sidebar, smartphone, smile, square, table-2, tablet, target, terminal, trash-2, trash, triangle, tv, type, upload, x-circle, x-octagon, x-square, x, zoom-in, zoom-out
+
+The MIT License (MIT) (for the icons listed above)
+
+Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+</metadata>
+<defs><marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto" markerUnits="userSpaceOnUse"><path d="M2 2 L10 6 L2 10" fill="none" stroke="#667075" stroke-width="2"/></marker></defs>
+<style>text{font-family:"Noto Sans CJK SC","Noto Sans CJK",Arial,sans-serif}path,line,rect,polyline,polygon,circle,ellipse{stroke-linecap:round;stroke-linejoin:round}</style>
+<rect x="0" y="0" width="1600" height="994" rx="0" fill="white" stroke="none" stroke-width="0"/>
+<g transform="translate(0 0)">
+<text x="56" y="48" font-size="26" fill="#667075" font-weight="600" text-anchor="start">01</text>
+<line x1="103" y1="38" x2="137" y2="38" stroke="#A87531" stroke-width="3" />
+<text x="158" y="48" font-size="31" fill="#20272B" font-weight="650" text-anchor="start">入库</text>
+<rect x="56" y="80" width="1488" height="620" rx="7" fill="white" stroke="#D7DCDF" stroke-width="1.5"/>
+<rect x="57" y="81" width="1486" height="47" rx="6" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<line x1="56" y1="128" x2="1544" y2="128" stroke="#D7DCDF" stroke-width="1.5" />
+<g transform="translate(80 93) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></g>
+<rect x="288" y="87" width="179" height="35" rx="5" fill="white" stroke="#D7DCDF" stroke-width="1.5"/>
+<g transform="translate(303 93) scale(1.0)" fill="none" stroke="#20272B" stroke-width="1.8"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></g>
+<text x="340" y="113" font-size="23" fill="#20272B" font-weight="600" text-anchor="start">论文</text>
+<g transform="translate(435 96) scale(0.75)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></g>
+<rect x="57" y="129" width="215" height="570" rx="0" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<line x1="272" y1="128" x2="272" y2="700" stroke="#D7DCDF" stroke-width="1.5" />
+<g transform="translate(80 150) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></g>
+<text x="117" y="171" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">会话</text>
+<g transform="translate(80 192) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></g>
+<text x="117" y="213" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">项目</text>
+<g transform="translate(80 234) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/></g>
+<text x="117" y="255" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">Insights</text>
+<rect x="68" y="286" width="184" height="39" rx="5" fill="#FBF3E7" stroke="none" stroke-width="0"/>
+<g transform="translate(80 293) scale(1.0)" fill="none" stroke="#20272B" stroke-width="1.8"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></g>
+<text x="117" y="314" font-size="22" fill="#20272B" font-weight="600" text-anchor="start">论文</text>
+<g transform="translate(80 335) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></g>
+<text x="117" y="356" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">Compute</text>
+<g transform="translate(80 377) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></g>
+<text x="117" y="398" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">Data</text>
+<g transform="translate(80 419) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></g>
+<text x="117" y="440" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">执行环境</text>
+<g transform="translate(80 479) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></g>
+<text x="117" y="500" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">应用商店</text>
+<g transform="translate(80 587) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M12 19h8"/><path d="m4 17 6-6-6-6"/></g>
+<text x="117" y="608" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">终端</text>
+<g transform="translate(80 638) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></g>
+<text x="117" y="659" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">设置</text>
+<line x1="74" y1="279" x2="254" y2="279" stroke="#D7DCDF" stroke-width="2" />
+<line x1="74" y1="466" x2="254" y2="466" stroke="#D7DCDF" stroke-width="2" />
+<text x="91" y="555" font-size="28" fill="#667075" font-weight="400" text-anchor="start">…</text>
+<rect x="273" y="129" width="259" height="570" rx="0" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<line x1="532" y1="128" x2="532" y2="700" stroke="#D7DCDF" stroke-width="1.5" />
+<rect x="282" y="143" width="226" height="39" rx="5" fill="#FBF3E7" stroke="none" stroke-width="0"/>
+<g transform="translate(294 150) scale(1.0)" fill="none" stroke="#20272B" stroke-width="1.8"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></g>
+<text x="331" y="171" font-size="22" fill="#20272B" font-weight="600" text-anchor="start">文库</text>
+<rect x="470" y="147" width="26" height="27" rx="4" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<text x="483" y="168" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">3</text>
+<g transform="translate(294 194) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m12.99 6.74 1.93 3.44"/><path d="M19.136 12a10 10 0 0 1-14.271 0"/><path d="m21 21-2.16-3.84"/><path d="m3 21 8.02-14.26"/><circle cx="12" cy="5" r="2"/></g>
+<text x="331" y="215" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">发现</text>
+<g transform="translate(294 238) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></g>
+<text x="331" y="259" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">研究结果</text>
+<g transform="translate(294 330) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></g>
+<text x="331" y="351" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">在读</text>
+<rect x="470" y="327" width="26" height="27" rx="4" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<text x="483" y="348" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">2</text>
+<g transform="translate(294 372) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></g>
+<text x="331" y="393" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">待读</text>
+<rect x="470" y="369" width="26" height="27" rx="4" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<text x="483" y="390" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">1</text>
+<g transform="translate(294 469) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></g>
+<text x="331" y="490" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">示例合集 A</text>
+<g transform="translate(294 513) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></g>
+<text x="331" y="534" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">示例合集 B</text>
+<text x="294" y="308" font-size="21" fill="#667075" font-weight="400" text-anchor="start">论文</text>
+<text x="294" y="445" font-size="21" fill="#667075" font-weight="400" text-anchor="start">合集</text>
+<text x="556" y="170" font-size="27" fill="#20272B" font-weight="650" text-anchor="start">全部论文</text>
+<text x="727" y="170" font-size="21" fill="#667075" font-weight="400" text-anchor="start">3 篇论文</text>
+<g transform="translate(958 147) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></g>
+<rect x="996" y="140" width="164" height="38" rx="5" fill="#FBF3E7" stroke="#A87531" stroke-width="1.5"/>
+<g transform="translate(1008 147) scale(0.9583333333333334)" fill="none" stroke="#20272B" stroke-width="1.8"><path d="M5 12h14"/><path d="M12 5v14"/></g>
+<text x="1040" y="167" font-size="21" fill="#20272B" font-weight="500" text-anchor="start">添加论文</text>
+<rect x="556" y="198" width="604" height="40" rx="5" fill="white" stroke="#667075" stroke-width="1.5"/>
+<g transform="translate(568 206) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></g>
+<text x="606" y="226" font-size="22" fill="#667075" font-weight="400" text-anchor="start">搜索标题、作者和全文…</text>
+<rect x="556" y="258" width="170" height="38" rx="5" fill="white" stroke="#D7DCDF" stroke-width="1.5"/>
+<text x="641.0" y="285" font-size="21" fill="#20272B" font-weight="500" text-anchor="middle">全部状态</text>
+<g transform="translate(699 271) scale(0.6666666666666666)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m6 9 6 6 6-6"/></g>
+<rect x="958" y="258" width="202" height="38" rx="5" fill="white" stroke="#D7DCDF" stroke-width="1.5"/>
+<text x="1059.0" y="285" font-size="21" fill="#20272B" font-weight="500" text-anchor="middle">最近添加</text>
+<g transform="translate(1136 271) scale(0.6666666666666666)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m6 9 6 6 6-6"/></g>
+<text x="556" y="322" font-size="21" fill="#667075" font-weight="400" text-anchor="start">论文</text>
+<text x="958" y="322" font-size="21" fill="#667075" font-weight="400" text-anchor="start">来源</text>
+<text x="1061" y="322" font-size="21" fill="#667075" font-weight="400" text-anchor="start">状态</text>
+<rect x="544" y="337" width="628" height="96" rx="5" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<rect x="558" y="361" width="22" height="22" rx="4" fill="white" stroke="#667075" stroke-width="1.5"/>
+<text x="597" y="371" font-size="24" fill="#20272B" font-weight="600" text-anchor="start">示例论文 A</text>
+<line x1="597" y1="397" x2="867" y2="397" stroke="#D7DCDF" stroke-width="3" />
+<line x1="597" y1="411" x2="793" y2="411" stroke="#D7DCDF" stroke-width="3" />
+<text x="944" y="380" font-size="21" fill="#667075" font-weight="400" text-anchor="start">本地 PDF</text>
+<g transform="translate(1057 360) scale(0.875)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></g>
+<text x="1085" y="380" font-size="21" fill="#667075" font-weight="400" text-anchor="start">在读</text>
+<line x1="556" y1="439" x2="1160" y2="439" stroke="#D7DCDF" stroke-width="1" />
+<rect x="558" y="469" width="22" height="22" rx="4" fill="white" stroke="#667075" stroke-width="1.5"/>
+<text x="597" y="479" font-size="24" fill="#20272B" font-weight="600" text-anchor="start">示例论文 B</text>
+<line x1="597" y1="505" x2="867" y2="505" stroke="#D7DCDF" stroke-width="3" />
+<line x1="597" y1="519" x2="793" y2="519" stroke="#D7DCDF" stroke-width="3" />
+<text x="944" y="488" font-size="21" fill="#667075" font-weight="400" text-anchor="start">本地 PDF</text>
+<g transform="translate(1057 468) scale(0.875)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></g>
+<text x="1085" y="488" font-size="21" fill="#667075" font-weight="400" text-anchor="start">在读</text>
+<line x1="556" y1="547" x2="1160" y2="547" stroke="#D7DCDF" stroke-width="1" />
+<rect x="558" y="577" width="22" height="22" rx="4" fill="white" stroke="#667075" stroke-width="1.5"/>
+<text x="597" y="587" font-size="24" fill="#20272B" font-weight="600" text-anchor="start">示例论文 C</text>
+<line x1="597" y1="613" x2="867" y2="613" stroke="#D7DCDF" stroke-width="3" />
+<line x1="597" y1="627" x2="793" y2="627" stroke="#D7DCDF" stroke-width="3" />
+<text x="944" y="596" font-size="21" fill="#667075" font-weight="400" text-anchor="start">本地 PDF</text>
+<g transform="translate(1057 576) scale(0.875)" fill="none" stroke="#667075" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></g>
+<text x="1085" y="596" font-size="21" fill="#667075" font-weight="400" text-anchor="start">待读</text>
+<line x1="556" y1="655" x2="1160" y2="655" stroke="#D7DCDF" stroke-width="1" />
+<line x1="1182" y1="128" x2="1182" y2="700" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="1206" y="174" font-size="27" fill="#20272B" font-weight="650" text-anchor="start">示例论文 A</text>
+<line x1="1206" y1="205" x2="1486" y2="205" stroke="#667075" stroke-width="3" />
+<line x1="1206" y1="224" x2="1434" y2="224" stroke="#667075" stroke-width="3" />
+<line x1="1206" y1="254" x2="1460" y2="254" stroke="#D7DCDF" stroke-width="3" />
+<rect x="1206" y="279" width="139" height="38" rx="5" fill="white" stroke="#D7DCDF" stroke-width="1.5"/>
+<text x="1275.5" y="306" font-size="22" fill="#20272B" font-weight="500" text-anchor="middle">在读</text>
+<g transform="translate(1320 291) scale(0.75)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m6 9 6 6 6-6"/></g>
+<rect x="1206" y="336" width="313" height="38" rx="5" fill="#FBF3E7" stroke="#A87531" stroke-width="1.5"/>
+<g transform="translate(1218 343) scale(0.9583333333333334)" fill="none" stroke="#20272B" stroke-width="1.8"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></g>
+<text x="1250" y="363" font-size="22" fill="#20272B" font-weight="500" text-anchor="start">继续阅读</text>
+<g transform="translate(1483 344) scale(0.9166666666666666)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></g>
+<text x="1206" y="416" font-size="21" fill="#667075" font-weight="400" text-anchor="start">来源</text>
+<text x="1350" y="416" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">本地 PDF</text>
+<text x="1206" y="456" font-size="21" fill="#667075" font-weight="400" text-anchor="start">添加于</text>
+<text x="1350" y="456" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">今天</text>
+<line x1="1206" y1="480" x2="1518" y2="480" stroke="#D7DCDF" stroke-width="2" />
+<g transform="translate(1209 501) scale(0.9583333333333334)" fill="none" stroke="#667075" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></g>
+<text x="1247" y="522" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">研究记录</text>
+<g transform="translate(1209 545) scale(0.9583333333333334)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m12.99 6.74 1.93 3.44"/><path d="M19.136 12a10 10 0 0 1-14.271 0"/><path d="m21 21-2.16-3.84"/><path d="m3 21 8.02-14.26"/><circle cx="12" cy="5" r="2"/></g>
+<text x="1247" y="566" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">继续发现</text>
+<g transform="translate(1209 589) scale(0.9583333333333334)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></g>
+<text x="1247" y="610" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">下载 PDF</text>
+<path d="M1040 701 V720 H982 V736" fill="none" stroke="#667075" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="532" y="742" width="1012" height="216" rx="6" fill="white" stroke="#D7DCDF" stroke-width="1.5"/>
+<g transform="translate(557 761) scale(0.9583333333333334)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m15 18-6-6 6-6"/></g>
+<text x="599" y="783" font-size="27" fill="#20272B" font-weight="650" text-anchor="start">添加论文</text>
+<text x="557" y="831" font-size="23" fill="#667075" font-weight="400" text-anchor="start">检索</text>
+<text x="685" y="831" font-size="23" fill="#20272B" font-weight="600" text-anchor="start">PDF</text>
+<text x="792" y="831" font-size="23" fill="#667075" font-weight="400" text-anchor="start">导入文本</text>
+<text x="978" y="831" font-size="23" fill="#667075" font-weight="400" text-anchor="start">链接导入</text>
+<line x1="557" y1="845" x2="1518" y2="845" stroke="#D7DCDF" stroke-width="1.5" />
+<line x1="681" y1="845" x2="735" y2="845" stroke="#A87531" stroke-width="3" />
+<rect x="557" y="874" width="192" height="38" rx="5" fill="#FBF3E7" stroke="#A87531" stroke-width="1.5"/>
+<g transform="translate(569 881) scale(0.9583333333333334)" fill="none" stroke="#20272B" stroke-width="1.8"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></g>
+<text x="601" y="901" font-size="22" fill="#20272B" font-weight="500" text-anchor="start">导入 PDF</text>
+<text x="775" y="901" font-size="22" fill="#667075" font-weight="400" text-anchor="start">选择 PDF 文件，或拖入窗口</text>
+</g>
+</svg>
