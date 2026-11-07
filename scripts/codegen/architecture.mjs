@@ -1,151 +1,138 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { Graphic, ink, muted, border, soft } from './research-graphics.mjs';
 
-// ROADMAP.md target architecture. Solid outlines identify existing foundations,
-// not complete platform capabilities or accepted deployment environments.
-const root = new URL('../../', import.meta.url);
-const theme = readFileSync(new URL('DESIGN.md', root), 'utf8').split('---')[1];
-// Read only the documented flat HEX palette; regeneration needs no npm install.
-const light = theme.match(/^  light:\n([\s\S]*?)(?=^  \w+:)/m)?.[1];
-if (!light) throw new Error('Missing colors.light palette in DESIGN.md');
-const c = Object.fromEntries([...light.matchAll(/^    ([\w-]+): "(#[\da-f]{6})"$/gmi)].map((match) => [match[1], match[2]]));
-const brand = { navy: theme.match(/^    navy: "(#[\da-f]{6})"$/mi)?.[1] };
-if (!brand.navy || ['bg', 'surface', 'surface-muted', 'text', 'text-muted', 'border', 'input-border', 'action', 'accent-soft', 'accent-text'].some((key) => !c[key])) {
-  throw new Error('Missing architecture palette token in DESIGN.md');
-}
-const output = new URL('docs/assets/openpero-architecture.svg', root);
-const escape = (value) => String(value).replace(/[&<>"']/g, (v) => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
-})[v]);
-const parts = [];
-const add = (value) => parts.push(value);
-
-function text(x, y, value, size = 18, color = c.text, weight = 400, extra = '') {
-  add(`<text x="${x}" y="${y}" font-size="${size}" fill="${color}" font-weight="${weight}" ${extra}>${escape(value)}</text>`);
-}
-
-function rect(x, y, w, h, { fill = c.surface, stroke = c.border, dashed = false, radius = 8 } = {}) {
-  add(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"${dashed ? ' stroke-dasharray="7 5"' : ''}/>`);
-}
-
-function path(d, { solid = false, accent = false, both = false, arrow = true } = {}) {
-  const color = accent ? c.action : c['text-muted'];
-  add(`<path d="${d}" fill="none" stroke="${color}" stroke-width="${accent ? 2.2 : 1.7}"${solid ? '' : ' stroke-dasharray="7 5"'}${arrow ? ` marker-end="url(#${accent ? 'accent' : 'arrow'})"` : ''}${both ? ' marker-start="url(#start)"' : ''}/>`);
-}
-
-function card(x, y, w, h, title, detail, current = false) {
-  rect(x, y, w, h, { dashed: !current, stroke: current ? c.action : c['input-border'] });
-  const compact = h < 80;
-  text(x + 18, y + (compact ? 27 : 33), title, compact ? 20 : 22, brand.navy, 650);
-  text(x + 18, y + (compact ? 49 : 60), detail, 16, c['text-muted']);
-}
-
-function group(x, title, subtitle) {
-  rect(x, 344, 432, 400, { fill: c['surface-muted'], dashed: true, stroke: c['input-border'] });
-  text(x + 20, 382, title, 26, brand.navy, 650);
-  text(x + 20, 406, subtitle, 16, c['text-muted']);
-}
-
-add('<?xml version="1.0" encoding="UTF-8"?>');
-add('<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1056" viewBox="0 0 1600 1056" role="img" aria-labelledby="title description" lang="en">');
-add('<title id="title">Pero — Overall Architecture</title>');
-add('<desc id="description">Target architecture derived from ROADMAP.md. Clients access shared Cloud coordination and Host execution through versioned contracts. Host owns local permissions, credentials and execution identity. Apps, playbooks, connectors and replaceable agents use authorized environments. Artifacts pass independent verification and human acceptance before returning to project knowledge. Dashed modules and connections are planned; solid outlines indicate existing foundations only.</desc>');
-add(`<defs>
-  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="${c['text-muted']}" stroke-width="1.5"/></marker>
-  <marker id="start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 9 1 L 1 5 L 9 9" fill="none" stroke="${c['text-muted']}" stroke-width="1.5"/></marker>
-  <marker id="accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="${c.action}" stroke-width="1.5"/></marker>
-</defs>`);
-rect(0, 0, 1600, 1056, { fill: c.bg, stroke: 'none', radius: 0 });
-add('<g font-family="Inter, Helvetica Neue, Arial, sans-serif">');
-text(64, 50, 'Pero Architecture', 32, brand.navy, 650);
-text(1536, 50, 'Solid: foundation · Dashed: planned / integration', 16, c['text-muted'], 400, 'text-anchor="end"');
-add('<g transform="translate(0 -48)">');
-
-// Feedback stays outside the module boundaries.
-path('M 1536 1030 H 1570 V 128 H 30 V 470 H 64', { accent: true });
-rect(745, 109, 110, 34, { fill: c.bg, stroke: 'none', radius: 0 });
-text(800, 133, 'Feedback', 18, c['accent-text'], 550, 'text-anchor="middle"');
-
-const clients = [
-  ['Desktop', 'Electron · GPUI / WASM', true],
-  ['Web', 'Shared workbench', false],
-  ['Mobile / Editor', 'Remote access & approvals', false],
-  ['GitHub Task Intake', 'Issues · Roadmap · Claims', true],
-];
-clients.forEach(([title, detail, current], i) => {
-  const x = 64 + i * 380;
-  card(x, 170, 332, 80, title, detail, current);
-  path(`M ${x + 166} 250 V 272`, { solid: current, arrow: false });
-});
-path('M 230 272 H 1370', { arrow: false });
-path('M 800 272 V 286');
-rect(64, 286, 1472, 38, { fill: c['accent-soft'], dashed: true, stroke: c.action });
-text(800, 312, 'Versioned Contracts · API / Events / Sync', 19, brand.navy, 550, 'text-anchor="middle"');
-path('M 280 324 V 344');
-path('M 800 324 V 344');
-
-group(64, 'Cloud', 'Shared project authority');
-card(84, 428, 392, 84, 'Projects & Knowledge', 'Context · Pages · Results · Memory');
-card(84, 532, 392, 84, 'Tasks & Coordination', 'Tasks · Runs · Dispatch', true);
-card(84, 636, 392, 84, 'Teams & Sync', 'Identity · Policy · Journal replication');
-
-group(584, 'Host / Worker', 'Local execution · Daemon planned');
-card(604, 428, 392, 64, 'Policy & Local State', 'Permissions · Credentials · Journal');
-card(604, 506, 392, 64, 'Worker Execution', 'Claim · Lease · Cancel · Recover', true);
-card(604, 584, 392, 64, 'Harness & Tools', 'Agent loop · Files · Terminal · Browser');
-card(604, 662, 392, 64, 'ACP Sessions', 'Events · Prompts · Approval flow', true);
-
-group(1104, 'Capability Ecosystem', 'Replaceable backends & extensions');
-card(1124, 428, 392, 64, 'Apps & Products', 'Virtual Cell · Local Python', true);
-card(1124, 506, 392, 64, 'Playbooks & Plugins', 'Methods · Skills · Agent tools');
-card(1124, 584, 392, 64, 'Connectors', 'MCP · Data · Platforms · Devices');
-card(1124, 662, 392, 64, 'Agent Backends', 'Codex · Claude · OpenCode', true);
-
-path('M 486 470 H 594', { both: true });
-text(540, 457, 'Sync', 16, c['text-muted'], 400, 'text-anchor="middle"');
-path('M 486 574 H 544 V 538 H 594', { solid: true });
-text(540, 524, 'Run', 16, c['text-muted'], 400, 'text-anchor="middle"');
-path('M 1114 470 H 1078 V 538 H 1006');
-text(1060, 457, 'Methods', 15, c['text-muted'], 400, 'text-anchor="middle"');
-path('M 1006 616 H 1060 V 574 H 1114', { both: true });
-text(1060, 562, 'Tools', 16, c['text-muted'], 400, 'text-anchor="middle"');
-path('M 1006 694 H 1060 V 678 H 1114', { solid: true, both: true });
-text(1060, 665, 'ACP', 16, c['accent-text'], 550, 'text-anchor="middle"');
-
-text(64, 792, 'Execution Environments & Workers', 23, brand.navy, 650);
-text(1536, 792, 'Resource owners · Bindings · Use leases', 17, c['text-muted'], 400, 'text-anchor="end"');
-path('M 800 744 V 802', { arrow: false });
-path('M 230 802 H 1370', { arrow: false });
-[
-  ['Local Machine', 'Approved workspaces', true],
-  ['Lab & HPC', 'Python · SSH · Instruments', false],
-  ['Cloud & Kubernetes', 'Pods · Sandboxes · Compute', false],
-  ['Trusted Workers', 'Claim · Lease · Results', true],
-].forEach(([title, detail, current], i) => {
-  const x = 64 + i * 380;
-  card(x, 814, 332, 88, title, detail, current);
-  path(`M ${x + 166} 802 V 814`);
-  path(`M ${x + 166} 902 V 914`, { arrow: false });
-});
-path('M 230 914 H 1370', { arrow: false });
-
-path('M 230 914 V 942 H 280 V 988');
-text(244, 936, 'Artifacts', 16, c['text-muted']);
-path('M 800 914 V 988', { both: true });
-text(818, 951, 'Independent verification Use', 17, c['text-muted']);
-text(64, 970, 'Trusted Delivery', 23, brand.navy, 650);
-card(64, 988, 432, 84, 'Artifact Versions', 'Outputs · Provenance · Evidence');
-card(584, 988, 432, 84, 'Verification', 'Independent checks · CI · Verifiers');
-card(1104, 988, 432, 84, 'Human Decision', 'Accept · Reject · Rework');
-path('M 506 1030 H 574');
-path('M 1026 1030 H 1094');
-
-add('</g></g></svg>\n');
-
-const svg = parts.join('\n');
-if (process.argv.includes('--check')) {
-  if (readFileSync(output, 'utf8') !== svg) throw new Error('Run npm run gen:architecture');
-} else {
-  writeFileSync(output, svg);
-  console.log(`Generated ${fileURLToPath(output)}`);
+// Architecture/ADR/fitness sources and status boundaries: docs/GRAPHICS.md.
+// Solid foundations do not claim production, all-provider or scientific acceptance.
+const locales = {
+  en: {
+    title: 'Coordinate shared work. Keep execution with its owner.',
+    description: 'Pero architecture, combining implementation foundations and explicitly planned integration. Desktop and GitHub intake exist; shared Web and mobile clients remain targets. The Go control plane owns shared task coordination. Rust Host and Worker own local permissions, credentials, sessions and execution. Local research Projects link App-owned records, not a shared scientific journal. Apps, local Agent Plugins, MCP connectors and replaceable ACP backends have implementation foundations. Shared project knowledge, journal sync and unified delivery remain planned. Local and owner-specific compute adapters exist with scope-specific acceptance; real sites and deployments have separate gates. Artifact versions exist in sessions, but independent verification and human acceptance are not yet one shared Task/Run delivery loop.',
+    legend: 'Solid: implementation foundation · Dashed: planned / integration',
+    clients: [['Desktop', 'Electron · Native', true], ['Web workbench', 'Shared client planned', false], ['Mobile / Editor', 'Remote access planned', false], ['GitHub intake', 'Issues · Roadmap', true]],
+    contracts: 'Versioned contracts', contractsDetail: 'HTTP / ACP foundations · Unified event sync planned',
+    groups: [
+      ['Cloud / Control plane', 'Shared task authority', 'server', [
+        ['Tasks & coordination', 'Runs · Dispatch · Leases', true],
+        ['Shared project knowledge', 'Pages · Memory · Journal', false],
+        ['Teams & synchronization', 'Shared policy · Replication', false],
+      ]],
+      ['Host / Worker', 'Local execution authority', 'laptop', [
+        ['Policy & sessions', 'Credentials · ACP · Approvals', true],
+        ['Execution & Harness', 'Tools · Cancel · Recover', true],
+        ['Local research Projects', 'Goals · App record links', true],
+      ]],
+      ['Apps & capabilities', 'Domain and Agent extensions', 'app', [
+        ['Agent backends', 'Built-in Harness · ACP adapters', true],
+        ['Plugins & connectors', 'Local Skills · Scoped MCP', true],
+        ['Apps & Products', 'UI · Data · Python backends', true],
+      ]],
+    ],
+    run: 'Dispatch', tool: 'Tools/MCP', sync: 'Shared journal sync remains planned',
+    local: 'Local workspaces', workers: 'Trusted Workers', adapters: 'Compute adapters',
+    localSub: 'Host-managed execution', workerSub: 'Claim · Lease · Results', adapterSub: 'Local / containers / Slurm',
+    execution: 'Execution environments', executionNote: 'Site, cluster and package acceptance remain scoped.',
+    planned: 'Planned integration: App Task/Run · Unified environment lifecycle · Playbooks',
+    delivery: 'Shared trusted-delivery loop · planned',
+    deliverySteps: [['Artifact versions', 'Session foundation exists'], ['Independent verification', 'Separate checks and evidence'], ['Human acceptance', 'Accept · Reject · Rework']],
+    feedback: 'Accepted evidence → shared project knowledge',
+  },
+  'zh-CN': {
+    title: '协调共享工作，让执行留在所属环境。',
+    description: 'Pero 架构，同时展示已有实现基础和明确的规划接线。Desktop 与 GitHub 来源导入已有基础，共享 Web 和移动客户端仍是目标。Go 控制面拥有共享任务协调，Rust Host 与 Worker 拥有本机权限、凭据、会话和执行。本地研究项目引用 App 自有记录，不等于共享科学台账。App、本地 Agent Plugin、MCP 连接器与可替换 ACP 后端已有实现基础；共享项目知识、journal 同步与统一交付仍待建设。本地与各资源所有者的算力适配已有局部验收，真实站点和部署单独验收。会话已有产物版本，但独立验证与人工接受尚未组成共享 Task/Run 的完整交付闭环。',
+    legend: '实线：已有实现基础 · 虚线：规划能力或待接通关系',
+    clients: [['Desktop', 'Electron · Native', true], ['Web 工作台', '共享客户端待接入', false], ['移动端 / 编辑器', '远程访问待接入', false], ['GitHub 来源导入', 'Issues · Roadmap', true]],
+    contracts: '版本化契约', contractsDetail: '已有 HTTP / ACP 基础 · 统一事件同步待接通',
+    groups: [
+      ['Cloud / 控制面', '共享任务的权威', 'server', [
+        ['任务与协调', '运行 · 分派 · 租约', true],
+        ['共享项目知识', 'Pages · 记忆 · Journal', false],
+        ['团队与同步', '共享策略 · Journal 复制', false],
+      ]],
+      ['Host / Worker', '本机执行的权威', 'laptop', [
+        ['权限与会话', '凭据 · ACP · 审批', true],
+        ['执行与 Harness', '工具 · 取消 · 恢复', true],
+        ['本地研究项目', '研究目标 · App 记录引用', true],
+      ]],
+      ['App 与能力', '领域能力与 Agent 扩展', 'app', [
+        ['Agent 后端', '内置 Harness · ACP 适配器', true],
+        ['插件与连接器', '本地 Skills · 有界 MCP', true],
+        ['App 与产品', '界面 · 数据 · Python 后端', true],
+      ]],
+    ],
+    run: '分派', tool: '工具/MCP', sync: '共享 Journal 同步仍待接通',
+    local: '本地工作区', workers: '可信 Worker', adapters: '算力适配器',
+    localSub: 'Host 管理的执行', workerSub: '认领 · 租约 · 结果', adapterSub: '本地 / 容器 / Slurm',
+    execution: '执行环境', executionNote: '站点、集群与安装包仍需按各自范围验收。',
+    planned: '待集成：App Task/Run · 统一环境生命周期 · Playbook 编排',
+    delivery: '共享可信交付闭环 · 规划中',
+    deliverySteps: [['产物版本', '会话中已有实现基础'], ['独立验证', '独立检查与证据'], ['人工接受', '接受 · 拒绝 · 返工']],
+    feedback: '接受的证据 → 共享项目知识',
+  },
+};
+for (const [lang, copy] of Object.entries(locales)) {
+  const g = new Graphic(1600, 1350, lang, `Pero — ${copy.title}`, copy.description);
+  g.text(64, 60, copy.title, 36, ink, 700);
+  g.text(64, 102, copy.legend, 22, muted);
+  copy.clients.forEach(([title, subtitle, current], i) => {
+    const x = 64 + 380 * i;
+    g.rect(x, 138, 332, 91, { stroke: current ? ink : muted, dashed: !current, radius: 10 });
+    g.text(x + 20, 174, title, 27, ink, 600);
+    g.text(x + 20, 209, subtitle, 22, muted);
+    g.path(`M ${x + 166} 229 V 254`, { dashed: !current });
+  });
+  g.path('M 230 254 H 1370 M 800 254 V 272', { dashed: true });
+  g.rect(64, 273, 1472, 59, { fill: soft, stroke: 'none', radius: 10 });
+  g.text(87, 312, copy.contracts, 25, ink, 600);
+  g.text(1511, 312, copy.contractsDetail, 23, muted, 400, 'end');
+  const xs = [64, 584, 1104];
+  copy.groups.forEach(([title, subtitle, icon, cards], i) => {
+    const x = xs[i], cx = x + 216;
+    g.halo(cx, 418, 152, 65, i === 1);
+    g.illustration(icon, cx, 410, .9, i === 1);
+    g.text(cx, 515, title, 29, ink, 700, 'middle');
+    g.text(cx, 552, subtitle, 22, muted, 400, 'middle');
+    cards.forEach(([heading, detail, current], j) => {
+      const y = 580 + j * 95;
+      g.rect(x, y, 432, 78, { stroke: current ? border : muted, dashed: !current, radius: 8 });
+      g.text(x + 18, y + 31, heading, 25, ink, 600);
+      g.text(x + 18, y + 61, detail, 22, muted);
+    });
+  });
+  g.path('M 506 617 H 540 V 712 H 574', { arrow: true });
+  g.text(540, 598, copy.run, 18, muted, 400, 'middle');
+  // ACP connects the session owner to replaceable backends, separately from tools.
+  g.path('M 1060 619 H 1026', { arrow: true });
+  g.path('M 1060 619 H 1094', { arrow: true });
+  g.text(1060, 598, 'ACP', 18, muted, 400, 'middle');
+  g.path('M 1094 713 H 1026', { arrow: true });
+  g.text(1060, 693, copy.tool, 18, muted, 400, 'middle');
+  g.path('M 280 858 V 874 H 800 V 859', { dashed: true });
+  g.rect(340, 859, 370, 30, { fill: '#FFFFFF', stroke: 'none', radius: 0 });
+  g.text(525, 881, copy.sync, 20, muted, 400, 'middle');
+  g.text(64, 934, copy.execution, 28, ink, 600);
+  g.text(1536, 934, copy.executionNote, 22, muted, 400, 'end');
+  [[copy.local, copy.localSub], [copy.workers, copy.workerSub], [copy.adapters, copy.adapterSub]].forEach(([title, detail], i) => {
+    const x = xs[i];
+    g.rect(x, 960, 432, 84, { fill: soft, stroke: border });
+    g.illustration(i === 0 ? 'laptop' : 'server', x + 48, 1002, .4);
+    g.text(x + 96, 995, title, 25, ink, 600);
+    g.text(x + 96, 1026, detail, 22, muted);
+  });
+  // Execution, not local project references, owns the environment handoff.
+  // Route outside the project card before joining the environment bus.
+  g.path('M 1016 735 H 1040 V 909 H 800 V 948', { arrow: true });
+  g.path('M 280 948 H 1320');
+  [280, 800, 1320].forEach(x => g.path(`M ${x} 948 V 958`, { arrow: true }));
+  g.rect(64, 1068, 1472, 48, { stroke: border, dashed: true });
+  g.text(800, 1101, copy.planned, 23, muted, 400, 'middle');
+  g.text(64, 1175, copy.delivery, 27, ink, 600);
+  copy.deliverySteps.forEach(([title, detail], i) => {
+    const x = xs[i];
+    g.rect(x, 1200, 432, 84, { stroke: muted, dashed: true });
+    g.text(x + 20, 1235, title, 25, ink, 600);
+    g.text(x + 20, 1266, detail, 22, muted);
+    if (i < 2) g.path(`M ${x + 442} 1242 H ${xs[i + 1] - 10}`, { dashed: true, arrow: true });
+  });
+  g.path('M 800 1117 V 1141', { dashed: true, arrow: true });
+  g.text(1536, 1324, copy.feedback, 22, muted, 400, 'end');
+  g.save(`openpero-architecture${lang === 'en' ? '' : '.zh-CN'}.svg`);
 }
