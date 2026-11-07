@@ -51,6 +51,8 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
     documents = documents if documents is not None else PaperDocuments(store)
     tex = TexPreviews(store, pdf_files)
     numeric = NumericRecords(store)
+    from .fisher_app import FisherApp
+    fisher = FisherApp(store, pdf_files)
     from .research_program_store import ResearchPrograms
     from .research_program_access import program_request
     programs = ResearchPrograms(store)
@@ -267,6 +269,13 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         return self.reply(200, store.pcgym.host_command(data))
                     if path == '/api/paper-document':
                         return self.reply(200, documents.command(data, now()))
+                    if path == '/api/fisher/step':
+                        if data.get('action') == 'export':
+                            raise Invalid('Use the Fisher evidence archive route')
+                        return self.reply(200, fisher.command(data, now()))
+                    if path == '/api/fisher/evidence-archive':
+                        reproduction_fields(data, ('itemId', 'attemptId'))
+                        return self.binary(200, fisher.command(dict(action='export', **data), now()), 'application/zip')
                     if path == '/api/reproduction/step':
                         if data.get('action') == 'start':
                             reproduction_fields(data, ('action', 'specId', 'requestId', 'confirmation'))

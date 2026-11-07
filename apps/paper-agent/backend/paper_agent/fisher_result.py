@@ -10,8 +10,9 @@ import io
 import math
 import re
 
-from .pcgym_domain import Invalid, digest
+from .pcgym_domain import Invalid, digest, fields, identifier
 from .verification import ComparisonPolicy
+from .pdf import PdfAnnotation
 
 CASE = 'fisher-1936-table3-sepal-length-v1'
 DOI = '10.1111/j.1469-1809.1936.tb02137.x'
@@ -133,3 +134,64 @@ class FisherProtocol:
                     result_verdict={'within_tolerance': 'REPRODUCED', 'outside_tolerance': 'MISMATCH',
                                     'undefined': 'INCONCLUSIVE'}[status],
                     paper_verdict='NOT_ASSESSED', reported=REPORTED, actual=actual, **diagnostic)
+
+
+SOURCE_NOTE = ('Fisher (1936), Table III: sepal-length within-species sum of squares, 19.1434 cm². '
+               'Source value visually reviewed; PDF text-layer extraction misses this cell.')
+
+
+@dataclass(frozen=True)
+class FisherSelection:
+    """One curated cell in the exact reviewed source, never a guessed OCR value."""
+    annotation: PdfAnnotation
+    source_url: str
+
+    @classmethod
+    def create(cls, document, annotation):
+        if (document.file_digest != PDF_SHA256 or annotation.document_id != document.id
+                or annotation.paper_id != document.paper_id or annotation.page != 4
+                or annotation.kind != 'figure' or annotation.note != SOURCE_NOTE
+                or annotation.anchor is None
+                or [rect.to_dict() for rect in annotation.rects] != [RESULT_RECT]):
+            raise Invalid('source_selection', 'Select the curated Fisher Table III cell in the reviewed PDF')
+        annotation.anchor.check(document)
+        return cls(annotation, PDF_URL)
+
+    def to_dict(self):
+        return dict(paper_id=self.annotation.paper_id, document_id=self.annotation.document_id,
+            annotation=self.annotation.to_dict(), source_url=self.source_url,
+            review='Curated visual transcription of the pinned original scan')
+
+
+@dataclass(frozen=True)
+class FisherCommand:
+    action: str
+    identity: str
+    comparison: ComparisonPolicy | None = None
+    spec_id: str | None = None
+    request_id: str | None = None
+    attempt_id: str | None = None
+
+    @classmethod
+    def parse(cls, raw):
+        action = raw.get('action') if isinstance(raw, dict) else None
+        shapes = dict(select=('documentId',), status=('annotationId',),
+            freeze=('annotationId', 'comparison', 'confirmed'),
+            run=('itemId', 'specId', 'requestId', 'confirmed'),
+            logs=('itemId', 'attemptId'), export=('itemId', 'attemptId'))
+        if action not in shapes:
+            raise Invalid('action', 'Choose select, status, freeze, run, logs or export')
+        fields(raw, ('action', *shapes[action]))
+        key = shapes[action][0]
+        identity = identifier(raw[key], key)
+        if action in ('freeze', 'run') and raw['confirmed'] is not True:
+            raise Invalid('confirmation_required', 'Explicitly confirm this frozen method before proceeding')
+        comparison = ComparisonPolicy.parse(raw['comparison']) if action == 'freeze' else None
+        spec_id = identifier(raw['specId'], 'specId') if action == 'run' else None
+        request_id = raw.get('requestId')
+        if action == 'run' and (not isinstance(request_id, str) or not 1 <= len(request_id) <= 128):
+            raise Invalid('request_id', 'Use a stable request ID of 1–128 characters')
+        attempt = raw.get('attemptId')
+        if action in ('logs', 'export') and (not isinstance(attempt, str) or not re.fullmatch(r'[0-9a-f]{32}', attempt)):
+            raise Invalid('attempt_id', 'Choose a saved Fisher attempt')
+        return cls(action, identity, comparison, spec_id, request_id, attempt)

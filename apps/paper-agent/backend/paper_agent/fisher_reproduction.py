@@ -92,11 +92,11 @@ def verified_inputs(root, protocol):
     return observations(data), selection
 
 
-def annotate(root, protocol, selection, attempt_id, report):
+def annotate(root, protocol, selection, attempt_id, report, store=None):
     from .pdf import PdfAnnotation
     from .store import ResearchStore
 
-    store = ResearchStore(root / 'paper-store')
+    store = store if store is not None else ResearchStore(root / 'paper-store')
     source = store.annotation(selection['annotation']['id'])
     document = store.pdf(source.document_id)
     if source.to_dict() != selection['annotation'] or sha(store.pdf_bytes(document)) != PDF_SHA256:
@@ -118,19 +118,24 @@ def annotate(root, protocol, selection, attempt_id, report):
     return saved
 
 
-def run(root, spec_id, *, confirm=False):
+def run(root, spec_id, *, confirm=False, store=None, request_id=None):
     root = root_path(root)
     protocol = FisherProtocol.parse(read_json(root / 'spec.json'))
     if spec_id != protocol.id or confirm is not True:
         raise Invalid('approval_required', 'Confirm execution of this exact frozen specification')
     for previous in (root / 'attempts').glob('*/execution.json'):
-        if read_json(previous).get('status') == 'running':
+        previous_status = read_json(previous).get('status')
+        if previous_status == 'running' or (previous_status == 'completed'
+                and not (previous.parent / 'comparison.json').exists()
+                and not (previous.parent / 'failure.json').exists()):
             raise Invalid('reconcile_required', 'An unfinished attempt exists; inspect its owner and evidence before rerunning')
     attempt_id = uuid.uuid4().hex
     target = root / 'attempts' / attempt_id
     target.mkdir(parents=True, exist_ok=False)
     receipt = dict(spec_id=protocol.id, attempt_id=attempt_id, status='running', started_at=now(),
-                   origin='explicit-local-cli', execution_identity_attested=False)
+                   origin='explicit-local-app' if store is not None else 'explicit-local-cli',
+                   execution_identity_attested=False,
+                   **(dict(request_id=request_id) if request_id is not None else {}))
     write_json(target / 'execution.json', receipt)
     phase = 'inputs'
     try:
@@ -173,7 +178,7 @@ def run(root, spec_id, *, confirm=False):
         write_json(target / 'comparison.json', report)
         phase = 'annotation'
         if matches:
-            write_json(target / 'annotation-result.json', annotate(root, protocol, selection, attempt_id, report))
+            write_json(target / 'annotation-result.json', annotate(root, protocol, selection, attempt_id, report, store))
         return dict(**report, annotation_status='saved' if matches else 'not-written',
                     evidence_directory=str(target), log=str(target / 'checker.stdout.log'))
     except (Invalid, OSError, ValueError, subprocess.SubprocessError) as error:
