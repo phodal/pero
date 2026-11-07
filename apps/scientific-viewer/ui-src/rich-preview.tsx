@@ -30,13 +30,13 @@ function ImagePreview({ source, zh, download }: { source: PreviewSource; zh: boo
   return <section className="artifact-image">
     <nav className="artifact-image-toolbar" aria-label={zh ? '图片缩放' : 'Image zoom'}>
       <Button variant="ghost" disabled={zoom <= 0.25} onClick={() => setZoom(value => Math.max(0.25, value - 0.25))} aria-label={zh ? '缩小' : 'Zoom out'}>−</Button>
-      <Button variant="ghost" onClick={() => setZoom(1)}>{zoom === 1 ? (zh ? '适应宽度' : 'Fit width') : `${Math.round(zoom * 100)}%`}</Button>
+      <Button variant="ghost" onClick={() => setZoom(1)}>{zoom === 1 ? (zh ? '适应窗口' : 'Fit to pane') : `${Math.round(zoom * 100)}%`}</Button>
       <Button variant="ghost" disabled={zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + 0.25))} aria-label={zh ? '放大' : 'Zoom in'}>+</Button>
       <span className="artifact-toolbar-spacer" />
       <Button variant="ghost" onClick={download}>{zh ? '下载' : 'Download'}</Button>
     </nav>
     {error && <Feedback kind="error">{zh ? '无法显示图片，可下载原始文件。' : 'The image could not be displayed. Download the original file.'}</Feedback>}
-    <div className="artifact-image-scroll"><img src={url} alt={source.name} style={{ width: `${zoom * 100}%` }} onError={() => setError(true)} /></div>
+    <div className="artifact-image-scroll"><img src={url} alt={source.name} style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }} onError={() => setError(true)} /></div>
   </section>;
 }
 
