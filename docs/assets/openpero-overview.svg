@@ -1,65 +1,98 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" role="img" aria-labelledby="title description" lang="en">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="710" viewBox="0 0 1600 710" role="img" aria-labelledby="title description" xml:lang="en">
 <title id="title">Pero — From a question to a result others can build on.</title>
-<desc id="description">Target workflow. A question from a GitHub Issue, a researcher, or an agent becomes a task contract with pinned inputs, method version, and acceptance criteria. Researchers, agents, or compute workers carry it out. The run is recorded with outputs, parameters, environment, and execution log, then reviewed against the baseline before the result is accepted. Accepted results return to the project memory, which provides context for the next question.</desc>
-<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="#55D5DD" stroke-width="1.6"/></marker></defs>
-<rect x="0" y="0" width="1600" height="560" rx="16" fill="#142B45" stroke="none" stroke-width="1.5"/>
-<g font-family="Inter, Helvetica Neue, PingFang SC, Microsoft YaHei, Arial, sans-serif">
-<text x="64" y="64" font-size="32" fill="#EAF1F8" font-weight="650" >From a question to a result others can build on.</text>
-<rect x="1256" y="38" width="280" height="34" rx="6" fill="none" stroke="#34485D" stroke-width="1.5"/>
-<text x="1396" y="60" font-size="12" fill="#ACBBCB" font-weight="500" font-family="SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="0.5" text-anchor="middle">TARGET WORKFLOW · IN DEVELOPMENT</text>
-<text x="64" y="122" font-size="15" fill="#55D5DD" font-weight="500" font-family="SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="1.5">01 ASK</text>
-<rect x="64" y="148" width="235" height="160" rx="10" fill="#192A3B" stroke="#34485D" stroke-width="1.5"/>
-<text x="84" y="192" font-size="24" fill="#EAF1F8" font-weight="650" >Question</text>
-<text x="84" y="230" font-size="18" fill="#ACBBCB" font-weight="400" >GitHub Issue,</text>
-<text x="84" y="255" font-size="18" fill="#ACBBCB" font-weight="400" >researcher request,</text>
-<text x="84" y="280" font-size="18" fill="#ACBBCB" font-weight="400" >or agent suggestion</text>
-<text x="347" y="122" font-size="15" fill="#55D5DD" font-weight="500" font-family="SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="1.5">02 SPECIFY</text>
-<rect x="347" y="148" width="235" height="160" rx="10" fill="#192A3B" stroke="#34485D" stroke-width="1.5"/>
-<text x="367" y="192" font-size="24" fill="#EAF1F8" font-weight="650" >Task contract</text>
-<text x="367" y="230" font-size="18" fill="#ACBBCB" font-weight="400" >Pinned inputs and</text>
-<text x="367" y="255" font-size="18" fill="#ACBBCB" font-weight="400" >method version,</text>
-<text x="367" y="280" font-size="18" fill="#ACBBCB" font-weight="400" >acceptance criteria</text>
-<text x="630" y="122" font-size="15" fill="#55D5DD" font-weight="500" font-family="SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="1.5">03 DO THE WORK</text>
-<text x="1018" y="122" font-size="15" fill="#55D5DD" font-weight="500" font-family="SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="1.5">04 RECORD</text>
-<rect x="1018" y="148" width="235" height="160" rx="10" fill="#192A3B" stroke="#34485D" stroke-width="1.5"/>
-<text x="1038" y="192" font-size="24" fill="#EAF1F8" font-weight="650" >Run record</text>
-<text x="1038" y="230" font-size="18" fill="#ACBBCB" font-weight="400" >Outputs, parameters,</text>
-<text x="1038" y="255" font-size="18" fill="#ACBBCB" font-weight="400" >environment, and</text>
-<text x="1038" y="280" font-size="18" fill="#ACBBCB" font-weight="400" >execution log</text>
-<text x="1301" y="122" font-size="15" fill="#55D5DD" font-weight="500" font-family="SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="1.5">05 ACCEPT</text>
-<rect x="1301" y="148" width="235" height="160" rx="10" fill="#12363E" stroke="#55D5DD" stroke-width="1.5"/>
-<text x="1321" y="192" font-size="24" fill="#EAF1F8" font-weight="650" >Accepted result</text>
-<text x="1321" y="230" font-size="18" fill="#ACBBCB" font-weight="400" >Reviewed against</text>
-<text x="1321" y="255" font-size="18" fill="#ACBBCB" font-weight="400" >the baseline, then</text>
-<text x="1321" y="280" font-size="18" fill="#ACBBCB" font-weight="400" >added to the project</text>
-<rect x="630" y="140" width="340" height="48" rx="8" fill="#192A3B" stroke="#34485D" stroke-width="1.5"/>
-<g fill="none" stroke="#55D5DD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="658" cy="158" r="6"/><path d="M 647 176 C 647 165, 669 165, 669 176"/></g>
-<text x="686" y="171" font-size="19" fill="#EAF1F8" font-weight="600" >Researchers</text>
-<text x="954" y="170" font-size="14" fill="#ACBBCB" font-weight="400" text-anchor="end">judgment · review</text>
-<path d="M 582 228 C 606 228, 606 164, 628 164" fill="none" stroke="#55D5DD" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M 970 164 C 994 164, 994 228, 1016 228" fill="none" stroke="#55D5DD" stroke-width="2" marker-end="url(#arrow)"/>
-<rect x="630" y="196" width="340" height="48" rx="8" fill="#192A3B" stroke="#34485D" stroke-width="1.5"/>
-<g fill="none" stroke="#55D5DD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M 658 207 C 660 217, 661 218, 671 220 C 661 222, 660 223, 658 233 C 656 223, 655 222, 645 220 C 655 218, 656 217, 658 207 Z"/></g>
-<text x="686" y="227" font-size="19" fill="#EAF1F8" font-weight="600" >Agents</text>
-<text x="954" y="226" font-size="14" fill="#ACBBCB" font-weight="400" text-anchor="end">prepare · propose</text>
-<path d="M 582 228 C 606 228, 606 220, 628 220" fill="none" stroke="#55D5DD" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M 970 220 C 994 220, 994 228, 1016 228" fill="none" stroke="#55D5DD" stroke-width="2" marker-end="url(#arrow)"/>
-<rect x="630" y="252" width="340" height="48" rx="8" fill="#192A3B" stroke="#34485D" stroke-width="1.5"/>
-<g fill="none" stroke="#55D5DD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="646" y="264" width="24" height="10" rx="2"/><rect x="646" y="278" width="24" height="10" rx="2"/><path d="M 651 269 h 2 M 651 283 h 2"/></g>
-<text x="686" y="283" font-size="19" fill="#EAF1F8" font-weight="600" >Compute</text>
-<text x="954" y="282" font-size="14" fill="#ACBBCB" font-weight="400" text-anchor="end">laptop · lab · cloud</text>
-<path d="M 582 228 C 606 228, 606 276, 628 276" fill="none" stroke="#55D5DD" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M 970 276 C 994 276, 994 228, 1016 228" fill="none" stroke="#55D5DD" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M 299 228 H 345" fill="none" stroke="#55D5DD" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M 1253 228 H 1299" fill="none" stroke="#55D5DD" stroke-width="2" marker-end="url(#arrow)"/>
-<rect x="64" y="392" width="1472" height="112" rx="12" fill="#192A3B" stroke="#34485D" stroke-width="1.5"/>
-<text x="96" y="430" font-size="15" fill="#55D5DD" font-weight="500" font-family="SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="1.5">PROJECT MEMORY</text>
-<text x="1504" y="430" font-size="16" fill="#ACBBCB" font-weight="400" text-anchor="end">Survives sessions, people, and machines</text>
-<text x="96" y="472" font-size="24" fill="#EAF1F8" font-weight="500" >Question · Papers · Datasets · Methods · Runs · Decisions · Open questions</text>
-<path d="M 1418.5 308 V 390" fill="none" stroke="#55D5DD" stroke-width="2" marker-end="url(#arrow)"/>
-<text x="1430.5" y="356" font-size="15" fill="#55D5DD" font-weight="500" font-family="SFMono-Regular, Menlo, Consolas, monospace">accept</text>
-<path d="M 181.5 392 V 310" fill="none" stroke="#55D5DD" stroke-width="2" marker-end="url(#arrow)"/>
-<text x="193.5" y="356" font-size="15" fill="#55D5DD" font-weight="500" font-family="SFMono-Regular, Menlo, Consolas, monospace">context</text>
+<desc id="description">Target research workflow, not a claim of end-to-end implementation. A question becomes a contract with fixed inputs, method version and acceptance criteria. Researchers, agents and authorized compute perform the work. Outputs, parameters, environment and logs are recorded, independently reviewed against a baseline, then accepted by a person. Accepted results feed future project context. Shared project memory across people and machines remains planned; local project links already exist. Illustrations do not represent measured results.</desc>
+<defs>
+<marker id="arrow0" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M 2 2 L 9 6 L 2 10" fill="none" stroke="#667075" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="arrow1" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M 2 2 L 9 6 L 2 10" fill="none" stroke="#A87531" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+<style>text{font-family:"Noto Sans CJK SC","Noto Sans CJK","PingFang SC","Microsoft YaHei",Arial,sans-serif}path,line,rect,circle,ellipse{stroke-linecap:round;stroke-linejoin:round}</style>
+<rect width="1600" height="710" fill="#FFFFFF"/>
+<text x="64" y="60" font-size="36" fill="#20272B" font-weight="700" text-anchor="start">From a question to a result others can build on.</text>
+<text x="64" y="102" font-size="20" fill="#667075" font-weight="500" text-anchor="start">TARGET WORKFLOW · IN DEVELOPMENT</text>
+<text x="188" y="157" font-size="21" fill="#20272B" font-weight="600" text-anchor="middle">01 ASK</text>
+<ellipse cx="188" cy="286" rx="119" ry="79" fill="#FBF3E7"/>
+<g transform="translate(188 274) scale(1.02)">
+<path d="M -44 -62 H 21 L 45 -38 V 62 H -44 Z M 21 -62 V -38 H 45" fill="#FFFFFF" stroke="#A87531" stroke-width="2.8"/>
+<path d="M -28 -40 H 8" fill="none" stroke="#A87531" stroke-width="4"/>
+<path d="M -28 -23 H 25 M -28 -9 H 25 M -28 5 H 13" fill="none" stroke="#D7DCDF" stroke-width="2.2"/>
+<path d="M -28 44 V 21 M -28 44 H 28 M -19 35 H -7 M 0 26 H 12 M 17 36 H 27" fill="none" stroke="#667075" stroke-width="2.2"/>
 </g>
+<text x="188" y="397" font-size="28" fill="#20272B" font-weight="700" text-anchor="middle">Question</text>
+<text x="188" y="439" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">GitHub Issue, researcher</text>
+<text x="188" y="471" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">request or Agent suggestion</text>
+<path d="M 317 276 H 365" fill="none" stroke="#667075" stroke-width="2.2" stroke-dasharray="7 6" marker-end="url(#arrow0)"/>
+<text x="494" y="157" font-size="21" fill="#667075" font-weight="600" text-anchor="middle">02 SPECIFY</text>
+<ellipse cx="494" cy="286" rx="119" ry="79" fill="#F5F7F7"/>
+<g transform="translate(494 274) scale(1.02)">
+<path d="M -44 -62 H 21 L 45 -38 V 62 H -44 Z M 21 -62 V -38 H 45" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<path d="M -28 -40 H 8" fill="none" stroke="#20272B" stroke-width="4"/>
+<path d="M -28 -23 H 25 M -28 -9 H 25 M -28 5 H 13" fill="none" stroke="#D7DCDF" stroke-width="2.2"/>
+<rect x="-28" y="16" width="10" height="10" rx="1" fill="#FFFFFF" stroke="#667075" stroke-width="2"/>
+<path d="M -8 22 H 27" fill="none" stroke="#667075" stroke-width="2.2"/>
+<rect x="-28" y="34" width="10" height="10" rx="1" fill="#FFFFFF" stroke="#667075" stroke-width="2"/>
+<path d="M -8 40 H 27" fill="none" stroke="#667075" stroke-width="2.2"/>
+</g>
+<text x="494" y="397" font-size="28" fill="#20272B" font-weight="700" text-anchor="middle">Task contract</text>
+<text x="494" y="439" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">Fix inputs, method version</text>
+<text x="494" y="471" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">and acceptance criteria</text>
+<path d="M 623 276 H 671" fill="none" stroke="#667075" stroke-width="2.2" stroke-dasharray="7 6" marker-end="url(#arrow0)"/>
+<text x="800" y="157" font-size="21" fill="#667075" font-weight="600" text-anchor="middle">03 EXECUTE</text>
+<ellipse cx="800" cy="286" rx="119" ry="79" fill="#F5F7F7"/>
+<g transform="translate(770 241) scale(0.75)">
+<circle cx="-35" cy="-28" r="14" fill="#FFFFFF" stroke="#20272B" stroke-width="2.4"/>
+<path d="M -58 22 V 6 C -58 -15 -12 -15 -12 6 V 22 Z" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<circle cx="34" cy="-19" r="14" fill="#FFFFFF" stroke="#20272B" stroke-width="2.4"/>
+<path d="M 11 31 V 15 C 11 -6 57 -6 57 15 V 31 Z" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+</g>
+<g transform="translate(812 306) scale(0.85)">
+<rect x="-65" y="-47" width="130" height="87" rx="8" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<rect x="-54" y="-35" width="108" height="62" rx="2" fill="#F5F7F7" stroke="none" stroke-width="2"/>
+<path d="M -65 40 L -80 54 H 80 L 65 40 M -21 47 H 21" fill="none" stroke="#20272B" stroke-width="2.8"/>
+<path d="M -25 -13 L -38 0 L -25 13 M 25 -13 L 38 0 L 25 13 M 7 -21 L -7 22" fill="none" stroke="#667075" stroke-width="2.6"/>
+</g>
+<text x="800" y="397" font-size="25" fill="#20272B" font-weight="700" text-anchor="middle">People · Agents · Compute</text>
+<text x="800" y="439" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">Human judgment and review</text>
+<text x="800" y="471" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">Agents prepare and propose</text>
+<text x="800" y="503" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">Approved local or remote work</text>
+<path d="M 929 276 H 977" fill="none" stroke="#667075" stroke-width="2.2" stroke-dasharray="7 6" marker-end="url(#arrow0)"/>
+<text x="1106" y="157" font-size="21" fill="#667075" font-weight="600" text-anchor="middle">04 RECORD</text>
+<ellipse cx="1106" cy="286" rx="119" ry="79" fill="#F5F7F7"/>
+<g transform="translate(1106 274) scale(1.02)">
+<path d="M -44 -62 H 21 L 45 -38 V 62 H -44 Z M 21 -62 V -38 H 45" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<path d="M -28 -40 H 8" fill="none" stroke="#20272B" stroke-width="4"/>
+<path d="M -28 -23 H 25 M -28 -9 H 25 M -28 5 H 13" fill="none" stroke="#D7DCDF" stroke-width="2.2"/>
+<path d="M -28 44 V 21 M -28 44 H 28 M -19 35 H -7 M 0 26 H 12 M 17 36 H 27" fill="none" stroke="#667075" stroke-width="2.2"/>
+</g>
+<text x="1106" y="397" font-size="28" fill="#20272B" font-weight="700" text-anchor="middle">Run record</text>
+<text x="1106" y="439" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">Outputs, parameters,</text>
+<text x="1106" y="471" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">environment and logs</text>
+<path d="M 1235 276 H 1283" fill="none" stroke="#667075" stroke-width="2.2" stroke-dasharray="7 6" marker-end="url(#arrow0)"/>
+<text x="1412" y="157" font-size="21" fill="#667075" font-weight="600" text-anchor="middle">05 REVIEW</text>
+<ellipse cx="1412" cy="286" rx="119" ry="79" fill="#F5F7F7"/>
+<g transform="translate(1412 274) scale(1.02)">
+<path d="M -44 -62 H 21 L 45 -38 V 62 H -44 Z M 21 -62 V -38 H 45" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<path d="M -28 -40 H 8" fill="none" stroke="#20272B" stroke-width="4"/>
+<path d="M -28 -23 H 25 M -28 -9 H 25 M -28 5 H 13" fill="none" stroke="#D7DCDF" stroke-width="2.2"/>
+<circle cx="23" cy="39" r="26" fill="#FFFFFF" stroke="#20272B" stroke-width="2.4"/>
+<path d="M 9 39 L 19 49 L 38 28" fill="none" stroke="#20272B" stroke-width="3"/>
+</g>
+<text x="1412" y="397" font-size="28" fill="#20272B" font-weight="700" text-anchor="middle">Accepted result</text>
+<text x="1412" y="439" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">Check against the baseline;</text>
+<text x="1412" y="471" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">a person accepts the result</text>
+<rect x="64" y="561" width="1472" height="115" rx="14" fill="#F5F7F7" stroke="#D7DCDF" stroke-width="2" stroke-dasharray="7 6"/>
+<g transform="translate(120 617) scale(0.49)">
+<path d="M -61 -45 H -18 L -5 -31 H 62 V 51 H -61 Z M -61 -20 H 62" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<path d="M -37 5 L 0 26 L 38 3 M 0 26 L 35 43" fill="none" stroke="#667075" stroke-width="2.2"/>
+<circle cx="-37" cy="5" r="6" fill="#FFFFFF" stroke="#20272B" stroke-width="2.4"/>
+<circle cx="0" cy="26" r="6" fill="#FFFFFF" stroke="#20272B" stroke-width="2.4"/>
+<circle cx="38" cy="3" r="6" fill="#FFFFFF" stroke="#20272B" stroke-width="2.4"/>
+<circle cx="35" cy="43" r="6" fill="#FFFFFF" stroke="#20272B" stroke-width="2.4"/>
+</g>
+<text x="175" y="602" font-size="26" fill="#20272B" font-weight="600" text-anchor="start">Project memory</text>
+<text x="175" y="642" font-size="23" fill="#20272B" font-weight="400" text-anchor="start">Questions · Papers · Data · Methods · Runs · Decisions · Open questions</text>
+<text x="1496" y="602" font-size="21" fill="#667075" font-weight="400" text-anchor="end">Shared continuity is planned; local project links exist.</text>
+<path d="M 1412 489 V 530 H 1472 V 558" fill="none" stroke="#667075" stroke-width="2.2" stroke-dasharray="7 6" marker-end="url(#arrow0)"/>
+<text x="1390" y="531" font-size="21" fill="#667075" font-weight="400" text-anchor="end">Accepted evidence</text>
+<path d="M 128 560 V 523 H 188 V 490" fill="none" stroke="#667075" stroke-width="2.2" stroke-dasharray="7 6" marker-end="url(#arrow0)"/>
+<text x="218" y="531" font-size="21" fill="#667075" font-weight="400" text-anchor="start">Context for the next question</text>
 </svg>
