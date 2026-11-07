@@ -607,8 +607,17 @@ async fn run(
                         let result = match admitted {
                             Err(error) => Err(error),
                             Ok(id) => {
-                                let operation = tokio::time::timeout(SETUP_TIMEOUT,
-                                    connection.send_request(UntypedMessage::new(super::mcp_session::METHOD, request.acp_params(&id))?).block_task());
+                                let request_task = connection.send_request(UntypedMessage::new(super::mcp_session::METHOD, request.acp_params(&id))?).block_task();
+                                let operation = async {
+                                    // Interactive calls wait for the user's decision, just like a prompt.
+                                    // The Agent owns the configured tool execution timeout after approval.
+                                    if matches!(request.action, pero_contracts::mcp_session::McpSessionAction::Prepare | pero_contracts::mcp_session::McpSessionAction::Tool) {
+                                        request_task.await
+                                    } else {
+                                        tokio::time::timeout(SETUP_TIMEOUT, request_task).await
+                                            .map_err(|_| failure("MCP session operation timed out")).and_then(|result| result)
+                                    }
+                                };
                                 tokio::pin!(operation);
                                 let mut binding_closed = false;
                                 // Revocation must not wait behind the operation it revokes,
@@ -648,7 +657,7 @@ async fn run(
                                             },
                                             Some(command) => defer(command, &mut deferred, &tx, &thread),
                                         },
-                                        result = &mut operation => break result.map_err(|_| failure("MCP session operation timed out")).and_then(|result| result).map(Some),
+                                        result = &mut operation => break result.map(Some),
                                     }
                                 };
                                 match response {

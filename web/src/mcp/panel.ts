@@ -61,6 +61,7 @@ function toolForm(server:ServerInfo,tool:ServerInfo['tools'][number]){
     fields.set(name,{input,type:schema.type});
   }
   const open=button('Open App',async()=>{
+    if(opening){status.textContent='An App is awaiting approval. Complete it or close it before opening another App.';return;}
     const args:Record<string,unknown>={};
     for(const [name,{input,type}] of fields){if(!input.value)continue;args[name]=type==='string'||!type?input.value:JSON.parse(input.value);}
     const pending={id:crypto.randomUUID(),cancelled:false};if(managed)opening=pending;

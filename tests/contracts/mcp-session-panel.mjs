@@ -16,6 +16,7 @@ import {McpSessionRpc} from '../../desktop/src/main/mcp-session-rpc.ts';
 import {McpSessionPanels} from '../../desktop/src/main/mcp-session-panels.ts';
 const root=resolve(import.meta.dirname,'../..');
 const browserMode=process.argv.includes('--browser');
+const slowApproval=process.argv.includes('--slow-approval');
 const receipt=resolve(root,'test-results/mcp-session/panel-result.json');
 await rm(receipt,{force:true});
 const home=await mkdtemp(join(tmpdir(),'pero-session-panel-'));
@@ -35,7 +36,7 @@ const host=spawn(resolve(root,'target/debug/pero-host'),['--stdio'],{cwd:home,en
 host.stderr.on('data',chunk=>{stderr+=chunk;});
 const events=[],waiters=new Set();
 const send=value=>host.stdin.write(JSON.stringify(value)+'\n');
-const electronRpc=new McpSessionRpc(send,15_000);
+const electronRpc=new McpSessionRpc(send,slowApproval?90_000:15_000);
 const browserSelections=[];
 const electronPanels=new McpSessionPanels(electronRpc,resolve(root,'desktop/dist'),undefined,undefined,selection=>browserSelections.push(selection));
 const lines=createInterface({input:host.stdout});
@@ -134,9 +135,33 @@ try{
       assert.equal(browserSelections.at(-1).contents[0].text,read.contents[0].text);
       const evidence=resolve(root,'test-results/mcp-session');await mkdir(evidence,{recursive:true});
       await page.screenshot({path:join(evidence,'resources-light.png')});
+      approvePermissions=false;
+      const beforePending=events.length,beforeOpeningCalls=mcp.toolCalls;
+      await page.getByRole('button',{name:'show',exact:true}).click();
+      await page.getByLabel('label',{exact:true}).fill('Pending App');
+      await page.getByRole('button',{name:'Open App',exact:true}).click();
+      const pendingPermission=await next('permission',event=>events.indexOf(event)>=beforePending);
+      // Selecting another tool form must not replace the in-flight opening identity.
+      await page.getByRole('button',{name:'show',exact:true}).click();
+      await page.getByRole('button',{name:'Open App',exact:true}).click();
+      await expect(page.locator('#status')).toContainText('An App is awaiting approval');
+      await page.getByRole('button',{name:'Close App',exact:true}).click();
+      send({action:'permission',thread_id:pendingPermission.thread_id,request_id:pendingPermission.data.permission_id,option_id:'allow-once'});
+      await api({action:'list'}); // Ordered barrier after cancellation and the late answer.
+      assert.equal(mcp.toolCalls,beforeOpeningCalls);
+      await expect(page.locator('#view iframe')).toHaveCount(0);
+      approvePermissions=!slowApproval;
       await page.getByRole('button',{name:'show',exact:true}).click();
       await page.getByLabel('label',{exact:true}).fill('Actual session App');
+      const beforeApproval=events.length;
       await page.getByRole('button',{name:'Open App',exact:true}).click();
+      if(slowApproval){
+        const permission=await next('permission',event=>events.indexOf(event)>=beforeApproval);
+        // Intentionally model a user reviewing approval beyond the 45-second setup deadline.
+        await new Promise(done=>setTimeout(done,46_000));
+        send({action:'permission',thread_id:permission.thread_id,request_id:permission.data.permission_id,option_id:'allow-once'});
+        approvePermissions=true;
+      }
       const app=page.frameLocator('#view > iframe').frameLocator('iframe');
       await expect(app.locator('#input')).toHaveText('Actual session App');
       await expect(app.locator('#result')).toHaveText('Actual session App');
@@ -165,5 +190,5 @@ try{
   assert.deepEqual(exitStatus,[0,null],'Host/provider did not shut down gracefully');
 }
 await mkdir(resolve(root,'test-results/mcp-session'),{recursive:true});
-await writeFile(receipt,JSON.stringify({passed:true,actualHost:true,actualGoACP:true,actualNodeProvider:true,actualElectronAdapter:true,realMCP:true,graphicalUI:browserMode,modelRequests,initializations:mcp.initializations,permissions,successfulApprovals:browserMode?4:2,cancelledApprovals:2,checks:['same existing MCP connection','resources read and text-only Chat selection','App initial and interactive calls share mandatory ask approval','cross-visibility denial','closed binding refuses interaction','close during initial App approval cancels without side effects or late-approval replay','active App revocation precedes an unresponsive teardown and blocks late approval']},null,2));
+await writeFile(receipt,JSON.stringify({passed:true,actualHost:true,actualGoACP:true,actualNodeProvider:true,actualElectronAdapter:true,realMCP:true,graphicalUI:browserMode,slowApproval,modelRequests,initializations:mcp.initializations,permissions,successfulApprovals:browserMode?4:2,cancelledApprovals:browserMode?3:2,checks:['same existing MCP connection','resources read and text-only Chat selection','App initial and interactive calls share mandatory ask approval','cross-visibility denial','closed binding refuses interaction','close during initial App approval cancels without side effects or late-approval replay','active App revocation precedes an unresponsive teardown and blocks late approval',...(browserMode?['replacing the tool form cannot orphan a pending opening']:[]),...(slowApproval?['approval after 46 seconds survives the setup deadline']:[])]},null,2));
 console.log(browserMode?'Real Host/ACP/MCP chain and production browser inspection passed.':'Real Host/Native panel/Go ACP/MCP chain passed; graphical UI not claimed.');
