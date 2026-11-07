@@ -575,6 +575,7 @@ mod tests {
 #[cfg(any(target_family = "wasm", feature = "native"))]
 impl crate::app::Workbench {
     pub(crate) fn open_app_link(&mut self, href:&str, _window:&mut gpui_kit::Window, cx:&mut gpui_kit::Context<Self>) {
+        if let Ok(reference)=pero_contracts::pull_request::PullRequestRef::try_from(href.to_owned()) {self.open_pull_request(reference,cx);return;}
         if !href.starts_with("pero-app-location:") {cx.open_url(href);return;}
         let Some(address)=pero_contracts::app_chat::AppLocation::parse(href) else{return;};
         let app=address.scope.app.as_str();let panel=address.scope.panel.as_str();let location=address.location.as_str();

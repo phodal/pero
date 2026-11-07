@@ -5,6 +5,16 @@ use pero_contracts::{
     workspace_panes::PaneId,
 };
 impl WorkspaceNavigation {
+    pub(crate) fn open_background(&mut self, item: WorkspaceItem) {
+        if !self.items.contains(&item) { self.items.push(item.clone()); }
+        self.ensure_pane_layout();
+        if let Some(layout)=&mut self.pane_layout {
+            if let Some(pane)=layout.focused {
+                layout.open_tab(pane,WorkspaceRoute::Content(item),None,OpenIntent::Background);
+            }
+        }
+    }
+
     pub(crate) fn clear_document_locations(&mut self, item: &WorkspaceItem) {
         self.history.clear_document_locations(item);
         if let Some(layout) = &mut self.pane_layout {

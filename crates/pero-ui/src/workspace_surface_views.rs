@@ -204,6 +204,7 @@ impl Workbench {
             Some(WorkspaceRoute::Content(WorkspaceItem::Conversation(_))) => {
                 self.chat.clone().into_any_element()
             }
+            Some(WorkspaceRoute::Content(WorkspaceItem::PullRequest(reference))) => self.pull_request_content(reference,cx),
             Some(WorkspaceRoute::Content(WorkspaceItem::Compute)) => {
                 self.compute_content(cx)
             }

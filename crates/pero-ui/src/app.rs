@@ -62,6 +62,8 @@ pub(crate) struct Workbench {
     pub artifact_preview:Option<crate::native_artifact_preview::RetainedArtifactPreview>,
     #[cfg(not(target_family="wasm"))]
     pub native_web_pages:std::collections::BTreeMap<String,crate::web_documents::WorkspaceNativeWeb>,
+    pub(crate) discovered_pull_requests: std::collections::BTreeSet<pero_contracts::pull_request::PullRequestRef>,
+    pub(crate) pull_requests:Vec<crate::pull_requests::PullRequestContent>,
     pub web_documents:Vec<pero_contracts::web_document::WebDocument>,
     pub web_address:Entity<InputState>,
     pub web_entry_open:bool,
@@ -321,6 +323,7 @@ impl Workbench {
             mcp_app_wait: None,
             #[cfg(not(target_family="wasm"))]
             artifact_preview:None,
+            discovered_pull_requests:Default::default(), pull_requests:vec![],
             web_documents:vec![],web_address,web_entry_open:false,web_surface:String::new(),
             remote,
             local_execution,
@@ -541,8 +544,14 @@ impl Workbench {
             return;
         }
         if event.kind == "automation_open" { self.open_automations(window, cx); return; }
+        if event.kind=="turn_finished" {
+            if let Some(thread_id)=&event.thread_id {
+                self.next_request+=1;
+                self.command(json!({"method":"pull_requests","action":"discover","request_id":format!("pr-discover-{}",self.next_request),"thread_id":thread_id}),cx);
+            }
+        }
         let event_kind = event.kind.clone();
-        let feature_handled = self.receive_terminal(&event,cx) || self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
+        let feature_handled = self.receive_terminal(&event,cx) || self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_pull_request(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_engram(&event, window, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, window, cx)
             || self.receive_contribution(&event, cx)
@@ -839,6 +848,8 @@ pub fn snapshot() -> String {
         value["appOpenButtonBounds"] = ui.view_bounds.app_open.snapshot();
         value["chatCloseButtonBounds"] = ui.view_bounds.chat_close.snapshot()["float-chat-close"].clone();
         value["chatVisible"] = serde_json::json!(ui.chat_visible());
+        value["pullRequests"]=json!(ui.pull_requests.iter().map(|view|json!({"reference":view.state.reference,"pending":view.state.pending,"error":view.state.error,"tab":view.state.tab,"selectedFile":view.state.selected_file,"snapshot":view.state.snapshot})).collect::<Vec<_>>());
+        value["prControls"]=ui.view_bounds.pull_request.snapshot();
         value["webDocuments"]=json!(ui.web_documents);
         value["webAddress"]=json!(ui.web_address.read(cx).value().as_ref());
         value["webEntryOpen"]=json!(ui.web_entry_open);

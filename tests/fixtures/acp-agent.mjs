@@ -92,6 +92,10 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
    ];
    let phase=0;timer=setInterval(()=>phases[phase++](),350);return;
   }
+  if(text.includes('pull-request-view')){
+   notify({sessionUpdate:'agent_message_chunk',content:{type:'text',text:'[Review pull request](https://github.com/phodal/pero/pull/164)'}});
+   finish('end_turn');return;
+  }
   if(text.includes('contentview')){
    const path=process.argv.find(arg=>arg.startsWith('--content-file='))?.slice('--content-file='.length);
    const source=readFileSync(path,'utf8');
