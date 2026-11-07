@@ -17,6 +17,7 @@ import { importConnectorJSON } from './shared/import-json.mjs';
 import { CAPABILITY_GUIDES, capabilityGuides, visibleCapabilityGuides } from './capability-guides.mjs';
 
 import { connectorSections, connectorShelf, connectorShelfLabels } from './connector-categories.mjs';
+import { CustomMcps } from './custom-mcps';
 import { errorMessage } from './error-message.ts';
 import type { PointBrowserOpener, PointBrowserRequest } from './bridge.ts';
 import { Button, Card, Dialog, EmptyIllustration, EmptyState, Icon, IconButton, InfoTip, LoadingSkeleton, RadioGroup, RadioGroupItem, SearchField, Select, SkeletonCards, SkeletonText, Tabs, TabsContent, TabsList, TabsTrigger, ToggleGroup, ToggleGroupItem, Toolbar } from './ui';
@@ -72,14 +73,15 @@ type CapabilityGuide = (typeof CAPABILITY_GUIDES)[number];
  * form) and calls `onClosed` when the dialog closes — how Pulse connects
  * GitHub or Linear in place instead of sending the person to this page.
  */
-export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openConnection, settingsOnly = false, initialMode = 'catalog', onModeChange, locale = 'zh' }: { locale?: 'zh' | 'en'; initialMode?: 'catalog' | 'manage'; onOpenUrl?: PointBrowserOpener; onModeChange?: (mode: 'catalog' | 'manage') => void; onTry?: (prompt: string) => void | Promise<void>; openProvider?: string; openConnection?: string; settingsOnly?: boolean; onClosed?: () => void } = {}) {
+type ConnectorMode = 'catalog' | 'manage' | 'custom';
+export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openConnection, settingsOnly = false, initialMode = 'catalog', onModeChange, locale = 'zh' }: { locale?: 'zh' | 'en'; initialMode?: ConnectorMode; onOpenUrl?: PointBrowserOpener; onModeChange?: (mode: ConnectorMode) => void; onTry?: (prompt: string) => void | Promise<void>; openProvider?: string; openConnection?: string; settingsOnly?: boolean; onClosed?: () => void } = {}) {
   const categoryLabels = connectorShelfLabels(locale);
   const copy = (zh: string, en: string) => locale === 'zh' ? zh : en;
   const { directory, connections, entries, error, loading, refreshing, reload } = useConnectorsSnapshot(locale);
   const dialogOnly = !!openProvider;
   const openedFor = useRef('');
-  const [mode, updateMode] = useState<'catalog' | 'manage'>(initialMode);
-  const setMode = (next: 'catalog' | 'manage') => { updateMode(next); onModeChange?.(next); };
+  const [mode, updateMode] = useState<ConnectorMode>(initialMode);
+  const setMode = (next: ConnectorMode) => { updateMode(next); onModeChange?.(next); };
   useEffect(() => updateMode(initialMode), [initialMode]);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
@@ -296,8 +298,8 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
     }
   };
 
-  return <Tabs value={mode} onValueChange={next => { if (next === 'catalog' || next === 'manage') { setMode(next); setSearch(''); } }}><section className={dialogOnly ? 'point-connectors-dialog-only' : 'point-page point-connectors-page'} aria-label={copy('连接器', 'Connectors')}>
-    {error && <div role="alert"><p className="point-error">{error} {directory.length || connections.length ? copy('当前显示上次读取的结果。', 'Showing the last loaded results.') : ''}</p><Button onClick={() => void reload()} disabled={refreshing}>{copy('重新加载', 'Reload')}</Button></div>}
+  return <Tabs value={mode} onValueChange={next => { if (next === 'catalog' || next === 'manage' || next === 'custom') { setMode(next); setSearch(''); } }}><section className={dialogOnly ? 'point-connectors-dialog-only' : 'point-page point-connectors-page'} aria-label={copy('连接器', 'Connectors')}>
+    {error && mode !== 'custom' && <div role="alert"><p className="point-error">{error} {directory.length || connections.length ? copy('当前显示上次读取的结果。', 'Showing the last loaded results.') : ''}</p><Button onClick={() => void reload()} disabled={refreshing}>{copy('重新加载', 'Reload')}</Button></div>}
     {loading && dialogOnly && <p className="point-page-note" role="status">{copy('正在加载…', 'Loading…')}</p>}
     {!dialogOnly && <>
 
@@ -305,17 +307,18 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
       <TabsList variant="navigation" aria-label={copy('视图', 'View')}>
         <TabsTrigger value="catalog">{copy('服务目录', 'Service catalog')}</TabsTrigger>
         <TabsTrigger value="manage">{copy('已安装连接', 'Installed connections')}{connections.length ? ` ${connections.length}` : ''}</TabsTrigger>
+        <TabsTrigger value="custom">{copy('自定义 MCPs', 'Custom MCPs')}</TabsTrigger>
       </TabsList>
-      <div className="point-page-actions"><IconButton label={copy('刷新', 'Refresh')} disabled={refreshing} onClick={() => void reload()}><Icon name="refresh" /></IconButton><Button onClick={openImport} disabled={!!error || loading}><Icon name="plus" />{copy('自定义 MCP', 'Custom MCP')}</Button></div>
+      {mode !== 'custom' && <div className="point-page-actions"><IconButton label={copy('刷新', 'Refresh')} disabled={refreshing} onClick={() => void reload()}><Icon name="refresh" /></IconButton><Button onClick={openImport} disabled={!!error || loading}><Icon name="plus" />{copy('自定义 MCP', 'Custom MCP')}</Button></div>}
     </Toolbar>
 
-    <div className="point-connectors-search-tools"><SearchField placeholder={mode === 'manage' ? copy('搜索已安装连接', 'Search installed connections') : copy('搜索服务与能力', 'Search services and capabilities')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
+    <div className="point-connectors-search-tools"><SearchField placeholder={mode === 'custom' ? copy('搜索自定义 MCP', 'Search custom MCPs') : mode === 'manage' ? copy('搜索已安装连接', 'Search installed connections') : copy('搜索服务与能力', 'Search services and capabilities')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
       {mode === 'catalog' && <Select label={copy('服务分类', 'Service category')} value={category} onChange={setCategory}
         options={categoriesAvailable.map(key => ({ value: key, label: key === 'all' ? copy('全部服务', 'All services') : categoryLabels[key] ?? key }))} />}
     </div>
 
-    {refreshing && !loading && <p className="point-page-note" role="status">{copy('正在刷新，保留上次连接状态…', 'Refreshing; previous connection states remain visible…')}</p>}
-    {notice && !detailOpen && !importOpen && <p className={noticeError ? 'point-error' : 'point-connectors-notice'} role={noticeError ? 'alert' : 'status'}>{notice}</p>}
+    {refreshing && !loading && mode !== 'custom' && <p className="point-page-note" role="status">{copy('正在刷新，保留上次连接状态…', 'Refreshing; previous connection states remain visible…')}</p>}
+    {notice && mode !== 'custom' && !detailOpen && !importOpen && <p className={noticeError ? 'point-error' : 'point-connectors-notice'} role={noticeError ? 'alert' : 'status'}>{notice}</p>}
 
     {mode === 'catalog' && <TabsContent value="catalog" className="point-connectors-catalog">
       {guides.length > 0 && <section className="point-connectors-capabilities" aria-label={copy('内置能力', 'Built-in capabilities')}>
@@ -401,6 +404,8 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
           description={copy('从服务目录安装一个连接，或添加自定义 MCP。', 'Install a connection from the service catalog or add a custom MCP.')}
           actions={<><Button variant="primary" onClick={() => { setMode('catalog'); setSearch(''); setCategory('all'); }}>{copy('查看服务目录', 'Browse service catalog')}</Button><Button onClick={openImport}>{copy('添加自定义 MCP', 'Add custom MCP')}</Button></>} />)}
     </TabsContent>}
+
+    {mode === 'custom' && <TabsContent value="custom" className="point-connectors-manage"><CustomMcps locale={locale} query={search} /></TabsContent>}
     </>}
 
     {importOpen && <Dialog title={copy('添加自定义 MCP', 'Add custom MCP')} size="lg" closeLabel={copy('关闭', 'Close')} dismissOnBackdrop initialFocus="#connector-import-json" onClose={() => setImportOpen(false)}

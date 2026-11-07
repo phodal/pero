@@ -12,6 +12,7 @@ import './shell.css';
 import { applyAppearance } from '../../packages/app-sdk/src/appearance';
 import { normalizeLocale, translate } from '../../locales';
 import { mountAppSurfaces, type AppSurface, type AppSurfaceBatch } from './apps';
+import { admitAgents, exchangeMcpSettings } from './mcp-settings-bridge';
 import { mountArtifactPreview, type ArtifactSurface } from './artifact-preview';
 
 export interface HostEvent { version: number; kind: string; request_id: string | null; text: string; message_key?: string; thread_id?: string; data?: unknown }
@@ -121,7 +122,13 @@ try {
       }
     }
     return false;
-  },receive_host_event);
+  },receive_host_event, input => {
+    if (!window.pero) return Promise.reject(new Error('unavailable'));
+    return exchangeMcpSettings({
+      sessionCommand: command => window.pero!.sessionCommand(command),
+      onEvent: callback => window.pero!.onEvent(callback),
+    }, input, admitAgents(JSON.parse(snapshot()).agents), `app-mcp-${crypto.randomUUID()}`);
+  });
   window.peroAppUseRevoke = async(thread,scope) => {await window.pero!.appUseCommand({action:'revoke',thread_id:thread,scope});};
   window.peroOpenAppLocation = input => {const value=JSON.parse(input);apps.openLocation(value.app,value.panel,value.location);};
   window.peroAppSurface = json => apps.surface(JSON.parse(json) as AppSurface|AppSurfaceBatch);

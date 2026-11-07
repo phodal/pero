@@ -681,7 +681,7 @@ jobs:
       - name: Host connection contracts
         id: host_connection
         if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
-        run: node --test web/src/host-connection.test.ts
+        run: node --test web/src/host-connection.test.ts web/src/mcp-settings-bridge.test.ts
       - name: Desktop content and connector contracts
         id: desktop_content
         if: ${{ !cancelled() && steps.npm.outcome == 'success' }}

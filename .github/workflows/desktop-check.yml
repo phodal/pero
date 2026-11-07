@@ -161,7 +161,7 @@ jobs:
           npm --prefix apps/data run typecheck
           npm --prefix apps/data run test:ui
           node --test web/src/automation-model.test.ts tests/contracts/automation.test.mjs
-          node --test web/src/host-connection.test.ts
+          node --test web/src/host-connection.test.ts web/src/mcp-settings-bridge.test.ts
 
       - name: Test
         run: npm test

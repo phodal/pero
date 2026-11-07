@@ -1,6 +1,8 @@
 .point-connectors-page{container-type:inline-size}
 /* Built-in actions share SDK button states; layout only lives here. */
 .point-connectors-toolbar{justify-content:space-between}
+.point-custom-mcps{display:flex;flex-direction:column;gap:var(--pero-space-8,16px)}
+.point-custom-mcps-form{display:flex;flex-direction:column;gap:var(--pero-space-6,12px)}
 .point-connectors-toolbar .point-page-actions{display:flex;align-items:center;gap:var(--pero-space-4)}
 .point-connectors-search-tools{display:flex;align-items:center;gap:var(--pero-space-6);flex-wrap:wrap;margin-bottom:var(--pero-space-12,24px)}
 .point-connectors-search-tools .pero-search-field{flex:1;min-width:min(100%,16rem);max-width:34rem}

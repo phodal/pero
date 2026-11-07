@@ -56,6 +56,8 @@ pub(crate) struct Workbench {
     pub save_as_feedback:Option<crate::document_save_as::SaveAsFeedback>,
     #[cfg(not(target_family="wasm"))]
     pub native_app_pages:std::collections::BTreeMap<(String,String),crate::native_app_surface::RetainedApp>,
+    #[cfg(all(feature = "native", not(target_family = "wasm")))]
+    pub(crate) mcp_app_wait: Option<crate::mcp_app::McpAppWait>,
     #[cfg(not(target_family="wasm"))]
     pub artifact_preview:Option<crate::native_artifact_preview::RetainedArtifactPreview>,
     #[cfg(not(target_family="wasm"))]
@@ -315,6 +317,8 @@ impl Workbench {
             native_web_pages:Default::default(),
             #[cfg(not(target_family="wasm"))]
             native_app_pages:Default::default(),
+            #[cfg(all(feature = "native", not(target_family = "wasm")))]
+            mcp_app_wait: None,
             #[cfg(not(target_family="wasm"))]
             artifact_preview:None,
             web_documents:vec![],web_address,web_entry_open:false,web_surface:String::new(),

@@ -249,6 +249,18 @@ test('installation discloses the actual draft tools and their effects before com
   assert.equal(scope.querySelectorAll('code').length, 2);
 });
 
+test('custom MCPs is a view beside the service catalog', async t => {
+  const f = await fixture(t, true);
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const { operation } = JSON.parse(init.body);
+    return response(operation === 'snapshot' ? snapshot('catalog') : entries('catalog'));
+  });
+  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'zh' }));
+  const tab = [...document.querySelectorAll('[role=tab]')].find(node => node.textContent === '自定义 MCPs');
+  assert.ok(tab);
+  assert.equal([...document.querySelectorAll('button')].some(node => node.textContent.includes('自定义 MCP') && !node.textContent.includes('MCPs')), true);
+});
+
 test('state filter counts match results and unverified connections never appear ready', async t => {
   const f = await fixture(t, true);
   const connections = [['ready', 'verified', true], ['draft', 'needs-configuration', true], ['unchecked', 'not-verified', true], ['paused', 'needs-configuration', false]]

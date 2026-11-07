@@ -144,6 +144,8 @@ mod native_python;
 #[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_app_surface;
 #[cfg(all(feature="native",not(target_family="wasm")))]
+mod mcp_app;
+#[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_artifact_preview;
 #[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_artifact_transport;

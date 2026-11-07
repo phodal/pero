@@ -399,10 +399,17 @@ impl Workbench {
                 return;
             }
             if message["type"] == "pero:app:sdk" {
+                let mut deferred = false;
                 let result = (|| -> anyhow::Result<()> {
                     anyhow::ensure!(this.navigation.current()==Some(&item), "Open the App before using Host presentation");
                     let input = &message["input"];
                     match message["operation"].as_str() {
+                        Some("mcp-settings") => {
+                            anyhow::ensure!(scope.app == "connectors", "This App cannot edit Agent MCP connectors");
+                            let reply_id = message["id"].as_str().filter(|id| !id.is_empty() && id.len() <= 128).ok_or_else(|| anyhow::anyhow!("invalid"))?;
+                            this.begin_mcp_app(reply_id, &scope.app, &scope.panel, input, cx).map_err(|error| anyhow::anyhow!(error))?;
+                            deferred = true;
+                        }
                         Some("open-session") => {
                             anyhow::ensure!(["insights", "automations"].contains(&scope.app.as_str()), "This App cannot open Host sessions");
                             let id = input["sessionId"].as_str().filter(|id| !id.trim().is_empty() && id.len() <= 128).ok_or_else(|| anyhow::anyhow!("Invalid session"))?;
@@ -434,8 +441,11 @@ impl Workbench {
                     }
                     Ok(())
                 })();
-                let reply=match result {Ok(())=>json!({"type":"pero:app:sdk-result","id":message["id"],"ok":true}),Err(error)=>json!({"type":"pero:app:sdk-result","id":message["id"],"ok":false,"error":error.to_string()})};
-                view.read(cx).send(reply,cx);cx.notify();
+                if !deferred {
+                    let reply=match result {Ok(())=>json!({"type":"pero:app:sdk-result","id":message["id"],"ok":true}),Err(error)=>json!({"type":"pero:app:sdk-result","id":message["id"],"ok":false,"error":error.to_string()})};
+                    view.read(cx).send(reply,cx);
+                }
+                cx.notify();
             }
             if message["type"] == "pero:app:examples" {this.receive_app_examples(scope.clone(),message["state"].clone(),cx);}
             if message["type"] == "focus" { this.focus_surface_item(&item, window, cx); }

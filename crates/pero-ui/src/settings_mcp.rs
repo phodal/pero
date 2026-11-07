@@ -96,6 +96,8 @@ impl McpEditor {
 }
 impl Workbench {
     pub(crate) fn receive_mcp(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
+        #[cfg(all(feature = "native", not(target_family = "wasm")))]
+        self.observe_mcp_app(event, cx);
         if event.kind == "agents" {
             if let (Some(panel), Ok(agents)) = (
                 &self.settings_panel,

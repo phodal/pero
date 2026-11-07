@@ -2,6 +2,7 @@ import type { ContentChunk, ConversationReadParameters } from '../../../packages
 import { appChatLauncher } from '../../../web/src/app-chat';
 import { previewContext } from '../../../web/src/context-preview';
 import { mountAppSurfaces } from '../../../web/src/apps';
+import { admitAgents, exchangeMcpSettings } from '../../../web/src/mcp-settings-bridge';
 import type { HostEvent } from '../../../web/src/bootstrap';
 import type { ProductFields } from '../../../packages/product/product';
 import themes from '../../../web/src/theme.generated.json';
@@ -44,6 +45,8 @@ const launchAppChat=appChatLauncher({
   deliver:(thread_id,contexts,text,replace)=>chat?.event({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}}),
 });
 const appBadges = new Map<string, number>();
+const mcpListeners = new Set<(event: HostEvent) => void>();
+let mcpAgents: ReturnType<typeof admitAgents> = [];
 const surface = mountAppSurfaces(async value => {
   const request = value as {action?:string;name?:string;count?:number;panel?:string};
   if (request.action === 'sdkpage') throw new Error('Workspace pages are unavailable in this App product');
@@ -85,7 +88,10 @@ const surface = mountAppSurfaces(async value => {
   }
   if (JSON.stringify(chatSlot) === JSON.stringify(next)) { chatSlot = null; chatSlotReady = false; update(); }
   return false;
-});
+}, undefined, input => exchangeMcpSettings({
+  sessionCommand: command => bridge.sessionCommand(command),
+  onEvent: callback => { mcpListeners.add(callback); return () => { mcpListeners.delete(callback); }; },
+}, input, mcpAgents, `app-mcp-${crypto.randomUUID()}`));
 const readingPanel=document.createElement('section'); readingPanel.id='product-document'; readingPanel.hidden=true;
 const readingHeader=document.createElement('header');
 const readingTitle=document.createElement('strong'); readingTitle.id='product-document-title';
@@ -205,6 +211,8 @@ selector.onchange = () => {
   void bridge.open(selected.app, selected.panel).catch(report);
 };
 bridge.onEvent(event => {
+  if (event.kind === 'agents') mcpAgents = admitAgents(event.data);
+  for (const listener of mcpListeners) listener(event);
   if (event.kind === 'ready') { runtimeConnected = true; if (context) context.connected = true; initializeChat(); }
   if (event.kind === 'disconnected') { runtimeConnected = false; if (context) context.connected = false; }
   chat?.event(event);
