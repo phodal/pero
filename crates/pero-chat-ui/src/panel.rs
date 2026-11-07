@@ -462,6 +462,6 @@ impl Render for ChatPanel {
         }
         self.prepare_artifacts(window, cx);
         let view = cx.entity().clone();
-        container_query(move |size, window, cx| view.update(cx, |this, cx| {this.artifacts.narrow=size.width<px(820.);this.artifact_chat_layout(size, window, cx)}))
+        container_query(move |size, window, cx| view.update(cx, |this, cx| this.artifact_chat_layout(size, window, cx)))
     }
 }

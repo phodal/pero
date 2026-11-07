@@ -2,7 +2,7 @@
 use crate::{
     assets::UiIcon,
     panel::{ChatAction, ChatPanel},
-    session_artifacts::ArtifactCollection,
+    session_artifacts::{ArtifactCollection, ArtifactPaneResize},
 };
 use gpui_kit::{
     base::Selectable,
@@ -11,17 +11,19 @@ use gpui_kit::{
         button::*,
         input::Input,
         menu::{DropdownMenu, PopupMenuItem},
-        resizable::{h_resizable, resizable_panel},
     },
     prelude::*,
     *,
 };
 use pero_contracts::{
     session_artifact::{ArtifactSource, SessionArtifact},
-    workbench::ArtifactView,
+    workbench::{ArtifactView, LayoutPreferences},
 };
 
 impl ChatPanel {
+    /// Chat column keeps this much space before the artifact column replaces it.
+    const CHAT_COLUMN_MIN: f32 = 320.;
+
     fn artifact_probe(&self, thread: &str, action: &str) -> Option<AnyElement> {
         self.artifacts
             .bounds
@@ -60,6 +62,54 @@ impl ChatPanel {
             .accessibility_label(label.to_owned())
     }
 
+    fn artifact_column_width(&self, available: f32) -> f32 {
+        let min = f32::from(LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH);
+        let max = f32::from(LayoutPreferences::MAX_ARTIFACT_PANE_WIDTH);
+        let room = (available - Self::CHAT_COLUMN_MIN).clamp(min, max);
+        self.artifact_pane_width().clamp(min, room)
+    }
+
+    /// Window-level drag so the pointer can leave the hairline without dropping the resize.
+    fn artifact_resize_capture(&self, cx: &Context<Self>) -> impl IntoElement + use<> {
+        let owner = cx.entity().downgrade();
+        canvas(
+            |_, _, _| (),
+            move |_, _, window, _| {
+                let move_owner = owner.clone();
+                window.on_mouse_event(move |event: &MouseMoveEvent, _, _, cx| {
+                    let _ = move_owner.update(cx, |this, cx| {
+                        let Some(resize) = this.artifacts.resize else {
+                            return;
+                        };
+                        let x: f32 = event.position.x.into();
+                        let min = f32::from(LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH);
+                        let width = (resize.origin_width - (x - resize.origin_x))
+                            .clamp(min, resize.max_width);
+                        if (this.artifact_pane_width() - width).abs() >= 0.5 {
+                            this.set_artifact_pane_width(width, cx);
+                            cx.stop_propagation();
+                        }
+                    });
+                });
+                window.on_mouse_event(move |event: &MouseUpEvent, _, _, cx| {
+                    if event.button != MouseButton::Left {
+                        return;
+                    }
+                    let _ = owner.update(cx, |this, cx| {
+                        if this.artifacts.resize.take().is_some() {
+                            cx.emit(ChatAction::ArtifactPaneWidth {
+                                width: this.artifact_pane_width(),
+                            });
+                            cx.stop_propagation();
+                        }
+                    });
+                });
+            },
+        )
+        .absolute()
+        .size_full()
+    }
+
     pub(crate) fn artifact_chat_layout(
         &mut self,
         size: Size<Pixels>,
@@ -84,9 +134,13 @@ impl ChatPanel {
         {
             self.prepare_file_reader(&thread, window, cx);
         }
+        let available = f32::from(size.width);
+        self.artifacts.narrow = available
+            < Self::CHAT_COLUMN_MIN + f32::from(LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH);
         let state = self.artifacts.conversations.get(&thread);
         let open = state.is_some_and(|state| state.open);
         let reviewing = state.is_some_and(|state| state.show_changes);
+        let split = open && !self.artifacts.narrow;
         let count = state.map_or(0, |state| state.items.len());
         let toggle_thread = thread.clone();
         let title = self.t(
@@ -105,7 +159,7 @@ impl ChatPanel {
         let header_height = pero_theme::WorkbenchStyle::TAB
             .max(pero_theme::UiAppearance::global(cx).typography.row_height() + 4.)
             .max(36.);
-        let header = ((!thread.is_empty() && !reviewing) || self.docked).then(|| {
+        let header = (!split && ((!thread.is_empty() && !reviewing) || self.docked)).then(|| {
             div()
                 .h(px(header_height))
                 .min_h(px(header_height))
@@ -137,15 +191,7 @@ impl ChatPanel {
                     } else {
                         self.artifacts_toolbar(&thread, state.expect("open artifact catalog"), cx)
                     };
-                    el.child(
-                        div()
-                            .min_w_0()
-                            .when(self.artifacts.narrow, |el| el.flex_1())
-                            .when(!self.artifacts.narrow, |el| {
-                                el.w(px(self.artifact_pane_width()))
-                            })
-                            .child(toolbar),
-                    )
+                    el.child(div().min_w_0().flex_1().child(toolbar))
                 })
                 .when(self.docked, |el| {
                     el.child(
@@ -182,33 +228,125 @@ impl ChatPanel {
             if self.artifacts.narrow {
                 pane
             } else {
-                let owner = cx.entity().downgrade();
-                h_resizable("session-artifact-split")
-                    .on_resize(move |state, _, cx| {
-                        let Some(width) = state.read(cx).sizes().get(1).copied() else {
-                            return;
-                        };
-                        let width = f32::from(width);
-                        let _ = owner.update(cx, |this, cx| {
-                            if (this.artifact_pane_width() - width).abs() >= 0.5 {
-                                this.set_artifact_pane_width(width, cx);
-                                cx.emit(ChatAction::ArtifactPaneWidth {
-                                    width: this.artifact_pane_width(),
-                                });
-                            }
-                        });
-                    })
+                let shown = self.artifact_column_width(available);
+                let border = pero_theme::UiAppearance::global(cx).palette.border;
+                let files = self.files.selection.tab
+                    == pero_contracts::workbench::ResourceTab::Files;
+                div()
+                    .relative()
+                    .size_full()
+                    .min_w_0()
+                    .min_h_0()
+                    .flex()
+                    .child(self.artifact_resize_capture(cx))
                     .child(
-                        resizable_panel()
-                            .size_range(px(320.)..px(10000.))
-                            .child(chat),
+                        div()
+                            .relative()
+                            .flex_1()
+                            .min_w(px(Self::CHAT_COLUMN_MIN))
+                            .h_full()
+                            .min_w_0()
+                            .child(chat)
+                            .child(
+                                div()
+                                    .absolute()
+                                    .right_0()
+                                    .top_0()
+                                    .bottom_0()
+                                    .w(px(1.))
+                                    .bg(border),
+                            ),
                     )
                     .child(
-                        resizable_panel()
-                            .size(px(self.artifact_pane_width()))
-                            .fixed()
-                            .size_range(px(280.)..px(1200.))
-                            .child(pane),
+                        div()
+                            .relative()
+                            .h_full()
+                            .w(px(shown))
+                            .min_w_0()
+                            .flex_shrink_0()
+                            .flex()
+                            .flex_col()
+                            .border_l(px(1.))
+                            .border_color(border)
+                            .when(!reviewing || self.docked, |column| {
+                                column.child(
+                                    div()
+                                        .h(px(header_height))
+                                        .min_h(px(header_height))
+                                        .flex()
+                                        .items_center()
+                                        .min_w_0()
+                                        .when(!reviewing, |row| {
+                                            let toolbar = if files {
+                                                self.files_toolbar(&thread, cx)
+                                            } else {
+                                                let state = self
+                                                    .artifacts
+                                                    .conversations
+                                                    .get(&thread)
+                                                    .expect("open artifact catalog");
+                                                self.artifacts_toolbar(&thread, state, cx)
+                                            };
+                                            row.child(div().flex_1().min_w_0().child(toolbar))
+                                        })
+                                        .when(self.docked, |row| {
+                                            row.child(
+                                                self.artifact_icon_button(
+                                                    &thread,
+                                                    "workspace-chat-close",
+                                                    "close-chat",
+                                                    "panel-right-close",
+                                                    self.t("chat.close_panel"),
+                                                )
+                                                .on_click(cx.listener(|_, _, _, cx| {
+                                                    cx.emit(ChatAction::ClosePanel)
+                                                })),
+                                            )
+                                        }),
+                                )
+                            })
+                            .child(div().flex_1().min_h_0().min_w_0().child(pane))
+                            .child(
+                                div()
+                                    .id(SharedString::from(format!("artifact-pane-resize-{thread}")))
+                                    .absolute()
+                                    .left_0()
+                                    .top_0()
+                                    .bottom_0()
+                                    .w(px(12.))
+                                    .cursor(CursorStyle::ResizeLeftRight)
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                                            if event.click_count == 2 {
+                                                this.artifacts.resize = None;
+                                                this.set_artifact_pane_width(
+                                                    f32::from(
+                                                        LayoutPreferences::DEFAULT_ARTIFACT_PANE_WIDTH,
+                                                    ),
+                                                    cx,
+                                                );
+                                                cx.emit(ChatAction::ArtifactPaneWidth {
+                                                    width: this.artifact_pane_width(),
+                                                });
+                                            } else {
+                                                let min = f32::from(
+                                                    LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH,
+                                                );
+                                                let max = f32::from(
+                                                    LayoutPreferences::MAX_ARTIFACT_PANE_WIDTH,
+                                                );
+                                                this.artifacts.resize = Some(ArtifactPaneResize {
+                                                    origin_x: event.position.x.into(),
+                                                    origin_width: shown,
+                                                    max_width: (available - Self::CHAT_COLUMN_MIN)
+                                                        .clamp(min, max),
+                                                });
+                                            }
+                                            cx.stop_propagation();
+                                        }),
+                                    ),
+                            ),
                     )
                     .into_any_element()
             }

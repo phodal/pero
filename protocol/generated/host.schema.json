@@ -8624,7 +8624,7 @@
           "type": "integer",
           "minimum": 280,
           "maximum": 1200,
-          "default": 400
+          "default": 280
         },
         "sessions_width": {
           "type": "integer",
