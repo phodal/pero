@@ -33,6 +33,12 @@ The longer-term goal is to connect these Apps with agents, collaborators and com
 
 ![Research Apps, agent capabilities and delivery options; dashed elements are planned](docs/assets/openpero-building-blocks.svg)
 
+## Research roadmap
+
+The proposed progression moves from independently rerunning a published result to comparing experiments and sustaining research across people and environments. Each stage depends on validating the previous one.
+
+![Proposed research roadmap: verify published results, compare and choose the next experiment, then sustain research across people and environments](docs/assets/openpero-research-roadmap.svg)
+
 ## Status
 
 | Area | Current status | Roadmap |

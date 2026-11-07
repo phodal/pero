@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1050" viewBox="0 0 2400 1050" role="img" aria-labelledby="title desc" xml:lang="en">
+<title id="title">Pero research roadmap</title>
+<desc id="desc">A strategic proposal, not a statement of completed capabilities. The first priority is to verify published results: move from paper methods to computational reruns and result comparisons, then have a second researcher rerun the work in a clean environment. After independent reproducibility is established, compare controls, ablations and parameters to choose the next experiment. After valid comparison is established, enable research to continue across people and environments while preserving past conclusions and their history. The shared foundation of evidence indexing, data versions, rebuildable environments, process records and permissions is built out in stages. Existing foundations are limited to paper evidence, data versions and local experiments or environments. All charts and icons illustrate the process; they do not represent measured results.</desc>
+<defs>
+<marker id="arr" markerWidth="11" markerHeight="11" refX="8" refY="5.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M 1 1 L 8 5.5 L 1 10" fill="none" stroke="#667075" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="darkarr" markerWidth="13" markerHeight="13" refX="10" refY="6.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M 2 2 L 10 6.5 L 2 11" fill="none" stroke="#20272B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="warmarr" markerWidth="11" markerHeight="11" refX="8" refY="5.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M 1 1 L 8 5.5 L 1 10" fill="none" stroke="#A87531" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+<style>text{font-family:'Noto Sans CJK SC','Noto Sans CJK',sans-serif} path,line,rect,circle,ellipse{stroke-linecap:round;stroke-linejoin:round}</style>
+<rect width="2400" height="1050" fill="#fff"/>
+<g transform="translate(0 -285)" id="research-roadmap">
+<text x="430" y="335" font-size="24" font-weight="700" fill="#A87531" text-anchor="middle" letter-spacing="2">01</text>
+<text x="430" y="389" font-size="34" font-weight="700" fill="#20272B" text-anchor="middle">Verify published results</text>
+<rect x="346" y="408" width="168" height="36" rx="18" fill="#FBF3E7" stroke="none" stroke-width="0"/>
+<text x="430" y="434" font-size="21" font-weight="600" fill="#A87531" text-anchor="middle">Validate first</text>
+<text x="1200" y="335" font-size="24" font-weight="700" fill="#667075" text-anchor="middle" letter-spacing="2">02</text>
+<text x="1200" y="389" font-size="34" font-weight="700" fill="#20272B" text-anchor="middle"><tspan x="1200" y="374">Compare and choose</tspan><tspan x="1200" y="411">the next experiment</tspan></text>
+<text x="1200" y="449" font-size="19" font-weight="400" fill="#667075" text-anchor="middle">After the prior stage is validated</text>
+<text x="1970" y="335" font-size="24" font-weight="700" fill="#667075" text-anchor="middle" letter-spacing="2">03</text>
+<text x="1970" y="389" font-size="34" font-weight="700" fill="#20272B" text-anchor="middle"><tspan x="1970" y="374">Sustain research across</tspan><tspan x="1970" y="411">people and environments</tspan></text>
+<text x="1970" y="449" font-size="19" font-weight="400" fill="#667075" text-anchor="middle">After the prior stage is validated</text>
+<ellipse cx="431" cy="680" rx="295" ry="150" fill="#FBF3E7" opacity=".64"/>
+<ellipse cx="1210" cy="685" rx="295" ry="149" fill="#F5F7F7"/>
+<ellipse cx="1970" cy="690" rx="290" ry="144" fill="#F5F7F7"/>
+<rect x="169" y="512" width="173" height="224" rx="2" fill="#ECEFF0" stroke="none" stroke-width="0"/>
+<g transform="translate(154 496)">
+<path d="M 0 0 H 143 L 178 35 V 228 H 0 Z" fill="#FFFFFF" stroke="#20272B" stroke-width="3"/>
+<path d="M 143 0 V 35 H 178" fill="none" stroke="#20272B" stroke-width="3"/>
+<line x1="23" y1="31" x2="116" y2="31" stroke="#20272B" stroke-width="5"/>
+<line x1="23" y1="50" x2="130" y2="50" stroke="#D7DCDF" stroke-width="3"/>
+<line x1="23" y1="68" x2="155" y2="68" stroke="#D7DCDF" stroke-width="3"/>
+<path d="M 24.92 196.07999999999998 V 98.03999999999999 M 24.92 196.07999999999998 H 154.85999999999999" fill="none" stroke="#667075" stroke-width="2"/>
+<path d="M 35.6 180.12 L 64.08 155.04000000000002 L 90.78 164.16 L 117.48 129.95999999999998 L 153.07999999999998 114.0" fill="none" stroke="#A87531" stroke-width="3"/>
+</g>
+<text x="243" y="766" font-size="23" font-weight="500" fill="#667075" text-anchor="middle">Paper methods</text>
+<path d="M 336 574 C 365 574 360 616 389 616" fill="none" stroke="#A87531" stroke-width="2.8" marker-end="url(#warmarr)"/>
+<rect x="403" y="536" width="266" height="189" rx="10" fill="#FFFFFF" stroke="#20272B" stroke-width="3.2"/>
+<rect x="416" y="549" width="240" height="151" rx="2" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<line x1="432" y1="567" x2="475" y2="567" stroke="#667075" stroke-width="3"/>
+<circle cx="636" cy="565" r="3" fill="#A87531" stroke="none" stroke-width="0"/>
+<path d="M 444 592 L 431 604 L 444 616 M 470 592 L 483 604 L 470 616 M 461 586 L 453 622" fill="none" stroke="#667075" stroke-width="2.8"/>
+<path d="M 501 678 V 587 M 501 678 H 639" fill="none" stroke="#667075" stroke-width="1.8"/>
+<path d="M 511 656 L 538 635 L 562 646 L 585 608 L 630 595" fill="none" stroke="#667075" stroke-width="2.7" stroke-dasharray="6 7"/>
+<path d="M 511 661 L 538 641 L 562 647 L 585 619 L 630 604" fill="none" stroke="#A87531" stroke-width="3.7"/>
+<circle cx="585" cy="619" r="4" fill="#FFFFFF" stroke="#A87531" stroke-width="2"/>
+<path d="M 384 725 H 688 L 708 744 H 364 Z" fill="#FFFFFF" stroke="#20272B" stroke-width="3"/>
+<line x1="486" y1="735" x2="586" y2="735" stroke="#D7DCDF" stroke-width="3"/>
+<text x="533" y="782" font-size="23" font-weight="500" fill="#667075" text-anchor="middle">Run &amp; compare</text>
+<circle cx="655" cy="695" r="37" fill="#FFFFFF" stroke="#A87531" stroke-width="3.2"/>
+<path d="M 631 703 L 642 690 L 653 695 L 677 680" fill="none" stroke="#667075" stroke-width="2.6" stroke-dasharray="4 5"/>
+<path d="M 631 708 L 642 696 L 653 697 L 677 687" fill="none" stroke="#A87531" stroke-width="3.2"/>
+<line x1="682" y1="721" x2="707" y2="746" stroke="#A87531" stroke-width="7"/>
+<path d="M 469 512 C 467 484 492 474 515 474 C 539 474 555 486 557 506" fill="none" stroke="#A87531" stroke-width="2.6" marker-end="url(#warmarr)" transform="translate(0 17)"/>
+<text x="515" y="477" font-size="19" font-weight="500" fill="#A87531" text-anchor="middle">Independent rerun</text>
+<line x1="740" y1="640" x2="851" y2="640" stroke="#667075" stroke-width="2.7" marker-end="url(#arr)"/>
+<text x="796" y="605" font-size="18" font-weight="500" fill="#667075" text-anchor="middle"><tspan x="796" y="594">Independent</tspan><tspan x="796" y="618">rerun</tspan></text>
+<text x="796" y="678" font-size="18" font-weight="400" fill="#667075" text-anchor="middle">Then advance</text>
+<circle cx="917" cy="639" r="25" fill="#FFFFFF" stroke="#20272B" stroke-width="2.5"/>
+<path d="M 905 639 H 929 M 917 627 V 651" fill="none" stroke="#667075" stroke-width="2.5"/>
+<text x="917" y="700" font-size="21" font-weight="500" fill="#667075" text-anchor="middle">Baseline</text>
+<path d="M 942 639 H 962 V 510 H 1004" fill="none" stroke="#667075" stroke-width="2.5" marker-end="url(#arr)"/>
+<path d="M 942 639 H 1004" fill="none" stroke="#667075" stroke-width="2.5" marker-end="url(#arr)"/>
+<path d="M 962 639 V 768 H 1004" fill="none" stroke="#667075" stroke-width="2.5" marker-end="url(#arr)"/>
+<rect x="1012" y="464" width="178" height="93" rx="7" fill="#FFFFFF" stroke="#667075" stroke-width="2.4"/>
+<text x="1030" y="488" font-size="17" font-weight="600" fill="#667075" text-anchor="start">A</text>
+<path d="M 1056 537 V 486 M 1056 537 H 1168" fill="none" stroke="#D7DCDF" stroke-width="1.7"/>
+<path d="M 1064 529 L 1088 513 L 1112 519 L 1139 496 L 1167 500" fill="none" stroke="#667075" stroke-width="2.8"/>
+<circle cx="1139" cy="496" r="3" fill="#FFFFFF" stroke="#667075" stroke-width="1.8"/>
+<rect x="1012" y="593" width="178" height="93" rx="7" fill="#FFFFFF" stroke="#20272B" stroke-width="2.4"/>
+<text x="1030" y="617" font-size="17" font-weight="600" fill="#667075" text-anchor="start">B</text>
+<path d="M 1056 666 V 615 M 1056 666 H 1168" fill="none" stroke="#D7DCDF" stroke-width="1.7"/>
+<path d="M 1064 656 L 1088 649 L 1112 633 L 1139 628 L 1167 617" fill="none" stroke="#20272B" stroke-width="2.8"/>
+<circle cx="1139" cy="628" r="3" fill="#FFFFFF" stroke="#20272B" stroke-width="1.8"/>
+<rect x="1012" y="722" width="178" height="93" rx="7" fill="#FFFFFF" stroke="#667075" stroke-width="2.4"/>
+<text x="1030" y="746" font-size="17" font-weight="600" fill="#667075" text-anchor="start">C</text>
+<path d="M 1056 795 V 744 M 1056 795 H 1168" fill="none" stroke="#D7DCDF" stroke-width="1.7"/>
+<path d="M 1064 777 L 1088 755 L 1112 765 L 1139 784 L 1167 768" fill="none" stroke="#667075" stroke-width="2.8"/>
+<circle cx="1139" cy="784" r="3" fill="#FFFFFF" stroke="#667075" stroke-width="1.8"/>
+<path d="M 1190 510 H 1230 V 639" fill="none" stroke="#667075" stroke-width="2.3"/>
+<path d="M 1190 768 H 1230 V 639" fill="none" stroke="#667075" stroke-width="2.3"/>
+<line x1="1190" y1="639" x2="1275" y2="639" stroke="#667075" stroke-width="2.5" marker-end="url(#arr)"/>
+<rect x="1286" y="535" width="220" height="206" rx="9" fill="#FFFFFF" stroke="#20272B" stroke-width="3"/>
+<line x1="1305" y1="574" x2="1486" y2="574" stroke="#D7DCDF" stroke-width="2"/>
+<text x="1396" y="562" font-size="22" font-weight="600" fill="#20272B" text-anchor="middle">Shared criteria</text>
+<text x="1310" y="609" font-size="18" font-weight="600" fill="#667075" text-anchor="start">A</text>
+<rect x="1344" y="593" width="96" height="15" rx="3" fill="#ABB2B6" stroke="none" stroke-width="0"/>
+<line x1="1433" y1="586" x2="1433" y2="615" stroke="#667075" stroke-width="1.7"/>
+<text x="1310" y="657" font-size="18" font-weight="600" fill="#667075" text-anchor="start">B</text>
+<rect x="1344" y="641" width="128" height="15" rx="3" fill="#20272B" stroke="none" stroke-width="0"/>
+<line x1="1465" y1="634" x2="1465" y2="663" stroke="#667075" stroke-width="1.7"/>
+<text x="1310" y="705" font-size="18" font-weight="600" fill="#667075" text-anchor="start">C</text>
+<rect x="1344" y="689" width="73" height="15" rx="3" fill="#ABB2B6" stroke="none" stroke-width="0"/>
+<line x1="1410" y1="682" x2="1410" y2="711" stroke="#667075" stroke-width="1.7"/>
+<path d="M 1491 630 H 1515 V 671 H 1491" fill="none" stroke="#20272B" stroke-width="2.8"/>
+<text x="1200" y="858" font-size="22" font-weight="500" fill="#667075" text-anchor="middle">Controls · Ablations · Parameters</text>
+<line x1="1545" y1="640" x2="1655" y2="640" stroke="#667075" stroke-width="2.7" marker-end="url(#arr)"/>
+<text x="1600" y="605" font-size="18" font-weight="500" fill="#667075" text-anchor="middle"><tspan x="1600" y="594">Valid</tspan><tspan x="1600" y="618">comparison</tspan></text>
+<text x="1600" y="678" font-size="18" font-weight="400" fill="#667075" text-anchor="middle">Then advance</text>
+<path d="M 1824 526 C 1868 452 1996 451 2079 489" fill="none" stroke="#D7DCDF" stroke-width="2.8" marker-end="url(#arr)"/>
+<path d="M 2153 566 C 2221 622 2215 728 2144 773" fill="none" stroke="#D7DCDF" stroke-width="2.8" marker-end="url(#arr)"/>
+<path d="M 2029 816 C 1923 842 1807 793 1779 717" fill="none" stroke="#D7DCDF" stroke-width="2.8" marker-end="url(#arr)"/>
+<path d="M 1833 570 L 1894 602 M 2115 548 L 2074 586 M 2087 755 L 2047 701 M 1810 701 L 1903 658" fill="none" stroke="#D7DCDF" stroke-width="2.4" stroke-dasharray="6 9"/>
+<g transform="translate(1805 535) scale(0.82)">
+<circle cx="0" cy="-24" r="18" fill="#FFFFFF" stroke="#20272B" stroke-width="3"/>
+<path d="M -36 34 C -34 1 -19 -2 0 -2 C 19 -2 34 1 36 34" fill="#FFFFFF" stroke="#20272B" stroke-width="3"/>
+<path d="M -24 10 L -24 34 M 24 10 L 24 34" fill="none" stroke="#20272B" stroke-width="2.3"/>
+</g>
+<rect x="1762" y="564" width="89" height="51" rx="4" fill="#FFFFFF" stroke="#20272B" stroke-width="2.5"/>
+<path d="M 1752 615 H 1862 L 1856 624 H 1758 Z" fill="#FFFFFF" stroke="#20272B" stroke-width="2.5"/>
+<line x1="1790" y1="582" x2="1821" y2="582" stroke="#667075" stroke-width="2"/>
+<line x1="1790" y1="591" x2="1813" y2="591" stroke="#D7DCDF" stroke-width="2"/>
+<text x="1806" y="660" font-size="20" font-weight="500" fill="#667075" text-anchor="middle"><tspan x="1806" y="651">New</tspan><tspan x="1806" y="675">collaborator</tspan></text>
+<g transform="translate(2101 476)">
+<path d="M 0 0 H 69 L 104 35 V 133 H 0 Z" fill="#FFFFFF" stroke="#667075" stroke-width="3"/>
+<path d="M 69 0 V 35 H 104" fill="none" stroke="#667075" stroke-width="3"/>
+<line x1="23" y1="31" x2="42" y2="31" stroke="#667075" stroke-width="5"/>
+<line x1="23" y1="50" x2="56" y2="50" stroke="#D7DCDF" stroke-width="3"/>
+<line x1="23" y1="68" x2="81" y2="68" stroke="#D7DCDF" stroke-width="3"/>
+<path d="M 14.560000000000002 114.38 V 57.19 M 14.560000000000002 114.38 H 90.48" fill="none" stroke="#667075" stroke-width="2"/>
+<path d="M 20.8 105.07000000000001 L 37.44 90.44000000000001 L 53.04 95.75999999999999 L 68.64 75.80999999999999 L 89.44 66.5" fill="none" stroke="#667075" stroke-width="3"/>
+</g>
+<text x="2153" y="648" font-size="21" font-weight="500" fill="#667075" text-anchor="middle">New evidence</text>
+<rect x="1912" y="553" width="168" height="156" rx="5" fill="#E9EDEE" stroke="none" stroke-width="0"/>
+<rect x="1901" y="543" width="168" height="156" rx="5" fill="#FFFFFF" stroke="#667075" stroke-width="2.5"/>
+<g transform="translate(1888 535)">
+<path d="M 0 21 V 0 H 52 L 66 17 H 170 V 146 H 0 Z" fill="#FFFFFF" stroke="#20272B" stroke-width="3"/>
+<path d="M 0 39 H 170" fill="none" stroke="#20272B" stroke-width="3"/>
+</g>
+<line x1="1921" y1="613" x2="1966" y2="639" stroke="#667075" stroke-width="2.2"/>
+<line x1="1966" y1="639" x2="2023" y2="611" stroke="#667075" stroke-width="2.2"/>
+<line x1="1966" y1="639" x2="2023" y2="668" stroke="#667075" stroke-width="2.2"/>
+<circle cx="1921" cy="613" r="7" fill="#FFFFFF" stroke="#20272B" stroke-width="2.2"/>
+<circle cx="1966" cy="639" r="9" fill="#FFFFFF" stroke="#20272B" stroke-width="2.2"/>
+<circle cx="2023" cy="611" r="7" fill="#FFFFFF" stroke="#20272B" stroke-width="2.2"/>
+<circle cx="2023" cy="668" r="7" fill="#FFFFFF" stroke="#667075" stroke-width="2.2"/>
+<text x="1973" y="724" font-size="22" font-weight="600" fill="#20272B" text-anchor="middle">Resumable project</text>
+<rect x="2065" y="727" width="134" height="83" rx="5" fill="#FFFFFF" stroke="#20272B" stroke-width="2.6"/>
+<path d="M 2054 810 H 2210 L 2221 821 H 2043 Z" fill="#FFFFFF" stroke="#20272B" stroke-width="2.6"/>
+<path d="M 2094 754 L 2083 764 L 2094 774 M 2139 754 L 2150 764 L 2139 774 M 2125 748 L 2112 782" fill="none" stroke="#667075" stroke-width="2.5"/>
+<text x="2132" y="861" font-size="21" font-weight="500" fill="#667075" text-anchor="middle">New environment</text>
+<line x1="1776" y1="751" x2="1854" y2="751" stroke="#667075" stroke-width="2.4"/>
+<circle cx="1776" cy="751" r="5" fill="#FFFFFF" stroke="#667075" stroke-width="2"/>
+<circle cx="1815" cy="751" r="5" fill="#FFFFFF" stroke="#667075" stroke-width="2"/>
+<circle cx="1854" cy="751" r="5" fill="#FFFFFF" stroke="#667075" stroke-width="2"/>
+<text x="1815" y="791" font-size="21" font-weight="500" fill="#667075" text-anchor="middle">Preserved history</text>
+<text x="430" y="939" font-size="28" font-weight="600" fill="#20272B" text-anchor="middle">See differences. Get a rerunnable package.</text>
+<text x="430" y="991" font-size="20" font-weight="400" fill="#667075" text-anchor="middle">Methods × data × environment · Independent checks</text>
+<line x1="165" y1="1021" x2="695" y2="1021" stroke="#D7DCDF" stroke-width="1.4"/>
+<circle cx="173" cy="1060" r="4" fill="#A87531" stroke="none" stroke-width="0"/>
+<text x="191" y="1068" font-size="20" font-weight="500" fill="#667075" text-anchor="start">A second researcher reruns in a clean environment</text>
+<text x="1200" y="939" font-size="28" font-weight="600" fill="#20272B" text-anchor="middle">Choose the next experiment with evidence.</text>
+<text x="1200" y="991" font-size="20" font-weight="400" fill="#667075" text-anchor="middle">Shared criteria · Repeat trials · Retain failures</text>
+<line x1="935" y1="1021" x2="1465" y2="1021" stroke="#D7DCDF" stroke-width="1.4"/>
+<circle cx="943" cy="1060" r="4" fill="#667075" stroke="none" stroke-width="0"/>
+<text x="961" y="1068" font-size="20" font-weight="500" fill="#667075" text-anchor="start">Same conditions; reject noncompliant candidates</text>
+<text x="1970" y="939" font-size="28" font-weight="600" fill="#20272B" text-anchor="middle">Continuity across people and environments.</text>
+<text x="1970" y="991" font-size="20" font-weight="400" fill="#667075" text-anchor="middle">Versions &amp; handoffs · Access · Rerun triggers</text>
+<line x1="1705" y1="1021" x2="2235" y2="1021" stroke="#D7DCDF" stroke-width="1.4"/>
+<circle cx="1713" cy="1060" r="4" fill="#667075" stroke="none" stroke-width="0"/>
+<text x="1731" y="1068" font-size="20" font-weight="500" fill="#667075" text-anchor="start">Keep past conclusions. Let another researcher continue.</text>
+<rect x="108" y="1135" width="2184" height="164" rx="16" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<text x="142" y="1194" font-size="24" font-weight="600" fill="#20272B" text-anchor="start">Shared foundation</text>
+<text x="142" y="1236" font-size="21" font-weight="400" fill="#667075" text-anchor="start">Build in stages</text>
+<line x1="380" y1="1170" x2="380" y2="1264" stroke="#D7DCDF" stroke-width="1.5"/>
+<g transform="translate(626 1190)">
+<path d="M 0 -22 C -20 -31 -35 -31 -52 -26 V 24 C -33 19 -18 22 0 31 C 18 22 33 19 52 24 V -26 C 35 -31 20 -31 0 -22 Z" fill="#FFFFFF" stroke="#667075" stroke-width="2.6"/>
+<line x1="0" y1="-21" x2="0" y2="31" stroke="#667075" stroke-width="2.4"/>
+<line x1="-40" y1="-10" x2="-12" y2="-5" stroke="#D7DCDF" stroke-width="2.3"/>
+<line x1="12" y1="-5" x2="40" y2="-10" stroke="#D7DCDF" stroke-width="2.3"/>
+</g>
+<text x="626" y="1265" font-size="25" font-weight="500" fill="#20272B" text-anchor="middle">Evidence index</text>
+<g transform="translate(1087 1187)">
+<path d="M -27 -15 V 23 C -27 36 27 36 27 23 V -15" fill="#FFFFFF" stroke="#667075" stroke-width="2.6"/>
+<ellipse cx="0" cy="-15" rx="27" ry="10" fill="#FFFFFF" stroke="#667075" stroke-width="2.6"/>
+<path d="M -27 4 C -27 17 27 17 27 4" fill="none" stroke="#667075" stroke-width="2.6"/>
+</g>
+<text x="1087" y="1265" font-size="25" font-weight="500" fill="#20272B" text-anchor="middle">Data versions</text>
+<g transform="translate(1547 1186)">
+<path d="M 0 -27 L 28 -11 V 21 L 0 37 L -28 21 V -11 Z M 0 5 L 28 -11 M 0 5 L -28 -11 M 0 5 V 37" fill="#FFFFFF" stroke="#667075" stroke-width="2.6"/>
+</g>
+<text x="1547" y="1265" font-size="25" font-weight="500" fill="#20272B" text-anchor="middle">Rebuildable environments</text>
+<g transform="translate(2009 1191)">
+<path d="M -32 -25 H 15 L 31 -10 V 32 H -32 Z M 15 -25 V -10 H 31" fill="#FFFFFF" stroke="#667075" stroke-width="2.5"/>
+<line x1="-17" y1="-9" x2="0" y2="-9" stroke="#667075" stroke-width="2.4"/>
+<line x1="-17" y1="3" x2="8" y2="3" stroke="#D7DCDF" stroke-width="2.4"/>
+<line x1="-17" y1="15" x2="0" y2="15" stroke="#D7DCDF" stroke-width="2.4"/>
+<rect x="10" y="8" width="32" height="27" rx="4" fill="#FFFFFF" stroke="#667075" stroke-width="2.4"/>
+<path d="M 17 8 V 1 C 17 -11 35 -11 35 1 V 8" fill="none" stroke="#667075" stroke-width="2.4"/>
+<circle cx="26" cy="20" r="2.5" fill="#667075" stroke="none" stroke-width="0"/>
+</g>
+<text x="2009" y="1265" font-size="25" font-weight="500" fill="#20272B" text-anchor="middle">Process &amp; permissions</text>
+</g>
+</svg>
