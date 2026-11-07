@@ -71,4 +71,14 @@ Based on upstream `f514d945` with only this fix applied:
 - `npm run check`: attempted; TypeScript stopped because the clean worktree has no generated `web/src/reader-wasm/pero_reader_web` artifact. No full clean-branch Wasm/Native/package acceptance is claimed.
 - Security scanner: compared every staged commit with a separate clean upstream `f514d945` worktree. No new findings. The scanner reports the same eight baseline repository-wide ignore/config findings on both trees; the tracked `.npmrc` contains only `install-links=true` and no credential. Unrelated ignore/Docker changes were excluded.
 
-Existing screenshots above are from the original Windows Electron verification, not a claim of rerunning that surface on the newer upstream layout. Real provider requests remain unverified. Screenshots are submitted only with explicit permission for binary evidence files.
+Existing screenshots above are from the original Windows Electron verification, not a claim of rerunning that surface on the newer upstream layout. Real provider requests remain unverified. The three screenshots below were committed after explicit permission for these binary evidence files.
+
+## Published screenshot evidence
+
+The reviewed screenshots are included in [PR #169](https://github.com/phodal/pero/pull/169):
+
+- [Light theme: workspace basename](../fitness/images/windows-agent-chat/workspace-light.png).
+- [Full Windows workspace tooltip without the device prefix](../fitness/images/windows-agent-chat/workspace-tooltip.png).
+- [Dark theme and smaller window: directory containing spaces](../fitness/images/windows-agent-chat/workspace-dark-small.png).
+
+These are the original, unedited Windows Electron captures from the `185673fc` fix workspace, with an ACP fixture and a controlled native-dialog response. They do not establish acceptance of the newer upstream layout, a real provider, Native GPUI or an installer.
