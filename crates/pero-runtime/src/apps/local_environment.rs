@@ -199,6 +199,7 @@ fn save_environment(directory: &std::path::Path, value: &LocalEnvironment) -> Re
 pub struct EnvironmentPreparation {
     catalog: PathBuf,
     app_root: PathBuf,
+    app_data: PathBuf,
     value: LocalEnvironment,
 }
 impl EnvironmentPreparation {
@@ -217,6 +218,8 @@ impl EnvironmentPreparation {
                 None,
                 PythonEnvironment::try_from(root.clone())?,
                 &dependencies,
+                value.target.python_minor(),
+                None,
                 &mut |event| {
                     value.log.push(event.message.clone());
                     if value.log.len() > 80 {
@@ -226,6 +229,24 @@ impl EnvironmentPreparation {
                     progress(event);
                 },
             )?;
+            if matches!(value.target, ScientificMethod::Lcms2Yield) {
+                let environment = PythonEnvironment::try_from(root.clone())?;
+                let mut report = |line: String| {
+                    progress(super::AppPreparation {
+                        name: app.clone(),
+                        phase: preparation::PreparationPhase::Installing,
+                        message: line.clone(),
+                    });
+                    value.log.push(line);
+                };
+                preparation::install_lcms_wheels(&environment, &mut report)?;
+                preparation::fetch_lcms_release(
+                    &environment,
+                    &self.app_root,
+                    &self.app_data,
+                    &mut report,
+                )?;
+            }
             if matches!(value.target, ScientificMethod::Circuit) {
                 let mut command = std::process::Command::new("brew");
                 command
@@ -298,6 +319,7 @@ impl AppStore {
         Ok(EnvironmentPreparation {
             catalog: self.environment_root(),
             app_root: self.root.join(app.as_str()),
+            app_data: self.data.join(app.as_str()),
             value,
         })
     }

@@ -1,14 +1,17 @@
 # Environments
 
-Host-backed inspection of the **configured software** used by existing Paper and
-Control Lab methods. This is an observation UI, not a second compute scheduler.
+Host-backed inspection of the **configured software** used by Paper, Control Lab,
+and LCMS2Yield. This is an observation UI, not a second compute scheduler.
 
 ## Available paths
 
-- Open Environments from the Workspace sidebar, search/filter the three supported methods, switch
+- Open Environments from the Workspace sidebar, search/filter the supported methods, switch
   table/grid, inspect one or all, and review installed versions and missing requirements.
 - Paper's reproduction panel opens the same inspector scoped to PC-Gym.
 - Control Lab's engine availability opens it scoped to python-control and ngspice.
+- LCMS2Yield opens it scoped to `lcms2yield.inference`. Preparing that App
+  installs its chemistry packages into `environment/lcms2yield-python312` and
+  downloads the pinned release into the App data directory.
 - Export a versioned metadata observation. It is **not** a verification report,
   managed EnvironmentUse, proof of a running process, or scientific acceptance.
 
@@ -36,11 +39,12 @@ Control Lab's frozen experiment budgets/verifiers stay unchanged.
 
 ## Local preparation and binding
 
-The local environment section creates named CPython 3.12 venvs from fixed method
-recipes. Prepare installs the App backend pins and, for PC-Gym, the additional
-pins in `crates/pero-runtime/src/apps/pcgym-dependencies.json`. Circuit also uses
-Homebrew to install ngspice and binds its resolved executable into the venv.
-Native dependency installation currently requires Homebrew.
+The local environment section creates named CPython venvs from fixed method
+recipes. This trial uses CPython 3.12 for Paper, Control, Circuit, and LCMS2Yield.
+Prepare installs the method pins. Circuit also uses Homebrew to install ngspice
+and binds its resolved executable into the venv. LCMS2Yield then installs the
+PyG extension wheels from the upstream find-links index. Native dependency
+installation for ngspice currently requires Homebrew.
 
 Preparation runs outside the AppStore lock. Logs and state persist under the
 Host profile's `environment/profiles`; reopening can inspect an ongoing job.

@@ -144,10 +144,12 @@ their numerical and PDF dependencies this way.
 
 A new workbench default is `~/.pero/environment/pero-python312`, CPython 3.12,
 the bundled minor. An existing `pero-default` binding and its directory stay,
-so packages already installed there remain selected for other Apps. Control Lab
-is bound to a CPython 3.12 environment when the selected interpreter is a
-different minor. Other explicit defaults and `app_python.apps` overrides remain
-selected. Isolated profiles and custom App roots keep their managed environment
+so packages already installed there remain selected for other Apps. A backend
+that declares `backend.python`, such as `"3.12"`, is prepared on that minor:
+a selected interpreter of another minor is replaced by the App's managed
+environment. Apps that omit the field stay on their selected interpreter, and an
+existing `pero-default` remains in place for them. An `app_python.apps` override
+stays selected when it already matches the declared minor. Isolated profiles and custom App roots keep their managed environment
 under that profile's App-root parent when no default is configured.
 
 When an environment is missing, the Host downloads the pinned official uv
