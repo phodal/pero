@@ -138,7 +138,11 @@ pub struct StreamText {
 }
 
 #[derive(Clone)]
-pub struct MarkdownLink(pub String);
+pub struct MarkdownLink {
+    pub href: String,
+    pub middle: bool,
+    pub primary_modifier: bool,
+}
 #[cfg(any(target_family = "wasm", feature = "native"))]
 impl EventEmitter<MarkdownLink> for StreamText {}
 
@@ -414,8 +418,19 @@ impl Render for StreamText {
         }
         if self.capture_links {
             let entity = cx.entity().downgrade();
-            view = view.on_link_click(move |url, _, _, cx| {
-                let _ = entity.update(cx, |_, cx| cx.emit(MarkdownLink(url.to_string())));
+            view = view.on_link_click(move |url, event, _, cx| {
+                let middle = matches!(
+                    event,
+                    ClickEvent::Mouse(click) if click.up.button == MouseButton::Middle
+                );
+                let primary_modifier = event.modifiers().platform;
+                let _ = entity.update(cx, |_, cx| {
+                    cx.emit(MarkdownLink {
+                        href: url.to_string(),
+                        middle,
+                        primary_modifier,
+                    })
+                });
             });
         }
         // Absolute pixels of the system UI font. A 1rem body inherits the

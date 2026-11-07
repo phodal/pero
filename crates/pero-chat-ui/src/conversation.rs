@@ -75,6 +75,13 @@ impl Message {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolLocation {
+    pub path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+}
+
 #[derive(Clone, Serialize)]
 pub struct Tool {
     pub table: Option<crate::table_view::TableView>,
@@ -88,7 +95,7 @@ pub struct Tool {
     pub activity: crate::tool_activity::ToolActivity,
     pub body: crate::tool_body::ToolBody,
     pub output_expanded: bool,
-    pub locations: Vec<String>,
+    pub locations: Vec<ToolLocation>,
     pub status: String,
     pub content: String,
     pub source_revision:u64,
@@ -459,7 +466,22 @@ impl Conversation {
                 if let Some(locations) = data["locations"].as_array() {
                     tool.locations = locations
                         .iter()
-                        .filter_map(|location| location["path"].as_str().map(str::to_string))
+                        .filter_map(|location| {
+                            let path = location["path"].as_str()?;
+                            let line = location["line"]
+                                .as_u64()
+                                .and_then(|line| u32::try_from(line).ok())
+                                .filter(|line| *line > 0)
+                                .or_else(|| {
+                                    location["range"]["start"]["line"].as_u64().and_then(|line| {
+                                        u32::try_from(line.saturating_add(1)).ok()
+                                    })
+                                });
+                            Some(ToolLocation {
+                                path: path.to_owned(),
+                                line,
+                            })
+                        })
                         .collect();
                 }
                 if let Some(status) = data["status"].as_str() {
@@ -476,7 +498,8 @@ impl Conversation {
                     Err(error) => { self.error = Some(error.to_string()); return true; }
                 };
                 tool.transcript.apply(patch);
-                tool.activity = crate::tool_activity::ToolActivity::from_acp(&tool.kind, &tool.title, &tool.locations, tool.transcript.input.as_ref());
+                let paths: Vec<String> = tool.locations.iter().map(|location| location.path.clone()).collect();
+                tool.activity = crate::tool_activity::ToolActivity::from_acp(&tool.kind, &tool.title, &paths, tool.transcript.input.as_ref());
                 tool.output = tool.transcript.output();
                 if tool.status == "completed" && !tool.cancelled { self.images.observe(&tool.output); }
                 if let Some(view) = &tool.input_view {
@@ -492,7 +515,8 @@ impl Conversation {
                     })
                     .collect::<Vec<_>>()
                     .join("\n");
-                tool.body = crate::tool_body::ToolBody::derive(tool.activity.kind, tool.transcript.input.as_ref(), tool.transcript.raw_output.as_ref(), &next, &tool.output, &tool.locations);
+                let paths: Vec<String> = tool.locations.iter().map(|location| location.path.clone()).collect();
+                tool.body = crate::tool_body::ToolBody::derive(tool.activity.kind, tool.transcript.input.as_ref(), tool.transcript.raw_output.as_ref(), &next, &tool.output, &paths);
                 if next != tool.content {
                     tool.chart_reader = None;
                     tool.source_revision+=1;

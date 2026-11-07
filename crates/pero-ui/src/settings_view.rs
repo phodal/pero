@@ -19,7 +19,7 @@ use gpui_kit::{
 };
 use pero_contracts::{
     appearance::{AccentColor, FontScope, FontSize},
-    workbench::{Appearance, WorkbenchPreferences},
+    workbench::{Appearance, LinkSurface, WorkbenchPreferences},
 };
 use pero_theme::{TextRole, UiAppearance, WorkbenchStyle as W};
 
@@ -461,14 +461,56 @@ impl SettingsPanel {
                 },
             )
         });
-        setting_row(
+        let language = setting_row(
             self.t("menu.language"),
             "",
             None,
             control.into_any_element(),
             cx,
+        );
+        let surface = self.preferences.layout.link_surface;
+        let target = cx.entity().downgrade();
+        let choices = [
+            (LinkSurface::InApp, self.t("links.in_app").to_owned()),
+            (
+                LinkSurface::ExternalBrowser,
+                self.t("links.browser").to_owned(),
+            ),
+        ];
+        let link_control = selection_button(
+            "settings-link-surface",
+            self.t(surface.key()),
+            self.t("links.surface"),
+            cx,
         )
-        .into_any_element()
+        .dropdown_menu(move |menu, _, _| {
+            choices.into_iter().fold(menu, |menu, (choice, label)| {
+                let target = target.clone();
+                menu.item(
+                    PopupMenuItem::new(label)
+                        .checked(surface == choice)
+                        .on_click(move |_, _, cx| {
+                            let _ = target.update(cx, |panel, cx| {
+                                let mut preferences = panel.preferences.clone();
+                                preferences.layout.link_surface = choice;
+                                cx.emit(SettingsAction::Save(preferences));
+                            });
+                        }),
+                )
+            })
+        });
+        div()
+            .flex()
+            .flex_col()
+            .child(language)
+            .child(setting_row(
+                self.t("links.surface"),
+                "",
+                None,
+                link_control.into_any_element(),
+                cx,
+            ))
+            .into_any_element()
     }
 
     pub(crate) fn matching_sections(&self, cx: &App) -> Vec<SettingsSection> {
@@ -482,7 +524,7 @@ impl SettingsPanel {
                 let mut text = self.t(section.key()).to_owned();
                 let keys: &[&str] = match section {
                     SettingsSection::Shortcuts => &["shortcuts.title","shortcuts.search"],
-                    SettingsSection::General => &["menu.language"],
+                    SettingsSection::General => &["menu.language", "links.surface", "links.in_app", "links.browser"],
                     SettingsSection::Mcp => &["mcp.agent", "mcp.add"],
                     SettingsSection::Memory => &["engram.enable", "engram.binary", "engram.hint"],
                     SettingsSection::Harness => &["harness.api_key", "harness.endpoint", "harness.model"],

@@ -51,6 +51,34 @@ pub enum ResourceTab {
     Artifacts,
 }
 
+/// Where a content link opens. A middle click or the platform modifier reverses it.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LinkSurface {
+    #[default]
+    InApp,
+    ExternalBrowser,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LinkClick {
+    pub middle: bool,
+    pub primary_modifier: bool,
+}
+
+impl LinkSurface {
+    pub fn opens_externally(self, click: LinkClick) -> bool {
+        let external = matches!(self, Self::ExternalBrowser);
+        external != (click.middle || click.primary_modifier)
+    }
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::InApp => "links.in_app",
+            Self::ExternalBrowser => "links.browser",
+        }
+    }
+}
+
 /// Persistent layout choices, independent of the current viewport's available space.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
@@ -69,6 +97,8 @@ pub struct LayoutPreferences {
     artifact_pane_width: u16,
     pub artifact_view: ArtifactView,
     pub resource_tab: ResourceTab,
+    #[serde(default)]
+    pub link_surface: LinkSurface,
 }
 
 impl Default for LayoutPreferences {
@@ -81,6 +111,7 @@ impl Default for LayoutPreferences {
             artifact_pane_width: Self::DEFAULT_ARTIFACT_PANE_WIDTH,
             artifact_view: ArtifactView::Icons,
             resource_tab: ResourceTab::Artifacts,
+            link_surface: LinkSurface::InApp,
         }
     }
 }
@@ -447,6 +478,27 @@ mod layout_tests {
         assert_eq!(layout.sidebar_width(), 480.);
         layout.resize_sidebar(360.4);
         assert_eq!(layout.sidebar_width(), 360.);
+    }
+    #[test]
+    fn link_surface_defaults_inside_the_app_and_a_modifier_reverses_it() {
+        let layout: LayoutPreferences = serde_json::from_str("{}").unwrap();
+        assert_eq!(layout.link_surface, LinkSurface::InApp);
+        for (surface, middle, primary, external) in [
+            (LinkSurface::InApp, false, false, false),
+            (LinkSurface::InApp, true, false, true),
+            (LinkSurface::InApp, false, true, true),
+            (LinkSurface::ExternalBrowser, false, false, true),
+            (LinkSurface::ExternalBrowser, true, false, false),
+            (LinkSurface::ExternalBrowser, false, true, false),
+        ] {
+            assert_eq!(
+                surface.opens_externally(LinkClick {
+                    middle,
+                    primary_modifier: primary,
+                }),
+                external
+            );
+        }
     }
     #[test]
     fn sessions_width_preserves_preferences_when_space_is_limited() {

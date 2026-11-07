@@ -65,6 +65,7 @@ pub(crate) struct WorkspaceNavigation {
     focused: PaneSide,
     history: WorkspaceHistory,
     pane_layout: Option<pero_contracts::workspace_panes::PaneLayout>,
+    next_open_intent: pero_contracts::pane_tabs::OpenIntent,
 }
 
 impl Default for WorkspaceNavigation {
@@ -76,6 +77,7 @@ impl Default for WorkspaceNavigation {
             focused: PaneSide::Left,
             history: WorkspaceHistory::default(),
             pane_layout: None,
+            next_open_intent: pero_contracts::pane_tabs::OpenIntent::Permanent,
         }
     }
 }
@@ -129,6 +131,7 @@ impl WorkspaceNavigation {
     }
     fn change_route(&mut self, route: WorkspaceRoute) -> Option<WorkspaceRoute> {
         if self.route == route {
+            self.next_open_intent = pero_contracts::pane_tabs::OpenIntent::Permanent;
             return None;
         }
         self.history.depart(&self.route);
@@ -230,6 +233,9 @@ impl WorkspaceNavigation {
         } else {
             (other, active, self.focused)
         })
+    }
+    pub(crate) fn open_as_preview(&mut self) {
+        self.next_open_intent = pero_contracts::pane_tabs::OpenIntent::Preview;
     }
     pub(crate) fn open(&mut self, item: WorkspaceItem) -> Option<WorkspaceRoute> {
         if !self.items.contains(&item) {
@@ -964,5 +970,19 @@ mod tests {
         assert!(navigation.collapse_panes().is_some());
         assert_eq!(navigation.current(), Some(&right));
         assert!(navigation.panes().is_none());
+    }
+
+    #[test]
+    fn preview_intent_expires_when_the_route_does_not_change() {
+        let file = |path: &str| WorkspaceItem::Document {
+            origin: ContentOrigin::File { path: path.into() },
+            source: path.into(),
+        };
+        let mut navigation = WorkspaceNavigation::default();
+        navigation.open(file("/a.md"));
+        navigation.open_as_preview();
+        assert!(navigation.open(file("/a.md")).is_none());
+        navigation.open(file("/b.md"));
+        assert!(navigation.focused_tabs().unwrap().preview_id().is_none());
     }
 }

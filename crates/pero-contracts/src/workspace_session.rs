@@ -14,6 +14,7 @@ pub enum WorkspaceItem {
     Compute,
     Conversation(String),
     Web(String),
+    PullRequest(crate::pull_request::PullRequestRef),
     Document {
         origin: ContentOrigin,
         source: String,
@@ -52,7 +53,7 @@ impl WorkspaceRoute {
             Self::Page(page) => *page,
             Self::Content(item) => match item {
                 WorkspaceItem::Conversation(_) => WorkbenchPage::Conversation,
-                WorkspaceItem::Document { .. } => WorkbenchPage::Document,
+                WorkspaceItem::Document { .. } | WorkspaceItem::PullRequest(_) => WorkbenchPage::Document,
                 WorkspaceItem::Web(_) => WorkbenchPage::Web,
                 WorkspaceItem::Project(_) | WorkspaceItem::Task(_) => WorkbenchPage::Tasks,
                 WorkspaceItem::App { .. } | WorkspaceItem::Compute => WorkbenchPage::Apps,
@@ -348,6 +349,8 @@ pub struct WorkspaceSession {
     pub navigation: WorkspaceSnapshot,
     pub documents: Vec<SavedDocument>,
     pub web: Vec<SavedWeb>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pull_requests: Vec<crate::pull_request::PullRequestReading>,
 }
 impl WorkspaceSession {
     pub fn valid(&self) -> bool {
@@ -372,6 +375,23 @@ impl WorkspaceSession {
                         ContentOrigin::File { path } => path == &doc.header.source.id,
                         _ => doc.draft.is_none() && doc.draft_ref.is_none() && !doc.legacy_draft,
                     }
+            })
+            && self.pull_requests.iter().enumerate().all(|(i, reading)| {
+                self.navigation
+                    .items
+                    .contains(&WorkspaceItem::PullRequest(reading.reference.clone()))
+                    && !self.pull_requests[..i]
+                        .iter()
+                        .any(|other| other.reference == reading.reference)
+                    && reading
+                        .selected_file
+                        .as_ref()
+                        .is_none_or(|name| !name.is_empty())
+                    && reading.viewed.iter().enumerate().all(|(j, file)| {
+                        !file.path.is_empty()
+                            && !file.head.is_empty()
+                            && !reading.viewed[..j].iter().any(|other| other.path == file.path)
+                    })
             })
             && self.web.iter().enumerate().all(|(i, page)| {
                 (if let Some(html) = &page.html {
@@ -617,5 +637,22 @@ mod tests {
                 expected
             );
         }
+    }
+
+    #[test]
+    fn an_older_checkpoint_omits_pull_request_reading() {
+        let session = WorkspaceSession {
+            version: 1,
+            workspace: "/work".into(),
+            navigation: WorkspaceSnapshot::default(),
+            documents: vec![],
+            web: vec![],
+            pull_requests: vec![],
+        };
+        assert!(session.valid());
+        let encoded = serde_json::to_value(&session).unwrap();
+        assert!(encoded.get("pull_requests").is_none());
+        let restored: WorkspaceSession = serde_json::from_value(encoded).unwrap();
+        assert!(restored.pull_requests.is_empty() && restored.valid());
     }
 }

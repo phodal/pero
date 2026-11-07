@@ -23,6 +23,8 @@ mod panel;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod session_controls;
 pub mod stream;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+pub mod comparison;
 pub mod scientific_math;
 mod scientific_source;
 pub mod inline_images;

@@ -92,6 +92,18 @@ impl ChatWindow {
                         json!({"action":"choose_context","kind":kind,"request_id":request_id})
                     }
                     ChatAction::AppLink(href)=>{if let Some(address)=pero_contracts::app_chat::AppLocation::parse(href){json!({"action":"app_location","app":address.scope.app,"panel":address.scope.panel,"location":address.location})}else{cx.open_url(href);return;}},
+                    ChatAction::FollowLink { href, .. } => {
+                        if href.starts_with("https://") || href.starts_with("http://") { cx.open_url(href); }
+                        cx.notify();
+                        return;
+                    }
+                    ChatAction::OpenSource { target, .. } => {
+                        if let pero_contracts::source_target::SourceTarget::PullRequest(reference) = target {
+                            cx.open_url(reference.url());
+                        }
+                        cx.notify();
+                        return;
+                    }
                     ChatAction::OpenDocument(..) | ChatAction::Activated | ChatAction::ReturnToReview | ChatAction::ClosePanel => {
                         cx.notify();
                         return;

@@ -49,11 +49,16 @@ impl WorkspaceNavigation {
         self.pane_layout = snapshot.panes.clone();
     }
     pub(super) fn select_pane_route(&mut self, route: &WorkspaceRoute) -> bool {
+        let intent = std::mem::replace(&mut self.next_open_intent, OpenIntent::Permanent);
         if !route.supports_pane() {
             return false;
         }
         if self.pane_layout.is_none() {
-            self.pane_layout = Some(PaneLayout::new(route.clone(), None));
+            let mut layout = PaneLayout::empty();
+            layout
+                .open_tab(PaneId(1), route.clone(), None, intent)
+                .expect("initial pane item");
+            self.pane_layout = Some(layout);
             return true;
         }
         let layout = self.pane_layout.as_mut().unwrap();
@@ -68,9 +73,7 @@ impl WorkspaceNavigation {
             layout.activate_view(view);
             return true;
         }
-        layout
-            .open_tab(pane, route.clone(), None, OpenIntent::Permanent)
-            .is_some()
+        layout.open_tab(pane, route.clone(), None, intent).is_some()
     }
     pub(super) fn sync_legacy_panes(&mut self) {
         self.other = None;

@@ -69,7 +69,7 @@ impl WorkspaceLayout {
         let available = (viewport_width - sidebar_width).max(0.);
         let panes = panes.filter(|layout| layout.is_active(route));
         let chat_in_pane = panes.is_some_and(|layout| layout.conversation().is_some());
-        let chat = if chat_in_pane {
+        let chat = if chat_in_pane || (narrow && matches!(route,WorkspaceRoute::Content(WorkspaceItem::PullRequest(_) | WorkspaceItem::Web(_)))) {
             ChatPlacement::Hidden
         } else {
             Self::chat_placement(route, tab, preferences)
@@ -242,14 +242,14 @@ mod tests {
                 (260., false, Dock, 420., true, true),
             ),
             (
-                "a narrow Web dock hides the child engine",
+                "a narrow Web view keeps the page primary",
                 1000.,
                 Content(WorkspaceItem::Web("https://example.com/".into())),
                 Chat,
                 true,
                 420.,
                 false,
-                (260., true, Dock, 740., false, false),
+                (260., true, Hidden, 0., true, true),
             ),
             (
                 "closing the narrow dock reveals the retained Web engine",
@@ -489,4 +489,15 @@ mod tests {
         assert_eq!(conversation_hidden.chat, Main);
         assert_eq!(conversation_hidden.chat_width, 0.);
     }
+    #[test]
+    fn narrow_pull_request_keeps_the_review_visible_without_changing_saved_chat_preferences() {
+        let route=WorkspaceRoute::Content(WorkspaceItem::PullRequest("https://github.com/phodal/pero/pull/164".to_owned().try_into().unwrap()));
+        let mut preferences=LayoutPreferences::default();preferences.chat_open=true;
+        for (width,chat) in [(920.,ChatPlacement::Hidden),(1488.,ChatPlacement::Dock)] {
+            let layout=WorkspaceLayout::resolve(width,&route,ConversationTab::Chat,&preferences,false,None);
+            assert!(layout.content_visible);assert_eq!(layout.chat,chat);
+        }
+        assert!(preferences.chat_open);
+    }
+
 }
