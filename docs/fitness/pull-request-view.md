@@ -104,6 +104,12 @@ screen-reader acceptance is claimed.
 
 ## Scope limits
 
+Before PR publication, the branch was rebased without conflicts onto master
+`f514d945`. The 222 unit tests above passed again (one Host test remains ignored),
+as did `npm run check`, Host/Native/Wasm/web/Desktop builds and
+`npm run test:pull-requests`. These integration checks used `43b91481`; the
+earlier actual Native observations remain separately attributed above.
+
 GitHub only; no Graphite/Origin or enterprise host admission, PR mutation,
 merge, approval, inline review-thread actions or continuous live polling.
 Reviews include review bodies and issue discussion comments. GitHub's files API
