@@ -12,7 +12,8 @@ class ClustersTest(unittest.TestCase):
     def test_drafts_edit_and_selection_survive_restart_without_claiming_connectivity(self):
         with TemporaryDirectory() as directory:
             store = ClusterStore(directory)
-            self.assertEqual(store.state(), {'clusters': [], 'selectedClusterId': None, 'jobs': None, 'jobsStatus': 'not_connected'})
+            self.assertEqual(store.state(), {'clusters': [], 'selectedClusterId': None, 'jobs': None, 'jobsStatus': 'not_connected',
+                                             'executions': [], 'executionsStatus': 'none'})
             first = store.save(ClusterDraft.parse({'name': '大学集群', 'host': 'login.example', 'account': 'research',
                                                  'partition': 'cpu', 'workdir': '/scratch/research'}))
             identity = first['selectedClusterId']
@@ -27,6 +28,8 @@ class ClustersTest(unittest.TestCase):
             self.assertTrue(all(item['connectionStatus'] == 'not_connected' for item in restored['clusters']))
             self.assertIsNone(restored['jobs'])
             self.assertEqual(restored['jobsStatus'], 'not_connected')
+            self.assertEqual(restored['executions'], [])
+            self.assertEqual(restored['executionsStatus'], 'none')
             self.assertNotEqual(second['selectedClusterId'], identity)
 
     def test_configuration_accepts_only_bounded_non_secret_fields(self):
