@@ -14,6 +14,7 @@
   <a href="DEVELOPMENT.md">Development</a> ·
   <a href="#status">Status</a> ·
   <a href="#contribute">Contribute</a> ·
+  <a href="https://github.com/openpero/community">Community</a> ·
   <a href="README.zh-CN.md">简体中文</a>
 </p>
 
@@ -61,5 +62,7 @@ Solid boxes mark implemented foundations; dashed boxes and links mark planned ca
 Bring a research use case, contribute a method or App, or review results. Pick a bounded item from the [Roadmap](ROADMAP.md); for substantial changes, open an Issue to agree on scope and acceptance criteria. Include a reproducible check with code changes. AI-assisted contributions follow the same review process. See [CONTRIBUTING](CONTRIBUTING.md).
 
 <p align="center">
-  <img src="docs/assets/wechat-group.jpg" width="240" alt="WeChat group: Pero - 瞎摸 AI4S">
+  <a href="https://github.com/openpero/community">
+    <img src="docs/assets/wechat-group.jpg" width="240" alt="WeChat group: Pero - 瞎摸 AI4S">
+  </a>
 </p>

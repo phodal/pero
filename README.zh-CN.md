@@ -14,6 +14,7 @@
   <a href="DEVELOPMENT.md">开发指南</a> ·
   <a href="#当前状态">当前状态</a> ·
   <a href="#参与贡献">参与贡献</a> ·
+  <a href="https://github.com/openpero/community">社区</a> ·
   <a href="README.md">English</a>
 </p>
 
@@ -59,3 +60,9 @@ Agent 提出建议，由人批准重要操作与最终结论。导入任务不�
 ## 参与贡献
 
 提供科研场景、贡献方法或 App，或参与结果复核。从[路线图](ROADMAP.md)中选择范围明确的条目；较大的改动请先开 Issue 对齐范围与验收标准。代码改动需附可复现的检查方式。AI 辅助贡献遵循相同的审阅流程。
+
+<p align="center">
+  <a href="https://github.com/openpero/community">
+    <img src="docs/assets/wechat-group.jpg" width="240" alt="微信群：Pero - 瞎摸 AI4S">
+  </a>
+</p>
