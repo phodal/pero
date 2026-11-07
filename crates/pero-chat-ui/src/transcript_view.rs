@@ -176,13 +176,16 @@ impl ChatPanel {
                 .map(|item| item.label())
                 .unwrap_or_else(|| format!("#{}", reference.number()));
             let tooltip = if let Some(summary) = &summary {
-                format!(
-                    "{}\n{}\n{}\n{}",
-                    summary.title,
+                let mut lines = vec![
+                    summary.title.clone(),
                     summary.label(),
-                    self.t(summary.status.key()),
-                    summary.author
-                )
+                    self.t(summary.status.key()).to_owned(),
+                    summary.author.clone(),
+                ];
+                if let Some(opened) = self.opened_phrase(&summary.opened_at) {
+                    lines.push(opened);
+                }
+                lines.join("\n")
             } else {
                 label.clone()
             };
@@ -216,6 +219,7 @@ impl ChatPanel {
                             });
                         }),
                     )
+                    .child(self.icon("brand-github").size(px(13.)))
                     .child(
                         div()
                             .size(px(8.))
@@ -226,6 +230,18 @@ impl ChatPanel {
             );
         }
         chips.into_any_element()
+    }
+
+    fn opened_phrase(&self, opened_at: &str) -> Option<String> {
+        use pero_contracts::pull_request::{opened_ago, opened_day};
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64;
+        if let Some(age) = opened_ago(opened_at, now) {
+            if age.count == 0 {
+                return Some(self.t("pr.just_now").to_owned());
+            }
+            return Some(format!("{} {} {}", self.t("pr.opened"), age.count, self.t(age.unit.key())));
+        }
+        opened_day(opened_at).map(|day| format!("{} {day}", self.t("pr.opened")))
     }
 
     pub(crate) fn reply_actions(

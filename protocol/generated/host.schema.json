@@ -12662,6 +12662,9 @@
         "changed_files": {
           "type": "integer"
         },
+        "opened_at": {
+          "type": "string"
+        },
         "files": {
           "$ref": "#/$defs/PullRequestSectionPullRequestFile"
         },
@@ -12732,6 +12735,9 @@
         },
         "deletions": {
           "type": "integer"
+        },
+        "opened_at": {
+          "type": "string"
         }
       },
       "required": [

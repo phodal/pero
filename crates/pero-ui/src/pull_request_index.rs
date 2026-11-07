@@ -6,7 +6,8 @@ use gpui_kit::{
     *,
 };
 use pero_contracts::pull_request::{
-    PullRequestList, PullRequestListState, PullRequestStatus, PullRequestSummary, RepositoryName,
+    PullRequestList, PullRequestListState, PullRequestRef, PullRequestStatus, PullRequestSummary,
+    RepositoryName, opened_ago, opened_day, present_statuses,
 };
 use serde_json::json;
 
@@ -193,43 +194,107 @@ impl Workbench {
                 .eq_ignore_ascii_case(&selected)
             && !selected.is_empty()
         {
-            column = column.child(div().text_color(p.text_muted).child(self.t("pr.list_empty")));
-        }
-        for (index, item) in self.pull_request_index.items.iter().enumerate() {
-            if !item
-                .reference
-                .repository()
-                .eq_ignore_ascii_case(&selected)
-            {
-                continue;
-            }
-            let reference = item.reference.clone();
-            let status = self.t(item.status.key()).to_owned();
-            let tooltip = format!("{}\n{}\n{}\n{}", item.title, item.label(), status, item.author);
             column = column.child(
-                Button::new(("pr-row", index))
-                    .ghost()
-                    .small()
-                    .w_full()
-                    .justify_start()
-                    .tooltip(tooltip)
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.open_pull_request(reference.clone(), window, cx);
-                    }))
-                    .child(status_mark(item.status, cx))
-                    .child(item.label())
-                    .child(
-                        div()
-                            .flex_1()
-                            .text_left()
-                            .overflow_hidden()
-                            .child(item.title.clone()),
-                    )
-                    .child(format!("+{} −{}", item.additions, item.deletions)),
+                div()
+                    .text_color(p.text_muted)
+                    .child(self.t("pr.list_empty")),
             );
+        }
+        let rows: Vec<ListedRow> = self
+            .pull_request_index
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| item.reference.repository().eq_ignore_ascii_case(&selected))
+            .map(|(index, item)| ListedRow {
+                index,
+                reference: item.reference.clone(),
+                status: item.status,
+                title: item.title.clone(),
+                number: item.label(),
+                author: item.author.clone(),
+                additions: item.additions,
+                deletions: item.deletions,
+                opened_at: item.opened_at.clone(),
+            })
+            .collect();
+        let groups = present_statuses(rows.iter().map(|row| row.status));
+        let headed = groups.len() > 1;
+        for status in groups {
+            if headed {
+                column = column.child(div().text_color(p.text_muted).child(self.t(status.key())));
+            }
+            for row in rows.iter().filter(|row| row.status == status) {
+                let reference = row.reference.clone();
+                let status_label = self.t(row.status.key()).to_owned();
+                let opened = opened_phrase(&row.opened_at, |key| self.t(key));
+                let tooltip = [
+                    row.title.clone(),
+                    row.number.clone(),
+                    status_label,
+                    row.author.clone(),
+                ]
+                .into_iter()
+                .chain(opened.clone())
+                .collect::<Vec<_>>()
+                .join("\n");
+                column = column.child(
+                    Button::new(("pr-row", row.index))
+                        .ghost()
+                        .small()
+                        .w_full()
+                        .justify_start()
+                        .tooltip(tooltip)
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.open_pull_request(reference.clone(), window, cx);
+                        }))
+                        .child(status_mark(row.status, cx))
+                        .child(row.number.clone())
+                        .child(
+                            div()
+                                .flex_1()
+                                .text_left()
+                                .overflow_hidden()
+                                .child(row.title.clone()),
+                        )
+                        .child(format!("+{} −{}", row.additions, row.deletions))
+                        .children(opened),
+                );
+            }
         }
         column.into_any_element()
     }
+}
+
+struct ListedRow {
+    index: usize,
+    reference: PullRequestRef,
+    status: PullRequestStatus,
+    title: String,
+    number: String,
+    author: String,
+    additions: u64,
+    deletions: u64,
+    opened_at: String,
+}
+
+fn opened_phrase(opened_at: &str, label: impl Fn(&str) -> &'static str) -> Option<String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs() as i64;
+    if let Some(age) = opened_ago(opened_at, now) {
+        if age.count == 0 {
+            return Some(label("pr.just_now").to_owned());
+        }
+        return Some(format!(
+            "{} {} {}",
+            label("pr.opened"),
+            age.count,
+            label(age.unit.key())
+        ));
+    }
+    opened_day(opened_at).map(|day| format!("{} {day}", label("pr.opened")))
 }
 
 fn status_mark(status: PullRequestStatus, cx: &App) -> AnyElement {

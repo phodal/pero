@@ -12,13 +12,13 @@ model PullRequestReview {author:string;state:string;body:string;...Closed}
 model PullRequestSection<T> {items:T[];error:string|null;...Closed}
 model PullRequestSnapshot {
  reference:string;title:string;body:string;status:"open"|"draft"|"closed"|"merged";
- author:string;base:string;head:string;head_sha:string;additions:safeint;deletions:safeint;changed_files:safeint;
+ author:string;base:string;head:string;head_sha:string;additions:safeint;deletions:safeint;changed_files:safeint;opened_at?:string;
  files:PullRequestSection<PullRequestFile>;commits:PullRequestSection<PullRequestCommit>;
  checks:PullRequestSection<PullRequestCheck>;reviews:PullRequestSection<PullRequestReview>;...Closed
 }
 model PullRequestLoadedEvent {kind:"pull_request_loaded";...EventBase;data:PullRequestSnapshot}
 model PullRequestErrorEvent {kind:"pull_request_error";...EventBase;thread_id?:string;}
 model PullRequestDiscoveredEvent {kind:"pull_request_discovered";...ThreadEventBase;data:{reference:string;...Closed}}
-model PullRequestSummary {reference:string;title:string;status:"open"|"draft"|"closed"|"merged";author:string;additions:safeint;deletions:safeint;...Closed}
+model PullRequestSummary {reference:string;title:string;status:"open"|"draft"|"closed"|"merged";author:string;additions:safeint;deletions:safeint;opened_at?:string;...Closed}
 model PullRequestListed {repository:string;state:"open"|"closed"|"all";items:PullRequestSummary[];...Closed}
 model PullRequestListedEvent {kind:"pull_request_listed";...EventBase;data:PullRequestListed}

@@ -93,6 +93,8 @@ struct ApiPull {
     additions: u64,
     deletions: u64,
     changed_files: u64,
+    #[serde(default, rename = "created_at")]
+    created_at: String,
 }
 fn api(
     github: &impl GitHub,
@@ -137,6 +139,8 @@ struct ListedPull {
     state: String,
     additions: u64,
     deletions: u64,
+    #[serde(default, rename = "createdAt")]
+    created_at: String,
 }
 fn list(
     github: &impl GitHub,
@@ -158,7 +162,7 @@ fn list(
                 "--limit",
                 &limit,
                 "--json",
-                "number,title,url,author,isDraft,state,additions,deletions",
+                "number,title,url,author,isDraft,state,additions,deletions,createdAt",
             ],
         )
         .map_err(|error| error.message)?;
@@ -196,6 +200,7 @@ fn listed_summary(
         author: row.author.map(|author| author.login).unwrap_or_default(),
         additions: row.additions,
         deletions: row.deletions,
+        opened_at: row.created_at,
     })
 }
 fn load(
@@ -275,6 +280,7 @@ fn load(
         additions: pull.additions,
         deletions: pull.deletions,
         changed_files: pull.changed_files,
+        opened_at: pull.created_at,
         files,
         commits,
         checks,

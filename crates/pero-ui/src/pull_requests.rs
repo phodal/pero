@@ -107,6 +107,26 @@ impl Workbench {
         view.state.refresh(request_id.clone());
         self.command(json!({"method":"pull_requests","action":"load","request_id":request_id,"reference":reference}),cx);
     }
+    pub(crate) fn refresh_observed_pull_request(
+        &mut self,
+        reference: &PullRequestRef,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(view) = self
+            .pull_requests
+            .iter_mut()
+            .find(|view| &view.state.reference == reference)
+        else {
+            return;
+        };
+        if view.state.pending.is_some() {
+            return;
+        }
+        self.next_request += 1;
+        let request_id = format!("pull-request-{}", self.next_request);
+        view.state.refresh_observed(request_id.clone());
+        self.command(json!({"method":"pull_requests","action":"load","request_id":request_id,"reference":reference}),cx);
+    }
     pub(crate) fn receive_pull_request(
         &mut self,
         event: &HostEvent,
@@ -159,22 +179,28 @@ impl Workbench {
             Err(event.text.clone())
         };
         let summary = if view.state.receive(request_id, result) {
+            let sections = view.state.sections;
             if let Some(snapshot) = &view.state.snapshot {
-                view.description
-                    .update(cx, |view, cx| view.replace(&snapshot.body, cx));
-                let text = snapshot
-                    .reviews
-                    .items
-                    .iter()
-                    .map(|review| {
-                        format!(
-                            "### {} · {}\n\n{}\n",
-                            review.author, review.state, review.body
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                view.reviews.update(cx, |view, cx| view.replace(&text, cx));
+                if sections.body {
+                    let body = snapshot.body.clone();
+                    view.description
+                        .update(cx, |view, cx| view.replace(&body, cx));
+                }
+                if sections.reviews {
+                    let text = snapshot
+                        .reviews
+                        .items
+                        .iter()
+                        .map(|review| {
+                            format!(
+                                "### {} · {}\n\n{}\n",
+                                review.author, review.state, review.body
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    view.reviews.update(cx, |view, cx| view.replace(&text, cx));
+                }
             }
             view.state.snapshot.as_ref().map(|snapshot| snapshot.summary())
         } else {
@@ -215,7 +241,7 @@ impl Workbench {
                             .find(|view| view.state.reference == reference)
                             .is_some_and(|view| view.state.pending.is_some());
                         if !pending {
-                            this.refresh_pull_request(&reference, cx);
+                            this.refresh_observed_pull_request(&reference, cx);
                         }
                         true
                     })

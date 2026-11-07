@@ -124,8 +124,13 @@ are bounded to 5000 lines. Persisted recovery saves PR identity, the subview,
 the selected file and local viewed marks, then reloads current data. It does
 not persist fetched snapshots or a pixel scroll offset. A viewed mark stores
 the head it was recorded against and becomes stale when that head changes.
-While that PR route is current, the view refreshes every 60 seconds and also
-when discovery reports the same ref. The timer stops after the route changes.
+While that PR route is current, the view refreshes every 60 seconds. That
+poll absorbs the snapshot: files and commits stay when the head and commit
+count are unchanged, checks stay when their name, status and conclusion
+fingerprint is unchanged, reviews stay when the count and decision are
+unchanged, and the description is rewritten only when the body text changes.
+Discovery of the same ref and the refresh button replace the whole snapshot.
+The timer stops after the route changes.
 A closed discovered PR stays dismissed for this Workbench lifetime; a later
 process and completed turn can discover it again. Discovery failure is silent
 because most workspaces have no branch PR. Private/unauthenticated GitHub UI
@@ -139,14 +144,23 @@ file and line span, `pero-output://thread/tool`, `pero-terminal://id`,
 `vscode-remote://background-composer+` file, a GitHub PR, or
 `docs/exec-plans/**/*.md`. Terminal citation focuses an existing tab and does
 not start a shell. Project Sources lists up to 30 pull requests for a
-repository with `gh pr list`, filtered open, closed or all, and opens the
-existing PR page. Link-driven opens use preview tabs. The link surface
-preference stays in-app unless reversed by a middle click or the platform
-modifier; the explicit GitHub button still uses the system browser. Plan
+repository with `gh pr list`, filtered open, closed or all. When the visible
+rows have more than one GitHub status they are grouped Open, Draft, Closed,
+then Merged, and each row shows the relative open time from `createdAt`.
+A row opens the existing PR page as a preview. Link-driven opens use preview
+tabs; double-click and drag both promote that tab out of preview. The link
+surface preference stays in-app unless reversed by a middle click or the
+platform modifier; the explicit GitHub button still uses the system browser.
+A recognized plan shows its first heading and the checkbox todo count, and
 execution submits the plan body and tells the agent not to commit or push.
+Message chips for a known PR show the GitHub mark, status, number, and a
+tooltip with title, author and opened time. There is no author avatar.
 
-Concept tests after this follow-up: contracts 125, UI 25, chat UI 32, and the
-Host fixture contract, which now also expects `pull_request_listed` with one
-open and one draft item. Electron, Native window, `npm run check`, Bazel and
-the public GitHub `--live` read were not repeated for these interactions. No
-Canvas, remote-desktop, machine-metrics or voice-transcript page was added.
+Concept tests after this alignment: contracts 126, UI 25, chat UI 32, Host
+48 passed with 1 ignored, and the Host fixture contract. The fixture expects
+`opened_at` on the loaded pull request and on the first listed item. Electron,
+Native window, `npm run check`, Bazel and the public GitHub `--live` read were
+not repeated. No Canvas-share, continuous remote-desktop, machine-metrics or
+voice-transcript page was added: those content kinds are not workspace items,
+and the isolated desktop in ADR 0019 is an execution boundary rather than a
+session content view.

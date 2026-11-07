@@ -180,10 +180,10 @@ Browser props：`browserId`、`initialUrl?`、`ownerAgentId?`、`agentControlled
 - 子视图、选中文件和“已查看”集合随 PR 身份持久化。Pero 没有 GitHub viewed API，标记应是本地阅读状态，并在 head 变化后标成过期，而不是声称与 GitHub 同步。
 - 打开中的 PR 用有界轮询刷新快照字段；没有 Cursor 那条 server stream 就不实现订阅。
 - 应用内 / 外部浏览器是偏好加修饰键反转，显式 “在 GitHub 打开” 不变。
-- 临时预览和双击固定复用已有 `OpenIntent::Preview` / `pin`，不另做标签系统。
-- 项目列表是仓库上的只读 `gh pr list`，点一行打开现有 PR 页。
+- 临时预览、双击和拖动都调用已有 `promote`，离开预览。右键 pin 仍是标签前缀，不是第二条预览系统。
+- 项目列表是仓库上的只读 `gh pr list`，按 GitHub 状态分组，点一行打开现有 PR 页。
 - 文件、终端、输出、变更范围、远端文件和计划文件走一个 `SourceTarget`，分别交给现有 Host 文件、终端、工具输出、变更视图和计划文档。远端路径解析失败时停在不可用，不映射到本机路径。
-- 计划只承认有 registry 或约定路径的计划，并提供编辑与执行入口。Canvas 编辑分享、持续远端桌面、机器指标和通话记录没有对应生产源，不建空页。
+- 计划只承认 `docs/exec-plans/**/*.md`。正文里的勾选待办显示在计划条上，执行仍把正文交给对话。Canvas 编辑分享、持续远端桌面、机器指标和通话记录没有对应生产源，不建空页。
 
 ## Pero 落地对照
 
@@ -192,13 +192,13 @@ Browser props：`browserId`、`initialUrl?`、`ownerAgentId?`、`agentControlled
 
 | Cursor 行为 | Pero 现在 | 仍不同 |
 | --- | --- | --- |
-| 消息里压缩为 `#编号`，状态图标，悬浮标题、状态、作者 | 已有摘要时显示状态色点、`#编号`，悬浮标题、编号、状态和作者 | 没有 provider 图标、作者头像和 “Opened … ago”。没有摘要时只有 `#编号` |
+| 消息里压缩为 `#编号`，GitHub 图标和状态，悬浮标题、编号、状态、作者、打开时间 | 已有摘要时显示 GitHub 图标、状态色点、`#编号`。悬浮依次是标题、编号、状态、作者，以及由打开时间算出的相对时间或日期 | 没有作者头像。界面没有图片元素，不另拉 `github.com/{login}.png`。没有摘要时只有 `#编号` |
 | schema 保存身份和子视图；已查看走服务端 version，可标 stale | 保存子视图、选中文件和本地 `{path, head}`。head 变化后标过期，可取消 | 不恢复像素滚动。不调用 GitHub viewed API |
-| server stream 默认关；活动 tab 自愈轮询默认 5 分钟，夹在 1–60 分钟 | 活动 PR 路由每 60 秒整份刷新；同一 ref 再次发现时也刷新。离开路由即停止 | 没有 server stream，也不按 commit/review 字段差量刷新 |
-| 应用内 / 外部浏览器，中键或 Cmd/Ctrl 反转；显式外部打开不变 | `LayoutPreferences.link_surface`，缺省应用内。中键或平台修饰键反转。GitHub 按钮仍 `open_url` | 拖动标签固定未另做。Markdown 点击现在带上 ClickEvent 的中键和修饰键 |
-| 临时标签，双击固定 | 链接打开的 PR 和引用文件使用 `OpenIntent::Preview`。已有标签只激活，不把固定标签降回预览。双击仍走已有 `promote` | 没有独立的 temporary-tab 开关 |
-| 项目 PR 索引，分组和一行上的计数、时间、stack | 仓库级只读 `gh pr list`，打开 / 关闭 / 全部，最多 30 条。点一行打开现有 PR | 没有 queued/ready/merged 分组、相对时间、stack、blocker。Cursor 的该索引默认关闭 |
-| 一个路由处理终端、远端文件、计划、输出和指定 diff | `SourceTarget` 分给现有终端、文件、工具输出、变更记录和计划文档。远端未映射保持不可用 | 不创建 untitled、目录页或 Canvas。变更范围是 turn/worktree，不是 staged/branch 全套 |
-| 计划 registry、编辑器、Build | `docs/exec-plans/**/*.md` 打开为可编辑文档，执行把正文交给对话且不提交、不推送 | 没有 planId registry、todos 模型和独立 Build 控件。其它 Markdown 仍是普通文件 |
-| Canvas source/render、分享；浏览器 design mode、临时页、agent 所有权 | 普通 HTTP(S) 继续用隔离 Web 页，并服从链接偏好 | 没有 Canvas 页、分享、design mode 或浏览器 agent 所有权 |
-| VNC、机器指标、语音记录要求已有会话 id | 没有对应页 | 包内有实现不等于 Pero 有这些生产源 |
+| server stream 默认关；活动 tab 按变化字段自愈，默认 5 分钟，夹在 1–60 分钟 | 活动 PR 路由每 60 秒再读一次 `gh`。head 与提交数未变时保留文件和提交；检查指纹未变时保留检查；评审条数和结论未变时保留评审；正文未变时不重写描述。显式刷新和再次发现整份替换。离开路由即停止 | 没有 server stream。间隔是 60 秒，不是默认 5 分钟。轮询仍取整份快照，差量只发生在吸收进已打开的页时 |
+| 应用内 / 外部浏览器，中键或 Cmd/Ctrl 反转；显式外部打开不变 | `LayoutPreferences.link_surface`，缺省应用内。中键或平台修饰键反转。GitHub 按钮仍 `open_url` | 与 Cursor 的打开决策相同 |
+| 临时标签；双击或拖动后离开临时状态 | 链接打开的 PR 和引用文件使用 `OpenIntent::Preview`。已有标签只激活。双击和拖动都 `promote`，预览变为普通标签。右键 pin 仍只改前缀 | 没有独立的 temporary-tab 开关。`promote` 不是右键 pin |
+| 项目 PR 索引，分组和一行上的计数、时间、stack | 仓库级只读 `gh pr list`，打开 / 关闭 / 全部，最多 30 条。同一仓库里出现多种状态时按 Open、Draft、Closed、Merged 分组。一行含状态、编号、标题、增删和相对打开时间。点一行以预览打开现有 PR | 没有 queued、ready、stack、blocker。这些字段不在 `gh pr list` 里，不用 reviewDecision 冒充 |
+| 一个路由处理终端、远端文件、计划、输出和指定 diff | `SourceTarget` 分给现有终端、文件、工具输出、变更记录和计划文档。远端未映射保持不可用 | 不创建 untitled、目录页或 Canvas。变更范围是 turn/worktree，不是 staged/branch 全套。终端引用只聚焦已有标签 |
+| 计划 registry、编辑器、Build、待办 | `docs/exec-plans/**/*.md` 打开为可编辑文档。计划条显示一级标题，以及正文里 `- [ ]` / `- [x]` 的完成数。执行把正文交给对话且不提交、不推送 | 没有 planId registry，也没有独立 Build 控件。其它 Markdown 仍是普通文件 |
+| Canvas source/render、分享；浏览器 design mode、临时页、agent 所有权 | 普通 HTTP(S) 继续用隔离 Web 页，并服从链接偏好 | 仓库没有 Canvas 分享或画布编辑的生产源，不建空页。没有 design mode 或浏览器 agent 所有权 |
+| VNC、机器指标、语音记录要求已有会话 id | 没有这些内容页 | `WorkspaceItem` 没有对应种类。隔离桌面属于 Computer Use 的执行边界，不是按会话 id 打开的内容视图。不建空页 |

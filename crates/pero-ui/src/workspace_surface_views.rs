@@ -195,11 +195,12 @@ impl Workbench {
     fn pane_surface_content(&self, leaf: &PaneLeaf, cx: &mut Context<Self>) -> AnyElement {
         match leaf.route() {
             Some(WorkspaceRoute::Content(item @ WorkspaceItem::Document { origin, .. })) => {
-                let body = if let Some(reader) = self
-                    .pane_views
-                    .iter()
-                    .find(|pane| Some(pane.id) == leaf.tabs.active_id())
-                {
+                let reader = self.pane_views.iter().find(|pane| Some(pane.id) == leaf.tabs.active_id());
+                let plan_text = reader.map(|pane| {
+                    let reader = pane.view.read(cx);
+                    reader.draft(cx).unwrap_or_else(|| reader.document.source().to_owned())
+                }).unwrap_or_default();
+                let body = if let Some(reader) = reader {
                     reader.view.clone().into_any_element()
                 } else {
                     self.deferred_document_content(item, cx)
@@ -215,7 +216,7 @@ impl Workbench {
                         .flex_1()
                         .min_h_0()
                         .min_w_0()
-                        .child(self.plan_bar(plan.path(), cx))
+                        .child(self.plan_bar(plan.path(), &plan_text, cx))
                         .child(body)
                         .into_any_element()
                 } else {

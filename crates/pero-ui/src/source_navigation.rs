@@ -6,7 +6,9 @@ use crate::{
 use gpui::*;
 use pero_contracts::{
     content_link::WorkspaceLink,
-    source_target::{FileCitation, PlanRef, SourceTarget, line_span, relative_path_of},
+    source_target::{
+        FileCitation, PlanOutline, PlanRef, SourceTarget, line_span, relative_path_of,
+    },
     workbench::LinkClick,
 };
 use std::path::PathBuf;
@@ -215,9 +217,23 @@ impl Workbench {
         }
     }
 
-    pub(crate) fn plan_bar(&self, path: &str, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn plan_bar(&self, path: &str, text: &str, cx: &mut Context<Self>) -> AnyElement {
         let path = path.to_owned();
         let connected = self.connected;
+        let outline = PlanOutline::parse(text);
+        let heading = if outline.title.is_empty() {
+            self.t("plan.title").to_owned()
+        } else {
+            outline.title
+        };
+        let progress = (!outline.todos.is_empty()).then(|| {
+            format!(
+                "{} {}/{}",
+                self.t("plan.progress"),
+                outline.done(),
+                outline.todos.len()
+            )
+        });
         div()
             .flex()
             .items_center()
@@ -229,7 +245,14 @@ impl Workbench {
             .child(
                 div()
                     .flex_1()
-                    .child(self.t("plan.title")),
+                    .min_w_0()
+                    .child(heading)
+                    .children(progress.map(|progress| {
+                        div()
+                            .text_size(px(12.))
+                            .text_color(pero_theme::UiAppearance::global(cx).palette.text_muted)
+                            .child(progress)
+                    })),
             )
             .child(
                 gpui_kit::component::button::Button::new("plan-execute")

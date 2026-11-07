@@ -1168,5 +1168,11 @@
   "links.browser": "Default browser",
   "plan.title": "Plan",
   "plan.execute": "Execute",
+  "plan.progress": "To-dos",
+  "pr.opened": "Opened",
+  "pr.just_now": "Opened just now",
+  "pr.minutes_ago": "minutes ago",
+  "pr.hours_ago": "hours ago",
+  "pr.days_ago": "days ago",
   "workspace.conversation": "Conversation"
 }

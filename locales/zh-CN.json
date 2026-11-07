@@ -1168,5 +1168,11 @@
   "links.browser": "系统浏览器",
   "plan.title": "计划",
   "plan.execute": "执行",
+  "plan.progress": "待办",
+  "pr.opened": "打开于",
+  "pr.just_now": "刚刚打开",
+  "pr.minutes_ago": "分钟前",
+  "pr.hours_ago": "小时前",
+  "pr.days_ago": "天前",
   "workspace.conversation": "查看对话"
 }

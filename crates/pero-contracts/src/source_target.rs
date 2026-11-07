@@ -55,6 +55,55 @@ impl PlanRef {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlanTodo {
+    pub text: String,
+    pub done: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlanOutline {
+    pub title: String,
+    pub overview: String,
+    pub todos: Vec<PlanTodo>,
+}
+impl PlanOutline {
+    pub fn parse(body: &str) -> Self {
+        let mut title = String::new();
+        let mut overview = String::new();
+        let mut todos = Vec::new();
+        for line in body.lines() {
+            let trimmed = line.trim();
+            if title.is_empty() && let Some(text) = trimmed.strip_prefix("# ") {
+                title = text.trim().to_owned();
+                continue;
+            }
+            if let Some(rest) = trimmed.strip_prefix("- [") {
+                let rest = rest.trim_start();
+                let (done, text) = if let Some(text) = rest.strip_prefix(']') {
+                    (false, text)
+                } else if let Some(text) = rest.strip_prefix("x]").or_else(|| rest.strip_prefix("X]")) {
+                    (true, text)
+                } else {
+                    continue;
+                };
+                let text = text.trim();
+                if !text.is_empty() {
+                    todos.push(PlanTodo { text: text.to_owned(), done });
+                }
+                continue;
+            }
+            if overview.is_empty() && !trimmed.is_empty() && !trimmed.starts_with('#') {
+                overview = trimmed.to_owned();
+            }
+        }
+        Self { title, overview, todos }
+    }
+    pub fn done(&self) -> usize {
+        self.todos.iter().filter(|todo| todo.done).count()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SourceTarget {
     File(FileCitation),
     Output { thread_id: String, tool_id: String },
@@ -457,5 +506,11 @@ mod tests {
         assert!(prompt.contains("Do not commit or push."));
         assert_eq!(plan.citation().line, Some(2));
         assert_eq!(plan.citation().end_line, Some(4));
+        let outline = PlanOutline::parse("# Ship the seam\n\nKeep one owner.\n\n- [x] Name the type\n- [ ] Call it\n");
+        assert_eq!(outline.title, "Ship the seam");
+        assert_eq!(outline.overview, "Keep one owner.");
+        assert_eq!(outline.done(), 1);
+        assert_eq!(outline.todos.len(), 2);
+        assert!(!outline.todos[1].done);
     }
 }

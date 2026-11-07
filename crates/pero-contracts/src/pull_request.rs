@@ -121,6 +121,16 @@ impl PullRequestStatus {
     }
 }
 
+/// GitHub statuses in the order a repository list shows them.
+/// Queued, ready, stack and blocker are not GitHub list fields.
+pub fn present_statuses(items: impl IntoIterator<Item = PullRequestStatus>) -> Vec<PullRequestStatus> {
+    let found: Vec<_> = items.into_iter().collect();
+    [PullRequestStatus::Open, PullRequestStatus::Draft, PullRequestStatus::Closed, PullRequestStatus::Merged]
+        .into_iter()
+        .filter(|status| found.contains(status))
+        .collect()
+}
+
 /// Bounded refresh while a pull request tab is the active route.
 pub const ACTIVE_REFRESH: std::time::Duration = std::time::Duration::from_secs(60);
 pub const LIST_LIMIT: u32 = 30;
@@ -198,6 +208,8 @@ pub struct PullRequestSummary {
     pub author: String,
     pub additions: u64,
     pub deletions: u64,
+    #[serde(default)]
+    pub opened_at: String,
 }
 impl PullRequestSummary {
     pub fn label(&self) -> String {
@@ -292,6 +304,8 @@ pub struct PullRequestSnapshot {
     pub commits: PullRequestSection<PullRequestCommit>,
     pub checks: PullRequestSection<PullRequestCheck>,
     pub reviews: PullRequestSection<PullRequestReview>,
+    #[serde(default)]
+    pub opened_at: String,
 }
 impl PullRequestSnapshot {
     pub fn summary(&self) -> PullRequestSummary {
@@ -302,9 +316,120 @@ impl PullRequestSnapshot {
             author: self.author.clone(),
             additions: self.additions,
             deletions: self.deletions,
+            opened_at: self.opened_at.clone(),
         }
     }
+    /// Keep sections whose GitHub pulse did not change. An explicit refresh
+    /// replaces the snapshot instead of calling this.
+    pub fn absorb(self, next: Self) -> (Self, SectionRefresh) {
+        if next.reference != self.reference {
+            return (self, SectionRefresh::none());
+        }
+        let files =
+            next.head_sha != self.head_sha || next.commits.items.len() != self.commits.items.len();
+        let checks =
+            files || check_fingerprint(&next.checks.items) != check_fingerprint(&self.checks.items);
+        let reviews = next.reviews.items.len() != self.reviews.items.len()
+            || review_decision(&next.reviews.items) != review_decision(&self.reviews.items);
+        let body = next.body != self.body;
+        let mut merged = self;
+        merged.title = next.title;
+        merged.status = next.status;
+        merged.author = next.author;
+        merged.opened_at = next.opened_at;
+        if body {
+            merged.body = next.body;
+        }
+        if files {
+            merged.head = next.head;
+            merged.head_sha = next.head_sha;
+            merged.base = next.base;
+            merged.additions = next.additions;
+            merged.deletions = next.deletions;
+            merged.changed_files = next.changed_files;
+            merged.files = next.files;
+            merged.commits = next.commits;
+        }
+        if checks {
+            merged.checks = next.checks;
+        }
+        if reviews {
+            merged.reviews = next.reviews;
+        }
+        (
+            merged,
+            SectionRefresh {
+                files,
+                commits: files,
+                checks,
+                reviews,
+                body,
+            },
+        )
+    }
 }
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SectionRefresh {
+    pub files: bool,
+    pub commits: bool,
+    pub checks: bool,
+    pub reviews: bool,
+    pub body: bool,
+}
+impl SectionRefresh {
+    pub fn all() -> Self {
+        Self {
+            files: true,
+            commits: true,
+            checks: true,
+            reviews: true,
+            body: true,
+        }
+    }
+    pub fn none() -> Self {
+        Self::default()
+    }
+}
+
+fn review_decision(items: &[PullRequestReview]) -> &'static str {
+    let mut approved = false;
+    let mut changes = false;
+    for review in items {
+        match review.state.as_str() {
+            "CHANGES_REQUESTED" => changes = true,
+            "APPROVED" => approved = true,
+            _ => {}
+        }
+    }
+    if changes {
+        "changes"
+    } else if approved {
+        "approved"
+    } else {
+        "none"
+    }
+}
+
+fn check_fingerprint(items: &[PullRequestCheck]) -> String {
+    items
+        .iter()
+        .map(|check| {
+            format!(
+                "{}|{}|{}",
+                check.name,
+                check.status,
+                check.conclusion.as_deref().unwrap_or("")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[path = "pull_request_time.rs"]
+mod time;
+pub use time::{OpenedAgo, OpenedUnit, avatar_url, opened_ago, opened_day};
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PullRequestAction {
@@ -361,6 +486,8 @@ pub struct PullRequestView {
     pub tab: PullRequestTab,
     pub selected_file: Option<String>,
     pub viewed: Vec<ViewedFile>,
+    partial: bool,
+    pub sections: SectionRefresh,
 }
 impl PullRequestView {
     pub fn new(reference: PullRequestRef) -> Self {
@@ -372,11 +499,20 @@ impl PullRequestView {
             tab: Default::default(),
             selected_file: None,
             viewed: Vec::new(),
+            partial: false,
+            sections: SectionRefresh::all(),
         }
     }
     pub fn refresh(&mut self, request_id: String) {
+        self.refresh_with(request_id, false);
+    }
+    pub fn refresh_observed(&mut self, request_id: String) {
+        self.refresh_with(request_id, true);
+    }
+    fn refresh_with(&mut self, request_id: String, partial: bool) {
         self.pending = Some(request_id);
         self.error = None;
+        self.partial = partial;
     }
     pub fn receive(
         &mut self,
@@ -387,6 +523,7 @@ impl PullRequestView {
             return false;
         }
         self.pending = None;
+        let partial = std::mem::take(&mut self.partial);
         match result {
             Ok(mut snapshot) if snapshot.reference == self.reference => {
                 if let Some(previous) = &self.snapshot {
@@ -403,6 +540,17 @@ impl PullRequestView {
                     retain!(commits);
                     retain!(checks);
                     retain!(reviews);
+                }
+                if partial {
+                    if let Some(previous) = self.snapshot.clone() {
+                        let (merged, sections) = previous.absorb(snapshot);
+                        snapshot = merged;
+                        self.sections = sections;
+                    } else {
+                        self.sections = SectionRefresh::all();
+                    }
+                } else {
+                    self.sections = SectionRefresh::all();
                 }
                 if !snapshot
                     .files
@@ -425,7 +573,11 @@ impl PullRequestView {
         true
     }
     pub fn mark_viewed(&mut self, path: &str) {
-        let Some(head) = self.snapshot.as_ref().map(|snapshot| snapshot.head_sha.clone()) else {
+        let Some(head) = self
+            .snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.head_sha.clone())
+        else {
             return;
         };
         if head.is_empty() || path.is_empty() {
@@ -447,7 +599,10 @@ impl PullRequestView {
         let Some(mark) = self.viewed.iter().find(|file| file.path == path) else {
             return ViewedStatus::Unseen;
         };
-        let current = self.snapshot.as_ref().map(|snapshot| snapshot.head_sha.as_str());
+        let current = self
+            .snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.head_sha.as_str());
         if current == Some(mark.head.as_str()) {
             ViewedStatus::Viewed
         } else {
@@ -523,6 +678,19 @@ mod tests {
                 expected
             );
         }
+        assert_eq!(
+            present_statuses([
+                PullRequestStatus::Merged,
+                PullRequestStatus::Open,
+                PullRequestStatus::Draft,
+                PullRequestStatus::Open,
+            ]),
+            vec![
+                PullRequestStatus::Open,
+                PullRequestStatus::Draft,
+                PullRequestStatus::Merged,
+            ]
+        );
     }
     #[test]
     fn read_requests_decode_at_the_boundary() {
@@ -619,6 +787,84 @@ mod tests {
         assert_eq!(
             RepositoryName::parse("Phodal/Pero").unwrap().slug(),
             "phodal/pero"
+        );
+    }
+    #[test]
+    fn observed_refresh_keeps_sections_whose_pulse_did_not_change() {
+        let opened = "2026-11-01T00:00:00Z";
+        let now = super::time::parse_rfc3339("2026-11-07T00:00:00Z").unwrap();
+        assert_eq!(
+            opened_ago(opened, now),
+            Some(OpenedAgo {
+                count: 6,
+                unit: OpenedUnit::Day
+            })
+        );
+        assert_eq!(
+            opened_ago(opened, super::time::parse_rfc3339(opened).unwrap() + 30),
+            Some(OpenedAgo {
+                count: 0,
+                unit: OpenedUnit::Minute
+            })
+        );
+        assert_eq!(opened_ago("2026-09-01T00:00:00Z", now), None);
+        assert_eq!(opened_day(opened).as_deref(), Some("2026-11-01"));
+        assert_eq!(
+            avatar_url("phodal").as_deref(),
+            Some("https://github.com/phodal.png")
+        );
+        assert!(avatar_url("../phodal").is_none());
+        let mut original = snapshot();
+        original.opened_at = opened.into();
+        original.reviews.items.push(PullRequestReview {
+            author: "ada".into(),
+            state: "APPROVED".into(),
+            body: "ok".into(),
+        });
+        let mut same = original.clone();
+        same.files.items[0].patch = Some("changed without a new head".into());
+        same.body = "rewritten".into();
+        let (kept, sections) = original.clone().absorb(same);
+        assert!(!sections.files && !sections.reviews && sections.body);
+        assert_eq!(
+            kept.files.items[0].patch.as_deref(),
+            original.files.items[0].patch.as_deref()
+        );
+        assert_eq!(kept.body, "rewritten");
+        let mut reviewed = original.clone();
+        reviewed.reviews.items.push(PullRequestReview {
+            author: "bea".into(),
+            state: "COMMENTED".into(),
+            body: "note".into(),
+        });
+        let (with_review, sections) = original.clone().absorb(reviewed.clone());
+        assert!(sections.reviews && !sections.files);
+        assert_eq!(with_review.reviews.items.len(), 2);
+        let mut moved = original.clone();
+        moved.head_sha = "def".into();
+        moved.files.items[0].filename = "b.rs".into();
+        let (advanced, sections) = original.absorb(moved);
+        assert!(sections.files && sections.commits && sections.checks);
+        assert_eq!(advanced.head_sha, "def");
+        assert_eq!(advanced.files.items[0].filename, "b.rs");
+        let mut view = PullRequestView::new(advanced.reference.clone());
+        view.refresh("load".into());
+        view.receive("load", Ok(advanced.clone()));
+        view.refresh_observed("poll".into());
+        let mut quiet = advanced.clone();
+        quiet.title = "Renamed".into();
+        assert!(view.receive("poll", Ok(quiet)));
+        assert!(!view.sections.files);
+        assert_eq!(view.snapshot.as_ref().unwrap().title, "Renamed");
+        assert_eq!(view.snapshot.as_ref().unwrap().head_sha, "def");
+        let mut edited = view.snapshot.clone().unwrap();
+        edited.files.items[0].filename = "c.rs".into();
+        view.refresh("manual".into());
+        assert!(view.receive("manual", Ok(edited)));
+        assert!(view.sections.files);
+        assert_eq!(
+            view.snapshot.as_ref().unwrap().files.items[0].filename,
+            "c.rs"
         );
     }
 }
