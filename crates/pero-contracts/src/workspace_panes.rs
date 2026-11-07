@@ -299,6 +299,7 @@ impl WorkspaceRoute {
                     | WorkspaceItem::Document { .. }
                     | WorkspaceItem::App { .. }
                     | WorkspaceItem::Web(_)
+                    | WorkspaceItem::PullRequest(_)
                     | WorkspaceItem::Conversation(_)
             )
         )
@@ -368,7 +369,7 @@ impl PaneLayout {
             {
                 let tabs = &mut self.leaf_mut(owner)?.tabs;
                 let result = if old_route == route {
-                    tabs.activate(view);
+                    if intent != OpenIntent::Background { tabs.activate(view); }
                     if intent == OpenIntent::Permanent {
                         tabs.promote(view);
                     }
@@ -393,7 +394,7 @@ impl PaneLayout {
                     result.replaced = Some(old);
                     result
                 };
-                self.focused = Some(owner);
+                if intent != OpenIntent::Background { self.focused = Some(owner); }
                 return Some((owner, result));
             }
         }
@@ -411,7 +412,7 @@ impl PaneLayout {
                 intent,
             )
             .ok()?;
-        self.focused = Some(pane);
+        if intent != OpenIntent::Background { self.focused = Some(pane); }
         Some((pane, tab))
     }
     pub fn activate_view(&mut self, view: ViewId) -> Option<WorkspaceRoute> {

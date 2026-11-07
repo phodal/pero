@@ -14,6 +14,7 @@ pub enum WorkspaceItem {
     Compute,
     Conversation(String),
     Web(String),
+    PullRequest(crate::pull_request::PullRequestRef),
     Document {
         origin: ContentOrigin,
         source: String,
@@ -52,7 +53,7 @@ impl WorkspaceRoute {
             Self::Page(page) => *page,
             Self::Content(item) => match item {
                 WorkspaceItem::Conversation(_) => WorkbenchPage::Conversation,
-                WorkspaceItem::Document { .. } => WorkbenchPage::Document,
+                WorkspaceItem::Document { .. } | WorkspaceItem::PullRequest(_) => WorkbenchPage::Document,
                 WorkspaceItem::Web(_) => WorkbenchPage::Web,
                 WorkspaceItem::Project(_) | WorkspaceItem::Task(_) => WorkbenchPage::Tasks,
                 WorkspaceItem::App { .. } | WorkspaceItem::Compute => WorkbenchPage::Apps,
