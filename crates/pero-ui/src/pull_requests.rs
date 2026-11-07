@@ -13,7 +13,7 @@ pub(crate) struct PullRequestContent {
     pub state: PullRequestView,
     description: Entity<StreamText>,
     reviews: Entity<StreamText>,
-    scroll: ScrollHandle,
+    scrolls: [ScrollHandle; 5],
     _links: Vec<Subscription>,
 }
 impl Workbench {
@@ -82,7 +82,7 @@ impl Workbench {
             state,
             description,
             reviews,
-            scroll: ScrollHandle::new(),
+            scrolls: std::array::from_fn(|_| ScrollHandle::new()),
             _links: links,
         });
         self.refresh_pull_request(&reference, cx);
@@ -398,7 +398,6 @@ impl Workbench {
                                     .find(|view| view.state.reference == reference)
                                 {
                                     view.state.tab = tab;
-                                    view.scroll.set_offset(point(px(0.), px(0.)));
                                 }
                                 this.queue_workspace_checkpoint(cx);
                                 cx.notify();
@@ -411,7 +410,7 @@ impl Workbench {
             .min_h_0()
             .min_w_0()
             .overflow_y_scroll()
-            .track_scroll(&view.scroll);
+            .track_scroll(&view.scrolls[state.tab.index()]);
         if let Some(error) = &state.error {
             body = body.child(pero_theme::feedback(
                 "pr-error",
@@ -535,8 +534,25 @@ impl Workbench {
                     if snapshot.files.items.len() as u64 != snapshot.changed_files {
                         body = body.child(div().p(px(12.)).child(self.t("pr.files_limited")));
                     }
+                    let hide_reference = reference.clone();
+                    let hide_viewed = state.hide_viewed;
+                    body = body.child(
+                        Button::new("pr-hide-viewed")
+                            .ghost()
+                            .small()
+                            .label(self.t(if hide_viewed { "pr.show_viewed" } else { "pr.hide_viewed" }))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                if let Some(view) = this.pull_requests.iter_mut().find(|view| view.state.reference == hide_reference) {
+                                    view.state.hide_viewed = !view.state.hide_viewed;
+                                }
+                                cx.notify();
+                            })),
+                    );
                     let mut files = div().id("pr-file-list").max_h(px(180.)).overflow_y_scroll();
                     for (index, file) in snapshot.files.items.iter().enumerate() {
+                        if !state.shows_file(&file.filename) {
+                            continue;
+                        }
                         let selected = state.selected_file.as_deref() == Some(&file.filename);
                         let name = file.filename.clone();
                         let reference = reference.clone();

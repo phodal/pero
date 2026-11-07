@@ -185,6 +185,12 @@ impl ChatPanel {
                 if let Some(opened) = self.opened_phrase(&summary.opened_at) {
                     lines.push(opened);
                 }
+                if let Some(key) = summary.review.key() {
+                    lines.push(self.t(key).to_owned());
+                }
+                if summary.blocked {
+                    lines.push(self.t("pr.blocked").to_owned());
+                }
                 lines.join("\n")
             } else {
                 label.clone()
@@ -195,6 +201,7 @@ impl ChatPanel {
                 PullRequestStatus::Closed => palette.error,
                 PullRequestStatus::Draft => palette.text_muted,
             });
+            let author = summary.as_ref().map(|item| item.author.clone()).unwrap_or_default();
             let href = reference.url().to_owned();
             let href_middle = href.clone();
             chips = chips.child(
@@ -220,6 +227,7 @@ impl ChatPanel {
                         }),
                     )
                     .child(self.icon("brand-github").size(px(13.)))
+                    .children(author_face(&author))
                     .child(
                         div()
                             .size(px(8.))
@@ -654,4 +662,17 @@ impl ChatPanel {
         }
         parts.join(" · ")
     }
+}
+
+fn author_face(login: &str) -> Option<gpui_kit::AnyElement> {
+    if login.is_empty() {
+        return None;
+    }
+    use gpui_kit::component::{Sizable, avatar::Avatar};
+    use pero_contracts::pull_request::avatar_url;
+    let mut face = Avatar::new().xsmall().name(login.to_owned());
+    if let Some(url) = avatar_url(login) {
+        face = face.src(url);
+    }
+    Some(face.into_any_element())
 }

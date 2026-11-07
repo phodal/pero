@@ -1174,5 +1174,11 @@
   "pr.minutes_ago": "minutes ago",
   "pr.hours_ago": "hours ago",
   "pr.days_ago": "days ago",
+  "pr.approved": "Approved",
+  "pr.changes_requested": "Changes requested",
+  "pr.review_required": "Review required",
+  "pr.blocked": "Blocked",
+  "pr.hide_viewed": "Hide viewed",
+  "pr.show_viewed": "Show viewed",
   "workspace.conversation": "Conversation"
 }

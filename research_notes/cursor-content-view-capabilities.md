@@ -20,11 +20,11 @@
 
 | 注册类型 | 代码可确认的能力与身份 | Pero 可复用的现有承载与差距 |
 | --- | --- | --- |
-| `pr` | PR URL/分支身份，Changes、Description、Commits、Checks、Reviews；状态图标；首次激活后保留 | 只读页、后台发现、显式刷新和恢复之外，消息用已有摘要显示 GitHub 图标、状态色、`#编号` 和打开时间。子视图、选中文件和本地已读随身份保存，head 变化后过期。活动路由每 60 秒按 head、提交数、检查指纹、评审条数与结论、正文吸收变化。不含合并、审批、行内评审写入、像素滚动、GitHub viewed API、作者头像和 server stream |
-| `projectPrs` | 项目级 PR 列表，独立稳定 App tab；renderer 管滚动 | 项目 Sources 用只读 `gh pr list` 按仓库列出打开、关闭或全部，最多 30 条。多种状态时按 Open、Draft、Closed、Merged 分组，一行含增删和相对打开时间，点一行打开现有 PR 页。没有 queued、ready、stack 和 blocker |
+| `pr` | PR URL/分支身份，Changes、Description、Commits、Checks、Reviews；状态图标；首次激活后保留 | 只读页、后台发现、显式刷新和恢复之外，消息用已有摘要显示 GitHub 图标、作者头像、状态色、`#编号`、打开时间、评审结论和受阻。子视图、选中文件和本地已读随身份保存，head 变化后过期；会话内可隐藏已读。每个子视图记住自己的滚动。活动路由每 5 分钟按 head、提交数、检查指纹、评审条数与结论、正文吸收变化。不含合并、审批、行内评审写入、持久化像素滚动、GitHub viewed API 和 server stream |
+| `projectPrs` | 项目级 PR 列表，独立稳定 App tab；renderer 管滚动 | 项目 Sources 用只读 `gh pr list` 按仓库列出打开、关闭或全部，最多 30 条。多种状态时按 Open、Draft、Closed、Merged 分组。一行含头像、增删、相对打开时间、评审结论，以及合并状态为 BLOCKED 时的受阻标记。点一行打开现有 PR 页。没有 queued、ready、stack |
 | `file` | `filePath`、行列 selection、`code/diff`、preview、ownerAgentId | 工作区相对路径可带 `:line` 或 `:start-end`，以预览打开现有文件并选中对应行。绝对路径和 `..` 拒绝 |
 | `agentFiles` | `bcId`、owner、带 requestId 的远端文件和 selection | `vscode-remote://background-composer+<id>/<path>` 解析为远程文件。没有映射时停在不可用，不拼到本机路径 |
-| `plan` | planId/标题/所属 Agent；计划 registry、编辑及 Build；`.cursor/plans` 文件有专门重定向 | 只承认 `docs/exec-plans/` 下的 Markdown，含子目录。打开即编辑。计划条显示一级标题和勾选待办进度；执行把正文交给对话，并要求不提交、不推送。没有 plan registry 和独立 Build 控件 |
+| `plan` | planId/标题/所属 Agent；计划 registry、编辑及 Build；`.cursor/plans` 文件有专门重定向 | 只承认 `docs/exec-plans/` 下的 Markdown，含子目录。打开即编辑。计划条显示一级标题、勾选进度和每一条待办；执行把正文交给对话，并要求不提交、不推送。没有 plan registry。执行就是 Build |
 | `canvas` | 本地 canvasPath 或云端地址、sourceResource、rendered/source、previewEpoch | Scientific Viewer、版本化产物与隔离 HTML 已能承载部分结果；云端分享/画布编辑不能只靠通用 iframe 获得 |
 | `browser` | browserId、initialUrl、owner、agentControlled、preview/transient、激活后持久化策略；有设计模式相关代码 | 普通 HTTP(S) 仍走隔离 Web 页。链接偏好可改为外部浏览器，中键或平台修饰键反转。没有 design mode、临时页和浏览器 agent 所有权 |
 | `terminal` | 持久化终端 ID/运行实例 ID、工作区组、owner、Agent 控制标记；终端引用重定向 | `pero-terminal://<id>` 聚焦已有终端。不启动 shell，也不发送命令 |

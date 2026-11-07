@@ -216,6 +216,8 @@ impl Workbench {
                 additions: item.additions,
                 deletions: item.deletions,
                 opened_at: item.opened_at.clone(),
+                review: item.review,
+                blocked: item.blocked,
             })
             .collect();
         let groups = present_statuses(rows.iter().map(|row| row.status));
@@ -228,6 +230,8 @@ impl Workbench {
                 let reference = row.reference.clone();
                 let status_label = self.t(row.status.key()).to_owned();
                 let opened = opened_phrase(&row.opened_at, |key| self.t(key));
+                let review = row.review.key().map(|key| self.t(key).to_owned());
+                let blocked = row.blocked.then(|| self.t("pr.blocked").to_owned());
                 let tooltip = [
                     row.title.clone(),
                     row.number.clone(),
@@ -236,6 +240,8 @@ impl Workbench {
                 ]
                 .into_iter()
                 .chain(opened.clone())
+                .chain(review)
+                .chain(blocked.clone())
                 .collect::<Vec<_>>()
                 .join("\n");
                 column = column.child(
@@ -249,6 +255,7 @@ impl Workbench {
                             this.open_pull_request(reference.clone(), window, cx);
                         }))
                         .child(status_mark(row.status, cx))
+                        .children(author_face(&row.author))
                         .child(row.number.clone())
                         .child(
                             div()
@@ -258,6 +265,7 @@ impl Workbench {
                                 .child(row.title.clone()),
                         )
                         .child(format!("+{} −{}", row.additions, row.deletions))
+                        .children(blocked)
                         .children(opened),
                 );
             }
@@ -276,6 +284,21 @@ struct ListedRow {
     additions: u64,
     deletions: u64,
     opened_at: String,
+    review: pero_contracts::pull_request::ReviewDecision,
+    blocked: bool,
+}
+
+fn author_face(login: &str) -> Option<gpui_kit::AnyElement> {
+    if login.is_empty() {
+        return None;
+    }
+    use gpui_kit::component::{Sizable, avatar::Avatar};
+    use pero_contracts::pull_request::avatar_url;
+    let mut face = Avatar::new().xsmall().name(login.to_owned());
+    if let Some(url) = avatar_url(login) {
+        face = face.src(url);
+    }
+    Some(face.into_any_element())
 }
 
 fn opened_phrase(opened_at: &str, label: impl Fn(&str) -> &'static str) -> Option<String> {

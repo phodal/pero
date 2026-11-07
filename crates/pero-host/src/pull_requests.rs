@@ -95,6 +95,8 @@ struct ApiPull {
     changed_files: u64,
     #[serde(default, rename = "created_at")]
     created_at: String,
+    #[serde(default, rename = "mergeable_state")]
+    mergeable_state: String,
 }
 fn api(
     github: &impl GitHub,
@@ -141,6 +143,10 @@ struct ListedPull {
     deletions: u64,
     #[serde(default, rename = "createdAt")]
     created_at: String,
+    #[serde(default, rename = "reviewDecision")]
+    review_decision: String,
+    #[serde(default, rename = "mergeStateStatus")]
+    merge_state: String,
 }
 fn list(
     github: &impl GitHub,
@@ -162,7 +168,7 @@ fn list(
                 "--limit",
                 &limit,
                 "--json",
-                "number,title,url,author,isDraft,state,additions,deletions,createdAt",
+                "number,title,url,author,isDraft,state,additions,deletions,createdAt,reviewDecision,mergeStateStatus",
             ],
         )
         .map_err(|error| error.message)?;
@@ -201,6 +207,8 @@ fn listed_summary(
         additions: row.additions,
         deletions: row.deletions,
         opened_at: row.created_at,
+        review: ReviewDecision::observed(&row.review_decision),
+        blocked: merge_blocked(&row.merge_state),
     })
 }
 fn load(
@@ -281,6 +289,7 @@ fn load(
         deletions: pull.deletions,
         changed_files: pull.changed_files,
         opened_at: pull.created_at,
+        mergeable_state: pull.mergeable_state,
         files,
         commits,
         checks,

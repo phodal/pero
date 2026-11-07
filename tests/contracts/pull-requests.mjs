@@ -26,6 +26,7 @@ try {
  assert(validate('PullRequestLoadedEvent')(loaded),ajv.errorsText(validate('PullRequestLoadedEvent').errors));
  assert.equal(loaded.data.status,'merged');
  assert.equal(loaded.data.opened_at,'2026-11-01T00:00:00Z');
+ assert.equal(loaded.data.mergeable_state,'blocked');
  for(const name of ['files','commits','checks','reviews'])assert.equal(loaded.data[name].error,null,`${name}: ${loaded.data[name].error}`);
  assert(loaded.data.files.items.length>0);
  if(!live){
@@ -38,6 +39,10 @@ try {
   assert.equal(listed.data.items[1].status,'draft');
   assert.equal(listed.data.items[0].reference,'https://github.com/phodal/pero/pull/164');
   assert.equal(listed.data.items[0].opened_at,'2026-11-01T00:00:00Z');
+  assert.equal(listed.data.items[0].review,'approved');
+  assert.equal(listed.data.items[0].blocked,true);
+  assert.equal(listed.data.items[1].review,'review_required');
+  assert.equal(listed.data.items[1].blocked,false);
   await writeFile(resolve(temp,'fail'),'offline');
   const failed=await request({...input,request_id:'offline'});assert.equal(failed.kind,'pull_request_error');assert.match(failed.text,/unavailable/);assert(validate('PullRequestErrorEvent')(failed));
  }

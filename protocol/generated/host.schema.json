@@ -12665,6 +12665,9 @@
         "opened_at": {
           "type": "string"
         },
+        "mergeable_state": {
+          "type": "string"
+        },
         "files": {
           "$ref": "#/$defs/PullRequestSectionPullRequestFile"
         },
@@ -12738,6 +12741,29 @@
         },
         "opened_at": {
           "type": "string"
+        },
+        "review": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "none"
+            },
+            {
+              "type": "string",
+              "const": "approved"
+            },
+            {
+              "type": "string",
+              "const": "changes_requested"
+            },
+            {
+              "type": "string",
+              "const": "review_required"
+            }
+          ]
+        },
+        "blocked": {
+          "type": "boolean"
         }
       },
       "required": [

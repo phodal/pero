@@ -83,6 +83,9 @@ impl PullRequestTab {
         Self::Checks,
         Self::Reviews,
     ];
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|tab| *tab == self).unwrap_or(0)
+    }
     pub fn key(self) -> &'static str {
         match self {
             Self::Changes => "pr.changes",
@@ -122,7 +125,7 @@ impl PullRequestStatus {
 }
 
 /// GitHub statuses in the order a repository list shows them.
-/// Queued, ready, stack and blocker are not GitHub list fields.
+/// Queued, ready and stack are not GitHub list fields.
 pub fn present_statuses(items: impl IntoIterator<Item = PullRequestStatus>) -> Vec<PullRequestStatus> {
     let found: Vec<_> = items.into_iter().collect();
     [PullRequestStatus::Open, PullRequestStatus::Draft, PullRequestStatus::Closed, PullRequestStatus::Merged]
@@ -131,8 +134,51 @@ pub fn present_statuses(items: impl IntoIterator<Item = PullRequestStatus>) -> V
         .collect()
 }
 
-/// Bounded refresh while a pull request tab is the active route.
-pub const ACTIVE_REFRESH: std::time::Duration = std::time::Duration::from_secs(60);
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewDecision {
+    #[default]
+    None,
+    Approved,
+    ChangesRequested,
+    ReviewRequired,
+}
+impl ReviewDecision {
+    pub fn observed(value: &str) -> Self {
+        match value.to_ascii_uppercase().as_str() {
+            "APPROVED" => Self::Approved,
+            "CHANGES_REQUESTED" => Self::ChangesRequested,
+            "REVIEW_REQUIRED" => Self::ReviewRequired,
+            _ => Self::None,
+        }
+    }
+    pub fn from_reviews(items: &[PullRequestReview]) -> Self {
+        let mut approved = false;
+        for review in items {
+            match review.state.as_str() {
+                "CHANGES_REQUESTED" => return Self::ChangesRequested,
+                "APPROVED" => approved = true,
+                _ => {}
+            }
+        }
+        if approved { Self::Approved } else { Self::None }
+    }
+    pub fn key(self) -> Option<&'static str> {
+        match self {
+            Self::None => None,
+            Self::Approved => Some("pr.approved"),
+            Self::ChangesRequested => Some("pr.changes_requested"),
+            Self::ReviewRequired => Some("pr.review_required"),
+        }
+    }
+}
+
+pub fn merge_blocked(state: &str) -> bool {
+    state.eq_ignore_ascii_case("blocked")
+}
+
+/// Active-route refresh. Cursor's default self-heal interval is 5 minutes.
+pub const ACTIVE_REFRESH: std::time::Duration = std::time::Duration::from_secs(5 * 60);
 pub const LIST_LIMIT: u32 = 30;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -210,6 +256,10 @@ pub struct PullRequestSummary {
     pub deletions: u64,
     #[serde(default)]
     pub opened_at: String,
+    #[serde(default)]
+    pub review: ReviewDecision,
+    #[serde(default)]
+    pub blocked: bool,
 }
 impl PullRequestSummary {
     pub fn label(&self) -> String {
@@ -306,6 +356,8 @@ pub struct PullRequestSnapshot {
     pub reviews: PullRequestSection<PullRequestReview>,
     #[serde(default)]
     pub opened_at: String,
+    #[serde(default)]
+    pub mergeable_state: String,
 }
 impl PullRequestSnapshot {
     pub fn summary(&self) -> PullRequestSummary {
@@ -317,6 +369,8 @@ impl PullRequestSnapshot {
             additions: self.additions,
             deletions: self.deletions,
             opened_at: self.opened_at.clone(),
+            review: ReviewDecision::from_reviews(&self.reviews.items),
+            blocked: merge_blocked(&self.mergeable_state),
         }
     }
     /// Keep sections whose GitHub pulse did not change. An explicit refresh
@@ -330,13 +384,14 @@ impl PullRequestSnapshot {
         let checks =
             files || check_fingerprint(&next.checks.items) != check_fingerprint(&self.checks.items);
         let reviews = next.reviews.items.len() != self.reviews.items.len()
-            || review_decision(&next.reviews.items) != review_decision(&self.reviews.items);
+            || ReviewDecision::from_reviews(&next.reviews.items) != ReviewDecision::from_reviews(&self.reviews.items);
         let body = next.body != self.body;
         let mut merged = self;
         merged.title = next.title;
         merged.status = next.status;
         merged.author = next.author;
         merged.opened_at = next.opened_at;
+        merged.mergeable_state = next.mergeable_state;
         if body {
             merged.body = next.body;
         }
@@ -389,25 +444,6 @@ impl SectionRefresh {
     }
     pub fn none() -> Self {
         Self::default()
-    }
-}
-
-fn review_decision(items: &[PullRequestReview]) -> &'static str {
-    let mut approved = false;
-    let mut changes = false;
-    for review in items {
-        match review.state.as_str() {
-            "CHANGES_REQUESTED" => changes = true,
-            "APPROVED" => approved = true,
-            _ => {}
-        }
-    }
-    if changes {
-        "changes"
-    } else if approved {
-        "approved"
-    } else {
-        "none"
     }
 }
 
@@ -488,6 +524,7 @@ pub struct PullRequestView {
     pub viewed: Vec<ViewedFile>,
     partial: bool,
     pub sections: SectionRefresh,
+    pub hide_viewed: bool,
 }
 impl PullRequestView {
     pub fn new(reference: PullRequestRef) -> Self {
@@ -501,6 +538,7 @@ impl PullRequestView {
             viewed: Vec::new(),
             partial: false,
             sections: SectionRefresh::all(),
+            hide_viewed: false,
         }
     }
     pub fn refresh(&mut self, request_id: String) {
@@ -608,6 +646,9 @@ impl PullRequestView {
         } else {
             ViewedStatus::Stale
         }
+    }
+    pub fn shows_file(&self, path: &str) -> bool {
+        !self.hide_viewed || self.viewed_status(path) != ViewedStatus::Viewed
     }
     pub fn reading(&self) -> PullRequestReading {
         PullRequestReading {
@@ -776,7 +817,19 @@ mod tests {
         assert_eq!(fresh.tab, view.tab);
         assert_eq!(fresh.selected_file.as_deref(), Some("a.rs"));
         assert!(fresh.viewed.is_empty());
-        assert_eq!(ACTIVE_REFRESH.as_secs(), 60);
+        assert_eq!(ACTIVE_REFRESH.as_secs(), 300);
+        assert_eq!(ReviewDecision::observed("CHANGES_REQUESTED"), ReviewDecision::ChangesRequested);
+        assert!(merge_blocked("BLOCKED"));
+        assert!(!merge_blocked("CLEAN"));
+        let mut loaded = snapshot();
+        loaded.mergeable_state = "blocked".into();
+        assert!(loaded.summary().blocked);
+        loaded.mergeable_state = "clean".into();
+        assert!(!loaded.summary().blocked);
+        view.hide_viewed = true;
+        view.mark_viewed("a.rs");
+        assert!(!view.shows_file("a.rs"));
+        assert!(view.shows_file("missing.rs"));
         assert_eq!(LIST_LIMIT, 30);
         assert_eq!(
             mentions("See https://github.com/Phodal/Pero/pull/164/files and https://github.com/phodal/pero/pull/164.")

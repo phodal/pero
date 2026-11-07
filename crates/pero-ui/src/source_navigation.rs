@@ -234,33 +234,45 @@ impl Workbench {
                 outline.todos.len()
             )
         });
+        let todos = outline
+            .todos
+            .iter()
+            .map(|todo| format!("{} {}", if todo.done { "✓" } else { "○" }, todo.text))
+            .collect::<Vec<_>>();
+        let muted = pero_theme::UiAppearance::global(cx).palette.text_muted;
         div()
             .flex()
-            .items_center()
-            .gap(px(8.))
+            .flex_col()
+            .gap(px(4.))
             .px(px(12.))
             .py(px(8.))
             .border_b_1()
             .border_color(pero_theme::UiAppearance::global(cx).palette.border)
             .child(
                 div()
-                    .flex_1()
-                    .min_w_0()
-                    .child(heading)
-                    .children(progress.map(|progress| {
+                    .flex()
+                    .items_center()
+                    .gap(px(8.))
+                    .child(
                         div()
-                            .text_size(px(12.))
-                            .text_color(pero_theme::UiAppearance::global(cx).palette.text_muted)
-                            .child(progress)
-                    })),
+                            .flex_1()
+                            .min_w_0()
+                            .child(heading)
+                            .children(progress.map(|progress| {
+                                div().text_size(px(12.)).text_color(muted).child(progress)
+                            })),
+                    )
+                    .child(
+                        gpui_kit::component::button::Button::new("plan-execute")
+                            .small()
+                            .label(self.t("plan.execute"))
+                            .disabled(!connected)
+                            .on_click(cx.listener(move |this, _, _, cx| this.execute_plan(&path, cx))),
+                    ),
             )
-            .child(
-                gpui_kit::component::button::Button::new("plan-execute")
-                    .small()
-                    .label(self.t("plan.execute"))
-                    .disabled(!connected)
-                    .on_click(cx.listener(move |this, _, _, cx| this.execute_plan(&path, cx))),
-            )
+            .children(todos.into_iter().map(|todo| {
+                div().text_size(px(12.)).text_color(muted).child(todo)
+            }))
             .into_any_element()
     }
 }

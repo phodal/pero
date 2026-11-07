@@ -1174,5 +1174,11 @@
   "pr.minutes_ago": "分钟前",
   "pr.hours_ago": "小时前",
   "pr.days_ago": "天前",
+  "pr.approved": "已批准",
+  "pr.changes_requested": "需要修改",
+  "pr.review_required": "等待评审",
+  "pr.blocked": "受阻",
+  "pr.hide_viewed": "隐藏已读",
+  "pr.show_viewed": "显示已读",
   "workspace.conversation": "查看对话"
 }

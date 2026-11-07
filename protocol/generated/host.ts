@@ -2486,6 +2486,7 @@ export interface PullRequestSnapshot {
   deletions: number;
   changed_files: number;
   opened_at?: string;
+  mergeable_state?: string;
   files: PullRequestSectionPullRequestFile;
   commits: PullRequestSectionPullRequestCommit;
   checks: PullRequestSectionPullRequestCheck;
@@ -2568,6 +2569,8 @@ export interface PullRequestSummary {
   additions: number;
   deletions: number;
   opened_at?: string;
+  review?: "none" | "approved" | "changes_requested" | "review_required";
+  blocked?: boolean;
 }
 export interface WorkspaceChangesEvent {
   kind: "workspace_changes";
