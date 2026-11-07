@@ -1,11 +1,14 @@
 //! Profile-owned conversation deliveries, independent of open document tabs.
+mod external_run;
+
+use self::external_run::CapturedFile;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use pero_contracts::{
     content_document::{ContentDocument, ContentFormat, DocumentSource},
     content_origin::ContentOrigin,
     context::{ContextContent, ContextKind, ContextReference},
     session_artifact::{
-        ArtifactError, ArtifactImageType, ArtifactMedia, ArtifactRequest, ArtifactSnapshot,
+        ArtifactError, ArtifactImageType, ArtifactMedia, ArtifactRelation, ArtifactRequest, ArtifactSnapshot,
         ArtifactSource, ResearchArtifactSource, MAX_ARTIFACT_FILE_BYTES, SessionArtifact, SessionArtifactVersion,
     },
 };
@@ -160,10 +163,11 @@ impl SessionArtifacts {
                 artifacts
                     .iter()
                     .find(|artifact| artifact.id == id)
+                    .cloned()
                     .ok_or(ArtifactStoreError::Unavailable)
             })
             .transpose()?;
-        let related = match &request {
+        let mut related = match &request {
             ArtifactRequest::RegisterFile { related, .. } => related.clone(),
             _ => Vec::new(),
         };
@@ -174,6 +178,7 @@ impl SessionArtifacts {
                 return Err(ArtifactStoreError::Unavailable);
             }
         }
+        let mut evidence = Vec::new();
         let (title, bytes, media, filename, source, message, tool) = match &request {
             ArtifactRequest::RegisterText {
                 title,
@@ -217,46 +222,16 @@ impl SessionArtifacts {
             } => {
                 let workspace =
                     std::fs::canonicalize(workspace.ok_or(ArtifactStoreError::Unavailable)?)?;
-                let requested = Path::new(path);
-                let path = std::fs::canonicalize(if requested.is_absolute() {
-                    requested.to_path_buf()
-                } else {
-                    workspace.join(requested)
-                })?;
-                if !path.starts_with(&workspace) {
-                    return Err(ArtifactStoreError::OutsideWorkspace);
-                }
-                // Opening a FIFO can wait for a writer before descriptor metadata is available.
-                if !std::fs::metadata(&path)?.is_file() {
-                    return Err(ArtifactStoreError::Unsupported);
-                }
-                let mut bytes = Vec::new();
-                let file = open_regular_artifact_file(&path)?;
-                file.take(MAX_ARTIFACT_FILE_BYTES + 1)
-                    .read_to_end(&mut bytes)?;
-                let filename = path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned();
-                let media = ArtifactMedia::from_filename(&filename);
-                let title = title
-                    .clone()
-                    .or_else(|| previous.map(|artifact| artifact.title.clone()))
-                    .unwrap_or_else(|| {
-                        path.file_name()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .into_owned()
-                    });
+                let captured = CapturedFile::read(&workspace, Path::new(path), MAX_ARTIFACT_FILE_BYTES)?;
+                evidence = captured.run_evidence(&workspace)?;
+                let title = title.clone().or_else(|| previous.as_ref().map(|item| item.title.clone()))
+                    .unwrap_or_else(|| captured.filename.clone());
                 (
                     title,
-                    bytes,
-                    media,
-                    filename,
-                    ArtifactSource::File {
-                        path: path.to_string_lossy().into_owned(),
-                    },
+                    captured.bytes,
+                    captured.media,
+                    captured.filename,
+                    captured.source,
                     source_message_id.clone(),
                     source_tool_call_id.clone(),
                 )
@@ -267,8 +242,42 @@ impl SessionArtifacts {
             .validate_snapshot(&bytes, &source)
             .map_err(|_| ArtifactStoreError::Unsupported)?;
         let sha256 = format!("{:x}", Sha256::digest(&bytes));
+        let directory = self.thread_directory(thread);
+        let snapshots = directory.join("snapshots");
+        std::fs::create_dir_all(&snapshots)?;
+        for (role, evidence) in evidence {
+            let retained = artifacts.iter().find_map(|item| {
+                item.versions.iter().find(|entry| entry.sha256 == evidence.digest && entry.source == evidence.source)
+                    .map(|entry| (item.id.clone(), entry.version))
+            });
+            let (artifact_id, version) = if let Some(retained) = retained {
+                retained
+            } else {
+                let id = uuid::Uuid::new_v4().to_string();
+                let item = SessionArtifact::new(id.clone(), thread.to_owned(), evidence.filename.clone(), SessionArtifactVersion {
+                    version: 1,
+                    bytes: evidence.bytes.len() as u64,
+                    sha256: evidence.digest.clone(),
+                    format: evidence.media.content_format().cloned().unwrap_or(ContentFormat::Text),
+                    media: Some(evidence.media),
+                    filename: Some(evidence.filename),
+                    source: evidence.source,
+                    source_message_id: None,
+                    source_tool_call_id: None,
+                    related: Vec::new(),
+                    created_at,
+                })?;
+                crate::workspace_store::write(&snapshots.join(format!("{}.bin", evidence.digest)), &evidence.bytes)?;
+                artifacts.push(item);
+                (id, 1)
+            };
+            let relation = ArtifactRelation { artifact_id, version, role };
+            if !related.contains(&relation) {
+                related.push(relation);
+            }
+        }
         let version = SessionArtifactVersion {
-            version: previous.map_or(1, |artifact| artifact.latest().version + 1),
+            version: previous.as_ref().map_or(1, |artifact| artifact.latest().version + 1),
             sha256: sha256.clone(),
             bytes: bytes.len() as u64,
             format: media
@@ -301,11 +310,9 @@ impl SessionArtifacts {
         } else {
             artifacts.push(artifact.clone());
         }
-        let directory = self.thread_directory(thread);
-        std::fs::create_dir_all(directory.join("snapshots"))?;
         // Publish bytes before the catalog. An interrupted write never points at an incomplete snapshot.
         crate::workspace_store::write(
-            &directory.join("snapshots").join(format!("{sha256}.bin")),
+            &snapshots.join(format!("{sha256}.bin")),
             &bytes,
         )?;
         let bytes = serde_json::to_vec(&artifacts).map_err(|_| ArtifactStoreError::Integrity)?;

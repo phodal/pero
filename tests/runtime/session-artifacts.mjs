@@ -243,6 +243,23 @@ try {
   const missingVersion = await request('resolve_snapshot', { thread_id: 'artifact-caller', artifact_id: image.artifact.id, version: 99 });
   assert.equal(missingVersion.data.ok, false);
   assert.equal(missingVersion.data.value, undefined);
+  const logFile = join(workspace, '.pero/run-records/node/loopback-run/stdout.log');
+  const producer = spawn(process.execPath, [join(root, 'scripts/record-external-run.mjs'),
+    'node', 'loopback-run', 'run-output.txt', '--', process.execPath, '-e', `
+      require('node:fs').writeFileSync('run-output.txt', 'computed: ' + 6 * 7);
+      console.log('external process finished');
+    `], { cwd: workspace, stdio: 'ignore' });
+  assert.deepEqual(await once(producer, 'exit'), [0, null]);
+  const imported = await request('register_file', { thread_id: 'artifact-caller', path: 'run-output.txt' });
+  assert.equal(imported.kind, 'artifact_registered');
+  const links = imported.data.artifact.versions[0].related;
+  assert.deepEqual(links.map(link => link.role), ['run_record', 'environment', 'execution_log', 'execution_log']);
+  await writeFile(logFile, 'modified log');
+  const stale = await request('register_file', { thread_id: 'artifact-caller', path: 'run-output.txt' });
+  assert.equal(stale.kind, 'artifact_error');
+  assert.equal(stale.data.reason, 'integrity');
+  const retainedLog = await request('read', { thread_id: 'artifact-caller', artifact_id: links[2].artifact_id, version: links[2].version });
+  assert.equal(retainedLog.text, 'external process finished\n');
   send({ action: 'delete', thread_id: 'other-caller' });
   await wait(event => event.kind === 'session_deleted' && event.thread_id === 'other-caller');
   const deleted = await request('register_text', { thread_id: 'other-caller', title: 'Deleted conversation', text: 'Do not register this' });
@@ -253,7 +270,7 @@ try {
     artifactId: first.id, versions: restored.data.artifacts.find(item => item.id === first.id).versions.length,
     richFormats: rich.map(({ file, artifact, snapshot }) => ({ filename: file.name, artifactId: artifact.id, kind: snapshot.media.kind, sha256: snapshot.sha256, bytes: snapshot.bytes })),
     checks: ['actual-caller', 'background-delivery', 'original-workspace', 'exact-versions', 'foreign-item-rejected', 'outside-file-rejected', 'cancelled-caller-rejected', 'restart', 'source-file-removed', 'deleted-conversation-rejected',
-      'presentation-receipt', 'exact-relations-after-restart', 'missing-and-foreign-relations-rejected',
+      'presentation-receipt', 'exact-relations-after-restart', 'missing-and-foreign-relations-rejected', 'external-run-auto-link-and-stale-evidence-rejection',
       'rich-file-bytes-and-metadata', 'binary-exact-versions', 'rich-snapshots-after-restart', 'image-context-bytes', 'text-context-bytes', 'pdf-reference-context', 'large-table-reference-context', 'private-snapshot-rejection', 'artifact-wire-schema'],
     limits: ['No Native or Electron UI', 'No real provider', 'No scientific verification', 'Direct text snapshots up to 2 MiB; supported files up to 10 MiB'] };
   await writeFile(join(output, 'result.json'), JSON.stringify(result, null, 2));
