@@ -6,7 +6,7 @@ use pero_contracts::{
     content_document::{ContentFormat, DocumentHeader},
     context::ContextReference,
     session_artifact::{
-        ArtifactMethod, ArtifactPresentation, ArtifactRequest, ArtifactSource, SessionArtifact,
+        ArtifactMethod, ArtifactPresentation, ArtifactPreviewTarget, ArtifactRequest, ArtifactSource, SessionArtifact,
     },
     workbench::LayoutPreferences,
 };
@@ -27,6 +27,7 @@ pub(crate) struct ArtifactCollection {
     pub loading: bool,
     pub open: bool,
     pub inline_open: bool,
+    pub inline_at_tail: bool,
     pub bottom: bool,
     pub bottom_height: Option<f32>,
     pub maximized: bool,
@@ -90,6 +91,7 @@ impl ChatPanel {
         let state = self.artifacts.conversations.get_mut(thread).expect("selected artifact");
         state.open = false;
         state.inline_open = true;
+        state.inline_at_tail = false;
         cx.notify();
     }
     pub(crate) fn open_delivered_artifact(
@@ -508,11 +510,34 @@ impl ChatPanel {
         cx.notify();
     }
 
+    fn present_artifact(
+        &mut self,
+        thread: &str,
+        id: &str,
+        version: u64,
+        presentation: ArtifactPresentation,
+        inline_at_tail: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let state = self.artifacts.conversations.entry(thread.into()).or_default();
+        state.maximized = presentation == ArtifactPresentation::Expanded;
+        state.bottom = presentation == ArtifactPresentation::Below;
+        if presentation == ArtifactPresentation::Inline {
+            self.open_inline_artifact(thread, id, version, cx);
+            if let Some(state) = self.artifacts.conversations.get_mut(thread) {
+                state.inline_at_tail = inline_at_tail;
+            }
+        } else {
+            self.open_delivered_artifact(thread, id, version, cx);
+        }
+    }
+
     pub(crate) fn receive_artifacts(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
         if !matches!(
             event.kind.as_str(),
             "artifact_catalog"
                 | "artifact_registered"
+                | "artifact_presented"
                 | "artifact_document"
                 | "artifact_context"
                 | "artifact_error"
@@ -577,19 +602,25 @@ impl ChatPanel {
                         if manual {
                             self.read_artifact(thread, &id, version, false, cx);
                         } else if let Some(presentation) = presentation.filter(|_| can_present) {
-                            state.maximized = presentation == ArtifactPresentation::Expanded;
-                            state.bottom = presentation == ArtifactPresentation::Below;
-                            if presentation == ArtifactPresentation::Inline {
-                                self.open_inline_artifact(thread, &id, version, cx);
-                            } else {
-                                self.open_delivered_artifact(thread, &id, version, cx);
-                            }
+                            self.present_artifact(thread, &id, version, presentation, false, cx);
                         }
                         if refresh_catalog {
                             self.refresh_artifacts(thread, cx);
                         }
                     }
                     Err(error) => state.error = Some(error.to_string()),
+                }
+            }
+            "artifact_presented" if can_present => {
+                #[derive(Deserialize)]
+                struct Presented {
+                    target: ArtifactPreviewTarget,
+                    presentation: ArtifactPresentation,
+                }
+                if let Ok(Presented { target, presentation }) = serde_json::from_value(event.data.clone()) {
+                    if target.thread_id == thread {
+                        self.present_artifact(thread, &target.artifact_id, target.version, presentation, true, cx);
+                    }
                 }
             }
             "artifact_document" => {
@@ -740,6 +771,7 @@ impl ChatPanel {
             "next",
             "close",
             "expand",
+            "bottom",
             "chart-source",
         ] {
             self.artifacts
@@ -771,7 +803,6 @@ impl ChatPanel {
         selected: u64,
     ) -> Option<String> {
         let item = self
-            "bottom",
             .artifacts
             .conversations
             .get(thread)?

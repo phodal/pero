@@ -94,10 +94,10 @@ impl NativeApps {
             }
             return true; // Snapshot filesystem paths are private to the shell.
         }
-        if matches!(event.kind.as_str(), "artifact_registered" | "artifact_error")
+        if matches!(event.kind.as_str(), "artifact_registered" | "artifact_presented" | "artifact_error")
             && event.request_id.as_deref().is_some_and(|id| id.starts_with("native-artifact-")) {
             if let Some(sender) = self.pending.lock().unwrap().remove(event.request_id.as_deref().unwrap_or("")) {
-                let _ = sender.send(Reply { ok: event.kind == "artifact_registered", value: Some(event.data.clone()), error: Some(event.text.clone()) });
+                let _ = sender.send(Reply { ok: event.kind != "artifact_error", value: Some(event.data.clone()), error: Some(event.text.clone()) });
             }
             return false; // The same receipt also updates the conversation's artifact list.
         }
@@ -120,7 +120,8 @@ impl NativeApps {
         true // Private paths and backend credentials never become Workbench events.
     }
     pub(super) fn deliver_artifact(&self, command: Value) -> anyhow::Result<Value> {
-        self.artifact_request("register_file", command)
+        let action = if command["action"] == "present" { "present" } else { "register_file" };
+        self.artifact_request(action, command)
     }
     pub(super) fn artifact_request(&self, action: &str, mut command: Value) -> anyhow::Result<Value> {
         let id = format!("native-artifact-{}", self.next.fetch_add(1, Ordering::Relaxed));

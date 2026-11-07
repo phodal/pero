@@ -17,7 +17,7 @@ import { ComputerFailure } from './computer-client.ts';
 import { APP_USE_ACTIONS, APP_USE_VERBS, AppUseError } from './app-use-task.ts';
 import { ControlLabGoals, type ControlLabGoal } from './control-lab-goal.ts';
 import { AppAgentPluginBinding } from './app-agent-plugin.ts';
-import { DELIVER_ARTIFACT_TOOL, parseArtifactDelivery, type ArtifactDeliveryPort } from './artifact-delivery.ts';
+import { DELIVER_ARTIFACT_TOOL, PRESENT_ARTIFACT_TOOL, parseArtifactDelivery, parseArtifactPresentation, type ArtifactDeliveryPort } from './artifact-delivery.ts';
 
 type Event = {
   version: number;
@@ -291,7 +291,7 @@ export class DesktopAppUse {
               : '2025-03-26',
             capabilities: { tools: {} },
             serverInfo: { name: 'pero-app-use', version: '0.1.0' },
-            instructions: (this.uiAvailable ? TOOL.description : 'Use app_describe and app_write for declared App data tools. Native App UI operation and capture are unavailable.') + (this.computer ? '\n' + COMPUTER_INSTRUCTIONS : '') + (this.deliverArtifact ? '\n' + DELIVER_ARTIFACT_TOOL.description : ''),
+            instructions: (this.uiAvailable ? TOOL.description : 'Use app_describe and app_write for declared App data tools. Native App UI operation and capture are unavailable.') + (this.computer ? '\n' + COMPUTER_INSTRUCTIONS : '') + (this.deliverArtifact ? '\n' + DELIVER_ARTIFACT_TOOL.description + '\n' + PRESENT_ARTIFACT_TOOL.description : ''),
           };
         else if (message.method === 'tools/list')
           result = {
@@ -299,7 +299,7 @@ export class DesktopAppUse {
               ...(this.writes ? this.pluginWrites(thread, await this.writes.describe()).filter(d=>`app__${d.app}__${d.name}`.length<=64).map(d=>({name:`app__${d.app}__${d.name}`,annotations:{readOnlyHint:false},description:d.description,inputSchema:d.schema})) : []),
               ...(this.uiAvailable ? [TOOL] : []),
               ...(this.computer ? [COMPUTER_TOOL] : []),
-              ...(this.deliverArtifact ? [DELIVER_ARTIFACT_TOOL] : []),
+              ...(this.deliverArtifact ? [DELIVER_ARTIFACT_TOOL, PRESENT_ARTIFACT_TOOL] : []),
               {
                 name: 'content_read',
                 description: 'Read a result artifact returned by this conversation. Use a JSON Pointer to select a node, or a byte range. Original numeric text is preserved. maxBytes bounds source bytes to 16 KiB. Follow nextRead only when needed; do not read the entire artifact by default.',
@@ -393,8 +393,10 @@ export class DesktopAppUse {
             selected.appLinks=links.map(link=>({label:link.label,url:`pero-app-location://${definition.app}/${definition.panel}/${link.location}`}));
           }
           result = { content: [{ type: 'text', text: JSON.stringify(selected) }, ...(sourceImage ? [sourceImage.content()] : [])], isError: false };
-        } else if (message.method === 'tools/call' && message.params?.name === 'deliver_artifact' && this.deliverArtifact) {
-          const input = parseArtifactDelivery(message.params.arguments);
+        } else if (message.method === 'tools/call' && (message.params?.name === 'deliver_artifact' || message.params?.name === 'present_artifact') && this.deliverArtifact) {
+          const input = message.params.name === 'present_artifact'
+            ? parseArtifactPresentation(message.params.arguments)
+            : parseArtifactDelivery(message.params.arguments);
           this.authority.requireRunningSession(thread);
           // Delivery is file data access, independent of the selected App or Chat.
           // The Host checks this actual caller's session/workspace and reads bytes.

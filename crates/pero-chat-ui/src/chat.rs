@@ -850,6 +850,7 @@ impl ChatPanel {
                             .into_any_element(),
                     }
                 }))
+                .children(chat.and_then(|chat| self.inline_artifact_tail(chat, cx)))
                 .when(busy,|el|el.child(div()
                     .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Body))
                     .text_color(p.text_muted)

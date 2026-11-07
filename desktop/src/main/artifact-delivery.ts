@@ -11,9 +11,18 @@ export type ArtifactDeliveryInput = Readonly<{
   related?: ArtifactRelation[];
 }>;
 
+type ArtifactPresentationInput = Readonly<{
+  action: 'present';
+  artifact_id: string;
+  version: number;
+  presentation: ArtifactPresentation;
+}>;
+
+const placements = ['inline', 'below', 'side', 'expanded'];
+
 export type ArtifactDeliveryPort = (
   thread: string,
-  input: ArtifactDeliveryInput,
+  input: ArtifactDeliveryInput | ArtifactPresentationInput,
   signal: AbortSignal,
 ) => Promise<unknown>;
 
@@ -30,7 +39,7 @@ export const DELIVER_ARTIFACT_TOOL = {
       path: { type: 'string', minLength: 1 },
       title: { type: 'string' },
       artifact_id: { type: 'string' },
-      presentation: { enum: ['inline', 'below', 'side', 'expanded'] },
+      presentation: { enum: placements },
       related: { type: 'array', maxItems: 16, items: { type: 'object', additionalProperties: false,
         required: ['artifact_id', 'version', 'role'], properties: {
           artifact_id: { type: 'string', minLength: 1, maxLength: 128 },
@@ -51,7 +60,7 @@ export function parseArtifactDelivery(value: unknown): ArtifactDeliveryInput {
     typeof input.path !== 'string' || !input.path.length ||
     (input.title !== undefined && typeof input.title !== 'string') ||
     (input.artifact_id !== undefined && typeof input.artifact_id !== 'string') ||
-    (input.presentation !== undefined && input.presentation !== 'inline' && input.presentation !== 'below' && (typeof input.presentation !== 'string' || !['inline', 'below', 'side', 'expanded'].includes(input.presentation))) ||
+    (input.presentation !== undefined && (typeof input.presentation !== 'string' || !placements.includes(input.presentation))) ||
     (input.related !== undefined && (!Array.isArray(input.related) || input.related.length > 16 ||
       input.related.some(link => !link || typeof link !== 'object' ||
         Object.keys(link).some(key => !['artifact_id', 'version', 'role'].includes(key)) ||
@@ -63,9 +72,38 @@ export function parseArtifactDelivery(value: unknown): ArtifactDeliveryInput {
   return input as ArtifactDeliveryInput;
 }
 
+export const PRESENT_ARTIFACT_TOOL = {
+  name: 'present_artifact',
+  annotations: { readOnlyHint: false },
+  description: "Show an exact saved artifact version in this conversation without saving a new version. Use inline, below, side or expanded. The display request applies while this conversation is active.",
+  inputSchema: {
+    type: 'object',
+    required: ['artifact_id', 'version', 'presentation'],
+    additionalProperties: false,
+    properties: {
+      artifact_id: { type: 'string', minLength: 1, maxLength: 128 },
+      version: { type: 'integer', minimum: 1 },
+      presentation: { enum: placements },
+    },
+  },
+};
+
+export function parseArtifactPresentation(value: unknown): ArtifactPresentationInput {
+  const input = value as Partial<ArtifactPresentationInput> | null;
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+    Object.keys(input).some(key => !PRESENT_ARTIFACT_TOOL.inputSchema.required.includes(key)) ||
+    typeof input.artifact_id !== 'string' || !input.artifact_id || input.artifact_id.length > 128 ||
+    typeof input.version !== 'number' || !Number.isSafeInteger(input.version) || input.version < 1 ||
+    typeof input.presentation !== 'string' || !placements.includes(input.presentation)) {
+    throw new AppUseError('ARTIFACT_DELIVERY_INVALID', 'Provide an exact artifact_id, version and presentation.');
+  }
+  return { action: 'present', artifact_id: input.artifact_id, version: input.version, presentation: input.presentation };
+}
+
+type ArtifactResponse = 'artifact_registered' | 'artifact_presented' | 'artifact_snapshot_result';
 type ArtifactOperation = (ArtifactDeliveryInput & {
   action: 'register_file';
-} | {
+} | ArtifactPresentationInput | {
   action: 'resolve_snapshot';
   artifact_id: string;
   version: number;
@@ -89,7 +127,7 @@ export class HostArtifactDelivery {
   private readonly send: (command: ArtifactCommand) => void;
   private readonly pending = new Map<string, {
     thread: string;
-    response: 'artifact_registered' | 'artifact_snapshot_result';
+    response: ArtifactResponse;
     resolve(value: unknown): void;
     reject(error: unknown): void;
     dispose(): void;
@@ -101,7 +139,9 @@ export class HostArtifactDelivery {
   }
 
   readonly deliver: ArtifactDeliveryPort = (thread, input, signal) =>
-    this.request(thread, { ...input, action: 'register_file' }, 'artifact_registered', signal);
+    'action' in input
+      ? this.request(thread, input, 'artifact_presented', signal)
+      : this.request(thread, { ...input, action: 'register_file' }, 'artifact_registered', signal);
 
   readonly resolveSnapshot = (thread: string, artifact: string, version: number, signal: AbortSignal): Promise<ArtifactSnapshot> =>
     this.request(thread, { action: 'resolve_snapshot', artifact_id: artifact, version }, 'artifact_snapshot_result', signal) as Promise<ArtifactSnapshot>;
@@ -109,7 +149,7 @@ export class HostArtifactDelivery {
   private async request(
     thread: string,
     command: ArtifactOperation,
-    response: 'artifact_registered' | 'artifact_snapshot_result',
+    response: ArtifactResponse,
     signal: AbortSignal,
   ): Promise<unknown> {
     signal.throwIfAborted();

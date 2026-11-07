@@ -4,11 +4,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DesktopAppUse } from './app-use-mcp.ts';
-import { HostArtifactDelivery, type ArtifactDeliveryInput } from './artifact-delivery.ts';
+import { HostArtifactDelivery, type ArtifactDeliveryPort } from './artifact-delivery.ts';
 
 test('file delivery uses its actual MCP caller without requiring an App or selected Chat', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pero-deliver-artifact-'));
-  const delivered: { thread: string; input: ArtifactDeliveryInput }[] = [];
+  const delivered: { thread: string; input: Parameters<ArtifactDeliveryPort>[1] }[] = [];
   const service = new DesktopAppUse({
     selectedThread: async () => 'another-selected-conversation',
     page: async () => { throw Error('File delivery must not operate an App'); },
@@ -17,6 +17,7 @@ test('file delivery uses its actual MCP caller without requiring an App or selec
   }, () => {}, root, undefined, undefined, async (thread, input, signal) => {
     signal.throwIfAborted();
     delivered.push({ thread, input });
+    if ('action' in input) return { target: { thread_id: thread, artifact_id: input.artifact_id, version: input.version } };
     return { artifact: { id: input.artifact_id || 'saved-item', thread_id: thread, title: input.title || input.path } };
   });
   try {
