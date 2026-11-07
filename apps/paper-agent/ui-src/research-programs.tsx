@@ -34,7 +34,7 @@ type Program = {id:string;checkpoint:string;protocol:{question:string;scope:stri
 export function ResearchPrograms({api,papers,seed}:{api:Api;papers:Paper[];seed:Paper|null}) {
   const {t}=useAppI18n(messages), agent=useHostCapability('agent');
   const createId=useRef(crypto.randomUUID());
-  const panel=useRef<HTMLDivElement>(null);
+  const panel=useRef<HTMLDivElement>(null),form=useRef<HTMLFormElement>(null);
   const [programs,setPrograms]=useState<Program[]>([]),[selected,setSelected]=useState<Program|null>(null),[run,setRun]=useState<AppAgentRun|null>(null);
   const [scope,setScope]=useState<AppAgentScope|null>(null),[available,setAvailable]=useState(false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState('');
   const [seeds,setSeeds]=useState<string[]>(seed?[seed.id]:[]),[question,setQuestion]=useState(''),[researchScope,setResearchScope]=useState(''),[inclusion,setInclusion]=useState(''),[exclusion,setExclusion]=useState('');
@@ -59,15 +59,19 @@ export function ResearchPrograms({api,papers,seed}:{api:Api;papers:Paper[];seed:
     if(!selected||!scope||!agent)return;
     let alive=true,timer:ReturnType<typeof setTimeout>;
     const id=selected.id;
+    let failures=0;
     async function poll(){
       try {
         const lookup=await agent!.call<{run:AppAgentRun|null}>('lookup',{scope:scope!,requestId:id});
-        const next=lookup.run?await agent!.call<AppAgentRun>('status',{scope:scope!,runId:lookup.run.id}):null;
+        let next=lookup.run?await agent!.call<AppAgentRun>('status',{scope:scope!,runId:lookup.run.id}):null;
         const saved=await api.post<Program>('/api/programs',{operation:'read',programId:id,offset:candidateOffset,roundOffset,roundLimit:1});
-        if(!alive)return;setRun(next);setSelected(saved);
+        if(!alive)return;
+        if(saved.stopReason==='user_stopped'&&next&&['running','needs_input'].includes(next.status))
+          next=await agent!.call<AppAgentRun>('cancel',{scope:scope!,runId:next.id});
+        if(!alive)return;failures=0;setError('');setRun(next);setSelected(saved);
         setPrograms(items=>items.map(p=>p.id===id?saved:p));
         if(next&&['running','cancelling','needs_input'].includes(next.status))timer=setTimeout(()=>void poll(),2000);
-      } catch(e){if(alive)fail(e)}
+      } catch(e){if(alive){fail(e);timer=setTimeout(()=>void poll(),Math.min(30000,2000*2**failures++))}}
     }
     void poll();return()=>{alive=false;clearTimeout(timer)};
   },[selected?.id,scope,agent,run?.attempt,run?.status==='running',busy,candidateOffset,roundOffset]);
@@ -75,6 +79,9 @@ export function ResearchPrograms({api,papers,seed}:{api:Api;papers:Paper[];seed:
   async function save(){
     const saved=await api.post<Program>('/api/programs',{operation:'create',requestId:createId.current,question,scope:researchScope,inclusion,exclusion,seedPaperIds:seeds,acquisition,limits,minutes});
     setCandidateOffset(0);setRoundOffset(0);setSelected(saved);setRun(null);setPrograms(items=>[saved,...items]);
+  }
+  function submit(){
+    if(!busy&&seeds.length&&form.current?.reportValidity())void perform(save);
   }
   async function start(){
     if(!agent||!scope||!selected)return;
@@ -102,13 +109,18 @@ export function ResearchPrograms({api,papers,seed}:{api:Api;papers:Paper[];seed:
         {listNext!==null&&<Button disabled={busy} onClick={()=>void perform(async()=>{const page=await api.post<{programs:Program[];page:Page}>('/api/programs',{operation:'list',offset:listNext});setPrograms(items=>[...items,...page.programs]);setListNext(page.page.nextOffset)})}>{t('more')}</Button>}</nav>
       </SplitPane>
       <SplitPane id="program-detail" min={320}>
-        {!selected?<form className="pa-program-plan" onSubmit={event=>{event.preventDefault();void perform(save)}}>
+        {!selected?<form ref={form} className="pa-program-plan" onSubmit={event=>{event.preventDefault();submit()}} onKeyDown={event=>{
+          if(event.defaultPrevented||event.key!=='Enter'||event.nativeEvent.isComposing||event.nativeEvent.keyCode===229||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey)return;
+          if(event.target instanceof HTMLInputElement&&event.target.type==='number'){
+            event.preventDefault();if(!event.repeat)submit();
+          }
+        }}>
           <p>{t('planNote')}</p>
           <fieldset disabled={busy}><legend>{t('seeds')}</legend>{papers.length?papers.map(p=><label className="pa-program-seed" key={p.id}><input type="checkbox" checked={seeds.includes(p.id)} disabled={!seeds.includes(p.id)&&seeds.length>=5} onChange={e=>setSeeds(ids=>e.target.checked?[...ids,p.id]:ids.filter(id=>id!==p.id))}/>{p.title}</label>):<p>{t('noPapers')}</p>}</fieldset>
           {fields.map(([key,value,set])=><label key={key}>{t(key)}<textarea required maxLength={4000} value={value} onChange={e=>set(e.target.value)} disabled={busy} rows={key==='question'?3:2}/></label>)}
           <label>{t('acquisition')}<select value={acquisition} onChange={e=>setAcquisition(e.target.value)} disabled={busy}><option value="saved_only">{t('saved')}</option><option value="public_pdf">{t('public')}</option><option value="public_fulltext">{t('publicFulltext')}</option></select></label>
           <div className="pa-program-limits">{Object.entries(limits).map(([key,value])=><label key={key}>{t(key)}<input type="number" min={1} max={key==='rounds'?32:key==='searches'?100:500} value={value} required disabled={busy} onChange={e=>setLimits(x=>({...x,[key]:Number(e.target.value)}))}/></label>)}<label>{t('minutes')}<input type="number" min={1} max={240} required value={minutes} disabled={busy} onChange={e=>setMinutes(Number(e.target.value))}/></label></div>
-          <p>{t('limitsNote')}</p><Button type="submit" disabled={busy||!seeds.length}>{t('save')}</Button>
+          <p>{t('limitsNote')}</p><Button type="button" onClick={submit} disabled={busy||!seeds.length}>{t('save')}</Button>
         </form>:<div className="pa-program-detail">
           <h2>{selected.protocol.question}</h2>
           <div className="pa-program-actions">

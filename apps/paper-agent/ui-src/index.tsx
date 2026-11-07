@@ -432,7 +432,7 @@ export default function PaperAgent() {
         {screen === 'library' && evidencePanel}
         {libraryLoaded ? <ResearchRecords api={api} library={library} paper={null} results onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} onRead={reread} onAttempt={openAttempt} t={t}/> : loading && <p role="status">{t('loading')}</p>}
       </div>}
-      {libraryScreen === 'programs' && <ResearchPrograms api={api} papers={library.papers} seed={programSeed}/>}
+      {libraryScreen === 'programs' && <>{screen === 'library' && evidencePanel}<ResearchPrograms api={api} papers={library.papers} seed={programSeed}/></>}
     </section>
     <Split className="pa-reading-screen" storageKey="paper-agent.research-records" collapseBelow={760} hidden={screen !== 'reading'} data-agent={showResearch}>
       <SplitPane id="paper-reading-main" className="pa-reading-main" min={320}>
@@ -440,7 +440,7 @@ export default function PaperAgent() {
           <Button variant="ghost" aria-label={t(libraryScreen === 'results' ? 'researchResults' : libraryScreen === 'compare' ? 'comparePapers' : 'backToLibrary')} onClick={back}><Icon family="shell" name="back" size={16}/>{t(libraryScreen === 'results' ? 'researchResults' : libraryScreen === 'compare' ? 'comparePapers' : 'library')}</Button>
           <div className="pa-reader-crumb"><span className="pa-reader-title" title={reading?.title}>{reading?.title ?? t('loading')}</span></div>
           <div className="pa-reader-tools" ref={setPdfToolbar}/>
-          <Button variant="ghost" disabled={!reading||readingBusy} onClick={()=>{setProgramSeed(reading);setScreen('library');setLibraryScreen('programs')}}>{t('autonomousResearch')}</Button>
+          <Button variant="ghost" disabled={!reading||readingBusy} onClick={()=>{setProgramSeed(reading);back();setLibraryScreen('programs')}}>{t('autonomousResearch')}</Button>
           {!questionMode && <>
             <Button ref={recordsButton} className="pa-records-toggle" variant="ghost" aria-label={t('researchProgress')} title={t('researchProgress')} aria-expanded={showResearch} aria-controls={showResearch ? 'paper-research-records' : undefined} onClick={() => { preserveView.current?.(); setShowResearch(value => !value); }}>
               <Icon family="shell" name="clock" size={16}/>
