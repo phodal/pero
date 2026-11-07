@@ -172,7 +172,10 @@ impl TurnCapture {
         if source.is_file() {
             std::fs::copy(&source, &index).map_err(|e| e.to_string())?;
         }
-        let mut paths = vec!["add", "--all", "--", ".", ":(exclude).pero-worker.lock"];
+        // A literal exclude of the ignored worker lock makes Git 2.54 reject the
+        // snapshot (`addIgnoredFile`). A one-character glob still keeps the lock
+        // out of the private index, including when the file is tracked.
+        let mut paths = vec!["add", "--all", "--", ".", ":(exclude).pero-worker.loc*"];
         let exclude = self
             .directory
             .parent()
@@ -321,6 +324,8 @@ mod tests {
         );
         std::fs::write(root.join("old.txt"), "first\nbaseline dirty\n").unwrap();
         std::fs::write(root.join("already.txt"), "pre-existing untracked\n").unwrap();
+        std::fs::write(root.join(".gitignore"), ".pero-worker.lock\n").unwrap();
+        std::fs::write(root.join(".pero-worker.lock"), "lease\n").unwrap();
         let index = std::fs::read(root.join(".git/index")).unwrap();
         let profile =
             std::env::temp_dir().join(format!("pero-changes-profile-{}", uuid::Uuid::new_v4()));
@@ -340,10 +345,11 @@ mod tests {
         let restored = ChangesStore::new(&profile.join("settings.json"));
         assert_eq!(restored.list("thread").unwrap(), vec![summary.clone()]);
         assert!(
-            !summary
-                .files
-                .iter()
-                .any(|file| file.path == "already.txt" || file.path == "temporary.txt")
+            !summary.files.iter().any(|file| {
+                file.path == "already.txt"
+                    || file.path == "temporary.txt"
+                    || file.path == ".pero-worker.lock"
+            })
         );
         assert!(
             summary
@@ -372,6 +378,12 @@ mod tests {
         let current = restored.current("thread", &root, 43).unwrap();
         assert_eq!(current.scope, ChangeScope::Worktree);
         assert!(current.files.iter().any(|file| file.path == "already.txt"));
+        assert!(
+            !current
+                .files
+                .iter()
+                .any(|file| file.path == ".pero-worker.lock")
+        );
         let unchanged = restored
             .begin("thread", &root)
             .unwrap()
