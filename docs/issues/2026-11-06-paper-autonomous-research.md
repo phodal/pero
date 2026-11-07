@@ -133,3 +133,8 @@ grant, missing stable mutation IDs, sandboxed form submission and stopped-plan
 cancellation recovery gaps. Host research I/O also blocked its command loop and
 failed observations were cached. These are implementation defects; the rollout
 continues to require independent scientific review of needs_review outputs.
+
+The combined PR review also found that the real Python journey printed success
+before cleanup and left its App backend holding process pipes open. The fixture
+now disables the App while the Host still owns it, and writes success only after
+cleanup. The three-round journey exits zero with no remaining fixture backend.
