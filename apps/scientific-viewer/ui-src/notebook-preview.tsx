@@ -5,6 +5,7 @@ import type { Asset } from './files';
 import { parseNotebook } from './notebook';
 import { useAppContext } from '@pero/app-sdk';
 import { Button, Feedback } from '@pero/app-sdk/ui';
+import { NotebookRunner } from './notebook-runner';
 import './notebook-preview.css';
 
 // The standalone Viewer does not import JupyterLab's full Notebook module,
@@ -18,11 +19,12 @@ if (typeof window.requestIdleCallback !== 'function') {
 }
 const StaticViewer = memo(Viewer);
 
-/** Static nbformat preview via Datalayer Viewer. No kernel or cell execution. */
+/** Datalayer renders the original snapshot beside the separately editable working copy. */
 export function NotebookPreview({ asset, embedded = false }: { asset: Asset; embedded?: boolean }) {
   const { dark, locale } = useAppContext();
   const zh = locale === 'zh-CN';
   const notebook = useMemo(() => parseNotebook(asset.bytes), [asset]);
+  const [draft, setDraft] = useState<typeof notebook | null>(null);
   const container = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [attempt, setAttempt] = useState(0);
@@ -42,7 +44,8 @@ export function NotebookPreview({ asset, embedded = false }: { asset: Asset; emb
   }, [notebook, attempt]);
   return <section className="notebook-preview" aria-label="Notebook preview">
     {!embedded && <h2>Notebook</h2>}
-    <p className="muted">{zh ? `${notebook.cells.length} 个单元，显示已保存的输出。只读，未启动内核，结果未验证。` : `${notebook.cells.length} ${notebook.cells.length === 1 ? 'cell' : 'cells'}. Stored outputs. Read-only; kernel not started; unverified.`}</p>
+    <NotebookRunner notebook={draft ?? notebook} edited={draft !== null} name={asset.name} zh={zh} onChange={setDraft} />
+    <p className="muted">{zh ? `原始快照 · ${notebook.cells.length} 个单元 · 已保存的输出` : `Original snapshot · ${notebook.cells.length} ${notebook.cells.length === 1 ? 'cell' : 'cells'} · Stored outputs`}</p>
     {status === 'loading' && <p role="status">{zh ? '正在显示 Notebook 单元…' : 'Rendering notebook cells…'}</p>}
     {status === 'failed' && <div><Feedback kind="error">{zh ? 'Notebook 单元未能显示。可查看源码或重试。' : 'Notebook cells could not be displayed. View Source or retry.'}</Feedback><Button onClick={() => setAttempt(value => value + 1)}>{zh ? '重试预览' : 'Retry preview'}</Button></div>}
     {!notebook.cells.length && <p>{zh ? 'Notebook 中没有单元。' : 'This notebook has no cells.'}</p>}

@@ -4,6 +4,7 @@ export type NotebookCell = {
   source?: string | string[];
   metadata?: Record<string, unknown>;
   outputs?: unknown[];
+  execution_count?: number | null;
   id?: string;
 };
 export type NotebookDocument = {

@@ -3,3 +3,9 @@
 .notebook-viewer { min-height:0; overflow:auto; border:.5px solid var(--pero-border,#dce4ed); border-radius:6px; padding:8px; background:var(--pero-surface,#fff); }
 .notebook-viewer .jp-Cell { margin:0 0 12px; }
 .notebook-viewer .jp-InputArea-editor { border:.5px solid var(--pero-border,#dce4ed); border-radius:4px; }
+.notebook-runner { display:grid; gap:var(--pero-spacing-2); }
+.notebook-runner p { margin:0; }
+.notebook-run-actions { display:flex; gap:var(--pero-spacing-2); flex-wrap:wrap; }
+.notebook-runner textarea,.notebook-live-output pre { font-family:var(--pero-font-family-mono,monospace); }
+.notebook-live-output pre { white-space:pre-wrap; overflow-wrap:anywhere; margin:var(--pero-spacing-1) 0; }
+.notebook-live-output img { max-width:100%; }

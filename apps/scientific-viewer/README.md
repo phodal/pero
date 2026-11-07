@@ -43,10 +43,11 @@ deletes the original disk file. No background import or model execution occurs.
 - JSON displays escaped metadata. Unsupported formats and model weights remain opaque.
 - Images, code and Markdown have shared read-only previews. HTML opens in a static
   sandbox without scripts or external resources; the original source stays available.
-- `.ipynb` opens a read-only Datalayer Viewer (`@datalayer/jupyter-react`) for
-  stored cells and outputs. No kernel starts and imported notebook bytes are not
-  executed as code. Complex MIME outputs follow JupyterLab rendermime; scientific
-  validity remains unverified.
+- `.ipynb` opens Datalayer Viewer (`@datalayer/jupyter-react`) for the original
+  cells and outputs. Start Python kernel opens an editable working copy.
+  Individual code cells share a local Jupyter kernel. Interrupt, restart and
+  close control that kernel. Download working copy exports the edited cells
+  and outputs as a separate notebook. The original snapshot stays available.
 - Thirteen independently authored CC0-1.0 synthetic examples are not Point's sample
   set, experimental observations or scientific benchmarks.
 
