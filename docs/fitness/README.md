@@ -6,6 +6,9 @@ GPUI Kit 0.9.0 dependency migration, retained local fixes and runtime checks:
 Bounded Paper research, same-session continuation, source evidence and versioned
 artifact delivery: [Autonomous literature research](paper-autonomous-research.md).
 
+Fixed research cases, independent human evidence review and measured/unknown
+usage: [Research quality gate](paper-research-quality.md).
+
 Opt-in native Go engineering contracts, acceptance evidence, skills budgets and
 memory attribution: [Engineering profile](engineering-profile.md).
 
