@@ -2674,6 +2674,61 @@
         }
       ]
     },
+    "ArtifactPresentedEvent": {
+      "title": "ArtifactPresentedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "artifact_presented"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "$ref": "#/$defs/ArtifactPreviewTarget"
+            },
+            "presentation": {
+              "$ref": "#/$defs/ArtifactPresentation"
+            }
+          },
+          "required": [
+            "target",
+            "presentation"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
     "ArtifactPreviewTarget": {
       "title": "ArtifactPreviewTarget",
       "type": "object",
@@ -2865,6 +2920,9 @@
         },
         {
           "$ref": "#/$defs/ArtifactContextRequest"
+        },
+        {
+          "$ref": "#/$defs/PresentArtifact"
         }
       ]
     },
@@ -8107,6 +8165,9 @@
           "$ref": "#/$defs/ArtifactRegisteredEvent"
         },
         {
+          "$ref": "#/$defs/ArtifactPresentedEvent"
+        },
+        {
           "$ref": "#/$defs/ArtifactDocumentEvent"
         },
         {
@@ -11548,6 +11609,48 @@
         "name",
         "method",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "PresentArtifact": {
+      "title": "PresentArtifact",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "present"
+        },
+        "method": {
+          "type": "string",
+          "const": "artifacts"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "presentation": {
+          "$ref": "#/$defs/ArtifactPresentation"
+        }
+      },
+      "required": [
+        "action",
+        "method",
+        "request_id",
+        "thread_id",
+        "artifact_id",
+        "version",
+        "presentation"
       ],
       "additionalProperties": false
     },

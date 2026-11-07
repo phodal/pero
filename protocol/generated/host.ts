@@ -83,7 +83,8 @@ export type ArtifactRequest =
   | RegisterFileArtifact
   | ReadArtifact
   | ResolveArtifactSnapshot
-  | ArtifactContextRequest;
+  | ArtifactContextRequest
+  | PresentArtifact;
 export type ArtifactPresentation = "inline" | "below" | "side" | "expanded";
 export type ArtifactRelationRole = "input" | "code" | "execution_log" | "environment" | "review" | "run_record";
 export type ChangesRequest = ChangesList | ChangesCurrent | ChangesRead;
@@ -201,6 +202,7 @@ export type HostEvent =
   | WorkspaceChangesErrorEvent
   | ArtifactCatalogEvent
   | ArtifactRegisteredEvent
+  | ArtifactPresentedEvent
   | ArtifactDocumentEvent
   | ArtifactContextEvent
   | ArtifactSnapshotResultEvent
@@ -1073,6 +1075,15 @@ export interface ArtifactContextRequest {
   thread_id: ThreadId;
   artifact_id: string;
   version: number;
+}
+export interface PresentArtifact {
+  action: "present";
+  method: "artifacts";
+  request_id: string;
+  thread_id: ThreadId;
+  artifact_id: string;
+  version: number;
+  presentation: ArtifactPresentation;
 }
 export interface ChangesList {
   action: "list";
@@ -2705,6 +2716,22 @@ export interface ArtifactRegisteredEvent {
     artifact: SessionArtifact;
     presentation?: ArtifactPresentation;
   };
+}
+export interface ArtifactPresentedEvent {
+  kind: "artifact_presented";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    target: ArtifactPreviewTarget;
+    presentation: ArtifactPresentation;
+  };
+}
+export interface ArtifactPreviewTarget {
+  thread_id: ThreadId;
+  artifact_id: string;
+  version: number;
 }
 export interface ArtifactDocumentEvent {
   kind: "artifact_document";

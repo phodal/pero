@@ -109,10 +109,19 @@ model ArtifactContextRequest {
   @minValue(1) version:safeint;
   ...Closed;
 }
-@oneOf union ArtifactRequest { ListArtifacts, RegisterTextArtifact, RegisterFileArtifact, ReadArtifact, ResolveArtifactSnapshot, ArtifactContextRequest }
+model PresentArtifact {
+  action:"present";
+  ...ArtifactRequestBase;
+  artifact_id:string;
+  @minValue(1) version:safeint;
+  presentation:ArtifactPresentation;
+  ...Closed;
+}
+@oneOf union ArtifactRequest { ListArtifacts, RegisterTextArtifact, RegisterFileArtifact, ReadArtifact, ResolveArtifactSnapshot, ArtifactContextRequest, PresentArtifact }
 
 model ArtifactCatalogEvent { kind:"artifact_catalog"; ...ThreadEventBase; data:{artifacts:SessionArtifact[]; ...Closed} }
 model ArtifactRegisteredEvent { kind:"artifact_registered"; ...ThreadEventBase; data:{artifact:SessionArtifact; presentation?:ArtifactPresentation; ...Closed} }
+model ArtifactPresentedEvent { kind:"artifact_presented"; ...ThreadEventBase; data:{target:ArtifactPreviewTarget; presentation:ArtifactPresentation; ...Closed} }
 model ArtifactDocumentEvent { kind:"artifact_document"; ...ThreadEventBase; data:DocumentHeader }
 model ArtifactContextEvent { kind:"artifact_context"; ...ThreadEventBase; data:ContextReference }
 model ArtifactSnapshotSuccess { ok:true; value:ArtifactSnapshot; ...Closed }

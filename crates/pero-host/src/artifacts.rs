@@ -111,6 +111,12 @@ impl Artifacts {
                             .expect("artifact context");
                     event
                 }
+                ArtifactRequest::Present { artifact_id, version, presentation, .. } => {
+                    store.resolve_snapshot(thread, artifact_id, *version)?;
+                    let mut event = HostEvent::new("artifact_presented", request_id.clone(), String::new());
+                    event.data = json!({"target":{"thread_id":thread,"artifact_id":artifact_id,"version":version},"presentation":presentation});
+                    event
+                }
                 ArtifactRequest::RegisterText { .. } | ArtifactRequest::RegisterFile { .. } => {
                     // History records the workspace bound at session creation. UI navigation cannot change it.
                     let workspace = agents

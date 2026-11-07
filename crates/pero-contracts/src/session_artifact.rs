@@ -517,6 +517,15 @@ pub enum ArtifactRequest {
         artifact_id: String,
         version: u64,
     },
+    Present {
+        #[serde(default)]
+        method: ArtifactMethod,
+        request_id: String,
+        thread_id: String,
+        artifact_id: String,
+        version: u64,
+        presentation: ArtifactPresentation,
+    },
 }
 impl ArtifactRequest {
     pub fn scope(&self) -> (&str, &str, Option<&str>) {
@@ -555,6 +564,9 @@ impl ArtifactRequest {
                 thread_id,
                 artifact_id,
                 ..
+            }
+            | Self::Present {
+                request_id, thread_id, artifact_id, ..
             } => (request_id, thread_id, Some(artifact_id)),
         }
     }
@@ -568,6 +580,7 @@ impl ArtifactRequest {
             self,
             Self::ResolveSnapshot { version: 0, .. }
                 | Self::Context { version: 0, .. }
+                | Self::Present { version: 0, .. }
                 | Self::Read {
                     version: Some(0),
                     ..

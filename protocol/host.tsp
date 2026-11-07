@@ -577,7 +577,7 @@ union HostEvent {
   WorkspaceFilesListEvent, WorkspaceFilesDocumentEvent, WorkspaceFilesErrorEvent,
   FileDocumentErrorEvent,
   WorkspaceChangesEvent,WorkspaceChangesCatalogEvent,WorkspaceChangeDiffEvent,WorkspaceChangesErrorEvent,
-  ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
+  ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactPresentedEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
   ContentDocumentEvent,
   LocalWorkerStateEvent,
   ContributorStateEvent,
