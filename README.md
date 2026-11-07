@@ -25,6 +25,12 @@
 > [!NOTE]
 > **Development preview.** macOS arm64 builds are available. There is no stable release yet.
 
+## Research roadmap
+
+The proposed progression moves from independently rerunning a published result to comparing experiments and sustaining research across people and environments. Each stage depends on validating the previous one.
+
+![Proposed research roadmap: verify published results, compare and choose the next experiment, then sustain research across people and environments](docs/assets/openpero-research-roadmap.svg)
+
 ## Why
 
 A research workflow often starts as a script, notebook or model demo. Pero turns it into an App that can run on its own or alongside other tools in a shared workbench. Virtual Cell is the first example, with cell-atlas exploration and reaction simulation.
@@ -32,12 +38,6 @@ A research workflow often starts as a script, notebook or model demo. Pero turns
 The longer-term goal is to connect these Apps with agents, collaborators and compute while keeping inputs, methods and results traceable.
 
 ![Research Apps, agent capabilities and delivery options; dashed elements are planned](docs/assets/openpero-building-blocks.svg)
-
-## Research roadmap
-
-The proposed progression moves from independently rerunning a published result to comparing experiments and sustaining research across people and environments. Each stage depends on validating the previous one.
-
-![Proposed research roadmap: verify published results, compare and choose the next experiment, then sustain research across people and environments](docs/assets/openpero-research-roadmap.svg)
 
 ## Status
 
