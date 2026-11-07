@@ -98,6 +98,15 @@
 - [Fisher 原始论文结果重分析](https://github.com/phodal/pero/blob/371ea0895f8dbd12d7fcc97e320f3a9499b3e94b/docs/fitness/paper-fisher-reproduction.md) 已记录一个真实原始数据的固定数值重分析及独立精确算术校验。这是 CLI 个案，未评估整篇论文，也不是通用科学复现或 Desktop 全链路验收。
 - [验收等级](https://github.com/phodal/pero/blob/371ea0895f8dbd12d7fcc97e320f3a9499b3e94b/docs/fitness/README.md#acceptance-levels) 区分编译/契约、开发 Desktop、真实外部服务和签名安装包。竞品的论文、README、演示和正式产品也应保持类似区分。
 
+### 基线之后的同日主干
+
+各篇比较仍然解释 `371ea089`。2026-11-07 16:32 +0800 的 `origin/master` 是 [`92d9eb1f`](https://github.com/phodal/pero/commit/92d9eb1f5634fa63b3df1348752a7ba5cdb5c2a3)，比基线多 29 个提交。本次只重读了和比较直接相关的两处记录；设置、MCP 页面、记忆存储和预览外观没有重新对照 25 篇。
+
+- 会话产物。[`docs/fitness/session-artifacts.md`](https://github.com/phodal/pero/blob/92d9eb1f5634fa63b3df1348752a7ba5cdb5c2a3/docs/fitness/session-artifacts.md) 在同日增补里写明：Scientific Viewer 可以按请求启动本地 Python Jupyter kernel，编辑并运行所选代码单元；工作副本和原始快照分开，其他语言仍是保存预览。一次交付可以挂最多 16 个同会话快照，角色是 input、code、execution log、environment 或 review。外部系统可以用 `<output>.pero-run.json` 附上运行回执。这些是捕获和关联，科学结果仍未验证。Electron 有真实 Host 和本地 kernel 的验收记录；其中一次独立 Native 窗口没有加载 fixture 对话。基线正文里的“Notebook 没有共享 live kernel”已被这段增补替换。
+- 本地科学前缀。[`apps/environments/README.md`](https://github.com/phodal/pero/blob/92d9eb1f5634fa63b3df1348752a7ba5cdb5c2a3/apps/environments/README.md) 写明，本地环境用固定的 micromamba 2.5.0-2 创建 conda 前缀；这次试验为 Paper、Control、Circuit 和 LCMS2Yield 安装 conda-forge 的 CPython 3.12。这是 App 运行时绑定，不是逐次独立计算，也不构成科学验收。`git diff 371ea089 92d9eb1f -- apps/compute/README.md docs/fitness/ai4s-environments.md` 没有改动这两个文件，所以 Compute App 仍是连接草稿，单节点 Slurm owner 的验收范围也不变。
+
+因此，用 `371ea089` 描述 11 月 7 日傍晚的主干时，不能再说笔记本只有静态预览，也不能说交付物之间没有证据链接。Jupyter AI、CoCalc 和 Open Science Desktop 的同题实测仍然没有做；新内核不是 JupyterLab 里的 Agent，也没有和这些产品比过同一份分析。
+
 因此，“Pero 可研究的差异点”是产品假设：把问题、证据、受控计算、独立验证和可移交产物连起来。是否具有更好的体验、可靠性或成本，需要同题实测，不能由模块数量得出。
 
 ## 来源与核验方法

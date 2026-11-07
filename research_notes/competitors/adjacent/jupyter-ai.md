@@ -57,7 +57,7 @@ Jupyter AI 把 Agent 和模型交互放入 JupyterLab，主要面向已经依靠
 
 ## 6 与 Pero 的比较
 
-Pero 以 master `371ea089` 为本次比较基线，涵盖 Paper、Data、Control Lab、Virtual Cell 和 Host 等研究工作空间能力。可确认事实和未验证范围统一见 [Pero 比较基线](../README.md#pero-比较基线)；本篇没有独立重验 Pero 代码或科学性能。
+Pero 以 master `371ea089` 为本次比较基线，涵盖 Paper、Data、Control Lab、Virtual Cell 和 Host 等研究工作空间能力。可确认事实和未验证范围统一见 [Pero 比较基线](../README.md#pero-比较基线)；本篇没有独立重验 Pero 代码或科学性能。同日较晚的主干已经有本地 Python notebook 内核和交付证据链接，范围见 [基线之后的同日主干](../README.md#基线之后的同日主干)。那次增补不是 JupyterLab 中的 Agent，也不替代本篇未做的同题实测。
 
 | 层面 | Jupyter AI 组合的强项 | Pero 需要证明的增量 |
 | --- | --- | --- |

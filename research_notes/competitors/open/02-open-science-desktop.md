@@ -76,6 +76,8 @@ token 验证的 gateway 默认 loopback，LAN 需启用，提供只读与完整�
 
 Pero 比较固定于提交 `371ea0895f8dbd12d7fcc97e320f3a9499b3e94b`。其 Paper、Data 与固定领域方法已有实际实现和验收，不能写成只有空壳；Compute App 目前仍仅连接草稿，底层本地/Docker/单节点 Slurm 适配则已有单独验证，二者须分开。[Compute README](https://github.com/phodal/pero/blob/371ea0895f8dbd12d7fcc97e320f3a9499b3e94b/apps/compute/README.md)、[环境验收](https://github.com/phodal/pero/blob/371ea0895f8dbd12d7fcc97e320f3a9499b3e94b/docs/fitness/ai4s-environments.md)
 
+同日较晚的主干另有本地 Python notebook 内核、交付证据链接，以及用 micromamba 准备的本地科学前缀，见 [基线之后的同日主干](../README.md#基线之后的同日主干)。这些没有把 Compute App 改成已连接的调度器，也没有完成本篇列出的同题实测。
+
 1. **先补连续使用体验**：持久终端、现有目录和已有 Agent 会话可能比新 App 数量更影响留存。Pero 应用同一实际科研任务测从阅读到计算的上下文搬运次数。
 2. **证据记录不依赖某个 UI 存活**：OSD headless 边界提示 Pero 应让执行 owner 记录不可变事件、输入输出和检查，桌面仅展示。此为架构建议，不能当成 Pero 已有全路径优势。
 3. **远端计算展示真实完成状态**：提交、排队、执行、产物回收、检查、人类接受分别表达，避免任务进程退出就自动标成研究完成。

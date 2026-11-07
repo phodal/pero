@@ -70,7 +70,7 @@ CoCalc 长期服务数学、科学计算、研究、教学和多人协作。工�
 
 ## 6 与 Pero 的比较
 
-Pero 以 master `371ea089` 为本次比较基线，涵盖 Paper、Data、Control Lab、Virtual Cell 和 Host 等研究工作空间能力。可确认事实和未验证范围统一见 [Pero 比较基线](../README.md#pero-比较基线)；本篇没有独立重验 Pero 代码或科学性能。
+Pero 以 master `371ea089` 为本次比较基线，涵盖 Paper、Data、Control Lab、Virtual Cell 和 Host 等研究工作空间能力。可确认事实和未验证范围统一见 [Pero 比较基线](../README.md#pero-比较基线)；本篇没有独立重验 Pero 代码或科学性能。同日较晚的主干已经有本地 Python notebook 内核和交付证据链接，范围见 [基线之后的同日主干](../README.md#基线之后的同日主干)。那次增补不是持续存在的协同项目，也不替代本篇未做的同题实测。
 
 | 层面 | CoCalc 的公开能力 | Pero 应证明的价值 |
 | --- | --- | --- |
