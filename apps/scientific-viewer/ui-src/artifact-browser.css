@@ -31,6 +31,10 @@
 .artifact-browser-document-bar .pero-ui-button { height:auto; min-height:var(--pero-control-height); padding:2px 4px; }
 .artifact-browser-filename { color:var(--pero-text-muted,#666); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .artifact-browser-versions { display:flex; align-items:center; gap:2px; flex:none; font-variant-numeric:tabular-nums; color:var(--pero-text-muted,#666); }
+.artifact-version-popover { width:320px; padding:var(--pero-spacing-3); }
+.artifact-version-details { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:var(--pero-spacing-2); margin:0; font-size:var(--pero-font-caption); }
+.artifact-version-details dt { color:var(--pero-text-secondary); }
+.artifact-version-details dd { margin:0; overflow-wrap:anywhere; }
 .artifact-document { flex:1; }
 .artifact-browser .artifact-image-scroll { display:flex; }
 .artifact-browser .artifact-image-scroll img { margin:auto; flex-shrink:0; }

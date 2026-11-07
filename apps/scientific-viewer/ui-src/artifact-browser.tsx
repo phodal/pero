@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppContext } from '@pero/app-sdk';
-import { Button, ContentIcon, Feedback, Icon } from '@pero/app-sdk/ui';
+import { Button, ContentIcon, Feedback, Icon, Popover } from '@pero/app-sdk/ui';
 import type { SessionArtifact, SessionArtifactVersion } from '../../../protocol/generated/host';
 import type { ArtifactTarget } from '../../../protocol/artifact-browser';
 import { admitArtifactBrowser, artifactTarget, artifactVersion, selectedArtifact, type ArtifactBrowserContext } from './artifact-browser-model';
@@ -81,7 +81,7 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
   };
   const documentBar = (artifact: SessionArtifact, version: SessionArtifactVersion) => <div className="artifact-browser-document-bar">
     {quickLook && <Button ref={quickReturn} variant="ghost" aria-label={zh ? '返回产物' : 'Back to artifacts'} onClick={closePreview}><Icon name="arrow-left" size={14} /></Button>}
-    <span className="artifact-browser-filename">{version.filename ?? artifact.title}</span>
+    <span className="artifact-browser-filename" title={version.filename ?? artifact.title}>{version.filename ?? artifact.title}</span>
     <div className="artifact-browser-versions">
       <Button variant="ghost" aria-label={zh ? '上一版本' : 'Previous version'} disabled={version.version <= 1}
         onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version - 1 })}><Icon name="chevron-left" size={14} /></Button>
@@ -89,6 +89,17 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
       <Button variant="ghost" aria-label={zh ? '下一版本' : 'Next version'} disabled={version.version >= artifactVersion(artifact).version}
         onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version + 1 })}><Icon name="chevron-right" size={14} /></Button>
     </div>
+    <Popover label={zh ? '版本详情' : 'Version details'} triggerVariant="ghost" trigger={<Icon name="info" size={14} />} contentClassName="artifact-version-popover">
+      {() => <dl className="artifact-version-details" tabIndex={0}>
+        <dt>{zh ? '快照' : 'Snapshot'}</dt><dd>{`v${version.version} · ${artifactType(version)} · ${version.bytes.toLocaleString(locale)} B`}</dd>
+        <dt>{zh ? '保存时间' : 'Saved at'}</dt><dd>{version.created_at > 0 ? new Date(version.created_at * 1000).toLocaleString(locale) : (zh ? '未知' : 'Unknown')}</dd>
+        <dt>{zh ? '来源' : 'Origin'}</dt>
+        <dd>{version.source.kind === 'file' ? version.source.path : version.source.kind === 'research'
+          ? `${zh ? '研究导出' : 'Research export'} · ${version.source.provenance.slot}`
+          : (zh ? '会话内容' : 'Conversation content')}</dd>
+        <dt>SHA-256</dt><dd><code>{version.sha256}</code></dd>
+      </dl>}
+    </Popover>
   </div>;
   return <main className="artifact-browser" aria-label={zh ? '产物浏览器' : 'Artifact browser'} onKeyDown={onKeyDown}>
     {error ? <div className="artifact-empty"><Feedback kind="error">{error}</Feedback></div>
