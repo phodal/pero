@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="719" viewBox="0 0 1600 719" role="img" aria-labelledby="title desc" xml:lang="zh-CN">
+<title id="title">Pero 论文：04 · 回查</title>
+<desc id="desc">研究记录侧栏展示按日期分组的问题及保存状态、所选报告详情、结论尚未核验提示、指回第 2 页的引用、局限与缺口，以及从此处追问。 依据 2026-11-07 审阅的用户文库、PDF 选文与共享对话截图绘制的简化界面示意，截图对应的应用版本未知；旧受控 fixture 截图辅助确认导入与阅读器布局，未截图的研究记录和报告状态以 c12c2ab0 的 Paper 源码补全。标题、合集、计数、页码、问题、日期及正文线条均为示例占位，不含用户数据或研究结论。金色仅表示插画强调，不表示核验通过。本图不代表本次真实界面运行、固定版本认证、科学质量、原生安装包或生产验收。</desc>
+<metadata id="icon-license">ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot; AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+---
+
+The following Lucide icons are derived from the Feather project:
+
+airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circle, arrow-down-left, arrow-down-right, arrow-down, arrow-left-circle, arrow-left, arrow-right-circle, arrow-right, arrow-up-circle, arrow-up-left, arrow-up-right, arrow-up, at-sign, calendar, cast, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-down, chevrons-left, chevrons-right, chevrons-up, circle, clipboard, clock, code, columns, command, compass, corner-down-left, corner-down-right, corner-left-down, corner-left-up, corner-right-down, corner-right-up, corner-up-left, corner-up-right, crosshair, database, divide-circle, divide-square, dollar-sign, download, external-link, feather, frown, hash, headphones, help-circle, info, italic, key, layout, life-buoy, link-2, link, loader, lock, log-in, log-out, maximize, meh, minimize, minimize-2, minus-circle, minus-square, minus, monitor, moon, more-horizontal, more-vertical, move, music, navigation-2, navigation, octagon, pause-circle, percent, plus-circle, plus-square, plus, power, radio, rss, search, server, share, shopping-bag, sidebar, smartphone, smile, square, table-2, tablet, target, terminal, trash-2, trash, triangle, tv, type, upload, x-circle, x-octagon, x-square, x, zoom-in, zoom-out
+
+The MIT License (MIT) (for the icons listed above)
+
+Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+</metadata>
+<defs><marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto" markerUnits="userSpaceOnUse"><path d="M2 2 L10 6 L2 10" fill="none" stroke="#667075" stroke-width="2"/></marker></defs>
+<style>text{font-family:"Noto Sans CJK SC","Noto Sans CJK",Arial,sans-serif}path,line,rect,polyline,polygon,circle,ellipse{stroke-linecap:round;stroke-linejoin:round}</style>
+<rect x="0" y="0" width="1600" height="719" rx="0" fill="white" stroke="none" stroke-width="0"/>
+<g transform="translate(0 -2071)">
+<text x="56" y="2119" font-size="26" fill="#667075" font-weight="600" text-anchor="start">04</text>
+<line x1="103" y1="2109" x2="137" y2="2109" stroke="#A87531" stroke-width="3" />
+<text x="158" y="2119" font-size="31" fill="#20272B" font-weight="650" text-anchor="start">回查</text>
+<rect x="56" y="2152" width="1488" height="602" rx="6" fill="#F5F7F7" stroke="#D7DCDF" stroke-width="1.5"/>
+<rect x="56" y="2152" width="982" height="58" rx="0" fill="#F5F7F7" stroke="none" stroke-width="0"/>
+<g transform="translate(74 2170) scale(1.0)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></g>
+<text x="108" y="2189" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">文库</text>
+<text x="222" y="2189" font-size="22" fill="#667075" font-weight="400" text-anchor="start">正文</text>
+<text x="300" y="2189" font-size="22" fill="#20272B" font-weight="600" text-anchor="start">PDF</text>
+<text x="368" y="2189" font-size="22" fill="#667075" font-weight="400" text-anchor="start">TeX</text>
+<text x="436" y="2189" font-size="22" fill="#D7DCDF" font-weight="400" text-anchor="start">原文</text>
+<line x1="294" y1="2201" x2="344" y2="2201" stroke="#A87531" stroke-width="3" />
+<g transform="translate(547 2171) scale(0.875)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m15 18-6-6 6-6"/></g>
+<rect x="577" y="2164" width="42" height="35" rx="4" fill="white" stroke="#D7DCDF" stroke-width="1.5"/>
+<text x="598" y="2189" font-size="22" fill="#20272B" font-weight="400" text-anchor="middle">2</text>
+<text x="627" y="2189" font-size="22" fill="#667075" font-weight="400" text-anchor="start">/ 8</text>
+<g transform="translate(673 2171) scale(0.875)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m9 18 6-6-6-6"/></g>
+<text x="712" y="2189" font-size="24" fill="#667075" font-weight="400" text-anchor="start">−</text>
+<text x="746" y="2189" font-size="22" fill="#667075" font-weight="400" text-anchor="start">99%</text>
+<text x="804" y="2189" font-size="24" fill="#667075" font-weight="400" text-anchor="start">+</text>
+<rect x="869" y="2161" width="39" height="39" rx="5" fill="#FBF3E7" stroke="none" stroke-width="0"/>
+<g transform="translate(877 2169) scale(1.0)" fill="none" stroke="#20272B" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></g>
+<g transform="translate(921 2170) scale(0.9166666666666666)" fill="none" stroke="#A87531" stroke-width="1.8"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></g>
+<text x="953" y="2189" font-size="22" fill="#20272B" font-weight="400" text-anchor="start">询问 AI</text>
+<line x1="56" y1="2210" x2="1038" y2="2210" stroke="#D7DCDF" stroke-width="1.5" />
+<rect x="138" y="2236" width="816" height="493" rx="0" fill="white" stroke="#D7DCDF" stroke-width="1"/>
+<line x1="192" y1="2272" x2="600.0" y2="2272" stroke="#667075" stroke-width="3" />
+<line x1="192" y1="2291" x2="755.04" y2="2291" stroke="#667075" stroke-width="3" />
+<line x1="192" y1="2329" x2="900" y2="2329" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2346" x2="900" y2="2346" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2363" x2="866" y2="2363" stroke="#D7DCDF" stroke-width="3" />
+<rect x="185" y="2349" width="722" height="25" rx="1" fill="#FBF3E7" stroke="none" stroke-width="0"/>
+<line x1="192" y1="2362" x2="894" y2="2362" stroke="#A87531" stroke-width="3" />
+<line x1="192" y1="2401" x2="900" y2="2401" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2418" x2="900" y2="2418" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2435" x2="900" y2="2435" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2452" x2="843" y2="2452" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2469" x2="900" y2="2469" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2486" x2="900" y2="2486" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2503" x2="900" y2="2503" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2520" x2="843" y2="2520" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2537" x2="900" y2="2537" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2554" x2="900" y2="2554" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2571" x2="900" y2="2571" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2588" x2="843" y2="2588" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2605" x2="900" y2="2605" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2622" x2="900" y2="2622" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2639" x2="900" y2="2639" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2656" x2="843" y2="2656" stroke="#D7DCDF" stroke-width="3" />
+<line x1="192" y1="2673" x2="900" y2="2673" stroke="#D7DCDF" stroke-width="3" />
+<text x="546.0" y="2713" font-size="21" fill="#667075" font-weight="400" text-anchor="middle">2</text>
+<rect x="1038" y="2153" width="505" height="600" rx="0" fill="white" stroke="none" stroke-width="0"/>
+<line x1="1038" y1="2152" x2="1038" y2="2754" stroke="#667075" stroke-width="1.5" />
+<text x="1062" y="2190" font-size="26" fill="#20272B" font-weight="600" text-anchor="start">研究记录</text>
+<g transform="translate(1501 2170) scale(0.9583333333333334)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></g>
+<line x1="1038" y1="2210" x2="1544" y2="2210" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="1062" y="2247" font-size="21" fill="#667075" font-weight="400" text-anchor="start">2026年11月7日</text>
+<rect x="1054" y="2261" width="474" height="76" rx="5" fill="#FBF3E7" stroke="none" stroke-width="0"/>
+<g transform="translate(1068 2275) scale(0.9166666666666666)" fill="none" stroke="#667075" stroke-width="1.8"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></g>
+<text x="1104" y="2296" font-size="23" fill="#20272B" font-weight="500" text-anchor="start">这项结论有哪些依据？</text>
+<text x="1104" y="2323" font-size="21" fill="#667075" font-weight="400" text-anchor="start">报告已保存</text>
+<g transform="translate(1499 2276) scale(0.7916666666666666)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m9 18 6-6-6-6"/></g>
+<text x="1506" y="2323" font-size="21" fill="#667075" font-weight="400" text-anchor="end">10:30</text>
+<text x="1062" y="2371" font-size="21" fill="#667075" font-weight="400" text-anchor="start">2026年11月6日</text>
+<g transform="translate(1068 2394) scale(0.9166666666666666)" fill="none" stroke="#667075" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></g>
+<text x="1104" y="2415" font-size="23" fill="#20272B" font-weight="400" text-anchor="start">还缺少什么证据？</text>
+<text x="1104" y="2442" font-size="21" fill="#667075" font-weight="400" text-anchor="start">提问已保存</text>
+<g transform="translate(1499 2395) scale(0.7916666666666666)" fill="none" stroke="#667075" stroke-width="1.8"><path d="m9 18 6-6-6-6"/></g>
+<text x="1506" y="2442" font-size="21" fill="#667075" font-weight="400" text-anchor="end">16:20</text>
+<line x1="1062" y1="2464" x2="1520" y2="2464" stroke="#D7DCDF" stroke-width="2" />
+<text x="1062" y="2504" font-size="24" fill="#20272B" font-weight="600" text-anchor="start">这项结论有哪些依据？</text>
+<text x="1062" y="2537" font-size="21" fill="#667075" font-weight="400" text-anchor="start">结论尚未核验</text>
+<line x1="1062" y1="2561" x2="1502" y2="2561" stroke="#D7DCDF" stroke-width="3" />
+<rect x="1062" y="2580" width="177" height="38" rx="5" fill="#FBF3E7" stroke="#A87531" stroke-width="1.5"/>
+<text x="1150.5" y="2607" font-size="22" fill="#20272B" font-weight="500" text-anchor="middle">1  页码 2 ↗</text>
+<path d="M1051 2599 H968" fill="none" stroke="#A87531" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="1062" y="2652" font-size="22" fill="#20272B" font-weight="600" text-anchor="start">局限与缺口</text>
+<line x1="1062" y1="2672" x2="1504" y2="2672" stroke="#D7DCDF" stroke-width="3" />
+<rect x="1062" y="2698" width="257" height="38" rx="5" fill="white" stroke="#D7DCDF" stroke-width="1.5"/>
+<text x="1190.5" y="2725" font-size="22" fill="#20272B" font-weight="500" text-anchor="middle">从此处追问</text>
+</g>
+</svg>
