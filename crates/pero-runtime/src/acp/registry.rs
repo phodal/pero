@@ -260,6 +260,16 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             );
         }
     }
+    if cfg!(windows) {
+        // NODE_OPTIONS also reaches the Node CLI which adapters launch in turn.
+        let preload = agent_root.join("packages/agent-runtime/windows-background.cjs")
+            .to_string_lossy().replace('\\', "/");
+        let options = format!("{} --require=\"{preload}\"",
+            std::env::var("NODE_OPTIONS").unwrap_or_default());
+        for agent in agents.iter_mut().filter(|agent| matches!(agent.id.as_str(), "codex" | "claude")) {
+            agent.env.insert("NODE_OPTIONS".into(), options.trim().into());
+        }
+    }
     let file = std::env::var_os("PERO_AGENTS_FILE")
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("agents.local.json"));

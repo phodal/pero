@@ -8,6 +8,11 @@ fn node_adapters_connect_and_reconnect() {
     let root = std::env::temp_dir().join(format!("pero adapters {}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(root.join("node_modules/.bin")).unwrap();
     std::fs::create_dir(root.join("adapters")).unwrap();
+    let runtime = root.join("packages/agent-runtime");
+    std::fs::create_dir_all(&runtime).unwrap();
+    std::fs::copy(PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/agent-runtime/windows-background.cjs"),
+        runtime.join("windows-background.cjs")).unwrap();
     let fixture =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/runtime/lifecycle-agent.mjs");
     for adapter in ["codex-acp", "claude-agent-acp"] {

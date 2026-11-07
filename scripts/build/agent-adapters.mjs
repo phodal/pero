@@ -5,6 +5,9 @@ import { buildHarness } from './harness.mjs';
 const root = resolve(import.meta.dirname, '../..');
 export async function stageAgentAdapters(payload, node) {
   await buildHarness(join(payload, 'bin'));
+  const runtime = join(payload, 'packages/agent-runtime');
+  mkdirSync(runtime, { recursive: true });
+  cpSync(resolve(root, 'packages/agent-runtime/windows-background.cjs'), join(runtime, 'windows-background.cjs'));
   // Adapters are small JavaScript bundles; neither native Agent CLI is included.
   const adapters = join(payload, 'adapters');
   mkdirSync(adapters, { recursive: true });
