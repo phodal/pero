@@ -129,12 +129,31 @@ impl ChatPanel {
             }
             ToolBody::Diff { files } => {
                 limit = 9;
-                for file in files {
+                for (index, file) in files.iter().enumerate() {
+                    let thread_id = thread.to_owned();
+                    let path = file.path.clone();
                     rows.push(
                         div()
                             .flex()
                             .gap(px(8.))
-                            .child(div().flex_1().child(file.path.clone()))
+                            .child(
+                                Button::new(("diff-file", index))
+                                    .ghost()
+                                    .small()
+                                    .justify_start()
+                                    .label(file.path.clone())
+                                    .on_click(cx.listener(move |_, event: &ClickEvent, _, cx| {
+                                        cx.emit(ChatAction::OpenSource {
+                                            target: pero_contracts::source_target::SourceTarget::Changes {
+                                                thread_id: thread_id.clone(),
+                                                scope: pero_contracts::workspace_changes::ChangeScope::Turn,
+                                                path: Some(path.clone()),
+                                            },
+                                            middle: false,
+                                            primary_modifier: event.modifiers().platform,
+                                        });
+                                    })),
+                            )
                             .child(
                                 div()
                                     .text_color(p.success)

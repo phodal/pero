@@ -265,3 +265,12 @@ remapping, disabling, restart persistence, native menu clicks and App-frame entr
 commands. Builds must be current. Screenshots and snapshots are written to
 `test-results/shortcuts/`; Native acceptance is recorded separately in
 [shortcut verification](../docs/fitness/keyboard-shortcuts.md).
+
+
+`npm run test:pull-requests` uses the current Host/Desktop/Wasm builds to verify
+read-only PR contracts and actual Electron Markdown routing, retained sections,
+background discovery, rich HTML reviews, isolated linked Web engines, themes,
+narrow layout and restart. Screenshots are in `test-results/pull-requests/`.
+`npm run test:pull-requests:live` explicitly opts into public GitHub reads.
+See [PR content verification](../docs/fitness/pull-request-view.md) for Native
+acceptance and coverage limits.

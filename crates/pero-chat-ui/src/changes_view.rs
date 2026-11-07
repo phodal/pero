@@ -160,6 +160,39 @@ impl ChatPanel {
         cx.emit(ChatAction::Changes(request));
         cx.notify();
     }
+    pub fn reveal_change(
+        &mut self,
+        thread: &str,
+        scope: ChangeScope,
+        path: Option<&str>,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(chat) = self.chats.iter().find(|chat| chat.id == thread) else {
+            return false;
+        };
+        let Some(record) = chat
+            .changes
+            .records
+            .iter()
+            .rev()
+            .find(|record| record.scope == scope)
+        else {
+            return false;
+        };
+        let index = match path {
+            Some(path) => match record.files.iter().position(|file| file.path == path) {
+                Some(index) => index,
+                None => return false,
+            },
+            None => 0,
+        };
+        let id = record.id.clone();
+        if let Some(position) = self.chats.iter().position(|chat| chat.id == thread) {
+            self.focus_chat(Some(position), cx);
+        }
+        self.read_changes(thread, &id, index, cx);
+        true
+    }
     pub(crate) fn read_changes(
         &mut self,
         thread: &str,

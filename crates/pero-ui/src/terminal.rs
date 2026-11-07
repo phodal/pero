@@ -37,6 +37,30 @@ impl TerminalDock {
     }
 }
 impl Workbench {
+    pub(crate) fn reveal_terminal(
+        &mut self,
+        id: u32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(index) = self
+            .terminal
+            .tabs
+            .iter()
+            .position(|view| view.read(cx).id == id)
+        else {
+            return false;
+        };
+        self.terminal.visible = true;
+        self.terminal.active = index;
+        self.terminal.tabs[index]
+            .read(cx)
+            .focus
+            .clone()
+            .focus(window, cx);
+        cx.notify();
+        true
+    }
     pub(crate) fn toggle_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.terminal.visible = !self.terminal.visible;
         if self.terminal.visible {

@@ -46,6 +46,8 @@ pub struct PaneItem {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OpenIntent {
     Permanent,
+    /// Materialize content without changing focus or navigation history.
+    Background,
     Preview,
     /// Restoring a history entry must not append another departure.
     History,
@@ -182,6 +184,9 @@ impl PaneTabSet {
             if intent == OpenIntent::Permanent {
                 self.promote(existing);
             }
+            if intent == OpenIntent::Background {
+                return Ok(OpenTab {active:existing,inserted:false,replaced:None});
+            }
             if intent == OpenIntent::History {
                 self.focus(existing);
             } else {
@@ -201,7 +206,7 @@ impl PaneTabSet {
             .and_then(|id| self.items.iter().position(|item| item.id == id))
             .map_or(self.items.len(), |index| index + 1)
             .max(self.pinned_count);
-        if intent != OpenIntent::History {
+        if !matches!(intent,OpenIntent::History|OpenIntent::Background) {
             self.depart();
         }
         let mut replaced = None;
@@ -218,7 +223,8 @@ impl PaneTabSet {
         }
         let active = item.id;
         self.items.insert(index.min(self.items.len()), item);
-        self.focus(active);
+        if intent != OpenIntent::Background || self.active.is_none() { self.focus(active); }
+        else { self.activation_history.push(active); }
         Ok(OpenTab {
             active,
             inserted: true,
@@ -822,4 +828,20 @@ mod tests {
         assert_eq!(tabs.items().len(), 4);
         assert!(tabs.valid());
     }
+    #[test]
+    fn background_content_preserves_focus_preview_and_history() {
+        let mut tabs=PaneTabSet::default();
+        tabs.open(item(1,"/reading"),OpenIntent::Permanent).unwrap();
+        tabs.open(item(2,"/preview"),OpenIntent::Preview).unwrap();
+        let history=tabs.history().clone();let mru=tabs.mru_items();
+        tabs.open(item(3,"/pr"),OpenIntent::Background).unwrap();
+        assert_eq!(tabs.active_id(),Some(ViewId(2)));
+        assert_eq!(tabs.preview_id(),Some(ViewId(2)));
+        assert_eq!(tabs.history(),&history);assert_eq!(tabs.mru_items(),[mru,vec![ViewId(3)]].concat());assert!(tabs.valid());
+        tabs.open(item(4,"/pr"),OpenIntent::Background).unwrap();
+        assert_eq!(tabs.items().len(),3);
+        assert_eq!(tabs.active_id(),Some(ViewId(2)));
+        tabs.activate(ViewId(3));assert_eq!(tabs.active_id(),Some(ViewId(3)));
+    }
+
 }

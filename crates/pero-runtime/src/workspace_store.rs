@@ -377,6 +377,7 @@ mod tests {
             },
             documents: vec![document],
             web: vec![],
+            pull_requests: vec![],
         };
         assert!(session.valid());
         let settings = directory.join("settings.json");
@@ -438,6 +439,7 @@ mod tests {
             navigation: WorkspaceSnapshot::default(),
             documents: vec![],
             web: vec![],
+            pull_requests: vec![],
         };
         store.save(empty, vec![]).unwrap();
         assert_eq!(

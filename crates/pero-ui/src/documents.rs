@@ -189,6 +189,17 @@ impl Workbench {
                                 }
                             }
                             self.saved_workspace_file(&document.id, &document);
+                        } else if let Some(pending) = event
+                            .request_id
+                            .as_deref()
+                            .and_then(|id| self.take_pending_citation(id))
+                        {
+                            if pending.preview {
+                                self.navigation.open_as_preview();
+                            }
+                            let source = document.source().to_owned();
+                            self.open_document(document, window, cx);
+                            self.reveal_cited_lines(&source, &pending.citation, window, cx);
                         } else {
                             self.open_document(document, window, cx);
                             if let Some(location) = location {

@@ -161,11 +161,11 @@ impl Workbench {
             ReaderAction::Reload {path}=>self.command(serde_json::json!({"method":"documents","action":"open","request_id":"reload","path":path}),cx),
             ReaderAction::DiscardAndClose=>self.discard_document(item,window,cx),
             ReaderAction::Navigate {before,after}=>self.record_document_jump(item,before.clone(),after.clone(),cx),
-            ReaderAction::Link(href)=> {
+            ReaderAction::Link { href, middle, primary_modifier } => {
                 let WorkspaceItem::Document {origin,source}=item else {return;};
                 match pero_contracts::content_link::ContentLink::resolve(origin,href) {
                     pero_contracts::content_link::ContentLink::File(href)=>self.command(serde_json::json!({"method":"documents","action":"follow","request_id":"link","source":source,"href":href}),cx),
-                    pero_contracts::content_link::ContentLink::External(url)=>cx.open_url(&url),
+                    pero_contracts::content_link::ContentLink::Address(target)=>self.open_link_target(target,pero_contracts::workbench::LinkClick{middle:*middle,primary_modifier:*primary_modifier},window,cx),
                     _=>{self.error=Some(self.t("content.link_unavailable").into());cx.notify();}
                 }
             }

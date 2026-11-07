@@ -242,6 +242,7 @@ impl Workbench {
                 close_after_load: false,
             })
             .collect();
+        self.restored_pull_requests = session.pull_requests.clone();
         self.navigation.restore(session.navigation.clone());
         for source in restored.sources {
             let conflict = restored.conflicts.contains(&source.header.source.id);
@@ -430,12 +431,23 @@ impl Workbench {
                 html: page.html.clone(),
             })
             .collect();
+        let pull_requests = self
+            .pull_requests
+            .iter()
+            .filter(|view| {
+                navigation
+                    .items
+                    .contains(&WorkspaceItem::PullRequest(view.state.reference.clone()))
+            })
+            .map(|view| view.state.reading())
+            .collect();
         let session = WorkspaceSession {
             version: 1,
             workspace: self.workspace.clone(),
             navigation,
             documents,
             web,
+            pull_requests,
         };
         if !force
             && sources.is_empty()

@@ -360,6 +360,12 @@ impl Workbench {
                                     }))
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         this.project_tab = tab;
+                                        if tab == ProjectTab::Sources {
+                                            if let Some(repository) = this.listed_repositories(cx).into_iter().next() {
+                                                let state = this.pull_request_index.state;
+                                                this.request_pull_request_list(&repository, state, cx);
+                                            }
+                                        }
                                         cx.notify();
                                     }))
                             })),
@@ -455,6 +461,7 @@ impl Workbench {
                             .child(string(repo, "roadmap_path").to_string()),
                     )
             }))
+            .child(self.pull_request_index(cx))
             .child(
                 div().mt(px(pero_theme::WorkbenchStyle::SECTION)).child(
                     Button::new("project-source-connection")

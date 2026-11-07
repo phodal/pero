@@ -117,6 +117,10 @@ impl ChatPanel {
                     .get(&format!("{}/message:{index}", conversation.id))
                     .cloned(),
             )
+            .when(
+                !pero_contracts::pull_request::mentions(&message.text).is_empty(),
+                |el| el.child(self.pull_request_chips(&message.text, i, cx)),
+            )
             .child(
                 div()
                     .when(user, |el| {
@@ -155,6 +159,97 @@ impl ChatPanel {
                 el.child(self.reply_actions(conversation, index, cx))
             })
             .into_any_element()
+    }
+
+    fn pull_request_chips(&self, text: &str, row: usize, cx: &mut Context<Self>) -> AnyElement {
+        use pero_contracts::pull_request::{PullRequestStatus, mentions};
+        let palette = pero_theme::UiAppearance::global(cx).palette.clone();
+        let mut chips = div().flex().flex_wrap().gap(px(8.));
+        for (index, reference) in mentions(text).into_iter().enumerate() {
+            let summary = self
+                .pull_request_notes
+                .iter()
+                .find(|item| item.reference == reference)
+                .cloned();
+            let label = summary
+                .as_ref()
+                .map(|item| item.label())
+                .unwrap_or_else(|| format!("#{}", reference.number()));
+            let tooltip = if let Some(summary) = &summary {
+                let mut lines = vec![
+                    summary.title.clone(),
+                    summary.label(),
+                    self.t(summary.status.key()).to_owned(),
+                    summary.author.clone(),
+                ];
+                if let Some(opened) = self.opened_phrase(&summary.opened_at) {
+                    lines.push(opened);
+                }
+                if let Some(key) = summary.review.key() {
+                    lines.push(self.t(key).to_owned());
+                }
+                if summary.blocked {
+                    lines.push(self.t("pr.blocked").to_owned());
+                }
+                lines.join("\n")
+            } else {
+                label.clone()
+            };
+            let color = summary.as_ref().map(|summary| match summary.status {
+                PullRequestStatus::Merged => palette.info,
+                PullRequestStatus::Open => palette.success,
+                PullRequestStatus::Closed => palette.error,
+                PullRequestStatus::Draft => palette.text_muted,
+            });
+            let author = summary.as_ref().map(|item| item.author.clone()).unwrap_or_default();
+            let href = reference.url().to_owned();
+            let href_middle = href.clone();
+            chips = chips.child(
+                Button::new(("pr-mention", row, index))
+                    .ghost()
+                    .small()
+                    .tooltip(tooltip)
+                    .on_click(cx.listener(move |_, event: &ClickEvent, _, cx| {
+                        cx.emit(crate::panel::ChatAction::FollowLink {
+                            href: href.clone(),
+                            middle: false,
+                            primary_modifier: event.modifiers().platform,
+                        });
+                    }))
+                    .on_mouse_down(
+                        MouseButton::Middle,
+                        cx.listener(move |_, _, _, cx| {
+                            cx.emit(crate::panel::ChatAction::FollowLink {
+                                href: href_middle.clone(),
+                                middle: true,
+                                primary_modifier: false,
+                            });
+                        }),
+                    )
+                    .child(self.icon("brand-github").size(px(13.)))
+                    .children(author_face(&author))
+                    .child(
+                        div()
+                            .size(px(8.))
+                            .rounded_full()
+                            .bg(color.unwrap_or(palette.text_muted)),
+                    )
+                    .child(label),
+            );
+        }
+        chips.into_any_element()
+    }
+
+    fn opened_phrase(&self, opened_at: &str) -> Option<String> {
+        use pero_contracts::pull_request::{opened_ago, opened_day};
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64;
+        if let Some(age) = opened_ago(opened_at, now) {
+            if age.count == 0 {
+                return Some(self.t("pr.just_now").to_owned());
+            }
+            return Some(format!("{} {} {}", self.t("pr.opened"), age.count, self.t(age.unit.key())));
+        }
+        opened_day(opened_at).map(|day| format!("{} {day}", self.t("pr.opened")))
     }
 
     pub(crate) fn reply_actions(
@@ -567,4 +662,17 @@ impl ChatPanel {
         }
         parts.join(" · ")
     }
+}
+
+fn author_face(login: &str) -> Option<gpui_kit::AnyElement> {
+    if login.is_empty() {
+        return None;
+    }
+    use gpui_kit::component::{Sizable, avatar::Avatar};
+    use pero_contracts::pull_request::avatar_url;
+    let mut face = Avatar::new().xsmall().name(login.to_owned());
+    if let Some(url) = avatar_url(login) {
+        face = face.src(url);
+    }
+    Some(face.into_any_element())
 }

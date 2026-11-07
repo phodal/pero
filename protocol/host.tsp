@@ -7,6 +7,7 @@ import "./contributions.tsp";
 import "./automation.tsp";
 import "./session-artifacts.tsp";
 import "./workspace-changes.tsp";
+import "./pull-requests.tsp";
 
 using JsonSchema;
 
@@ -77,7 +78,7 @@ model WorkspaceFilesErrorEvent {kind:"workspace_files_error";...ThreadEventBase}
 model ReaderRange {start:safeint;end:safeint;...Closed}
 model ReaderSearch {case_insensitive:boolean;regex:boolean;whole_word:boolean;...Closed}
 model ReaderState {source_revision?:safeint|null;source:boolean;selection:ReaderRange;scroll:[float64,float64];preview_scroll:[float64,float64];preview_reveal?:ReaderRange|null;query:string;search_open:boolean;search:ReaderSearch;folded_lines:safeint[];path:ReaderRange[];...Closed}
-model WorkspaceSimpleItem {kind:"conversation"|"web"|"project"|"task";value:string;...Closed}
+model WorkspaceSimpleItem {kind:"conversation"|"web"|"project"|"task"|"pull_request";value:string;...Closed}
 model WorkspaceDocumentItem {kind:"document";value:{origin:ContentOrigin;source:string;...Closed};...Closed}
 model WorkspaceAppItem {kind:"app";value:{name:string;panel:string;...Closed};...Closed}
 model WorkspaceComputeItem {kind:"compute";...Closed}
@@ -104,7 +105,9 @@ model DraftEdit {old:ReaderRange;inserted:string;...Closed}
 model SavedDocument {header:DocumentHeader;reading:ReaderState;draft:string|null;draft_ref?:DraftRef|null;legacy_draft?:boolean;...Closed}
 model InlineHtml {id:string;title:string;html:string;...Closed}
 model SavedWeb {id:string;url:string;html?:InlineHtml;...Closed}
-model WorkspaceSession {version:1;workspace:string;navigation:WorkspaceSnapshot;documents:SavedDocument[];web:SavedWeb[];...Closed}
+model ViewedFile {path:string;head:string;...Closed}
+model PullRequestReading {reference:string;tab:"changes"|"description"|"commits"|"checks"|"reviews";selected_file:string|null;viewed:ViewedFile[];...Closed}
+model WorkspaceSession {version:1;workspace:string;navigation:WorkspaceSnapshot;documents:SavedDocument[];web:SavedWeb[];pull_requests?:PullRequestReading[];...Closed}
 model WorkspaceSource {header:DocumentHeader;text:string;...Closed}
 model WorkspaceRestore {session:WorkspaceSession|null;sources:WorkspaceSource[];conflicts:string[];unavailable:SourceKey[];...Closed}
 model GetWorkspaceSession {method:"workspace";action:"get";...Closed}
@@ -224,6 +227,7 @@ model LayoutPreferences {
   @minValue(200) @maxValue(480) sessions_width?: uint16 = 280;
   artifact_view?: ArtifactView = "icons";
   resource_tab?: "files" | "artifacts" = "artifacts";
+  link_surface?: "in_app" | "external_browser" = "in_app";
   ...Closed;
 }
 model TypographyPreferences {
@@ -357,7 +361,7 @@ union HostInput {
   FileDocumentRequest,
   WorkspaceFilesRequest,
   ArtifactRequest,
-  ChangesRequest,
+  ChangesRequest,PullRequestRequest,
   LocalWorkerRequest,
   EchoRequest,
   SetLocaleRequest,
@@ -576,6 +580,7 @@ union HostEvent {
   FileDocumentEvent,
   WorkspaceFilesListEvent, WorkspaceFilesDocumentEvent, WorkspaceFilesErrorEvent,
   FileDocumentErrorEvent,
+  PullRequestLoadedEvent,PullRequestErrorEvent,PullRequestDiscoveredEvent,PullRequestListedEvent,
   WorkspaceChangesEvent,WorkspaceChangesCatalogEvent,WorkspaceChangeDiffEvent,WorkspaceChangesErrorEvent,
   ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactPresentedEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
   ContentDocumentEvent,

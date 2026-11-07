@@ -25,6 +25,14 @@ mod documents;
 #[cfg(any(target_family="wasm",feature="native"))]
 mod web_documents;
 #[cfg(any(target_family="wasm",feature="native"))]
+mod pull_requests;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod pull_request_index;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod source_navigation;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod content_links;
+#[cfg(any(target_family="wasm",feature="native"))]
 mod icon_themes;
 
 // Rendered only by the wasm Workbench; native builds compile it for its tests.

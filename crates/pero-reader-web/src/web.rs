@@ -141,8 +141,8 @@ pub fn receive_document(value: &str) -> Result<(), JsValue> {
                     ui.subscriptions = vec![
                         cx.observe(&reader, |_, _, cx| cx.notify()),
                         cx.subscribe(&reader, |_, _, action, _| {
-                            if let ReaderAction::Link(value) = action {
-                                open_link(value);
+                            if let ReaderAction::Link { href, .. } = action {
+                                open_link(href);
                             }
                         }),
                     ];
