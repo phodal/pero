@@ -5,24 +5,20 @@ use crate::{
     session_artifacts::{ArtifactCollection, ArtifactPaneResize},
 };
 use gpui_kit::{
-    base::Selectable,
-    component::{
-        Disableable, Icon, Sizable,
-        button::*,
-        input::Input,
-        menu::{DropdownMenu, PopupMenuItem},
-    },
+    component::{Disableable, Icon, Sizable, button::*, input::Input},
     prelude::*,
     *,
 };
 use pero_contracts::{
     session_artifact::{ArtifactSource, SessionArtifact},
-    workbench::{ArtifactView, LayoutPreferences},
+    workbench::LayoutPreferences,
 };
 
 impl ChatPanel {
     /// Chat column keeps this much space before the artifact column replaces it.
     const CHAT_COLUMN_MIN: f32 = 320.;
+    /// The resize handle stays reachable. This is not a content-width limit.
+    const PANE_DIVIDER: f32 = 12.;
 
     fn artifact_probe(&self, thread: &str, action: &str) -> Option<AnyElement> {
         self.artifacts
@@ -41,7 +37,7 @@ impl ChatPanel {
             .label(label.to_owned())
     }
 
-    fn artifact_icon_button(
+    pub(crate) fn artifact_icon_button(
         &self,
         thread: &str,
         id: &'static str,
@@ -63,10 +59,9 @@ impl ChatPanel {
     }
 
     fn artifact_column_width(&self, available: f32) -> f32 {
-        let min = f32::from(LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH);
-        let max = f32::from(LayoutPreferences::MAX_ARTIFACT_PANE_WIDTH);
-        let room = (available - Self::CHAT_COLUMN_MIN).clamp(min, max);
-        self.artifact_pane_width().clamp(min, room)
+        let available = available.max(0.);
+        self.artifact_pane_width()
+            .clamp(Self::PANE_DIVIDER.min(available), available)
     }
 
     /// Window-level drag so the pointer can leave the hairline without dropping the resize.
@@ -82,9 +77,9 @@ impl ChatPanel {
                             return;
                         };
                         let x: f32 = event.position.x.into();
-                        let min = f32::from(LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH);
+                        let floor = Self::PANE_DIVIDER.min(resize.max_width);
                         let width = (resize.origin_width - (x - resize.origin_x))
-                            .clamp(min, resize.max_width);
+                            .clamp(floor, resize.max_width);
                         if (this.artifact_pane_width() - width).abs() >= 0.5 {
                             this.set_artifact_pane_width(width, cx);
                             cx.stop_propagation();
@@ -140,7 +135,10 @@ impl ChatPanel {
         let state = self.artifacts.conversations.get(&thread);
         let open = state.is_some_and(|state| state.open);
         let reviewing = state.is_some_and(|state| state.show_changes);
-        let split = open && !self.artifacts.narrow;
+        let maximized = !reviewing
+            && self.files.selection.tab == pero_contracts::workbench::ResourceTab::Artifacts
+            && state.is_some_and(|state| state.maximized);
+        let split = open && !self.artifacts.narrow && !maximized;
         let count = state.map_or(0, |state| state.items.len());
         let toggle_thread = thread.clone();
         let title = self.t(
@@ -150,7 +148,8 @@ impl ChatPanel {
                 "artifacts.title"
             },
         );
-        let label = if count == 0 || self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
+        let label = if count == 0
+            || self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
         {
             title.to_owned()
         } else {
@@ -159,7 +158,7 @@ impl ChatPanel {
         let header_height = pero_theme::WorkbenchStyle::TAB
             .max(pero_theme::UiAppearance::global(cx).typography.row_height() + 4.)
             .max(36.);
-        let header = (!split && ((!thread.is_empty() && !reviewing) || self.docked)).then(|| {
+        let header = (!split && (!thread.is_empty() || self.docked)).then(|| {
             div()
                 .h(px(header_height))
                 .min_h(px(header_height))
@@ -184,14 +183,12 @@ impl ChatPanel {
                             })),
                     )
                 })
-                .when(open && !reviewing, |el| {
-                    let toolbar = if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
-                    {
-                        self.files_toolbar(&thread, cx)
-                    } else {
-                        self.artifacts_toolbar(&thread, state.expect("open artifact catalog"), cx)
-                    };
-                    el.child(div().min_w_0().flex_1().child(toolbar))
+                .when(open, |el| {
+                    el.child(div().min_w_0().flex_1().child(self.pane_toolbar(
+                        &thread,
+                        state.expect("open artifact catalog"),
+                        cx,
+                    )))
                 })
                 .when(self.docked, |el| {
                     el.child(
@@ -225,13 +222,11 @@ impl ChatPanel {
             } else {
                 self.artifact_panel(&thread, collection, cx)
             };
-            if self.artifacts.narrow {
+            if !split {
                 pane
             } else {
                 let shown = self.artifact_column_width(available);
                 let border = pero_theme::UiAppearance::global(cx).palette.border;
-                let files = self.files.selection.tab
-                    == pero_contracts::workbench::ResourceTab::Files;
                 div()
                     .relative()
                     .size_full()
@@ -243,7 +238,6 @@ impl ChatPanel {
                         div()
                             .relative()
                             .flex_1()
-                            .min_w(px(Self::CHAT_COLUMN_MIN))
                             .h_full()
                             .min_w_0()
                             .child(chat)
@@ -268,43 +262,35 @@ impl ChatPanel {
                             .flex_col()
                             .border_l(px(1.))
                             .border_color(border)
-                            .when(!reviewing || self.docked, |column| {
-                                column.child(
-                                    div()
-                                        .h(px(header_height))
-                                        .min_h(px(header_height))
-                                        .flex()
-                                        .items_center()
-                                        .min_w_0()
-                                        .when(!reviewing, |row| {
-                                            let toolbar = if files {
-                                                self.files_toolbar(&thread, cx)
-                                            } else {
-                                                let state = self
-                                                    .artifacts
-                                                    .conversations
-                                                    .get(&thread)
-                                                    .expect("open artifact catalog");
-                                                self.artifacts_toolbar(&thread, state, cx)
-                                            };
-                                            row.child(div().flex_1().min_w_0().child(toolbar))
-                                        })
-                                        .when(self.docked, |row| {
-                                            row.child(
-                                                self.artifact_icon_button(
-                                                    &thread,
-                                                    "workspace-chat-close",
-                                                    "close-chat",
-                                                    "panel-right-close",
-                                                    self.t("chat.close_panel"),
-                                                )
-                                                .on_click(cx.listener(|_, _, _, cx| {
-                                                    cx.emit(ChatAction::ClosePanel)
-                                                })),
+                            .child(
+                                div()
+                                    .h(px(header_height))
+                                    .min_h(px(header_height))
+                                    .flex()
+                                    .items_center()
+                                    .min_w_0()
+                                    .child(
+                                        div().flex_1().min_w_0().child(self.pane_toolbar(
+                                            &thread,
+                                            collection,
+                                            cx,
+                                        )),
+                                    )
+                                    .when(self.docked, |row| {
+                                        row.child(
+                                            self.artifact_icon_button(
+                                                &thread,
+                                                "workspace-chat-close",
+                                                "close-chat",
+                                                "panel-right-close",
+                                                self.t("chat.close_panel"),
                                             )
-                                        }),
-                                )
-                            })
+                                            .on_click(cx.listener(|_, _, _, cx| {
+                                                cx.emit(ChatAction::ClosePanel)
+                                            })),
+                                        )
+                                    }),
+                            )
                             .child(div().flex_1().min_h_0().min_w_0().child(pane))
                             .child(
                                 div()
@@ -330,17 +316,10 @@ impl ChatPanel {
                                                     width: this.artifact_pane_width(),
                                                 });
                                             } else {
-                                                let min = f32::from(
-                                                    LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH,
-                                                );
-                                                let max = f32::from(
-                                                    LayoutPreferences::MAX_ARTIFACT_PANE_WIDTH,
-                                                );
                                                 this.artifacts.resize = Some(ArtifactPaneResize {
                                                     origin_x: event.position.x.into(),
                                                     origin_width: shown,
-                                                    max_width: (available - Self::CHAT_COLUMN_MIN)
-                                                        .clamp(min, max),
+                                                    max_width: available.max(shown),
                                                 });
                                             }
                                             cx.stop_propagation();
@@ -362,158 +341,6 @@ impl ChatPanel {
             .flex_col()
             .children(header)
             .child(div().flex_1().min_h_0().min_w_0().flex().child(body))
-            .into_any_element()
-    }
-
-    fn artifacts_toolbar(
-        &self,
-        thread: &str,
-        state: &ArtifactCollection,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let p = pero_theme::UiAppearance::global(cx).palette.clone();
-        let picker_thread = thread.to_owned();
-        let menu_owner = cx.entity().downgrade();
-        let file_label = self.t("artifacts.add_file").to_owned();
-        let path_label = self.t("artifacts.enter_path").to_owned();
-        let refresh_thread = thread.to_owned();
-        let close_thread = thread.to_owned();
-        div()
-            .h(px(36.))
-            .min_h(px(36.))
-            .px(px(8.))
-            .flex()
-            .items_center()
-            .gap(px(4.))
-            .border_b(px(0.5))
-            .border_color(p.border)
-            .child(self.resource_tabs(thread, cx))
-            .when(!state.items.is_empty(), |el| {
-                el.child(
-                    div()
-                        .text_sm()
-                        .text_color(p.text_muted)
-                        .child(state.items.len().to_string()),
-                )
-            })
-            .child(div().flex_1())
-            .child(
-                div()
-                    .id("artifact-view-controls")
-                    .flex()
-                    .items_center()
-                    .p(px(2.))
-                    .rounded(px(7.))
-                    .bg(p.surface_muted)
-                    .children(
-                        [
-                            (ArtifactView::Icons, "layout-grid", "artifacts.view_icons"),
-                            (ArtifactView::List, "layout-list", "artifacts.view_list"),
-                            (
-                                ArtifactView::Gallery,
-                                "gallery-horizontal",
-                                "artifacts.view_gallery",
-                            ),
-                        ]
-                        .into_iter()
-                        .map(|(view, icon, label)| {
-                            let active = self.artifacts.view == view;
-                            Button::new(SharedString::from(format!("artifact-view-{icon}")))
-                                .ghost()
-                                .small()
-                                .w(px(28.))
-                                .h(px(24.))
-                                .p_0()
-                                .rounded(px(5.))
-                                .icon(
-                                    Icon::default()
-                                        .path(UiIcon::named(icon).path())
-                                        .size(px(14.)),
-                                )
-                                .text_color(if active { p.text } else { p.text_muted })
-                                .when(active, |button| {
-                                    button.bg(p.surface).border(px(0.5)).border_color(p.border)
-                                })
-                                .selected(active)
-                                .tooltip(self.t(label).to_owned())
-                                .accessibility_label(self.t(label).to_owned())
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.set_artifact_view(view, cx);
-                                    cx.emit(ChatAction::ArtifactView { view });
-                                }))
-                        }),
-                    ),
-            )
-            .child(div().w(px(4.)))
-            .child(
-                self.artifact_icon_button(
-                    thread,
-                    "artifact-import",
-                    "import",
-                    "plus",
-                    self.t("artifacts.import"),
-                )
-                .disabled(state.mutation.is_some())
-                .dropdown_caret(false)
-                .dropdown_menu_with_anchor(
-                    Anchor::BottomRight,
-                    move |menu, _, _| {
-                        let file_owner = menu_owner.clone();
-                        let file_thread = picker_thread.clone();
-                        let path_owner = menu_owner.clone();
-                        let path_thread = picker_thread.clone();
-                        menu.item(PopupMenuItem::new(file_label.clone()).on_click(
-                            move |_, _, cx| {
-                                let _ = file_owner.update(cx, |_, cx| {
-                                    cx.emit(ChatAction::ChooseArtifactFile {
-                                        thread_id: file_thread.clone(),
-                                    })
-                                });
-                            },
-                        ))
-                        .item(
-                            PopupMenuItem::new(path_label.clone()).on_click(move |_, _, cx| {
-                                let _ = path_owner.update(cx, |this, cx| {
-                                    if let Some(state) =
-                                        this.artifacts.conversations.get_mut(&path_thread)
-                                    {
-                                        state.path_open = true;
-                                    }
-                                    cx.notify();
-                                });
-                            }),
-                        )
-                    },
-                ),
-            )
-            .child(
-                self.artifact_icon_button(
-                    thread,
-                    "artifact-refresh",
-                    "refresh",
-                    "refresh",
-                    self.t("artifacts.refresh"),
-                )
-                .disabled(state.loading)
-                .on_click(
-                    cx.listener(move |this, _, _, cx| this.refresh_artifacts(&refresh_thread, cx)),
-                ),
-            )
-            .child(
-                self.artifact_icon_button(
-                    thread,
-                    "artifact-close",
-                    "close",
-                    "x",
-                    self.t("artifacts.close"),
-                )
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    if let Some(state) = this.artifacts.conversations.get_mut(&close_thread) {
-                        state.open = false;
-                    }
-                    cx.notify();
-                })),
-            )
             .into_any_element()
     }
 
@@ -540,7 +367,6 @@ impl ChatPanel {
             .flex()
             .flex_col()
             .bg(p.surface)
-            .child(self.output_tabs(thread,state,cx))
             .when(state.path_open, |el| {
                 let thread = thread.to_owned();
                 let dismiss_thread = thread.clone();
@@ -614,12 +440,6 @@ impl ChatPanel {
                         })),
                 )
             })
-            .when_some(
-                selected.filter(|_| state.chart.is_some()),
-                |el, (artifact, version)| {
-                    el.child(self.artifact_document_bar(thread, artifact, version, cx))
-                },
-            )
             .child(
                 div()
                     .id("session-artifact-preview")
@@ -685,82 +505,6 @@ impl ChatPanel {
             .when_some(selected, |el, (artifact, version)| {
                 el.child(self.artifact_footer(thread, state, artifact, version, cx))
             })
-            .into_any_element()
-    }
-
-    fn artifact_document_bar(
-        &self,
-        thread: &str,
-        artifact: &SessionArtifact,
-        version: u64,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let p = pero_theme::UiAppearance::global(cx).palette.clone();
-        let source = artifact
-            .versions
-            .iter()
-            .find(|item| item.version == version)
-            .unwrap_or_else(|| artifact.latest());
-        let filename = match &source.source {
-            ArtifactSource::File { path } => {
-                path.rsplit(['/', '\\']).next().unwrap_or(path).to_owned()
-            }
-            ArtifactSource::Text | ArtifactSource::Research { .. } => artifact.title.clone(),
-        };
-        let previous_thread = thread.to_owned();
-        let previous_id = artifact.id.clone();
-        let next_thread = thread.to_owned();
-        let next_id = artifact.id.clone();
-        div()
-            .h(px(30.))
-            .min_h(px(30.))
-            .px(px(12.))
-            .flex()
-            .items_center()
-            .gap(px(4.))
-            .border_b(px(0.5))
-            .border_color(p.border)
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(p.text_muted)
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .child(filename),
-            )
-            .child(
-                self.artifact_icon_button(
-                    thread,
-                    "artifact-previous-version",
-                    "previous",
-                    "chevron-left",
-                    self.t("artifacts.previous_version"),
-                )
-                .disabled(version <= 1)
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.read_artifact(&previous_thread, &previous_id, version - 1, false, cx)
-                })),
-            )
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(p.text_muted)
-                    .child(format!("v{version} / {}", artifact.latest().version)),
-            )
-            .child(
-                self.artifact_icon_button(
-                    thread,
-                    "artifact-next-version",
-                    "next",
-                    "chevron-right",
-                    self.t("artifacts.next_version"),
-                )
-                .disabled(version >= artifact.latest().version)
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.read_artifact(&next_thread, &next_id, version + 1, false, cx)
-                })),
-            )
             .into_any_element()
     }
 

@@ -5,99 +5,20 @@ use crate::{
     panel::ChatPanel,
 };
 use gpui_kit::{
-    base::Selectable,
     component::{Icon, Sizable, button::*},
     prelude::*,
     *,
 };
-use pero_contracts::{workbench::ResourceTab, workspace_files::EntryKind};
+use pero_contracts::workspace_files::EntryKind;
 
 impl ChatPanel {
-    fn files_probe(&self, thread: &str, key: &str) -> Option<AnyElement> {
+    pub(crate) fn files_probe(&self, thread: &str, key: &str) -> Option<AnyElement> {
         self.files
             .conversations
             .get(thread)?
             .bounds
             .get(key)
             .map(|bounds| bounds.probe().into_any_element())
-    }
-
-    pub(crate) fn resource_tabs(&self, thread: &str, cx: &mut Context<Self>) -> AnyElement {
-        div()
-            .flex()
-            .gap(px(2.))
-            .children(
-                [
-                    (ResourceTab::Files, "files-tab", "files.title"),
-                    (ResourceTab::Artifacts, "artifacts-tab", "artifacts.title"),
-                ]
-                .into_iter()
-                .map(|(tab, id, key)| {
-                    let thread = thread.to_owned();
-                    Button::new(id)
-                        .relative()
-                        .children(self.files_probe(&thread, id))
-                        .ghost()
-                        .small()
-                        .label(self.t(key))
-                        .toggled(self.files.selection.tab == tab)
-                        .selected(self.files.selection.tab == tab)
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.choose_resource_tab(&thread, tab, cx)
-                        }))
-                }),
-            )
-            .into_any_element()
-    }
-
-    pub(crate) fn files_toolbar(&self, thread: &str, cx: &mut Context<Self>) -> AnyElement {
-        let p = pero_theme::UiAppearance::global(cx).palette.clone();
-        let refresh_thread = thread.to_owned();
-        let close_thread = thread.to_owned();
-        div()
-            .h(px(36.))
-            .min_h(px(36.))
-            .px(px(8.))
-            .flex()
-            .items_center()
-            .gap(px(4.))
-            .border_b(px(0.5))
-            .border_color(p.border)
-            .child(self.resource_tabs(thread, cx))
-            .child(div().flex_1())
-            .child(
-                Button::new("files-refresh")
-                    .relative()
-                    .children(self.files_probe(thread, "refresh"))
-                    .ghost()
-                    .small()
-                    .icon(Icon::default().path(UiIcon::Refresh.path()))
-                    .tooltip(self.t("files.refresh"))
-                    .accessibility_label(self.t("files.refresh"))
-                    .on_click(
-                        cx.listener(move |this, _, _, cx| this.refresh_files(&refresh_thread, cx)),
-                    ),
-            )
-            .child(
-                Button::new("files-close")
-                    .relative()
-                    .children(self.files_probe(thread, "close"))
-                    .ghost()
-                    .small()
-                    .icon(Icon::default().path(UiIcon::named("x").path()))
-                    .tooltip(self.t("files.close"))
-                    .accessibility_label(self.t("files.close"))
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.artifacts
-                            .conversations
-                            .entry(close_thread.clone())
-                            .or_default()
-                            .open = false;
-                        this.composer.focus_handle(cx).focus(window, cx);
-                        cx.notify();
-                    })),
-            )
-            .into_any_element()
     }
 
     pub(crate) fn file_panel(&self, thread: &str, cx: &mut Context<Self>) -> AnyElement {

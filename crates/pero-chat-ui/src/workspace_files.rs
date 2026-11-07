@@ -62,11 +62,13 @@ impl ChatPanel {
     ) {
         self.files.selection.choose(tab);
         cx.notify();
-        self.artifacts
+        let state = self
+            .artifacts
             .conversations
             .entry(thread.into())
-            .or_default()
-            .open = true;
+            .or_default();
+        state.open = true;
+        state.show_changes = false;
         cx.emit(ChatAction::ResourceTab { tab });
         if tab == pero_contracts::workbench::ResourceTab::Files {
             self.ensure_files(thread, cx);

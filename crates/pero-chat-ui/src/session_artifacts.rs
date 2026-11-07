@@ -5,7 +5,9 @@ use pero_contracts::{
     HostEvent,
     content_document::{ContentFormat, DocumentHeader},
     context::ContextReference,
-    session_artifact::{ArtifactMethod, ArtifactRequest, ArtifactSource, SessionArtifact},
+    session_artifact::{
+        ArtifactMethod, ArtifactPresentation, ArtifactRequest, ArtifactSource, SessionArtifact,
+    },
     workbench::LayoutPreferences,
 };
 use serde::Deserialize;
@@ -24,8 +26,10 @@ pub(crate) struct ArtifactCollection {
     pub requested: bool,
     pub loading: bool,
     pub open: bool,
+    pub maximized: bool,
     pub show_changes: bool,
     pub selected: Option<(String, u64)>,
+    pub preview_request: Option<u64>,
     pub chart: Option<crate::chart_view::ChartView>,
     pub chart_source_open: bool,
     pub pending: Option<(String, bool)>,
@@ -35,6 +39,15 @@ pub(crate) struct ArtifactCollection {
     pub notice: Option<String>,
     pub path_open: bool,
     pub path_input: Option<Entity<InputState>>,
+}
+
+impl ArtifactCollection {
+    pub fn return_to_chat(&mut self, narrow: bool) {
+        self.maximized = false;
+        if narrow {
+            self.open = false;
+        }
+    }
 }
 
 /// Drag of the artifact column, measured from the pointer position where it started.
@@ -61,6 +74,62 @@ pub(crate) struct SessionArtifacts {
 }
 
 impl ChatPanel {
+    pub(crate) fn open_delivered_artifact(
+        &mut self,
+        thread: &str,
+        id: &str,
+        version: u64,
+        cx: &mut Context<Self>,
+    ) {
+        self.next_request += 1;
+        let state = self
+            .artifacts
+            .conversations
+            .entry(thread.into())
+            .or_default();
+        state.preview_request = Some(self.next_request);
+        state.show_changes = false;
+        self.read_artifact(thread, id, version, false, cx);
+        if self.compact {
+            cx.emit(ChatAction::CompactNeedsSpace);
+        }
+    }
+
+    pub(crate) fn artifact_delivery(
+        &self,
+        thread: &str,
+        tool: &crate::conversation::Tool,
+    ) -> Option<(
+        &SessionArtifact,
+        &pero_contracts::session_artifact::SessionArtifactVersion,
+    )> {
+        if tool.cancelled
+            || tool.status != "completed"
+            || crate::tool_ui::display_tool_title(&tool.title) != "deliver_artifact"
+        {
+            return None;
+        }
+        #[derive(Deserialize)]
+        struct Delivery {
+            artifact: SessionArtifact,
+        }
+        let delivery: Delivery = serde_json::from_str(&tool.content).ok()?;
+        let delivered = delivery.artifact.versions.last()?;
+        let item = self
+            .artifacts
+            .conversations
+            .get(thread)?
+            .items
+            .iter()
+            .find(|item| {
+                item.id == delivery.artifact.id && item.thread_id == delivery.artifact.thread_id
+            })?;
+        let version = item.versions.iter().find(|version| {
+            version.version == delivered.version && version.sha256 == delivered.sha256
+        })?;
+        Some((item, version))
+    }
+
     pub fn set_artifact_view(
         &mut self,
         view: pero_contracts::workbench::ArtifactView,
@@ -78,10 +147,8 @@ impl ChatPanel {
     }
 
     pub fn set_artifact_pane_width(&mut self, width: f32, cx: &mut Context<Self>) {
-        if width.is_finite() {
-            let min = f32::from(LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH);
-            let max = f32::from(LayoutPreferences::MAX_ARTIFACT_PANE_WIDTH);
-            self.artifacts.pane_width = Some(width.clamp(min, max));
+        if width.is_finite() && width >= 0. {
+            self.artifacts.pane_width = Some(width);
             cx.notify();
         }
     }
@@ -101,7 +168,7 @@ impl ChatPanel {
         state.requested = true;
         state.loading = true;
         state.error = None;
-        self.request_changes(thread,false,cx);
+        self.request_changes(thread, false, cx);
         cx.emit(ChatAction::Artifacts(ArtifactRequest::List {
             method: ArtifactMethod::Artifacts,
             request_id,
@@ -118,7 +185,11 @@ impl ChatPanel {
         cx: &mut Context<Self>,
     ) {
         if self.files.selection.tab != pero_contracts::workbench::ResourceTab::Artifacts {
-            self.choose_resource_tab(thread, pero_contracts::workbench::ResourceTab::Artifacts, cx);
+            self.choose_resource_tab(
+                thread,
+                pero_contracts::workbench::ResourceTab::Artifacts,
+                cx,
+            );
         }
         let request_id = self.artifact_request_id("read");
         let state = self
@@ -300,6 +371,8 @@ impl ChatPanel {
             thread_id: thread.into(),
             artifact_id: None,
             title: None,
+            presentation: None,
+            related: Vec::new(),
             path,
             source_message_id: None,
             source_tool_call_id: None,
@@ -338,6 +411,8 @@ impl ChatPanel {
                 thread_id: thread.into(),
                 artifact_id: Some(id.into()),
                 title: Some(artifact.title.clone()),
+                presentation: None,
+                related: Vec::new(),
                 path: path.clone(),
                 source_message_id: version.source_message_id.clone(),
                 source_tool_call_id: version.source_tool_call_id.clone(),
@@ -429,6 +504,11 @@ impl ChatPanel {
         let Some(thread) = event.thread_id.as_deref() else {
             return true;
         };
+        let can_present = self.visible
+            && self
+                .active_chat
+                .and_then(|index| self.chats.get(index))
+                .is_some_and(|chat| chat.id == thread && chat.busy());
         let state = self
             .artifacts
             .conversations
@@ -453,9 +533,13 @@ impl ChatPanel {
                 #[derive(Deserialize)]
                 struct Registered {
                     artifact: SessionArtifact,
+                    presentation: Option<ArtifactPresentation>,
                 }
                 match serde_json::from_value::<Registered>(event.data.clone()) {
-                    Ok(Registered { artifact }) => {
+                    Ok(Registered {
+                        artifact,
+                        presentation,
+                    }) => {
                         let id = artifact.id.clone();
                         let version = artifact.latest().version;
                         if let Some(item) = state.items.iter_mut().find(|item| item.id == id) {
@@ -471,6 +555,9 @@ impl ChatPanel {
                         state.error = None;
                         if manual {
                             self.read_artifact(thread, &id, version, false, cx);
+                        } else if let Some(presentation) = presentation.filter(|_| can_present) {
+                            state.maximized = presentation == ArtifactPresentation::Expanded;
+                            self.open_delivered_artifact(thread, &id, version, cx);
                         }
                     }
                     Err(error) => state.error = Some(error.to_string()),
@@ -482,7 +569,8 @@ impl ChatPanel {
                 }) {
                     match serde_json::from_value::<DocumentHeader>(event.data.clone()) {
                         Ok(_) => {
-                            state.chart = crate::chart_view::ChartView::from_content(&event.text).ok();
+                            state.chart =
+                                crate::chart_view::ChartView::from_content(&event.text).ok();
                         }
                         Err(error) => state.error = Some(error.to_string()),
                     }
@@ -497,8 +585,7 @@ impl ChatPanel {
                     Some(prompt.request_id.as_str()) == event.request_id.as_deref()
                 }) {
                     let prompt = state.context.take().unwrap();
-                    match serde_json::from_value::<ContextReference>(event.data.clone())
-                    {
+                    match serde_json::from_value::<ContextReference>(event.data.clone()) {
                         Ok(reference) => {
                             self.pending_prompts.push(ComposerInsertion {
                                 thread_id: thread.into(),
@@ -511,11 +598,14 @@ impl ChatPanel {
                         Err(error) => {
                             let error = error.to_string();
                             if let Some(id) = prompt.surface_request {
-                                cx.emit(ChatAction::ArtifactComposeResult { id, error: Some(error) });
+                                cx.emit(ChatAction::ArtifactComposeResult {
+                                    id,
+                                    error: Some(error),
+                                });
                             } else {
                                 state.error = Some(error);
                             }
-                        },
+                        }
                     };
                 }
             }
@@ -523,10 +613,18 @@ impl ChatPanel {
                 let surface_request = if state.context.as_ref().is_some_and(|prompt| {
                     Some(prompt.request_id.as_str()) == event.request_id.as_deref()
                 }) {
-                    state.context.take().and_then(|prompt| prompt.surface_request)
-                } else { None };
+                    state
+                        .context
+                        .take()
+                        .and_then(|prompt| prompt.surface_request)
+                } else {
+                    None
+                };
                 if let Some(id) = surface_request {
-                    cx.emit(ChatAction::ArtifactComposeResult { id, error: Some(event.text.clone()) });
+                    cx.emit(ChatAction::ArtifactComposeResult {
+                        id,
+                        error: Some(event.text.clone()),
+                    });
                 } else {
                     state.error = Some(event.text.clone());
                 }
@@ -570,11 +668,19 @@ impl ChatPanel {
             }
             for row in crate::chat::render_items(chat) {
                 if let crate::chat::RenderItem::Process(group) = row {
-                    self.artifacts.bounds.entry(format!("{thread}/process:{}", group.first().key())).or_default();
+                    self.artifacts
+                        .bounds
+                        .entry(format!("{thread}/process:{}", group.first().key()))
+                        .or_default();
                 }
             }
             for record in &chat.changes.records {
-                for index in 0..record.files.len() {self.artifacts.bounds.entry(format!("{thread}/change:{}:{index}",record.id)).or_default();}
+                for index in 0..record.files.len() {
+                    self.artifacts
+                        .bounds
+                        .entry(format!("{thread}/change:{}:{index}", record.id))
+                        .or_default();
+                }
             }
             for tool in &chat.tools {
                 self.artifacts
@@ -604,6 +710,7 @@ impl ChatPanel {
             "previous",
             "next",
             "close",
+            "expand",
             "chart-source",
         ] {
             self.artifacts
@@ -661,19 +768,9 @@ impl ChatPanel {
                     .tools
                     .iter()
                     .find(|tool| {
-                        #[derive(Deserialize)]
-                        struct Delivery {
-                            artifact: SessionArtifact,
-                        }
-                        serde_json::from_str::<Delivery>(&tool.content)
-                            .ok()
-                            .is_some_and(|receipt| {
-                                receipt.artifact.id == id
-                                    && receipt
-                                        .artifact
-                                        .versions
-                                        .last()
-                                        .is_some_and(|version| version.version == selected)
+                        self.artifact_delivery(thread, tool)
+                            .is_some_and(|(item, version)| {
+                                item.id == id && version.version == selected
                             })
                     })
                     .map(|tool| format!("tool:{}", tool.id))
@@ -716,9 +813,7 @@ impl ChatPanel {
             }
         }
         if let Some(state) = self.artifacts.conversations.get_mut(thread) {
-            if self.artifacts.narrow {
-                state.open = false;
-            }
+            state.return_to_chat(self.artifacts.narrow);
         }
         self.chat_scroll.set_offset(point(px(0.), px(0.)));
         if let Some(anchor) = self.artifacts.anchors.get(&format!("{thread}/{source}")) {

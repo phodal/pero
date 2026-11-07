@@ -33,6 +33,8 @@ mod session_artifacts;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod artifact_panel;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod pane_toolbar;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod artifact_surface;
 #[cfg(target_family = "wasm")]
 pub mod web_platform;

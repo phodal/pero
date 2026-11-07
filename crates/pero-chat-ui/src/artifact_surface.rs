@@ -26,7 +26,9 @@ impl ChatPanel {
         self.artifacts.surface_covered
     }
     pub fn artifact_preview_target(&self) -> Option<ArtifactPreviewTarget> {
-        if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files {return None;}
+        if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files {
+            return None;
+        }
         let thread = &self.chats.get(self.active_chat?)?.id;
         let state = self.artifacts.conversations.get(thread)?;
         if !state.open || state.show_changes {
@@ -73,7 +75,10 @@ impl ChatPanel {
     pub fn artifact_browser_state(&self) -> Option<ArtifactBrowserState> {
         let thread = &self.chats.get(self.active_chat?)?.id;
         let state = self.artifacts.conversations.get(thread)?;
-        if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files || !state.open || state.chart.is_some() && !state.chart_source_open {
+        if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
+            || !state.open
+            || state.chart.is_some() && !state.chart_source_open
+        {
             return None;
         }
         Some(ArtifactBrowserState {
@@ -81,6 +86,9 @@ impl ChatPanel {
             artifacts: state.items.clone(),
             selected: self.artifact_preview_target(),
             view: self.artifacts.view,
+            preview_request: state.preview_request,
+            shell_document_bar: self.artifacts.view
+                == pero_contracts::workbench::ArtifactView::Gallery,
         })
     }
 
