@@ -37,7 +37,7 @@
 
 长期目标是连接这些 App、Agent、合作者与算力，让输入、方法和结果保持可追溯。
 
-![科研 App、Agent 能力与交付方式；虚线表示规划中的部分](docs/assets/openpero-building-blocks.svg)
+![科研 App、Agent 能力与交付方式；虚线表示规划中的部分](docs/assets/openpero-building-blocks.zh-CN.svg)
 
 ## 当前状态
 
@@ -46,11 +46,11 @@
 | Desktop 与 Agent 会话 | ACP 对话、工具结果展示、审批界面、历史和工作区已实现 | [会话与 Agent](ROADMAP.md#会话与-agent) |
 | 任务与 Worker | 分派、租约、取消和恢复已实现；Linux 真实 Provider 验收待完成 | [任务分派](ROADMAP.md#任务与贡献) |
 | GitHub 与贡献 | 来源导入、认领和本机编码已实现；真实 GitHub PR 发布待验收 | [代码贡献](ROADMAP.md#认领与代码贡献) |
-| App 与产品 | Virtual Cell 本地运行和 macOS 开发包已验证；Agent 工具和任务接线待完成 | [App 与产品](ROADMAP.md#app-与产品) |
-| 项目、知识与团队 | 项目 journal、记忆、Pages 和团队同步规划中 | [项目与团队](ROADMAP.md#项目与团队) |
-| Playbook、插件与连接器 | 方法编排、多 Agent 团队和 MCP 接入规划中 | [自动化与方法](ROADMAP.md#自动化与方法) |
-| 可信交付 | 产物版本、独立验证和接受决定规划中 | [验证与发布](ROADMAP.md#验证与发布) |
-| 执行环境 | 环境模板、Use 生命周期、隔离和资源匹配规划中 | [环境与部署](ROADMAP.md#环境与部署) |
+| App 与产品 | Virtual Cell 本地运行和 macOS 开发包已验证；有界 App 工具已接入 Host 会话；App Task/Run 接线待完成 | [App 与产品](ROADMAP.md#app-与产品) |
+| 项目、知识与团队 | 本地研究目标和 App 记录引用已实现；共享 journal、记忆、Pages 和团队同步规划中 | [项目与团队](ROADMAP.md#项目与团队) |
+| Playbook、插件与连接器 | 本地 App Agent Plugins 和会话内 MCP 连接器已实现；Playbook 编排与多 Agent 团队规划中 | [自动化与方法](ROADMAP.md#自动化与方法) |
+| 可信交付 | 会话产物版本已实现；共享 Task/Run 的独立验证与人工接受闭环规划中 | [验证与发布](ROADMAP.md#验证与发布) |
+| 执行环境 | Use 模型与本地、Docker、Compose、Slurm 资源适配已有局部实现证据；生产科学 App 准入与更广泛平台验收待完成 | [环境与部署](ROADMAP.md#环境与部署) |
 | Web 与移动工作台 | 共享工作台客户端规划中；静态 WASM 预览发布在 `/workbench/`。其余 Web 页面为演示或任务浏览入口 | [多端客户端](ROADMAP.md#web-与移动端) |
 
 ## 工作方式
@@ -59,7 +59,7 @@
 
 Agent 提出建议，由人批准重要操作与最终结论。导入任务不授予执行权限，运行记录保留复核所需的证据。
 
-![Pero 架构：客户端、Cloud 协调、Host 执行、能力生态、执行环境与可信交付](docs/assets/openpero-architecture.svg)
+![Pero 架构：客户端、Cloud 协调、Host 执行、能力生态、执行环境与可信交付](docs/assets/openpero-architecture.zh-CN.svg)
 
 实线框表示已有实现基础，虚线框和连线表示规划能力或待接通的关系。完整科研工作流仍在建设中。详情见[架构文档](docs/ARCHITECTURE.md)与[开发指南](DEVELOPMENT.md)。
 

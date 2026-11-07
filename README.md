@@ -46,11 +46,11 @@ The longer-term goal is to connect these Apps with agents, collaborators and com
 | Desktop & Agent sessions | ACP conversations, tool results, approval UI, history and workspaces implemented | [Sessions](ROADMAP.md#会话与-agent) |
 | Tasks & Workers | Dispatch, leases, cancellation and recovery implemented; Linux real-provider acceptance pending | [Tasks](ROADMAP.md#任务与贡献) |
 | GitHub & contributions | Intake, claims and local coding implemented; real GitHub PR publication acceptance pending | [Contributions](ROADMAP.md#认领与代码贡献) |
-| Apps & products | Virtual Cell runs locally and in a macOS development package; Agent tools and task integration pending | [Apps & products](ROADMAP.md#app-与产品) |
-| Projects, knowledge & teams | Project journals, memory, Pages and team sync planned | [Projects & teams](ROADMAP.md#项目与团队) |
-| Playbooks, plugins & connectors | Method orchestration, multi-agent teams and MCP integrations planned | [Methods](ROADMAP.md#自动化与方法) |
-| Trusted delivery | Artifact versions, independent verification and acceptance decisions planned | [Verification](ROADMAP.md#验证与发布) |
-| Execution environments | Environment templates, Use lifecycle, isolation and resource matching planned | [Environments](ROADMAP.md#环境与部署) |
+| Apps & products | Virtual Cell runs locally and in a macOS development package; scoped App tools connect to Host sessions; App Task/Run integration pending | [Apps & products](ROADMAP.md#app-与产品) |
+| Projects, knowledge & teams | Local project goals and App record links implemented; shared journals, memory, Pages and team sync planned | [Projects & teams](ROADMAP.md#项目与团队) |
+| Playbooks, plugins & connectors | Local App Agent Plugins and session-scoped MCP connectors implemented; Playbook orchestration and multi-agent teams planned | [Methods](ROADMAP.md#自动化与方法) |
+| Trusted delivery | Session artifact versions implemented; the shared Task/Run loop for independent verification and human acceptance planned | [Verification](ROADMAP.md#验证与发布) |
+| Execution environments | Use model and local/Docker/Compose/Slurm owner adapters have scoped implementation evidence; production scientific App admission and broader platform acceptance pending | [Environments](ROADMAP.md#环境与部署) |
 | Web & mobile workbench | Shared workbench clients planned; a static WASM preview is published at `/workbench/`. Other Web pages are demos or task browsing | [Clients](ROADMAP.md#web-与移动端) |
 
 ## How it works
