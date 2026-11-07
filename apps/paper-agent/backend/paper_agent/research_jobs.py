@@ -163,68 +163,73 @@ class ResearchJobs:
             if existing is not None:
                 program = programs.read(program.id)
             else:
-                work, result = record['input'], record['result']
-                if work['operation'] in ('search', 'discover'):
-                    # Preserve the complete observed response in this immutable job record.
-                    relation = work.get('query', {}).get('relation', 'search')
-                    provenance = DiscoveryPath(identity, work.get('query', {}).get('seedId', ''), relation)
-                    observed = tuple(ResearchCandidate.observed(item, provenance) for item in result.get('items', []))
-                    available = program.protocol.limits.candidates - program.usage.candidates
-                    known = list(program.candidates)
-                    selected = []
-                    for candidate in observed:
-                        duplicate = any(item.matches(candidate) for item in known)
-                        if duplicate or available > 0:
-                            selected.append(candidate)
-                            if not duplicate: available -= 1
-                            known.append(candidate)
-                    next_program = program.discover(tuple(selected), reserved=True)
-                elif work['operation'] == 'acquire-html':
-                    from base64 import b64encode
-                    from .paper_documents import PaperDocuments
-                    from .scientific_document import ScientificDocument
-                    record_json = json.loads((path.parent / 'document.json').read_bytes())
-                    document = ScientificDocument.from_record(record_json)
-                    original = (path.parent / 'source.html').read_bytes()
-                    bundle = store.imports.bundle(work['bundleId'])
-                    resource = bundle.approved_html(work['resourceId'])
-                    documents = PaperDocuments(store)
-                    documents._register_receipt(document, bundle, resource, now)
-                    store._write('scientific-documents', document.id, dict(document=record_json, sourceBytes=b64encode(original).decode('ascii')))
-                    documents.read(document.id)
-                    candidate = program.candidate(work['candidateId'])
-                    next_program = program.update_candidate(replace(candidate, paperId=work['paperId'], htmlDocumentId=document.id, blocker=None))
-                    next_program = replace(next_program, usage=replace(next_program.usage,
-                        downloadBytes=next_program.usage.downloadBytes - work['byteAllowance'] + len(original)))
-                else:
-                    candidate = program.candidate(work['candidateId'])
-                    data = (path.parent / 'original.pdf').read_bytes()
-                    if len(data) != result['size'] or digest(data) != result['fileDigest']:
-                        raise Invalid('Acquired PDF integrity mismatch', 409)
-                    pages = tuple(PdfPage(**p) for p in json.loads((path.parent / 'pages.json').read_bytes()))
-                    if candidate.paperId:
-                        paper = store.paper(candidate.paperId)
+                try:
+                    work, result = record['input'], record['result']
+                    if work['operation'] in ('search', 'discover'):
+                        # Preserve the complete observed response in this immutable job record.
+                        relation = work.get('query', {}).get('relation', 'search')
+                        provenance = DiscoveryPath(identity, work.get('query', {}).get('seedId', ''), relation)
+                        observed = tuple(ResearchCandidate.observed(item, provenance) for item in result.get('items', []))
+                        available = program.protocol.limits.candidates - program.usage.candidates
+                        known = list(program.candidates)
+                        selected = []
+                        for candidate in observed:
+                            duplicate = any(item.matches(candidate) for item in known)
+                            if duplicate or available > 0:
+                                selected.append(candidate)
+                                if not duplicate: available -= 1
+                                known.append(candidate)
+                        next_program = program.discover(tuple(selected), reserved=True)
+                    elif work['operation'] == 'acquire-html':
+                        from base64 import b64encode
+                        from .paper_documents import PaperDocuments
+                        from .scientific_document import ScientificDocument
+                        record_json = json.loads((path.parent / 'document.json').read_bytes())
+                        document = ScientificDocument.from_record(record_json)
+                        original = (path.parent / 'source.html').read_bytes()
+                        bundle = store.imports.bundle(work['bundleId'])
+                        resource = bundle.approved_html(work['resourceId'])
+                        documents = PaperDocuments(store)
+                        documents._register_receipt(document, bundle, resource, now)
+                        store._write('scientific-documents', document.id, dict(document=record_json, sourceBytes=b64encode(original).decode('ascii')))
+                        documents.read(document.id)
+                        candidate = program.candidate(work['candidateId'])
+                        next_program = program.update_candidate(replace(candidate, paperId=work['paperId'], htmlDocumentId=document.id, blocker=None))
+                        next_program = replace(next_program, usage=replace(next_program.usage,
+                            downloadBytes=next_program.usage.downloadBytes - work['byteAllowance'] + len(original)))
                     else:
-                        content = candidate.abstract or '\n\n'.join(p.text for p in pages)[:1000000]
-                        if content.strip():
-                            paper = store.save_paper(PaperSnapshot.from_reading(dict(source=candidate.source, sourceId=candidate.sourceId,
-                                title=candidate.title, url=candidate.url, authors=list(candidate.authors),
-                                pdfUrl=candidate.pdfUrl, content=content, contentKind='abstract' if candidate.abstract else 'full-text'), now))
+                        candidate = program.candidate(work['candidateId'])
+                        data = (path.parent / 'original.pdf').read_bytes()
+                        if len(data) != result['size'] or digest(data) != result['fileDigest']:
+                            raise Invalid('Acquired PDF integrity mismatch', 409)
+                        pages = tuple(PdfPage(**p) for p in json.loads((path.parent / 'pages.json').read_bytes()))
+                        if candidate.paperId:
+                            paper = store.paper(candidate.paperId)
                         else:
-                            # Preserve bibliographic metadata even for scans, without inventing readable text.
-                            from .local_pdf import LocalPdf
-                            paper, _ = PdfFiles.from_pages(LocalPdf.parse(data, candidate.title + '.pdf'), pages, now)
-                            paper = store.save_paper(paper)
-                    document = PdfDocument.create(paper.id, result['fileDigest'], result['url'], pages, now)
-                    store.save_pdf(document, data)
-                    next_program = program.update_candidate(replace(candidate, paperId=paper.id, documentId=document.id,
-                        blocker=None if document.has_selectable_text else 'No selectable PDF text; inspect the original manually.'))
-                    next_program = replace(next_program, usage=replace(next_program.usage,
-                        downloadBytes=next_program.usage.downloadBytes - work['byteAllowance'] + len(data)))
-                programs.commit(program, next_program, value, now=now)
-                program = programs.read(program.id)
+                            content = candidate.abstract or '\n\n'.join(p.text for p in pages)[:1000000]
+                            if content.strip():
+                                paper = store.save_paper(PaperSnapshot.from_reading(dict(source=candidate.source, sourceId=candidate.sourceId,
+                                    title=candidate.title, url=candidate.url, authors=list(candidate.authors),
+                                    pdfUrl=candidate.pdfUrl, content=content, contentKind='abstract' if candidate.abstract else 'full-text'), now))
+                            else:
+                                # Preserve bibliographic metadata even for scans, without inventing readable text.
+                                from .local_pdf import LocalPdf
+                                paper, _ = PdfFiles.from_pages(LocalPdf.parse(data, candidate.title + '.pdf'), pages, now)
+                                paper = store.save_paper(paper)
+                        document = PdfDocument.create(paper.id, result['fileDigest'], result['url'], pages, now)
+                        store.save_pdf(document, data)
+                        next_program = program.update_candidate(replace(candidate, paperId=paper.id, documentId=document.id,
+                            blocker=None if document.has_selectable_text else 'No selectable PDF text; inspect the original manually.'))
+                        next_program = replace(next_program, usage=replace(next_program.usage,
+                            downloadBytes=next_program.usage.downloadBytes - work['byteAllowance'] + len(data)))
+                except (Invalid, ValueError, OSError, KeyError, TypeError) as error:
+                    record = {**record, 'status': 'failed', 'error': str(error)}
+                    programs._write(path, record)
+                else:
+                    programs.commit(program, next_program, value, now=now)
+                    program = programs.read(program.id)
             outcome = record.get('outcome', {}).get('status')
-            record = {**record, 'status': 'failed' if outcome == 'failed' else 'needs_input' if outcome == 'choose-seed' else 'completed'}
+            record = {**record, 'status': 'failed' if record['status'] == 'failed' or outcome == 'failed' else 'needs_input' if outcome == 'choose-seed' else 'completed'}
             programs._write(path, record)
         if record['status'] not in ('running', 'ready'):
             value = dict(operation='observe-job', programId=program.id, operationId='observe-' + identity)

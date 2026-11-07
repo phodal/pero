@@ -15,6 +15,31 @@ def literature_fixture(output, directory, value):
 
 
 class ProgramJobs(unittest.TestCase):
+    def test_invalid_ready_result_is_terminal_and_does_not_block_new_work(self):
+        from dataclasses import replace
+        from paper_agent.model import digest
+        with tempfile.TemporaryDirectory() as root:
+            store = ResearchStore(root)
+            programs = ResearchPrograms(store)
+            jobs = ResearchJobs(programs, worker=literature_fixture)
+            self.addCleanup(jobs.close)
+            paper = store.save_paper(PaperSnapshot.from_reading(reading(), NOW))
+            plan = programs.command(acceptance.ResearchProgramsAcceptance.plan(paper), NOW)
+            identity = digest(b'invalid-result')
+            program = programs.read(plan['id'])
+            programs.save(replace(program, jobIds=(identity,)))
+            programs._write(programs.directory(program.id) / 'jobs' / identity / 'job.json',
+                dict(id=identity, status='ready', input=dict(operation='search'),
+                     result=dict(items=[dict(id='W9', source='openalex', title='', url='https://openalex.org/W9')]), error=''))
+            request = dict(operation='poll', programId=program.id, jobId=identity)
+            failed = jobs.command(request, NOW)
+            self.assertEqual(failed['job']['status'], 'failed')
+            self.assertTrue(failed['job']['error'])
+            self.assertEqual(jobs.command(request, NOW), failed)
+            pending = jobs.command(dict(operation='search', programId=program.id, operationId='recovery-search',
+                expectedCheckpoint=failed['checkpoint'], query={'query': 'valid research', 'sources': ['openalex']}), NOW)
+            self.assertEqual(pending['job']['status'], 'running')
+
     def test_lookup_is_counted_before_dispatch_and_poll_preserves_provenance(self):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)

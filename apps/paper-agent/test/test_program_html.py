@@ -41,6 +41,10 @@ class ProgramHTML(unittest.TestCase):
                 bundle = store.imports.bundle(saved['job']['input']['bundleId'])
                 self.assertEqual(bundle.to_dict()['programAuthorization']['programId'], plan['id'])
                 self.assertEqual(bundle.htmlDownloadIds, ())
+                with self.assertRaises(Invalid) as denied:
+                    PaperDocuments(store).prepare(dict(operation='prepare', paperId=paper.id,
+                        bundleId=bundle.id, resourceId=bundle.resources[0].id, refresh=True), NOW)
+                self.assertEqual(denied.exception.status, 403)
                 self.assertEqual(receipt['sourceDigest'], document.source.digest)
                 block = next(b for b in document.blocks if b.kind == 'paragraph' and b.text.strip())
                 command = dict(operation='source-step', programId=plan['id'], candidateId=candidate['id'],

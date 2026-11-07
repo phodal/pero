@@ -140,10 +140,10 @@ class ResearchProgram:
                       'events': tuple(ResearchEvent(**e) for e in value.get('events', [])),
                       'observationIds': tuple(value.get('observationIds', [])), 'sourceReportIds': tuple(value.get('sourceReportIds', []))})
 
-    def admit(self, expected, now, *, finalizing=False):
+    def admit(self, expected, now, *, finalizing=False, recovering=False):
         if expected != self.checkpoint:
             raise Invalid('Research checkpoint changed; read the current program', 409)
-        if self.stopReason and not finalizing:
+        if self.stopReason and not recovering and (not finalizing or self.stopReason != 'deadline_reached'):
             raise Invalid('Research stopped: ' + self.stopReason, 409)
         if not finalizing and datetime.fromisoformat(now.replace('Z', '+00:00')) >= datetime.fromisoformat(self.protocol.deadline.replace('Z', '+00:00')):
             raise Invalid('Research deadline reached', 409)

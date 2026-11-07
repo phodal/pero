@@ -165,8 +165,12 @@ class ResearchPrograms:
             replay = self.replay(program, value)
             if replay is not None:
                 return replay
+            pending = self.receipt_path(program.id, value['operationId']).with_suffix('.pending.json')
+            recovering = operation in ('commit-round', 'study-step') and pending.exists()
+            if recovering and self._read(pending)['digest'] != digest(value):
+                raise Invalid('Research operation identity conflict', 409)
             program.admit(value.get('expectedCheckpoint'), now, finalizing=operation in ('finish', 'commit-round') or
-                          operation == 'study-step' and value.get('document', {}).get('action') == 'finalize')
+                          operation == 'study-step' and value.get('document', {}).get('action') == 'finalize', recovering=recovering)
             extra = {}
             if operation == 'adopt-discovery':
                 batch = self.store.discovery(value.get('batchId'))
@@ -262,8 +266,6 @@ class ResearchPrograms:
                 pending = self.receipt_path(program.id, value['operationId']).with_suffix('.pending.json')
                 if pending.exists():
                     saved = self._read(pending)
-                    if saved['digest'] != digest(value):
-                        raise Invalid('Round operation identity conflict', 409)
                     now = saved['createdAt']
                 row = ResearchRound.create(value, program, reports, previous, now, tuple(document_evidence))
                 next_program = program.complete_round(row, previous[-1]['screeningDigest'] if previous else None)
@@ -305,8 +307,6 @@ class ResearchPrograms:
         pending = self.receipt_path(program.id, value['operationId']).with_suffix('.pending.json')
         if pending.exists():
             record = self._read(pending)
-            if record['digest'] != digest(value):
-                raise Invalid('Study operation identity conflict', 409)
             index = record['step']
             if len(study.steps) > index:
                 step = study.steps[index]

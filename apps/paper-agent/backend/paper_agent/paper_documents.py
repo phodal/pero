@@ -179,6 +179,8 @@ class PaperDocuments:
         paper = self.store.paper(value.get('paperId'))
         bundle = self.store.imports.bundle(value.get('bundleId'))
         resource = bundle.approved_html(value.get('resourceId'))
+        if resource.id not in bundle.htmlDownloadIds:
+            raise Invalid('This official HTML needs independent confirmation in the research review', 403)
         if self._paper_for_resource(value['bundleId'], resource, paper.id) != paper.id:
             raise Invalid('This approved HTML resource is not associated with the saved paper', 409)
         source = OfficialHtml.from_resource(resource)

@@ -50,6 +50,22 @@ class ProgramLifecycle(unittest.TestCase):
             with self.assertRaises(Invalid):
                 program_request(programs, dict(operation='resume', programId=plan['id'], threadId='host-thread'), later, internal=True)
 
+    def test_admission_preserves_hard_stops_and_admitted_recovery(self):
+        from dataclasses import replace
+        from paper_agent.research_program import ResearchProgram
+        value = dict(requestId='admission', question='Question', scope='Scope',
+            inclusion='Include', exclusion='Exclude', seedPaperIds=['a' * 64])
+        program = ResearchProgram.create(value, NOW)
+        for reason in ('user_stopped', 'no_progress', 'round_limit', 'ready_for_review'):
+            stopped = replace(program, stopReason=reason)
+            with self.subTest(reason=reason), self.assertRaises(Invalid):
+                stopped.admit(stopped.checkpoint, NOW, finalizing=True)
+            stopped.admit(stopped.checkpoint, NOW, finalizing=True, recovering=True)
+        later = program.protocol.deadline
+        program.admit(program.checkpoint, later, finalizing=True)
+        deadline = replace(program, stopReason='deadline_reached')
+        deadline.admit(deadline.checkpoint, later, finalizing=True)
+
     def test_create_retry_preserves_deadline_but_rejects_changed_allowance(self):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)
