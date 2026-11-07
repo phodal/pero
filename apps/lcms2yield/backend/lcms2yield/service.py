@@ -7,7 +7,7 @@ import csv
 
 from .catalog import load_rows
 from .identity import model_canonical, overlap
-from .domain import COMMIT, EXAMPLE_SETS, METHOD, PAPER, POPULATION, REPORTED_MAE_PP, UPSTREAM, Invalid, cf_agreement, example_agreement, product_smiles, published_fit, type_counts, unique_products, yield_table_verdict
+from .domain import COMMIT, EXAMPLE_SETS, METHOD, PAPER, POPULATION, REPORTED_MAE_PP, UPSTREAM, TYPES, Invalid, cf_agreement, example_agreement, product_smiles, published_fit, type_counts, unique_products, yield_table_verdict
 from .rerun import pinned_tables, run_predictions, score, verify_checkout
 
 PAPER_REASON = 'The released yield columns match 4.74 percentage points only as published arithmetic. Chromatograms were not remeasured, and a correction-factor rerun does not recompute those yields.'
@@ -104,12 +104,20 @@ def execute_custom(smiles):
     return report
 
 
-def execute_rerun(rows):
+def execute_rerun(rows, reaction_type='all'):
+    if reaction_type != 'all' and reaction_type not in TYPES:
+        raise Invalid('population', 'Choose a released reaction type or all')
+    rows = [row for row in rows if reaction_type == 'all' or row.reaction_type == reaction_type]
     path = checkout_path()
     if not path:
         raise FileNotFoundError('Prepare the environment before running weights')
     predicted = run_predictions(path, [row.product_smiles for row in rows])
-    report = score([row.cf_pred for row in rows], predicted)
+    report = {
+        'status': cf_agreement([row.cf_pred for row in rows], predicted, population=len(rows)),
+        'indices': [row.index for row in rows],
+        'predictions': list(predicted),
+        'population': len(rows),
+    }
     report['commit'] = COMMIT
     root = _data_root()
     if root is not None:
@@ -177,18 +185,25 @@ def build_state():
     rows = load_rows()
     verdict, mae = yield_table_verdict(rows)
     rerun = load_rerun()
-    predictions = rerun.get('predictions') if isinstance(rerun, dict) else None
-    if predictions is None:
-        prediction_status = 'UNRUN'
-    elif not isinstance(predictions, list) or any(not isinstance(value, str) for value in predictions):
-        predictions = None
-        prediction_status = 'FAIL'
-    else:
-        try:
-            prediction_status = cf_agreement([row.cf_pred for row in rows], predictions)
-        except Invalid:
-            predictions = None
-            prediction_status = 'FAIL'
+    predictions = {}
+    if isinstance(rerun, dict):
+        values = rerun.get('predictions', [])
+        indices = rerun.get('indices', list(range(len(rows))))
+        if (isinstance(values, list) and isinstance(indices, list) and len(values) == len(indices)
+                and len(set(indices)) == len(indices) and all(type(i) is int and 0 <= i < len(rows) for i in indices)
+                and all(isinstance(value, str) for value in values)):
+            predictions = dict(zip(indices, values))
+    statuses = {}
+    for kind in ('all', *TYPES):
+        selected = [row for row in rows if kind == 'all' or row.reaction_type == kind]
+        if any(row.index not in predictions for row in selected):
+            statuses[kind] = 'UNRUN'
+        else:
+            try:
+                statuses[kind] = cf_agreement([row.cf_pred for row in selected],
+                    [predictions[row.index] for row in selected], population=len(selected))
+            except Invalid:
+                statuses[kind] = 'FAIL'
     reactions = []
     for row in rows:
         reactions.append({
@@ -200,7 +215,7 @@ def build_state():
             'yieldPred': row.yield_pred,
             'cfExp': row.cf_exp,
             'cfPred': row.cf_pred,
-            'cfRerun': None if predictions is None else predictions[row.index],
+            'cfRerun': predictions.get(row.index),
         })
     return {
         'schema': 'pero.lcms2yield.case.v1',
@@ -214,9 +229,10 @@ def build_state():
         'reportedMaePercentagePoints': format(REPORTED_MAE_PP, 'f'),
         'verdicts': {
             'yieldTable': verdict,
-            'prediction': prediction_status,
+            'prediction': statuses['all'],
             'paper': 'INCONCLUSIVE',
         },
+        'predictionByType': {kind: statuses[kind] for kind in TYPES},
         'paperReason': PAPER_REASON,
         'typeCounts': type_counts(rows),
         'fit': published_fit(rows),

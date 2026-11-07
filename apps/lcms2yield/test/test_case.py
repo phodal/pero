@@ -55,6 +55,24 @@ class TableTests(unittest.TestCase):
         self.assertGreater(float(fit['r2']), 0.9)
         self.assertGreater(float(fit['pearson']), 0.9)
 
+    def test_selected_reaction_predictions_keep_their_population(self):
+        from unittest.mock import patch
+        from lcms2yield.service import execute_rerun
+        rows = load_rows()
+        selected = [row for row in rows if row.reaction_type == 'SN2']
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, PERO_APP_DATA=directory), \
+                patch('lcms2yield.service.checkout_path', return_value='synthetic-checkout'), \
+                patch('lcms2yield.service.identity_status', return_value={'status': 'UNRUN'}), \
+                patch('lcms2yield.service.run_predictions', return_value=tuple(row.cf_pred for row in selected)) as predict:
+            execute_rerun(rows, 'SN2')
+            predict.assert_called_once_with('synthetic-checkout', [row.product_smiles for row in selected])
+            state = build_state()
+            self.assertEqual(state['predictionByType']['SN2'], 'PASS')
+            self.assertEqual(state['verdicts']['prediction'], 'UNRUN')
+            self.assertEqual(state['predictionByType']['Buchwald'], 'UNRUN')
+            for row in state['reactions']:
+                self.assertEqual(row['cfRerun'], row['cfPred'] if row['reactionType'] == 'SN2' else None)
+
     def test_environment_probe_declares_python_312_for_this_trial(self):
         from lcms2yield.environment import inspect_environment
         report = inspect_environment()

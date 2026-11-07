@@ -90,7 +90,7 @@ def handler(secret):
                 elif parsed.path == '/api/examples':
                     execute_examples(kind if isinstance(kind, str) else 'readme')
                 else:
-                    execute_rerun(load_rows())
+                    execute_rerun(load_rows(), value.get('reactionType', 'all'))
                 return self.reply(200, build_state())
             except Invalid as error:
                 return self.reply(409, {'detail': error.detail, 'code': error.code, 'paper': 'INCONCLUSIVE'})

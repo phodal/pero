@@ -99,13 +99,13 @@ def yield_table_verdict(rows):
     return 'FAIL', mae
 
 
-def cf_agreement(published, rerun):
+def cf_agreement(published, rerun, *, population=POPULATION):
     """Compare a new correction-factor run with the released prediction column.
 
     The tolerance is absolute and was fixed before any local rerun. A match does
     not recompute reaction yield from chromatograms.
     """
-    if len(published) != len(rerun) or len(published) != POPULATION:
+    if len(published) != len(rerun) or len(published) != population:
         return 'FAIL'
     for left, right in zip(published, rerun):
         if abs(_decimal(left, 'CF (Pred)') - _decimal(right, 'rerun CF')) > CF_ABSOLUTE_TOLERANCE:
