@@ -26,15 +26,17 @@ const sources = {
   html: ['report.html', 'text/html', 'html', '<h1>Static HTML result</h1><p>Original markup remains available in Source.</p><table><tr><th>Measure</th><th>Value</th></tr><tr><td>Mean</td><td>21.5</td></tr></table><script>parent.__artifactScriptRan = true</script>'],
   image: ['figure.svg', 'image/svg+xml', 'image', '<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400" viewBox="0 0 720 400"><rect width="720" height="400" fill="white"/><path d="M70 50V330H670" stroke="#222" fill="none"/><path d="M90 280L240 210L390 120L540 170L650 80" stroke="#176875" stroke-width="4" fill="none"/><text x="70" y="28" font-family="system-ui" font-size="18">Synthetic fixture, unverified</text><text x="310" y="380" font-family="system-ui" font-size="18">time [s]</text></svg>'],
 };
+const earlierCsv = 'time[s],voltage[V]\n0,3.6\n';
 let failedOnce = false;
 const server = createServer(async (request, response) => {
   try {
     const path = new URL(request.url, 'http://localhost').pathname;
     if (path === '/host/sdk') return response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ name: 'scientific-viewer', version: '0.4.0', permissions: { api: [], events: [], host: [] } }));
     if (path.startsWith('/host/artifacts/')) {
-      const id = path.split('/')[4];
+      const [, , , , id, version] = path.split('/');
       if (id === 'retry' && !failedOnce) { failedOnce = true; return response.writeHead(503).end('Unavailable'); }
-      const [name, mediaType, kind, content] = sources[id] ?? sources.markdown;
+      const [name, mediaType, kind, latest] = sources[id] ?? sources.markdown;
+      const content = id === 'csv' && version === '1' ? earlierCsv : latest;
       const bytes = Buffer.from(content), digest = createHash('sha256').update(bytes).digest('hex');
       return response.writeHead(200, { 'Content-Type': mediaType, 'Content-Length': bytes.length,
         'X-Pero-Artifact-Name': encodeURIComponent(name), 'X-Pero-Artifact-Sha256': id === 'corrupt' ? '0'.repeat(64) : digest,
@@ -138,15 +140,38 @@ try {
   const catalog = ['csv', 'markdown'].map(id => {
     const [filename, , kind, content] = sources[id];
     const format = { kind: id === 'markdown' ? 'markdown' : 'text' };
-    return { id, thread_id: 'fixture-thread', title: filename, versions: [{ version: 2,
+    const version = { version: 2,
       sha256: createHash('sha256').update(content).digest('hex'), bytes: Buffer.byteLength(content), created_at: 0,
-      format, media: kind === 'document' ? { kind, format } : { kind }, filename, source: { kind: 'text' } }] };
+      format, media: kind === 'document' ? { kind, format } : { kind }, filename, source: { kind: 'text' } };
+    const versions = id === 'csv' ? [{ ...version, version: 1,
+      sha256: createHash('sha256').update(earlierCsv).digest('hex'), bytes: Buffer.byteLength(earlierCsv), created_at: 1_700_000_000,
+      source: { kind: 'file', path: 'measurements/voltage.csv' } }, version] : [version];
+    return { id, thread_id: 'fixture-thread', title: filename, versions };
   });
   await page.evaluate(artifacts => {
     window.__artifactBrowserContext = { thread_id: 'fixture-thread', view: 'gallery', artifacts,
       selected: { thread_id: 'fixture-thread', artifact_id: 'csv', version: 2 } };
     window.postMessage({ type: 'pero:app:context', context: { artifactBrowser: window.__artifactBrowserContext } }, '*');
   }, catalog);
+  const versionDetails = page.getByRole('button', { name: 'Version details' });
+  const details = page.getByRole('dialog', { name: 'Version details' });
+  await page.getByRole('button', { name: 'Previous version' }).click();
+  await expect(page.getByRole('button', { name: 'Previous version' })).toBeDisabled();
+  await versionDetails.focus(); await versionDetails.press('Enter'); await versionDetails.press('Tab');
+  await expect(details.locator('dl')).toBeFocused();
+  await expect(details).toContainText(`v1 · CSV · ${Buffer.byteLength(earlierCsv)} B`);
+  await expect(details).toContainText('measurements/voltage.csv');
+  await expect(details).toContainText(catalog[0].versions[0].sha256);
+  await screenshot('version-details');
+  await page.keyboard.press('Escape'); await expect(versionDetails).toBeFocused();
+  await expect(details).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next version' }).click();
+  await versionDetails.click();
+  await expect(details).toContainText(catalog[0].versions[1].sha256);
+  await expect(details).toContainText('Conversation content');
+  await expect(details).not.toContainText('measurements/voltage.csv');
+  await versionDetails.press('Escape');
+  checks.push('Version details match the selected immutable version, with keyboard disclosure and focus restoration');
   const chart = page.locator('.numeric-chart svg');
   await chart.focus(); await chart.press('ArrowRight');
   await expect(page.locator('.numeric-chart output')).toContainText('Row 3:');
