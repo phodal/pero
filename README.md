@@ -162,6 +162,6 @@ Bring a concrete research question, a small public dataset with provenance, a me
 
 <p align="center">
   <a href="https://github.com/openpero/community">
-    <img src="docs/assets/wechat-group.jpg" width="240" alt="WeChat group: Pero - 瞎摸 AI4S">
+    <img src="https://raw.githubusercontent.com/openpero/community/main/assets/wechat-group.jpg" width="240" alt="WeChat group: Pero - 瞎摸 AI4S">
   </a>
 </p>
