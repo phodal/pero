@@ -1,5 +1,5 @@
 //! Host-owned Python preparation, shared by every Desktop shell.
-use super::{definition::PythonDependency, python::PythonPreparation, AppName, PythonEnvironment};
+use super::{AppName, PythonEnvironment, definition::PythonDependency, python::PythonPreparation};
 use serde::Serialize;
 use std::{
     io::{BufRead, BufReader},
@@ -31,6 +31,8 @@ pub(super) fn prepare(
     selected: Option<&PythonEnvironment>,
     managed: PythonEnvironment,
     dependencies: &[PythonDependency],
+    python_minor: &str,
+    required_minor: Option<&str>,
     progress: &mut impl FnMut(AppPreparation),
 ) -> Result<PythonPreparation, String> {
     let mut report = |phase, message: String| {
@@ -45,7 +47,7 @@ pub(super) fn prepare(
         "Checking Python dependencies".into(),
     );
     let result: Result<PythonPreparation, String> = (|| {
-        let target = selection(name, selected, managed, dependencies)?;
+        let target = selection(selected, managed, required_minor)?;
         let environment = target.environment();
         if !environment.executable().is_file() {
             report(
@@ -62,13 +64,12 @@ pub(super) fn prepare(
             let uv = installer(environment, &mut |line| {
                 report(PreparationPhase::Creating, line)
             })?;
-            let python =
-                super::python::bundled_python_executable().unwrap_or_else(|_| "3.12".into());
             let mut command = uv_command(&uv, environment);
-            // Reuse local CPython 3.12, or let uv prepare it when absent.
+            // The bundled minor resolves a real interpreter. Another minor is
+            // requested by version so uv can fetch it without a PATH shim.
             command
                 .args(["venv", "--python"])
-                .arg(&python)
+                .arg(interpreter_request(python_minor))
                 .arg(environment.root());
             run(&mut command, &mut |line| {
                 report(PreparationPhase::Creating, line)
@@ -118,12 +119,12 @@ pub(super) fn prepare(
 
 /// Read-only admission for opening an App. Acquisition belongs to `prepare`.
 pub(super) fn check(
-    name: &AppName,
     selected: Option<&PythonEnvironment>,
     managed: PythonEnvironment,
     dependencies: &[PythonDependency],
+    required_minor: Option<&str>,
 ) -> Result<PythonEnvironment, String> {
-    let target = selection(name, selected, managed, dependencies)?;
+    let target = selection(selected, managed, required_minor)?;
     let environment = target.environment();
     if selected.is_some_and(|selected| selected.root() != environment.root()) {
         return Err("This App needs a compatible Python environment. Choose Prepare environment to update its binding.".into());
@@ -144,10 +145,9 @@ pub(super) fn check(
 }
 
 fn selection(
-    name: &AppName,
     selected: Option<&PythonEnvironment>,
     managed: PythonEnvironment,
-    dependencies: &[PythonDependency],
+    required_minor: Option<&str>,
 ) -> Result<PythonPreparation, String> {
     let config = selected
         .map(|environment| {
@@ -164,12 +164,11 @@ fn selection(
         .transpose()?
         .flatten();
     PythonPreparation::for_app(
-        name,
         selected,
         managed,
         config.as_deref(),
         selected.is_some_and(|environment| environment.executable().is_file()),
-        !dependencies.is_empty(),
+        required_minor,
     )
 }
 
@@ -260,6 +259,89 @@ fn installer(
         return Err("uv installer did not create its executable".into());
     }
     Ok(uv)
+}
+
+fn interpreter_request(minor: &str) -> std::ffi::OsString {
+    if minor == super::python::BUNDLED_PYTHON_MINOR {
+        super::python::bundled_python_executable()
+            .map(|path| path.into_os_string())
+            .unwrap_or_else(|_| minor.into())
+    } else {
+        minor.into()
+    }
+}
+
+/// PyG's torch 2.3 CPU wheels are not `package==version` pins. Install them once.
+pub(super) fn install_lcms_wheels(
+    environment: &PythonEnvironment,
+    log: &mut impl FnMut(String),
+) -> Result<(), String> {
+    if lcms_wheels_ready(environment)? {
+        return Ok(());
+    }
+    log("Installing PyG wheels for torch 2.3".into());
+    install_from_index(
+        environment,
+        "https://data.pyg.org/whl/torch-2.3.0+cpu.html",
+        &[
+            "pyg_lib",
+            "torch_scatter",
+            "torch_sparse",
+            "torch_cluster",
+            "torch_spline_conv",
+        ],
+        log,
+    )
+}
+
+fn lcms_wheels_ready(environment: &PythonEnvironment) -> Result<bool, String> {
+    let output = Command::new(environment.executable())
+        .args([
+            "-I",
+            "-B",
+            "-c",
+            "import importlib.metadata as m\nfor name in ('pyg_lib','torch_scatter','torch_sparse','torch_cluster','torch_spline_conv'):\n m.version(name)\n",
+        ])
+        .output()
+        .map_err(|error| error.to_string())?;
+    Ok(output.status.success())
+}
+
+/// The pinned release lives in App data. The module returns immediately when those bytes are already there.
+pub(super) fn fetch_lcms_release(
+    environment: &PythonEnvironment,
+    app_root: &std::path::Path,
+    data: &std::path::Path,
+    log: &mut impl FnMut(String),
+) -> Result<(), String> {
+    std::fs::create_dir_all(data).map_err(|error| error.to_string())?;
+    log("Checking the pinned LCMS2Yield release".into());
+    let mut command = Command::new(environment.executable());
+    command
+        .args(["-E", "-s", "-B", "-m", "lcms2yield.assets"])
+        .current_dir(app_root.join("backend"))
+        .env_remove("PYTHONPATH")
+        .env_remove("PYTHONHOME")
+        .env("PERO_APP_DATA", data);
+    run(&mut command, log)
+}
+
+/// Install wheels that are not ordinary pinned requirements, such as PyG builds
+/// published on a find-links index. Failure stays a preparation failure.
+pub(super) fn install_from_index(
+    environment: &PythonEnvironment,
+    find_links: &str,
+    packages: &[&str],
+    log: &mut impl FnMut(String),
+) -> Result<(), String> {
+    let uv = installer(environment, log)?;
+    let mut command = uv_command(&uv, environment);
+    command
+        .args(["pip", "install", "--python"])
+        .arg(environment.executable())
+        .args(["--only-binary", ":all:", "-f", find_links])
+        .args(packages);
+    run(&mut command, log)
 }
 
 fn uv_command(uv: &std::path::Path, environment: &PythonEnvironment) -> Command {

@@ -21,7 +21,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 | 组件 | 放什么 | 不放什么 |
 | --- | --- | --- |
 | WindowTitlebar / window_bar | 窗口控制、内容标签、搜索等全局动作 | 与内容重复的标题、面包屑、说明 |
-| Sidebar / sidebar_surface | 紧凑导航、会话行尾独立新建入口、应用与账户入口 | 未实现功能占位、额外卡片边框 |
+| Sidebar / sidebar_surface | 紧凑导航、与页面相接且不顶到上沿的右侧分隔线、会话行尾独立新建入口、应用与账户入口 | 未实现功能占位、额外卡片边框 |
 | SidebarGroup / sidebar_group | 一组相关导航；跨任务域用 separated 分隔，必要时才给标签 | 每组都添加眉标或分隔线 |
 | SidebarRow / sidebar_row | 图标、名称、必要计数和选中态 | 计数外再套徽章、说明段落 |
 | LibraryHeader / library_header | 当前页面标题、必要副标题、局部动作 | 应用名和页面名重复、固定大块留白 |

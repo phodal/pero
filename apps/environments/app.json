@@ -3,7 +3,7 @@
   "name": "environments",
   "version": "0.1.0",
   "displayName": "Environments",
-  "description": "Inspect the configured scientific software for Paper and Control Lab.",
+  "description": "Inspect the configured scientific software for Paper, Control Lab, and LCMS2Yield.",
   "permissions": { "host": ["environments"], "api": [] },
   "contributes": {
     "panels": [{ "id": "main", "title": "Environments", "entry": "dist/index.html" }]

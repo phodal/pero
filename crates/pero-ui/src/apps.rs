@@ -57,7 +57,7 @@ impl InstalledApp {
         self.enabled || self.placement() != AppPlacement::Catalog
     }
     pub fn category(&self) -> AppCategory {
-        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" | "hpc" | "compute" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
+        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" | "hpc" | "compute" | "lcms2yield" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
     }
 }
 

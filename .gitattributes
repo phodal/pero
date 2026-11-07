@@ -9,3 +9,6 @@ packages/icons/content-data.generated.d.ts text eol=lf
 crates/pero-contracts/src/content_icon_data.rs text eol=lf
 web/public/icons/LICENSE.txt text eol=lf
 packages/icons/LICENSE-LUCIDE text eol=lf
+
+# The LCMS2Yield reaction table is pinned by SHA-256 of the upstream bytes.
+apps/lcms2yield/backend/data/Reaction.csv -text

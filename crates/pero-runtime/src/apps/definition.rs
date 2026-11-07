@@ -100,8 +100,44 @@ pub struct AppBackend {
     #[serde(rename = "type")]
     pub kind: BackendKind,
     pub entry: String,
+    /// Interpreter minor, such as `3.12`. Preparation installs it when the
+    /// selected environment is a different minor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub python: Option<PythonMinor>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dependencies: Vec<PythonDependency>,
+}
+
+/// A CPython minor. The Host can install the bundled minor and can ask uv for another.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(try_from = "String", into = "String")]
+pub struct PythonMinor(String);
+impl PythonMinor {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+impl TryFrom<String> for PythonMinor {
+    type Error = String;
+    fn try_from(value: String) -> Result<Self, String> {
+        let Some((major, minor)) = value.split_once('.') else {
+            return Err("Python version must be a minor such as 3.12".into());
+        };
+        if value.len() > 8
+            || major.is_empty()
+            || minor.is_empty()
+            || !major.bytes().all(|byte| byte.is_ascii_digit())
+            || !minor.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return Err("Python version must be a minor such as 3.12".into());
+        }
+        Ok(Self(value))
+    }
+}
+impl From<PythonMinor> for String {
+    fn from(value: PythonMinor) -> Self {
+        value.0
+    }
 }
 
 /// A pinned package requirement, never a pip option, URL or setup command.
@@ -239,8 +275,13 @@ impl AppDefinition {
                         || backend.entry.ends_with(".cjs")
                 }
             };
-            if backend.dependencies.len() > 64 || matches!(backend.kind, BackendKind::Node) && !backend.dependencies.is_empty() {
-                return Err("Dependencies require a Python backend and at most 64 pinned packages".into());
+            if (backend.python.is_some() && !matches!(backend.kind, BackendKind::Python))
+                || backend.dependencies.len() > 64
+                || matches!(backend.kind, BackendKind::Node) && !backend.dependencies.is_empty()
+            {
+                return Err(
+                    "Python dependencies and a Python version require a Python backend, with at most 64 pinned packages".into(),
+                );
             }
             if !relative_entry(&backend.entry) || !supported {
                 return Err(
@@ -350,6 +391,9 @@ mod tests {
                 false,
             ),
             ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["numpy==2.2.6"]}), true),
+            ("backend", serde_json::json!({"type":"python","entry":"server.py","python":"3.12"}), true),
+            ("backend", serde_json::json!({"type":"python","entry":"server.py","python":"3.12.1"}), false),
+            ("backend", serde_json::json!({"type":"node","entry":"server.mjs","python":"3.12"}), false),
             ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["--index-url==bad"]}), false),
             ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["https://example.org/pkg"]}), false),
             ("backend", serde_json::json!({"type":"python","entry":"server.py","dependencies":["numpy"]}), false),
