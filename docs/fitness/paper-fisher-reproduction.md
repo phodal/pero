@@ -139,3 +139,131 @@ case is CLI-only and uses its own disposable Paper data home; it is not connecte
 to the PC-Gym-only **Run once** button, public reproduction API or existing live
 user annotations. There was no Desktop click-through or installed-product run.
 The original PC-Gym Table 6 identity/granularity gaps remain `INCONCLUSIVE`.
+
+## Paper App workflow increment — 2026-11-07
+
+Base: `master@371ea0895f8dbd12d7fcc97e320f3a9499b3e94b`. This section supersedes
+only the CLI-only integration boundary above; the historical numerical run and
+Native acceptance limits remain separate.
+
+### User path and ownership
+
+1. Import/open the exact reviewed original PDF in Paper. The PDF toolbar offers
+   **Select Fisher Table III result** only for that file digest. It saves the
+   existing curated page-4 region as a normal figure annotation, shows its crop
+   and opens verification beside it. No OCR substitution or generic result
+   recognition is claimed.
+2. Inspect all 100 reviewed Table I measurements (50 per species), the data SHA,
+   within-species formula, units, reported value, Python/method identities and
+   comparison rule. Confirm the method, then freeze a new immutable item. An
+   absolute/relative tolerance or numeric bounds is saved before the attempt;
+   changing the policy creates another item instead of editing history.
+3. Explicitly confirm the fixed arithmetic run. The existing Host-managed Paper
+   process computes the bounded built-in method and runs the same 30-second
+   standard-library checker. It cannot accept an executable, path, code, package
+   install, model or network destination. This is a small local App calculation,
+   not another generic execution owner or a PC-Gym Host-approval bypass. It is
+   intentionally not advertised as an Agent write tool.
+4. Inspect execution, the single-result verdict, original/actual values and
+   difference, independent numerical check, and annotation receipt separately.
+   Source navigation goes back to the same original region. A result note is
+   saved in the **active Paper store**, not a disposable CLI library.
+5. Rerunning creates a new attempt. A stable request ID reconciles a lost response
+   without duplicating computation; an unfinished recorded attempt is not
+   replayed. Saved items and attempts remain available after process restart.
+6. Export the selected attempt as a ZIP. It includes original PDF, reviewed data,
+   frozen protocol/selection, raw observations, execution/checker evidence,
+   comparison and annotation receipts, logs and readable instructions. Extract
+   into a fresh directory and run `python -I -S verify.py`. No package dependency,
+   model credential or network is required for this independent numerical check.
+
+The active-source selection, command admission and existing comparison contract
+remain domain values; the HTTP adapter only maps authenticated requests. The new
+`/api/fisher/step` and `/api/fisher/evidence-archive` routes do not change
+`/api/reproduction/step`, PC-Gym configuration or its `INCONCLUSIVE` verdict.
+Whole-paper acceptance always remains `NOT_ASSESSED` for Fisher.
+
+### Design and reference decisions
+
+The PDF reader remains the primary surface. The new panel reuses SDK Button,
+Checkbox, Select, Input, Table, Disclosure and Feedback; primary confirmation and
+result states stay visible, while version/command detail is disclosed. No shared
+tokens, existing PC-Gym controls or numeric-observation state owners were replaced.
+
+The workflow uses two published product ideas, not copied implementations:
+[Wisp Publication Evidence](https://github.com/xuzhougeng/wisp-science/blob/main/docs/publication-evidence.md)
+separates explicit freeze from verification and preserves exact evidence;
+[AIPOCH research packages](https://aipoch.com/docs/guides/research-packages/)
+separates inspectable handoff from executing received code. Wisp's current
+[license](https://github.com/xuzhougeng/wisp-science/blob/main/LICENSE) is AGPL-3.0;
+AIPOCH's [license](https://github.com/aipoch/open-science/blob/main/LICENSE) is
+Apache-2.0. No code, assets or documentation text from either project is copied.
+This increment does not implement either project's general capsule or import
+format, nor does it claim their runtime behavior was independently tested.
+
+### Verified so far
+
+- Original-PDF API integration covers authenticated select/freeze/run/status,
+  the real float calculation and separate exact checker, result note in the
+  active store, request reconciliation, restart, a distinct rerun and ZIP
+  extraction/recheck. Independent exact value remains `95717 / 5000 = 19.1434`.
+- Policy changes create a new item; deliberately excluding the actual value
+  produces `MISMATCH` with successful execution and an independent `PASS`.
+  Environment change produces `environment_failed`/`INCONCLUSIVE`, not mismatch.
+- A recorded unfinished attempt, including a crash after calculation but before
+  comparison, blocks a new attempt. Changed spec/source and arbitrary command
+  fields are rejected. Existing PC-Gym public execution still returns HTTP 403.
+- Complete Paper suite with the original PDF enabled: **381 tests, 377 passed,
+  4 skipped, no failures**. `test-results/fisher-app-20261107/python.log` records
+  the 82.680-second run; new App workflow tests are 5 of these.
+- Paper TypeScript typecheck passed. Full root `npm run check` is blocked at the
+  pre-existing missing generated `web/src/reader-wasm/pero_reader_web` module.
+  Full Paper product build is blocked by absent `PERO_GPUI_KIT_PATH`; the shared
+  Reader build requires the GPUI Kit checkout. Neither blocked stage is a pass.
+
+Browser interaction, visual and current final-source verification are recorded
+below when completed. Native GPUI, Electron Host integration, signed packages,
+other platforms, human scientific review and a second non-curated paper remain
+unverified. This bounded engineering slice does not close #77 or establish
+scientific generality or product-market fit.
+
+### Independent local verification follow-up — 2026-11-07
+
+Source: `371ea0895f8dbd12d7fcc97e320f3a9499b3e94b` plus the uncommitted Fisher App
+increment. No push, PR publication, model call or API credential was used.
+
+- `tests/e2e/paper-fisher-state.mjs` now passes and exits normally. The previous
+  remount assertion incorrectly expected the input-review editor in the restored
+  frozen-result stage. The test now checks that stage, closes its disposable
+  Node MessageChannels, and verifies rapid repeated freeze/run clicks dispatch
+  once. It also covers all 100 inputs, failed refresh retaining results,
+  unresolved submission surviving remount, no replay of an unfinished attempt,
+  same-request recovery, missing annotation warning and environment failure.
+  This is production React in JSDOM with transport fixtures, not a browser or
+  scientific execution claim.
+- Original-source focused Python suite: **18/18 passed**, 2.605 seconds,
+  including authenticated real loopback HTTP, real arithmetic, independent
+  exact checker, restart, repeat-request reconciliation and exported ZIP
+  extraction/recheck. Log: `test-results/fisher-app-20261107/focused-final.log`.
+- Shared bundle/staging checks: **5/5 passed**, including staged Paper CLI.
+  Log: `test-results/fisher-app-20261107/staging-final.log`.
+- Both Chromium suites were attempted, including the production PdfViewer with
+  a real local Python backend. Bundling and backend readiness succeeded, but
+  Chromium exited before page creation: `process_singleton_posix.cc:297`,
+  `socket() failed: Operation not permitted (1)`. An approved escalated retry
+  hit the same runtime restriction. Logs: `component.log` and `browser.log` in
+  `test-results/fisher-app-20261107/`. No current browser screenshot or visual
+  acceptance was produced. Narrow/dark layouts, keyboard/focus, PDF close/reopen
+  and source-navigation interaction therefore remain unverified in Chromium.
+
+The browser test scripts remain executable acceptance candidates, not passing
+acceptance evidence. Native GPUI, Electron/Host integration and signed-package
+acceptance remain unverified. No scientific-generalization or #77 closure claim
+is made.
+
+Final-source aggregate rerun: **381 Python tests, 377 passed and 4 skipped, no
+failures**, 87.398 seconds (`python-final.log`). Paper TypeScript typecheck passed
+(`typecheck.log`). Root `npm run check` remains blocked by the existing missing
+`web/src/reader-wasm/pero_reader_web` generated module (`root-check.log`), so its
+later generated-asset checks did not execute. `git diff --check` passed. Logs
+are under `test-results/fisher-app-20261107/`.

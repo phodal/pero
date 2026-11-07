@@ -1,0 +1,64 @@
+name: Paper Fisher browser verification
+on:
+  pull_request:
+    paths:
+      - 'apps/paper-agent/**'
+      - 'packages/app-sdk/**'
+      - 'tests/e2e/paper-fisher-*.mjs'
+      - '.github/workflows/paper-fisher.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fisher:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONPATH: apps/paper-agent/backend
+      PERO_FISHER_PDF: /tmp/pero-fisher1936.pdf
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies and Chromium
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/paper-agent --ignore-scripts
+          python -c 'import json,subprocess,sys; deps=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*deps],check=True)'
+          npx playwright install --with-deps chromium
+      - name: Opt in to the public original scan and verify its pinned digest
+        run: |
+          python - <<'PY'
+          import hashlib, os, urllib.request
+          from pathlib import Path
+          from paper_agent.fisher_result import PDF_URL, PDF_SHA256
+          with urllib.request.urlopen(PDF_URL, timeout=30) as response:
+              data = response.read(20_000_001)
+          assert len(data) <= 20_000_000 and hashlib.sha256(data).hexdigest() == PDF_SHA256
+          Path(os.environ['PERO_FISHER_PDF']).write_bytes(data)
+          PY
+      - name: Check types and source-backed numerical contracts
+        id: contracts
+        run: |
+          npm --prefix apps/paper-agent run typecheck
+          python -m unittest discover -s apps/paper-agent/test -p 'test_fisher*.py' -v
+      - name: Verify component recovery
+        run: |
+          node tests/e2e/paper-fisher-state.mjs
+          node tests/e2e/paper-fisher-component.mjs
+      - name: Verify real PDF and arithmetic independently of component assertions
+        if: ${{ !cancelled() && steps.contracts.outcome == 'success' }}
+        run: node tests/e2e/paper-fisher-browser.mjs
+      - name: Preserve browser evidence (not Native acceptance)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: paper-fisher-${{ github.sha }}
+          path: test-results/paper-fisher/
+          if-no-files-found: warn
