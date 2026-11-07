@@ -192,6 +192,37 @@ fn main() -> io::Result<()> {
         }
         if value
             .get("method")
+            .and_then(|method| method.as_str())
+            .is_some_and(|method| method.starts_with("settings.engram"))
+        {
+            use pero_contracts::engram::{EngramSettings, EngramSettingsRequest};
+            let mut event = HostEvent::new(
+                "engram_settings_error",
+                value.get("id").and_then(|id| id.as_str()).map(str::to_owned),
+                String::new(),
+            );
+            if let Ok(request) = serde_json::from_value::<EngramSettingsRequest>(value) {
+                let saved = match request {
+                    EngramSettingsRequest::Get => {
+                        Some(settings_path.as_deref().map(pero_runtime::settings::load_engram).unwrap_or_default())
+                    }
+                    EngramSettingsRequest::Set { enabled, binary } => {
+                        let settings = EngramSettings { enabled, binary };
+                        settings_path.as_deref().and_then(|path| {
+                            pero_runtime::settings::save_engram(path, &settings).ok().map(|_| settings)
+                        })
+                    }
+                };
+                if let Some(settings) = saved {
+                    event.kind = "engram_settings".into();
+                    event.data = serde_json::json!(settings);
+                }
+            }
+            emit(event)?;
+            continue;
+        }
+        if value
+            .get("method")
             .and_then(|v| v.as_str())
             .is_some_and(|method| method.starts_with("settings.workbench"))
         {

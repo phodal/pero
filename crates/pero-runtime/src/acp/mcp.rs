@@ -3,7 +3,7 @@ use super::AgentConfig;
 use agent_client_protocol::schema::v1::{McpServer, McpServerHttp, McpServerStdio};
 use pero_contracts::mcp::{McpConfiguration, McpTransport};
 
-pub(super) const TOOL_POLICY_CAPABILITY: &str = "pero.mcpToolPolicy";
+pub const TOOL_POLICY_CAPABILITY: &str = "pero.mcpToolPolicy";
 
 impl AgentConfig {
     /// Policy-bearing snapshots cannot silently downgrade on external Agents.

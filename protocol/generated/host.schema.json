@@ -7175,6 +7175,111 @@
       ],
       "additionalProperties": false
     },
+    "EngramBinary": {
+      "title": "EngramBinary",
+      "type": "string",
+      "maxLength": 4096
+    },
+    "EngramSettingsData": {
+      "title": "EngramSettingsData",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "binary": {
+          "$ref": "#/$defs/EngramBinary"
+        }
+      },
+      "required": [
+        "enabled",
+        "binary"
+      ],
+      "additionalProperties": false
+    },
+    "EngramSettingsErrorEvent": {
+      "title": "EngramSettingsErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "engram_settings_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "EngramSettingsEvent": {
+      "title": "EngramSettingsEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "engram_settings"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/EngramSettingsData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "EngramSettingsRequest": {
+      "title": "EngramSettingsRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GetEngramSettings"
+        },
+        {
+          "$ref": "#/$defs/SetEngramSettings"
+        }
+      ]
+    },
     "EnvironmentInspectionApp": {
       "title": "EnvironmentInspectionApp",
       "type": "object",
@@ -7590,6 +7695,20 @@
       ],
       "additionalProperties": false
     },
+    "GetEngramSettings": {
+      "title": "GetEngramSettings",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "settings.engram.get"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "additionalProperties": false
+    },
     "GetIconThemes": {
       "title": "GetIconThemes",
       "type": "object",
@@ -7916,6 +8035,12 @@
           "$ref": "#/$defs/SettingsEvent"
         },
         {
+          "$ref": "#/$defs/EngramSettingsEvent"
+        },
+        {
+          "$ref": "#/$defs/EngramSettingsErrorEvent"
+        },
+        {
           "$ref": "#/$defs/WorkbenchSettingsEvent"
         },
         {
@@ -8093,6 +8218,9 @@
         },
         {
           "$ref": "#/$defs/HostCommand"
+        },
+        {
+          "$ref": "#/$defs/EngramSettingsRequest"
         },
         {
           "$ref": "#/$defs/AppRequest"
@@ -14007,6 +14135,28 @@
         "text",
         "thread_id",
         "data"
+      ],
+      "additionalProperties": false
+    },
+    "SetEngramSettings": {
+      "title": "SetEngramSettings",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "settings.engram"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "binary": {
+          "$ref": "#/$defs/EngramBinary"
+        }
+      },
+      "required": [
+        "method",
+        "enabled",
+        "binary"
       ],
       "additionalProperties": false
     },

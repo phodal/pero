@@ -16,9 +16,10 @@ pub(crate) enum SettingsSection {
     Mcp,
     Harness,
     Shortcuts,
+    Memory,
 }
 impl SettingsSection {
-    pub(crate) const ALL: [Self; 12] = [
+    pub(crate) const ALL: [Self; 13] = [
         Self::General,
         Self::Shortcuts,
         Self::Theme,
@@ -30,6 +31,7 @@ impl SettingsSection {
         Self::Workers,
         Self::Connections,
         Self::Mcp,
+        Self::Memory,
         Self::Computer,
     ];
     pub(crate) fn key(self) -> &'static str {
@@ -46,6 +48,7 @@ impl SettingsSection {
             Self::Computer => "computer.title",
             Self::Mcp => "mcp.title",
             Self::Harness => "harness.title",
+            Self::Memory => "engram.title",
         }
     }
     pub(crate) fn scope(self) -> Option<FontScope> {

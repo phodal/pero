@@ -24,6 +24,7 @@ pub(crate) fn navigation_roots(panel: &SettingsPanel, cx: &App) -> Vec<TreeItem>
         SettingsSection::Workers,
         SettingsSection::Connections,
         SettingsSection::Mcp,
+        SettingsSection::Memory,
         SettingsSection::Computer,
     ] {
         if sections.contains(&section) {

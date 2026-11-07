@@ -32,6 +32,7 @@ pub(crate) enum SettingsAction {
     Locale(&'static str),
     Harness(pero_contracts::harness_settings::HarnessControl),
     Computer(pero_contracts::computer_runtime::ComputerControl),
+    Engram(pero_contracts::engram::EngramSettings),
     Mcp(serde_json::Value),
     Close,
 }
@@ -44,6 +45,8 @@ pub(crate) struct SettingsPanel {
     pub error: Option<String>,
     pub computer: Option<pero_contracts::computer_runtime::ComputerUseState>,
     pub computer_pending: bool,
+    pub(crate) engram: pero_contracts::engram::EngramSettings,
+    pub(crate) engram_binary: Entity<InputState>,
     pub(crate) mcp: crate::settings_mcp::McpEditor,
     pub(crate) section: SettingsSection,
     pub(crate) harness: Option<pero_contracts::harness_settings::HarnessState>,
@@ -166,6 +169,15 @@ impl SettingsPanel {
             ));
         }
         let mcp = crate::settings_mcp::McpEditor::new(window, cx);
+        let engram_binary = cx.new(|cx| {
+            InputState::new(window, cx).placeholder(pero_contracts::i18n::text(&locale, "engram.binary"))
+        });
+        subscriptions.push(cx.subscribe(&engram_binary, |this, input, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::PressEnter { .. } | InputEvent::Blur) {
+                this.save_engram(input.read(cx).value().to_string(), cx);
+            }
+            cx.notify();
+        }));
         Self {
             mcp,
             preferences,
@@ -179,6 +191,8 @@ impl SettingsPanel {
             harness: None, harness_inputs, harness_sync: true, harness_remove_confirm: false,
             computer: None,
             computer_pending: false,
+            engram: Default::default(),
+            engram_binary,
             section: Default::default(),
             workbench: None,
             navigation,
@@ -454,6 +468,7 @@ impl SettingsPanel {
                     SettingsSection::Shortcuts => &["shortcuts.title","shortcuts.search"],
                     SettingsSection::General => &["menu.language"],
                     SettingsSection::Mcp => &["mcp.agent", "mcp.add"],
+                    SettingsSection::Memory => &["engram.enable", "engram.binary", "engram.hint"],
                     SettingsSection::Harness => &["harness.api_key", "harness.endpoint", "harness.model"],
                     SettingsSection::Computer => &["computer.enable", "computer.permissions", "computer.stop"],
                     SettingsSection::Theme => &["settings.appearance", "settings.accent", "icons.title"],
@@ -535,6 +550,7 @@ impl SettingsPanel {
                 SettingsSection::General => self.language_settings(cx),
                 SettingsSection::Computer => self.computer_settings(cx),
                 SettingsSection::Mcp => self.mcp_settings(cx),
+                SettingsSection::Memory => self.engram_settings(cx),
                 SettingsSection::Harness => self.harness_settings(cx),
                 SettingsSection::Shortcuts => self.shortcut_settings(cx),
                 SettingsSection::Agents | SettingsSection::Workers | SettingsSection::Connections => self.category_page(section, cx),

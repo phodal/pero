@@ -292,3 +292,19 @@ pub fn save_mcp(
 pub fn save_harness(path: &Path, settings: &pero_contracts::harness_settings::HarnessSettings) -> io::Result<()> {
     update(path, |value| value["harness"] = serde_json::to_value(settings).expect("harness settings"))
 }
+
+pub fn load_engram(path: &Path) -> pero_contracts::engram::EngramSettings {
+    std::fs::read(path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|value| serde_json::from_value(value.get("engram")?.clone()).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_engram(path: &Path, settings: &pero_contracts::engram::EngramSettings) -> io::Result<()> {
+    if !settings.valid() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "engram"));
+    }
+    let settings = serde_json::to_value(settings)?;
+    update(path, |value| value["engram"] = settings)
+}

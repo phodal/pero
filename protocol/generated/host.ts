@@ -23,6 +23,7 @@ export type HostInput =
   | GetWorkbenchSettingsRequest
   | SetWorkbenchSettingsRequest
   | HostCommand
+  | EngramSettingsRequest
   | AppRequest
   | ContributionRequest;
 /**
@@ -109,6 +110,8 @@ export type ContextKind =
   "file" | "directory" | "symbol" | "thread" | "skill" | "image" | "selection" | "branch_diff" | "fetch" | "app_object";
 export type ContextContent = TextContextContent | ImageContextContent;
 export type QuestionReply = AnsweredQuestions | CancelledQuestions;
+export type EngramSettingsRequest = GetEngramSettings | SetEngramSettings;
+export type EngramBinary = string;
 export type AppRequest =
   | LocalEnvironmentApp
   | EnvironmentInspectionApp
@@ -207,6 +210,8 @@ export type HostEvent =
   | ContributionResultEvent
   | ContributionErrorEvent
   | SettingsEvent
+  | EngramSettingsEvent
+  | EngramSettingsErrorEvent
   | WorkbenchSettingsEvent
   | RemoteSettingsSavedEvent
   | RemoteSettingsErrorEvent
@@ -1535,6 +1540,14 @@ export interface InsightsCommand {
   action: "insights";
   thread_id: ThreadId;
 }
+export interface GetEngramSettings {
+  method: "settings.engram.get";
+}
+export interface SetEngramSettings {
+  method: "settings.engram";
+  enabled: boolean;
+  binary: EngramBinary;
+}
 export interface LocalEnvironmentApp {
   action: "localenvironment";
   name: AppName;
@@ -2555,6 +2568,23 @@ export interface ContributionErrorData {
  */
 export interface SettingsEvent {
   kind: "settings";
+  version: 1;
+  request_id: string | null;
+  text: string;
+}
+export interface EngramSettingsEvent {
+  kind: "engram_settings";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: EngramSettingsData;
+}
+export interface EngramSettingsData {
+  enabled: boolean;
+  binary: EngramBinary;
+}
+export interface EngramSettingsErrorEvent {
+  kind: "engram_settings_error";
   version: 1;
   request_id: string | null;
   text: string;

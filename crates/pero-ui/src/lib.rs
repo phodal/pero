@@ -52,6 +52,8 @@ mod settings_controls;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_computer;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod settings_engram;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_mcp;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod settings_window;

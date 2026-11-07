@@ -57,6 +57,13 @@ impl Workbench {
                         SettingsAction::Computer(control) => {
                             this.command(serde_json::to_value(control).expect("computer control"), cx);
                         }
+                        SettingsAction::Engram(settings) => {
+                            this.command(serde_json::json!({
+                                "method": "settings.engram",
+                                "enabled": settings.enabled,
+                                "binary": settings.binary,
+                            }), cx);
+                        }
                     }
                     cx.notify();
                 }),
@@ -68,6 +75,7 @@ impl Workbench {
         self.settings_panel = Some(panel);
         self.apply_settings_section(cx);
         self.command(serde_json::json!({"action":"harness_get"}), cx);
+        self.command(serde_json::json!({"method":"settings.engram.get"}), cx);
         self.sync_settings_panel(cx);
         cx.notify();
     }

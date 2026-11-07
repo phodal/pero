@@ -539,7 +539,7 @@ impl Workbench {
         if event.kind == "automation_open" { self.open_automations(window, cx); return; }
         let event_kind = event.kind.clone();
         let feature_handled = self.receive_terminal(&event,cx) || self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
-            || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_roadmap(&event, cx)
+            || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_engram(&event, window, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, window, cx)
             || self.receive_contribution(&event, cx)
             || self.receive_research_resources(&event, cx)

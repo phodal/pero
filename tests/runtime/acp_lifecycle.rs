@@ -58,6 +58,7 @@ fn launch_with_access(
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let config = AgentConfig {
         session_instructions: String::new(),
+            memory_instructions: String::new(),
             required_mcp_servers: Default::default(),
         managed_mcp: None,
         id: "fixture".into(),

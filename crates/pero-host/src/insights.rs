@@ -598,7 +598,12 @@ mod tests {
             event(
                 "session_update",
                 "",
-                serde_json::json!({"sessionUpdate":"tool_call_update","toolCallId":"t1","status":"failed"}),
+                serde_json::json!({"sessionUpdate":"tool_call_update","toolCallId":"t1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"MEMORY_BODY"}}]}),
+            ),
+            event(
+                "session_update",
+                "",
+                serde_json::json!({"sessionUpdate":"tool_call_update","toolCallId":"t1","status":"failed","content":[{"type":"content","content":{"type":"text","text":"FAILED_BODY"}}]}),
             ),
             event(
                 "session_update",
@@ -654,6 +659,8 @@ mod tests {
         let body = serde_json::to_string(&report.to_json()).unwrap();
         assert!(body.contains("Stop here"));
         assert!(!body.contains("SECRET_ARG"));
+        assert!(!body.contains("MEMORY_BODY"));
+        assert!(!body.contains("FAILED_BODY"));
         assert!(!body.contains("HIDDEN_THOUGHT"));
         let _ = fs::remove_dir_all(&dir);
     }

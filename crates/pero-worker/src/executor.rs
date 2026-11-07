@@ -123,6 +123,7 @@ impl Config {
         env.insert("PERO_REMOTE_CHANNEL_SECRET".into(), grant.secret.clone());
         let agent = AgentConfig {
             session_instructions: String::new(),
+            memory_instructions: String::new(),
             required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: run.spec.agent_id.clone(), name: "Remote ACP bridge".into(),

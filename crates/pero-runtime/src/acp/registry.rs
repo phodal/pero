@@ -13,6 +13,9 @@ pub struct AgentConfig {
     /// Host-frozen App/plugin instructions; never read from the Agent registry.
     #[serde(skip)]
     pub session_instructions: String,
+    /// Host note for optional Engram tools. Empty when that process is not attached.
+    #[serde(skip)]
+    pub memory_instructions: String,
     /// Frozen local managed configuration; not accepted from Agent registry JSON.
     #[serde(skip)]
     pub managed_mcp: Option<pero_contracts::mcp::McpConfiguration>,
@@ -105,6 +108,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
     let mut agents = vec![
         AgentConfig {
             session_instructions: String::new(),
+            memory_instructions: String::new(),
             required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "pero".into(),
@@ -132,6 +136,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            memory_instructions: String::new(),
             required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "codex".into(),
@@ -147,6 +152,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            memory_instructions: String::new(),
             required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "claude".into(),
@@ -162,6 +168,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            memory_instructions: String::new(),
             required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "copilot".into(),
@@ -174,6 +181,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            memory_instructions: String::new(),
             required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "grok".into(),
@@ -186,6 +194,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            memory_instructions: String::new(),
             required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "qoder".into(),
@@ -198,6 +207,7 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
         },
         AgentConfig {
             session_instructions: String::new(),
+            memory_instructions: String::new(),
             required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "opencode".into(),
@@ -384,6 +394,7 @@ mod tests {
     fn agent(args: &[&str], env: &[(&str, &str)]) -> AgentConfig {
         AgentConfig {
             session_instructions: String::new(),
+            memory_instructions: String::new(),
             required_mcp_servers: Default::default(),
             managed_mcp: None,
             id: "pero".into(),

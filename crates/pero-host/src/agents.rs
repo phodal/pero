@@ -455,6 +455,11 @@ impl Manager {
                         HostEvent::message("session_preparing", None, "chat.preparing_app")
                     } else if error == acp::CREDENTIAL_REQUIRED {
                         HostEvent::message("session_error", None, acp::CREDENTIAL_REQUIRED)
+                    } else if let Some(key) = error.strip_prefix("engram.") {
+                        let mut event = HostEvent::message("session_error", None, &format!("engram.{key}"));
+                        event.thread_id = Some(thread_id);
+                        let _ = self.tx.send(event);
+                        return;
                     } else {
                         HostEvent::new("session_error", None, error)
                     };

@@ -85,6 +85,13 @@ impl Manager {
         if let Some(endpoint) = &self.connectors {
             endpoint.bind(&mut agent, &thread_id)?;
         }
+        pero_runtime::engram::attach(&mut agent, pero_runtime::engram::Attach {
+            settings: self.settings_path.as_deref().map(pero_runtime::settings::load_engram).unwrap_or_default(),
+            workspace: &self.workspace,
+            data_home: self.settings_path.as_deref().and_then(|path| path.parent()),
+            insights: scope.as_ref().is_some_and(|scope| scope.app == "insights")
+                || binding.is_some_and(|binding| binding.app.as_str() == "insights"),
+        })?;
         if binding.is_none() {
             if let Some(path) = &self.settings_path {
                 pero_runtime::settings::save_chat_agent(path, agent_id)

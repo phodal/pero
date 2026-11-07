@@ -337,6 +337,14 @@ model TerminalError {kind:"error";id:uint32;message:string;...Closed}
 @oneOf union TerminalData {TerminalOpened,TerminalOutput,TerminalExited,TerminalError}
 model TerminalEvent {kind:"terminal";...EventBase;data:TerminalData}
 
+@maxLength(4096) scalar EngramBinary extends string;
+model EngramSettingsData { enabled: boolean; binary: EngramBinary; ...Closed; }
+model GetEngramSettings { method: "settings.engram.get"; ...Closed; }
+model SetEngramSettings { method: "settings.engram"; enabled: boolean; binary: EngramBinary; ...Closed; }
+@oneOf union EngramSettingsRequest { GetEngramSettings, SetEngramSettings }
+model EngramSettingsEvent { kind: "engram_settings"; ...EventBase; data: EngramSettingsData; }
+model EngramSettingsErrorEvent { kind: "engram_settings_error"; ...EventBase; }
+
 @oneOf
 union HostInput {
   Pero.Automation.AutomationRequest,
@@ -356,6 +364,7 @@ union HostInput {
   GetWorkbenchSettingsRequest,
   SetWorkbenchSettingsRequest,
   HostCommand,
+  EngramSettingsRequest,
   Pero.Apps.AppRequest,
   Pero.Contributions.ContributionRequest,
 }
@@ -575,6 +584,8 @@ union HostEvent {
   Pero.Contributions.ContributionResultEvent,
   Pero.Contributions.ContributionErrorEvent,
   SettingsEvent,
+  EngramSettingsEvent,
+  EngramSettingsErrorEvent,
   WorkbenchSettingsEvent,
   RemoteSettingsSavedEvent,
   RemoteSettingsErrorEvent,

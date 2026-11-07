@@ -550,6 +550,9 @@ async fn run(
                         if !config.session_instructions.is_empty() {
                             blocks.push(ContentBlock::Text(TextContent::new(format!("Host-mounted App Agent Plugin instructions:\n{}", config.session_instructions))));
                         }
+                        if !config.memory_instructions.is_empty() {
+                            blocks.push(ContentBlock::Text(TextContent::new(config.memory_instructions.clone())));
+                        }
                         event(&tx, &thread, "turn_started", "正在思考", Value::Null);
                         let changes = if acquire_workspace {
                             let workspace = cwd.clone(); let capture_thread = thread.clone();
