@@ -120,7 +120,8 @@ impl Manager {
                         Ok(json!({"terminals":[]}))
                     }
                     Request::Status{..}=>{
-                        let projection_error = self.observe_paper_run(&id,&binding,&view.status).err();
+                        self.observe_paper_run(&binding,view.clone())?;
+                        let projection_error = self.paper_worker.error(&id).map(str::to_owned);
                         let mut value = serde_json::to_value(view).map_err(|e|e.to_string())?;
                         if let Some(error)=projection_error { value["error"]=json!(format!("Research progress or artifact delivery needs retry: {error}")); }
                         Ok(value)
@@ -128,8 +129,9 @@ impl Manager {
                     Request::Events{after,..}=>serde_json::to_value(self.run_transcript(&id,run_binding,after)).map_err(|e|e.to_string()),
                     Request::Cancel{..}=>{
                         if view.active(){let mut event=HostEvent::new("app_agent_cancel",None,String::new());event.thread_id=Some(id.clone());event.data=json!({});self.run_journal.append(&self.tx,event)?;self.command(HostCommand::Cancel{thread_id:id.clone()});}
-                        self.observe_paper_run(&id,&binding,"cancelling")?;
-                        serde_json::to_value(self.run_transcript(&id,run_binding,0).run).map_err(|e|e.to_string())
+                        let next=self.run_transcript(&id,run_binding,0).run;
+                        self.observe_paper_run(&binding,next.clone())?;
+                        serde_json::to_value(next).map_err(|e|e.to_string())
                     }
                     Request::Retry{scope,request_id,text,..}=>{
                         self.run_scope(&scope)?;agent_run::request_key(&request_id)?;

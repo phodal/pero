@@ -104,7 +104,7 @@ try {
   await writeFile(join(source, 'dist/index.html'), '<h1>Synthetic Paper program fixture</h1>');
   await copyFile(join(root, 'tests/runtime/paper-program-fixture.mjs'), join(source, 'server.mjs'));
   await cp(join(root, 'apps/paper-agent/agent-plugins'), join(source, 'agent-plugins'), { recursive: true });
-  await json(join(source, 'fixture.json'), { context, protocol, checkpoints, instructions, nextAction });
+  await json(join(source, 'fixture.json'), { context, protocol, checkpoints, instructions, nextAction, failTerminalObservation:true });
   const names = ['research-program', 'research-search', 'research-acquire', 'research-deliver'];
   await json(join(source, 'app.json'), { schemaVersion: 1, name: 'paper-agent', version: '1', displayName: 'Paper program fixture',
     permissions: { host: ['agent', 'agent-plugin'] }, requiresAgentPlugins: ['paper-autoresearch'], backend: { type: 'node', entry: 'server.mjs' }, contributes: {
@@ -150,10 +150,30 @@ try {
   if (!withoutStatusPolling) {
     const status = await appRequest('agentrun', { name: 'paper-agent', request: { operation: 'status', scope, runId: run.id } });
     assert.equal(status.status, 'completed');
-    assert(!status.error, status.error);
+
   }
   // In the no-poll path, only Host events may trigger and expose terminal delivery.
   await wait(event => event.kind === 'artifact_registered' && event.thread_id === run.sessionId && event.data.artifact.versions.length === 2);
+  assert(events.some(event => event.kind === 'paper_research_delivery_error'), 'transient terminal failure was not exposed');
+  const cancelled = await appRequest('agentrun', { name:'paper-agent', request:{operation:'cancel',scope,runId:run.id} });
+  assert.equal(cancelled.status, 'completed', 'late Cancel changed a terminal Run');
+  const badMutation = await appRequest('research-program', {name:'paper-agent',threadId:run.id,tool:'research-program',operationId:'transport-only',request:{operation:'finish',reason:'no_progress',expectedCheckpoint:checkpoints[1]}}, false);
+  assert.equal(badMutation.ok,false);
+  assert.match(badMutation.error,/stable operationId/);
+  // Keep real backend I/O blocked while the Host must answer an unrelated command.
+  const block = join(directory,'app-data/paper-agent/block-read');
+  await writeFile(block, 'hold');
+  const blockedRead = appRequest('research-program',{name:'paper-agent',threadId:run.id,tool:'research-program',operationId:'slow-read',request:{operation:'read'}});
+  const ready = join(directory,'app-data/paper-agent/read-blocked');
+  const deadline = Date.now()+5000;
+  while (!await readFile(ready,'utf8').then(()=>true,()=>false)) {
+    assert(Date.now()<deadline,'backend never accepted the blocked read');
+    await new Promise(done=>setTimeout(done,20));
+  }
+  host.stdin.write(JSON.stringify({id:'responsive-during-research',text:'still responsive'})+'\n');
+  await wait(event=>event.kind==='echo'&&event.request_id==='responsive-during-research');
+  assert(!events.some(event=>event.kind==='apps_result'&&event.data?.value?.id===context.programId),'blocked tool completed before release');
+  await rm(block); await blockedRead;
   assert.equal(events.filter(event => event.kind === 'session_created' && event.thread_id === run.sessionId).length, 1);
   assert.equal(events.filter(event => event.kind === 'turn_started' && event.thread_id === run.sessionId).length, 1);
   assert.equal(requests.length, 6, JSON.stringify(providerErrors));
@@ -180,13 +200,15 @@ try {
   }
   const calls = (await readFile(join(directory, 'app-data/paper-agent/calls.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
   assert.equal(calls.filter(call => call.operation === 'feedback').length, 2);
+  assert(calls.filter(call=>call.operation==='observe-run'&&call.status==='completed').length>=2,'failed observation never retried');
+  assert(!calls.some(call=>call.operation==='observe-run'&&call.status==='cancelling'),'late Cancel overwrote backend terminal status');
   assert(calls.some(call => call.operation === 'observe-run' && call.status === 'completed'),
     'Host did not reconcile the terminal run with its bound program');
   assert(calls.filter(call => call.threadId).every(call => call.threadId === run.sessionId), 'backend received a selected/foreign thread');
   const audit = await readFile(join(directory, 'settings.research', context.programId, 'model-attempts.log'), 'utf8');
   assert.equal(audit.trim().split('\n').length, 6);
   const appAudit = await readFile(join(directory, 'settings.research', context.programId, 'app-calls.log'), 'utf8');
-  assert.equal(appAudit.trim().split('\n').length, 1, 'only the admitted finish consumed an App call');
+  assert.equal(appAudit.trim().split('\n').length, 2, 'only the admitted finish and read consumed App calls');
 
   selected = 'ordinary';
   send({ action: 'new_session', thread_id: selected, agent_id: 'pero', scope: { app: 'paper-agent', panel: 'main' } });
@@ -204,7 +226,7 @@ try {
     artifactCount: saved.length, versionsPerArtifact: 2, hostSHA256: sha(await readFile(binary)), harnessSHA256: sha(await readFile(agent)),
     checks: ['saved App run context selects research mode', 'normal model stop resumes in the same session/turn',
       ...(withoutStatusPolling ? ['terminal artifacts are delivered without UI status polling'] : []),
-      'Host protocol budgets remain authoritative', 'direct artifact exports deduplicate and retain old snapshots',
+      'slow research I/O leaves Host commands responsive', 'failed terminal delivery retries without UI polling', 'late Cancel preserves terminal status', 'mutations require stable operation IDs', 'Host protocol budgets remain authoritative', 'direct artifact exports deduplicate and retain old snapshots',
       'foreign program and ordinary unbound research calls are rejected'],
     limitations: ['Synthetic Paper backend; Python domain tested separately', 'No desktop UI or scientific acceptance'] };
   await mkdir(join(root, 'test-results/paper-program-harness'), { recursive: true });

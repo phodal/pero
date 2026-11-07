@@ -8,6 +8,7 @@ import { join } from 'node:path';
 const config = JSON.parse(await readFile(new URL('./fixture.json', import.meta.url), 'utf8'));
 const data = process.env.PERO_APP_DATA;
 const statePath = join(data, 'state.json');
+let failedTerminal = false;
 let state = { checkpoint: config.checkpoints[0], finished: false, threadId: null };
 await writeFile(statePath, JSON.stringify(state));
 const descriptor = () => ({ context: config.context, protocol: config.protocol,
@@ -34,6 +35,20 @@ const server = createServer(async (request, response) => {
     const value = JSON.parse(raw);
     assert.equal(value.programId, config.context.programId);
     await appendFile(join(data, 'calls.jsonl'), JSON.stringify(value) + '\n');
+    const controlPath = join(data, 'block-read');
+    if (value.operation === 'read') {
+      const blocked = await readFile(controlPath, 'utf8').then(() => true, () => false);
+      if (blocked) {
+        await writeFile(join(data, 'read-blocked'), 'ready');
+        while (await readFile(controlPath, 'utf8').then(() => true, () => false))
+          await new Promise(done => setTimeout(done, 20));
+      }
+    }
+    if (config.failTerminalObservation && value.operation === 'observe-run' && value.status === 'completed' && !failedTerminal) {
+      failedTerminal = true;
+      response.writeHead(503).end('Synthetic first terminal observation failure');
+      return;
+    }
     let result;
     if (value.operation === 'bind') {
       assert.equal(value.protocolDigest, config.context.protocolDigest);

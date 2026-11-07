@@ -246,7 +246,7 @@ mod tests {
             }],
             sessions: Default::default(), tx, history: Default::default(),
             app_bindings: Default::default(), run_journal: Default::default(), app_use: None, apps: None, app_plugins: Default::default(), settings_path: None,
-            paper_run_projection: Default::default(),
+            paper_worker: Default::default(),
             connectors: None,
             history_path: PathBuf::new(), automation_threads: Default::default(),
             automation_tx, automation_rx: Some(automation_rx),

@@ -347,3 +347,17 @@ Paper UI fixture passed; the complete new Electron frame was not recaptured.
 The author will attach the three desktop PNGs to the PR manually; they are not
 committed as repository binaries. Real-model/scientific acceptance remains
 explicitly pending, with no external model requests in this publication pass.
+
+## PR review verification — 2026-11-07
+
+The production browser UI passes in an iframe without `allow-forms`, including
+plan save, transient polling recovery and cancellation retry. Reader state is
+cleared when entering Programs; citation choice remains available there.
+The Host's serialized research worker keeps backend startup, tools and periodic
+observation/delivery outside its command loop. The real loopback Harness test
+passes with a deliberately blocked backend read, a failed first terminal
+observation, automatic delivery without UI polling, stable mutation-ID refusal
+and late Cancel preserving terminal state. Host tests: 46 pass, one existing
+ignored test. Program Python tests: 24 pass; export regression: two pass.
+These are implementation checks with scripted inference, not new scientific or
+live-model acceptance. Existing scientific acceptance limitations remain open.

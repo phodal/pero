@@ -1,26 +1,18 @@
 //! Paper plans join the existing App Run, ACP owner and artifact catalog.
 use super::Manager;
-use pero_contracts::{
-    content_document::ContentFormat,
-    session_artifact::{ArtifactMethod, ArtifactRequest, ResearchArtifactSource},
-    HostEvent,
-};
+
 use pero_runtime::{
     acp::AgentConfig,
     apps::{
         agent::AppSessionBinding, agent_plugin::AppPluginAssembly, AppSessionPlugins, BackendAccess,
     },
-    session_artifacts::SessionArtifacts,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
-use std::{
-    fs,
-    io::{Read, Write},
-    path::PathBuf,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::{fs, io::Read, path::PathBuf, time::Duration};
+
+#[path = "paper_research_io.rs"]
+pub(super) mod io;
 
 const TOOLS: [&str; 4] = [
     "research-program",
@@ -93,71 +85,62 @@ fn backend_request(backend: &BackendAccess, body: &Value) -> Result<Value, Strin
 }
 
 impl Manager {
-    /// Project existing ACP lifecycle observations on the Host owner, even with no UI attached.
-    /// This does not drive research or issue model calls. Failed delivery is visible and can be retried by status/deliver.
+    fn start_research_worker(&mut self) -> Result<(), String> {
+        self.paper_worker.start(io::ResearchIo {
+            apps: self.apps.clone().ok_or("Apps unavailable")?,
+            settings_path: self.settings_path.clone(),
+            tx: self.tx.clone(),
+        });
+        Ok(())
+    }
     pub(crate) fn reconcile_paper_runs(&mut self) {
-        let bindings: Vec<_> = self
+        let completed = self.paper_worker.drain();
+        let history = self.history.lock().unwrap();
+        if !completed
+            && self.paper_worker.history_len == Some(history.events().len())
+            && !self.paper_worker.needs_retry()
+        {
+            return;
+        }
+        self.paper_worker.history_len = Some(history.events().len());
+        let runs: Vec<_> = self
             .app_bindings
             .iter()
-            .filter(|(_, binding)| {
-                ResearchContext::from_binding(binding)
-                    .ok()
-                    .flatten()
-                    .is_some()
-            })
-            .map(|(id, binding)| (id.clone(), binding.clone()))
-            .collect();
-        for (id, binding) in bindings {
-            let run = self
-                .run_transcript(&id, binding.run.as_ref().unwrap(), 0)
+            .filter_map(|(id, binding)| {
+                let context = ResearchContext::from_binding(binding).ok().flatten()?;
+                let run = pero_runtime::apps::agent_run::Transcript::project(
+                    id,
+                    binding.run.as_ref()?,
+                    history.events(),
+                    self.sessions.get(id).is_some_and(|s| !s.tx.is_closed()),
+                    0,
+                )
                 .run;
-            let observed = (run.status.clone(), run.attempt as u64);
-            if self.paper_run_projection.get(&id) == Some(&observed) {
-                continue;
-            }
-            self.paper_run_projection.insert(id.clone(), observed);
-            if let Err(error) = self.observe_paper_run(&id, &binding, &run.status) {
-                let mut event = HostEvent::new("paper_research_delivery_error", None, error);
-                event.thread_id = Some(id);
-                let _ = self.tx.send(event);
-            }
+                Some((run, context))
+            })
+            .collect();
+        drop(history);
+        if runs.is_empty() {
+            return;
+        }
+        if self.start_research_worker().is_err() {
+            self.paper_worker.history_len = None;
+            return;
+        }
+        for (run, context) in runs {
+            let _ = self.paper_worker.observe(run, context);
         }
     }
-
     pub(super) fn observe_paper_run(
-        &self,
-        thread: &str,
+        &mut self,
         binding: &AppSessionBinding,
-        status: &str,
+        run: pero_runtime::apps::agent_run::Run,
     ) -> Result<(), String> {
         let Some(context) = ResearchContext::from_binding(binding)? else {
             return Ok(());
         };
-        let (backend, _) = self
-            .apps
-            .as_ref()
-            .ok_or("Apps unavailable")?
-            .paper_research_access()?;
-        let directory = self.research_directory(&context.program_id)?;
-        let count = |file: &str| -> Result<usize, String> {
-            match fs::read_to_string(directory.join(file)) {
-                Ok(text) => Ok(text.lines().count()),
-                Err(error) => Err(error.to_string()),
-            }
-        };
-        backend_request(
-            &backend,
-            &json!({"operation":"observe-run","programId":context.program_id,"threadId":thread,"status":status,
-            "modelRequestsUsed":count("model-attempts.log")?,"appCallsUsed":count("app-calls.log")?}),
-        )?;
-        if matches!(status, "completed" | "failed" | "cancelled" | "interrupted") {
-            let export = backend_request(
-                &backend,
-                &json!({"operation":"export-manifest","programId":context.program_id,"threadId":thread}),
-            )?;
-            self.deliver_paper_research(thread, &context.program_id, &backend, export)?;
-        }
-        Ok(())
+        self.start_research_worker()?;
+        self.paper_worker.observe(run, context)
     }
 
     pub(super) fn resume_paper_run(
@@ -279,11 +262,12 @@ impl Manager {
 
     pub(crate) fn paper_research_request(
         &mut self,
+        id: String,
         thread: &str,
         tool: &str,
         mut document: Value,
         transport_id: &str,
-    ) -> Result<Value, String> {
+    ) -> Result<(), String> {
         let binding = self
             .app_bindings
             .get(thread)
@@ -293,11 +277,6 @@ impl Manager {
         if !TOOLS.contains(&tool) || !self.sessions.get(thread).is_some_and(|s| !s.tx.is_closed()) {
             return Err("Research session or tool unavailable".into());
         }
-        let (backend, _) = self
-            .apps
-            .as_ref()
-            .ok_or("Apps unavailable")?
-            .paper_research_access()?;
         if !document.is_object() {
             return Err("Research document must be an object".into());
         }
@@ -336,161 +315,23 @@ impl Manager {
         if tool == "research-deliver" {
             value["operation"] = json!("export-manifest");
         }
-        if !matches!(operation.as_str(), "read" | "feedback" | "export")
+        if !matches!(operation.as_str(), "read" | "feedback" | "poll" | "export")
             && tool != "research-deliver"
         {
             let operation_id = value["operationId"]
                 .as_str()
-                .unwrap_or(transport_id)
-                .to_owned();
+                .filter(|id| !id.trim().is_empty() && id.len() <= 200)
+                .ok_or("Research mutations require a stable operationId of 1–200 bytes")?;
             value["operationId"] = json!(format!("{}:{}", thread, operation_id));
         }
-        // These are actual tool invocations, recorded before dispatch and retained across retries.
-        if operation != "feedback" && tool != "research-deliver" {
-            let descriptor = backend_request(
-                &backend,
-                &json!({"operation":"launch","programId":context.program_id}),
-            )?;
-            let cap = descriptor["protocol"]["limits"]["appCalls"]
-                .as_u64()
-                .ok_or("Missing tool budget")?;
-            let path = self
-                .research_directory(&context.program_id)?
-                .join("app-calls.log");
-            let previous = fs::read_to_string(&path).map_err(|e| {
-                format!("Research App audit unavailable; allowance cannot be reset: {e}")
-            })?;
-            if previous.lines().count() as u64 >= cap {
-                return Err(
-                    "Research cumulative App call budget exhausted; deliver the saved checkpoint"
-                        .into(),
-                );
-            }
-            let mut file = fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-                .map_err(|e| e.to_string())?;
-            writeln!(
-                file,
-                "{}",
-                format!("{:x}", Sha256::digest(transport_id.as_bytes()))
-            )
-            .and_then(|_| file.sync_all())
-            .map_err(|e| e.to_string())?;
-        }
-        let mut result = backend_request(&backend, &value)?;
-        if operation == "feedback" && result["continueResearch"] == true {
-            let descriptor = backend_request(
-                &backend,
-                &json!({"operation":"launch","programId":context.program_id}),
-            )?;
-            let directory = self.research_directory(&context.program_id)?;
-            let calls = fs::read_to_string(directory.join("app-calls.log"))
-                .map_err(|e| e.to_string())?
-                .lines()
-                .count() as u64;
-            let attempts = fs::read_to_string(directory.join("model-attempts.log"))
-                .map_err(|e| e.to_string())?
-                .lines()
-                .count() as u64;
-            if calls
-                >= descriptor["protocol"]["limits"]["appCalls"]
-                    .as_u64()
-                    .unwrap_or(0)
-                || attempts
-                    >= descriptor["protocol"]["limits"]["modelRequests"]
-                        .as_u64()
-                        .unwrap_or(0)
-            {
-                backend_request(
-                    &backend,
-                    &json!({"operation":"finish","programId":context.program_id,"threadId":thread,
-                    "expectedCheckpoint":result["checkpoint"],"operationId":format!("{thread}:budget-exhausted"),"reason":"budget_exhausted"}),
-                )?;
-                result["continueResearch"] = json!(false);
-                result["stopReason"] = json!("budget_exhausted");
-            }
-        }
-        if tool == "research-deliver" {
-            return self.deliver_paper_research(thread, &context.program_id, &backend, result);
-        }
-        Ok(result)
-    }
-
-    fn deliver_paper_research(
-        &self,
-        thread: &str,
-        program: &str,
-        backend: &BackendAccess,
-        export: Value,
-    ) -> Result<Value, String> {
-        let checkpoint = export["checkpoint"]
-            .as_str()
-            .ok_or("Export checkpoint missing")?;
-        let store = SessionArtifacts::new(
-            self.settings_path
-                .as_ref()
-                .ok_or("Artifact profile unavailable")?,
-        );
-        let mut delivered = Vec::new();
-        for document in export["documents"]
-            .as_array()
-            .ok_or("Export documents missing")?
-        {
-            let slot = document["slot"].as_str().ok_or("Export slot missing")?;
-            let filename = document["filename"]
-                .as_str()
-                .ok_or("Export filename missing")?;
-            let part = backend_request(
-                backend,
-                &json!({"operation":"export","programId":program,"threadId":thread,"checkpoint":checkpoint,"slot":slot}),
-            )?;
-            let text = part["documents"][0]["content"]
-                .as_str()
-                .ok_or("Export content missing")?;
-            let source = ResearchArtifactSource {
-                program_id: program.into(),
-                checkpoint_id: checkpoint.into(),
-                slot: slot.into(),
-                export_digest: document["sha256"]
-                    .as_str()
-                    .ok_or("Export digest missing")?
-                    .into(),
-            };
-            let artifact = store
-                .register_research(
-                    ArtifactRequest::RegisterText {
-                        method: ArtifactMethod::Artifacts,
-                        request_id: format!("research-{checkpoint}-{slot}"),
-                        thread_id: thread.into(),
-                        artifact_id: None,
-                        title: filename.into(),
-                        text: text.into(),
-                        format: Some(if filename.ends_with(".jsonl") {
-                            ContentFormat::JsonLines
-                        } else if filename.ends_with(".json") {
-                            ContentFormat::Json
-                        } else {
-                            ContentFormat::Markdown
-                        }),
-                        source_message_id: None,
-                        source_tool_call_id: None,
-                    },
-                    source,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                )
-                .map_err(|e| e.to_string())?;
-            let version = artifact.versions.iter().find(|v| matches!(&v.source, pero_contracts::session_artifact::ArtifactSource::Research{provenance} if provenance.checkpoint_id == checkpoint)).ok_or("Export version missing")?.version;
-            delivered.push(json!({"slot":slot,"artifactId":artifact.id,"version":version,"checkpoint":checkpoint}));
-            let mut event = HostEvent::new("artifact_registered", None, String::new());
-            event.thread_id = Some(thread.into());
-            event.data = json!({"artifact":artifact});
-            let _ = self.tx.send(event);
-        }
-        Ok(json!({"checkpoint":checkpoint,"artifacts":delivered,"acceptance":"needs_review"}))
+        self.start_research_worker()?;
+        self.paper_worker.request(
+            id,
+            thread.into(),
+            context,
+            tool.into(),
+            value,
+            transport_id.into(),
+        )
     }
 }

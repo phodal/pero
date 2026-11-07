@@ -207,7 +207,20 @@ impl Apps {
     /// cancellation remain responsive while pip downloads packages.
     pub fn dispatch_async(&self, value: serde_json::Value, agents: &mut crate::agents::Manager) {
         let action = value["action"].as_str().unwrap_or("");
-        if matches!(action, "research-program" | "agentrun" | "agentcatalog" | "agent" | "insights" | "connectors" | "disable" | "uninstall" | "pluginenable") {
+        if action == "research-program" {
+            let id = value["id"].as_str().filter(|id| !id.is_empty() && id.len() <= 128).map(str::to_owned);
+            let result = (|| {
+                let Request::ResearchProgram { name, thread_id, tool, request, operation_id, .. } = serde_json::from_value(value.clone()).map_err(|e|e.to_string())? else { return Err("Invalid research request".to_owned()); };
+                if name.as_str() != "paper-agent" { return Err("Research caller must be Paper".into()); }
+                self.require_grant(&name, "agent")?;
+                agents.paper_research_request(id.clone().ok_or("App request needs an id of 1–128 bytes")?, &thread_id, &tool, request, &operation_id)
+            })();
+            if let Err(error) = result {
+                let mut event = HostEvent::new("apps_result", id, error.clone()); event.data=serde_json::json!({"ok":false,"error":error}); let _=crate::emit(event);
+            }
+            return;
+        }
+        if matches!(action, "agentrun" | "agentcatalog" | "agent" | "insights" | "connectors" | "disable" | "uninstall" | "pluginenable") {
             let mut this = self.clone();
             let event = this.dispatch(value, Some(agents));
             let _ = crate::emit(event);
@@ -307,12 +320,7 @@ impl Apps {
                     drop(guard);
                     return agents.as_deref_mut().expect("Host manager").agent_run_request(name,panel,revision,request);
                 }
-                Request::ResearchProgram { method, id, name, thread_id, tool, request, operation_id } => {
-                    let _ = (method, id);
-                    if name.as_str() != "paper-agent" { return Err("Research caller must be Paper".into()); }
-                    drop(guard);
-                    return agents.as_deref_mut().expect("Host manager").paper_research_request(&thread_id, &tool, request, &operation_id);
-                }
+                Request::ResearchProgram { .. } => return Err("Research requests require the Host worker".into()),
                 Request::Agentcatalog { method,id,name,path } => {
                     let _=(method,id);store.agent_catalog_permission(&name,&path)?;
                     return agents.as_deref_mut().expect("Host manager").agent_catalog(&path);
