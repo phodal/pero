@@ -149,26 +149,26 @@ fn selection(
     managed: PythonEnvironment,
     required_minor: Option<&str>,
 ) -> Result<PythonPreparation, String> {
-    let config = selected
-        .map(|environment| {
-            let path = environment.root().join("pyvenv.cfg");
-            match std::fs::read_to_string(&path) {
-                Ok(config) => Ok(Some(config)),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-                Err(error) => Err(format!(
-                    "Cannot read Python environment {}: {error}",
-                    path.display()
-                )),
-            }
-        })
-        .transpose()?
-        .flatten();
+    let read = |name: &str| -> Result<Option<String>, String> {
+        let Some(environment) = selected else {
+            return Ok(None);
+        };
+        let path = environment.root().join(name);
+        match std::fs::read_to_string(&path) {
+            Ok(text) => Ok(Some(text)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(format!("Cannot read Python environment {}: {error}", path.display())),
+        }
+    };
+    let config = read("pyvenv.cfg")?;
+    let marker = read(super::conda::MARKER)?;
     PythonPreparation::for_app(
         selected,
         managed,
         config.as_deref(),
         selected.is_some_and(|environment| environment.executable().is_file()),
         required_minor,
+        marker.as_deref(),
     )
 }
 
@@ -294,7 +294,7 @@ pub(super) fn install_lcms_wheels(
     )
 }
 
-fn lcms_wheels_ready(environment: &PythonEnvironment) -> Result<bool, String> {
+pub(super) fn lcms_wheels_ready(environment: &PythonEnvironment) -> Result<bool, String> {
     let output = Command::new(environment.executable())
         .args([
             "-I",

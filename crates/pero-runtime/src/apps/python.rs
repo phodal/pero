@@ -58,10 +58,30 @@ impl PythonPreparation {
         config: Option<&str>,
         executable_exists: bool,
         required_minor: Option<&str>,
+        marker: Option<&str>,
     ) -> Result<Self, String> {
         let Some(selected) = selected else {
             return Ok(Self::Managed(managed));
         };
+        if let Some(marker) = marker {
+            if config.is_some() {
+                return Err(format!(
+                    "Python environment {} has both a conda prefix marker and pyvenv.cfg; repair the selected environment",
+                    selected.root().display()
+                ));
+            }
+            let python = super::conda::accept_marker(marker)?;
+            if !executable_exists {
+                return Err(format!(
+                    "Python interpreter {} is missing; repair the selected conda prefix or update app_python",
+                    selected.executable().display()
+                ));
+            }
+            if required_minor.is_some_and(|required| !python_minor_matches(&python, required)) {
+                return Ok(Self::Managed(managed));
+            }
+            return Ok(Self::Existing(selected.clone()));
+        }
         if selected.root() == managed.root() && !executable_exists && config.is_none() {
             return Ok(Self::Managed(managed));
         }
@@ -128,7 +148,7 @@ impl TryFrom<PathBuf> for PythonEnvironment {
 
     fn try_from(root: PathBuf) -> Result<Self, Self::Error> {
         if !root.is_absolute() {
-            return Err("App Python environment must be an absolute venv directory path".into());
+            return Err("App Python environment must be an absolute interpreter directory path".into());
         }
         Ok(Self { root })
     }
@@ -139,8 +159,17 @@ impl PythonEnvironment {
         let executable = self.executable();
         let mut paths = vec![executable.parent().ok_or("Python interpreter needs a parent")?.to_path_buf()];
         if let Some(path) = std::env::var_os("PATH") { paths.extend(std::env::split_paths(&path)); }
-        command.env("VIRTUAL_ENV", self.root()).env("PATH", std::env::join_paths(paths)
-            .map_err(|error| format!("Cannot configure App Python environment PATH: {error}"))?);
+        let path = std::env::join_paths(paths)
+            .map_err(|error| format!("Cannot configure App Python environment PATH: {error}"))?;
+        let marker = self.root.join(super::conda::MARKER);
+        if marker.is_file() {
+            let text = std::fs::read_to_string(&marker)
+                .map_err(|error| format!("Cannot read conda prefix marker: {error}"))?;
+            super::conda::accept_marker(&text)?;
+            command.env("CONDA_PREFIX", self.root()).env_remove("VIRTUAL_ENV").env("PATH", path);
+        } else {
+            command.env("VIRTUAL_ENV", self.root()).env("PATH", path);
+        }
         Ok(())
     }
 
@@ -506,6 +535,7 @@ mod tests {
                 config,
                 executable,
                 required_minor,
+                None,
             );
             match expected {
                 "existing" => assert!(
@@ -528,11 +558,23 @@ mod tests {
         }
         let declared = PythonPreparation::for_app(
             Some(&external),
-            managed,
+            managed.clone(),
             Some(other_minor),
             true,
             Some("3.12"),
+            None,
         );
+        let marker_bytes = super::super::conda::marker_bytes("3.12");
+        let marker = std::str::from_utf8(&marker_bytes).unwrap();
+        let conda = PythonPreparation::for_app(
+            Some(&external),
+            managed,
+            None,
+            true,
+            Some("3.12"),
+            Some(marker),
+        );
+        assert!(matches!(conda, Ok(PythonPreparation::Existing(_))), "{conda:?}");
         assert!(
             matches!(declared, Ok(PythonPreparation::Managed(_))),
             "{declared:?}"

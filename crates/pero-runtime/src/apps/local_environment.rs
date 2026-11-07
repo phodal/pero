@@ -206,31 +206,32 @@ impl EnvironmentPreparation {
     pub fn run(self, progress: &mut impl FnMut(super::AppPreparation)) -> Result<(), String> {
         let mut value = self.value;
         let app = AppName::try_from(value.target.target().0.to_owned())?;
-        let root = self.catalog.join(value.id.as_str());
         value.state = EnvironmentState::Preparing;
         value.error = None;
         value.log.clear();
         save_environment(&self.catalog, &value)?;
         let result = (|| {
             let dependencies = value.dependencies.clone();
-            preparation::prepare(
-                &app,
-                None,
-                PythonEnvironment::try_from(root.clone())?,
+            let id = value.id.as_str().to_owned();
+            let environment = super::micromamba::prepare(
+                &self.catalog,
+                &id,
+                value.target,
                 &dependencies,
-                value.target.python_minor(),
-                None,
-                &mut |event| {
-                    value.log.push(event.message.clone());
+                &mut |line| {
+                    value.log.push(line.clone());
                     if value.log.len() > 80 {
                         value.log.remove(0);
                     }
                     let _ = save_environment(&self.catalog, &value);
-                    progress(event);
+                    progress(super::AppPreparation {
+                        name: app.clone(),
+                        phase: preparation::PreparationPhase::Creating,
+                        message: line,
+                    });
                 },
             )?;
             if matches!(value.target, ScientificMethod::Lcms2Yield) {
-                let environment = PythonEnvironment::try_from(root.clone())?;
                 let mut report = |line: String| {
                     progress(super::AppPreparation {
                         name: app.clone(),
@@ -239,7 +240,20 @@ impl EnvironmentPreparation {
                     });
                     value.log.push(line);
                 };
-                preparation::install_lcms_wheels(&environment, &mut report)?;
+                if !preparation::lcms_wheels_ready(&environment)? {
+                    super::micromamba::pip_find_links(
+                        &environment.executable(),
+                        "https://data.pyg.org/whl/torch-2.3.0+cpu.html",
+                        &[
+                            "pyg_lib",
+                            "torch_scatter",
+                            "torch_sparse",
+                            "torch_cluster",
+                            "torch_spline_conv",
+                        ],
+                        &mut report,
+                    )?;
+                }
                 preparation::fetch_lcms_release(
                     &environment,
                     &self.app_root,
@@ -247,42 +261,9 @@ impl EnvironmentPreparation {
                     &mut report,
                 )?;
             }
-            if matches!(value.target, ScientificMethod::Circuit) {
-                let mut command = std::process::Command::new("brew");
-                command
-                    .args(["install", "ngspice"])
-                    .env("HOMEBREW_NO_AUTO_UPDATE", "1");
-                preparation::run(&mut command, &mut |line| {
-                    progress(super::AppPreparation {
-                        name: app.clone(),
-                        phase: preparation::PreparationPhase::Installing,
-                        message: line.clone(),
-                    });
-                    value.log.push(line);
-                })?;
-                let output = std::process::Command::new("brew")
-                    .args(["--prefix", "ngspice"])
-                    .output()
-                    .map_err(|e| e.to_string())?;
-                if !output.status.success() {
-                    return Err("Cannot locate installed ngspice".into());
-                }
-                let program = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim())
-                    .join("bin/ngspice")
-                    .canonicalize()
-                    .map_err(|e| e.to_string())?;
-                #[cfg(unix)]
-                {
-                    let link = root.join("bin/ngspice");
-                    if link.symlink_metadata().is_ok() {
-                        fs::remove_file(&link).map_err(|e| e.to_string())?;
-                    }
-                    std::os::unix::fs::symlink(program, link).map_err(|e| e.to_string())?;
-                }
-            }
             let inspection = super::environment::EnvironmentInspection::inspect(
                 &self.app_root,
-                Some(&PythonEnvironment::try_from(root)?),
+                Some(&environment),
                 value.target,
             )?;
             crate::environments::match_software(&inspection.requirements, &inspection.profile)

@@ -39,12 +39,14 @@ Control Lab's frozen experiment budgets/verifiers stay unchanged.
 
 ## Local preparation and binding
 
-The local environment section creates named CPython venvs from fixed method
-recipes. This trial uses CPython 3.12 for Paper, Control, Circuit, and LCMS2Yield.
-Prepare installs the method pins. Circuit also uses Homebrew to install ngspice
-and binds its resolved executable into the venv. LCMS2Yield then installs the
-PyG extension wheels from the upstream find-links index. Native dependency
-installation for ngspice currently requires Homebrew.
+The local environment section creates named conda prefixes with the pinned
+micromamba 2.5.0-2. This trial uses CPython 3.12 from conda-forge for Paper,
+Control, Circuit, and LCMS2Yield. Prepare installs the method pins with the
+prefix's pip. Circuit also installs ngspice-exe 41 from conda-forge, except on
+Apple Silicon, where conda-forge publishes no ngspice build and Homebrew supplies
+it. LCMS2Yield then installs the PyG extension wheels from the upstream
+find-links index. The solved package list is kept beside the profile as an
+explicit export. App service environments stay on their uv virtualenvs.
 
 Preparation runs outside the AppStore lock. Logs and state persist under the
 Host profile's `environment/profiles`; reopening can inspect an ongoing job.

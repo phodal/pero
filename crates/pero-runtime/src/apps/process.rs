@@ -62,14 +62,25 @@ impl AppProcess {
         let reproduction_token = reproduction.as_ref().map(|_| uuid::Uuid::new_v4().to_string());
         let (executable, label) = match (&backend.kind, python) {
             (BackendKind::Python, Some(environment)) => {
-                let config = environment.root().join("pyvenv.cfg");
-                let contents = std::fs::read_to_string(&config).map_err(|error| {
-                    format!(
-                        "App {} Python environment {} is unavailable: {error}. Prepare the virtual environment or update app_python and restart the Host.",
-                        definition.name.as_str(), config.display(),
-                    )
-                })?;
-                environment.validate_config(&contents)?;
+                let marker = environment.root().join(super::conda::MARKER);
+                if marker.is_file() {
+                    let text = std::fs::read_to_string(&marker).map_err(|error| {
+                        format!(
+                            "App {} conda prefix {} is unavailable: {error}. Prepare the environment or update app_python and restart the Host.",
+                            definition.name.as_str(), marker.display(),
+                        )
+                    })?;
+                    super::conda::accept_marker(&text)?;
+                } else {
+                    let config = environment.root().join("pyvenv.cfg");
+                    let contents = std::fs::read_to_string(&config).map_err(|error| {
+                        format!(
+                            "App {} Python environment {} is unavailable: {error}. Prepare the virtual environment or update app_python and restart the Host.",
+                            definition.name.as_str(), config.display(),
+                        )
+                    })?;
+                    environment.validate_config(&contents)?;
+                }
                 let executable = environment.executable();
                 if !executable.is_file() {
                     return Err(format!(

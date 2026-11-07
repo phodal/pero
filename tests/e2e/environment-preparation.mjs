@@ -51,7 +51,7 @@ try{
  await expect(frame.getByLabel('环境名称',{exact:true})).toHaveValue('Control acceptance');
  await page.screenshot({path:resolve(out,'create-dark-zh.png')});
  await frame.getByRole('radio',{name:'Circuit',exact:true}).click();
- await expect(frame.getByText(/Homebrew/)).toBeVisible();
+ await expect(frame.getByText(/micromamba/)).toBeVisible();
  await page.screenshot({path:resolve(out,'create-circuit-dark-zh.png')});
  await frame.getByRole('radio',{name:'Control',exact:true}).click();
  await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].setMinimumSize(480,600);BrowserWindow.getAllWindows()[0].setSize(720,800);});
