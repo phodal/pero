@@ -1,6 +1,5 @@
 // Opt-in real provider qualification. Keep credentials in inherited process memory only.
 import assert from 'node:assert/strict';
-import { build } from 'esbuild';
 import { spawn, execFileSync } from 'node:child_process';
 import { EventEmitter, once } from 'node:events';
 import { cp, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -9,24 +8,29 @@ import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { waitForResearchFinalization } from './research-quality/finalization.mjs';
+import { researchExecutablePaths, researchPreflight, researchTarget } from './research-quality/preflight.mjs';
+import { shutdownResearchRun } from './research-quality/shutdown.mjs';
 
+const root = resolve(import.meta.dirname, '../..');
+if (process.argv.includes('--preflight')) {
+  const report = researchPreflight(root);
+  console.log(JSON.stringify(report, null, 2));
+  process.exit(report.localPrerequisitesReady ? 0 : 1);
+}
 assert.equal(process.env.PERO_RESEARCH_LIVE, '1', 'Explicit PERO_RESEARCH_LIVE=1 required');
 assert(process.env.DEEPSEEK_API_KEY, 'Configure the existing Pero provider first');
-const root = resolve(import.meta.dirname, '../..');
+const { model, provider } = researchTarget(process.env);
 const directory = join(root, 'test-results/paper-program-live', new Date().toISOString().replace(/[:.]/g, '-'));
 await mkdir(directory, { recursive: true });
 const json = (path, value) => writeFile(path, JSON.stringify(value, null, 2));
-const suffix = process.platform === 'win32' ? '.exe' : '';
-const binary = process.env.PERO_RESEARCH_HOST || join(root, `target/research-validation/debug/pero-host${suffix}`);
-const agent = process.env.PERO_RESEARCH_AGENT || join(root, `target/debug/pero-agent-acp${suffix}`);
-const python = process.env.PERO_RESEARCH_PYTHON || execFileSync('python', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();
+const paths = researchExecutablePaths(root, process.env);
+const binary = paths.host;
+const agent = paths.agent;
+const python = paths.python || execFileSync('python', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();
 const benchmark = JSON.parse(await readFile(join(root, 'tests/runtime/research-quality/cases.json'), 'utf8'));
 const caseId = process.env.PERO_RESEARCH_CASE || 'attention-parallelism';
 const task = benchmark.cases.find(task => task.id === caseId);
 assert(task, 'Unknown PERO_RESEARCH_CASE');
-const provider = new URL(process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com');
-assert(provider.protocol === 'https:' && !provider.username && !provider.password && !provider.search && !provider.hash, 'Use an HTTPS provider URL without credentials/query/fragment');
-const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
 await json(join(directory, 'benchmark.json'), benchmark);
 const events = [], changed = new EventEmitter();
@@ -36,7 +40,7 @@ const redact = value => typeof value === 'string' ? value.replaceAll(process.env
   : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redact(item)])) : value;
 const sha = data => createHash('sha256').update(data).digest('hex');
 const evaluationCode = {};
-for (const name of ['paper-program-live.mjs', 'paper-program-live-backend.py', 'paper-program-quality.py', 'research_quality.py', 'research-quality/finalization.mjs']) {
+for (const name of ['paper-program-live.mjs', 'paper-program-live-backend.py', 'paper-program-quality.py', 'research_quality.py', 'research-quality/finalization.mjs', 'research-quality/preflight.mjs', 'research-quality/shutdown.mjs']) {
   evaluationCode[name] = sha(await readFile(join(root, 'tests/runtime', name)));
 }
 async function wait(predicate, seconds = 45) {
@@ -72,6 +76,7 @@ async function readProgram(signal) {
   return { ...current, rounds };
 }
 try {
+  const { build } = await import('esbuild');
   await build({ stdin: { contents: "export { DesktopAppUse } from './desktop/src/main/app-use-mcp.ts'; export { AppWriteRoutes } from './desktop/src/main/app-write-routes.ts';", resolveDir: root },
     bundle: true, platform: 'node', format: 'esm', outfile: join(directory, 'adapter.mjs') });
   const { DesktopAppUse, AppWriteRoutes } = await import(pathToFileURL(join(directory, 'adapter.mjs')).href);
@@ -149,6 +154,6 @@ try {
   await json(join(directory, 'failure.json'), redact({ error: String(error), stderr, events }));
   throw error;
 } finally {
-  if (host && host.exitCode === null) { host.stdin.end(); const timer = setTimeout(() => host.kill('SIGKILL'), 5000); await hostExit; clearTimeout(timer); }
-  await desktop?.close();
+  await shutdownResearchRun({ host, hostExit, desktop,
+    disableApp: access ? () => appRequest('disable', { name: 'paper-agent' }) : undefined });
 }

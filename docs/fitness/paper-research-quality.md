@@ -30,7 +30,7 @@ versioned official PDFs. This is **not** a human review of model output:
   PDF p. 2, says the decoder generates one element at a time. §4/Table 1,
   pp. 6–7, compares per-layer sequential operations and O(n²d) attention cost,
   with n < d qualifying the recurrent-layer cost comparison.
-- [Transformer-XL v3](https://arxiv.org/pdf/1901.02860v3): §3.1–3.2,
+- [Transformer-XL v3](https://arxiv.org/pdf/1901.02860v3): §3.1–3.3,
   pp. 2–4, explains fixed-segment fragmentation and cached segment states.
   Context depends on depth, segment length and cache; §4.5/Table 9, p. 8,
   speedups refer to its stated recomputing vanilla baseline, not every decoder.
@@ -44,12 +44,32 @@ Equivalent originals or different versions require an explicit reviewer mapping
 with reasons. Metadata-only discovery and downloaded-but-unread originals do
 not count as read coverage. A failed acquisition remains a missing source.
 
+## Offline readiness check
+
+```sh
+node tests/runtime/paper-program-live.mjs --preflight
+```
+
+This mode does not import esbuild, start Host/Harness, fetch sources or contact a
+model. It reports credential **presence only**, explicit provider/model settings,
+executable paths, Node resolution, pinned Python PDF dependencies and Git HEAD.
+Exit 1 means a local prerequisite is missing. Exit 0 means only that those local
+checks passed: it does not verify permission, available balance, network access,
+model compatibility or an enforceable monetary limit. The report keeps those
+boundaries explicit. It creates no live attempt or quality pass.
+
+See the [2026-11-07 readiness record](paper-research-quality-readiness.md) for
+current blockers, cost assumptions and reviewer handoff.
+
 ## Run and review
 
 First build the existing Host/Harness and install the repository's declared
 Node/Python dependencies using its normal development procedure. The runner
 supports Linux/macOS suffixes and `PERO_RESEARCH_HOST`, `PERO_RESEARCH_AGENT`,
-`PERO_RESEARCH_PYTHON` overrides. This change did not rebuild or run Host/Harness.
+`PERO_RESEARCH_PYTHON` overrides. Overrides are absolute paths or paths relative
+to the repository root, consistently in preflight and actual execution. Without
+a Python override, the runner resolves `python` through PATH. This change did
+not rebuild or run Host/Harness.
 
 A live run requires explicit permission for the selected provider, sharing the
 public research inputs, and the bounded model spend. Configure the key through
@@ -60,14 +80,22 @@ is not permission to spend on someone else's behalf.
 With that authorization and provider configuration already in place:
 
 ```sh
-PERO_RESEARCH_LIVE=1 PERO_RESEARCH_CASE=attention-parallelism \
+DEEPSEEK_MODEL="$APPROVED_RESEARCH_MODEL" \
+  PERO_RESEARCH_LIVE=1 PERO_RESEARCH_CASE=attention-parallelism \
   node tests/runtime/paper-program-live.mjs
-PERO_RESEARCH_LIVE=1 PERO_RESEARCH_CASE=attention-context \
+DEEPSEEK_MODEL="$APPROVED_RESEARCH_MODEL" \
+  PERO_RESEARCH_LIVE=1 PERO_RESEARCH_CASE=attention-context \
   node tests/runtime/paper-program-live.mjs
 ```
 
-`DEEPSEEK_BASE_URL` defaults to `https://api.deepseek.com`, and `DEEPSEEK_MODEL`
-to `deepseek-chat`; override them only within the approved provider/model scope.
+`DEEPSEEK_BASE_URL` defaults to `https://api.deepseek.com`. `DEEPSEEK_MODEL`
+has **no default** and must explicitly identify the approved model. The examples
+use `APPROVED_RESEARCH_MODEL` only as a caller-supplied placeholder; no value is
+provided or selected automatically. DeepSeek's [official change log](https://api-docs.deepseek.com/updates/)
+scheduled retirement of `deepseek-chat` and `deepseek-reasoner` for 2026-07-24.
+Do not silently replace a retired model with a differently priced model. Verify
+the current model, compatibility and [prices](https://api-docs.deepseek.com/quick_start/pricing/)
+before approval and live execution.
 Each attempt has an isolated timestamped directory and no automatic retry.
 The existing caps are 3 rounds, 4 searches, 12 candidates, 16 read actions,
 3 downloads/30 MiB, 60 model requests, 100 App calls, 4096 output tokens per
@@ -166,7 +194,7 @@ Passed:
 python -m unittest discover -s tests/runtime -p 'test_research_quality.py' -v
 PYTHONPATH=apps/paper-agent/backend python -m unittest discover \
   -s apps/paper-agent/test -p 'test_*program*.py' -v
-node --test tests/runtime/research-quality/finalization.test.mjs
+node --test tests/runtime/research-quality/*.test.mjs
 node --check tests/runtime/paper-program-live.mjs
 python -m py_compile tests/runtime/research_quality.py \
   tests/runtime/paper-program-quality.py tests/runtime/paper-program-live-backend.py
