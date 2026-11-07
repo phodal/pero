@@ -84,6 +84,8 @@ export type ArtifactRequest =
   | ReadArtifact
   | ResolveArtifactSnapshot
   | ArtifactContextRequest;
+export type ArtifactPresentation = "side" | "expanded";
+export type ArtifactRelationRole = "input" | "code" | "execution_log" | "environment" | "review";
 export type ChangesRequest = ChangesList | ChangesCurrent | ChangesRead;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type KeySequence = string;
@@ -895,6 +897,158 @@ export interface RegisterFileArtifact {
   source_tool_call_id?: string | null;
   title?: string | null;
   path: string;
+  presentation?: ArtifactPresentation;
+  /**
+   * @maxItems 16
+   */
+  related?:
+    | []
+    | [ArtifactRelation]
+    | [ArtifactRelation, ArtifactRelation]
+    | [ArtifactRelation, ArtifactRelation, ArtifactRelation]
+    | [ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation]
+    | [ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation]
+    | [ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ];
+}
+export interface ArtifactRelation {
+  artifact_id: string;
+  version: number;
+  role: ArtifactRelationRole;
 }
 export interface ReadArtifact {
   action: "read";
@@ -2365,6 +2519,152 @@ export interface SessionArtifactVersion {
   source: ArtifactSource;
   source_message_id?: string;
   source_tool_call_id?: string;
+  /**
+   * @maxItems 16
+   */
+  related?:
+    | []
+    | [ArtifactRelation]
+    | [ArtifactRelation, ArtifactRelation]
+    | [ArtifactRelation, ArtifactRelation, ArtifactRelation]
+    | [ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation]
+    | [ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation]
+    | [ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation, ArtifactRelation]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ]
+    | [
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation,
+        ArtifactRelation
+      ];
   created_at: number;
 }
 export interface ArtifactDocumentMedia {
@@ -2403,6 +2703,7 @@ export interface ArtifactRegisteredEvent {
   thread_id: string;
   data: {
     artifact: SessionArtifact;
+    presentation?: ArtifactPresentation;
   };
 }
 export interface ArtifactDocumentEvent {

@@ -2263,6 +2263,13 @@
         },
         "view": {
           "$ref": "#/$defs/ArtifactView"
+        },
+        "preview_request": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "shell_document_bar": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -2640,6 +2647,19 @@
         }
       ]
     },
+    "ArtifactPresentation": {
+      "title": "ArtifactPresentation",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "side"
+        },
+        {
+          "type": "string",
+          "const": "expanded"
+        }
+      ]
+    },
     "ArtifactPreviewTarget": {
       "title": "ArtifactPreviewTarget",
       "type": "object",
@@ -2695,6 +2715,9 @@
           "properties": {
             "artifact": {
               "$ref": "#/$defs/SessionArtifact"
+            },
+            "presentation": {
+              "$ref": "#/$defs/ArtifactPresentation"
             }
           },
           "required": [
@@ -2754,6 +2777,55 @@
           "maxLength": 512
         }
       }
+    },
+    "ArtifactRelation": {
+      "title": "ArtifactRelation",
+      "type": "object",
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "role": {
+          "$ref": "#/$defs/ArtifactRelationRole"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "version",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactRelationRole": {
+      "title": "ArtifactRelationRole",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "input"
+        },
+        {
+          "type": "string",
+          "const": "code"
+        },
+        {
+          "type": "string",
+          "const": "execution_log"
+        },
+        {
+          "type": "string",
+          "const": "environment"
+        },
+        {
+          "type": "string",
+          "const": "review"
+        }
+      ]
     },
     "ArtifactRequest": {
       "title": "ArtifactRequest",
@@ -12281,6 +12353,16 @@
         },
         "path": {
           "type": "string"
+        },
+        "presentation": {
+          "$ref": "#/$defs/ArtifactPresentation"
+        },
+        "related": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactRelation"
+          },
+          "maxItems": 16
         }
       },
       "required": [
@@ -13571,6 +13653,13 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 512
+        },
+        "related": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactRelation"
+          },
+          "maxItems": 16
         },
         "created_at": {
           "type": "integer",

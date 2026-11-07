@@ -163,6 +163,17 @@ impl SessionArtifacts {
                     .ok_or(ArtifactStoreError::Unavailable)
             })
             .transpose()?;
+        let related = match &request {
+            ArtifactRequest::RegisterFile { related, .. } => related.clone(),
+            _ => Vec::new(),
+        };
+        for link in &related {
+            if !artifacts.iter().any(|artifact| artifact.id == link.artifact_id
+                && artifact.versions.iter().any(|version| version.version == link.version))
+            {
+                return Err(ArtifactStoreError::Unavailable);
+            }
+        }
         let (title, bytes, media, filename, source, message, tool) = match &request {
             ArtifactRequest::RegisterText {
                 title,
@@ -269,6 +280,7 @@ impl SessionArtifacts {
             source,
             source_message_id: message,
             source_tool_call_id: tool,
+            related,
             created_at,
         };
         let artifact = if let Some(previous) = previous {
@@ -482,7 +494,7 @@ mod tests {
                     SessionArtifacts::new(&workspace.join("settings.json")).register(ArtifactRequest::RegisterFile {
                         method: ArtifactMethod::Artifacts,
                         request_id: "file-kind".into(), thread_id: "thread".into(), artifact_id: None,
-                        title: None, path: "stream.csv".into(), source_message_id: None, source_tool_call_id: None,
+                        title: None, path: "stream.csv".into(), presentation: None, related: Vec::new(), source_message_id: None, source_tool_call_id: None,
                     }, Some(&workspace), 1).map(|_| ())
                 };
                 sender.send(result).unwrap();
@@ -514,6 +526,8 @@ mod tests {
             artifact_id,
             title: None,
             path: path.to_string_lossy().into_owned(),
+            presentation: None,
+            related: Vec::new(),
             source_message_id: None,
             source_tool_call_id: Some("write".into()),
         };
@@ -630,6 +644,8 @@ mod tests {
                 artifact_id,
                 title: None,
                 path: name.into(),
+                presentation: None,
+                related: Vec::new(),
                 source_message_id: None,
                 source_tool_call_id: None,
             };
@@ -684,6 +700,8 @@ mod tests {
                     artifact_id: None,
                     title: None,
                     path: "large.md".into(),
+                    presentation: None,
+                    related: Vec::new(),
                     source_message_id: None,
                     source_tool_call_id: None,
                 },

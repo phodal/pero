@@ -155,6 +155,27 @@ impl ArtifactSource {
     }
 }
 
+pub const MAX_ARTIFACT_RELATIONS: usize = 16;
+
+/// A declared relationship to another delivered snapshot, with no review verdict.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactRelation {
+    pub artifact_id: String,
+    pub version: u64,
+    pub role: ArtifactRelationRole,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactRelationRole {
+    Input,
+    Code,
+    ExecutionLog,
+    Environment,
+    Review,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SessionArtifactVersion {
@@ -172,6 +193,8 @@ pub struct SessionArtifactVersion {
     pub source_message_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_tool_call_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub related: Vec<ArtifactRelation>,
     pub created_at: u64,
 }
 
@@ -198,6 +221,14 @@ pub struct ArtifactPreviewTarget {
     pub version: u64,
 }
 
+/// A delivery may request a reader layout in its currently visible conversation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactPresentation {
+    Side,
+    Expanded,
+}
+
 /// Public presentation state for the retained browser; the Host still owns the catalog and bytes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -206,6 +237,12 @@ pub struct ArtifactBrowserState {
     pub artifacts: Vec<SessionArtifact>,
     pub selected: Option<ArtifactPreviewTarget>,
     pub view: crate::workbench::ArtifactView,
+    /// A Chat-initiated request to open the selected version in the reader.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview_request: Option<u64>,
+    /// The shell already shows the filename and version, so the browser hides that bar.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub shell_document_bar: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -266,12 +303,17 @@ impl SessionArtifactVersion {
         {
             return Err(ArtifactError::Snapshot);
         }
-        if [&self.source_message_id, &self.source_tool_call_id]
-            .into_iter()
-            .flatten()
-            .any(|value| {
-                value.is_empty() || value.len() > 512 || value.chars().any(char::is_control)
-            })
+        if self.related.len() > MAX_ARTIFACT_RELATIONS
+            || self
+                .related
+                .iter()
+                .any(|link| !identifier(&link.artifact_id) || link.version == 0)
+            || [&self.source_message_id, &self.source_tool_call_id]
+                .into_iter()
+                .flatten()
+                .any(|value| {
+                    value.is_empty() || value.len() > 512 || value.chars().any(char::is_control)
+                })
             || matches!(&self.source, ArtifactSource::File { path } if path.is_empty() || path.contains('\0'))
         {
             return Err(ArtifactError::Source);
@@ -395,6 +437,10 @@ pub enum ArtifactRequest {
         #[serde(default)]
         title: Option<String>,
         path: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        presentation: Option<ArtifactPresentation>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        related: Vec<ArtifactRelation>,
         #[serde(default)]
         source_message_id: Option<String>,
         #[serde(default)]
@@ -501,6 +547,7 @@ mod tests {
             source: ArtifactSource::Text,
             source_message_id: Some("message:0".into()),
             source_tool_call_id: None,
+            related: Vec::new(),
             created_at: 10,
         }
     }

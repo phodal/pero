@@ -124,6 +124,9 @@ impl Artifacts {
                     let mut event =
                         HostEvent::new("artifact_registered", request_id.clone(), String::new());
                     event.data = json!({"artifact":artifact});
+                    if let ArtifactRequest::RegisterFile { presentation: Some(presentation), .. } = &request {
+                        event.data["presentation"] = json!(presentation);
+                    }
                     event
                 }
             };

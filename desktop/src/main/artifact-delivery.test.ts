@@ -41,12 +41,13 @@ test('file delivery uses its actual MCP caller without requiring an App or selec
     const tools = (await request('tools/list')).tools;
     assert.ok(tools.some((tool: { name: string }) => tool.name === 'deliver_artifact'));
     const instructions = (await request('initialize')).instructions;
-    assert.ok(instructions.includes('freezes its current bytes'));
+    assert.ok(instructions.includes('freezes the file bytes'));
     const call = (args: unknown, thread?: string) => request('tools/call', { name: 'deliver_artifact', arguments: args }, thread);
 
     for (const row of [
       { thread: 'actual-caller', input: { path: 'results/report.md', title: 'Report' } },
-      { thread: 'background-caller', input: { path: 'results/report-v2.md', artifact_id: 'saved-item' } },
+      { thread: 'background-caller', input: { path: 'results/report-v2.md', artifact_id: 'saved-item', presentation: 'side',
+        related: [{ artifact_id: 'code', version: 1, role: 'code' }] } },
     ]) {
       const result = await call(row.input, row.thread);
       assert.equal(result.isError, false);
@@ -59,6 +60,9 @@ test('file delivery uses its actual MCP caller without requiring an App or selec
       { path: 'result.txt', thread: 'another-conversation' },
       { path: 'result.txt', title: 1 },
       { path: 'result.txt', artifact_id: 1 },
+      { path: 'result.txt', presentation: 'tab' },
+      { path: 'result.txt', related: [{ artifact_id: 'code', version: 0, role: 'code' }] },
+      { path: 'result.txt', related: [{ artifact_id: 'code', version: 1, role: 'passed' }] },
       { path: '' },
       [],
     ]) {

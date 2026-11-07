@@ -157,6 +157,8 @@ fn research_deliveries_reject_file_inputs_and_caller_selected_artifacts() {
                 artifact_id: None,
                 title: Some("Research report".into()),
                 path: file.to_string_lossy().into_owned(),
+                presentation: None,
+                related: Vec::new(),
                 source_message_id: None,
                 source_tool_call_id: None,
             },
