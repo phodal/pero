@@ -25,6 +25,7 @@ export function NotebookPreview({ asset, embedded = false }: { asset: Asset; emb
   const zh = locale === 'zh-CN';
   const notebook = useMemo(() => parseNotebook(asset.bytes), [asset]);
   const [draft, setDraft] = useState<typeof notebook | null>(null);
+  const [working, setWorking] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [attempt, setAttempt] = useState(0);
@@ -44,13 +45,15 @@ export function NotebookPreview({ asset, embedded = false }: { asset: Asset; emb
   }, [notebook, attempt]);
   return <section className="notebook-preview" aria-label="Notebook preview">
     {!embedded && <h2>Notebook</h2>}
-    <NotebookRunner notebook={draft ?? notebook} edited={draft !== null} name={asset.name} zh={zh} onChange={setDraft} />
-    <p className="muted">{zh ? `原始快照 · ${notebook.cells.length} 个单元 · 已保存的输出` : `Original snapshot · ${notebook.cells.length} ${notebook.cells.length === 1 ? 'cell' : 'cells'} · Stored outputs`}</p>
-    {status === 'loading' && <p role="status">{zh ? '正在显示 Notebook 单元…' : 'Rendering notebook cells…'}</p>}
-    {status === 'failed' && <div><Feedback kind="error">{zh ? 'Notebook 单元未能显示。可查看源码或重试。' : 'Notebook cells could not be displayed. View Source or retry.'}</Feedback><Button onClick={() => setAttempt(value => value + 1)}>{zh ? '重试预览' : 'Retry preview'}</Button></div>}
-    {!notebook.cells.length && <p>{zh ? 'Notebook 中没有单元。' : 'This notebook has no cells.'}</p>}
-    <div className="notebook-viewer" ref={container} data-jp-theme-light={String(!dark)}>
-      <StaticViewer key={attempt} nbformat={notebook as never} outputs />
-    </div>
+    <NotebookRunner notebook={draft ?? notebook} edited={draft !== null} name={asset.name} zh={zh} onChange={setDraft} onKernel={setWorking} />
+    <details className="notebook-original" open={!working && !draft}>
+      <summary>{zh ? `原始快照 · ${notebook.cells.length} 个单元` : `Original snapshot · ${notebook.cells.length} ${notebook.cells.length === 1 ? 'cell' : 'cells'}`}</summary>
+      {status === 'loading' && <p role="status">{zh ? '正在显示 Notebook 单元…' : 'Rendering notebook cells…'}</p>}
+      {status === 'failed' && <div><Feedback kind="error">{zh ? 'Notebook 单元未能显示。可查看源码或重试。' : 'Notebook cells could not be displayed. View Source or retry.'}</Feedback><Button onClick={() => setAttempt(value => value + 1)}>{zh ? '重试预览' : 'Retry preview'}</Button></div>}
+      {!notebook.cells.length && <p>{zh ? 'Notebook 中没有单元。' : 'This notebook has no cells.'}</p>}
+      <div className="notebook-viewer" ref={container} data-jp-theme-light={String(!dark)}>
+        <StaticViewer key={attempt} nbformat={notebook as never} outputs />
+      </div>
+    </details>
   </section>;
 }

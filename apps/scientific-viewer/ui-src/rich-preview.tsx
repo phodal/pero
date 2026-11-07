@@ -72,11 +72,14 @@ export function RichPreview({ source, kind: suppliedKind, onDiscuss, selectionOn
     if (value?.anchorNode && body.current?.contains(value.anchorNode)) setSelection(value.toString());
   };
   let preview: React.ReactNode;
-  if (raw || kind === 'code' || kind === 'text') preview = <CodeViewer documentId={source.id} text={text} language={sourceLanguage(source.name)} label={zh ? '源码' : 'Source'} wrap={kind === 'text'} onCursor={() => setSelection('')} />;
+  if (kind === 'notebook') preview = <>
+    <div hidden={raw}><Suspense fallback={<p role="status">{zh ? '正在载入 Notebook…' : 'Loading notebook…'}</p>}><NotebookPreview asset={asset} embedded /></Suspense></div>
+    {raw && <CodeViewer documentId={source.id} text={text} language="json" label={zh ? '源码' : 'Source'} />}
+  </>;
+  else if (raw || kind === 'code' || kind === 'text') preview = <CodeViewer documentId={source.id} text={text} language={sourceLanguage(source.name)} label={zh ? '源码' : 'Source'} wrap={kind === 'text'} onCursor={() => setSelection('')} />;
   else if (kind === 'image') preview = <ImagePreview source={source} zh={zh} download={download} />;
   else if (kind === 'pdf') preview = <PdfPreview source={source} zh={zh} onPageText={receivePageText} />;
   else if (kind === 'table') preview = <TablePreview asset={asset} />;
-  else if (kind === 'notebook') preview = <Suspense fallback={<p role="status">{zh ? '正在载入 Notebook…' : 'Loading notebook…'}</p>}><NotebookPreview asset={asset} embedded /></Suspense>;
   else if (kind === 'html') preview = <HtmlPreview text={text} name={source.name} />;
   else if (kind === 'markdown') preview = <article className="artifact-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml
     urlTransform={(url, key) => key === 'src' ? previewImageUrl(url) ?? '' : defaultUrlTransform(url)}
@@ -85,7 +88,7 @@ export function RichPreview({ source, kind: suppliedKind, onDiscuss, selectionOn
   const auxiliary = showSource || Boolean(onDiscuss && (!selectionOnly || selection || pageText));
   return <section className="artifact-rich-preview" data-preview-kind={kind}>
     {auxiliary && <nav className="artifact-preview-toolbar" aria-label={zh ? '产物预览' : 'Artifact preview'}>
-      {showSource && <><Button variant="ghost" aria-pressed={!raw} onClick={() => setRaw(false)}>{zh ? '预览' : 'Preview'}</Button><Button variant="ghost" aria-pressed={raw} onClick={() => setRaw(true)}>{zh ? '源码' : 'Source'}</Button></>}
+      {showSource && <Button variant="ghost" onClick={() => setRaw(!raw)}>{raw ? (zh ? '返回预览' : 'Back to preview') : (zh ? '源码' : 'Source')}</Button>}
       <span className="artifact-toolbar-spacer" />
       {onDiscuss && (!selectionOnly || selection || pageText) && <Button variant="ghost" disabled={discussing} onClick={() => {
         setDiscussing(true); setError(''); setNotice('');
