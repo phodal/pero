@@ -43,7 +43,6 @@ pub(crate) struct SidebarProps<'a> {
     pub navigation: WorkbenchPage,
     pub catalog_open: bool,
     pub terminal_open: bool,
-    pub identity: String,
     pub local_connected: bool,
     pub collapsed: bool,
     pub apps: Vec<AppShortcut>,
@@ -57,7 +56,6 @@ pub(crate) struct SessionsProps {
 #[derive(Clone)]
 pub(crate) enum SidebarAction {
     Terminal,
-    Account,
     NewChat,
     NewProjectChat(String),
     ToggleSessionSearch,
@@ -398,16 +396,4 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         .children(app_rows(customize))
         .children(app_rows(automation))
         .child(settings)
-        .child(div().mt(chrome.geo(pero_theme::SPACE_8))
-            .relative().child(props.shortcut_bounds.probe("account".into()))
-            .child(if collapsed {
-                pero_theme::ghost_icon_button("sidebar-account", chrome, cx)
-                    .icon(Icon::default().path("icons/brand-github.svg"))
-                    .accessibility_label(props.identity.clone()).tooltip(props.identity)
-                    .on_click(click(&on_action, SidebarAction::Account)).into_any_element()
-            } else {
-                pero_theme::sidebar_row("sidebar-account", props.identity, None, None, false,
-                    pero_theme::RowLevel::Nav, Some(ui.icon("brand-github").into_any_element()),
-                    chrome, cx, click(&on_action, SidebarAction::Account)).into_any_element()
-            }))
 }

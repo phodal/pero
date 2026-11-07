@@ -43,7 +43,7 @@ export async function openSettings(page, beforeClick) {
 }
 export async function setAppearance(page, appearance) {
   await openSettings(page);
-  // Start at the last action so account/header labels do not affect navigation.
+  // Start at the last action. Account and the host label sit above appearance.
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp');
   await page.keyboard.press('ArrowRight');
   for (let i = 0; i < ['light', 'dark', 'system'].indexOf(appearance); i++) await page.keyboard.press('ArrowDown');

@@ -9,9 +9,10 @@ Scope: [canonical local-execution tracker](../issues/2026-10-29-local-worker-onb
 and [device enrollment](../adr/0010-desktop-worker-enrollment.md).
 
 A fresh profile opens local Projects without an account or a first-run gate.
-The sidebar footer offers Sign in (登录账户); connected profiles show the account
-name there. It opens the existing connection settings. Restoring a saved account
-does not replace the local Projects page with Cloud tasks. After sign-in, enabling
+The sidebar footer is one Settings row. It shows Sign in (登录账户), or the
+account name once connected. Choosing that account action opens the existing
+connection settings. Restoring a saved account does not replace the local
+Projects page with Cloud tasks. After sign-in, enabling
 this device still requires an explicit granted Project, workspace key/directory
 and installed ACP Agent through execution resources.
 

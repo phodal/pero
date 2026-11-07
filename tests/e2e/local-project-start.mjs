@@ -1,7 +1,7 @@
 // Fresh profiles browse local projects before connecting a Cloud account.
 import { expect } from '@playwright/test';
 import { electron, focusPage } from './electron.mjs';
-import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
+import { openSettings, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -44,9 +44,14 @@ try {
   await page.mouse.click(tasks.x + tasks.width / 2, tasks.y + tasks.height / 2);
   await expect.poll(async () => (await state()).projectTab).toBe('tasks');
   await capture('02-local-roadmap');
-  await clickAppShortcut(page, 'account');
+  await openSettings(page);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state()).settingsOpen).toBe(true);
+  await expect.poll(async () => (await state()).settings.section).toBe('connector.title');
   await capture('03-account-settings');
   await page.keyboard.press('Escape');
+  await expect.poll(async () => (await state()).settingsOpen).toBe(false);
   await setAppearance(page, 'dark');
   await capture('04-dark');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(900, 700));

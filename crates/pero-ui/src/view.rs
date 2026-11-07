@@ -57,7 +57,6 @@ impl Workbench {
             shortcut_bounds: &self.view_bounds.sidebar,
             new_chat_bounds: &self.view_bounds.new_chat,
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
-            identity: self.remote.data["identity"]["name"].as_str().unwrap_or(self.t("nav.sign_in")).to_string(),
             terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps,
         }, settings, actions, cx)
     }

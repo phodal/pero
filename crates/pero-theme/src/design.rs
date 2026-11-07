@@ -665,12 +665,14 @@ pub fn sidebar_hover_row(
 pub fn sidebar_menu_button(
     id: impl Into<ElementId>,
     label: impl Into<SharedString>,
+    caption: Option<SharedString>,
     icon: impl IntoElement,
     selected: bool,
     chrome: Chrome,
     cx: &App,
 ) -> Button {
     let label = label.into();
+    let has_caption = caption.is_some();
     Button::new(id)
         .custom(
             ButtonCustomVariant::new(cx)
@@ -706,7 +708,23 @@ pub fn sidebar_menu_button(
                         .justify_center()
                         .child(icon),
                 )
-                .child(div().min_w_0().flex_1().text_ellipsis().child(label)),
+                .child(
+                    div()
+                        .min_w_0()
+                        .when(!has_caption, |text| text.flex_1())
+                        .text_ellipsis()
+                        .child(label),
+                )
+                .children(caption.map(|caption| {
+                    div()
+                        .min_w_0()
+                        .flex_1()
+                        .text_ellipsis()
+                        .text_align(TextAlign::Right)
+                        .text_size(chrome.text(TYPE_CAPTION))
+                        .text_color(chrome.palette.text_muted)
+                        .child(caption)
+                })),
         )
 }
 

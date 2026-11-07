@@ -1,4 +1,7 @@
-use crate::app::{Workbench, request_locale};
+use crate::{
+    app::{Workbench, request_locale},
+    workspace::WorkbenchPage,
+};
 use gpui_kit::{
     component::{
         menu::{DropdownMenu, PopupMenuItem},
@@ -51,6 +54,11 @@ impl Workbench {
             .trim_start_matches("http://")
             .trim_end_matches('/')
             .to_string();
+        let account_label = if identity.is_empty() {
+            t("nav.sign_in")
+        } else {
+            identity.clone()
+        };
         let all = t("settings.all");
         let appearance = format!(
             "{} · {}",
@@ -69,17 +77,19 @@ impl Workbench {
         let appearance_choices = [Appearance::Light, Appearance::Dark, Appearance::System]
             .map(|mode| (mode, t(mode.label_key())));
         let label = t("settings.title");
+        let accessible = format!("{label} · {account_label}");
         let chrome = pero_theme::Chrome::from_app(cx);
         let icon = || Icon::default().path("icons/settings.svg");
         let button = if icon_only {
             pero_theme::ghost_icon_button("sidebar-settings", chrome, cx)
-                .tooltip(label.clone())
+                .tooltip(accessible.clone())
                 .icon(icon())
                 .cursor_pointer()
         } else {
             pero_theme::sidebar_menu_button(
                 "sidebar-settings",
                 label.clone(),
+                Some(account_label.clone().into()),
                 icon(),
                 false,
                 chrome,
@@ -87,21 +97,29 @@ impl Workbench {
             )
         };
         let menu = button
-            .accessibility_label(t("settings.title"))
+            .accessibility_label(accessible)
             .dropdown_caret(false)
             .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, window, cx| {
                 // Let Kit measure the labels, icons and submenu arrows. A fixed
                 // account-menu minimum wastes space for these short preferences.
+                // The account action stays above appearance so upward keyboard
+                // navigation from the last item still reaches appearance in three steps.
                 let mut menu = menu.check_side(Side::Right);
-                if !identity.is_empty() {
-                    menu = menu.item(PopupMenuItem::label(identity.clone()));
-                }
+                let target = workbench.clone();
+                let account_label = account_label.clone();
+                menu = menu.item(
+                    PopupMenuItem::new(account_label)
+                        .icon(Icon::default().path("icons/brand-github.svg"))
+                        .on_click(move |_, window, cx| {
+                            let _ = target.update(cx, |this, cx| {
+                                this.show_settings_page(WorkbenchPage::Connections, window, cx);
+                            });
+                        }),
+                );
                 if !host.is_empty() {
                     menu = menu.item(PopupMenuItem::label(host.clone()));
                 }
-                if !identity.is_empty() || !host.is_empty() {
-                    menu = menu.separator();
-                }
+                menu = menu.separator();
                 let target = workbench.clone();
                 let saved = preferences.clone();
                 let appearance_choices = appearance_choices.clone();
