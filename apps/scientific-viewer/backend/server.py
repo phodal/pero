@@ -12,6 +12,7 @@ import sys
 import threading
 from molecules import MAX_OUTPUT, MAX_REQUEST
 from windows_job import WorkerJob
+from notebooks import NotebookCommand, Notebooks
 
 
 class PreviewRunner:
@@ -98,7 +99,7 @@ class PreviewRunner:
             self.lock.release()
 
 
-def handler(runner, secret):
+def handler(runner, secret, notebooks=None):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
             pass
@@ -139,7 +140,7 @@ def handler(runner, secret):
         def do_POST(self):
             if not secret or not hmac.compare_digest(secret.encode(), self.headers.get('X-Pero-App-Token', '').encode()):
                 return self.reject(401, {'error': 'Host authentication required'})
-            if self.path != '/api/molecules':
+            if self.path not in ('/api/molecules', '/api/notebooks'):
                 return self.reject(404, {'error': 'Route not found'})
             try:
                 self.connection.settimeout(20)
@@ -151,19 +152,25 @@ def handler(runner, secret):
                 raw = self.rfile.read(length)
                 if len(raw) != length:
                     raise ValueError('Incomplete request')
+                if self.path == '/api/notebooks':
+                    if notebooks is None:
+                        raise ValueError('Notebook execution is unavailable')
+                    return self.reply(200, notebooks.dispatch(NotebookCommand.parse(json.loads(raw))))
                 return self.reply(*runner.run(raw))
-            except (ValueError, TimeoutError) as error:
+            except (ValueError, TimeoutError, ImportError, RuntimeError) as error:
                 return self.reject(400, {'error': str(error)})
     return Handler
 
 
 def main():
     runner = PreviewRunner()
-    server = ThreadingHTTPServer(('127.0.0.1', 0), handler(runner, os.environ['PERO_APP_TOKEN']))
+    notebooks = Notebooks(os.environ['PERO_APP_DATA'])
+    server = ThreadingHTTPServer(('127.0.0.1', 0), handler(runner, os.environ['PERO_APP_TOKEN'], notebooks))
     server.daemon_threads = True
     print(json.dumps({'port': server.server_port}), flush=True)
     def stop(_signal, _frame):
         runner.close()
+        notebooks.close()
         threading.Thread(target=server.shutdown, daemon=True).start()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, stop)
@@ -171,6 +178,7 @@ def main():
         server.serve_forever()
     finally:
         runner.close()
+        notebooks.close()
         server.server_close()
 
 

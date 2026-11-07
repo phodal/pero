@@ -1,3 +1,5 @@
 rdkit==2026.9.1
 numpy==2.2.6
 Pillow==12.0.0
+jupyter-client==8.10.0
+ipykernel==7.4.0
