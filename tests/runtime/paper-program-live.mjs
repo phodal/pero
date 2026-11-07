@@ -9,6 +9,7 @@ import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { waitForResearchFinalization } from './research-quality/finalization.mjs';
 import { researchExecutablePaths, researchPreflight, researchTarget } from './research-quality/preflight.mjs';
+import { shutdownResearchRun } from './research-quality/shutdown.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 if (process.argv.includes('--preflight')) {
@@ -39,7 +40,7 @@ const redact = value => typeof value === 'string' ? value.replaceAll(process.env
   : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redact(item)])) : value;
 const sha = data => createHash('sha256').update(data).digest('hex');
 const evaluationCode = {};
-for (const name of ['paper-program-live.mjs', 'paper-program-live-backend.py', 'paper-program-quality.py', 'research_quality.py', 'research-quality/finalization.mjs', 'research-quality/preflight.mjs']) {
+for (const name of ['paper-program-live.mjs', 'paper-program-live-backend.py', 'paper-program-quality.py', 'research_quality.py', 'research-quality/finalization.mjs', 'research-quality/preflight.mjs', 'research-quality/shutdown.mjs']) {
   evaluationCode[name] = sha(await readFile(join(root, 'tests/runtime', name)));
 }
 async function wait(predicate, seconds = 45) {
@@ -153,6 +154,6 @@ try {
   await json(join(directory, 'failure.json'), redact({ error: String(error), stderr, events }));
   throw error;
 } finally {
-  if (host && host.exitCode === null) { host.stdin.end(); const timer = setTimeout(() => host.kill('SIGKILL'), 5000); await hostExit; clearTimeout(timer); }
-  await desktop?.close();
+  await shutdownResearchRun({ host, hostExit, desktop,
+    disableApp: access ? () => appRequest('disable', { name: 'paper-agent' }) : undefined });
 }

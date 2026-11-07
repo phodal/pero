@@ -138,3 +138,18 @@ The combined PR review also found that the real Python journey printed success
 before cleanup and left its App backend holding process pipes open. The fixture
 now disables the App while the Host still owns it, and writes success only after
 cleanup. The three-round journey exits zero with no remaining fixture backend.
+
+## P0 qualification preparation — 2026-11-07
+
+The separate Host/Harness-only fixture had the same App-before-Host cleanup
+omission: assertions passed but the process did not exit. It now disables its
+App through the still-running owner, asserts normal Host exit and writes success
+only after cleanup. The rerun exits zero. The opt-in live runner receives the
+same cleanup ordering; no live execution is implied. Review then found that an
+App-disable failure could skip later shutdown steps. A shared cleanup routine
+now attempts every owner before reporting errors; actual subprocess/listener
+regressions cover App, Host and Desktop failure. The real Python three-round
+journey, focused Go race tests, two Rust artifact tests and offline scoring tests
+pass again. See [current readiness](../fitness/paper-research-quality-readiness.md)
+for build hashes, retained failure evidence and the remaining secure-credential,
+generated-reader, real-model and independent-review boundaries. #143 stays open.

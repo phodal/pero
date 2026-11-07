@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
+import { shutdownResearchRun } from './research-quality/shutdown.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const withoutStatusPolling = process.argv.includes('--no-status-poll');
@@ -28,7 +29,7 @@ const nextAction = 'Export the saved checkpoint twice, then finish the approved 
 const skill = (await readFile(join(root, 'apps/paper-agent/agent-plugins/paper-autoresearch/SKILL.md'), 'utf8')).trim();
 const events = [], requests = [], providerErrors = [];
 const changed = new EventEmitter();
-let host, desktop, hostExit, server, stderr = '', sequence = 0, selected = 'unrelated-visible-chat';
+let host, desktop, hostExit, server, receipt, appEnabled = false, stderr = '', sequence = 0, selected = 'unrelated-visible-chat';
 const json = (path, value) => writeFile(path, JSON.stringify(value));
 const recentEvents = () => JSON.stringify(events.slice(-6).map(event => ({
   kind: event.kind, thread: event.thread_id, request: event.request_id, text: event.text,
@@ -135,6 +136,7 @@ try {
   await wait(event => event.kind === 'ready');
   await appRequest('install', { path: source });
   await appRequest('enable', { name: 'paper-agent' });
+  appEnabled = true;
   const catalog = await appRequest('agentcatalog', { name: 'paper-agent', path: '/api/workspaces' });
   const scope = { workspaceId: catalog.items[0].workspaceId };
   const start = { operation: 'start', scope, requestId: 'approved-paper-plan', harnessId: 'pero', text: 'Run the saved plan.', context };
@@ -222,16 +224,13 @@ try {
   assert.equal(await readFile(join(directory, 'settings.research', context.programId, 'model-attempts.log'), 'utf8'), audit,
     'ordinary conversation changed the research request ledger');
   assert.deepEqual(providerErrors, []);
-  const report = { passed: true, provider: 'scripted loopback only', providerRequests: requests.length, researchRequests: 6,
+  receipt = { passed: true, provider: 'scripted loopback only', providerRequests: requests.length, researchRequests: 6,
     artifactCount: saved.length, versionsPerArtifact: 2, hostSHA256: sha(await readFile(binary)), harnessSHA256: sha(await readFile(agent)),
     checks: ['saved App run context selects research mode', 'normal model stop resumes in the same session/turn',
       ...(withoutStatusPolling ? ['terminal artifacts are delivered without UI status polling'] : []),
       'slow research I/O leaves Host commands responsive', 'failed terminal delivery retries without UI polling', 'late Cancel preserves terminal status', 'mutations require stable operation IDs', 'Host protocol budgets remain authoritative', 'direct artifact exports deduplicate and retain old snapshots',
       'foreign program and ordinary unbound research calls are rejected'],
     limitations: ['Synthetic Paper backend; Python domain tested separately', 'No desktop UI or scientific acceptance'] };
-  await mkdir(join(root, 'test-results/paper-program-harness'), { recursive: true });
-  await json(join(root, `test-results/paper-program-harness/${withoutStatusPolling ? 'no-status-' : ''}result.json`), report);
-  console.log(JSON.stringify(report, null, 2));
 } catch (error) {
   const evidence = join(root, 'test-results/paper-program-harness');
   await mkdir(evidence, { recursive: true });
@@ -241,12 +240,13 @@ try {
   });
   throw error;
 } finally {
-  if (host && host.exitCode === null) {
-    host.stdin.end();
-    const timer = setTimeout(() => host.kill('SIGKILL'), 5000);
-    await hostExit; clearTimeout(timer);
+  try {
+    await shutdownResearchRun({ host, hostExit, desktop, provider: server,
+      disableApp: appEnabled ? () => appRequest('disable', { name: 'paper-agent' }) : undefined });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
-  await desktop?.close();
-  if (server) { server.closeAllConnections(); await new Promise(done => server.close(done)); }
-  await rm(directory, { recursive: true, force: true });
 }
+await mkdir(join(root, 'test-results/paper-program-harness'), { recursive: true });
+await json(join(root, `test-results/paper-program-harness/${withoutStatusPolling ? 'no-status-' : ''}result.json`), receipt);
+console.log(JSON.stringify(receipt, null, 2));
