@@ -8,7 +8,10 @@ import { Product } from '../../packages/product/product.ts';
 const bundled = await build({
   entryPoints: ['desktop/src/product/shell.ts'], bundle: true, write: false, format: 'iife',
   plugins: [{ name: 'product-ports', setup(build) {
-    build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' ? undefined : { path: args.path, namespace: 'ports' });
+    build.onResolve({ filter: /.*/ }, args => {
+      if (args.kind === 'entry-point' || args.path === '../../../web/src/mcp-settings-bridge') return;
+      return { path: args.path, namespace: 'ports' };
+    });
     build.onLoad({ filter: /.*/, namespace: 'ports' }, () => ({ contents: `
       export const appChatLauncher = () => () => {};
       export const previewContext = () => {};
