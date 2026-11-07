@@ -1,0 +1,108 @@
+{
+  "schema": "pero.research-quality.cases.v1",
+  "version": "2026-11-07.1",
+  "sources": [
+    {
+      "id": "transformer",
+      "title": "Attention Is All You Need",
+      "sourceId": "1706.03762v7",
+      "url": "https://arxiv.org/abs/1706.03762v7",
+      "pdfUrl": "https://arxiv.org/pdf/1706.03762v7"
+    },
+    {
+      "id": "transformer-xl",
+      "title": "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
+      "sourceId": "1901.02860v3",
+      "url": "https://arxiv.org/abs/1901.02860v3",
+      "pdfUrl": "https://arxiv.org/pdf/1901.02860v3"
+    },
+    {
+      "id": "longformer",
+      "title": "Longformer: The Long-Document Transformer",
+      "sourceId": "2004.05150v2",
+      "url": "https://arxiv.org/abs/2004.05150v2",
+      "pdfUrl": "https://arxiv.org/pdf/2004.05150v2"
+    }
+  ],
+  "cases": [
+    {
+      "id": "attention-parallelism",
+      "seed": "transformer",
+      "question": "Under which conditions does attention reduce sequential computation, and what limitations or counterevidence qualify that claim?",
+      "scope": "Attention Is All You Need and directly related original papers about sequential computation and long-sequence cost.",
+      "requirements": [
+        {
+          "id": "parallel-training",
+          "kind": "coverage",
+          "source": "transformer",
+          "location": "Section 4, Table 1, PDF p. 6",
+          "criterion": "Explain constant sequential operations per self-attention layer, compared with recurrent sequence dependency; distinguish parallel training from generation."
+        },
+        {
+          "id": "autoregressive-decoding",
+          "kind": "counterevidence",
+          "source": "transformer",
+          "location": "Section 3, PDF p. 2; Section 3.1, p. 3",
+          "criterion": "Retain the autoregressive decoder condition: previously generated symbols are inputs when generating the next symbol. Do not infer constant-time full-sequence generation from Table 1."
+        },
+        {
+          "id": "quadratic-attention",
+          "kind": "counterevidence",
+          "source": "transformer",
+          "location": "Section 4, Table 1, PDF p. 6",
+          "criterion": "Report O(n^2 d) full self-attention cost and the n < d comparison condition, rather than claiming universally cheaper attention."
+        },
+        {
+          "id": "bounded-sparse-alternative",
+          "kind": "coverage",
+          "source": "longformer",
+          "location": "Section 3.1, PDF pp. 3–4",
+          "criterion": "Compare sparse local/global attention as an alternative. State fixed window and bounded global-token assumptions behind linear sequence-length scaling; cite actual observed original evidence."
+        }
+      ]
+    },
+    {
+      "id": "attention-context",
+      "seed": "transformer",
+      "question": "How do later attention methods address long-context cost and context fragmentation, and which restrictions remain?",
+      "scope": "Original attention mechanisms for long-sequence cost and cross-segment context; compare assumptions rather than benchmark rankings.",
+      "requirements": [
+        {
+          "id": "dense-cost",
+          "kind": "counterevidence",
+          "source": "transformer",
+          "location": "Section 4, Table 1, PDF p. 6",
+          "criterion": "Identify the quadratic full-attention sequence-length cost."
+        },
+        {
+          "id": "segment-recurrence",
+          "kind": "coverage",
+          "source": "transformer-xl",
+          "location": "Sections 3.1–3.2, PDF pp. 2–4",
+          "criterion": "Explain fixed-length context fragmentation and reuse of previous-segment hidden states with relative positions."
+        },
+        {
+          "id": "finite-cache",
+          "kind": "counterevidence",
+          "source": "transformer-xl",
+          "location": "Section 3.2, PDF pp. 3–4",
+          "criterion": "Do not equate beyond fixed-length context with unbounded accessible context: explain depth, segment and cache dependence; distinguish inference speedup evidence from universal asymptotic claims."
+        },
+        {
+          "id": "sparse-scope",
+          "kind": "coverage",
+          "source": "longformer",
+          "location": "Section 3.1, PDF pp. 3–4",
+          "criterion": "Explain the local/global sparse pattern, fixed-window and bounded-global-token conditions, and that it is not unrestricted all-pairs attention."
+        }
+      ]
+    }
+  ],
+  "thresholds": {
+    "supportRate": 0.9,
+    "requirementCoverage": 1.0,
+    "counterevidenceOmissionRate": 0.0,
+    "referenceSourceReadCoverage": 1.0
+  },
+  "reviewPolicy": "Pre-registered engineering acceptance thresholds, not validated population-level scientific metrics. All claims, required evidence and each round's next action require an independent human review of saved originals. Equivalent observed originals may satisfy a requirement with a justified mapping; their versions must be saved. Missing sources remain omissions. Fixed references are reviewer-only and must not be injected into an open-discovery model prompt."
+}
