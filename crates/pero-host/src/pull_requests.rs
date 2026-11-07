@@ -1,0 +1,196 @@
+//! Read-only GitHub shell, shared by Electron and Native through Host JSONL.
+use pero_contracts::{HostEvent, pull_request::*};
+use pero_runtime::contribution_git::{GitHub, GitHubCli};
+use serde::Deserialize;
+use std::path::Path;
+
+pub fn dispatch(value: serde_json::Value, agents: &crate::agents::Manager) {
+    let request_id = value["request_id"].as_str().map(str::to_owned);
+    let request: PullRequestRequest = match serde_json::from_value(value) {
+        Ok(request) => request,
+        Err(error) => {
+            let _ = crate::emit(HostEvent::new(
+                "pull_request_error",
+                request_id,
+                error.to_string(),
+            ));
+            return;
+        }
+    };
+    let workspace = match &request.action {
+        PullRequestAction::Load { .. } => Some(agents.workspace().to_owned()),
+        PullRequestAction::Discover { thread_id } => agents.artifact_workspace(thread_id),
+    };
+    std::thread::spawn(move || {
+        let mut event = HostEvent::new(
+            "pull_request_error",
+            Some(request.request_id),
+            String::new(),
+        );
+        let result = (|| {
+            let workspace = workspace.ok_or("Conversation workspace is unavailable")?;
+            match request.action {
+                PullRequestAction::Load { reference } => {
+                    let snapshot = load(&GitHubCli, &workspace, reference)?;
+                    event.kind = "pull_request_loaded".into();
+                    event.data = serde_json::to_value(snapshot).expect("PR snapshot");
+                }
+                PullRequestAction::Discover { thread_id } => {
+                    event.thread_id = Some(thread_id);
+                    let output = GitHubCli
+                        .run(&workspace, &["pr", "view", "--json", "url"])
+                        .map_err(|error| error.message)?;
+                    #[derive(Deserialize)]
+                    struct Found {
+                        url: PullRequestRef,
+                    }
+                    let found: Found =
+                        serde_json::from_str(&output).map_err(|error| error.to_string())?;
+                    event.kind = "pull_request_discovered".into();
+                    event.data = serde_json::json!({"reference":found.url});
+                }
+            }
+            Ok::<_, String>(())
+        })();
+        if let Err(error) = result {
+            event.text = error;
+        }
+        let _ = crate::emit(event);
+    });
+}
+
+#[derive(Deserialize)]
+struct ApiAuthor {
+    login: String,
+}
+#[derive(Deserialize)]
+struct ApiBranch {
+    #[serde(rename = "ref")]
+    name: String,
+    sha: String,
+}
+#[derive(Deserialize)]
+struct ApiPull {
+    title: String,
+    body: Option<String>,
+    state: String,
+    draft: bool,
+    merged: bool,
+    user: ApiAuthor,
+    base: ApiBranch,
+    head: ApiBranch,
+    additions: u64,
+    deletions: u64,
+    changed_files: u64,
+}
+fn api(
+    github: &impl GitHub,
+    workspace: &Path,
+    path: &str,
+    query: Option<&str>,
+) -> Result<String, String> {
+    let mut args = vec!["api", "--hostname", "github.com", "--method", "GET", path];
+    if let Some(query) = query {
+        args.extend(["--paginate", "--jq", query]);
+    }
+    github.run(workspace, &args).map_err(|error| error.message)
+}
+fn section<T: serde::de::DeserializeOwned>(
+    github: &impl GitHub,
+    workspace: &Path,
+    path: &str,
+    query: &str,
+) -> PullRequestSection<T> {
+    match api(github, workspace, path, Some(query)).and_then(|text| {
+        serde_json::Deserializer::from_str(&text).into_iter::<Vec<T>>().collect::<Result<Vec<_>,_>>().map(|pages|pages.into_iter().flatten().collect()).map_err(|error| format!("Invalid GitHub response: {error}"))
+    }) {
+        Ok(items) => PullRequestSection { items, error: None },
+        Err(error) => PullRequestSection {
+            items: vec![],
+            error: Some(error),
+        },
+    }
+}
+fn load(
+    github: &impl GitHub,
+    workspace: &Path,
+    reference: PullRequestRef,
+) -> Result<PullRequestSnapshot, String> {
+    let path = reference.api_path();
+    let pull: ApiPull = serde_json::from_str(&api(github, workspace, &path, None)?)
+        .map_err(|error| format!("Invalid GitHub pull request: {error}"))?;
+    let status = PullRequestStatus::observed(&pull.state, pull.draft, pull.merged)?;
+    let files = section(
+        github,
+        workspace,
+        &format!("{path}/files?per_page=100"),
+        "[.[]|{filename,previous_filename:(.previous_filename // null),status,additions,deletions,patch:(.patch // null)}]",
+    );
+    let commits = section(
+        github,
+        workspace,
+        &format!("{path}/commits?per_page=100"),
+        "[.[]|{sha,message:.commit.message,author:(.author.login // .commit.author.name // \"unknown\")}]",
+    );
+    let mut checks = section(
+        github,
+        workspace,
+        &format!(
+            "repos/{}/commits/{}/check-runs?per_page=100",
+            reference.repository(),
+            pull.head.sha
+        ),
+        "[.check_runs[]|{name,status,conclusion:(.conclusion // null),url:(.html_url // null)}]",
+    );
+    let statuses = section(
+        github,
+        workspace,
+        &format!(
+            "repos/{}/commits/{}/statuses?per_page=100",
+            reference.repository(),
+            pull.head.sha
+        ),
+        "[.[]|{name:.context,status:.state,conclusion:null,url:(.target_url // null)}]",
+    );
+    checks.items.extend(statuses.items);
+    if let Some(error) = statuses.error {
+        checks.error = Some(error);
+    }
+    let mut reviews = section(
+        github,
+        workspace,
+        &format!("{path}/reviews?per_page=100"),
+        "[.[]|{author:(.user.login // \"unknown\"),state,body:(.body // \"\")}]",
+    );
+    let comments = section(
+        github,
+        workspace,
+        &format!(
+            "repos/{}/issues/{}/comments?per_page=100",
+            reference.repository(),
+            reference.number()
+        ),
+        "[.[]|{author:(.user.login // \"unknown\"),state:\"COMMENTED\",body:(.body // \"\")}]",
+    );
+    reviews.items.extend(comments.items);
+    if let Some(error) = comments.error {
+        reviews.error = Some(error);
+    }
+    Ok(PullRequestSnapshot {
+        reference,
+        title: pull.title,
+        body: pull.body.unwrap_or_default(),
+        status,
+        author: pull.user.login,
+        base: pull.base.name,
+        head: pull.head.name,
+        head_sha: pull.head.sha,
+        additions: pull.additions,
+        deletions: pull.deletions,
+        changed_files: pull.changed_files,
+        files,
+        commits,
+        checks,
+        reviews,
+    })
+}
