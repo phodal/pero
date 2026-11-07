@@ -110,6 +110,12 @@ as did `npm run check`, Host/Native/Wasm/web/Desktop builds and
 `npm run test:pull-requests`. These integration checks used `43b91481`; the
 earlier actual Native observations remain separately attributed above.
 
+The first PR CI run rejected the stale Bazel npm manifest hash after the two
+test-script additions. A normal `bazel test //:checks` regenerated only that
+hash record and passed all seven checks; dependency locks did not change.
+`bazel test --config=ci //:checks` then accepted the frozen record and reused
+those seven passing results.
+
 GitHub only; no Graphite/Origin or enterprise host admission, PR mutation,
 merge, approval, inline review-thread actions or continuous live polling.
 Reviews include review bodies and issue discussion comments. GitHub's files API
