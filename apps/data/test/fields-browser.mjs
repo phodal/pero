@@ -263,7 +263,7 @@ for (const kind of ['model', 'opaque']) test(`${kind} files expose file and hist
   const value = { ...catalog, assets: [{ ...asset('a'), name: 'A long original research file with a name that must remain readable.bin', kind: kind === 'model' ? 'model' : 'dataset', format: 'bin' }],
     datasets: [{ ...catalog.datasets[0], name: 'A long original research file with a name that must remain readable.bin', kind: kind === 'model' ? 'model' : 'dataset', versions: ['a'] }] };
   const { page } = await fixture(t, { catalog: value, inspect: false });
-  await expect(page.getByRole('tab', { name: 'File', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'History', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Chart', exact: true })).toHaveCount(0);
   await expect(page.getByText('Fields are available', { exact: false })).toHaveCount(0);

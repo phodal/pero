@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Disclosure, Table, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { Table, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { InterpretationPreview } from './interpretation';
 import { ChartPanel } from './chart-panel';
 import { DatasetDetails } from './dataset-details';
@@ -43,7 +43,8 @@ export function Workspace(props: Props) {
   const stale = Boolean(inspected && !currentInspection);
   const displayedView = currentInspection ? view : props.retained?.view ?? view;
   const analysis = canInspect(asset);
-  const tab = analysis ? props.tab === 'overview' ? 'table' : props.tab : props.tab === 'history' ? 'history' : 'overview';
+  const available = analysis ? ['overview', 'table', 'fields', 'chart', 'checks', 'history'] : ['overview', 'history'];
+  const tab = available.includes(props.tab) ? props.tab : 'overview';
   const failure = !loading && result && result.status !== 'ok' ? result : null;
   const columns = view.columns.length ? view.columns : fields?.columns ?? [];
   const versions = dataset.versions.map(id => props.assets.find(item => item.id === id)!).filter(Boolean);
@@ -78,24 +79,71 @@ export function Workspace(props: Props) {
         {failure.status === 'rejected' && !fields ? <Button disabled={busy} onClick={props.onRecoverView}>{props.recoveryLabel}</Button> : null}
         {failure.status === 'unavailable' || failure.status === 'forbidden' ? <Button disabled={busy} onClick={props.onRetryInspection}>Retry inspection</Button> : null}
       </div> : null}
-      <div className="data-actions"><Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Edit details</Button>
-        <Disclosure variant="inline" className="data-provenance" summary={<>Source details</>}><dl className="data-facts">
-          <dt>Revision</dt><dd>{asset.revision || 'Local import'}</dd>
-          <dt>SHA-256</dt><dd><code>{asset.sha256}</code></dd>
-          <dt>Added</dt><dd>{asset.createdAt}</dd>
-          {asset.bundleId ? <><dt>Paper bundle</dt><dd>{asset.bundleId}</dd></> : null}
-        </dl><p>Original bytes remain immutable. Record exports include all fields.</p></Disclosure>
-      </div>
+      <div className="data-actions"><Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Edit details</Button></div>
     </header>
     {editing ? <DatasetDetails dataset={dataset} busy={busy} error={props.error} onSave={props.onEdit} onClose={() => setEditing(false)} /> : null}
     {stale ? <p className="data-retained" role="status">{loading ? 'Updating.' : 'Update failed.'} Showing the last successful result: {displayedView.filter ? `${displayedView.filter.field} ${displayedView.filter.operator} ${displayedView.filter.value}` : 'all records'}{displayedView.sort ? `, ${displayedView.sort.field} ${displayedView.sort.descending ? 'descending' : 'ascending'}` : ''}{displayedView.issue ? `, ${displayedView.issue.kind} issues` : ''}{displayedView.selection.length ? `, ${displayedView.selection.length} selected` : ''}.</p> : null}
     <Tabs value={tab} onValueChange={props.onTab}>
       <TabsList aria-label="Dataset views">
+        <TabsTrigger value="overview">Overview</TabsTrigger>
         {analysis ? <><TabsTrigger value="table">Table</TabsTrigger><TabsTrigger value="fields">Fields</TabsTrigger>
-        <TabsTrigger value="chart">Chart</TabsTrigger><TabsTrigger value="checks">Checks</TabsTrigger></> : <TabsTrigger value="overview">File</TabsTrigger>}
+        <TabsTrigger value="chart">Chart</TabsTrigger><TabsTrigger value="checks">Checks</TabsTrigger></> : null}
         <TabsTrigger value="history">History</TabsTrigger>
       </TabsList>
-      {!analysis ? <TabsContent value="overview"><p>{dataset.kind === 'model' ? 'This model file is stored without table inspection or chart analysis.' : `This ${format} file is stored as an original file. Table inspection and chart analysis are not available for this format.`} You can review its source identity, edit its details or add a version.</p></TabsContent> : null}
+      <TabsContent value="overview">
+        <div className="data-overview">
+          {!analysis ? <p>{dataset.kind === 'model' ? 'This model file is stored without table inspection or chart analysis.' : `This ${format} file is stored as an original file. Table inspection and chart analysis are not available for this format.`} You can review its source identity, edit its details or add a version.</p> : <p className="data-note">The table pages through a full inspection of this file.</p>}
+          <dl className="data-facts">
+            <dt>Kind</dt><dd>{dataset.kind === 'model' ? 'Model' : 'Dataset'}</dd>
+            <dt>Format</dt><dd>{format}</dd>
+            <dt>Size</dt><dd>{formatBytes(asset.size)}</dd>
+            <dt>Availability</dt><dd>{currentInspection ? 'Bytes matched' : availabilityLabel(asset, result)}</dd>
+            <dt>Source</dt><dd>{asset.source || 'Unknown source'}</dd>
+            <dt>License</dt><dd>{asset.license || 'Unknown license'}</dd>
+            <dt>Revision</dt><dd>{asset.revision || 'Local import'}</dd>
+            <dt>SHA-256</dt><dd><code>{asset.sha256}</code></dd>
+            <dt>Added</dt><dd>{asset.createdAt}</dd>
+            <dt>Project reference</dt><dd>{dataset.projectRef || 'None'}</dd>
+            {asset.bundleId ? <><dt>Paper bundle</dt><dd>{asset.bundleId}</dd></> : null}
+            {fields ? <><dt>Records</dt><dd>{formatInt(fields.report.rowCount)} inspected</dd><dt>Fields</dt><dd>{formatInt(fields.report.fields.length)}</dd></> : null}
+          </dl>
+          <p className="data-note">A project reference groups datasets. It is not a join key or a permission boundary. Original bytes remain immutable.</p>
+          {fields ? <>
+            <h3>Columns</h3>
+            <p className="data-note">Observed on the full input. Open Fields to choose displayed columns, units, or a number interpretation.</p>
+            <div className="data-actions"><Button disabled={busy} onClick={() => props.onTab('fields')}>Open fields</Button></div>
+            <Table label="Column summary" density="compact" className="data-rows-scroll" tableClassName="data-rows">
+              <thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col">Missing</th></tr></thead>
+              <tbody>{fields.report.fields.map(field => <tr key={field.name}>
+                <th scope="row">{field.name}</th>
+                <td>{view.interpretations?.[field.name] ? 'Decimal number (explicit)' : (field.kinds.join(', ') || '—')}</td>
+                <td>{field.missing ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'missing', field: field.name })}>{field.missing}</Button> : '0'}</td>
+              </tr>)}</tbody>
+            </Table>
+            <h3>Quality</h3>
+            <dl className="data-facts">
+              <dt>Missing fields</dt><dd>{formatInt(fields.report.missing)} {fields.report.missing > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'missing' })}>Show missing rows</Button> : null}</dd>
+              <dt>Explicit nulls</dt><dd>{formatInt(fields.report.nulls)} {fields.report.nulls > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'null' })}>Show null rows</Button> : null}</dd>
+              <dt>Empty strings</dt><dd>{formatInt(fields.report.empty)} {fields.report.empty > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'empty' })}>Show empty rows</Button> : null}</dd>
+              <dt>Duplicate rows</dt><dd>{formatInt(fields.report.duplicateRows)} {fields.report.duplicateRows > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'duplicate' })}>Show duplicate rows</Button> : null}</dd>
+              <dt>Conversion failures</dt><dd>{formatInt(fields.report.conversionFailures ?? 0)} {!!fields.report.conversionFailures && <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'conversion' })}>Show conversion failures</Button>}</dd>
+            </dl>
+            <Button disabled={busy} onClick={() => props.onTab('checks')}>Open checks</Button>
+          </> : null}
+          <h3>Saved views</h3>
+          {props.views.length ? props.views.map(saved => <section className="data-saved-view" key={saved.id}>
+            <div className="data-actions"><Button disabled={busy} onClick={() => { setPriorAnalysis(null); setTypeDraft(null); props.onOpen(saved); props.onTab('table'); }}>{saved.name}</Button><Button onClick={() => props.onExport(saved)}>Export reference</Button></div>
+            <p className="data-note">v{dataset.versions.indexOf(saved.assetId) + 1} / {saved.report.parserVersion} / {saved.report.rowCount} records / {saved.report.duplicateRows} duplicate rows</p>
+            <p className="data-note">Saved report, not a claim about current file availability.</p>
+          </section>) : <p className="data-note">No saved views.</p>}
+          <div className="data-archive">
+            {dataset.archived ? <Button disabled={busy} onClick={() => props.onEdit({ ...metadata, archived: false })}>Restore dataset</Button>
+              : confirmArchive ? <><p>Hide this dataset? Original files and saved views remain; no disk space is freed.</p>
+                <div className="data-actions"><Button disabled={busy} onClick={() => { props.onEdit({ ...metadata, archived: true }); setConfirmArchive(false); }}>Confirm archive</Button><Button onClick={() => setConfirmArchive(false)}>Cancel</Button></div></>
+                : <Button disabled={busy} onClick={() => setConfirmArchive(true)}>Archive dataset</Button>}
+          </div>
+        </div>
+      </TabsContent>
       {analysis ? <><TabsContent value="table">
         {loading && !inspected ? <p role="status">Reading this version…</p> : null}
         {!loading && (!fields || failure?.status === 'rejected' || failure?.status === 'invalid') && (view.filter || view.issue || Object.keys(view.interpretations ?? {}).length > 0) ? <Button disabled={busy} onClick={() => props.onView(emptyView())}>Reset view</Button> : null}
@@ -125,7 +173,7 @@ export function Workspace(props: Props) {
           </Toolbar>
           {filterField && ['gte', 'lte'].includes(operator) && !view.interpretations?.[filterField] && fields.report.fields.find(field => field.name === filterField)?.kinds.includes('string') ? <p className="data-note">Numeric comparison requires explicit number interpretation. <Button onClick={() => { props.onTab('fields'); setTypeDraft({ field: filterField, numeric: true }); }}>Preview number type</Button></p> : null}
           {inspected ? <>
-          <p className="data-note">Table: {formatInt(inspected.matched)} matching records. Source row numbers stay unchanged.</p>
+          <p className="data-note">Inspected the whole file. This page shows {formatInt(inspected.matched)} matching records. Source row numbers stay unchanged.</p>
           <Table label="Data records" density="compact" className="data-grid" tableClassName="data-rows">
               <thead><tr><th scope="col">#</th>{inspected.columns.map(key => <th key={key} scope="col" aria-sort={displayedView.sort?.field === key ? (displayedView.sort.descending ? 'descending' : 'ascending') : 'none'}>
                 <Button variant="ghost" disabled={busy} onClick={() => props.onView({ ...view, sort: { field: key, descending: view.sort?.field === key ? !view.sort.descending : false } })}>
@@ -211,18 +259,7 @@ export function Workspace(props: Props) {
           <Button aria-pressed={version.id === asset.id} disabled={busy} onClick={() => props.onVersion(version.id)}>v{index + 1} / {version.name}</Button>
           <p className="data-note">{version.createdAt} / {availabilityLabel(version, result)}</p><code>{version.sha256}</code>
         </section>)}</div>
-        <h3>Saved views</h3>
-        {props.views.length ? props.views.map(saved => <section className="data-saved-view" key={saved.id}>
-          <div className="data-actions"><Button disabled={busy} onClick={() => { setPriorAnalysis(null); setTypeDraft(null); props.onOpen(saved); props.onTab('table'); }}>{saved.name}</Button><Button onClick={() => props.onExport(saved)}>Export reference</Button></div>
-          <p className="data-note">v{dataset.versions.indexOf(saved.assetId) + 1} / {saved.report.parserVersion} / {saved.report.rowCount} records / {saved.report.duplicateRows} duplicate rows</p>
-          <p className="data-note">Saved report, not a claim about current file availability.</p>
-        </section>) : <p className="data-note">No saved views.</p>}
-        <div className="data-archive">
-          {dataset.archived ? <Button disabled={busy} onClick={() => props.onEdit({ ...metadata, archived: false })}>Restore dataset</Button>
-            : confirmArchive ? <><p>Hide this dataset? Original files and saved views remain; no disk space is freed.</p>
-              <div className="data-actions"><Button disabled={busy} onClick={() => { props.onEdit({ ...metadata, archived: true }); setConfirmArchive(false); }}>Confirm archive</Button><Button onClick={() => setConfirmArchive(false)}>Cancel</Button></div></>
-              : <Button disabled={busy} onClick={() => setConfirmArchive(true)}>Archive dataset</Button>}
-        </div>
+        <p className="data-note">Each version is an immutable file. Saved views stay on Overview and remain pinned to the version they were saved from.</p>
       </TabsContent>
     </Tabs>
     <footer className="data-workspace-footer">

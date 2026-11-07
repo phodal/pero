@@ -115,6 +115,7 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
     await dialog.getByRole('button', { name: 'Import', exact: true }).click();
     await expect(dialog).toBeHidden();
     await expect(rows()).toHaveCount(7);
+    await expect(page.getByText('Inspected the whole file. This page shows 7 matching records. Source row numbers stay unchanged.', { exact: true })).toBeVisible();
     const state = await request('/api/state'), asset = state.assets[0], datasetId = state.datasets[0].id;
     assert.equal(asset.sha256, createHash('sha256').update(bytes).digest('hex'));
     assert.deepEqual(await readFile(asset.location), bytes);
@@ -166,7 +167,9 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
     await expect(rows()).toHaveCount(7);
     await expect(page.getByRole('alert')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Clear filter', exact: true })).toHaveCount(0);
-    await tab('History');
+    await tab('Overview');
+    await expect(page.getByRole('heading', { name: 'Saved views', exact: true })).toBeVisible();
+    await expect(page.locator('.data-facts code', { hasText: asset.sha256 })).toBeVisible();
     await page.getByRole('button', { name: 'Numeric baseline', exact: true }).click();
     await expect.poll(rowNumbers).toEqual(['2', '1', '6']);
     checks.push('reverting an interpreted field warns before clearing its incompatible numeric filter and keeps the table usable');
@@ -186,7 +189,7 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
     await page.getByRole('button', { name: 'Return to analysis', exact: true }).click();
     await expect.poll(rowNumbers).toEqual(['2', '1', '6']);
     await expect(page.getByRole('region', { name: 'Data records', exact: true }).getByRole('columnheader', { name: 'measure', exact: true })).toHaveCount(0);
-    await tab('History');
+    await tab('Overview');
     await page.getByRole('button', { name: 'Numeric baseline', exact: true }).click();
     await expect.poll(rowNumbers).toEqual(['2', '1', '6']);
     checks.push('field issue navigation reveals a hidden field and Return restores the original displayed columns');
@@ -230,11 +233,11 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
     assert.equal(chart.document.source.records.length, 3);
 
     await restart();
-    await tab('History');
+    await tab('Overview');
     await page.getByRole('button', { name: 'Numeric baseline', exact: true }).click();
     await expect.poll(rowNumbers).toEqual(['2', '1', '6']);
     assert.deepEqual((await request('/api/state')).views.find(view => view.id === saved.id), saved);
-    await tab('History');
+    await tab('Overview');
     await page.getByRole('button', { name: 'Conversion issues', exact: true }).click();
     await expect.poll(rowNumbers).toEqual(['5', '4']);
     await page.getByRole('button', { name: 'Return to analysis', exact: true }).click();
@@ -248,7 +251,7 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
     await expect(rows()).toHaveCount(1);
     await tab('Fields');
     await expect(page.getByText('Decimal number (explicit)', { exact: false })).toHaveCount(0);
-    await tab('History');
+    await tab('Overview');
     await page.getByRole('button', { name: 'Numeric baseline', exact: true }).click();
     await expect.poll(rowNumbers).toEqual(['2', '1', '6']);
     await writeFile(asset.location, Buffer.from(bytes.toString().replace('001', '009')));

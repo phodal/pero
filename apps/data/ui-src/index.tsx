@@ -127,7 +127,7 @@ export default function Data() {
 
   function choose(value: Dataset, version = value.versions[value.versions.length - 1]) {
     home.current = false;
-    if (value.id !== focus.selection?.datasetId) setTab('table');
+    if (value.id !== focus.selection?.datasetId) setTab('overview');
     setFocus(focused({ datasetId: value.id, assetId: version }, state!.parserVersion));
     setNotice('');
   }

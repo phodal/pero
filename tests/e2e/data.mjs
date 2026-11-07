@@ -148,7 +148,7 @@ try {
   await preview().getByRole('button', { name: 'Next', exact: true }).click();
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(11);
   await expect(preview().locator('.data-rows tbody tr').first().locator('th')).toHaveText('51');
-  await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  await preview().getByRole('tab', { name: 'Overview', exact: true }).click();
   const reference = resolve(temp, 'baseline-reference.json');
   await app.evaluate(({ session }, path) => session.defaultSession.once('will-download', (_event, item) => item.setSavePath(path)), reference);
   await preview().getByRole('button', { name: 'Export reference', exact: true }).click();
@@ -163,13 +163,13 @@ try {
   await expect(frame.getByText('No matches', { exact: true })).toBeVisible();
   await frame.getByRole('searchbox', { name: 'Search data' }).fill('');
   await expect(preview().getByRole('button', { name: 'Version', exact: true })).toHaveAttribute('data-value', v1.id);
-  await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  await preview().getByRole('tab', { name: 'Overview', exact: true }).click();
   await preview().getByRole('button', { name: 'Archive dataset', exact: true }).click();
   await preview().getByRole('button', { name: 'Confirm archive', exact: true }).click();
   await expect.poll(async () => (await catalog()).datasets[0].archived).toBe(true);
   await frame.getByRole('checkbox', { name: 'Archived', exact: true }).check();
   await datasetEntry('measurements.csv').click();
-  await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  await preview().getByRole('tab', { name: 'Overview', exact: true }).click();
   await preview().getByRole('button', { name: 'Restore dataset', exact: true }).click();
   await expect.poll(async () => (await catalog()).datasets[0].archived).toBe(false);
   await frame.getByRole('checkbox', { name: 'Archived', exact: true }).uncheck();
@@ -181,7 +181,7 @@ try {
   expect(reopened.datasets[0]).toMatchObject({ id: datasetId, versions: [v1.id, v2.id], projectRef: 'control-lab' });
   expect(reopened.views[0]).toEqual(saved);
   await expect(datasetEntry('measurements.csv')).toBeVisible();
-  await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  await preview().getByRole('tab', { name: 'Overview', exact: true }).click();
   await preview().getByRole('button', { name: 'baseline', exact: true }).click();
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
   await preview().getByRole('button', { name: 'Edit details', exact: true }).click();
@@ -196,7 +196,7 @@ try {
   await expect(frame.getByRole('table', { name: '' }).getByRole('cell', { name: 'Changed', exact: true })).toBeVisible();
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(0);
   expect((await catalog()).views[0]).toEqual(saved);
-  await preview().getByRole('tab', { name: 'History', exact: true }).click();
+  await preview().getByRole('tab', { name: 'Overview', exact: true }).click();
   await expect(preview().getByRole('heading', { name: 'Saved views', exact: true })).toBeVisible();
   await expect(corruption).toBeVisible();
   await page.screenshot({ path: resolve(out, 'data-changed-original.png') });

@@ -15,8 +15,11 @@ there are no automatically populated demo assets or downloads.
 The list supports search, explicit project-reference filters and archived items.
 Each row shows the name, kind (Dataset or Model), size of the selected or latest
 version, version count, and availability (Stored, Missing, or Changed).
-The resizable detail pane contains **Table**, **Fields**, **Chart**, **Checks**
-and **History**. **Add version** appends a file to the selected logical dataset;
+The resizable detail pane contains **Overview**, **Table**, **Fields**, **Chart**, **Checks**
+and **History**. Choosing another dataset opens **Overview**: identity, source, license,
+SHA-256, a column summary, quality counts, and saved views. **Table** is one page of
+the full inspection of the admitted file. Switching versions keeps the current tab.
+**Add version** appends a file to the selected logical dataset;
 existing bytes and IDs do not change. A normal import creates a separate dataset,
 even when its filename matches. Repeated explicit imports create separate files
 or versions, not automatic content deduplication.
@@ -65,8 +68,8 @@ catalogs are not automatically shared.
   ID, SHA-256, parser version and check report. A catalog written by an older
   build stores only columns, a contains-filter and units. That shape is read as
   operator `contains` with no sort, selection or chart. The next successful
-  mutation writes schema 3 and, once, `catalog.v2.backup.json`. History reopens
-  that input and rechecks current bytes. **Export reference** exports a JSON
+  mutation writes schema 3 and, once, `catalog.v2.backup.json`. Opening a saved view
+  from Overview reopens that input and rechecks current bytes. **Export reference** exports a JSON
   reference and report, not original files or a runnable experiment. Historical
   reports remain readable if the current original becomes unavailable.
   Saved issue views reopen the issue condition; the transient return-to-analysis

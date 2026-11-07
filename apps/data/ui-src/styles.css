@@ -22,6 +22,8 @@ html, body, #app { height: 100%; }
 .data-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--pero-spacing-1) var(--pero-spacing-2); margin: var(--pero-spacing-1) 0; font-size: var(--pero-font-caption); }
 .data-facts dt { color: var(--pero-text-muted); }
 .data-facts dd { margin: 0; overflow-wrap: anywhere; }
+.data-facts code { overflow-wrap: anywhere; }
+.data-overview h3 { margin: var(--pero-spacing-3) 0 var(--pero-spacing-1); font-size: var(--pero-font-body); }
 .data-preview .pero-ui-tabs-list { padding: var(--pero-spacing-1) var(--pero-spacing-2) 0; flex-wrap: wrap; }
 .data-preview .pero-ui-tabs-content { padding: var(--pero-spacing-2); }
 .data-rows-scroll { max-width: 100%; overflow: auto; margin: var(--pero-spacing-1) 0; }
