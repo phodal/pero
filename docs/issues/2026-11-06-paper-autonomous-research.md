@@ -75,7 +75,8 @@ the one active tracker for #143.
 
 The slow-worker continuation, dedicated Skill and ResearchRecord-history gaps
 are fixed and covered by independent acceptance tests. A new real
-Python/Host/Harness journey discovers and acquires a new original, reads it,
+Python/Host/Harness journey discovers synthetic fixture metadata and acquires a
+synthetic original PDF through the real worker, reads it,
 cancels, restarts Host, and resumes the original ACP session with cumulative
 allowance (11→18 model attempts, one download). Four artifact categories retain
 three exact versions. It reproduced a Windows background Python startup stall;
@@ -122,3 +123,13 @@ suite limits are recorded in the verification report. The author will manually
 attach the inspected desktop screenshots. The PR references #143 without an
 automatic closing keyword; real-model and independent scientific review remain
 outstanding, so this issue stays open.
+
+
+## PR review corrections — 2026-11-07
+
+Review found hard-stop finalization bypasses, ready-job application failures that
+blocked subsequent work, manual HTML preparation that reused a program download
+grant, missing stable mutation IDs, sandboxed form submission and stopped-plan
+cancellation recovery gaps. Host research I/O also blocked its command loop and
+failed observations were cached. These are implementation defects; the rollout
+continues to require independent scientific review of needs_review outputs.

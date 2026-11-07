@@ -1,6 +1,13 @@
 """Deterministic program artifacts; source evidence keeps its original owner."""
 import json
+import re
+from html import escape
+from urllib.parse import quote
 from .model import digest
+
+
+def markdown_text(value):
+    return re.sub(r'([\\`*_{}\[\]()#+.!>|-])', r'\\\1', escape(value, quote=False))
 
 
 def export_program(program, rounds):
@@ -8,23 +15,24 @@ def export_program(program, rounds):
     accounting = (f'Model attempts: {program.modelRequestsUsed}; App calls: {program.appCallsUsed}'
                   if program.executionStatus in ('completed', 'failed', 'cancelled', 'interrupted')
                   else 'Final execution accounting: not yet recorded')
-    report = [f'# {protocol.question}', '', 'Review: needs_review', '',
-              f'Scope: {protocol.scope}', f'Checkpoint: {program.checkpoint}',
+    report = [f'# {markdown_text(protocol.question)}', '', 'Review: needs_review', '',
+              f'Scope: {markdown_text(protocol.scope)}', f'Checkpoint: {program.checkpoint}',
               f'Stop reason: {program.stopReason or "not recorded"}', accounting, '', '## Findings']
     evidence = []
     for row in rounds:
-        report.extend(['', f'### Round {row["number"]}: {row["question"]}'])
+        report.extend(['', f'### Round {row["number"]}: {markdown_text(row["question"])}'])
         for claim in row['claims']:
             link = claim['sourceUrl'] if claim.get('sourceKind') == 'html' else f'pero-app-location://paper-agent/main/report/{claim["reportId"]}/passage/{claim["passageId"]}'
-            report.extend([f'- **{claim["stance"]}**: {claim["text"]} ([source report]({link}))',
-                           f'  > {claim["quote"]}'])
+            claim_text = markdown_text(claim['text']).replace('\n', '\n  ')
+            report.extend([f'- **{claim["stance"]}**: {claim_text} ([source report]({quote(link, safe=":/?#=@%&+~")}))',
+                           *['  > ' + line for line in markdown_text(claim['quote']).splitlines()]])
             evidence.append(dict(round=row['number'], **claim))
-    report.extend(['', '## Unresolved questions', *['- ' + g for g in program.gaps], '', '## Next action',
-                   rounds[-1]['nextAction'] if rounds else 'Inspect the seed sources and identify the first evidence gap.',
+    report.extend(['', '## Unresolved questions', *['- ' + markdown_text(g).replace('\n', '\n  ') for g in program.gaps], '', '## Next action',
+                   markdown_text(rounds[-1]['nextAction']) if rounds else 'Inspect the seed sources and identify the first evidence gap.',
                    '', 'Citation matching establishes source location, not scientific acceptance.'])
     papers = ['# Literature', '', 'Screening and reading are distinct; metadata is not full-text evidence.', '']
     for candidate in program.candidates:
-        papers.extend([f'## {candidate.title}', f'- Source: {candidate.url}', f'- Screening: {candidate.decision}: {candidate.reason}',
+        papers.extend([f'## {markdown_text(candidate.title)}', f'- Source: {candidate.url}', f'- Screening: {candidate.decision}: {markdown_text(candidate.reason)}',
                        f'- Saved paper: {candidate.paperId or "not saved"}', f'- PDF: {candidate.documentId or "not read"}',
                        f'- Blocker: {candidate.blocker or "none recorded"}',
                        '- Discovered through: ' + ', '.join(p.relation + ':' + p.batchId for p in candidate.discoveries), ''])

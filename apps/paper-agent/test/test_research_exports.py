@@ -13,6 +13,18 @@ from paper_agent.store import ResearchStore
 
 
 class ResearchExportAcceptance(unittest.TestCase):
+    def test_report_keeps_multiline_source_text_inside_its_claim(self):
+        from paper_agent.research_program import ResearchProgram
+        from paper_agent.research_exports import export_program
+        program = ResearchProgram.create(dict(requestId='markdown', question='Question', scope='Scope',
+            inclusion='Include', exclusion='Exclude', seedPaperIds=['a' * 64]), NOW)
+        claim = dict(stance='limitation', text='Claim\n# fake heading [link](https://example.com)',
+            quote='Quote\n> fake quote\n**new finding**', reportId='b' * 64, passageId='c' * 64)
+        report = export_program(program, [dict(number=1, question='Question', claims=[claim], nextAction='Review')])['documents'][0]['content']
+        self.assertIn('\n  \\# fake heading \\[link\\]', report)
+        self.assertIn('\n  > &gt; fake quote\n  > \\*\\*new finding', report)
+        self.assertNotIn('\n# fake heading', report)
+
     def test_large_evidence_parts_are_valid_and_exact_after_checkpoint_advance(self):
         with tempfile.TemporaryDirectory() as root:
             store = ResearchStore(root)
