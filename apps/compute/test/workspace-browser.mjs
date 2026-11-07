@@ -4,7 +4,7 @@ import { after, before, test } from 'node:test';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createInterface } from 'node:readline';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
@@ -30,6 +30,10 @@ after(async () => { await browser?.close(); if (directory) await rm(directory, {
 
 async function fixture(t, options = {}) {
   const data = await mkdtemp(resolve(tmpdir(), 'pero-compute-data-')), secret = 'compute-loopback-fixture';
+  if (options.receipt) {
+    await mkdir(resolve(data, 'executions'));
+    await writeFile(resolve(data, 'executions', 'job.json'), JSON.stringify(options.receipt));
+  }
   const errors = [], requests = [];
   let backend, port, diagnostics = '';
   const start = async () => {
@@ -97,7 +101,8 @@ async function fixture(t, options = {}) {
   if (options.failInitial) await page.route('**/api/state', async route => { await initialGate; await route.fulfill({ status: 503, json: { detail: 'Initial configuration read failed' } }); });
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   const frame = page.frameLocator('iframe');
-  if (!options.failInitial) await expect(frame.getByRole('heading', { name: '尚未连接，无法读取作业', exact: true })).toBeVisible();
+  if (!options.failInitial && !options.receipt) await expect(frame.getByRole('heading', { name: '尚未连接，无法读取作业', exact: true })).toBeVisible();
+  if (options.receipt) await expect(frame.getByRole('heading', { name: options.receipt.operation, exact: true })).toBeVisible();
   return { page, frame, request, requests, releaseInitial, restart: async () => { await stop(); await start(); await page.reload(); },
     unauthorized: () => fetch(`http://127.0.0.1:${port}/api/state`),
     nonexistent: () => fetch(`http://127.0.0.1:${port}/api/jobs/submit`, { method: 'POST', headers: { 'X-Pero-App-Token': secret } }) };
@@ -153,6 +158,7 @@ test('saved cluster drafts create, edit, select and restart without claiming a s
   assert.equal(state.clusters[0].partition, 'gpu');
   assert.ok(state.clusters.every(item => item.connectionStatus === 'not_connected'));
   assert.equal(state.jobs, null); assert.equal(state.jobsStatus, 'not_connected');
+  assert.deepEqual(state.executions, []); assert.equal(state.executionsStatus, 'none');
   await frame.getByRole('tab', { name: '作业', exact: true }).click();
   await expect(frame.getByText('“University HPC”仍是未连接的配置草稿，当前无法读取该集群的队列与作业历史。', { exact: true })).toBeVisible();
   assert.ok(requests.every(item => ['/api/state', '/api/clusters', '/api/selection'].includes(item.path)));
@@ -241,4 +247,41 @@ test('an initial configuration failure is recoverable and never presented as an 
   await frame.getByRole('button', { name: '重试', exact: true }).click();
   await expect(frame.getByRole('heading', { name: '尚未连接，无法读取作业', exact: true })).toBeVisible();
   await expect(frame.getByRole('alert')).toHaveCount(0);
+});
+
+test('a process receipt is shown without an external job or a scheduler query', async t => {
+  const digest = 'cd'.repeat(32);
+  const receipt = { operation: 'use', host: 'host', payload: digest, started: 10, ended: 20, exit_code: 0,
+    entry: '/bin/sh -c true', logs: ['stdout.log'] };
+  const { frame, request, nonexistent } = await fixture(t, { receipt });
+  const state = await request('/api/state');
+  assert.equal(state.jobs, null);
+  assert.equal(state.executions[0].jobId, null);
+  assert.equal(state.executions[0].exitCode, 0);
+  await expect(frame.locator('.compute-list').getByText('/bin/sh -c true', { exact: true })).toBeVisible();
+  const draft = frame.locator('.compute-draft');
+  await expect(draft).toContainText('这份回执没有外部作业。');
+  await expect(draft).toContainText('这是进程事实，不是调度观察。');
+  await expect(draft).toContainText('stdout.log');
+  assert.equal((await nonexistent()).status, 404);
+});
+
+test('an owner receipt is shown without querying or resubmitting the cluster job', async t => {
+  const digest = 'ab'.repeat(32);
+  const receipt = { operation: 'attempt-1', cluster: 'site', constraints: { partition: 'cpu', cpus: 4, memory_mib: 8192, walltime_seconds: 3600 },
+    payload: digest, job_id: 42, submit_time: 1700000000, entry: 'python train.py --lr 3e-4',
+    logs: ['stdout.log'], outputs: [{ path: 'metrics.json', sha256: digest }] };
+  const { frame, request, requests, nonexistent } = await fixture(t, { receipt });
+  const state = await request('/api/state');
+  assert.equal(state.jobs, null);
+  assert.equal(state.jobsStatus, 'not_connected');
+  assert.equal(state.executionsStatus, 'recorded');
+  assert.equal(state.executions[0].scheduler, null);
+  await expect(frame.locator('.compute-list').getByText('python train.py --lr 3e-4', { exact: true })).toBeVisible();
+  const draft = frame.locator('.compute-draft');
+  await expect(draft).toContainText('这份回执没有调度观察。');
+  await expect(draft).toContainText('不要重新提交外部作业 42。');
+  await expect(draft).toContainText('stdout.log');
+  assert.equal((await nonexistent()).status, 404);
+  assert.ok(requests.every(item => item.path === '/api/state'));
 });

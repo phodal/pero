@@ -14,6 +14,9 @@ html, body, #app { height: 100%; }
 .compute-error-details p { white-space: pre-wrap; }
 .compute-fields { display: grid; gap: var(--pero-spacing-3); }
 .compute-help { color: var(--pero-text-muted); font-size: var(--pero-font-caption); overflow-wrap: anywhere; }
+.compute-queue-note { margin: 0; padding: var(--pero-spacing-3) var(--pero-spacing-3) 0; }
+.compute-draft-title { margin: 0; font-size: var(--pero-font-body); }
+.compute-draft { margin: 0 0 var(--pero-spacing-3); padding: var(--pero-spacing-3); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--pero-surface); border: var(--pero-hairline); border-radius: var(--pero-radius-selection); font-family: var(--pero-font-ui); font-size: var(--pero-font-caption); }
 .compute-split { flex: 1; min-height: 0; }
 .compute-list { overflow: auto; }
 .compute-cluster-choices { min-width: 0; margin: 0; padding: 0; border: 0; }

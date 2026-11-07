@@ -2,8 +2,10 @@
 //! retain budgets, attempt records, verification, and acceptance.
 mod compose;
 mod docker;
+mod receipt;
 mod slurm;
 pub use compose::{ComposeDeployment, ComposeEvidence, ComposeMember};
+pub use receipt::{ProcessReceipt, store_batch_receipt, store_process_receipt};
 pub use slurm::SlurmSite;
 mod local;
 use crate::environments::{Identity, ResourceBinding};
@@ -12,7 +14,7 @@ pub use docker::{DockerImage, DockerOwner, DockerResource};
 pub use local::LocalOwner;
 use std::{
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, ExitStatus},
 };
 
 /// Private execution handoff from an admitted method, never deserialized from
@@ -46,7 +48,7 @@ struct ContainerCleanup {
 impl ProcessHandle {
     /// Docker stop/remove is separate from stopping the attached CLI process.
     /// A failed daemon operation is unknown and must be reconciled by original ID.
-    pub fn stop(&mut self) -> Result<(), String> {
+    pub fn stop(&mut self) -> Result<ExitStatus, String> {
         if let Some(container) = &self.cleanup {
             let output = command_output(Command::new(&container.docker).args([
                 "--context",
@@ -63,8 +65,7 @@ impl ProcessHandle {
             }
             self.cleanup = None;
         }
-        self.process.stop().map_err(|e| e.to_string())?;
-        Ok(())
+        self.process.stop().map_err(|e| e.to_string())
     }
     pub fn container_name(&self) -> Option<&str> {
         self.cleanup.as_ref().map(|c| c.name.as_str())

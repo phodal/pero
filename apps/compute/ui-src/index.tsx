@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppContext, useAppI18n, useAppObject, useNavigate } from '@pero/app-sdk';
 import { Disclosure, AppFrame, Badge, Button, Card, EmptyIllustration, EmptyState, Feedback, ListRow, LoadingSkeleton, SkeletonText, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { ClusterDialog } from './cluster-dialog';
-import { messages, type Cluster, type ClusterInput, type ClusterState } from './messages';
+import { messages, type Cluster, type ClusterInput, type ClusterState, type ExecutionReceipt } from './messages';
 import './styles.css';
 
 export default function Compute() {
@@ -11,6 +11,7 @@ export default function Compute() {
   const [tab, setTab] = useState('jobs'), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [failure, setFailure] = useState('loadFailed'), [notice, setNotice] = useState('');
   const [editing, setEditing] = useState<Cluster | null | undefined>(undefined);
+  const [opened, setOpened] = useState<string | null>(null);
   const pending = useRef(false), request = useRef(0);
   const selected = state?.clusters.find(cluster => cluster.id === state.selectedClusterId) ?? null;
   const refresh = useCallback(async () => {
@@ -41,9 +42,14 @@ export default function Compute() {
     try { await navigate(path); }
     catch (cause) { setError(String(cause)); setFailure(path === '/apps/environments' ? 'environmentUnavailable' : 'navigationFailed'); }
   }
+  const executions = state?.executions ?? [];
+  const executionKey = (item: ExecutionReceipt) => item.jobId != null
+    ? `${item.operation}:${item.cluster}:${item.jobId}:${item.submitTime}`
+    : `${item.operation}:${item.host}:${item.started}:${item.payloadSha256}`;
+  const openedExecution = executions.find(item => executionKey(item) === opened) ?? executions[0] ?? null;
   useAppObject({ id: 'compute-workspace', kind: 'cluster-workspace', label: 'Compute',
     state: { loading, busy, clusters: state?.clusters ?? null, selectedClusterId: state?.selectedClusterId ?? null,
-      jobs: null, jobsStatus: 'not_connected' } });
+      jobs: null, jobsStatus: 'not_connected', executionsStatus: state?.executionsStatus ?? null } });
 
   return <Tabs value={tab} onValueChange={setTab} className="compute-root"><AppFrame label="Compute" tools={
     <TabsList aria-label={t('navigation')}><TabsTrigger value="jobs">{t('jobs')}</TabsTrigger><TabsTrigger value="clusters">{t('clusters')}</TabsTrigger></TabsList>
@@ -58,9 +64,45 @@ export default function Compute() {
       <Disclosure variant="inline" className="compute-error-details" summary={<>{t('details')}</>}><p>{error}</p></Disclosure></div> : null}
     {!state ? loading ? <LoadingSkeleton label={t('loading')} className="compute-loading"><SkeletonText /></LoadingSkeleton> : null : <>
       <TabsContent value="jobs" className="compute-panel">
-        <EmptyState className="compute-empty" icon={<EmptyIllustration kind="compute" size="compact" />} heading={<h2>{t('jobsUnavailable')}</h2>}
+        {state.executionsStatus === 'unreadable' ? <div className="compute-recovery"><Feedback kind="error" variant="block">{t('executionsUnreadable')}</Feedback>
+          <Button disabled={loading || busy} onClick={() => void refresh()}>{t('retry')}</Button>
+          {state.executionsError ? <Disclosure variant="inline" className="compute-error-details" summary={<>{t('details')}</>}><p>{state.executionsError}</p></Disclosure> : null}</div> : null}
+        {openedExecution ? <Split storageKey="pero.compute.execution-width" collapseBelow={760} className="compute-split">
+          <SplitPane id="compute-executions" as="section" size={320} min={240} aria-label={t('jobs')} className="compute-list">
+            <p className="compute-help compute-queue-note">{selected ? t('selectedJobsHelp', { name: selected.name }) : t('recordedHelp')}</p>
+            <ul>{executions.map(item => <li key={executionKey(item)}><ListRow title={item.entry || item.operation}
+              meta={item.jobId != null ? <>{item.cluster} · {t('externalJob')} {item.jobId}</> : <>{item.host}</>} time={item.submitTime} current={item === openedExecution}
+              onOpen={() => setOpened(executionKey(item))} /></li>)}</ul>
+          </SplitPane>
+          <SplitPane id="compute-execution" as="section" min={320} className="compute-detail">
+            <Card tone="blue" variant="soft"><header className="compute-detail-header"><h2>{openedExecution.operation}</h2>
+              <Badge>{openedExecution.scheduler ? openedExecution.scheduler.states.join(', ') : openedExecution.jobId != null ? t('submittedOnly') : openedExecution.exitCode != null ? t('processExitValue', { code: openedExecution.exitCode }) : t('processOpen')}</Badge></header>
+              <dl className="compute-facts">
+                {openedExecution.jobId != null ? <div><dt>{t('externalJob')}</dt><dd>{openedExecution.jobId}</dd></div> : null}
+                {openedExecution.cluster ? <div><dt>{t('receiptCluster')}</dt><dd>{openedExecution.cluster}</dd></div> : null}
+                {openedExecution.host ? <div><dt>{t('processHost')}</dt><dd>{openedExecution.host}</dd></div> : null}
+                <div><dt>{t('payload')}</dt><dd>{openedExecution.payloadSha256}</dd></div>
+                {openedExecution.constraints ? <div><dt>{t('requested')}</dt><dd>{t('requestedValue', { partition: openedExecution.constraints.partition, cpus: openedExecution.constraints.cpus, memory: openedExecution.constraints.memoryMib, wall: openedExecution.constraints.walltimeSeconds })}</dd></div> : null}
+                {openedExecution.entry ? <div><dt>{t('entryLabel')}</dt><dd>{openedExecution.entry}</dd></div> : null}
+                {openedExecution.snapshotSha256 ? <div><dt>{t('snapshot')}</dt><dd>{openedExecution.snapshotSha256}</dd></div> : null}
+                {openedExecution.scheduler?.nodes ? <div><dt>{t('recordedNodes')}</dt><dd>{openedExecution.scheduler.nodes}</dd></div> : null}
+                {openedExecution.scheduler?.startTime != null ? <div><dt>{t('recordedStart')}</dt><dd>{openedExecution.scheduler.startTime}</dd></div> : null}
+                {openedExecution.scheduler?.endTime != null ? <div><dt>{t('recordedEnd')}</dt><dd>{openedExecution.scheduler.endTime}</dd></div> : null}
+                {openedExecution.scheduler?.wallSeconds != null ? <div><dt>{t('recordedSpan')}</dt><dd>{t('recordedSeconds', { seconds: openedExecution.scheduler.wallSeconds })}</dd></div> : null}
+                {openedExecution.exitCode != null ? <div><dt>{t('processExit')}</dt><dd>{openedExecution.exitCode}</dd></div> : null}
+                {openedExecution.wallMilliseconds != null ? <div><dt>{t('recordedSpan')}</dt><dd>{openedExecution.wallMilliseconds}</dd></div> : null}
+                {openedExecution.logs.length ? <div><dt>{t('logsLabel')}</dt><dd>{openedExecution.logs.join(', ')}</dd></div> : null}
+                {openedExecution.outputs.length ? <div><dt>{t('outputsLabel')}</dt><dd>{openedExecution.outputs.map(item => item.path).join(', ')}</dd></div> : null}
+              </dl>
+              <h3 className="compute-draft-title">{t('reproduce')}</h3>
+              <p className="compute-help">{t('reproduceHelp')}</p>
+              <pre className="compute-draft">{reproduceDraft(openedExecution, t)}</pre>
+              <Button onClick={() => void navigator.clipboard.writeText(reproduceDraft(openedExecution, t)).then(() => setNotice(t('draftCopied')), () => setNotice(t('draftCopyFailed')))}>{t('reproduce')}</Button>
+            </Card>
+          </SplitPane>
+        </Split> : state.executionsStatus === 'unreadable' ? null : <EmptyState className="compute-empty" icon={<EmptyIllustration kind="compute" size="compact" />} heading={<h2>{t('jobsUnavailable')}</h2>}
           description={selected ? t('selectedJobsHelp', { name: selected.name }) : t('jobsHelp')}
-          actions={<Button variant="primary" onClick={() => setTab('clusters')}>{t('manage')}</Button>} />
+          actions={<Button variant="primary" onClick={() => setTab('clusters')}>{t('manage')}</Button>} />}
       </TabsContent>
       <TabsContent value="clusters" className="compute-panel">
         {!state.clusters.length ? <EmptyState className="compute-empty" icon={<EmptyIllustration kind="compute" size="compact" />} heading={<h2>{t('noClusters')}</h2>} description={t('noClustersHelp')}
@@ -86,4 +128,27 @@ export default function Compute() {
     {editing !== undefined ? <ClusterDialog cluster={editing} busy={busy} error={error} onClose={() => { if (!pending.current) { setEditing(undefined); setError(''); } }}
       onSave={(value: ClusterInput) => void update('/api/clusters', value, true)} /> : null}
   </AppFrame></Tabs>;
+}
+
+function reproduceDraft(item: ExecutionReceipt, t: (key: string, values?: Record<string, string | number>) => string) {
+  const lines = [t('reproduceHelp')];
+  if (item.jobId != null && item.constraints && item.cluster) {
+    lines.push(t('keepJob', { jobId: item.jobId }), `${t('operation')}: ${item.operation}`,
+      `${t('receiptCluster')}: ${item.cluster}`, `${t('externalJob')}: ${item.jobId}`, `${t('payload')}: ${item.payloadSha256}`,
+      `${t('requested')}: ${t('requestedValue', { partition: item.constraints.partition, cpus: item.constraints.cpus, memory: item.constraints.memoryMib, wall: item.constraints.walltimeSeconds })}`);
+  } else {
+    lines.push(t('noExternalJob'), `${t('operation')}: ${item.operation}`, `${t('processHost')}: ${item.host ?? ''}`, `${t('payload')}: ${item.payloadSha256}`, t('processFact'));
+    if (item.exitCode != null) lines.push(`${t('processExit')}: ${item.exitCode}`);
+    else lines.push(t('processOpen'));
+  }
+  if (item.entry) lines.push(`${t('entryLabel')}: ${item.entry}`);
+  if (item.snapshotSha256) lines.push(`${t('snapshot')}: ${item.snapshotSha256}`);
+  if (item.scheduler) {
+    lines.push(`${t('scheduler')}: ${item.scheduler.states.join(', ')}`);
+    if (item.scheduler.nodes) lines.push(`${t('recordedNodes')}: ${item.scheduler.nodes}`);
+    if (item.scheduler.wallSeconds != null) lines.push(`${t('recordedSpan')}: ${t('recordedSeconds', { seconds: item.scheduler.wallSeconds })}`);
+  } else if (item.jobId != null) lines.push(t('noScheduler'));
+  if (item.logs.length) lines.push(`${t('logsLabel')}: ${item.logs.join(', ')}`);
+  if (item.outputs.length) lines.push(`${t('outputsLabel')}: ${item.outputs.map(output => `${output.path} ${output.sha256}`).join(', ')}`);
+  return lines.join('\n');
 }

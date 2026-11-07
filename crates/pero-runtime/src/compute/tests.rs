@@ -270,6 +270,7 @@ fn slurm_tracks_submission_allocation_and_confirmed_cancellation() {
         let operation = id(dir.file_name().unwrap().to_str().unwrap());
         let constraints = BatchConstraints::new(id("validation"), 1, 32, 60).unwrap();
         let record = dir.join("submission.json");
+        let executions = dir.join("executions");
         let submission = site
             .submit(
                 operation.clone(),
@@ -277,21 +278,22 @@ fn slurm_tracks_submission_allocation_and_confirmed_cancellation() {
                 &payload,
                 &dir,
                 &record,
+                &executions,
             )
             .unwrap();
         assert!(
-            site.submit(operation, constraints, &payload, &dir, &record)
+            site.submit(operation, constraints, &payload, &dir, &record, &executions)
                 .is_err(),
             "no repeated submission"
         );
         let deadline = Instant::now() + Duration::from_secs(60);
         let mut requested_stop = false;
         let terminal = loop {
-            let observation = site.observe(&submission).unwrap();
+            let observation = site.observe(&executions, &submission).unwrap();
             if cancel && !requested_stop && dir.join("ready").exists() {
                 assert!(observation.start_time.is_some());
                 assert!(!observation.nodes.is_empty());
-                site.cancel(&submission).unwrap();
+                site.cancel(&executions, &submission).unwrap();
                 requested_stop = true;
             }
             if observation.stopped() {

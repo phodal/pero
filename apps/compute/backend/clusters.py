@@ -5,6 +5,8 @@ from pathlib import Path
 import re
 import uuid
 
+from executions import read_executions
+
 
 @dataclass(frozen=True)
 class ClusterDraft:
@@ -61,8 +63,14 @@ class ClusterStore:
                 raise ValueError('Invalid saved cluster selection')
 
     def state(self):
-        return {'clusters': [asdict(item) | {'connectionStatus': 'not_connected'} for item in self.clusters],
-                'selectedClusterId': self.selected, 'jobs': None, 'jobsStatus': 'not_connected'}
+        recorded = read_executions(self.path.parent)
+        value = {'clusters': [asdict(item) | {'connectionStatus': 'not_connected'} for item in self.clusters],
+                 'selectedClusterId': self.selected, 'jobs': None, 'jobsStatus': 'not_connected',
+                 'executions': list(recorded.executions) if recorded.status != 'unreadable' else None,
+                 'executionsStatus': recorded.status}
+        if recorded.error:
+            value['executionsError'] = recorded.error
+        return value
 
     def _persist(self, clusters, selected):
         content = {'schemaVersion': 1, 'clusters': [asdict(item) for item in clusters], 'selectedClusterId': selected}

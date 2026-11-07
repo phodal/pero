@@ -22,6 +22,37 @@ export const messages: AppMessages = {
   jobsUnavailable: { en: 'Connect a cluster to read jobs', zh: '尚未连接，无法读取作业' },
   jobsHelp: { en: 'Cluster scheduling is not connected yet. No queue or job history has been queried. Start by preparing a cluster configuration.', zh: '集群调度尚未接通，目前未查询作业队列或历史。可以先准备集群配置。' },
   selectedJobsHelp: { en: '“{name}” is a saved draft and is not connected. Its queue and job history cannot be read yet.', zh: '“{name}”仍是未连接的配置草稿，当前无法读取该集群的队列与作业历史。' },
+  recordedHelp: { en: 'These receipts were written by the execution owner. They are not a query of the cluster queue.', zh: '这些回执由执行方写入，不是对集群队列的查询。' },
+  executionsUnreadable: { en: 'An execution receipt could not be read. The cluster queue was not queried.', zh: '有一份执行回执无法读取。集群队列并未查询。' },
+  operation: { en: 'Operation', zh: '操作' },
+  externalJob: { en: 'External job', zh: '外部作业' },
+  payload: { en: 'Payload SHA-256', zh: '载荷 SHA-256' },
+  requested: { en: 'Requested resources', zh: '请求的资源' },
+  requestedValue: { en: 'partition {partition}, {cpus} CPU, {memory} MiB, {wall} s', zh: '分区 {partition}，{cpus} CPU，{memory} MiB，墙钟 {wall} 秒' },
+  scheduler: { en: 'Scheduler observation', zh: '调度观察' },
+  noScheduler: { en: 'This receipt has no scheduler observation.', zh: '这份回执没有调度观察。' },
+  submittedOnly: { en: 'Submission receipt', zh: '提交回执' },
+  receiptCluster: { en: 'Cluster', zh: '集群' },
+  keepJob: { en: 'Do not resubmit external job {jobId}.', zh: '不要重新提交外部作业 {jobId}。' },
+  processHost: { en: 'Host', zh: '主机' },
+  processExit: { en: 'Recorded exit', zh: '记录的退出码' },
+  processExitValue: { en: 'Exit {code}', zh: '退出码 {code}' },
+  processOpen: { en: 'The process had not exited when this receipt was written.', zh: '写下这份回执时，进程尚未退出。' },
+  noExternalJob: { en: 'This receipt has no external job.', zh: '这份回执没有外部作业。' },
+  processFact: { en: 'This is a process fact, not a scheduler observation.', zh: '这是进程事实，不是调度观察。' },
+  recordedNodes: { en: 'Allocated nodes', zh: '已分配节点' },
+  recordedStart: { en: 'Recorded start', zh: '记录的开始时间' },
+  recordedEnd: { en: 'Recorded end', zh: '记录的结束时间' },
+  recordedSpan: { en: 'Recorded span', zh: '记录的时长' },
+  recordedSeconds: { en: '{seconds} s', zh: '{seconds} 秒' },
+  entryLabel: { en: 'Recorded entry', zh: '记录的入口' },
+  logsLabel: { en: 'Recorded logs', zh: '记录的日志' },
+  outputsLabel: { en: 'Recorded outputs', zh: '记录的产物' },
+  snapshot: { en: 'Environment snapshot', zh: '环境快照' },
+  reproduce: { en: 'Reproduce draft', zh: '重跑草稿' },
+  reproduceHelp: { en: 'A new attempt for review. Nothing is submitted from this page.', zh: '这是待审阅的新尝试草稿，此页面不会提交任何作业。' },
+  draftCopied: { en: 'Reproduce draft copied.', zh: '已复制重跑草稿。' },
+  draftCopyFailed: { en: 'The draft is shown below. The clipboard is unavailable.', zh: '草稿已显示在下方，剪贴板暂不可用。' },
   manage: { en: 'Manage clusters', zh: '管理集群' },
   saved: { en: 'Cluster draft saved. It is not connected.', zh: '集群配置草稿已保存，尚未建立连接。' },
   loading: { en: 'Loading cluster drafts…', zh: '正在读取集群配置…' },
@@ -51,4 +82,15 @@ export const messages: AppMessages = {
 
 export type Cluster = { id: string; name: string; host: string; account: string; partition: string; workdir: string; connectionStatus: 'not_connected' };
 export type ClusterInput = Omit<Cluster, 'connectionStatus' | 'id'> & { id?: string };
-export type ClusterState = { clusters: Cluster[]; selectedClusterId: string | null; jobs: null; jobsStatus: 'not_connected' };
+export type SchedulerObservation = { states: string[]; nodes: string; startTime: number | null; endTime: number | null; wallSeconds: number | null };
+export type ExecutionReceipt = {
+  operation: string; cluster: string | null; jobId: number | null; submitTime: number;
+  host: string | null; started: number | null; ended: number | null; exitCode: number | null; wallMilliseconds: number | null;
+  constraints: { partition: string; cpus: number; memoryMib: number; walltimeSeconds: number } | null;
+  payloadSha256: string; scheduler: SchedulerObservation | null; entry: string | null;
+  logs: string[]; outputs: { path: string; sha256: string }[]; snapshotSha256: string | null;
+};
+export type ClusterState = {
+  clusters: Cluster[]; selectedClusterId: string | null; jobs: null; jobsStatus: 'not_connected';
+  executions: ExecutionReceipt[] | null; executionsStatus: 'none' | 'recorded' | 'unreadable'; executionsError?: string;
+};

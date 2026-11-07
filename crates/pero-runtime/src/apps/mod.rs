@@ -566,6 +566,11 @@ impl AppStore {
         access.backend = backend;
         Ok(access)
     }
+
+    /// Directory the Compute app reads. The execution owner writes the only receipt file here.
+    pub fn execution_receipts(&self, app: &AppName) -> PathBuf {
+        self.data.join(app.as_str()).join("executions")
+    }
 }
 
 fn write_record(root: &Path, enabled: bool) -> Result<(), String> {
