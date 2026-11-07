@@ -2,7 +2,7 @@
 // line in both directions against protocol/generated/host.schema.json.
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, statSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, realpathSync, statSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -192,8 +192,10 @@ try {
   host.send({ action: 'list_agents' });
   await host.next('agents');
   await host.next('replay');
-  host.send({ action: 'workspace', path: temp });
   await host.next('workspace');
+  host.send({ action: 'workspace', path: temp });
+  const workspace = await host.next('workspace');
+  if (workspace.text !== realpathSync(temp)) failures.push(`Workspace path must use ordinary platform syntax: ${workspace.text}`);
   host.send({ action: 'attach_files', paths: [resolve(temp, 'notes.txt')] });
   await host.next('context_files');
   host.send({action:'search_context',request_id:'context-search',kind:'file',query:'notes.txt'});

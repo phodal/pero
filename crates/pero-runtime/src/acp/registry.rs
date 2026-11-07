@@ -58,6 +58,14 @@ impl AgentConfig {
     }
 
     pub fn available(&self) -> bool {
+        if self.env.get("ELECTRON_RUN_AS_NODE").map(String::as_str) == Some("1")
+            && self.args.len() == 1
+        {
+            let script = Path::new(&self.args[0]);
+            if script.is_absolute() && !script.is_file() {
+                return false;
+            }
+        }
         let p = Path::new(&self.command);
         if p.is_absolute() {
             return p.is_file();
@@ -105,6 +113,9 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
     } else {
         agent_root.join("target/debug").join(binary)
     };
+    // npm's extensionless .bin shims are shell scripts, not Win32 executables.
+    let node = std::env::var("PERO_APP_NODE")
+        .unwrap_or_else(|_| if cfg!(windows) { "node.exe" } else { "node" }.into());
     let mut agents = vec![
         AgentConfig {
             session_instructions: String::new(),
@@ -141,12 +152,12 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             managed_mcp: None,
             id: "codex".into(),
             name: "Codex".into(),
-            command: agent_root
-                .join("node_modules/.bin/codex-acp")
+            command: node.clone(),
+            args: vec![agent_root
+                .join("node_modules/@agentclientprotocol/codex-acp/dist/index.js")
                 .to_string_lossy()
-                .into(),
-            args: vec![],
-            env: BTreeMap::new(),
+                .into_owned()],
+            env: BTreeMap::from([("ELECTRON_RUN_AS_NODE".into(), "1".into())]),
             model: None,
             mcp_servers: vec![],
         },
@@ -157,12 +168,12 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
             managed_mcp: None,
             id: "claude".into(),
             name: "Claude".into(),
-            command: agent_root
-                .join("node_modules/.bin/claude-agent-acp")
+            command: node,
+            args: vec![agent_root
+                .join("node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js")
                 .to_string_lossy()
-                .into(),
-            args: vec![],
-            env: BTreeMap::new(),
+                .into_owned()],
+            env: BTreeMap::from([("ELECTRON_RUN_AS_NODE".into(), "1".into())]),
             model: None,
             mcp_servers: vec![],
         },
@@ -247,6 +258,16 @@ pub fn registry(root: &Path) -> Result<Vec<AgentConfig>, String> {
                 key.into(),
                 std::env::var(key).unwrap_or_else(|_| cli.into()),
             );
+        }
+    }
+    if cfg!(windows) {
+        // NODE_OPTIONS also reaches the Node CLI which adapters launch in turn.
+        let preload = agent_root.join("packages/agent-runtime/windows-background.cjs")
+            .to_string_lossy().replace('\\', "/");
+        let options = format!("{} --require=\"{preload}\"",
+            std::env::var("NODE_OPTIONS").unwrap_or_default());
+        for agent in agents.iter_mut().filter(|agent| matches!(agent.id.as_str(), "codex" | "claude")) {
+            agent.env.insert("NODE_OPTIONS".into(), options.trim().into());
         }
     }
     let file = std::env::var_os("PERO_AGENTS_FILE")

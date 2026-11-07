@@ -695,7 +695,7 @@ jobs:
       - name: ACP and lifecycle fixture contracts
         id: fixtures
         if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
-        run: node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs
+        run: node --test tests/fixtures/app-use-content.test.mjs tests/fixtures/app-use-progress.test.mjs tests/fixtures/app-chat-launch.test.mjs tests/fixtures/acp-agent.test.mjs tests/fixtures/owned-electron-close.test.mjs tests/runtime/agent-background.test.mjs
       - name: Control Lab runtime contracts
         id: control_lab
         if: ${{ !cancelled() && steps.npm.outcome == 'success' }}

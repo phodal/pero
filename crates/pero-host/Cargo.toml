@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+dunce = "1.0.5"
 pero-contracts.workspace = true
 pero-runtime.workspace = true
 session-analysis.workspace = true
