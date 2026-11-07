@@ -1,12 +1,12 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppContext } from '@pero/app-sdk';
-import { Button, ContentIcon, Feedback, Icon, Popover } from '@pero/app-sdk/ui';
+import { Button, ContentIcon, Feedback, Icon, IconButton, Popover } from '@pero/app-sdk/ui';
 import type { ArtifactRelationRole, SessionArtifact, SessionArtifactVersion } from '../../../protocol/generated/host';
 import type { ArtifactTarget } from '../../../protocol/artifact-browser';
 import { admitArtifactBrowser, artifactTarget, artifactVersion, checkpointCompanions, selectedArtifact, type ArtifactBrowserContext } from './artifact-browser-model';
 import { ArtifactDocument } from './artifact-document';
 import { ArtifactInspector } from './artifact-inspector';
-import { composeBrowserArtifact, selectBrowserArtifact } from './artifact-browser-bridge';
+import { actOnInlineArtifact, composeBrowserArtifact, selectBrowserArtifact } from './artifact-browser-bridge';
 import { artifactContext } from './artifact-source';
 import { ArtifactThumbnail, artifactSize, artifactType } from './artifact-thumbnail';
 import './artifact-browser.css';
@@ -53,7 +53,7 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
     if (!quickLook && context?.selected) {
       items.current.get(context.selected.artifact_id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
-  }, [quickLook, context?.view, context?.selected?.artifact_id, context?.selected?.version]);
+  }, [quickLook, context?.view, context?.inline, context?.selected?.artifact_id, context?.selected?.version]);
   const selected = context ? selectedArtifact(context) : undefined;
   const companions = context && selected ? checkpointCompanions(context, selected) : [];
   const select = (target: ArtifactTarget) => selectBrowserArtifact(target);
@@ -139,6 +139,16 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
         }}>{snapshot.filename ?? item.title} · v{snapshot.version}</Button>)}
       </section>}</>}
     </Popover>
+    {context?.inline && <>
+      <IconButton label={zh ? '在面板中打开' : 'Open in pane'}
+        onClick={() => actOnInlineArtifact({ thread_id: threadId, artifact_id: artifact.id, version: version.version }, 'open_pane')}>
+        <Icon name="panel-right" size={14} />
+      </IconButton>
+      <IconButton label={zh ? '收起预览' : 'Collapse preview'}
+        onClick={() => actOnInlineArtifact({ thread_id: threadId, artifact_id: artifact.id, version: version.version }, 'collapse')}>
+        <Icon name="chevron-down" size={14} style={{ transform: 'rotate(180deg)' }} />
+      </IconButton>
+    </>}
   </div>;
   return <main className="artifact-browser" aria-label={zh ? '产物浏览器' : 'Artifact browser'} onKeyDown={onKeyDown}>
     {error ? <div className="artifact-empty"><Feedback kind="error">{error}</Feedback></div>

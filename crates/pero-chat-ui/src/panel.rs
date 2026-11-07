@@ -2,6 +2,7 @@
 use crate::{
     composer_state::ComposerState,
     conversation::{AgentChoice, Conversation},
+    session_artifacts::InlineArtifactAction,
 };
 use gpui_kit::{
     component::input::{InputContent, InputEvent, TextareaState},
@@ -356,6 +357,16 @@ impl ChatPanel {
             "artifact_select" => {
                 if let Ok(target)=serde_json::from_value::<pero_contracts::session_artifact::ArtifactPreviewTarget>(event.data.clone()) {
                     if self.artifact_target_available(&target) {self.read_artifact(&target.thread_id,&target.artifact_id,target.version,false,cx);}
+                }
+            }
+            "artifact_inline_action" => {
+                let action = match event.text.as_str() {
+                    "collapse" => Some(InlineArtifactAction::Collapse),
+                    "open_pane" => Some(InlineArtifactAction::OpenPane),
+                    _ => None,
+                };
+                if let (Some(action), Ok(target)) = (action, serde_json::from_value(event.data.clone())) {
+                    self.act_on_inline_artifact(&target, action, cx);
                 }
             }
             "artifact_compose" => {

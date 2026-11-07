@@ -2,6 +2,7 @@
 import type { LayoutPreferences, SessionArtifact } from './generated/host';
 
 export type ArtifactView = NonNullable<LayoutPreferences['artifact_view']>;
+export type ArtifactInlineAction = 'open_pane' | 'collapse';
 export type ArtifactTarget = { thread_id: string; artifact_id: string; version: number };
 export type ArtifactBrowserState = {
   thread_id: string;

@@ -85,6 +85,11 @@ pub(crate) struct SessionArtifacts {
     pub native_preview: Option<(String, AnyView)>,
 }
 
+pub(crate) enum InlineArtifactAction {
+    Collapse,
+    OpenPane,
+}
+
 impl ChatPanel {
     pub(crate) fn open_inline_artifact(&mut self, thread: &str, id: &str, version: u64, cx: &mut Context<Self>) {
         self.open_delivered_artifact(thread, id, version, cx);
@@ -94,6 +99,32 @@ impl ChatPanel {
         state.inline_at_tail = false;
         cx.notify();
     }
+    pub(crate) fn act_on_inline_artifact(
+        &mut self,
+        target: &ArtifactPreviewTarget,
+        action: InlineArtifactAction,
+        cx: &mut Context<Self>,
+    ) {
+        if self.artifact_preview_target().as_ref() != Some(target) {
+            return;
+        }
+        let Some(state) = self.artifacts.conversations.get_mut(&target.thread_id) else {
+            return;
+        };
+        if !state.inline_open || state.open {
+            return;
+        }
+        match action {
+            InlineArtifactAction::Collapse => {
+                state.inline_open = false;
+                cx.notify();
+            }
+            InlineArtifactAction::OpenPane => {
+                self.open_delivered_artifact(&target.thread_id, &target.artifact_id, target.version, cx);
+            }
+        }
+    }
+
     pub(crate) fn open_delivered_artifact(
         &mut self,
         thread: &str,

@@ -25,7 +25,7 @@ addEventListener('message',event=>{
  if(event.source!==window)return;
  const message=event.data;
  if(!message||typeof message.type!=='string')return;
- if(message.type==='pero:app:sdk'||message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:artifact:compose'||message.type==='pero:artifact:select'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
+ if(message.type==='pero:app:sdk'||message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:artifact:compose'||message.type==='pero:artifact:select'||message.type==='pero:artifact:inline-action'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
  if(message.type==='pero:app:chat-slot')window.postMessage({type:'pero:app:chat-slot-result',id:message.id,active:false},'*');
 });
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);

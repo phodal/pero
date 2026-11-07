@@ -3,8 +3,10 @@ use crate::{
     conversation::{Conversation, Tool},
     panel::ChatPanel,
     process::{ProcessEntry, ProcessGroup},
+    session_artifacts::InlineArtifactAction,
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use pero_contracts::session_artifact::ArtifactPreviewTarget;
 use gpui_kit::{
     component::{button::*, *},
     prelude::*,
@@ -332,17 +334,26 @@ impl ChatPanel {
                 let version = snapshot.version;
                 let name = snapshot.filename.as_deref().unwrap_or(&artifact.title);
                 let label = format!("{name} · v{version}");
+                let expanded = inline.is_some_and(|state| state.selected.as_ref()
+                    .is_some_and(|(selected, number)| *selected == id && *number == version));
                 let icon = crate::icon_theme::source_icon(&snapshot.format, name, pero_theme::UiAppearance::global(cx).dark);
                 Button::new(SharedString::from(format!("open-delivery:{id}:{version}")))
                     .outline()
                     .small()
+                    .selected(expanded)
+                    .toggled(expanded)
                     .max_w_full()
                     .icon(Icon::default().path(icon).size(px(14.)))
                     .child(div().min_w_0().truncate().child(label.clone()))
                     .accessibility_label(label.clone())
                     .tooltip(label)
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        this.open_inline_artifact(&thread, &id, version, cx)
+                        if expanded {
+                            let target = ArtifactPreviewTarget { thread_id: thread.clone(), artifact_id: id.clone(), version };
+                            this.act_on_inline_artifact(&target, InlineArtifactAction::Collapse, cx);
+                        } else {
+                            this.open_inline_artifact(&thread, &id, version, cx);
+                        }
                     }))
             }),
         )).children(inline.map(|state| self.inline_artifact_reader(&chat.id, state, cx))).into_any_element())
@@ -360,21 +371,9 @@ impl ChatPanel {
         state: &crate::session_artifacts::ArtifactCollection,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let thread = thread.to_owned();
-        let pane_thread = thread.clone();
-        let close_thread = thread.clone();
-        let (id, version) = state.selected.clone().expect("inline selection");
         div().w_full().h(px(380.)).min_w_0().flex().flex_col()
             .border_1().border_color(pero_theme::UiAppearance::global(cx).palette.border)
-            .child(div().flex().justify_end()
-                .child(Button::new("inline-open-pane").ghost().small().label(self.t("artifacts.open_pane"))
-                    .on_click(cx.listener(move |this, _, _, cx| this.open_delivered_artifact(&pane_thread, &id, version, cx))))
-                .child(Button::new("inline-close").ghost().small().label(self.t("artifacts.close"))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if let Some(state) = this.artifacts.conversations.get_mut(&close_thread) { state.inline_open = false; }
-                        cx.notify();
-                    }))))
-            .child(self.artifact_preview_surface(&thread, state, cx))
+            .child(self.artifact_preview_surface(thread, state, cx))
             .into_any_element()
     }
 

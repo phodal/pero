@@ -1,11 +1,15 @@
-import type { ArtifactBrowserState, ArtifactTarget } from '../../protocol/artifact-browser';
+import type { ArtifactBrowserState, ArtifactInlineAction, ArtifactTarget } from '../../protocol/artifact-browser';
 import type { AppearanceSnapshot } from '../../packages/app-sdk/src/appearance';
 
 export type { ArtifactTarget } from '../../protocol/artifact-browser';
 export type ArtifactSurface = { visible: boolean; browser?: ArtifactBrowserState; left?: number; top?: number; width?: number; height?: number; clip?: number[]; dark?: boolean; locale?: string; appearance?: AppearanceSnapshot };
 
 /** A distinct Scientific Viewer instance; it never navigates the user's file-library panel. */
-export function mountArtifactPreview(compose: (target: ArtifactTarget, text: string, id: string) => void, select: (target: ArtifactTarget) => void) {
+export function mountArtifactPreview(
+  compose: (target: ArtifactTarget, text: string, id: string) => void,
+  select: (target: ArtifactTarget) => void,
+  inlineAction: (target: ArtifactTarget, action: ArtifactInlineAction) => void,
+) {
   const region = document.createElement('section');
   region.setAttribute('aria-label', 'Conversation artifact');
   region.hidden = true;
@@ -28,6 +32,10 @@ export function mountArtifactPreview(compose: (target: ArtifactTarget, text: str
     const message = event.data;
     if (message?.type === 'pero:app:ready') { ready = true; context(); }
     if (message?.type === 'pero:artifact:select' && surface.visible && message.target?.thread_id === surface.browser?.thread_id) select(message.target);
+    if (message?.type === 'pero:artifact:inline-action' && surface.visible && surface.browser?.inline &&
+      message.target?.thread_id === surface.browser.thread_id && ['open_pane', 'collapse'].includes(message.action)) {
+      inlineAction(message.target, message.action);
+    }
     if (['pero:app:chat', 'pero:artifact:compose'].includes(message?.type) && typeof message.id === 'string') {
       const text = message.type === 'pero:artifact:compose' ? message.text : message.options?.message ?? '';
       const target = message.type === 'pero:artifact:compose' ? message.target : surface.browser?.selected;

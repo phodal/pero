@@ -68,7 +68,11 @@ window.peroSessionCommand = json => {
   if (command.action === 'artifact_compose_result') { artifactPreview.reply(command.id, command.error); return; }
   window.parent.postMessage({ type: 'pero:chat:command', command }, parentOrigin);
 };
-const artifactPreview = mountArtifactPreview((target, text, id) => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_compose', request_id: id, text, data: target })), target => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_select', request_id: null, text: '', data: target })));
+const artifactPreview = mountArtifactPreview(
+  (target, text, id) => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_compose', request_id: id, text, data: target })),
+  target => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_select', request_id: null, text: '', data: target })),
+  (target, action) => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_inline_action', request_id: null, text: action, data: target })),
+);
 window.peroArtifactSurface = json => artifactPreview.update(JSON.parse(json) as ArtifactSurface);
 window.parent.postMessage({ type: 'pero:chat:connect' }, parentOrigin);
 try {

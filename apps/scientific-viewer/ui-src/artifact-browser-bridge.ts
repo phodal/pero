@@ -1,4 +1,4 @@
-import type { ArtifactTarget } from '../../../protocol/artifact-browser';
+import type { ArtifactInlineAction, ArtifactTarget } from '../../../protocol/artifact-browser';
 
 /** This browser surface carries the displayed version explicitly; it never submits a turn. */
 export function composeBrowserArtifact(target: ArtifactTarget, text: string): Promise<void> {
@@ -17,4 +17,8 @@ export function composeBrowserArtifact(target: ArtifactTarget, text: string): Pr
 
 export function selectBrowserArtifact(target: ArtifactTarget): void {
   window.parent.postMessage({ type: 'pero:artifact:select', target }, '*');
+}
+
+export function actOnInlineArtifact(target: ArtifactTarget, action: ArtifactInlineAction): void {
+  window.parent.postMessage({ type: 'pero:artifact:inline-action', target, action }, '*');
 }

@@ -104,6 +104,8 @@ try {
   await expect(viewer.locator('.artifact-browser-versions')).toContainText('v5 / 5');
   await expect(viewer.locator('.artifact-markdown')).toContainText('版本：5');
   await page.screenshot({ path: resolve(output, 'inline.png'), scale: 'css' });
+  await viewer.getByRole('button', { name: 'Collapse preview' }).click();
+  await expect(frame).toBeHidden();
   await send('Show existing v1 below', 5);
   await expect(viewer.locator('.artifact-browser-versions')).toContainText('v1 / 5');
   expect((await frame.boundingBox())?.y).toBeGreaterThan(400);
@@ -111,6 +113,10 @@ try {
   await send('Show existing v2 inline', 5);
   await expect(viewer.locator('.artifact-browser-versions')).toContainText('v2 / 5');
   expect((await state()).artifacts.open).toBe(false);
+  await viewer.getByRole('button', { name: 'Open in pane' }).click();
+  await expect.poll(async () => (await state()).artifacts.open).toBe(true);
+  await expect(viewer.locator('.artifact-browser-versions')).toContainText('v2 / 5');
+  await click(async () => (await state()).artifacts.bounds.close);
   await send('Deliver rich and present inline image', 1, 'chart.png');
   await expect(viewer.getByRole('img', { name: 'chart.png' })).toBeVisible();
   await expect.poll(() => viewer.locator('.artifact-image-scroll').evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThan(3);

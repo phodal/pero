@@ -89,6 +89,15 @@ impl Workbench {
                         }
                     }
                 }
+                Some("pero:artifact:inline-action") => {
+                    if message["target"]["thread_id"].as_str() == Some(&bound_thread) {
+                        let mut action = HostEvent::new(
+                            "artifact_inline_action", None, message["action"].as_str().unwrap_or_default().into(),
+                        );
+                        action.data = message["target"].clone();
+                        this.chat.update(cx, |chat, cx| chat.receive(&action, cx));
+                    }
+                }
                 Some("link") => {
                     if let Some(url) = message["url"].as_str().filter(|url| url.starts_with("https://") || url.starts_with("http://")) {
                         cx.open_url(url);
