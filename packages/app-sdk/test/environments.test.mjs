@@ -13,8 +13,8 @@ function observation(matched = true) {
 }
 const response = data => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
 
-test('catalog contains only three supported scientific methods', () => {
-  assert.deepEqual(METHODS.map(x => x.id), [target, 'control-lab.python-control', 'control-lab.ngspice']);
+test('catalog contains the supported scientific methods', () => {
+  assert.deepEqual(METHODS.map(x => x.id), [target, 'control-lab.python-control', 'control-lab.ngspice', 'lcms2yield.inference']);
   assert.equal(Object.isFrozen(METHODS), true);
 });
 test('preserves valid blocked and matching observations without verdicts', () => {
@@ -28,6 +28,11 @@ test('does not accept one App observation for another method', () => {
   assert.throws(() => readInspection(observation(), 'control-lab.ngspice'));
   const bad = observation(); bad.profile.observation.name = 'control-lab';
   assert.throws(() => readInspection(bad, target));
+  const chemistry = observation();
+  chemistry.method = 'lcms2yield.inference';
+  chemistry.profile.observation.name = 'lcms2yield';
+  chemistry.requirements.method = 'lcms2yield.inference';
+  assert.equal(readInspection(chemistry, 'lcms2yield.inference').method, 'lcms2yield.inference');
 });
 test('does not silently convert malformed evidence to a match', () => {
   for (const [key, value] of [['schema', 'wrong'], ['scope', 'running-process'], ['evidence', 'verified'], ['matched', 'true'], ['observed_at_ms', NaN], ['missing', null]]) {
@@ -56,7 +61,7 @@ test('filter searches method, App and software without broadening scope', () => 
   assert.equal(filterMethods(all, 'casadi', 'all', records, 1000)[0].id, target);
   assert.equal(filterMethods([target], 'control', 'all', records, 1000).length, 0);
   assert.equal(filterMethods(all, '', 'matched', records, 1000).length, 1);
-  assert.equal(filterMethods(all, '', 'unchecked', records, 1000).length, 2);
+  assert.equal(filterMethods(all, '', 'unchecked', records, 1000).length, 3);
   assert.equal(filterMethods(all, 'nothing', 'all', records, 1000).length, 0);
 });
 test('requirement formatting preserves exact constraints', () => {

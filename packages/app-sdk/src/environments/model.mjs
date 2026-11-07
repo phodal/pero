@@ -3,7 +3,14 @@ export const METHODS = Object.freeze([
   Object.freeze({ id: 'paper-agent.pcgym', name: 'PC-Gym', icon: 'skill', tone: 'blue', app: 'Paper', software: 'PC-Gym, SB3, CasADi' }),
   Object.freeze({ id: 'control-lab.python-control', name: 'Control', icon: 'activity', tone: 'neutral', app: 'Control Lab', software: 'python-control, SciPy' }),
   Object.freeze({ id: 'control-lab.ngspice', name: 'Circuit', icon: 'circuit', tone: 'apricot', app: 'Control Lab', software: 'ngspice' }),
+  Object.freeze({ id: 'lcms2yield.inference', name: 'LCMS2Yield', icon: 'flask-conical', tone: 'blue', app: 'LCMS2Yield', software: 'PyTorch 2.3, PyG, RDKit' }),
 ]);
+const METHOD_APP = Object.freeze({
+  'paper-agent.pcgym': 'paper-agent',
+  'control-lab.python-control': 'control-lab',
+  'control-lab.ngspice': 'control-lab',
+  'lcms2yield.inference': 'lcms2yield',
+});
 export const METHOD_IDS = Object.freeze(METHODS.map(method => method.id));
 export const OBSERVATION_MAX_AGE_MS = 300_000;
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -35,7 +42,7 @@ export function readInspection(value, expectedMethod) {
     && Array.isArray(value.missing) && value.missing.length <= 64 && value.missing.every(requirement)
     && (value.matched ? value.missing.length === 0 : value.missing.length > 0)
     && object(profile) && digest(profile.id) && object(observed)
-    && observed.name === (expectedMethod.startsWith('paper-agent.') ? 'paper-agent' : 'control-lab')
+    && observed.name === METHOD_APP[expectedMethod]
     && version(observed.python) && text(observed.system) && text(observed.machine)
     && optionalDigest(observed.interpreter_sha256)
     && object(observed.packages) && Object.keys(observed.packages).length <= 128
