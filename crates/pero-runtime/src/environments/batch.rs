@@ -87,6 +87,17 @@ pub struct BatchSubmission {
     pub job_id: u64,
     pub submit_time: u64,
 }
+impl BatchSubmission {
+    /// One file name for this submission and every later observation of it.
+    pub fn receipt_id(&self) -> ContentDigest {
+        ContentDigest::of(&(
+            &self.operation,
+            &self.cluster,
+            self.job_id,
+            self.submit_time,
+        ))
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BatchObservation {
     pub submission: BatchSubmission,

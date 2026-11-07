@@ -96,6 +96,7 @@ impl SlurmSite {
         payload: &Path,
         directory: &Path,
         record: &Path,
+        executions: &Path,
     ) -> Result<BatchSubmission, String> {
         let payload = payload.canonicalize().map_err(|e| e.to_string())?;
         let directory = directory.canonicalize().map_err(|e| e.to_string())?;
@@ -199,20 +200,14 @@ impl SlurmSite {
                 .value()
                 .ok_or_else(|| reconcile("Submit time unavailable".into()))?,
         };
-        let receipt = record.with_extension("receipt.json");
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(receipt)
-            .map_err(|e| reconcile(e.to_string()))?;
-        file.write_all(
-            &serde_json::to_vec_pretty(&submission).map_err(|e| reconcile(e.to_string()))?,
-        )
-        .and_then(|_| file.sync_all())
-        .map_err(|e| reconcile(e.to_string()))?;
+        super::store_batch_receipt(executions, &submission, None).map_err(&reconcile)?;
         Ok(submission)
     }
-    pub fn observe(&self, submission: &BatchSubmission) -> Result<BatchObservation, String> {
+    pub fn observe(
+        &self,
+        executions: &Path,
+        submission: &BatchSubmission,
+    ) -> Result<BatchObservation, String> {
         let job = self.jobs(submission.job_id)?.into_iter().find(|j| j.job_id == submission.job_id)
             .ok_or("Original job is absent from controller history; reconcile accounting, do not infer stopped")?;
         let marker = format!("pero:{}", ContentDigest::of(&submission.operation).as_str());
@@ -222,16 +217,22 @@ impl SlurmSite {
         {
             return Err("Slurm numeric job ID now refers to a different submission".into());
         }
-        Ok(BatchObservation {
+        let observed = BatchObservation {
             submission: submission.clone(),
             states: job.job_state,
             nodes: job.nodes,
             start_time: job.start_time.value(),
             end_time: job.end_time.value(),
-        })
+        };
+        super::store_batch_receipt(executions, submission, Some(&observed))?;
+        Ok(observed)
     }
-    pub fn cancel(&self, submission: &BatchSubmission) -> Result<BatchObservation, String> {
-        let observed = self.observe(submission)?;
+    pub fn cancel(
+        &self,
+        executions: &Path,
+        submission: &BatchSubmission,
+    ) -> Result<BatchObservation, String> {
+        let observed = self.observe(executions, submission)?;
         if observed.stopped() {
             return Ok(observed);
         }
@@ -240,7 +241,7 @@ impl SlurmSite {
         );
         // A job may finish while scancel is in flight. Its observed terminal
         // receipt is authoritative even if the cancellation reply was lost.
-        let observed = self.observe(submission)?;
+        let observed = self.observe(executions, submission)?;
         if observed.stopped() || result.as_ref().is_ok_and(|r| r.status.success()) {
             Ok(observed)
         } else {

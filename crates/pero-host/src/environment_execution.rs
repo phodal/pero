@@ -2,7 +2,9 @@
 //! scheduler, public command API, scientific budget, or acceptance decision.
 use crate::environment_uses::EnvironmentUses;
 use pero_runtime::{
-    compute::{MethodInvocation, ProcessHandle, ProcessOwner},
+    compute::{
+        MethodInvocation, ProcessHandle, ProcessOwner, ProcessReceipt, store_process_receipt,
+    },
     environments::*,
 };
 use std::{
@@ -18,18 +20,24 @@ pub(crate) struct ExecutionAdmission {
 pub(crate) struct BoundProcess {
     state: EnvironmentUse,
     process: ProcessHandle,
+    receipts: std::path::PathBuf,
+    receipt: ProcessReceipt,
 }
 impl BoundProcess {
     /// The original method owner must freeze and approve input before calling.
     /// A persisted Begin is never treated as permission to repeat dispatch.
+    /// `receipts` is the Compute app's `executions` directory, from
+    /// `AppStore::execution_receipts`.
     pub(crate) fn start(
         store: &mut EnvironmentUses,
         owner: &mut impl ProcessOwner,
         admission: ExecutionAdmission,
         invocation: &MethodInvocation,
+        receipts: &std::path::Path,
         now_ms: u64,
     ) -> Result<Self, String> {
         let binding = owner.observe(now_ms)?;
+        let host = binding.resource.owner.clone();
         let slot: Identity = "compute".to_owned().try_into().unwrap();
         let capabilities = BTreeSet::from([Capability::Process]);
         let method = admission.requirements.method().clone();
@@ -98,7 +106,39 @@ impl BoundProcess {
             UseCommand::Acquired(receipt(&state, target_id.clone(), "acquired")),
         )?;
         match owner.launch(&admission.use_id, invocation) {
-            Ok(process) => Ok(Self { state, process }),
+            Ok(mut process) => {
+                let mut entry = invocation.program.display().to_string();
+                for argument in &invocation.arguments {
+                    entry.push(' ');
+                    entry.push_str(argument);
+                }
+                let receipt = ProcessReceipt {
+                    operation: admission.use_id.clone(),
+                    host,
+                    payload: ContentDigest::of(&(&invocation.program, &invocation.arguments)),
+                    started: now_ms,
+                    ended: None,
+                    exit_code: None,
+                    entry: (entry.len() <= 2000).then_some(entry),
+                    snapshot: Some(state.request().snapshot.digest()),
+                    logs: vec!["stdout.log".into(), "stderr.log".into()],
+                };
+                if let Err(error) = store_process_receipt(receipts, &receipt) {
+                    let _ = process.stop();
+                    store.apply(&admission.use_id, UseCommand::End)?;
+                    store.apply(
+                        &admission.use_id,
+                        UseCommand::TargetUnknown { target: target_id },
+                    )?;
+                    return Err(error);
+                }
+                Ok(Self {
+                    state,
+                    process,
+                    receipts: receipts.to_owned(),
+                    receipt,
+                })
+            }
             Err(error) => {
                 // No second launch. If an external adapter's dispatch outcome
                 // is unknown, retain the original resource for reconciliation.
@@ -116,7 +156,11 @@ impl BoundProcess {
     }
     /// Invoked for normal completion or cancellation by the original attempt
     /// owner. The exit status stays a separate scientific execution fact.
-    pub(crate) fn stop(&mut self, store: &mut EnvironmentUses) -> Result<EnvironmentUse, String> {
+    pub(crate) fn stop(
+        &mut self,
+        store: &mut EnvironmentUses,
+        now_ms: u64,
+    ) -> Result<EnvironmentUse, String> {
         let id = &self.state.request().id;
         let (state, effects) = store.apply(id, UseCommand::End)?;
         if state.state() == UseState::Released {
@@ -127,10 +171,13 @@ impl BoundProcess {
             return Err("Use release needs original-owner reconciliation".into());
         };
         let target = target.digest();
-        if let Err(error) = self.process.stop() {
-            store.apply(id, UseCommand::TargetUnknown { target })?;
-            return Err(error);
-        }
+        let status = match self.process.stop() {
+            Ok(status) => status,
+            Err(error) => {
+                store.apply(id, UseCommand::TargetUnknown { target })?;
+                return Err(error);
+            }
+        };
         let (released, _) = store.apply(
             id,
             UseCommand::Released {
@@ -139,6 +186,13 @@ impl BoundProcess {
             },
         )?;
         self.state = released.clone();
+        if let Some(code) = status.code().filter(|code| (0..=255).contains(code)) {
+            self.receipt.exit_code = Some(code as u8);
+        }
+        if now_ms >= self.receipt.started {
+            self.receipt.ended = Some(now_ms);
+        }
+        store_process_receipt(&self.receipts, &self.receipt)?;
         Ok(released)
     }
 }
@@ -214,8 +268,16 @@ mod tests {
             arguments: vec!["-c".into(), "printf bound > result".into()],
             directory: root.clone(),
         };
-        let mut process =
-            BoundProcess::start(&mut store, &mut owner, admission(), &invocation, 10).unwrap();
+        let receipts = root.join("executions");
+        let mut process = BoundProcess::start(
+            &mut store,
+            &mut owner,
+            admission(),
+            &invocation,
+            &receipts,
+            10,
+        )
+        .unwrap();
         assert_eq!(
             store.get(&id("use")).unwrap().unwrap().state().state(),
             UseState::Active
@@ -231,14 +293,38 @@ mod tests {
         }
         assert_eq!(fs::read_to_string(root.join("result")).unwrap(), "bound");
         assert_eq!(
-            process.stop(&mut store).unwrap().state(),
+            process.stop(&mut store, 20).unwrap().state(),
             UseState::Released
         );
+        let recorded: Vec<_> = fs::read_dir(&receipts)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+            .collect();
+        assert_eq!(recorded.len(), 1);
+        let body: serde_json::Value =
+            serde_json::from_slice(&fs::read(&recorded[0]).unwrap()).unwrap();
+        assert_eq!(body["operation"], "use");
+        assert_eq!(body["host"], "host");
+        assert_eq!(body["exit_code"], 0);
+        assert_eq!(body["ended"], 20);
+        assert_eq!(body["logs"][0], "stdout.log");
+        assert!(body.get("verdict").is_none());
         assert_eq!(
-            process.stop(&mut store).unwrap().state(),
+            process.stop(&mut store, 20).unwrap().state(),
             UseState::Released
         );
-        assert!(BoundProcess::start(&mut store, &mut owner, admission(), &invocation, 10).is_err());
+        assert!(
+            BoundProcess::start(
+                &mut store,
+                &mut owner,
+                admission(),
+                &invocation,
+                &receipts,
+                10
+            )
+            .is_err()
+        );
         let mut unavailable = ObservationFailure {
             inner: owner,
             calls: std::cell::Cell::new(0),
@@ -248,7 +334,15 @@ mod tests {
             ..admission()
         };
         assert!(
-            BoundProcess::start(&mut store, &mut unavailable, failed, &invocation, 10).is_err()
+            BoundProcess::start(
+                &mut store,
+                &mut unavailable,
+                failed,
+                &invocation,
+                &receipts,
+                10
+            )
+            .is_err()
         );
         assert_eq!(
             store
@@ -258,6 +352,20 @@ mod tests {
                 .state()
                 .state(),
             UseState::Released
+        );
+        assert_eq!(
+            fs::read_dir(&receipts)
+                .unwrap()
+                .filter(|entry| {
+                    entry
+                        .as_ref()
+                        .unwrap()
+                        .path()
+                        .extension()
+                        .is_some_and(|ext| ext == "json")
+                })
+                .count(),
+            1
         );
         drop(process);
         drop(store);
@@ -314,6 +422,7 @@ mod tests {
                 arguments: vec!["-b".into(), "divider.cir".into()],
                 directory: root.clone(),
             },
+            &root.join("executions"),
             100,
         )
         .unwrap();
@@ -337,7 +446,7 @@ mod tests {
             .unwrap();
         assert!((value - 5.0).abs() < 1e-6, "voltage divider: {value}");
         assert_eq!(
-            process.stop(&mut store).unwrap().state(),
+            process.stop(&mut store, 200).unwrap().state(),
             UseState::Released
         );
         let record = store.get(&id("solver-use")).unwrap().unwrap();

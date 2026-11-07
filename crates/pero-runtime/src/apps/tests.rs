@@ -379,6 +379,14 @@ fn required_tenure_rejects_disable_and_reinstalls_a_tampered_record() {
 }
 
 #[test]
+fn compute_execution_receipts_use_the_app_data_directory() {
+    let workspace = Workspace::new();
+    let store = AppStore::open(workspace.0.join("installed"), PythonEnvironments::default()).unwrap();
+    let name = AppName::try_from("compute".to_owned()).unwrap();
+    assert!(store.execution_receipts(&name).ends_with("app-data/compute/executions"));
+}
+
+#[test]
 fn app_run_access_uses_enabled_pero_agent_grants() {
     for granted in [false, true] {
         let workspace = Workspace::new(); let source = workspace.package(None);
