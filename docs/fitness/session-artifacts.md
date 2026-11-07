@@ -266,17 +266,11 @@ captures are local evidence, not committed product assets. An existing Notebook
 MathJax console error remains outside this layout change; saved code/output
 rendering does not certify mathematical typesetting.
 
-## Open Science alignment — 2026-11-07
+## Artifact presentation and provenance — 2026-11-07
 
-Reference checkout `c1d92ee` has separate paths for a session's live files,
-file links in assistant replies, and explicit `present_artifact` placement.
-The Notebook page owns editing and kernel execution. The atlas and scVI
-example screens show version navigation, generating code, execution logs,
-messages, environment and review from fixtures. The live file inspector
-instead reads workspace provenance history, with recorded writes, code or
-diff, and available run and environment references. Its history can prepare a
-reproduction prompt. Pero's Files, immutable Artifacts and Diff continue to
-represent live browsing, explicit delivery and change review respectively.
+Files browses the live workspace, Artifacts opens saved versions, and Diff
+reviews recorded changes. Chat links back to the saved version associated
+with a delivery. The Notebook reader can open a separate working copy.
 
 The shared artifact pane adds expand and restore in its output header. The
 expanded pane uses the Chat content region and keeps the browser view, exact
@@ -374,10 +368,12 @@ when their catalog items already have newer versions.
 ### Inline, lower pane, live Notebook and external run evidence
 
 Artifact links in the transcript open the exact frozen version in a rich
-reader under the delivery. One inline reader per conversation can be closed
-or moved to the separate pane. `deliver_artifact` also accepts `inline` and
-`below`. The lower pane has a vertical resize handle, independent scrolling
-and the same toolbar, version selection and context actions as the side pane.
+reader under the delivery. The file header groups the name, version, details
+and inline controls. Clicking the active delivery again collapses the preview.
+Open in pane moves the selected version to the separate reader.
+`deliver_artifact` accepts `inline` and `below`. The lower pane has a vertical
+resize handle, independent scrolling and the same version and context actions
+as the side pane.
 Very narrow windows use the compact reader fallback.
 
 Start Python kernel creates an App-owned Jupyter kernel only when requested.
