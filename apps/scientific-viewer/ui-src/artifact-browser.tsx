@@ -1,14 +1,19 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppContext } from '@pero/app-sdk';
 import { Button, ContentIcon, Feedback, Icon, Popover } from '@pero/app-sdk/ui';
-import type { SessionArtifact, SessionArtifactVersion } from '../../../protocol/generated/host';
+import type { ArtifactRelationRole, SessionArtifact, SessionArtifactVersion } from '../../../protocol/generated/host';
 import type { ArtifactTarget } from '../../../protocol/artifact-browser';
-import { admitArtifactBrowser, artifactTarget, artifactVersion, selectedArtifact, type ArtifactBrowserContext } from './artifact-browser-model';
+import { admitArtifactBrowser, artifactTarget, artifactVersion, checkpointCompanions, selectedArtifact, type ArtifactBrowserContext } from './artifact-browser-model';
 import { ArtifactDocument } from './artifact-document';
 import { composeBrowserArtifact, selectBrowserArtifact } from './artifact-browser-bridge';
 import { artifactContext } from './artifact-source';
 import { ArtifactThumbnail, artifactSize, artifactType } from './artifact-thumbnail';
 import './artifact-browser.css';
+
+const relationLabels: Record<ArtifactRelationRole, [string, string]> = {
+  input: ['输入', 'Input'], code: ['代码', 'Code'], execution_log: ['执行日志', 'Execution log'],
+  environment: ['环境', 'Environment'], review: ['复核材料', 'Review material'],
+};
 
 /** The parent owns catalog, selection and the persisted view. This entry admits its snapshot once. */
 export function ArtifactBrowser({ threadId }: { threadId: string }) {
@@ -29,6 +34,11 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
     return () => window.removeEventListener('message', receive);
   }, [threadId]);
   useEffect(() => { setQuickLook(false); }, [context?.view]);
+  useEffect(() => {
+    if (context?.preview_request === undefined) return;
+    savedScroll.current = browserScroll.current?.scrollTop ?? 0;
+    setQuickLook(true);
+  }, [context?.preview_request]);
   useLayoutEffect(() => {
     if (quickLook) quickReturn.current?.focus({ preventScroll: true });
     if (!quickLook && restoreFocus.current) {
@@ -42,6 +52,7 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
     }
   }, [quickLook, context?.view, context?.selected?.artifact_id, context?.selected?.version]);
   const selected = context ? selectedArtifact(context) : undefined;
+  const companions = context && selected ? checkpointCompanions(context, selected) : [];
   const select = (target: ArtifactTarget) => selectBrowserArtifact(target);
   const preview = (target: ArtifactTarget) => { savedScroll.current = browserScroll.current?.scrollTop ?? 0; select(target); setQuickLook(true); };
   const closePreview = () => { restoreFocus.current = true; setQuickLook(false); };
@@ -79,8 +90,10 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
       <span className="artifact-tile-name">{item.title}</span><span className="artifact-tile-version">v{version.version}</span>
     </Button>;
   };
+  const shellDocumentBar = context?.shell_document_bar === true;
+  const backToArtifacts = <Button ref={quickReturn} variant="ghost" aria-label={zh ? '返回产物' : 'Back to artifacts'} onClick={closePreview}><Icon name="arrow-left" size={14} /></Button>;
   const documentBar = (artifact: SessionArtifact, version: SessionArtifactVersion) => <div className="artifact-browser-document-bar">
-    {quickLook && <Button ref={quickReturn} variant="ghost" aria-label={zh ? '返回产物' : 'Back to artifacts'} onClick={closePreview}><Icon name="arrow-left" size={14} /></Button>}
+    {quickLook && backToArtifacts}
     <span className="artifact-browser-filename" title={version.filename ?? artifact.title}>{version.filename ?? artifact.title}</span>
     <div className="artifact-browser-versions">
       <Button variant="ghost" aria-label={zh ? '上一版本' : 'Previous version'} disabled={version.version <= 1}
@@ -90,15 +103,37 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
         onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version + 1 })}><Icon name="chevron-right" size={14} /></Button>
     </div>
     <Popover label={zh ? '版本详情' : 'Version details'} triggerVariant="ghost" trigger={<Icon name="info" size={14} />} contentClassName="artifact-version-popover">
-      {() => <dl className="artifact-version-details" tabIndex={0}>
+      {close => <><dl className="artifact-version-details" tabIndex={0}>
         <dt>{zh ? '快照' : 'Snapshot'}</dt><dd>{`v${version.version} · ${artifactType(version)} · ${version.bytes.toLocaleString(locale)} B`}</dd>
         <dt>{zh ? '保存时间' : 'Saved at'}</dt><dd>{version.created_at > 0 ? new Date(version.created_at * 1000).toLocaleString(locale) : (zh ? '未知' : 'Unknown')}</dd>
         <dt>{zh ? '来源' : 'Origin'}</dt>
         <dd>{version.source.kind === 'file' ? version.source.path : version.source.kind === 'research'
           ? `${zh ? '研究导出' : 'Research export'} · ${version.source.provenance.slot}`
           : (zh ? '会话内容' : 'Conversation content')}</dd>
+        {version.source.kind === 'research' && <>
+          <dt>{zh ? '研究检查点' : 'Checkpoint'}</dt><dd><code>{version.source.provenance.checkpoint_id}</code></dd>
+        </>}
         <dt>SHA-256</dt><dd><code>{version.sha256}</code></dd>
-      </dl>}
+      </dl>
+      {!!version.related?.length && <section className="artifact-checkpoint-exports" aria-label={zh ? '关联文件' : 'Linked files'}>
+        <h3>{zh ? '关联文件' : 'Linked files'}</h3>
+        {version.related.map((link, index) => {
+          const item = context?.artifacts.find(item => item.id === link.artifact_id);
+          const snapshot = item?.versions.find(snapshot => snapshot.version === link.version);
+          const name = item && snapshot ? snapshot.filename ?? item.title : (zh ? '文件不可用' : 'File unavailable');
+          return <Button key={index} variant="ghost" disabled={!snapshot} onClick={() => {
+            close();
+            select({ thread_id: threadId, artifact_id: link.artifact_id, version: link.version });
+          }}>{relationLabels[link.role][zh ? 0 : 1]} · {name} · v{link.version}</Button>;
+        })}
+      </section>}
+      {companions.length > 0 && <section className="artifact-checkpoint-exports" aria-label={zh ? '同一检查点的交付物' : 'Exports from this checkpoint'}>
+        <h3>{zh ? '同一检查点的交付物' : 'Exports from this checkpoint'}</h3>
+        {companions.map(({ artifact: item, version: snapshot }) => <Button key={`${item.id}/${snapshot.version}`} variant="ghost" onClick={() => {
+          close();
+          select({ thread_id: threadId, artifact_id: item.id, version: snapshot.version });
+        }}>{snapshot.filename ?? item.title} · v{snapshot.version}</Button>)}
+      </section>}</>}
     </Popover>
   </div>;
   return <main className="artifact-browser" aria-label={zh ? '产物浏览器' : 'Artifact browser'} onKeyDown={onKeyDown}>
@@ -107,7 +142,8 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
       : !context.artifacts.length ? <div className="artifact-empty"><p>{zh ? '还没有产物。使用上方的添加文件。' : 'No artifacts yet. Use Add file above.'}</p></div>
       : quickLook || context.view === 'gallery' ? <>
         {selected ? <><div className="artifact-browser-preview">
-          {documentBar(selected.artifact, selected.version)}
+          {shellDocumentBar && quickLook ? <div className="artifact-browser-document-bar">{backToArtifacts}</div>
+            : shellDocumentBar ? null : documentBar(selected.artifact, selected.version)}
           <ArtifactDocument key={`${threadId}/${selected.artifact.id}/${selected.version.version}`}
             locator={{ threadId, artifactId: selected.artifact.id, version: selected.version.version }}
             onDiscuss={(snapshot, selection) => composeBrowserArtifact({ thread_id: snapshot.locator.threadId, artifact_id: snapshot.locator.artifactId, version: snapshot.locator.version }, artifactContext(snapshot, selection, locale))} />

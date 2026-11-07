@@ -8,4 +8,6 @@ export type ArtifactBrowserState = {
   artifacts: SessionArtifact[];
   selected: ArtifactTarget | null;
   view: ArtifactView;
+  preview_request?: number;
+  shell_document_bar?: boolean;
 };

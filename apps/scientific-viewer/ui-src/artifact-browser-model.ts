@@ -24,7 +24,8 @@ export function admitArtifactBrowser(value: unknown, threadId: string): Artifact
   );
 
   if (!record(value) || !identity(threadId) || value.thread_id !== threadId
-    || typeof value.view !== 'string' || !['icons', 'list', 'gallery'].includes(value.view) || !Array.isArray(value.artifacts)) {
+    || typeof value.view !== 'string' || !['icons', 'list', 'gallery'].includes(value.view) || !Array.isArray(value.artifacts)
+    || (value.preview_request !== undefined && !integer(value.preview_request, 1))) {
     throw new Error('Invalid artifact browser state');
   }
   const ids = new Set<string>();
@@ -43,6 +44,9 @@ export function admitArtifactBrowser(value: unknown, threadId: string): Artifact
         || (version.filename !== undefined && typeof version.filename !== 'string')
         || (version.source_message_id !== undefined && typeof version.source_message_id !== 'string')
         || (version.source_tool_call_id !== undefined && typeof version.source_tool_call_id !== 'string')
+        || (version.related !== undefined && (!Array.isArray(version.related) || version.related.length > 16
+          || version.related.some(link => !record(link) || !identity(link.artifact_id) || !integer(link.version, 1)
+            || typeof link.role !== 'string' || !['input', 'code', 'execution_log', 'environment', 'review'].includes(link.role))))
         || !record(version.source) || !(version.source.kind === 'text'
           || (version.source.kind === 'file' && identity(version.source.path))
           || (version.source.kind === 'research' && record(version.source.provenance)
@@ -81,4 +85,19 @@ export function selectedArtifact(context: ArtifactBrowserContext): { artifact: S
   const artifact = context.artifacts.find(artifact => artifact.id === selected.artifact_id);
   const version = artifact?.versions.find(version => version.version === selected.version);
   return artifact && version ? { artifact, version } : undefined;
+}
+
+/** Research exports can share filenames across checkpoints, so match their recorded origin. */
+export function checkpointCompanions(
+  context: ArtifactBrowserContext, selected: NonNullable<ReturnType<typeof selectedArtifact>>,
+) {
+  const source = selected.version.source;
+  if (source.kind !== 'research') return [];
+  return context.artifacts.flatMap(artifact => {
+    if (artifact.id === selected.artifact.id) return [];
+    return artifact.versions.filter(({ source: candidate }) => candidate.kind === 'research'
+      && candidate.provenance.program_id === source.provenance.program_id
+      && candidate.provenance.checkpoint_id === source.provenance.checkpoint_id)
+      .map(version => ({ artifact, version }));
+  });
 }

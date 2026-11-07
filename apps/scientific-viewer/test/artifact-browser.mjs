@@ -15,6 +15,7 @@ await mkdir(output, { recursive: true });
 const sources = {
   markdown: ['report.md', 'text/markdown', 'document', '# Frozen observations\n\nSynthetic fixture, **unverified**.\n\n| time [s] | temperature [C] |\n| --- | --- |\n| 0 | 20 |\n| 1 | 21 |\n\n```python\nvalues = [20, 21, 23, 22]\nprint(sum(values) / len(values))\n```\n\n![Unfrozen figure](https://example.invalid/figure.png)'],
   code: ['analysis.py', 'text/x-python', 'document', 'from statistics import mean\n\nvalues = [20, 21, 23, 22]\nprint(mean(values))\n'],
+  log: ['research-log.jsonl', 'application/x-ndjson', 'document', '{"checkpoint":"newer"}\n'],
   csv: ['voltage.csv', 'text/csv', 'csv', 'time[s],voltage[V]\n0,4.2\n1,\n2,3.9\n'],
   notebook: ['analysis.ipynb', 'application/x-ipynb+json', 'notebook', examples.find(item => item.name === 'demo.ipynb').text],
   saved_notebook: ['saved-analysis.ipynb', 'application/x-ipynb+json', 'notebook', JSON.stringify({
@@ -27,6 +28,7 @@ const sources = {
   image: ['figure.svg', 'image/svg+xml', 'image', '<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400" viewBox="0 0 720 400"><rect width="720" height="400" fill="white"/><path d="M70 50V330H670" stroke="#222" fill="none"/><path d="M90 280L240 210L390 120L540 170L650 80" stroke="#176875" stroke-width="4" fill="none"/><text x="70" y="28" font-family="system-ui" font-size="18">Synthetic fixture, unverified</text><text x="310" y="380" font-family="system-ui" font-size="18">time [s]</text></svg>'],
 };
 const earlierCsv = 'time[s],voltage[V]\n0,3.6\n';
+const earlierLog = '{"checkpoint":"original"}\n';
 let failedOnce = false;
 const server = createServer(async (request, response) => {
   try {
@@ -36,7 +38,7 @@ const server = createServer(async (request, response) => {
       const [, , , , id, version] = path.split('/');
       if (id === 'retry' && !failedOnce) { failedOnce = true; return response.writeHead(503).end('Unavailable'); }
       const [name, mediaType, kind, latest] = sources[id] ?? sources.markdown;
-      const content = id === 'csv' && version === '1' ? earlierCsv : latest;
+      const content = version === '1' ? ({ csv: earlierCsv, log: earlierLog }[id] ?? latest) : latest;
       const bytes = Buffer.from(content), digest = createHash('sha256').update(bytes).digest('hex');
       return response.writeHead(200, { 'Content-Type': mediaType, 'Content-Length': bytes.length,
         'X-Pero-Artifact-Name': encodeURIComponent(name), 'X-Pero-Artifact-Sha256': id === 'corrupt' ? '0'.repeat(64) : digest,
@@ -194,6 +196,71 @@ try {
   await page.keyboard.press('Escape'); await expect(csvTile).toBeFocused();
   await screenshot('gallery-keyboard');
   checks.push('Gallery keeps chart and select keyboard input local; artifact navigation, quick look and Escape restore focus');
+  await page.evaluate(() => {
+    const context = window.__artifactBrowserContext;
+    context.view = 'list';
+    context.selected.version = 1;
+    context.preview_request = 1;
+    window.postMessage({ type: 'pero:app:context', context: { artifactBrowser: context } }, '*');
+  });
+  const backToArtifacts = page.getByRole('button', { name: 'Back to artifacts' });
+  await expect(backToArtifacts).toBeFocused();
+  await expect(page.locator('.numeric-point')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('option', { name: /voltage\.csv/ })).toBeFocused();
+  await page.evaluate(() => {
+    const context = window.__artifactBrowserContext;
+    context.preview_request += 1;
+    window.postMessage({ type: 'pero:app:context', context: { artifactBrowser: context } }, '*');
+  });
+  await expect(backToArtifacts).toBeFocused();
+  await expect(page.locator('.numeric-point')).toHaveCount(1);
+  checks.push('A transcript request directly opens the exact version from List and can reopen it after Escape');
+  await page.evaluate(({ report, original, newer }) => {
+    const context = window.__artifactBrowserContext;
+    const program = 'a'.repeat(64), checkpoint = 'b'.repeat(64);
+    const source = (checkpoint_id, slot, export_digest, program_id = program) =>
+      ({ kind: 'research', provenance: { program_id, checkpoint_id, slot, export_digest } });
+    report.versions[0].source = source(checkpoint, 'report', report.versions[0].sha256);
+    original.source = source(checkpoint, 'log', original.sha256);
+    newer.source = source('c'.repeat(64), 'log', newer.sha256);
+    context.artifacts = [
+      report,
+      { id: 'log', thread_id: context.thread_id, title: 'Research log', versions: [original, newer] },
+      { id: 'other', thread_id: context.thread_id, title: 'Other program', versions: [
+        { ...original, filename: 'other-log.jsonl', source: source(checkpoint, 'log', original.sha256, 'd'.repeat(64)) },
+      ] },
+    ];
+    context.selected = { thread_id: context.thread_id, artifact_id: 'markdown', version: 2 };
+    context.preview_request += 1;
+    window.postMessage({ type: 'pero:app:context', context: { artifactBrowser: context } }, '*');
+  }, { report: catalog[1], ...Object.fromEntries([['original', earlierLog], ['newer', sources.log[3]]].map(([key, content], index) => {
+    const format = { kind: 'json_lines' };
+    return [key, { version: index + 1, sha256: createHash('sha256').update(content).digest('hex'),
+      bytes: Buffer.byteLength(content), created_at: 0, filename: sources.log[0], format, media: { kind: 'document', format } }];
+  })) });
+  await expect(page.getByRole('heading', { name: 'Frozen observations' })).toBeVisible();
+  await versionDetails.click();
+  await expect(details.getByRole('button')).toHaveCount(1);
+  await screenshot('checkpoint-companions');
+  await details.getByRole('button', { name: 'research-log.jsonl · v1' }).click();
+  await expect(page.locator('.cm-content')).toContainText('original');
+  await expect(page.locator('.artifact-browser-versions')).toContainText('v1 / 2');
+  checks.push('Research companion links open the frozen version from the same program and checkpoint');
+  await page.evaluate(() => {
+    const context = window.__artifactBrowserContext;
+    const version = context.artifacts[0].versions[0];
+    version.source = { kind: 'text' };
+    version.related = [{ artifact_id: 'log', version: 1, role: 'execution_log' }];
+    context.selected = { thread_id: context.thread_id, artifact_id: 'markdown', version: 2 };
+    context.preview_request += 1;
+    window.postMessage({ type: 'pero:app:context', context: { artifactBrowser: context } }, '*');
+  });
+  await expect(page.getByRole('heading', { name: 'Frozen observations' })).toBeVisible();
+  await versionDetails.click();
+  await details.getByRole('button', { name: 'Execution log · research-log.jsonl · v1' }).click();
+  await expect(page.locator('.cm-content')).toContainText('original');
+  checks.push('Declared roles link to exact delivered versions after a newer version is added');
   await open('image'); await expect(page.locator('.artifact-image img')).toBeVisible();
   await expect.poll(() => page.locator('.artifact-image img').evaluate(node => node.naturalWidth)).toBeGreaterThan(0); await screenshot('image-light');
   await open('html'); await expect(page.frameLocator('.artifact-html').getByRole('heading', { name: 'Static HTML result' })).toBeVisible();

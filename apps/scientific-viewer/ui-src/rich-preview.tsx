@@ -23,7 +23,7 @@ export function previewImageUrl(value: string): string | undefined {
   return undefined;
 }
 
-function ImagePreview({ source, zh }: { source: PreviewSource; zh: boolean }) {
+function ImagePreview({ source, zh, download }: { source: PreviewSource; zh: boolean; download(): void }) {
   const [zoom, setZoom] = useState(1), [error, setError] = useState(false);
   const url = useMemo(() => URL.createObjectURL(new Blob([new Uint8Array(source.bytes)], { type: source.mediaType })), [source]);
   useEffect(() => () => URL.revokeObjectURL(url), [url]);
@@ -32,6 +32,8 @@ function ImagePreview({ source, zh }: { source: PreviewSource; zh: boolean }) {
       <Button variant="ghost" disabled={zoom <= 0.25} onClick={() => setZoom(value => Math.max(0.25, value - 0.25))} aria-label={zh ? '缩小' : 'Zoom out'}>−</Button>
       <Button variant="ghost" onClick={() => setZoom(1)}>{zoom === 1 ? (zh ? '适应宽度' : 'Fit width') : `${Math.round(zoom * 100)}%`}</Button>
       <Button variant="ghost" disabled={zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + 0.25))} aria-label={zh ? '放大' : 'Zoom in'}>+</Button>
+      <span className="artifact-toolbar-spacer" />
+      <Button variant="ghost" onClick={download}>{zh ? '下载' : 'Download'}</Button>
     </nav>
     {error && <Feedback kind="error">{zh ? '无法显示图片，可下载原始文件。' : 'The image could not be displayed. Download the original file.'}</Feedback>}
     <div className="artifact-image-scroll"><img src={url} alt={source.name} style={{ width: `${zoom * 100}%` }} onError={() => setError(true)} /></div>
@@ -71,7 +73,7 @@ export function RichPreview({ source, kind: suppliedKind, onDiscuss, selectionOn
   };
   let preview: React.ReactNode;
   if (raw || kind === 'code' || kind === 'text') preview = <CodeViewer documentId={source.id} text={text} language={sourceLanguage(source.name)} label={zh ? '源码' : 'Source'} wrap={kind === 'text'} onCursor={() => setSelection('')} />;
-  else if (kind === 'image') preview = <ImagePreview source={source} zh={zh} />;
+  else if (kind === 'image') preview = <ImagePreview source={source} zh={zh} download={download} />;
   else if (kind === 'pdf') preview = <PdfPreview source={source} zh={zh} onPageText={receivePageText} />;
   else if (kind === 'table') preview = <TablePreview asset={asset} />;
   else if (kind === 'notebook') preview = <Suspense fallback={<p role="status">{zh ? '正在载入 Notebook…' : 'Loading notebook…'}</p>}><NotebookPreview asset={asset} embedded /></Suspense>;
@@ -80,16 +82,21 @@ export function RichPreview({ source, kind: suppliedKind, onDiscuss, selectionOn
     urlTransform={(url, key) => key === 'src' ? previewImageUrl(url) ?? '' : defaultUrlTransform(url)}
     components={{ img: ({ src, alt }) => src ? <img src={src} alt={alt ?? ''} /> : <span className="artifact-missing-image">{alt ? `${alt}: ` : ''}{zh ? '图片未包含在快照中' : 'Image is not included in the snapshot'}</span>, a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer">{children}</a> }}>{text}</ReactMarkdown></article>;
   else preview = <div className="artifact-empty">{zh ? '此格式暂未提供预览，可下载原始文件。' : 'No preview is available for this format. Download the original file.'}</div>;
+  const auxiliary = showSource || Boolean(onDiscuss && (!selectionOnly || selection || pageText));
   return <section className="artifact-rich-preview" data-preview-kind={kind}>
-    <nav className="artifact-preview-toolbar" aria-label={zh ? '产物预览' : 'Artifact preview'}>
+    {auxiliary && <nav className="artifact-preview-toolbar" aria-label={zh ? '产物预览' : 'Artifact preview'}>
       {showSource && <><Button variant="ghost" aria-pressed={!raw} onClick={() => setRaw(false)}>{zh ? '预览' : 'Preview'}</Button><Button variant="ghost" aria-pressed={raw} onClick={() => setRaw(true)}>{zh ? '源码' : 'Source'}</Button></>}
       <span className="artifact-toolbar-spacer" />
       {onDiscuss && (!selectionOnly || selection || pageText) && <Button variant="ghost" disabled={discussing} onClick={() => {
         setDiscussing(true); setError(''); setNotice('');
         void onDiscuss(selection || pageText).then(() => setNotice(zh ? '已加入提问' : 'Added to prompt')).catch(reason => setError(String(reason.message))).finally(() => setDiscussing(false));
       }}>{selection ? (zh ? '引用选区' : 'Discuss selection') : pageText ? (zh ? '引用本页' : 'Discuss page') : (zh ? '加入提问' : 'Add to prompt')}</Button>}
+      {kind !== 'image' && <Button variant="ghost" onClick={download}>{zh ? '下载' : 'Download'}</Button>}
+    </nav>}
+    {kind !== 'image' && !auxiliary && <nav className="artifact-preview-toolbar" aria-label={zh ? '产物预览' : 'Artifact preview'}>
+      <span className="artifact-toolbar-spacer" />
       <Button variant="ghost" onClick={download}>{zh ? '下载' : 'Download'}</Button>
-    </nav>
+    </nav>}
     {notice && <p className="artifact-notice" role="status">{notice}</p>}
     {error && <Feedback kind="error">{error}</Feedback>}
     <div className={`artifact-preview-body artifact-kind-${kind}`} ref={body} onMouseUp={captureSelection} onKeyUp={captureSelection}>{preview}</div>

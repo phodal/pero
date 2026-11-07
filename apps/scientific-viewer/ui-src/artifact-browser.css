@@ -35,6 +35,9 @@
 .artifact-version-details { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:var(--pero-spacing-2); margin:0; font-size:var(--pero-font-caption); }
 .artifact-version-details dt { color:var(--pero-text-secondary); }
 .artifact-version-details dd { margin:0; overflow-wrap:anywhere; }
+.artifact-checkpoint-exports { display:grid; gap:var(--pero-spacing-1); margin-top:var(--pero-spacing-3); border-top:1px solid var(--pero-border-subtle); padding-top:var(--pero-spacing-2); }
+.artifact-checkpoint-exports h3 { margin:0; font-size:var(--pero-font-caption); }
+.artifact-checkpoint-exports .pero-ui-button { justify-content:flex-start; height:auto; white-space:normal; text-align:left; overflow-wrap:anywhere; }
 .artifact-document { flex:1; }
 .artifact-browser .artifact-image-scroll { display:flex; }
 .artifact-browser .artifact-image-scroll img { margin:auto; flex-shrink:0; }
