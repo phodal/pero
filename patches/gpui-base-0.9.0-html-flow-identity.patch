@@ -1,0 +1,40 @@
+--- a/crates/base/src/text/node.rs
++++ b/crates/base/src/text/node.rs
+@@ -4248,6 +4248,7 @@
+
+         match self {
+             BlockNode::Root { children, .. } => div()
++                .id(("text-root", options.ix))
+                 .children(children.into_iter().enumerate().map(move |(ix, node)| {
+                     // A nested root (an HTML block container) continues the
+                     // flow around it: until it shows a block of its own, it
+@@ -4270,15 +4271,20 @@
+                     )
+                 }))
+                 .into_any_element(),
+-            BlockNode::Paragraph(paragraph) => gapped(
+-                paragraph.render(
+-                    paragraph.span.map(|span| TextLeafKey::block(span.start)),
+-                    node_cx,
+-                    window,
+-                    cx,
+-                ),
+-                mb,
+-            ),
++            BlockNode::Paragraph(paragraph) => div()
++                // HTML paragraphs carry no source spans. Scope their fallback
++                // leaf IDs by sibling position within their owning root.
++                .id(block_element_id("paragraph", paragraph.span, options.ix))
++                .child(gapped(
++                    paragraph.render(
++                        paragraph.span.map(|span| TextLeafKey::block(span.start)),
++                        node_cx,
++                        window,
++                        cx,
++                    ),
++                    mb,
++                ))
++                .into_any_element(),
+             BlockNode::Heading {
+                 level,
+                 children,
