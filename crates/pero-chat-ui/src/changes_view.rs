@@ -21,7 +21,7 @@ use serde_json::json;
 #[derive(Clone, Default)]
 pub struct ChangeReview {
     pub(crate) records: Vec<WorkspaceChanges>,
-    selected: Option<(String, usize)>,
+    pub(crate) selected: Option<(String, usize)>,
     comparison: Option<FileComparison>,
     pending: Option<String>,
     error: Option<String>,
@@ -160,7 +160,13 @@ impl ChatPanel {
         cx.emit(ChatAction::Changes(request));
         cx.notify();
     }
-    fn read_changes(&mut self, thread: &str, id: &str, index: usize, cx: &mut Context<Self>) {
+    pub(crate) fn read_changes(
+        &mut self,
+        thread: &str,
+        id: &str,
+        index: usize,
+        cx: &mut Context<Self>,
+    ) {
         let empty = self
             .chats
             .iter()
@@ -317,59 +323,10 @@ impl ChatPanel {
             .into_any_element()
     }
 
-    pub(crate) fn output_tabs(
-        &self,
-        thread: &str,
-        state: &ArtifactCollection,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        div()
-            .flex()
-            .items_center()
-            .gap(px(4.))
-            .children(
-                [(false, "changes.files_tab"), (true, "changes.title")]
-                    .into_iter()
-                    .map(|(changes, label)| {
-                        let thread = thread.to_owned();
-                        Button::new(if changes {
-                            "outputs-changes"
-                        } else {
-                            "outputs-documents"
-                        })
-                        .ghost()
-                        .small()
-                        .selected(state.show_changes == changes)
-                        .label(self.t(label))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.artifacts
-                                .conversations
-                                .entry(thread.clone())
-                                .or_default()
-                                .show_changes = changes;
-                            if changes {
-                                let first = this
-                                    .chats
-                                    .iter()
-                                    .find(|chat| chat.id == thread)
-                                    .filter(|chat| chat.changes.selected.is_none())
-                                    .and_then(|chat| chat.changes.records.last())
-                                    .map(|record| record.id.clone());
-                                if let Some(id) = first {
-                                    this.read_changes(&thread, &id, 0, cx);
-                                }
-                            }
-                            cx.notify();
-                        }))
-                    }),
-            )
-            .into_any_element()
-    }
-
     pub(crate) fn changes_panel(
         &self,
         thread: &str,
-        state: &ArtifactCollection,
+        _state: &ArtifactCollection,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         use gpui_kit::component::menu::{DropdownMenu, PopupMenuItem};
@@ -419,7 +376,6 @@ impl ChatPanel {
         let menu_thread = thread.to_owned();
         let menu_owner = cx.entity().downgrade();
         let current_thread = thread.to_owned();
-        let close_thread = thread.to_owned();
         let icon_button = |id: &'static str, icon: &str, label: &str| {
             Button::new(id)
                 .ghost()
@@ -441,36 +397,6 @@ impl ChatPanel {
             .flex_col()
             .bg(p.surface)
             .text_color(p.text)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(4.))
-                    .px(px(8.))
-                    .py(px(4.))
-                    .border_b_1()
-                    .border_color(p.border)
-                    .child(self.output_tabs(thread, state, cx))
-                    .child(div().flex_1())
-                    .child(
-                        icon_button("changes-close", "x", self.t("artifacts.close"))
-                            .relative()
-                            .children(
-                                self.artifacts
-                                    .bounds
-                                    .get(&format!("{thread}/close"))
-                                    .map(|bounds| bounds.probe()),
-                            )
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.artifacts
-                                    .conversations
-                                    .entry(close_thread.clone())
-                                    .or_default()
-                                    .open = false;
-                                cx.notify();
-                            })),
-                    ),
-            )
             .child(
                 div()
                     .flex()

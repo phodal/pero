@@ -310,6 +310,38 @@ impl ChatPanel {
             .into_any_element()
     }
 
+    pub(crate) fn delivery_links(
+        &self,
+        chat: &Conversation,
+        group: &ProcessGroup,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let mut deliveries = group.members().iter().filter_map(|entry| match *entry {
+            ProcessEntry::Tool(index) => self.artifact_delivery(&chat.id, &chat.tools[index]),
+            _ => None,
+        }).peekable();
+        deliveries.peek()?;
+        Some(div().flex().flex_wrap().gap(px(4.)).mb(px(8.)).children(
+            deliveries.map(|(artifact, snapshot)| {
+                let thread = chat.id.clone();
+                let id = artifact.id.clone();
+                let version = snapshot.version;
+                let label = format!("{} · v{version}", snapshot.filename.as_deref().unwrap_or(&artifact.title));
+                Button::new(SharedString::from(format!("open-delivery:{id}:{version}")))
+                    .outline()
+                    .small()
+                    .max_w_full()
+                    .icon(Icon::default().path(crate::assets::UiIcon::named("file").path()).size(px(14.)))
+                    .child(div().min_w_0().truncate().child(label.clone()))
+                    .accessibility_label(label.clone())
+                    .tooltip(label)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.open_delivered_artifact(&thread, &id, version, cx)
+                    }))
+            }),
+        ).into_any_element())
+    }
+
     pub(crate) fn process_view(
         &self,
         chat: &Conversation,

@@ -515,7 +515,9 @@ impl ChatPanel {
                 if error.is_none() || is_artifact && insertion.surface_request.is_none() {
                     state.error = error.clone();
                 }
-                if error.is_none() && self.artifacts.narrow && is_artifact { state.open = false; }
+                if error.is_none() && is_artifact {
+                    state.return_to_chat(self.artifacts.narrow);
+                }
             }
             if let Some(id) = insertion.surface_request {
                 cx.emit(crate::ChatAction::ArtifactComposeResult { id, error });

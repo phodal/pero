@@ -844,7 +844,10 @@ impl ChatPanel {
                     let conversation = chat.unwrap();
                     match item {
                         RenderItem::Reply(index) => self.reply_view(conversation, index, row, cx),
-                        RenderItem::Process(group) => self.process_view(conversation, &group, row, cx),
+                        RenderItem::Process(group) => div()
+                            .child(self.process_view(conversation, &group, row, cx))
+                            .children(self.delivery_links(conversation, &group, cx))
+                            .into_any_element(),
                     }
                 }))
                 .when(busy,|el|el.child(div()
