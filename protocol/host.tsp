@@ -2,6 +2,7 @@
 // Source of truth for protocol/generated/; run `npm run gen:contracts` after edits.
 import "@typespec/json-schema";
 import "./apps.tsp";
+import "./shortcuts.tsp";
 import "./contributions.tsp";
 import "./automation.tsp";
 import "./session-artifacts.tsp";
@@ -62,6 +63,14 @@ model LocatedDocumentHeader {header:DocumentHeader;location:ReaderLocation;...Cl
 model DocumentOpenEvent {kind:"document_open";...EventBase;data:DocumentHeader|LocatedDocumentHeader}
 model FileDocumentEvent {kind:"document_file";...EventBase;data:DocumentHeader}
 model FileDocumentErrorEvent {kind:"document_error";...EventBase;data:{source:string;reason:"conflict"|"unsupported"|"unavailable"|"read_write";...Closed}}
+
+// Workspace browsing is UI-only and scoped by the original conversation.
+model WorkspaceFilesRequest {method:"workspace_files";action:"list"|"read";request_id:string;thread_id:ThreadId;path:string;...Closed}
+model WorkspaceEntry {name:string;kind:"directory"|"file"|"symlink"|"other";...Closed}
+model DirectoryListing {workspace:string;path:string;entries:WorkspaceEntry[];truncated:boolean;...Closed}
+model WorkspaceFilesListEvent {kind:"workspace_files_list";...ThreadEventBase;data:DirectoryListing}
+model WorkspaceFilesDocumentEvent {kind:"workspace_files_document";...ThreadEventBase;data:DocumentHeader}
+model WorkspaceFilesErrorEvent {kind:"workspace_files_error";...ThreadEventBase}
 
 // Durable recovery is separate from tool execution and Desktop preference settings.
 model ReaderRange {start:safeint;end:safeint;...Closed}
@@ -197,6 +206,7 @@ model LayoutPreferences {
   @minValue(280) @maxValue(1200) artifact_pane_width?: uint16 = 400;
   @minValue(200) @maxValue(480) sessions_width?: uint16 = 280;
   artifact_view?: ArtifactView = "icons";
+  resource_tab?: "files" | "artifacts" = "artifacts";
   ...Closed;
 }
 model TypographyPreferences {
@@ -207,7 +217,7 @@ model TypographyPreferences {
 }
 model ProjectResourceRef { app: "paper-agent" | "control-lab" | "lab"; kind: "paper" | "study" | "experiment"; @minLength(1) @maxLength(128) id: string; @minLength(1) @maxLength(128) revision: string; ...Closed }
 model ResearchProject { @minLength(1) @maxLength(128) id: string; @minLength(1) @maxLength(200) title: string; @maxLength(4000) goal: string; workspace: string | null; @maxItems(256) resources: ProjectResourceRef[]; ...Closed }
-model WorkbenchPreferences { accent?: "teal" | "blue" | "neutral"; typography?: TypographyPreferences; appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; @maxItems(128) research_projects?: ResearchProject[]; layout?: LayoutPreferences; ...Closed }
+model WorkbenchPreferences { shortcuts?: Pero.Shortcuts.ShortcutOverrides; accent?: "teal" | "blue" | "neutral"; typography?: TypographyPreferences; appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; @maxItems(128) research_projects?: ResearchProject[]; layout?: LayoutPreferences; ...Closed }
 model GetWorkbenchSettingsRequest { method: "settings.workbench.get"; ...Closed }
 model SetWorkbenchSettingsRequest { method: "settings.workbench"; preferences: WorkbenchPreferences; ...Closed }
 
@@ -319,6 +329,7 @@ union HostInput {
   McpSourceRequest,
   WorkspaceSessionRequest,
   FileDocumentRequest,
+  WorkspaceFilesRequest,
   ArtifactRequest,
   LocalWorkerRequest,
   EchoRequest,
@@ -535,6 +546,7 @@ union HostEvent {
   McpPermittedEvent,McpSourcesEvent,McpErrorEvent,McpAppOpenedEvent,
   DocumentChooseEvent,
   FileDocumentEvent,
+  WorkspaceFilesListEvent, WorkspaceFilesDocumentEvent, WorkspaceFilesErrorEvent,
   FileDocumentErrorEvent,
   ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
   ContentDocumentEvent,

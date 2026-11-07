@@ -215,18 +215,21 @@ impl Chart {
                 .x(|p: &Point| p.x.clone())
                 .y(|p| p.y)
                 .y_axis(true)
+                .y_tick_format(numeric_tick)
                 .into_any_element(),
             "bar" => BarChart::new(points)
                 .id(self.id.clone())
                 .band(|p: &Point| p.x.clone())
                 .value(|p| p.y)
                 .value_axis(true)
+                .value_tick_format(numeric_tick)
                 .into_any_element(),
             "area" => AreaChart::new(points)
                 .id(self.id.clone())
                 .x(|p: &Point| p.x.clone())
                 .y(|p| p.y)
                 .y_axis(true)
+                .y_tick_format(numeric_tick)
                 .into_any_element(),
             "pie" => PieChart::new(points)
                 .id(self.id.clone())
@@ -255,6 +258,31 @@ impl Chart {
                 .tooltip_name(|n| n.clone().into())
                 .into_any_element(),
             _ => unreachable!(),
+        }
+    }
+}
+
+/// Keep small nonzero measurements visible on every numeric chart axis.
+pub(crate) fn numeric_tick(value: f64) -> String {
+    if value != 0. && (value.abs() < 0.1 || value.abs() >= 1_000_000.) {
+        format!("{value:.2e}")
+    } else {
+        format!("{value:.2}")
+    }
+}
+
+#[cfg(test)]
+mod axis_tests {
+    use super::numeric_tick;
+
+    #[test]
+    fn scientific_axis_distinguishes_small_measurements_from_zero() {
+        for (value, label) in [
+            (0., "0.00"), (0.002, "2.00e-3"), (0.008, "8.00e-3"),
+            (-0.002, "-2.00e-3"), (0.025, "2.50e-2"),
+            (1.25, "1.25"), (1_000_000., "1.00e6"),
+        ] {
+            assert_eq!(numeric_tick(value), label);
         }
     }
 }

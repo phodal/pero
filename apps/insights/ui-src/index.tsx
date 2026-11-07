@@ -1,6 +1,6 @@
 import { openAppSession, useAppAgent, useAppI18n } from '@pero/app-sdk';
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Feedback, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Card, Feedback, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
 import { analysisRequest, briefFromReply, briefResultPrompt } from './work-recap-model.mjs';
 import { PulseHomeResult, type ResultBrief } from './pulse-home-result';
 import type { RecapSession, RecapTurn, WorkRecap } from './pulse-work-recap';
@@ -244,7 +244,7 @@ export default function Insights() {
         : (locale === 'zh' ? '部分历史简报未能恢复。可重新读取，或生成一份新简报。' : 'Some previous briefs could not be restored. Reload them or generate a new brief.')}
         {brief && <span className="point-insights-error-hint">{locale === 'zh' ? '下方保留最近可读取的简报。' : 'The latest readable brief remains below.'}</span>}
       </Feedback>
-      <details className="point-insights-diagnostics"><summary>{locale === 'zh' ? '技术详情' : 'Technical details'}</summary><pre>{restoreError.slice(0, 1000)}</pre></details>
+      <Disclosure variant="inline" className="point-insights-diagnostics" summary={<>{locale === 'zh' ? '技术详情' : 'Technical details'}</>}><pre>{restoreError.slice(0, 1000)}</pre></Disclosure>
       <Button disabled={loading} onClick={() => setAttempt(value => value + 1)}>{locale === 'zh' ? '重新读取' : 'Reload'}</Button>
     </>}
     {generationError && <>

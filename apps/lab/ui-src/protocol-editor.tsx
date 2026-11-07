@@ -1,4 +1,4 @@
-import { Input, Textarea, Select } from '@pero/app-sdk/ui';
+import { Table, Input, Textarea, Select } from '@pero/app-sdk/ui';
 import React, { useId, useState } from 'react';
 import { Button, Icon } from '@pero/app-sdk/ui';
 import type { LabState } from './types';
@@ -31,7 +31,7 @@ export function ProtocolEditor({ value, onChange, disabled, state, maxSteps, hea
     </div> : <>
       {extraFields && <p className="notice">Extra fields retained in JSON.</p>}
       {!document.steps.length && <p className="empty">Add the first step.</p>}
-      <div className="step-table-scroll"><table className="step-table" aria-label="Protocol steps">
+      <Table layout="fixed" label="Protocol steps" density="compact" className="step-table-scroll" tableClassName="step-table">
         <colgroup><col className="step-number-column" /><col /><col className="step-resource-column" /><col className="step-volume-column" /><col className="step-actions-column" /></colgroup>
         <thead><tr><th scope="col">Step</th><th scope="col">Operation</th><th scope="col">Resource</th><th scope="col">µL</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
         <tbody>{document.steps.map((step, index) => <tr key={index}>
@@ -55,7 +55,7 @@ export function ProtocolEditor({ value, onChange, disabled, state, maxSteps, hea
             }}><Icon name="trash" /></Button>
           </div></td>
         </tr>)}</tbody>
-      </table></div>
+      </Table>
       {removed?.after === value && <div className="toolbar editor-message" role="status">Step {removed.step} removed.<Button variant="ghost" disabled={disabled} onClick={() => { onChange(removed.before); setRemoved(null); }}><Icon name="undo" />Undo</Button></div>}
       <div className="toolbar editor-add"><Button variant="ghost" disabled={disabled || !nextTip} aria-describedby={!nextTip ? tipStatus : undefined} onClick={() => {
         if (!nextTip) return;

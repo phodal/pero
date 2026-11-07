@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
-import { Button, Feedback } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Feedback } from '@pero/app-sdk/ui';
 import type { PreviewSource } from './preview-source';
 
 /** The existing pinned PDF.js engine, without the Paper evidence workflow. */
@@ -74,7 +74,7 @@ export function PdfPreview({ source, zh, onPageText }: { source: PreviewSource; 
     {error && <Feedback kind="error">{error}</Feedback>}
     {loading && <div className="artifact-loading" role="status">{zh ? '正在载入 PDF…' : 'Loading PDF…'}</div>}
     <div className="artifact-pdf-pages" ref={viewport}><canvas ref={canvas} aria-label={`${source.name}, ${zh ? '第' : 'page'} ${page}`} />
-      <details className="artifact-pdf-text"><summary>{zh ? '本页文字' : 'Page text'}</summary><pre>{pageText || (zh ? '本页没有可提取的文字。' : 'No extractable text on this page.')}</pre></details>
+      <Disclosure variant="inline" className="artifact-pdf-text" summary={<>{zh ? '本页文字' : 'Page text'}</>}><pre>{pageText || (zh ? '本页没有可提取的文字。' : 'No extractable text on this page.')}</pre></Disclosure>
     </div>
   </section>;
 }

@@ -20,6 +20,8 @@ pub enum ChatAction {
     Command(HostCommand),
     Content(crate::artifact_read::ContentReadIntent),
     Artifacts(pero_contracts::session_artifact::ArtifactRequest),
+    WorkspaceFiles(pero_contracts::workspace_files::WorkspaceFilesRequest),
+    ResourceTab { tab: pero_contracts::workbench::ResourceTab },
     ChooseArtifactFile { thread_id: String },
     ArtifactPaneWidth { width: f32 },
     ArtifactPreview(Option<pero_contracts::session_artifact::ArtifactBrowserState>),
@@ -96,6 +98,7 @@ pub struct ChatPanel {
     pub(crate) next_request: u64,
     pub(crate) retired_chats: HashMap<String, String>,
     pub(crate) artifacts: crate::session_artifacts::SessionArtifacts,
+    pub(crate) files: crate::workspace_files::SessionFiles,
     link_subscriptions: HashMap<gpui_kit::EntityId, Subscription>,
     _subscriptions: Vec<Subscription>,
 }
@@ -171,6 +174,7 @@ impl ChatPanel {
             next_request: 0,
             retired_chats: HashMap::new(),
             artifacts: Default::default(),
+            files: Default::default(),
             _subscriptions: subscriptions,
         }
     }
@@ -288,6 +292,7 @@ impl ChatPanel {
     }
 
     pub fn receive(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
+        if self.receive_files(event, cx) { return true; }
         if self.receive_artifacts(event, cx) { return true; }
         if self.receive_composer(event, cx) {
             return true;
@@ -389,7 +394,7 @@ impl ChatPanel {
     /// Diagnostic projection used by both shells; never a second history store.
     pub fn snapshot(&self, cx: &App) -> Value {
         json!({"chats":self.chats,"activeChat":self.active_chat,"agents":self.agents,
-            "connected":self.connected,"error":self.error,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),
+            "connected":self.connected,"error":self.error,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),"files":self.files_snapshot(cx),
             "composer":self.composer.read(cx).value().as_ref(),"composerFocused":self.composer_focused,
             "workspace":self.workspace,"attachments":self.attachments.iter().map(|r|r.label.as_str()).collect::<Vec<_>>(),
             "expandedTools":self.expanded_tools,"expandedReasoning":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(i,m)|m.role=="thought" && chat.thinking.open(*i)).map(|(i,_)|(&chat.id,i))).collect::<Vec<_>>(),
@@ -406,6 +411,7 @@ impl ChatPanel {
             "inputBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().map(move |tool|json!({"chat":chat.id,"tool":tool.id,"bounds":tool.input_bounds.snapshot()}))).collect::<Vec<_>>(),
             "appLinkBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().flat_map(move |tool|tool.app_links.iter().map(move |link|json!({"chat":chat.id,"url":link.url,"label":link.label,"bounds":link.bounds.snapshot()})))).collect::<Vec<_>>(),
             "toolBounds":self.chats.iter().flat_map(|chat|chat.tools.iter().map(move |tool|json!({"chat":chat.id,"tool":tool.id,"bounds":tool.toggle_bounds.snapshot(),"artifact":tool.artifact_bounds.snapshot()}))).collect::<Vec<_>>(),
+            "tableBounds":self.chats.iter().flat_map(|chat|chat.tools.iter()).filter_map(|tool|tool.table.as_ref().map(|table|json!({"id":table.artifact_id,"data":table.data_bounds.snapshot(),"source":table.source_bounds.snapshot()}))).collect::<Vec<_>>(),
             "chartBounds":self.chats.iter().flat_map(|chat|chat.tools.iter()).filter_map(|tool|tool.chart.as_ref().map(|chart|json!({"id":chart.artifact_id,"data":chart.data_bounds.snapshot(),"source":chart.source_bounds.snapshot()}))).collect::<Vec<_>>(),
             "contentReaders":self.chats.iter().flat_map(|chat|chat.tools.iter()).filter_map(|tool|tool.reader.as_ref().map(|reader|reader.read(cx).snapshot(cx))).collect::<Vec<_>>(),
             "toolViews":self.chats.iter().map(|c|c.tools.iter().filter(|t|t.view.is_some()).count()).collect::<Vec<_>>(),

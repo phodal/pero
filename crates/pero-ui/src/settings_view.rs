@@ -38,6 +38,7 @@ pub(crate) enum SettingsAction {
 
 pub(crate) struct SettingsPanel {
     pub preferences: WorkbenchPreferences,
+    pub(crate) shortcuts: crate::settings_shortcuts::ShortcutEditor,
     pub locale: String,
     pub preferences_status: PreferenceSaveState,
     pub error: Option<String>,
@@ -84,30 +85,11 @@ impl SettingsPanel {
         let harness_inputs = std::array::from_fn(|index| cx.new(|cx| {
             InputState::new(window, cx).masked(index == 2).placeholder(pero_contracts::i18n::text(&locale, ["harness.endpoint", "harness.model", "harness.api_key"][index]))
         }));
+        let shortcuts = crate::settings_shortcuts::ShortcutEditor::new(window, cx);
+        shortcuts.search.update(cx,|input,cx|input.set_placeholder(pero_contracts::i18n::text(&locale,"shortcuts.search"),window,cx));
         let navigation = cx.new(|cx| TreeState::new(cx));
         let navigation_focus = cx.focus_handle();
-        let is_mac = cx.platform_info().is_mac();
-        cx.bind_keys([
-            KeyBinding::new(
-                "escape",
-                gpui_kit::base::actions::Cancel,
-                Some("SettingsPanel"),
-            ),
-            KeyBinding::new(
-                if is_mac { "cmd-f" } else { "ctrl-f" },
-                FocusSettingsSearch,
-                Some("SettingsPanel"),
-            ),
-            KeyBinding::new(
-                if is_mac {
-                    "cmd-shift-e"
-                } else {
-                    "ctrl-shift-e"
-                },
-                FocusSettingsNavigation,
-                Some("SettingsPanel"),
-            ),
-        ]);
+        cx.bind_keys([KeyBinding::new("escape",gpui_kit::base::actions::Cancel,Some("SettingsPanel"))]);
         let mut subscriptions = vec![
             cx.subscribe(&search, |_, _, _: &InputEvent, cx| cx.notify()),
             cx.observe(&navigation, |this, tree, cx| {
@@ -131,11 +113,20 @@ impl SettingsPanel {
                             .position(|candidate| *candidate == section)
                             .unwrap_or(0)
                     };
-                    this.content_scroll.scroll_to_top_of_item(index);
+                    if query.is_empty() && section.exclusive() {
+                        this.content_scroll.set_offset(point(px(0.), px(0.)));
+                    } else {
+                        this.content_scroll.scroll_to_top_of_item(index);
+                    }
                     cx.notify();
                 }
             }),
         ];
+        subscriptions.push(cx.subscribe(&shortcuts.search, |_,_,_: &InputEvent,cx|cx.notify()));
+        subscriptions.push(cx.subscribe(&shortcuts.input, |this,_,event: &InputEvent,cx| {
+            if matches!(event, InputEvent::Change) { this.shortcuts.clear_error(); }
+            cx.notify();
+        }));
         subscriptions.push(cx.on_focus_in(&navigation_focus, window, |_, _, cx| cx.notify()));
         subscriptions.push(cx.on_focus_out(&navigation_focus, window, |_, _, _, cx| cx.notify()));
         for (index, scope) in [FontScope::Interface, FontScope::Chat, FontScope::Code]
@@ -178,6 +169,7 @@ impl SettingsPanel {
         Self {
             mcp,
             preferences,
+            shortcuts,
             locale: locale.clone(),
             input_locale: locale,
             focus_search: true,
@@ -207,6 +199,7 @@ impl SettingsPanel {
         error: Option<&str>,
         cx: &mut Context<Self>,
     ) {
+        self.focus_search |= self.shortcuts.receive(status,error);
         self.needs_sync |= self.preferences.typography != preferences.typography;
         self.preferences = preferences.clone();
         self.locale = locale.into();
@@ -224,6 +217,10 @@ impl SettingsPanel {
     }
     pub(crate) fn select(&mut self, section: SettingsSection, cx: &mut Context<Self>) {
         self.section = section;
+        // Update the observed tree too: a pending notification from its first render
+        // must not restore the previous section when the native window attaches.
+        let selected = TreeItem::new(if section.is_appearance() { "settings.appearance" } else { section.key() }, "");
+        self.navigation.update(cx, |tree, cx| tree.set_selected_item(Some(&selected), cx));
         self.navigation_query = None;
         cx.notify();
     }
@@ -236,7 +233,7 @@ impl SettingsPanel {
         cx.notify();
         true
     }
-    fn save_preferences(&mut self, preferences: WorkbenchPreferences, cx: &mut Context<Self>) {
+    pub(crate) fn save_preferences(&mut self, preferences: WorkbenchPreferences, cx: &mut Context<Self>) {
         if preferences == self.preferences {
             return;
         }
@@ -454,6 +451,7 @@ impl SettingsPanel {
             .filter(|section| {
                 let mut text = self.t(section.key()).to_owned();
                 let keys: &[&str] = match section {
+                    SettingsSection::Shortcuts => &["shortcuts.title","shortcuts.search"],
                     SettingsSection::General => &["menu.language"],
                     SettingsSection::Mcp => &["mcp.agent", "mcp.add"],
                     SettingsSection::Harness => &["harness.api_key", "harness.endpoint", "harness.model"],
@@ -538,6 +536,7 @@ impl SettingsPanel {
                 SettingsSection::Computer => self.computer_settings(cx),
                 SettingsSection::Mcp => self.mcp_settings(cx),
                 SettingsSection::Harness => self.harness_settings(cx),
+                SettingsSection::Shortcuts => self.shortcut_settings(cx),
                 SettingsSection::Agents | SettingsSection::Workers | SettingsSection::Connections => self.category_page(section, cx),
                 _ => self.font_settings(section, window, cx),
             };
@@ -785,10 +784,10 @@ impl Render for SettingsPanel {
         let appearance = UiAppearance::global(cx).clone();
         div()
             .id("settings-panel")
-            .key_context("SettingsPanel")
+            .key_context(if self.shortcuts.recording() {"ShortcutRecording"} else {"SettingsPanel"})
             .capture_action(
                 cx.listener(|this, _: &gpui_kit::component::input::Escape, window, cx| {
-                    if !this.clear_search(window, cx) {
+                    if !this.cancel_shortcut_edit(window,cx) && !this.clear_search(window, cx) {
                         cx.emit(SettingsAction::Close);
                     }
                     cx.stop_propagation();
@@ -796,7 +795,7 @@ impl Render for SettingsPanel {
             )
             .capture_action(
                 cx.listener(|this, _: &gpui_kit::base::actions::Cancel, window, cx| {
-                    if this.clear_search(window, cx) {
+                    if this.cancel_shortcut_edit(window,cx) || this.clear_search(window, cx) {
                         cx.stop_propagation();
                     }
                 }),
@@ -822,6 +821,7 @@ impl Render for SettingsPanel {
                 }),
             )
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                if this.record_shortcut(event,window,cx) {return;}
                 if !this.search.read(cx).focus_handle(cx).is_focused(window) {
                     return;
                 }

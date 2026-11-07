@@ -15,6 +15,10 @@ pub use design::{
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod feedback;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod research_result;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+pub use research_result::{research_result, research_note, research_table_style};
+#[cfg(any(target_family = "wasm", feature = "native"))]
 pub use feedback::{feedback, feedback_actions, feedback_details, FeedbackKind};
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod shell;

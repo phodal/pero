@@ -15,10 +15,12 @@ pub(crate) enum SettingsSection {
     Computer,
     Mcp,
     Harness,
+    Shortcuts,
 }
 impl SettingsSection {
-    pub(crate) const ALL: [Self; 11] = [
+    pub(crate) const ALL: [Self; 12] = [
         Self::General,
+        Self::Shortcuts,
         Self::Theme,
         Self::InterfaceFont,
         Self::ChatFont,
@@ -32,6 +34,7 @@ impl SettingsSection {
     ];
     pub(crate) fn key(self) -> &'static str {
         match self {
+            Self::Shortcuts => "shortcuts.title",
             Self::General => "settings.general",
             Self::Theme => "settings.theme",
             Self::InterfaceFont => "settings.interface_font",

@@ -62,7 +62,7 @@ impl Workbench {
         }, settings, actions, cx)
     }
 
-    fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
         self.sidebar_collapsed = !self.sidebar_collapsed;
         cx.notify();
     }
@@ -85,6 +85,7 @@ impl Workbench {
             self.sidebar_collapsed,
             self.layout.sidebar_width,
             tabs,
+            self.shortcut_label(pero_contracts::shortcuts::CommandId::SearchWorkspace,cx),
             cx.listener(|this, _, _, cx| this.toggle_sidebar(cx)),
             cx.listener(|this, _, window, cx| this.toggle_spotlight(window, cx)),
             dragging,
@@ -299,9 +300,7 @@ impl Render for Workbench {
         let pane_layout = self.navigation.pane_layout().filter(|_| pane_tree);
         let resizing = self.resizing_sidebar || self.resizing_chat || self.resizing_sessions || self.pane_resize.is_some();
         let window_overlay = self.spotlight.is_some()
-            || self.settings_menu_open
             || self.settings_panel.is_some()
-            || self.pane_tabs.switching()
             || window.has_active_dialog(cx);
         let chat_dock_menu = self.chat.read(cx).dock_menu
             && WorkspaceLayout::chat_placement(
@@ -316,7 +315,9 @@ impl Render for Workbench {
             && self.active_app_chat_slot().is_none();
         let covered = WorkspaceLayout::embedded_surface_covered(
             window_overlay,
-            gpui_kit::component::GlobalState::is_in_deferred_context(cx),
+            self.settings_menu_open
+                || self.pane_tabs.switching()
+                || gpui_kit::component::GlobalState::is_in_deferred_context(cx),
             chat_dock_menu,
             resizing,
             if cfg!(all(
@@ -400,12 +401,13 @@ impl Render for Workbench {
         div()
             .id("workbench")
             .relative()
+            .map(|el| self.shortcut_handlers(el, cx))
             .track_focus(&self.workspace_focus)
             .when(self.pane_tabs.switching(), |el| {
-                el.key_context("PaneTabSwitcher")
+                el.key_context("PeroWorkbench PaneTabSwitcher")
             })
             .when(!self.pane_tabs.switching(), |el| {
-                el.key_context(crate::web_documents::SURFACE_KEY_CONTEXT)
+                el.key_context(if window.has_active_dialog(cx) { "WebSurface" } else { "PeroWorkbench WebSurface" })
             })
             .on_modifiers_changed(
                 cx.listener(|this, event, window, cx| this.pane_tab_modifiers(event, window, cx)),

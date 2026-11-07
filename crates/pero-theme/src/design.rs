@@ -695,7 +695,6 @@ pub fn sidebar_menu_button(
                 .flex()
                 .items_center()
                 .gap(chrome.geo(ICON_GAP))
-                .text_size(chrome.text(TYPE_BODY))
                 .font_weight(weight(WEIGHT_BODY))
                 .child(
                     div()

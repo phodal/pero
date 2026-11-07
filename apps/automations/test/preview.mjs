@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 const directory = resolve(import.meta.dirname, '../dist');
+const palettes = JSON.parse(await readFile(resolve(import.meta.dirname, '../../../web/src/theme.generated.json'), 'utf8'));
 const records = [{ id: 'pulse-daily-brief', name: 'Pulse 每日简报', prompt: 'Summarize the supplied local material.', rule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0;BYSECOND=0', timezone: 'Local', enabled: true, target: { kind: 'local' }, next: null, scheduled: false, error: 'Re-save this schedule to freeze its IANA time zone', runs: [
   { key: { automation: 'pulse-daily-brief', slot: '2026-10-31T08:35:00+08:00', trigger: 'manual' }, scheduled_for: '2026-10-31T08:35:00+08:00', settled_at: '2026-10-31T08:35:00+08:00', state: 'succeeded', session_id: 'fixture-session' },
   { key: { automation: 'pulse-daily-brief', slot: '2026-10-31T08:33:00+08:00', trigger: 'schedule' }, scheduled_for: '2026-10-31T08:33:00+08:00', state: 'skipped', skip_reason: 'missed' },
@@ -31,7 +32,16 @@ const server = createServer(async (request, response) => {
     response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ status, body })); return;
   }
   if (url.pathname === '/test-shell') {
-    response.writeHead(200, {'Content-Type':'text/html'}).end(`<html><body style="margin:0"><iframe title="Automations" sandbox="allow-scripts allow-same-origin" src="/" style="width:100%;height:100vh;border:0"></iframe><script>window.openedSessions=[];addEventListener('message',e=>{if(e.data?.type==='pero:app:open-session')openedSessions.push(e.data.sessionId);if(e.data?.type==='pero:app:ready')e.source.postMessage({type:'pero:app:context',context:{locale:'en',dark:false,active:true}},'*')})</script></body></html>`);return;
+    response.writeHead(200, {'Content-Type':'text/html'}).end(`<html><body style="margin:0">
+      <div style="height:36px;display:flex;align-items:center;gap:16px;font:14px system-ui;padding:0 12px">
+        <span>Local UI fixture</span><label>Test theme <select id="theme"><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <label>Test font size <select id="font"><option>14</option><option>18</option><option>24</option></select></label>
+      </div><iframe title="Automations" sandbox="allow-scripts allow-same-origin" src="/" style="width:100%;height:calc(100vh - 36px);border:0"></iframe>
+      <script>window.openedSessions=[];const palettes=${JSON.stringify(palettes)};
+      function update(){const dark=document.getElementById('theme').value==='dark',ui=Number(document.getElementById('font').value);
+        document.querySelector('iframe').contentWindow.postMessage({type:'pero:app:context',context:{locale:'en',dark,active:true,appearance:{dark,accent:'teal',typography:{ui,chat:14,code:14},palette:palettes[dark?'dark':'light']}}},'*')}
+      document.getElementById('theme').onchange=update;document.getElementById('font').onchange=update;
+      addEventListener('message',e=>{if(e.data?.type==='pero:app:open-session')openedSessions.push(e.data.sessionId);if(e.data?.type==='pero:app:ready')update()})</script></body></html>`);return;
   }
   const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
   if (!['index.html', 'index.js', 'index.css'].includes(file)) { response.writeHead(404).end(); return; }

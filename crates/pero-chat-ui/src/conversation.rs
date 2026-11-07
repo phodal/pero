@@ -77,6 +77,7 @@ impl Message {
 
 #[derive(Clone, Serialize)]
 pub struct Tool {
+    pub table: Option<crate::table_view::TableView>,
     pub chart: Option<crate::chart_view::ChartView>,
     pub chart_error: Option<String>,
     #[serde(skip)]
@@ -403,6 +404,7 @@ impl Conversation {
                     .position(|tool| tool.id == id)
                     .unwrap_or_else(|| {
                         self.tools.push(Tool {
+                            table: None,
                             chart: None,
                             chart_error: None,
                             chart_reader: None,
@@ -500,6 +502,7 @@ impl Conversation {
                     tool.content = next;
                 }
 
+                tool.table = None;
                 tool.chart = None;
                 tool.chart_error = None;
                 if tool.status == "completed" && !tool.cancelled && tool.title == "chart_render" {
@@ -509,6 +512,12 @@ impl Conversation {
                     }
                 }
 
+                if tool.status == "completed" && !tool.cancelled && tool.title == "table_render" {
+                    match crate::table_view::TableView::from_content(&tool.content, cx) {
+                        Ok(table) => tool.table = Some(table),
+                        Err(error) => tool.chart_error = Some(error),
+                    }
+                }
                 true
             }
             "session_info_update" => {

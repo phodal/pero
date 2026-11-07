@@ -31,21 +31,41 @@
 .env-footer{justify-content:space-between;align-items:flex-start;border-top:.5px solid var(--pero-border);padding-top:var(--pero-spacing-3)}
 .env-footer .env-note{max-width:60ch;flex:1;min-width:min(180px,100%)}
 .pero-env-trigger{display:inline-flex}
-.env-workspace{min-height:100vh;background:var(--pero-bg);align-content:start;padding:var(--pero-spacing-5) var(--pero-spacing-6);gap:var(--pero-spacing-4)}
-.env-workspace>.pero-library-header{padding:0;background:transparent;align-items:flex-start;flex-wrap:wrap}
+.env-workspace{min-height:100vh;background:var(--pero-bg);display:block;padding:var(--pero-spacing-5) var(--pero-spacing-6)}
+.env-workspace-content{width:100%;max-width:1120px;margin:0 auto;display:grid;gap:var(--pero-spacing-4);align-content:start}
+.env-workspace-create .env-workspace-content{max-width:800px}
+.env-workspace-content>.pero-library-header{padding:0;background:transparent;align-items:center;flex-wrap:wrap}
 .env-workspace .pero-library-heading h1{white-space:normal;overflow-wrap:anywhere}
-.env-workspace .pero-library-heading p{max-width:64ch;margin-top:var(--pero-spacing-2);line-height:1.5}
+.env-workspace .pero-library-heading p{margin-top:var(--pero-spacing-2);line-height:1.5}
 .env-back{justify-self:start}
-.env-create-form{width:100%;max-width:560px;display:grid;gap:var(--pero-spacing-5)}
+.env-create-form{display:grid;gap:var(--pero-spacing-5);width:100%;margin:0}
+.env-method-section{display:grid;gap:var(--pero-spacing-3);min-width:0}
+.env-method-choices{grid-template-columns:repeat(auto-fit,minmax(min(100%,13em),1fr))}
+.env-method-option{display:flex;align-items:flex-start;gap:var(--pero-spacing-2);min-width:0}
+.env-method-copy{display:grid;gap:var(--pero-spacing-1);min-width:0}
+.env-method-copy strong{font-weight:600}
+.env-method-copy>span{font-size:var(--pero-font-caption);color:var(--pero-text-muted);overflow-wrap:anywhere}
+.env-method-icon{display:inline-grid;place-items:center;width:var(--pero-spacing-6);height:var(--pero-spacing-6);border-radius:var(--pero-radius-selection);background:var(--pero-accent-soft);color:var(--pero-accent-text);flex:none}
+.env-method-icon[data-tone=blue]{background:var(--pero-tint-blue-surface);color:var(--pero-tint-blue-text)}
+.env-method-icon[data-tone=apricot]{background:var(--pero-tint-apricot-surface);color:var(--pero-tint-apricot-text)}
 .env-recipe-summary{display:grid;gap:var(--pero-spacing-3)}
+.env-recipe-summary h3{display:flex;align-items:center;gap:var(--pero-spacing-2);color:var(--pero-tint-blue-text)}
+.env-package-list{display:flex;gap:var(--pero-spacing-2);flex-wrap:wrap}
+.env-package-list>.pero-badge{font-family:var(--pero-font-family-mono)}
 .env-recipe-facts{display:grid;gap:var(--pero-spacing-2);margin:0}
-.env-recipe-facts>div{display:grid;grid-template-columns:6em minmax(0,1fr);gap:var(--pero-spacing-3)}
-.env-recipe-facts dt{font-size:var(--pero-font-caption);color:var(--pero-text-muted)}
+.env-recipe-facts>div{display:grid;grid-template-columns:6rem minmax(0,1fr);gap:var(--pero-spacing-3);align-items:baseline}
+.env-recipe-facts dt{color:var(--pero-text-muted);font-size:var(--pero-font-caption)}
 .env-recipe-facts dd{margin:0;overflow-wrap:anywhere}
-.env-form-actions{justify-content:flex-end}
+.env-create-footer{display:flex;align-items:center;justify-content:space-between;gap:var(--pero-spacing-4);flex-wrap:wrap}
+.env-create-footer>.env-note{flex:1;min-width:min(100%,240px)}
+.env-form-actions{justify-content:flex-end;margin-left:auto;gap:var(--pero-spacing-2)}
+.env-catalog-name{display:flex;align-items:center;gap:var(--pero-spacing-3);min-width:0}
+.env-catalog-name>div{min-width:0}
+.env-catalog-name .env-muted{margin-top:var(--pero-spacing-1)}
+.env-catalog-table{background:var(--pero-surface);border-radius:var(--pero-radius-panel)}
+.env-workspace-content>.pero-ui-tabs>.pero-ui-tabs-content{padding-top:var(--pero-spacing-5)}
+@media(max-width:640px){.env-method-choices{grid-template-columns:1fr}.env-recipe-facts>div{grid-template-columns:5rem minmax(0,1fr)}}
 .env-install-log{font-size:var(--pero-font-caption)}
-.pero-env summary{cursor:pointer;padding:var(--pero-spacing-1) 0}
-.pero-env summary:focus-visible{outline:2px solid var(--pero-focus);outline-offset:2px}
 .env-inspection{padding:0}
 .env-inspection>.env-heading{justify-content:flex-end}
 .env-inspection>.env-heading:has(h1){justify-content:space-between}

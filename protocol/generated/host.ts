@@ -12,6 +12,7 @@ export type HostInput =
   | McpSourceRequest
   | WorkspaceSessionRequest
   | FileDocumentRequest
+  | WorkspaceFilesRequest
   | ArtifactRequest
   | LocalWorkerRequest
   | EchoRequest
@@ -71,6 +72,7 @@ export type FileDocumentRequest =
   | SaveDraftFileDocument
   | SaveAsReferenceFileDocument
   | ReleaseFileDocument;
+export type ThreadId = string;
 export type ArtifactRequest =
   | ListArtifacts
   | RegisterTextArtifact
@@ -78,8 +80,8 @@ export type ArtifactRequest =
   | ReadArtifact
   | ResolveArtifactSnapshot
   | ArtifactContextRequest;
-export type ThreadId = string;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
+export type KeySequence = string;
 export type ArtifactView = "icons" | "list" | "gallery";
 export type HostCommand =
   | ListAgentsCommand
@@ -177,6 +179,9 @@ export type HostEvent =
   | McpAppOpenedEvent
   | DocumentChooseEvent
   | FileDocumentEvent
+  | WorkspaceFilesListEvent
+  | WorkspaceFilesDocumentEvent
+  | WorkspaceFilesErrorEvent
   | FileDocumentErrorEvent
   | ArtifactCatalogEvent
   | ArtifactRegisteredEvent
@@ -811,6 +816,13 @@ export interface ReleaseFileDocument {
   action: "release";
   source: string;
 }
+export interface WorkspaceFilesRequest {
+  method: "workspace_files";
+  action: "list" | "read";
+  request_id: string;
+  thread_id: ThreadId;
+  path: string;
+}
 export interface ListArtifacts {
   action: "list";
   method: "artifacts";
@@ -922,6 +934,7 @@ export interface SetWorkbenchSettingsRequest {
   preferences: WorkbenchPreferences;
 }
 export interface WorkbenchPreferences {
+  shortcuts?: ShortcutOverrides;
   accent?: "teal" | "blue" | "neutral";
   typography?: TypographyPreferences;
   appearance: "light" | "dark" | "system";
@@ -934,6 +947,381 @@ export interface WorkbenchPreferences {
    */
   research_projects?: ResearchProject[];
   layout?: LayoutPreferences;
+}
+export interface ShortcutOverrides {
+  macos?: PlatformOverrides;
+  other?: PlatformOverrides;
+}
+export interface PlatformOverrides {
+  /**
+   * @maxItems 4
+   */
+  new_chat?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  settings?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  keyboard_shortcuts?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  command_palette?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  toggle_sidebar?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  toggle_chat?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  toggle_terminal?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  open_recent?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  search_workspace?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  open_web?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  close_tab?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  reopen_tab?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  preview_to_side?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  next_tab?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  previous_tab?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  next_content?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  previous_content?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  back?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  forward?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  split_left?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  split_right?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  split_up?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  split_down?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_left?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_right?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_up?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_down?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  close_pane?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  automation?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  remote_tasks?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  settings_search?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  settings_navigation?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_pane1?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_pane2?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_pane3?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_pane4?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_pane5?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_pane6?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_pane7?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_pane8?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
+  /**
+   * @maxItems 4
+   */
+  focus_pane9?:
+    | []
+    | [KeySequence]
+    | [KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence]
+    | [KeySequence, KeySequence, KeySequence, KeySequence];
 }
 export interface TypographyPreferences {
   ui_size?: number;
@@ -967,6 +1355,7 @@ export interface LayoutPreferences {
   artifact_pane_width?: number;
   sessions_width?: number;
   artifact_view?: ArtifactView;
+  resource_tab?: "files" | "artifacts";
 }
 export interface ListAgentsCommand {
   action: "list_agents";
@@ -1703,6 +2092,39 @@ export interface FileDocumentEvent {
   request_id: string | null;
   text: string;
   data: DocumentHeader;
+}
+export interface WorkspaceFilesListEvent {
+  kind: "workspace_files_list";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: DirectoryListing;
+}
+export interface DirectoryListing {
+  workspace: string;
+  path: string;
+  entries: WorkspaceEntry[];
+  truncated: boolean;
+}
+export interface WorkspaceEntry {
+  name: string;
+  kind: "directory" | "file" | "symlink" | "other";
+}
+export interface WorkspaceFilesDocumentEvent {
+  kind: "workspace_files_document";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: DocumentHeader;
+}
+export interface WorkspaceFilesErrorEvent {
+  kind: "workspace_files_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
 }
 export interface FileDocumentErrorEvent {
   kind: "document_error";

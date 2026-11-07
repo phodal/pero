@@ -534,3 +534,70 @@ readable. Screenshots and HPC measurements are ignored local artifacts, not
 committed binaries. Shared FileTree/CodeCompare and quote-specific visual states
 were source/behavior reviewed but not visually exercised. This pass adds no
 Native, physical IME, screen-reader, signed-package or other-OS acceptance.
+
+## Native font and consumer migration review — 2026-11-06
+
+The [detailed runtime review](../../docs/fitness/2026-11-06-design-system-runtime-review.md)
+records the 12-App Native inspection and first optimization batch, based on
+`1766b667` plus the listed UI changes. It includes actual menu coverage fixes,
+Automations' public-control migration, narrow LibraryHeader wrapping, typography
+tokens and Lab/Virtual Cell large-font layouts. Native observations and the
+Automations mock browser fixture are distinguished from builds and unit tests.
+Remaining keyboard, physical IME, VoiceOver, deep reader/preview and scientific
+heatmap label work remains in the canonical tracker linked by that report.
+
+
+## Rounded workspace tabs — 2026-11-06
+
+Source: local working tree (HEAD `257c6a52` at final review, plus the uncommitted
+changes listed below); macOS GPUI Native development build and Web catalog.
+
+| Migration | Consumers and preserved behavior |
+| --- | --- |
+| Flat surface / bottom indicator → rounded card, accent-soft / accent-text selection and border | Shared `pero_theme::content_tab` and SDK `ContentTab`; focused pane selection stays distinct from the neutral selected tab in an unfocused pane. |
+| Touching tabs → shared 4px gaps and strip inset, existing 8px selection radius | Window chrome, split-pane strips, Project/Task strip and production-component catalog. Existing 30px minimum tab size and 13px title scale remain. Pane bars add 8px for vertical breathing room. |
+| Full-height Web close action → independent 24px minimum close target | Close controls remain visible; both renderers constrain the target to the tab interior at larger font sizes. Dirty marker, preview italics, pin, tooltip, navigation and close ownership remain in their existing components. |
+
+Validation:
+
+- SDK and catalog typechecks, catalog production build and full root `npm run check` passed
+  (984 bilingual messages, 85 icons). The first root check could not find `rustfmt`;
+  rerunning with the installed stable and nightly toolchain bins passed.
+- Existing Tabs behavior and design-contract suites: **11 tests passed**.
+- Final Native build passed (`pero-ui`, `native`, `pero-native`); existing unused-code
+  warnings remain. No new behavior tests were added for this visual change.
+- Actual isolated Native preview: opened Lab, Virtual Cell, Data, Paper and Compute;
+  switched among Apps and observed the rounded active tab in light and dark themes.
+  Real Virtual Cell content and its independent page tabs remained visible beneath
+  the workspace strip. The user's existing Native process was left running.
+- Web production components: observed neutral hover beside persistent accent selection;
+  keyboard End selects the long last tab with an inset focus ring; Delete on the dirty
+  research note opens the existing close confirmation. Pin, dirty and preview states
+  remain visible. At 24px the close target stays inside the border; at 420px width the
+  tab strip scrolls and document scroll width is 420px. Temporary viewport overrides
+  were reset. No motion was introduced.
+
+Inspected screenshots (local ignored evidence):
+
+- [Native light](../../target/tabs-review/screenshots/native-light.png)
+- [Native dark](../../target/tabs-review/screenshots/native-dark.png)
+- [Native light/dark tab crops](../../target/tabs-review/screenshots/native-tabs-light-dark.png)
+- [Web active and hover](../../target/tabs-review/screenshots/web-light.png)
+- [Web dark, 24px](../../target/tabs-review/screenshots/web-dark-24.png)
+- [Web dark, 420px / 24px](../../target/tabs-review/screenshots/web-dark-narrow.png)
+
+Not re-verified: Native drag/drop, split-pane transitions, Project/Task fallback
+strip interaction, full Native keyboard/accessibility coverage, Electron/Wasm and
+signed installation packages. Native compilation and catalog evidence do not certify
+those paths. No Agent request or scientific computation was submitted.
+
+
+## Settings sidebar font alignment — 2026-11-06
+
+On `acd7a54a` plus this fix, `sidebar_menu_button` no longer overrides the
+inherited compact button text size inside its label container. The Settings
+entry now follows the same label typography as adjacent sidebar actions.
+Native development build passed; inspected the rebuilt macOS window and verified
+Settings opens its menu and Escape dismisses it. Local before/after captures:
+`target/tabs-review/screenshots/settings-before.png` and `settings-after.png`.
+Electron/Wasm and other font sizes were not re-verified for this follow-up.

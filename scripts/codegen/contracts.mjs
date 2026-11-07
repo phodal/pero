@@ -95,6 +95,7 @@ for (const [path, output] of Object.entries(outputs)) {
 }
 }
 if (!computer) {
+  await generate('shortcuts', 'ShortcutProtocol', ['ShortcutProtocol'], 'shortcuts');
   await generate('host', 'HostProtocol', ['HostInput', 'HostEvent', 'WebCommand']);
   await generate('remote', 'RemoteProtocol', ['RemoteProtocol']);
 }

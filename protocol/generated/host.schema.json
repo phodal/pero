@@ -5259,6 +5259,175 @@
       ],
       "additionalProperties": false
     },
+    "CommandId": {
+      "title": "CommandId",
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "new_chat"
+        },
+        {
+          "type": "string",
+          "const": "settings"
+        },
+        {
+          "type": "string",
+          "const": "keyboard_shortcuts"
+        },
+        {
+          "type": "string",
+          "const": "command_palette"
+        },
+        {
+          "type": "string",
+          "const": "toggle_sidebar"
+        },
+        {
+          "type": "string",
+          "const": "toggle_chat"
+        },
+        {
+          "type": "string",
+          "const": "toggle_terminal"
+        },
+        {
+          "type": "string",
+          "const": "open_recent"
+        },
+        {
+          "type": "string",
+          "const": "search_workspace"
+        },
+        {
+          "type": "string",
+          "const": "open_web"
+        },
+        {
+          "type": "string",
+          "const": "close_tab"
+        },
+        {
+          "type": "string",
+          "const": "reopen_tab"
+        },
+        {
+          "type": "string",
+          "const": "preview_to_side"
+        },
+        {
+          "type": "string",
+          "const": "next_tab"
+        },
+        {
+          "type": "string",
+          "const": "previous_tab"
+        },
+        {
+          "type": "string",
+          "const": "next_content"
+        },
+        {
+          "type": "string",
+          "const": "previous_content"
+        },
+        {
+          "type": "string",
+          "const": "back"
+        },
+        {
+          "type": "string",
+          "const": "forward"
+        },
+        {
+          "type": "string",
+          "const": "split_left"
+        },
+        {
+          "type": "string",
+          "const": "split_right"
+        },
+        {
+          "type": "string",
+          "const": "split_up"
+        },
+        {
+          "type": "string",
+          "const": "split_down"
+        },
+        {
+          "type": "string",
+          "const": "focus_left"
+        },
+        {
+          "type": "string",
+          "const": "focus_right"
+        },
+        {
+          "type": "string",
+          "const": "focus_up"
+        },
+        {
+          "type": "string",
+          "const": "focus_down"
+        },
+        {
+          "type": "string",
+          "const": "close_pane"
+        },
+        {
+          "type": "string",
+          "const": "automation"
+        },
+        {
+          "type": "string",
+          "const": "remote_tasks"
+        },
+        {
+          "type": "string",
+          "const": "settings_search"
+        },
+        {
+          "type": "string",
+          "const": "settings_navigation"
+        },
+        {
+          "type": "string",
+          "const": "focus_pane1"
+        },
+        {
+          "type": "string",
+          "const": "focus_pane2"
+        },
+        {
+          "type": "string",
+          "const": "focus_pane3"
+        },
+        {
+          "type": "string",
+          "const": "focus_pane4"
+        },
+        {
+          "type": "string",
+          "const": "focus_pane5"
+        },
+        {
+          "type": "string",
+          "const": "focus_pane6"
+        },
+        {
+          "type": "string",
+          "const": "focus_pane7"
+        },
+        {
+          "type": "string",
+          "const": "focus_pane8"
+        },
+        {
+          "type": "string",
+          "const": "focus_pane9"
+        }
+      ]
+    },
     "CommandRejectedData": {
       "title": "CommandRejectedData",
       "type": "object",
@@ -6261,6 +6430,34 @@
       ],
       "additionalProperties": false
     },
+    "DirectoryListing": {
+      "title": "DirectoryListing",
+      "type": "object",
+      "properties": {
+        "workspace": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkspaceEntry"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "workspace",
+        "path",
+        "entries",
+        "truncated"
+      ],
+      "additionalProperties": false
+    },
     "DisableApp": {
       "title": "DisableApp",
       "type": "object",
@@ -6923,6 +7120,19 @@
       ],
       "additionalProperties": false
     },
+    "ExecuteCommand": {
+      "title": "ExecuteCommand",
+      "type": "object",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/CommandId"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    },
     "FileCopy": {
       "title": "FileCopy",
       "type": "object",
@@ -7382,6 +7592,15 @@
           "$ref": "#/$defs/FileDocumentEvent"
         },
         {
+          "$ref": "#/$defs/WorkspaceFilesListEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceFilesDocumentEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceFilesErrorEvent"
+        },
+        {
           "$ref": "#/$defs/FileDocumentErrorEvent"
         },
         {
@@ -7568,6 +7787,9 @@
         },
         {
           "$ref": "#/$defs/FileDocumentRequest"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceFilesRequest"
         },
         {
           "$ref": "#/$defs/ArtifactRequest"
@@ -8093,6 +8315,12 @@
       ],
       "additionalProperties": false
     },
+    "KeySequence": {
+      "title": "KeySequence",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
     "LayoutPreferences": {
       "title": "LayoutPreferences",
       "type": "object",
@@ -8128,6 +8356,19 @@
         "artifact_view": {
           "$ref": "#/$defs/ArtifactView",
           "default": "icons"
+        },
+        "resource_tab": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "files"
+            },
+            {
+              "type": "string",
+              "const": "artifacts"
+            }
+          ],
+          "default": "artifacts"
         }
       },
       "additionalProperties": false
@@ -9467,6 +9708,34 @@
         }
       ]
     },
+    "MenuEntry": {
+      "title": "MenuEntry",
+      "type": "object",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/CommandId"
+        },
+        "label_key": {
+          "type": "string"
+        },
+        "accelerators": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "application_entry": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "command",
+        "label_key",
+        "accelerators",
+        "application_entry"
+      ],
+      "additionalProperties": false
+    },
     "MessageKey": {
       "title": "MessageKey",
       "type": "string",
@@ -10007,6 +10276,300 @@
       "required": [
         "kind"
       ],
+      "additionalProperties": false
+    },
+    "PlatformOverrides": {
+      "title": "PlatformOverrides",
+      "type": "object",
+      "properties": {
+        "new_chat": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "settings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "keyboard_shortcuts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "command_palette": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "toggle_sidebar": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "toggle_chat": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "toggle_terminal": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "open_recent": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "search_workspace": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "open_web": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "close_tab": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "reopen_tab": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "preview_to_side": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "next_tab": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "previous_tab": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "next_content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "previous_content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "back": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "forward": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "split_left": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "split_right": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "split_up": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "split_down": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_left": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_right": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_up": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_down": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "close_pane": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "automation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "remote_tasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "settings_search": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "settings_navigation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_pane1": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_pane2": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_pane3": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_pane4": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_pane5": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_pane6": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_pane7": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_pane8": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        },
+        "focus_pane9": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeySequence"
+          },
+          "maxItems": 4
+        }
+      },
       "additionalProperties": false
     },
     "PrepareApp": {
@@ -12868,6 +13431,55 @@
       ],
       "additionalProperties": false
     },
+    "ShortcutClosed": {
+      "title": "ShortcutClosed",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "ShortcutMenu": {
+      "title": "ShortcutMenu",
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MenuEntry"
+          }
+        }
+      },
+      "required": [
+        "entries"
+      ],
+      "additionalProperties": false
+    },
+    "ShortcutOverrides": {
+      "title": "ShortcutOverrides",
+      "type": "object",
+      "properties": {
+        "macos": {
+          "$ref": "#/$defs/PlatformOverrides"
+        },
+        "other": {
+          "$ref": "#/$defs/PlatformOverrides"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShortcutProtocol": {
+      "title": "ShortcutProtocol",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ShortcutOverrides"
+        },
+        {
+          "$ref": "#/$defs/ShortcutMenu"
+        },
+        {
+          "$ref": "#/$defs/ExecuteCommand"
+        }
+      ]
+    },
     "SourceChunk": {
       "title": "SourceChunk",
       "type": "object",
@@ -14222,6 +14834,9 @@
       "title": "WorkbenchPreferences",
       "type": "object",
       "properties": {
+        "shortcuts": {
+          "$ref": "#/$defs/ShortcutOverrides"
+        },
         "accent": {
           "anyOf": [
             {
@@ -14431,6 +15046,40 @@
       ],
       "additionalProperties": false
     },
+    "WorkspaceEntry": {
+      "title": "WorkspaceEntry",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "directory"
+            },
+            {
+              "type": "string",
+              "const": "file"
+            },
+            {
+              "type": "string",
+              "const": "symlink"
+            },
+            {
+              "type": "string",
+              "const": "other"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
     "WorkspaceErrorEvent": {
       "title": "WorkspaceErrorEvent",
       "type": "object",
@@ -14499,6 +15148,167 @@
         "version",
         "request_id",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceFilesDocumentEvent": {
+      "title": "WorkspaceFilesDocumentEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_files_document"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DocumentHeader"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceFilesErrorEvent": {
+      "title": "WorkspaceFilesErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_files_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceFilesListEvent": {
+      "title": "WorkspaceFilesListEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace_files_list"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DirectoryListing"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceFilesRequest": {
+      "title": "WorkspaceFilesRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "workspace_files"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "list"
+            },
+            {
+              "type": "string",
+              "const": "read"
+            }
+          ]
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "thread_id",
+        "path"
       ],
       "additionalProperties": false
     },

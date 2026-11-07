@@ -1,5 +1,4 @@
 .point-connectors-page{container-type:inline-size}
-.point-connectors-notice{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm-plus, 12.5px)}
 /* Built-in actions share SDK button states; layout only lives here. */
 .point-connectors-toolbar{justify-content:space-between}
 .point-connectors-toolbar .point-page-actions{display:flex;align-items:center;gap:var(--pero-space-4)}
@@ -43,13 +42,12 @@
 .point-connectors-card-title{margin:0;font-size:var(--pero-font-ui);font-weight:var(--pero-font-weight-medium);line-height:var(--pero-line-height-normal)}
 .point-connectors-card-meta{font-size:var(--pero-font-caption);color:var(--pero-text-secondary)}
 .point-connectors-summary{font-size:var(--pero-font-ui);color:var(--pero-text-secondary);margin:0}
-.point-connectors-warning{background:var(--pero-warning-surface);color:var(--pero-warning);border-radius:var(--pero-radius-sm, 6px);padding:var(--pero-space-3, 6px) var(--pero-space-5, 10px);font-size:var(--pero-font-size-sm, 12px);line-height:var(--pero-line-height-normal, 1.5);margin:0}
 .point-connectors-card-actions{margin-top:auto;display:flex;gap:var(--pero-space-4, 8px);align-items:center;justify-content:flex-end;padding-top:var(--pero-space-2)}
 .point-connectors-card-actions>.pero-ui-help-tip{margin-right:auto}
 .point-connectors-row-card{display:flex;align-items:center;gap:var(--pero-space-6, 12px)}
 .point-connectors-row-copy{flex:1;min-width:0}
 .point-connectors-row-title{display:flex;align-items:center;gap:var(--pero-space-4, 8px);flex-wrap:wrap}
-.point-connectors-link{border:0;background:none;padding:0;min-height:auto;font-weight:var(--pero-font-weight-semibold, 600);font-size:var(--pero-font-size-md, 13px);text-decoration:underline;text-underline-offset:2px}
+.point-connectors-page .point-connectors-link.pero-ui-button{padding:0;white-space:normal;text-align:start}
 .point-connectors-row-meta{font-size:var(--pero-font-caption);color:var(--pero-text-secondary);margin-top:var(--pero-space-1, 2px)}
 .point-connectors-pill{border-radius:var(--pero-radius-full, 999px);padding:var(--pero-space-1, 2px) var(--pero-space-4, 8px);font-size:var(--pero-font-size-xs, 11px);background:var(--pero-hover)}
 .point-connectors-badge{border-radius:var(--pero-radius-full, 999px);padding:var(--pero-space-1, 2px) var(--pero-space-4, 8px);font-size:var(--pero-font-size-xs, 11px);color:var(--pero-text-secondary);border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle)}
@@ -93,7 +91,6 @@
 .point-connectors-discovery code{font:var(--pero-font-caption) var(--dsw-font-mono);background:var(--pero-hover);border-radius:var(--pero-radius-sm, 6px);padding:1px 5px}
 .point-connectors-discovery select{max-width:100%;font:var(--pero-font-caption) var(--dsw-font-mono);color:inherit;background:var(--pero-surface);border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-sm, 6px);padding:3px var(--pero-space-3, 6px)}
 .pero-ui-dialog-foot .point-connectors-hint{margin:0}
-.point-connectors-page button.point-connectors-link,.point-connectors-page button.point-connectors-link:hover:not(:disabled){border:0;background:none;padding:0;min-height:auto;border-radius:0}
 .point-connectors-page button.point-connectors-inline-action{min-height:24px;padding:1px var(--pero-space-5, 10px);margin:0 var(--pero-space-3, 6px);font-size:var(--pero-font-size-sm, 12px);border-radius:var(--pero-radius-sm, 6px)}
 .point-connectors-discovery-note{display:block;margin-top:var(--pero-space-2, 4px);font:var(--pero-font-caption) var(--dsw-font-mono)}
 .point-connectors-install-details{margin-top:var(--pero-space-3, 6px);font-size:var(--pero-font-size-sm, 12px);color:var(--pero-text-secondary)}

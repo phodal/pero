@@ -21,7 +21,8 @@ type ToolResultPruneConfig struct {
 	HeadChars      *int `json:"headChars,omitempty"`
 	TailChars      *int `json:"tailChars,omitempty"`
 	// TotalChars enables history-wide clearing with a low watermark. Nil keeps
-	// the source-compatible per-result policy. Recent results and unique errors survive.
+	// the source-compatible per-result policy. Unconsumed results, recent
+	// consumed results and unique errors survive.
 	TotalChars        *int `json:"totalChars,omitempty"`
 	LowWatermarkChars *int `json:"lowWatermarkChars,omitempty"`
 	KeepRecent        *int `json:"keepRecent,omitempty"`
@@ -284,8 +285,12 @@ func (p *ToolResultPruner) PruneSession(session *harnesssession.Session) (ToolRe
 	}
 	pending := make(map[harnessmodel.ToolCallID]callInfo)
 	callsByResult := make(map[uint64]callInfo)
+	var consumedThrough uint64
 	for _, event := range events {
 		eventsBySeq[event.Seq] = event
+		if event.Type == "assistant/message" {
+			consumedThrough = event.Seq
+		}
 		if event.Type == "tool/call" {
 			var call callInfo
 			if json.Unmarshal(event.Data, &call) == nil {
@@ -357,6 +362,13 @@ func (p *ToolResultPruner) PruneSession(session *harnesssession.Session) (ToolRe
 	recent = 0
 	for i := range candidates {
 		c := &candidates[i]
+		// A committed response acknowledges the preceding request's history.
+		// New results must survive until then, regardless of batch size, and
+		// must not consume keepRecent slots belonging to consumed results.
+		if p.config.totalChars > 0 && c.event.Seq > consumedThrough {
+			c.protected = true
+			continue
+		}
 		if seq := latest[c.duplicateKey]; c.duplicateKey != "" && seq > c.event.Seq {
 			c.protected = false
 			c.latestSeq = seq

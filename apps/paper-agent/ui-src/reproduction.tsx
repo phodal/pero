@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile } from '@pero/app-sdk';
-import { Button, Select, Feedback, Input, EnvironmentInspector } from '@pero/app-sdk/ui';
+import { Disclosure, Table, Button, Select, Feedback, Input, EnvironmentInspector } from '@pero/app-sdk/ui';
 import type { Api, PdfAnnotation } from './types';
 import type { Translator } from './i18n';
 
@@ -37,6 +37,9 @@ export function reproductionPolicy(quote: string): Policy | null {
 /** UI projects the existing frozen records. Host owns approval; PcgymApp owns execution. */
 export function Reproduction({ api, annotation, initial, t }: { api: Api; annotation: PdfAnnotation; initial?: { itemId: string; attemptId: string }; t: Translator }) {
   const [evidence, setEvidence] = useState<Evidence | null>(null), [itemId, setItemId] = useState(initial?.itemId ?? '');
+  const [setupOpen, setSetupOpen] = useState(true);
+  const hasEvidence = !!evidence?.items.length;
+  useEffect(() => setSetupOpen(!hasEvidence), [hasEvidence]);
   const [mode, setMode] = useState<Comparison['mode']>('absolute'), [tolerance, setTolerance] = useState('');
   const [profile, setProfile] = useState<'smoke' | 'table6'>('smoke'), [seed, setSeed] = useState('0');
   const [lower, setLower] = useState(''), [upper, setUpper] = useState('');
@@ -171,29 +174,28 @@ export function Reproduction({ api, annotation, initial, t }: { api: Api; annota
       {result.diagnostic?.status === 'outside_tolerance' && <p>{t('reproductionOutsideTolerance')}</p>}
       {result.diagnostic?.status === 'within_tolerance' && <p>{t('reproductionWithinTolerance')}</p>}
       {result.diagnostic?.reason && <p>{result.diagnostic.reason}</p>}
-      {!!result.metrics?.length && <details><summary>{t('reproductionCounts')}</summary><table><thead><tr>
+      {!!result.metrics?.length && <Disclosure variant="inline" summary={<>{t('reproductionCounts')}</>}><Table label={t('reproductionCounts')}><thead><tr>
         <th scope="col">{t('reproductionPolicy')}</th><th scope="col">{t('reproductionEpisodes')}</th><th scope="col">{t('reproductionSamples')}</th>
       </tr></thead><tbody>{result.metrics.map(metric => <tr key={metric.policy}><th scope="row">{metric.policy}</th>
-        <td>{metric.violated_episodes}/{metric.total_episodes}</td><td>{metric.violated_samples}/{metric.total_samples}</td></tr>)}</tbody></table></details>}
-      <details><summary>{t('reproductionReasons')}</summary><ul>{result.reasons.map(reason => <li key={reason}>{reason === 'pcgym_metric_and_original_experiment_unresolved' ? t('reproductionUnresolved') : reason}</li>)}</ul></details>
+        <td>{metric.violated_episodes}/{metric.total_episodes}</td><td>{metric.violated_samples}/{metric.total_samples}</td></tr>)}</tbody></Table></Disclosure>}
+      <Disclosure variant="inline" summary={<>{t('reproductionReasons')}</>}><ul>{result.reasons.map(reason => <li key={reason}>{reason === 'pcgym_metric_and_original_experiment_unresolved' ? t('reproductionUnresolved') : reason}</li>)}</ul></Disclosure>
     </section>}
-    <details open={!evidence?.items.length}>
-      <summary>{t('reproductionFreeze')}</summary>
+    <Disclosure variant="inline" open={setupOpen} onOpenChange={setSetupOpen} summary={<>{t('reproductionFreeze')}</>}>
       <label>{t('reproductionProfile')}<Select label={t('reproductionProfile')} value={profile} onChange={value => setProfile(value as typeof profile)} options={[{ value: 'smoke', label: t('reproductionSmoke') }, { value: 'table6', label: t('reproductionTable6') }]}/></label>
       <p>{t(profile === 'smoke' ? 'reproductionBudget' : 'reproductionTable6Budget')}</p>
       <label>{t('reproductionSeed')}<Input type="number" min={0} max={2147483647} step={1} value={seed} onChange={event => setSeed(event.target.value)} /></label>
       <p>{t('reproductionDiagnostic')}</p>
-      <label>{t('reproductionPolicy')}<input readOnly value={policy ?? '—'} /></label>
+      <label>{t('reproductionPolicy')}<Input readOnly value={policy ?? '—'} /></label>
       <label>{t('reproductionRange')}<Select label={t('reproductionRange')} value={mode} onChange={value => setMode(value as Comparison['mode'])} options={[{ value: 'absolute', label: t('reproductionAbsolute') }, { value: 'relative', label: t('reproductionRelative') }, { value: 'bounds', label: t('reproductionBounds') }]}/></label>
       {mode === 'bounds' ? <><label>{t('reproductionLower')}<Input type="number" value={lower} onChange={event => setLower(event.target.value)} /></label><label>{t('reproductionUpper')}<Input type="number" value={upper} onChange={event => setUpper(event.target.value)} /></label></> :
         <label>{t('reproductionTolerance')}<Input type="number" min="0" step="any" value={tolerance} onChange={event => setTolerance(event.target.value)} /></label>}
       <Button onClick={() => void freeze()} disabled={busy || loading || !policy || !evidence?.executionAvailable || !!unresolved || uncertain || !/^\d+$/.test(seed) || Number(seed) > 2147483647}>{t('reproductionFreeze')}</Button>
-    </details>
+    </Disclosure>
     {!!evidence?.items.length && <label>{t('reproductionItem')}<Select label={t('reproductionItem')} disabled={busy || uncertain || !!unresolved} value={selected?.item.id ?? ''} onChange={value => { setItemId(value); setAttemptId(''); setLaunch(null); setUncertain(false); setError(''); }}
       options={evidence.items.map(row => ({ value: row.item.id, label: `${row.item.policy} · ${row.item.comparison.mode} · ${row.item.id.slice(0, 10)}` }))}/></label>}
     {selected && <>
       <p className="pa-muted">{selected.spec.profile} · {selected.spec.steps} steps · {selected.spec.episodes} × {selected.spec.samples} · {selected.spec.timeout_seconds}s · seed {selected.spec.seed}</p>
-      <details><summary>{t('reproductionInputs')}</summary><code>{selected.item.spec_id}</code><pre>{JSON.stringify({ comparison: selected.item.comparison, spec: selected.spec }, null, 2)}</pre></details>
+      <Disclosure variant="inline" summary={<>{t('reproductionInputs')}</>}><code>{selected.item.spec_id}</code><pre>{JSON.stringify({ comparison: selected.item.comparison, spec: selected.spec }, null, 2)}</pre></Disclosure>
       <div className="pa-actions"><Button onClick={() => void run()} disabled={busy || !desktop || !evidence?.executionAvailable || !!unresolved || uncertain}>{t('reproductionRun')}</Button>
         <Button variant="ghost" onClick={() => void cancel()} disabled={!desktop || (!unresolved && !uncertain && !busy)}>{t('reproductionCancel')}</Button>
         <Button variant="ghost" onClick={() => { setError(''); void refresh(); }}>{t('reproductionRefresh')}</Button></div>

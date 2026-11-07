@@ -194,6 +194,20 @@ See the [live owner report](../fitness/ai4s-environments.md#2026-11-06-live-loca
 - [ ] KubeVirt guest acceptance: local ARM TCG and x86 Rosetta fixture limits recorded;
   neither stopped fixture is advertised as ready.
 
+## 2026-11-06 creation page redesign
+
 The user rejected the initial creation-page appearance and explicitly requested
-an HTML design by a sub-agent before integration. A dedicated design pass is
-underway; acceptance requires the new layout in the real Environments App.
+an HTML design by a sub-agent before integration. The HTML proposal has
+been integrated using public radio cards and a responsive form/software layout.
+Actual Electron creation, dependency installation, keyboard/locale/theme behavior,
+binding and Control computation passed; see the updated preparation fitness report.
+
+## 2026-11-06 Design review correction
+
+The user rejected the claim that the integrated HTML satisfied DESIGN. The
+creation form now removes promotional/repeated content and outer frames, uses a
+single-column task order, and keeps radio internals in the shared control.
+Create-refusal messaging stays local and Cancel/reopen retains the draft. The
+installation log uses the public inline Disclosure. Migration, source revision,
+actual screenshots and explicit unverified scope are recorded against each
+review criterion in the [preparation report](../fitness/local-environment-preparation.md#2026-11-06-review-against-design-and-design-review).

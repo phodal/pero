@@ -42,6 +42,7 @@
 .pero-library-header {
   box-sizing: border-box;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--pero-spacing-3);
   min-width: 0;
@@ -51,13 +52,11 @@
   color: var(--pero-text);
 }
 .pero-library-header[data-density=compact] { min-height: 0; padding-block: var(--pero-spacing-2); }
-.pero-library-heading { min-width: 0; flex: 1; }
+.pero-library-heading { min-width: 0; flex: 1 1 16rem; }
 .pero-library-heading h1 {
   margin: 0;
   font: 600 var(--pero-font-title)/1.25 system-ui, sans-serif;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .pero-library-heading p { margin: 2px 0 0; font: var(--pero-font-label)/1.3 system-ui, sans-serif; color: var(--pero-text-muted); }
 .pero-library-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-icon-gap); flex-shrink: 0; max-width: 100%; }

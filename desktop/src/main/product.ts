@@ -215,7 +215,7 @@ app.whenReady().then(async () => {
       if (!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({ method: 'artifacts', action: 'register_file', request_id: randomUUID(), thread_id: value.thread_id, path: selected.filePaths[0] }) + '\n');
       return;
     }
-    if ((!['list_agents', 'workspace', 'new_session', 'prompt', 'cancel', 'permission', 'answer_user_questions', 'model', 'configure', 'authenticate', 'close', 'delete', 'search_context', 'resolve_context', 'attach_files'].includes(value.action || '') && !['settings.workbench', 'settings.workbench.get', 'documents', 'artifacts'].includes(value.method || '')) || JSON.stringify(value).length > 16_000_000) throw new Error('Invalid session command');
+    if ((!['list_agents', 'workspace', 'new_session', 'prompt', 'cancel', 'permission', 'answer_user_questions', 'model', 'configure', 'authenticate', 'close', 'delete', 'search_context', 'resolve_context', 'attach_files'].includes(value.action || '') && !['settings.workbench', 'settings.workbench.get', 'documents', 'workspace_files', 'artifacts'].includes(value.method || '')) || JSON.stringify(value).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.command(value as {action?:string;thread_id?:string});
     host.stdin!.write(JSON.stringify(value) + '\n');
   });

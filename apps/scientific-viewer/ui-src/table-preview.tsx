@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { defaultNumericColumns, numericSeries, parseTable, type Asset, type NumericPoint } from './files';
-import { Button, Select, Tabs, TabsList, TabsTrigger, TabsContent } from '@pero/app-sdk/ui';
+import { Table, Button, Select, Tabs, TabsList, TabsTrigger, TabsContent } from '@pero/app-sdk/ui';
 import './table-preview.css';
 
 const PAGE_SIZE = 100;
@@ -110,16 +110,14 @@ export function TablePreview({ asset }: { asset: Asset }) {
       </div>
       <NumericChart points={points} xLabel={header(xColumn)} yLabel={header(yColumn)} />
     </TabsContent><TabsContent value="table">
-      <div className="numeric-table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table">
-        <table className="numeric-table" aria-label={`${asset.name} data`}>
+      <Table label={`${asset.name} data`} density="compact" className="numeric-table-scroll" tableClassName="numeric-table">
           <thead><tr><th scope="col" className="numeric-row-number">Row</th>{table.headers.map((_, index) => <th scope="col" key={index}>{header(index)}</th>)}</tr></thead>
           <tbody>{table.rows.slice(start, start + PAGE_SIZE).map((row, index) => <tr key={start + index}>
             <th scope="row" className="numeric-row-number">{start + index + 1}</th>
             {row.map((value, column) => <td key={column}>{value.trim() ? value : <span className="numeric-missing">Missing</span>}</td>)}
           </tr>)}</tbody>
-        </table>
-        {!table.rows.length && <p className="numeric-no-rows">This file has column headers but no data rows.</p>}
-      </div>
+      </Table>
+      {!table.rows.length && <p className="numeric-no-rows">This file has column headers but no data rows.</p>}
       <footer className="numeric-pagination">
         <span>{table.rows.length ? `Rows ${start + 1}–${Math.min(start + PAGE_SIZE, table.rows.length)} of ${table.rows.length}` : '0 rows'}</span>
         {pageCount > 1 && <nav aria-label="Table pages"><Button aria-label="Previous page" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button><span aria-live="polite">Page {page + 1} of {pageCount}</span><Button aria-label="Next page" disabled={page + 1 === pageCount} onClick={() => setPage(page + 1)}>Next</Button></nav>}

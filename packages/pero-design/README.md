@@ -27,6 +27,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 | LibraryHeader / library_header | 当前页面标题、必要副标题、局部动作 | 应用名和页面名重复、固定大块留白 |
 | ListRow / list_row | 标题在前、元信息在后、独立行操作 | 多层卡片、整行嵌套按钮 |
 | SessionRow / session_row（GPUI） | 常规字重会话标题、右侧状态、独立行尾菜单 | 状态挤占标题左对齐、读取即解决权限、重复状态文字 |
+| ResearchResult / research_result（GPUI） | 会话中的结果标题与内容；research_note 保留来源和核验边界，research_table_style 复用可选择、可横向滚动的表格 | 格式标签、执行状态机、由显示文案推断验证结果 |
 | ReaderFrame / reader_frame | 单行阅读工具栏与正文面 | 第二套标题或装饰性摘要 |
 | SettingsGroup / settings_group | 无卡片的相关设置行 | 嵌套面板和逐行分隔 |
 | ContentTab / content_tab | 内容名称、固定 / 预览 / 未保存状态、关闭 | 额外的大标题、固定宽度空白、嵌套按钮 |
@@ -60,8 +61,8 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 - 默认字阶 24 / 18 / 14 / 12。Caption 与 Label 是同一个 12px 档位。
   缩小 UI 字号时，辅助文字仍保持至少 12px。
 - 按钮、选择框和菜单使用同一正文系统字体、常规字重；标题和分组名称才增加字重。
-  内容标签使用独立 13px 字阶、14px 图标和至少 24px 关闭区域，随 UI 字号增长；平直选中表面配 1px 指示线，避免标题、图标和圆角争抢内容。
-- 侧栏导航 32px、内容标签 30px、窗口栏 42px。操作和输入最低 24px，
+  内容标签使用独立 13px 字阶、14px 图标和至少 24px 关闭区域，随 UI 字号增长；8px 圆角卡片配 4px 间隔；选中使用 accent-soft / accent-text 与细边框，hover 使用中性表面，关闭按钮保留独立反馈。
+- 侧栏导航 32px、内容标签 30px、窗口栏 42px；分栏标签条上下各留 4px。操作和输入最低 24px，
   按当前文字行高增长；间距和圆角不随字体等比例膨胀。
 - 新组件使用 `--pero-spacing-1` 至 `--pero-spacing-6`，对应间距 4 / 8 / 12 / 16 / 20 / 24，图标间距 6。侧栏外边距 10，分组间距 16。
 - 页内 Tabs 的 `navigation` 变体用于服务目录／已安装等同级视图：无外框和贯穿底线，保留共享 Tabs 的选中指示线，以共享间距、正文文字与中等字重区分当前页。`page` 保留内容分隔线，`content` 用于窗口内容标签。鼠标选择不显示键盘焦点框，方向键与 Tab 导航保留 2px 焦点。
@@ -91,6 +92,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 - 业务状态使用 neutral / info / success / warning / error，始终带文字；正常未执行使用 neutral。
 - `Feedback` 默认 inline，跨行恢复动作使用 `variant="block"`；error 是 alert，
   其他消息是 status，empty 不主动播报。重复错误应在最接近问题的位置呈现一次。
+  根节点为 div，支持恢复按钮、日志与 Disclosure；不要将 Feedback 放在段落内部。
 - Native `feedback` 使用同一层级：状态图标、简短标题、说明、紧凑动作；原始日志
   放在可展开的技术详情。环境尚未准备、准备中、准备失败分别呈现，不把缺少环境当作执行失败。
 - `Field` 通过 children 回调把 id、aria-describedby、aria-invalid 交给输入。
@@ -100,11 +102,35 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 - Dialog 长标题和 footer 可换行；嵌套 Select 的第一次 Escape 关闭选择框，
   第二次关闭 Dialog，逐层返回焦点。Table 的命名滚动区域可以聚焦后用方向键滚动。
 
+`Table` 支持数据驱动的 `rows` / `columns`，也支持保留来源结构的 children 形式：
+
+```tsx
+<Table label="观测记录" density="compact">
+  <thead><tr><th scope="col">时间</th><th scope="col">数值</th></tr></thead>
+  <tbody><tr><th scope="row">1</th><td>30</td></tr></tbody>
+</Table>
+```
+
+两种形式共用命名、可聚焦的滚动区域与表格皮肤。children 形式默认自动列宽，
+使用固定 colgroup 时可指定 `layout="fixed"`。消费者保留来源 caption、rowSpan、
+colSpan、排序及选择状态，通过 `aria-sort` / `aria-selected` 表达；组件不拥有领域规则。
+`className` 指向滚动容器，`tableClassName` 指向 table，避免迁移后 CSS 误指向容器。
+
+`Disclosure` 默认 `variant="block"`；元数据、来源、诊断日志用 `variant="inline"`。
+共享组件提供单一展开指示器和键盘焦点，调用方不叠加私有箭头。内容关闭时保持挂载。
+`defaultOpen` 仅决定首次状态；自动展开/收起的面板使用 `open` 和 `onOpenChange`，
+由现有状态所有者处理失败、配置或证据变化，并保留用户手动切换。
+
 异步页面分别管理数据可用性、请求进度与领域结论。已有内容刷新时保留草稿、选中和焦点；
 刷新失败说明正在显示旧数据并提供局部重试。取消请求的等待状态与确认取消分开显示。
 切换对象才重置对象内选择，不能因同一对象轮询而重挂载整个编辑器。
 
 LibraryHeader 的 `density="compact"` 取消目录页默认的 64px 最小高度，用共享 8px 垂直间距随内容高度排列，适合阅读页顶部。
+标题保留完整内容并允许换行；窄窗或大字号下，动作区换到下一行，不能依赖标题省略来容纳操作。
+
+`RadioGroupItem variant="card"` 将标题、说明和身份图标组合为可扫读的选择面，
+仍由 RadioGroup 管理单选、方向键与表单值。选中标记保持可见，hover、选中、焦点
+使用共享主题。选中标记参与组件自身布局，为长文本和大字号保留空间；调用方只排列卡片和内容，不覆盖内部标记或内容容器。不要在卡片中嵌套其他操作控件。
 
 ## 使用
 

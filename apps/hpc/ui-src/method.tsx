@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, Split, SplitPane } from "@pero/app-sdk/ui";
+import { Disclosure, Button, Icon, Split, SplitPane } from "@pero/app-sdk/ui";
 import { Facts, number, Status } from "./results";
 import type { Benchmark, Run } from "./types";
 import type { Message } from "./messages";
@@ -31,10 +31,10 @@ export function MethodSpec({ benchmark, latestRun, t, onOpen }: {
       </SplitPane>
       <SplitPane id="hpc-rules" size={320} min={280} stackedBasis="auto" resizeLabel={t("criteria")} as="aside" className="acceptance-rules">
         <div className="inspector-heading"><Icon name="shield" size={14} /><h3>{t("criteria")}</h3></div><Facts values={benchmark.criteria} />
-        <details><summary>{t("environment")}</summary><Facts values={benchmark.environment} /><p className="scope-note">{t("boundary")}</p></details>
-        <details><summary>{t("specification")}</summary><p>{description}</p>
+        <Disclosure variant="inline" summary={<>{t("environment")}</>}><Facts values={benchmark.environment} /><p className="scope-note">{t("boundary")}</p></Disclosure>
+        <Disclosure variant="inline" summary={<>{t("specification")}</>}><p>{description}</p>
           {benchmark.specDigest && <p>{t("digest")}<br /><code className="digest">{benchmark.specDigest}</code></p>}
-        </details>
+        </Disclosure>
       </SplitPane>
     </Split>
   </>;

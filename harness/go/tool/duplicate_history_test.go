@@ -19,14 +19,16 @@ func TestDuplicateErrorProjection(t *testing.T) {
 		want            int
 		reuseID         bool
 		keep            int
+		pending         bool
 	}{
-		{"default protects", false, "check", "error: same", false, 0, false, 0},
-		{"identical complete", true, "check", "error: same", false, 1, false, 0},
-		{"recent protected", true, "check", "error: same", false, 0, false, 1},
-		{"changed command", true, "other", "error: same", false, 0, false, 0},
-		{"reused id different arguments", true, "other", "error: same", false, 0, true, 0},
-		{"changed diagnostic", true, "check", "error: changed", false, 0, false, 0},
-		{"truncated", true, "check", "error: same", true, 0, false, 0},
+		{"default protects", false, "check", "error: same", false, 0, false, 0, false},
+		{"identical complete", true, "check", "error: same", false, 1, false, 0, false},
+		{"recent protected", true, "check", "error: same", false, 0, false, 1, false},
+		{"changed command", true, "other", "error: same", false, 0, false, 0, false},
+		{"reused id different arguments", true, "other", "error: same", false, 0, true, 0, false},
+		{"changed diagnostic", true, "check", "error: changed", false, 0, false, 0, false},
+		{"truncated", true, "check", "error: same", true, 0, false, 0, false},
+		{"unconsumed duplicates", true, "check", "error: same", false, 0, false, 0, true},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			s := session.NewSession("errors", "")
@@ -65,6 +67,13 @@ func TestDuplicateErrorProjection(t *testing.T) {
 				if i == 0 {
 					first = e
 					original = string(raw)
+				}
+			}
+			if !row.pending {
+				if _, err := s.Append("assistant/message", struct {
+					Message model.Message `json:"message"`
+				}{model.Message{Role: model.RoleAssistant}}); err != nil {
+					t.Fatal(err)
 				}
 			}
 			high, low, recent := 2000, 0, row.keep

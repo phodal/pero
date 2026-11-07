@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Feedback, Field, Input, Select, Textarea } from '@pero/app-sdk/ui';
+import { Disclosure, Table, Button, Feedback, Field, Input, Select, Textarea } from '@pero/app-sdk/ui';
 import type { Api, Evidence, Intent, Report } from './types';
 import type { Translator } from './i18n';
 import type { Citation } from './documents';
@@ -30,7 +30,7 @@ function CellEditor({ cell, title, intent, busy, onSave, onClose, t }: { cell: C
 export function EvidenceMatrix({ matrix, intent, onCite, t, api, reportId }: {
   matrix: Report['matrix']; intent: Intent; onCite(value: Citation): void; t: Translator; api?: Api; reportId?: string;
 }) {
-  const editTrigger = useRef<HTMLButtonElement | null>(null);
+  const editTrigger = useRef<HTMLElement | null>(null);
   const [state, setState] = useState<MatrixState | null>(null), [editing, setEditing] = useState<Cell | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState(''), [retry, setRetry] = useState(0);
   useEffect(() => {
     setState(null); setEditing(null); setError('');
@@ -52,24 +52,24 @@ export function EvidenceMatrix({ matrix, intent, onCite, t, api, reportId }: {
   return <section className="pa-matrix">
     <h2>{t('matrix')}</h2>
     {error && <Feedback kind="error">{error}{!editing && <Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button>}</Feedback>}
-    <div className="pa-table-scroll" tabIndex={0} role="region" aria-label={t('matrix')}><table>
+    <Table label={t('matrix')} className="pa-table-scroll">
       <thead><tr><th scope="col">{t('papers')}</th>{shown.columns.map(column => <th scope="col" key={column.id}>{column.label}</th>)}</tr></thead>
       <tbody>{intent.papers.map((paper, index) => <tr key={paper.id}>
-        <th scope="row"><button type="button" className="pa-matrix-source" onClick={() => onCite({paperId:paper.id})}>[{index + 1}] {paper.title}</button></th>
+        <th scope="row"><Button variant="link" className="pa-matrix-source" onClick={() => onCite({paperId:paper.id})}>[{index + 1}] {paper.title}</Button></th>
         {shown.columns.map(column => {
           const cell = shown.cells.find(cell => cell.paperId === paper.id && cell.columnId === column.id) ?? {paperId:paper.id,columnId:column.id,value:'',status:'missing' as const,evidence:[]};
           const active = editing?.paperId === paper.id && editing.columnId === column.id;
           const corrected = state?.revisions.some(r => r.cell.paperId === paper.id && r.cell.columnId === column.id);
           return <td key={column.id} data-status={cell.status}>
             {cell.status === 'conflict' && <span>{t('conflict')}</span>}
-            {api && reportId ? <button className="pa-cell-value" aria-expanded={active} aria-label={`${t('editCell')}: ${column.label}`} onClick={event => { editTrigger.current = event.currentTarget; setEditing(cell); }}>{cell.value || t('missing')}</button> : <p>{cell.value || t('missing')}</p>}
+            {api && reportId ? <Button variant="ghost" className="pa-cell-value" aria-expanded={active} aria-label={`${t('editCell')}: ${column.label}`} onClick={event => { editTrigger.current = event.currentTarget; setEditing(cell); }}>{cell.value || t('missing')}</Button> : <p>{cell.value || t('missing')}</p>}
             {corrected && <small>{t('corrected')}</small>}
-            <div className="pa-cell-evidence">{cell.evidence.map((ref, i) => <button className="pa-inline-citation" type="button" key={i} aria-label={`${column.label} ${t('evidence')} ${i + 1}`} onClick={() => onCite(ref)}>[{i + 1}]</button>)}</div>
+            <div className="pa-cell-evidence">{cell.evidence.map((ref, i) => <Button variant="link" className="pa-inline-citation" type="button" key={i} aria-label={`${column.label} ${t('evidence')} ${i + 1}`} onClick={() => onCite(ref)}>[{i + 1}]</Button>)}</div>
           </td>;
         })}
       </tr>)}</tbody>
-    </table></div>
+    </Table>
     {editing && <CellEditor key={`${editing.paperId}:${editing.columnId}`} title={shown.columns.find(column => column.id === editing.columnId)!.label} cell={editing} intent={intent} busy={busy} onSave={(value, reason) => void save(value, reason)} onClose={closeEditor} t={t}/>}
-    {!!state?.revisions.length && <details className="pa-matrix-history"><summary>{t('correctionHistory')}</summary><ol>{state.revisions.map(revision => <li key={revision.id}>{revision.version}: {revision.cell.value || t('missing')}{revision.reason && <p>{revision.reason}</p>}</li>)}</ol></details>}
+    {!!state?.revisions.length && <Disclosure variant="inline" className="pa-matrix-history" summary={<>{t('correctionHistory')}</>}><ol>{state.revisions.map(revision => <li key={revision.id}>{revision.version}: {revision.cell.value || t('missing')}{revision.reason && <p>{revision.reason}</p>}</li>)}</ol></Disclosure>}
   </section>;
 }
