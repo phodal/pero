@@ -69,24 +69,29 @@ function Post({ card, t, locale }: { card: ResultCard; t: typeof copy.zh; locale
     void operation().catch(reason => setError(String(reason))).finally(() => setBusy(false));
   };
   const action = card.action;
+  const showMeta = !!card.sources?.length || hasDetails;
   return <article className="point-pulse-post" data-kind={kind}>
-    <h3>{card.title}</h3>
-    <div className="point-pulse-status">
+    <header className="point-pulse-post-head">
+      <div className="point-pulse-post-title">
+        <h3>{card.title}</h3>
+        {objectLabel && <p className="point-pulse-object">{objectLabel}</p>}
+      </div>
       <Badge tone={kind === 'needs_you' || kind === 'risk' ? 'warning' : kind === 'change' ? 'info' : 'neutral'}>{t[kind as keyof typeof t] || kind}</Badge>
-      {objectLabel && <span>{objectLabel}</span>}
-    </div>
+    </header>
     {card.conclusion && <p className="point-pulse-body">{card.conclusion}</p>}
     {!card.conclusion && card.body && <RichText text={card.body} />}
     <div className="point-pulse-actions">
       {action && (action.sessionId || action.prompt) && <Button variant="link" disabled={busy} onClick={() => act(() => action.sessionId ? openAppSession(action.sessionId) : chat.compose(action.prompt!))}>{action.label}</Button>}
       {card.entity?.sessionId && card.entity.sessionId !== action?.sessionId && <Button variant="link" disabled={busy} onClick={() => act(() => openAppSession(card.entity!.sessionId!))}>{t.openSession}</Button>}
-      {hasDetails && <Button variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}>{t.more}</Button>}
     </div>
-    {!!card.sources?.length && <div className="point-pulse-sources"><span>{t.sources}</span><ul>
-      {card.sources.map((source, index) => <li key={index}>{source.sessionId
-        ? <Button variant="link" disabled={busy} title={source.sessionId} onClick={() => act(() => openAppSession(source.sessionId!))}>{source.label === source.sessionId ? `${t.sessionSource} ${index + 1}` : source.label}</Button>
-        : /^https?:\/\//i.test(source.url ?? '') ? <a href={source.url} title={source.url} target="_blank" rel="noopener noreferrer">{source.label === source.url ? `${t.webSource} ${index + 1}` : source.label}</a> : <span>{source.label}</span>}</li>)}
-    </ul></div>}
+    {showMeta && <div className="point-pulse-meta">
+      {!!card.sources?.length && <div className="point-pulse-sources"><span>{t.sources}</span><ul>
+        {card.sources.map((source, index) => <li key={index}>{source.sessionId
+          ? <Button variant="link" disabled={busy} title={source.sessionId} onClick={() => act(() => openAppSession(source.sessionId!))}>{source.label === source.sessionId ? `${t.sessionSource} ${index + 1}` : source.label}</Button>
+          : /^https?:\/\//i.test(source.url ?? '') ? <a href={source.url} title={source.url} target="_blank" rel="noopener noreferrer">{source.label === source.url ? `${t.webSource} ${index + 1}` : source.label}</a> : <span>{source.label}</span>}</li>)}
+      </ul></div>}
+      {hasDetails && <Button variant="ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen(!open)}>{t.more}</Button>}
+    </div>}
     {error && <InsightsError error={error} locale={locale} context="action" />}
     {hasDetails && <div id={detailId} hidden={!open} className="point-pulse-detail">
       {card.conclusion && card.body && <section><h4>{t.evidence}</h4><RichText text={card.body} /></section>}
@@ -122,7 +127,7 @@ export function PulseHomeResult({ brief, createdAt, running, locale }: {
     {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
     <div className="point-brief-layout" data-attention={edition.needCards.length ? 'true' : undefined}>
       <section className="point-brief-summary" aria-labelledby={`${id}-summary`}>
-        <div className="point-brief-summary-head"><h2 id={`${id}-summary`}><Icon name="ai-sparkles" size={20}/>{t.summary}</h2>
+        <div className="point-brief-summary-head"><h2 id={`${id}-summary`}><Icon name="ai-sparkles" size={16}/>{t.summary}</h2>
           {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
         </div>
         {summary ? <><div className="point-brief-summary-text"><RichText text={summary} /></div><p className="point-brief-summary-note">{t.summaryNote}</p></>

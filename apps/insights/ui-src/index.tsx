@@ -238,15 +238,17 @@ export default function Insights() {
         onClick={() => recap && runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale))}>{generateLabel}</Button>;
   const feedback = <>
     {error && <><InsightsError error={error} locale={locale} context="records" /><Button disabled={loading} onClick={() => { started.current = false; setAttempt(value => value + 1); }}>{locale === 'zh' ? '重试' : 'Retry'}</Button></>}
-    {restoreError && <>
-      <Feedback kind="warning" variant="block">{selectedThread !== null
-        ? (locale === 'zh' ? '这份简报未能恢复。可重新读取，或生成一份新简报。' : 'This brief could not be restored. Reload it or generate a new brief.')
-        : (locale === 'zh' ? '部分历史简报未能恢复。可重新读取，或生成一份新简报。' : 'Some previous briefs could not be restored. Reload them or generate a new brief.')}
+    {restoreError && <Feedback kind="warning" variant="block" className="point-insights-restore">
+      <p>{selectedThread !== null
+        ? (locale === 'zh' ? '这份简报未能恢复。' : 'This brief could not be restored.')
+        : (locale === 'zh' ? '部分历史简报未能恢复。' : 'Some previous briefs could not be restored.')}
         {brief && <span className="point-insights-error-hint">{locale === 'zh' ? '下方保留最近可读取的简报。' : 'The latest readable brief remains below.'}</span>}
-      </Feedback>
-      <Disclosure variant="inline" className="point-insights-diagnostics" summary={<>{locale === 'zh' ? '技术详情' : 'Technical details'}</>}><pre>{restoreError.slice(0, 1000)}</pre></Disclosure>
-      <Button disabled={loading} onClick={() => setAttempt(value => value + 1)}>{locale === 'zh' ? '重新读取' : 'Reload'}</Button>
-    </>}
+      </p>
+      <div className="point-insights-restore-actions">
+        <Button variant="link" disabled={loading} onClick={() => setAttempt(value => value + 1)}>{locale === 'zh' ? '重新读取' : 'Reload'}</Button>
+        <Disclosure variant="inline" className="point-insights-diagnostics" summary={<>{locale === 'zh' ? '技术详情' : 'Technical details'}</>}><pre>{restoreError.slice(0, 1000)}</pre></Disclosure>
+      </div>
+    </Feedback>}
     {generationError && <>
       {generationError.kind === 'host' ? <InsightsError error={generationError.message} locale={locale} retained={!!brief} />
         : <Feedback kind="error" variant="block">
