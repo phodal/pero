@@ -109,9 +109,11 @@ impl Workbench {
             if owner.is_empty() || name.is_empty() {
                 continue;
             }
-            let slug = format!("{owner}/{name}");
-            if RepositoryName::parse(&slug).is_some() && !names.contains(&slug) {
-                names.push(slug);
+            if let Some(parsed) = RepositoryName::parse(&format!("{owner}/{name}")) {
+                let slug = parsed.slug().to_owned();
+                if !names.contains(&slug) {
+                    names.push(slug);
+                }
             }
         }
         names
