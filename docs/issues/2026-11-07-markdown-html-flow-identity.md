@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: in_progress
+status: resolved
 date: 2026-11-07
 ---
 
@@ -21,8 +21,12 @@ Fix ownership at the rendered HTML block identity, preserving rich Markdown
 and the shared layout cache. Verify multiple HTML paragraphs in Desktop and
 repeat all five tabs against the real public PR in Native.
 
-The retained Kit patch now scopes nested root and paragraph IDs by their owning
-block. The real Electron five-tab flow with multiple embedded HTML paragraphs
-passes; Native and Wasm builds pass. The final real Native retry is pending:
-macOS is locked and CUA cannot unlock it. This record remains active until
-Reviews is exercised again in the actual Native window. No GitHub issue opened.
+The retained Kit patch scopes nested root and paragraph IDs by their owning
+block. The real Electron rich-HTML regression and Native/Wasm builds pass.
+After the user unlocked macOS, the actual Native development build at source
+`02f2a3d1` reopened public PR #164 and passed all five sections. Reviews rendered
+and scrolled through CodeRabbit's embedded HTML walkthrough and table; returning
+from the other sections and refreshing Reviews also completed without a panic.
+The process log contains no panic. Captures are retained, uncommitted, under
+`test-results/pull-requests/native-reviews-html.png` and
+`native-changes-real.png`. No GitHub issue was opened.

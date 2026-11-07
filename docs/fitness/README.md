@@ -204,4 +204,4 @@ Shared command catalog, Host keymap overrides and actual Native/Electron scope:
 [Keyboard shortcuts](keyboard-shortcuts.md).
 
 GitHub PR content, shared typed link routing, real Electron/public GitHub
-receipts and pending Native Reviews acceptance: [Pull request views](pull-request-view.md).
+receipts and actual macOS Native Reviews acceptance: [Pull request views](pull-request-view.md).

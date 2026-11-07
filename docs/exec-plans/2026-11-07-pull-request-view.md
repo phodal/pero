@@ -1,6 +1,6 @@
 # GitHub PR content views
 
-Base: master `1f61064d`, 2026-11-07. Status: implemented; Native Reviews acceptance pending macOS unlock.
+Base: master `1f61064d`, 2026-11-07. Status: complete for the scoped increment; actual Native Reviews verified.
 
 Chat and document GitHub pull-request links should open a retained, typed PR
 content tab. Navigation owns tab identity and closure; Host owns read-only
@@ -43,7 +43,9 @@ rule, with a Conversation action; saved preferences remain unchanged.
 
 Native inspection found shared HTML paragraph identity collisions. The retained
 Kit patch fixes block scoping; Electron rich-HTML acceptance passes. Actual
-Native Reviews recheck is pending because macOS is locked. Full command receipts,
+Native Reviews recheck passed after macOS was unlocked: all five sections,
+embedded HTML/table scrolling and refreshed Reviews ran without a panic.
+Full command receipts,
 screenshot observations, stale legacy harness and scope limits are recorded in
 [verification](../fitness/pull-request-view.md). The full reference matrix is
 [Cursor content views](../../research_notes/cursor-content-view-capabilities.md).

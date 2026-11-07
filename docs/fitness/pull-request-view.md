@@ -88,12 +88,19 @@ shared Markdown crash with nested HTML in bot comments. The Kit patch scopes
 nested root/paragraph identities so their inline-flow caches cannot overwrite
 each other's inputs. The rich-HTML Electron flow and both builds pass afterward.
 
-**Final actual Native Reviews verification is pending.** macOS locked during
-verification; CUA reports that automatic unlock failed. The user was asked to
-unlock. The [canonical incident](../issues/2026-11-07-markdown-html-flow-identity.md)
-remains active until that real window is exercised again. Compilation/Electron
-proof is not substituted for Native visual acceptance. No signed-package,
-Windows/Linux, physical IME or screen-reader acceptance is claimed.
+After macOS was unlocked, actual Native verification completed against public
+PR #164 with source `02f2a3d1`. All five sections were inspected. Reviews rendered
+and scrolled through the CodeRabbit HTML walkthrough, nested content and table.
+Switching back from the other sections and refreshing Reviews completed without
+crashing; Refresh returned to enabled and the process log contains no panic.
+The capped list leaves the selected diff visible in the real 26-file PR.
+
+Observed captures are `test-results/pull-requests/native-reviews-html.png` and
+`native-changes-real.png`; they are ignored local evidence. The
+[canonical incident](../issues/2026-11-07-markdown-html-flow-identity.md) is resolved.
+This is actual macOS Native development-window evidence, separate from Electron.
+No signed-package, Native light/narrow-window, Windows/Linux, physical IME or
+screen-reader acceptance is claimed.
 
 ## Scope limits
 
