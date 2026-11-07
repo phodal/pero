@@ -371,10 +371,64 @@ when their catalog items already have newer versions.
   The subsequent Native rebuild stopped while the shared artifact toolbar
   was being changed concurrently.
 
-The reader currently supports transcript links, side-by-side and expanded
-views. Independent tiled/bottom panes, rich inline previews, live notebook
-execution and automatic attachment of records from external run owners are
-separate capabilities.
+### Inline, lower pane, live Notebook and external run evidence
+
+Artifact links in the transcript open the exact frozen version in a rich
+reader under the delivery. One inline reader per conversation can be closed
+or moved to the separate pane. `deliver_artifact` also accepts `inline` and
+`below`. The lower pane has a vertical resize handle, independent scrolling
+and the same toolbar, version selection and context actions as the side pane.
+Very narrow windows use the compact reader fallback.
+
+Start Python kernel creates an App-owned Jupyter kernel only when requested.
+The selected code cell can be edited and run, and execution updates its
+output while preserving variables between cells. Interrupt, restart and close
+control the process. The downloadable working copy includes executed cells
+and their outputs. The original snapshot and the working copy are separately
+labeled. Python is the supported kernel. Other languages use the saved preview.
+
+External systems can publish a UTF-8 sidecar called
+`<output filename>.pero-run.json` beside an output in the conversation's
+workspace. On an ordinary file delivery, Host checks the output digest and
+each referenced workspace file, then saves the receipt and evidence and pins
+their exact versions in the delivered artifact. Invalid, stale and
+out-of-workspace references fail before catalog publication. The manifest
+format is versioned. Evidence paths are relative to the session workspace.
+
+```json
+{
+  "schema_version": 1,
+  "system": "solver",
+  "run_id": "example-1",
+  "outcome": "succeeded",
+  "output_sha256": "<lowercase SHA-256 of the output bytes>",
+  "evidence": [
+    {"path": "run.log", "role": "execution_log", "sha256": "<lowercase SHA-256 of the log bytes>"}
+  ]
+}
+```
+
+For local commands, `scripts/record-external-run.mjs` generates the sidecars
+for changed outputs. For example, from the workspace, run
+`node /path/to/pero/scripts/record-external-run.mjs solver run-1 report.csv -- python3 simulate.py`
+then deliver `report.csv`. The wrapper records stdout, stderr, and its observed
+platform, architecture and Node version. Its run ID is unique within its
+workspace and system. The external system remains the owner of the reported
+outcome. Native providers with their own exporters may write the same
+sidecar without using the wrapper.
+
+Acceptance on macOS arm64:
+
+- Electron with a real Host and local ACP fixture exercised ordinary delivery
+  and exact versions inline, below, side-by-side and expanded. With the
+  opt-in Python test prefix it used the real Scientific Viewer backend and
+  Jupyter kernel, observed shared variables and streamed output, interrupted a
+  running cell, restarted the kernel and confirmed state reset.
+- The Host test launched an external command through the wrapper, captured
+  its output and related run record, environment and logs, and rejected a
+  modified log while keeping the original saved bytes available.
+- The Native binary built successfully. Its isolated window did not load the
+  fixture conversation, so Native interactive acceptance remains open.
 
 ## Current limits
 

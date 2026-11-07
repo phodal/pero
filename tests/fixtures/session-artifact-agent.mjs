@@ -25,6 +25,7 @@ async function run(id, params) {
   const presentation = /present (inline|below|side|expanded)/i.exec(prompt)?.[1].toLowerCase();
   const prior = /with previous input/i.test(prompt) ? state.delivered?.[0] : undefined;
   const files = rich ? richArtifactFiles(revision) : [{ name: 'report.md', title: '验证报告', data: Buffer.from(contents) }];
+  const previewFile = /present (?:inline|below|side|expanded) notebook/i.test(prompt) ? 'analysis.ipynb' : files[0].name;
   const artifacts = { ...(state.artifacts || {}), ...(state.artifact_id ? { 'report.md': state.artifact_id } : {}) };
   const delivered = [];
   if (!endpoint) throw new Error('The real Host did not supply its artifact MCP endpoint');
@@ -39,7 +40,7 @@ async function run(id, params) {
       method: 'POST', headers: { ...Object.fromEntries(endpoint.headers.map(header => [header.name, header.value])), 'content-type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: revision * 100 + index, method: 'tools/call', params: { name: 'deliver_artifact', arguments: {
         path, title: file.title, ...(artifacts[file.name] ? { artifact_id: artifacts[file.name] } : {}),
-        ...(index === 0 && presentation ? { presentation } : {}),
+        ...(file.name === previewFile && presentation ? { presentation } : {}),
         ...(index === 0 && prior ? { related: [{ artifact_id: prior.id, version: prior.version.version, role: 'input' }] } : {}),
       } } }),
     }).then(response => response.json());
