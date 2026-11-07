@@ -6,6 +6,9 @@ GPUI Kit 0.9.0 dependency migration, retained local fixes and runtime checks:
 Bounded Paper research, same-session continuation, source evidence and versioned
 artifact delivery: [Autonomous literature research](paper-autonomous-research.md).
 
+Original Fisher Table III data, frozen numerical reanalysis and an independent
+exact-arithmetic checker: [Real-source result reproduction](paper-fisher-reproduction.md).
+
 Opt-in native Go engineering contracts, acceptance evidence, skills budgets and
 memory attribution: [Engineering profile](engineering-profile.md).
 
