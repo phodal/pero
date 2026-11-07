@@ -7189,11 +7189,23 @@
         },
         "binary": {
           "$ref": "#/$defs/EngramBinary"
+        },
+        "global": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "workspace": {
+          "type": "string"
         }
       },
       "required": [
         "enabled",
-        "binary"
+        "binary",
+        "global",
+        "project",
+        "workspace"
       ],
       "additionalProperties": false
     },
@@ -7277,6 +7289,9 @@
         },
         {
           "$ref": "#/$defs/SetEngramSettings"
+        },
+        {
+          "$ref": "#/$defs/SetEngramDocument"
         }
       ]
     },
@@ -14135,6 +14150,28 @@
         "text",
         "thread_id",
         "data"
+      ],
+      "additionalProperties": false
+    },
+    "SetEngramDocument": {
+      "title": "SetEngramDocument",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "settings.engram.document"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "scope",
+        "text"
       ],
       "additionalProperties": false
     },

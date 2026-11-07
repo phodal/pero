@@ -9,7 +9,7 @@ use gpui_kit::{
     component::{
         button::*,
         checkbox::Checkbox,
-        input::{Input, InputEvent, InputState},
+        input::{Input, InputEvent, InputState, TextareaState},
         menu::{DropdownMenu, PopupMenuItem},
         tree::{TreeItem, TreeState},
         *,
@@ -47,6 +47,11 @@ pub(crate) struct SettingsPanel {
     pub computer_pending: bool,
     pub(crate) engram: pero_contracts::engram::EngramSettings,
     pub(crate) engram_binary: Entity<InputState>,
+    pub(crate) memory_global: Entity<TextareaState>,
+    pub(crate) memory_project: Entity<TextareaState>,
+    pub(crate) memory_global_saved: String,
+    pub(crate) memory_project_saved: String,
+    pub(crate) memory_workspace: String,
     pub(crate) mcp: crate::settings_mcp::McpEditor,
     pub(crate) section: SettingsSection,
     pub(crate) harness: Option<pero_contracts::harness_settings::HarnessState>,
@@ -172,6 +177,12 @@ impl SettingsPanel {
         let engram_binary = cx.new(|cx| {
             InputState::new(window, cx).placeholder(pero_contracts::i18n::text(&locale, "engram.binary"))
         });
+        let memory_global = cx.new(|cx| {
+            TextareaState::new(window, cx).placeholder(pero_contracts::i18n::text(&locale, "engram.global_placeholder"))
+        });
+        let memory_project = cx.new(|cx| {
+            TextareaState::new(window, cx).placeholder(pero_contracts::i18n::text(&locale, "engram.project_placeholder"))
+        });
         subscriptions.push(cx.subscribe(&engram_binary, |this, input, event: &InputEvent, cx| {
             if matches!(event, InputEvent::PressEnter { .. } | InputEvent::Blur) {
                 this.save_engram(input.read(cx).value().to_string(), cx);
@@ -193,6 +204,11 @@ impl SettingsPanel {
             computer_pending: false,
             engram: Default::default(),
             engram_binary,
+            memory_global,
+            memory_project,
+            memory_global_saved: String::new(),
+            memory_project_saved: String::new(),
+            memory_workspace: String::new(),
             section: Default::default(),
             workbench: None,
             navigation,
@@ -739,7 +755,9 @@ impl SettingsPanel {
                                 .bg(p.error_bg)
                                 .text_color(p.error)
                                 .child(
-                                    if error.starts_with("settings.") || error.starts_with("error.")
+                                    if error.starts_with("settings.")
+                                        || error.starts_with("error.")
+                                        || error.starts_with("engram.")
                                     {
                                         self.t(&error).to_owned()
                                     } else {

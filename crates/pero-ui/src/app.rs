@@ -554,6 +554,9 @@ impl Workbench {
             }
             if event.kind == "workspace" {
                 self.workspace = event.text.clone();
+                if self.settings_panel.is_some() {
+                    self.command(serde_json::json!({"method":"settings.engram.get"}), cx);
+                }
                 self.research_workspace_ready(&event.text,cx);
                 if let Ok(identity) = serde_json::from_value::<
                     pero_contracts::workbench::WorkspaceIdentity,

@@ -12,19 +12,36 @@ pub struct EngramSettings {
 }
 
 impl EngramSettings {
-    /// An enabled setting names an absolute executable. Existence is checked at session admission.
+    /// Empty binary is markdown-only memory. A filled path must be absolute.
     pub fn valid(&self) -> bool {
-        if !self.enabled {
-            return self.binary.len() <= 4096 && !self.binary.contains('\0');
+        if self.binary.len() > 4096 || self.binary.contains('\0') {
+            return false;
+        }
+        if !self.enabled || self.binary.is_empty() {
+            return true;
         }
         let path = Path::new(&self.binary);
-        self.binary.len() <= 4096
-            && !self.binary.contains('\0')
-            && path.is_absolute()
+        path.is_absolute()
             && path.components().all(|component| {
                 !matches!(component, std::path::Component::ParentDir)
             })
     }
+}
+
+/// What the Memory settings page shows. The two texts are files, not settings keys.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MemoryPage {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub binary: String,
+    #[serde(default)]
+    pub global: String,
+    #[serde(default)]
+    pub project: String,
+    #[serde(default)]
+    pub workspace: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -34,4 +51,6 @@ pub enum EngramSettingsRequest {
     Get,
     #[serde(rename = "settings.engram")]
     Set { enabled: bool, binary: String },
+    #[serde(rename = "settings.engram.document")]
+    Document { scope: String, text: String },
 }

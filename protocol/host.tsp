@@ -338,10 +338,11 @@ model TerminalError {kind:"error";id:uint32;message:string;...Closed}
 model TerminalEvent {kind:"terminal";...EventBase;data:TerminalData}
 
 @maxLength(4096) scalar EngramBinary extends string;
-model EngramSettingsData { enabled: boolean; binary: EngramBinary; ...Closed; }
+model EngramSettingsData { enabled: boolean; binary: EngramBinary; global: string; project: string; workspace: string; ...Closed; }
 model GetEngramSettings { method: "settings.engram.get"; ...Closed; }
 model SetEngramSettings { method: "settings.engram"; enabled: boolean; binary: EngramBinary; ...Closed; }
-@oneOf union EngramSettingsRequest { GetEngramSettings, SetEngramSettings }
+model SetEngramDocument { method: "settings.engram.document"; scope: string; text: string; ...Closed; }
+@oneOf union EngramSettingsRequest { GetEngramSettings, SetEngramSettings, SetEngramDocument }
 model EngramSettingsEvent { kind: "engram_settings"; ...EventBase; data: EngramSettingsData; }
 model EngramSettingsErrorEvent { kind: "engram_settings_error"; ...EventBase; }
 

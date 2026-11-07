@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::acp::{AgentConfig, TOOL_POLICY_CAPABILITY};
+use crate::memory;
 
 pub const SERVER_NAME: &str = "engram";
 pub const INSTRUCTIONS: &str = "\
@@ -33,38 +34,49 @@ pub struct Attach<'a> {
     pub insights: bool,
 }
 
-/// Insights sessions and a disabled switch receive nothing. A bad enabled switch fails the session
-/// before a process starts, and this function does not create a data directory.
+/// Insights sessions and a disabled switch receive nothing. Markdown layers load without a
+/// binary. A filled binary that is not an executable fails the session before a process starts.
 pub fn attach(agent: &mut AgentConfig, input: Attach<'_>) -> Result<(), String> {
     if input.insights || !input.settings.enabled {
+        return Ok(());
+    }
+    let data_home = input.data_home.filter(|path| path.is_absolute());
+    let workspace = input.workspace.canonicalize().ok();
+    if let Some(data_home) = data_home {
+        let key = workspace.as_ref().map(|path| project_key(path));
+        let notes = memory::instruction(&memory::read(data_home, key.as_deref()));
+        if !notes.is_empty() {
+            if !agent.memory_instructions.is_empty() {
+                agent.memory_instructions.push_str("\n\n");
+            }
+            agent.memory_instructions.push_str(&notes);
+        }
+    }
+    if input.settings.binary.is_empty() {
         return Ok(());
     }
     if !input.settings.valid() || !Path::new(&input.settings.binary).is_file() {
         return Err("engram.binary_missing".into());
     }
-    let Some(data_home) = input.data_home.filter(|path| path.is_absolute()) else {
+    let Some(data_home) = data_home else {
         return Err("engram.data_home".into());
     };
-    let workspace = input
-        .workspace
-        .canonicalize()
-        .map_err(|_| "engram.workspace")?;
+    let Some(workspace) = workspace else {
+        return Err("engram.workspace".into());
+    };
     if agent.mcp_server_names().iter().any(|name| name == SERVER_NAME) {
         return Err("engram.name".into());
     }
     let key = project_key(&workspace);
-    let data_dir = data_home.join("engram").join(&key);
     agent.mcp_servers.push(server(
         &input.settings.binary,
         &key,
-        &data_dir,
+        &data_home.join("engram").join(&key),
     ));
-    if agent.memory_instructions.is_empty() {
-        agent.memory_instructions = INSTRUCTIONS.into();
-    } else {
+    if !agent.memory_instructions.is_empty() {
         agent.memory_instructions.push_str("\n\n");
-        agent.memory_instructions.push_str(INSTRUCTIONS);
     }
+    agent.memory_instructions.push_str(INSTRUCTIONS);
     Ok(())
 }
 
@@ -213,6 +225,37 @@ mod tests {
             "engram.binary_missing"
         );
         assert!(rejected.mcp_servers.is_empty());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn enabled_notes_load_without_a_process_and_insights_skips_them() {
+        let root = std::env::temp_dir().join(format!("pero-memory-notes-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let home = root.join("home");
+        let alpha = root.join("alpha");
+        let beta = root.join("beta");
+        fs::create_dir_all(&home).unwrap();
+        fs::create_dir_all(&alpha).unwrap();
+        fs::create_dir_all(&beta).unwrap();
+        let key = project_key(&alpha.canonicalize().unwrap());
+        fs::create_dir_all(home.join("memory").join("projects")).unwrap();
+        fs::write(home.join("memory").join("global.md"), "GLOBAL-NOTE").unwrap();
+        fs::write(home.join("memory").join("projects").join(format!("{key}.md")), "PROJECT-NOTE").unwrap();
+        let settings = EngramSettings { enabled: true, binary: String::new() };
+        let mut session = agent();
+        attach(&mut session, Attach { settings: settings.clone(), workspace: &alpha, data_home: Some(&home), insights: false }).unwrap();
+        assert!(session.mcp_servers.is_empty());
+        assert!(session.memory_instructions.contains("GLOBAL-NOTE"));
+        assert!(session.memory_instructions.contains("PROJECT-NOTE"));
+        assert!(!session.memory_instructions.contains("topic_key"));
+        let mut other = agent();
+        attach(&mut other, Attach { settings: settings.clone(), workspace: &beta, data_home: Some(&home), insights: false }).unwrap();
+        assert!(other.memory_instructions.contains("GLOBAL-NOTE"));
+        assert!(!other.memory_instructions.contains("PROJECT-NOTE"));
+        let mut insights = agent();
+        attach(&mut insights, Attach { settings, workspace: &alpha, data_home: Some(&home), insights: true }).unwrap();
+        assert!(insights.memory_instructions.is_empty());
         let _ = fs::remove_dir_all(&root);
     }
 

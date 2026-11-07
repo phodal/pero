@@ -47,6 +47,10 @@ pub struct Manager {
     automation_rx: Option<mpsc::Receiver<automation_agent::AutomationReceipt>>,
 }
 impl Manager {
+    pub(crate) fn workspace(&self) -> &std::path::Path {
+        &self.workspace
+    }
+
     /// A delivery uses the original conversation workspace, including after restart.
     pub(crate) fn artifact_workspace(&self, thread_id: &str) -> Option<PathBuf> {
         self.history.lock().unwrap().events().iter().rev().find_map(|event| {

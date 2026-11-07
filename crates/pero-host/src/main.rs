@@ -202,20 +202,45 @@ fn main() -> io::Result<()> {
                 String::new(),
             );
             if let Ok(request) = serde_json::from_value::<EngramSettingsRequest>(value) {
-                let saved = match request {
-                    EngramSettingsRequest::Get => {
-                        Some(settings_path.as_deref().map(pero_runtime::settings::load_engram).unwrap_or_default())
-                    }
+                let workspace = agents.workspace().to_path_buf();
+                let outcome = match request {
+                    EngramSettingsRequest::Get => Ok(()),
                     EngramSettingsRequest::Set { enabled, binary } => {
                         let settings = EngramSettings { enabled, binary };
-                        settings_path.as_deref().and_then(|path| {
-                            pero_runtime::settings::save_engram(path, &settings).ok().map(|_| settings)
-                        })
+                        match settings_path.as_deref() {
+                            Some(path) => pero_runtime::settings::save_engram(path, &settings)
+                                .map_err(|_| "engram.invalid"),
+                            None => Err("engram.data_home"),
+                        }
+                    }
+                    EngramSettingsRequest::Document { scope, text } => {
+                        match settings_path.as_deref().and_then(|path| path.parent()) {
+                            None => Err("engram.data_home"),
+                            Some(home) => match scope.as_str() {
+                                "global" => pero_runtime::memory::write(home, None, &text),
+                                "project" => workspace.canonicalize().map_err(|_| "engram.workspace").and_then(|path| {
+                                    pero_runtime::memory::write(
+                                        home,
+                                        Some(&pero_runtime::engram::project_key(&path)),
+                                        &text,
+                                    )
+                                }),
+                                _ => Err("engram.document"),
+                            },
+                        }
                     }
                 };
-                if let Some(settings) = saved {
-                    event.kind = "engram_settings".into();
-                    event.data = serde_json::json!(settings);
+                match outcome {
+                    Ok(()) => {
+                        let settings = settings_path.as_deref().map(pero_runtime::settings::load_engram).unwrap_or_default();
+                        event.kind = "engram_settings".into();
+                        event.data = serde_json::json!(pero_runtime::memory::page(
+                            &settings,
+                            settings_path.as_deref().and_then(|path| path.parent()),
+                            &workspace,
+                        ));
+                    }
+                    Err(key) => event.text = key.into(),
                 }
             }
             emit(event)?;

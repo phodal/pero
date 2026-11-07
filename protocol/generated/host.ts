@@ -110,7 +110,7 @@ export type ContextKind =
   "file" | "directory" | "symbol" | "thread" | "skill" | "image" | "selection" | "branch_diff" | "fetch" | "app_object";
 export type ContextContent = TextContextContent | ImageContextContent;
 export type QuestionReply = AnsweredQuestions | CancelledQuestions;
-export type EngramSettingsRequest = GetEngramSettings | SetEngramSettings;
+export type EngramSettingsRequest = GetEngramSettings | SetEngramSettings | SetEngramDocument;
 export type EngramBinary = string;
 export type AppRequest =
   | LocalEnvironmentApp
@@ -1548,6 +1548,11 @@ export interface SetEngramSettings {
   enabled: boolean;
   binary: EngramBinary;
 }
+export interface SetEngramDocument {
+  method: "settings.engram.document";
+  scope: string;
+  text: string;
+}
 export interface LocalEnvironmentApp {
   action: "localenvironment";
   name: AppName;
@@ -2582,6 +2587,9 @@ export interface EngramSettingsEvent {
 export interface EngramSettingsData {
   enabled: boolean;
   binary: EngramBinary;
+  global: string;
+  project: string;
+  workspace: string;
 }
 export interface EngramSettingsErrorEvent {
   kind: "engram_settings_error";
