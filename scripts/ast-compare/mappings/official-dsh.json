@@ -278,9 +278,9 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "c4532049036d7148596194e8db48ff9e872bfd02623e03f19c4632e9b23a8b59"
+        "sha256": "a5580d0495c2ed52c34661d6686d1e18b0756b1536c14bd694c453151aa53aa4"
       },
-      "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity.",
+      "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact.",
       "landmarks": [
         {
           "id": "cancel-admission",
@@ -501,9 +501,9 @@
         "path": "harness/go/mcp/tools.go",
         "language": "go",
         "symbol": "ListTools",
-        "sha256": "774da244185fe853ceefdf8927e0627610198cdb9116e0b291f4e6f896451371"
+        "sha256": "daad09cb13d244952bd90683fd866908d2931358d8259b15eb3e27226cdd9045"
       },
-      "notes": "A server without tools capability need not implement tools/list. A capabilities guard should precede discovery.",
+      "notes": "A server without tools capability need not implement tools/list. A capabilities guard should precede discovery. Issue #50 adds separate model/App audience projections; ListTools capability admission is unchanged.",
       "landmarks": [
         {
           "id": "capability",
@@ -530,9 +530,9 @@
         "path": "harness/go/mcp/tools.go",
         "language": "go",
         "symbol": "fromMCPResult",
-        "sha256": "774da244185fe853ceefdf8927e0627610198cdb9116e0b291f4e6f896451371"
+        "sha256": "daad09cb13d244952bd90683fd866908d2931358d8259b15eb3e27226cdd9045"
       },
-      "notes": "Canonical value and supported output schema now flow through the existing tool registry. Existing Go text/image projection is retained; this does not claim complete official rich-attachment/PTC rendering parity.",
+      "notes": "Canonical value and supported output schema now flow through the existing tool registry. Existing Go text/image projection is retained; this does not claim complete official rich-attachment/PTC rendering parity. Issue #50 retains this converter unchanged and additionally carries the raw MCP result for the App audience after successful canonical conversion.",
       "landmarks": [
         {
           "id": "structured-content",

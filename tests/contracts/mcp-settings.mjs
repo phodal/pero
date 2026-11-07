@@ -1,6 +1,7 @@
 // Real Host persistence and ACP session/new injection; no model or MCP client.
 import assert from 'node:assert/strict';
 import './mcp-runtime.mjs';
+import './mcp-session.mjs';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { once } from 'node:events';
@@ -101,6 +102,34 @@ try {
   assert.deepEqual((await get()).servers, [edited]);
   current = await set(current, []);
   assert.deepEqual(managed(await session('removed')), []);
+  // Explicit per-tool policy remains a frozen new-session grant. The first
+  // Agent intentionally lacks the extension and must never receive session/new.
+  const policy = { default: 'deny', tools: { read: 'allow', write: 'ask' } };
+  const controlled = { ...enabled, tool_policy: policy };
+  current = await set(current, [controlled]);
+  const beforeUnsupported = (await fixture.sessions()).length;
+  host.send({ action: 'new_session', thread_id: 'policy-unsupported', agent_id: 'fixture' });
+  await host.next('session_error', event => event.thread_id === 'policy-unsupported');
+  assert.equal((await fixture.sessions()).length, beforeUnsupported, 'unsupported Agent received policy-bearing session/new');
+  await host.stop(); host = undefined;
+  const policyAgents = JSON.parse(await readFile(fixture.env.PERO_AGENTS_FILE, 'utf8'));
+  policyAgents[0].args.push('--mcp-tool-policy');
+  await writeFile(fixture.env.PERO_AGENTS_FILE, JSON.stringify(policyAgents), { mode: 0o600 });
+  host = launch(); await host.next('ready');
+  current = await get(); assert.deepEqual(current.servers, [controlled]);
+  const controlledWire = managed(await session('policy-enabled'));
+  assert.deepEqual(controlledWire, [{ type: 'http', name: enabled.name, url: fixture.url, headers: [], _meta: { 'pero.mcpToolPolicy': policy } }]);
+  const beforePolicyEdit = (await fixture.sessions()).length;
+  const revisedPolicy = { default: 'ask', tools: { write: 'deny' } };
+  current = await set(current, [{ ...controlled, tool_policy: revisedPolicy }]);
+  host.send({ action: 'prompt', thread_id: 'policy-enabled', text: 'hello' });
+  await host.next('turn_finished', event => event.thread_id === 'policy-enabled');
+  assert.equal((await fixture.sessions()).length, beforePolicyEdit, 'policy edit restarted live Agent');
+  assert.deepEqual(managed((await fixture.sessions())[beforePolicyEdit - 1].mcpServers), controlledWire, 'saved old-session policy changed');
+  const revisedWire = managed(await session('policy-edited'));
+  assert.deepEqual(revisedWire[0]._meta, { 'pero.mcpToolPolicy': revisedPolicy });
+  current = await set(current, [{ ...controlled, enabled: false }]);
+  assert.deepEqual(managed(await session('policy-disabled')), []);
   // Operator configuration may change after a valid managed entry was persisted.
   current = await set(current, [disabled]);
   await host.stop(); host = undefined;
@@ -140,6 +169,8 @@ try {
   await writeFile(resolve(output, 'host-result.json'), JSON.stringify({ passed: true, checks: [
     'disabled omitted from ACP', 'enabled HTTP injected', 'stdio edit injected for new session only',
     'existing session remains usable', 'unnegotiated Agent is unobservable and live revisions remain frozen', 'operator identity observed without transport or credentials',
+    'policy unsupported Agent refused before session/new', 'negotiated policy survives restart and ACP wire',
+    'policy edits affect only new sessions', 'disabled policy server omitted',
     'restart persistence', 'remove omitted from ACP', 'unrelated preferences preserved',
     'operator-name collision remains readable and repairable while sessions fail closed', 'private settings file', 'no credentials in public events or stderr', 'no MCP connection or connected claim',
   ] }, null, 2));

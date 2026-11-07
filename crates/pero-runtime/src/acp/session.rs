@@ -34,6 +34,7 @@ pub enum PromptRejection {
 }
 
 pub enum SessionCommand {
+    McpSession { request: pero_contracts::mcp_session::McpSessionRequest, reply: Sender<HostEvent> },
     Prompt(String),
     PromptWithContext {
         text: String,
@@ -48,12 +49,19 @@ pub enum SessionCommand {
     Authenticate(String),
     Close,
 }
-type Permissions = Arc<Mutex<HashMap<String, oneshot::Sender<Option<String>>>>>;
+pub(super) type Permissions = Arc<Mutex<HashMap<String, oneshot::Sender<Option<String>>>>>;
 pub struct SessionHandle {
+    app_approvals: Arc<Mutex<super::mcp_session::AppApprovals>>,
     pub user_questions: Arc<super::QuestionInbox>,
     pub mcp_runtime: Arc<Mutex<pero_contracts::mcp_runtime::McpRuntimeSession>>,
     pub tx: mpsc::UnboundedSender<SessionCommand>,
     pub permissions: Permissions,
+}
+
+impl SessionHandle {
+    pub fn revoke_mcp_binding(&self, binding: &str) {
+        self.app_approvals.lock().unwrap().revoke(binding, &self.permissions);
+    }
 }
 
 fn event(tx: &Sender<HostEvent>, thread: &str, kind: &str, text: impl Into<String>, data: Value) {
@@ -126,6 +134,8 @@ fn start_with_workspace_access(
         config.mcp_server_names(),
     )));
     let runtime_snapshot = mcp_runtime.clone();
+    let app_approvals = Arc::new(Mutex::new(super::mcp_session::AppApprovals::default()));
+    let runtime_approvals = app_approvals.clone();
     let permissions: Permissions = Arc::default();
     let pending = permissions.clone();
     let user_questions = Arc::new(super::QuestionInbox::new(tx.clone(), thread.clone()));
@@ -142,6 +152,7 @@ fn start_with_workspace_access(
             tx.clone(),
             rx,
             pending.clone(),
+            runtime_approvals.clone(),
             acquire_workspace,
             app_use,
             resume_id,
@@ -171,6 +182,7 @@ fn start_with_workspace_access(
         super::mcp_runtime::publish(&runtime_snapshot.lock().unwrap(), &tx);
     });
     SessionHandle {
+        app_approvals,
         user_questions,
         mcp_runtime,
         tx: commands,
@@ -186,6 +198,10 @@ fn defer(
     thread: &str,
 ) {
     if deferred.len() >= MAX_DEFERRED_COMMANDS {
+        if let SessionCommand::McpSession { request, reply } = &command {
+            super::mcp_session::reply(reply, request, Err(pero_contracts::mcp_session::McpSessionError::Unavailable));
+            return;
+        }
         event(
             tx,
             thread,
@@ -240,6 +256,7 @@ async fn run(
     tx: Sender<HostEvent>,
     mut commands: mpsc::UnboundedReceiver<SessionCommand>,
     permissions: Permissions,
+    app_approvals: Arc<Mutex<super::mcp_session::AppApprovals>>,
     acquire_workspace: bool,
     app_use: Option<super::AppUseEndpoint>,
     resume_id: Option<String>,
@@ -286,6 +303,8 @@ async fn run(
     let perm_tx = tx.clone();
     let perm_thread = thread.clone();
     let permission_requests = permissions.clone();
+    let permission_scopes = app_approvals.clone();
+    let permission_session = mcp_runtime.clone();
     let question_requests = user_questions.clone();
     let question_notifications = user_questions.clone();
     Client.builder()
@@ -337,12 +356,17 @@ async fn run(
             async move |request: RequestPermissionRequest, responder, _connection| {
                 let id = next_permission_id();
                 let (answer, reply) = oneshot::channel();
-                permission_requests.lock().unwrap().insert(id.clone(), answer);
                 let mut data = serde_json::to_value(&request).unwrap_or_default();
+                let binding = data["_meta"]["pero.mcpBinding"].as_str().map(str::to_owned);
+                if binding.is_some() && permission_session.lock().unwrap().session_id.as_deref() != Some(request.session_id.to_string().as_str()) {
+                    return responder.respond(RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled));
+                }
+                permission_scopes.lock().unwrap().register(binding.as_deref(), &id, answer, &permission_requests);
                 data["permission_id"] = json!(id);
                 event(&perm_tx, &perm_thread, "permission", "需要授权", data);
                 let selected = reply.await.ok().flatten();
                 permission_requests.lock().unwrap().remove(&id);
+                permission_scopes.lock().unwrap().complete(binding.as_deref(), &id);
                 let outcome = selected
                     .filter(|id| request.options.iter().any(|o| o.option_id.to_string() == *id))
                     .map(|id| RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(id)))
@@ -359,7 +383,7 @@ async fn run(
         )
         .connect_with(agent, move |connection: ConnectionTo<Agent>| async move {
             let mut deferred = VecDeque::new();
-            let mut capabilities = json!({"_meta": {"pero.mcpRuntime": 1}});
+            let mut capabilities = json!({"_meta": {"pero.mcpRuntime": 1, "pero.mcpToolPolicy": 1, "pero.mcpSession": 1}});
             if interactive { capabilities["_meta"][super::user_questions::CAPABILITY] = json!(1); }
             let Some(initialized) = setup_request(
                 connection.send_request(UntypedMessage::new("initialize", json!({
@@ -370,6 +394,10 @@ async fn run(
             let negotiated = initialized["agentCapabilities"]["_meta"][super::mcp_runtime::CAPABILITY] == json!(1);
             user_questions.negotiate(interactive && initialized["agentCapabilities"]["_meta"][super::user_questions::CAPABILITY] == json!(1));
             mcp_runtime.lock().unwrap().observable = negotiated;
+            config.validate_mcp_tool_policy_capability(
+                initialized["agentCapabilities"]["_meta"][super::mcp::TOOL_POLICY_CAPABILITY] == json!(1),
+            ).map_err(|message| failure(&message))?;
+            let mcp_session_negotiated = initialized["agentCapabilities"]["_meta"][super::mcp_session::CAPABILITY] == json!(1);
             let initialized: InitializeResponse = serde_json::from_value(initialized).map_err(agent_client_protocol::Error::into_internal_error)?;
             // Never start a session under a protocol version this client does not implement.
             if initialized.protocol_version != ProtocolVersion::V1 {
@@ -468,7 +496,7 @@ async fn run(
             configuration.lock().unwrap().refresh(&session_data)?;
             session_data["peroSettings"] = serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default();
             *model_api.lock().unwrap() = ModelApi::from_session(&session_data);
-            if let Some(model) = config.model {
+            if let Some(model) = config.model.clone() {
                 let selector = model_api.lock().unwrap().clone();
                 let request = selector.request(&session_id, &model)?;
                 let Some(response) = setup_request(
@@ -569,6 +597,95 @@ async fn run(
                             },
                             Err(error) => event(&tx, &thread, "session_error", error.to_string(), Value::Null),
                         }
+                    },
+                    Some(SessionCommand::McpSession { request, reply }) => {
+                        use pero_contracts::mcp_session::McpSessionError;
+                        let target = request.target();
+                        let admitted = if request.server.as_ref().is_some_and(|name| !super::mcp_session::managed(&config, name)) {
+                            Err(McpSessionError::Denied)
+                        } else { target.admit(&mcp_runtime.lock().unwrap(), mcp_session_negotiated).map(str::to_owned) };
+                        let result = match admitted {
+                            Err(error) => Err(error),
+                            Ok(id) => {
+                                let request_task = connection.send_request(UntypedMessage::new(super::mcp_session::METHOD, request.acp_params(&id))?).block_task();
+                                let operation = async {
+                                    // Interactive calls wait for the user's decision, just like a prompt.
+                                    // The Agent owns the configured tool execution timeout after approval.
+                                    if matches!(request.action, pero_contracts::mcp_session::McpSessionAction::Prepare | pero_contracts::mcp_session::McpSessionAction::Tool) {
+                                        request_task.await
+                                    } else {
+                                        tokio::time::timeout(SETUP_TIMEOUT, request_task).await
+                                            .map_err(|_| failure("MCP session operation timed out")).and_then(|result| result)
+                                    }
+                                };
+                                tokio::pin!(operation);
+                                let mut binding_closed = false;
+                                // Revocation must not wait behind the operation it revokes,
+                                // particularly while that operation is awaiting user approval.
+                                let response = loop {
+                                    tokio::select! {
+                                        biased;
+                                        command = commands.recv() => match command {
+                                            Some(SessionCommand::McpSession { request: close, reply: close_reply })
+                                                if matches!(close.action, pero_contracts::mcp_session::McpSessionAction::Close) => {
+                                                let admitted = close.target().admit(&mcp_runtime.lock().unwrap(), mcp_session_negotiated).map(str::to_owned);
+                                                let close_result = match admitted {
+                                                    Err(error) => Err(error),
+                                                    Ok(close_session) => {
+                                                        if let Some(binding) = &close.binding {
+                                                            app_approvals.lock().unwrap().revoke(binding, &permissions);
+                                                        }
+                                                        let close_result = setup_request(
+                                                            connection.send_request(UntypedMessage::new(super::mcp_session::METHOD, close.acp_params(&close_session))?).block_task(),
+                                                            &mut commands, &mut deferred, &tx, &thread, "MCP App close",
+                                                        ).await;
+                                                        match close_result {
+                                                            Ok(Some(value)) => Ok(value),
+                                                            _ => Err(McpSessionError::Unavailable),
+                                                        }
+                                                    }
+                                                };
+                                                let failed = close_result.is_err();
+                                                if !failed && close.binding == request.binding { binding_closed = true; }
+                                                super::mcp_session::reply(&close_reply, &close, close_result);
+                                                if failed { break Err(failure("MCP App close failed")); }
+                                            },
+                                            Some(SessionCommand::Close) | None => break Ok(None),
+                                            Some(SessionCommand::Cancel) => {
+                                                permissions.lock().unwrap().clear();
+                                                break Err(agent_client_protocol::Error::request_cancelled());
+                                            },
+                                            Some(command) => defer(command, &mut deferred, &tx, &thread),
+                                        },
+                                        result = &mut operation => break result.map(Some),
+                                    }
+                                };
+                                match response {
+                                    Ok(Some(value)) => target.admit(&mcp_runtime.lock().unwrap(), mcp_session_negotiated)
+                                        .and_then(|_| super::mcp_session::project(&config, &request, value)),
+                                    Ok(None) => {
+                                        connection.send_notification(CancelNotification::new(session_id.clone()))?;
+                                        super::mcp_session::reply(&reply, &request, Err(McpSessionError::Unavailable));
+                                        return Ok(());
+                                    },
+                                    Err(_) => {
+                                        // A successful binding close already cancelled precisely its own
+                                        // operation. Do not cancel other bindings or their queued work.
+                                        if !binding_closed {
+                                            connection.send_notification(CancelNotification::new(session_id.clone()))?;
+                                            deferred.retain(|command| {
+                                                if let SessionCommand::McpSession { request, reply } = command {
+                                                    super::mcp_session::reply(reply, request, Err(McpSessionError::Unavailable));
+                                                    false
+                                                } else { true }
+                                            });
+                                        }
+                                        Err(McpSessionError::Unavailable)
+                                    },
+                                }
+                            }
+                        };
+                        super::mcp_session::reply(&reply, &request, result);
                     },
                     Some(SessionCommand::Model(model)) => {
                         let selector = model_api.lock().unwrap().clone();

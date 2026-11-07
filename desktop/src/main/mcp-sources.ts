@@ -58,6 +58,7 @@ export class McpSources {
   async command(command:McpPanelCommand):Promise<unknown>{
     switch(command.action){
       case 'list':return this.list();
+      case 'resources':case 'templates':case 'read':case 'attach_resource':case 'cancel_open':throw new Error('Resource browsing requires a managed session panel');
       case 'configure':{
         if(this.connected.has(command.config.id))throw new Error('Disconnect this server before changing its configuration');
         this.configs.set(command.config.id,command.config);await mkdir(dirname(this.configPath),{recursive:true});

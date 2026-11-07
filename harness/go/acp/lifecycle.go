@@ -138,6 +138,7 @@ func (s *Server) requestRecordClose(record *activeSession) {
 	record.cancelRequested = true
 	promptCancel := record.promptCancel
 	record.mu.Unlock()
+	record.agent.MCPAccess().Close()
 	if promptCancel != nil {
 		promptCancel()
 	}

@@ -247,6 +247,7 @@ type Agent struct {
 	attachments          AttachmentStore
 	prompts              *PromptRegistry
 	tools                *ToolRegistry
+	mcpAccess            *MCPAccess
 	hooks                *AgentHooks
 	provider             string
 	model                string

@@ -8,6 +8,8 @@ let permission;
 let timer;
 let workspace;
 const composerFixture = process.argv.includes('--composer');
+// Explicit negotiation stub for Host configuration tests; no MCP execution.
+const mcpPolicyFixture = process.argv.includes('--mcp-tool-policy');
 const capturePath = process.argv.find(arg => arg.startsWith('--capture='))?.slice('--capture='.length);
 // Opt-in capture proves the real Host → ACP boundary without a second MCP client.
 const sessionCapture = process.argv.find(arg => arg.startsWith('--session-capture='))?.slice('--session-capture='.length);
@@ -31,7 +33,7 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
  const message=JSON.parse(line),{id,method,params}=message;
  // HTTP configuration acceptance is independent of optional transcript capture.
  // This presentation fixture never connects to or invokes an MCP server.
- if (method==='initialize') send({id,result:{protocolVersion:1,agentCapabilities:{...(composerFixture?{promptCapabilities:{image:true,embeddedContext:true}}:{}),mcpCapabilities:{http:true}},agentInfo:{name:'test-fixture',version:'1'}}});
+ if (method==='initialize') send({id,result:{protocolVersion:1,agentCapabilities:{...(mcpPolicyFixture?{_meta:{'pero.mcpToolPolicy':1}}:{}),...(composerFixture?{promptCapabilities:{image:true,embeddedContext:true}}:{}),mcpCapabilities:{http:true}},agentInfo:{name:'test-fixture',version:'1'}}});
  else if(method==='session/new'){
   if(sessionCapture)appendFileSync(sessionCapture,JSON.stringify(params)+'\n',{mode:0o600});
   workspace=params.cwd;send({id,result:{sessionId:'fixture-session',configOptions:configs()}});

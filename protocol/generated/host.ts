@@ -8,6 +8,7 @@ export type HostInput =
   | AutomationRequest
   | TerminalRequest
   | McpSettingsRequest
+  | McpSessionRequest
   | IconThemeRequest
   | McpSourceRequest
   | WorkspaceSessionRequest
@@ -49,6 +50,7 @@ export type AutomationReconciliationDisposition = "not_started" | "completed" | 
 export type TerminalRequest = OpenTerminal | WriteTerminal | ResizeTerminal | CloseTerminal;
 export type McpSettingsRequest = GetMcpSettingsRequest | SetMcpSettingsRequest;
 export type McpTransport = McpStdioTransport | McpHttpTransport;
+export type McpToolDecision = "allow" | "ask" | "deny";
 export type IconThemeRequest = GetIconThemes | InstallIconTheme | SelectIconTheme | RemoveIconTheme;
 export type WorkspaceSessionRequest =
   | GetWorkspaceSession
@@ -154,6 +156,9 @@ export type HostEvent =
   | McpSettingsEvent
   | McpSettingsErrorEvent
   | McpRuntimeEvent
+  | McpSessionEvent
+  | McpSessionErrorEvent
+  | McpResourceSelectedEvent
   | DocumentSaveChooseEvent
   | DocumentSavePathEvent
   | DocumentSaveCancelledEvent
@@ -469,6 +474,7 @@ export interface McpServerConfig {
   name: string;
   enabled?: boolean;
   transport: McpTransport;
+  tool_policy?: McpToolPolicy | null;
 }
 export interface McpStdioTransport {
   type: "stdio";
@@ -478,6 +484,31 @@ export interface McpStdioTransport {
 export interface McpHttpTransport {
   type: "http";
   url: string;
+}
+export interface McpToolPolicy {
+  default: McpToolDecision;
+  tools?: McpToolRules;
+}
+export interface McpToolRules {
+  [k: string]: McpToolDecision | undefined;
+}
+export interface McpSessionRequest {
+  method: "mcp.session";
+  request_id: string;
+  thread_id: string;
+  incarnation: number;
+  revision: number;
+  action: "list" | "resources" | "templates" | "read" | "prepare" | "tool" | "resource" | "close";
+  server?: string;
+  generation?: number;
+  name?: string;
+  uri?: string;
+  cursor?: string;
+  arguments?: McpSessionArguments;
+  binding?: string;
+}
+export interface McpSessionArguments {
+  [k: string]: unknown | undefined;
 }
 export interface GetIconThemes {
   method: "icons";
@@ -507,6 +538,7 @@ export interface McpSourceRequest {
   action: "open";
   request_id: string;
   thread_id?: string | null;
+  mode?: "standalone" | "session";
 }
 export interface GetWorkspaceSession {
   method: "workspace";
@@ -1831,6 +1863,50 @@ export interface McpRuntimeEvent {
   thread_id: string;
   data: McpRuntimeSession;
 }
+export interface McpSessionEvent {
+  kind: "mcp_session";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    incarnation: number;
+    revision: number;
+    result: unknown;
+  };
+}
+export interface McpSessionErrorEvent {
+  kind: "mcp_session_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    incarnation: number;
+    revision: number;
+    reason: "invalid" | "unavailable" | "stale" | "unsupported" | "denied";
+  };
+}
+export interface McpResourceSelectedEvent {
+  kind: "mcp_resource_selected";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    incarnation: number;
+    revision: number;
+    server: string;
+    generation: number;
+    uri: string;
+    contents: McpResourceText[];
+  };
+}
+export interface McpResourceText {
+  uri: string;
+  text: string;
+  mimeType?: string;
+}
 export interface DocumentSaveChooseEvent {
   kind: "document_save_choose";
   version: 1;
@@ -2046,7 +2122,14 @@ export interface McpPermittedEvent {
   thread_id?: string;
   data: {
     locale: string;
+    mode?: "standalone" | "session";
+    session?: McpSourceSession | null;
   };
+}
+export interface McpSourceSession {
+  thread_id: string;
+  incarnation: number;
+  revision: number;
 }
 export interface McpSourcesEvent {
   kind: "mcp_sources";

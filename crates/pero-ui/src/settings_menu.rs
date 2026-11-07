@@ -52,6 +52,7 @@ impl Workbench {
             .trim_end_matches('/')
             .to_string();
         let all = t("settings.all");
+        let mcp_choices = [("session", t("mcp.session_sources")), ("standalone", t("mcp.standalone_sources"))];
         let appearance = format!(
             "{} · {}",
             t("settings.appearance"),
@@ -143,6 +144,14 @@ impl Workbench {
                         },
                     )
                 });
+                menu = menu.separator();
+                for (mode, label) in &mcp_choices {
+                    let target = workbench.clone();
+                    let mode = *mode;
+                    menu = menu.item(PopupMenuItem::new(label.clone()).on_click(move |_, _, cx| {
+                        let _ = target.update(cx, |this, cx| this.choose_mcp(mode, cx));
+                    }));
+                }
                 let target = workbench.clone();
                 menu.separator().item(
                     PopupMenuItem::new(all.clone())

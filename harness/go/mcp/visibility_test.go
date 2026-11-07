@@ -12,12 +12,16 @@ func TestModelToolVisibility(t *testing.T) {
 		name    string
 		value   any
 		visible bool
+		app     bool
 	}{
-		{"app", []string{"app"}, false}, {"model", []string{"model"}, true},
-		{"both", []string{"app", "model"}, true}, {"malformed", "model", false},
-		{"unknown", []string{"model", "other"}, false}, {"empty", []string{}, false},
+		{"app", []string{"app"}, false, true}, {"model", []string{"model"}, true, false},
+		{"both", []string{"app", "model"}, true, true}, {"malformed", "model", false, false},
+		{"unknown", []string{"model", "other"}, false, false}, {"empty", []string{}, false, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			if got := appVisible(sdk.Meta{"ui": map[string]any{"visibility": test.value}}); got != test.app {
+				t.Fatalf("app visibility=%v", got)
+			}
 			tools, err := buildMCPTools(nil, "example", []*sdk.Tool{{Name: "action", InputSchema: map[string]any{"type": "object"}, Meta: sdk.Meta{"ui": map[string]any{"visibility": test.value}}}}, time.Second, nil)
 			if err != nil {
 				t.Fatal(err)

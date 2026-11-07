@@ -35,7 +35,12 @@ func TestMCPRuntimeStdioFixture(t *testing.T) {
 		os.Exit(2)
 	}
 	server := sdk.NewServer(&sdk.Implementation{Name: "fixture", Version: "1"}, nil)
-	server.AddTool(&sdk.Tool{Name: "alpha", InputSchema: map[string]any{"type": "object"}}, nil)
+	server.AddTool(&sdk.Tool{Name: "alpha", InputSchema: map[string]any{"type": "object"}}, func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+		if err := os.WriteFile(path+".called", []byte("called"), 0600); err != nil {
+			return nil, err
+		}
+		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: "done"}}}, nil
+	})
 	_ = server.Run(context.Background(), &sdk.StdioTransport{})
 	if err := os.WriteFile(path+".closed", []byte("closed"), 0600); err != nil {
 		os.Exit(3)

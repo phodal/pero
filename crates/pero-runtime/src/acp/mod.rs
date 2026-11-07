@@ -2,6 +2,8 @@ mod app_use;
 mod configuration;
 mod connectors;
 mod mcp;
+mod mcp_session;
+pub use mcp_session::reply as mcp_session_reply;
 mod mcp_runtime;
 mod prompt;
 mod registry;

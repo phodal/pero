@@ -256,6 +256,9 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 			Content: []ContentBlock{{Type: BlockText, Text: "invalid tool arguments for " + filtered.Name + ": " + err.Error()}},
 		}}, nil
 	}
+	if tool.DeniedReason != "" {
+		return r.settle(ctx, ToolOutcome{Request: filtered, Result: ToolResult{IsError: true, Content: []ContentBlock{{Type: BlockText, Text: tool.DeniedReason}}}}, nested, tool.Schema.Name, tool.ObserveResult)
+	}
 	if tool.RequiresApproval || tool.AlwaysAskApproval || filtered.RequestApproval {
 		var native *NativeApprovalDescriptor
 		if tool.ApprovalDescriptor != nil {

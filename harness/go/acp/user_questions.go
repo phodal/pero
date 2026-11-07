@@ -41,7 +41,7 @@ func (s *Server) negotiateUserQuestions(raw json.RawMessage) error {
 }
 
 func (s *Server) extensionCapabilities() map[string]int {
-	result := map[string]int{"pero.mcpRuntime": 1}
+	result := map[string]int{"pero.mcpRuntime": 1, MCPToolPolicyCapability: 1, MCPSessionCapability: 1}
 	if s.questionTools {
 		result[UserQuestionsCapability] = 1
 	}

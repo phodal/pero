@@ -43,6 +43,8 @@ type Tool struct {
 	// RequiresApproval asks the nearest approval channel before execution.
 	// With no channel or grant, execution fails closed as a tool result.
 	RequiresApproval bool
+	// DeniedReason is trusted registration policy, checked before any approval.
+	DeniedReason string `json:"-"`
 	// AlwaysAskApproval is trusted registration policy: even auto-review must
 	// consult the existing approval channel for each call. Never/read-only still deny.
 	AlwaysAskApproval bool `json:"-"`

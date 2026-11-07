@@ -27,6 +27,7 @@ const gaps = ['Does the method tolerate model mismatch?', 'Which bounded correct
 const skill = (await readFile(join(root, 'apps/paper-agent/agent-plugins/paper-autoresearch/SKILL.md'), 'utf8')).trim();
 let host, hostExit, desktop, server, access, seed, run, sequence = 0, stderr = '';
 let round = 1, state, study, passage, reportId, stage = 'start', awaiting, pendingContent, contentReads = 0;
+let receipt;
 
 async function wait(predicate, after = 0) {
   const deadline = Date.now() + 30000;
@@ -110,6 +111,7 @@ function advance(result, previousStage) {
 
 try {
   await mkdir(output, { recursive: true });
+  await rm(join(output, 'result.json'), { force: true });
   await build({ stdin: { contents: "export { DesktopAppUse } from './desktop/src/main/app-use-mcp.ts'; export { AppWriteRoutes } from './desktop/src/main/app-write-routes.ts';", resolveDir: root },
     bundle: true, platform: 'node', format: 'esm', outfile: join(directory, 'adapter.mjs') });
   const { DesktopAppUse, AppWriteRoutes } = await import(pathToFileURL(join(directory, 'adapter.mjs')).href);
@@ -242,21 +244,24 @@ try {
   assert(finalReport.includes('needs_review')); assert(finalReport.includes('round_limit'));
   const audit = await readFile(join(directory, 'settings.research', seed.context.programId, 'model-attempts.log'), 'utf8');
   assert.equal(audit.trim().split('\n').length, requests.length);
-  await json(join(output, 'result.json'), { passed: true, backend: 'real Python paper_agent.http.handler', model: 'scripted loopback',
+  receipt = { passed: true, backend: 'real Python paper_agent.http.handler', model: 'scripted loopback',
     profileDirectory: keepProfile ? directory : null, threadId: run.sessionId, runId: run.id, programId: seed.context.programId,
     rounds: 3, questions, passages, providerRequests: requests.length, contentReads, artifacts: saved.length, versionsPerArtifact: 4,
     noStatusPolling: true, hostSHA256: sha(await readFile(binary)), harnessSHA256: sha(await readFile(agent)),
-    limitations: ['Synthetic source and model decisions; no scientific acceptance or desktop UI verification'] });
+    limitations: ['Synthetic source and model decisions; no scientific acceptance or desktop UI verification'] };
   await json(join(output, 'evidence.json'), { events, requests, calls, deliveries, current, snapshots });
-  console.log(await readFile(join(output, 'result.json'), 'utf8'));
 } catch (error) {
   await mkdir(output, { recursive: true });
   await json(join(output, 'failure.json'), { error: String(error), stderr, errors, events, requests, calls, questions, deliveries, stage,
     seed, current: access && seed ? await backendRead({ operation: 'read', programId: seed.context.programId }).catch(e => String(e)) : null });
   throw error;
 } finally {
+  // Stop the real App backend while its Host still owns the child process.
+  if (access && host && host.exitCode === null) await appRequest('disable', { name: 'paper-agent' });
   if (host && host.exitCode === null) { host.stdin.end(); const timer = setTimeout(() => host.kill('SIGKILL'), 5000); await hostExit; clearTimeout(timer); }
   await desktop?.close();
   if (server) { server.closeAllConnections(); await new Promise(done => server.close(done)); }
   if (!keepProfile) await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 });
 }
+await json(join(output, 'result.json'), receipt);
+console.log(await readFile(join(output, 'result.json'), 'utf8'));

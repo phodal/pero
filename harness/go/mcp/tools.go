@@ -18,6 +18,8 @@ import (
 
 // Tool is an MCP contribution body; admission and execution remain in the owning registry.
 type Tool struct {
+	// Name is the exact remote identity, not the model-facing normalized name.
+	Name   string
 	Schema harnessmodel.ToolSchema
 	// Explicit mutating annotations participate in the caller's approval policy.
 	RequiresApproval bool
@@ -44,13 +46,17 @@ func ListTools(ctx context.Context, session *mcp.ClientSession) ([]*mcp.Tool, er
 }
 
 func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp.Tool, callTimeout time.Duration, bind func(context.Context) func()) ([]Tool, error) {
+	return buildMCPAudienceTools(session, serverName, remotes, callTimeout, bind, false)
+}
+
+func buildMCPAudienceTools(session *mcp.ClientSession, serverName string, remotes []*mcp.Tool, callTimeout time.Duration, bind func(context.Context) func(), app bool) ([]Tool, error) {
 	definitions := make([]Tool, 0, len(remotes))
 	publicNames := make(map[string]string, len(remotes))
 	for _, remote := range remotes {
 		if remote == nil || strings.TrimSpace(remote.Name) == "" {
 			return nil, errors.New("harness: MCP server listed a tool without a name")
 		}
-		if !modelVisible(remote.Meta) {
+		if (!app && !modelVisible(remote.Meta)) || (app && !appVisible(remote.Meta)) {
 			continue
 		}
 		schema, marshalErr := json.Marshal(remote.InputSchema)
@@ -64,6 +70,7 @@ func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp
 		}
 		publicNames[name] = remoteName
 		tool := Tool{
+			Name:             remoteName,
 			RequiresApproval: remote.Annotations != nil && !remote.Annotations.ReadOnlyHint,
 			Schema:           harnessmodel.ToolSchema{Name: name, Description: remote.Description, InputSchema: schema, OutputSchema: canonicalOutputSchema(name, remote.OutputSchema)},
 			Execute: func(callCtx context.Context, raw json.RawMessage) (harnesstool.Result, error) {
@@ -84,7 +91,11 @@ func buildMCPTools(session *mcp.ClientSession, serverName string, remotes []*mcp
 				if err != nil {
 					return harnesstool.Result{}, SafeError(err)
 				}
-				return fromMCPResult(result)
+				converted, err := fromMCPResult(result)
+				if app && err == nil {
+					converted.Meta, err = json.Marshal(result)
+				}
+				return converted, err
 			},
 		}
 		definitions = append(definitions, tool)
