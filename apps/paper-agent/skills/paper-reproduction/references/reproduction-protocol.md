@@ -99,3 +99,38 @@ Relate the report to actual paper/document/passage/annotation identities when
 available. Use only supported write routes; otherwise deliver artifact paths and
 the association record. A proposed correction is a new protocol/attempt, not a
 replacement of the original failed result.
+
+## Fixed real-source reanalysis: Fisher Table III
+
+The installed backend includes a bounded standard-library case for Fisher (1936),
+DOI `10.1111/j.1469-1809.1936.tb02137.x`. It recomputes the Table III sepal-length
+within-species sum of squares from all 50 setosa and 50 versicolor Table I
+observations. This is one numerical result, not a rerun of the full paper or
+the PC-Gym experiment. The existing PC-Gym verdict stays `INCONCLUSIVE`.
+
+Obtain the authorized original PDF separately from the
+[university-hosted scan](https://lgross.utk.edu/Math589Fall2020/RAFisher1936measurementsFlowerTaxa.pdf).
+The CLI does not download, install or request a model. It requires the exact
+reviewed PDF SHA-256 `d3a49aaa4f2d283931544f58cb12b1174f537642b83def7ae9119a1d8717b740`.
+Set `PYTHONPATH` to the installed Paper App's `backend` directory, then use:
+
+```sh
+python -m paper_agent.fisher_reproduction prepare \
+  --pdf /absolute/fisher1936.pdf --output /absolute/new-fisher-case
+python -m paper_agent.fisher_reproduction run \
+  --bundle /absolute/new-fisher-case --spec-sha <returned-spec-id> --confirm-execution
+python -I -S /absolute/new-fisher-case/attempts/<returned-attempt-id>/verify.py
+```
+
+Prepare requires the existing PDFium/Pillow reader; computation and independent
+verification use only Python's standard library. Preparation freezes the real
+PDF region, reviewed data, interpreter, implementation and absolute tolerance
+(`0.00005 cm²`, half the printed fourth decimal; configurable at prepare time).
+Each explicit rerun creates a new attempt. The checker computes exact raw
+moments independently of the primary float centered-sum implementation.
+
+The bundle's `paper-store` is a separate disposable Paper data home. Original and
+linked result notes use the existing `PdfAnchor` and immutable annotation store.
+The CLI does not write to the user's current App data or bypass native approval.
+This case is not connected to the PC-Gym-only **Run once** button or public App
+execution routes. A saved annotation is not evidence of a tested Desktop UI.
