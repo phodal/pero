@@ -67,7 +67,7 @@ impl ChatPanel {
             .conversations
             .entry(thread.into())
             .or_default();
-        state.open = true;
+        state.show_pane();
         state.show_changes = false;
         cx.emit(ChatAction::ResourceTab { tab });
         if tab == pero_contracts::workbench::ResourceTab::Files {

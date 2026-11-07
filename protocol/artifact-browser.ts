@@ -9,5 +9,6 @@ export type ArtifactBrowserState = {
   selected: ArtifactTarget | null;
   view: ArtifactView;
   preview_request?: number;
+  inline?: boolean;
   shell_document_bar?: boolean;
 };

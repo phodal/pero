@@ -68,7 +68,20 @@ try {
   await expect.poll(width).toBeGreaterThan(sideWidth + 300);
   expect((await state()).preferences.layout.artifact_view).toBe('list');
   await page.screenshot({ path: resolve(output, 'expanded.png'), scale: 'css' });
-  console.log('Artifact presentation passed: ordinary delivery, side reader and expanded exact version.');
+  await click(async () => (await state()).artifacts.bounds.close);
+  await send('Deliver the report and present below', 4);
+  const lowerPane = await frame.boundingBox();
+  expect(lowerPane?.y).toBeGreaterThan(400);
+  expect(lowerPane?.width).toBeGreaterThan(sideWidth + 300);
+  await expect(viewer.locator('.artifact-browser-versions')).toContainText('v4 / 4');
+  await page.screenshot({ path: resolve(output, 'below.png'), scale: 'css' });
+  await click(async () => (await state()).artifacts.bounds.close);
+  await send('Deliver the report and present inline', 5);
+  expect((await state()).artifacts.open).toBe(false);
+  await expect(viewer.locator('.artifact-browser-versions')).toContainText('v5 / 5');
+  await expect(viewer.locator('.artifact-markdown')).toContainText('版本：5');
+  await page.screenshot({ path: resolve(output, 'inline.png'), scale: 'css' });
+  console.log('Artifact presentation passed: ordinary delivery and exact versions inline, below, side-by-side and expanded.');
 } finally {
   await app?.close();
   await rm(temp, { recursive: true, force: true });

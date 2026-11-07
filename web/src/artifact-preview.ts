@@ -2,7 +2,7 @@ import type { ArtifactBrowserState, ArtifactTarget } from '../../protocol/artifa
 import type { AppearanceSnapshot } from '../../packages/app-sdk/src/appearance';
 
 export type { ArtifactTarget } from '../../protocol/artifact-browser';
-export type ArtifactSurface = { visible: boolean; browser?: ArtifactBrowserState; left?: number; top?: number; width?: number; height?: number; dark?: boolean; locale?: string; appearance?: AppearanceSnapshot };
+export type ArtifactSurface = { visible: boolean; browser?: ArtifactBrowserState; left?: number; top?: number; width?: number; height?: number; clip?: number[]; dark?: boolean; locale?: string; appearance?: AppearanceSnapshot };
 
 /** A distinct Scientific Viewer instance; it never navigates the user's file-library panel. */
 export function mountArtifactPreview(compose: (target: ArtifactTarget, text: string, id: string) => void, select: (target: ArtifactTarget) => void) {
@@ -47,7 +47,8 @@ export function mountArtifactPreview(compose: (target: ArtifactTarget, text: str
       const query = new URLSearchParams({ thread_id: browser.thread_id });
       frame.src = `pero-app://scientific-viewer/dist/artifact.html?${query}`;
     }
-    Object.assign(region.style, { left: `${value.left}px`, top: `${value.top}px`, width: `${value.width}px`, height: `${value.height}px` });
+    Object.assign(region.style, { left: `${value.left}px`, top: `${value.top}px`, width: `${value.width}px`, height: `${value.height}px`,
+      clipPath: value.clip ? `inset(${value.clip.map(inset => `${inset}px`).join(' ')})` : '' });
     context();
   };
   return { update, reply };

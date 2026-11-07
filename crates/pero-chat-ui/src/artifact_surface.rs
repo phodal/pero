@@ -31,7 +31,7 @@ impl ChatPanel {
         }
         let thread = &self.chats.get(self.active_chat?)?.id;
         let state = self.artifacts.conversations.get(thread)?;
-        if !state.open || state.show_changes {
+        if (!state.open && !state.inline_open) || state.show_changes {
             return None;
         }
         let (id, version) = state.selected.as_ref()?;
@@ -61,7 +61,7 @@ impl ChatPanel {
                 .conversations
                 .get(&target.thread_id)
                 .is_some_and(|state| {
-                    state.open
+                    (state.open || state.inline_open)
                         && state.items.iter().any(|item| {
                             item.id == target.artifact_id
                                 && item
@@ -76,8 +76,8 @@ impl ChatPanel {
         let thread = &self.chats.get(self.active_chat?)?.id;
         let state = self.artifacts.conversations.get(thread)?;
         if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
-            || !state.open
-            || state.chart.is_some() && !state.chart_source_open
+            || (!state.open && !state.inline_open)
+            || (!state.inline_open && state.chart.is_some() && !state.chart_source_open)
         {
             return None;
         }
@@ -87,7 +87,8 @@ impl ChatPanel {
             selected: self.artifact_preview_target(),
             view: self.artifacts.view,
             preview_request: state.preview_request,
-            shell_document_bar: self.artifacts.view
+            inline: state.inline_open && !state.open,
+            shell_document_bar: !state.inline_open && self.artifacts.view
                 == pero_contracts::workbench::ArtifactView::Gallery,
         })
     }
@@ -140,8 +141,13 @@ impl ChatPanel {
             }
             let appearance = pero_theme::UiAppearance::global(_cx).clone();
             let locale = self.locale.clone();
-            div().flex_1().min_h_0().min_w_0().on_prepaint(move |bounds, _, _| {
-                let payload = serde_json::json!({"visible":true,"browser":browser,"left":f32::from(bounds.origin.x),"top":f32::from(bounds.origin.y),"width":f32::from(bounds.size.width),"height":f32::from(bounds.size.height),"dark":appearance.dark,"appearance":appearance,"locale":locale});
+            div().flex_1().min_h_0().min_w_0().on_prepaint(move |bounds, window, _| {
+                let mask = bounds.intersect(&window.content_mask().bounds);
+                let clip = [
+                    f32::from(mask.top() - bounds.top()), f32::from(bounds.right() - mask.right()),
+                    f32::from(bounds.bottom() - mask.bottom()), f32::from(mask.left() - bounds.left()),
+                ].map(|inset| inset.max(0.));
+                let payload = serde_json::json!({"visible":mask.size.width > px(0.) && mask.size.height > px(0.),"browser":browser,"left":f32::from(bounds.origin.x),"top":f32::from(bounds.origin.y),"width":f32::from(bounds.size.width),"height":f32::from(bounds.size.height),"clip":clip,"dark":appearance.dark,"appearance":appearance,"locale":locale});
                 let _ = publish_surface(&payload.to_string());
             }).into_any_element()
         }

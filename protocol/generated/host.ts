@@ -84,8 +84,8 @@ export type ArtifactRequest =
   | ReadArtifact
   | ResolveArtifactSnapshot
   | ArtifactContextRequest;
-export type ArtifactPresentation = "side" | "expanded";
-export type ArtifactRelationRole = "input" | "code" | "execution_log" | "environment" | "review";
+export type ArtifactPresentation = "inline" | "below" | "side" | "expanded";
+export type ArtifactRelationRole = "input" | "code" | "execution_log" | "environment" | "review" | "run_record";
 export type ChangesRequest = ChangesList | ChangesCurrent | ChangesRead;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type KeySequence = string;

@@ -14,7 +14,7 @@ model ArtifactSimpleMedia { kind:"csv"|"tsv"|"pdf"|"html"|"notebook"; ...Closed 
 union ArtifactImageType { "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml" }
 model ArtifactImageMedia { kind:"image"; mime_type:ArtifactImageType; ...Closed }
 @oneOf union ArtifactMedia { ArtifactDocumentMedia, ArtifactSimpleMedia, ArtifactImageMedia }
-union ArtifactRelationRole { "input", "code", "execution_log", "environment", "review" }
+union ArtifactRelationRole { "input", "code", "execution_log", "environment", "review", "run_record" }
 model ArtifactRelation {
   @minLength(1) @maxLength(128) artifact_id:string;
   @minValue(1) version:safeint;
@@ -48,9 +48,9 @@ model ArtifactSnapshot {
   ...Closed;
 }
 model ArtifactPreviewTarget { thread_id:ThreadId; artifact_id:string; @minValue(1) version:safeint; ...Closed }
-union ArtifactPresentation { "side", "expanded" }
+union ArtifactPresentation { "inline", "below", "side", "expanded" }
 /** Public UI state, not a second artifact catalog or Host persistence owner. */
-model ArtifactBrowserState { thread_id:ThreadId; artifacts:SessionArtifact[]; selected:ArtifactPreviewTarget|null; view:ArtifactView; @minValue(1) preview_request?:safeint; shell_document_bar?:boolean; ...Closed }
+model ArtifactBrowserState { thread_id:ThreadId; artifacts:SessionArtifact[]; selected:ArtifactPreviewTarget|null; view:ArtifactView; @minValue(1) preview_request?:safeint; shell_document_bar?:boolean; inline?:boolean; ...Closed }
 model SessionArtifact {
   @minLength(1) @maxLength(128) id:string;
   thread_id:ThreadId;

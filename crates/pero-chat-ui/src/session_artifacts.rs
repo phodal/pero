@@ -26,6 +26,9 @@ pub(crate) struct ArtifactCollection {
     pub requested: bool,
     pub loading: bool,
     pub open: bool,
+    pub inline_open: bool,
+    pub bottom: bool,
+    pub bottom_height: Option<f32>,
     pub maximized: bool,
     pub show_changes: bool,
     pub selected: Option<(String, u64)>,
@@ -42,8 +45,15 @@ pub(crate) struct ArtifactCollection {
 }
 
 impl ArtifactCollection {
+    /// The pane replaces an inline reader. Closing the pane does not put it back.
+    pub fn show_pane(&mut self) {
+        self.open = true;
+        self.inline_open = false;
+    }
+
     pub fn return_to_chat(&mut self, narrow: bool) {
         self.maximized = false;
+        self.inline_open = false;
         if narrow {
             self.open = false;
         }
@@ -56,6 +66,7 @@ pub(crate) struct ArtifactPaneResize {
     pub origin_x: f32,
     pub origin_width: f32,
     pub max_width: f32,
+    pub vertical: bool,
 }
 
 #[derive(Default)]
@@ -74,6 +85,13 @@ pub(crate) struct SessionArtifacts {
 }
 
 impl ChatPanel {
+    pub(crate) fn open_inline_artifact(&mut self, thread: &str, id: &str, version: u64, cx: &mut Context<Self>) {
+        self.open_delivered_artifact(thread, id, version, cx);
+        let state = self.artifacts.conversations.get_mut(thread).expect("selected artifact");
+        state.open = false;
+        state.inline_open = true;
+        cx.notify();
+    }
     pub(crate) fn open_delivered_artifact(
         &mut self,
         thread: &str,
@@ -197,7 +215,7 @@ impl ChatPanel {
             .conversations
             .entry(thread.into())
             .or_default();
-        state.open = true;
+        state.show_pane();
         state.selected = Some((id.into(), version));
         state.chart = None;
         state.chart_source_open = false;
@@ -273,7 +291,7 @@ impl ChatPanel {
             .conversations
             .entry(thread.into())
             .or_default();
-        state.open = true;
+        state.show_pane();
         state.mutation = Some(request_id.clone());
         state.error = None;
         cx.emit(ChatAction::Artifacts(ArtifactRequest::RegisterText {
@@ -329,7 +347,7 @@ impl ChatPanel {
             .conversations
             .entry(thread.into())
             .or_default();
-        state.open = true;
+        state.show_pane();
         state.error = None;
         state.mutation = Some(request_id.clone());
         cx.emit(ChatAction::Artifacts(ArtifactRequest::RegisterText {
@@ -542,6 +560,9 @@ impl ChatPanel {
                     }) => {
                         let id = artifact.id.clone();
                         let version = artifact.latest().version;
+                        let refresh_catalog = artifact.latest().related.iter().any(|link|
+                            link.artifact_id != id && !state.items.iter().any(|item|
+                                item.id == link.artifact_id && item.versions.iter().any(|version| version.version == link.version)));
                         if let Some(item) = state.items.iter_mut().find(|item| item.id == id) {
                             *item = artifact;
                         } else {
@@ -557,7 +578,15 @@ impl ChatPanel {
                             self.read_artifact(thread, &id, version, false, cx);
                         } else if let Some(presentation) = presentation.filter(|_| can_present) {
                             state.maximized = presentation == ArtifactPresentation::Expanded;
-                            self.open_delivered_artifact(thread, &id, version, cx);
+                            state.bottom = presentation == ArtifactPresentation::Below;
+                            if presentation == ArtifactPresentation::Inline {
+                                self.open_inline_artifact(thread, &id, version, cx);
+                            } else {
+                                self.open_delivered_artifact(thread, &id, version, cx);
+                            }
+                        }
+                        if refresh_catalog {
+                            self.refresh_artifacts(thread, cx);
                         }
                     }
                     Err(error) => state.error = Some(error.to_string()),

@@ -321,7 +321,11 @@ impl ChatPanel {
             _ => None,
         }).peekable();
         deliveries.peek()?;
-        Some(div().flex().flex_wrap().gap(px(4.)).mb(px(8.)).children(
+        let state = self.artifacts.conversations.get(&chat.id);
+        let inline = state.filter(|state| state.inline_open && !state.open)
+            .filter(|state| deliveries.clone().any(|(item, version)| state.selected.as_ref()
+                .is_some_and(|(id, selected)| *id == item.id && *selected == version.version)));
+        Some(div().flex().flex_col().gap(px(8.)).mb(px(8.)).child(div().flex().flex_wrap().gap(px(4.)).children(
             deliveries.map(|(artifact, snapshot)| {
                 let thread = chat.id.clone();
                 let id = artifact.id.clone();
@@ -336,10 +340,26 @@ impl ChatPanel {
                     .accessibility_label(label.clone())
                     .tooltip(label)
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        this.open_delivered_artifact(&thread, &id, version, cx)
+                        this.open_inline_artifact(&thread, &id, version, cx)
                     }))
             }),
-        ).into_any_element())
+        )).when_some(inline, |el, state| {
+            let thread = chat.id.clone();
+            let pane_thread = thread.clone();
+            let close_thread = thread.clone();
+            let (id, version) = state.selected.clone().expect("inline selection");
+            el.child(div().w_full().h(px(380.)).min_w_0().flex().flex_col()
+                .border_1().border_color(pero_theme::UiAppearance::global(cx).palette.border)
+                .child(div().flex().justify_end()
+                    .child(Button::new("inline-open-pane").ghost().small().label(self.t("artifacts.open_pane"))
+                        .on_click(cx.listener(move |this, _, _, cx| this.open_delivered_artifact(&pane_thread, &id, version, cx))))
+                    .child(Button::new("inline-close").ghost().small().label(self.t("artifacts.close"))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(state) = this.artifacts.conversations.get_mut(&close_thread) { state.inline_open = false; }
+                            cx.notify();
+                        }))))
+                .child(self.artifact_preview_surface(&thread, state, cx)))
+        }).into_any_element())
     }
 
     pub(crate) fn process_view(

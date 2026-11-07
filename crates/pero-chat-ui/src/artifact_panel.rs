@@ -19,6 +19,9 @@ impl ChatPanel {
     const CHAT_COLUMN_MIN: f32 = 320.;
     /// The resize handle stays reachable. This is not a content-width limit.
     const PANE_DIVIDER: f32 = 12.;
+    const BOTTOM_PANE_MIN: f32 = 120.;
+    const BOTTOM_PANE_DEFAULT: f32 = 320.;
+    const BOTTOM_CHAT_RESERVE: f32 = 160.;
 
     fn artifact_probe(&self, thread: &str, action: &str) -> Option<AnyElement> {
         self.artifacts
@@ -76,11 +79,26 @@ impl ChatPanel {
                         let Some(resize) = this.artifacts.resize else {
                             return;
                         };
-                        let x: f32 = event.position.x.into();
-                        let floor = Self::PANE_DIVIDER.min(resize.max_width);
+                        let x: f32 = if resize.vertical { event.position.y.into() } else { event.position.x.into() };
+                        let floor = if resize.vertical {
+                            Self::BOTTOM_PANE_MIN.min(resize.max_width)
+                        } else {
+                            Self::PANE_DIVIDER.min(resize.max_width)
+                        };
                         let width = (resize.origin_width - (x - resize.origin_x))
                             .clamp(floor, resize.max_width);
-                        if (this.artifact_pane_width() - width).abs() >= 0.5 {
+                        if resize.vertical {
+                            let thread = this
+                                .active_chat
+                                .and_then(|index| this.chats.get(index).map(|chat| chat.id.clone()));
+                            if let Some(thread) = thread {
+                                if let Some(state) = this.artifacts.conversations.get_mut(&thread) {
+                                    state.bottom_height = Some(width);
+                                }
+                            }
+                            cx.notify();
+                            cx.stop_propagation();
+                        } else if (this.artifact_pane_width() - width).abs() >= 0.5 {
                             this.set_artifact_pane_width(width, cx);
                             cx.stop_propagation();
                         }
@@ -91,10 +109,10 @@ impl ChatPanel {
                         return;
                     }
                     let _ = owner.update(cx, |this, cx| {
-                        if this.artifacts.resize.take().is_some() {
-                            cx.emit(ChatAction::ArtifactPaneWidth {
+                        if let Some(resize) = this.artifacts.resize.take() {
+                            if !resize.vertical { cx.emit(ChatAction::ArtifactPaneWidth {
                                 width: this.artifact_pane_width(),
-                            });
+                            }); }
                             cx.stop_propagation();
                         }
                     });
@@ -135,6 +153,7 @@ impl ChatPanel {
         let state = self.artifacts.conversations.get(&thread);
         let open = state.is_some_and(|state| state.open);
         let reviewing = state.is_some_and(|state| state.show_changes);
+        let bottom = state.is_some_and(|state| state.bottom);
         let maximized = !reviewing
             && self.files.selection.tab == pero_contracts::workbench::ResourceTab::Artifacts
             && state.is_some_and(|state| state.maximized);
@@ -175,6 +194,7 @@ impl ChatPanel {
                                     .conversations
                                     .entry(toggle_thread.clone())
                                     .or_default();
+                                state.inline_open = false;
                                 state.open = !state.open;
                                 if this.compact {
                                     cx.emit(ChatAction::CompactNeedsSpace);
@@ -225,7 +245,17 @@ impl ChatPanel {
             if !split {
                 pane
             } else {
-                let shown = self.artifact_column_width(available);
+                let height = f32::from(size.height);
+                let bottom_limit = (height - Self::BOTTOM_CHAT_RESERVE).max(Self::BOTTOM_PANE_MIN);
+                let shown = if bottom {
+                    collection
+                        .bottom_height
+                        .unwrap_or(Self::BOTTOM_PANE_DEFAULT)
+                        .clamp(Self::BOTTOM_PANE_MIN, bottom_limit)
+                } else {
+                    self.artifact_column_width(available)
+                };
+                let bottom_thread = thread.clone();
                 let border = pero_theme::UiAppearance::global(cx).palette.border;
                 div()
                     .relative()
@@ -233,34 +263,37 @@ impl ChatPanel {
                     .min_w_0()
                     .min_h_0()
                     .flex()
+                    .when(bottom, |el| el.flex_col())
                     .child(self.artifact_resize_capture(cx))
                     .child(
                         div()
                             .relative()
                             .flex_1()
-                            .h_full()
+                            .when(!bottom, |el| el.h_full())
+                            .min_h_0()
                             .min_w_0()
                             .child(chat)
-                            .child(
-                                div()
-                                    .absolute()
-                                    .right_0()
-                                    .top_0()
-                                    .bottom_0()
-                                    .w(px(1.))
-                                    .bg(border),
-                            ),
+                            .when(!bottom, |column| {
+                                column.child(
+                                    div()
+                                        .absolute()
+                                        .right_0()
+                                        .top_0()
+                                        .bottom_0()
+                                        .w(px(1.))
+                                        .bg(border),
+                                )
+                            }),
                     )
                     .child(
                         div()
                             .relative()
-                            .h_full()
-                            .w(px(shown))
+                            .when(!bottom, |el| el.h_full().w(px(shown)).border_l(px(1.)))
+                            .when(bottom, |el| el.w_full().h(px(shown)).border_t(px(1.)))
                             .min_w_0()
                             .flex_shrink_0()
                             .flex()
                             .flex_col()
-                            .border_l(px(1.))
                             .border_color(border)
                             .child(
                                 div()
@@ -296,30 +329,49 @@ impl ChatPanel {
                                 div()
                                     .id(SharedString::from(format!("artifact-pane-resize-{thread}")))
                                     .absolute()
-                                    .left_0()
-                                    .top_0()
-                                    .bottom_0()
-                                    .w(px(12.))
-                                    .cursor(CursorStyle::ResizeLeftRight)
+                                    .left_0().top_0()
+                                    .when(!bottom, |el| el.bottom_0().w(px(12.)).cursor(CursorStyle::ResizeLeftRight))
+                                    .when(bottom, |el| el.right_0().h(px(8.)).cursor(CursorStyle::ResizeUpDown))
                                     .on_mouse_down(
                                         MouseButton::Left,
                                         cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                                             if event.click_count == 2 {
                                                 this.artifacts.resize = None;
-                                                this.set_artifact_pane_width(
-                                                    f32::from(
-                                                        LayoutPreferences::DEFAULT_ARTIFACT_PANE_WIDTH,
-                                                    ),
-                                                    cx,
-                                                );
-                                                cx.emit(ChatAction::ArtifactPaneWidth {
-                                                    width: this.artifact_pane_width(),
-                                                });
+                                                if bottom {
+                                                    if let Some(state) = this
+                                                        .artifacts
+                                                        .conversations
+                                                        .get_mut(&bottom_thread)
+                                                    {
+                                                        state.bottom_height =
+                                                            Some(Self::BOTTOM_PANE_DEFAULT);
+                                                    }
+                                                    cx.notify();
+                                                } else {
+                                                    this.set_artifact_pane_width(
+                                                        f32::from(
+                                                            LayoutPreferences::DEFAULT_ARTIFACT_PANE_WIDTH,
+                                                        ),
+                                                        cx,
+                                                    );
+                                                    cx.emit(ChatAction::ArtifactPaneWidth {
+                                                        width: this.artifact_pane_width(),
+                                                    });
+                                                }
                                             } else {
                                                 this.artifacts.resize = Some(ArtifactPaneResize {
-                                                    origin_x: event.position.x.into(),
+                                                    origin_x: if bottom {
+                                                        event.position.y.into()
+                                                    } else {
+                                                        event.position.x.into()
+                                                    },
                                                     origin_width: shown,
-                                                    max_width: available.max(shown),
+                                                    max_width: if bottom {
+                                                        bottom_limit
+                                                    } else {
+                                                        available.max(shown)
+                                                    },
+                                                    vertical: bottom,
                                                 });
                                             }
                                             cx.stop_propagation();

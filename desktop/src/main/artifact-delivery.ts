@@ -21,7 +21,7 @@ export const DELIVER_ARTIFACT_TOOL = {
   name: 'deliver_artifact',
   annotations: { readOnlyHint: false },
   description:
-    "Save a generated file of at most 10 MiB from this conversation's workspace as a session artifact. Supported outputs include reports, scripts, JSON, CSV/TSV, images, PDF, HTML and saved notebooks. The Host freezes the file bytes; delivery does not execute code or verify a scientific result. Use a workspace-relative path or an absolute path inside this conversation's workspace. To update an existing item, pass its artifact_id. To link actual inputs, code, execution logs, environment or review documents, deliver those files first, then list their exact artifact_id, version and role in related. A review attachment does not indicate acceptance. If the user asks to display the output, request presentation 'side' or 'expanded'. Leave it unset for ordinary delivery. The request applies only while the calling conversation is visible; delivery does not confirm display. The Host binds the calling conversation.",
+    "Save a generated file of at most 10 MiB from this conversation's workspace as a session artifact. Supported outputs include reports, scripts, JSON, CSV/TSV, images, PDF, HTML and saved notebooks. The Host freezes the file bytes; delivery does not execute code or verify a scientific result. Use a workspace-relative path or an absolute path inside this conversation's workspace. To update an existing item, pass its artifact_id. To link actual inputs, code, execution logs, environment or review documents, deliver those files first, then list their exact artifact_id, version and role in related. A review attachment does not indicate acceptance. If the user asks to display the output, request presentation 'inline', 'below', 'side', or 'expanded'. Leave it unset for ordinary delivery. The request applies only while the calling conversation is visible; delivery does not confirm display. If the execution owner wrote <output>.pero-run.json beside the output, the Host captures its run record and verified evidence automatically. The Host binds the calling conversation.",
   inputSchema: {
     type: 'object',
     required: ['path'],
@@ -30,12 +30,12 @@ export const DELIVER_ARTIFACT_TOOL = {
       path: { type: 'string', minLength: 1 },
       title: { type: 'string' },
       artifact_id: { type: 'string' },
-      presentation: { enum: ['side', 'expanded'] },
+      presentation: { enum: ['inline', 'below', 'side', 'expanded'] },
       related: { type: 'array', maxItems: 16, items: { type: 'object', additionalProperties: false,
         required: ['artifact_id', 'version', 'role'], properties: {
           artifact_id: { type: 'string', minLength: 1, maxLength: 128 },
           version: { type: 'integer', minimum: 1 },
-          role: { enum: ['input', 'code', 'execution_log', 'environment', 'review'] },
+          role: { enum: ['input', 'code', 'execution_log', 'environment', 'review', 'run_record'] },
         } } },
     },
   },
@@ -51,13 +51,13 @@ export function parseArtifactDelivery(value: unknown): ArtifactDeliveryInput {
     typeof input.path !== 'string' || !input.path.length ||
     (input.title !== undefined && typeof input.title !== 'string') ||
     (input.artifact_id !== undefined && typeof input.artifact_id !== 'string') ||
-    (input.presentation !== undefined && input.presentation !== 'side' && input.presentation !== 'expanded') ||
+    (input.presentation !== undefined && input.presentation !== 'inline' && input.presentation !== 'below' && (typeof input.presentation !== 'string' || !['inline', 'below', 'side', 'expanded'].includes(input.presentation))) ||
     (input.related !== undefined && (!Array.isArray(input.related) || input.related.length > 16 ||
       input.related.some(link => !link || typeof link !== 'object' ||
         Object.keys(link).some(key => !['artifact_id', 'version', 'role'].includes(key)) ||
         typeof link.artifact_id !== 'string' || !link.artifact_id || link.artifact_id.length > 128 ||
         !Number.isSafeInteger(link.version) || link.version < 1 ||
-        !['input', 'code', 'execution_log', 'environment', 'review'].includes(link.role))))
+        !['input', 'code', 'execution_log', 'environment', 'review', 'run_record'].includes(link.role))))
   )
     throw new AppUseError('ARTIFACT_DELIVERY_INVALID', 'Use path, optional title, artifact_id, presentation and exact related versions; the Host binds the conversation.');
   return input as ArtifactDeliveryInput;

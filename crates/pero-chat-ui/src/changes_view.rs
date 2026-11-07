@@ -185,7 +185,7 @@ impl ChatPanel {
                 .conversations
                 .entry(thread.into())
                 .or_default();
-            state.open = true;
+            state.show_pane();
             state.show_changes = true;
             cx.notify();
             return;
@@ -203,7 +203,7 @@ impl ChatPanel {
             .conversations
             .entry(thread.into())
             .or_default();
-        state.open = true;
+        state.show_pane();
         state.show_changes = true;
         cx.emit(ChatAction::Changes(ChangesRequest::Read {
             method: ChangesMethod::WorkspaceChanges,
@@ -275,10 +275,11 @@ impl ChatPanel {
                         .or_default();
                     if state.open && state.show_changes {
                         state.open = false;
+                        state.inline_open = false;
                         cx.notify();
                         return;
                     }
-                    state.open = true;
+                    state.show_pane();
                     state.show_changes = true;
                     if let Some(id) = &selected {
                         this.read_changes(&thread, id, 0, cx);

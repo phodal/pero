@@ -13,6 +13,7 @@ import './artifact-browser.css';
 const relationLabels: Record<ArtifactRelationRole, [string, string]> = {
   input: ['输入', 'Input'], code: ['代码', 'Code'], execution_log: ['执行日志', 'Execution log'],
   environment: ['环境', 'Environment'], review: ['复核材料', 'Review material'],
+  run_record: ['运行记录', 'Run record'],
 };
 
 /** The parent owns catalog, selection and the persisted view. This entry admits its snapshot once. */
@@ -58,7 +59,7 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
   const closePreview = () => { restoreFocus.current = true; setQuickLook(false); };
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.defaultPrevented) return;
-    if (event.key === 'Escape' && quickLook) { event.preventDefault(); closePreview(); return; }
+    if (event.key === 'Escape' && quickLook && !context?.inline) { event.preventDefault(); closePreview(); return; }
     if (!context || (event.target as HTMLElement).closest('input,textarea,[contenteditable=true],.cm-editor')) return;
     if (quickLook) return;
     const row = (event.target as HTMLElement).closest<HTMLElement>('[data-artifact-id]');
@@ -93,14 +94,14 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
   const shellDocumentBar = context?.shell_document_bar === true;
   const backToArtifacts = <Button ref={quickReturn} variant="ghost" aria-label={zh ? '返回产物' : 'Back to artifacts'} onClick={closePreview}><Icon name="arrow-left" size={14} /></Button>;
   const documentBar = (artifact: SessionArtifact, version: SessionArtifactVersion) => <div className="artifact-browser-document-bar">
-    {quickLook && backToArtifacts}
+    {quickLook && !context?.inline && backToArtifacts}
     <span className="artifact-browser-filename" title={version.filename ?? artifact.title}>{version.filename ?? artifact.title}</span>
     <div className="artifact-browser-versions">
-      <Button variant="ghost" aria-label={zh ? '上一版本' : 'Previous version'} disabled={version.version <= 1}
-        onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version - 1 })}><Icon name="chevron-left" size={14} /></Button>
+      {!context?.inline && <Button variant="ghost" aria-label={zh ? '上一版本' : 'Previous version'} disabled={version.version <= 1}
+        onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version - 1 })}><Icon name="chevron-left" size={14} /></Button>}
       <span>v{version.version} / {artifactVersion(artifact).version}</span>
-      <Button variant="ghost" aria-label={zh ? '下一版本' : 'Next version'} disabled={version.version >= artifactVersion(artifact).version}
-        onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version + 1 })}><Icon name="chevron-right" size={14} /></Button>
+      {!context?.inline && <Button variant="ghost" aria-label={zh ? '下一版本' : 'Next version'} disabled={version.version >= artifactVersion(artifact).version}
+        onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version + 1 })}><Icon name="chevron-right" size={14} /></Button>}
     </div>
     <Popover label={zh ? '版本详情' : 'Version details'} triggerVariant="ghost" trigger={<Icon name="info" size={14} />} contentClassName="artifact-version-popover">
       {close => <><dl className="artifact-version-details" tabIndex={0}>

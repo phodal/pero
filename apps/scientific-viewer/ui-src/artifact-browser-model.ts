@@ -25,7 +25,9 @@ export function admitArtifactBrowser(value: unknown, threadId: string): Artifact
 
   if (!record(value) || !identity(threadId) || value.thread_id !== threadId
     || typeof value.view !== 'string' || !['icons', 'list', 'gallery'].includes(value.view) || !Array.isArray(value.artifacts)
-    || (value.preview_request !== undefined && !integer(value.preview_request, 1))) {
+    || (value.preview_request !== undefined && !integer(value.preview_request, 1))
+    || (value.inline !== undefined && typeof value.inline !== 'boolean')
+    || (value.shell_document_bar !== undefined && typeof value.shell_document_bar !== 'boolean')) {
     throw new Error('Invalid artifact browser state');
   }
   const ids = new Set<string>();
@@ -46,7 +48,7 @@ export function admitArtifactBrowser(value: unknown, threadId: string): Artifact
         || (version.source_tool_call_id !== undefined && typeof version.source_tool_call_id !== 'string')
         || (version.related !== undefined && (!Array.isArray(version.related) || version.related.length > 16
           || version.related.some(link => !record(link) || !identity(link.artifact_id) || !integer(link.version, 1)
-            || typeof link.role !== 'string' || !['input', 'code', 'execution_log', 'environment', 'review'].includes(link.role))))
+            || typeof link.role !== 'string' || !['input', 'code', 'execution_log', 'environment', 'review', 'run_record'].includes(link.role))))
         || !record(version.source) || !(version.source.kind === 'text'
           || (version.source.kind === 'file' && identity(version.source.path))
           || (version.source.kind === 'research' && record(version.source.provenance)

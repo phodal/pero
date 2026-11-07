@@ -130,7 +130,7 @@ impl ChatPanel {
                         .conversations
                         .entry(changes_thread.clone())
                         .or_default()
-                        .open = true;
+                        .show_pane();
                     cx.notify();
                 })),
             )
@@ -263,12 +263,22 @@ impl ChatPanel {
             })
             .when(artifacts && !self.artifacts.narrow, |el| {
                 let toggle_thread = thread.to_owned();
+                let bottom_thread = thread.to_owned();
                 let (icon, label) = if state.maximized {
                     ("columns-2", "artifacts.restore_split")
                 } else {
                     ("maximize", "artifacts.expand")
                 };
-                el.child(
+                el.child(self.artifact_icon_button(thread, "artifact-bottom", "bottom", "chevrons-up-down", self.t("artifacts.bottom"))
+                    .selected(state.bottom)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(state) = this.artifacts.conversations.get_mut(&bottom_thread) {
+                            state.bottom = !state.bottom;
+                            state.maximized = false;
+                        }
+                        cx.notify();
+                    })))
+                .child(
                     self.artifact_icon_button(
                         thread,
                         "artifact-expand",
@@ -296,11 +306,15 @@ impl ChatPanel {
                         .tooltip(self.t("files.close"))
                         .accessibility_label(self.t("files.close"))
                         .on_click(cx.listener(move |this, _, window, cx| {
-                            this.artifacts
-                                .conversations
-                                .entry(close_thread.clone())
-                                .or_default()
-                                .open = false;
+                            {
+                                let state = this
+                                    .artifacts
+                                    .conversations
+                                    .entry(close_thread.clone())
+                                    .or_default();
+                                state.open = false;
+                                state.inline_open = false;
+                            }
                             this.composer.focus_handle(cx).focus(window, cx);
                             cx.notify();
                         })),
@@ -318,6 +332,7 @@ impl ChatPanel {
                     .on_click(cx.listener(move |this, _, window, cx| {
                         if let Some(state) = this.artifacts.conversations.get_mut(&close_thread) {
                             state.open = false;
+                            state.inline_open = false;
                             state.maximized = false;
                         }
                         this.composer.focus_handle(cx).focus(window, cx);
@@ -380,18 +395,19 @@ impl ChatPanel {
         };
         let linked = source.related.iter().map(|link| {
             let item = state.items.iter().find(|item| item.id == link.artifact_id);
-            let name = item
-                .and_then(|item| {
-                    item.versions
-                        .iter()
-                        .find(|snapshot| snapshot.version == link.version)
-                        .map(|snapshot| {
-                            snapshot
-                                .filename
-                                .clone()
-                                .unwrap_or_else(|| item.title.clone())
-                        })
-                })
+            let matched = item.and_then(|item| {
+                item.versions
+                    .iter()
+                    .find(|snapshot| snapshot.version == link.version)
+                    .map(|snapshot| {
+                        snapshot
+                            .filename
+                            .clone()
+                            .unwrap_or_else(|| item.title.clone())
+                    })
+            });
+            let available = matched.is_some();
+            let name = matched
                 .unwrap_or_else(|| self.t("artifacts.file_unavailable").to_owned());
             (
                 link.artifact_id.clone(),
@@ -401,7 +417,7 @@ impl ChatPanel {
                     self.t(relation_key(link.role)),
                     link.version
                 ),
-                item.is_some(),
+                available,
             )
         });
         let companions = match &source.source {
@@ -570,6 +586,7 @@ fn relation_key(role: ArtifactRelationRole) -> &'static str {
         ArtifactRelationRole::ExecutionLog => "artifacts.relation_execution_log",
         ArtifactRelationRole::Environment => "artifacts.relation_environment",
         ArtifactRelationRole::Review => "artifacts.relation_review",
+        ArtifactRelationRole::RunRecord => "artifacts.relation_run_record",
     }
 }
 

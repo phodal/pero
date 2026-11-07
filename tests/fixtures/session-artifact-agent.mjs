@@ -22,7 +22,7 @@ async function run(id, params) {
   const revision = state.revision + 1;
   const contents = `# 产物区验证报告\n\n这是 Native 界面验收使用的合成记录。\n\n版本：${revision}\n\n| 项目 | 数值 |\n| --- | --- |\n| 示例结果 | ${revision === 1 ? 7 : 9} |\n\n未执行科学实验，没有调用真实模型。\n`;
   const rich = /rich|丰富|多模态|图片|PDF|Notebook|表格|HTML/i.test(prompt);
-  const presentation = /present (side|expanded)/i.exec(prompt)?.[1].toLowerCase();
+  const presentation = /present (inline|below|side|expanded)/i.exec(prompt)?.[1].toLowerCase();
   const prior = /with previous input/i.test(prompt) ? state.delivered?.[0] : undefined;
   const files = rich ? richArtifactFiles(revision) : [{ name: 'report.md', title: '验证报告', data: Buffer.from(contents) }];
   const artifacts = { ...(state.artifacts || {}), ...(state.artifact_id ? { 'report.md': state.artifact_id } : {}) };

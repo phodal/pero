@@ -174,6 +174,48 @@ pub enum ArtifactRelationRole {
     ExecutionLog,
     Environment,
     Review,
+    RunRecord,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExternalRunOutcome {
+    Succeeded,
+    Failed,
+    Cancelled,
+}
+
+/// A workspace-side receipt written by the execution owner beside an output.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExternalRunManifest {
+    pub schema_version: u32,
+    pub system: String,
+    pub run_id: String,
+    pub outcome: ExternalRunOutcome,
+    pub output_sha256: String,
+    pub evidence: Vec<ExternalRunEvidence>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExternalRunEvidence {
+    pub path: String,
+    pub role: ArtifactRelationRole,
+    pub sha256: String,
+}
+
+impl ExternalRunManifest {
+    pub fn validate(&self) -> Result<(), ArtifactError> {
+        if self.schema_version != 1 || !identifier(&self.system) || !identifier(&self.run_id)
+            || !snapshot_digest(&self.output_sha256) || self.evidence.len() >= MAX_ARTIFACT_RELATIONS
+            || self.evidence.iter().any(|item| item.path.is_empty() || !snapshot_digest(&item.sha256)
+                || item.role == ArtifactRelationRole::RunRecord)
+        {
+            return Err(ArtifactError::Source);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -225,6 +267,8 @@ pub struct ArtifactPreviewTarget {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactPresentation {
+    Inline,
+    Below,
     Side,
     Expanded,
 }
@@ -240,6 +284,8 @@ pub struct ArtifactBrowserState {
     /// A Chat-initiated request to open the selected version in the reader.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview_request: Option<u64>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inline: bool,
     /// The shell already shows the filename and version, so the browser hides that bar.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub shell_document_bar: bool,
@@ -281,6 +327,9 @@ impl std::error::Error for ArtifactError {}
 fn identifier(value: &str) -> bool {
     !value.is_empty() && value.len() <= 128 && !value.chars().any(char::is_control)
 }
+fn snapshot_digest(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
 fn title_valid(value: &str) -> bool {
     !value.trim().is_empty() && value.chars().count() <= 200 && !value.chars().any(char::is_control)
 }
@@ -294,12 +343,7 @@ impl SessionArtifactVersion {
     }
 
     fn validate(&self) -> Result<(), ArtifactError> {
-        if self.sha256.len() != 64
-            || !self
-                .sha256
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-            || self.bytes > self.source.max_bytes()
+        if !snapshot_digest(&self.sha256) || self.bytes > self.source.max_bytes()
         {
             return Err(ArtifactError::Snapshot);
         }

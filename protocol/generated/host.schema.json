@@ -2270,6 +2270,9 @@
         },
         "shell_document_bar": {
           "type": "boolean"
+        },
+        "inline": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -2652,6 +2655,14 @@
       "anyOf": [
         {
           "type": "string",
+          "const": "inline"
+        },
+        {
+          "type": "string",
+          "const": "below"
+        },
+        {
+          "type": "string",
           "const": "side"
         },
         {
@@ -2824,6 +2835,10 @@
         {
           "type": "string",
           "const": "review"
+        },
+        {
+          "type": "string",
+          "const": "run_record"
         }
       ]
     },
