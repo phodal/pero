@@ -102,6 +102,10 @@ class FisherApp:
             return dict(itemId=protocol.id, spec=protocol.to_dict())
         root = self.bundle(command.identity)
         if command.action == 'run':
+            # The store may live under a symlinked parent such as macOS /tmp.
+            # Rebuild from the resolved store root so the leaf itself is still
+            # rejected when it is a symlink, while the owned directory remains usable.
+            root = self.store.root.resolve() / 'fisher-bundles' / command.identity
             protocol = FisherProtocol.parse(read_json(root / 'spec.json'))
             if command.spec_id != protocol.id:
                 raise Invalid('approval_required', 'Confirm this exact frozen specification')
