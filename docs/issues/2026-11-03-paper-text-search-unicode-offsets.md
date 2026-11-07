@@ -1,8 +1,8 @@
 ---
 kind: issue
-status: open
+status: resolved
 github_issue: 114
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/114
 ---
 
@@ -112,6 +112,8 @@ Local verification:
   canonical temporary-directory path on macOS.
 - Theme, design, locale and contract generation checks, fixture syntax and
   whitespace checks pass.
+
+GitHub closed #114 completed on 2026-11-03.
 
 Full repository `npm run check` is blocked by the absent generated
 `web/src/reader-wasm/pero_reader_web` module. The separate icon check needs the

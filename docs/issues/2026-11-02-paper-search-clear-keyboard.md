@@ -1,8 +1,8 @@
 ---
 kind: issue
-status: open
+status: resolved
 github_issue: 101
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/101
 ---
 
@@ -88,4 +88,4 @@ in `../evidence/paper-keyboard/`.
 Submitted as [Issue #101](https://github.com/phodal/pero/issues/101) on
 2026-11-02. The maintainer [invited a PR](https://github.com/phodal/pero/issues/101#issuecomment-6571697980).
 The fix is submitted as [PR #104](https://github.com/phodal/pero/pull/104).
-The GitHub issue remains open until the fix is accepted upstream.
+GitHub closed #101 completed on 2026-11-02.

@@ -3,7 +3,7 @@ kind: verification_report
 status: resolved
 date: 2026-11-01
 github_issue: 75
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/75
 ---
 

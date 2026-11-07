@@ -1,9 +1,9 @@
 ---
 kind: issue
-status: open
+status: resolved
 date: 2026-11-01
 github_issue: 49
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/49
 ---
 
@@ -42,6 +42,8 @@ are unchanged. The resolver terminates when its resolve directory is the App.
   is a temporary self-authored reader fixture; the Rust/Wasm reader was not rebuilt or certified.
 - The regression is wired into the Linux core CI job immediately after frozen
   Paper dependencies are installed. Remote CI has not run for this local patch.
+
+GitHub closed #49 completed on 2026-11-01.
 
 No dependency upgrades, backend changes, paid providers or external writes.
 Browser/Electron/native window behavior, macOS/Windows, signed packaging and

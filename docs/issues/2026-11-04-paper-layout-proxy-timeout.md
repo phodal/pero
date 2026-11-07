@@ -3,7 +3,7 @@ kind: issue
 status: open
 date: 2026-11-04
 github_issue: 124
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/124
 ---
 
@@ -32,3 +32,6 @@ The reported real Mac 503 has not been reproduced with instrumented timings;
 the proven deadline mismatch is consistent with it, not proof that every 503
 has this cause. Keep this record open until Native CI and a slow-conversion
 runtime check establish the repaired behavior.
+
+GitHub #124 closed completed on 2026-11-04. That ticket is the scanned-PDF
+numeric source check, so its closure does not accept this proxy deadline.

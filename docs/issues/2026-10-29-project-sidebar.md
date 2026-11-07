@@ -2,7 +2,7 @@
 kind: feature
 status: implemented
 github_issue: 14
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/14
 ---
 

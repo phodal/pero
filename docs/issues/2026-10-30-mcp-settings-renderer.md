@@ -2,7 +2,7 @@
 kind: incident
 status: resolved
 github_issue: 50
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/50
 ---
 
