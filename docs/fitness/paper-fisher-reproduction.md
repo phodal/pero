@@ -8,8 +8,12 @@ github_url: https://github.com/phodal/pero/issues/77
 # Real-source Fisher Table III reanalysis
 
 Date: 2026-11-07. Implementation base: `master@bc20ef9f4e0a31802f0eafc4ec6e3b0066a149be`.
-No model calls, package installation, user-computer access or remote publication.
-Verified implementation tree: local commit `89fd81282b4b97b5981806824b85d65cdc122743`.
+Numerical validation used no model calls, package installation or user-computer access.
+Source changes are published for review in [Draft PR #160](https://github.com/phodal/pero/pull/160);
+the original PDF and execution artifacts remain local.
+Verified implementation tree: `6024d3cf3390c4d7851b827ae04609f34328425d`,
+published as `8a9196fee322a05c0a523e9f8cc49080d3f461e9` and identical to the local
+validation commit `89fd81282b4b97b5981806824b85d65cdc122743`.
 
 ## Target and scientific boundary
 
