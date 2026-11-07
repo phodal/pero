@@ -23,7 +23,8 @@ def main():
         path = Path(checkout)
         if not path.is_absolute() or not path.is_dir() or path.resolve() != path:
             raise ValueError('Trusted PC-Gym checkout must be an existing canonical absolute directory')
-        store.pcgym = PcgymApp(store, checkout=path, allow_execution=True)
+        store.pcgym = PcgymApp(store, checkout=path, allow_execution=True,
+                               scientific_python=os.environ.get('PERO_PAPER_SCIENTIFIC_PYTHON'))
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler(store, os.environ["PERO_APP_TOKEN"], compute_secret=compute_secret))
     server.daemon_threads = True
     print(json.dumps({"port": server.server_port}), flush=True)

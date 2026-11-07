@@ -56,7 +56,7 @@ class PcgymAppTests(unittest.TestCase):
                         core_tree='fixture', files=[s.manifest() for s in self.sources])
         self.stack.enter_context(patch('paper_agent.pcgym_app.read_checkout',
             return_value=(self.checkout, self.sources, manifest)))
-        self.stack.enter_context(patch('paper_agent.pcgym_app.package_inventory',
+        self.stack.enter_context(patch('paper_agent.scientific_python.package_inventory',
             return_value={name: 'fixture-version' for name in REQUIRED_PACKAGES}))
         self.fetches = []
         def fetch(url):
@@ -109,6 +109,49 @@ class PcgymAppTests(unittest.TestCase):
         self.assertEqual(spec.anchor.document_id, self.document.id)
         self.assertNotEqual(spec.anchor.passage_id, self.annotation.id)
         self.assertEqual(len(self.fetches), 4)
+
+    def test_refreeze_changed_runtime_preserves_historical_bundle(self):
+        from dataclasses import replace
+        from paper_agent.scientific_python import current
+        runtime = current()
+        frozen, command = self.freeze()
+        original = {p.name: p.read_bytes() for p in self.app.bundle(frozen['id']).iterdir() if p.is_file()}
+        for changed in (replace(runtime, executable_sha256='a' * 64),
+                        replace(runtime, executable=runtime.executable + '-replacement')):
+            with self.subTest(runtime=changed.identity), patch('paper_agent.pcgym_app.observe_scientific_python', return_value=changed):
+                fresh = self.app.command(command)
+                self.assertNotEqual(fresh['id'], frozen['id'])
+                spec = pcgym.load_spec(self.app.bundle(fresh['id']))
+                changed.require(spec)
+                with self.assertRaises(Invalid):
+                    runtime.require(spec)
+                self.assertEqual(self.app.command(command), fresh)
+        self.assertEqual(original, {p.name: p.read_bytes() for p in self.app.bundle(frozen['id']).iterdir() if p.is_file()})
+
+    def test_cli_runtime_identity_is_required_without_local_observation(self):
+        from dataclasses import replace
+        from paper_agent.scientific_python import current
+        frozen, _ = self.freeze()
+        root = self.app.bundle(frozen['id'])
+        local = pcgym.read_json(root / 'local.json')
+        local.pop('scientific_runtime')
+        pcgym.write_json(root / 'local.json', local)
+        altered = replace(current(), executable_sha256='0' * 64)
+        with patch('paper_agent.scientific_python.current', return_value=altered), patch('paper_agent.pcgym.subprocess.Popen') as spawn:
+            pcgym.run(root, frozen['id'], confirm=True, accept_findings=True)
+            spawn.assert_not_called()
+        self.assertEqual(self.app.status(frozen['id'])['attempts'][0]['error_code'], 'environment_changed')
+
+    def test_interpreter_observation_refuses_launch_and_decode_failures(self):
+        from paper_agent.scientific_python import observe
+        executable = Path(self.home) / 'selected-python'
+        executable.write_text('fixture')
+        executable.chmod(0o700)
+        for error in (OSError('executable removed'), UnicodeDecodeError('utf8', b'\xff', 0, 1, 'invalid')):
+            with self.subTest(error=type(error).__name__), patch('paper_agent.scientific_python.subprocess.run', side_effect=error):
+                with self.assertRaises(Invalid) as refused:
+                    observe(str(executable))
+                self.assertEqual(refused.exception.code, 'scientific_python')
 
     def test_wrong_pdf_annotation_and_changed_source_are_refused(self):
         wrong = self.store.save_annotation(PdfAnnotation.create(dict(page=1, kind='highlight',
@@ -215,15 +258,18 @@ class PcgymAppTests(unittest.TestCase):
         command = dict(action='start', specId=frozen['id'], requestId='stable-launch',
                        confirmation='execute-frozen-local-simulation')
         process = ProcessFixture()
-        with patch('paper_agent.pcgym_app.subprocess.Popen', return_value=process) as spawn:
+        with patch.dict('os.environ', {'PERO_APP_TOKEN':'fixture-secret','PERO_COMPUTE_TOKEN':'fixture-secret'}), patch('paper_agent.pcgym_app.subprocess.Popen', return_value=process) as spawn:
             self.assertEqual(app.command(command)['status'], 'starting')
+            self.assertNotIn('PERO_APP_TOKEN', spawn.call_args.kwargs['env'])
+            self.assertNotIn('PERO_COMPUTE_TOKEN', spawn.call_args.kwargs['env'])
             self.assertEqual(app.command(command)['requests'][0]['status'], 'starting')
             cancelled = app.command(dict(action='cancel', specId=frozen['id']))
             self.assertTrue(cancelled['cancellation_requested'])
             self.assertTrue(process.terminated)
             self.assertEqual(cancelled['requests'][0]['status'], 'unknown')
             reopened = PcgymApp(ResearchStore(self.home), checkout=self.checkout, allow_execution=True)
-            self.assertEqual(reopened.command(command)['requests'][0]['status'], 'unknown')
+            with patch('paper_agent.pcgym_app.observe_scientific_python', side_effect=Invalid('missing', 'Environment removed')):
+                self.assertEqual(reopened.command(command)['requests'][0]['status'], 'unknown')
             self.assertFalse(reopened.command(dict(action='cancel', specId=frozen['id']))['cancellation_requested'])
             with self.assertRaises(RequestInvalid):
                 reopened.command({**command, 'requestId': 'do-not-replay'})

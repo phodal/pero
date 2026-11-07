@@ -108,6 +108,9 @@ impl AppProcess {
             environment.configure_command(&mut command)?;
         }
         if let Some(deployment) = reproduction {
+            if let Some(scientific_python) = std::env::var_os("PERO_PAPER_SCIENTIFIC_PYTHON") {
+                command.env("PERO_PAPER_SCIENTIFIC_PYTHON", scientific_python);
+            }
             command.env("PERO_PAPER_PCGYM_CHECKOUT", deployment.checkout)
                 .env("PERO_PAPER_COMPUTE_TOKEN", reproduction_token.as_ref().expect("configured capability"));
         }

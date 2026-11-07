@@ -245,6 +245,7 @@ app.whenReady().then(async () => {
     PERO_APP_NODE: process.env.PERO_APP_NODE || process.execPath,
     ...(process.env.PERO_APP_PYTHON ? { PERO_APP_PYTHON: process.env.PERO_APP_PYTHON } : {}),
     ...(process.env.PERO_PAPER_PCGYM_CHECKOUT ? { PERO_PAPER_PCGYM_CHECKOUT: process.env.PERO_PAPER_PCGYM_CHECKOUT } : {}),
+    ...(process.env.PERO_PAPER_SCIENTIFIC_PYTHON ? { PERO_PAPER_SCIENTIFIC_PYTHON: process.env.PERO_PAPER_SCIENTIFIC_PYTHON } : {}),
     PERO_HISTORY_PATH: process.env.PERO_HISTORY_PATH || resolve(app.getPath('userData'), 'sessions.jsonl'),
   } });
   createInterface({ input: host.stdout }).on('line', (line) => {
