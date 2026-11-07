@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
+import { waitForResearchFinalization } from './research-quality/finalization.mjs';
 
 assert.equal(process.env.PERO_RESEARCH_LIVE, '1', 'Explicit PERO_RESEARCH_LIVE=1 required');
 assert(process.env.DEEPSEEK_API_KEY, 'Configure the existing Pero provider first');
@@ -15,12 +16,29 @@ const root = resolve(import.meta.dirname, '../..');
 const directory = join(root, 'test-results/paper-program-live', new Date().toISOString().replace(/[:.]/g, '-'));
 await mkdir(directory, { recursive: true });
 const json = (path, value) => writeFile(path, JSON.stringify(value, null, 2));
-const binary = process.env.PERO_RESEARCH_HOST || join(root, 'target/research-validation/debug/pero-host.exe');
-const agent = join(root, 'target/debug/pero-agent-acp.exe');
-const python = execFileSync('python', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();
+const suffix = process.platform === 'win32' ? '.exe' : '';
+const binary = process.env.PERO_RESEARCH_HOST || join(root, `target/research-validation/debug/pero-host${suffix}`);
+const agent = process.env.PERO_RESEARCH_AGENT || join(root, `target/debug/pero-agent-acp${suffix}`);
+const python = process.env.PERO_RESEARCH_PYTHON || execFileSync('python', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();
+const benchmark = JSON.parse(await readFile(join(root, 'tests/runtime/research-quality/cases.json'), 'utf8'));
+const caseId = process.env.PERO_RESEARCH_CASE || 'attention-parallelism';
+const task = benchmark.cases.find(task => task.id === caseId);
+assert(task, 'Unknown PERO_RESEARCH_CASE');
+const provider = new URL(process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com');
+assert(provider.protocol === 'https:' && !provider.username && !provider.password && !provider.search && !provider.hash, 'Use an HTTPS provider URL without credentials/query/fragment');
+const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+await json(join(directory, 'benchmark.json'), benchmark);
 const events = [], changed = new EventEmitter();
-let host, hostExit, desktop, access, seed, run, sequence = 0, stderr = '';
+let host, hostExit, desktop, access, seed, run, startedAt, sequence = 0, stderr = '';
+const redact = value => typeof value === 'string' ? value.replaceAll(process.env.DEEPSEEK_API_KEY, '[REDACTED]')
+  : Array.isArray(value) ? value.map(redact)
+  : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redact(item)])) : value;
 const sha = data => createHash('sha256').update(data).digest('hex');
+const evaluationCode = {};
+for (const name of ['paper-program-live.mjs', 'paper-program-live-backend.py', 'paper-program-quality.py', 'research_quality.py', 'research-quality/finalization.mjs']) {
+  evaluationCode[name] = sha(await readFile(join(root, 'tests/runtime', name)));
+}
 async function wait(predicate, seconds = 45) {
   const deadline = Date.now() + seconds * 1000;
   for (;;) {
@@ -39,11 +57,19 @@ async function appRequest(action, fields = {}) {
   const event = await wait(event => event.kind === 'apps_result' && event.request_id === id);
   assert(event.data.ok, event.data.error); return event.data.value;
 }
-async function readProgram() {
-  const response = await fetch(access.backend.url + '/api/programs', { method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': access.backend.token },
-    body: JSON.stringify({ operation: 'read', programId: seed.context.programId, roundLimit: 4, limit: 50 }) });
-  assert(response.ok); return response.json();
+async function readProgram(signal) {
+  let current, rounds = [], roundOffset = 0;
+  do {
+    const response = await fetch(access.backend.url + '/api/programs', { method: 'POST', signal,
+      headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': access.backend.token },
+      body: JSON.stringify({ operation: 'read', programId: seed.context.programId, checkpoint: current?.checkpoint, roundOffset, roundLimit: 4, limit: 50 }) });
+    assert(response.ok); const page = await response.json();
+    if (current) assert.equal(page.checkpoint, current.checkpoint, 'Checkpoint changed during export');
+    current ??= page; rounds.push(...page.rounds); roundOffset = page.roundPage.nextOffset;
+  } while (roundOffset !== null);
+  assert.equal(rounds.length, current.roundPage.total);
+  assert.equal(current.candidatePage.nextOffset, null, 'Candidate export is incomplete');
+  return { ...current, rounds };
 }
 try {
   await build({ stdin: { contents: "export { DesktopAppUse } from './desktop/src/main/app-use-mcp.ts'; export { AppWriteRoutes } from './desktop/src/main/app-write-routes.ts';", resolveDir: root },
@@ -54,7 +80,8 @@ try {
   await copyFile(join(root, 'tests/runtime/paper-program-live-backend.py'), join(source, 'backend.py'));
   await copyFile(join(root, 'tests/runtime/paper-program-python-launcher.mjs'), join(source, 'server.mjs'));
   await cp(join(root, 'apps/paper-agent/agent-plugins'), join(source, 'agent-plugins'), { recursive: true });
-  await json(join(source, 'fixture.json'), { python, backend: join(root, 'apps/paper-agent/backend') });
+  await json(join(source, 'fixture.json'), { python, backend: join(root, 'apps/paper-agent/backend'),
+    task: { question: task.question, scope: task.scope, seed: benchmark.sources.find(source => source.id === task.seed) } });
   const actual = JSON.parse(await readFile(join(root, 'apps/paper-agent/app.json'), 'utf8'));
   const names = ['research-program', 'research-search', 'research-acquire', 'research-deliver'];
   await json(join(source, 'app.json'), { schemaVersion: 1, name: 'paper-agent', version: '1', displayName: 'Live Paper qualification',
@@ -63,7 +90,7 @@ try {
       writes: actual.contributes.writes.filter(route => names.includes(route.name)),
       agentPlugin: { schema: 'pero.app-agent-plugin.v1', instructions: 'Use the approved plan.', tools: names, maxCalls: 1 } } });
   await json(join(directory, 'agents.json'), [{ id: 'pero', name: 'Pero live research', command: agent,
-    args: ['--endpoint', process.env.DEEPSEEK_BASE_URL, '--model', process.env.DEEPSEEK_MODEL,
+    args: ['--endpoint', provider.href, '--model', model,
       '--session-dir', join(directory, 'sessions'), '--api-key-env', 'DEEPSEEK_API_KEY', '--approval', 'ask',
       '--max-retries', '0', '--max-requests', '60', '--max-turn-steps', '100', '--max-tokens', '4096'], env: {} }]);
   desktop = new DesktopAppUse({ selectedThread: async () => 'unrelated-chat', presence() {},
@@ -84,26 +111,42 @@ try {
   await appRequest('install', { path: source }); access = await appRequest('resolve', { name: 'paper-agent', panel: 'main' });
   seed = JSON.parse(await readFile(join(directory, 'app-data/paper-agent/fixture-seed.json'), 'utf8'));
   const catalog = await appRequest('agentcatalog', { name: 'paper-agent', path: '/api/workspaces' });
+  startedAt = Date.now();
   run = await appRequest('agentrun', { name: 'paper-agent', request: { operation: 'start', scope: { workspaceId: catalog.items[0].workspaceId },
     requestId: 'live-approved-plan', harnessId: 'pero', text: 'Execute the approved three-round research program. Acquire the seed original, discover and read at least one new relevant paper, actively seek counterevidence, and deliver the saved evidence. Do not declare success on metadata alone.', context: seed.context } });
-  console.log(JSON.stringify({ started: true, directory, model: process.env.DEEPSEEK_MODEL, session: run.sessionId }));
+  console.log(JSON.stringify({ started: true, directory, model, session: run.sessionId }));
   const finished = await wait(event => event.thread_id === run.sessionId && ['turn_finished', 'session_error'].includes(event.kind), 760);
   await appRequest('agentrun', { name: 'paper-agent', request: { operation: 'status', scope: run.scope, runId: run.id } });
-  const current = await readProgram();
+  const { current, artifacts: finalArtifacts } = await waitForResearchFinalization({
+    readProgram, programId: seed.context.programId, sessionId: run.sessionId, events: () => events,
+    signal: AbortSignal.timeout(45_000),
+    readExport: async (checkpoint, signal) => {
+      const response = await fetch(access.backend.url + '/api/programs', { method: 'POST', signal,
+        headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': access.backend.token },
+        body: JSON.stringify({ operation: 'export', programId: seed.context.programId, checkpoint }) });
+      assert(response.ok); return response.json();
+    },
+  });
   const claims = current.rounds.flatMap(round => round.claims);
-  const report = { model: process.env.DEEPSEEK_MODEL, termination: finished.kind, rounds: current.usage.rounds,
+  const report = { mode: 'real-provider', caseId, model, provider: provider.origin, revision, sessionId: run.sessionId,
+    startedAt: new Date(startedAt).toISOString(), finishedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAt, evaluationCode, generationConfig: { maxRequests: 60, maxTurnSteps: 100, maxTokens: 4096, maxRetries: 0 }, termination: finished.kind, rounds: current.usage.rounds,
     searches: current.usage.searches, downloads: current.usage.downloads, claims: claims.length,
     claimPapers: new Set(claims.map(claim => claim.paperId)).size,
     counterevidenceOrLimitations: claims.filter(claim => claim.stance !== 'support').length,
     stopReason: current.stopReason, runtime: current.runtime,
-    artifacts: events.filter(event => event.kind === 'artifact_registered').length,
+    artifacts: finalArtifacts.length, finalArtifacts,
     hostSHA256: sha(await readFile(binary)), harnessSHA256: sha(await readFile(agent)) };
-  report.passed = report.rounds === 3 && report.claimPapers >= 2 && report.searches > 0 && report.artifacts >= 4;
+  report.executionChecks = { passed: finished.kind === 'turn_finished' && current.runtime?.status === 'completed' &&
+    report.rounds === 3 && report.claimPapers >= 2 && report.searches > 0 && report.artifacts >= 4 };
+  report.scientificAcceptance = 'needs_independent_human_review';
   await json(join(directory, 'result.json'), report);
-  await json(join(directory, 'evidence.json'), { current, events });
+  await json(join(directory, 'evidence.json'), redact({ current, events }));
+  execFileSync(python, [join(root, 'tests/runtime/paper-program-quality.py'), 'collect', directory], { cwd: root, stdio: 'inherit' });
   console.log(JSON.stringify(report, null, 2));
+  if (!report.executionChecks.passed) process.exitCode = 1;
 } catch (error) {
-  await json(join(directory, 'failure.json'), { error: String(error), stderr, events });
+  await json(join(directory, 'failure.json'), redact({ error: String(error), stderr, events }));
   throw error;
 } finally {
   if (host && host.exitCode === null) { host.stdin.end(); const timer = setTimeout(() => host.kill('SIGKILL'), 5000); await hostExit; clearTimeout(timer); }

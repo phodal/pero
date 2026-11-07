@@ -361,3 +361,18 @@ and late Cancel preserving terminal state. Host tests: 46 pass, one existing
 ignored test. Program Python tests: 24 pass; export regression: two pass.
 These are implementation checks with scripted inference, not new scientific or
 live-model acceptance. Existing scientific acceptance limitations remain open.
+
+
+## Reproducible quality-review tooling — 2026-11-07
+
+The [research quality gate](paper-research-quality.md) adds fixed cases, complete
+round exports, retained originals, explicit support/omission/coverage denominators
+and an independent human review form. Operational execution no longer labels
+scientific acceptance as passed. This is offline-tested evaluation tooling only;
+no new live provider run, model-quality result or human scientific acceptance is
+claimed. The scientific gate and #143 remain open.
+
+The live runner also waits for asynchronous Host-to-Paper terminal accounting
+and final checkpoint-bound artifact delivery before freezing a quality packet.
+A completed `agentrun status` response alone is not a persistence barrier. Three
+signal-controlled offline tests cover this handoff and its timeout/failure paths.
