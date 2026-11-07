@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1370" viewBox="0 0 1600 1370" role="img" aria-labelledby="title desc" xml:lang="zh-CN">
+<title id="title">Pero 论文研究：导入、阅读、提问并回查原文</title>
+<desc id="desc">这是一张简化的界面示意图，不是产品截图。以主干 aea25549 的 Paper 界面源码为基础，并与 v0.1.0-dev.20261104 源码标签交叉核对，只展示两者共有的首次使用控件。第一步进入论文、添加论文、PDF、导入 PDF。第二步阅读已保存的原始 PDF，选择文字后高亮或讨论选段，也可使用阅读器顶栏的询问 AI。第三步把固定的论文或选段引用加入共享 Host 对话草稿，由用户检查并通过已配置的 Agent 发送。Agent 可读取和检索已保存来源，记录证据并提交带引用的报告。第四步收起对话，打开阅读器时钟图标的研究记录，检查保存的报告、未核验的结论和局限，点击引用回到原始 PDF 页或选区，也可从此处追问。匹配不唯一时，需要在引用证据中选择位置。图中的论文线条、页码和问题只说明交互，不代表真实研究发现。阅读和标注不需要模型。本图不宣称自动研究、科学质量、原生安装包或生产验收通过。检查时最新已发布的预览包 v0.1.0-dev.20261104 与主干是不同版本。</desc>
+<defs><marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto" markerUnits="userSpaceOnUse"><path d="M2 2 L10 6 L2 10" fill="none" stroke="#667075" stroke-width="2" /></marker></defs>
+<style>text{font-family:"Noto Sans CJK SC","Noto Sans CJK",Arial,sans-serif}path,line,rect{stroke-linecap:round;stroke-linejoin:round}</style>
+<rect x="0" y="0" width="1600" height="1370" rx="0" fill="white" stroke="none" stroke-width="0" />
+<text x="80" y="64" font-size="23" fill="#667075" font-weight="600" text-anchor="start" letter-spacing="1">PERO  /  论文研究</text>
+<text x="1520" y="64" font-size="22" fill="#667075" font-weight="400" text-anchor="end">界面示意 · 非产品截图</text>
+<text x="80" y="133" font-size="44" fill="#20272B" font-weight="700" text-anchor="start">从一篇论文，到可回查的答案。</text>
+<text x="80" y="177" font-size="25" fill="#667075" font-weight="400" text-anchor="start">阅读原文，带着上下文提问，回到来源核对证据。</text>
+<line x1="80" y1="205" x2="1520" y2="205" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="80" y="256" font-size="25" fill="#667075" font-weight="600" text-anchor="start">01</text>
+<line x1="125" y1="247" x2="152" y2="247" stroke="#A87531" stroke-width="3" />
+<text x="170" y="256" font-size="31" fill="#20272B" font-weight="650" text-anchor="start">导入论文</text>
+<text x="80" y="298" font-size="23" fill="#667075" font-weight="400" text-anchor="start">论文 → 添加论文 → PDF</text>
+<rect x="80" y="320" width="680" height="290" rx="8" fill="white" stroke="#20272B" stroke-width="2" />
+<rect x="81" y="321" width="678" height="43" rx="7" fill="#F5F7F7" stroke="none" stroke-width="0" />
+<line x1="80" y1="364" x2="760" y2="364" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="100" y="349" font-size="21" fill="#20272B" font-weight="600" text-anchor="start">论文</text>
+<rect x="81" y="365" width="156" height="244" rx="0" fill="#F5F7F7" stroke="none" stroke-width="0" />
+<line x1="237" y1="365" x2="237" y2="610" stroke="#D7DCDF" stroke-width="1.5" />
+<rect x="94" y="386" width="130" height="39" rx="4" fill="white" stroke="none" stroke-width="0" />
+<text x="110" y="413" font-size="21" fill="#20272B" font-weight="600" text-anchor="start">文库</text>
+<text x="110" y="454" font-size="20" fill="#667075" font-weight="400" text-anchor="start">发现</text>
+<text x="110" y="493" font-size="20" fill="#667075" font-weight="400" text-anchor="start">在读</text>
+<text x="110" y="532" font-size="20" fill="#667075" font-weight="400" text-anchor="start">待读</text>
+<text x="264" y="395" font-size="24" fill="#20272B" font-weight="600" text-anchor="start">添加论文</text>
+<text x="264" y="438" font-size="19" fill="#667075" font-weight="400" text-anchor="start">检索</text>
+<text x="352" y="438" font-size="20" fill="#20272B" font-weight="600" text-anchor="start">PDF</text>
+<text x="420" y="438" font-size="19" fill="#667075" font-weight="400" text-anchor="start">导入文本</text>
+<text x="561" y="438" font-size="19" fill="#667075" font-weight="400" text-anchor="start">链接导入</text>
+<line x1="264" y1="450" x2="730" y2="450" stroke="#D7DCDF" stroke-width="1.5" />
+<line x1="348" y1="449" x2="394" y2="449" stroke="#20272B" stroke-width="3" />
+<path d="M270 478 H287 L312 503 V533 H270 Z" fill="white" stroke="#20272B" stroke-width="2" />
+<path d="M287 478 V503 H312" fill="none" stroke="#20272B" stroke-width="2" />
+<rect x="336" y="479" width="160" height="36" rx="5" fill="#20272B" stroke="#20272B" stroke-width="1.5" />
+<text x="416.0" y="504" font-size="20" fill="white" font-weight="500" text-anchor="middle">导入 PDF</text>
+<text x="336" y="548" font-size="21" fill="#667075" font-weight="400" text-anchor="start">本地 PDF 文件</text>
+<text x="80" y="650" font-size="23" fill="#667075" font-weight="400" text-anchor="start">阅读和标注无需模型密钥。</text>
+<text x="840" y="256" font-size="25" fill="#667075" font-weight="600" text-anchor="start">02</text>
+<line x1="885" y1="247" x2="912" y2="247" stroke="#A87531" stroke-width="3" />
+<text x="930" y="256" font-size="31" fill="#20272B" font-weight="650" text-anchor="start">阅读原文</text>
+<text x="840" y="298" font-size="23" fill="#667075" font-weight="400" text-anchor="start">阅读论文，选择需要核对的原文片段</text>
+<rect x="840" y="320" width="680" height="290" rx="8" fill="white" stroke="#20272B" stroke-width="2" />
+<rect x="841" y="321" width="678" height="43" rx="7" fill="#F5F7F7" stroke="none" stroke-width="0" />
+<line x1="840" y1="364" x2="1520" y2="364" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="860" y="349" font-size="21" fill="#20272B" font-weight="600" text-anchor="start">‹  文库</text>
+<text x="1039" y="349" font-size="20" fill="#667075" font-weight="400" text-anchor="start">论文.pdf</text>
+<rect x="1376" y="325" width="125" height="36" rx="5" fill="white" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="1438.5" y="350" font-size="20" fill="#20272B" font-weight="500" text-anchor="middle">询问 AI</text>
+<text x="862" y="395" font-size="20" fill="#667075" font-weight="400" text-anchor="start">正文</text>
+<text x="935" y="395" font-size="20" fill="#20272B" font-weight="600" text-anchor="start">PDF</text>
+<line x1="929" y1="406" x2="979" y2="406" stroke="#20272B" stroke-width="3" />
+<text x="1495" y="395" font-size="19" fill="#667075" font-weight="400" text-anchor="end">原始 PDF</text>
+<rect x="887" y="425" width="586" height="184" rx="0" fill="white" stroke="#D7DCDF" stroke-width="1" />
+<line x1="917" y1="448" x2="1182" y2="448" stroke="#667075" stroke-width="3" />
+<line x1="917" y1="466" x2="1325" y2="466" stroke="#667075" stroke-width="3" />
+<line x1="917" y1="492" x2="1139" y2="492" stroke="#D7DCDF" stroke-width="3" />
+<line x1="917" y1="509" x2="1139" y2="509" stroke="#D7DCDF" stroke-width="3" />
+<line x1="917" y1="526" x2="1119" y2="526" stroke="#D7DCDF" stroke-width="3" />
+<line x1="1197" y1="492" x2="1440" y2="492" stroke="#D7DCDF" stroke-width="3" />
+<line x1="1197" y1="509" x2="1412" y2="509" stroke="#D7DCDF" stroke-width="3" />
+<line x1="1197" y1="526" x2="1440" y2="526" stroke="#D7DCDF" stroke-width="3" />
+<rect x="912" y="514" width="247" height="23" rx="1" fill="#FBF3E7" stroke="none" stroke-width="0" />
+<line x1="919" y1="526" x2="1137" y2="526" stroke="#A87531" stroke-width="3" />
+<rect x="994" y="554" width="454" height="43" rx="5" fill="white" stroke="#20272B" stroke-width="1.5" />
+<text x="1012" y="583" font-size="21" fill="#20272B" font-weight="500" text-anchor="start">高亮</text>
+<line x1="1126" y1="565" x2="1126" y2="587" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="1144" y="583" font-size="21" fill="#20272B" font-weight="500" text-anchor="start">讨论选段</text>
+<text x="840" y="650" font-size="23" fill="#667075" font-weight="400" text-anchor="start">可“询问 AI”，也可针对选段提问。</text>
+<line x1="777" y1="465" x2="823" y2="465" stroke="#667075" stroke-width="2.2" marker-end="url(#arrow)" />
+<path d="M1180 682 V704 H420 V726" fill="none" stroke="#667075" stroke-width="1.7" marker-end="url(#arrow)" />
+<text x="80" y="773" font-size="25" fill="#667075" font-weight="600" text-anchor="start">03</text>
+<line x1="125" y1="764" x2="152" y2="764" stroke="#A87531" stroke-width="3" />
+<text x="170" y="773" font-size="31" fill="#20272B" font-weight="650" text-anchor="start">带着证据提问</text>
+<text x="80" y="815" font-size="23" fill="#667075" font-weight="400" text-anchor="start">检查共享对话中的草稿，再由你发送</text>
+<rect x="80" y="837" width="680" height="300" rx="8" fill="white" stroke="#20272B" stroke-width="2" />
+<rect x="81" y="838" width="678" height="43" rx="7" fill="#F5F7F7" stroke="none" stroke-width="0" />
+<line x1="80" y1="881" x2="760" y2="881" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="100" y="866" font-size="21" fill="#20272B" font-weight="600" text-anchor="start">原始 PDF</text>
+<text x="446" y="866" font-size="21" fill="#20272B" font-weight="600" text-anchor="start">共享对话</text>
+<line x1="420" y1="838" x2="420" y2="1137" stroke="#D7DCDF" stroke-width="1.5" />
+<rect x="104" y="902" width="290" height="213" rx="0" fill="white" stroke="#D7DCDF" stroke-width="1" />
+<line x1="127" y1="929" x2="323" y2="929" stroke="#667075" stroke-width="3" />
+<line x1="127" y1="945" x2="357" y2="945" stroke="#667075" stroke-width="3" />
+<line x1="127" y1="977" x2="353" y2="977" stroke="#D7DCDF" stroke-width="3" />
+<line x1="127" y1="994" x2="353" y2="994" stroke="#D7DCDF" stroke-width="3" />
+<line x1="127" y1="1011" x2="326" y2="1011" stroke="#D7DCDF" stroke-width="3" />
+<line x1="127" y1="1028" x2="353" y2="1028" stroke="#D7DCDF" stroke-width="3" />
+<line x1="127" y1="1045" x2="338" y2="1045" stroke="#D7DCDF" stroke-width="3" />
+<line x1="127" y1="1062" x2="352" y2="1062" stroke="#D7DCDF" stroke-width="3" />
+<rect x="121" y="1002" width="242" height="24" rx="1" fill="#FBF3E7" stroke="none" stroke-width="0" />
+<line x1="127" y1="1014" x2="350" y2="1014" stroke="#A87531" stroke-width="3" />
+<text x="446" y="908" font-size="21" fill="#667075" font-weight="400" text-anchor="start">已附带论文上下文</text>
+<rect x="446" y="931" width="286" height="44" rx="5" fill="#F5F7F7" stroke="#D7DCDF" stroke-width="1" />
+<path d="M461 944 H473 L479 950 V962 H461 Z" fill="none" stroke="#667075" stroke-width="1.8" />
+<text x="491" y="959" font-size="20" fill="#20272B" font-weight="500" text-anchor="start">所选原文片段</text>
+<rect x="446" y="993" width="286" height="120" rx="6" fill="white" stroke="#20272B" stroke-width="1.5" />
+<text x="463" y="1022" font-size="20" fill="#20272B" font-weight="400" text-anchor="start">这项结论有哪些依据？</text>
+<text x="463" y="1051" font-size="20" fill="#20272B" font-weight="400" text-anchor="start">请引用原文。</text>
+<rect x="679" y="1070" width="38" height="32" rx="5" fill="#20272B" stroke="#20272B" stroke-width="1" />
+<path d="M698 1094 V1080 M692 1086 L698 1080 L704 1086" fill="none" stroke="white" stroke-width="2" />
+<text x="80" y="1177" font-size="23" fill="#667075" font-weight="400" text-anchor="start">提问前需配置 Agent 的模型访问。</text>
+<text x="840" y="773" font-size="25" fill="#667075" font-weight="600" text-anchor="start">04</text>
+<line x1="885" y1="764" x2="912" y2="764" stroke="#A87531" stroke-width="3" />
+<text x="930" y="773" font-size="31" fill="#20272B" font-weight="650" text-anchor="start">核对证据，继续追问</text>
+<text x="840" y="815" font-size="23" fill="#667075" font-weight="400" text-anchor="start">收起对话 → 时钟图标 → 研究记录</text>
+<rect x="840" y="837" width="680" height="300" rx="8" fill="white" stroke="#20272B" stroke-width="2" />
+<rect x="841" y="838" width="678" height="43" rx="7" fill="#F5F7F7" stroke="none" stroke-width="0" />
+<line x1="840" y1="881" x2="1520" y2="881" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="860" y="866" font-size="21" fill="#20272B" font-weight="600" text-anchor="start">原始 PDF</text>
+<circle cx="1120" cy="858" r="10" fill="none" stroke="#667075" stroke-width="2" />
+<path d="M1120 852 V858 L1125 861" fill="none" stroke="#667075" stroke-width="1.8" />
+<text x="1140" y="866" font-size="21" fill="#20272B" font-weight="600" text-anchor="start">研究记录</text>
+<line x1="1094" y1="838" x2="1094" y2="1137" stroke="#D7DCDF" stroke-width="1.5" />
+<rect x="859" y="902" width="215" height="214" rx="0" fill="white" stroke="#D7DCDF" stroke-width="1" />
+<line x1="878" y1="929" x2="1006" y2="929" stroke="#667075" stroke-width="3" />
+<line x1="878" y1="945" x2="1054" y2="945" stroke="#667075" stroke-width="3" />
+<line x1="878" y1="976" x2="1053" y2="976" stroke="#D7DCDF" stroke-width="3" />
+<line x1="878" y1="993" x2="1053" y2="993" stroke="#D7DCDF" stroke-width="3" />
+<line x1="878" y1="1010" x2="1031" y2="1010" stroke="#D7DCDF" stroke-width="3" />
+<line x1="878" y1="1027" x2="1053" y2="1027" stroke="#D7DCDF" stroke-width="3" />
+<line x1="878" y1="1044" x2="1041" y2="1044" stroke="#D7DCDF" stroke-width="3" />
+<line x1="878" y1="1061" x2="1052" y2="1061" stroke="#D7DCDF" stroke-width="3" />
+<rect x="872" y="1002" width="185" height="24" rx="1" fill="#FBF3E7" stroke="none" stroke-width="0" />
+<line x1="878" y1="1014" x2="1045" y2="1014" stroke="#A87531" stroke-width="3" />
+<text x="1117" y="915" font-size="22" fill="#20272B" font-weight="600" text-anchor="start">报告已保存</text>
+<text x="1117" y="945" font-size="20" fill="#667075" font-weight="500" text-anchor="start">结论尚未核验</text>
+<line x1="1117" y1="969" x2="1487" y2="969" stroke="#D7DCDF" stroke-width="3" />
+<line x1="1117" y1="982" x2="1429" y2="982" stroke="#D7DCDF" stroke-width="3" />
+<rect x="1117" y="1001" width="185" height="34" rx="4" fill="#FBF3E7" stroke="none" stroke-width="0" />
+<text x="1129" y="1026" font-size="20" fill="#20272B" font-weight="500" text-anchor="start">1  页码 2 ↗</text>
+<path d="M1108 1015 H1065" fill="none" stroke="#667075" stroke-width="1.8" marker-end="url(#arrow)" />
+<text x="1117" y="1064" font-size="21" fill="#20272B" font-weight="600" text-anchor="start">局限与缺口</text>
+<line x1="1250" y1="1057" x2="1489" y2="1057" stroke="#D7DCDF" stroke-width="3" />
+<rect x="1117" y="1083" width="226" height="36" rx="5" fill="white" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="1230.0" y="1108" font-size="20" fill="#20272B" font-weight="500" text-anchor="middle">从此处追问</text>
+<text x="840" y="1177" font-size="23" fill="#667075" font-weight="400" text-anchor="start">点击引用，回到原始 PDF 核对。</text>
+<line x1="777" y1="987" x2="823" y2="987" stroke="#667075" stroke-width="2.2" marker-end="url(#arrow)" />
+<line x1="80" y1="1210" x2="1520" y2="1210" stroke="#D7DCDF" stroke-width="1.5" />
+<text x="80" y="1247" font-size="22" fill="#20272B" font-weight="500" text-anchor="start">Agent 范围：读取 / 检索已保存来源 → 记录证据 → 保存报告。</text>
+<text x="80" y="1281" font-size="21" fill="#667075" font-weight="400" text-anchor="start">原文匹配不唯一时，通过“引用证据”选择位置。研究结论仍需人工复核。</text>
+<text x="80" y="1315" font-size="21" fill="#667075" font-weight="400" text-anchor="start">首次准备可能下载 Python / PDF 依赖。仅向 Agent 发送你有权提供的论文。</text>
+<text x="1520" y="1350" font-size="19" fill="#667075" font-weight="400" text-anchor="end">依据源码绘制 · 不代表安装包验收</text>
+</svg>

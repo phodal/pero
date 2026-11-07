@@ -41,36 +41,55 @@ This walkthrough uses the published [2026-11-04 prerelease](https://github.com/p
 
 Choose the asset for your system and read that release's notes. Archives have accompanying build metadata and SHA256SUMS. macOS packages are ad-hoc signed and not notarized; Windows/Linux packages are unsigned development builds. Electron and Native use separate profiles. This release does not include a standalone Virtual Cell package. See [release verification](docs/fitness/release-products.md) for dated package checks and their limits.
 
-### First experience: inspect and save a dataset (Electron)
+### First experience: read a paper and check an answer (Electron)
 
-Use the **Electron workbench** for this no-model walkthrough, with **Data** in its sidebar. Native has a [fresh-profile environment limitation](DEVELOPMENT.md#native-fresh-profile-limitation). No API key or control-plane service is needed for local inspection. A fresh November 4 Electron workbench profile uses a managed Python environment; installing system Python alone does not make that environment ready.
+![Paper research: import a PDF, read and select evidence, send a question in shared Chat, then review a saved report and follow citations back to the original](docs/assets/openpero-paper-research.svg)
+
+*Simplified UI schematics, not screenshots. Ask AI and Discuss selection prepare a shared Chat draft; you decide when to send. Saved citations help you check the source, not certify a conclusion.*
+
+Start with **Papers** in the **Electron workbench** sidebar. Bring a public, text-based PDF you want to understand. Importing, reading and highlighting a local PDF do not need a model account or API key. Asking AI is a separate, explicit step.
+
+1. Open **Papers**. If **Prepare environment** appears, select it and wait for **Environment ready**. A fresh profile may download uv, CPython 3.12 and the pinned PDF packages into the managed Python environment. Native has a separate [fresh-profile limitation](DEVELOPMENT.md#native-fresh-profile-limitation).
+2. Select **Add papers → PDF → Import PDF** and choose the file, or drop it into the App. The saved original opens for reading. Use a PDF with selectable text for this first pass; do not assume scanned pages have searchable text.
+3. Read the paper, select a passage and choose **Highlight** to keep a source annotation. You can stop here without configuring a model.
+4. To ask about it, choose **Ask AI**, or select a passage and choose **Discuss selection**. This opens the shared conversation with paper context; it does not send a question for you. Before sending, configure an Agent: the built-in Agent needs an API provider and key in **Settings → Built-in Agent**; external Agents use their own login. Full-PDF research needs an Agent with HTTP MCP support. See [Agent setup](desktop/README.md#agents-and-conversations).
+5. Send a focused question, such as **“What evidence supports this method, and which limitations should I check in the paper? Cite the original passages.”** When a report is saved, choose **Close chat**, open **Research record** (the clock icon in the reader toolbar), then the saved question/report. Open a citation to inspect the original PDF passage. If **Citation evidence** offers several matches, choose the relevant location rather than assuming one.
+6. Use **Continue from here** on a saved report, then send your follow-up question. Keep unanswered questions and evidence gaps visible; a citation locates a source, not a verified scientific conclusion.
+
+Once dependencies are prepared, local reading needs no model call. AI questions may send paper content to your selected provider and incur its charges. You do not need the optional control-plane service. For offline environment preparation and saved Python bindings, see [Python setup](DEVELOPMENT.md#python-environments-and-advanced-overrides).
+
+These controls exist in the November 4 source tag and current source. The [recorded Paper journey](docs/fitness/paper-harness-journey.md) separates development-Desktop checks with a fixture Agent from historical real-Agent checks. This README update does not claim a fresh installed-package or real-model acceptance run. See [Paper usage and boundaries](apps/paper-agent/README.md#pdf-reading) for details; newer research workflows below are not promised in the November 4 package.
+
+### Try the latest source
+
+Complete the [development setup](DEVELOPMENT.md#desktop-from-source), including the pinned GPUI Kit, then run from the repository root:
+
+```sh
+npm run dev:paper  # Paper in a separate development profile
+```
+
+Opening Paper does not start research. For a separate domain example, `npm run dev:apps` opens Virtual Cell in its own development profile.
+
+### Also try: inspect a dataset without a model
+
+Data is a complementary tool for checking research inputs. Open **Data** in Electron and prepare its Python environment if prompted. No model account or API key is needed.
+
+<details>
+<summary>Import six synthetic records, chart the counts and save a view</summary>
 
 1. Save [first-dataset.json](docs/examples/first-dataset.json) to your machine. It contains **six synthetic demonstration records**, not experimental measurements.
-2. Open **Data**. If **Prepare environment** appears, select it and wait for **Environment ready**. First-time preparation may download uv and CPython 3.12; it creates an isolated environment under `~/.pero/environment/pero-python312`.
-3. Select **Add data**, choose the file, review the import metadata and select **Import**.
-4. Select the dataset. Inspect **Fields** and **Checks**: expect 6 records and no missing fields, nulls, empty strings or duplicate rows.
-5. Open **Chart**, leave **Data** on **Current aggregation**, set **Group by** to `condition`, **Measure** to `signal`, and **Aggregate** to **Count**. The two groups should each contain 3 records.
-6. Return to **Table**, enter a view name and select **Save view**. Open it again from **History → Saved views**; **Export reference** saves the dataset/version reference and check report, not the original file or a runnable experiment.
+2. Select **Add data**, choose the file, review the import metadata and select **Import**.
+3. Select the dataset. Inspect **Fields** and **Checks**: expect 6 records and no missing fields, nulls, empty strings or duplicate rows.
+4. Open **Chart**, leave **Data** on **Current aggregation**, set **Group by** to `condition`, **Measure** to `signal`, and **Aggregate** to **Count**. The two groups should each contain 3 records.
+5. Return to **Table**, enter a view name and select **Save view**. Open it again from **History → Saved views**; **Export reference** saves the dataset/version reference and check report, not the original file or a runnable experiment.
 
 For offline preparation, an existing Python environment or advanced overrides, read [Python environment setup](DEVELOPMENT.md#python-environments-and-advanced-overrides). `PERO_APP_PYTHON` is not a general override of saved App environment bindings.
 
 These steps use controls present in the November 4 source tag. The expected counts come from the sample, not a claim that every downloaded package was click-tested for this README. [Data usage and limits](apps/data/README.md) and [verification records](docs/fitness/data-workspace.md) distinguish source checks from Desktop acceptance. CSV numeric interpretation in current source is newer than that package; this example deliberately uses JSON.
 
-### Try the latest source
-
-Complete the [development setup](DEVELOPMENT.md#desktop-from-source), including the pinned GPUI Kit, before running either command from the repository root:
-
-```sh
-npm run dev:apps    # Virtual Cell in a separate development profile
-# Or:
-npm run dev:paper   # Paper in a separate development profile
-```
-
-For a paper question, open **Add papers** in Paper, import a public PDF, then use **Ask**. Configure and authenticate an Agent before submitting. Full-text questions support 1–5 selected papers and require an Agent with HTTP MCP support; see [Paper setup and usage](apps/paper-agent/README.md). Opening Paper does not start research. Newer Paper workflows described below require current source, not the November 4 package.
+</details>
 
 ## A research example
-
-For an interactive domain example, [Virtual Cell](apps/virtual-cell/README.md) includes a PBMC3k reference atlas and local first-order reaction simulation. Its reaction and volume examples are illustrative, not fitted biological models or accepted scientific results.
 
 **Can one published number be independently recomputed from its original inputs?** The current Fisher (1936) case follows Table III's within-species sum of squares:
 
@@ -82,6 +101,8 @@ For an interactive domain example, [Virtual Cell](apps/virtual-cell/README.md) i
 The [recorded run](docs/fitness/paper-fisher-reproduction.md) obtained **19.1434 cm²**, matching the selected published value. The independent numerical check uses only Python's standard library, without model calls or network access. This is a curated, single-result reanalysis; the whole-paper verdict remains `NOT_ASSESSED`.
 
 The current App route has backend/API, export and restart checks. Browser interaction, Native/Electron integration and installed-package acceptance for this increment remain unverified. Follow the [fixed-case instructions](apps/paper-agent/skills/paper-reproduction/references/reproduction-protocol.md#fixed-real-source-reanalysis-fisher-table-iii) to inspect or rerun it. It is not a general “reproduce any paper” workflow.
+
+For an interactive domain example, [Virtual Cell](apps/virtual-cell/README.md) includes a PBMC3k reference atlas and local first-order reaction simulation. Its reaction and volume examples are illustrative, not fitted biological models or accepted scientific results.
 
 ## Status
 
