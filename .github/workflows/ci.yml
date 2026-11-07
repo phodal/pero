@@ -490,6 +490,8 @@ jobs:
       - run: npm ci --prefix apps/paper-agent --ignore-scripts
       - run: node scripts/codegen/contracts.mjs --check
       - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs tests/build/product-chat-startup.test.mjs tests/build/product-shutdown.test.mjs
+      - name: Offline research preflight, finalization and shutdown contracts
+        run: node --test tests/runtime/research-quality/*.test.mjs
       - run: node --experimental-vm-modules --test tests/build/native-dev.test.mjs
 
   # Keep one runner and one install per dependency set. Each check depends only
@@ -570,6 +572,10 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v
+      - name: Offline research-quality scoring contracts
+        id: research_quality_python
+        if: ${{ !cancelled() && steps.python.outcome == 'success' }}
+        run: python -m unittest discover -s tests/runtime -p 'test_research_quality.py' -v
       - name: Paper PDF HTTP contracts
         id: paper_pdf_http
         if: ${{ !cancelled() && steps.paper_python.outcome == 'success' }}
