@@ -24,7 +24,7 @@ func researchTestAgent(t *testing.T, adapter harness.Adapter, feedback func(cont
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := h.Dispose(context.Background()); err != nil {
+		if err := h.Dispose(context.Background()); err != nil && !errors.Is(err, harness.ErrHarnessDisposalInProgress) {
 			t.Error(err)
 		}
 		if err := h.Drain(context.Background()); err != nil {
