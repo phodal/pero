@@ -5,6 +5,7 @@ import type { ArtifactRelationRole, SessionArtifact, SessionArtifactVersion } fr
 import type { ArtifactTarget } from '../../../protocol/artifact-browser';
 import { admitArtifactBrowser, artifactTarget, artifactVersion, checkpointCompanions, selectedArtifact, type ArtifactBrowserContext } from './artifact-browser-model';
 import { ArtifactDocument } from './artifact-document';
+import { ArtifactInspector } from './artifact-inspector';
 import { composeBrowserArtifact, selectBrowserArtifact } from './artifact-browser-bridge';
 import { artifactContext } from './artifact-source';
 import { ArtifactThumbnail, artifactSize, artifactType } from './artifact-thumbnail';
@@ -20,7 +21,8 @@ const relationLabels: Record<ArtifactRelationRole, [string, string]> = {
 export function ArtifactBrowser({ threadId }: { threadId: string }) {
   const { locale } = useAppContext(), zh = locale === 'zh-CN';
   const [context, setContext] = useState<ArtifactBrowserContext | null>(null), [error, setError] = useState('');
-  const [quickLook, setQuickLook] = useState(false);
+  const [quickLookRequested, setQuickLook] = useState(false);
+  const quickLook = quickLookRequested || context?.inline === true;
   const items = useRef(new Map<string, HTMLElement>()), grid = useRef<HTMLDivElement>(null);
   const browserScroll = useRef<HTMLDivElement>(null), savedScroll = useRef(0), restoreFocus = useRef(false);
   const quickReturn = useRef<HTMLElement>(null);
@@ -95,6 +97,7 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
   const backToArtifacts = <Button ref={quickReturn} variant="ghost" aria-label={zh ? '返回产物' : 'Back to artifacts'} onClick={closePreview}><Icon name="arrow-left" size={14} /></Button>;
   const documentBar = (artifact: SessionArtifact, version: SessionArtifactVersion) => <div className="artifact-browser-document-bar">
     {quickLook && !context?.inline && backToArtifacts}
+    <ContentIcon source={{ path: version.filename ?? artifact.title }} />
     <span className="artifact-browser-filename" title={version.filename ?? artifact.title}>{version.filename ?? artifact.title}</span>
     <div className="artifact-browser-versions">
       {!context?.inline && <Button variant="ghost" aria-label={zh ? '上一版本' : 'Previous version'} disabled={version.version <= 1}
@@ -145,9 +148,9 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
         {selected ? <><div className="artifact-browser-preview">
           {shellDocumentBar && quickLook ? <div className="artifact-browser-document-bar">{backToArtifacts}</div>
             : shellDocumentBar ? null : documentBar(selected.artifact, selected.version)}
-          <ArtifactDocument key={`${threadId}/${selected.artifact.id}/${selected.version.version}`}
+          <ArtifactInspector key={`${threadId}/${selected.artifact.id}/${selected.version.version}`} context={context} selected={selected} zh={zh} open={select} preview={<ArtifactDocument
             locator={{ threadId, artifactId: selected.artifact.id, version: selected.version.version }}
-            onDiscuss={(snapshot, selection) => composeBrowserArtifact({ thread_id: snapshot.locator.threadId, artifact_id: snapshot.locator.artifactId, version: snapshot.locator.version }, artifactContext(snapshot, selection, locale))} />
+            onDiscuss={(snapshot, selection) => composeBrowserArtifact({ thread_id: snapshot.locator.threadId, artifact_id: snapshot.locator.artifactId, version: snapshot.locator.version }, artifactContext(snapshot, selection, locale))} />} />
         </div></> : <div className="artifact-empty">{zh ? '选择产物以预览。' : 'Select an artifact to preview.'}</div>}
         {context.view === 'gallery' && !quickLook && <div className="artifact-gallery-strip" role="listbox" aria-label={zh ? '产物缩略图' : 'Artifact thumbnails'}>{context.artifacts.map((item, index) => tile(item, index, true))}</div>}
       </> : context.view === 'list' ? <div className="artifact-file-list" ref={browserScroll} role="listbox" aria-label={zh ? '产物列表' : 'Artifact list'}>

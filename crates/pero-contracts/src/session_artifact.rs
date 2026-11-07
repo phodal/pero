@@ -286,6 +286,8 @@ pub struct ArtifactBrowserState {
     pub preview_request: Option<u64>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub inline: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_message: Option<String>,
     /// The shell already shows the filename and version, so the browser hides that bar.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub shell_document_bar: bool,

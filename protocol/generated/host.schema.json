@@ -2273,6 +2273,9 @@
         },
         "inline": {
           "type": "boolean"
+        },
+        "source_message": {
+          "type": "string"
         }
       },
       "required": [

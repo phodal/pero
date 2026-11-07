@@ -10,5 +10,6 @@ export type ArtifactBrowserState = {
   view: ArtifactView;
   preview_request?: number;
   inline?: boolean;
+  source_message?: string;
   shell_document_bar?: boolean;
 };

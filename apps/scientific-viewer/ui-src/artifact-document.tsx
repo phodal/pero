@@ -13,7 +13,7 @@ class PreviewBoundary extends React.Component<{ children: React.ReactNode; retry
 
 /** One version uses the same loader and reader in quick look, gallery and standalone. */
 export function ArtifactDocument({ locator, onDiscuss }: {
-  locator: ArtifactLocator; onDiscuss(snapshot: ArtifactSnapshot, selection: string): Promise<void>;
+  locator: ArtifactLocator; onDiscuss?(snapshot: ArtifactSnapshot, selection: string): Promise<void>;
 }) {
   const { locale } = useAppContext(), zh = locale === 'zh-CN';
   const [snapshot, setSnapshot] = useState<ArtifactSnapshot | null>(null);
@@ -35,6 +35,6 @@ export function ArtifactDocument({ locator, onDiscuss }: {
     {loading && <div className="artifact-loading" role="status" aria-busy="true">{zh ? '正在载入产物…' : 'Loading artifact…'}</div>}
     {error && <div className="artifact-empty"><Feedback kind="error">{error}</Feedback><Button onClick={() => setAttempt(value => value + 1)}>{zh ? '重试' : 'Retry'}</Button></div>}
     {snapshot && <PreviewBoundary key={`${snapshot.id}/${attempt}`} retry={() => setAttempt(value => value + 1)} zh={zh}><RichPreview source={snapshot} kind={kind} selectionOnly
-      onDiscuss={selection => onDiscuss(snapshot, selection)} /></PreviewBoundary>}
+      onDiscuss={onDiscuss && (selection => onDiscuss(snapshot, selection))} /></PreviewBoundary>}
   </div>;
 }

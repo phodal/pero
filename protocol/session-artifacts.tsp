@@ -50,7 +50,7 @@ model ArtifactSnapshot {
 model ArtifactPreviewTarget { thread_id:ThreadId; artifact_id:string; @minValue(1) version:safeint; ...Closed }
 union ArtifactPresentation { "inline", "below", "side", "expanded" }
 /** Public UI state, not a second artifact catalog or Host persistence owner. */
-model ArtifactBrowserState { thread_id:ThreadId; artifacts:SessionArtifact[]; selected:ArtifactPreviewTarget|null; view:ArtifactView; @minValue(1) preview_request?:safeint; shell_document_bar?:boolean; inline?:boolean; ...Closed }
+model ArtifactBrowserState { thread_id:ThreadId; artifacts:SessionArtifact[]; selected:ArtifactPreviewTarget|null; view:ArtifactView; @minValue(1) preview_request?:safeint; shell_document_bar?:boolean; inline?:boolean; source_message?:string; ...Closed }
 model SessionArtifact {
   @minLength(1) @maxLength(128) id:string;
   thread_id:ThreadId;

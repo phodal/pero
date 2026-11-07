@@ -1,5 +1,6 @@
 //! Scientific Viewer owns rich rendering; Chat owns selection and the original composer.
 use crate::{
+    conversation::{Conversation, StreamItem},
     panel::{ChatAction, ChatPanel},
     session_artifacts::ArtifactCollection,
 };
@@ -29,7 +30,8 @@ impl ChatPanel {
         if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files {
             return None;
         }
-        let thread = &self.chats.get(self.active_chat?)?.id;
+        let chat = self.chats.get(self.active_chat?)?;
+        let thread = &chat.id;
         let state = self.artifacts.conversations.get(thread)?;
         if (!state.open && !state.inline_open) || state.show_changes {
             return None;
@@ -73,7 +75,8 @@ impl ChatPanel {
     }
 
     pub fn artifact_browser_state(&self) -> Option<ArtifactBrowserState> {
-        let thread = &self.chats.get(self.active_chat?)?.id;
+        let chat = self.chats.get(self.active_chat?)?;
+        let thread = &chat.id;
         let state = self.artifacts.conversations.get(thread)?;
         if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
             || (!state.open && !state.inline_open)
@@ -81,13 +84,19 @@ impl ChatPanel {
         {
             return None;
         }
+        let selected = self.artifact_preview_target();
+        let source_message = selected.as_ref().and_then(|target| {
+            let source = self.artifact_source_key(thread, &target.artifact_id, target.version)?;
+            artifact_source_message(chat, &source)
+        });
         Some(ArtifactBrowserState {
             thread_id: thread.clone(),
             artifacts: state.items.clone(),
-            selected: self.artifact_preview_target(),
+            selected,
             view: self.artifacts.view,
             preview_request: state.preview_request,
             inline: state.inline_open && !state.open,
+            source_message,
             shell_document_bar: !state.inline_open && self.artifacts.view
                 == pero_contracts::workbench::ArtifactView::Gallery,
         })
@@ -152,4 +161,31 @@ impl ChatPanel {
             }).into_any_element()
         }
     }
+}
+
+fn artifact_source_message(chat: &Conversation, source: &str) -> Option<String> {
+    let message = if let Some(index) = source.strip_prefix("message:") {
+        chat.messages.get(index.parse::<usize>().ok()?)?
+    } else {
+        let id = source.strip_prefix("tool:")?;
+        let start = chat.timeline.iter().position(|entry| {
+            matches!(entry, StreamItem::Tool(index) if chat.tools[*index].id == id)
+        })?;
+        chat.timeline[start + 1..]
+            .iter()
+            .filter_map(|entry| match *entry {
+                StreamItem::Message(index) => chat.messages.get(index),
+                _ => None,
+            })
+            .take_while(|message| message.role != "user")
+            .find(|message| message.role == "assistant")?
+    };
+    let text = message.text.trim();
+    if text.is_empty() {
+        return None;
+    }
+    Some(text.char_indices().nth(8000).map_or_else(
+        || text.to_owned(),
+        |(end, _)| format!("{}…", &text[..end]),
+    ))
 }

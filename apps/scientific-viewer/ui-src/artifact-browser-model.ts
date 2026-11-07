@@ -27,6 +27,7 @@ export function admitArtifactBrowser(value: unknown, threadId: string): Artifact
     || typeof value.view !== 'string' || !['icons', 'list', 'gallery'].includes(value.view) || !Array.isArray(value.artifacts)
     || (value.preview_request !== undefined && !integer(value.preview_request, 1))
     || (value.inline !== undefined && typeof value.inline !== 'boolean')
+    || (value.source_message !== undefined && typeof value.source_message !== 'string')
     || (value.shell_document_bar !== undefined && typeof value.shell_document_bar !== 'boolean')) {
     throw new Error('Invalid artifact browser state');
   }
