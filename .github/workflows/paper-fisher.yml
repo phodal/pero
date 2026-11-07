@@ -44,14 +44,17 @@ jobs:
           Path(os.environ['PERO_FISHER_PDF']).write_bytes(data)
           PY
       - name: Check types and source-backed numerical contracts
+        id: contracts
         run: |
           npm --prefix apps/paper-agent run typecheck
           python -m unittest discover -s apps/paper-agent/test -p 'test_fisher*.py' -v
-      - name: Verify component recovery and real PDF workflow
+      - name: Verify component recovery
         run: |
           node tests/e2e/paper-fisher-state.mjs
           node tests/e2e/paper-fisher-component.mjs
-          node tests/e2e/paper-fisher-browser.mjs
+      - name: Verify real PDF and arithmetic independently of component assertions
+        if: ${{ !cancelled() && steps.contracts.outcome == 'success' }}
+        run: node tests/e2e/paper-fisher-browser.mjs
       - name: Preserve browser evidence (not Native acceptance)
         if: always()
         uses: actions/upload-artifact@v7

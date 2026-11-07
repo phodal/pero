@@ -79,6 +79,8 @@ try {
   const rerun = page.getByRole('button', { name: 'Confirm and run a new attempt', exact: true });
   await rerun.click(); await expect(rerun).toBeDisabled();
   await expect(page.getByText('Run response is unconfirmed.', { exact: false })).toBeVisible();
+  await expect.poll(() => operations.filter(o => o.action === 'run').length).toBe(2);
+  await expect(page.getByText('Fixture transport error', { exact: false })).toBeVisible();
   await page.reload(); await expect(rerun).toBeDisabled();
   await expect(page.getByText('Run response is unconfirmed.', { exact: false })).toBeVisible();
   assert.equal(operations.filter(o => o.action === 'run').length, 2);
@@ -87,7 +89,10 @@ try {
   await expect(page.getByText('Single-result verdict: INCONCLUSIVE')).toBeVisible();
   await expect(page.getByText('Independent numerical check: Not checked')).toBeVisible();
   loseRunResponse = false; delayedReport = false;
-  await rerun.click(); await expect(rerun).toBeEnabled();
+  await rerun.click();
+  await expect.poll(() => operations.filter(o => o.action === 'run').length).toBe(3);
+  await expect(page.getByText('Single-result verdict: REPRODUCED')).toBeVisible();
+  await expect(rerun).toBeEnabled();
   const runs = operations.filter(o => o.action === 'run');
   assert.equal(new Set(runs.map(r => r.requestId)).size, 3);
   assert.equal(new Set(runs.map(r => r.specId)).size, 1);
@@ -96,7 +101,9 @@ try {
   assert.match((await downloadPromise).suggestedFilename(), /^fisher-attempt-3.zip$/);
   await page.getByRole('button', { name: 'Create new protocol (retain earlier versions)' }).click();
   await page.getByRole('checkbox').check(); await freeze.click();
-  assert.equal(items.length, 2); assert.equal(items[0].attempts.length, 3);
+  await expect.poll(() => items.length).toBe(2);
+  await expect(run).toBeEnabled();
+  assert.equal(items[0].attempts.length, 3);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
   assert.deepEqual(errors, []);
   const evidence = resolve(root, 'test-results/paper-fisher'); await mkdir(evidence, { recursive: true });
