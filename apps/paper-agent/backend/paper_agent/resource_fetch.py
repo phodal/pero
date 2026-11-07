@@ -87,9 +87,9 @@ class PublicMetadata:
         result = self._fetch(url, timeout=timeout, limit=limit, pdf=False)
         return WebDocument(result[0], result[1], result[2].decode('utf-8', errors='replace'))
 
-    def fetch_pdf(self, url, *, timeout=30):
+    def fetch_pdf(self, url, *, timeout=30, limit=None):
         from .local_pdf import MAX_PDF_BYTES
-        final, _mime, data = self._fetch(url, timeout=timeout, limit=MAX_PDF_BYTES, pdf=True)
+        final, _mime, data = self._fetch(url, timeout=timeout, limit=min(MAX_PDF_BYTES, limit) if limit is not None else MAX_PDF_BYTES, pdf=True)
         if not data.startswith(b'%PDF-'):
             raise Invalid('The source did not return a PDF', 415)
         return PdfResponse(final, data)

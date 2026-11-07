@@ -28,6 +28,15 @@ test('admission retains supported formats, media and shared presentation modes',
   }
   const empty = { ...state(), artifacts: [] };
   assert.equal(admitArtifactBrowser(empty, 'thread-one'), empty);
+  const research = state();
+  research.artifacts[0].versions[0].source = { kind: 'research', provenance: {
+    program_id: 'b'.repeat(64), checkpoint_id: 'c'.repeat(64), slot: 'report', export_digest: 'a'.repeat(64),
+  } };
+  assert.equal(admitArtifactBrowser(research, 'thread-one'), research);
+  for (const key of ['program_id', 'checkpoint_id', 'slot', 'export_digest']) {
+    const invalid = structuredClone(research); delete invalid.artifacts[0].versions[0].source.provenance[key];
+    assert.throws(() => admitArtifactBrowser(invalid, 'thread-one'), /Invalid artifact browser/);
+  }
 });
 
 test('catalog admission rejects malformed transport values before rendering', () => {

@@ -8,6 +8,7 @@ type AppPluginDeclaration = Readonly<{
   revision: string;
   tools: readonly Pick<AppWriteDefinition, 'name' | 'description' | 'path' | 'schema'>[];
   maxCalls: number;
+  hostBudgeted?: boolean;
 }>;
 
 /** One Host-mounted App plugin. Its call budget lasts for this ACP connection. */
@@ -36,13 +37,13 @@ export class AppAgentPluginBinding {
       )) throw new AppUseError('APP_PLUGIN_CHANGED', 'The installed App plugin changed or is disabled. Open a new App conversation.');
       return definition;
     });
-    return this.calls < this.snapshot.maxCalls ? selected : [];
+    return this.snapshot.hostBudgeted || this.calls < this.snapshot.maxCalls ? selected : [];
   }
   consume(definition: AppWriteDefinition, current: readonly AppWriteDefinition[]): AppAgentPluginBinding {
-    if (this.calls >= this.snapshot.maxCalls)
+    if (!this.snapshot.hostBudgeted && this.calls >= this.snapshot.maxCalls)
       throw new AppUseError('APP_PLUGIN_BUDGET', 'This App plugin reached its call limit for this Agent connection.');
     if (!this.definitions(current).includes(definition))
       throw new AppUseError('APP_PLUGIN_TOOL_DENIED', 'This App plugin did not declare that tool.');
-    return new AppAgentPluginBinding(this.snapshot, this.scope, this.calls + 1);
+    return new AppAgentPluginBinding(this.snapshot, this.scope, this.calls + (this.snapshot.hostBudgeted ? 0 : 1));
   }
 }

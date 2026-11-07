@@ -34,6 +34,9 @@ enum Request {
     Plugininstall { method: Method, id: String, path: PathBuf },
     Pluginenable { method: Method, id: String, name: AppName, enabled: bool },
     Agentrun { method: Method, id: String, name: AppName, request: pero_runtime::apps::agent_run::Request },
+    #[serde(rename = "research-program")]
+    ResearchProgram { method: Method, id: String, name: AppName, #[serde(rename = "threadId")] thread_id: String,
+        tool: String, request: serde_json::Value, #[serde(rename = "operationId")] operation_id: String },
     Apiaccess { method: Method, id: String, name: AppName, path: String },
     Sdkcontext { method: Method, id: String, name: AppName },
     Agentcatalog { method: Method, id: String, name: AppName, path: String },
@@ -113,6 +116,15 @@ pub struct Apps {
 pub struct AppsShutdown(Apps);
 impl Drop for AppsShutdown { fn drop(&mut self) { self.0.shutdown(); } }
 impl Apps {
+    pub(crate) fn paper_research_access(&self) -> Result<(pero_runtime::apps::BackendAccess, pero_runtime::apps::AppSummary), String> {
+        let mut guard = self.store.try_lock().map_err(|_| APP_PREPARING)?;
+        let store = guard.as_mut().map_err(|e| e.clone())?;
+        let name = AppName::try_from("paper-agent".to_owned())?;
+        store.require_grant(&name, "agent")?;
+        let record = store.list().into_iter().find(|app| app.name == name && app.enabled).ok_or("Paper is unavailable")?;
+        let backend = store.resolve_with_progress(&name, &mut |_| {})?.backend.ok_or("Paper backend is unavailable")?;
+        Ok((backend, record))
+    }
     pub(crate) fn check_research(&self, record_id: &str) -> Result<serde_json::Value, String> {
         let (paper, data) = {
             let mut guard = self.store.lock().map_err(|error| error.to_string())?;
@@ -195,6 +207,19 @@ impl Apps {
     /// cancellation remain responsive while pip downloads packages.
     pub fn dispatch_async(&self, value: serde_json::Value, agents: &mut crate::agents::Manager) {
         let action = value["action"].as_str().unwrap_or("");
+        if action == "research-program" {
+            let id = value["id"].as_str().filter(|id| !id.is_empty() && id.len() <= 128).map(str::to_owned);
+            let result = (|| {
+                let Request::ResearchProgram { name, thread_id, tool, request, operation_id, .. } = serde_json::from_value(value.clone()).map_err(|e|e.to_string())? else { return Err("Invalid research request".to_owned()); };
+                if name.as_str() != "paper-agent" { return Err("Research caller must be Paper".into()); }
+                self.require_grant(&name, "agent")?;
+                agents.paper_research_request(id.clone().ok_or("App request needs an id of 1–128 bytes")?, &thread_id, &tool, request, &operation_id)
+            })();
+            if let Err(error) = result {
+                let mut event = HostEvent::new("apps_result", id, error.clone()); event.data=serde_json::json!({"ok":false,"error":error}); let _=crate::emit(event);
+            }
+            return;
+        }
         if matches!(action, "agentrun" | "agentcatalog" | "agent" | "insights" | "connectors" | "disable" | "uninstall" | "pluginenable") {
             let mut this = self.clone();
             let event = this.dispatch(value, Some(agents));
@@ -295,6 +320,7 @@ impl Apps {
                     drop(guard);
                     return agents.as_deref_mut().expect("Host manager").agent_run_request(name,panel,revision,request);
                 }
+                Request::ResearchProgram { .. } => return Err("Research requests require the Host worker".into()),
                 Request::Agentcatalog { method,id,name,path } => {
                     let _=(method,id);store.agent_catalog_permission(&name,&path)?;
                     return agents.as_deref_mut().expect("Host manager").agent_catalog(&path);

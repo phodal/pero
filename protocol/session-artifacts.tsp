@@ -6,7 +6,9 @@ namespace Pero.Host;
 
 model ArtifactTextSource { kind:"text"; ...Closed }
 model ArtifactFileSource { kind:"file"; path:string; ...Closed }
-@oneOf union ArtifactSource { ArtifactTextSource, ArtifactFileSource }
+model ResearchArtifactSource { program_id:string; checkpoint_id:string; slot:string; export_digest:string; ...Closed }
+model ArtifactResearchSource { kind:"research"; provenance:ResearchArtifactSource; ...Closed }
+@oneOf union ArtifactSource { ArtifactTextSource, ArtifactFileSource, ArtifactResearchSource }
 model ArtifactDocumentMedia { kind:"document"; format:ContentFormat; ...Closed }
 model ArtifactSimpleMedia { kind:"csv"|"tsv"|"pdf"|"html"|"notebook"; ...Closed }
 union ArtifactImageType { "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml" }

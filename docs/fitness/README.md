@@ -3,6 +3,9 @@
 GPUI Kit 0.9.0 dependency migration, retained local fixes and runtime checks:
 [Kit upgrade](gpui-kit-0.9.md).
 
+Bounded Paper research, same-session continuation, source evidence and versioned
+artifact delivery: [Autonomous literature research](paper-autonomous-research.md).
+
 Opt-in native Go engineering contracts, acceptance evidence, skills budgets and
 memory attribution: [Engineering profile](engineering-profile.md).
 

@@ -1,6 +1,8 @@
 """One killable envelope for approved PDF and source acquisition/parsing."""
 import multiprocessing
 import os
+from pathlib import Path
+import sys
 import threading
 import time
 
@@ -30,6 +32,13 @@ def acquisition_child(output, target, args, seconds):
 
 def acquire_bounded(target, args, cancelled, seconds, stage):
     context = multiprocessing.get_context('spawn')
+    if os.name == 'nt':
+        # Desktop has no console: python.exe can stall before the worker entry.
+        # The public spawn API supports the same environment's windowless interpreter.
+        executable = Path(sys.executable).with_name('pythonw.exe')
+        if not executable.is_file():
+            return ('failed', 'Background acquisition requires pythonw.exe in the selected Python environment.')
+        context.set_executable(str(executable))
     receive, send = context.Pipe(duplex=False)
     process = context.Process(target=acquisition_child, args=(send, target, args, seconds), daemon=True)
     try:

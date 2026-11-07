@@ -1,4 +1,4 @@
-"""Manual research revisions over existing source/report owners; never execution."""
+"""Immutable research revisions over existing source/report owners; never execution."""
 from dataclasses import asdict, dataclass
 
 from .model import ID, Invalid, PaperSnapshot, digest, mapping, sequence, text
@@ -33,11 +33,12 @@ class EvidenceLink:
     reportId: str | None
     stance: str
     note: str
+    sourceKind: str = 'pdf'
 
     @classmethod
     def parse(cls, value, papers):
         value = mapping(value, 'evidence link')
-        if set(value) - {'paperId', 'reportId', 'stance', 'note'} or value.get('paperId') not in papers:
+        if set(value) - {'paperId', 'reportId', 'stance', 'note', 'sourceKind'} or value.get('paperId') not in papers:
             raise Invalid('Evidence must reference a selected paper')
         stance = value.get('stance')
         if stance not in ('support', 'counterevidence', 'gap'):
@@ -45,7 +46,16 @@ class EvidenceLink:
         report = value.get('reportId')
         if report is not None or stance != 'gap':
             report = reference(report, 'saved report reference')
-        return cls(value['paperId'], report, stance, text(value.get('note'), 2000, 'evidence interpretation'))
+        source = value.get('sourceKind', 'pdf')
+        if source not in ('pdf', 'html'):
+            raise Invalid('Choose PDF or HTML evidence')
+        return cls(value['paperId'], report, stance, text(value.get('note'), 2000, 'evidence interpretation'), source)
+
+    def to_dict(self):
+        value = asdict(self)
+        if self.sourceKind == 'pdf':
+            del value['sourceKind']  # Preserve existing immutable revision identities.
+        return value
 
 
 @dataclass(frozen=True)
@@ -150,6 +160,7 @@ class ResearchRecord:
         value = asdict(self)
         for key in ('paperIds', 'decisions', 'evidence'):
             value[key] = list(value[key])
+        value['evidence'] = [item.to_dict() for item in self.evidence]
         value['sourceVersions'] = [item.to_dict() for item in self.sourceVersions]
         if self.attempts:
             value['attempts'] = [asdict(item) for item in self.attempts]

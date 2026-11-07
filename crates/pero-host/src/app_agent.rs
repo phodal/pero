@@ -52,10 +52,15 @@ impl Manager {
                 "MCP settings are unavailable or invalid; review local connector settings"
             })?;
         let mut agent = agent.with_managed_mcp(&configuration);
-        let plugins = match (&scope, &self.apps) {
+        let mut plugins = match (&scope, &self.apps) {
             (Some(scope), Some(apps)) => apps.session_plugins(&AppName::try_from(scope.app.clone())?, &scope.panel)?,
             _ => None,
         };
+        if let Some(binding) = binding {
+            if let Some(research) = self.prepare_paper_research(&thread_id, binding, &mut agent, plugins.as_ref())? {
+                plugins = Some(research);
+            }
+        }
         if let Some(plugins) = &plugins {
             if plugins.assembly.is_some() && self.app_use.is_none() {
                 return Err("App Agent Plugin tools require the Desktop App Use endpoint".into());

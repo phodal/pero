@@ -1618,6 +1618,9 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295
+        },
+        "hostBudgeted": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -2798,6 +2801,24 @@
         "thread_id"
       ]
     },
+    "ArtifactResearchSource": {
+      "title": "ArtifactResearchSource",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "research"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ResearchArtifactSource"
+        }
+      },
+      "required": [
+        "kind",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
     "ArtifactSimpleMedia": {
       "title": "ArtifactSimpleMedia",
       "type": "object",
@@ -2975,6 +2996,9 @@
         },
         {
           "$ref": "#/$defs/ArtifactFileSource"
+        },
+        {
+          "$ref": "#/$defs/ArtifactResearchSource"
         }
       ]
     },
@@ -11871,6 +11895,31 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 128
+    },
+    "ResearchArtifactSource": {
+      "title": "ResearchArtifactSource",
+      "type": "object",
+      "properties": {
+        "program_id": {
+          "type": "string"
+        },
+        "checkpoint_id": {
+          "type": "string"
+        },
+        "slot": {
+          "type": "string"
+        },
+        "export_digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "program_id",
+        "checkpoint_id",
+        "slot",
+        "export_digest"
+      ],
+      "additionalProperties": false
     },
     "ResearchAssetLookup": {
       "title": "ResearchAssetLookup",

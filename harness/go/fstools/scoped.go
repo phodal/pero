@@ -86,6 +86,12 @@ func OpenScopedTextFiles(rootPath string, paths []string, maxBytes int64) (_ *Sc
 	return openScopedTextFiles(rootPath, paths, maxBytes, false)
 }
 
+// OpenReadOnlyTextFiles pins approved existing text without granting replacement.
+// Selected skill definitions and resources are always read-only, on every host.
+func OpenReadOnlyTextFiles(rootPath string, paths []string, maxBytes int64) (*ScopedTextFiles, error) {
+	return openScopedTextFiles(rootPath, paths, maxBytes, true)
+}
+
 func openScopedTextFiles(rootPath string, paths []string, maxBytes int64, readOnly bool) (_ *ScopedTextFiles, err error) {
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" && !(runtime.GOOS == "windows" && readOnly) {
 		return nil, errors.New("scoped text replacement requires a supported descriptor-rooted Unix host")

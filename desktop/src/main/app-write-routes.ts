@@ -17,8 +17,17 @@ export class AppWriteRoutes {
     }
     return routes;
   }
-  async apply(prepared:PreparedAppWrite,signal:AbortSignal,goal?:import('./control-lab-goal.ts').ControlLabGoal):Promise<unknown>{
+  async apply(prepared:PreparedAppWrite,signal:AbortSignal,goal?:import('./control-lab-goal.ts').ControlLabGoal,caller?:{threadId:string;operationId:string}):Promise<unknown>{
     const route=prepared.definition;prepared.requireCurrent((await this.describe()).find(current=>current.app===route.app&&current.name===route.name));
+    if (route.app === 'paper-agent' && route.path === '/api/programs/agent') {
+      if (!caller) throw new Error('Research requires the actual Host caller');
+      signal.throwIfAborted();
+      const value = await this.request<{unbound?:boolean}>('research-program', {name:route.app,...caller,tool:route.name,request:prepared.document});
+      if (!value?.unbound) {
+        await this.send({version:1,kind:'app_written',request_id:null,text:'',data:{app:route.app,tool:route.name,digest:prepared.digest}});
+        return value;
+      }
+    }
     if (route.app === 'paper-agent' && route.path === '/api/research/assets') {
       signal.throwIfAborted();
       const deadline = AbortSignal.any([signal, AbortSignal.timeout(15000)]);

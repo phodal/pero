@@ -6,7 +6,7 @@ use pero_contracts::{
     context::{ContextContent, ContextKind, ContextReference},
     session_artifact::{
         ArtifactError, ArtifactImageType, ArtifactMedia, ArtifactRequest, ArtifactSnapshot,
-        ArtifactSource, MAX_ARTIFACT_FILE_BYTES, SessionArtifact, SessionArtifactVersion,
+        ArtifactSource, ResearchArtifactSource, MAX_ARTIFACT_FILE_BYTES, SessionArtifact, SessionArtifactVersion,
     },
 };
 use sha2::{Digest, Sha256};
@@ -122,6 +122,37 @@ impl SessionArtifacts {
         workspace: Option<&Path>,
         created_at: u64,
     ) -> Result<SessionArtifact, ArtifactStoreError> {
+        self.register_inner(request, workspace, created_at, None)
+    }
+
+    pub fn register_research(
+        &self, mut request: ArtifactRequest, source: ResearchArtifactSource, created_at: u64,
+    ) -> Result<SessionArtifact, ArtifactStoreError> {
+        let ArtifactRequest::RegisterText { thread_id, artifact_id, text, .. } = &mut request else {
+            return Err(ArtifactStoreError::Unsupported);
+        };
+        if artifact_id.is_some() || source.export_digest != format!("{:x}", Sha256::digest(text.as_bytes()))
+            || [&source.program_id, &source.checkpoint_id, &source.slot].iter()
+                .any(|value| value.is_empty() || value.len() > 128 || !value.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')) {
+            return Err(ArtifactStoreError::Integrity);
+        }
+        for artifact in self.list(thread_id)? {
+            if artifact.versions.iter().any(|version| matches!(&version.source,
+                ArtifactSource::Research { provenance } if provenance == &source)) {
+                return Ok(artifact);
+            }
+            if matches!(&artifact.latest().source, ArtifactSource::Research { provenance }
+                if provenance.program_id == source.program_id && provenance.slot == source.slot) {
+                *artifact_id = Some(artifact.id);
+            }
+        }
+        self.register_inner(request, None, created_at, Some(ArtifactSource::Research { provenance: source }))
+    }
+
+    fn register_inner(
+        &self, request: ArtifactRequest, workspace: Option<&Path>, created_at: u64,
+        research_source: Option<ArtifactSource>,
+    ) -> Result<SessionArtifact, ArtifactStoreError> {
         let (_, thread, requested_id) = request.scope();
         let mut artifacts = self.list(thread)?;
         let previous = requested_id
@@ -161,7 +192,7 @@ impl SessionArtifacts {
                     text.as_bytes().to_vec(),
                     ArtifactMedia::Document { format },
                     filename,
-                    ArtifactSource::Text,
+                    research_source.unwrap_or(ArtifactSource::Text),
                     source_message_id.clone(),
                     source_tool_call_id.clone(),
                 )
@@ -402,7 +433,7 @@ impl SessionArtifacts {
                 ArtifactSource::File { path } => Path::new(path)
                     .file_name()
                     .map(|name| name.to_string_lossy().into_owned()),
-                ArtifactSource::Text => None,
+                ArtifactSource::Text | ArtifactSource::Research { .. } => None,
             })
             .unwrap_or_else(|| "artifact.txt".into());
         Ok((

@@ -115,7 +115,7 @@ func MountHooks(ctx context.Context, h *harness.Harness, packages []plugins.Pack
 			}
 		}
 	}
-	if count == 0 && !options.Retain {
+	if count == 0 && (!options.Retain || (runtime.GOOS != "linux" && runtime.GOOS != "darwin")) {
 		return nil, nil
 	}
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {

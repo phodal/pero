@@ -240,7 +240,7 @@ export type TerminalData = TerminalOpened | TerminalOutput | TerminalExited | Te
 export type WebLoad = WebLoading | WebReady | WebFailed;
 export type ArtifactMedia = ArtifactDocumentMedia | ArtifactSimpleMedia | ArtifactImageMedia;
 export type ArtifactImageType = "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/svg+xml";
-export type ArtifactSource = ArtifactTextSource | ArtifactFileSource;
+export type ArtifactSource = ArtifactTextSource | ArtifactFileSource | ArtifactResearchSource;
 export type ArtifactSnapshotResult = ArtifactSnapshotSuccess | ArtifactSnapshotFailure;
 /**
  * Catalog key resolved by the UI from locales/*.json.
@@ -2185,6 +2185,16 @@ export interface ArtifactFileSource {
   kind: "file";
   path: string;
 }
+export interface ArtifactResearchSource {
+  kind: "research";
+  provenance: ResearchArtifactSource;
+}
+export interface ResearchArtifactSource {
+  program_id: string;
+  checkpoint_id: string;
+  slot: string;
+  export_digest: string;
+}
 export interface ArtifactRegisteredEvent {
   kind: "artifact_registered";
   version: 1;
@@ -2543,6 +2553,7 @@ export interface AppPluginAssembly {
   instructions: string;
   tools: AppWriteRoute[];
   maxCalls: number;
+  hostBudgeted?: boolean;
 }
 export interface AppWriteRoute {
   name: AppName;
