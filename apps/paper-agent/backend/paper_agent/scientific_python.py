@@ -66,6 +66,10 @@ def current():
                             tuple(sorted(package_inventory().items())))
 
 
+def interpreter_environment():
+    return {key: os.environ[key] for key in ('PATH', 'SYSTEMROOT', 'WINDIR', 'HOME') if key in os.environ}
+
+
 def observe(executable):
     path = Path(executable)
     if not path.is_absolute() or not path.is_file() or not os.access(path, os.X_OK):
@@ -73,11 +77,13 @@ def observe(executable):
     # Preserve the venv entry path: resolving its final symlink selects base Python.
     if str(path) == sys.executable:
         return current()
-    environment = {key: os.environ[key] for key in ('PATH', 'SYSTEMROOT', 'WINDIR', 'HOME') if key in os.environ}
+    environment = interpreter_environment()
     try:
         result = subprocess.run([str(path), '-E', '-s', '-B', '-m', 'paper_agent.scientific_python'],
             cwd=Path(__file__).resolve().parents[1], env=environment, capture_output=True,
             text=True, timeout=10, check=False)
+    except (OSError, UnicodeDecodeError) as error:
+        raise Invalid('scientific_python', 'Selected scientific interpreter could not be observed; no computation started') from error
     except subprocess.TimeoutExpired as error:
         raise Invalid('scientific_python', 'Scientific interpreter observation timed out; no computation started') from error
     if result.returncode:

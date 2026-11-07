@@ -24,7 +24,7 @@ from .reproduction_approval import (ApprovalCommand, ApprovalState, ApprovalDeci
     ApprovalDenied, ApprovalUnavailable, PendingApproval, ExecutionFacts, dispatch_failure)
 from .pcgym_sources import (PINS, SourceFile, audit_sources,
                             pipeline_digest, read_checkout)
-from .scientific_python import ScientificPython, observe as observe_scientific_python
+from .scientific_python import ScientificPython, interpreter_environment, observe as observe_scientific_python
 
 
 class PcgymApp:
@@ -227,7 +227,7 @@ class PcgymApp:
             self.processes[spec.id] = subprocess.Popen([self.scientific_python, '-E', '-s', '-B', '-m', 'paper_agent.pcgym',
                 'run', '--bundle', str(root), '--spec-sha', spec.id,
                 '--confirm-execution', '--accept-audit-findings'],
-                cwd=str(Path(__file__).resolve().parents[1]), stdin=subprocess.DEVNULL,
+                cwd=str(Path(__file__).resolve().parents[1]), env=interpreter_environment(), stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.process_requests[spec.id] = request_id
         return dict(spec_id=spec.id, status='starting', paper_verdict='INCONCLUSIVE')

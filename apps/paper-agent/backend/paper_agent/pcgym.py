@@ -174,9 +174,10 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
         local = read_json(root / 'local.json')
         if local.get('interpreter') != sys.executable:
             raise Invalid('interpreter_changed', 'Run with the interpreter used to prepare this specification')
-        if 'scientific_runtime' in local:
+        if spec.scientific_runtime_digest is not None or 'scientific_runtime' in local:
             from .scientific_python import ScientificPython, current
-            current().require(spec, ScientificPython.parse(local['scientific_runtime']))
+            current().require(spec, ScientificPython.parse(local['scientific_runtime'])
+                              if 'scientific_runtime' in local else None)
         preflight(spec, local['checkout'])
         # The parent remains inside the Host-owned process tree; no detached session.
         env = {k: os.environ[k] for k in ('PATH', 'SYSTEMROOT', 'WINDIR') if k in os.environ}

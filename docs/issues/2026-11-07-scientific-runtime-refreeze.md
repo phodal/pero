@@ -14,3 +14,8 @@ ScientificPython.require. Old payloads omit the field and retain their identitie
 Validation: 50 PC-Gym tests and 12 approval tests passed with Python 3.12
 on macOS, with canonical TMPDIR=/private/tmp. Runtime replacement tests preserve
 the old bundle bytes and accept a separately frozen binding. No solver run.
+
+Follow-up review fixed CLI identity enforcement when imported local metadata omits
+the observation, interpreter launch/decoding refusals and credential-free parent
+launch. Historical scientific acceptance is explicitly separated from these
+review corrections; no new solver execution is claimed.

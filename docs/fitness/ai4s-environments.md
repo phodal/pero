@@ -178,7 +178,7 @@ use this observation. Changed environments refuse new work; existing decisions,
 request reconciliation and original-process cancellation retain their saved owner.
 This is an observed environment, not a complete artifact lock or an attestation.
 
-Actual macOS arm64 acceptance used App Python 3.15.2 and an isolated scientific
+Historical macOS arm64 acceptance used App Python 3.15.2 and an isolated scientific
 Python 3.12.16 with ten required packages. The opt-in
 `tests/environments/pcgym-runtime.py` performed real PC-Gym CPU smoke using the
 pinned upstream checkout, both DDPG policies and MPC oracle, and independently
@@ -213,3 +213,18 @@ Both nodes were stopped after preserving VM/VMI/pod/event JSON under the ignored
 available for a suitable Linux execution host. The earlier manually owned QEMU
 process was also stopped via its own QMP socket; Tart and the reproducible QEMU
 fixture were already stopped. Slurm's isolated validation service remains available.
+
+
+### PR #149 review verification — 2026-11-07
+
+The historical real-solver receipt above did not record a source revision or
+exact executable paths/command. It predates the review change `3d204659` and
+must not be read as validation of that change. Its command shape was
+`<App Python> tests/environments/pcgym-runtime.py --science-python <scientific Python> --checkout <pinned PC-Gym checkout> --output <new evidence directory>`;
+the exact historical invocation is unavailable. No solver acceptance was rerun
+in this review. New runtime-bound specifications require the same interpreter
+identity even for imported handoffs lacking local observation metadata; a new
+executable/path requires a fresh freeze and approval. Legacy unbound specs keep
+their original version/package compatibility rule. Launch/decoding failures now
+produce a typed refusal, and interpreter processes receive the existing minimal
+observation environment instead of App/compute credentials.
