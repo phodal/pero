@@ -1,4 +1,4 @@
-// Real Host/filesystem + GPUI/Wasm. Seeded history, no model or Agent execution.
+// Real Host/filesystem + GPUI/Wasm and the built Scientific Viewer, with seeded history.
 import {mkdir,mkdtemp,writeFile,readFile,rename} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -28,7 +28,7 @@ for(const [thread,dir,title] of [['files-a',workspace,'Molecular report'],['file
 const history=join(temp,'history.jsonl'),settings=join(temp,'settings.json'),agents=join(temp,'agents.json');
 await writeFile(history,events.map(e=>JSON.stringify(e)).join('\n')+'\n');await writeFile(agents,'[]');
 await writeFile(settings,JSON.stringify({workbench:{layout:{artifact_pane_width:680},appearance:'light'}}));
-const env={...process.env,PERO_DESKTOP_DATA_DIR:join(temp,'profile'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:history,PERO_AGENTS_FILE:agents,PERO_LOCALE:'en',PERO_BUILTIN_APPS:'',PERO_REQUIRED_APPS:''};
+const env={...process.env,PERO_DESKTOP_DATA_DIR:join(temp,'profile'),PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:history,PERO_AGENTS_FILE:agents,PERO_LOCALE:'en',PERO_BUILTIN_APPS:'scientific-viewer',PERO_REQUIRED_APPS:'scientific-viewer'};
 let app,page;const errors=[];
 const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
 const launch=async()=>{
@@ -90,6 +90,35 @@ try {
   const saved=await hostRequest({method:'artifacts',action:'read',request_id:'read-original',thread_id:'files-a',artifact_id:registered.data.artifact.id,version:1});
   expect(saved.text).toBe(result);
 
+  const artifactId=registered.data.artifact.id;
+  const updated=await hostRequest({method:'artifacts',action:'register_file',request_id:'keep-revised',thread_id:'files-a',artifact_id:artifactId,path:'runs/result.json'});
+  expect(updated.kind).toBe('artifact_registered');
+  await control('artifacts-tab');
+  const frame=page.locator('iframe[title="Scientific Viewer"]');
+  const viewer=page.frameLocator('iframe[title="Scientific Viewer"]');
+  await viewer.getByRole('option',{name:/result\.json/}).press('Enter');
+  await viewer.getByRole('button',{name:'Previous version',exact:true}).press('Enter');
+  await expect.poll(async()=>(await state()).artifacts.selected).toEqual([artifactId,1]);
+  const previewWidth=async()=>(await frame.boundingBox())?.width ?? 0;
+  await expect.poll(previewWidth).toBeGreaterThan(0);
+  const splitWidth=await previewWidth();
+  await click(s=>s.artifacts.bounds.expand);
+  await expect.poll(previewWidth).toBeGreaterThan(splitWidth+300);
+  await expect(viewer.locator('.artifact-document')).toContainText('46.069');
+  await page.screenshot({path:join(output,'artifact-expanded.png'),scale:'css'});
+  await click(s=>s.artifacts.bounds.expand);
+  await expect.poll(previewWidth).toBe(splitWidth);
+  expect((await state()).artifacts.selected).toEqual([artifactId,1]);
+  expect((await state()).preferences.layout.artifact_pane_width).toBe(680);
+  await click(s=>s.artifacts.bounds.expand);
+  await expect.poll(previewWidth).toBeGreaterThan(splitWidth+300);
+  await click(s=>s.artifacts.bounds['add-context']);
+  await expect.poll(previewWidth).toBe(splitWidth);
+  await expect.poll(async()=>(await state()).attachments).toContain('result.json v1');
+  await expect.poll(async()=>(await state()).composerFocused).toBe(true);
+  await control('files-tab');
+  expect((await state()).files.browser.previewPath).toBe('runs/result.json');
+
   await clickSessionRow(page,'files-b');await click(s=>s.artifacts?.bounds.toggle);
   await expect.poll(async()=>(await state()).files?.browser?.rows.some(r=>r.path==='other-only.txt')).toBe(true);
   expect((await state()).files.browser.rows.some(r=>r.path==='request.json')).toBe(false);
@@ -128,7 +157,7 @@ try {
   expect((await state()).files.browser.rows.some(r=>r.path==='request.json')).toBe(true);
   expect(await readFile(history,'utf8')).toBe(events.map(e=>JSON.stringify(e)).join('\n')+'\n');
   expect(errors).toEqual([]);
-  await writeFile(join(output,'result.json'),JSON.stringify({workspace,history,renderedRowsFor2000Entries:painted,checks:['real Host and filesystem','session isolation','keyboard','relative Markdown link','reload retains scroll','missing workspace retains rows','retained tabs','snapshot preserved','reload','truncation','narrow dark','restart preference'],errors},null,2));
+  await writeFile(join(output,'result.json'),JSON.stringify({workspace,history,renderedRowsFor2000Entries:painted,checks:['real Host and filesystem','session isolation','keyboard','relative Markdown link','reload retains scroll','missing workspace retains rows','retained tabs','snapshot preserved','artifact maximize and split restore','reload','truncation','narrow dark','restart preference'],errors},null,2));
   console.log('Workspace Files: real Host, lazy tree, preview, keyboard, isolation, immutable artifact and restart passed');
 } catch(error) {
   if(page){await page.screenshot({path:join(output,'failure.png')});await writeFile(join(output,'failure.json'),JSON.stringify(await state(),null,2));}

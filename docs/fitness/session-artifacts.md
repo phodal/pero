@@ -266,6 +266,116 @@ captures are local evidence, not committed product assets. An existing Notebook
 MathJax console error remains outside this layout change; saved code/output
 rendering does not certify mathematical typesetting.
 
+## Open Science alignment — 2026-11-07
+
+Reference checkout `c1d92ee` has separate paths for a session's live files,
+file links in assistant replies, and explicit `present_artifact` placement.
+The Notebook page owns editing and kernel execution. The atlas and scVI
+example screens show version navigation, generating code, execution logs,
+messages, environment and review from fixtures. The live file inspector
+instead reads workspace provenance history, with recorded writes, code or
+diff, and available run and environment references. Its history can prepare a
+reproduction prompt. Pero's Files, immutable Artifacts and Diff continue to
+represent live browsing, explicit delivery and change review respectively.
+
+The shared artifact pane adds expand and restore in its output header. The
+expanded pane uses the Chat content region and keeps the browser view, exact
+version and split-width preference. Narrow windows use the existing single
+pane. Go to source and a successfully added prompt context bring Chat back
+into view. Scientific Viewer adds Version details next to version navigation.
+It shows the selected snapshot's format, exact byte count, saved time, origin
+and SHA-256 from the Host catalog. This is capture metadata. An execution log
+or review outcome would need a link to the record that owns that evidence.
+
+Verification on macOS against `3eec45a6` plus the shared-pane changes:
+
+- `npm run check`, Scientific Viewer typecheck/build, pinned Native build and
+  Wasm/Web/Desktop builds passed. GPUI Kit was taken from the CI revision
+  `7591a35ec` because the local upstream checkout had moved ahead of the
+  repository's patch set.
+- `node apps/scientific-viewer/test/artifact-browser.mjs` passed all nine
+  checks in Chromium and WebKit with fixture Host bytes. Version details
+  matched two distinct CSV snapshots. Enter and Tab reached the details,
+  and Escape closed them and restored trigger focus. The captured Chromium
+  state is `test-results/session-artifacts-viewer/version-details.png`.
+- `node tests/e2e/workspace-files.mjs` passed in Electron with a real local
+  Host. After registering v2, the test opened v1, checked its retained bytes,
+  expanded the actual reader and restored its original width. Add to prompt
+  returned to the focused composer with the v1 attachment and no submission.
+  The Files reader retained its previous selection. The captured expanded
+  state is `test-results/workspace-files/artifact-expanded.png`.
+- A newly built Native preview with an isolated copy of the synthetic ACP
+  profile rendered `results.csv` v2 with value 9 and v1 with value 7. Expand,
+  version details, restore and Go to source were exercised in the actual
+  window. The v1 details showed 58 B, the recorded path and SHA-256. The
+  original v1 delivery opened when returning to Chat. This run covers the
+  light Native development window with a real local Host. Dark Native,
+  installed distributions, live model delivery and scientific validation
+  were outside this verification.
+
+### Open deliveries from the transcript
+
+Chat shows a compact filename and version button beside each successful
+`deliver_artifact` call, even when the process group is collapsed. It matches
+the receipt's conversation, artifact ID, version and digest against the Host
+catalog. Opening a button presents that exact version in the current reader
+without changing the saved Icons, List or Gallery preference. The lower
+navigation now uses Deliveries and Code changes. Files remains the workspace
+browser. Deliveries from Diff explicitly returns to Artifacts.
+
+- In an isolated light macOS Native window with the retained ACP fixture
+  profile and a real local Host, both collapsed process groups exposed their
+  seven deliveries. The CSV buttons opened v1 and v2 directly in List mode,
+  showing 7 and 9 respectively. Go to source on v2 opened the second group's
+  tool record. Starting in Files, Diff → Deliveries returned to Artifacts.
+- The Native build, standalone Chat Wasm check, Scientific Viewer
+  typecheck/build and ten Chromium and WebKit checks passed.
+  The fixture browser directly opens the old CSV version from List and reopens
+  it after Escape. Repository-wide build checks were also attempted while
+  separate Settings edits were in progress. The full Wasm build stopped on
+  Settings/Engram errors, and the first TypeScript check stopped on an
+  unrelated MCP settings test.
+
+### Present a delivery and follow its evidence
+
+`deliver_artifact` can request `side` or `expanded` when asked to display a
+new delivery. Host returns the request only after saving the snapshot. Chat
+acts on it only while that conversation is visible and running. Background
+deliveries still enter the catalog and can be opened from the transcript.
+The request does not persist a browser preference or confirm rendering.
+
+A delivery can name up to 16 related snapshots in the same conversation.
+Each link pins an artifact ID and version and declares one role: input, code,
+execution log, environment, or review material. Host refuses missing and
+foreign versions before publishing the delivery. Links belong to the new
+version and are supplied explicitly when its inputs or run change. Review
+material carries no verdict. A Paper export additionally exposes its actual
+checkpoint and other saved exports with the same program and checkpoint, even
+when their catalog items already have newer versions.
+
+- The Electron acceptance runs an isolated ACP fixture and the real Host.
+  Ordinary delivery kept the reader closed. The side request opened v2 and
+  its input link opened v1. The expanded request opened v3 in a larger
+  reader while retaining the List preference. See
+  `test-results/artifact-presentation/{side,linked-input,expanded}.png`.
+- The real Host/MCP test retained the v2 relationship after restart,
+  rejected an unavailable version and a foreign conversation's relationship,
+  and confirmed that v3 had no relationship when none was supplied.
+- Viewer Chromium and WebKit each passed 12 checks. The older report's
+  checkpoint opened the older research log and excluded a different program.
+  The browser fixture separately covered explicit role links.
+- Repository checks, focused Rust tests, full Wasm/Web/Desktop builds and
+  Electron Workspace Files acceptance passed. The live presentation scenario
+  was exercised in Electron. An isolated Native launch did not load the
+  fixture Agent, so it did not verify the new presentation request there.
+  The subsequent Native rebuild stopped while the shared artifact toolbar
+  was being changed concurrently.
+
+The reader currently supports transcript links, side-by-side and expanded
+views. Independent tiled/bottom panes, rich inline previews, live notebook
+execution and automatic attachment of records from external run owners are
+separate capabilities.
+
 ## Current limits
 
 Notebook displays saved cells and outputs; there is no shared live kernel,

@@ -134,11 +134,19 @@ try {
   assert.equal(first.versions.length, 1);
   const secondText = '# Report\n\nRevised captured result.\n';
   await writeFile(join(workspace, 'report.md'), secondText);
-  const secondResult = await deliver({ path: 'report.md', artifact_id: first.id });
+  const related = [{ artifact_id: first.id, version: 1, role: 'input' }];
+  const secondResult = await deliver({ path: 'report.md', artifact_id: first.id, presentation: 'expanded', related });
   assert.equal(secondResult.isError, false, JSON.stringify(secondResult));
-  const second = JSON.parse(secondResult.content[0].text).artifact;
+  const presented = JSON.parse(secondResult.content[0].text);
+  assert.equal(presented.presentation, 'expanded');
+  const second = presented.artifact;
   assert.equal(second.id, first.id);
   assert.equal(second.versions.length, 2);
+  assert.deepEqual(second.versions[1].related, related);
+  assert.equal(second.versions[0].related, undefined);
+  const missingLink = await deliver({ path: 'report.md', artifact_id: first.id,
+    related: [{ artifact_id: first.id, version: 99, role: 'review' }] });
+  assert.equal(missingLink.isError, true);
   const old = await request('read', { thread_id: 'artifact-caller', artifact_id: first.id, version: 1 });
   assert.equal(old.kind, 'artifact_document');
   assert.equal(old.text, '# Report\n\nFirst captured result.\n');
@@ -198,6 +206,8 @@ try {
   const otherCaller = await create('other-caller');
   const foreign = await otherCaller('tools/call', { name: 'deliver_artifact', arguments: { path: 'report.md', artifact_id: first.id } });
   assert.equal(foreign.isError, true);
+  const foreignLink = await otherCaller('tools/call', { name: 'deliver_artifact', arguments: { path: 'report.md', related } });
+  assert.equal(foreignLink.isError, true);
   send({ action: 'cancel', thread_id: 'artifact-caller' });
   await wait(event => event.kind === 'turn_finished' && event.thread_id === 'artifact-caller');
   assert.equal((await deliver({ path: 'report.md' })).isError, true);
@@ -211,7 +221,10 @@ try {
   const restored = await request('list', { thread_id: 'artifact-caller' });
   assert.equal(restored.kind, 'artifact_catalog');
   assert.equal(restored.data.artifacts.length, fixtures.length + 2);
-  assert.equal(restored.data.artifacts.find(item => item.id === first.id).versions.length, 3);
+  const restoredVersions = restored.data.artifacts.find(item => item.id === first.id).versions;
+  assert.equal(restoredVersions.length, 3);
+  assert.deepEqual(restoredVersions[1].related, related);
+  assert.equal(restoredVersions[2].related, undefined);
   await rm(join(workspace, 'report.md'));
   const saved = await request('read', { thread_id: 'artifact-caller', artifact_id: first.id, version: 2 });
   assert.equal(saved.kind, 'artifact_document');
@@ -240,6 +253,7 @@ try {
     artifactId: first.id, versions: restored.data.artifacts.find(item => item.id === first.id).versions.length,
     richFormats: rich.map(({ file, artifact, snapshot }) => ({ filename: file.name, artifactId: artifact.id, kind: snapshot.media.kind, sha256: snapshot.sha256, bytes: snapshot.bytes })),
     checks: ['actual-caller', 'background-delivery', 'original-workspace', 'exact-versions', 'foreign-item-rejected', 'outside-file-rejected', 'cancelled-caller-rejected', 'restart', 'source-file-removed', 'deleted-conversation-rejected',
+      'presentation-receipt', 'exact-relations-after-restart', 'missing-and-foreign-relations-rejected',
       'rich-file-bytes-and-metadata', 'binary-exact-versions', 'rich-snapshots-after-restart', 'image-context-bytes', 'text-context-bytes', 'pdf-reference-context', 'large-table-reference-context', 'private-snapshot-rejection', 'artifact-wire-schema'],
     limits: ['No Native or Electron UI', 'No real provider', 'No scientific verification', 'Direct text snapshots up to 2 MiB; supported files up to 10 MiB'] };
   await writeFile(join(output, 'result.json'), JSON.stringify(result, null, 2));
