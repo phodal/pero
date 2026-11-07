@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="940" viewBox="0 0 1600 940" role="img" aria-labelledby="title description" xml:lang="zh-CN">
+<title id="title">Pero — 领域 App，为研究者与 Agent 组合能力。</title>
+<desc id="description">领域定义方法、输入、输出与检查规则。App 拥有界面、数据与可选后端，可复用于独立 Product 和工作台。已有本地 App Agent Plugin 声明与依赖包，为 Host 拥有的 ACP 会话提供指引、Skills 和 MCP；声明的 App 数据路由仍受范围和审批约束。App SDK 与 Host 负责生命周期、进程、凭据与会话，各 Product 保持自己的 Host 和数据。App 到 Task/Run、远程部署仍待集成。实线只表示实现基础，不表示所有平台均已验收。</desc>
+<defs>
+<marker id="arrow0" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M 2 2 L 9 6 L 2 10" fill="none" stroke="#667075" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="arrow1" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M 2 2 L 9 6 L 2 10" fill="none" stroke="#A87531" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+<style>text{font-family:"Noto Sans CJK SC","Noto Sans CJK","PingFang SC","Microsoft YaHei",Arial,sans-serif}path,line,rect,circle,ellipse{stroke-linecap:round;stroke-linejoin:round}</style>
+<rect width="1600" height="940" fill="#FFFFFF"/>
+<text x="64" y="59" font-size="36" fill="#20272B" font-weight="700" text-anchor="start">领域 App，为研究者与 Agent 组合能力。</text>
+<rect x="64" y="96" width="1472" height="65" rx="12" fill="#FBF3E7" stroke="none" stroke-width="2"/>
+<text x="90" y="139" font-size="23" fill="#20272B" font-weight="600" text-anchor="start">领域</text>
+<text x="288" y="139" font-size="26" fill="#20272B" font-weight="500" text-anchor="start">方法 · 输入 · 输出 · 检查规则</text>
+<ellipse cx="422" cy="289" rx="217" ry="97" fill="#FBF3E7"/>
+<ellipse cx="1178" cy="289" rx="217" ry="97" fill="#F5F7F7"/>
+<g transform="translate(422 279) scale(1.52)">
+<rect x="-62" y="-47" width="124" height="96" rx="8" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<path d="M -62 -24 H 62" fill="none" stroke="#20272B" stroke-width="2.2"/>
+<circle cx="-47" cy="-35" r="2.3" fill="#667075" stroke="none" stroke-width="2.4"/>
+<circle cx="-36" cy="-35" r="2.3" fill="#667075" stroke="none" stroke-width="2.4"/>
+<circle cx="-25" cy="-35" r="2.3" fill="#667075" stroke="none" stroke-width="2.4"/>
+<rect x="-48" y="-11" width="31" height="45" rx="2" fill="#F5F7F7" stroke="#D7DCDF" stroke-width="2"/>
+<path d="M -2 -8 H 45 M -2 6 H 35 M -2 20 H 45 M -2 34 H 26" fill="none" stroke="#667075" stroke-width="2.2"/>
+</g>
+<g transform="translate(575 316) scale(0.56)">
+<path d="M -36 -29 V 35 C -36 53 36 53 36 35 V -29" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<ellipse cx="0" cy="-29" rx="36" ry="13" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<path d="M -36 -8 C -36 10 36 10 36 -8 M -36 14 C -36 32 36 32 36 14" fill="none" stroke="#20272B" stroke-width="2.2"/>
+</g>
+<g transform="translate(1178 279) scale(1.52)">
+<path d="M -42 -36 H -12 V -45 C -12 -65 13 -65 13 -45 V -36 H 42 V -8 H 50 C 70 -8 70 17 50 17 H 42 V 46 H -42 Z" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<path d="M -25 7 H 10 M -25 21 H 20" fill="none" stroke="#667075" stroke-width="2.2"/>
+</g>
+<text x="422" y="432" font-size="32" fill="#20272B" font-weight="700" text-anchor="middle">App</text>
+<text x="1178" y="432" font-size="32" fill="#20272B" font-weight="700" text-anchor="middle">App Agent Plugins</text>
+<text x="422" y="476" font-size="24" fill="#667075" font-weight="400" text-anchor="middle">领域界面 · 数据 · 可选后端</text>
+<text x="422" y="509" font-size="24" fill="#667075" font-weight="400" text-anchor="middle">Paper · Virtual Cell · Control Lab</text>
+<text x="1178" y="476" font-size="24" fill="#667075" font-weight="400" text-anchor="middle">指引 · Skills · MCP 依赖</text>
+<text x="1178" y="509" font-size="24" fill="#667075" font-weight="400" text-anchor="middle">本地能力包，限定于当前会话</text>
+<path d="M 673 285 H 927" fill="none" stroke="#667075" stroke-width="2.2" marker-end="url(#arrow0)"/>
+<text x="800" y="232" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">声明的</text>
+<text x="800" y="262" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">App 工具</text>
+<path d="M 422 528 V 566" fill="none" stroke="#667075" stroke-width="2.2" marker-end="url(#arrow0)"/>
+<path d="M 1178 528 V 566" fill="none" stroke="#667075" stroke-width="2.2" marker-end="url(#arrow0)"/>
+<rect x="174" y="580" width="496" height="94" rx="10" fill="#FFFFFF" stroke="#D7DCDF" stroke-width="2"/>
+<text x="422" y="619" font-size="26" fill="#20272B" font-weight="600" text-anchor="middle">独立产品 / 工作台</text>
+<text x="422" y="654" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">复用同一个 App</text>
+<rect x="930" y="580" width="496" height="94" rx="10" fill="#FFFFFF" stroke="#D7DCDF" stroke-width="2"/>
+<text x="1178" y="619" font-size="26" fill="#20272B" font-weight="600" text-anchor="middle">Host 管理的 Agent 会话</text>
+<text x="1178" y="654" font-size="22" fill="#667075" font-weight="400" text-anchor="middle">冻结能力 · 审批 · 调用限额</text>
+<path d="M 422 674 V 709 M 1178 674 V 709" fill="none" stroke="#D7DCDF" stroke-width="2.2"/>
+<rect x="64" y="710" width="1472" height="111" rx="14" fill="#F5F7F7" stroke="none" stroke-width="2"/>
+<g transform="translate(118 766) scale(0.5)">
+<rect x="-52" y="-38" width="104" height="30" rx="5" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<circle cx="-36" cy="-23" r="3" fill="#20272B" stroke="none" stroke-width="2.4"/>
+<path d="M -20 -23 H 32" fill="none" stroke="#D7DCDF" stroke-width="2.2"/>
+<rect x="-52" y="1" width="104" height="30" rx="5" fill="#FFFFFF" stroke="#20272B" stroke-width="2.8"/>
+<circle cx="-36" cy="16" r="3" fill="#20272B" stroke="none" stroke-width="2.4"/>
+<path d="M -20 16 H 32" fill="none" stroke="#D7DCDF" stroke-width="2.2"/>
+<path d="M 0 32 V 49 M -37 49 H 37" fill="none" stroke="#667075" stroke-width="2.2"/>
+</g>
+<text x="174" y="751" font-size="26" fill="#20272B" font-weight="600" text-anchor="start">共享基础</text>
+<text x="174" y="792" font-size="24" fill="#20272B" font-weight="400" text-anchor="start">App SDK · Host runtime · ACP</text>
+<text x="1497" y="751" font-size="24" fill="#667075" font-weight="400" text-anchor="end">生命周期、后端进程与凭据由 Host 持有。</text>
+<text x="1497" y="792" font-size="22" fill="#667075" font-weight="400" text-anchor="end">复用实现；各产品拥有自己的 Host 和数据。</text>
+<rect x="64" y="845" width="1472" height="49" rx="8" fill="#FFFFFF" stroke="#D7DCDF" stroke-width="2" stroke-dasharray="7 6"/>
+<text x="87" y="879" font-size="23" fill="#667075" font-weight="600" text-anchor="start">后续接线</text>
+<text x="385" y="879" font-size="23" fill="#667075" font-weight="400" text-anchor="start">App → Task / Run · 远程 App 部署</text>
+<text x="64" y="927" font-size="20" fill="#667075" font-weight="400" text-anchor="start">实线：已有实现基础   ·   虚线：规划或待接通的关系</text>
+</svg>

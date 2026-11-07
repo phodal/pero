@@ -1,101 +1,73 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { Graphic, ink, muted, border, soft, wash } from './research-graphics.mjs';
 
-// Conceptual domain composition from docs/ARCHITECTURE.md and ADR 0007/0008.
-// Plugin packaging and App-to-Agent tools are a target, not an app.json contract.
-const root = new URL('../../', import.meta.url);
-const theme = readFileSync(new URL('DESIGN.md', root), 'utf8').split('---')[1];
-const light = theme.match(/^  light:\n([\s\S]*?)(?=^  \w+:)/m)?.[1];
-if (!light) throw new Error('Missing colors.light palette in DESIGN.md');
-const c = Object.fromEntries([...light.matchAll(/^    ([\w-]+): "(#[\da-f]{6})"$/gmi)].map((match) => [match[1], match[2]]));
-if (['bg', 'surface', 'surface-muted', 'text', 'text-muted', 'border', 'input-border', 'action', 'accent-soft', 'accent-text'].some((key) => !c[key])) {
-  throw new Error('Missing building blocks palette token in DESIGN.md');
-}
-
-const escape = (value) => String(value).replace(/[&<>"']/g, (v) => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
-})[v]);
-const parts = [];
-const add = (value) => parts.push(value);
-function text(x, y, value, size = 20, color = c.text, weight = 400, extra = '') {
-  add(`<text x="${x}" y="${y}" font-size="${size}" fill="${color}" font-weight="${weight}" ${extra}>${escape(value)}</text>`);
-}
-function rect(x, y, width, height, { fill = c.surface, stroke = c.border, dashed = false, radius = 10 } = {}) {
-  add(`<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"${dashed ? ' stroke-dasharray="7 5"' : ''}/>`);
-}
-function line(d, planned = false, arrow = false) {
-  add(`<path d="${d}" fill="none" stroke="${c['input-border']}" stroke-width="1.8"${planned ? ' stroke-dasharray="7 5"' : ''}${arrow ? ' marker-end="url(#arrow)"' : ''}/>`);
-}
-
-add('<?xml version="1.0" encoding="UTF-8"?>');
-add('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="732" viewBox="0 0 1200 732" role="img" aria-labelledby="title description" lang="en">');
-add('<title id="title">Pero — Domain building blocks</title>');
-add('<desc id="description">Conceptual composition: a domain defines methods, inputs, outputs and checks. Its App owns a user interface, data and an optional backend, and is reused in standalone products or the Pero workbench. A planned Agent Plugin groups Skills (instructions) and Tools (MCP or connectors), exposing domain methods to Host-owned Agent sessions. The App SDK and Host runtime provide the shared foundation. Dashed outlines and connections mark planned integration; Plugin is not a supported App manifest field today.</desc>');
-add(`<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="${c['input-border']}" stroke-width="1.5"/></marker></defs>`);
-rect(0, 0, 1200, 732, { fill: c.bg, stroke: 'none', radius: 16 });
-add('<g font-family="Inter, Helvetica Neue, Arial, sans-serif">');
-text(40, 54, 'Domain Apps, composed for people and agents.', 30, c.text, 650);
-
-// Domain is the conceptual scope, not an additional runtime or registry.
-rect(40, 90, 1120, 318, { fill: c['surface-muted'] });
-text(64, 130, 'Domain', 26, c.text, 650);
-text(204, 130, 'Methods · Inputs · Outputs · Checks', 20, c['text-muted']);
-text(1136, 130, 'e.g. Biology', 18, c['text-muted'], 400, 'text-anchor="end"');
-
-rect(64, 156, 448, 224, { stroke: c.action });
-text(88, 198, 'App', 28, c['accent-text'], 650);
-text(88, 230, 'A reusable domain experience', 20, c['text-muted']);
-[
-  [88, 116, 'UI'],
-  [216, 116, 'Data'],
-  [344, 144, 'Backend*'],
-].forEach(([x, width, label]) => {
-  rect(x, 254, width, 54, { fill: c['accent-soft'], stroke: 'none', radius: 6 });
-  text(x + width / 2, 288, label, 21, c['accent-text'], 550, 'text-anchor="middle"');
-});
-text(88, 350, '* Optional domain computation', 17, c['text-muted']);
-
-rect(688, 156, 448, 224, { stroke: c['input-border'], dashed: true });
-text(712, 198, 'Agent Plugin', 28, c.text, 650);
-text(1112, 196, 'PLANNED', 14, c['text-muted'], 550, 'text-anchor="end" letter-spacing="1"');
-text(712, 230, 'A bundle of agent capabilities', 20, c['text-muted']);
-[
-  [712, 'Skills', 'Instructions'],
-  [920, 'Tools', 'MCP / connectors'],
-].forEach(([x, title, detail]) => {
-  rect(x, 254, 192, 102, { fill: c['surface-muted'], stroke: 'none', radius: 6 });
-  text(x + 16, 289, title, 22, c.text, 600);
-  text(x + 16, 326, detail, 18, c['text-muted']);
-});
-line('M 512 280 H 684', true, true);
-text(600, 247, 'Expose', 18, c['text-muted'], 400, 'text-anchor="middle"');
-text(600, 269, 'domain tools', 18, c['text-muted'], 400, 'text-anchor="middle"');
-
-// One App can be delivered through either shell. Plugin/session wiring is planned.
-line('M 288 380 V 452', false, true);
-line('M 912 380 V 452', true, true);
-rect(64, 456, 448, 96);
-text(288, 493, 'Standalone product  /  Workbench', 23, c.text, 600, 'text-anchor="middle"');
-text(288, 525, 'Reuse the same App', 19, c['text-muted'], 400, 'text-anchor="middle"');
-rect(688, 456, 448, 96, { stroke: c['input-border'], dashed: true });
-text(912, 493, 'Agent sessions', 23, c.text, 600, 'text-anchor="middle"');
-text(912, 525, 'Apply Skills · Call domain Tools', 19, c['text-muted'], 400, 'text-anchor="middle"');
-
-line('M 288 552 V 592');
-line('M 912 552 V 592', true);
-rect(64, 592, 1072, 76, { fill: c['accent-soft'], stroke: 'none' });
-text(88, 624, 'Pero platform', 23, c['accent-text'], 650);
-text(88, 651, 'App SDK · Host runtime', 18, c['accent-text']);
-text(1112, 625, 'App lifecycle · Backend processes · ACP sessions', 20, c.text, 500, 'text-anchor="end"');
-text(1112, 651, 'Shared implementation, product-specific Host and data', 17, c['text-muted'], 400, 'text-anchor="end"');
-line('M 66 701 H 102', true);
-text(114, 707, 'Dashed = planned composition and integration', 17, c['text-muted']);
-add('</g></svg>\n');
-
-const output = new URL('docs/assets/openpero-building-blocks.svg', root);
-const svg = parts.join('\n');
-if (process.argv.includes('--check')) {
-  if (readFileSync(output, 'utf8') !== svg) throw new Error('Run node scripts/codegen/building-blocks.mjs');
-} else {
-  writeFileSync(output, svg);
-  console.log(`Generated ${output.pathname}`);
+// ADR 0007/0008/0014/0025/0027: local App/plugin/session wiring is implemented.
+// This is not marketplace, remote App deployment or complete Task/Run acceptance.
+const locales = {
+  en: {
+    title: 'Domain Apps, composed for people and agents.',
+    description: 'A domain defines methods, inputs, outputs and checks. Its App owns UI, data and an optional backend, reused in a standalone Product or the Workbench. Implemented local App Agent Plugin declarations and dependency packages supply instructions, Skills and MCP to Host-owned ACP sessions. Declared App data routes remain scoped and approved. App SDK and Host own lifecycle, processes, credentials and sessions; each Product has its own Host and data. App-to-Task/Run and remote deployment integration remain planned. Solid lines mean implementation foundations, not acceptance on every platform.',
+    domain: 'DOMAIN', definition: 'Methods · Inputs · Outputs · Checks',
+    app: 'App', appDetails: ['Domain UI · Data · Optional backend', 'Paper · Virtual Cell · Control Lab'],
+    plugin: 'App Agent Plugins', pluginDetails: ['Instructions · Skills · MCP dependencies', 'Local packages, scoped to the session'],
+    bridge: ['Declared', 'App tools'],
+    product: 'Standalone product / Workbench', productNote: 'Reuse the same App',
+    session: 'Host-owned Agent sessions', sessionNote: 'Frozen capabilities · Approvals · Call limits',
+    platform: 'Shared foundation', platformItems: 'App SDK · Host runtime · ACP',
+    platformNote: 'Lifecycle, backend processes and credentials stay with Host.',
+    isolation: 'Shared implementation; product-specific Host and data.',
+    planned: 'Next integration', plannedItems: 'App → Task / Run · Remote App deployment',
+    legend: 'Solid: implementation foundation   ·   Dashed: planned integration',
+  },
+  'zh-CN': {
+    title: '领域 App，为研究者与 Agent 组合能力。',
+    description: '领域定义方法、输入、输出与检查规则。App 拥有界面、数据与可选后端，可复用于独立 Product 和工作台。已有本地 App Agent Plugin 声明与依赖包，为 Host 拥有的 ACP 会话提供指引、Skills 和 MCP；声明的 App 数据路由仍受范围和审批约束。App SDK 与 Host 负责生命周期、进程、凭据与会话，各 Product 保持自己的 Host 和数据。App 到 Task/Run、远程部署仍待集成。实线只表示实现基础，不表示所有平台均已验收。',
+    domain: '领域', definition: '方法 · 输入 · 输出 · 检查规则',
+    app: 'App', appDetails: ['领域界面 · 数据 · 可选后端', 'Paper · Virtual Cell · Control Lab'],
+    plugin: 'App Agent Plugins', pluginDetails: ['指引 · Skills · MCP 依赖', '本地能力包，限定于当前会话'],
+    bridge: ['声明的', 'App 工具'],
+    product: '独立产品 / 工作台', productNote: '复用同一个 App',
+    session: 'Host 管理的 Agent 会话', sessionNote: '冻结能力 · 审批 · 调用限额',
+    platform: '共享基础', platformItems: 'App SDK · Host runtime · ACP',
+    platformNote: '生命周期、后端进程与凭据由 Host 持有。',
+    isolation: '复用实现；各产品拥有自己的 Host 和数据。',
+    planned: '后续接线', plannedItems: 'App → Task / Run · 远程 App 部署',
+    legend: '实线：已有实现基础   ·   虚线：规划或待接通的关系',
+  },
+};
+for (const [lang, copy] of Object.entries(locales)) {
+  const g = new Graphic(1600, 940, lang, `Pero — ${copy.title}`, copy.description);
+  g.text(64, 59, copy.title, 36, ink, 700);
+  g.rect(64, 96, 1472, 65, { fill: wash, stroke: 'none', radius: 12 });
+  g.text(90, 139, copy.domain, 23, ink, 600);
+  g.text(288, 139, copy.definition, 26, ink, 500);
+  g.halo(422, 289, 217, 97, true);
+  g.halo(1178, 289, 217, 97);
+  g.illustration('app', 422, 279, 1.52);
+  g.illustration('database', 575, 316, .56);
+  g.illustration('plugin', 1178, 279, 1.52);
+  g.text(422, 432, copy.app, 32, ink, 700, 'middle');
+  g.text(1178, 432, copy.plugin, 32, ink, 700, 'middle');
+  g.lines(422, 476, copy.appDetails, 24);
+  g.lines(1178, 476, copy.pluginDetails, 24);
+  g.path('M 673 285 H 927', { arrow: true });
+  g.lines(800, 232, copy.bridge, 22, muted, 'middle', 30);
+  g.path('M 422 528 V 566', { arrow: true });
+  g.path('M 1178 528 V 566', { arrow: true });
+  [[174, 422, copy.product, copy.productNote], [930, 1178, copy.session, copy.sessionNote]].forEach(([x, center, title, detail]) => {
+    g.rect(x, 580, 496, 94, { stroke: border, radius: 10 });
+    g.text(center, 619, title, 26, ink, 600, 'middle');
+    g.text(center, 654, detail, 22, muted, 400, 'middle');
+  });
+  g.path('M 422 674 V 709 M 1178 674 V 709', { color: border });
+  g.rect(64, 710, 1472, 111, { fill: soft, stroke: 'none', radius: 14 });
+  g.illustration('server', 118, 766, .5);
+  g.text(174, 751, copy.platform, 26, ink, 600);
+  g.text(174, 792, copy.platformItems, 24);
+  g.text(1497, 751, copy.platformNote, 24, muted, 400, 'end');
+  g.text(1497, 792, copy.isolation, 22, muted, 400, 'end');
+  g.rect(64, 845, 1472, 49, { stroke: border, dashed: true, radius: 8 });
+  g.text(87, 879, copy.planned, 23, muted, 600);
+  g.text(385, 879, copy.plannedItems, 23, muted);
+  g.text(64, 927, copy.legend, 20, muted);
+  g.save(`openpero-building-blocks${lang === 'en' ? '' : '.zh-CN'}.svg`);
 }
