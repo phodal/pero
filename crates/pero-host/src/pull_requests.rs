@@ -18,7 +18,9 @@ pub fn dispatch(value: serde_json::Value, agents: &crate::agents::Manager) {
         }
     };
     let workspace = match &request.action {
-        PullRequestAction::Load { .. } => Some(agents.workspace().to_owned()),
+        PullRequestAction::Load { .. } | PullRequestAction::List { .. } => {
+            Some(agents.workspace().to_owned())
+        }
         PullRequestAction::Discover { thread_id } => agents.artifact_workspace(thread_id),
     };
     std::thread::spawn(move || {
@@ -34,6 +36,15 @@ pub fn dispatch(value: serde_json::Value, agents: &crate::agents::Manager) {
                     let snapshot = load(&GitHubCli, &workspace, reference)?;
                     event.kind = "pull_request_loaded".into();
                     event.data = serde_json::to_value(snapshot).expect("PR snapshot");
+                }
+                PullRequestAction::List { repository, state } => {
+                    let items = list(&GitHubCli, &workspace, &repository, state)?;
+                    event.kind = "pull_request_listed".into();
+                    event.data = serde_json::json!({
+                        "repository": repository.slug(),
+                        "state": state,
+                        "items": items,
+                    });
                 }
                 PullRequestAction::Discover { thread_id } => {
                     event.thread_id = Some(thread_id);
@@ -110,6 +121,82 @@ fn section<T: serde::de::DeserializeOwned>(
             error: Some(error),
         },
     }
+}
+#[derive(Deserialize)]
+struct ListedAuthor {
+    login: String,
+}
+#[derive(Deserialize)]
+struct ListedPull {
+    number: u64,
+    title: String,
+    url: Option<String>,
+    author: Option<ListedAuthor>,
+    #[serde(rename = "isDraft")]
+    is_draft: bool,
+    state: String,
+    additions: u64,
+    deletions: u64,
+}
+fn list(
+    github: &impl GitHub,
+    workspace: &Path,
+    repository: &RepositoryName,
+    state: PullRequestListState,
+) -> Result<Vec<PullRequestSummary>, String> {
+    let limit = LIST_LIMIT.to_string();
+    let output = github
+        .run(
+            workspace,
+            &[
+                "pr",
+                "list",
+                "--repo",
+                repository.slug(),
+                "--state",
+                state.argument(),
+                "--limit",
+                &limit,
+                "--json",
+                "number,title,url,author,isDraft,state,additions,deletions",
+            ],
+        )
+        .map_err(|error| error.message)?;
+    let rows: Vec<ListedPull> = serde_json::from_str(&output)
+        .map_err(|error| format!("Invalid GitHub pull request list: {error}"))?;
+    rows.into_iter()
+        .map(|row| listed_summary(repository, row))
+        .collect()
+}
+fn listed_summary(
+    repository: &RepositoryName,
+    row: ListedPull,
+) -> Result<PullRequestSummary, String> {
+    let reference = match row.url {
+        Some(url) => PullRequestRef::try_from(url)?,
+        None => PullRequestRef::try_from(format!(
+            "https://github.com/{}/pull/{}",
+            repository.slug(),
+            row.number
+        ))?,
+    };
+    if reference.repository() != repository.slug() || reference.number() != row.number.to_string() {
+        return Err("GitHub returned a pull request from another repository".into());
+    }
+    let status = match row.state.to_ascii_uppercase().as_str() {
+        "MERGED" => PullRequestStatus::observed("closed", false, true)?,
+        "CLOSED" => PullRequestStatus::observed("closed", false, false)?,
+        "OPEN" => PullRequestStatus::observed("open", row.is_draft, false)?,
+        _ => return Err("Unrecognized GitHub pull request state".into()),
+    };
+    Ok(PullRequestSummary {
+        reference,
+        title: row.title,
+        status,
+        author: row.author.map(|author| author.login).unwrap_or_default(),
+        additions: row.additions,
+        deletions: row.deletions,
+    })
 }
 fn load(
     github: &impl GitHub,

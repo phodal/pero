@@ -280,7 +280,7 @@ impl ChatPanel {
                 &reader,
                 window,
                 move |this, _, action, _, cx| {
-                    let ReaderAction::Link(href) = action else {
+                    let ReaderAction::Link { href, .. } = action else {
                         return;
                     };
                     let link = pero_contracts::content_link::ContentLink::resolve(&origin, href);

@@ -29,6 +29,13 @@ try {
  assert(loaded.data.files.items.length>0);
  if(!live){
   const calls=(await readFile(resolve(temp,'calls'),'utf8')).trim().split('\n').map(JSON.parse);assert.equal(calls.length,7);assert(calls.every(args=>args[4]==='GET'));
+  const listed=await request({method:'pull_requests',action:'list',request_id:'list',repository:'phodal/pero',state:'open'});
+  assert.equal(listed.kind,'pull_request_listed',listed.text);
+  assert(validate('PullRequestListedEvent')(listed),ajv.errorsText(validate('PullRequestListedEvent').errors));
+  assert.equal(listed.data.items.length,2);
+  assert.equal(listed.data.items[0].status,'open');
+  assert.equal(listed.data.items[1].status,'draft');
+  assert.equal(listed.data.items[0].reference,'https://github.com/phodal/pero/pull/164');
   await writeFile(resolve(temp,'fail'),'offline');
   const failed=await request({...input,request_id:'offline'});assert.equal(failed.kind,'pull_request_error');assert.match(failed.text,/unavailable/);assert(validate('PullRequestErrorEvent')(failed));
  }

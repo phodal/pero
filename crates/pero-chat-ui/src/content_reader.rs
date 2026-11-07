@@ -33,7 +33,11 @@ pub enum ReaderAction {
         path: String,
     },
     DiscardAndClose,
-    Link(String),
+    Link {
+        href: String,
+        middle: bool,
+        primary_modifier: bool,
+    },
     Navigate {
         before: ReaderState,
         after: ReaderState,
@@ -241,12 +245,16 @@ impl ContentReader {
                     markdown,
                     window,
                     |this, _, link: &crate::stream::MarkdownLink, window, cx| {
-                        if let Some(fragment) = link.0.strip_prefix('#') {
+                        if let Some(fragment) = link.href.strip_prefix('#') {
                             if this.follow_anchor(fragment, window, cx) {
                                 return;
                             }
                         }
-                        cx.emit(ReaderAction::Link(link.0.clone()));
+                        cx.emit(ReaderAction::Link {
+                            href: link.href.clone(),
+                            middle: link.middle,
+                            primary_modifier: link.primary_modifier,
+                        });
                     },
                 ));
             }

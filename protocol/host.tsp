@@ -105,7 +105,9 @@ model DraftEdit {old:ReaderRange;inserted:string;...Closed}
 model SavedDocument {header:DocumentHeader;reading:ReaderState;draft:string|null;draft_ref?:DraftRef|null;legacy_draft?:boolean;...Closed}
 model InlineHtml {id:string;title:string;html:string;...Closed}
 model SavedWeb {id:string;url:string;html?:InlineHtml;...Closed}
-model WorkspaceSession {version:1;workspace:string;navigation:WorkspaceSnapshot;documents:SavedDocument[];web:SavedWeb[];...Closed}
+model ViewedFile {path:string;head:string;...Closed}
+model PullRequestReading {reference:string;tab:"changes"|"description"|"commits"|"checks"|"reviews";selected_file:string|null;viewed:ViewedFile[];...Closed}
+model WorkspaceSession {version:1;workspace:string;navigation:WorkspaceSnapshot;documents:SavedDocument[];web:SavedWeb[];pull_requests?:PullRequestReading[];...Closed}
 model WorkspaceSource {header:DocumentHeader;text:string;...Closed}
 model WorkspaceRestore {session:WorkspaceSession|null;sources:WorkspaceSource[];conflicts:string[];unavailable:SourceKey[];...Closed}
 model GetWorkspaceSession {method:"workspace";action:"get";...Closed}
@@ -225,6 +227,7 @@ model LayoutPreferences {
   @minValue(200) @maxValue(480) sessions_width?: uint16 = 280;
   artifact_view?: ArtifactView = "icons";
   resource_tab?: "files" | "artifacts" = "artifacts";
+  link_surface?: "in_app" | "external_browser" = "in_app";
   ...Closed;
 }
 model TypographyPreferences {
@@ -577,7 +580,7 @@ union HostEvent {
   FileDocumentEvent,
   WorkspaceFilesListEvent, WorkspaceFilesDocumentEvent, WorkspaceFilesErrorEvent,
   FileDocumentErrorEvent,
-  PullRequestLoadedEvent,PullRequestErrorEvent,PullRequestDiscoveredEvent,
+  PullRequestLoadedEvent,PullRequestErrorEvent,PullRequestDiscoveredEvent,PullRequestListedEvent,
   WorkspaceChangesEvent,WorkspaceChangesCatalogEvent,WorkspaceChangeDiffEvent,WorkspaceChangesErrorEvent,
   ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactPresentedEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
   ContentDocumentEvent,

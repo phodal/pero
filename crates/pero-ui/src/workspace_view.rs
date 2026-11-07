@@ -287,6 +287,7 @@ impl Workbench {
             }
             WorkspaceRoute::Content(WorkspaceItem::PullRequest(reference)) => {
                 self.ensure_pull_request(reference,window,cx);
+                self.arm_pull_request_poll(cx);
                 self.set_chat_dock(true,cx);
                 self.workspace_focus.focus(window,cx);
             }

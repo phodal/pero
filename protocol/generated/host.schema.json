@@ -8156,6 +8156,9 @@
           "$ref": "#/$defs/PullRequestDiscoveredEvent"
         },
         {
+          "$ref": "#/$defs/PullRequestListedEvent"
+        },
+        {
           "$ref": "#/$defs/WorkspaceChangesEvent"
         },
         {
@@ -8954,6 +8957,19 @@
             }
           ],
           "default": "artifacts"
+        },
+        "link_surface": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "in_app"
+            },
+            {
+              "type": "string",
+              "const": "external_browser"
+            }
+          ],
+          "default": "in_app"
         }
       },
       "additionalProperties": false
@@ -12209,6 +12225,125 @@
       ],
       "additionalProperties": false
     },
+    "PullRequestListed": {
+      "title": "PullRequestListed",
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "open"
+            },
+            {
+              "type": "string",
+              "const": "closed"
+            },
+            {
+              "type": "string",
+              "const": "all"
+            }
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PullRequestSummary"
+          }
+        }
+      },
+      "required": [
+        "repository",
+        "state",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestListedEvent": {
+      "title": "PullRequestListedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pull_request_listed"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/PullRequestListed"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestListRequest": {
+      "title": "PullRequestListRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "pull_requests"
+        },
+        "action": {
+          "type": "string",
+          "const": "list"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "open"
+            },
+            {
+              "type": "string",
+              "const": "closed"
+            },
+            {
+              "type": "string",
+              "const": "all"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "repository",
+        "state"
+      ],
+      "additionalProperties": false
+    },
     "PullRequestLoad": {
       "title": "PullRequestLoad",
       "type": "object",
@@ -12274,6 +12409,62 @@
       ],
       "additionalProperties": false
     },
+    "PullRequestReading": {
+      "title": "PullRequestReading",
+      "type": "object",
+      "properties": {
+        "reference": {
+          "type": "string"
+        },
+        "tab": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "changes"
+            },
+            {
+              "type": "string",
+              "const": "description"
+            },
+            {
+              "type": "string",
+              "const": "commits"
+            },
+            {
+              "type": "string",
+              "const": "checks"
+            },
+            {
+              "type": "string",
+              "const": "reviews"
+            }
+          ]
+        },
+        "selected_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "viewed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ViewedFile"
+          }
+        }
+      },
+      "required": [
+        "reference",
+        "tab",
+        "selected_file",
+        "viewed"
+      ],
+      "additionalProperties": false
+    },
     "PullRequestRequest": {
       "title": "PullRequestRequest",
       "oneOf": [
@@ -12282,6 +12473,9 @@
         },
         {
           "$ref": "#/$defs/PullRequestDiscover"
+        },
+        {
+          "$ref": "#/$defs/PullRequestListRequest"
         }
       ]
     },
@@ -12497,6 +12691,56 @@
         "commits",
         "checks",
         "reviews"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestSummary": {
+      "title": "PullRequestSummary",
+      "type": "object",
+      "properties": {
+        "reference": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "open"
+            },
+            {
+              "type": "string",
+              "const": "draft"
+            },
+            {
+              "type": "string",
+              "const": "closed"
+            },
+            {
+              "type": "string",
+              "const": "merged"
+            }
+          ]
+        },
+        "author": {
+          "type": "string"
+        },
+        "additions": {
+          "type": "integer"
+        },
+        "deletions": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "reference",
+        "title",
+        "status",
+        "author",
+        "additions",
+        "deletions"
       ],
       "additionalProperties": false
     },
@@ -15921,6 +16165,23 @@
       ],
       "additionalProperties": false
     },
+    "ViewedFile": {
+      "title": "ViewedFile",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "head": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "head"
+      ],
+      "additionalProperties": false
+    },
     "WebChooseEvent": {
       "title": "WebChooseEvent",
       "type": "object",
@@ -17549,6 +17810,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/SavedWeb"
+          }
+        },
+        "pull_requests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PullRequestReading"
           }
         }
       },

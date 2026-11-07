@@ -8,7 +8,11 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use pero_contracts::workspace_panes::{PaneId, PaneLeaf, SplitDirection};
+use pero_contracts::{
+    content_origin::ContentOrigin,
+    source_target::PlanRef,
+    workspace_panes::{PaneId, PaneLeaf, SplitDirection},
+};
 use serde_json::json;
 
 impl Workbench {
@@ -190,8 +194,8 @@ impl Workbench {
     }
     fn pane_surface_content(&self, leaf: &PaneLeaf, cx: &mut Context<Self>) -> AnyElement {
         match leaf.route() {
-            Some(WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. })) => {
-                if let Some(reader) = self
+            Some(WorkspaceRoute::Content(item @ WorkspaceItem::Document { origin, .. })) => {
+                let body = if let Some(reader) = self
                     .pane_views
                     .iter()
                     .find(|pane| Some(pane.id) == leaf.tabs.active_id())
@@ -199,6 +203,23 @@ impl Workbench {
                     reader.view.clone().into_any_element()
                 } else {
                     self.deferred_document_content(item, cx)
+                };
+                let plan = match origin {
+                    ContentOrigin::File { path } => PlanRef::from_file(&self.workspace, path),
+                    _ => None,
+                };
+                if let Some(plan) = plan {
+                    div()
+                        .flex()
+                        .flex_col()
+                        .flex_1()
+                        .min_h_0()
+                        .min_w_0()
+                        .child(self.plan_bar(plan.path(), cx))
+                        .child(body)
+                        .into_any_element()
+                } else {
+                    body
                 }
             }
             Some(WorkspaceRoute::Content(WorkspaceItem::Conversation(_))) => {

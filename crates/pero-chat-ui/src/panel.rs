@@ -30,6 +30,16 @@ pub enum ChatAction {
     ArtifactView {view:pero_contracts::workbench::ArtifactView},
     ArtifactComposeResult { id:String, error:Option<String> },
     AppLink(String),
+    FollowLink {
+        href: String,
+        middle: bool,
+        primary_modifier: bool,
+    },
+    OpenSource {
+        target: pero_contracts::source_target::SourceTarget,
+        middle: bool,
+        primary_modifier: bool,
+    },
     OpenDocument(pero_contracts::content_document::ContentDocument),
     ChooseWorkspace,
     ChooseContext {
@@ -85,6 +95,7 @@ pub struct ChatPanel {
     pub composer_picker_scroll: ScrollHandle,
     pub composer_state: ComposerState,
     pub expanded_tools: HashSet<String>,
+    pub pull_request_notes: Vec<pero_contracts::pull_request::PullRequestSummary>,
     pub show_return_to_review: bool,
     pub can_open_documents: bool,
     /// Render only the composer and required attention controls in compact shells.
@@ -163,6 +174,7 @@ impl ChatPanel {
             composer_picker_scroll: ScrollHandle::new(),
             composer_state: ComposerState::default(),
             expanded_tools: HashSet::new(),
+            pull_request_notes: Vec::new(),
             show_return_to_review: false,
             can_open_documents: false,
             compact: false,
@@ -181,6 +193,29 @@ impl ChatPanel {
         }
     }
 
+    pub fn note_pull_request(&mut self, summary: pero_contracts::pull_request::PullRequestSummary) {
+        if let Some(existing) = self
+            .pull_request_notes
+            .iter_mut()
+            .find(|item| item.reference == summary.reference)
+        {
+            *existing = summary;
+        } else {
+            self.pull_request_notes.push(summary);
+        }
+    }
+    pub fn reveal_tool(&mut self, thread: &str, tool: &str, cx: &mut Context<Self>) -> bool {
+        let Some(index) = self.chats.iter().position(|chat| chat.id == thread) else {
+            return false;
+        };
+        if !self.chats[index].tools.iter().any(|item| item.id == tool) {
+            return false;
+        }
+        self.focus_chat(Some(index), cx);
+        self.expanded_tools.insert(format!("{thread}/{tool}"));
+        cx.notify();
+        true
+    }
     pub fn t(&self, key: &str) -> &'static str {
         pero_contracts::i18n::text(&self.locale, key)
     }
@@ -459,7 +494,7 @@ impl Render for ChatPanel {
         for view in views {
             if self.link_subscriptions.contains_key(&view.entity_id()) { continue; }
             view.update(cx,|view,_|view.capture_links=true);
-            let subscription=cx.subscribe(&view,|_,_,link:&crate::stream::MarkdownLink,cx|cx.emit(ChatAction::AppLink(link.0.clone())));
+            let subscription=cx.subscribe(&view,|_,_,link:&crate::stream::MarkdownLink,cx|cx.emit(ChatAction::FollowLink{href:link.href.clone(),middle:link.middle,primary_modifier:link.primary_modifier}));
             self.link_subscriptions.insert(view.entity_id(),subscription);
         }
         self.apply_composer_context(window, cx);

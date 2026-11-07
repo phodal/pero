@@ -3,7 +3,8 @@ using JsonSchema;
 @jsonSchema namespace Pero.Host;
 model PullRequestLoad {method:"pull_requests";action:"load";request_id:string;reference:string;...Closed}
 model PullRequestDiscover {method:"pull_requests";action:"discover";request_id:string;thread_id:ThreadId;...Closed}
-@oneOf union PullRequestRequest {PullRequestLoad,PullRequestDiscover}
+model PullRequestListRequest {method:"pull_requests";action:"list";request_id:string;repository:string;state:"open"|"closed"|"all";...Closed}
+@oneOf union PullRequestRequest {PullRequestLoad,PullRequestDiscover,PullRequestListRequest}
 model PullRequestFile {filename:string;previous_filename:string|null;status:string;additions:safeint;deletions:safeint;patch:string|null;...Closed}
 model PullRequestCommit {sha:string;message:string;author:string;...Closed}
 model PullRequestCheck {name:string;status:string;conclusion:string|null;url:string|null;...Closed}
@@ -18,3 +19,6 @@ model PullRequestSnapshot {
 model PullRequestLoadedEvent {kind:"pull_request_loaded";...EventBase;data:PullRequestSnapshot}
 model PullRequestErrorEvent {kind:"pull_request_error";...EventBase;thread_id?:string;}
 model PullRequestDiscoveredEvent {kind:"pull_request_discovered";...ThreadEventBase;data:{reference:string;...Closed}}
+model PullRequestSummary {reference:string;title:string;status:"open"|"draft"|"closed"|"merged";author:string;additions:safeint;deletions:safeint;...Closed}
+model PullRequestListed {repository:string;state:"open"|"closed"|"all";items:PullRequestSummary[];...Closed}
+model PullRequestListedEvent {kind:"pull_request_listed";...EventBase;data:PullRequestListed}

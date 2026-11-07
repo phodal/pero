@@ -114,7 +114,7 @@ mod rendering {
             let embedded = embedded_result(tool);
             let summary = if !tool.activity.detail.is_empty() {
                 format!("{} · {}", self.t(action_key), tool.activity.detail)
-            } else { short_label(self.t(action_key), &tool.title, tool.locations.first().map(String::as_str)) };
+            } else { short_label(self.t(action_key), &tool.title, tool.locations.first().map(|location| location.path.as_str())) };
             let status = if failed {
                 Some("chat.tool_failed")
             } else if running {
@@ -235,11 +235,27 @@ mod rendering {
                                     })
                                     .when(tool.input_open, |el| el.child(div().id(("tool-input-scroll",index)).max_h(px(180.)).overflow_y_scroll().children(tool.input_view.clone())))
                                     .when(!tool.body.specialized() && tool.transcript.input.is_some() && !tool.output.is_empty(), |el| el.child(div().text_size(px(12.)).text_color(p.text_muted).child(self.t("chat.tool_output"))))
-                                    .children(tool.locations.iter().filter(|_|!tool.body.specialized()).map(|path| {
-                                        div()
-                                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
-                                            .text_color(p.text_muted)
-                                            .child(path.clone())
+                                    .children(tool.locations.iter().enumerate().filter(|_|!tool.body.specialized()).map(|(location_index, location)| {
+                                        let label = match location.line {
+                                            Some(line) => format!("{}:{line}", location.path),
+                                            None => location.path.clone(),
+                                        };
+                                        let workspace = self.workspace.clone();
+                                        let path = location.path.clone();
+                                        let line = location.line;
+                                        Button::new(("tool-location", row, location_index))
+                                            .ghost()
+                                            .small()
+                                            .justify_start()
+                                            .label(label)
+                                            .on_click(cx.listener(move |_, event: &ClickEvent, _, cx| {
+                                                let target = pero_contracts::source_target::SourceTarget::file_in_workspace(&workspace, &path, line, None);
+                                                cx.emit(crate::panel::ChatAction::OpenSource {
+                                                    target,
+                                                    middle: false,
+                                                    primary_modifier: event.modifiers().platform,
+                                                });
+                                            }))
                                     }))
                                     .when_some(tool.artifact.as_ref(), |el, artifact| {
                                         use crate::artifact_read::{ArtifactStatus,ContentReadIntent};

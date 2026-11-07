@@ -415,6 +415,7 @@ mod tests {
             },
             documents: saved,
             web: vec![],
+            pull_requests: vec![],
         };
         store
             .save(
@@ -625,6 +626,7 @@ mod tests {
             },
             documents: vec![saved, readonly],
             web: vec![],
+            pull_requests: vec![],
         };
         let command = serde_json::json!({"method":"workspace","action":"save","request_id":"checkpoint","session":session,"refresh":[],"sources":[]});
         assert!(serde_json::to_vec(&command).unwrap().len() < 4096);

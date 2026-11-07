@@ -89,7 +89,7 @@ export type ArtifactRequest =
 export type ArtifactPresentation = "inline" | "below" | "side" | "expanded";
 export type ArtifactRelationRole = "input" | "code" | "execution_log" | "environment" | "review" | "run_record";
 export type ChangesRequest = ChangesList | ChangesCurrent | ChangesRead;
-export type PullRequestRequest = PullRequestLoad | PullRequestDiscover;
+export type PullRequestRequest = PullRequestLoad | PullRequestDiscover | PullRequestListRequest;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type KeySequence = string;
 export type ArtifactView = "icons" | "list" | "gallery";
@@ -201,6 +201,7 @@ export type HostEvent =
   | PullRequestLoadedEvent
   | PullRequestErrorEvent
   | PullRequestDiscoveredEvent
+  | PullRequestListedEvent
   | WorkspaceChangesEvent
   | WorkspaceChangesCatalogEvent
   | WorkspaceChangeDiffEvent
@@ -602,6 +603,7 @@ export interface WorkspaceSession {
   navigation: WorkspaceSnapshot;
   documents: SavedDocument[];
   web: SavedWeb[];
+  pull_requests?: PullRequestReading[];
 }
 export interface WorkspaceSnapshot {
   items: WorkspaceItem[];
@@ -771,6 +773,16 @@ export interface InlineHtml {
   id: string;
   title: string;
   html: string;
+}
+export interface PullRequestReading {
+  reference: string;
+  tab: "changes" | "description" | "commits" | "checks" | "reviews";
+  selected_file: string | null;
+  viewed: ViewedFile[];
+}
+export interface ViewedFile {
+  path: string;
+  head: string;
 }
 export interface WorkspaceSource {
   header: DocumentHeader;
@@ -1121,6 +1133,13 @@ export interface PullRequestDiscover {
   action: "discover";
   request_id: string;
   thread_id: ThreadId;
+}
+export interface PullRequestListRequest {
+  method: "pull_requests";
+  action: "list";
+  request_id: string;
+  repository: string;
+  state: "open" | "closed" | "all";
 }
 export interface LocalWorkerStartCommand {
   action: "local_worker_start";
@@ -1602,6 +1621,7 @@ export interface LayoutPreferences {
   sessions_width?: number;
   artifact_view?: ArtifactView;
   resource_tab?: "files" | "artifacts";
+  link_surface?: "in_app" | "external_browser";
 }
 export interface ListAgentsCommand {
   action: "list_agents";
@@ -2526,6 +2546,26 @@ export interface PullRequestDiscoveredEvent {
   data: {
     reference: string;
   };
+}
+export interface PullRequestListedEvent {
+  kind: "pull_request_listed";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: PullRequestListed;
+}
+export interface PullRequestListed {
+  repository: string;
+  state: "open" | "closed" | "all";
+  items: PullRequestSummary[];
+}
+export interface PullRequestSummary {
+  reference: string;
+  title: string;
+  status: "open" | "draft" | "closed" | "merged";
+  author: string;
+  additions: number;
+  deletions: number;
 }
 export interface WorkspaceChangesEvent {
   kind: "workspace_changes";

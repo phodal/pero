@@ -16,6 +16,7 @@ pub mod content_location;
 pub mod workspace_draft;
 pub mod workspace_source;
 pub mod content_link;
+pub mod source_target;
 pub mod pull_request;
 pub mod file_document;
 pub mod i18n;

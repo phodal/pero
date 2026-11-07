@@ -10,24 +10,39 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(target) = WorkspaceLink::parse(href) {
-            self.open_link_target(target, window, cx);
-        }
+        self.follow_link(
+            href,
+            pero_contracts::workbench::LinkClick::default(),
+            window,
+            cx,
+        );
     }
     pub(crate) fn open_link_target(
         &mut self,
         target: WorkspaceLink,
+        click: pero_contracts::workbench::LinkClick,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         match target {
-            WorkspaceLink::PullRequest(reference) => self.open_pull_request(reference, window, cx),
-            WorkspaceLink::App(address) => self.open_app_location(address, cx),
-            WorkspaceLink::Web(address) => self.web_command(
-                serde_json::json!({"action":"web_open","url":address}),
+            WorkspaceLink::PullRequest(reference) => self.open_source(
+                pero_contracts::source_target::SourceTarget::PullRequest(reference),
+                click,
                 window,
                 cx,
             ),
+            WorkspaceLink::App(address) => self.open_app_location(address, cx),
+            WorkspaceLink::Web(address) => {
+                if self.preferences.layout.link_surface.opens_externally(click) {
+                    cx.open_url(address.as_str());
+                } else {
+                    self.web_command(
+                        serde_json::json!({"action":"web_open","url":address}),
+                        window,
+                        cx,
+                    );
+                }
+            }
             WorkspaceLink::External(url) => cx.open_url(&url),
         }
     }
