@@ -22,11 +22,42 @@ export function plotBounds(points: YieldPoint[]) {
 
 /** A correction-factor rerun is drawn only after a real comparison exists. */
 export function readCsv(text: string) {
-  const lines = text.split(/\r?\n/).filter(line => line.trim());
-  if (!lines.length) return { columns: [] as string[], rows: [] as Record<string, string>[] };
-  const columns = splitCsv(lines[0]);
-  const rows = lines.slice(1, 501).map(line => Object.fromEntries(columns.map((column, index) => [column, splitCsv(line)[index] ?? ''])));
+  const records: string[][] = [];
+  let row: string[] = [], cell = '', quoted = false;
+  const source = text.replace(/^\uFEFF/, '');
+  for (let index = 0; index < source.length; index++) {
+    const char = source[index];
+    if (char === '"') {
+      if (quoted && source[index + 1] === '"') { cell += '"'; index++; }
+      else quoted = !quoted;
+    } else if (!quoted && (char === ',' || char === '\n' || char === '\r')) {
+      row.push(cell.trim()); cell = '';
+      if (char !== ',') {
+        if (row.some(value => value)) records.push(row);
+        row = [];
+        if (char === '\r' && source[index + 1] === '\n') index++;
+      }
+    } else cell += char;
+  }
+  if (quoted) throw new Error('CSV has an unterminated quoted field');
+  row.push(cell.trim());
+  if (row.some(value => value)) records.push(row);
+  const columns = records.shift() ?? [];
+  const rows = records.map(values => {
+    if (values.length !== columns.length) throw new Error('CSV row does not match its header');
+    return Object.fromEntries(columns.map((column, index) => [column, values[index]]));
+  });
   return { columns, rows };
+}
+
+export function uploadSmiles(table: ReturnType<typeof readCsv>, column: string) {
+  const values = column ? table.rows.map(row => row[column]).filter(Boolean) : [];
+  if (values.length > 32) throw new Error('Upload at most 32 nonempty SMILES; split this CSV into smaller files.');
+  return values;
+}
+
+export function matchingPredictions(smiles: string[] | undefined, predictions: { smiles: string; predicted: string }[] | undefined) {
+  return smiles?.length && predictions?.length === smiles.length && predictions.every((item, index) => item.smiles === smiles[index]) ? predictions : [];
 }
 
 export function detectColumns(columns: string[]) {
@@ -37,10 +68,6 @@ export function detectColumns(columns: string[]) {
     yieldPred: find(/yield \(pred\)|predicted yield/i),
     name: find(/exp_name|^name$|reaction id/i),
   };
-}
-
-function splitCsv(line: string) {
-  return line.split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
 }
 
 /** A correction-factor rerun is drawn only after a real comparison exists. */

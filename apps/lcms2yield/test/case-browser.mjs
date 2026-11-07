@@ -33,7 +33,9 @@ before(async () => {
 });
 after(async () => { await browser?.close(); if (directory) await rm(directory, { recursive: true, force: true }); });
 
-async function fixture(t) {
+async function fixture(t, inference = false) {
+  const mutations = [];
+  let custom = null;
   const data = await mkdtemp(resolve(tmpdir(), 'pero-lcms2yield-data-'));
   const secret = 'lcms2yield-loopback-fixture';
   const errors = [];
@@ -53,12 +55,21 @@ async function fixture(t) {
     if (request.url.startsWith('/api/')) {
       let content = '';
       for await (const chunk of request) content += chunk;
+      if (inference && request.method === 'POST') {
+        const input = JSON.parse(content);
+        mutations.push({ path: request.url, input });
+        if (request.url === '/api/predict') custom = { predictions: input.smiles.map(smiles => ({ smiles, predicted: '1.25' })) };
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        const state = await fetch(`http://127.0.0.1:${port}/api/state`, { headers: { 'X-Pero-App-Token': secret } }).then(result => result.json());
+        return response.end(JSON.stringify({ ...state, checkout: 'synthetic-model-seam', custom }));
+      }
       const result = await fetch(`http://127.0.0.1:${port}${request.url}`, {
         method: request.method,
         headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': secret },
         ...(content ? { body: content } : {}),
       });
       response.writeHead(result.status, { 'Content-Type': 'application/json' });
+      if (inference && request.url === '/api/state') return response.end(JSON.stringify({ ...await result.json(), checkout: 'synthetic-model-seam', custom }));
       return response.end(await result.text());
     }
     if (request.url === '/host/environment') {
@@ -101,7 +112,7 @@ async function fixture(t) {
     assert.deepEqual(errors, []);
   });
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
-  return { page, frame: page.frameLocator('iframe') };
+  return { page, frame: page.frameLocator('iframe'), mutations };
 }
 
 test('released yield table is visible while the weight rerun and cluster jobs stay unset', async t => {
@@ -119,4 +130,31 @@ test('released yield table is visible while the weight rerun and cluster jobs st
   await frame.getByRole('button', { name: 'Compute', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.hostNavigations)).toEqual(['/apps/environments', '/apps/compute']);
   await page.screenshot({ path: resolve(captures, 'yield-table-light.png'), fullPage: true });
+});
+
+
+test('reaction filters and CSV uploads preserve the selected input', async t => {
+  const { page, frame, mutations } = await fixture(t, true);
+  await frame.getByRole('button', { name: 'Dataset', exact: true }).click();
+  await frame.getByRole('option', { name: 'SN2 · 30', exact: true }).click();
+  await expect(frame.locator('.yield-plot circle')).toHaveCount(30);
+  await frame.getByRole('button', { name: 'Run prediction', exact: true }).click();
+  await frame.getByRole('button', { name: 'Run once', exact: true }).click();
+  assert.deepEqual(mutations[0], { path: '/api/rerun', input: { confirm: true, reactionType: 'SN2' } });
+  const upload = async (name, text) => frame.locator('input[type=file]').setInputFiles({ name, mimeType: 'text/csv', buffer: Buffer.from(text) });
+  await upload('first.csv', 'name,SMILES\n"sample, one",CCO');
+  await frame.getByRole('button', { name: 'Run prediction', exact: true }).click();
+  await frame.getByRole('button', { name: 'Run once', exact: true }).click();
+  await expect(frame.getByText('CCO · 1.25', { exact: true })).toBeVisible();
+  await upload('second.csv', 'SMILES\nCO');
+  await expect(frame.getByText('CCO · 1.25', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: resolve(captures, 'upload-input-light.png'), fullPage: true });
+  await page.setViewportSize({ width: 640, height: 900 });
+  await page.evaluate(() => document.querySelector('iframe').contentWindow.postMessage({type:'pero:app:context',context:{locale:'en',dark:true,active:true}}, '*'));
+  await expect(frame.locator('html')).toHaveAttribute('data-theme', 'pero-dark');
+  await page.screenshot({ path: resolve(captures, 'upload-input-dark-narrow.png'), fullPage: true });
+  await upload('too-many.csv', 'SMILES\n' + 'CCO\n'.repeat(33));
+  await frame.getByText('Error details', { exact: true }).click();
+  await expect(frame.getByText(/Upload at most 32 nonempty SMILES/)).toBeVisible();
+  assert.equal(mutations.length, 2);
 });

@@ -3,7 +3,7 @@ import { useAppApi, useAppContext, useAppI18n, useNavigate } from '@pero/app-sdk
 import { AppFrame, Badge, Button, Card, Dialog, EnvironmentInspector, Feedback, FilePicker, LoadingSkeleton, Select, SkeletonText, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { seriesStyle } from '@pero/app-sdk/chart';
 import { messages, type CaseState, type Reaction } from './messages';
-import { detectColumns, readCsv, yieldPercent } from './plot';
+import { detectColumns, readCsv, yieldPercent, uploadSmiles, matchingPredictions } from './plot';
 import { YieldPlot } from './yield-plot';
 import structures from './examples/structures.json';
 import './styles.css';
@@ -33,6 +33,11 @@ export default function Lcms2Yield() {
   const [panel, setPanel] = useState<'results' | 'log'>('results');
   const [confirming, setConfirming] = useState(false);
   const [structure, setStructure] = useState<{ svg: string | null; available: boolean } | null>(null);
+  const showTable = task === 'predict' && dataset !== 'readme' && dataset !== 'upload';
+  const scopedType = dataset === 'buchwald' ? 'Buchwald' : dataset === 'sn2' ? 'SN2' : dataset === 'amide' ? 'amide_coupling' : dataset === 'suzuki' ? 'Suzuki' : 'all';
+  const visible = (state?.reactions ?? []).filter(item => scopedType === 'all' || item.reactionType === scopedType);
+  const reaction = visible.find(item => item.index === selected) ?? visible[0] ?? null;
+  const uploadPredictions = matchingPredictions(upload?.smilesValues, state?.custom?.predictions);
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -45,14 +50,14 @@ export default function Lcms2Yield() {
   useEffect(() => { if (active) void refresh(); }, [active, refresh]);
   useEffect(() => {
     if (dataset === 'upload') { setStructure(null); return; }
-    const query = dataset === 'reactions' ? `index=${selected}` : `example=${dataset === 'readme' ? exampleId : dataset}`;
-    if (dataset === 'reactions' && selected === null) return;
+    const query = showTable ? `index=${reaction?.index}` : `example=${dataset === 'readme' ? exampleId : dataset}`;
+    if (dataset === 'reactions' && !reaction) return;
     let cancelled = false;
     void api.get<{ index?: number; example?: string; svg: string | null; available: boolean }>(`/api/structure?${query}`)
       .then(value => { if (!cancelled) setStructure(value); })
       .catch(() => { if (!cancelled) setStructure(null); });
     return () => { cancelled = true; };
-  }, [api, dataset, exampleId, selected]);
+  }, [api, dataset, exampleId, reaction?.index]);
 
   async function post(path: string, value: unknown) {
     setBusy(true); setError('');
@@ -60,16 +65,12 @@ export default function Lcms2Yield() {
     catch (cause) { setError(String(cause)); }
     finally { setBusy(false); }
   }
-  const reaction = state?.reactions.find(item => item.index === selected) ?? null;
-  const showTable = task === 'predict' && dataset !== 'readme' && dataset !== 'upload';
-  const scopedType = dataset === 'buchwald' ? 'Buchwald' : dataset === 'sn2' ? 'SN2' : dataset === 'amide' ? 'amide_coupling' : dataset === 'suzuki' ? 'Suzuki' : 'all';
-  const visible = (state?.reactions ?? []).filter(item => scopedType === 'all' || item.reactionType === scopedType);
   const verdictLabel = (value: string) =>
-    value === 'PASS' ? t('pass') : value === 'FAIL' ? t('fail') : value === 'INCONCLUSIVE' ? t('inconclusive') : t('unrun');
+    value === 'PASS' ? t('matchesFactors') : value === 'FAIL' ? t('fail') : value === 'INCONCLUSIVE' ? t('inconclusive') : t('unrun');
 
   return <AppFrame label={t('title')}>
     {loading && !state ? <LoadingSkeleton label={t('loading')}><SkeletonText /></LoadingSkeleton> : null}
-    {error ? <div className="yield-recovery"><Feedback kind="error" variant="block">{t('loadFailed')}</Feedback><Button onClick={() => void refresh()}>{t('retry')}</Button><details><summary>{t('details')}</summary><p>{error}</p></details></div> : null}
+    {error ? <div className="yield-recovery"><Feedback kind="error" variant="block">{t('operationFailed')}</Feedback><Button onClick={() => void refresh()}>{t('retry')}</Button><details><summary>{t('details')}</summary><p>{error}</p></details></div> : null}
     {state ? <div className="yield-shell">
       <aside className="yield-input">
         <Select label={t('task')} value={task} onChange={value => setTask(value as Task)} options={[{ value: 'predict', label: t('taskPredict') }, { value: 'train', label: t('taskTrain') }]} />
@@ -86,7 +87,7 @@ export default function Lcms2Yield() {
           void file.text().then(text => {
             const table = readCsv(text);
             const mapping = detectColumns(table.columns);
-            const smilesValues = mapping.smiles ? table.rows.map(row => row[mapping.smiles]).filter(Boolean).slice(0, 32) : [];
+            const smilesValues = uploadSmiles(table, mapping.smiles);
             setUpload({
               name: file.name,
               columns: table.columns,
@@ -97,8 +98,8 @@ export default function Lcms2Yield() {
               yieldPred: mapping.yieldPred,
               nameColumn: mapping.name,
             });
-            setDataset('upload');
-          });
+            setDataset('upload'); setError('');
+          }).catch(cause => setError(String(cause)));
         }} />
         <p className="yield-help">{upload ? (upload.smiles || upload.yieldExp ? t('mappingReady', { smiles: upload.smiles || '—', yields: [upload.yieldExp, upload.yieldPred].filter(Boolean).join(', ') || '—' }) : t('mappingNeeded')) : t('detectedPredict')}</p>
         <details className="yield-advanced"><summary>{t('advanced')}</summary><p className="yield-help">{t('advancedBody')} {t('uploadHint')}</p></details>
@@ -127,23 +128,23 @@ export default function Lcms2Yield() {
           {task === 'train' ? <p className="yield-help">{t('detectedTrain')}</p> : <>
             {showTable ? <section className="yield-facts" aria-label={t('yieldTable')}>
               <ul>
-                <li><Badge tone={tone(state.verdicts.yieldTable)}>{verdictLabel(state.verdicts.yieldTable)}</Badge><span>{t('mae', { value: Number(state.yieldMaePercentagePoints).toFixed(2) })}</span><span>{t('population', { count: state.population, products: state.uniqueProducts })}</span></li>
-                <li><Badge tone={tone(state.verdicts.prediction)}>{verdictLabel(state.verdicts.prediction)}</Badge><span>{t('prediction')}</span></li>
+                <li><Badge tone={tone(state.verdicts.yieldTable)}>{state.verdicts.yieldTable === 'PASS' ? t('pass') : t('fail')}</Badge><span>{t('mae', { value: Number(state.yieldMaePercentagePoints).toFixed(2) })}</span><span>{t('population', { count: state.population, products: state.uniqueProducts })}</span></li>
+                <li><Badge tone={tone(scopedType === 'all' ? state.verdicts.prediction : state.predictionByType[scopedType])}>{verdictLabel(scopedType === 'all' ? state.verdicts.prediction : state.predictionByType[scopedType])}</Badge><span>{t('prediction')}</span></li>
                 <li><Badge tone="warning">{t('inconclusive')}</Badge><span>{t('paper')}</span></li>
               </ul>
               <p>{t('paperBody')}</p>
             </section> : null}
             <section className="yield-main">
-              {dataset === 'upload' ? <Card className="yield-detail"><h2>{upload?.name ?? t('upload')}</h2><ul className="yield-rows">{(state.custom?.predictions ?? []).map(item => <li key={item.smiles}>{item.smiles} · {item.predicted}</li>)}</ul></Card> : <>
+              {dataset === 'upload' ? <Card className="yield-detail"><h2>{upload?.name ?? t('upload')}</h2><p role="status">{uploadPredictions.length ? '' : t('unrun')}</p><ul className="yield-rows">{uploadPredictions.map(item => <li key={item.smiles}>{item.smiles} · {item.predicted}</li>)}</ul></Card> : <>
                 {showTable ? <div className="yield-chart-wrap">
-                  <div className="yield-plot-frame"><YieldPlot label={t('chart')} selected={selected} onSelect={index => { setDataset('reactions'); setSelected(index); }} points={visible.map(item => ({ index: item.index, reactionType: item.reactionType, x: yieldPercent(item.yieldExp), y: yieldPercent(item.yieldPred) }))} /></div>
+                  <div className="yield-plot-frame"><YieldPlot label={t('chart')} selected={reaction?.index ?? null} onSelect={index => { setSelected(index); }} points={visible.map(item => ({ index: item.index, reactionType: item.reactionType, x: yieldPercent(item.yieldExp), y: yieldPercent(item.yieldPred) }))} /></div>
                   <p className="yield-axis">{t('axisExp')} · {t('axisPred')}</p>
                   <p className="yield-help">{t('chartHelp')}</p>
                   <ul className="yield-legend">{TYPES.map((type, index) => <li key={type}><span className="swatch" style={{ background: seriesStyle(index).stroke }} />{t(type)} · {state.typeCounts[type] ?? 0}</li>)}</ul>
                   <dl className="yield-metrics"><div><dt>{t('r2')}</dt><dd>{Number(state.fit.r2).toFixed(3)}</dd></div><div><dt>{t('rmse')}</dt><dd>{Number(state.fit.rmse).toFixed(2)}</dd></div><div><dt>{t('pearson')}</dt><dd>{Number(state.fit.pearson).toFixed(3)}</dd></div></dl>
                 </div> : null}
                 <Card className="yield-detail">
-                  <ul className="yield-rows" aria-label={t('reactions')}>{visible.slice(0, 8).map(item => <li key={item.index}><button type="button" aria-current={item.index === selected} onClick={() => { setDataset('reactions'); setSelected(item.index); }}><span className="swatch" style={{ background: seriesStyle(TYPES.indexOf(item.reactionType)).stroke }} />{item.name}</button></li>)}</ul>
+                  <ul className="yield-rows" aria-label={t('reactions')}>{visible.slice(0, 8).map(item => <li key={item.index}><button type="button" aria-current={item.index === reaction?.index} onClick={() => { setSelected(item.index); }}><span className="swatch" style={{ background: seriesStyle(TYPES.indexOf(item.reactionType)).stroke }} />{item.name}</button></li>)}</ul>
                   <h2>{dataset === 'reactions' || showTable ? t('selected') : t('exampleOutput')}</h2>
                   {dataset === 'reactions' || showTable ? <ReactionInput t={t} reaction={reaction} structure={structure} drawing={drawingFor(reaction?.productSmiles)} /> : <ExampleOutput t={t} item={activeExample(state, dataset, exampleId)} structure={structure} drawing={structures[(dataset === 'readme' ? exampleId : dataset) as keyof typeof structures]} />}
                 </Card>
@@ -153,7 +154,7 @@ export default function Lcms2Yield() {
         </TabsContent>
       </Tabs>
     </div> : null}
-    {confirming ? <Dialog title={t('confirmTitle')} closeLabel={t('cancel')} onClose={() => setConfirming(false)} footer={<><Button onClick={() => setConfirming(false)}>{t('cancel')}</Button><Button variant="primary" busy={busy} onClick={() => void post(dataset === 'upload' ? '/api/predict' : dataset !== 'reactions' ? '/api/examples' : '/api/rerun', dataset === 'upload' ? { confirm: true, smiles: upload?.smilesValues ?? [] } : { confirm: true, set: dataset === 'readme' ? 'readme' : 'showcase' })}>{t('confirm')}</Button></>}><p>{t('confirmBody')}</p></Dialog> : null}
+    {confirming ? <Dialog title={t('confirmTitle')} closeLabel={t('cancel')} onClose={() => setConfirming(false)} footer={<><Button onClick={() => setConfirming(false)}>{t('cancel')}</Button><Button variant="primary" busy={busy} onClick={() => void post(dataset === 'upload' ? '/api/predict' : dataset === 'readme' ? '/api/examples' : '/api/rerun', dataset === 'upload' ? { confirm: true, smiles: upload?.smilesValues ?? [] } : dataset === 'readme' ? { confirm: true, set: 'readme' } : { confirm: true, reactionType: scopedType })}>{t('confirm')}</Button></>}><p>{t('confirmBody')}</p></Dialog> : null}
   </AppFrame>;
 }
 
@@ -201,7 +202,7 @@ function ReactionInput({ t, reaction, structure, drawing }: { t: (key: string, v
       <div className="yield-smiles"><dt>{t('product')}</dt><dd>{reaction.productSmiles}</dd></div>
       <div><dt>{t('yieldExp')}</dt><dd>{percent(reaction.yieldExp)}</dd></div>
       <div><dt>{t('cfExp')}</dt><dd>{reaction.cfExp}</dd></div>
-      {reaction.cfRerun ? <div><dt>{t('cfRerun')}</dt><dd>{reaction.cfRerun}</dd></div> : null}
+      {reaction.cfRerun !== null ? <div><dt>{t('cfRerun')}</dt><dd>{reaction.cfRerun}</dd></div> : null}
     </dl>
     <h3>{t('structure')}</h3>
     {svg ? <div className="yield-structure" dangerouslySetInnerHTML={{ __html: svg }} /> : <p className="yield-help">{t('structureMissing')}</p>}

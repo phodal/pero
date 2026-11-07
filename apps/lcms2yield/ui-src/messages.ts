@@ -61,6 +61,8 @@ export const messages: AppMessages = {
   prediction: { en: 'Weight rerun', zh: '权重复跑' },
   paper: { en: 'Paper conclusion', zh: '论文结论' },
   pass: { en: 'Matches 4.74', zh: '与 4.74 一致' },
+  matchesFactors: { en: 'Matches released factors', zh: '与发布校正因子一致' },
+  operationFailed: { en: 'The operation could not finish. Check the details and try again.', zh: '操作未能完成，请查看详情后重试。' },
   fail: { en: 'Does not match', zh: '不一致' },
   unrun: { en: 'Not run', zh: '尚未运行' },
   inconclusive: { en: 'Unsettled', zh: '未决' },
@@ -141,6 +143,7 @@ export interface CaseState {
   uniqueProducts: number;
   yieldMaePercentagePoints: string;
   verdicts: { yieldTable: 'PASS' | 'FAIL'; prediction: 'UNRUN' | 'PASS' | 'FAIL'; paper: 'INCONCLUSIVE' };
+  predictionByType: Record<string, 'UNRUN' | 'PASS' | 'FAIL'>;
   paperReason: string;
   typeCounts: Record<string, number>;
   checkout: string | null;
