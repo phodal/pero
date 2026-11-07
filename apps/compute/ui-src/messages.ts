@@ -38,6 +38,7 @@ export const messages: AppMessages = {
   processExit: { en: 'Recorded exit', zh: '记录的退出码' },
   processExitValue: { en: 'Exit {code}', zh: '退出码 {code}' },
   processOpen: { en: 'The process had not exited when this receipt was written.', zh: '写下这份回执时，进程尚未退出。' },
+  processUnconfirmed: { en: 'The owner could not confirm how this process stopped. No exit code was recorded.', zh: '执行方未能确认这个进程如何停止。没有记录退出码。' },
   noExternalJob: { en: 'This receipt has no external job.', zh: '这份回执没有外部作业。' },
   processFact: { en: 'This is a process fact, not a scheduler observation.', zh: '这是进程事实，不是调度观察。' },
   recordedNodes: { en: 'Allocated nodes', zh: '已分配节点' },
@@ -85,7 +86,7 @@ export type ClusterInput = Omit<Cluster, 'connectionStatus' | 'id'> & { id?: str
 export type SchedulerObservation = { states: string[]; nodes: string; startTime: number | null; endTime: number | null; wallSeconds: number | null };
 export type ExecutionReceipt = {
   operation: string; cluster: string | null; jobId: number | null; submitTime: number;
-  host: string | null; started: number | null; ended: number | null; exitCode: number | null; wallMilliseconds: number | null;
+  host: string | null; started: number | null; ended: number | null; exitCode: number | null; unconfirmed: boolean; wallMilliseconds: number | null;
   constraints: { partition: string; cpus: number; memoryMib: number; walltimeSeconds: number } | null;
   payloadSha256: string; scheduler: SchedulerObservation | null; entry: string | null;
   logs: string[]; outputs: { path: string; sha256: string }[]; snapshotSha256: string | null;

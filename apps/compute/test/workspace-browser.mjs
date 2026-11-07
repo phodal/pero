@@ -266,6 +266,20 @@ test('a process receipt is shown without an external job or a scheduler query', 
   assert.equal((await nonexistent()).status, 404);
 });
 
+test('an unconfirmed process stop is not shown as still running', async t => {
+  const digest = 'ef'.repeat(32);
+  const receipt = { operation: 'use', host: 'host', payload: digest, started: 10, unconfirmed: true,
+    entry: '/bin/sh -c true', logs: ['stdout.log'] };
+  const { frame, request } = await fixture(t, { receipt });
+  const state = await request('/api/state');
+  assert.equal(state.executions[0].unconfirmed, true);
+  assert.equal(state.executions[0].exitCode, null);
+  assert.equal(state.jobs, null);
+  const draft = frame.locator('.compute-draft');
+  await expect(draft).toContainText('执行方未能确认这个进程如何停止。没有记录退出码。');
+  await expect(draft).not.toContainText('写下这份回执时，进程尚未退出。');
+});
+
 test('an owner receipt is shown without querying or resubmitting the cluster job', async t => {
   const digest = 'ab'.repeat(32);
   const receipt = { operation: 'attempt-1', cluster: 'site', constraints: { partition: 'cpu', cpus: 4, memory_mib: 8192, walltime_seconds: 3600 },
