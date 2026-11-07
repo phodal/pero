@@ -41,36 +41,55 @@ Pero 是面向研究者与科研软件开发者的桌面工作台。把论文原
 
 选择适合系统的文件，并阅读该版本发布说明。下载页附有构建信息和 SHA256SUMS。macOS 包采用 ad-hoc 签名，未经公证；Windows/Linux 包为未签名开发版。Electron 与 Native 使用独立的数据配置。此版本不包含独立 Virtual Cell 安装包。各版本的实际检查与边界见[发行验证记录](docs/fitness/release-products.md)。
 
-### 第一次体验：检查数据，保存分析视图（Electron）
+### 第一次体验：读一篇论文，核对回答中的证据（Electron）
 
-这个无需模型的体验请使用 **Electron 工作台**侧栏的 **Data**。Native 的新配置另有[环境准备限制](DEVELOPMENT.md#native-fresh-profile-limitation)。本地检查无需 API Key，也无需启动控制面服务。11 月 4 日 Electron 工作台的新配置使用受管 Python 环境，仅安装系统 Python 不会让该环境自动就绪。
+![Paper 研究流程：导入 PDF、阅读并选择证据、在共享对话中发送问题，再查看报告并通过引用回到原文](docs/assets/openpero-paper-research.zh-CN.svg)
+
+*基于真实界面控件绘制的简化示意，不是截图。询问 AI 和讨论选段只准备共享对话草稿，由你决定何时发送。引用帮助核对来源，不代表结论已获验证。*
+
+从 **Electron 工作台**侧栏的**论文 / Papers**开始，准备一篇你想读的公开、可选取文字的 PDF。本地导入、阅读和高亮不需要模型账户或 API Key；向 AI 提问是另一个需要主动发起的步骤。
+
+1. 打开**论文**。若出现**准备环境 / Prepare environment**，点击并等待**环境已就绪**。新配置首次准备可能联网下载 uv、CPython 3.12 和指定版本的 PDF 依赖，放入受管 Python 环境。Native 另有[新配置限制](DEVELOPMENT.md#native-fresh-profile-limitation)。
+2. 选择**添加论文 → PDF → 导入 PDF**，选取文件，也可以把 PDF 拖进 App。导入后会打开保存的原始 PDF。首次建议用可选取文字的文件，不要默认扫描页已有可检索文本。
+3. 阅读论文，选中一段文字，点击**高亮**保存原文标注。到这里无需配置模型。
+4. 想提问时，点击**询问 AI / Ask AI**，或选中文字后点击**讨论选段 / Discuss selection**。它会带着论文上下文打开共享对话，不会替你发送问题。发送前需配置 Agent：内置 Agent 在**设置 → 内置 Agent**中设置 API 服务和 Key，外部 Agent 使用各自的登录方式。PDF 全文研究需要 Agent 支持 HTTP MCP，见 [Agent 配置](desktop/README.md#agents-and-conversations)。
+5. 发送一个具体问题，例如：**“这篇论文的方法有哪些证据支持？有哪些限制需要回到原文核对？请引用原文片段。”** 报告保存后，收起对话，点击阅读器顶栏的时钟图标（**研究记录**），再打开已保存的问题/报告。点击引用查看原始 PDF 中的对应片段。若**引用证据**列出多个匹配位置，请选择相关位置，不要默认某一个就是答案。
+6. 在已保存的报告上选择**从此处追问 / Continue from here**，再发送追问，继续核对。保留尚未回答的问题和证据缺口；引用只能定位来源，不代表科学结论已获验证。
+
+环境准备好后，本地阅读无需模型调用。AI 提问可能把论文内容发送给所选服务商，并产生其模型费用；不需要启动可选的控制面服务。离线准备及已有 Python 绑定见 [Python 环境设置](DEVELOPMENT.md#python-environments-and-advanced-overrides)。
+
+这些控件同时存在于 11 月 4 日源码标签和当前源码。[已有 Paper 流程记录](docs/fitness/paper-harness-journey.md)区分了使用测试 Agent 的开发版 Desktop 检查与历史真实 Agent 检查；本次 README 更新不代表重新验收了安装包或真实模型。详见 [Paper 阅读与提问边界](apps/paper-agent/README.md#pdf-reading)。下文较新的研究工作流不属于 11 月 4 日安装包的能力承诺。
+
+### 体验最新源码
+
+先完成[开发环境配置](DEVELOPMENT.md#desktop-from-source)，包括指定版本的 GPUI Kit，再在仓库根目录运行：
+
+```sh
+npm run dev:paper  # 在独立开发配置中打开 Paper
+```
+
+打开 Paper 不会自动开始研究。需要领域示例时，`npm run dev:apps` 会在另一个独立开发配置中打开 Virtual Cell。
+
+### 补充体验：无需模型的数据检查
+
+Data 可以辅助核对科研输入。在 Electron 中打开 **Data**，若提示则先准备 Python 环境；无需模型账户或 API Key。
+
+<details>
+<summary>导入 6 条合成记录，绘制计数图并保存视图</summary>
 
 1. 将 [first-dataset.json](docs/examples/first-dataset.json) 保存到本机。它包含 **6 条合成演示记录**，不是真实实验测量。
-2. 打开 **Data**。若出现 **Prepare environment / 准备环境**，点击并等待**环境已就绪**。首次准备可能联网下载 uv 和 CPython 3.12，在 `~/.pero/environment/pero-python312` 下创建隔离环境。
-3. 点击 **Add data**，选择文件，检查导入信息后点击 **Import**。
-4. 选择数据集，查看 **Fields** 和 **Checks**：预期为 6 条记录，缺失字段、null、空字符串和重复行均为 0。
-5. 打开 **Chart**，保留 **Data = Current aggregation**，将 **Group by** 设为 `condition`、**Measure** 设为 `signal`、**Aggregate** 设为 **Count**。两组应各有 3 条记录。
-6. 返回 **Table**，填写视图名称并点击 **Save view**，再从 **History → Saved views** 打开。**Export reference** 导出数据集/版本引用和检查报告，不包含原文件，也不是可执行实验包。
+2. 点击 **Add data**，选择文件，检查导入信息后点击 **Import**。
+3. 选择数据集，查看 **Fields** 和 **Checks**：预期为 6 条记录，缺失字段、null、空字符串和重复行均为 0。
+4. 打开 **Chart**，保留 **Data = Current aggregation**，将 **Group by** 设为 `condition`、**Measure** 设为 `signal`、**Aggregate** 设为 **Count**。两组应各有 3 条记录。
+5. 返回 **Table**，填写视图名称并点击 **Save view**，再从 **History → Saved views** 打开。**Export reference** 导出数据集/版本引用和检查报告，不包含原文件，也不是可执行实验包。
 
 离线准备、已有 Python 环境及高级覆盖配置请看 [Python 环境设置](DEVELOPMENT.md#python-environments-and-advanced-overrides)。`PERO_APP_PYTHON` 并不能通用覆盖已保存的 App 环境绑定。
 
 这些步骤使用 11 月 4 日源码标签中已有的控件。预期计数来自示例数据，不表示本次已逐一点击验证各平台下载包。[Data 使用边界](apps/data/README.md)和[验证记录](docs/fitness/data-workspace.md)区分源码检查与 Desktop 验收。当前源码的 CSV 数值解释能力晚于该安装包，因此这里使用 JSON。
 
-### 体验最新源码
-
-先完成[开发环境配置](DEVELOPMENT.md#desktop-from-source)，包括指定版本的 GPUI Kit，再在仓库根目录选择运行：
-
-```sh
-npm run dev:apps    # 在独立开发配置中打开 Virtual Cell
-# 或者：
-npm run dev:paper   # 在独立开发配置中打开 Paper
-```
-
-提问论文时，在 Paper 的 **Add papers / 添加论文**中导入一篇公开 PDF，再选择 **Ask / 提问**。提交前需配置并登录 Agent。全文提问支持选定 1–5 篇论文，需要 Agent 支持 HTTP MCP，详见 [Paper 使用说明](apps/paper-agent/README.md)。打开 Paper 不会自动开始研究。下文较新的 Paper 工作流需要当前源码，不属于 11 月 4 日安装包的能力承诺。
+</details>
 
 ## 一个科研实例
-
-交互式领域实例可看 [Virtual Cell](apps/virtual-cell/README.md)：它提供 PBMC3k 参考图谱和本地一级反应模拟。反应与体素示例用于演示，不是拟合的生物模型或已获接受的科学结果。
 
 **能否根据原始输入，独立复算论文中的一个数值？** 当前 Fisher（1936）案例围绕 Table III 的物种内离差平方和展开：
 
@@ -82,6 +101,8 @@ npm run dev:paper   # 在独立开发配置中打开 Paper
 [已记录的运行](docs/fitness/paper-fisher-reproduction.md)得到 **19.1434 cm²**，与选定的论文数值一致。独立数值检查仅使用 Python 标准库，无需模型或网络。这是预先选定案例中单个结果的重分析；整篇论文的结论仍为 `NOT_ASSESSED`（未评估）。
 
 当前 App 路径已有后端/API、导出和重启检查；这次增量的浏览器交互、Native/Electron 集成和安装包验收仍未完成。可按[固定案例说明](apps/paper-agent/skills/paper-reproduction/references/reproduction-protocol.md#fixed-real-source-reanalysis-fisher-table-iii)检查或复算。它不代表已经能够“复现任意论文”。
+
+交互式领域实例可看 [Virtual Cell](apps/virtual-cell/README.md)：它提供 PBMC3k 参考图谱和本地一级反应模拟。反应与体素示例用于演示，不是拟合的生物模型或已获接受的科学结果。
 
 ## 当前状态
 
