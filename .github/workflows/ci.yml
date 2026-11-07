@@ -79,6 +79,37 @@ jobs:
             test-results/session-artifacts-viewer/
           if-no-files-found: warn
 
+  lcms2yield:
+    name: LCMS2Yield input and browser contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install UI dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/lcms2yield --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Verify selected populations and CSV result attribution
+        run: |
+          npm --prefix apps/lcms2yield test
+          npm --prefix apps/lcms2yield run typecheck
+          npm --prefix apps/lcms2yield run test:browser
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lcms2yield-browser
+          path: test-results/lcms2yield/
+          if-no-files-found: error
+
   data:
     name: Data local catalog and download contracts
     runs-on: ubuntu-latest
@@ -875,7 +906,7 @@ jobs:
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [paper-html-live, core, data, lab, control-lab, virtual-cell, scientific-viewer, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [paper-html-live, core, data, lab, control-lab, virtual-cell, scientific-viewer, lcms2yield, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
