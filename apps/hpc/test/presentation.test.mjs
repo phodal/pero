@@ -42,7 +42,7 @@ test('method summary separates execution from verification and keeps earlier spe
   assert.equal(rows.length, 2);
   assert.equal(rows[0].querySelector('.prior-specification').textContent, 'Prior specification');
   assert.equal(rows[1].querySelector('.prior-specification'), null);
-  await click(rows[0].querySelector('button'));
+  await click(rows[0].querySelector('button[aria-label="Inspect: old-run"]'));
   assert.match(document.querySelector('.run-evidence').textContent, /old-run/);
   runs = [old];
   await click(document.querySelector('button[aria-label=Refresh]'));

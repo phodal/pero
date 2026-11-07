@@ -20,6 +20,7 @@ pub(crate) type SpotlightList = ListState<Spotlight>;
 
 #[derive(Clone)]
 enum Target {
+    Command(pero_contracts::shortcuts::CommandId),
     NewChat,
     OpenApp { name: &'static str, panel: &'static str },
     Navigate(WorkbenchPage),
@@ -145,7 +146,7 @@ impl Spotlight {
             for (index, hit) in hits.iter().enumerate() {
                 match &hit.target {
                     Target::Session(_) if sessions.len() < 8 => sessions.push(index),
-                    Target::NewChat
+                    Target::Command(_) | Target::NewChat
                     | Target::OpenApp { .. }
                     | Target::Navigate(_)
                     | Target::Settings => places.push(index),
@@ -311,10 +312,20 @@ impl Workbench {
     }
 
     pub(crate) fn open_spotlight(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_search(false,window,cx);
+    }
+    pub(crate) fn open_command_palette(&mut self,window:&mut Window,cx:&mut Context<Self>) {
+        self.open_search(true,window,cx);
+    }
+    fn open_search(&mut self,commands_only:bool,window:&mut Window,cx:&mut Context<Self>) {
         if window.has_active_dialog(cx) {
             return;
         }
-        let hits = Spotlight::collect(self, cx);
+        let hits = if commands_only {
+            use pero_contracts::shortcuts::{CommandId,ShortcutScope};
+            CommandId::ALL.iter().copied().filter(|command|command.scope()==ShortcutScope::Workbench && *command!=CommandId::CommandPalette)
+                .map(|command|Hit{label:self.t(command.label_key()).into(),hint:self.shortcut_label(command,cx),icon:"terminal",target:Target::Command(command)}).collect()
+        } else { Spotlight::collect(self, cx) };
         let filtered = Spotlight::matching(&hits, "");
         let delegate = Spotlight {
             owner: cx.entity().downgrade(),
@@ -385,6 +396,7 @@ impl Workbench {
         self.chat
             .update(cx, |panel, _| panel.deleting_chat = None);
         match target {
+            Target::Command(command) => self.execute_shortcut(command,window,cx),
             Target::NewChat => {
                 self.new_chat(cx);
                 let composer = self.chat.read(cx).composer.clone();

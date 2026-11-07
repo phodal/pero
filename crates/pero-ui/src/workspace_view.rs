@@ -505,6 +505,7 @@ impl Workbench {
             .child(
                 div()
                     .id("workspace-tab-scroll")
+                    .gap(px(pero_theme::SPACE_4)).px(px(pero_theme::SPACE_4))
                     .flex_1()
                     .min_w_0()
                     .h_full()
@@ -533,7 +534,9 @@ impl Workbench {
                                         Button::new(SharedString::from(format!(
                                             "workspace-tab:{item:?}"
                                         )))
-                                        .ghost()
+                                        .custom(ButtonCustomVariant::new(cx).foreground(
+                                            if current == Some(item) { p.accent_text } else { p.text_muted }
+                                        ))
                                         .small()
                                         .flex_1()
                                         .min_w_0()

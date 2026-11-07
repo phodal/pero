@@ -150,6 +150,13 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-radio-item:not([data-unstyled]) { border-radius:50%; }
 .pero-ui-radio-item:not([data-unstyled])[data-state=checked] { border-color:var(--pero-action); }
 .pero-ui-radio-indicator { display:inline-flex; align-items:center; justify-content:center; color:var(--pero-action); }
+.pero-ui-radio-item:not([data-unstyled])[data-variant=card] { width:100%; height:auto; min-width:0; padding:var(--pero-spacing-4); border-radius:var(--pero-radius-selection); border-color:var(--pero-border); text-align:start; align-items:flex-start; gap:var(--pero-spacing-3); }
+.pero-ui-radio-item:not([data-unstyled])[data-variant=card]:hover:not(:disabled) { background:var(--pero-surface-hover); }
+.pero-ui-radio-item:not([data-unstyled])[data-variant=card][data-state=checked] { background:var(--pero-accent-soft); border-color:var(--pero-action); }
+.pero-ui-radio-card-content { display:grid; gap:var(--pero-spacing-2); flex:1; min-width:0; }
+.pero-ui-radio-card-marker { flex:none; margin-block-start:2px; width:18px; height:18px; border:1px solid var(--pero-border-control); border-radius:50%; display:grid; place-items:center; color:var(--pero-on-action); }
+.pero-ui-radio-item[data-state=checked] .pero-ui-radio-card-marker { background:var(--pero-action); border-color:var(--pero-action); }
+.pero-ui-radio-card-marker > span { display:flex; }
 .pero-ui-tabs { min-width:0; }
 .pero-ui-tabs-list:not([data-unstyled]) { display:flex; gap:0; max-width:100%; overflow-x:auto; border-bottom:var(--pero-hairline); }
 .pero-ui-tabs-list:not([data-unstyled])[data-orientation=vertical] { flex-direction:column; }
@@ -159,19 +166,22 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-tabs-list[data-variant=navigation]:not([data-unstyled]) { border:0; gap:var(--pero-spacing-1) var(--pero-spacing-4); flex-wrap:wrap; overflow:visible; }
 .pero-ui-tabs-list[data-variant=navigation]>.pero-ui-tabs-trigger:not([data-unstyled]) { padding:2px var(--pero-spacing-2); }
 .pero-ui-tabs-list[data-variant=navigation]>.pero-ui-tabs-trigger:not([data-unstyled])[data-state=active] { font-weight:var(--pero-font-weight-medium, 500); }
-.pero-ui-tabs-list[data-variant=content]:not([data-unstyled]) { border:0; align-items:center; flex-wrap:nowrap; }
-.pero-content-tab { display:flex; align-items:center; flex:none; max-width:220px; min-width:0; height:max(var(--pero-content-tab),var(--pero-control-height)); border-bottom:1px solid transparent; box-sizing:border-box; }
+.pero-ui-tabs-list[data-variant=content]:not([data-unstyled]) { border:0; align-items:center; flex-wrap:nowrap; gap:var(--pero-spacing-1); padding:var(--pero-spacing-1); }
+.pero-content-tab { display:flex; align-items:center; flex:none; max-width:220px; min-width:0; height:max(var(--pero-content-tab),var(--pero-control-height)); border:1px solid transparent; border-radius:var(--pero-radius-selection); box-sizing:border-box; }
 .pero-content-tab[data-pinned] { max-width:160px; }
-.pero-content-tab:has([data-state=active]) { border-bottom-color:var(--pero-action); background:var(--pero-surface); }
-.pero-content-tab:not(:has([data-state=active])):hover { background:var(--pero-surface-hover); }
-.pero-content-tab .pero-content-tab-title { display:flex; align-items:center; gap:var(--pero-icon-gap); flex:1; min-width:0; min-height:0; height:100%; padding:0 var(--pero-spacing-2); border:0; font-size:var(--pero-font-tab); }
-.pero-content-tab .pero-content-tab-title[data-state=active] { font-weight:400; }
+.pero-content-tab:has([data-state=active]) { border-color:var(--pero-border); background:var(--pero-accent-soft); }
+.pero-content-tab:not(:has(:disabled)):not(:has([data-state=active])):hover { background:var(--pero-surface-hover); }
+.pero-content-tab:not(:has(:disabled)):not(:has([data-state=active])):active { background:var(--pero-surface-pressed); }
+.pero-content-tab:has([data-state=active]):not(:has(:disabled)):hover { border-color:var(--pero-action); }
+.pero-content-tab .pero-content-tab-title { display:flex; align-items:center; gap:var(--pero-icon-gap); flex:1; min-width:0; min-height:0; height:100%; padding:0 var(--pero-spacing-2); border:0; border-radius:var(--pero-radius-selection); font-size:var(--pero-font-tab); }
+.pero-content-tab .pero-content-tab-title[data-state=active] { font-weight:400; color:var(--pero-accent-text); }
+.pero-content-tab:not(:has(:disabled)):hover .pero-content-tab-title:not([data-state=active]) { color:var(--pero-text); }
 .pero-content-tab-title[data-preview] .pero-content-tab-label { font-style:italic; }
 .pero-content-tab-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pero-content-tab-leading { display:flex; flex:none; }
 .pero-content-tab-pin, .pero-content-tab-leading svg, .pero-content-tab-close svg { width:max(var(--pero-content-tab-icon),var(--pero-font-body)); height:max(var(--pero-content-tab-icon),var(--pero-font-body)); flex:none; }
 .pero-content-tab-dirty { width:6px; height:6px; border-radius:50%; background:currentColor; flex:none; }
-.pero-content-tab .pero-content-tab-close { margin-right:2px; width:max(var(--pero-content-tab-close),var(--pero-control-height)); height:100%; min-height:0; }
+.pero-content-tab .pero-content-tab-close { margin-right:2px; width:max(var(--pero-content-tab-close),var(--pero-control-height)); height:max(var(--pero-content-tab-close),var(--pero-control-height)); max-height:100%; min-height:0; color:var(--pero-text-muted); }
 .pero-ui-tabs-content { min-width:0; }
 .pero-ui-tabs-content[data-state=inactive] { display:none; }
 .pero-ui-toggle-group:not([data-unstyled]) { display:inline-flex; gap:var(--pero-space-1, 2px); max-width:100%; }
@@ -256,6 +266,9 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-split-pane-handle:focus-visible { outline:var(--pero-focus-ring-width, 2px) solid var(--pero-focus); outline-offset:var(--pero-focus-ring-offset, 2px); }
 .pero-ui-disclosure { min-width:0; }
 .pero-ui-disclosure:not([data-unstyled]) { padding:var(--pero-space-5, 10px) var(--pero-space-6, 12px); border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle); border-radius:var(--pero-radius-button); color:var(--pero-text); }
+.pero-ui-disclosure[data-variant=inline]:not([data-unstyled]) { padding:0; border:0; border-radius:0; }
+.pero-ui-disclosure[data-variant=inline] > summary { min-height:var(--pero-control-height); padding:2px 0; color:var(--pero-text-muted); font-size:var(--pero-font-caption); }
+.pero-ui-disclosure[data-variant=inline] > summary:hover { color:var(--pero-text); }
 .pero-ui-disclosure > summary { display:flex; align-items:baseline; gap:var(--pero-space-3, 6px); list-style:none; cursor:pointer; overflow-wrap:anywhere; }
 .pero-ui-disclosure > summary::marker { content:''; }
 .pero-ui-disclosure > summary::-webkit-details-marker { display:none; }
@@ -266,7 +279,7 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-disclosure[open] > summary:dir(rtl) > .pero-ui-disclosure-indicator { transform:rotate(90deg); }
 .pero-ui-disclosure > summary:focus-visible { outline:var(--pero-focus-ring-width, 2px) solid var(--pero-focus); outline-offset:var(--pero-focus-ring-offset, 2px); }
 .pero-ui-card { min-width:0; }
-.pero-ui-card:not([data-unstyled]) { box-sizing:border-box; padding:var(--pero-card-padding,16px); border:var(--pero-border-width-thin, 1px) solid var(--pero-card-border-color,var(--pero-border-subtle, #ddd)); border-radius:var(--pero-radius-xl, 12px); background:var(--pero-card-background,var(--pero-surface, #fff)); color:var(--pero-text); overflow-wrap:anywhere; }
+.pero-ui-card:not([data-unstyled]) { box-sizing:border-box; padding:var(--pero-card-padding,16px); border:var(--pero-border-width-thin, 1px) solid var(--pero-card-border-color,var(--pero-border-subtle, #ddd)); border-radius:var(--pero-card-radius,var(--pero-radius-xl, 12px)); background:var(--pero-card-background,var(--pero-surface, #fff)); color:var(--pero-text); overflow-wrap:anywhere; }
 .pero-ui-card:not([data-unstyled])[data-variant=soft] { border-color:transparent; }
 .pero-ui-card:not([data-unstyled])[data-variant=soft][data-tone=neutral] { background:var(--pero-surface-muted); }
 .pero-ui-card-header:not([data-unstyled])[data-tone=blue] { background:var(--pero-tint-blue-surface); color:var(--pero-tint-blue-text); }

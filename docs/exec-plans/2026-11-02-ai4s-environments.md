@@ -1,7 +1,7 @@
 ---
 kind: execution_plan
 date: 2026-11-02
-status: p1_complete
+status: core_extension_in_progress
 ---
 
 # AI4S Environments 分阶段实施
@@ -12,6 +12,25 @@ status: p1_complete
 依据：[ADR 0029](../adr/0029-ai4s-environments.md)、[领域与接口设计](../design-docs/ai4s-environments.md)、
 [两场景映射](../design-docs/ai4s-environments-scenarios.md)、[研究依据](../design-docs/ai4s-environments-research.md)。
 与 [ADR 0026](../adr/0026-hpc-benchmark-library.md) 的 Compute 分工一致；没有新的执行服务。
+
+## ADR 0030：2026-11-06 实现进展
+
+[组合环境设计](../design-docs/2026-11-06-compute-environment-capabilities.md) 已以
+[ADR 0030](../adr/0030-compute-environment-capabilities.md) 登记，设计提交 `ca28c9d1`。
+本批完成 A 阶段的纯核心扩展，以独立 PR 交付：
+
+- [x] V2 具名 Python/原生程序/OCI 软件组件，包要求关联指定解释器；保留旧观察字节结构和摘要。
+- [x] 多槽位、能力连接依赖闭包、实际资源与运行代次；相同资源的槽位别名合并为一次 Use target。
+- [x] 明确 V2 快照；旧单资源快照摘要不变；未知、过期、不就绪、能力缺失、身份漂移均阻塞。
+- [x] 扩展唯一 `apply_use` 核心：逐项准入、部分失败释放、取消后迟到授权、未知效果和重复回执。
+- [x] 真实既有 Python 元数据探针、Runtime/Host 与 Environments SDK 回归。
+- [ ] A 后续与 B：持久化/恢复格式、Host 准入与原执行入口交接、本机与 Docker 具体 Owner、显式准备与真实执行/取消。
+- [ ] C/D/E：Compose 服务组合、Tart/QEMU/KubeVirt、PC-Gym 独立计算环境与真实 Slurm。
+
+`ResourceTemplate` 是 V2 多槽位定义；`EnvironmentSnapshot` 保留旧投影并包容组合快照。
+本轮没有开放接收 V2 的 App 公共 API，没有真实 ResourceOwner，也没有把 effects 当作
+已经执行。验收数据见 [环境核心验证](../fitness/ai4s-environments.md#2026-11-06adr-0030-核心扩展)。
+P2–P4 的真实执行门槛仍保持未完成。
 
 ## P0：文档与场景检查（已完成）
 
@@ -135,3 +154,46 @@ P4 再运行受影响的 Go/Worker 测试和真实后端 gate，不把未配置�
 无法确认原执行停止、未知派发结果、无法证实必需条件或预算/批准绑定变化时停止准入，
 保留原记录并给出恢复入口。环境层不降低科学标准、不自动补造历史观察、不为缺少依赖
 引入替代曲线或隐式下载。本计划没有承诺全量 table6 训练、自动 checkpoint 续跑或通用 GC。
+
+## 2026-11-06 UI steering
+
+The user requested Design alignment of the local creation form while continuing
+the environment implementation. The shared manager now uses LibraryHeader,
+ghost Back, Field/Input/Select and a named software summary on shared Card;
+workspace `surface` becomes full-height `bg`. Existing preparation and binding
+behavior is preserved, with the sandboxed submission bug fixed. Migration and
+actual Electron evidence are in the [preparation report](../fitness/local-environment-preparation.md).
+This does not close the remaining Docker/VM/Compose/Slurm execution gates.
+
+## 2026-11-06 live owner follow-up
+
+- [x] Validate historical Use replay without repeating effects; Host SQLite commits before returning effects.
+- [x] Real local/Docker process owners and private Host handoff, including actual ngspice output and cancellation.
+- [x] Native Compose preparation, exact member/network evidence and retained-volume acceptance.
+- [x] Slurm submission/allocation distinction, original-job observation and actual cancellation against an isolated local fixture.
+- [x] Prepare and execute in isolated QEMU and Tart guests; retain private fixture resources and stop evidence.
+- [ ] Production App admission/dispatch, bounded input staging and independent scientific interpreter selection.
+- [ ] Compose member capability/Use projection and shared-service execution lifetime.
+- [ ] Production VM owner adapters, KubeVirt VM acceptance and existing Go control-plane integration.
+- [ ] Slurm allocation-side environment Use and accounting reconciliation; production-site policy and limits.
+
+These checked items are adapter/fixture evidence only; they do not close P2–P4.
+See the [live owner report](../fitness/ai4s-environments.md#2026-11-06-live-local-docker-compose-and-slurm-owner-evidence).
+
+## 2026-11-06 creation page redesign
+
+The user rejected the initial creation-page appearance and explicitly requested
+an HTML design by a sub-agent before integration. The HTML proposal has
+been integrated using public radio cards and a responsive form/software layout.
+Actual Electron creation, dependency installation, keyboard/locale/theme behavior,
+binding and Control computation passed; see the updated preparation fitness report.
+
+## 2026-11-06 Design review correction
+
+The user rejected the claim that the integrated HTML satisfied DESIGN. The
+creation form now removes promotional/repeated content and outer frames, uses a
+single-column task order, and keeps radio internals in the shared control.
+Create-refusal messaging stays local and Cancel/reopen retains the draft. The
+installation log uses the public inline Disclosure. Migration, source revision,
+actual screenshots and explicit unverified scope are recorded against each
+review criterion in the [preparation report](../fitness/local-environment-preparation.md#2026-11-06-review-against-design-and-design-review).

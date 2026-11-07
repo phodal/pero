@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Checkbox, Feedback, Field, Icon, Input, Toolbar } from '@pero/app-sdk/ui';
+import { Disclosure, Progress, Button, Checkbox, Feedback, Field, Icon, Input, Toolbar } from '@pero/app-sdk/ui';
 import type { Api } from './types';
 import { assetSize, type ImportDraft, type ResearchBundle, type ResearchResource } from './research-types';
 import './research-import.css';
@@ -48,14 +48,14 @@ export function ResourceDetails({ resource, related = [], onRead, detailsOnly = 
   return <div className="pa-resource-info">
     {!detailsOnly && <div className="pa-resource-meta"><span>{t(resource.kind)}</span>{resource.revision && <span>{resource.revision}</span>}<a href={resource.url} target="_blank" rel="noreferrer" aria-label={`${t('original')}: ${new URL(resource.url).hostname}`}><span>{new URL(resource.url).hostname}</span><Icon name="external-link"/></a></div>}
     {!detailsOnly && warnings.length > 0 && <ul className="pa-resource-warnings">{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
-    <div className="pa-resource-actions"><details><summary>{t('details')}</summary>
+    <div className="pa-resource-actions"><Disclosure variant="inline" summary={<>{t('details')}</>}>
       {sources.map(source => <div key={source.id} className="pa-resource-provenance-source">{sources.length > 1 && <p><strong>{t(source.kind)}</strong> {source.title}</p>}
       <dl className="pa-resource-provenance"><dt>{t('identity')}</dt><dd>{source.identity}</dd><dt>URL</dt><dd><a href={source.originalUrl} target="_blank" rel="noreferrer">{source.originalUrl}</a></dd><dt>{t('revision')}</dt><dd>{source.revision || t('unresolved')}</dd>{source.observedAt && <><dt>{t('inspected')}</dt><dd>{source.observedAt}</dd></>}<dt>{t('licenseLabel')}</dt><dd>{source.license || t('license')} / {source.size == null ? t('sizeUnknown') : assetSize(source.size)}</dd><dt>{relations[source.relation]}</dt><dd>{confidence[source.confidence]}</dd></dl>
       {source.authors.length > 0 && <p className="pa-muted">{source.authors.join(', ')}</p>}
       {source.evidence.length > 0 && <ul>{source.evidence.map((evidence, index) => <li key={index}><a href={evidence.url} target="_blank" rel="noreferrer">{evidence.label || evidence.url}</a>{evidence.position != null && ` (link ${evidence.position})`}{evidence.href && <div>{evidence.href}</div>}</li>)}</ul>}
       {source.excerpt && <p className="pa-resource-excerpt">{source.excerpt}</p>}
       </div>)}
-    </details>{!detailsOnly && resource.paperId && onRead && <Button variant="ghost" onClick={() => onRead(resource.paperId!)}>{t('read')}</Button>}</div>
+    </Disclosure>{!detailsOnly && resource.paperId && onRead && <Button variant="ghost" onClick={() => onRead(resource.paperId!)}>{t('read')}</Button>}</div>
   </div>;
 }
 
@@ -137,7 +137,7 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
       <Toolbar>{!draft && <Button variant="primary" busy={busy} disabled={!url.trim() || saving} onClick={() => void inspect()}>{busy ? t('inspecting') : t('inspect')}</Button>}{(draft || busy || error) && <Button type="button" disabled={saving} onClick={reset}>{t('newUrl')}</Button>}</Toolbar>
     </div>
     {error && <Feedback kind="error">{error}{draft?.status === 'inspecting' ? <Button disabled={busy} onClick={() => setError('')}>{t('retryStatus')}</Button> : !draft && <Button disabled={busy} onClick={() => void inspect()}>{t('retry')}</Button>}</Feedback>}
-    {draft?.status === 'inspecting' && <div className="pa-import-progress"><progress aria-label={t('inspectSources')}/><span role="status">{t('inspectSources')}</span><Button busy={busy} onClick={() => void cancel()}>{t('cancel')}</Button></div>}
+    {draft?.status === 'inspecting' && <div className="pa-import-progress"><Progress label={t('inspectSources')}/><span role="status">{t('inspectSources')}</span><Button busy={busy} onClick={() => void cancel()}>{t('cancel')}</Button></div>}
     {draft?.status === 'failed' && <Feedback kind="error">{draft.error || t('failed')}<Button onClick={() => void inspect()}>{t('retryInspection')}</Button></Feedback>}
     {draft?.status === 'cancelled' && <Feedback>{t('cancelled')}<Button onClick={() => void inspect()}>{t('retryInspection')}</Button></Feedback>}
     {draft?.warnings.map((warning, index) => <Feedback key={index}>{warning}</Feedback>)}
@@ -173,7 +173,7 @@ export function ResearchImport({ api, active, onSaved }: { api: Api; active: boo
     </section>}
     {!draft && !busy && <section className="pa-research-drafts" aria-label="Saved import reviews">
       {draftsError && <Feedback kind="error">{draftsError}<Button onClick={() => void loadDrafts()}>{t('retryReviews')}</Button></Feedback>}
-      {!!drafts.length && <details><summary>{t('resume')} ({drafts.length})</summary><ul>{drafts.map(item => <li key={item.id}><Button variant="ghost" onClick={() => void inspect(item)}>{item.seedUrl}</Button><span className="pa-muted">{item.status}</span></li>)}</ul></details>}
+      {!!drafts.length && <Disclosure variant="inline" summary={<>{t('resume')} ({drafts.length})</>}><ul>{drafts.map(item => <li key={item.id}><Button variant="ghost" onClick={() => void inspect(item)}>{item.seedUrl}</Button><span className="pa-muted">{item.status}</span></li>)}</ul></Disclosure>}
     </section>}
   </div>;
 }

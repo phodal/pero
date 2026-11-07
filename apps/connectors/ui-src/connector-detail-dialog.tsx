@@ -1,3 +1,4 @@
+import { Disclosure } from '@pero/app-sdk/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBadge } from './components.tsx';
 import { DiscoveryPanel, JsonEditor } from './connector-editor.tsx';
@@ -51,11 +52,14 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
   const editable = !quickInstall && !isFeishu;
   const configuration = useRef<HTMLDivElement>(null);
   const runtime = useRef<HTMLDetailsElement>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(!!fieldError);
+  const hasFieldError = !!fieldError;
+  useEffect(() => setAdvancedOpen(hasFieldError), [hasFieldError]);
   useEffect(() => {
     if (!configurationRequest) return;
     const target = isFeishu ? runtime.current : configuration.current;
     if (!target) return;
-    if (isFeishu) runtime.current!.open = true;
+    if (isFeishu) setAdvancedOpen(true);
     target.scrollIntoView?.({ block: 'nearest' });
     const control = [...target.querySelectorAll<HTMLElement>('input:not([disabled]):not([readonly]),textarea:not([disabled]),summary')]
       .find(node => !node.closest('[hidden],[data-state="inactive"]'));
@@ -117,14 +121,14 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
       </>}>
       {!isFeishu && prerequisite && <Feedback kind="status">{copy('使用前需要：', 'Requires: ')}{prerequisite}</Feedback>}
       {gotcha && <Feedback kind="status">{gotcha}</Feedback>}
-      {notice && <Feedback kind={noticeError ? 'error' : 'status'} unstyled className={noticeError ? 'point-error' : 'point-connectors-notice'}>{notice}</Feedback>}
-      {view && !isFeishu && STATE_TONES[view.state] === 'error' && <Feedback kind="error" unstyled className="point-connectors-warning">{status}</Feedback>}
+      {notice && <Feedback kind={noticeError ? 'error' : 'status'} variant="block">{notice}</Feedback>}
+      {view && !isFeishu && STATE_TONES[view.state] === 'error' && <Feedback kind="error" variant="block">{status}</Feedback>}
       {view && isFeishu && <FeishuAuthorizationPanel key={view.connectionId} connectionId={view.connectionId} locale={locale} actionsTarget={actionTarget} connectionState={view.state} connectionSummary={explain(view, locale)} onAuthorized={() => void discover('feishu-workspace')}/>}
 
       {quickInstall && <DiscoveryPanel actionsTarget={actionTarget} locale={locale} provider={provider!} discovery={discovery} definition={parsedDefinition} busy={!!busy}
         onPick={patchDefinition} onRetry={() => void discover(provider!.providerId)} onManual={useManual}
         onInstall={save} installing={busy === 'put'} onDocs={() => onDocs(provider!.providerId)} onInstallServer={() => void installServer(provider!.providerId)} onCancelInstall={cancelInstall} />}
-      {fieldError && (quickInstall || isFeishu) && <Feedback kind="error" unstyled className="point-error">{fieldError.message}</Feedback>}
+      {fieldError && (quickInstall || isFeishu) && <Feedback kind="error">{fieldError.message}</Feedback>}
 
       {view && <ConnectorToolAccess view={view} scopeEffects={scopeEffects} selection={toolSelection} disabled={!!view.sealed || !!busy} locale={locale}
         title={isFeishu ? copy('Pero 工具权限', 'Pero tool access') : undefined}
@@ -176,7 +180,7 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
             <TabsContent value="json">
               <JsonEditor locale={locale} value={definitionText} onChange={setDefinitionText} rows={12} invalid={fieldError?.field === 'json'}
                 actions={!view && <Button type="button" disabled={!!busy} onClick={importPasted}>{copy('导入 JSON', 'Import JSON')}</Button>} />
-              {errorFor('json') && <Feedback kind="error" unstyled className="point-error">{errorFor('json')}</Feedback>}
+              {errorFor('json') && <Feedback kind="error">{errorFor('json')}</Feedback>}
             </TabsContent>
           </fieldset>
         </ConnectorSection>
@@ -185,8 +189,8 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
       {editable && references.length > 0 && <ConnectorCredentials references={references} reference={secretReference} onReference={setSecretReference}
         value={secretValue} onValue={setSecretValue} onSave={saveSecret} onDelete={deleteSecret} busy={!!busy || !!view?.sealed} providerId={provider?.providerId} locale={locale} />}
 
-      {isFeishu && <details ref={runtime} className="point-connectors-advanced" {...(fieldError ? { open: true } : {})}>
-        <summary>{copy('运行环境', 'Runtime')}</summary>
+      {isFeishu && <Disclosure variant="inline" ref={runtime} className="point-connectors-advanced" open={advancedOpen} onOpenChange={setAdvancedOpen} summary={<>{copy('运行环境', 'Runtime')}</>}>
+
         {discovery.state === 'done' && <Feedback kind={discovery.account && !discovery.setupError ? 'status' : 'error'}>{discovery.account && !discovery.setupError
           ? copy('账号与组件已核验，可以应用检测结果。', 'Account and tools verified. You can apply the detected configuration.')
           : feishuMessage(discovery.setupError ?? 'FEISHU_AUTH_REQUIRED', locale)}</Feedback>}
@@ -194,6 +198,6 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
           <dt>{copy('启动程序', 'Executable')}</dt><dd>{parsedDefinition.command}</dd>
           <dt>{copy('飞书 CLI', 'Feishu CLI')}</dt><dd>{parsedDefinition.env?.POINT_FEISHU_CLI ?? '—'}</dd>
         </dl>}
-      </details>}
+      </Disclosure>}
     </Dialog>;
 }

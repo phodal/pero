@@ -1,3 +1,4 @@
+pub mod workspace_files;
 pub mod automation;
 pub mod terminal;
 pub mod harness_settings;
@@ -285,3 +286,4 @@ pub mod research_project;
 pub mod mcp_session;
 
 pub mod mcp_resource;
+pub mod shortcuts;

@@ -7,15 +7,27 @@ go_library(
         "python/chart_document.py",
         "python/dataset.py",
         "python/render.py",
+        "python/table_document.py",
         "python/view.py",
     ],
     importpath = "github.com/phodal/pero/harness/go/charts",
     visibility = ["//visibility:public"],
-    deps = ["//harness"],
+    deps = [
+        "//harness",
+        "//model",
+    ],
 )
 
 go_test(
     name = "charts_test",
-    srcs = ["tool_test.go"],
+    srcs = [
+        "presentation_test.go",
+        "table_test.go",
+        "tool_test.go",
+    ],
     embed = [":charts"],
+    deps = [
+        "//harness",
+        "//model",
+    ],
 )

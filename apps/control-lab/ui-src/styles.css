@@ -71,12 +71,11 @@ main { min-width: 0; padding: 12px; }
 .verdict-header.PASS { background: var(--pero-success-bg); }
 .verdict-header.INCONCLUSIVE { background: var(--pero-warning-bg); }
 .verify-list { display: grid; margin-top: 12px; }
-.check-row { color:inherit; font:inherit; cursor:pointer; border-color:var(--pero-border); border-style:solid; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; width: 100%; text-align: left; background: transparent; border-width: 0 0 0.5px; border-radius: 0; padding: 8px 4px; }
+.verify-list .check-row.pero-ui-button { font:inherit; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; width: 100%; text-align: left; padding: 8px 4px; }
 .check-row > span:first-child { grid-column: 1; grid-row: 1; }
 .check-row small { grid-column: 1; grid-row: 2; }
 .check-row strong { grid-column: 2; grid-row: 1; font-variant-numeric: tabular-nums; }
 .check-row .pero-badge { grid-column:2; grid-row:2; justify-self:end; }
-.check-row.focused { background: var(--pero-accent-soft); }
 .suggestion { margin-top: 12px; padding-top: 12px; border-top: 0.5px solid var(--pero-border); }
 .suggestion h3 { margin: 0; }
 .suggestion-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -216,8 +215,6 @@ summary {
 .control-lab > .pero-ui-feedback { margin:var(--pero-spacing-2) var(--pero-spacing-3); }
 .control-lab .pero-app-bar { padding-block:var(--pero-spacing-2); }
 .param-head label { margin:0; }
-.check-row:focus-visible { outline:2px solid var(--pero-focus); outline-offset:-2px; }
-.check-row:hover { background:var(--pero-surface-muted); }
 .candidate-option { white-space:normal; }
 
 .check-row > * { min-width:0; overflow-wrap:anywhere; }

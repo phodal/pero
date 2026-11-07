@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AppApiError, downloadFile, openDocument, useAppApi, useAppContext, useAppObject } from '@pero/app-sdk';
-import { Button, Dialog, Feedback, FilePicker, Select } from '@pero/app-sdk/ui';
+import { Disclosure, Table, Button, Dialog, Feedback, FilePicker, Select } from '@pero/app-sdk/ui';
 import { mountChartSurface } from '../../../packages/app-sdk/src/chart-surface';
 import type { ChartDataset, ViewSpec } from './model';
 
@@ -172,7 +172,7 @@ export function ChartPanel({ data, busy, inspectionPending, aggregationControls,
         {!!result.document.source.excludedValues && <p>Excluded values: {result.document.source.excludedValues}</p>}
         {!!result.document.source.omittedGroups && <p>Omitted groups: {result.document.source.omittedGroups}</p>}
       </div>
-      <details><summary>Chart data ({result.document.rows.length})</summary><div className="data-chart-table"><table><thead><tr>{columns.map(key => <th key={key} scope="col">{key}</th>)}</tr></thead><tbody>{result.document.rows.map((row, index) => <tr key={index}>{columns.map(key => <td key={key}>{key === result.document.chart.y && result.document.source.exactValues?.[index] !== undefined ? result.document.source.exactValues[index] : row[key] == null ? '—' : String(row[key])}</td>)}</tr>)}</tbody></table></div></details>
+      <Disclosure variant="inline" summary={<>Chart data ({result.document.rows.length})</>}><Table label="Chart data" density="compact" className="data-chart-table"><thead><tr>{columns.map(key => <th key={key} scope="col">{key}</th>)}</tr></thead><tbody>{result.document.rows.map((row, index) => <tr key={index}>{columns.map(key => <td key={key}>{key === result.document.chart.y && result.document.source.exactValues?.[index] !== undefined ? result.document.source.exactValues[index] : row[key] == null ? '—' : String(row[key])}</td>)}</tr>)}</tbody></Table></Disclosure>
       {result.document.source.records?.length ? <section className="data-chart-records" aria-label="Chart source records"><h4>Source records ({result.document.source.records.length})</h4>
         <ul>{result.document.source.records.map(record => <li key={record.ordinal}><Button variant="ghost" disabled={pending || inspectionPending} onClick={() => void showSource(record.ordinal).catch(failed)}>{record.pointer || `Record ${record.ordinal + 1}`}{record.line == null ? '' : ` (line ${record.line})`}</Button></li>)}</ul>
       </section> : null}
@@ -199,7 +199,7 @@ export function ChartPanel({ data, busy, inspectionPending, aggregationControls,
         })()} /></div>
       {savedOpen && <div id="data-saved-charts">
         {savedError && <div className="data-chart-error" role="alert"><span>{savedError}</span><Button onClick={() => void listSaved()}>Retry</Button></div>}
-        {savedLoading && !saved.length ? <p className="data-muted" role="status">Loading charts…</p> : saved.length ? <ul className="data-saved-list">{saved.map(item => <li key={item.artifactId}><button type="button" aria-label={`${item.title} (${item.type})`} disabled={busy || pending} onClick={() => void openSaved(item.artifactId)}><span><strong>{item.title}</strong>{item.source !== item.title && <small>{item.source}</small>}</span><span>{item.type}</span></button></li>)}</ul> : !savedError && <p className="data-muted">No saved charts.</p>}
+        {savedLoading && !saved.length ? <p className="data-muted" role="status">Loading charts…</p> : saved.length ? <ul className="data-saved-list">{saved.map(item => <li key={item.artifactId}><Button variant="ghost" aria-label={`${item.title} (${item.type})`} disabled={busy || pending} onClick={() => void openSaved(item.artifactId)}><span><strong>{item.title}</strong>{item.source !== item.title && <small>{item.source}</small>}</span><span>{item.type}</span></Button></li>)}</ul> : !savedError && <p className="data-muted">No saved charts.</p>}
       </div>}
     </section>
   </div>;

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import { Disclosure } from '@pero/app-sdk/ui';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActionPortal } from './components.tsx';
 import type { DirectoryEntry, Discovery } from './connector-types.ts';
 import { EFFECT_LABELS, EFFECT_LABELS_EN } from './shared/connection-copy.mjs';
@@ -16,6 +17,9 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
   const spec = provider.discovery!;
   const isFeishu = provider.providerId === 'feishu-workspace';
   const job = discovery.install;
+  const installFailed = job?.state === 'failed';
+  const [installLogOpen, setInstallLogOpen] = useState(installFailed);
+  useEffect(() => setInstallLogOpen(installFailed), [installFailed]);
   const running = discovery.state === 'running' || discovery.state === 'idle';
   const argValue = (flag: string) => (definition?.args ?? []).find((arg: string) => arg.startsWith(`${flag}=`))?.slice(flag.length + 1) ?? '';
   const command = discovery.command.find(c => c.path === definition?.command) ?? (provider.providerId === 'feishu-workspace' ? discovery.command[0] : undefined);
@@ -28,16 +32,16 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
       ? <>{copy('找到', 'Found')} <code>{command.path}</code>{copy('，但没有执行权限：', ', but it is not executable: ')}<code>chmod +x "{command.path}"</code></>
       : discovery.installable
         ? <>{copy(`未找到 ${spec.executables[0]}。`, `${spec.executables[0]} was not found. `)}
-            <span className="point-connectors-discovery-note">{job?.state === 'running' ? <>{copy('正在后台安装…', 'Installing in the background…')} <Button type="button" variant="unstyled" className="point-connectors-link" onClick={onCancelInstall}>{copy('取消', 'Cancel')}</Button></> : job?.state === 'failed' ? copy('安装失败', 'Install failed') : job?.state === 'cancelled' ? copy('已取消', 'Cancelled') : <>{copy('将执行：', 'Command: ')}{discovery.installSummary}</>}</span>
-            {job?.log && <details className="point-connectors-install-details" open={job.state === 'failed'}><summary>{copy('安装日志', 'Install log')}</summary><pre className="point-connectors-install-log">{job.log}</pre></details>}</>
+            <span className="point-connectors-discovery-note">{job?.state === 'running' ? <>{copy('正在后台安装…', 'Installing in the background…')} <Button type="button" variant="link" className="point-connectors-link" onClick={onCancelInstall}>{copy('取消', 'Cancel')}</Button></> : job?.state === 'failed' ? copy('安装失败', 'Install failed') : job?.state === 'cancelled' ? copy('已取消', 'Cancelled') : <>{copy('将执行：', 'Command: ')}{discovery.installSummary}</>}</span>
+            {job?.log && <Disclosure variant="inline" className="point-connectors-install-details" open={installLogOpen} onOpenChange={setInstallLogOpen} summary={<>{copy('安装日志', 'Install log')}</>}><pre className="point-connectors-install-log">{job.log}</pre></Disclosure>}</>
       : provider.installHint?.startsWith('https://')
-        ? <>{copy(`未找到 ${spec.executables[0]}。`, `${spec.executables[0]} was not found. `)}<Button type="button" variant="unstyled" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</Button></>
+        ? <>{copy(`未找到 ${spec.executables[0]}。`, `${spec.executables[0]} was not found. `)}<Button type="button" variant="link" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</Button></>
         : <>{copy(`未找到 ${spec.executables[0]}。在终端运行`, `${spec.executables[0]} was not found. Run in a terminal:`)} <code>{provider.installHint}</code> {copy('然后点“重新检测”。', 'Then check again.')}</>,
   }];
   if (provider.providerId.startsWith('science-')) rows.push({
     key: 'scienceRuntime', label: 'Claude Science', ok: !discovery.setupError && !!definition?.env?.POINT_SCIENCE_SOURCE_SHA256,
     value: <code>0.1.60-release</code>,
-    missing: <>{copy('未找到兼容服务或 Pero 适配器。', 'Compatible servers or the Pero adapter were not found.')} <code>{discovery.setupError}</code> <Button type="button" variant="unstyled" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</Button></>,
+    missing: <>{copy('未找到兼容服务或 Pero 适配器。', 'Compatible servers or the Pero adapter were not found.')} <code>{discovery.setupError}</code> <Button type="button" variant="link" className="point-connectors-link" onClick={onDocs}>{copy('查看安装文档', 'View installation docs')}</Button></>,
   });
   if (provider.providerId === 'feishu-workspace') {
     rows.push({ key: 'feishuCli', label: copy('飞书 CLI', 'Feishu CLI'), ok: !!discovery.nativeCli?.length,
@@ -91,14 +95,14 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
     <ActionPortal target={actionsTarget}><div className="point-connectors-actions">
       <Button variant="primary" type="button" disabled={busy || (ready ? false : !installServerFirst || running || discovery.state === 'preparing' || job?.state === 'running')} onClick={ready ? onInstall : onInstallServer}>{installing || job?.state === 'running' || discovery.state === 'preparing' ? copy('正在安装…', 'Installing…') : job?.state === 'failed' && !ready ? copy('重试安装', 'Retry install') : copy('安装', 'Install')}</Button>
       <Button type="button" disabled={running || busy} onClick={onRetry}>{copy('重新检测', 'Check again')}</Button>
-      {!isFeishu && <Button type="button" variant="unstyled" className="point-connectors-link" disabled={busy} onClick={onManual}>{copy('手动配置', 'Configure manually')}</Button>}
+      {!isFeishu && <Button type="button" variant="link" className="point-connectors-link" disabled={busy} onClick={onManual}>{copy('手动配置', 'Configure manually')}</Button>}
     </div></ActionPortal>
     <section className="point-connector-install-scope" aria-label={copy('安装后的工具权限', 'Tool access after installation')}>
       <h3>{copy('安装后的工具权限', 'Tool access after installation')}</h3>
       <p className="point-connectors-hint">{allowedTools.length ? Object.entries(toolEffects).map(([effect, tools]) => `${effectLabels[effect] ?? copy('未分类（请检查工具）', 'Unclassified (review tools)')} ${tools.length}`).join(' · ') : copy('未允许任何工具。', 'No tools allowed.')}</p>
-      {allowedTools.length > 0 && <details><summary>{copy(`查看 ${allowedTools.length} 个工具`, `Review ${allowedTools.length} tools`)}</summary>
+      {allowedTools.length > 0 && <Disclosure variant="inline" summary={<>{copy(`查看 ${allowedTools.length} 个工具`, `Review ${allowedTools.length} tools`)}</>}>
         {Object.entries(toolEffects).map(([effect, tools]) => <div key={effect} className="point-connector-tool-group"><span className="point-connector-tool-effect">{effectLabels[effect] ?? copy('未分类', 'Unclassified')}</span><div className="point-connector-tool-list">{tools.map(tool => <code key={tool} className="point-connector-tool">{tool}</code>)}</div></div>)}
-      </details>}
+      </Disclosure>}
     </section>
   </section>;
 }

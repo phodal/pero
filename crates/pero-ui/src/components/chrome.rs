@@ -9,6 +9,7 @@ pub(crate) fn window_titlebar(
     collapsed: bool,
     sidebar_width: f32,
     tabs: Option<AnyElement>,
+    shortcut: String,
     on_toggle: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     on_search: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     dragging: &Entity<bool>,
@@ -20,11 +21,6 @@ pub(crate) fn window_titlebar(
         ("icons/panel-left-open.svg", ui.t("sidebar.show"))
     } else {
         ("icons/panel-left-close.svg", ui.t("sidebar.hide"))
-    };
-    let shortcut = if cfg!(target_os = "macos") {
-        "⌘⇧K"
-    } else {
-        "Ctrl+Shift+K"
     };
     let search_label = format!("{}  {shortcut}", ui.t("spotlight.open"));
     let leading = div()

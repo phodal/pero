@@ -13,6 +13,15 @@ pub enum ScientificMethod {
     Circuit,
     #[serde(rename = "paper-agent.pcgym")]
     Pcgym,
+    #[serde(rename = "lcms2yield.inference")]
+    Lcms2Yield,
+}
+impl ScientificMethod {
+    /// This trial runs every method, including LCMS2Yield, on the bundled 3.12 minor.
+    pub(super) fn python_minor(self) -> &'static str {
+        let _ = self;
+        super::python::BUNDLED_PYTHON_MINOR
+    }
 }
 impl ScientificMethod {
     pub(super) fn target(
@@ -40,6 +49,12 @@ impl ScientificMethod {
                 "paper-agent",
                 "paper-agent.pcgym",
                 "paper_agent.environment",
+                None,
+            ),
+            Self::Lcms2Yield => (
+                "lcms2yield",
+                "lcms2yield.inference",
+                "lcms2yield.environment",
                 None,
             ),
         }
@@ -165,13 +180,29 @@ impl AppStore {
             .is_some_and(|b| !b.dependencies.is_empty())
         {
             return Ok(Some(PythonEnvironment::try_from(
-                self.root
-                    .parent()
-                    .ok_or("App root needs a parent")?
-                    .join("environment/pero-python312"),
+                self.managed_python_directory(name)?,
             )?));
         }
         Ok(None)
+    }
+
+    /// LCMS2Yield carries PyTorch pins that conflict with Control Lab, so its
+    /// managed interpreter is a separate directory. Other Apps share one.
+    pub(super) fn managed_python_directory(
+        &self,
+        name: &AppName,
+    ) -> Result<std::path::PathBuf, String> {
+        let leaf = if name.as_str() == ScientificMethod::Lcms2Yield.target().0 {
+            "lcms2yield-python312"
+        } else {
+            "pero-python312"
+        };
+        Ok(self
+            .root
+            .parent()
+            .ok_or("App root needs a parent")?
+            .join("environment")
+            .join(leaf))
     }
 
     /// Inspects the selected interpreter now, not an attestation of a live backend.
@@ -239,9 +270,13 @@ mod tests {
             ("control-lab", ScientificMethod::Control),
             ("control-lab", ScientificMethod::Circuit),
             ("paper-agent", ScientificMethod::Pcgym),
+            ("lcms2yield", ScientificMethod::Lcms2Yield),
         ] {
             let inspection = EnvironmentInspection::inspect(&root.join(app), None, method).unwrap();
-            assert_eq!(inspection.profile.observation().name.as_str(), app);
+            let crate::environments::SoftwareObservation::Legacy(observed) = inspection.profile.observation() else {
+                panic!("legacy probe contract")
+            };
+            assert_eq!(observed.name.as_str(), app);
             let binding = EnvironmentBinding {
                 owner: "probe".to_owned().try_into().unwrap(),
                 incarnation: "inspection".to_owned().try_into().unwrap(),

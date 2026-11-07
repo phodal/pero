@@ -1,0 +1,705 @@
+{
+  "kind": "verification_report",
+  "date": "2026-11-06",
+  "source_ref": "fbc8c66848ce3cb5102a3538e16fadede9406401",
+  "harbor_ref": "8c6bdacc9b9cd5342508179f1296bcbae5f1df36",
+  "binary_sha256": "95abda5596b5b3e7facedf485f069c7d11c59bbe334847b266c7dd99200f3828",
+  "configuration": {
+    "model": "gpt-6.1-sol",
+    "endpoint": "http://187.124.157.143:8989/v1",
+    "api_format": "responses",
+    "streaming": false,
+    "thinking": "provider default; no reasoning override",
+    "max_output_tokens": 16384,
+    "max_requests": 128,
+    "max_retries": 0,
+    "context_window": 0,
+    "attempts_per_task": 1,
+    "agent_timeout_sec": 900,
+    "verifier_timeout_sec": 900
+  },
+  "scope": "Five selected Terminal-Bench 2.0 tasks; one submission each, no retries or hidden-test feedback, original verifiers. Native tools with a neutral plugin. Not a full-suite score, causal model/runtime comparison, or original coder Workflow acceptance.",
+  "selection": "First four selected before their controls; write-compressor added and frozen before any model attempt. All controls preceded the first four model attempts; hard task model phase runs after the first four finish. Only credential-free controls overlapped.",
+  "explicit_native_options": {
+    "engineering_profile": "off (default; flag omitted)",
+    "delivery_contract": null,
+    "deferred_tools": true,
+    "tool_history_high_chars": 48000,
+    "tool_history_low_chars": 24000,
+    "tool_history_keep_recent": 4,
+    "service_directory": "/logs/agent/pero-services"
+  },
+  "totals": {
+    "http_attempts": 41,
+    "responses": 41,
+    "tool_calls": 39,
+    "failed_calls": 3,
+    "reported_tokens": 326617,
+    "tasks_passed": 4,
+    "usage_complete": true,
+    "official_tests_passed": 23,
+    "official_tests": 24
+  },
+  "results": [
+    {
+      "task": "cancel-async-tasks",
+      "upstream_difficulty": "hard",
+      "reward": 1.0,
+      "exception_type": null,
+      "official_tests": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793965331.7837894,
+        "stop": 1793965345.8071322
+      },
+      "http_attempts": 6,
+      "responses": 6,
+      "tool_calls": 6,
+      "failed_calls": 0,
+      "usage": {
+        "input_tokens": 43841,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "output_tokens": 1906,
+        "reasoning_tokens": 424,
+        "total_tokens": 45747,
+        "known_total_tokens": 45747,
+        "reported_completions": 6,
+        "unreported_completions": 0,
+        "totals_unreported": 0,
+        "prompt_tokens": 43841,
+        "derived_total_tokens": 45747,
+        "committed_response_usage_complete": true,
+        "usage_complete": true,
+        "cost_usd": null
+      },
+      "stop_reason": "end_turn",
+      "lifecycle": {
+        "agent_pid_observed": 5611,
+        "agent_process_stopped": true,
+        "services": []
+      },
+      "diagnostics": {
+        "missing_results": 0,
+        "interrupted_calls": 0,
+        "unobserved_process_results": 0,
+        "zero_exit_validation_candidates": 0,
+        "provider_request_deadlines": 0,
+        "compaction_responses": 0,
+        "tool_history_replacements": 0,
+        "turn_errors": 0
+      },
+      "tool_counts": {
+        "Bash": 2,
+        "Glob": 1,
+        "ToolSearch": 2,
+        "Write": 1
+      },
+      "failures": [],
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/cancel-async-tasks-sol/cancel-async-tasks__gjyvciW/result.json",
+      "result_sha256": "8354caac735dcd70437d55b87869944747727ad4b4f7d3f01dde6111b64e07df",
+      "native_sessions": [
+        {
+          "path": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/cancel-async-tasks-sol/cancel-async-tasks__gjyvciW/agent/pero-sessions/9bd2909d-95e4-4d1e-b3c6-b77d84062946.jsonl",
+          "sha256": "bc02c04a584a56c3b302a7b798688903def75d01c24564e8b0b2e717e3a25ee8",
+          "bytes": 86329
+        }
+      ]
+    },
+    {
+      "task": "db-wal-recovery",
+      "upstream_difficulty": "medium",
+      "reward": 1.0,
+      "exception_type": null,
+      "official_tests": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793965622.9694667,
+        "stop": 1793965623.0302024
+      },
+      "http_attempts": 9,
+      "responses": 9,
+      "tool_calls": 8,
+      "failed_calls": 1,
+      "usage": {
+        "input_tokens": 68650,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "output_tokens": 1850,
+        "reasoning_tokens": 97,
+        "total_tokens": 70500,
+        "known_total_tokens": 70500,
+        "reported_completions": 9,
+        "unreported_completions": 0,
+        "totals_unreported": 0,
+        "prompt_tokens": 68650,
+        "derived_total_tokens": 70500,
+        "committed_response_usage_complete": true,
+        "usage_complete": true,
+        "cost_usd": null
+      },
+      "stop_reason": "end_turn",
+      "lifecycle": {
+        "agent_pid_observed": 4511,
+        "agent_process_stopped": true,
+        "services": []
+      },
+      "diagnostics": {
+        "missing_results": 0,
+        "interrupted_calls": 0,
+        "unobserved_process_results": 0,
+        "zero_exit_validation_candidates": 0,
+        "provider_request_deadlines": 0,
+        "compaction_responses": 0,
+        "tool_history_replacements": 0,
+        "turn_errors": 0
+      },
+      "tool_counts": {
+        "Bash": 5,
+        "ToolSearch": 2,
+        "Write": 1
+      },
+      "failures": [
+        {
+          "name": "Bash",
+          "seq": 52,
+          "result_seq": 58,
+          "exit_code": 127,
+          "protocol_error": true,
+          "execution_failure": true,
+          "lifecycle_failure": true,
+          "command": "python - <<'PY'\nfrom pathlib import Path\nimport struct\nfor n in ['/AGENTS.md','/app/AGENTS.md']:\n p=Path(n)\n if p.exists(): print(n,p.read_text())\nfor p in [Path('/app/main.db'),Path('/app/main.db-wal')]:\n d=p.read_bytes();print(p.name,len(d),d[:128].hex());print(repr(d[:128]))\nw=Path('/app/main.db-wal').read_bytes()\nprint('wal header',struct.unpack('>8I',w[:32]))\nfor off in range(32,len(w),4120):\n print('frame',off, w[off:off+24].hex(), repr(w[off+24:off+72]))\nPY",
+          "output_preview": "/usr/bin/bash: line 2: python: command not found\n"
+        }
+      ],
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/db-wal-recovery-sol/db-wal-recovery__qDbm3BD/result.json",
+      "result_sha256": "245ca9448c2641660792d34158f3207fee0a83f61274f820f70b1f0f75f0032a",
+      "native_sessions": [
+        {
+          "path": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/db-wal-recovery-sol/db-wal-recovery__qDbm3BD/agent/pero-sessions/9d293740-2f59-41ff-8949-8da31bee37eb.jsonl",
+          "sha256": "97bd840828f78741501e29424b6019587e172cf913216f348e7c532bbc92cc04",
+          "bytes": 93790
+        }
+      ]
+    },
+    {
+      "task": "polyglot-c-py",
+      "upstream_difficulty": "medium",
+      "reward": 0.0,
+      "exception_type": null,
+      "official_tests": {
+        "tests": 1,
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793965863.6499293,
+        "stop": 1793965863.712836
+      },
+      "http_attempts": 8,
+      "responses": 8,
+      "tool_calls": 7,
+      "failed_calls": 1,
+      "usage": {
+        "input_tokens": 51765,
+        "cache_read_tokens": 5888,
+        "cache_write_tokens": 0,
+        "output_tokens": 2478,
+        "reasoning_tokens": 763,
+        "total_tokens": 60131,
+        "known_total_tokens": 60131,
+        "reported_completions": 8,
+        "unreported_completions": 0,
+        "totals_unreported": 0,
+        "prompt_tokens": 57653,
+        "derived_total_tokens": 60131,
+        "committed_response_usage_complete": true,
+        "usage_complete": true,
+        "cost_usd": null
+      },
+      "stop_reason": "end_turn",
+      "lifecycle": {
+        "agent_pid_observed": 2328,
+        "agent_process_stopped": true,
+        "services": []
+      },
+      "diagnostics": {
+        "missing_results": 0,
+        "interrupted_calls": 0,
+        "unobserved_process_results": 0,
+        "zero_exit_validation_candidates": 0,
+        "provider_request_deadlines": 0,
+        "compaction_responses": 0,
+        "tool_history_replacements": 0,
+        "turn_errors": 0
+      },
+      "tool_counts": {
+        "Bash": 4,
+        "ToolSearch": 2,
+        "Write": 1
+      },
+      "failures": [
+        {
+          "name": "Bash",
+          "seq": 40,
+          "result_seq": 46,
+          "exit_code": 127,
+          "protocol_error": true,
+          "execution_failure": true,
+          "lifecycle_failure": true,
+          "command": "pwd; rg --files -g AGENTS.md -g '*main*' -g README\\* -g Makefile /app 2>/dev/null",
+          "output_preview": "/app\n"
+        }
+      ],
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/polyglot-c-py-sol/polyglot-c-py__HE9WRps/result.json",
+      "result_sha256": "09487add052ecbe936703cbb7fd2ec138521a84a6cba1000ec14c12b5a202da5",
+      "native_sessions": [
+        {
+          "path": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/polyglot-c-py-sol/polyglot-c-py__HE9WRps/agent/pero-sessions/1f90946a-9a6d-460d-88d9-f64b2099885b.jsonl",
+          "sha256": "20ca5e6581cf26ea219861baa8fa98e7ce1819d34c6e16915c44460b1fe8105b",
+          "bytes": 85885
+        }
+      ]
+    },
+    {
+      "task": "kv-store-grpc",
+      "upstream_difficulty": "medium",
+      "reward": 1.0,
+      "exception_type": null,
+      "official_tests": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793966058.3827534,
+        "stop": 1793966058.5361972
+      },
+      "http_attempts": 10,
+      "responses": 10,
+      "tool_calls": 9,
+      "failed_calls": 0,
+      "usage": {
+        "input_tokens": 69946,
+        "cache_read_tokens": 5888,
+        "cache_write_tokens": 0,
+        "output_tokens": 1577,
+        "reasoning_tokens": 41,
+        "total_tokens": 77411,
+        "known_total_tokens": 77411,
+        "reported_completions": 10,
+        "unreported_completions": 0,
+        "totals_unreported": 0,
+        "prompt_tokens": 75834,
+        "derived_total_tokens": 77411,
+        "committed_response_usage_complete": true,
+        "usage_complete": true,
+        "cost_usd": null
+      },
+      "stop_reason": "end_turn",
+      "lifecycle": {
+        "agent_pid_observed": 5610,
+        "agent_process_stopped": true,
+        "services": [
+          {
+            "service_id": "2760ffff8651ced9b8ad2dc32a71aa1e",
+            "status": "running",
+            "owner": "environment",
+            "diagnostic": null
+          }
+        ]
+      },
+      "diagnostics": {
+        "missing_results": 0,
+        "interrupted_calls": 0,
+        "unobserved_process_results": 0,
+        "zero_exit_validation_candidates": 0,
+        "provider_request_deadlines": 0,
+        "compaction_responses": 0,
+        "tool_history_replacements": 0,
+        "turn_errors": 0
+      },
+      "tool_counts": {
+        "Bash": 4,
+        "ServiceStart": 1,
+        "ToolSearch": 2,
+        "Write": 2
+      },
+      "failures": [],
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/kv-store-grpc-sol/kv-store-grpc__RfE3Kuh/result.json",
+      "result_sha256": "d71068c628d564465490205be3f6d09cb3a47759d0ada41ad6f295e00c4b73e1",
+      "native_sessions": [
+        {
+          "path": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/kv-store-grpc-sol/kv-store-grpc__RfE3Kuh/agent/pero-sessions/c3df6e34-1e3a-4b06-8f6e-d0770e75f209.jsonl",
+          "sha256": "a5d2ba839b2d1d68ea5b7d4b6d6e8c06c057e1dacf9c25706e677740b23d3703",
+          "bytes": 87085
+        }
+      ]
+    },
+    {
+      "task": "write-compressor",
+      "upstream_difficulty": "hard",
+      "reward": 1.0,
+      "exception_type": null,
+      "official_tests": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793966313.4008276,
+        "stop": 1793966314.3656273
+      },
+      "http_attempts": 8,
+      "responses": 8,
+      "tool_calls": 9,
+      "failed_calls": 1,
+      "usage": {
+        "input_tokens": 64852,
+        "cache_read_tokens": 6528,
+        "cache_write_tokens": 0,
+        "output_tokens": 1448,
+        "reasoning_tokens": 216,
+        "total_tokens": 72828,
+        "known_total_tokens": 72828,
+        "reported_completions": 8,
+        "unreported_completions": 0,
+        "totals_unreported": 0,
+        "prompt_tokens": 71380,
+        "derived_total_tokens": 72828,
+        "committed_response_usage_complete": true,
+        "usage_complete": true,
+        "cost_usd": null
+      },
+      "stop_reason": "end_turn",
+      "lifecycle": {
+        "agent_pid_observed": 2301,
+        "agent_process_stopped": true,
+        "services": []
+      },
+      "diagnostics": {
+        "missing_results": 0,
+        "interrupted_calls": 0,
+        "unobserved_process_results": 0,
+        "zero_exit_validation_candidates": 0,
+        "provider_request_deadlines": 0,
+        "compaction_responses": 0,
+        "tool_history_replacements": 0,
+        "turn_errors": 0
+      },
+      "tool_counts": {
+        "Bash": 3,
+        "Glob": 1,
+        "Read": 2,
+        "ToolSearch": 2,
+        "Write": 1
+      },
+      "failures": [
+        {
+          "name": "Bash",
+          "seq": 52,
+          "result_seq": 58,
+          "exit_code": 127,
+          "protocol_error": true,
+          "execution_failure": true,
+          "lifecycle_failure": true,
+          "command": "ls -l /app\nwc -c /app/data.txt\nfile /app/decomp",
+          "output_preview": "total 32\n-rw-r--r-- 1 root root  4868 Oct 24  2025 data.txt\n-rwxr-xr-x 1 root root 16544 Oct 28  2025 decomp\n-rw-r--r-- 1 root root  1262 Oct 24  2025 decomp.c\n4868 /app/data.txt\n\n/usr/bin/bash: line 4: file: command not found\n"
+        }
+      ],
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-hard-20261106/jobs/write-compressor-sol/write-compressor__tkAJSNd/result.json",
+      "result_sha256": "7a92d8f144afb77ea1a43f7ece526d2abb1e327adf704dfbf26f211c3b52603a",
+      "native_sessions": [
+        {
+          "path": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-hard-20261106/jobs/write-compressor-sol/write-compressor__tkAJSNd/agent/pero-sessions/88161f4c-514e-41af-84c8-c4c9da92ceca.jsonl",
+          "sha256": "9405cb2c40979ada091ed63ac6d3298a2817cc9c3d92123181b3a33fbdd5fee8",
+          "bytes": 88992
+        }
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "task": "cancel-async-tasks",
+      "kind": "oracle",
+      "reward": 1.0,
+      "exception_type": null,
+      "verifier_summary": {
+        "tests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793964200.0145664,
+        "stop": 1793964214.1505148
+      },
+      "http_attempts": 0,
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/cancel-async-tasks-oracle/cancel-async-tasks__rVKMSWm/result.json",
+      "result_sha256": "961bbe8e808a72fb5e6caab74a84b34b5e51d6eefc4aff6d4eaec5678f267bd2"
+    },
+    {
+      "task": "cancel-async-tasks",
+      "kind": "nop",
+      "reward": 0.0,
+      "exception_type": null,
+      "verifier_summary": {
+        "tests": 6,
+        "passed": 0,
+        "failed": 6,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793964829.0206318,
+        "stop": 1793964831.129177
+      },
+      "http_attempts": 0,
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/cancel-async-tasks-nop/cancel-async-tasks__iMq6amE/result.json",
+      "result_sha256": "9fe65185046de823f76ee6214adeff47900a19503c036a15120e16fcdd49c0d4"
+    },
+    {
+      "task": "db-wal-recovery",
+      "kind": "oracle",
+      "reward": 1.0,
+      "exception_type": null,
+      "verifier_summary": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793964514.1785245,
+        "stop": 1793964514.2513862
+      },
+      "http_attempts": 0,
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/db-wal-recovery-oracle/db-wal-recovery__TnHuPCU/result.json",
+      "result_sha256": "63425fa92cb61a73068537c22d1917454e2f0ba9de8c5eef6cc986d0d619f2e3"
+    },
+    {
+      "task": "db-wal-recovery",
+      "kind": "nop",
+      "reward": 0.0,
+      "exception_type": null,
+      "verifier_summary": {
+        "tests": 7,
+        "passed": 0,
+        "failed": 7,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793964970.3109715,
+        "stop": 1793964970.3934803
+      },
+      "http_attempts": 0,
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/db-wal-recovery-nop/db-wal-recovery__H7jpZZn/result.json",
+      "result_sha256": "e3c47c2bda47f228224bdc9143ed352165780848a43d1706ad96b11fd9acc4fa"
+    },
+    {
+      "task": "polyglot-c-py",
+      "kind": "oracle",
+      "reward": 1.0,
+      "exception_type": null,
+      "verifier_summary": {
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793964606.4562812,
+        "stop": 1793964607.1495552
+      },
+      "http_attempts": 0,
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/polyglot-c-py-oracle/polyglot-c-py__ubvuQhQ/result.json",
+      "result_sha256": "4225965910496016e2adcba06cbe7e9c8326e5ca79b90b40d8b633a85b30bea7"
+    },
+    {
+      "task": "polyglot-c-py",
+      "kind": "nop",
+      "reward": 0.0,
+      "exception_type": null,
+      "verifier_summary": {
+        "tests": 1,
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793965066.681993,
+        "stop": 1793965066.74135
+      },
+      "http_attempts": 0,
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/polyglot-c-py-nop/polyglot-c-py__wyGVkG8/result.json",
+      "result_sha256": "524a46fe8b3d1aa0d786d0df2c3882979aa7c8315e5086f1189109c238ac60d1"
+    },
+    {
+      "task": "kv-store-grpc",
+      "kind": "oracle",
+      "reward": 1.0,
+      "exception_type": null,
+      "verifier_summary": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793964723.1285467,
+        "stop": 1793964723.4656842
+      },
+      "http_attempts": 0,
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/kv-store-grpc-oracle/kv-store-grpc__UKDoaQM/result.json",
+      "result_sha256": "76cd9cee8edf853cca3b5a57f6dcf13756275a3e31288c7211488ad2c8a5ea0e"
+    },
+    {
+      "task": "kv-store-grpc",
+      "kind": "nop",
+      "reward": 0.0,
+      "exception_type": null,
+      "verifier_summary": {
+        "tests": 7,
+        "passed": 0,
+        "failed": 7,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793965165.8334925,
+        "stop": 1793965165.979483
+      },
+      "http_attempts": 0,
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106/jobs/kv-store-grpc-nop/kv-store-grpc__qjPfVZF/result.json",
+      "result_sha256": "7ae611904e5ce790a46b11ac899be6613e5b5ac8f5cd41870b03e4dfe4d004ac"
+    },
+    {
+      "task": "write-compressor",
+      "kind": "oracle",
+      "reward": 1.0,
+      "exception_type": null,
+      "verifier_summary": {
+        "tests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793964799.8237262,
+        "stop": 1793964801.5366433
+      },
+      "http_attempts": 0,
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-hard-20261106/jobs/write-compressor-oracle/write-compressor__zd7cxrL/result.json",
+      "result_sha256": "fca1ea4620bcf6ada049b37aa9fd325cd8400bc58b9a376eba2ea24f67d43c0f"
+    },
+    {
+      "task": "write-compressor",
+      "kind": "nop",
+      "reward": 0.0,
+      "exception_type": null,
+      "verifier_summary": {
+        "tests": 3,
+        "passed": 0,
+        "failed": 3,
+        "skipped": 0,
+        "pending": 0,
+        "other": 0,
+        "start": 1793964874.5633886,
+        "stop": 1793964875.5744689
+      },
+      "http_attempts": 0,
+      "result": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-hard-20261106/jobs/write-compressor-nop/write-compressor__w6gewa8/result.json",
+      "result_sha256": "1154742f26ce7754b4cbc89ccb2e0487d57cd714d048f85b43996e00d8886d34"
+    }
+  ],
+  "images": [
+    {
+      "task": "cancel-async-tasks",
+      "image": "alexgshaw/cancel-async-tasks:20251031",
+      "Id": "sha256:84c7fae6b256dcc56a350790e2a9715eefc7dad662a9d8e8a472363aa71ef18d",
+      "RepoDigests": [
+        "alexgshaw/cancel-async-tasks@sha256:84c7fae6b256dcc56a350790e2a9715eefc7dad662a9d8e8a472363aa71ef18d"
+      ],
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    {
+      "task": "db-wal-recovery",
+      "image": "alexgshaw/db-wal-recovery:20251031",
+      "Id": "sha256:0e33ea5ec823975d1bd6c3778395c9f94251dd88f571146057bff6adb7e4594e",
+      "RepoDigests": [
+        "alexgshaw/db-wal-recovery@sha256:0e33ea5ec823975d1bd6c3778395c9f94251dd88f571146057bff6adb7e4594e"
+      ],
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    {
+      "task": "polyglot-c-py",
+      "image": "alexgshaw/polyglot-c-py:20251031",
+      "Id": "sha256:0f1c3b7816d70cf5551573fd6aeef76893f2ae3000be2419997b6871b5d987ed",
+      "RepoDigests": [
+        "alexgshaw/polyglot-c-py@sha256:0f1c3b7816d70cf5551573fd6aeef76893f2ae3000be2419997b6871b5d987ed"
+      ],
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    {
+      "task": "kv-store-grpc",
+      "image": "alexgshaw/kv-store-grpc:20251031",
+      "Id": "sha256:3399400800dcb207634daa42bc1b052e831e285cc9d221eea66c47bc0fc79791",
+      "RepoDigests": [
+        "docker.1ms.run/alexgshaw/kv-store-grpc@sha256:3399400800dcb207634daa42bc1b052e831e285cc9d221eea66c47bc0fc79791",
+        "alexgshaw/kv-store-grpc@sha256:3399400800dcb207634daa42bc1b052e831e285cc9d221eea66c47bc0fc79791"
+      ],
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    {
+      "task": "write-compressor",
+      "image": "alexgshaw/write-compressor:20251031",
+      "Id": "sha256:3618e1f8a997b437c09cd3dbaac736705809c05f6f12f584b65722175970ebe1",
+      "RepoDigests": [
+        "docker.1panel.live/alexgshaw/write-compressor@sha256:3618e1f8a997b437c09cd3dbaac736705809c05f6f12f584b65722175970ebe1",
+        "alexgshaw/write-compressor@sha256:3618e1f8a997b437c09cd3dbaac736705809c05f6f12f584b65722175970ebe1"
+      ],
+      "Architecture": "amd64",
+      "Os": "linux"
+    }
+  ],
+  "artifact_manifests": [
+    {
+      "root": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106",
+      "sha256": {
+        "manifest.json": "c816debc636ace9b0cc5732e176094145c12e73c8ceadad32891e51b818fa6e0",
+        "runner-freeze.json": "3d6a1c3521aa6b02e5a1e3761dd58e49fe5be88e5c2d782fd893d4256598fc78",
+        "input-hashes.json": "b650109f4bbaaa86c64b479e0ef97c6a8d26b43d81d4c4e72719dbbe56d87539",
+        "artifact-audit.json": "40e6af93aaa7397c1f1bdf148edd36356d94fe76a69a33cc92817d6adfdb6698"
+      }
+    },
+    {
+      "root": "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-hard-20261106",
+      "sha256": {
+        "manifest.json": "4184a018759dd5ea065bfcd62f55daabf9944154d046c37aca7cb594733a08d5",
+        "runner-freeze.json": "a4784948d46a5d3e1e10c0df95c7c769950f7e10126b242dc04d3a603e699167",
+        "input-hashes.json": "39dbce16027d42b35d5e4629e354ae479ca58038be1e65936f0ff7776311dda1",
+        "artifact-audit.json": "40e6af93aaa7397c1f1bdf148edd36356d94fe76a69a33cc92817d6adfdb6698"
+      }
+    }
+  ],
+  "artifact_roots": [
+    "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-complex-20261106",
+    "/Users/phodal/.codex/worktrees/claude-openapi-master/pero/test-results/claude-openapi-hard-20261106"
+  ],
+  "publication_base_ref": "332b282c3739f76349f9461314012c36e791de0d",
+  "runtime_git_tree": "0077150aeb4f9c188803ad5db416ebcc9b9fdd0b",
+  "runtime_tree_unchanged_at_publication": true
+}

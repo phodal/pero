@@ -17,12 +17,13 @@ import { mountArtifactPreview, type ArtifactSurface } from './artifact-preview';
 export interface HostEvent { version: number; kind: string; request_id: string | null; text: string; message_key?: string; thread_id?: string; data?: unknown }
 declare global {
   interface Window {
+    peroShortcutMenu(json:string):void;
     peroHasUnsavedDocuments():boolean;
     peroWorkspaceCheckpoint(discard?:boolean):Promise<void>;
     peroPrepareWindowClose():Promise<boolean>;
     peroWindowCloseResult(ready:boolean):void;
     peroAllowUnloadOnce?:boolean;
-    pero?: { webCommand(command:object):Promise<void>; readContent(request:ConversationReadParameters):Promise<ContentChunk>; connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; computerCommand(command: object): Promise<unknown>; appsCommand(command: object): Promise<void>; appUseCommand(command: object): Promise<unknown>; chooseWorkspace(): Promise<void>; chooseContext(command?: object): Promise<void> };
+    pero?: { shortcutMenu(menu:import('../../protocol/generated/shortcuts').ShortcutMenu):Promise<void>; webCommand(command:object):Promise<void>; readContent(request:ConversationReadParameters):Promise<ContentChunk>; connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; computerCommand(command: object): Promise<unknown>; appsCommand(command: object): Promise<void>; appUseCommand(command: object): Promise<unknown>; chooseWorkspace(): Promise<void>; chooseContext(command?: object): Promise<void> };
     peroSendProbe(json: string): void;
     peroSetLocale(locale: string): void;
     peroSessionCommand(json: string): void;
@@ -45,6 +46,7 @@ try {
   for (const [key, value] of Object.entries(dark ? themes.dark : themes.light)) {
     document.documentElement.style.setProperty(`--pero-${key}`, value);
   }
+  window.peroShortcutMenu = json => { void window.pero?.shortcutMenu(JSON.parse(json)); };
   await init();
   const artifactPreview = mountArtifactPreview((target,text,id) => receive_host_event(JSON.stringify({version:1,kind:'artifact_compose',request_id:id,text,data:target})), target=>receive_host_event(JSON.stringify({version:1,kind:'artifact_select',request_id:null,text:'',data:target})));
   window.peroArtifactSurface = json => artifactPreview.update(JSON.parse(json) as ArtifactSurface);

@@ -16,6 +16,9 @@ const kit = resolve(process.env.PERO_GPUI_KIT_PATH || join(root, '../../test/gpu
 const providers = [local, join(kit, 'crates/story-web/fonts')].filter(Boolean);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const characters = new Set(Array.from({ length: 95 }, (_, i) => String.fromCodePoint(i + 32)));
+// Scientific units appear in result headings outside the locale catalogs.
+const scientificUnitCharacters = '°µμΩÅÅ¹²³·×÷±−';
+for (const character of scientificUnitCharacters) characters.add(character);
 for (const locale of ['en', 'zh-CN']) {
   const catalog = JSON.parse(await readFile(join(root, `locales/${locale}.json`), 'utf8'));
   for (const value of Object.values(catalog)) for (const character of value) {
@@ -53,6 +56,34 @@ function validFont(bytes, family, filename) {
     }
     if ((tables.has('fvar') && filename !== 'Inter-Regular.ttf') || !['cmap', 'head', 'maxp', 'name', 'OS/2'].every(name => tables.has(name))) return false;
     if (tables.get('maxp').readUInt16BE(4) === 0 || tables.get('OS/2').readUInt16BE(4) !== (/bold/i.test(filename) ? 700 : 400)) return false;
+    if (filename.startsWith('Workbench-')) {
+      // Our Noto subsets use a BMP format-4 cmap. Check supplied output sets too:
+      // an older catalog-only subset must not acquire the current cache stamp.
+      const cmap = tables.get('cmap');
+      const covered = new Set();
+      for (let i = 0; i < cmap.readUInt16BE(2); i++) {
+        const entry = 4 + i * 8, platform = cmap.readUInt16BE(entry), encoding = cmap.readUInt16BE(entry + 2);
+        if (platform !== 0 && !(platform === 3 && encoding === 1)) continue;
+        const offset = cmap.readUInt32BE(entry + 4);
+        if (cmap.readUInt16BE(offset) !== 4) continue;
+        const count = cmap.readUInt16BE(offset + 6) / 2;
+        for (const character of scientificUnitCharacters) {
+          const codepoint = character.codePointAt(0);
+          for (let segment = 0; segment < count; segment++) {
+            const end = cmap.readUInt16BE(offset + 14 + segment * 2);
+            const start = cmap.readUInt16BE(offset + 16 + count * 2 + segment * 2);
+            if (codepoint < start || codepoint > end) continue;
+            const delta = cmap.readInt16BE(offset + 16 + count * 4 + segment * 2);
+            const rangeAt = offset + 16 + count * 6 + segment * 2;
+            const range = cmap.readUInt16BE(rangeAt);
+            const glyph = range ? cmap.readUInt16BE(rangeAt + range + (codepoint - start) * 2) : codepoint;
+            if ((!range || glyph !== 0) && ((glyph + delta) & 0xffff) !== 0) covered.add(character);
+            break;
+          }
+        }
+      }
+      if (covered.size !== scientificUnitCharacters.length) return false;
+    }
     const table = tables.get('name');
     const offset = table.readUInt16BE(4);
     for (let i = 0; i < table.readUInt16BE(2); i++) {

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Dialog, Feedback, Icon, Select } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Dialog, Feedback, Icon, Select } from '@pero/app-sdk/ui';
 import type { Api, Paper, PdfDocument, PdfSource, PdfFocus, SourceFocus, ReaderLocation } from './types';
 import type { Translator } from './i18n';
 import type { ResearchBundle } from './research-types';
@@ -135,7 +135,7 @@ export function TexReader({ api, paper, active, openToken, reloadToken = 0, chro
     {preview && <><PdfViewer key={preview.id} focus={sourceAnchor ?? figureFocus} readOnly onDiscuss={onDiscuss} document={preview.document} fileUrl={`/api/tex-previews/${preview.id}/file`} annotations={[]} api={api} chrome={{ ...chrome, texPreviewId: preview.id, onLocation: reportLocation,
       onSourcePoint: overview?.sourceNavigationAvailable && preview.sourceMapDigest ? (page, x, y) => void revealSource(page, x, y) : undefined, toolbar: active ? chrome.toolbar : null }} active={active} readLabel="Read" onText={() => {}} onSaved={() => {}} onMatrixAdded={async () => {}} trailingActions={controls} t={t}/><span className="pa-tex-provenance">{copy('derived', { file: preview.entryPath })}{preview.diagnostics.includes('warning:') && ` / ${copy('warnings')}`}</span></>}
     {filesOpen && <Dialog title={`${copy('files')} — ${source?.revision ?? ''}`} size="lg" className="pa-tex-source-dialog" closeLabel={copy('close')} onClose={() => setFilesOpen(false)}>
-      {!bundle ? <p role="status">{copy('loading')}</p> : source?.available && receipt ? <><p className="pa-muted">{preview?.engine ?? 'TeX'} / {preview?.entryPath ?? source.entries?.find(f => f.id === entry)?.path}</p>{preview && <details className="pa-tex-diagnostics"><summary>{copy('diagnostics')}</summary><p>{preview.archiveDigest}</p><pre>{preview.diagnostics}</pre></details>}{!preview?.sourceMapDigest && overview?.engineAvailable && <Button disabled={working} onClick={() => void compile()}>{copy('rebuild')}</Button>}
+      {!bundle ? <p role="status">{copy('loading')}</p> : source?.available && receipt ? <><p className="pa-muted">{preview?.engine ?? 'TeX'} / {preview?.entryPath ?? source.entries?.find(f => f.id === entry)?.path}</p>{preview && <Disclosure variant="inline" className="pa-tex-diagnostics" summary={<>{copy('diagnostics')}</>}><p>{preview.archiveDigest}</p><pre>{preview.diagnostics}</pre></Disclosure>}{!preview?.sourceMapDigest && overview?.engineAvailable && <Button disabled={working} onClick={() => void compile()}>{copy('rebuild')}</Button>}
         {overview?.sourceNavigationAvailable && preview?.sourceMapDigest ? <p className="pa-muted">{copy('navigation')}</p> : !overview?.sourceNavigationAvailable && <p className="pa-muted">{copy('missingNavigation')}</p>}
         <SourceBrowser inspectionOnly initialFocus={sourceFocus} initialMemberId={entry} onPreview={overview?.sourceNavigationAvailable && preview?.sourceMapDigest ? revealPreview : undefined} api={api} bundle={bundle} resourceId={source.resourceId} receipt={receipt} onRead={() => {}}/></> : source && <ResearchSources api={api} bundle={bundle} startSourceIds={[]} scopedIds={[source.resourceId]} onRead={() => {}} onState={state => { if (state.available && !source.available) { setFilesOpen(false); void load(); } }}/>}
     </Dialog>}

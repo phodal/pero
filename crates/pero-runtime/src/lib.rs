@@ -1,3 +1,4 @@
+pub mod workspace_files;
 pub mod acp;
 pub mod agent_plugins;
 pub mod context;
@@ -6,6 +7,8 @@ pub mod session_artifacts;
 pub mod roadmap;
 pub mod apps;
 pub mod environments;
+pub mod owned_process;
+pub mod compute;
 pub mod contribution;
 pub mod contribution_git;
 pub mod settings;

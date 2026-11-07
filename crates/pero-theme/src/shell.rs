@@ -1,7 +1,8 @@
 //! Workbench chrome. These components own presentation; navigation and window
 //! dragging remain in the host. The React shell uses the same design contract.
 use crate::{
-    Chrome, SIDEBAR_GROUP_GAP, SIDEBAR_PADDING, SPACE_4, SPACE_8, TYPE_CAPTION, WINDOW_TITLEBAR,
+    Chrome, SIDEBAR_GROUP_GAP, SIDEBAR_PADDING, SPACE_4, SPACE_8, SPACE_12, TYPE_CAPTION,
+    WINDOW_TITLEBAR,
 };
 use gpui_kit::{prelude::*, *};
 
@@ -35,19 +36,30 @@ pub fn window_bar(
         .child(div().flex_shrink_0().pr(chrome.geo(SPACE_8)).child(actions))
 }
 
-/// An opaque navigation surface, separated by tone rather than an extra rule.
+/// An opaque navigation surface. Tone marks the column. The trailing hairline
+/// separates it from the page and starts below the top, clear of the window bar.
 pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> Stateful<Div> {
     div()
         .id(id)
         .w(px(width))
         .h_full()
         .flex_shrink_0()
+        .relative()
         .flex()
         .flex_col()
         .bg(chrome.palette.surface_muted)
         .text_color(chrome.palette.text)
         .p(chrome.geo(SIDEBAR_PADDING))
         .gap(chrome.geo(SPACE_4))
+        .child(
+            div()
+                .absolute()
+                .top(chrome.geo(SPACE_12))
+                .right(px(-SIDEBAR_PADDING))
+                .bottom_0()
+                .w(px(0.5))
+                .bg(chrome.palette.border),
+        )
 }
 
 /// Group related navigation; a separator marks a change of navigation scope,
@@ -93,22 +105,32 @@ pub fn content_tab(
         .max_w(px(if state.pinned { 160. } else { 220. }))
         .px(chrome.geo(SPACE_8))
         .gap(chrome.geo(SPACE_4))
+        .rounded(chrome.geo(crate::RADIUS_SELECTION))
         .cursor_pointer()
-        .bg(if state.active {
+        .bg(if state.active && state.focused {
+            p.accent_soft
+        } else if state.active {
             p.surface
         } else {
             p.text.opacity(0.)
         })
-        .text_color(if state.active { p.text } else { p.text_muted })
-        .border_b_1()
-        .border_color(if state.active && state.focused {
-            p.action
+        .text_color(if state.active && state.focused {
+            p.accent_text
         } else if state.active {
+            p.text
+        } else {
+            p.text_muted
+        })
+        .border_1()
+        .border_color(if state.active {
             p.border
         } else {
             p.text.opacity(0.)
         })
-        .when(!state.active, |el| el.hover(|el| el.bg(p.surface_hover)))
+        .when(!state.active, |el| el
+            .hover(|el| el.bg(p.surface_hover).text_color(p.text))
+            .active(|el| el.bg(p.surface_pressed)))
+        .when(state.active && state.focused, |el| el.hover(|el| el.border_color(p.action)))
 }
 
 /// Truncation is visual only; the host supplies the full title as the accessible name/tooltip.
@@ -130,4 +152,5 @@ pub fn content_tab_close_button(id: impl Into<ElementId>, chrome: Chrome, cx: &A
     crate::ghost_icon_button(id, chrome, cx)
         .w(chrome.control(crate::CONTENT_TAB_CLOSE))
         .h(chrome.control(crate::CONTENT_TAB_CLOSE))
+        .max_h_full()
 }

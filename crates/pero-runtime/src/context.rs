@@ -119,6 +119,7 @@ impl ContextSources<'_> {
                 if "research-resource-import paper url pdf fulltext full-text study tex arxiv source tables figures reproduce nonstandard website proposals model dataset".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"research-resource-import".into(),source:"pero-skill:research-resource-import".into(),detail:"Collect research references and nonstandard-link proposals; confirm versioned TeX source, PDF comparison or Data downloads".into()});}
                 if "app-use".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"app-use".into(),source:"pero-skill:app-use".into(),detail:"App objects, operations, evidence and declared data writes".into()});}
                 if "data analytics chart dataset".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"data".into(),source:"pero-skill:data".into(),detail:"Analyze datasets and make source-aware charts with Data Agent".into()});}
+                if "molecular-report rdkit smiles mol sdf molecule descriptors stereochemistry 分子 化学结构".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"molecular-report".into(),source:"pero-skill:molecular-report".into(),detail:"Prepare molecular records and report actual RDKit descriptors, drawings and failures".into()});}
                 for root in self.skill_roots() {
                     for entry in ignore::WalkBuilder::new(&root)
                         .hidden(false)
@@ -215,6 +216,9 @@ impl ContextSources<'_> {
         }
         if kind==ContextKind::Skill && source=="pero-skill:data" {
             return Ok(ContextReference{id:"pero-skill:data".into(),kind,label:"data".into(),source:source.into(),content:ContextContent::Text{text:include_str!("data-skill.md").into()}});
+        }
+        if kind == ContextKind::Skill && source == "pero-skill:molecular-report" {
+            return Ok(ContextReference{id:source.into(),kind,label:"molecular-report".into(),source:source.into(),content:ContextContent::Text{text:include_str!("../../../apps/scientific-viewer/skills/molecular-report/SKILL.md").into()}});
         }
         if kind == ContextKind::Skill && source == "pero-skill:research-resource-import" {
             return Ok(ContextReference{id:source.into(),kind,label:"research-resource-import".into(),source:source.into(),content:ContextContent::Text{text:include_str!("../../../apps/paper-agent/skills/research-resource-import/SKILL.md").into()}});
@@ -722,6 +726,12 @@ mod tests {
         let bundled = bundled.iter().find(|item|item.source=="pero-skill:data").unwrap();
         let bundled = sources.resolve(bundled.kind,&bundled.source,None,None).unwrap();
         assert!(matches!(bundled.content,ContextContent::Text{text} if text.contains("dataset-view") && text.contains("source")));
+        for query in ["molecular-report", "RDKit", "SMILES", "分子"] {
+            let choices = sources.search(ContextKind::Skill, query).unwrap();
+            let chosen = choices.iter().find(|item| item.source == "pero-skill:molecular-report").unwrap();
+            let loaded = sources.resolve(chosen.kind, &chosen.source, None, None).unwrap();
+            assert!(matches!(loaded.content, ContextContent::Text { text } if text == include_str!("../../../apps/scientific-viewer/skills/molecular-report/SKILL.md")));
+        }
         let directory = sources
             .resolve(ContextKind::Directory, ".agents/skills", None, None)
             .unwrap();

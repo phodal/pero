@@ -59,7 +59,7 @@ export function SavedTextReading({ paper, busy, textFocus, onFull, onDiscuss, t 
   }
   return <Split className="pa-saved-reading" collapseBelow={680} storageKey="paper-agent.saved-text-outline">
     {!!sections.length && <SplitPane id="saved-text-outline" size={176} min={140} resizeLabel={t('resizeOutline')} className="pa-saved-outline" stackedBasis="auto">
-      <nav aria-label={t('contents')}><h2>{t('contents')}</h2>{sections.map((section, index) => <button key={index} type="button" data-level={section.level} aria-current={current === section.element ? 'location' : undefined} onClick={() => { setCurrent(section.element); revealSavedText(section.element, 'start'); }}>{section.title}</button>)}</nav>
+      <nav aria-label={t('contents')}><h2>{t('contents')}</h2>{sections.map((section, index) => <Button variant="ghost" key={index} type="button" data-level={section.level} aria-current={current === section.element ? 'location' : undefined} onClick={() => { setCurrent(section.element); revealSavedText(section.element, 'start'); }}>{section.title}</Button>)}</nav>
     </SplitPane>}
     <SplitPane id="saved-text-content" min={280} className="pa-saved-scroll"><div className="pa-saved-prose">
       <header className="pa-saved-heading"><h1>{paper.title}</h1>{!!paper.authors.length && <p className="pa-saved-authors">{paper.authors.join(', ')}</p>}<dl><div><dt>{t('source')}</dt><dd>{paperSource(paper, t)}</dd></div><div><dt>{t('contentKind')}</dt><dd>{contentKind(paper, t)}</dd></div><div><dt>{t('readingVersion')}</dt><dd>{t('savedText')}</dd></div></dl></header>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppApi } from '@pero/app-sdk';
-import { Button, Feedback } from '@pero/app-sdk/ui';
+import { Table, Button, Feedback } from '@pero/app-sdk/ui';
 import { applyInterpretation, interpretationPreview, type Inspection, type ViewSpec } from './model';
 
 /** A draft inspection never replaces the active view or its records. */
@@ -34,9 +34,9 @@ export function InterpretationPreview({ field, numeric, datasetId, assetId, pars
     {error || (current && current.status !== 'ok') ? <Feedback kind="error">{error || (current && current.status !== 'ok' ? current.message : '')}<Button onClick={() => setAttempt(value => value + 1)}>Retry preview</Button></Feedback> : null}
     {current?.status === 'ok' ? <>
       <p>{current.report.rowCount} records checked / {profile?.conversionFailures ?? 0} conversion failures in {field}</p>
-      <div className="data-rows-scroll"><table className="data-rows"><thead><tr><th>Source row</th><th>Original text</th><th>Interpretation</th></tr></thead>
+      <Table label="Interpretation preview" density="compact" className="data-rows-scroll" tableClassName="data-rows"><thead><tr><th>Source row</th><th>Original text</th><th>Interpretation</th></tr></thead>
         <tbody>{current.rows.map(row => <tr key={row.row}><td>{row.row}{row.line == null ? '' : ` / line ${row.line}`}</td><td>{row.cells[0]?.text || '(empty)'}</td><td>{row.cells[0]?.conversionError ? 'Conversion failed' : row.cells[0]?.exact ?? row.cells[0]?.kind}</td></tr>)}</tbody>
-      </table></div>
+      </Table>
       {!!profile?.conversionExamples?.length && <><h4>Failure examples</h4><ul>{profile.conversionExamples.map(item => <li key={item.row}>Row {item.row}{item.sourceLine == null ? '' : ` / line ${item.sourceLine}`}: {item.text || '(empty)'}</li>)}</ul></>}
     </> : null}
     <div className="data-actions"><Button disabled={busy || current?.status !== 'ok'} onClick={() => onApply(applied)}>Apply type</Button><Button onClick={onCancel}>Cancel</Button></div>

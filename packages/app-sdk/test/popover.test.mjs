@@ -85,6 +85,21 @@ test('popover roles, dismissal, menu keys, and portal containers', async t => {
     await render(null);
   });
 
+  await t.test('pointer opening makes Escape reachable without prior keyboard navigation', async () => {
+    await render(null);
+    await render(React.createElement(Popover, {
+      label: 'Simulation scope', trigger: 'Simulation only', children: () => 'Illustrative model',
+    }));
+    const trigger = stubAnchor();
+    await click(trigger);
+    assert.ok(panel());
+    assert.equal(document.activeElement === trigger, true);
+    await key(document.activeElement, 'Escape');
+    assert.equal(panel(), null);
+    assert.equal(document.activeElement, trigger);
+    await render(null);
+  });
+
   await t.test('escape refocuses, nested prevention stays, and menu skips disabled', async () => {
     await render(null);
     await render(React.createElement(Popover, {

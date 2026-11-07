@@ -43,6 +43,10 @@ pub enum ArtifactView {
     Gallery,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ResourceTab { Files, #[default] Artifacts }
+
 /// Persistent layout choices, independent of the current viewport's available space.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
@@ -63,6 +67,7 @@ pub struct LayoutPreferences {
     )]
     artifact_pane_width: u16,
     pub artifact_view: ArtifactView,
+    pub resource_tab: ResourceTab,
 }
 
 impl Default for LayoutPreferences {
@@ -74,6 +79,7 @@ impl Default for LayoutPreferences {
             sidebar_width: Self::DEFAULT_SIDEBAR_WIDTH,
             artifact_pane_width: Self::DEFAULT_ARTIFACT_PANE_WIDTH,
             artifact_view: ArtifactView::Icons,
+            resource_tab: ResourceTab::Artifacts,
         }
     }
 }
@@ -223,6 +229,8 @@ pub struct WorkbenchPreferences {
     pub research_projects: Vec<crate::research_project::ResearchProject>,
     #[serde(default)]
     pub layout: LayoutPreferences,
+    #[serde(default)]
+    pub shortcuts: crate::shortcuts::ShortcutOverrides,
 }
 
 impl WorkbenchPreferences {

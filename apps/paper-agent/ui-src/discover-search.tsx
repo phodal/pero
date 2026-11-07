@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import JSX = React.JSX;
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Checkbox, EmptyIllustration, EmptyState, Feedback, Icon, LoadingSkeleton, SearchField, Select, SkeletonBlock } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Checkbox, EmptyIllustration, EmptyState, Feedback, Icon, LoadingSkeleton, SearchField, Select, SkeletonBlock } from '@pero/app-sdk/ui';
 import type { Api, Paper, SearchItem } from './types';
 import './discover-search.css';
 
@@ -189,7 +189,7 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
   return <section className="pa-discover" aria-label={t('heading')} aria-busy={busy}>
     <header className="pa-discover-toolbar">
       <p>{t('subtitle')}</p>
-      <button type="button" className="pa-discover-secondary" onClick={onAddByLink}><Icon name="link" size={16}/>{t('addByLink')}</button>
+      <Button className="pa-discover-secondary" onClick={onAddByLink}><Icon name="link" size={16}/>{t('addByLink')}</Button>
     </header>
     <form className="pa-discover-search" role="search" aria-label={t('searchLabel')} onSubmit={event => { event.preventDefault(); submitQuery(); }}>
       <SearchField ref={field} aria-label={t('searchLabel')} aria-describedby={noteId} placeholder={t('placeholder')} value={query} maxLength={500} autoComplete="off" spellCheck={false} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); submitQuery(); } }}/>
@@ -217,11 +217,11 @@ export function DiscoverSearch({ api, papers, active, onAdded, onOpenSaved, onAd
       <Icon name="info" size={16}/>
       <div className="pa-discover-warn-copy">
         {!!results.length && <p>{warnings.length > 1 ? t('warnMany') : t('warnOne')}</p>}
-        <details><summary>{t('warnDetails')}</summary><ul>{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>
+        <Disclosure variant="inline" summary={<>{t('warnDetails')}</>}><ul>{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></Disclosure>
       </div>
-      <button type="button" className="pa-discover-retry" onClick={retry}>{t('retry')}<Icon name="refresh" size={14}/></button>
+      <Button variant="ghost" className="pa-discover-retry" onClick={retry}>{t('retry')}<Icon name="refresh" size={14}/></Button>
     </div>}
-    {error && <div className="pa-discover-error" role="alert"><p>{error}{results && ` ${t('retained')}`}</p><button type="button" className="pa-discover-retry" onClick={retry}>{t('retry')}<Icon name="refresh" size={14}/></button></div>}
+    {error && <div className="pa-discover-error" role="alert"><p>{error}{results && ` ${t('retained')}`}</p><Button variant="ghost" className="pa-discover-retry" onClick={retry}>{t('retry')}<Icon name="refresh" size={14}/></Button></div>}
     {busy && (results ? <Feedback kind="status">{t('refreshing')}</Feedback> : <LoadingSkeleton className="pa-discover-loading" label={t('searching')}>{[0, 1, 2].map(row => <div className="pa-discover-skeleton" key={row}>
       <SkeletonBlock width="28%"/>
       <SkeletonBlock shape="title" width={row === 1 ? '72%' : '88%'}/>
@@ -263,26 +263,25 @@ function DiscoverHit({ item, paper, adding, locked, error, open, onOpenChange, o
     <div className="pa-hit-body">
       <p className="pa-hit-meta"><span className="pa-hit-source">{sourceName(item.source)}</span>{published && <span className="pa-hit-date">{published}</span>}<span>{hasFullText(item) ? t('fullText') : t('abstract')}</span></p>
       <h2>{showDetails
-        ? <button type="button" className="pa-hit-title" aria-expanded={open} aria-controls={panelId} onClick={() => { const details = detailsRef.current; if (details) details.open = !details.open; }}>{item.title}</button>
+        ? <Button variant="ghost" className="pa-hit-title" aria-expanded={open} aria-controls={panelId} onClick={() => { const details = detailsRef.current; if (details) details.open = !details.open; }}>{item.title}</Button>
         : <span className="pa-hit-title">{item.title}</span>}</h2>
       {authors && <p className="pa-hit-authors">{authors}</p>}
       {item.abstract && <p className="pa-hit-abstract">{item.abstract}</p>}
       {(item.citations != null || showDetails) && <div className="pa-hit-foot">
         {item.citations != null && <span>{t('citations', { n: item.citations.toLocaleString() })}</span>}
-        {showDetails && <details ref={detailsRef} id={panelId} className="pa-hit-details" onToggle={event => onOpenChange(event.currentTarget.open)}>
-          <summary>{t('viewDetails')}<Icon className="pa-hit-chevron" name="chevron-right" size={14}/></summary>
+        {showDetails && <Disclosure variant="inline" ref={detailsRef} id={panelId} className="pa-hit-details" onOpenChange={onOpenChange} summary={<>{t('viewDetails')}</>}>
           <div className="pa-hit-extra">
             {item.abstract && <p className="pa-hit-full">{item.abstract}</p>}
             {!!links.length && <div className="pa-hit-links">{links.map(link => <a key={link.label + link.href} href={link.href} target="_blank" rel="noreferrer">{link.label}</a>)}</div>}
             {!!item.alternatives?.length && <ul className="pa-hit-alts">{item.alternatives.map(alternative => <li key={`${alternative.source}:${alternative.id}`}>{alternative.url ? <a href={alternative.url} target="_blank" rel="noreferrer">{sourceName(alternative.source)}</a> : sourceName(alternative.source)}</li>)}</ul>}
           </div>
-        </details>}
+        </Disclosure>}
       </div>}
     </div>
     <div className="pa-hit-side">
       {paper
-        ? <button type="button" className="pa-in-library" aria-label={`${t('inLibrary')}: ${item.title}`} onClick={() => onOpen(paper)}><Icon name="check" size={15}/>{t('inLibrary')}</button>
-        : <button type="button" className="pa-hit-add" aria-label={`${adding ? t('adding') : t('add')}: ${item.title}`} disabled={locked} aria-busy={adding} onClick={onAdd}><Icon name="plus" size={15}/>{adding ? t('adding') : t('add')}</button>}
+        ? <Button variant="link" className="pa-in-library" aria-label={`${t('inLibrary')}: ${item.title}`} onClick={() => onOpen(paper)}><Icon name="check" size={15}/>{t('inLibrary')}</Button>
+        : <Button className="pa-hit-add" aria-label={`${adding ? t('adding') : t('add')}: ${item.title}`} disabled={locked} aria-busy={adding} onClick={onAdd}><Icon name="plus" size={15}/>{adding ? t('adding') : t('add')}</Button>}
       {error && <p className="pa-hit-error" role="alert">{error}</p>}
     </div>
   </li>;

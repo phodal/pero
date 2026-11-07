@@ -1,4 +1,4 @@
-import { Badge, Button, Card, Checkbox, Dialog, EmptyState, Feedback, Input, Select, RadioGroup, RadioGroupItem, Slider, Table, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { Disclosure, Badge, Button, Card, Checkbox, Dialog, EmptyState, Feedback, Input, Select, RadioGroup, RadioGroupItem, Slider, Table, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import React, { useState } from "react";
 import { Split, SplitPane } from "@pero/app-sdk/ui";
 import type { Experiment, Report, Series, Template } from "./types";
@@ -252,7 +252,7 @@ export function Results({
           </div>
           {summary.verdict !== "NOT_RUN" && <div className="verify-list">
             {concepts.map((concept) => (
-              <Button variant="unstyled" type="button" key={concept.name} className={`check-row ${focused === concept.name ? "focused" : ""}`} onClick={() => focusConcept(concept)}>
+              <Button variant="ghost" aria-pressed={focused === concept.name} type="button" key={concept.name} className={`check-row ${focused === concept.name ? "focused" : ""}`} onClick={() => focusConcept(concept)}>
                 <span>{concept.name}</span>
                 {concept.limit != null && <small>Limit {numeric(concept.limit)}</small>}
                 {concept.actual != null && <strong>{numeric(concept.actual)}</strong>}
@@ -318,10 +318,10 @@ export function Results({
         </ul>
         <h3>Limitations</h3>
         {experiment.limitations.map((text) => <p key={text}>{text}</p>)}
-        <details>
-          <summary>Specification hash and raw policy</summary>
+        <Disclosure variant="inline" summary={<>Specification hash and raw policy</>}>
+
           <pre>{JSON.stringify({ specHash: experiment.specHash, candidateBudget: experiment.candidateBudget, parameters: experiment.parameters, criteria: experiment.criteria, scenarios: experiment.scenarios }, null, 2)}</pre>
-        </details>
+        </Disclosure>
       </Dialog>}
     </>
   );

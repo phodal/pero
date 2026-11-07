@@ -25,6 +25,22 @@ environment-owned services and request deadlines:
 Selected old failures, separate service-discovery correction and recorded usage:
 [Terminal-Bench runtime reruns](terminal-bench-runtime-rerun.md).
 
+Sol Responses on cancellation, WAL recovery, dual-language compilation,
+gRPC service delivery and constrained compression:
+[Selected complex Terminal-Bench tasks](terminal-bench-sol-complex.md).
+
+Serial Gin/FastAPI feature samples, scoped OpenManus search acceptance and
+provider usage: [Agentic Coding Durability projects](agentic-coding-durability.md).
+
+Offline request composition, fresh-result visibility defect and optimization
+priorities: [Durability trace analysis](durability-trace-analysis.md).
+
+Fresh problem-case repetitions, recurring first-use pruning and default-mode
+review coverage: [Durability repeats](durability-repeat-verification.md).
+
+Pending-result protection, comparison with local reference runtimes and matched
+verification: [Tool-result first use](tool-result-first-use.md).
+
 Deferred discovery, output budgets, continuation cursors and Session boundary
 measurements: [Tool-call efficiency](tool-call-efficiency.md).
 
@@ -172,3 +188,8 @@ Local research goals, Overview and links to App-owned records: [research Project
 Independent scientific HTML reader package and Paper integration: [Paper reader](paper-reader.md).
 
 - [Validation-driven coding recovery](validation-driven-coding.md): diagnostic evidence, reproducible profiles, atomic edits and offline recovery-window accounting.
+
+Scientific inline formulas, exact experimental tables, real harness wiring and scoped solver evidence: [Scientific conversation](scientific-conversation.md).
+
+Shared command catalog, Host keymap overrides and actual Native/Electron scope:
+[Keyboard shortcuts](keyboard-shortcuts.md).

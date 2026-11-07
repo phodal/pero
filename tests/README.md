@@ -257,3 +257,11 @@ profile，检查报告并继续真实追问。`PERO_PAPER_LIVE_QUESTION` 指定�
 - `PERO_PAPER_LIVE_SCROLL=1`：运行时上滚阅读，核对更新不会强制滚到底部。
 - `PERO_PAPER_LIVE_SEND_GUARD=1`：取消来源选择后按 Enter，检查没有发送请求。
   可与 `PERO_PAPER_LIVE_RESTORE_ONLY=1` 组合，无需新模型请求。
+
+## Keyboard shortcuts
+
+`npm run test:shortcuts` runs isolated Electron/Host checks for shortcut settings,
+remapping, disabling, restart persistence, native menu clicks and App-frame entry
+commands. Builds must be current. Screenshots and snapshots are written to
+`test-results/shortcuts/`; Native acceptance is recorded separately in
+[shortcut verification](../docs/fitness/keyboard-shortcuts.md).
