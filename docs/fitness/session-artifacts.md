@@ -430,15 +430,59 @@ Acceptance on macOS arm64:
 - The Native binary built successfully. Its isolated window did not load the
   fixture conversation, so Native interactive acceptance remains open.
 
+## Evidence inspector and Notebook cells — 2026-11-07
+
+The inspector groups the selected snapshot's linked files under Code,
+Execution log, Environment and Review. Messages shows the assistant reply
+associated with the delivery. Tabs appear when their data is available.
+An older input can be read in the inspector while the output stays selected
+at its own version. The detail popover still shows full provenance. The
+file header uses the shared content icons and a version badge. Narrow panes
+put resource navigation above the toolbar so all layout actions remain
+reachable. Inline figures fit both available dimensions before zooming.
+
+The `present_artifact` MCP tool accepts a saved ID, exact version, and
+placement in its active conversation. The Host verifies the snapshot, and
+the tool can show it without registering another version. Inline requests
+for an existing artifact appear at the end of the transcript. Ordinary
+delivery still attaches an inline preview to its delivery tool.
+
+The Scientific Viewer uses the shared Tabs and Textarea components.
+Notebook's old cell picker is replaced by editable Python cells with
+execution counts, a Run action and Shift+Enter. Each cell owns its visible
+text, errors and images. Source and evidence tabs retain the working copy
+and running kernel. Download exports the edited notebook separately from
+the original snapshot.
+
+Verification:
+
+- macOS Electron light and dark runs opened a linked older input while
+  retaining the current output version. They read the source message and
+  automatically attached run log, environment and review. They moved a
+  narrow side pane below Chat and back, presented existing versions without
+  creating new ones, and displayed a complete inline PNG. The real local
+  kernel ran two cells with shared state, rendered a PNG alongside text,
+  streamed output, interrupted a busy cell and restarted with fresh state.
+  Captures in `test-results/artifact-presentation/` include
+  `inspector-evidence.png`, `inline-image.png` and `notebook-live.png`.
+  The dark run saves the same views under `dark/`.
+- The macOS Native development window opened a historical image in Chat
+  and moved it below Chat with the toolbar. The historical Notebook opened
+  inline, started its local kernel and showed a changed result after direct
+  editing and Shift+Enter. Clipboard editing was not verified in Native.
+- The loopback Host suite accepted an existing version in the calling
+  conversation, rejected missing or foreign versions and verified external
+  sidecars. The Scientific Viewer browser suite passed in Chromium and
+  WebKit.
+
 ## Current limits
 
-Notebook displays saved cells and outputs; there is no shared live kernel,
-execution control or kernel collaboration in this increment. HTML is a static
-sandboxed preview. Markdown does not freeze relative image dependencies;
-missing images remain visibly unavailable, while separately delivered image
-artifacts retain their own bytes. PDF and large-file contexts are explicit
-references, not a claim that the model read the entire file. Scientific results
-remain unverified.
+Live execution supports a local Python kernel and a downloadable working
+copy. Other notebook languages use the saved preview. HTML uses an isolated
+static preview. Markdown previews render images present in the snapshot,
+and separately delivered image artifacts retain their own bytes. PDF and
+large-file contexts are explicit references. Scientific results remain
+unverified.
 
 The UI run uses a synthetic ACP agent with real Host/MCP I/O. Real-provider tool
 selection, signed packages and non-macOS Native acceptance remain untested.

@@ -64,7 +64,7 @@ export function richArtifactFiles(revision = 1) {
     { name: 'evidence.pdf', title: '合成 PDF 证据', mediaType: 'application/pdf', data: pdf(revision) },
     { name: 'analysis.ipynb', title: '合成 Notebook', mediaType: 'application/x-ipynb+json', data: Buffer.from(JSON.stringify({ nbformat: 4, nbformat_minor: 5,
       metadata: { kernelspec: { display_name: 'Python 3', language: 'python', name: 'python3' } }, cells: [
-        { id: 'notice', cell_type: 'markdown', metadata: {}, source: ['Synthetic fixture. Saved outputs only; no kernel was run.'] },
+        { id: 'notice', cell_type: 'markdown', metadata: {}, source: ['Synthetic analysis notebook · example inputs.'] },
         { id: 'result', cell_type: 'code', execution_count: 1, metadata: {}, source: [`value = ${value}\n`, 'value'], outputs: [{ output_type: 'execute_result', execution_count: 1, metadata: {}, data: { 'text/plain': [String(value)] } }] },
       ] })) },
   ];

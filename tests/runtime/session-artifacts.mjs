@@ -144,6 +144,17 @@ try {
   assert.equal(second.versions.length, 2);
   assert.deepEqual(second.versions[1].related, related);
   assert.equal(second.versions[0].related, undefined);
+  assert.ok(catalog.tools.some(tool => tool.name === 'present_artifact'));
+  const presentation = { artifact_id: first.id, version: 1, presentation: 'below' };
+  const show = (call, args) => call('tools/call', { name: 'present_artifact', arguments: args });
+  const shown = await show(caller, presentation);
+  assert.equal(shown.isError, false, JSON.stringify(shown));
+  assert.deepEqual(JSON.parse(shown.content[0].text), {
+    target: { thread_id: 'artifact-caller', artifact_id: first.id, version: 1 }, presentation: 'below',
+  });
+  const afterShow = await request('list', { thread_id: 'artifact-caller' });
+  assert.equal(afterShow.data.artifacts.find(item => item.id === first.id).versions.length, 2);
+  assert.equal((await show(caller, { ...presentation, version: 99 })).isError, true);
   const missingLink = await deliver({ path: 'report.md', artifact_id: first.id,
     related: [{ artifact_id: first.id, version: 99, role: 'review' }] });
   assert.equal(missingLink.isError, true);
@@ -204,6 +215,7 @@ try {
     assert.equal((await deliver(input)).isError, true);
   }
   const otherCaller = await create('other-caller');
+  assert.equal((await show(otherCaller, presentation)).isError, true);
   const foreign = await otherCaller('tools/call', { name: 'deliver_artifact', arguments: { path: 'report.md', artifact_id: first.id } });
   assert.equal(foreign.isError, true);
   const foreignLink = await otherCaller('tools/call', { name: 'deliver_artifact', arguments: { path: 'report.md', related } });
