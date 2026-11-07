@@ -117,6 +117,15 @@ which actually ran and which dependencies/assets are still required.
 
 ## Current Pero boundaries
 
+- **Fisher Table III fixed reanalysis:** the Paper PDF toolbar can select the
+  curated original cell, freeze its reviewed data/method/comparison, run bounded
+  arithmetic with explicit confirmation, display independent comparison and save
+  a result note in the active Paper library. Exported evidence includes a
+  standalone offline checker. Read the
+  [Fisher instructions](references/reproduction-protocol.md#fixed-real-source-reanalysis-fisher-table-iii).
+  This UI path is not an advertised Agent command executor. Do not extrapolate
+  its one-statistic result to another paper or to whole-paper acceptance.
+
 - Resource acquisition uses the bundled
   [research-resource-import workflow](../research-resource-import/SKILL.md)
   and persisted exact-file grants. Importing a URL grants no code execution.

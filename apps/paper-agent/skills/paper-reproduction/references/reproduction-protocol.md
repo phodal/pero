@@ -110,7 +110,19 @@ the PC-Gym experiment. The existing PC-Gym verdict stays `INCONCLUSIVE`.
 
 Obtain the authorized original PDF separately from the
 [university-hosted scan](https://lgross.utk.edu/Math589Fall2020/RAFisher1936measurementsFlowerTaxa.pdf).
-The CLI does not download, install or request a model. It requires the exact
+In Paper, import/open that original PDF and choose **Select Fisher Table III
+result** in the PDF toolbar. Confirm the reviewed inputs and formula, choose the
+comparison rule, freeze, then explicitly run the fixed arithmetic. Results and
+independent-check status appear beside the source annotation. Reruns append
+attempts; a changed policy creates a new frozen item. Export the selected attempt
+and independently check the extracted ZIP with `python -I -S verify.py`.
+An environment failure, numerical mismatch, failed checker and failed result-note
+save remain distinct; inspect all stages rather than treating numerical agreement
+as a completed handoff. This is one known scan and statistic, not generic PDF
+result extraction. The UI APIs are not advertised Agent execution tools.
+
+The CLI remains available for authorized shell workflows. It does not download,
+install or request a model. It requires the exact
 reviewed PDF SHA-256 `d3a49aaa4f2d283931544f58cb12b1174f537642b83def7ae9119a1d8717b740`.
 Set `PYTHONPATH` to the installed Paper App's `backend` directory, then use:
 
