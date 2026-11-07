@@ -62,5 +62,5 @@ export function researchPreflight(root, env = process.env) {
     monetaryLimit: 'not_enforced_by_this_runner; request/token caps are not a monetary cap',
     providerConnectivity: 'not_checked', modelCompatibility: 'not_checked',
     scientificAcceptance: 'not_run', providerRequests: 0,
-    nextStep: 'Resolve local prerequisites, verify approval and an enforceable spending limit before starting a live run. Then retain every attempt for independent human review.' };
+    nextStep: 'Resolve local prerequisites, verify approval and enforce any required spending limit before starting a live run. Then retain every attempt for independent human review.' };
 }

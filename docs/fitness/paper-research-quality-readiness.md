@@ -1,7 +1,12 @@
 # Research-quality live-run readiness — 2026-11-07
 
 Kind: verification report. Related issue: [#143](https://github.com/phodal/pero/issues/143).
-Baseline: `master@371ea0895f8dbd12d7fcc97e320f3a9499b3e94b`.
+Implementation baseline: `master@371ea0895f8dbd12d7fcc97e320f3a9499b3e94b`.
+Resumed verification checkout: `edaf5b43e262b998f0d89cd3d6e90f5718972bf1`
+plus the local changes described below. Upstream checked again at
+`67b99ec82c45020de21e15d09217a748902b5160`; its two commits after the implementation
+baseline only change `crates/pero-ui/src/settings_menu.rs`. This increment is
+prepared as a Draft PR; publication does not establish scientific acceptance.
 
 **Outcome: offline tooling verified; live provider, model answers and independent
 human scientific review not run.** This record does not close #143 or certify
@@ -32,17 +37,29 @@ contained no `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, or `DEEPSEEK_MODEL`.
 A presence check says nothing about a key saved elsewhere or a previously used
 executor. No environment or credential setting was changed.
 
-The isolated checkout also lacks the Host and Harness executables, Node/esbuild
-installation and exact Paper PDF dependencies. `cargo`/`rustc` are not on PATH.
-The local preflight exits 1 as intended. Git HEAD is identified. Network access
-to the model and current model/Harness compatibility are **not checked**.
+Those prerequisites were initially missing. The resumed verification now has
+the actual Host and Harness executables, repository Node/esbuild dependencies,
+and an isolated Python environment with the exact declared `pypdfium2==5.0.0`
+and `Pillow==12.0.0`. The Host builds successfully offline using the installed
+Rust toolchain and the pinned, patched GPUI source. No dependency versions were
+changed for this verification.
+
+The updated preflight still exits 1 as intended: no credential or explicit
+model is configured, and live opt-in was not set. All five engineering checks
+(Host, Harness, esbuild, Python packages and Git revision) pass. Network access
+to DeepSeek and current model/Harness compatibility are **not checked**.
 
 The available Codex CLI reports `goals stable false`; this task had no callable
 native `/goal` control. No feature was enabled and no nested Codex invocation
 was used to simulate one. The checks in this report were actually run, but are
 not described as a native `/goal` execution.
 
-## Provider and cost decision still required
+## Provider execution prerequisites
+
+The executable still needs a credential through the same executor's secure
+configuration and an explicit current model selection. No credential was
+retrieved, stored or used during this preparation. Configuration alone is never
+authorization; apply the specific evaluation's provider and spending approval.
 
 The current runner uses the existing DeepSeek-compatible Harness endpoint. For
 the official DeepSeek service, the [current pricing page](https://api-docs.deepseek.com/quick_start/pricing/)
@@ -60,10 +77,9 @@ This is a planning estimate, **not a measured charge or hard spending ceiling**.
 It does not assert compatibility of thinking-token limits or include optional
 paid provider search/fetch services, which this plan does not enable.
 
-Before live execution, the owner must authorize the specific provider/model,
-sharing these public questions and source passages, and a total spending limit.
-The key must be available through the same executor's secure configuration.
-A required monetary cap must be enforceable at the provider or an authorized
+Any later evaluation requires its own applicable provider, public-input sharing
+and spending authorization. The key must be available through the same executor's
+secure configuration. A required monetary cap must be enforceable at the provider or an authorized
 billing-aware owner. The runner does not enforce dollars, and neither a key nor
 `PERO_RESEARCH_LIVE=1` proves budget permission. If the cap cannot be enforced,
 stop rather than implying that 60 requests is a dollar limit. Do not top up,
@@ -161,7 +177,53 @@ python -m py_compile tests/runtime/research_quality.py \
 ```
 
 Counts: 9 quality tests, 24 program tests, 3 finalization tests and 3 preflight
-checks. The preflight CLI additionally produced the expected non-ready report.
+checks. All were rerun successfully after resuming. The preflight CLI additionally
+produced the expected non-ready report.
+
+## Resumed real-stack verification
+
+- The offline Host build completed successfully, with 11 existing compiler
+  warnings. Binary SHA-256: `2c2f7b7713ebf8f693e7d245aaf0b73d1c8da9b7b1ba63019b11774b194370dc`.
+- The existing Go Harness binary has SHA-256
+  `3b5fb84c50b142dc654b44caf2bec364e03789b4caf52f5835e63e3c1686e0bc`.
+  Research-profile and focused research ACP tests both pass with `-race`.
+- Both Rust `research_artifacts` integration tests pass, including retained
+  versions across restart and rejection of caller-selected artifacts.
+- `paper-program-python.mjs` passes and exits zero: real Host, Go Harness,
+  shared App Use and production Python backend complete three rounds in one
+  Session. The script makes 25 loopback scripted-model requests and four content
+  reads; four artifacts retain four versions each, checked through Host. Terminal
+  delivery requires no status polling. The PDF and model decisions are synthetic.
+- `paper-program-harness.mjs --no-status-poll` initially printed passing
+  assertions but did not exit. Like the previously corrected Python journey,
+  it had not disabled the App before closing its owning Host. It now disables
+  the App, requires normal Host exit, and writes its success receipt only after
+  cleanup. The rerun exits zero: eight loopback requests, six research requests,
+  four artifacts with two versions each. Failed delivery retry, late Cancel,
+  slow I/O responsiveness, cumulative budgets and foreign-program rejection pass.
+- The opt-in live runner now uses the same App-before-Host cleanup ordering.
+  Its syntax and offline preflight pass; this is not evidence of live-provider
+  execution or successful shutdown after an actual paid run.
+- Independent review found that a rejected App disable could skip the remaining
+  shutdown. The two runners now share an ordered shutdown routine that attempts
+  every owner and reports collected errors afterward. Tests use real subprocesses
+  and loopback listeners to prove cleanup after App, Host and Desktop failure.
+  All seven Node research checks and six core CI contracts pass. The ordinary PR
+  CI now runs these offline Node checks and the nine Python scoring contracts;
+  it never enables live inference or injects a provider credential.
+- Root `npm run check` fails at TypeScript because
+  `web/src/reader-wasm/pero_reader_web` has not been generated in this checkout.
+  The subsequent generated-file checks did not run. No replacement declarations
+  were fabricated to make the aggregate pass.
+
+Evidence is retained under `test-results/paper-quality-readiness/`, including
+`host-build-resumed.log`, `*-tests-resumed.log`, `research-artifacts-resumed.log`,
+`python-loopback-resumed.log`, the original `harness-loopback-resumed.log`, the
+passing `harness-loopback-cleanup.log`, `preflight-resumed.json` and
+`npm-check-resumed.log`. Full transport evidence and result receipts are in
+`test-results/paper-program-python/` and `test-results/paper-program-harness/`.
+
 These are offline engineering checks, not scientific evaluation. Repository-wide
-build/check, live product execution, actual billing and independent human
-scientific acceptance remain unverified.
+build/check, actual DeepSeek execution, actual billing and independent human
+scientific acceptance remain unverified. No native `/goal` feature, model result,
+human review or issue closure is claimed.
