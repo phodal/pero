@@ -17,9 +17,14 @@ pub(crate) struct PullRequestContent {
     _links: Vec<Subscription>,
 }
 impl Workbench {
-    pub(crate) fn open_pull_request(&mut self, reference: PullRequestRef, cx: &mut Context<Self>) {
+    pub(crate) fn open_pull_request(
+        &mut self,
+        reference: PullRequestRef,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.remember_current_location(cx);
-        self.ensure_pull_request(reference.clone(), cx);
+        self.ensure_pull_request(reference.clone(), window, cx);
         self.navigation.open(WorkspaceItem::PullRequest(reference));
         self.set_chat_dock(true, cx);
         self.sync_follow(cx);
@@ -29,6 +34,7 @@ impl Workbench {
     pub(crate) fn ensure_pull_request(
         &mut self,
         reference: PullRequestRef,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if self
@@ -44,14 +50,11 @@ impl Workbench {
             .into_iter()
             .map(|view| {
                 view.update(cx, |view, _| view.capture_links = true);
-                cx.subscribe(
+                cx.subscribe_in(
                     view,
-                    |this, _, link: &pero_chat_ui::stream::MarkdownLink, cx| {
-                        if let Ok(reference) = PullRequestRef::try_from(link.0.clone()) {
-                            this.open_pull_request(reference, cx);
-                        } else {
-                            cx.open_url(&link.0);
-                        }
+                    &mut *window,
+                    |this, _, link: &pero_chat_ui::stream::MarkdownLink, window, cx| {
+                        this.open_workspace_link(&link.0, window, cx);
                     },
                 )
             })
@@ -102,7 +105,7 @@ impl Workbench {
                 serde_json::from_value::<PullRequestRef>(event.data["reference"].clone())
             {
                 if self.discovered_pull_requests.insert(reference.clone()) {
-                    self.ensure_pull_request(reference.clone(), cx);
+                    self.ensure_pull_request(reference.clone(), window, cx);
                     self.navigation
                         .open_background(WorkspaceItem::PullRequest(reference));
                     self.queue_workspace_checkpoint(cx);
@@ -197,10 +200,21 @@ impl Workbench {
                     .label(self.t("pr.external"))
                     .on_click(move |_, _, cx| cx.open_url(&external)),
             );
-        let actions=actions.when(self.layout.narrow && self.chat.read(cx).active_chat.is_some(),|el|el.child(
-            Button::new("pr-conversation").ghost().small().label(self.t("pr.conversation"))
-                .on_click(cx.listener(|this,_,_,cx| {let active=this.chat.read(cx).active_chat;this.focus_chat(active,crate::workspace::ConversationTab::Chat,cx);})),
-        ));
+        let actions = actions.when(
+            self.layout.narrow && self.chat.read(cx).active_chat.is_some(),
+            |el| {
+                el.child(
+                    Button::new("pr-conversation")
+                        .ghost()
+                        .small()
+                        .label(self.t("workspace.conversation"))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            let active = this.chat.read(cx).active_chat;
+                            this.focus_chat(active, crate::workspace::ConversationTab::Chat, cx);
+                        })),
+                )
+            },
+        );
         if let Some(snapshot) = &state.snapshot {
             let status_color = match snapshot.status {
                 PullRequestStatus::Merged => p.info,
@@ -300,7 +314,11 @@ impl Workbench {
         if let Some(error) = &state.error {
             body = body.child(pero_theme::feedback(
                 "pr-error",
-                self.t(if state.snapshot.is_some(){"pr.refresh_failed"}else{"pr.load_failed"}),
+                self.t(if state.snapshot.is_some() {
+                    "pr.refresh_failed"
+                } else {
+                    "pr.load_failed"
+                }),
                 error.clone(),
                 pero_theme::FeedbackKind::Error,
                 chrome,
@@ -425,7 +443,8 @@ impl Workbench {
                             Button::new(("pr-file", index))
                                 .ghost()
                                 .small()
-                                .w_full().justify_start()
+                                .w_full()
+                                .justify_start()
                                 .label(format!(
                                     "{}  +{} −{}  {}",
                                     file.filename, file.additions, file.deletions, file.status
@@ -450,7 +469,13 @@ impl Workbench {
                         .iter()
                         .find(|file| Some(&file.filename) == state.selected_file.as_ref())
                     {
-                        body = body.child(div().p(px(12.)).font_weight(FontWeight::SEMIBOLD).whitespace_normal().child(file.filename.clone()));
+                        body = body.child(
+                            div()
+                                .p(px(12.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .whitespace_normal()
+                                .child(file.filename.clone()),
+                        );
                         if let Some(previous) = &file.previous_filename {
                             body = body.child(
                                 div()

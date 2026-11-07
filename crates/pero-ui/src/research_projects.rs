@@ -548,7 +548,7 @@ impl Workbench {
                                 .relative()
                                 .child(self.view_bounds.projects.probe(format!("resource-open:{index}")))
                                 .on_click(
-                                    cx.listener(move |this, _, window, cx| this.open_app_link(&href, window, cx)),
+                                    cx.listener(move |this, _, window, cx| this.open_workspace_link(&href, window, cx)),
                                 ),
                         )
                     })

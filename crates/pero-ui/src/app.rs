@@ -200,7 +200,7 @@ impl Workbench {
                     }
                     this.command(command, cx)
                 },
-                ChatAction::AppLink(href)=>this.open_app_link(href,window,cx),
+                ChatAction::AppLink(href)=>this.open_workspace_link(href,window,cx),
                 ChatAction::OpenDocument(document)=>this.open_document(document.clone(),window,cx),
                 ChatAction::Content(intent) => this.command(serde_json::to_value(intent).expect("content intent"), cx),
                 ChatAction::WorkspaceFiles(request) => this.command(serde_json::to_value(request).expect("workspace file request"), cx),

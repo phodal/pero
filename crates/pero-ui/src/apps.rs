@@ -574,10 +574,7 @@ mod tests {
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 impl crate::app::Workbench {
-    pub(crate) fn open_app_link(&mut self, href:&str, _window:&mut gpui_kit::Window, cx:&mut gpui_kit::Context<Self>) {
-        if let Ok(reference)=pero_contracts::pull_request::PullRequestRef::try_from(href.to_owned()) {self.open_pull_request(reference,cx);return;}
-        if !href.starts_with("pero-app-location:") {cx.open_url(href);return;}
-        let Some(address)=pero_contracts::app_chat::AppLocation::parse(href) else{return;};
+    pub(crate) fn open_app_location(&mut self, address:pero_contracts::app_chat::AppLocation, cx:&mut gpui_kit::Context<Self>) {
         let app=address.scope.app.as_str();let panel=address.scope.panel.as_str();let location=address.location.as_str();
         if !self.apps.contains_panel(app,panel) {return;}
         self.open_app(app.into(),panel.into(),cx);
@@ -619,7 +616,7 @@ impl crate::app::Workbench {
             _ => {
                 if reference.source.starts_with("http://") || reference.source.starts_with("https://")
                 {
-                    cx.open_url(&reference.source);
+                    self.open_workspace_link(&reference.source, window, cx);
                 }
                 return;
             }
@@ -645,7 +642,7 @@ impl crate::app::Workbench {
             self.floating_chat = false;
         }
         if let Some(location) = paper_location {
-            self.open_app_link(
+            self.open_workspace_link(
                 &format!("pero-app-location://{app}/{panel}/{location}"),
                 window,
                 cx,

@@ -286,8 +286,8 @@ impl ChatPanel {
                     let link = pero_contracts::content_link::ContentLink::resolve(&origin, href);
                     if let Some(path) = link.workspace_file(&origin, &workspace) {
                         this.read_workspace_file(&link_thread, &path, cx);
-                    } else if let pero_contracts::content_link::ContentLink::External(url) = link {
-                        cx.open_url(&url);
+                    } else if let pero_contracts::content_link::ContentLink::Address(target) = link {
+                        if let Some(url) = target.external_url() { cx.open_url(url); }
                     } else {
                         let error = this.t("content.link_unavailable").to_owned();
                         if let Some(browser) = this.files.conversations.get_mut(&link_thread) {

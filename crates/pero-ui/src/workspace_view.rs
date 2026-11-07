@@ -226,7 +226,7 @@ impl Workbench {
             self.navigation.replace_identity(&old, new);
         }
         let references=self.navigation.items().iter().filter_map(|item|match item {WorkspaceItem::PullRequest(reference)=>Some(reference.clone()),_=>None}).collect::<Vec<_>>();
-        for reference in references {self.ensure_pull_request(reference,cx);}
+        for reference in references {self.ensure_pull_request(reference,window,cx);}
         let available = self
             .navigation
             .items()
@@ -286,7 +286,7 @@ impl Workbench {
                 self.focus_chat(index, ConversationTab::Chat, cx);
             }
             WorkspaceRoute::Content(WorkspaceItem::PullRequest(reference)) => {
-                self.ensure_pull_request(reference,cx);
+                self.ensure_pull_request(reference,window,cx);
                 self.set_chat_dock(true,cx);
                 self.workspace_focus.focus(window,cx);
             }
