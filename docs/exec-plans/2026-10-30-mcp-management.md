@@ -268,3 +268,28 @@ the form taller. The UI retained the valid unsaved draft; no save was sent. The
 fixture now scrolls actual controls into the observed Settings viewport before
 clicking or typing. This is a test-driver correction, not evidence of a failed
 production save. Final UI and integration results are recorded after rerunning.
+
+
+Final review evidence at `34e47254` (2026-11-07, macOS arm64):
+
+- Pinned Kit `7591a35`, current production Wasm/Web and Desktop builds; the actual
+  Electron settings lifecycle, persistence and transport scenarios all passed.
+  Inspected policy draft/confirmation, light, dark and Chinese narrow captures.
+  Drafts survive failed/uncertain saves and only explicit policy enablement
+  grants tools. Coordinate scrolling uses measured visible bounds.
+- `node tests/contracts/mcp-session-panel.mjs --browser` passed the real Host →
+  Node provider → Go ACP → loopback MCP connection and the production browser
+  frame. Inspected `test-results/mcp-session/resources-light.png`, `app-light.png`
+  and `app-dark-narrow.png`. Resource selection matches the re-read content; App
+  initialization, approval and interaction succeed; CSP blocks undeclared access
+  and the App cannot read the host DOM. One MCP connection, zero model calls.
+- 109 contract, 48 Host and 131 runtime Rust tests pass, with 1 Host / 4 runtime
+  existing ignores. Runtime probes require Python 3.12 on PATH on this Mac. All
+  Harness race packages, six managed/standalone adapter tests, Host settings and
+  panel contracts, TypeScript, generated contracts and 1066 locale checks pass.
+- Native GPUI physical-window interaction and signed packages remain unverified.
+  Electron/GPUI Web and the real Native panel provider are separate evidence;
+  neither is represented as Native graphical acceptance. External server and
+  stdio App interoperability remain outside these loopback fixtures.
+- CI now runs the production panel browser path and retains screenshots in the
+  existing core-contracts artifact; no repository binary was added.
