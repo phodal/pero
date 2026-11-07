@@ -207,6 +207,7 @@ impl ChatPanel {
                     el.child(div().min_w_0().flex_1().child(self.pane_toolbar(
                         &thread,
                         state.expect("open artifact catalog"),
+                        false,
                         cx,
                     )))
                 })
@@ -255,6 +256,17 @@ impl ChatPanel {
                 } else {
                     self.artifact_column_width(available)
                 };
+                let compact_toolbar = !bottom && shown < 456.;
+                let has_identity = !reviewing
+                    && self.files.selection.tab == pero_contracts::workbench::ResourceTab::Artifacts
+                    && collection.selected.is_some()
+                    && (self.artifacts.view == pero_contracts::workbench::ArtifactView::Gallery
+                        || collection.chart.is_some());
+                let pane_header_height = if compact_toolbar {
+                    header_height + if has_identity { 60. } else { 30. }
+                } else {
+                    header_height
+                };
                 let bottom_thread = thread.clone();
                 let border = pero_theme::UiAppearance::global(cx).palette.border;
                 div()
@@ -297,8 +309,8 @@ impl ChatPanel {
                             .border_color(border)
                             .child(
                                 div()
-                                    .h(px(header_height))
-                                    .min_h(px(header_height))
+                                    .h(px(pane_header_height))
+                                    .min_h(px(pane_header_height))
                                     .flex()
                                     .items_center()
                                     .min_w_0()
@@ -306,6 +318,7 @@ impl ChatPanel {
                                         div().flex_1().min_w_0().child(self.pane_toolbar(
                                             &thread,
                                             collection,
+                                            compact_toolbar,
                                             cx,
                                         )),
                                     )

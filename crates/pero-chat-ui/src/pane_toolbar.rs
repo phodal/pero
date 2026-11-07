@@ -29,6 +29,7 @@ impl ChatPanel {
         &self,
         thread: &str,
         state: &ArtifactCollection,
+        compact: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
@@ -65,17 +66,10 @@ impl ChatPanel {
                 .selected(selected)
                 .flex_shrink_0()
         };
-        div()
-            .id("artifact-pane-toolbar")
-            .h(px(36.))
-            .min_h(px(36.))
-            .w_full()
-            .px(px(8.))
+        let destinations = div()
             .flex()
             .items_center()
             .gap(px(4.))
-            .border_b(px(0.5))
-            .border_color(p.border)
             .child(
                 destination("files-tab", "files.title", files, "files-tab").on_click(cx.listener(
                     move |this, _, _, cx| {
@@ -133,11 +127,17 @@ impl ChatPanel {
                         .show_pane();
                     cx.notify();
                 })),
-            )
-            .when_some(identity, |el, (artifact, version)| {
-                el.child(self.artifact_identity(thread, state, artifact, version, cx))
-            })
-            .when(identity.is_none(), |el| el.child(div().flex_1()))
+            );
+        let identity = identity
+            .map(|(artifact, version)| self.artifact_identity(thread, state, artifact, version, cx));
+        let actions = div()
+            .flex()
+            .when(identity.is_none() || compact, |el| el.flex_1())
+            .when(identity.is_some() && !compact, |el| el.flex_shrink_0())
+            .min_w_0()
+            .items_center()
+            .justify_end()
+            .gap(px(4.))
             .when(artifacts, |el| {
                 el.child(
                     div()
@@ -339,7 +339,27 @@ impl ChatPanel {
                         cx.notify();
                     })),
                 )
-            })
+            });
+        let (leading_identity, trailing_identity) = if compact {
+            (None, identity)
+        } else {
+            (identity, None)
+        };
+        div()
+            .id("artifact-pane-toolbar")
+            .w_full()
+            .h_full()
+            .px(px(8.))
+            .flex()
+            .gap(px(4.))
+            .when(compact, |el| el.flex_col().items_stretch().justify_center().py(px(3.)))
+            .when(!compact, |el| el.items_center())
+            .border_b(px(0.5))
+            .border_color(p.border)
+            .child(destinations)
+            .children(leading_identity)
+            .child(actions)
+            .children(trailing_identity)
             .into_any_element()
     }
 

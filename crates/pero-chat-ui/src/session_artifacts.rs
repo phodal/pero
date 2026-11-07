@@ -771,6 +771,7 @@ impl ChatPanel {
         selected: u64,
     ) -> Option<String> {
         let item = self
+            "bottom",
             .artifacts
             .conversations
             .get(thread)?
