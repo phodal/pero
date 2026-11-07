@@ -4,7 +4,7 @@ use crate::{
     workspace::{WorkspaceItem, WorkspaceRoute},
 };
 use gpui_kit::{
-    component::{button::*, *},
+    component::*,
     prelude::*,
     *,
 };
@@ -234,26 +234,7 @@ impl Workbench {
                         .into_any_element()
                 }
             }
-            _ => div()
-                .flex_1()
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(
-                    Button::new(("empty-pane-new-chat", leaf.id.0 as usize))
-                        .ghost()
-                        .label(self.t("chat.new"))
-                        .on_click({
-                            let id = leaf.id;
-                            cx.listener(move |this, _, window, cx| {
-                                this.focus_pane(id, window, cx);
-                                this.new_chat(cx);
-                                let composer = this.chat.read(cx).composer.clone();
-                                composer.update(cx, |input, cx| input.focus(window, cx));
-                            })
-                        }),
-                )
-                .into_any_element(),
+            _ => div().flex_1().min_h_0().min_w_0().into_any_element(),
         }
     }
     pub(crate) fn open_item_in_pane(
