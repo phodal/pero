@@ -7,6 +7,7 @@ import "./contributions.tsp";
 import "./automation.tsp";
 import "./session-artifacts.tsp";
 import "./workspace-changes.tsp";
+import "./pull-requests.tsp";
 
 using JsonSchema;
 
@@ -77,7 +78,7 @@ model WorkspaceFilesErrorEvent {kind:"workspace_files_error";...ThreadEventBase}
 model ReaderRange {start:safeint;end:safeint;...Closed}
 model ReaderSearch {case_insensitive:boolean;regex:boolean;whole_word:boolean;...Closed}
 model ReaderState {source_revision?:safeint|null;source:boolean;selection:ReaderRange;scroll:[float64,float64];preview_scroll:[float64,float64];preview_reveal?:ReaderRange|null;query:string;search_open:boolean;search:ReaderSearch;folded_lines:safeint[];path:ReaderRange[];...Closed}
-model WorkspaceSimpleItem {kind:"conversation"|"web"|"project"|"task";value:string;...Closed}
+model WorkspaceSimpleItem {kind:"conversation"|"web"|"project"|"task"|"pull_request";value:string;...Closed}
 model WorkspaceDocumentItem {kind:"document";value:{origin:ContentOrigin;source:string;...Closed};...Closed}
 model WorkspaceAppItem {kind:"app";value:{name:string;panel:string;...Closed};...Closed}
 model WorkspaceComputeItem {kind:"compute";...Closed}
@@ -357,7 +358,7 @@ union HostInput {
   FileDocumentRequest,
   WorkspaceFilesRequest,
   ArtifactRequest,
-  ChangesRequest,
+  ChangesRequest,PullRequestRequest,
   LocalWorkerRequest,
   EchoRequest,
   SetLocaleRequest,
@@ -576,6 +577,7 @@ union HostEvent {
   FileDocumentEvent,
   WorkspaceFilesListEvent, WorkspaceFilesDocumentEvent, WorkspaceFilesErrorEvent,
   FileDocumentErrorEvent,
+  PullRequestLoadedEvent,PullRequestErrorEvent,PullRequestDiscoveredEvent,
   WorkspaceChangesEvent,WorkspaceChangesCatalogEvent,WorkspaceChangeDiffEvent,WorkspaceChangesErrorEvent,
   ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactPresentedEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
   ContentDocumentEvent,

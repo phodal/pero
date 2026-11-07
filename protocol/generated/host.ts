@@ -16,6 +16,7 @@ export type HostInput =
   | WorkspaceFilesRequest
   | ArtifactRequest
   | ChangesRequest
+  | PullRequestRequest
   | LocalWorkerRequest
   | EchoRequest
   | SetLocaleRequest
@@ -88,6 +89,7 @@ export type ArtifactRequest =
 export type ArtifactPresentation = "inline" | "below" | "side" | "expanded";
 export type ArtifactRelationRole = "input" | "code" | "execution_log" | "environment" | "review" | "run_record";
 export type ChangesRequest = ChangesList | ChangesCurrent | ChangesRead;
+export type PullRequestRequest = PullRequestLoad | PullRequestDiscover;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type KeySequence = string;
 export type ArtifactView = "icons" | "list" | "gallery";
@@ -196,6 +198,9 @@ export type HostEvent =
   | WorkspaceFilesDocumentEvent
   | WorkspaceFilesErrorEvent
   | FileDocumentErrorEvent
+  | PullRequestLoadedEvent
+  | PullRequestErrorEvent
+  | PullRequestDiscoveredEvent
   | WorkspaceChangesEvent
   | WorkspaceChangesCatalogEvent
   | WorkspaceChangeDiffEvent
@@ -611,7 +616,7 @@ export interface WorkspaceSnapshot {
   forward: HistoryEntry[];
 }
 export interface WorkspaceSimpleItem {
-  kind: "conversation" | "web" | "project" | "task";
+  kind: "conversation" | "web" | "project" | "task" | "pull_request";
   value: string;
 }
 export interface WorkspaceDocumentItem {
@@ -1102,6 +1107,18 @@ export interface ChangesRead {
   id: string;
   index: number;
   method: "workspace_changes";
+  request_id: string;
+  thread_id: ThreadId;
+}
+export interface PullRequestLoad {
+  method: "pull_requests";
+  action: "load";
+  request_id: string;
+  reference: string;
+}
+export interface PullRequestDiscover {
+  method: "pull_requests";
+  action: "discover";
   request_id: string;
   thread_id: ThreadId;
 }
@@ -2427,6 +2444,87 @@ export interface FileDocumentErrorEvent {
   data: {
     source: string;
     reason: "conflict" | "unsupported" | "unavailable" | "read_write";
+  };
+}
+export interface PullRequestLoadedEvent {
+  kind: "pull_request_loaded";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: PullRequestSnapshot;
+}
+export interface PullRequestSnapshot {
+  reference: string;
+  title: string;
+  body: string;
+  status: "open" | "draft" | "closed" | "merged";
+  author: string;
+  base: string;
+  head: string;
+  head_sha: string;
+  additions: number;
+  deletions: number;
+  changed_files: number;
+  files: PullRequestSectionPullRequestFile;
+  commits: PullRequestSectionPullRequestCommit;
+  checks: PullRequestSectionPullRequestCheck;
+  reviews: PullRequestSectionPullRequestReview;
+}
+export interface PullRequestSectionPullRequestFile {
+  items: PullRequestFile[];
+  error: string | null;
+}
+export interface PullRequestFile {
+  filename: string;
+  previous_filename: string | null;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch: string | null;
+}
+export interface PullRequestSectionPullRequestCommit {
+  items: PullRequestCommit[];
+  error: string | null;
+}
+export interface PullRequestCommit {
+  sha: string;
+  message: string;
+  author: string;
+}
+export interface PullRequestSectionPullRequestCheck {
+  items: PullRequestCheck[];
+  error: string | null;
+}
+export interface PullRequestCheck {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  url: string | null;
+}
+export interface PullRequestSectionPullRequestReview {
+  items: PullRequestReview[];
+  error: string | null;
+}
+export interface PullRequestReview {
+  author: string;
+  state: string;
+  body: string;
+}
+export interface PullRequestErrorEvent {
+  kind: "pull_request_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id?: string;
+}
+export interface PullRequestDiscoveredEvent {
+  kind: "pull_request_discovered";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    reference: string;
   };
 }
 export interface WorkspaceChangesEvent {

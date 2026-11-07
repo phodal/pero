@@ -8147,6 +8147,15 @@
           "$ref": "#/$defs/FileDocumentErrorEvent"
         },
         {
+          "$ref": "#/$defs/PullRequestLoadedEvent"
+        },
+        {
+          "$ref": "#/$defs/PullRequestErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/PullRequestDiscoveredEvent"
+        },
+        {
           "$ref": "#/$defs/WorkspaceChangesEvent"
         },
         {
@@ -8363,6 +8372,9 @@
         },
         {
           "$ref": "#/$defs/ChangesRequest"
+        },
+        {
+          "$ref": "#/$defs/PullRequestRequest"
         },
         {
           "$ref": "#/$defs/LocalWorkerRequest"
@@ -11972,6 +11984,519 @@
         "text",
         "thread_id",
         "data"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestCheck": {
+      "title": "PullRequestCheck",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "conclusion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "status",
+        "conclusion",
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestCommit": {
+      "title": "PullRequestCommit",
+      "type": "object",
+      "properties": {
+        "sha": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha",
+        "message",
+        "author"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestDiscover": {
+      "title": "PullRequestDiscover",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "pull_requests"
+        },
+        "action": {
+          "type": "string",
+          "const": "discover"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestDiscoveredEvent": {
+      "title": "PullRequestDiscoveredEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pull_request_discovered"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "reference": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reference"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestErrorEvent": {
+      "title": "PullRequestErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pull_request_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestFile": {
+      "title": "PullRequestFile",
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "previous_filename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "additions": {
+          "type": "integer"
+        },
+        "deletions": {
+          "type": "integer"
+        },
+        "patch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "filename",
+        "previous_filename",
+        "status",
+        "additions",
+        "deletions",
+        "patch"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestLoad": {
+      "title": "PullRequestLoad",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "pull_requests"
+        },
+        "action": {
+          "type": "string",
+          "const": "load"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "reference": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "reference"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestLoadedEvent": {
+      "title": "PullRequestLoadedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pull_request_loaded"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/PullRequestSnapshot"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestRequest": {
+      "title": "PullRequestRequest",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PullRequestLoad"
+        },
+        {
+          "$ref": "#/$defs/PullRequestDiscover"
+        }
+      ]
+    },
+    "PullRequestReview": {
+      "title": "PullRequestReview",
+      "type": "object",
+      "properties": {
+        "author": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "author",
+        "state",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestSectionPullRequestCheck": {
+      "title": "PullRequestSectionPullRequestCheck",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PullRequestCheck"
+          }
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestSectionPullRequestCommit": {
+      "title": "PullRequestSectionPullRequestCommit",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PullRequestCommit"
+          }
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestSectionPullRequestFile": {
+      "title": "PullRequestSectionPullRequestFile",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PullRequestFile"
+          }
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestSectionPullRequestReview": {
+      "title": "PullRequestSectionPullRequestReview",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PullRequestReview"
+          }
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestSnapshot": {
+      "title": "PullRequestSnapshot",
+      "type": "object",
+      "properties": {
+        "reference": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "open"
+            },
+            {
+              "type": "string",
+              "const": "draft"
+            },
+            {
+              "type": "string",
+              "const": "closed"
+            },
+            {
+              "type": "string",
+              "const": "merged"
+            }
+          ]
+        },
+        "author": {
+          "type": "string"
+        },
+        "base": {
+          "type": "string"
+        },
+        "head": {
+          "type": "string"
+        },
+        "head_sha": {
+          "type": "string"
+        },
+        "additions": {
+          "type": "integer"
+        },
+        "deletions": {
+          "type": "integer"
+        },
+        "changed_files": {
+          "type": "integer"
+        },
+        "files": {
+          "$ref": "#/$defs/PullRequestSectionPullRequestFile"
+        },
+        "commits": {
+          "$ref": "#/$defs/PullRequestSectionPullRequestCommit"
+        },
+        "checks": {
+          "$ref": "#/$defs/PullRequestSectionPullRequestCheck"
+        },
+        "reviews": {
+          "$ref": "#/$defs/PullRequestSectionPullRequestReview"
+        }
+      },
+      "required": [
+        "reference",
+        "title",
+        "body",
+        "status",
+        "author",
+        "base",
+        "head",
+        "head_sha",
+        "additions",
+        "deletions",
+        "changed_files",
+        "files",
+        "commits",
+        "checks",
+        "reviews"
       ],
       "additionalProperties": false
     },
@@ -17083,6 +17608,10 @@
             {
               "type": "string",
               "const": "task"
+            },
+            {
+              "type": "string",
+              "const": "pull_request"
             }
           ]
         },
