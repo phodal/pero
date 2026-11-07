@@ -727,7 +727,11 @@ jobs:
       - name: Host MCP settings contracts
         id: host_mcp_settings
         if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' && steps.mcp_build.outcome == 'success' }}
-        run: node tests/contracts/mcp-settings.mjs
+        run: |
+          node tests/contracts/mcp-settings.mjs
+          node scripts/build/harness.mjs
+          npx playwright install --with-deps chromium
+          node --experimental-transform-types tests/contracts/mcp-session-panel.mjs --browser
       - name: Host MCP ownership contracts
         id: host_mcp_ownership
         if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' && steps.mcp_build.outcome == 'success' }}

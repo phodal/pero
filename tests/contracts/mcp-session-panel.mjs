@@ -1,4 +1,4 @@
-// Real Rust Host → Node panel → Host → Go ACP → loopback MCP. No model call or GUI.
+// Real Rust Host → Node panel → Host → Go ACP → loopback MCP. Optional production browser inspection; no model calls.
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:http';
@@ -15,6 +15,7 @@ import {startMcpFixture} from '../fixtures/mcp-app/server.ts';
 import {McpSessionRpc} from '../../desktop/src/main/mcp-session-rpc.ts';
 import {McpSessionPanels} from '../../desktop/src/main/mcp-session-panels.ts';
 const root=resolve(import.meta.dirname,'../..');
+const browserMode=process.argv.includes('--browser');
 const receipt=resolve(root,'test-results/mcp-session/panel-result.json');
 await rm(receipt,{force:true});
 const home=await mkdtemp(join(tmpdir(),'pero-session-panel-'));
@@ -35,7 +36,8 @@ host.stderr.on('data',chunk=>{stderr+=chunk;});
 const events=[],waiters=new Set();
 const send=value=>host.stdin.write(JSON.stringify(value)+'\n');
 const electronRpc=new McpSessionRpc(send,15_000);
-const electronPanels=new McpSessionPanels(electronRpc,resolve(root,'desktop/dist'));
+const browserSelections=[];
+const electronPanels=new McpSessionPanels(electronRpc,resolve(root,'desktop/dist'),undefined,undefined,selection=>browserSelections.push(selection));
 const lines=createInterface({input:host.stdout});
 lines.on('line',line=>{
   const event=JSON.parse(line);
@@ -116,6 +118,42 @@ try{
   const sharedResponse=await fetch(new URL('/api',electronPanel),{method:'POST',signal:AbortSignal.timeout(15_000),headers:{Origin:electronPanel.origin,Authorization:`Bearer ${electronPanel.searchParams.get('token')}`,'Content-Type':'application/json'},body:JSON.stringify({action:'read',server:'Real Docs',generation,uri:'fixture://note'})});
   assert.equal(sharedResponse.status,200);assert.equal((await sharedResponse.json()).contents[0].text,read.contents[0].text);
   assert.equal(mcp.initializations,1,'Electron adapter created another MCP client');
+  if(browserMode){
+    const {chromium,expect}=await import('@playwright/test');
+    const browser=await chromium.launch({headless:true});
+    try{
+      approvePermissions=true;
+      const page=await browser.newPage({viewport:{width:1100,height:850}});
+      const errors=[];page.on('pageerror',error=>errors.push(String(error)));
+      await page.goto(electronPanel.href);
+      await page.getByRole('button',{name:'Browse resources',exact:true}).click();
+      await page.getByRole('button',{name:'note',exact:true}).click();
+      await expect(page.locator('pre')).toContainText('Untrusted fixture resource');
+      await page.getByRole('button',{name:'Add to Chat (text only, up to 64 KB)',exact:true}).click();
+      await expect(page.locator('#status')).toContainText('Resource added');
+      assert.equal(browserSelections.at(-1).contents[0].text,read.contents[0].text);
+      const evidence=resolve(root,'test-results/mcp-session');await mkdir(evidence,{recursive:true});
+      await page.screenshot({path:join(evidence,'resources-light.png')});
+      await page.getByRole('button',{name:'show',exact:true}).click();
+      await page.getByLabel('label',{exact:true}).fill('Actual session App');
+      await page.getByRole('button',{name:'Open App',exact:true}).click();
+      const app=page.frameLocator('#view > iframe').frameLocator('iframe');
+      await expect(app.locator('#input')).toHaveText('Actual session App');
+      await expect(app.locator('#result')).toHaveText('Actual session App');
+      await expect(app.locator('body')).toHaveAttribute('data-host-access','denied');
+      await expect(app.locator('body')).toHaveAttribute('data-csp','blocked');
+      await app.getByRole('button',{name:'Increment',exact:true}).click();
+      await expect(app.locator('#interaction')).toHaveText('4');
+      await page.screenshot({path:join(evidence,'app-light.png')});
+      await page.setViewportSize({width:560,height:760});
+      await page.emulateMedia({colorScheme:'dark'});
+      await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      await page.screenshot({path:join(evidence,'app-dark-narrow.png')});
+      await page.getByRole('button',{name:'Close App',exact:true}).click();
+      await expect(page.locator('#view iframe')).toHaveCount(0);
+      assert.equal(mcp.initializations,1);assert.equal(modelRequests,0);assert.deepEqual(errors,[]);
+    }finally{await browser.close();}
+  }
   await electronPanels.close();electronRpc.close();
   send({action:'close',thread_id:'real-thread'});await next('session_closed',event=>event.thread_id==='real-thread');
 
@@ -127,5 +165,5 @@ try{
   assert.deepEqual(exitStatus,[0,null],'Host/provider did not shut down gracefully');
 }
 await mkdir(resolve(root,'test-results/mcp-session'),{recursive:true});
-await writeFile(receipt,JSON.stringify({passed:true,actualHost:true,actualGoACP:true,actualNodeProvider:true,actualElectronAdapter:true,realMCP:true,graphicalUI:false,modelRequests,initializations:mcp.initializations,permissions,successfulApprovals:2,cancelledApprovals:2,checks:['same existing MCP connection','resources read and text-only Chat selection','App initial and interactive calls share mandatory ask approval','cross-visibility denial','closed binding refuses interaction','close during initial App approval cancels without side effects or late-approval replay','active App revocation precedes an unresponsive teardown and blocks late approval']},null,2));
-console.log('Real Host/Native panel/Go ACP/MCP chain passed; graphical UI not claimed.');
+await writeFile(receipt,JSON.stringify({passed:true,actualHost:true,actualGoACP:true,actualNodeProvider:true,actualElectronAdapter:true,realMCP:true,graphicalUI:browserMode,modelRequests,initializations:mcp.initializations,permissions,successfulApprovals:browserMode?4:2,cancelledApprovals:2,checks:['same existing MCP connection','resources read and text-only Chat selection','App initial and interactive calls share mandatory ask approval','cross-visibility denial','closed binding refuses interaction','close during initial App approval cancels without side effects or late-approval replay','active App revocation precedes an unresponsive teardown and blocks late approval']},null,2));
+console.log(browserMode?'Real Host/ACP/MCP chain and production browser inspection passed.':'Real Host/Native panel/Go ACP/MCP chain passed; graphical UI not claimed.');

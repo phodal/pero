@@ -258,3 +258,13 @@ recorded in each mapping note. Updated-base local Rust tests (272 passed, one
 ignored), locked Host build, settings contracts and real non-graphical
 Host/panel/Go ACP/MCP test passed without changing the committed lock file.
 Graphical acceptance remains outstanding.
+
+
+### Final review on macOS — 2026-11-07
+
+Actual Electron acceptance reached the policy editor. The old coordinate-only
+test clicked Save below the scroll viewport after the added policy fields made
+the form taller. The UI retained the valid unsaved draft; no save was sent. The
+fixture now scrolls actual controls into the observed Settings viewport before
+clicking or typing. This is a test-driver correction, not evidence of a failed
+production save. Final UI and integration results are recorded after rerunning.

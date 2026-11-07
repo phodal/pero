@@ -73,17 +73,27 @@ async function close() {
 const mcp = async () => (await state()).settings.mcp;
 const frame = () => evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
 async function capture(name) { progress(`capture ${name}`); await frame(); await bounded(page.screenshot({ path: resolve(out, `${name}.png`), timeout: 10000 }), `capture ${name}`); }
+async function reveal(bounds) {
+  for(let attempt=0;attempt<12;attempt++) {
+    const snapshot=await state(),b=bounds(snapshot.settings.mcp),scroll=snapshot.settings.scroll.bounds;
+    if(b?.width>0&&b.y>=scroll.y&&b.y+b.height<=scroll.y+scroll.height)return b;
+    if(!b?.width)throw new Error('MCP control is not laid out');
+    await page.mouse.move(scroll.x+scroll.width/2,scroll.y+scroll.height/2);
+    await page.mouse.wheel(0,b.y<scroll.y?-300:300);
+    await frame();
+  }
+  throw new Error('MCP control could not be scrolled into view');
+}
 async function click(name) {
   progress(`click ${name}`);
   await expect.poll(async () => (await mcp()).controls[name]?.width || 0).toBeGreaterThan(0);
-  await frame();
-  const b = (await mcp()).controls[name];
-  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+  const b=await reveal(mcp=>mcp.controls[name]);
+  await page.mouse.click(b.x+b.width/2,b.y+b.height/2);
 }
 async function input(index, text) {
   progress(`fill field ${index}`);
-  await frame(); const b = (await mcp()).inputs[index];
-  await page.mouse.click(b.x + Math.min(20, b.width / 2), b.y + b.height / 2);
+  const b=await reveal(mcp=>mcp.inputs[index]);
+  await page.mouse.click(b.x+Math.min(20,b.width/2),b.y+Math.min(12,b.height/2));
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
   await page.keyboard.insertText(text);
   await expect.poll(async () => (await mcp()).inputs[index].value).toBe(text);
