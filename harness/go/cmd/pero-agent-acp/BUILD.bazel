@@ -43,6 +43,7 @@ go_library(
         "//researchprofile",
         "//runtime",
         "//sandbox",
+        "//scienceenv",
         "//skills",
         "//subagents",
         "//tasks",

@@ -19,14 +19,15 @@ from paper_agent.store import ResearchStore
 def main():
     now = lambda: datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
     store = ResearchStore(os.environ['PERO_APP_DATA'])
-    paper = store.save_paper(PaperSnapshot.from_reading(dict(title='Attention Is All You Need', source='arxiv',
-        sourceId='1706.03762v7', url='https://arxiv.org/abs/1706.03762v7',
-        pdfUrl='https://arxiv.org/pdf/1706.03762v7', authors=[], contentKind='abstract',
+    task = config['task']
+    seed = task['seed']
+    paper = store.save_paper(PaperSnapshot.from_reading(dict(title=seed['title'], source='arxiv',
+        sourceId=seed['sourceId'], url=seed['url'],
+        pdfUrl=seed['pdfUrl'], authors=[], contentKind='abstract',
         content='Bibliographic seed only. Acquire and read the original before making any scientific claim.'), now()))
     programs = ResearchPrograms(store)
     program = programs.command(dict(operation='create', requestId='live-paper-program',
-        question='Under which conditions does attention reduce sequential computation, and what limitations or counterevidence qualify that claim?',
-        scope='Attention Is All You Need and directly related papers about sequential computation and long-sequence cost.',
+        question=task['question'], scope=task['scope'],
         inclusion='Public original sources with directly observed methods, assumptions and complexity evidence.',
         exclusion='Metadata-only claims, unobserved experiments, general benchmark rankings.', seedPaperIds=[paper.id],
         acquisition='public_pdf', minutes=12, noProgressLimit=2,

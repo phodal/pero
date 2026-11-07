@@ -55,7 +55,7 @@ pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> 
             div()
                 .absolute()
                 .top(chrome.geo(SPACE_12))
-                .right(px(-SIDEBAR_PADDING))
+                .right_0()
                 .bottom_0()
                 .w(px(0.5))
                 .bg(chrome.palette.border),

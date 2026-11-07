@@ -6,6 +6,7 @@ use pero_contracts::{
     content_document::{ContentFormat, DocumentHeader},
     context::ContextReference,
     session_artifact::{ArtifactMethod, ArtifactRequest, ArtifactSource, SessionArtifact},
+    workbench::LayoutPreferences,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -36,12 +37,21 @@ pub(crate) struct ArtifactCollection {
     pub path_input: Option<Entity<InputState>>,
 }
 
+/// Drag of the artifact column, measured from the pointer position where it started.
+#[derive(Clone, Copy)]
+pub(crate) struct ArtifactPaneResize {
+    pub origin_x: f32,
+    pub origin_width: f32,
+    pub max_width: f32,
+}
+
 #[derive(Default)]
 pub(crate) struct SessionArtifacts {
     pub conversations: HashMap<String, ArtifactCollection>,
     pub anchors: HashMap<String, ScrollAnchor>,
     pub bounds: HashMap<String, crate::view_bounds::ViewBounds>,
     pub pane_width: Option<f32>,
+    pub resize: Option<ArtifactPaneResize>,
     pub narrow: bool,
     pub surface_covered: bool,
     pub view: pero_contracts::workbench::ArtifactView,
@@ -62,12 +72,16 @@ impl ChatPanel {
         }
     }
     pub fn artifact_pane_width(&self) -> f32 {
-        self.artifacts.pane_width.unwrap_or(400.)
+        self.artifacts
+            .pane_width
+            .unwrap_or(f32::from(LayoutPreferences::DEFAULT_ARTIFACT_PANE_WIDTH))
     }
 
     pub fn set_artifact_pane_width(&mut self, width: f32, cx: &mut Context<Self>) {
         if width.is_finite() {
-            self.artifacts.pane_width = Some(width.clamp(280., 1200.));
+            let min = f32::from(LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH);
+            let max = f32::from(LayoutPreferences::MAX_ARTIFACT_PANE_WIDTH);
+            self.artifacts.pane_width = Some(width.clamp(min, max));
             cx.notify();
         }
     }

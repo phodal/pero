@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scienceenv",
+    srcs = [
+        "kernel.go",
+        "mcp.go",
+        "skill.go",
+        "tools.go",
+    ],
+    embedsrcs = [
+        "worker_python.py",
+        "worker_r.R",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/scienceenv",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//harness",
+        "//runtime",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "scienceenv_test",
+    srcs = [
+        "kernel_test.go",
+        "skill_test.go",
+        "tools_test.go",
+    ],
+    embed = [":scienceenv"],
+    deps = [
+        "//harness",
+        "//runtime",
+    ],
+)

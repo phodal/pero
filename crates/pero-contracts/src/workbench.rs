@@ -90,9 +90,9 @@ impl LayoutPreferences {
     pub const MIN_SIDEBAR_WIDTH: u16 = 200;
     pub const MAX_SIDEBAR_WIDTH: u16 = 480;
     const DEFAULT_SIDEBAR_WIDTH: u16 = 260;
-    const MIN_ARTIFACT_PANE_WIDTH: u16 = 280;
-    const MAX_ARTIFACT_PANE_WIDTH: u16 = 1200;
-    const DEFAULT_ARTIFACT_PANE_WIDTH: u16 = 400;
+    pub const MIN_ARTIFACT_PANE_WIDTH: u16 = 280;
+    pub const MAX_ARTIFACT_PANE_WIDTH: u16 = 1200;
+    pub const DEFAULT_ARTIFACT_PANE_WIDTH: u16 = 280;
 
     pub fn chat_width(&self) -> f32 {
         self.chat_width.into()
@@ -382,7 +382,7 @@ mod layout_tests {
             assert_eq!(layout.chat_width(), expected);
         }
         for (input, expected) in [
-            (serde_json::json!({}), Some(400.)),
+            (serde_json::json!({}), Some(280.)),
             (serde_json::json!({"artifact_pane_width":640}), Some(640.)),
             (serde_json::json!({"artifact_pane_width":279}), None),
             (serde_json::json!({"artifact_pane_width":1201}), None),
