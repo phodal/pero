@@ -9,9 +9,10 @@
 </p>
 
 <p align="center">
-  <a href="#try-pero">Try Pero</a> ·
+  <a href="#our-approach">Our approach</a> ·
+  <a href="#paper-from-reading-to-evidence">Paper</a> ·
   <a href="#a-research-example">Research example</a> ·
-  <a href="#status">Status</a> ·
+  <a href="#try-pero">Try Pero</a> ·
   <a href="DEVELOPMENT.md">Development</a> ·
   <a href="ROADMAP.md">Roadmap</a> ·
   <a href="README.zh-CN.md">简体中文</a>
@@ -19,10 +20,65 @@
 
 Pero brings original papers, research Apps and Agent conversations into one desktop workspace. Start with a PDF: read it, ask a question, then follow the answer's citations back to the source.
 
-> [!NOTE]
-> **Development preview.** Capabilities follow current source; downloaded packages may lag behind. The walkthrough uses November 4 controls, with no new installed-package or real-model acceptance claimed here.
+## Our approach
+
+- **Keep the original evidence.** Save papers and link report claims to observed passages. Earlier answers do not replace source evidence.
+- **Define the method before computing.** Fix inputs, method and comparison rules, then check independently. The [Fisher case](#a-research-example) applies this to one published number.
+- **Continue from a record.** Retain findings and unresolved gaps for explicit follow-up questions.
+
+![Target research workflow: question, task, execution, review and project memory](docs/assets/openpero-overview.svg)
+
+*Target workflow: shared cross-person project memory and the complete research loop remain planned.*
+
+## Paper: from reading to evidence
+
+To follow along in Electron, see [Try Pero](#try-pero) below.
+
+*These are simplified illustrations, not screenshots. Some illustrated navigation is newer than the November 4 package; the steps use that release's controls.*
+
+### 1. Import
+
+Open **Papers**. If prompted, choose **Prepare environment** and wait for **Environment ready**; first use may download uv, CPython 3.12 and PDF dependencies. Select **Add papers → PDF → Import PDF**, or drop in a public PDF with selectable text. Scanned pages are not automatically searchable. See [offline/Python setup](DEVELOPMENT.md#python-environments-and-advanced-overrides).
+
+![Add a paper: library entry and PDF import](docs/assets/openpero-paper-research-01-add.svg)
+
+### 2. Read
+
+Read the saved original. Select a passage and choose **Highlight** to keep an annotation. Importing, reading and highlighting need no model account or API key.
+
+![Read the original with the Paper reader controls](docs/assets/openpero-paper-research-02-read.svg)
+
+### 3. Ask
+
+Choose **Ask AI** or **Discuss selection** to open a conversation with paper context. It does not send automatically. Configure an Agent first: **Settings → Built-in Agent** needs an API provider and key; external Agents use their own login. Full-PDF research requires HTTP MCP support. See [Agent setup](desktop/README.md#agents-and-conversations).
+
+Send a question such as: **“What evidence supports this method, and which limitations should I check? Cite the original passages.”**
+
+![Ask with context in the shared conversation](docs/assets/openpero-paper-research-03-ask.svg)
+
+### 4. Check the source
+
+When a report is saved, close the chat and open **Research record** (the reader's clock icon), then the saved report. Click a citation to inspect the original passage; if **Citation evidence** lists several matches, choose the relevant one. **Continue from here** prepares a follow-up for you to send.
+
+![Review a saved report and follow its citations](docs/assets/openpero-paper-research-04-review.svg)
+
+More: [Paper usage and boundaries](apps/paper-agent/README.md#pdf-reading) · [Recorded Paper journey](docs/fitness/paper-harness-journey.md).
+
+### More research Apps
+
+- [Data](apps/data/README.md): inspect and chart dataset versions without a model. Try [six synthetic records](docs/examples/first-dataset.json).
+- [Virtual Cell](apps/virtual-cell/README.md): explore the PBMC3k reference atlas and illustrative reaction simulations.
+
+## A research example
+
+The [Fisher (1936) case](docs/fitness/paper-fisher-reproduction.md) recomputes **one Table III value** from 100 reviewed Table I measurements: **19.1434 cm²**, the within-species sum of squares. It freezes inputs and comparison rules, checks the arithmetic in a separate process, and exports an evidence ZIP. After extraction, `python -I -S verify.py` checks it using only Python's standard library, without a model or network.
+
+This is a curated single-result reanalysis, not general paper reproduction; the whole-paper verdict remains `NOT_ASSESSED`. Backend/API, export and restart checks exist; browser interaction, Native/Electron integration and installed-package acceptance remain unverified. See [fixed-case instructions](apps/paper-agent/skills/paper-reproduction/references/reproduction-protocol.md#fixed-real-source-reanalysis-fisher-table-iii).
 
 ## Try Pero
+
+> [!NOTE]
+> **Development preview.** Capabilities follow current source; downloaded packages may lag behind. The walkthrough uses November 4 controls, with no new installed-package or real-model acceptance claimed here.
 
 ### Download a development build
 
@@ -35,41 +91,9 @@ The [2026-11-04 prerelease](https://github.com/phodal/pero/releases/tag/v0.1.0-d
 | Pero, Electron workbench | Linux x64 | `Pero-linux-x64.tar.gz` |
 | Pero Native, GPUI workbench | macOS Apple Silicon | `Pero-Native-macos-arm64.dmg` |
 
-Build metadata and SHA256SUMS accompany the downloads. macOS packages are ad-hoc signed, not notarized; Windows/Linux packages are unsigned. Electron and Native use separate profiles. Start with **Electron** below; Native has a [fresh-profile limitation](DEVELOPMENT.md#native-fresh-profile-limitation). See [release verification](docs/fitness/release-products.md).
+Build metadata and SHA256SUMS accompany the downloads. macOS packages are ad-hoc signed, not notarized; Windows/Linux packages are unsigned. Electron and Native use separate profiles. Use **Electron** for the Paper walkthrough above; Native has a [fresh-profile limitation](DEVELOPMENT.md#native-fresh-profile-limitation). See [release verification](docs/fitness/release-products.md).
 
-### Read a paper in four steps (Electron)
-
-*These are simplified illustrations, not screenshots. Some illustrated navigation is newer than the November 4 package; the steps use that release's controls.*
-
-#### 1. Import
-
-Open **Papers**. If prompted, choose **Prepare environment** and wait for **Environment ready**; first use may download uv, CPython 3.12 and PDF dependencies. Select **Add papers → PDF → Import PDF**, or drop in a public PDF with selectable text. Scanned pages are not automatically searchable. See [offline/Python setup](DEVELOPMENT.md#python-environments-and-advanced-overrides).
-
-![Add a paper: library entry and PDF import](docs/assets/openpero-paper-research-01-add.svg)
-
-#### 2. Read
-
-Read the saved original. Select a passage and choose **Highlight** to keep an annotation. Importing, reading and highlighting need no model account or API key.
-
-![Read the original with the Paper reader controls](docs/assets/openpero-paper-research-02-read.svg)
-
-#### 3. Ask
-
-Choose **Ask AI** or **Discuss selection** to open a conversation with paper context. It does not send automatically. Configure an Agent first: **Settings → Built-in Agent** needs an API provider and key; external Agents use their own login. Full-PDF research requires HTTP MCP support. See [Agent setup](desktop/README.md#agents-and-conversations).
-
-Send a question such as: **“What evidence supports this method, and which limitations should I check? Cite the original passages.”**
-
-![Ask with context in the shared conversation](docs/assets/openpero-paper-research-03-ask.svg)
-
-#### 4. Check the source
-
-When a report is saved, close the chat and open **Research record** (the reader's clock icon), then the saved report. Click a citation to inspect the original passage; if **Citation evidence** lists several matches, choose the relevant one. **Continue from here** prepares a follow-up for you to send.
-
-![Review a saved report and follow its citations](docs/assets/openpero-paper-research-04-review.svg)
-
-More: [Paper usage and boundaries](apps/paper-agent/README.md#pdf-reading) · [Recorded Paper journey](docs/fitness/paper-harness-journey.md).
-
-### Run from source or try another App
+### Run from source
 
 Complete [development setup](DEVELOPMENT.md#desktop-from-source), including the pinned GPUI Kit, then run from the repository root:
 
@@ -77,14 +101,7 @@ Complete [development setup](DEVELOPMENT.md#desktop-from-source), including the 
 npm run dev:paper  # Open Paper in a separate development profile
 ```
 
-- [Data](apps/data/README.md): inspect and chart dataset versions without a model. Try [six synthetic records](docs/examples/first-dataset.json).
-- [Virtual Cell](apps/virtual-cell/README.md): explore the PBMC3k reference atlas and illustrative reaction simulations. `npm run dev:apps` opens its development profile; the November 4 release has no standalone Virtual Cell package.
-
-## A research example
-
-The [Fisher (1936) case](docs/fitness/paper-fisher-reproduction.md) recomputes **one Table III value** from 100 reviewed Table I measurements: **19.1434 cm²**, the within-species sum of squares. It freezes inputs and comparison rules, checks the arithmetic in a separate process, and exports an evidence ZIP. After extraction, `python -I -S verify.py` checks it using only Python's standard library, without a model or network.
-
-This is a curated single-result reanalysis, not general paper reproduction; the whole-paper verdict remains `NOT_ASSESSED`. Backend/API, export and restart checks exist; browser interaction, Native/Electron integration and installed-package acceptance remain unverified. See [fixed-case instructions](apps/paper-agent/skills/paper-reproduction/references/reproduction-protocol.md#fixed-real-source-reanalysis-fisher-table-iii).
+`npm run dev:apps` opens Virtual Cell in a separate development profile. The November 4 release has no standalone Virtual Cell package.
 
 ## Status
 
@@ -100,8 +117,6 @@ Paper reading, cited reports, local Apps and research-project links are implemen
 ## Direction and architecture
 
 The [Roadmap](ROADMAP.md) proposes verifying published results, comparing experiments, then sustaining research across people and environments. These are target workflows, not a completed end-to-end research loop.
-
-![Target research workflow: question, task, execution, review and project memory](docs/assets/openpero-overview.svg)
 
 ![Proposed research roadmap: verify published results, compare experiments, then sustain research across people and environments](docs/assets/openpero-research-roadmap.svg)
 
