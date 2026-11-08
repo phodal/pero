@@ -197,8 +197,30 @@ func TestClaudeTrustedInvocationCancellationJoinsChild(t *testing.T) {
 	}
 }
 
+// The persona is plain text, and a bound workspace may canonicalize Windows
+// path spelling. Check the actual directory identity, not JSON or path casing.
+func memoryPromptNamesDirectory(t *testing.T, system, directory string) bool {
+	t.Helper()
+	_, rest, found := strings.Cut(system, "Persistent memory for this agent is ")
+	path, _, terminated := strings.Cut(rest, ". Read it and update it")
+	if !found || !terminated || !filepath.IsAbs(path) || filepath.Base(path) != "MEMORY.md" {
+		t.Errorf("memory location missing or invalid in persona: %q", system)
+		return false
+	}
+	actual, err := os.Stat(filepath.Dir(path))
+	expected, expectedErr := os.Stat(directory)
+	if err != nil || expectedErr != nil || !os.SameFile(actual, expected) {
+		t.Errorf("memory directory=%q want=%q errors=%v, %v", filepath.Dir(path), directory, err, expectedErr)
+		return false
+	}
+	return true
+}
+
 func TestAgentProjectMemoryIsShownAndKeptInTheWorkspace(t *testing.T) {
-	root := t.TempDir()
+	root := filepath.Join(t.TempDir(), "memory & scope")
+	if err := os.Mkdir(root, 0700); err != nil {
+		t.Fatal(err)
+	}
 	directory := filepath.Join(root, ".claude", "agent-memory", "reviewer")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		t.Fatal(err)
@@ -208,8 +230,7 @@ func TestAgentProjectMemoryIsShownAndKeptInTheWorkspace(t *testing.T) {
 	}
 	var saw bool
 	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
-		encodedPath, _ := json.Marshal(filepath.Join(directory, "MEMORY.md"))
-		saw = strings.Contains(request.System, "remember the port") && strings.Contains(request.System, string(encodedPath[1:len(encodedPath)-1]))
+		saw = strings.Contains(request.System, "remember the port") && memoryPromptNamesDirectory(t, request.System, directory)
 		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
 	})
 	ctx := t.Context()
@@ -238,12 +259,14 @@ func TestAgentProjectMemoryIsShownAndKeptInTheWorkspace(t *testing.T) {
 }
 
 func TestAgentUserMemoryStaysInThePluginDataDirectory(t *testing.T) {
-	home := t.TempDir()
+	home := filepath.Join(t.TempDir(), "memory & scope")
+	if err := os.Mkdir(home, 0700); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("PERO_PLUGIN_DATA_HOME", home)
 	var saw bool
 	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
-		encodedPath, _ := json.Marshal(filepath.Join(home, "agent-memory", "reviewer", "MEMORY.md"))
-		saw = strings.Contains(request.System, string(encodedPath[1:len(encodedPath)-1])) && strings.Contains(request.System, "Current memory is empty.")
+		saw = memoryPromptNamesDirectory(t, request.System, filepath.Join(home, "agent-memory", "reviewer")) && strings.Contains(request.System, "Current memory is empty.")
 		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
 	})
 	ctx := t.Context()
@@ -377,13 +400,18 @@ func TestAgentDisallowedToolsRemoveWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var native *nativetools.App
 	t.Cleanup(func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = h.Dispose(cleanup)
 		_ = h.Drain(cleanup)
+		if err := native.Close(); err != nil {
+			t.Error(err)
+		}
 	})
-	if _, err := nativetools.Mount(ctx, h, nativetools.Options{Workspace: root, ClaudeTools: true}); err != nil {
+	native, err = nativetools.Mount(ctx, h, nativetools.Options{Workspace: root, ClaudeTools: true})
+	if err != nil {
 		t.Fatal(err)
 	}
 	claude, err := MountClaude(ctx, h, []AgentDefinition{
