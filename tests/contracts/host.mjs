@@ -195,7 +195,8 @@ try {
   await host.next('workspace');
   host.send({ action: 'workspace', path: temp });
   const workspace = await host.next('workspace');
-  if (workspace.text !== realpathSync(temp)) failures.push(`Workspace path must use ordinary platform syntax: ${workspace.text}`);
+  if (realpathSync(workspace.text) !== realpathSync(temp)) failures.push(`Workspace path must resolve to the selected directory: ${workspace.text}`);
+  if (process.platform === 'win32' && /^[A-Za-z]:\\/.test(temp) && /^\\\\\?\\[A-Za-z]:\\/.test(workspace.text)) failures.push(`Drive workspace path must use ordinary platform syntax: ${workspace.text}`);
   host.send({ action: 'attach_files', paths: [resolve(temp, 'notes.txt')] });
   await host.next('context_files');
   host.send({action:'search_context',request_id:'context-search',kind:'file',query:'notes.txt'});
