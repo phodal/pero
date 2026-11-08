@@ -22,16 +22,6 @@ try{
  app=await electron.launch({requiresNativeWindow:true,args:[...(process.platform==='darwin'?['--use-mock-keychain']:[]),resolve(root,'desktop')],cwd:root,env});
  const page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));
  const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
- const focusComposer=async()=>{
-  // Use the painted input, not a fixed offset that can hit its toolbar.
-  await page.evaluate(()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done))));
-  await expect.poll(async()=>{
-   const bounds=(await state()).composerBounds?.input;
-   return !!bounds&&bounds.width>0&&bounds.height>0;
-  }).toBe(true);
-  const bounds=(await state()).composerBounds.input;
-  await page.mouse.click(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
- };
  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
  await expect.poll(async()=>(await state()).apps?.some(a=>a.name==='virtual-cell')).toBe(true);
  // Follow the rendered Apps control instead of assuming a footer row position.
@@ -63,15 +53,7 @@ try{
  expect(beforeFull.agent).toBe('codex');
  expect(beforeFull.id).toBe(launch.threadId);
  expect(beforeFull.scope).toEqual({app:'virtual-cell',panel:'main'});
- // First-use environment preparation can leave its ready notice over the
- // composer. Dismiss the real visible notice instead of clicking through it.
- const preparation=page.getByRole('region',{name:'App environment',exact:true});
- if(await preparation.isVisible()){
-  await expect(preparation.getByRole('status')).toHaveText('Environment ready');
-  await preparation.getByRole('button',{name:'Hide',exact:true}).click();
-  await expect(preparation).toBeHidden();
- }
- await focusComposer();await page.keyboard.press('Enter');
+ await page.mouse.click(left+150,await page.evaluate(()=>innerHeight-70));await page.keyboard.press('Enter');
  await expect.poll(async()=>(await active()).messages.slice(beforeFull.messages.length).filter(message=>message.role==='user').map(message=>message.text)).toEqual(['app-use:full']);
  const fullProgress=await waitForFullAppUse(active,beforeFull);
  await expect.poll(async()=>(await active()).messages.filter(m=>m.role==='assistant').at(-1)?.text||'',{timeout:30000}).toContain('APP_USE_RESULT:');
@@ -102,7 +84,7 @@ try{
  await clickNewChat(page);
  await expect.poll(async()=>(await state()).navigation).toBe(0);
  await expect.poll(async()=>(await active()).scope).toBeNull();
- await focusComposer();
+ await page.mouse.click(900,await page.evaluate(()=>innerHeight-70));
  await page.keyboard.insertText('app-use:hidden');await page.keyboard.press('Enter');
  await expect.poll(async()=>(await active()).messages.filter(m=>m.role==='assistant').at(-1)?.text||'',{timeout:30000}).toContain('APP_USE_RESULT:');
  await expect.poll(async()=>(await active()).state).toBe('idle');
