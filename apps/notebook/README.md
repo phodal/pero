@@ -1,0 +1,44 @@
+# Notebook
+
+Notebook is an optional Workbench App for editing and reviewing research records.
+The reusable `@pero/notebook` package owns the document types, formula calculation
+and Excel file exchange. The App owns editing and SQLite revisions.
+
+- Edit paragraphs, headings, lists, checklists, quotes and code alongside spreadsheets, evidence, experiments and findings.
+- Enter formulas in a cell or the formula bar. Named worksheets in the same notebook can reference each other. Renaming a worksheet updates its formula references. Select a range to copy, clear, or fill down or right with Excel-style relative and absolute addresses. Paste CSV/TSV or import and export `.xlsx`.
+- Attach units and versioned evidence references to individual cells. A Finding can cite evidence blocks in its notebook. Reference identity and version are recorded as provided by the researcher; this alone does not verify the source in its owning App.
+- Paste a saved Paper Agent citation or passage link into an Evidence block to retain its report digest and exact location.
+- Import a Paper report JSON into Evidence or a Control Lab export JSON into an Experiment reference. Choose the exact citation or trial. Notebook preserves the excerpt or recorded checks in each saved revision. Open the source in Paper Agent or Control Lab to inspect the owning record.
+- Save revisions, inspect earlier snapshots, and retain the current draft on a version conflict. The Workbench can open Chat with the saved Notebook revision, and authorized Agent tools can make scoped, version-checked edits.
+
+From the repository root, install dependencies with `npm ci` and
+`npm ci --prefix apps/notebook`, then run `npm run dev:notebook` with a built
+Workbench and Host. Notebook is available from the App catalog.
+
+```sh
+npm run test:notebook
+npm --prefix apps/notebook run typecheck
+npm --prefix apps/notebook run build
+npm --prefix apps/notebook run test:browser
+npm run test:notebook:desktop
+```
+
+The browser test uses the built UI, a temporary Notebook database and
+Playwright Chromium. To use a system Chromium, set `PERO_CHROMIUM_EXECUTABLE`.
+To exercise both source Apps in development Electron, build Notebook, Paper
+Agent and Control Lab, then run the Desktop test with
+`PERO_NOTEBOOK_OWNER_FIXTURES=1` and `PERO_APP_PYTHON` set to the executable
+in a virtual environment with the dependencies from both App manifests.
+
+## Data and format boundaries
+
+Notebook revisions retain cell source, formulas and scientific annotations.
+Excel export includes worksheet names, values and formula source. Workbook
+formatting, charts, merged layout, and Notebook evidence are outside the XLSX
+exchange format. One sheet supports up to 200 rows and 50 columns. Formula
+calculation supports scalar results, cross-sheet ranges, error values and cycle
+detection. Network functions, volatile functions, external workbook links and
+dynamic array spilling are outside the supported subset. XLOOKUP supports exact
+and numeric nearest matching with linear forward or reverse search.
+
+Bundled editor and spreadsheet library notices are in [licenses](licenses).
