@@ -35,6 +35,7 @@ export async function buildScientificViewer({ outdir = resolve(root, 'apps/scien
     ['molstar/build/viewer/molstar.css', 'molstar.css'],
     ['pdfjs-dist/build/pdf.worker.mjs', 'pdf.worker.mjs'], ['pdfjs-dist/standard_fonts', 'pdfjs-fonts'], ['pdfjs-dist/cmaps', 'pdfjs-cmaps'], ['pdfjs-dist/wasm', 'pdfjs-wasm'],
   ]) await cp(resolve(modules, source), resolve(dist, target), { recursive: true });
+  await cp(resolve(app, 'assets/research-lab'), resolve(dist, 'research-lab'), { recursive: true });
   await mkdir(resolve(dist, 'licenses'), { recursive: true });
   for (const name of ['molstar', 'pdfjs-dist', 'fflate', 'three']) await cp(resolve(modules, name, 'LICENSE'), resolve(dist, 'licenses', `${name}.txt`));
   await cp(resolve(modules, '@datalayer/jupyter-react/LICENSE'), resolve(dist, 'licenses/jupyter-react.txt'));

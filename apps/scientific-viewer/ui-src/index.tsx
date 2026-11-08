@@ -3,6 +3,7 @@ import { useAppChat, openPaperApp } from '@pero/app-sdk';
 import { Disclosure, AppBar, Button, Feedback, FilePicker, Select, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@pero/app-sdk/ui';
 import { assetFrom, inspect, type Asset } from './files';
 import { files, saveFile, removeFile } from './store';
+import { ResearchLab, researchLabAsset, type ResearchLabEntry } from './research-lab';
 import { examples } from './examples';
 import { Molecules, Structure } from './molecular';
 import { Literature } from './literature';
@@ -16,14 +17,14 @@ class PreviewBoundary extends React.Component<{children: React.ReactNode}, {erro
   render() { return this.state.error ? <section className="preview-empty"><h2>Preview unavailable</h2><Feedback kind="error">{this.state.error}</Feedback><Button onClick={() => document.getElementById('viewer-file')?.focus()}>Choose another file</Button></section> : this.props.children; }
 }
 function Preview({ asset }: { asset: Asset }) {
-  switch (inspect(asset.name)) {
+  switch (inspect(asset.name, asset.mediaType)) {
     case 'table': return <TablePreview asset={asset} />;
     case 'structure': return <Structure asset={asset} />;
     case 'molecule': return <Molecules asset={asset} />;
     case 'pdf': return <Literature file={asset} />;
     case 'notebook': return <NotebookPreview asset={asset} />;
     case 'json': return <section className="metadata-preview" aria-label="JSON preview"><h2>Metadata</h2><pre>{JSON.stringify(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(asset.bytes)), null, 2)}</pre></section>;
-    case 'image': case 'code': case 'markdown': case 'html': case 'text': return <RichPreview source={{ ...asset, mediaType: '' }} />;
+    case 'mesh': case 'image': case 'code': case 'markdown': case 'html': case 'text': return <RichPreview source={{ ...asset, mediaType: asset.mediaType ?? '' }} provenance={asset.provenance} />;
     default: return <section className="preview-empty"><h2>Metadata only</h2><p className="muted">This format has no preview. Open Source details to inspect the file.</p></section>;
   }
 }
@@ -48,6 +49,17 @@ export default function ScientificViewer() {
     catch (error) { setError(String(error)); }
     finally { setImporting(false); }
   }
+  async function openResearchModel(entry: ResearchLabEntry) {
+    if (importing) return;
+    setError(''); setImporting(true);
+    try {
+      const existing = assets.find(item => item.sha256 === entry.sha256 && item.provenance?.assetId === entry.id);
+      const item = existing ?? await researchLabAsset(entry);
+      if (!existing) { await saveFile(item); await refresh(); }
+      setPendingRemoval(null); setSelected(item.id);
+    } catch (error) { setError(String(error)); }
+    finally { setImporting(false); }
+  }
   async function confirmRemoval() {
     if (!pendingRemoval || removing) return;
     const { id } = pendingRemoval;
@@ -62,7 +74,7 @@ export default function ScientificViewer() {
   }
   return <main className="scientific-viewer"><h1 className="sr-only">Scientific Viewer</h1>
     <AppBar className="viewer-toolbar" aria-label="File actions" tools={<>
-      <Select id="viewer-file" className="file-select" label={t.file} value={selected} disabled={loading || importing} onChange={value => { setPendingRemoval(null); setSelected(value); }} options={[{ value: '', label: t.molecules }, ...assets.map(item => ({ value: item.id, label: item.name }))]} />
+      <Select id="viewer-file" className="file-select" label={t.file} value={selected} disabled={loading || importing} onChange={value => { setPendingRemoval(null); setSelected(value); }} options={[{ value: '', label: t.molecules }, { value: 'research-lab', label: 'Research Lab' }, ...assets.map(item => ({ value: item.id, label: item.name }))]} />
       {asset && <Disclosure variant="inline" className="source-details" key={asset.id} summaryProps={{ 'aria-label': t.source, 'aria-describedby': 'source-status' }} summary={<><span id="source-status">{asset.synthetic ? t.synthetic : t.unverified}</span></>}>
         <div className="source-panel">
           <h2>{t.source}</h2><dl><dt>{t.size}</dt><dd>{asset.size.toLocaleString('en-US')} bytes</dd><dt>{t.origin}</dt><dd>{asset.source}</dd><dt>{t.license}</dt><dd>{asset.license}</dd><dt>SHA-256</dt><dd className="hash">{asset.sha256}</dd></dl>
@@ -74,6 +86,7 @@ export default function ScientificViewer() {
           </div>}
         </div></Disclosure>}
       </>} actions={<>
+        <Button disabled={importing || loading} onClick={() => { setPendingRemoval(null); setSelected('research-lab'); }}>Research Lab</Button>
         <DropdownMenu><DropdownMenuTrigger asChild><Button disabled={importing}>{t.examples}</Button></DropdownMenuTrigger><DropdownMenuContent align="end">
           {examples.map(example => <DropdownMenuItem key={example.name} onSelect={() => void importFile(new File([example.text], example.name), true)}>{example.name}</DropdownMenuItem>)}
         </DropdownMenuContent></DropdownMenu>
@@ -83,6 +96,6 @@ export default function ScientificViewer() {
     {loading && <p role="status">{t.loading}</p>}
     {loadError && <div className="viewer-error"><Feedback kind="error">{loadError}</Feedback><Button disabled={loading} onClick={() => void loadFiles()}>{t.retry}</Button></div>}
     {error && <div className="viewer-error"><Feedback kind="error">{error}</Feedback><Button onClick={() => setError('')}>Dismiss</Button></div>}
-    <article className="viewer-content">{!loading && !loadError && (asset ? <PreviewBoundary key={asset.id}><Preview asset={asset} /></PreviewBoundary> : <MolecularExplorer />)}</article>
+    <article className="viewer-content">{!loading && !loadError && (selected === 'research-lab' ? <ResearchLab busy={importing} onOpen={entry => void openResearchModel(entry)} /> : asset ? <PreviewBoundary key={asset.id}><Preview asset={asset} /></PreviewBoundary> : <MolecularExplorer />)}</article>
   </main>;
 }
