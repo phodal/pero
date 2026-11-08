@@ -2,5 +2,7 @@
 packages:
   - desktop
   - web
+  - packages/app-sdk
+  - packages/notebook
 # The pilot only runs JavaScript generators; package install hooks are unused.
 allowBuilds: {}
