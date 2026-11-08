@@ -44,7 +44,7 @@ impl InstalledApp {
     pub fn placement(&self) -> AppPlacement {
         match self.name.as_str() {
             "insights" => AppPlacement::Primary,
-            "paper-agent" | "data" => AppPlacement::Workspace,
+            "paper-agent" | "data" | "notebook" => AppPlacement::Workspace,
             "environments" | "compute" => AppPlacement::WorkspaceCatalog,
             "connectors" => AppPlacement::Customize,
             "automations" => AppPlacement::Automation,
@@ -57,7 +57,7 @@ impl InstalledApp {
         self.enabled || self.placement() != AppPlacement::Catalog
     }
     pub fn category(&self) -> AppCategory {
-        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" | "hpc" | "compute" | "lcms2yield" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
+        match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" | "hpc" | "compute" | "lcms2yield" | "notebook" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
     }
 }
 
@@ -214,6 +214,11 @@ mod surface {
             match event.kind.as_str() {
                 "app_sdk_page" => {
                     if let Ok(page) = serde_json::from_value(event.data["page"].clone()) { self.navigate(page, cx); }
+                }
+                "notebook_research_source" => {
+                    if let Some(address) = event.data["href"].as_str().and_then(pero_contracts::app_chat::AppLocation::notebook_source) {
+                        self.open_app_location(address, cx);
+                    }
                 }
                 "app_sdk_badge" => {
                     if let (Some(name), Some(count)) = (event.data["name"].as_str(), event.data["count"].as_u64()) {

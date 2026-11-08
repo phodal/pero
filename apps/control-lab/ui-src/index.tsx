@@ -42,6 +42,7 @@ export default function ControlLab() {
     [criteria, setCriteria] = useState<Record<string, number>>({});
   const [experiment, setExperiment] = useState<Experiment | null>(null),
     [selectedId, setSelectedId] = useState("baseline");
+  const [linkedTrial, setLinkedTrial] = useState<{ id: string; request: number } | null>(null);
   const [budget, setBudget] = useState(6),
     [loading, setLoading] = useState(true),
     [mutating, setMutating] = useState(false),
@@ -114,8 +115,8 @@ export default function ControlLab() {
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.source !== window.parent || event.data?.type !== 'pero:app:location' || typeof event.data.location !== 'string') return;
-      const match = /^experiment\/([a-f0-9]{32})$/.exec(event.data.location);
-      if (match) void open(match[1]);
+      const match = /^experiment\/([a-f0-9]{32})(?:\/trial\/([a-f0-9]{32}))?$/.exec(event.data.location);
+      if (match) void open(match[1], match[2]);
     };
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);
@@ -143,13 +144,13 @@ export default function ControlLab() {
     if (experimentNow.current?.id === targetId.current) setRefreshError(message);
     else setError(message);
   }
-  async function open(id: string) {
+  async function open(id: string, trialId?: string) {
     const sameObject = experimentNow.current?.id === id;
     const revision = targetId.current === id ? selection.current : ++selection.current;
     targetId.current = id;
     const request = ++readRequest.current;
     if (sameObject) setRefreshing(true);
-    else { setExperiment(null); setOpening(true); setRefreshing(false); }
+    else { setExperiment(null); setLinkedTrial(null); setOpening(true); setRefreshing(false); }
     setRefreshError("");
     setError("");
     try {
@@ -157,6 +158,8 @@ export default function ControlLab() {
         `/api/experiments/${encodeURIComponent(id)}`,
       );
       if (revision === selection.current && request === readRequest.current) {
+        const trial = trialId ? result.trials.find(item => item.id === trialId) : undefined;
+        if (trialId && !trial?.report) throw new Error("The requested trial report is unavailable.");
         setExperiment(result);
         if (!sameObject) {
           setCancelRequested(false);
@@ -165,6 +168,7 @@ export default function ControlLab() {
           pendingSelect.current = null;
           setBudget(result.candidateBudget);
         }
+        if (trial) setLinkedTrial({ id: trial.id, request });
       }
     } catch (error) {
       if (revision === selection.current && request === readRequest.current) readFailed(error);
@@ -734,7 +738,7 @@ export default function ControlLab() {
                   Locking a candidate is permanent.
                 </p>
               </section>
-              <Evidence key={`evidence-${experiment.id}`} experiment={experiment} />
+              <Evidence key={`evidence-${experiment.id}-${linkedTrial?.request ?? 0}`} experiment={experiment} linkedTrialId={linkedTrial?.id} />
             </>
           )}
         </main>

@@ -425,6 +425,14 @@ impl Workbench {
                             anyhow::ensure!(this.chat.read(cx).chats.iter().any(|chat| chat.id == id), "Session is no longer available");
                             this.open_automation_session(id, cx);
                         }
+                        Some("open-research-source") => {
+                            anyhow::ensure!(scope.app == "notebook" && scope.panel == "main", "This App cannot open Notebook evidence");
+                            anyhow::ensure!(input.as_object().is_some_and(|value| value.len() == 1), "Invalid research source request");
+                            let address = input["href"].as_str().and_then(pero_contracts::app_chat::AppLocation::notebook_source)
+                                .ok_or_else(|| anyhow::anyhow!("Invalid research source location"))?;
+                            anyhow::ensure!(this.apps.contains_panel(&address.scope.app, &address.scope.panel), "Research source App is unavailable");
+                            this.open_app_location(address, cx);
+                        }
                         Some("navigate") => {
                             let path=input["path"].as_str().ok_or_else(||anyhow::anyhow!("Choose a Pero page"))?;
                             if let Some(target)=path.strip_prefix("/apps/") {

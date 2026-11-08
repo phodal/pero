@@ -1,5 +1,5 @@
 import { Disclosure, Badge, Button, Card, Checkbox, Dialog, EmptyState, Feedback, Input, Select, RadioGroup, RadioGroupItem, Slider, Table, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Split, SplitPane } from "@pero/app-sdk/ui";
 import type { Experiment, Report, Series, Template } from "./types";
 import {
@@ -327,12 +327,16 @@ export function Results({
   );
 }
 
-export function Evidence({ experiment }: { experiment: Experiment }) {
-  const [trialId, setTrialId] = useState('');
+export function Evidence({ experiment, linkedTrialId }: { experiment: Experiment; linkedTrialId?: string }) {
+  const [trialId, setTrialId] = useState(linkedTrialId ?? '');
   const [rawOpen, setRawOpen] = useState(false);
+  const evidencePanel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (linkedTrialId) evidencePanel.current?.scrollIntoView({ block: 'start' });
+  }, [linkedTrialId]);
   const trial = experiment.trials.find(item => item.id === trialId) ?? experiment.trials.at(-1);
   if (!trial) return null;
-  return <section className="evidence-panel" aria-label="Execution evidence">
+  return <section ref={evidencePanel} className="evidence-panel" aria-label="Execution evidence">
     <h2>Evidence · {experiment.trials.length} trials</h2>
     <p className="muted">Simulation evidence only; not physical validation. Execution status and verification verdict are separate.</p>
     <RadioGroup aria-label="Selected evidence" value={trial.id} onValueChange={setTrialId}>

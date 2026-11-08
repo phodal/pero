@@ -234,6 +234,10 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
           return mcpSettings(input);
         }
         const value = appPresentation(operation,input);
+        if (value.kind === 'research-source') {
+          if (frame.name !== 'notebook' || frame.panel !== 'main') throw new Error('This App cannot open Notebook evidence');
+          return command({action:'notebook_research_source',app:value.app,href:value.href});
+        }
         if (value.kind === 'session') {
           if (!['insights', 'automations'].includes(frame.name)) throw new Error('This App cannot open Host sessions');
           return command({action:'automation_session_open',sessionId:value.sessionId});
