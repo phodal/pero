@@ -1,12 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Disclosure, Feedback, FilePicker, Select } from '@pero/app-sdk/ui';
-import type { ScientificReference } from '../../../packages/notebook/src/document';
-import { readControlEvidence, type ControlEvidenceSnapshot } from '../../../packages/notebook/src/control-evidence';
-import { maxPaperReportBytes, readPaperEvidence, type PaperCitationEvidence } from '../../../packages/notebook/src/paper-evidence';
+import type { ScientificReference, ReferenceSnapshot } from '@pero/notebook';
+import { readControlEvidence } from '@pero/notebook/control-evidence';
+import { maxPaperReportBytes, readPaperEvidence } from '@pero/notebook/paper-evidence';
 import { messages } from './messages';
-
-export type ReferenceSnapshot = (PaperCitationEvidence & { kind: 'paper-report' }) | ControlEvidenceSnapshot;
 
 type ImportedReference = { label: string; reference: ScientificReference; snapshot: ReferenceSnapshot };
 type ReferenceKind = 'evidence' | 'experiment';

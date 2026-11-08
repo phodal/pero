@@ -1,7 +1,8 @@
 import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Checkbox, Input } from '@pero/app-sdk/ui';
-import type { CellAnnotation, ScientificReference } from '../../../packages/notebook/src/document';
+import type { CellAnnotation } from '@pero/notebook';
+import { notebookEvidence } from './evidence-model';
 
 const messages = {
   metadata: { en: 'Cell details', zh: '单元格详情' },
@@ -20,18 +21,7 @@ export function CellAnnotations({ view, address, editable }: {
   const current = annotations[address] ?? { unit: '', evidenceIds: [] };
   const evidence = useEditorState({
     editor: view.editor,
-    selector: ({ editor }) => {
-      const sources: { id: string; label: string; pinned: boolean }[] = [];
-      editor.state.doc.descendants(node => {
-        if (node.type.name !== 'evidence' && node.type.name !== 'experiment') return;
-        const { blockId, label, source } = node.attrs as { blockId: string; label: string; source: ScientificReference | null };
-        if (blockId) sources.push({
-          id: blockId, label: label || source?.id || blockId,
-          pinned: Boolean(source?.app.trim() && source.kind.trim() && source.id.trim() && source.version.trim()),
-        });
-      });
-      return sources;
-    },
+    selector: ({ editor }) => notebookEvidence(editor.state.doc),
   });
   if (!editable && !annotations[address]) return null;
 
@@ -59,7 +49,7 @@ export function CellAnnotations({ view, address, editable }: {
       {sources.map(source => <label key={source.id} className="notebook-checkbox">
         {editable && <Checkbox checked={current.evidenceIds.includes(source.id)}
           onCheckedChange={checked => setSource(source.id, checked === true)} />}
-        <span>{source.label}{!source.pinned && ` · ${t('unpinned')}`}</span>
+        <span>{source.label || source.id}{!source.pinned && ` · ${t('unpinned')}`}</span>
       </label>)}
       {missing.map(id => <label key={id} className="notebook-checkbox">
         {editable && <Checkbox checked onCheckedChange={() => setSource(id, false)} />}

@@ -1,3 +1,6 @@
+import type { PaperCitationEvidence } from "./paper-evidence.ts";
+import type { ControlEvidenceSnapshot } from "./control-evidence.ts";
+
 /** The editor tree is the persisted content of a Notebook revision. */
 export interface NotebookNode {
   type: string;
@@ -20,6 +23,17 @@ export interface ScientificReference {
   id: string;
   version: string;
   locator: string;
+}
+
+export type ReferenceSnapshot = (PaperCitationEvidence & { kind: "paper-report" }) | ControlEvidenceSnapshot;
+
+/** Completeness of the recorded identity, not verification by the owning App. */
+export type ScientificReferenceState = "missing" | "partial" | "unpinned" | "pinned";
+
+export function scientificReferenceState(source: ScientificReference | null | undefined): ScientificReferenceState {
+  if (!source) return "missing";
+  if (!source.app.trim() || !source.kind.trim() || !source.id.trim()) return "partial";
+  return source.version.trim() ? "pinned" : "unpinned";
 }
 
 export interface CellAnnotation {

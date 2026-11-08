@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
 import { AppFrame, Button, Disclosure, EmptyState, Feedback, Icon, IconButton, Input, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
-import type { NotebookDocument, NotebookEntry, NotebookEntrySummary, NotebookNode } from '../../../packages/notebook/src/document';
+import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
 import { NotebookEditor } from './editor';
 import { messages } from './messages';
 import './styles.css';
@@ -34,8 +34,8 @@ function messageOf(cause: unknown) {
 function hasIncompleteReference(nodes: NotebookNode[]): boolean {
   return nodes.some(node => {
     if ((node.type === 'evidence' || node.type === 'experiment') && node.attrs?.source) {
-      const source = node.attrs.source as Record<string, string>;
-      if (!source.app.trim() || !source.kind.trim() || !source.id.trim()) return true;
+      const source = node.attrs.source as ScientificReference;
+      if (scientificReferenceState(source) === 'partial') return true;
     }
     return !!node.content && hasIncompleteReference(node.content);
   });

@@ -3,11 +3,12 @@ import { useEditorState } from '@tiptap/react';
 import { useState } from 'react';
 import { requestAppShell, useAppContext, useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Checkbox, Disclosure, Feedback, Icon, Input, Textarea } from '@pero/app-sdk/ui';
-import { parsePaperCitation, type ScientificReference } from '../../../packages/notebook/src/document';
-import { parseControlEvidenceLocation } from '../../../packages/notebook/src/control-evidence';
+import { parsePaperCitation, scientificReferenceState, type ScientificReference, type ReferenceSnapshot } from '@pero/notebook';
+import { parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
 import { BlockFrame } from './block-frame';
+import { notebookEvidence } from './evidence-model';
 import { messages } from './messages';
-import { ReferenceImport, SnapshotDetails, type ReferenceSnapshot } from './reference-import';
+import { ReferenceImport, SnapshotDetails } from './reference-import';
 
 const emptyReference: ScientificReference = { app: '', kind: '', id: '', version: '', locator: '' };
 const referenceFields = [
@@ -34,8 +35,9 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<{ locator: string; message: string } | null>(null);
   const { label, source, snapshot } = view.node.attrs as { label: string; source: ScientificReference | null; snapshot: ReferenceSnapshot | null };
-  const complete = Boolean(source?.app.trim() && source.kind.trim() && source.id.trim());
-  const pinned = complete && Boolean(source?.version.trim());
+  const referenceState = scientificReferenceState(source);
+  const complete = referenceState === 'unpinned' || referenceState === 'pinned';
+  const pinned = referenceState === 'pinned';
   const editable = view.editor.isEditable;
   const openAction = window.parent !== window || appName === 'notebook' ? ownerAction(source) : null;
 
@@ -105,18 +107,7 @@ export function FindingView(view: NodeViewProps) {
   const editable = view.editor.isEditable;
   const evidence = useEditorState({
     editor: view.editor,
-    selector: ({ editor }) => {
-      const sources: { id: string; label: string; pinned: boolean; kind: 'evidence' | 'experiment'; imported: boolean }[] = [];
-      editor.state.doc.descendants(node => {
-        const kind = node.type.name;
-        if ((kind === 'evidence' || kind === 'experiment') && node.attrs.blockId) {
-          const source = node.attrs.source as ScientificReference | null;
-          const pinned = Boolean(source?.app.trim() && source.kind.trim() && source.id.trim() && source.version.trim());
-          sources.push({ id: node.attrs.blockId, label: node.attrs.label || source?.id || '', pinned, kind, imported: !!node.attrs.snapshot });
-        }
-      });
-      return sources;
-    },
+    selector: ({ editor }) => notebookEvidence(editor.state.doc),
   });
   const missing = evidenceIds.filter(id => !evidence.some(source => source.id === id));
   const updateLink = (id: string, checked: boolean) => view.updateAttributes({
