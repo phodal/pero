@@ -1,8 +1,32 @@
 import { expect } from '@playwright/test';
-import { focusWorkbenchComposer as focusPaperChat } from './workbench-chat-controls.mjs';
-import { observeAppChatLaunch } from '../fixtures/app-chat-launch.mjs';
-export { focusPaperChat };
 export const chatState = page => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+export async function focusPaperChat(page) {
+  const setup = page.getByRole('region', { name: 'App environment', exact: true });
+  if (await setup.isVisible()) await setup.getByRole('button', { name: 'Hide', exact: true }).click();
+  // Workbench paints Chat in the root canvas. Attachments and preview dialogs
+  // move the input, and GPUI focus alone does not prove browser keyboard focus.
+  let bounds;
+  await expect.poll(async () => {
+    bounds = await page.evaluate(async () => {
+      const read = () => {
+        const input = JSON.parse(window.peroDiagnostics.snapshot()).composerBounds?.input;
+        const canvas = document.querySelector('canvas:not([role="textbox"])');
+        if (!input || input.width <= 0 || input.height <= 0) return null;
+        return document.elementFromPoint(input.x + input.width / 2, input.y + input.height / 2) === canvas ? input : null;
+      };
+      const before = read();
+      await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+      const after = read();
+      return before && after && ['x', 'y', 'width', 'height'].every(key => before[key] === after[key]) ? after : null;
+    });
+    return !!bounds;
+  }, { message: 'Workbench composer has stable painted input bounds and an unobstructed canvas hit target' }).toBe(true);
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect.poll(() => page.evaluate(() => {
+    const active = document.activeElement;
+    return JSON.parse(window.peroDiagnostics.snapshot()).composerFocused && document.hasFocus() && active?.tagName === 'CANVAS';
+  }), { message: 'Workbench composer and browser canvas own keyboard focus' }).toBe(true);
+}
 export async function fillPaperChat(page, text) {
   const setup = page.getByRole('region', { name: 'App environment', exact: true });
   if (await setup.isVisible()) await setup.getByRole('button', { name: 'Hide', exact: true }).click();
@@ -22,17 +46,39 @@ export async function fillPaperChat(page, text) {
   await expect.poll(async () => (await chatState(page)).composer).toContain(text);
 
 }
+// Observe the real SDK handoff without replacing postMessage or Host commands.
+export function observePaperChatLaunch(options, frameOptions) {
+  const { parent, origin } = frameOptions ?? options;
+  const state = { request: null, results: {} };
+  const receive = event => {
+    if (event.origin !== origin) return;
+    if (parent) {
+      if (![...document.querySelectorAll('iframe')].some(frame => {
+        if (frame.contentWindow !== event.source) return false;
+        const url = new URL(frame.src);
+        return `${url.protocol}//${url.host}` === origin;
+      })) return;
+      if (event.data?.type === 'pero:app:chat' && typeof event.data.id === 'string') state.request = event.data.id;
+    } else if (event.source === window.parent && event.data?.type === 'pero:app:chat-result' && typeof event.data.id === 'string') {
+      state.results[event.data.id] = event.data;
+    }
+  };
+  window.addEventListener('message', receive);
+  window.paperChatLaunch = { ...state, results: state.results, getRequest: () => state.request,
+    dispose: () => window.removeEventListener('message', receive) };
+}
+
 export async function askPaperChat(frame, page, button) {
   const parentOrigin = await page.evaluate(() => `${location.protocol}//${location.host}`);
   const appOrigin = await frame.locator('body').evaluate(() => `${location.protocol}//${location.host}`);
-  await page.evaluate(observeAppChatLaunch, { parent: true, origin: appOrigin });
-  await frame.locator('body').evaluate(observeAppChatLaunch, { parent: false, origin: parentOrigin });
+  await page.evaluate(observePaperChatLaunch, { parent: true, origin: appOrigin });
+  await frame.locator('body').evaluate(observePaperChatLaunch, { parent: false, origin: parentOrigin });
   try {
     await button.click();
     let result;
     await expect.poll(async () => {
-      const id = await page.evaluate(() => window.appChatLaunch.getRequest());
-      result = await frame.locator('body').evaluate((_element, id) => window.appChatLaunch.results[id], id);
+      const id = await page.evaluate(() => window.paperChatLaunch.getRequest());
+      result = await frame.locator('body').evaluate((_element, id) => window.paperChatLaunch.results[id], id);
       if (result && !result.ok) throw Error(result.error || 'Paper Ask handoff failed');
       return !!result;
     }, { timeout: 5000, message: 'Paper Ask receives its matching real Host handoff acknowledgement' }).toBe(true);
@@ -43,8 +89,8 @@ export async function askPaperChat(frame, page, button) {
       return state.appChatOpen && result.value.references.every(id => state.contextPreviewBounds.some(item => item.id === id && item.bounds));
     }, { timeout: 5000, message: 'Paper Ask frozen references are painted in the Host draft' }).toBe(true);
   } finally {
-    await page.evaluate(() => { window.appChatLaunch.dispose(); delete window.appChatLaunch; });
-    await frame.locator('body').evaluate(() => { window.appChatLaunch.dispose(); delete window.appChatLaunch; });
+    await page.evaluate(() => { window.paperChatLaunch.dispose(); delete window.paperChatLaunch; });
+    await frame.locator('body').evaluate(() => { window.paperChatLaunch.dispose(); delete window.paperChatLaunch; });
   }
 }
 

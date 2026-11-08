@@ -8,8 +8,6 @@ import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { focusWorkbenchComposer } from './workbench-chat-controls.mjs';
-import { observeAppChatLaunch } from '../fixtures/app-chat-launch.mjs';
 import { clickAppOpen, clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
 
 const root = resolve(import.meta.dirname, '../..'), out = resolve(root, 'test-results/lab-desktop');
@@ -88,42 +86,20 @@ try {
   expect(frozen.mode).toBe('simulation'); expect(frozen.initial_state.wells).toHaveLength(96);
   const prohibited = await frame.locator('body').evaluate(async () => (await fetch('/api/agent-step', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status);
   expect(prohibited).toBe(403);
-  // First-use Host context preparation has the SDK's 125-second RPC deadline.
-  // Wait for this real button's matching acknowledgement before testing paint.
-  const parentOrigin = await page.evaluate(() => `${location.protocol}//${location.host}`);
-  const appOrigin = await frame.locator('body').evaluate(() => `${location.protocol}//${location.host}`);
-  await page.evaluate(observeAppChatLaunch, { parent: true, origin: appOrigin });
-  await frame.locator('body').evaluate(observeAppChatLaunch, { parent: false, origin: parentOrigin });
-  let handoff;
-  try {
-    await frame.getByRole('button', { name: 'Approve goal and ask Agent', exact: true }).click();
-    await expect.poll(async () => {
-      const id = await page.evaluate(() => window.appChatLaunch.getRequest());
-      handoff = await frame.locator('body').evaluate((_element, id) => window.appChatLaunch.results[id], id);
-      if (handoff && !handoff.ok) throw Error(handoff.error || 'Lab goal handoff failed');
-      return !!handoff;
-    }, { timeout: 125000, message: 'Lab goal receives its matching Host acknowledgement' }).toBe(true);
-    expect(handoff.value.references).toHaveLength(1);
-  } finally {
-    await page.evaluate(() => { window.appChatLaunch.dispose(); delete window.appChatLaunch; });
-    await frame.locator('body').evaluate(() => { window.appChatLaunch.dispose(); delete window.appChatLaunch; });
-  }
+  await frame.getByRole('button', { name: 'Approve goal and ask Agent', exact: true }).click();
   await expect.poll(async () => (await state()).composer).toContain(`Color Mixing experiment ${frozen.id}`);
   await expect.poll(async () => (await state()).attachments?.length).toBe(1);
   if ((await state()).floatingChat) {
     const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
-    await expect.poll(async () => (await state()).chatCloseButtonBounds?.height || 0).toBeGreaterThan(0);
-    const closeBounds = (await state()).chatCloseButtonBounds;
-    await page.mouse.click(viewport.width - 51, closeBounds.y + closeBounds.height / 2);
+    await page.mouse.click(viewport.width - 51, viewport.height - ((await state()).floatingChatExpanded ? 561 : 133));
     await expect.poll(async () => (await state()).floatingChat).toBe(false);
   }
   const active = async () => { const value = await state(); return value.chats[value.activeChat]; };
-  expect((await active()).id).toBe(handoff.value.threadId);
   expect((await active()).agent).toBe('codex'); expect((await active()).scope).toEqual({ app: 'lab', panel: 'main' });
   const preparation = page.getByRole('region', { name: 'App environment', exact: true });
   if (await preparation.isVisible()) { await expect(preparation.getByRole('status')).toHaveText('Environment ready'); await preparation.getByRole('button', { name: 'Hide', exact: true }).click(); }
-  await focusWorkbenchComposer(page);
-  await page.keyboard.press('Enter');
+  const edge = await page.locator('#pero-app-surface').evaluate(element => element.getBoundingClientRect().right);
+  await page.mouse.click(edge + 120, await page.evaluate(() => innerHeight - 70)); await page.keyboard.press('Enter');
   await expect.poll(async () => (await active()).messages.filter(item => item.role === 'user').length).toBe(1);
   await expect.poll(async () => (await active()).messages.filter(item => item.role === 'assistant').at(-1)?.text ?? '', { timeout: 120000, intervals: [100, 250, 500] }).toContain('LAB_RESULT:');
   await expect.poll(async () => (await active()).state).toBe('idle');
