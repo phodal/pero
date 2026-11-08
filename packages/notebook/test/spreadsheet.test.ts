@@ -138,3 +138,31 @@ test("leaves formula text, errors, non-formulas and external workbook qualifiers
   assert.equal(renameWorksheetReferences("'=Input!A1", "Input", "New data"), "'=Input!A1");
   assert.equal(renameWorksheetReferences("='Input!", "Input", "New data"), "='Input!");
 });
+
+
+test("conditional and product aggregates preserve errors without including unselected cells", () => {
+  const cases: [string, number | string][] = [
+    ['SUMIF(A1:A3,">0",B1:B3)', "#DIV/0!"],
+    ['AVERAGEIF(A1:A3,">0",B1:B3)', "#DIV/0!"],
+    ['SUMIF(A1:A3,"<2",B1:B3)', 3],
+    ['AVERAGEIF(A1:A3,"<2",B1:B3)', 3],
+    ['SUMIF(A1:A3,">0")', 6],
+    ['AVERAGEIF(A1:A3,">0")', 2],
+    ['SUMIF(A1:A3,">9",B1:B3)', 0],
+    ['AVERAGEIF(A1:A3,">9",B1:B3)', "#DIV/0!"],
+    ['SUMIF(D1:D3,"sample*",A1:A3)', 3],
+    ['SUMPRODUCT(A1:A3,B1:B3)', "#DIV/0!"],
+    ['SUMPRODUCT(A1:A3,A1:A3)', 14],
+    ['SUMPRODUCT(A1:A3,D1:D3)', 0],
+    ['SUMPRODUCT(D1:D3)', 0],
+    ['SUMPRODUCT(A1:A3,A1:A2)', "#VALUE!"],
+    ['IFERROR(SUMPRODUCT(A1:A3,B1:B3),99)', 99],
+  ];
+  for (const [formula, expected] of cases) {
+    const result = evaluateSpreadsheet({ rows: 3, columns: 5, cells: {
+      A1: "1", A2: "2", A3: "3", B1: "3", B2: "#DIV/0!", B3: "text",
+      D1: "sample-1", D2: "sample-2", D3: "control", E1: "=" + formula,
+    } });
+    assert.equal(result.E1, expected, formula);
+  }
+});

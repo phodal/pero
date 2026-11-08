@@ -37,23 +37,30 @@ interface Worksheet {
 interface FormulaArgument {
   value: FormulaValue | FormulaValue[][];
   omitted?: boolean;
+  isArray?: boolean;
 }
 
 type FormulaFunction = (...args: FormulaArgument[]) => FormulaValue;
 
+type ContextFormulaFunction = (context: FormulaParser, ...args: unknown[]) => FormulaValue;
+
 interface FormulaParser {
+  functions: Record<string, FormulaFunction>;
   parse(source: string, position: CellReference): unknown;
 }
 
 const Engine: {
   new (options?: {
     functions?: Record<string, FormulaFunction>;
+    functionsNeedContext?: Record<string, ContextFormulaFunction>;
     onCell?: (reference: CellReference) => FormulaValue;
     onRange?: (reference: RangeReference) => FormulaValue[][];
   }): FormulaParser;
   FormulaError: (new (code: string) => FormulaFailure) &
     Record<"DIV0" | "NA" | "NAME" | "NULL" | "NUM" | "REF" | "VALUE", FormulaFailure>;
   FormulaHelpers: {
+    retrieveRanges(context: FormulaParser, range: unknown, values: unknown): [FormulaValue[][], FormulaValue[][]];
+    retrieveArg(context: FormulaParser, value: unknown): FormulaArgument;
     flattenParams(
       args: FormulaArgument[],
       type: number | null,
@@ -232,6 +239,36 @@ function linearStatistic(calculate: (xx: number, xy: number, yy: number, xMean: 
   };
 }
 
+// Use the engine's range extension and criteria rules, but never discard a selected error.
+function conditionalAggregate(average: boolean): ContextFormulaFunction {
+  return (context, range, criteria, values) => {
+    const [conditions, amounts] = Engine.FormulaHelpers.retrieveRanges(context, range, values);
+    const criterion = Engine.FormulaHelpers.retrieveArg(context, criteria);
+    if (criterion.value instanceof FormulaError) return criterion.value;
+    let total = 0;
+    let count = 0;
+    for (const [row, conditionsRow] of conditions.entries()) {
+      for (const [column, condition] of conditionsRow.entries()) {
+        const matched = context.functions.COUNTIF({ value: [[condition]], isArray: true }, criterion);
+        if (matched instanceof FormulaError) return matched;
+        if (matched !== 1) continue;
+        const amount = amounts[row][column];
+        if (amount instanceof FormulaError) return amount;
+        if (typeof amount === "number") {
+          total += amount;
+          count++;
+        }
+      }
+    }
+    return average ? count ? total / count : FormulaError.DIV0 : total;
+  };
+}
+
+const contextFunctions = {
+  SUMIF: conditionalAggregate(false),
+  AVERAGEIF: conditionalAggregate(true),
+};
+
 const disabledFunctions = ["WEBSERVICE", "NOW", "TODAY", "RAND", "RANDBETWEEN"];
 const functions: Record<string, FormulaFunction> = {
   ...Object.fromEntries(disabledFunctions.map((name) => [name, () => FormulaError.NAME])),
@@ -258,6 +295,28 @@ const functions: Record<string, FormulaFunction> = {
     const value = values[0];
     if (value instanceof FormulaError) return value;
     return Array.from(String(value ?? "")).length;
+  },
+  SUMPRODUCT: (...args) => {
+    if (!args.length) return FormulaError.VALUE;
+    const arrays = args.map(({ value }) => Array.isArray(value) ? value : [[value]]);
+    const height = arrays[0].length;
+    const width = arrays[0][0]?.length ?? 0;
+    if (!height || !width || arrays.some(array => array.length !== height || array.some(row => row.length !== width))) {
+      return FormulaError.VALUE;
+    }
+    let total = 0;
+    for (let row = 0; row < height; row++) {
+      for (let column = 0; column < width; column++) {
+        let product = 1;
+        for (const array of arrays) {
+          const value = array[row][column];
+          if (value instanceof FormulaError) return value;
+          product *= typeof value === "number" ? value : 0;
+        }
+        total += product;
+      }
+    }
+    return total;
   },
   XLOOKUP: xlookup,
   SLOPE: linearStatistic((xx, xy) => xy / xx),
@@ -338,7 +397,7 @@ export function evaluateWorkbook(sheets: readonly { name: string; sheet: Spreads
     stack.push({ worksheet, address });
     let result: FormulaValue;
     try {
-      const parser = parsers[depth] ??= new Engine({ functions, onCell, onRange });
+      const parser = parsers[depth] ??= new Engine({ functions, functionsNeedContext: contextFunctions, onCell, onRange });
       const formula = source.slice(1).trim();
       // Excel can save a range with a deleted endpoint. The engine otherwise ignores it.
       const normalized = /#REF!/i.test(formula)
