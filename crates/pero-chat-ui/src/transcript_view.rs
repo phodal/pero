@@ -119,7 +119,7 @@ impl ChatPanel {
             )
             .when(
                 !pero_contracts::pull_request::mentions(&message.text).is_empty(),
-                |el| el.child(self.pull_request_chips(&message.text, i, cx)),
+                |el| el.child(self.pull_request_chips(&message.text, cx)),
             )
             .child(
                 div()
@@ -161,7 +161,7 @@ impl ChatPanel {
             .into_any_element()
     }
 
-    fn pull_request_chips(&self, text: &str, row: usize, cx: &mut Context<Self>) -> AnyElement {
+    fn pull_request_chips(&self, text: &str, cx: &mut Context<Self>) -> AnyElement {
         use pero_contracts::pull_request::{PullRequestStatus, mentions};
         let palette = pero_theme::UiAppearance::global(cx).palette.clone();
         let mut chips = div().flex().flex_wrap().gap(px(8.));
@@ -205,7 +205,7 @@ impl ChatPanel {
             let href = reference.url().to_owned();
             let href_middle = href.clone();
             chips = chips.child(
-                Button::new(("pr-mention", row, index))
+                Button::new(("pr-mention", index))
                     .ghost()
                     .small()
                     .tooltip(tooltip)

@@ -243,7 +243,7 @@ mod rendering {
                                         let workspace = self.workspace.clone();
                                         let path = location.path.clone();
                                         let line = location.line;
-                                        Button::new(("tool-location", row, location_index))
+                                        Button::new(("tool-location", location_index))
                                             .ghost()
                                             .small()
                                             .justify_start()
