@@ -23,6 +23,8 @@
 .sequence-search input { flex: 1; min-width: 0; }
 .sequence-message { margin: 0; padding: var(--pero-spacing-1) var(--pero-spacing-3); border-bottom: 1px solid var(--pero-border-subtle, var(--pero-border)); }
 .sequence-split { flex: 1; min-height: 0; }
+.sequence-split[data-stacked] { overflow-y: auto; }
+.sequence-split[data-stacked] > #sequence-map { flex: 0 0 400px; }
 .sequence-pane { height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .sequence-pane-bar { min-height: 44px; justify-content: space-between; flex-wrap: wrap; }
 .sequence-pane-bar strong { font-size: var(--pero-font-caption); font-weight: 600; }
@@ -104,3 +106,30 @@
 .sequence-annotation-list .pero-ui-button span { overflow: hidden; text-overflow: ellipsis; text-align: start; }
 .sequence-annotation-list .pero-ui-button[aria-pressed="true"] { background: var(--pero-accent-soft); }
 .sequence-footer { flex-wrap: wrap; border-top: 1px solid var(--pero-border-subtle, var(--pero-border)); }
+.sequence-cut { color: var(--pero-text-secondary); cursor: pointer; }
+.sequence-cut path { fill: none; stroke: currentColor; stroke-width: .7; opacity: .65; }
+.sequence-cut circle,.sequence-cut text { fill: currentColor; }
+.sequence-cut text { font: 9px var(--sequence-mono); paint-order: stroke; stroke: var(--pero-surface); stroke-width: 2px; }
+.sequence-cut:is(:hover,:focus-visible,[aria-pressed="true"]) { color: var(--pero-action); outline: none; }
+.sequence-cut:is(:hover,:focus-visible,[aria-pressed="true"]) path { stroke-width: 1.6; opacity: 1; }
+.sequence-cut:is(:hover,:focus-visible,[aria-pressed="true"]) text { font-weight: 700; }
+.sequence-translation {
+  position: relative;
+  margin: 3px 0 0 2ch;
+  height: 17px;
+}
+.sequence-residue {
+  position: absolute;
+  height: 17px;
+  overflow: hidden;
+  text-align: center;
+  line-height: 17px;
+  background: color-mix(in srgb, var(--residue-color) 32%, var(--pero-surface));
+  color: var(--pero-text);
+  border-inline-end: 1px solid var(--pero-surface);
+}
+.sequence-residue[data-class="acidic"] { --residue-color: var(--pero-categorical-3); }
+.sequence-residue[data-class="basic"] { --residue-color: var(--pero-categorical-6); }
+.sequence-residue[data-class="polar"] { --residue-color: var(--pero-categorical-2); }
+.sequence-residue[data-class="nonpolar"] { --residue-color: var(--pero-categorical-5); }
+.sequence-residue[data-class="other"] { --residue-color: var(--pero-categorical-1); }

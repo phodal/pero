@@ -85,6 +85,25 @@ if (process.argv.includes('--serve')) {
       await expect(app.getByRole('group', { name: 'Circular plasmid map' })).toBeVisible();
     }
     const circularMap = app.getByRole('group', { name: 'Circular plasmid map' });
+    await expect(circularMap.getByRole('button', { name: 'BspDI / ClaI · 24|25' })).toBeVisible();
+    const hindIII = circularMap.getByRole('button', { name: 'HindIII · 29|30' });
+    await hindIII.press('Enter');
+    await expect(app.getByRole('status').filter({ hasText: 'HindIII · 5′ 29|30 · 3′ 33|34' })).toBeVisible();
+    await expect(app.getByText('29–34 · + · 6 bp')).toBeVisible();
+    await expect(circularMap.getByRole('button', { name: 'EcoRI · 4359|4360' })).toBeVisible();
+    const displayedTet = await app.locator('.sequence-residue[data-protein="tet"]').allTextContents();
+    expect(displayedTet.join('').replace(/\s/g, '')).toMatch(/^MKSNNALIVILGTVTLDAVGIGLVMPVLPGLLRD/);
+    const cutToggle = app.getByRole('button', { name: 'Predicted cut sites' });
+    await cutToggle.click();
+    await expect(hindIII).toHaveCount(0);
+    await cutToggle.click();
+    await expect(hindIII).toBeVisible();
+    const proteinToggle = app.getByRole('button', { name: 'CDS translation' });
+    await proteinToggle.click();
+    await expect(app.locator('.sequence-residue')).toHaveCount(0);
+    await proteinToggle.click();
+    await expect(app.locator('.sequence-residue[data-protein="tet"]').first()).toHaveText('M');
+    await capture('pbr322-benchling-comparison');
     await circularMap.getByRole('button', { name: 'bla', exact: true }).filter({ hasText: 'bla · CDS' }).press('Enter');
     await expect(app.getByText('3293–4153 · − · 861 bp')).toBeVisible();
     await expect(circularMap.locator('.sequence-map-selection')).toHaveCount(1);
@@ -110,10 +129,11 @@ if (process.argv.includes('--serve')) {
     await app.getByRole('radio', { name: 'Plasmid' }).click();
     await expect(app.locator('.sequence-split')).toHaveAttribute('data-stacked', '');
     await noOverflow();
+    await app.locator('#sequence-map').evaluate(pane => pane.scrollIntoView({ block: 'end' }));
     await capture('pbr322-plasmid-narrow-dark');
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByLabel('Theme').selectOption('light');
-    checks.push('Three public GenBank examples; reverse-strand map navigation, coordinate search, drag selection, map switching and narrow dark preview');
+    checks.push('Three public GenBank examples; pBR322 cut-site and translation tracks, reverse-strand map navigation, coordinate search, drag selection, map switching and narrow dark preview');
 
     phase = 'molecules';
     await example('solvents.smi');

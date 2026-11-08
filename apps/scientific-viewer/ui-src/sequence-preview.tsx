@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type MouseEvent } from 'react';
 import { Button, Feedback, Input, Split, SplitPane, ToggleGroup, ToggleGroupItem } from '@pero/app-sdk/ui';
 import { complement, parseGenBank, type BaseSpan, type SequenceFeature, type SequenceRecord } from './sequence-record';
+import { annotatedResidues, type AnnotatedResidue } from './sequence-translation';
+import { cutBoundary, restrictionSites, type RestrictionSite } from './sequence-restriction';
 import { featureColor, featureTracks, SequenceMap } from './sequence-map';
 import './sequence-preview.css';
 
-const rowHeight = 100;
 type Selection = Readonly<{ spans: readonly BaseSpan[]; strand: 1 | -1; feature: number | null }>;
 
 export function SequencePreview({ text, name, zh }: { text: string; name: string; zh: boolean }) {
@@ -19,6 +20,9 @@ export function SequencePreview({ text, name, zh }: { text: string; name: string
 function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name: string; zh: boolean }) {
   const [map, setMap] = useState(record.circular ? 'circular' : 'linear');
   const [zoom, setZoom] = useState(1);
+  const [showCuts, setShowCuts] = useState(true);
+  const [showTranslation, setShowTranslation] = useState(true);
+  const [activeSite, setActiveSite] = useState<RestrictionSite | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [query, setQuery] = useState('');
   const [searchStatus, setSearchStatus] = useState('');
@@ -26,12 +30,30 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
   const [visible, setVisible] = useState({ top: 0, width: 0, height: 0 });
   const viewport = useRef<HTMLDivElement>(null);
   const baseMeasure = useRef<HTMLSpanElement>(null);
+  const translationAnchor = useRef<number | null>(null);
   const drag = useRef<{ base: number; strand: 1 | -1; pointer: number } | null>(null);
   const recordTitle = name || record.name;
   const length = record.bases.length;
   const tracks = useMemo(() => featureTracks(record.features), [record.features]);
   const opposite = useMemo(() => complement(record.bases), [record.bases]);
   const basesPerRow = Math.max(10, Math.min(100, Math.floor(visible.width / 10) * 10));
+  const cutSites = useMemo(() => record.circular ? restrictionSites(record) : [], [record]);
+  const proteins = useMemo(() => featureTracks(record.features.filter(feature => feature.translation))
+    .map(({ feature, track }) => ({ feature, track, residues: annotatedResidues(feature) })), [record.features]);
+  const translationRows = useMemo(() => {
+    const rows = new Map<number, { feature: SequenceFeature; track: number; residue: AnnotatedResidue; span: BaseSpan }[]>();
+    for (const { feature, track, residues } of proteins) for (const residue of residues) for (const span of residue.spans) {
+      for (let row = Math.floor(span.start / basesPerRow); row <= Math.floor((span.end - 1) / basesPerRow); row++) {
+        const entry = { feature, track, residue, span };
+        const entries = rows.get(row);
+        if (entries) entries.push(entry);
+        else rows.set(row, [entry]);
+      }
+    }
+    return rows;
+  }, [basesPerRow, proteins]);
+  const proteinTracks = showTranslation ? Math.max(0, ...proteins.map(protein => protein.track + 1)) : 0;
+  const rowHeight = 100 + 20 * proteinTracks;
   const rowCount = Math.ceil(length / basesPerRow);
   const first = Math.max(0, Math.floor(visible.top / rowHeight) - 1);
   const last = Math.min(rowCount, Math.ceil((visible.top + visible.height) / rowHeight) + 1);
@@ -48,13 +70,26 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
     return () => observer.disconnect();
   }, []);
 
+  useLayoutEffect(() => {
+    if (translationAnchor.current === null || !viewport.current) return;
+    viewport.current.scrollTop = Math.floor(translationAnchor.current / basesPerRow) * rowHeight;
+    translationAnchor.current = null;
+  }, [rowHeight, basesPerRow]);
+
   function reveal(offset: number) {
     viewport.current?.scrollTo({ top: Math.floor(offset / basesPerRow) * rowHeight });
   }
   function choose(feature: SequenceFeature) {
+    setActiveSite(null);
     setSelection({ ...feature, feature: feature.id });
     setCopyStatus('');
     reveal(feature.strand === 1 ? feature.spans[0].start : feature.spans.at(-1)!.end - 1);
+  }
+  function chooseCut(site: RestrictionSite) {
+    setActiveSite(site);
+    setSelection({ spans: site.spans, strand: site.strand, feature: null });
+    setCopyStatus('');
+    reveal(site.spans[0].start);
   }
   function search() {
     const term = query.trim();
@@ -64,12 +99,15 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
       const start = Number(position[1]) - 1;
       const end = Number(position[2] ?? position[1]);
       if (start >= 0 && end > start && end <= length) {
+        setActiveSite(null);
         setSelection({ spans: [{ start, end }], strand: 1, feature: null });
         reveal(start); setSearchStatus(''); setCopyStatus(''); return;
       }
     } else {
       const feature = record.features.find(feature => feature.label.toLowerCase().includes(term.toLowerCase()));
       if (feature) { choose(feature); setSearchStatus(''); return; }
+      const site = cutSites.find(site => site.name.toLowerCase() === term.toLowerCase());
+      if (site) { chooseCut(site); setSearchStatus(''); return; }
       const motif = term.toUpperCase();
       if (/^[ACGTRYSWKMBDHVN]+$/.test(motif) && motif.length <= length) {
         const sequence = record.circular ? record.bases + record.bases.slice(0, motif.length - 1) : record.bases;
@@ -79,6 +117,7 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
         if (start >= 0) {
           const end = start + motif.length;
           const spans = end <= length ? [{ start, end }] : [{ start, end: length }, { start: 0, end: end - length }];
+          setActiveSite(null);
           setSelection({ spans, strand: forwardIndex >= 0 ? 1 : -1, feature: null });
           reveal(start); setSearchStatus(''); setCopyStatus(''); return;
         }
@@ -101,6 +140,7 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
       if (!hit || event.button !== 0 || event.pointerType === 'touch') return;
       event.preventDefault();
       drag.current = { ...hit, pointer: event.pointerId };
+      setActiveSite(null);
       container.setPointerCapture(event.pointerId);
       setCopyStatus('');
     }
@@ -137,6 +177,8 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
     circle: zh ? '质粒' : 'Plasmid',
     linear: zh ? '线性图' : 'Linear map',
     features: zh ? '注释' : 'Annotations',
+    translation: zh ? 'CDS 翻译' : 'CDS translation',
+    cutSites: zh ? '预测酶切位点' : 'Predicted cut sites',
   };
   return <section className="sequence-preview" aria-label={recordTitle}>
     <header className="sequence-header">
@@ -153,7 +195,12 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
     <Split className="sequence-split" storageKey="pero-sequence-split" collapseBelow={690}>
       <SplitPane id="sequence-bases" size={520} min={320} stackedBasis="34%" resizeLabel={zh ? '调整序列栏宽度' : 'Resize sequence pane'}>
         <div className="sequence-pane">
-          <div className="sequence-pane-bar"><strong>{t.sequence}</strong></div>
+          <div className="sequence-pane-bar"><strong>{t.sequence}</strong>
+            {proteins.length > 0 && <Button variant="ghost" aria-pressed={showTranslation} onClick={() => {
+              translationAnchor.current = Math.floor((viewport.current?.scrollTop ?? 0) / rowHeight) * basesPerRow;
+              setShowTranslation(!showTranslation);
+            }}>{t.translation}</Button>}
+          </div>
           <div className="sequence-bases" ref={viewport} tabIndex={0} aria-label={t.sequence}
             onScroll={event => { const top = event.currentTarget.scrollTop; setVisible(previous => ({ ...previous, top })); }}
             onPointerDown={selectPointer} onPointerMove={selectPointer} onPointerUp={selectPointer} onPointerCancel={selectPointer}
@@ -179,6 +226,22 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
                       <span>{bases.slice(start, end)}</span>
                     </span>
                   </div>)}
+                  {proteinTracks > 0 && <div className="sequence-translation" aria-label={t.translation}
+                    style={{ width: `${size}ch`, height: 20 * proteinTracks - 3 }}>
+                    {(translationRows.get(row) ?? []).map(({ feature, track, residue, span }) => {
+                      const from = Math.max(start, span.start);
+                      const to = Math.min(end, span.end);
+                      const { amino, index, anchor } = residue;
+                      const residueClass = 'DE'.includes(amino) ? 'acidic' : 'KRH'.includes(amino) ? 'basic'
+                        : 'STNQCY'.includes(amino) ? 'polar' : 'AGVILMFWP'.includes(amino) ? 'nonpolar' : 'other';
+                      return <span className="sequence-residue" key={`${feature.id}:${index}:${span.start}`}
+                        data-class={residueClass} data-protein={feature.label} data-residue={index}
+                        title={`${feature.label} CDS · ${index} ${amino} · ${residue.spans.map(piece => `${piece.start + 1}–${piece.end}`).join(', ')}`}
+                        style={{ left: `${from - start}ch`, width: `${to - from}ch`, top: 20 * track }}>
+                        {anchor >= from && anchor < to ? amino : ''}
+                      </span>;
+                    })}
+                  </div>}
                   <div className="sequence-row-features" style={{ width: `${size}ch` }}>
                     {tracks.flatMap(({ feature, track }) => feature.spans.flatMap(span => {
                       const a = Math.max(start, span.start);
@@ -205,6 +268,8 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
               {record.circular && <ToggleGroupItem value="circular">{t.circle}</ToggleGroupItem>}
               <ToggleGroupItem value="linear">{t.linear}</ToggleGroupItem>
             </ToggleGroup>
+            {map === 'circular' && cutSites.length > 0 && <Button variant="ghost" aria-pressed={showCuts}
+              onClick={() => setShowCuts(!showCuts)}>{t.cutSites}</Button>}
             <div className="sequence-zoom">
               <Button variant="ghost" aria-label={zh ? '缩小地图' : 'Zoom out map'} disabled={zoom <= 1} onClick={() => setZoom(value => value - 0.25)}>−</Button>
               <Button variant="ghost" aria-label={zh ? '重置地图缩放' : 'Reset map zoom'} onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</Button>
@@ -213,7 +278,8 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
           </div>
           <div className="sequence-map-scroll">
             <SequenceMap record={{ ...record, name: recordTitle }} features={tracks} circular={map === 'circular'}
-              selection={selection?.spans ?? []} active={selection?.feature ?? null} choose={choose} zoom={zoom} zh={zh} />
+              selection={selection?.spans ?? []} active={selection?.feature ?? null} choose={choose}
+              cuts={showCuts && map === 'circular' ? cutSites : []} activeCut={activeSite?.top ?? null} chooseCut={chooseCut} zoom={zoom} zh={zh} />
           </div>
           {record.features.length > 0 && <details className="sequence-annotations">
             <summary>{t.features} <span>{record.features.length}</span></summary>
@@ -228,6 +294,7 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
       </SplitPane>
     </Split>
     <footer className="sequence-footer">
+      {activeSite && <span role="status">{activeSite.name} · 5′ {cutBoundary(activeSite.top, length)} · 3′ {cutBoundary(activeSite.bottom, length)}</span>}
       <span role="status">{selection ? `${selection.spans.map(span => `${span.start + 1}–${span.end}`).join(', ')} · ${selection.strand === 1 ? '+' : '−'} · ${selectedLength?.toLocaleString()} bp`
         : (zh ? '选择碱基或注释' : 'Select bases or an annotation')}</span>
       {selection && <Button variant="ghost" onClick={copySelection}>{zh ? '复制碱基' : 'Copy bases'}</Button>}

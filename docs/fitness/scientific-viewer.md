@@ -49,6 +49,35 @@ length. Type checking and the App build passed. Native and installed-package
 UI, system clipboard behavior, enzyme analysis and scientific validation were
 outside this verification.
 
+## pBR322 cut sites and CDS track (2026-11-08)
+
+Read-only comparison used the open Benchling pBR322 map and GenBank record
+[J01749.1](https://www.ncbi.nlm.nih.gov/nuccore/J01749.1), both 4,361 bp.
+Benchling's first 34 tet residues match the deposited protein, starting with
+`MKSNNALIV` at bases 86–88 for the first codon. The model test also verifies
+the first codon of reverse-strand bla at bases 4,151–4,153 and a separate
+reverse join across the sequence origin. The track uses GenBank's deposited
+`/translation` and `/codon_start` to project codons onto sequence positions.
+
+Benchling cut markers were checked on the base ruler. The top-strand
+boundaries after bases 24 (ClaI and BspDI), 29 (HindIII), 187 (EcoRV), 229
+(NheI), 233 (BmtI), 262 (FspAI), 375 (BamHI) and 410 (SgrAI) matched. The
+[NEB pBR322 map](https://www.neb.com/-/media/nebus/page-images/tools-and-resources/interactive-tools/dna-sequences-and-maps/pbr322_map.pdf)
+and Biopython's restriction table were used for the 30-enzyme panel checks.
+Pero predicts 35 hits for this panel, including EcoRI recognition across the
+sequence origin. These are sequence-based predictions. Enzyme availability,
+methylation and digestion conditions are outside the comparison.
+
+The Chromium run on macOS arm64 with the built App, based on `a01d1594` and
+working-tree changes, exercises both track toggles and keyboard selection of
+HindIII. It checks both reported cuts and the matching six-base recognition
+selection. The 31 App tests and seven Chromium scenarios passed, as did type
+checking and the App build. Native and installed packages were outside the run.
+
+- `test-results/scientific-viewer-pbr322/pbr322-benchling-comparison.png`
+- `test-results/scientific-viewer-pbr322/pbr322-plasmid-narrow-dark.png`
+- `test-results/scientific-viewer-pbr322/result.json`
+
 ## Research Lab GLB integration (2026-11-08)
 
 Refs [#177](https://github.com/phodal/pero/issues/177), implementation

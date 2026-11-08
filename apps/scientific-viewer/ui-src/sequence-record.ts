@@ -6,6 +6,7 @@ export type SequenceFeature = Readonly<{
   kind: string;
   strand: 1 | -1;
   spans: readonly BaseSpan[];
+  translation?: Readonly<{ residues: string; offset: number }>;
 }>;
 export type SequenceRecord = Readonly<{
   name: string;
@@ -66,13 +67,20 @@ export function parseGenBank(text: string): SequenceRecord {
       const location = featureLocation(rawLocation, bases.length);
       if (!location) { skipped++; continue; }
       const qualifiers = new Map<string, string>();
-      for (const match of rawQualifiers.matchAll(/\/(label|gene|product|regulatory_class|note)=(?:"([^"]+)"|([^\r\n]+))/g)) {
+      for (const match of rawQualifiers.matchAll(/\/(label|gene|product|regulatory_class|note|translation|codon_start)=(?:"([^"]+)"|([^\r\n]+))/g)) {
         const value = (match[2] ?? match[3]).replace(/\s+/g, ' ').trim();
         if (value && !qualifiers.has(match[1])) qualifiers.set(match[1], value);
       }
       const label = qualifiers.get('label') ?? qualifiers.get('gene') ?? qualifiers.get('product')
         ?? qualifiers.get('regulatory_class') ?? qualifiers.get('note') ?? kind;
-      features.push({ id: features.length, label, kind, ...location });
+      const residues = qualifiers.get('translation')?.replace(/\s/g, '');
+      const codonStart = qualifiers.get('codon_start') ?? '1';
+      const offset = Number(codonStart) - 1;
+      const codingLength = location.spans.reduce((sum, span) => sum + span.end - span.start, 0);
+      const translation = kind === 'CDS' && residues && /^[A-Z*]+$/.test(residues)
+        && /^[123]$/.test(codonStart) && offset + residues.length * 3 <= codingLength
+        ? { residues, offset } : undefined;
+      features.push({ id: features.length, label, kind, ...location, ...(translation && { translation }) });
     }
   }
   return {

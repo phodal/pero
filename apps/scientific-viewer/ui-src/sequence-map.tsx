@@ -1,3 +1,4 @@
+import { cutBoundary, type RestrictionSite } from './sequence-restriction';
 import type { BaseSpan, SequenceFeature, SequenceRecord } from './sequence-record';
 
 export function featureColor(kind: string) {
@@ -19,7 +20,6 @@ export function featureTracks(features: readonly SequenceFeature[]) {
 }
 
 const center = 240;
-const radius = 194;
 function point(position: number, length: number, r: number) {
   const angle = 2 * Math.PI * position / length;
   return [center + r * Math.sin(angle), center - r * Math.cos(angle)];
@@ -31,17 +31,27 @@ function circularArc(start: number, end: number, length: number, r: number) {
   return `M ${p} A ${r} ${r} 0 ${end - start > length / 2 ? 1 : 0} 1 ${q}`;
 }
 
-export function SequenceMap({ record, features, circular, selection, active, choose, zoom, zh }: {
+export function SequenceMap({ record, features, circular, selection, active, choose, cuts, activeCut, chooseCut, zoom, zh }: {
   record: SequenceRecord;
   features: ReturnType<typeof featureTracks>;
   circular: boolean;
   selection: readonly BaseSpan[];
   active: number | null;
   choose(feature: SequenceFeature): void;
+  cuts: readonly RestrictionSite[];
+  activeCut: number | null;
+  chooseCut(site: RestrictionSite): void;
   zoom: number;
   zh: boolean;
 }) {
   const length = record.bases.length;
+  const radius = cuts.length ? 139 : 194;
+  const cutGroups = new Map<number, RestrictionSite[]>();
+  if (circular) for (const site of cuts) {
+    const group = cutGroups.get(site.top);
+    if (group) group.push(site);
+    else cutGroups.set(site.top, [site]);
+  }
   const approximateTick = length / 8;
   const magnitude = 10 ** Math.floor(Math.log10(approximateTick));
   const tick = Math.max(1, Math.round(approximateTick / magnitude) * magnitude);
@@ -49,7 +59,7 @@ export function SequenceMap({ record, features, circular, selection, active, cho
   const x = (offset: number) => 34 + 412 * offset / length;
   const axisY = 58;
   const numTracks = Math.max(1, ...features.map(({ track }) => track + 1));
-  const spacing = Math.min(23, 148 / numTracks);
+  const spacing = Math.min(23, (radius - 55) / numTracks);
   const width = Math.min(11, spacing * 0.64);
   const count = length.toLocaleString(zh ? 'zh-CN' : 'en');
   return <svg className="sequence-map-svg" data-map={circular ? 'circular' : 'linear'}
@@ -60,7 +70,7 @@ export function SequenceMap({ record, features, circular, selection, active, cho
     {ticks.map(offset => {
       const [ax, ay] = circular ? point(offset, length, radius) : [x(offset), axisY];
       const [bx, by] = circular ? point(offset, length, radius + 7) : [ax, ay - 7];
-      const [tx, ty] = circular ? point(offset, length, radius + 22) : [ax, ay - 18];
+      const [tx, ty] = circular ? point(offset, length, radius + (cuts.length ? -10 : 22)) : [ax, ay - 18];
       return <g key={offset} className="sequence-map-tick">
         <line x1={ax} y1={ay} x2={bx} y2={by} />
         <text x={tx} y={ty} textAnchor="middle" dominantBaseline="middle">{(offset + 1).toLocaleString(zh ? 'zh-CN' : 'en')}</text>
@@ -70,6 +80,28 @@ export function SequenceMap({ record, features, circular, selection, active, cho
       {circular && <text x={center} y={center - 6}>{record.name}</text>}
       <text className="sequence-map-length" x={center} y={circular ? center + 19 : 19}>{count} bp</text>
     </g>
+    {circular && ([-1, 1] as const).flatMap(side => {
+      const anchors = [...cutGroups].map(([offset, sites]) => ({
+        offset, sites, p: point(offset, length, radius + 2), elbow: point(offset, length, radius + 24),
+      })).filter(item => (item.p[0] < center ? -1 : 1) === side).sort((a, b) => a.elbow[1] - b.elbow[1]);
+      const gap = Math.min(17, 440 / Math.max(1, anchors.length - 1));
+      const labelX = side === 1 ? 411 : 69;
+      let previous = 20 - gap;
+      return anchors.map(({ offset, sites, p, elbow }, index) => {
+        const y = Math.min(460 - (anchors.length - index - 1) * gap, Math.max(previous + gap, elbow[1]));
+        previous = y;
+        const names = sites.map(site => site.name).join(' / ');
+        const coordinate = cutBoundary(offset, length);
+        return <g key={offset} role="button" tabIndex={0} className="sequence-cut" aria-pressed={activeCut === offset}
+          aria-label={`${names} · ${coordinate}`} onClick={() => chooseCut(sites[0])}
+          onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); chooseCut(sites[0]); } }}>
+          <title>{sites.map(site => `${site.name} · 5′ ${coordinate} · 3′ ${cutBoundary(site.bottom, length)}`).join('\n')}</title>
+          <path d={`M ${p} L ${elbow} L ${labelX - side * 4} ${y}`} />
+          <circle cx={p[0]} cy={p[1]} r={1.65} />
+          <text x={labelX} y={y} textAnchor={side === 1 ? 'start' : 'end'} dominantBaseline="central">{names}</text>
+        </g>;
+      });
+    })}
     {features.map(({ feature, track }) => {
       const selected = active === feature.id;
       const r = radius - 21 - track * spacing;

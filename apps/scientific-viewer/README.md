@@ -33,6 +33,11 @@ deletes the original disk file. No background import or model execution occurs.
   [pUC19](https://www.ncbi.nlm.nih.gov/nuccore/M77789.2) and
   [pACYC184](https://www.ncbi.nlm.nih.gov/nuccore/X06403.1).
   Their source is shown separately from the synthetic examples.
+  The optional CDS track aligns deposited amino acids to their nucleotide
+  coordinates. The circular map marks predicted cuts for a panel of 30 enzymes.
+  Cut labels use inter-base coordinates, and selecting a label highlights its
+  recognition sequence. Predictions use sequence specificity and do not model
+  methylation or digestion conditions.
   See the [GenBank data usage policy](https://www.ncbi.nlm.nih.gov/genbank/genbank/#genbank-data-usage).
 - Actual public Mol* renders PDB/mmCIF structures; it does not verify science.
 - Official RDKit Python wheel 2026.9.1 draws and checks up to 200 SMILES/MOL/SDF
