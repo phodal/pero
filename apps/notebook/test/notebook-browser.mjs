@@ -9,6 +9,7 @@ import { createInterface } from 'node:readline';
 import { test } from 'node:test';
 import { chromium, expect } from '@playwright/test';
 import { readWorkbook, writeWorkbook } from '../../../packages/notebook/src/workbook.ts';
+import { evaluateWorkbook } from '../../../packages/notebook/src/spreadsheet.ts';
 
 const app = resolve(import.meta.dirname, '..');
 const output = resolve(app, '../../test-results/notebook');
@@ -159,10 +160,17 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   assert.match(clipboard.html, /data-notebook-block="evidence"/);
 
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export workbook' }).click();
+  await page.locator('.notebook-toolbar').getByRole('button', { name: 'Export workbook' }).click();
   const bytes = await readFile(await (await download).path());
   const reopened = await readWorkbook(Uint8Array.from(bytes).buffer);
   assert.deepEqual(reopened.map(({ name, sheet }) => [name, sheet.cells.A1]), [['Calibration data', '4'], ['Results', formula]]);
+  const blockDownload = page.waitForEvent('download');
+  await result.getByRole('button', { name: 'Export workbook' }).click();
+  const blockBytes = await readFile(await (await blockDownload).path());
+  const blockWorkbook = await readWorkbook(Uint8Array.from(blockBytes).buffer);
+  assert.deepEqual(blockWorkbook.map(({ name, sheet }) => [name, sheet.cells.A1]),
+    [['Calibration data', '4'], ['Results', formula]]);
+  assert.equal(evaluateWorkbook(blockWorkbook).Results.A1, 12);
   await mkdir(output, { recursive: true });
   await page.screenshot({ path: resolve(output, 'saved-notebook.png'), fullPage: true });
 
@@ -205,6 +213,25 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await grid.getByRole('button', { name: 'Clear cells' }).click();
   await expect(grid.locator('[data-cell=B2]')).toHaveValue('');
   await expect(first).toHaveValue('');
+  await expect(grid.getByRole('button', { name: 'Export Excel', exact: true })).toBeVisible();
+  await grid.locator('[data-cell=B1]').fill('Keep neighboring cell');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  for (const text of ['Sample A, replicate 2', '1,234']) {
+    await first.fill('');
+    await page.evaluate(text => navigator.clipboard.writeText(text), text);
+    await first.press('ControlOrMeta+v');
+    await expect(first).toHaveValue(text);
+    await expect(grid.locator('[data-cell=B1]')).toHaveValue('Keep neighboring cell');
+    await first.click();
+    await grid.locator('[data-cell=B1]').click({ modifiers: ['Shift'] });
+    await first.evaluate((input, text) => {
+      const data = new DataTransfer();
+      data.setData('text/plain', text);
+      input.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    }, text);
+    await expect(first).toHaveValue(text);
+    await expect(grid.locator('[data-cell=B1]')).toHaveValue('Keep neighboring cell');
+  }
   const createdResponse = page.waitForResponse(response =>
     response.url() === origin + '/api/entries' && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'New notebook' }).click();

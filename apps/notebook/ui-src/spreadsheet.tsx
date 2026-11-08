@@ -13,7 +13,7 @@ import { writeWorkbook } from '../../../packages/notebook/src/workbook';
 import { BlockFrame } from './block-frame';
 import { CellAnnotations } from './cell-annotations';
 import { messages } from './messages';
-import { renameWorksheet, worksheetCalculation } from './worksheet-model';
+import { renameWorksheet, worksheetBlocks, worksheetCalculation } from './worksheet-model';
 
 type CellSelection = { anchor: CellPosition; focus: CellPosition };
 const origin: CellPosition = { column: 0, row: 0 };
@@ -52,6 +52,7 @@ export function SpreadsheetView(view: NodeViewProps) {
   const formulaInput = useRef<HTMLInputElement>(null);
   const calculation = useEditorState({ editor: view.editor, selector: ({ editor }) => worksheetCalculation(editor.state.doc, blockId) });
   const values = useMemo(() => calculation?.values ?? evaluateSpreadsheet(sheet), [calculation, sheet]);
+  const hasMultipleSheets = useEditorState({ editor: view.editor, selector: ({ editor }) => worksheetBlocks(editor.state.doc).length > 1 });
   const editable = view.editor.isEditable;
   const clamp = ({ column, row }: CellPosition): CellPosition => ({
     column: Math.max(0, Math.min(column, sheet.columns - 1)),
@@ -108,7 +109,7 @@ export function SpreadsheetView(view: NodeViewProps) {
   const paste = (event: ClipboardEvent<HTMLInputElement>, position: CellPosition) => {
     if (!editable) return;
     const text = event.clipboardData.getData('text/plain');
-    const isTable = /[\t\r\n]/.test(text) || text.includes(',') && !text.startsWith('=');
+    const isTable = /[\t\r\n]/.test(text);
     if (!isTable && !isRange) return;
     if (!text && !Array.from(event.clipboardData.types).includes('text/plain')) return;
     event.preventDefault();
@@ -168,9 +169,12 @@ export function SpreadsheetView(view: NodeViewProps) {
   const exportExcel = async () => {
     setExporting(true);
     setError('');
-    const name = calculation?.name || 'Sheet1';
+    const sheets = worksheetBlocks(view.editor.state.doc);
     try {
-      const workbook = await writeWorkbook([{ name, sheet }]);
+      // A formula can cite another block's worksheet. Export the named workbook
+      // together, rather than producing a single-sheet file with broken links.
+      const workbook = await writeWorkbook(sheets);
+      const name = sheets.length > 1 ? 'Notebook' : sheets[0].name;
       downloadFile(`${name.replace(/[<>|"\u0000-\u001f]/g, '_')}.xlsx`, workbook, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setExporting(false); }
@@ -181,7 +185,7 @@ export function SpreadsheetView(view: NodeViewProps) {
     setError(result === 'invalid' ? t('invalidSheetName') : result === 'duplicate' ? t('workbookNameConflict') : '');
     setWorksheetName(null);
   };
-  return <BlockFrame view={view} kind="spreadsheet" actions={<Button variant="ghost" busy={exporting} onClick={() => void exportExcel()}>{t('exportExcel')}</Button>}>
+  return <BlockFrame view={view} kind="spreadsheet" actions={<Button variant="ghost" busy={exporting} onClick={() => void exportExcel()}>{t(hasMultipleSheets ? 'exportWorkbook' : 'exportExcel')}</Button>}>
     {editable ? <div className="notebook-sheet-controls">
       <Input aria-label={t('sheetName')} value={worksheetName ?? calculation?.name ?? label}
         onChange={event => setWorksheetName(event.target.value)} onBlur={applyWorksheetName} maxLength={31}
