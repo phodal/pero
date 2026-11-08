@@ -3,13 +3,13 @@ import { closeHistory } from '@tiptap/pm/history';
 import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, Input, Table } from '@pero/app-sdk/ui';
-import { spreadsheetLimits } from '../../../packages/notebook/src/document';
-import { cellAddress, evaluateSpreadsheet, formulaFunctions, type Spreadsheet } from '../../../packages/notebook/src/spreadsheet';
+import { spreadsheetLimits } from '@pero/notebook';
+import { cellAddress, evaluateSpreadsheet, formulaFunctions, type Spreadsheet } from '@pero/notebook/spreadsheet';
 import {
   cellRangeLabel, clearCellRange, encodeCellRange, fillCellRange, normalizeCellRange, parseCellClipboard,
   pasteCellGrid, rangeContains, type CellPosition,
-} from '../../../packages/notebook/src/spreadsheet-range';
-import { writeWorkbook } from '../../../packages/notebook/src/workbook';
+} from '@pero/notebook/spreadsheet-range';
+import { writeWorkbook } from '@pero/notebook/workbook';
 import { BlockFrame } from './block-frame';
 import { CellAnnotations } from './cell-annotations';
 import { messages } from './messages';

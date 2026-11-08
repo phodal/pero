@@ -1,7 +1,7 @@
 import { UniqueID } from '@tiptap/extension-unique-id';
 import { Fragment, Slice, type Node } from '@tiptap/pm/model';
 import { Plugin } from '@tiptap/pm/state';
-import type { CellAnnotation } from '../../../packages/notebook/src/document';
+import type { CellAnnotation } from '@pero/notebook';
 
 /** A copied research group gets new identities and keeps its internal citations. */
 export function copyNotebookBlocks(slice: Slice): Slice {

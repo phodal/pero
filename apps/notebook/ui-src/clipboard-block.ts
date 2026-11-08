@@ -1,6 +1,6 @@
-import { spreadsheetLimits } from '../../../packages/notebook/src/document';
-import { isPaperCitationSnapshot } from '../../../packages/notebook/src/paper-evidence';
-import { isControlEvidenceSnapshot, parseControlEvidenceLocation } from '../../../packages/notebook/src/control-evidence';
+import { spreadsheetLimits } from '@pero/notebook';
+import { isPaperCitationSnapshot } from '@pero/notebook/paper-evidence';
+import { isControlEvidenceSnapshot, parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
