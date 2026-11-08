@@ -79,8 +79,10 @@ authentication. Advertised Agent login methods are explicit actions. Terminal
 login methods are displayed but require login in a terminal. Authentication
 does not automatically resend a failed prompt.
 
-The built-in Codex entry uses this project's `node_modules/.bin/codex-acp` and
-does not fall back to a global adapter. Run
+The built-in Codex and Claude entries run this project's installed adapter
+`dist/index.js` with Node, avoiding npm shell shims on Windows. Electron supplies
+its Node runtime; standalone development Hosts use Node from PATH. Packaged
+builds use their bundled adapter scripts. Codex does not fall back to a global adapter. Run
 `node_modules/.bin/codex login` for the installed CLI's supported login flow.
 
 The built-in harness starts a compiled Go binary, without npm, `go run`, model
