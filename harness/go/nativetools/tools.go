@@ -146,11 +146,12 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 	}
 	workspace := files.Path()
 	app = &App{files: files}
-	defer func() {
-		if resultErr != nil && files != nil {
-			_ = app.Close()
+	// Capture ownership now: an error return replaces the named app with nil.
+	defer func(owned *App) {
+		if resultErr != nil {
+			_ = owned.Close()
 		}
-	}()
+	}(app)
 	var shellAdmission func(context.Context, harness.ToolRequest) (*harness.NativeApprovalDescriptor, error)
 	definitions := []toolDefinition{
 		{"notebook_read", "Read saved Jupyter nbformat 4 cell source, IDs, execution counts, outputs and attachments from a workspace .ipynb file. offset is a 1-based cell number (default 1), limit defaults to 20. Results have a 48 KiB cell budget, explicit truncation and next_offset. No code execution or image/HTML rendering; large cells omit outputs and shorten source.", `"path":{"type":"string","minLength":1},"offset":{"type":"integer","minimum":1},"limit":{"type":"integer","minimum":1,"maximum":100}`, `"path"`, false, func(c context.Context, a arguments) (any, error) {
