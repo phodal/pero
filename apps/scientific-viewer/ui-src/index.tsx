@@ -4,6 +4,7 @@ import { Disclosure, AppBar, Button, Feedback, FilePicker, Select, DropdownMenu,
 import { assetFrom, inspect, type Asset } from './files';
 import { files, saveFile, removeFile } from './store';
 import { ResearchLab, researchLabAsset, type ResearchLabEntry } from './research-lab';
+import { sequenceExamples } from './sequence-examples';
 import { examples } from './examples';
 import { Molecules, Structure } from './molecular';
 import { Literature } from './literature';
@@ -24,7 +25,7 @@ function Preview({ asset }: { asset: Asset }) {
     case 'pdf': return <Literature file={asset} />;
     case 'notebook': return <NotebookPreview asset={asset} />;
     case 'json': return <section className="metadata-preview" aria-label="JSON preview"><h2>Metadata</h2><pre>{JSON.stringify(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(asset.bytes)), null, 2)}</pre></section>;
-    case 'mesh': case 'image': case 'code': case 'markdown': case 'html': case 'text': return <RichPreview source={{ ...asset, mediaType: asset.mediaType ?? '' }} provenance={asset.provenance} />;
+    case 'sequence': case 'mesh': case 'image': case 'code': case 'markdown': case 'html': case 'text': return <RichPreview source={{ ...asset, mediaType: asset.mediaType ?? '' }} provenance={asset.provenance} />;
     default: return <section className="preview-empty"><h2>Metadata only</h2><p className="muted">This format has no preview. Open Source details to inspect the file.</p></section>;
   }
 }
@@ -43,9 +44,9 @@ export default function ScientificViewer() {
     finally { setLoading(false); }
   }
   useEffect(() => { void loadFiles(); }, []);
-  async function importFile(file: File, synthetic = false) {
+  async function importFile(file: File, metadata?: Parameters<typeof assetFrom>[1]) {
     setError(''); setImporting(true);
-    try { const item = await assetFrom(file, synthetic ? { synthetic: true, source: 'Pero independently authored synthetic example', license: 'CC0-1.0' } : {}); await saveFile(item); await refresh(); setPendingRemoval(null); setSelected(item.id); }
+    try { const item = await assetFrom(file, metadata); await saveFile(item); await refresh(); setPendingRemoval(null); setSelected(item.id); }
     catch (error) { setError(String(error)); }
     finally { setImporting(false); }
   }
@@ -88,7 +89,12 @@ export default function ScientificViewer() {
       </>} actions={<>
         <Button disabled={importing || loading} onClick={() => { setPendingRemoval(null); setSelected('research-lab'); }}>Research Lab</Button>
         <DropdownMenu><DropdownMenuTrigger asChild><Button disabled={importing}>{t.examples}</Button></DropdownMenuTrigger><DropdownMenuContent align="end">
-          {examples.map(example => <DropdownMenuItem key={example.name} onSelect={() => void importFile(new File([example.text], example.name), true)}>{example.name}</DropdownMenuItem>)}
+          {sequenceExamples.map(example => <DropdownMenuItem key={example.name} onSelect={() => void importFile(
+            new File([example.text], example.name), { source: example.source, license: 'GenBank data usage policy' },
+          )}>{example.name}</DropdownMenuItem>)}
+          {examples.map(example => <DropdownMenuItem key={example.name} onSelect={() => void importFile(
+            new File([example.text], example.name), { synthetic: true, source: 'Pero independently authored synthetic example', license: 'CC0-1.0' },
+          )}>{example.name}</DropdownMenuItem>)}
         </DropdownMenuContent></DropdownMenu>
         <Button onClick={() => void openPaperApp().catch(error => setError(String(error)))}>{t.paper}</Button>
         <FilePicker compact variant="primary" title={t.limit} label={importing ? t.importing : t.import} emptyLabel="" busy={importing} onFile={file => void importFile(file)}/>

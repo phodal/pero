@@ -30,7 +30,7 @@ export async function buildScientificViewer({ outdir = resolve(root, 'apps/scien
   await build({ entryPoints: { index: resolve(app, 'ui-src/frame.tsx'), artifact: resolve(app, 'ui-src/artifact-frame.tsx') }, outdir: dist, splitting: true, bundle: true, format: 'esm', platform: 'browser', target: 'chrome140', jsx: 'automatic', minify: true,
     define: scientificViewerBrowserDefines,
     alias: { react: resolve(modules, 'react'), 'react-dom': resolve(modules, 'react-dom'), ...appSdkAliases(root) }, nodePaths: [modules], plugins: [jupyterAssetPlugin],
-    loader: { '.wasm': 'file', '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.svg': 'text', '.png': 'dataurl', '.gif': 'dataurl', '.jpg': 'dataurl', '.jpeg': 'dataurl' } });
+    loader: { '.gb': 'text', '.wasm': 'file', '.woff2': 'file', '.woff': 'file', '.ttf': 'file', '.svg': 'text', '.png': 'dataurl', '.gif': 'dataurl', '.jpg': 'dataurl', '.jpeg': 'dataurl' } });
   for (const [source, target] of [
     ['molstar/build/viewer/molstar.css', 'molstar.css'],
     ['pdfjs-dist/build/pdf.worker.mjs', 'pdf.worker.mjs'], ['pdfjs-dist/standard_fonts', 'pdfjs-fonts'], ['pdfjs-dist/cmaps', 'pdfjs-cmaps'], ['pdfjs-dist/wasm', 'pdfjs-wasm'],

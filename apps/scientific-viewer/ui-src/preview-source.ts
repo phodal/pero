@@ -7,11 +7,12 @@ export type PreviewSource = Readonly<{
   bytes: Uint8Array;
 }>;
 
-export type PreviewKind = 'mesh' | 'image' | 'code' | 'markdown' | 'table' | 'pdf' | 'html' | 'notebook' | 'text' | 'opaque';
+export type PreviewKind = 'mesh' | 'image' | 'code' | 'markdown' | 'table' | 'pdf' | 'html' | 'notebook' | 'sequence' | 'text' | 'opaque';
 
 export function previewKind(source: Pick<PreviewSource, 'name' | 'mediaType'>): PreviewKind {
   const mime = source.mediaType.split(';', 1)[0].toLowerCase();
   const extension = source.name.split('.').at(-1)?.toLowerCase() ?? '';
+  if (['gb', 'gbk', 'genbank'].includes(extension)) return 'sequence';
   if (mime === 'model/gltf-binary' || extension === 'glb') return 'mesh';
   if (mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(extension)) return 'image';
   if (mime === 'application/pdf' || extension === 'pdf') return 'pdf';

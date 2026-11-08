@@ -6,6 +6,7 @@ import { Button, CodeViewer, Feedback, type CodeViewerProps } from '@pero/app-sd
 import { previewKind, sourceText, type PreviewKind, type PreviewSource } from './preview-source';
 import type { Asset, MeshProvenance } from './files';
 import { TablePreview } from './table-preview';
+import { SequencePreview } from './sequence-preview';
 import { PdfPreview } from './pdf-preview';
 import './artifact-preview.css';
 
@@ -78,6 +79,7 @@ export function RichPreview({ source, provenance, kind: suppliedKind, onDiscuss,
     {raw && <CodeViewer documentId={source.id} text={text} language="json" label={zh ? '源码' : 'Source'} />}
   </>;
   else if (raw || kind === 'code' || kind === 'text') preview = <CodeViewer documentId={source.id} text={text} language={sourceLanguage(source.name)} label={zh ? '源码' : 'Source'} wrap={kind === 'text'} onCursor={() => setSelection('')} />;
+  else if (kind === 'sequence') preview = <SequencePreview key={source.id} text={text} name={source.name} zh={zh} />;
   else if (kind === 'mesh') preview = <Suspense fallback={<p role="status">{zh ? '正在载入 3D 预览…' : 'Loading 3D preview…'}</p>}><MeshPreview source={source} provenance={provenance} /></Suspense>;
   else if (kind === 'image') preview = <ImagePreview source={source} zh={zh} download={download} />;
   else if (kind === 'pdf') preview = <PdfPreview source={source} zh={zh} onPageText={receivePageText} />;

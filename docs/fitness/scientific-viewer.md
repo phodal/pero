@@ -1,5 +1,31 @@
 # Scientific Viewer and website molecular illustrations
 
+## GenBank sequence preview (2026-11-08)
+
+The existing Scientific Viewer file picker and Examples menu open the same
+read-only preview. The shared App SDK Split, Input, Button and ToggleGroup
+provide resizing, search and map controls. Both panes consume one coordinate
+selection. The original file remains available through Source and Download.
+The three public GenBank records are version-pinned in the App README.
+
+Observed on macOS arm64 in Chromium against the built App with the sandboxed
+frame fixture, on top of `dc2d1958` with this change applied. The browser suite
+passed all six scenarios. It opened all three samples, selected the pBR322
+reverse-strand `bla` CDS by keyboard, found a coordinate range, dragged across
+bases and retained the selection when switching to the linear map. The wide
+light and 390px stacked dark captures were inspected. The latter fits the ring
+inside the map pane and offers zoom for small labels.
+
+- `test-results/scientific-viewer-browser/pbr322-plasmid.png`
+- `test-results/scientific-viewer-browser/pbr322-plasmid-narrow-dark.png`
+- `test-results/scientific-viewer-browser/result.json`
+
+The 33 App unit tests include the exact feature counts for the three samples,
+an origin-spanning reverse annotation, and rejection of a mismatched LOCUS
+length. Type checking and the App build passed. Native and installed-package
+UI, system clipboard behavior, enzyme analysis and scientific validation were
+outside this verification.
+
 ## Research Lab GLB integration (2026-11-08)
 
 Refs [#177](https://github.com/phodal/pero/issues/177), implementation

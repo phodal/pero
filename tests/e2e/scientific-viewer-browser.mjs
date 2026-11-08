@@ -33,6 +33,46 @@ if (process.argv.includes('--serve')) {
     };
     const capture = name => page.locator('iframe').screenshot({ path: resolve(out, `${name}.png`) });
     const noOverflow = async () => expect(await app.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    phase = 'plasmid-maps';
+    for (const [name, length, accession] of [['pACYC184', '4,245', 'X06403.1'], ['pUC19', '2,686', 'M77789.2'], ['pBR322', '4,361', 'J01749.1']]) {
+      const filename = `${name}.gb`;
+      await app.getByRole('button', { name: 'Examples', exact: true }).click();
+      await app.getByRole('menuitem', { name: filename, exact: true }).click();
+      await expect(app.getByRole('button', { name: 'Current file', exact: true })).toHaveText(filename);
+      await expect(app.getByText(`${length} bp · ${accession}`)).toBeVisible();
+      await expect(app.getByRole('group', { name: 'Circular plasmid map' })).toBeVisible();
+    }
+    const circularMap = app.getByRole('group', { name: 'Circular plasmid map' });
+    await circularMap.getByRole('button', { name: 'bla', exact: true }).filter({ hasText: 'bla · CDS' }).press('Enter');
+    await expect(app.getByText('3293–4153 · − · 861 bp')).toBeVisible();
+    await expect(circularMap.locator('.sequence-map-selection')).toHaveCount(1);
+    const find = app.getByRole('searchbox', { name: 'Find bases, coordinates or annotations' });
+    await find.fill('1–12');
+    await find.press('Enter');
+    await expect(app.getByText('1–12 · + · 12 bp')).toBeVisible();
+    const line = app.locator('.sequence-base-text[data-base-start="0"][data-strand="+"]');
+    const box = await line.boundingBox();
+    if (!box) throw new Error('First sequence row was not revealed');
+    const char = box.width / Number(await line.getAttribute('data-base-count'));
+    await page.mouse.move(box.x + char * 2.5, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + char * 8.5, box.y + box.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await expect(app.getByText('3–9 · + · 7 bp')).toBeVisible();
+    await expect(circularMap.locator('.sequence-map-selection')).toHaveCount(1);
+    await capture('pbr322-plasmid');
+    await app.getByRole('radio', { name: 'Linear map' }).click();
+    await expect(app.getByRole('group', { name: 'Linear sequence map' }).locator('.sequence-map-selection')).toHaveCount(1);
+    await page.getByLabel('Theme').selectOption('dark');
+    await page.setViewportSize({ width: 390, height: 760 });
+    await app.getByRole('radio', { name: 'Plasmid' }).click();
+    await expect(app.locator('.sequence-split')).toHaveAttribute('data-stacked', '');
+    await noOverflow();
+    await capture('pbr322-plasmid-narrow-dark');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByLabel('Theme').selectOption('light');
+    checks.push('Three public GenBank examples; reverse-strand map navigation, coordinate search, drag selection, map switching and narrow dark preview');
+
     phase = 'molecules';
     await example('solvents.smi');
     await expect(app.getByRole('img', { name: 'Molecule 1', exact: true })).toBeVisible({ timeout: 30000 });

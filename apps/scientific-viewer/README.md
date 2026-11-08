@@ -24,6 +24,16 @@ deletes the original disk file. No background import or model execution occurs.
   X/Y column selection preserves source order, units and gaps. Isolated points
   remain visible, and keyboard arrows inspect exact values. Table exposes all
   rows through 100-row pages; missing cells stay explicit rather than becoming zero.
+- GenBank DNA (`.gb`, `.gbk`, `.genbank`) opens a read-only double-strand
+  sequence view with a linked circular or linear map. Search by annotation,
+  literal motif or 1-based coordinate. Exact ranges, `join` and `complement`
+  are supported. Unsupported locations are counted and the original file
+  remains available. Examples include unchanged GenBank records for
+  [pBR322](https://www.ncbi.nlm.nih.gov/nuccore/J01749.1),
+  [pUC19](https://www.ncbi.nlm.nih.gov/nuccore/M77789.2) and
+  [pACYC184](https://www.ncbi.nlm.nih.gov/nuccore/X06403.1).
+  Their source is shown separately from the synthetic examples.
+  See the [GenBank data usage policy](https://www.ncbi.nlm.nih.gov/genbank/genbank/#genbank-data-usage).
 - Actual public Mol* renders PDB/mmCIF structures; it does not verify science.
 - Official RDKit Python wheel 2026.9.1 draws and checks up to 200 SMILES/MOL/SDF
   records in the existing Host-managed local backend (no browser dynamic eval).
