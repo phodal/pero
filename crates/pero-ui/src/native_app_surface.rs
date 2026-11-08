@@ -3,7 +3,7 @@ use crate::{
     app::Workbench,
     workspace::{WorkspaceItem, WorkspaceRoute},
 };
-use gpui_kit::{component::{notification::Notification, WindowExt}, prelude::*, *};
+use gpui_kit::{base::ElementExt, component::{notification::Notification, WindowExt}, prelude::*, *};
 use gpui_webview::WebView;
 use pero_contracts::HostEvent;
 use serde_json::{Value, json};
