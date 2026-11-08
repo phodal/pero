@@ -111,8 +111,10 @@ impl Workbench {
 
     fn sidebar_resize(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let seam = Hsla { l: (p.border.l - 0.06).max(0.), ..p.border };
         div()
             .id("sidebar-resize")
+            .group("sidebar-resize")
             .track_focus(&self.sidebar_resize_focus)
             .role(Role::Splitter)
             .aria_label(self.t("workspace.resize_sidebar"))
@@ -122,8 +124,9 @@ impl Workbench {
             .right_0()
             .w(px(4.))
             .h_full()
-            .child(div().absolute().right_0().top_0().w(px(1.)).h_full()
-                .when(self.sidebar_resize_focus.is_focused(window), |el| el.bg(p.focus)))
+            .child(div().absolute().right_0().top(px(pero_theme::RADIUS_PANEL + 4.)).bottom_0().w(px(1.))
+                .group_hover("sidebar-resize", |el| el.bg(seam))
+                .when(self.sidebar_resize_focus.is_focused(window), |el| el.bg(seam)))
             .cursor(CursorStyle::ResizeLeftRight)
             .on_mouse_down(
                 MouseButton::Left,
@@ -700,7 +703,7 @@ impl Render for Workbench {
                             .relative()
                             .rounded_tl(px(pero_theme::RADIUS_PANEL))
                             .bg(p.bg)
-                            .shadow(pero_theme::edge_shadow(pero_theme::UiAppearance::global(cx).dark))
+                            .shadow(pero_theme::edge_shadow(p.border))
                             .child(
                                 canvas(
                                     |bounds, _, _| note_content_corner(bounds.origin),

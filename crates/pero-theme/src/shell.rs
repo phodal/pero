@@ -52,13 +52,13 @@ pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> 
         .gap(chrome.geo(SPACE_4))
 }
 
-/// A short lift on the leading edge only. Negative spread keeps it off the
-/// other three sides.
-pub fn edge_shadow(dark: bool) -> Vec<BoxShadow> {
-    let alpha = if dark { 0.28 } else { 0.1 };
-    vec![BoxShadow::new(px(-4.), px(0.), hsla(0., 0., 0., alpha))
-        .blur_radius(px(8.))
-        .spread_radius(px(-4.))]
+/// A short lift on the leading and top edges, about 2px. The ink is the border
+/// tone, so the seam stays in the same family as the chrome instead of reading
+/// as a black cut.
+pub fn edge_shadow(color: Hsla) -> Vec<BoxShadow> {
+    vec![BoxShadow::new(px(-5.5), px(-5.5), color.opacity(0.7))
+        .blur_radius(px(0.7))
+        .spread_radius(px(-5.))]
 }
 
 /// Group related navigation; a separator marks a change of navigation scope,
