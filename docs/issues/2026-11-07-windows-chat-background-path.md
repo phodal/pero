@@ -102,6 +102,10 @@ receipt arrived. The follow-up is based on merged master `ed43c3c1`.
   rebinding, repository inference, research-project association and saved tab
   aliases. Pending new-chat tests cover matching receipts, one-shot consumption,
   errors, disconnects and superseding requests.
+- Conflicting saved alias bindings remain loadable. An exact binding for the
+  selected spelling takes precedence over compatibility fallback; rebinding
+  collapses aliases. A new workspace receipt also removes stale repository
+  snapshots stored under an equivalent spelling.
 - Composer labels keep drive roots and trailing-separator directories visible.
   Host contracts compare resolved directory identities so valid UNC spelling
   differences do not fail an ordinary-drive-only prefix assertion.
@@ -128,3 +132,22 @@ in the isolated checkout. This is not an aggregate build pass. Windows console
 execution, an actual UNC share, the native picker, Windows Electron/GPUI UI,
 real providers and signed installers were not rerun locally. The historical
 screenshots above do not establish acceptance of these follow-up changes.
+
+### Full CI follow-up
+
+[PR #179](https://github.com/phodal/pero/pull/179) requests `ci:full`.
+[The first full run](https://github.com/phodal/pero/actions/runs/42448516835)
+passed the Linux core contracts but exposed two stale test fixtures: the GPUI
+patch fixture omitted the current HTML-flow patch, and Windows tool catalog
+assertions predated the currently mounted tools. The fixture corrections keep
+exact catalog allowlists and the existing approval, read-only, create-only and
+partial-isolation checks. Optional PDF probing is disabled only in those
+catalog fixtures so installed renderer differences cannot change the catalog.
+Local verification passed all 11 build-fixture tests, the two affected Go
+packages, and Windows test cross-compilation; these are not native execution.
+
+That run also failed broader Windows Harness tests in unchanged master code,
+including plugin snapshot publication with an open directory handle and
+Git/native path comparisons in retained worktrees. Other failures use Unix
+path, permission or shell assumptions. These failures remain visible blockers;
+this follow-up does not weaken platform checks or claim a full CI pass.
