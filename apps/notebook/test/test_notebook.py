@@ -18,7 +18,7 @@ from agent_read import AgentRead
 from document import NotebookDocument
 from operations import apply_operations, parse_operations
 from server import handler
-from store import EntryStore, RevisionConflict
+from store import EntryStore, RevisionConflict, StoredDocumentError
 
 
 def document(title='Research log'):
@@ -68,20 +68,20 @@ class NotebookTest(unittest.TestCase):
         future['schemaVersion'] = 2
         unknown_attribute = document()
         unknown_attribute['content']['content'][0]['attrs']['futureFormat'] = 'preserve me'
-        for stored, error in [(future, 'Unsupported Notebook document version'),
-                              (unknown_attribute, 'Invalid object fields')]:
-            with self.subTest(stored=stored), tempfile.TemporaryDirectory() as directory:
+        for raw, error in [(json.dumps(future), 'Unsupported Notebook document version'),
+                           (json.dumps(unknown_attribute), 'Invalid object fields'),
+                           ('{', 'Expecting property name')]:
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as directory:
                 store = EntryStore(directory)
                 entry = store.create(NotebookDocument.parse(document()))
-                raw = json.dumps(stored)
                 # Simulate a revision persisted by a newer app, not an accepted v1 write.
                 with closing(sqlite3.connect(store.path)) as connection, connection:
                     connection.execute('UPDATE revisions SET document = ? WHERE entry_id = ?',
                                        (raw, entry.identity))
                 for revision in (None, 1):
-                    with self.assertRaisesRegex(ValueError, error):
+                    with self.assertRaisesRegex(StoredDocumentError, error):
                         store.read(entry.identity, revision)
-                with self.assertRaisesRegex(ValueError, error):
+                with self.assertRaisesRegex(StoredDocumentError, error):
                     store.commit(entry.identity, 1, lambda _old: NotebookDocument.parse(document('Replacement')))
                 self.assertEqual(len(store.history(entry.identity)), 1)
                 with closing(sqlite3.connect(store.path)) as connection:
@@ -251,7 +251,8 @@ class NotebookTest(unittest.TestCase):
 
     def test_authenticated_routes_and_atomic_agent_batch(self):
         with tempfile.TemporaryDirectory() as directory:
-            with ThreadingHTTPServer(('127.0.0.1', 0), handler(EntryStore(directory), 'test-secret')) as server:
+            store = EntryStore(directory)
+            with ThreadingHTTPServer(('127.0.0.1', 0), handler(store, 'test-secret')) as server:
                 thread = threading.Thread(target=server.serve_forever, daemon=True)
                 thread.start()
                 try:
@@ -344,6 +345,30 @@ class NotebookTest(unittest.TestCase):
                         self.assertLess(len(json.dumps(page, ensure_ascii=False).encode()), 1_000_000)
                         fragments.append(page['content'])
                     self.assertEqual(json.loads(''.join(fragments)), large['content']['content'][1])
+
+                    future = document()
+                    future['schemaVersion'] = 2
+                    raw = json.dumps(future)
+                    with closing(sqlite3.connect(store.path)) as connection, connection:
+                        connection.execute('UPDATE revisions SET document = ? WHERE entry_id = ? AND revision = 6',
+                                           (raw, entry_id))
+                    for method, route, data in [
+                        ('GET', path, None),
+                        ('POST', '/api/agent-read', {'entryId': entry_id}),
+                        ('POST', path, {'baseRevision': 6, 'document': document()}),
+                    ]:
+                        status, failure = request(method, route, data)
+                        self.assertEqual((status, failure['code'], failure['revision'], failure['entryId']),
+                                         (500, 'stored-document-error', 6, entry_id))
+                        self.assertIn('Unsupported Notebook document version', failure['detail'])
+                    status, failure = request('POST', path, {'baseRevision': 6, 'document': future})
+                    self.assertEqual((status, failure['code']), (400, 'invalid-request'))
+                    self.assertEqual(len(store.history(entry_id)), 6)
+                    with closing(sqlite3.connect(store.path)) as connection:
+                        self.assertEqual(connection.execute(
+                            'SELECT document FROM revisions WHERE entry_id = ? AND revision = 6',
+                            (entry_id,)).fetchone()[0], raw)
+
 
                 finally:
                     server.shutdown()

@@ -15,6 +15,15 @@ class MissingEntry(Exception):
     pass
 
 
+class StoredDocumentError(Exception):
+    """A saved revision cannot be interpreted by this Notebook version."""
+
+    def __init__(self, identity, revision, reason):
+        super().__init__(f'Saved Notebook document cannot be read: {reason}')
+        self.identity = identity
+        self.revision = revision
+
+
 class RevisionConflict(Exception):
     def __init__(self, current_revision):
         super().__init__('The entry changed. Load its current revision before saving.')
@@ -91,8 +100,11 @@ class EntryStore:
                 WHERE entry_id = ? AND revision = ?''', (identity, revision)).fetchone()
         if row is None:
             raise MissingEntry('Entry or revision not found')
-        value = json.loads(row['document'])
-        return Entry(identity, row['revision'], row['updated_at'], NotebookDocument.parse(value))
+        try:
+            document = NotebookDocument.parse(json.loads(row['document']))
+        except (ValueError, TypeError, RecursionError) as error:
+            raise StoredDocumentError(identity, row['revision'], str(error)) from error
+        return Entry(identity, row['revision'], row['updated_at'], document)
 
     def _insert(self, connection, identity, revision, document):
         updated_at = datetime.now(timezone.utc).isoformat(timespec='microseconds')

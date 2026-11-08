@@ -13,7 +13,7 @@ from uuid import uuid4
 from agent_read import AgentRead
 from document import MAX_DOCUMENT_BYTES, NotebookDocument, fields, integer
 from operations import apply_operations, parse_operations
-from store import EntryStore, MissingEntry, RevisionConflict
+from store import EntryStore, MissingEntry, RevisionConflict, StoredDocumentError
 
 
 ENTRY_ID = re.compile(r'[a-f0-9]{32}')
@@ -80,6 +80,9 @@ def handler(store, secret):
                 return self.error(409, 'revision-conflict', str(error), currentRevision=error.current_revision)
             except MissingEntry as error:
                 return self.error(404, 'not-found', str(error))
+            except StoredDocumentError as error:
+                return self.error(500, 'stored-document-error', str(error),
+                                  entryId=error.identity, revision=error.revision)
             except ValueError as error:
                 return self.error(400, 'invalid-request', str(error))
             except (OSError, sqlite3.Error):
