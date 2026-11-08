@@ -160,9 +160,6 @@ impl WorkspaceNavigation {
     pub(crate) fn can_back(&self) -> bool {
         if self.pane_layout_visible() {self.focused_tabs().is_some_and(|tabs|tabs.can_step_history(false))}else{self.history.can_step(&self.route,false)}
     }
-    pub(crate) fn can_forward(&self) -> bool {
-        if self.pane_layout_visible() {self.focused_tabs().is_some_and(|tabs|tabs.can_step_history(true))}else{self.history.can_step(&self.route,true)}
-    }
     pub(crate) fn step_history(&mut self, forward: bool) -> Option<HistoryEntry> {
         if self.pane_layout_visible() {
             let layout=self.pane_layout.as_mut()?;let pane=layout.focused?;
