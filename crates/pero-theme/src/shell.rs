@@ -1,7 +1,7 @@
 //! Workbench chrome. These components own presentation; navigation and window
 //! dragging remain in the host. The React shell uses the same design contract.
 use crate::{
-    Chrome, SIDEBAR_GROUP_GAP, SIDEBAR_PADDING, SPACE_4, SPACE_8, SPACE_12, TYPE_CAPTION,
+    Chrome, SIDEBAR_GROUP_GAP, SIDEBAR_PADDING, SPACE_4, SPACE_8, TYPE_CAPTION,
     WINDOW_TITLEBAR,
 };
 use gpui_kit::{prelude::*, *};
@@ -36,8 +36,7 @@ pub fn window_bar(
         .child(div().flex_shrink_0().pr(chrome.geo(SPACE_8)).child(actions))
 }
 
-/// An opaque navigation surface. Tone marks the column. The trailing hairline
-/// separates it from the page and starts below the top, clear of the window bar.
+/// An opaque navigation surface. The page beside it carries the corner and shadow.
 pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> Stateful<Div> {
     div()
         .id(id)
@@ -51,15 +50,15 @@ pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> 
         .text_color(chrome.palette.text)
         .p(chrome.geo(SIDEBAR_PADDING))
         .gap(chrome.geo(SPACE_4))
-        .child(
-            div()
-                .absolute()
-                .top(chrome.geo(SPACE_12))
-                .right_0()
-                .bottom_0()
-                .w(px(0.5))
-                .bg(chrome.palette.border),
-        )
+}
+
+/// A short lift on the leading edge only. Negative spread keeps it off the
+/// other three sides.
+pub fn edge_shadow(dark: bool) -> Vec<BoxShadow> {
+    let alpha = if dark { 0.28 } else { 0.1 };
+    vec![BoxShadow::new(px(-4.), px(0.), hsla(0., 0., 0., alpha))
+        .blur_radius(px(8.))
+        .spread_radius(px(-4.))]
 }
 
 /// Group related navigation; a separator marks a change of navigation scope,

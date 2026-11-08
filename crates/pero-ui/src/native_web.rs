@@ -275,6 +275,123 @@ impl NativeWebPage {
         }
     }
 }
+/// The native page is a rectangle above the rounded content surface. Clip only
+/// its top-left when that corner is the content corner, so the chrome cutout
+/// stays visible after the page appears.
+pub(crate) fn clip_leading_corner(view: &wry::WebView, at_corner: bool) {
+    #[cfg(target_os = "macos")]
+    clip_leading_corner_macos(view, at_corner);
+    #[cfg(not(target_os = "macos"))]
+    let _ = (view, at_corner);
+}
+
+#[cfg(target_os = "macos")]
+fn clip_leading_corner_macos(view: &wry::WebView, at_corner: bool) {
+    use objc2::msg_send;
+    use objc2::runtime::AnyObject;
+    use wry::WebViewExtMacOS as _;
+
+    let radius: f64 = if at_corner {
+        f64::from(pero_theme::RADIUS_PANEL)
+    } else {
+        0.
+    };
+    let webview = view.webview();
+    unsafe {
+        let page = &*(&*webview as *const _ as *const AnyObject);
+        let host: *mut AnyObject = msg_send![page, superview];
+        if host.is_null() {
+            round_top_left(page, radius);
+            return;
+        }
+        let host = &*host;
+        let host_frame: ObjcRect = msg_send![host, frame];
+        let view_frame: ObjcRect = msg_send![page, frame];
+        let wraps = host_frame.size.width > 1.
+            && host_frame.size.width <= view_frame.size.width + 1.
+            && host_frame.size.height <= view_frame.size.height + 1.;
+        // The clip belongs on the composition container. A larger superview is the
+        // window, so the page layer is clipped instead.
+        round_top_left(page, if wraps { 0. } else { radius });
+        if wraps {
+            round_top_left(host, radius);
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn round_top_left(view: &objc2::runtime::AnyObject, radius: f64) {
+    use objc2::msg_send;
+    use objc2::runtime::{AnyObject, Bool};
+
+    // The composition container is an unflipped layer. Apple names this mask
+    // the top-left corner.
+    const TOP_LEFT: u64 = 1 << 2;
+    unsafe {
+        let _: () = msg_send![view, setWantsLayer: Bool::YES];
+        let layer: *mut AnyObject = msg_send![view, layer];
+        if layer.is_null() {
+            return;
+        }
+        let layer = &*layer;
+        let _: () = msg_send![layer, setMasksToBounds: Bool::YES];
+        let _: () = msg_send![layer, setCornerRadius: radius];
+        let _: () = msg_send![layer, setMaskedCorners: TOP_LEFT];
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct ObjcPoint {
+    x: f64,
+    y: f64,
+}
+
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct ObjcSize {
+    width: f64,
+    height: f64,
+}
+
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct ObjcRect {
+    origin: ObjcPoint,
+    size: ObjcSize,
+}
+
+#[cfg(target_os = "macos")]
+unsafe impl objc2::encode::Encode for ObjcPoint {
+    const ENCODING: objc2::encode::Encoding = objc2::encode::Encoding::Struct(
+        "_NSPoint",
+        &[
+            <f64 as objc2::encode::Encode>::ENCODING,
+            <f64 as objc2::encode::Encode>::ENCODING,
+        ],
+    );
+}
+
+#[cfg(target_os = "macos")]
+unsafe impl objc2::encode::Encode for ObjcSize {
+    const ENCODING: objc2::encode::Encoding = objc2::encode::Encoding::Struct(
+        "_NSSize",
+        &[
+            <f64 as objc2::encode::Encode>::ENCODING,
+            <f64 as objc2::encode::Encode>::ENCODING,
+        ],
+    );
+}
+
+#[cfg(target_os = "macos")]
+unsafe impl objc2::encode::Encode for ObjcRect {
+    const ENCODING: objc2::encode::Encoding =
+        objc2::encode::Encoding::Struct("_NSRect", &[ObjcPoint::ENCODING, ObjcSize::ENCODING]);
+}
+
 #[cfg(target_os = "macos")]
 pub(crate) fn edit_macos(view: &wry::WebView, command: &str) -> bool {
     use objc2::msg_send;

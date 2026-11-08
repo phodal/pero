@@ -31,6 +31,14 @@ addEventListener('message',event=>{
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);
 "#;
 impl NativeAppPage {
+    pub(crate) fn clip_corner(&self, origin: Point<Pixels>, cx: &App) {
+        if let Some(view) = &self.view {
+            crate::native_web::clip_leading_corner(
+                view.read(cx).raw(),
+                crate::view::at_content_corner(origin),
+            );
+        }
+    }
     pub(crate) fn set_shortcuts(&mut self, menu:pero_contracts::shortcuts::ShortcutMenu,cx:&App) {
         self.shortcuts=menu;
         self.publish_shortcuts(cx);
@@ -558,6 +566,9 @@ impl Workbench {
         let name = name.to_owned();
         let panel = panel.to_owned();
         let chrome = pero_theme::Chrome::from_app(cx);
+        let clip_key = key.clone();
+        let clip = error.is_none();
+        let owner = cx.entity().clone();
         div()
             .flex()
             .flex_col()
@@ -609,6 +620,16 @@ impl Workbench {
                     }
                 },
             )
+            .on_prepaint(move |bounds, _, cx| {
+                if !clip {
+                    return;
+                }
+                let _ = owner.update(cx, |this, cx| {
+                    if let Some(page) = this.native_app_pages.get(&clip_key) {
+                        page.view.read(cx).clip_corner(bounds.origin, cx);
+                    }
+                });
+            })
             .into_any_element()
     }
 }

@@ -15,7 +15,23 @@ use gpui_kit::{
     prelude::*,
     *,
 };
+use std::cell::Cell;
 use std::rc::Rc;
+
+thread_local! {
+    static CONTENT_CORNER: Cell<(f32, f32)> = const { Cell::new((f32::NAN, f32::NAN)) };
+}
+
+pub(crate) fn note_content_corner(origin: Point<Pixels>) {
+    CONTENT_CORNER.with(|corner| corner.set((origin.x.into(), origin.y.into())));
+}
+
+pub(crate) fn at_content_corner(origin: Point<Pixels>) -> bool {
+    CONTENT_CORNER.with(|corner| {
+        let (x, y) = corner.get();
+        (x - f32::from(origin.x)).abs() < 1. && (y - f32::from(origin.y)).abs() < 1.
+    })
+}
 
 
 impl Workbench {
@@ -662,6 +678,7 @@ impl Render for Workbench {
                     .min_h_0()
                     .w_full()
                     .flex()
+                    .bg(p.surface_muted)
                     .child(
                         div()
                             .relative()
@@ -679,6 +696,21 @@ impl Render for Workbench {
                             .h_full()
                             .flex()
                             .flex_col()
+                            .overflow_hidden()
+                            .relative()
+                            .rounded_tl(px(pero_theme::RADIUS_PANEL))
+                            .bg(p.bg)
+                            .shadow(pero_theme::edge_shadow(pero_theme::UiAppearance::global(cx).dark))
+                            .child(
+                                canvas(
+                                    |bounds, _, _| note_content_corner(bounds.origin),
+                                    |_, _, _, _| {},
+                                )
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .size_full(),
+                            )
                             .when(
                         self.web_entry_open || self.navigation.page() == WorkbenchPage::Web,
                         |el| el.child(self.web_toolbar(cx)),
