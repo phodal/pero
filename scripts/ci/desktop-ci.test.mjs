@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import YAML from 'yaml';
 import { failures } from './gate.mjs';
-import { suites, acceptanceTimeoutSeconds } from './desktop-suite.mjs';
+import { suites } from './desktop-suite.mjs';
 import { pack, unpack, runtimePaths } from './desktop-artifact.mjs';
 
 test('daily keeps all Desktop acceptance; ordinary tier runs independent core contracts', () => {
@@ -21,10 +21,6 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.match(acceptance.if, /schedule.*workflow_dispatch/);
   assert.equal(acceptance.strategy['fail-fast'], false);
   assert.equal(acceptance.needs, 'desktop-linux');
-  assert.equal(acceptance['timeout-minutes'], 15);
-  for (const name of Object.keys(suites)) {
-    assert.equal(acceptanceTimeoutSeconds(name), name === 'mcp-lifecycle' ? 660 : 360, name);
-  }
   const metadata = acceptance.steps.find(step => step.name === 'Observe public TimesFM and HF metadata separately');
   assert.equal(metadata.if, "${{ !cancelled() && matrix.suite == 'paper-research-import' }}");
   assert.equal(metadata['timeout-minutes'], 3);

@@ -19,10 +19,6 @@ export const suites = Object.freeze({
   'paper-research-import': ['paper-research-import-all'],
   'paper-reading': ['paper-reading'],
 });
-export function acceptanceTimeoutSeconds(name) {
-  // Lifecycle owns a 600s scenario deadline; leave time for its failure diagnostics and cleanup.
-  return name === 'mcp-lifecycle' ? 660 : 360;
-}
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const name = process.argv[2];
   if (!Object.hasOwn(suites, name)) throw new Error(`Unknown acceptance suite: ${name}`);
@@ -45,7 +41,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       PERO_CONTROL_LAB_LIVE_RESERVATION: '6', DEEPSEEK_API_KEY: 'local-control-lab-fixture' });
   }
   // A deadline diagnoses a stuck test; it does not turn the ten-minute goal into a timeout.
-  const result = spawnSync(process.execPath, ['scripts/ci/run-acceptance.mjs', '--name', name, '--timeout-seconds', String(acceptanceTimeoutSeconds(name)), '--',
+  const result = spawnSync(process.execPath, ['scripts/ci/run-acceptance.mjs', '--name', name, '--timeout-seconds', '360', '--',
     'xvfb-run', '-a', '-s', '-screen 0 1920x1200x24', process.execPath, scriptPath, ...args], { env, stdio: 'inherit' });
   if (result.error) throw result.error;
   process.exitCode = result.status ?? 1;
