@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { requestAppChat } from './app-chat-launch.mjs';
+import { requestAppChat, observeAppChatLaunch } from './app-chat-launch.mjs';
 
 function frame() {
   const listeners = new Set(), timers = new Map(), sent = [];
@@ -79,4 +79,24 @@ test('the existing SDK deadline rejects missing acknowledgement and removes the 
   assert.equal(f.timers.size, 0);
   f.reply();
   assert.equal(f.sent.length, 1);
+});
+
+for (const parent of [true, false]) test(`handoff observation only accepts the trusted ${parent ? 'App frame' : 'Host parent'} and preserves request IDs`, () => {
+  const listeners = new Set(), trusted = {}, unrelated = {};
+  const origin = parent ? 'pero-app://lab' : 'pero://workbench';
+  const window = { parent: trusted, addEventListener: (_type, listener) => listeners.add(listener),
+    removeEventListener: (_type, listener) => listeners.delete(listener) };
+  const document = { querySelectorAll: () => [{ contentWindow: trusted, src: `${origin}/` }] };
+  runInNewContext(`(${observeAppChatLaunch.toString()})({parent:${parent},origin:${JSON.stringify(origin)}})`, { window, document, URL });
+  const data = { type: parent ? 'pero:app:chat' : 'pero:app:chat-result', id: 'button-request', ok: true, value: { threadId: 'draft', references: ['frozen-goal'] } };
+  const receive = event => { for (const listener of listeners) listener(event); };
+  receive({ source: unrelated, origin, data });
+  receive({ source: trusted, origin: 'pero://other', data });
+  assert.equal(window.appChatLaunch.getRequest(), null);
+  assert.equal(Object.keys(window.appChatLaunch.results).length, 0);
+  receive({ source: trusted, origin, data });
+  if (parent) assert.equal(window.appChatLaunch.getRequest(), data.id);
+  else assert.equal(window.appChatLaunch.results[data.id], data);
+  window.appChatLaunch.dispose();
+  assert.equal(listeners.size, 0);
 });

@@ -19,3 +19,25 @@ export function requestAppChat(_element, { text, parentOrigin }) {
     window.parent.postMessage({ type: 'pero:app:chat', id, text }, parentOrigin);
   });
 }
+
+// Observe the real SDK handoff without replacing postMessage or Host commands.
+export function observeAppChatLaunch(options, frameOptions) {
+  const { parent, origin } = frameOptions ?? options;
+  const state = { request: null, results: {} };
+  const receive = event => {
+    if (event.origin !== origin) return;
+    if (parent) {
+      if (![...document.querySelectorAll('iframe')].some(frame => {
+        if (frame.contentWindow !== event.source) return false;
+        const url = new URL(frame.src);
+        return `${url.protocol}//${url.host}` === origin;
+      })) return;
+      if (event.data?.type === 'pero:app:chat' && typeof event.data.id === 'string') state.request = event.data.id;
+    } else if (event.source === window.parent && event.data?.type === 'pero:app:chat-result' && typeof event.data.id === 'string') {
+      state.results[event.data.id] = event.data;
+    }
+  };
+  window.addEventListener('message', receive);
+  window.appChatLaunch = { ...state, results: state.results, getRequest: () => state.request,
+    dispose: () => window.removeEventListener('message', receive) };
+}
