@@ -102,6 +102,10 @@ impl WorkspaceNavigation {
         &self.items
     }
 
+    pub(crate) fn titlebar_tabs(&self) -> impl Iterator<Item = &WorkspaceItem> {
+        self.items.iter().filter(|item| matches!(item, WorkspaceItem::Task(_)))
+    }
+
     /// A route is returned only when it changes, so the shell can carry out
     /// activation once rather than repeating it while rendering.
     fn set_route(&mut self, route: WorkspaceRoute) {
@@ -355,7 +359,7 @@ impl WorkspaceNavigation {
             if self.pane_layout_visible(){return self.cycle_pane_tab(true);}
             if !matches!(self.current(),Some(WorkspaceItem::Project(_)|WorkspaceItem::Task(_))) {return self.focus_pane(self.pane_layout.as_ref()?.focused?);}
         }
-        let items=self.items.iter().filter(|item|matches!(item,WorkspaceItem::Project(_)|WorkspaceItem::Task(_))).cloned().collect::<Vec<_>>();
+        let items = self.titlebar_tabs().cloned().collect::<Vec<_>>();
         if items.is_empty() {
             return None;
         }
@@ -372,7 +376,7 @@ impl WorkspaceNavigation {
             if self.pane_layout_visible(){return self.cycle_pane_tab(false);}
             if !matches!(self.current(),Some(WorkspaceItem::Project(_)|WorkspaceItem::Task(_))) {return self.focus_pane(self.pane_layout.as_ref()?.focused?);}
         }
-        let items=self.items.iter().filter(|item|matches!(item,WorkspaceItem::Project(_)|WorkspaceItem::Task(_))).cloned().collect::<Vec<_>>();
+        let items = self.titlebar_tabs().cloned().collect::<Vec<_>>();
         let last = items.len().checked_sub(1)?;
         let index = self
             .current()
@@ -837,10 +841,10 @@ mod tests {
                 route: WorkspaceRoute::Content(app.clone()),
             },
             Case {
-                name: "task tabs cycle within their existing utility workspace",
-                actions: vec![Open(conversation.clone()), Open(project.clone()), Next],
-                items: vec![conversation.clone(), project.clone()],
-                route: WorkspaceRoute::Content(project.clone()),
+                name: "cycling titlebar tabs skips project routes",
+                actions: vec![Open(task.clone()), Open(project.clone()), Next, Previous],
+                items: vec![task.clone(), project.clone()],
+                route: WorkspaceRoute::Content(task.clone()),
             },
             Case {
                 name: "pane tabs do not cycle into utility source descriptors",

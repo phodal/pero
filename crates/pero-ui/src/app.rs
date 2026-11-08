@@ -878,7 +878,7 @@ pub fn snapshot() -> String {
         }
         value["workspaceNavigation"]=serde_json::json!(ui.navigation.snapshot());
         value["activeContent"] = serde_json::json!(ui.navigation.current());
-        if !ui.navigation.pane_layout_visible() {if let Some(index)=ui.navigation.current().and_then(|item|ui.navigation.items().iter().filter(|item|matches!(item,WorkspaceItem::Project(_)|WorkspaceItem::Task(_))).position(|candidate|candidate==item)) {
+        if !ui.navigation.pane_layout_visible() {if let Some(index)=ui.navigation.current().and_then(|item|ui.navigation.titlebar_tabs().position(|candidate|candidate==item)) {
             if let Some(bounds)=ui.tab_scroll.bounds_for_item(index) {
                 let strip=ui.tab_scroll.bounds();let offset=ui.tab_scroll.offset().x;
                 value["activeTabBounds"]=json!({"left":f32::from(bounds.left()+offset),"right":f32::from(bounds.right()+offset),"stripLeft":f32::from(strip.left()),"stripRight":f32::from(strip.right())});

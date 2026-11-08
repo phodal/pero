@@ -525,11 +525,7 @@ impl Workbench {
                     .track_scroll(&self.tab_scroll)
                     .children(
                         self.navigation
-                            .items()
-                            .iter()
-                            .filter(|item| {
-                                matches!(item, WorkspaceItem::Project(_) | WorkspaceItem::Task(_))
-                            })
+                            .titlebar_tabs()
                             .map(|item| {
                                 let (title, icon) = self.content_label(item, cx);
                                 let select = item.clone();

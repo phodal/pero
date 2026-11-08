@@ -68,7 +68,7 @@ impl Workbench {
 
     fn window_titlebar(
         &self,
-        has_tabs: bool,
+        show_workspace_controls: bool,
         dragging: &Entity<bool>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -78,7 +78,7 @@ impl Workbench {
             (leaves.len() == 1).then(|| leaves[0].clone())
         });
         let tabs = if let Some(ref leaf) = single_pane { Some(div().flex_1().min_w_0().h_full().child(self.pane_tab_bar(leaf, crate::workspace_pane_tabs::TabBarPlacement::WindowChrome, cx)).into_any_element()) }
-            else { has_tabs.then(|| self.content_tabs(false, cx).into_any_element()) };
+            else { show_workspace_controls.then(|| self.content_tabs(false, cx).into_any_element()) };
         chrome::window_titlebar(
             self.ui(cx),
             self.sidebar_collapsed,
@@ -269,14 +269,9 @@ impl Render for Workbench {
         let tab = self
             .navigation
             .current()
-            .filter(|item| matches!(item, WorkspaceItem::Project(_) | WorkspaceItem::Task(_)))
             .and_then(|item| {
                 self.navigation
-                    .items()
-                    .iter()
-                    .filter(|item| {
-                        matches!(item, WorkspaceItem::Project(_) | WorkspaceItem::Task(_))
-                    })
+                    .titlebar_tabs()
                     .position(|candidate| candidate == item)
                     .map(|index| (item.clone(), index, viewport_width))
             });
@@ -380,9 +375,8 @@ impl Render for Workbench {
         let chat_width = layout.chat_width;
         let dock = layout.chat == ChatPlacement::Dock;
         let narrow = layout.narrow;
-        let has_tabs = self.navigation.items().iter().any(|item| {
-            matches!(item, WorkspaceItem::Project(_) | WorkspaceItem::Task(_))
-        });
+        let show_workspace_controls = self.navigation.titlebar_tabs().next().is_some()
+            || matches!(self.navigation.current(), Some(WorkspaceItem::Project(_)));
         if !layout.embedded_surface_visible
             || !matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }))
         {
@@ -661,7 +655,7 @@ impl Render for Workbench {
             .font_weight(FontWeight::NORMAL)
             .line_height(relative(1.3))
             .child(self.layout_drag_events(cx))
-            .child(self.window_titlebar(has_tabs, &dragging, window, cx))
+            .child(self.window_titlebar(show_workspace_controls, &dragging, window, cx))
             .child(
                 div()
                     .flex_1()
