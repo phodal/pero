@@ -151,3 +151,24 @@ including plugin snapshot publication with an open directory handle and
 Git/native path comparisons in retained worktrees. Other failures use Unix
 path, permission or shell assumptions. These failures remain visible blockers;
 this follow-up does not weaken platform checks or claim a full CI pass.
+
+The follow-up keeps bounded Windows-specific repairs for snapshot-reader and
+failed-mount handle lifetime, native Git path comparison, MCP file URI identity,
+portable capability fixtures, and deterministic SDK token generation under CRLF
+checkout. Memory prompt tests compare the plain-text absolute memory location by
+real directory identity; native fixtures close before Windows directory cleanup.
+They preserve approval, isolation, read-only, create-only and unsupported-operation
+refusal checks.
+
+Independent Desktop App fixture changes, Product startup handling, MCP lifecycle
+timeout changes and a macOS diagnostic timing fixture were reverted from this PR
+to keep its scope on Windows compatibility. Full-CI failures in those unchanged
+areas remain visible baseline limitations, not claimed passes. In particular,
+Control Lab still renders the final report through `Checks`; its failing test
+expects an obsolete disclosure wrapper. No missing-report product defect was
+established. The affected App source trees are unchanged from `ed43c3c1`.
+
+Targeted Windows subagent fixtures passed ten repetitions and package race tests
+on Linux and compiled for Windows. Native execution and final-head platform CI
+must be reported separately from those local checks. No branch protections or
+required checks were disabled.
