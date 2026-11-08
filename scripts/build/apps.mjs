@@ -12,7 +12,9 @@ const root = resolve(import.meta.dirname, '../..');
 const args = process.argv.slice(2);
 const appNames = args.includes('--app') ? [args[args.indexOf('--app') + 1]] : JSON.parse(await readFile(resolve(root, 'products/pero.json'), 'utf8')).apps;
 const readerDirectory = args.includes('--reader-dist') ? resolve(args[args.indexOf('--reader-dist') + 1]) : resolve(root, 'web/dist-reader');
-if (!args.includes('--reader-dist')) await buildReader();
+// Notebook opens frozen sources in their owning Apps; it does not embed Reader.
+const readerApps = appNames.filter(name => !['notebook', 'scientific-viewer', 'automations'].includes(name));
+if (readerApps.length && !args.includes('--reader-dist')) await buildReader();
 for (const appName of appNames) {
 if (appName === 'scientific-viewer') { await buildScientificViewer(); continue; }
 if (appName === 'automations') { await buildAutomationApp(); continue; }
@@ -63,6 +65,7 @@ const manifest = JSON.parse(await readFile(resolve(appRoot, 'app.json'), 'utf8')
 const title = manifest.displayName.replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 await writeFile(resolve(outdir, 'index.html'), `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="./index.css"></head><body><div id="app"></div><script type="module" src="./index.js"></script></body></html>\n`);
 await rm(resolve(outdir, '_reader'), { recursive: true, force: true });
-await cp(readerDirectory, resolve(outdir, '_reader'), { recursive: true, filter: path => !/[\\/]fonts(?:[\\/]|$)/.test(path) });
+if (readerApps.includes(appName))
+  await cp(readerDirectory, resolve(outdir, '_reader'), { recursive: true, filter: path => !/[\\/]fonts(?:[\\/]|$)/.test(path) });
 console.log(`Built App: apps/${appName}/dist/index.html`);
 }

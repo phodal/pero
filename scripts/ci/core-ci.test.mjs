@@ -104,6 +104,23 @@ test('Viewer inspection survives bridge failure and retains screenshot evidence'
   assert.deepEqual(failures({ 'scientific-viewer': { result: 'failure' } }, false), ['scientific-viewer']);
 });
 
+test('Notebook browser and type checks survive unit failures and gate completion', () => {
+  const job = workflow.jobs.notebook;
+  const prepare = job.steps.find(step => step.id === 'prepare');
+  assert.match(prepare.run, /npm --prefix apps\/notebook run build/);
+  assert(job.steps.some(step => step.run === 'npm run test:notebook'));
+  for (const command of ['typecheck', 'test:browser']) {
+    const step = job.steps.find(step => step.run === `npm --prefix apps/notebook run ${command}`);
+    assert.deepEqual(dependencies(step), ['prepare']);
+  }
+  for (const step of job.steps) assert.equal(step['continue-on-error'], undefined);
+  const evidence = job.steps.at(-1);
+  assert.equal(evidence.if, 'always()');
+  assert.equal(evidence.with.path, 'test-results/notebook/');
+  assert(workflow.jobs.complete.needs.includes('notebook'));
+  assert.deepEqual(failures({ notebook: { result: 'failure' } }, false), ['notebook']);
+});
+
 test('Control Lab split selects every existing runtime test exactly once', () => {
   const select = id => execFileSync('bash', ['-c', steps.find(step => step.id === id).run.replace('node --test', "printf '%s\\n'")], { encoding: 'utf8' }).trim().split('\n');
   const pure = select('control_lab');

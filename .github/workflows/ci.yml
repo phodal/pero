@@ -38,6 +38,45 @@ defaults:
     shell: bash
 
 jobs:
+  notebook:
+    name: Notebook revisions, workbook and browser contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/notebook/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Prepare Notebook dependencies and browser
+        id: prepare
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/notebook --ignore-scripts
+          npx playwright install --with-deps chromium
+          npm --prefix apps/notebook run build
+      - name: Verify documents, formulas, XLSX exchange and Agent revisions
+        run: npm run test:notebook
+      - name: Verify Notebook types
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: npm --prefix apps/notebook run typecheck
+      - name: Verify real editor persistence, imports and clipboard references
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: npm --prefix apps/notebook run test:browser
+      - name: Retain Notebook browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: notebook-browser-${{ github.sha }}
+          path: test-results/notebook/
+          if-no-files-found: warn
+
   scientific-viewer:
     name: Scientific Viewer browser inspection
     runs-on: ubuntu-latest
@@ -920,7 +959,7 @@ jobs:
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [paper-html-live, core, data, lab, control-lab, virtual-cell, scientific-viewer, lcms2yield, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [paper-html-live, core, data, lab, control-lab, virtual-cell, notebook, scientific-viewer, lcms2yield, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
