@@ -1,17 +1,20 @@
 """Notebook revision semantics and the authenticated UI/Agent transport."""
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from hashlib import sha256
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 import json
 from pathlib import Path
 import sys
+import sqlite3
 import tempfile
 import threading
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
+from agent_read import AgentRead
 from document import NotebookDocument
 from operations import apply_operations, parse_operations
 from server import handler
@@ -59,6 +62,30 @@ class NotebookTest(unittest.TestCase):
             self.assertEqual([item['revision'] for item in reopened.history(first.identity)], [2, 1])
             self.assertEqual(reopened.read(first.identity, 1).wire(), first.wire())
             self.assertEqual(reopened.read(second.identity).wire(), second.wire())
+
+    def test_stored_documents_refuse_unsupported_content_without_rewriting_it(self):
+        future = document()
+        future['schemaVersion'] = 2
+        unknown_attribute = document()
+        unknown_attribute['content']['content'][0]['attrs']['futureFormat'] = 'preserve me'
+        for stored, error in [(future, 'Unsupported Notebook document version'),
+                              (unknown_attribute, 'Invalid object fields')]:
+            with self.subTest(stored=stored), tempfile.TemporaryDirectory() as directory:
+                store = EntryStore(directory)
+                entry = store.create(NotebookDocument.parse(document()))
+                raw = json.dumps(stored)
+                # Simulate a revision persisted by a newer app, not an accepted v1 write.
+                with closing(sqlite3.connect(store.path)) as connection, connection:
+                    connection.execute('UPDATE revisions SET document = ? WHERE entry_id = ?',
+                                       (raw, entry.identity))
+                for revision in (None, 1):
+                    with self.assertRaisesRegex(ValueError, error):
+                        store.read(entry.identity, revision)
+                with self.assertRaisesRegex(ValueError, error):
+                    store.commit(entry.identity, 1, lambda _old: NotebookDocument.parse(document('Replacement')))
+                self.assertEqual(len(store.history(entry.identity)), 1)
+                with closing(sqlite3.connect(store.path)) as connection:
+                    self.assertEqual(connection.execute('SELECT document FROM revisions').fetchone()[0], raw)
 
     def test_document_roundtrips_annotations_and_rejects_unknown_or_invalid_content(self):
         original = document()
@@ -134,6 +161,63 @@ class NotebookTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     apply_operations(original, edit)
 
+    def test_agent_reads_discover_blocks_and_reconstruct_large_unicode_content(self):
+        original = document()
+        # One valid spreadsheet itself exceeds the adapter's one-megabyte limit.
+        original['content']['content'][1]['attrs']['sheet'] = {
+            'rows': 200, 'columns': 2,
+            'cells': {f'{column}{row}': '样品\n"' * 250
+                      for row in range(1, 201) for column in ('A', 'B')},
+        }
+        parsed = NotebookDocument.parse(original)
+        index = AgentRead().read(parsed)
+        self.assertEqual(index['format'], 'block-index')
+        self.assertEqual([item['blockId'] for item in index['blocks']], ['paragraph', 'inputs', 'source'])
+        self.assertIsNone(index['nextOffset'])
+        for block_identity, expected in [(None, original), ('inputs', parsed.block('inputs'))]:
+            with self.subTest(block=block_identity):
+                selection = AgentRead(block_identity=block_identity, offset=0)
+                chunks = []
+                while True:
+                    page = selection.read(parsed)
+                    self.assertEqual(page['format'], 'json-chunk')
+                    self.assertLess(len(json.dumps(page, ensure_ascii=False).encode()), 900_000)
+                    chunks.append(page['content'])
+                    if page['nextOffset'] is None:
+                        break
+                    selection = AgentRead(revision=7, block_identity=block_identity, offset=page['nextOffset'])
+                self.assertEqual(json.loads(''.join(chunks)), expected)
+        self.assertEqual(AgentRead(block_identity='inputs').read(parsed)['format'], 'json-chunk')
+        self.assertEqual(AgentRead().read(NotebookDocument.parse(document())), {'document': document()})
+
+    def test_agent_index_pages_nested_blocks_and_requires_pinned_continuations(self):
+        original = document()
+        original['content']['content'] = [{'type': 'blockquote', 'attrs': {'blockId': 'quote'},
+            'content': [{'type': 'paragraph', 'attrs': {'blockId': f'p-{index}'}} for index in range(205)]}]
+        parsed = NotebookDocument.parse(original)
+        discovered = []
+        selection = AgentRead(view='index')
+        while True:
+            page = selection.read(parsed)
+            self.assertLessEqual(len(page['blocks']), 100)
+            discovered.extend(item['blockId'] for item in page['blocks'])
+            if page['nextOffset'] is None:
+                break
+            selection = AgentRead(revision=1, view='index', offset=page['nextOffset'])
+        self.assertEqual(discovered, ['quote'] + [f'p-{index}' for index in range(205)])
+        for arguments in ({'offset': 1}, {'offset': -1}, {'offset': True}, {'offset': 0.5},
+                          {'view': 'unknown'}, {'view': 'index', 'block_identity': 'quote'},
+                          {'revision': 1, 'offset': 10_000_000}):
+            with self.subTest(arguments=arguments), self.assertRaises(ValueError):
+                AgentRead(**arguments).read(parsed)
+        with self.assertRaises(LookupError):
+            AgentRead(block_identity='missing').read(parsed)
+        # Even documents without any IDs have a complete chunked read path.
+        parsed = NotebookDocument.parse({'schemaVersion': 1, 'title': 'No IDs',
+                                         'content': {'type': 'doc', 'content': [{'type': 'paragraph'}]}})
+        self.assertEqual(AgentRead(view='index').read(parsed)['blocks'], [])
+        self.assertEqual(json.loads(AgentRead(offset=0).read(parsed)['content']), parsed.wire())
+
     def test_authenticated_routes_and_atomic_agent_batch(self):
         with tempfile.TemporaryDirectory() as directory:
             with ThreadingHTTPServer(('127.0.0.1', 0), handler(EntryStore(directory), 'test-secret')) as server:
@@ -146,7 +230,7 @@ class NotebookTest(unittest.TestCase):
                             headers = {'Content-Type': 'application/json'}
                             if authorized:
                                 headers['X-Pero-App-Token'] = 'test-secret'
-                            connection.request(method, path, json.dumps(data) if data is not None else None, headers)
+                            connection.request(method, path, json.dumps(data, ensure_ascii=False).encode() if data is not None else None, headers)
                             response = connection.getresponse()
                             return response.status, json.loads(response.read())
                         finally:
@@ -176,6 +260,16 @@ class NotebookTest(unittest.TestCase):
                     self.assertEqual((status, conflict['code'], conflict['currentRevision']), (409, 'revision-conflict', 3))
                     self.assertEqual(request('GET', f'{path}/revisions/2'), (200, entry))
                     self.assertEqual(request('GET', f'{path}/revisions')[1]['revisions'][0]['revision'], 3)
+                    status, page = request('POST', '/api/agent-read', {
+                        'entryId': entry_id, 'revision': 2, 'offset': 0,
+                    })
+                    self.assertEqual((status, page['revision'], page['format']), (200, 2, 'json-chunk'))
+                    self.assertEqual(json.loads(page['content']), entry['document'])
+                    for invalid in ({'offset': 1}, {'revision': None}, {'offset': None}, {'blockId': None}):
+                        self.assertEqual(request('POST', '/api/agent-read', {'entryId': entry_id, **invalid})[0], 400)
+                    status, index = request('POST', '/api/agent-read', {'entryId': entry_id, 'view': 'index'})
+                    self.assertEqual((status, index['revision'], index['blocks'][1]['blockId']), (200, 3, 'inputs'))
+
 
                     apply['baseRevision'] = 3
                     insert = {'op': 'insert_text_block', 'kind': 'heading', 'text': 'Results\nSummary',
@@ -195,6 +289,31 @@ class NotebookTest(unittest.TestCase):
                     self.assertEqual([node['attrs']['blockId'] for node in blocks], [heading_id, 'source', 'inputs', sheet_id])
                     self.assertEqual(blocks[0]['content'][1], {'type': 'hardBreak'})
                     self.assertEqual(blocks[3]['attrs']['sheet']['cells'], {'A1': '=Inputs!A1'})
+
+                    large = document()
+                    large['content']['content'][1]['attrs']['sheet'] = {
+                        'rows': 200, 'columns': 2,
+                        'cells': {f'{column}{row}': '样' * 1000
+                                  for row in range(1, 201) for column in ('A', 'B')},
+                    }
+                    self.assertEqual(request('POST', path, {'baseRevision': 4, 'document': large})[0], 200)
+                    status, index = request('POST', '/api/agent-read', {'entryId': entry_id})
+                    self.assertEqual((status, index['format'], index['revision']), (200, 'block-index', 5))
+                    selected = index['blocks'][1]['blockId']
+                    status, page = request('POST', '/api/agent-read', {'entryId': entry_id, 'blockId': selected})
+                    self.assertEqual((status, page['format']), (200, 'json-chunk'))
+                    fragments = [page['content']]
+                    # A concurrent edit cannot alter the revision being reconstructed.
+                    self.assertEqual(request('POST', path, {'baseRevision': 5, 'document': document()})[0], 200)
+                    while page['nextOffset'] is not None:
+                        status, page = request('POST', '/api/agent-read', {
+                            'entryId': entry_id, 'revision': 5, 'blockId': selected, 'offset': page['nextOffset'],
+                        })
+                        self.assertEqual((status, page['revision']), (200, 5))
+                        self.assertLess(len(json.dumps(page, ensure_ascii=False).encode()), 1_000_000)
+                        fragments.append(page['content'])
+                    self.assertEqual(json.loads(''.join(fragments)), large['content']['content'][1])
+
                 finally:
                     server.shutdown()
                     thread.join(3)

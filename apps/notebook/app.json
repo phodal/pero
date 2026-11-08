@@ -9,14 +9,16 @@
     "writes": [
       {
         "name": "read-entry",
-        "description": "Read an identified saved Notebook entry or one block. Omit revision to read the current saved revision. This route does not modify Notebook.",
+        "description": "Read an identified saved Notebook entry or one block. Omit revision for the current saved revision. Large entries return format=block-index with up to 100 block IDs/types, including nested blocks. Select a blockId to read it, or page the index using view=index, returned revision and offset=nextOffset. view=index also requests an index for small entries. To read every document field (including nodes without IDs), request offset=0 without view or blockId. Large blocks and explicit offset reads return format=json-chunk with content, offset, nextOffset and totalCharacters. Concatenate content strings in offset order, then parse JSON to recover the complete document or block. Continue with the same entryId, returned revision, blockId (if selected), and offset=nextOffset until nextOffset is null. offset=0 explicitly requests chunks. Offsets count Unicode characters, not bytes. Use the returned revision as baseRevision for edits. This route does not modify Notebook.",
         "path": "/api/agent-read",
         "schema": {
           "type": "object",
           "properties": {
             "entryId": { "type": "string", "minLength": 32, "maxLength": 32 },
             "revision": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
-            "blockId": { "type": "string", "minLength": 1, "maxLength": 128 }
+            "blockId": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "offset": { "type": "integer", "minimum": 0, "description": "Character offset for JSON chunks, block offset for view=index. Nonzero offsets require an explicit revision." },
+            "view": { "type": "string", "enum": ["index"] }
           },
           "required": ["entryId"],
           "additionalProperties": false

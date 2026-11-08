@@ -92,7 +92,7 @@ class EntryStore:
         if row is None:
             raise MissingEntry('Entry or revision not found')
         value = json.loads(row['document'])
-        return Entry(identity, row['revision'], row['updated_at'], NotebookDocument(value['title'], value['content']))
+        return Entry(identity, row['revision'], row['updated_at'], NotebookDocument.parse(value))
 
     def _insert(self, connection, identity, revision, document):
         updated_at = datetime.now(timezone.utc).isoformat(timespec='microseconds')

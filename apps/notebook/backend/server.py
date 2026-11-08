@@ -10,15 +10,14 @@ import sqlite3
 import threading
 from uuid import uuid4
 
-from document import MAX_DOCUMENT_BYTES, NotebookDocument, block_id, fields, integer
+from agent_read import AgentRead
+from document import MAX_DOCUMENT_BYTES, NotebookDocument, fields, integer
 from operations import apply_operations, parse_operations
 from store import EntryStore, MissingEntry, RevisionConflict
 
 
 ENTRY_ID = re.compile(r'[a-f0-9]{32}')
 ENTRY_PATH = re.compile(r'/api/entries/([a-f0-9]{32})(/revisions(?:/([1-9][0-9]{0,9}))?)?')
-# The shared Desktop App Use adapter bounds Agent results separately from panel reads.
-AGENT_RESPONSE_LIMIT = 1_000_000
 
 
 def entry_id(value):
@@ -38,12 +37,8 @@ def handler(store, secret):
         def log_message(self, *_args):
             pass
 
-        def reply(self, status, value, *, agent_read=False):
-            raw = json.dumps(value, allow_nan=False, ensure_ascii=False).encode()
-            if agent_read and len(raw) > AGENT_RESPONSE_LIMIT:
-                detail = ('The selected block exceeds the Agent read limit.' if 'block' in value
-                          else 'The entry exceeds the Agent read limit. Read an identified block instead.')
-                return self.error(413, 'agent-read-limit', detail)
+        def reply(self, status, value):
+            raw = json.dumps(value, allow_nan=False, ensure_ascii=False, separators=(',', ':')).encode()
             self.send_response(status)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Cache-Control', 'no-store')
@@ -112,15 +107,16 @@ def handler(store, secret):
                 })
                 return self.reply(201, store.create(document).wire())
             if self.path == '/api/agent-read':
-                data = fields(self.body(), {'entryId'}, {'revision', 'blockId'})
-                revision = integer(data['revision'], 'revision') if 'revision' in data else None
-                entry = store.read(entry_id(data['entryId']), revision)
-                if 'blockId' not in data:
-                    return self.reply(200, entry.wire(), agent_read=True)
-                block = entry.document.block(block_id(data['blockId']))
-                if block is None:
-                    return self.error(404, 'not-found', 'Block is not present in this revision')
-                return self.reply(200, {**entry.wire(summary=True), 'block': block}, agent_read=True)
+                data = fields(self.body(), {'entryId'}, {'revision', 'blockId', 'offset', 'view'})
+                if any(value is None for value in data.values()):
+                    raise ValueError('Read fields cannot be null')
+                selection = AgentRead(data.get('revision'), data.get('blockId'), data.get('offset'), data.get('view'))
+                entry = store.read(entry_id(data['entryId']), selection.revision)
+                try:
+                    content = selection.read(entry.document)
+                except LookupError as error:
+                    return self.error(404, 'not-found', str(error))
+                return self.reply(200, {**entry.wire(summary=True), **content})
             if self.path == '/api/agent-apply':
                 data = fields(self.body(), {'entryId', 'baseRevision', 'operations'})
                 identity = entry_id(data['entryId'])
