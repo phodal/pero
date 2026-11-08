@@ -8,6 +8,8 @@
     ".": "./src/document.ts",
     "./spreadsheet": "./src/spreadsheet.ts",
     "./workbook": "./src/workbook.ts",
+    "./worksheet": "./src/worksheet.ts",
+    "./spreadsheet-range": "./src/spreadsheet-range.ts",
     "./paper-evidence": "./src/paper-evidence.ts",
     "./control-evidence": "./src/control-evidence.ts"
   },

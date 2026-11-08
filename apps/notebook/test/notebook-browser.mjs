@@ -8,8 +8,8 @@ import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { test } from 'node:test';
 import { chromium, expect } from '@playwright/test';
-import { readWorkbook, writeWorkbook } from '../../../packages/notebook/src/workbook.ts';
-import { evaluateWorkbook } from '../../../packages/notebook/src/spreadsheet.ts';
+import { readWorkbook, writeWorkbook } from '@pero/notebook/workbook';
+import { evaluateWorkbook } from '@pero/notebook/spreadsheet';
 
 const app = resolve(import.meta.dirname, '..');
 const output = resolve(app, '../../test-results/notebook');
@@ -84,6 +84,14 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await sheetName.fill('Calibration data');
   await sheetName.press('Enter');
   const formula = "='Calibration data'!A1*3";
+  await expect(result.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue(formula);
+  await expect(result.locator('[data-cell=A1]')).toHaveValue('12');
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(sheetName).toHaveValue('Controls');
+  await expect(result.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue('=Controls!A1*3');
+  await expect(control.locator('[data-cell=A1]')).toHaveValue('4');
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await expect(sheetName).toHaveValue('Calibration data');
   await expect(result.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue(formula);
   await expect(result.locator('[data-cell=A1]')).toHaveValue('12');
 

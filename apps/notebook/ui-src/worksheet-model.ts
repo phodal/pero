@@ -1,16 +1,11 @@
 import type { Editor } from '@tiptap/core';
 import type { Node } from '@tiptap/pm/model';
-import { evaluateSpreadsheet, evaluateWorkbook, renameWorksheetReferences, type CellValue, type Spreadsheet } from '../../../packages/notebook/src/spreadsheet';
-import { isExcelWorksheetName } from '../../../packages/notebook/src/workbook';
+import { closeHistory } from '@tiptap/pm/history';
+import { evaluateSpreadsheet, evaluateWorkbook, type CellValue, type Spreadsheet } from '@pero/notebook/spreadsheet';
+import { renameWorksheet as renameNotebookWorksheet, type NotebookWorksheet } from '@pero/notebook/worksheet';
 
-interface WorksheetBlock {
-  id: string;
-  name: string;
-  sheet: Spreadsheet;
-}
-
-export function worksheetBlocks(document: Node): WorksheetBlock[] {
-  const blocks: WorksheetBlock[] = [];
+export function worksheetBlocks(document: Node): NotebookWorksheet[] {
+  const blocks: NotebookWorksheet[] = [];
   document.descendants(node => {
     if (node.type.name !== 'spreadsheet') return;
     const { blockId, label, sheet } = node.attrs as { blockId: string; label: string; sheet: Spreadsheet };
@@ -35,28 +30,19 @@ export function nextWorksheetName(document: Node): string {
 }
 
 export function renameWorksheet(editor: Editor, blockId: string, name: string): 'invalid' | 'duplicate' | undefined {
-  if (!isExcelWorksheetName(name)) return 'invalid';
   const worksheets = worksheetBlocks(editor.state.doc);
-  const current = worksheets.find(sheet => sheet.id === blockId);
-  if (!current || name === current.name) return;
-  const otherSheets = worksheets.filter(sheet => sheet.id !== blockId);
-  if (otherSheets.some(sheet => sheet.name.toLowerCase() === name.toLowerCase())) return 'duplicate';
-  const unambiguous = !otherSheets.some(sheet => sheet.name.toLowerCase() === current.name.toLowerCase());
+  const result = renameNotebookWorksheet(worksheets, blockId, name);
+  if (result.status !== 'ok') return result.status;
+  const changes = new Map(result.worksheets
+    .filter((worksheet, index) => worksheet !== worksheets[index])
+    .map(worksheet => [worksheet.id, worksheet]));
+  if (!changes.size) return;
   editor.commands.command(({ tr }) => {
+    closeHistory(tr);
     tr.doc.descendants((node, position) => {
       if (node.type.name !== 'spreadsheet') return;
-      const attrs = { ...node.attrs };
-      if (attrs.blockId === blockId) attrs.label = name;
-      const sheet = attrs.sheet as Spreadsheet;
-      const cells = { ...sheet.cells };
-      if (unambiguous) for (const [address, value] of Object.entries(cells)) {
-        const renamed = renameWorksheetReferences(value, current.name, name);
-        if (renamed !== value) {
-          cells[address] = renamed;
-          attrs.sheet = { ...sheet, cells };
-        }
-      }
-      if (attrs.label !== node.attrs.label || attrs.sheet !== node.attrs.sheet) tr.setNodeMarkup(position, undefined, attrs);
+      const changed = changes.get(node.attrs.blockId);
+      if (changed) tr.setNodeMarkup(position, undefined, { ...node.attrs, label: changed.name, sheet: changed.sheet });
     });
     return true;
   });

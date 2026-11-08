@@ -1,12 +1,10 @@
 import ExcelJS from "exceljs";
 import type { Cell, CellErrorValue, CellValue } from "exceljs";
 import { spreadsheetLimits } from "./document.ts";
-import { cellAddress, type Spreadsheet } from "./spreadsheet.ts";
+import { cellAddress } from "./spreadsheet.ts";
+import { isExcelWorksheetName, type NamedWorksheet } from "./worksheet.ts";
 
-export interface NamedWorksheet {
-  name: string;
-  sheet: Spreadsheet;
-}
+export { isExcelWorksheetName, type NamedWorksheet } from "./worksheet.ts";
 
 const excelErrors = new Set(["#N/A", "#REF!", "#NAME?", "#DIV/0!", "#NULL!", "#VALUE!", "#NUM!"]);
 const numberInput = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%?$/i;
@@ -14,11 +12,6 @@ const booleanInput = /^(?:true|false)$/i;
 const maxWorkbookBytes = 8 * 1024 * 1024;
 const maxWorksheets = 20;
 const excelEpoch = Date.UTC(1899, 11, 30);
-
-export function isExcelWorksheetName(name: string): boolean {
-  return !!name.trim() && name.length <= 31 && !/[\\/*?:[\]\u0000-\u001f]/.test(name) &&
-    !name.startsWith("'") && !name.endsWith("'") && name.toLowerCase() !== "history";
-}
 
 function textInput(text: string): string {
   const trimmed = text.trim();
