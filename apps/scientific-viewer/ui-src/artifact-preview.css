@@ -32,6 +32,7 @@ body { color:var(--pero-text,#202020); background:var(--pero-surface,#fff); font
 .artifact-image-scroll { display:flex; }
 .artifact-image-scroll img { display:block; max-width:none; object-fit:contain; margin:auto; flex:none; }
 .artifact-pdf-pages canvas { display:block; margin:0 auto; max-width:none; background:#fff; }
+.artifact-pdf-pages canvas[hidden] { display:none; }
 .artifact-kind-table { padding:12px; }
 .artifact-kind-table .viewer-tabs { display:flex; align-items:center; border-bottom:.5px solid var(--pero-border,#dedede); }
 .artifact-kind-table .viewer-tabs button { min-height:30px; padding:3px 12px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--pero-text-muted,#666); font:inherit; cursor:pointer; }

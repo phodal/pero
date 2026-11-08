@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useAppChat, openPaperApp } from '@pero/app-sdk';
+import { useAppChat, useAppContext, openPaperApp } from '@pero/app-sdk';
 import { Disclosure, AppBar, Button, Feedback, FilePicker, Select, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@pero/app-sdk/ui';
 import { assetFrom, inspect, type Asset } from './files';
 import { files, saveFile, removeFile } from './store';
@@ -7,7 +7,7 @@ import { ResearchLab, researchLabAsset, type ResearchLabEntry } from './research
 import { sequenceExamples } from './sequence-examples';
 import { examples } from './examples';
 import { Molecules, Structure } from './molecular';
-import { Literature } from './literature';
+import { PdfPreview } from './pdf-preview';
 import { MolecularExplorer } from './explorer';
 import { TablePreview } from './table-preview';
 import { NotebookPreview } from './notebook-preview';
@@ -18,11 +18,12 @@ class PreviewBoundary extends React.Component<{children: React.ReactNode}, {erro
   render() { return this.state.error ? <section className="preview-empty"><h2>Preview unavailable</h2><Feedback kind="error">{this.state.error}</Feedback><Button onClick={() => document.getElementById('viewer-file')?.focus()}>Choose another file</Button></section> : this.props.children; }
 }
 function Preview({ asset }: { asset: Asset }) {
+  const { locale } = useAppContext();
   switch (inspect(asset.name, asset.mediaType)) {
     case 'table': return <TablePreview asset={asset} />;
     case 'structure': return <Structure asset={asset} />;
     case 'molecule': return <Molecules asset={asset} />;
-    case 'pdf': return <Literature file={asset} />;
+    case 'pdf': return <PdfPreview source={asset} zh={locale === 'zh-CN'} readingOnly />;
     case 'notebook': return <NotebookPreview asset={asset} />;
     case 'json': return <section className="metadata-preview" aria-label="JSON preview"><h2>Metadata</h2><pre>{JSON.stringify(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(asset.bytes)), null, 2)}</pre></section>;
     case 'sequence': case 'mesh': case 'image': case 'code': case 'markdown': case 'html': case 'text': return <RichPreview source={{ ...asset, mediaType: asset.mediaType ?? '' }} provenance={asset.provenance} />;

@@ -2,9 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { Disclosure, Button, Feedback } from '@pero/app-sdk/ui';
 import type { PreviewSource } from './preview-source';
+import './artifact-preview.css';
 
-/** The existing pinned PDF.js engine, without the Paper evidence workflow. */
-export function PdfPreview({ source, zh, onPageText }: { source: PreviewSource; zh: boolean; onPageText?(text: string): void }) {
+export function PdfPreview({ source, zh, readingOnly = false, onPageText }: {
+  source: Pick<PreviewSource, 'name' | 'bytes'>;
+  zh: boolean;
+  readingOnly?: boolean;
+  onPageText?(text: string): void;
+}) {
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1), [zoom, setZoom] = useState(1);
   const [error, setError] = useState(''), [loading, setLoading] = useState(true);
@@ -31,10 +36,15 @@ export function PdfPreview({ source, zh, onPageText }: { source: PreviewSource; 
         wasmUrl: new URL('./pdfjs-wasm/', window.location.href).href });
       destroy = () => task.destroy();
       const value = await task.promise;
+      if (readingOnly && value.numPages > 2000) {
+        destroy = undefined;
+        await task.destroy();
+        throw new Error('PDF exceeds the 2,000-page viewing limit.');
+      }
       if (active) setDocument(value);
     }).catch(reason => { if (active) { setError(String(reason.message)); setLoading(false); } });
     return () => { active = false; void destroy?.(); };
-  }, [source]);
+  }, [source, readingOnly]);
   useEffect(() => {
     if (!document || !canvas.current) return;
     let active = true, render: RenderTask | undefined;
@@ -45,36 +55,42 @@ export function PdfPreview({ source, zh, onPageText }: { source: PreviewSource; 
       const pdfPage = await document.getPage(page);
       if (!active) return;
       const initial = pdfPage.getViewport({ scale: 1 });
-      const scale = width / initial.width * zoom;
+      const fit = width / initial.width;
+      const scale = readingOnly ? Math.min(fit, 1600 / Math.max(initial.width, initial.height)) : fit * zoom;
       const view = pdfPage.getViewport({ scale });
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const ratio = Math.min(window.devicePixelRatio || 1, 2, readingOnly ? 1600 / Math.max(view.width, view.height) : Infinity);
       node.width = Math.ceil(view.width * ratio); node.height = Math.ceil(view.height * ratio);
       node.style.width = `${view.width}px`; node.style.height = `${view.height}px`;
       render = pdfPage.render({ canvas: node, viewport: view, transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0] });
-      const content = await pdfPage.getTextContent();
-      const text = content.items.filter(item => 'str' in item).map(item => 'str' in item ? item.str + (item.hasEOL ? '\n' : ' ') : '').join('');
       await render.promise;
-      if (active) { setPageText(text); onPageText?.(`PDF page ${page} / ${document.numPages}\n${text}`); setLoading(false); }
+      if (!readingOnly && active) {
+        const content = await pdfPage.getTextContent();
+        const text = content.items.filter(item => 'str' in item).map(item => 'str' in item ? item.str + (item.hasEOL ? '\n' : ' ') : '').join('');
+        if (active) { setPageText(text); onPageText?.(`PDF page ${page} / ${document.numPages}\n${text}`); }
+      }
+      if (active) setLoading(false);
     };
     void paint().catch(reason => {
       if (active && reason.name !== 'RenderingCancelledException') { setError(String(reason.message)); setLoading(false); }
     });
     return () => { active = false; render?.cancel(); };
-  }, [document, page, zoom, width, onPageText]);
+  }, [document, page, zoom, width, readingOnly, onPageText]);
   return <section className="artifact-pdf" aria-label={source.name}>
-    <nav className="artifact-pdf-toolbar" aria-label={zh ? 'PDF 页面' : 'PDF pages'}>
+    {(!readingOnly || (document?.numPages ?? 0) > 1) && <nav className="artifact-pdf-toolbar" aria-label={zh ? 'PDF 页面' : 'PDF pages'}>
       <Button variant="ghost" disabled={!document || page <= 1} onClick={() => setPage(value => value - 1)}>{zh ? '上一页' : 'Previous'}</Button>
       <span>{page} / {document?.numPages ?? '—'}</span>
       <Button variant="ghost" disabled={!document || page >= document.numPages} onClick={() => setPage(value => value + 1)}>{zh ? '下一页' : 'Next'}</Button>
-      <span className="artifact-toolbar-spacer" />
-      <Button variant="ghost" disabled={zoom <= 0.5} aria-label={zh ? '缩小' : 'Zoom out'} onClick={() => setZoom(value => Math.max(0.5, value - 0.25))}>−</Button>
-      <Button variant="ghost" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</Button>
-      <Button variant="ghost" disabled={zoom >= 3} aria-label={zh ? '放大' : 'Zoom in'} onClick={() => setZoom(value => Math.min(3, value + 0.25))}>+</Button>
-    </nav>
+      {!readingOnly && <>
+        <span className="artifact-toolbar-spacer" />
+        <Button variant="ghost" disabled={zoom <= 0.5} aria-label={zh ? '缩小' : 'Zoom out'} onClick={() => setZoom(value => Math.max(0.5, value - 0.25))}>−</Button>
+        <Button variant="ghost" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</Button>
+        <Button variant="ghost" disabled={zoom >= 3} aria-label={zh ? '放大' : 'Zoom in'} onClick={() => setZoom(value => Math.min(3, value + 0.25))}>+</Button>
+      </>}
+    </nav>}
     {error && <Feedback kind="error">{error}</Feedback>}
     {loading && <div className="artifact-loading" role="status">{zh ? '正在载入 PDF…' : 'Loading PDF…'}</div>}
-    <div className="artifact-pdf-pages" ref={viewport}><canvas ref={canvas} aria-label={`${source.name}, ${zh ? '第' : 'page'} ${page}`} />
-      <Disclosure variant="inline" className="artifact-pdf-text" summary={<>{zh ? '本页文字' : 'Page text'}</>}><pre>{pageText || (zh ? '本页没有可提取的文字。' : 'No extractable text on this page.')}</pre></Disclosure>
+    <div className="artifact-pdf-pages" ref={viewport}><canvas ref={canvas} aria-label={`${source.name}, ${zh ? `第 ${page} 页` : `page ${page}`}`} hidden={readingOnly && (loading || Boolean(error))} />
+      {!readingOnly && <Disclosure variant="inline" className="artifact-pdf-text" summary={<>{zh ? '本页文字' : 'Page text'}</>}><pre>{pageText || (zh ? '本页没有可提取的文字。' : 'No extractable text on this page.')}</pre></Disclosure>}
     </div>
   </section>;
 }

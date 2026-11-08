@@ -1,5 +1,28 @@
 # Scientific Viewer and website molecular illustrations
 
+## Imported PDF preview (2026-11-08)
+
+The file picker and Examples menu now use the existing PDF.js preview in
+reading mode. Single-page PDFs open directly on the document. Multi-page
+PDFs have previous and next page controls. The former quotation, crop,
+review and evidence export interface has been removed from this entry
+point. The shared preview still provides zoom and page text to the
+conversation artifact browser.
+
+Observed on macOS arm64 in Chromium with the built App, based on `a01d1594`
+with working-tree changes. The PDF scenario verified rendered pixels,
+keyboard paging in a two-page import, and recovery after opening an invalid
+PDF. The wide light and 390px dark captures were inspected.
+
+- `test-results/scientific-viewer-pdf/pdf-preview-light.png`
+- `test-results/scientific-viewer-pdf/pdf-preview-narrow-dark.png`
+
+Type checking, the App build and all 31 App unit tests passed. The Viewer
+browser suite passed all seven scenarios after the concurrent GenBank test
+locator was corrected. The conversation artifact browser passed 12 scenarios,
+including PDF rendering, zoom and page discussion. Native and installed
+packages were outside this verification.
+
 ## GenBank sequence preview (2026-11-08)
 
 The existing Scientific Viewer file picker and Examples menu open the same

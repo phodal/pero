@@ -33,6 +33,48 @@ if (process.argv.includes('--serve')) {
     };
     const capture = name => page.locator('iframe').screenshot({ path: resolve(out, `${name}.png`) });
     const noOverflow = async () => expect(await app.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    phase = 'pdf-preview';
+    await example('sample.pdf');
+    const pdf = app.getByRole('region', { name: 'sample.pdf', exact: true });
+    const firstPage = pdf.getByLabel('sample.pdf, page 1', { exact: true });
+    await expect(firstPage).toBeVisible();
+    expect(await firstPage.evaluate(canvas => {
+      const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      return data.some((value, index) => index % 4 === 0 && value < 128 && data[index + 3] === 255);
+    })).toBe(true);
+    await expect(pdf.getByRole('navigation')).toHaveCount(0);
+    await expect(pdf.locator('button, input, textarea, details')).toHaveCount(0);
+    await capture('pdf-preview-light');
+    await page.getByLabel('Theme').selectOption('dark');
+    await page.setViewportSize({ width: 390, height: 760 });
+    await expect.poll(async () => (await firstPage.boundingBox())?.width).toBeLessThan(390);
+    await noOverflow();
+    await capture('pdf-preview-narrow-dark');
+
+    const printPage = await browser.newPage();
+    await printPage.setContent('<p>First page</p><p style="break-before: page">Second page</p>');
+    const twoPages = await printPage.pdf();
+    await printPage.close();
+    const importFile = app.getByLabel('Import file', { exact: true });
+    await importFile.setInputFiles({ name: 'two-pages.pdf', mimeType: 'application/pdf', buffer: twoPages });
+    const pages = app.getByRole('region', { name: 'two-pages.pdf', exact: true });
+    const previous = pages.getByRole('button', { name: 'Previous', exact: true });
+    const next = pages.getByRole('button', { name: 'Next', exact: true });
+    await expect(pages.getByLabel('two-pages.pdf, page 1', { exact: true })).toBeVisible();
+    await expect(previous).toBeDisabled();
+    await next.press('Enter');
+    await expect(pages.getByLabel('two-pages.pdf, page 2', { exact: true })).toBeVisible();
+    await expect(next).toBeDisabled();
+    await previous.press('Enter');
+    await expect(pages.getByLabel('two-pages.pdf, page 1', { exact: true })).toBeVisible();
+    await importFile.setInputFiles({ name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n') });
+    await expect(app.getByRole('region', { name: 'broken.pdf', exact: true }).getByRole('alert')).toBeVisible();
+    await example('sample.pdf');
+    await expect(firstPage).toBeVisible();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByLabel('Theme').selectOption('light');
+    checks.push('PDF.js renders the single-page sample without controls, supports keyboard paging for multiple pages and recovers after an invalid PDF');
+
     phase = 'plasmid-maps';
     for (const [name, length, accession] of [['pACYC184', '4,245', 'X06403.1'], ['pUC19', '2,686', 'M77789.2'], ['pBR322', '4,361', 'J01749.1']]) {
       const filename = `${name}.gb`;

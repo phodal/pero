@@ -48,8 +48,8 @@ deletes the original disk file. No background import or model execution occurs.
   Unix teardown uses Host process-group ownership. On Windows the server binds
   a non-inherited kill-on-close Job Object before sending any molecule input;
   ownership failure rejects computation rather than running an unowned child.
-- Actual public PDF.js renders PDF evidence. Quotations/crops and explicit
-  quotation review use Pero's existing Host Agent authority, never App credentials.
+- Imported PDFs open directly in the PDF.js preview. Multi-page files show
+  previous and next page controls.
 - JSON displays escaped metadata. Unsupported formats and model weights remain opaque.
 - Images, code and Markdown have shared read-only previews. HTML opens in a static
   sandbox without scripts or external resources; the original source stays available.
