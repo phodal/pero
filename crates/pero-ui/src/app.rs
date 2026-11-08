@@ -589,7 +589,7 @@ impl Workbench {
                 >(event.data.clone())
                 {
                     self.workspace_repositories
-                        .retain(|entry| entry.workspace != event.text);
+                        .retain(|entry| !pero_contracts::workspace_path::WorkspacePath(&entry.workspace).matches(&event.text));
                     if let Some(repository) = identity.repository {
                         self.workspace_repositories.push(
                             pero_contracts::workbench::WorkspaceRepository {

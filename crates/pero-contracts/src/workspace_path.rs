@@ -79,7 +79,16 @@ mod tests {
             assert_eq!(WorkspacePath(saved).matches(observed), same, "{saved}");
             assert_eq!(WorkspacePath(observed).matches(saved), same, "{observed}");
         }
-        let long = format!("C:\\{}", "a".repeat(260));
-        assert!(!WorkspacePath(&format!(r"\\?\{long}")).matches(&long));
+        for (path, units, same) in [
+            (format!("C:\\x\\{}", "a".repeat(254)), 259, true),
+            (format!("C:\\x\\{}", "a".repeat(255)), 260, false),
+            (format!("C:\\x\\{}", "😀".repeat(127)), 259, true),
+            (format!("C:\\x\\{}a", "😀".repeat(127)), 260, false),
+        ] {
+            assert_eq!(path.encode_utf16().count(), units);
+            let verbatim = format!(r"\\?\{path}");
+            assert_eq!(WorkspacePath(&verbatim).matches(&path), same, "{units} UTF-16 units");
+            assert_eq!(WorkspacePath(&path).matches(&verbatim), same, "{units} UTF-16 units");
+        }
     }
 }

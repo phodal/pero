@@ -36,7 +36,9 @@ impl Project {
             }
             let shared_id = bindings
                 .iter()
-                .find(|binding| WorkspacePath(&binding.workspace).matches(workspace))
+                // Older preferences may bind both spellings to different projects.
+                .find(|binding| binding.workspace == *workspace)
+                .or_else(|| bindings.iter().find(|binding| WorkspacePath(&binding.workspace).matches(workspace)))
                 .map(|binding| binding.project_id.clone())
                 .or_else(|| {
                     let repository = &workspaces_repositories
@@ -238,6 +240,37 @@ mod tests {
         ], &[ProjectRepository { project_id: "team".into(), repository }]);
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].shared_id.as_deref(), Some("team"));
+    }
+
+    #[test]
+    fn saved_alias_bindings_prefer_the_selected_workspace_spelling() {
+        let legacy = r"\\?\C:\work\pero";
+        let current = r"C:\work\pero";
+        for reverse_bindings in [false, true] {
+            for (selected, alias, expected) in [
+                (current, legacy, "current-team"),
+                (legacy, current, "legacy-team"),
+            ] {
+                // Older versions could persist both spellings with different bindings.
+                let mut preferences = pero_contracts::workbench::WorkbenchPreferences::default();
+                preferences.projects = vec![
+                    ProjectBinding { workspace: legacy.into(), project_id: "legacy-team".into() },
+                    ProjectBinding { workspace: current.into(), project_id: "current-team".into() },
+                ];
+                if reverse_bindings { preferences.projects.reverse(); }
+                assert!(preferences.valid(), "saved alias pairs must remain loadable");
+                let projects = Project::catalog(
+                    &[selected.into(), alias.into()], &[], &preferences.projects, &[], &[],
+                );
+                assert_eq!(projects.len(), 1);
+                assert_eq!(projects[0].shared_id.as_deref(), Some(expected));
+                assert!(projects[0].contains_workspace(alias));
+                preferences.bind(selected.into(), "updated-team".into());
+                assert_eq!(preferences.projects.len(), 1);
+                assert_eq!(preferences.projects[0].project_id, "updated-team");
+                assert!(preferences.valid());
+            }
+        }
     }
 
     #[test]
