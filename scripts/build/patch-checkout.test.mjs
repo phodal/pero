@@ -108,3 +108,53 @@ test('icon generation retains exact bytes with Windows checkout defaults', t => 
     write(path, good);
   }
 });
+
+// Embedded CSS must use canonical newlines even when its sources use CRLF.
+test('SDK token generation retains exact bytes with Windows checkout defaults', t => {
+  const root = mkdtempSync(join(tmpdir(), 'pero-token-checkout-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const git = (...args) => execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+  const write = (path, contents) => {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), contents);
+  };
+  const tokenRoot = 'packages/app-sdk/src/tokens/';
+  const sources = [
+    ...['theme-light', 'theme-dark', 'theme-contrast', 'structure'].map(name => `${tokenRoot}${name}.css`),
+    'packages/pero-design/src/tokens.css',
+  ];
+  const outputs = ['appearance.css', 'appearance-properties.mjs', 'tokens-css.mjs'].map(name => tokenRoot + name);
+  const files = ['.gitattributes', 'scripts/build/app-sdk-tokens.mjs', 'web/src/theme.generated.json', ...sources, ...outputs];
+  for (const path of files) write(path, readFileSync(new URL(`../../${path}`, import.meta.url)));
+  const canonical = outputs.map(path => readFileSync(join(root, path)));
+  const generate = (...args) => spawnSync(process.execPath, ['scripts/build/app-sdk-tokens.mjs', ...args], {
+    cwd: root, encoding: 'utf8',
+  });
+  assert.equal(generate('--check').status, 0);
+  git('init', '-q');
+  git('config', '--local', 'core.autocrlf', 'true');
+  git('config', '--local', 'core.safecrlf', 'false');
+  const emptyAttributes = join(root, 'empty-attributes');
+  writeFileSync(emptyAttributes, '');
+  git('config', '--local', 'core.attributesFile', emptyAttributes);
+  git('add', '.');
+  for (const path of files) rmSync(join(root, path));
+  git('checkout', '--', '.');
+  for (const path of sources) assert.ok(readFileSync(join(root, path)).includes(Buffer.from('\r\n')), path);
+  const checked = generate('--check');
+  assert.equal(checked.status, 0, checked.stderr);
+  const regenerated = generate();
+  assert.equal(regenerated.status, 0, regenerated.stderr);
+  outputs.forEach((path, index) => assert.deepEqual(readFileSync(join(root, path)), canonical[index]));
+  // Canonicalization of inputs must not hide drift in the generated outputs.
+  for (const [index, path] of outputs.entries()) {
+    const good = canonical[index].toString();
+    for (const bad of [good.replaceAll('\n', '\r\n'), `${good}/* stale */\n`]) {
+      write(path, bad);
+      const rejected = generate('--check');
+      assert.notEqual(rejected.status, 0);
+      assert.match(rejected.stderr, /Stale SDK tokens/);
+    }
+    write(path, good);
+  }
+});

@@ -12,3 +12,8 @@ packages/icons/LICENSE-LUCIDE text eol=lf
 
 # The LCMS2Yield reaction table is pinned by SHA-256 of the upstream bytes.
 apps/lcms2yield/backend/data/Reaction.csv -text
+
+# SDK token generation compares exact bytes; embedded CSS is normalized by its generator.
+packages/app-sdk/src/tokens/appearance.css text eol=lf
+packages/app-sdk/src/tokens/appearance-properties.mjs text eol=lf
+packages/app-sdk/src/tokens/tokens-css.mjs text eol=lf
