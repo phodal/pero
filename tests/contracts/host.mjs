@@ -2,7 +2,7 @@
 // line in both directions against protocol/generated/host.schema.json.
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, realpathSync, statSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, statSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -195,7 +195,12 @@ try {
   await host.next('workspace');
   host.send({ action: 'workspace', path: temp });
   const workspace = await host.next('workspace');
-  if (realpathSync(workspace.text) !== realpathSync(temp)) failures.push(`Workspace path must resolve to the selected directory: ${workspace.text}`);
+  // Compare filesystem identity, not path spelling (Windows may report aliases).
+  const actualWorkspace = statSync(workspace.text, { bigint: true });
+  const selectedWorkspace = statSync(temp, { bigint: true });
+  if (!actualWorkspace.isDirectory() || !selectedWorkspace.isDirectory() || actualWorkspace.dev !== selectedWorkspace.dev || actualWorkspace.ino !== selectedWorkspace.ino) {
+    failures.push(`Workspace must identify the selected directory: actual=${JSON.stringify(workspace.text)} dev=${actualWorkspace.dev} ino=${actualWorkspace.ino} directory=${actualWorkspace.isDirectory()}; selected=${JSON.stringify(temp)} dev=${selectedWorkspace.dev} ino=${selectedWorkspace.ino} directory=${selectedWorkspace.isDirectory()}`);
+  }
   if (process.platform === 'win32' && /^[A-Za-z]:\\/.test(temp) && /^\\\\\?\\[A-Za-z]:\\/.test(workspace.text)) failures.push(`Drive workspace path must use ordinary platform syntax: ${workspace.text}`);
   host.send({ action: 'attach_files', paths: [resolve(temp, 'notes.txt')] });
   await host.next('context_files');
