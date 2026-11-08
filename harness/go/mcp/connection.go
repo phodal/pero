@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -255,7 +256,18 @@ func workspaceRoots(directories []string) []*mcp.Root {
 		if directory == "" || !filepath.IsAbs(directory) {
 			continue
 		}
-		roots = append(roots, &mcp.Root{URI: (&url.URL{Scheme: "file", Path: filepath.ToSlash(directory)}).String(), Name: "workspace"})
+		uri := url.URL{Scheme: "file", Path: filepath.ToSlash(directory)}
+		volume := filepath.ToSlash(filepath.VolumeName(directory))
+		if strings.HasPrefix(volume, "//") && !strings.HasPrefix(uri.Path, "//?/") && !strings.HasPrefix(uri.Path, "//./") {
+			// Ordinary UNC roots retain the server as authority and the share in
+			// the path. Device namespaces keep their existing path encoding.
+			host, path, _ := strings.Cut(uri.Path[2:], "/")
+			uri.Host, uri.Path = host, "/"+path
+		} else if !strings.HasPrefix(uri.Path, "/") {
+			// A drive letter is part of the path, never the URI authority.
+			uri.Path = "/" + uri.Path
+		}
+		roots = append(roots, &mcp.Root{URI: uri.String(), Name: "workspace"})
 	}
 	return roots
 }
