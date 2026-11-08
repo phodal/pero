@@ -1,0 +1,44 @@
+[
+  {
+    "id": "optics-table-66db15",
+    "name": "Optics Table",
+    "file": "optics-table-66db15.glb",
+    "bytes": 67660,
+    "sha256": "835eac117bde58c36dfc46af32cb3b33fecb4273a9c1154d84f7b96c284262d6",
+    "sourceUrl": "https://polyfork.dev/asset/optics-table-66db15",
+    "downloadUrl": "https://polyfork.dev/cdn/optics-table-66db15.glb",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "attribution": "Optics Table by Polyfork (https://polyfork.dev/asset/optics-table-66db15), CC BY 4.0",
+    "modifications": "None. Original mesh bytes unchanged.",
+    "retrievedOn": "2026-11-08"
+  },
+  {
+    "id": "research-microscope-77ce04",
+    "name": "Research Microscope",
+    "file": "research-microscope-77ce04.glb",
+    "bytes": 77124,
+    "sha256": "804be0835a0b9c075dc39f6442b081272ef946e5a1dfb9152643f66475a9b574",
+    "sourceUrl": "https://polyfork.dev/asset/research-microscope-77ce04",
+    "downloadUrl": "https://polyfork.dev/cdn/research-microscope-77ce04.glb",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "attribution": "Research Microscope by Polyfork (https://polyfork.dev/asset/research-microscope-77ce04), CC BY 4.0",
+    "modifications": "None. Original mesh bytes unchanged.",
+    "retrievedOn": "2026-11-08"
+  },
+  {
+    "id": "sample-tube-rack-3a32bd",
+    "name": "Sample Tube Rack",
+    "file": "sample-tube-rack-3a32bd.glb",
+    "bytes": 77936,
+    "sha256": "fee52d965720c96ea7f0e09ccbe8a23840c30269610cfd7edccf47c1e8f40b86",
+    "sourceUrl": "https://polyfork.dev/asset/sample-tube-rack-3a32bd",
+    "downloadUrl": "https://polyfork.dev/cdn/sample-tube-rack-3a32bd.glb",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "attribution": "Sample Tube Rack by Polyfork (https://polyfork.dev/asset/sample-tube-rack-3a32bd), CC BY 4.0",
+    "modifications": "None. Original mesh bytes unchanged.",
+    "retrievedOn": "2026-11-08"
+  }
+]

@@ -1,5 +1,81 @@
 # Scientific Viewer and website molecular illustrations
 
+## Research Lab GLB integration (2026-11-08)
+
+Refs [#177](https://github.com/phodal/pero/issues/177), implementation
+[PR #178](https://github.com/phodal/pero/pull/178). Source tested:
+`750475f870e74b0a45320f7de644281f54a9c37d`, based on master `3c0c96c5`.
+
+### Scope and ownership
+
+The toolbar adds Research Lab alongside existing imports and molecular examples.
+Three unmodified Polyfork low-poly GLB meshes are bundled under CC BY 4.0, with
+pinned byte hashes, source links, attribution and modification statements. Their
+combined size is 222,720 bytes. No thumbnails, HD, MJS or online catalog is bundled.
+The library copies a selected model into the existing bounded IndexedDB store;
+repeated opens reuse the copy. Removing that copy does not change bundled assets
+or original disk files. ZIP export keeps the exact original GLB and credit text.
+
+The GLB preview is an illustrative display. It preserves geometry/transforms and
+reports bounds using glTF's metre convention without claiming calibrated dimensions.
+Mol*, RDKit, existing scientific previews and Virtual Cell retain data ownership.
+There is no additional execution service, remote decoder, automatic animation or
+permission/CSP expansion. Input subset and resource limits are documented in the
+App README and owned by `MeshAsset` admission.
+
+The viewport uses existing App SDK Button/Disclosure controls and theme tokens;
+the library uses LibraryHeader and existing file selection/persistence. No shared
+component or token contract was replaced. Camera, rendering and disposal remain
+inside the mesh preview; file provenance remains with its storage owner.
+
+### Local checks
+
+- Viewer unit tests: 31 passed, including official model admission, invalid and
+  excessive resources, extension/URI rejection, original bytes, and actual Three
+  interleaved accessor compatibility.
+- Viewer typecheck and production build: passed.
+- Production build tests: 3 passed, including shipped model hashes and credits.
+  Corrected the pre-existing engine list expectation to include the already-shipped
+  react-markdown and remark-gfm licenses.
+- Python/RDKit regression: 10 passed using official RDKit 2026.09.1, Python 3.12.
+- Theme, design, SDK tokens, locale and protocol generated checks: passed.
+- `git diff --check`: passed.
+- Whole-repository `npm run check`: blocked locally by absent generated
+  `web/src/reader-wasm/pero_reader_web`; separate icon check needs the GPUI kit
+  checkout. Neither generated output was stubbed or rewritten.
+
+### Browser and platform boundaries
+
+Local Chromium could not start because the command environment denied its process
+socket, including the approved unsandboxed attempt. The cloud browser could not
+reach that container's localhost. These attempts do not establish UI acceptance.
+
+The focused browser test is part of the existing Scientific Viewer CI job and
+uses the production bundle, actual Three.js, actual IndexedDB and the shell CSP.
+It covers all three meshes, attribution/byte-exact exports, offline and reload,
+keyboard, themes and 390px width, invalid imports and recovery, embedded PNG,
+context loss/retry, unavailable WebGL and disposed canvases. Existing chart/RDKit
+and conversation artifact regressions run in that same job.
+
+All nine Research Lab check groups passed in the Scientific Viewer job of
+[CI run 42431347094](https://github.com/phodal/pero/actions/runs/42431347094),
+alongside all five existing Viewer browser groups and twelve artifact-viewer
+groups. CI merge commit: `956ae878e760aa60ebb4a89438fa94e9fdc4a1a0`.
+The recorded result contains no JavaScript errors or external model requests.
+
+All eight Research Lab screenshots in the
+[browser evidence artifact](https://github.com/phodal/pero/actions/runs/42431347094/artifacts/13598235034)
+were visually inspected: the library, each of the three meshes, dark and 390px
+layouts, rejected GLB feedback, and embedded PNG. Models are recognizable and
+fully framed; controls, errors, provenance and dimensions remain readable without
+blocking overlap or clipping. The white rack has modest surface contrast in the
+light theme, consistent with the source material; its tubes and holes remain
+visible. The artifact includes machine-readable checks and asset hashes.
+
+This follow-up records evidence only; App and test code are unchanged. No
+Electron, Native, signed-package or scientific-validity acceptance is claimed by
+the browser fixture.
+
 ## Imported-file inspection redesign (2026-11-03)
 
 This change replaces the imported molecule stack with a selectable structure

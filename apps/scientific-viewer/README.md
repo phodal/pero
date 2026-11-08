@@ -119,3 +119,40 @@ The test needs Playwright Chromium (`npx playwright install chromium`) or
 `PERO_CHROMIUM_PATH`. Append `--serve` to inspect the same bundle interactively.
 The server prints its chosen loopback port and stops when stdin receives `stop`.
 Screenshots and the bundle hash are saved in `test-results/scientific-viewer-browser/`.
+
+## Research Lab and local GLB
+
+**Research Lab** in the toolbar opens three bundled Polyfork low-poly models:
+Optics Table, Research Microscope, and Sample Tube Rack (222,720 bytes total).
+These are illustrative meshes, not calibrated instruments, scientific observations,
+or validated simulations. This is not the complete Research Lab kit.
+
+Open a model to save a local copy, orbit/zoom with pointer or arrow keys and +/−,
+reset/fit with Home, inspect bounds, and download the exact GLB plus attribution
+in a ZIP. Sources, CC BY 4.0 credit, license URLs, modification notes and SHA-256
+are pinned in `assets/research-lab/manifest.json`; `ATTRIBUTION.md` is copied into
+built distributions. No thumbnails, HD assets or parameterized MJS are included.
+Saved models reopen offline. Removing a local copy leaves the bundled original
+and the user's disk file untouched.
+
+Import file also accepts `.glb` or `model/gltf-binary`. The read-only renderer
+supports a deliberately bounded subset: static triangle GLB 2, one embedded BIN,
+embedded PNG/JPEG, and native unlit/transmission/ior/specular/clearcoat materials.
+It rejects external/data URIs, animations, skins, morphs, compression, unknown
+extensions, invalid graphs/accessors/indices and excessive decoded resources before
+GLTFLoader. Bounds are reported in glTF's metre convention, not certified units;
+camera fitting never changes mesh data. Unattributed local imports remain unknown.
+
+Budgets: 10 MiB file, 1 MiB JSON, 250,000 triangles (including instances), 1,024
+nodes, 128 materials, 64 MiB accounted decoded resources, 8,388,608 image pixels,
+and 4,096 pixels per image dimension. GPU resources are disposed on replacement,
+retry and unmount. There is no animation loop, remote decoder, network search,
+asset hotlink, new permission, or CSP relaxation. Mol*, RDKit and Virtual Cell
+retain ownership of their scientific data and computations.
+
+`PERO_SCIENTIFIC_PYTHON=/path/to/python node tests/e2e/research-lab-browser.mjs`
+checks the production bundle under the shell's CSP, including all three meshes,
+byte-exact licensed export, offline/reload, keyboard/theme/narrow views, invalid
+imports, embedded textures, context loss/retry, unavailable WebGL and cleanup.
+Screenshots go to `test-results/research-lab-browser/`. Electron, Native and signed
+packages require separate acceptance; browser checks do not certify those shells.

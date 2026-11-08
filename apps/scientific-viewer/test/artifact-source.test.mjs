@@ -4,6 +4,8 @@ import { artifactContext, artifactLocator, artifactSourceUrl, readArtifactSnapsh
 import { previewKind } from '../ui-src/preview-source.ts';
 
 test('snapshot preview kinds retain binary, notebook and source distinctions', () => {
+  assert.equal(previewKind({ name: 'model.GLB', mediaType: '' }), 'mesh');
+  assert.equal(previewKind({ name: 'model', mediaType: 'model/gltf-binary' }), 'mesh');
   const cases = [
     ['plot.png', 'image/png', 'image'], ['report.pdf', 'application/pdf', 'pdf'],
     ['results.csv', 'text/csv', 'table'], ['results.tsv', '', 'table'],

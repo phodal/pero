@@ -1,7 +1,8 @@
 /** Local bounded file inspection. Imported bytes are never evaluated as code. */
 import { previewKind, type PreviewKind } from './preview-source.ts';
 export const MAX_FILE = 10 * 1024 * 1024;
-export type Asset = { id: string; name: string; size: number; sha256: string; source: string; license: string; synthetic: boolean; bytes: Uint8Array };
+export type MeshProvenance = Readonly<{ provider: 'Polyfork'; assetId: string; sourceUrl: string; licenseUrl: string; attribution: string; modifications: string }>;
+export type Asset = { mediaType?: string; provenance?: MeshProvenance; id: string; name: string; size: number; sha256: string; source: string; license: string; synthetic: boolean; bytes: Uint8Array };
 export type Table = { headers: string[]; rows: string[][]; missing: number };
 export function parseTable(text: string): Table {
   if (text.length > MAX_FILE) throw new Error('Text exceeds 10 MiB');
@@ -23,12 +24,12 @@ export function parseTable(text: string): Table {
   if (!headers.length || rows.some(row => row.length !== headers.length)) throw new Error('Inconsistent table columns');
   return { headers, rows, missing: rows.flat().filter(value => !value.trim()).length };
 }
-export function inspect(name: string): PreviewKind | 'structure' | 'molecule' | 'json' {
+export function inspect(name: string, mediaType = ''): PreviewKind | 'structure' | 'molecule' | 'json' {
   const ext = name.split('.').at(-1)?.toLowerCase();
   if (['pdb', 'cif', 'mmcif'].includes(ext ?? '')) return 'structure';
   if (['smi', 'smiles', 'mol', 'sdf'].includes(ext ?? '')) return 'molecule';
   if (ext === 'json') return 'json';
-  return previewKind({ name, mediaType: '' });
+  return previewKind({ name, mediaType });
 }
 export type NumericPoint = { x: number; y: number; row: number };
 function finiteNumber(value: string): number | null {
@@ -58,12 +59,12 @@ export function numericSeries(table: Table, xColumn = 0, yColumn = 1): Array<Num
   });
 }
 export { numericSeries as spectrum };
-export async function assetFrom(file: File, metadata: Partial<Pick<Asset, 'source' | 'license' | 'synthetic'>> = {}): Promise<Asset> {
+export async function assetFrom(file: File, metadata: Partial<Pick<Asset, 'source' | 'license' | 'synthetic' | 'provenance'>> = {}): Promise<Asset> {
   if (!file.size || file.size > MAX_FILE) throw new Error('Choose a nonempty file up to 10 MiB');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   const sha256 = [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('');
-  return { id: crypto.randomUUID(), name: file.name, size: bytes.length, sha256, source: 'User-selected local file', license: 'Unknown', synthetic: false, ...metadata, bytes };
+  return { id: crypto.randomUUID(), name: file.name, mediaType: file.type, size: bytes.length, sha256, source: 'User-selected local file', license: 'Unknown', synthetic: false, ...metadata, bytes };
 }
 /** Mol* 5.13.1 uses structure labels as HTML in multiple stock controls.
  * Reject before creating the engine, retaining original bytes rather than silently sanitizing. */
