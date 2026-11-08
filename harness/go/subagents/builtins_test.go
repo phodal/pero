@@ -1,12 +1,14 @@
 package subagents
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -91,6 +93,18 @@ func TestBuiltinExploreAndPlanReallyReadWithoutWriting(t *testing.T) {
 }
 
 func TestBuiltinExploreAllowsReadOnlyBashAndRejectsWrites(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		h, err := harness.Boot(t.Context(), harness.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) })
+		app, err := nativetools.Mount(t.Context(), h, nativetools.Options{Workspace: t.TempDir(), ClaudeTools: true, EnableShell: true})
+		if app != nil || err == nil || !strings.Contains(err.Error(), "process-group ownership is unsupported") {
+			t.Fatalf("unsupported unsandboxed shell admission: app=%v error=%v", app, err)
+		}
+		return
+	}
 	root := t.TempDir()
 	existing := filepath.Join(root, "existing.txt")
 	forbidden := filepath.Join(root, "forbidden.txt")

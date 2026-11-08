@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -25,14 +26,14 @@ func TestServiceGuidanceBeforeDiscovery(t *testing.T) {
 			observed := false
 			h, err := harness.Boot(t.Context(), harness.Options{Adapter: harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
 				observed = true
-				if strings.Contains(request.System, "ServiceStart") != row.allowed {
+				if strings.Contains(request.System, "ServiceStart") != (row.allowed && runtime.GOOS != "windows") {
 					t.Fatalf("service discovery guidance allowed=%v, system=%s", row.allowed, request.System)
 				}
 				declared := false
 				for _, schema := range request.Tools {
 					declared = declared || schema.Name == "ServiceStart"
 				}
-				if declared != (!row.deferred && row.allowed) {
+				if declared != (!row.deferred && row.allowed && runtime.GOOS != "windows") {
 					t.Fatal("guidance changed tool activation")
 				}
 				return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
@@ -42,13 +43,18 @@ func TestServiceGuidanceBeforeDiscovery(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) })
 			workspace := t.TempDir()
-			native, err := nativetools.Mount(t.Context(), h, nativetools.Options{Workspace: workspace, EnableShell: true, ClaudeTools: true, DeferToolLoading: row.deferred})
+			native, err := nativetools.Mount(t.Context(), h, nativetools.Options{Workspace: workspace, ClaudeTools: true, DeferToolLoading: row.deferred})
 			if err != nil {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { _ = native.Close() })
-			if err := Mount(t.Context(), h, Options{Directory: filepath.Join(t.TempDir(), "services"), Workspace: workspace}, native.CheckCWD); err != nil {
-				t.Fatal(err)
+			mountErr := Mount(t.Context(), h, Options{Directory: filepath.Join(t.TempDir(), "services"), Workspace: workspace}, native.CheckCWD)
+			if runtime.GOOS == "windows" {
+				if mountErr == nil || !strings.Contains(mountErr.Error(), "directory must be private and regular") {
+					t.Fatalf("private service storage admission=%v", mountErr)
+				}
+			} else if mountErr != nil {
+				t.Fatal(mountErr)
 			}
 			agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "service-guidance", CWD: workspace, Configure: func(_ context.Context, run *point.Run, _ *harness.Agent) error {
 				_, err := h.Tools().RestrictWhen(run, func(_ *harness.Agent, name string) bool { return row.allowed || name != "ServiceStart" })
@@ -75,8 +81,13 @@ func TestServiceStartRespectsWorkspacePermission(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) })
-			if err := Mount(t.Context(), h, Options{Directory: filepath.Join(t.TempDir(), "services")}, nil); err != nil {
-				t.Fatal(err)
+			mountErr := Mount(t.Context(), h, Options{Directory: filepath.Join(t.TempDir(), "services")}, nil)
+			if runtime.GOOS == "windows" {
+				if mountErr == nil || !strings.Contains(mountErr.Error(), "directory must be private and regular") {
+					t.Fatalf("private service storage admission=%v", mountErr)
+				}
+			} else if mountErr != nil {
+				t.Fatal(mountErr)
 			}
 			agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{ID: "service-permission", CWD: t.TempDir()})
 			if err != nil {
@@ -89,7 +100,11 @@ func TestServiceStartRespectsWorkspacePermission(t *testing.T) {
 				t.Fatal(err)
 			}
 			outcome, err := h.Tools().Execute(t.Context(), harness.ToolRequest{Agent: agent, CallID: "start", Name: "ServiceStart", Arguments: json.RawMessage(`{"command":"printf forbidden"}`), Preapproved: true})
-			if err != nil || !outcome.Result.IsError || !strings.Contains(outcome.Result.Content[0].Text, "approval rejected") {
+			wantError := "approval rejected"
+			if runtime.GOOS == "windows" {
+				wantError = "unknown tool: ServiceStart"
+			}
+			if err != nil || !outcome.Result.IsError || !strings.Contains(outcome.Result.Content[0].Text, wantError) {
 				t.Fatalf("outcome=%+v err=%v", outcome, err)
 			}
 		})

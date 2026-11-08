@@ -130,7 +130,20 @@ func TestNotebookUnsupportedFormatsPreserveOriginal(t *testing.T) {
 		result := f.call(t, f.allowed, "NotebookEdit", map[string]any{
 			"notebook_path": path, "edit_mode": "insert", "cell_type": "code", "new_source": "new",
 		})
-		if !result.IsError || !strings.Contains(result.Content[0].Text, "only nbformat 4") {
+		wantError := "only nbformat 4"
+		if !f.app.files.SupportsReplacement() {
+			wantError = "unknown tool: NotebookEdit"
+			schemas, err := f.harness.Tools().SchemasForAgent(t.Context(), f.allowed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, schema := range schemas {
+				if schema.Name == "NotebookEdit" {
+					t.Fatal("unsupported NotebookEdit was advertised")
+				}
+			}
+		}
+		if !result.IsError || !strings.Contains(result.Content[0].Text, wantError) {
 			t.Fatalf("result=%+v", result)
 		}
 		raw, err := os.ReadFile(path)
