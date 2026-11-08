@@ -27,7 +27,7 @@ function textInput(text: string): string {
     || booleanInput.test(trimmed) || excelErrors.has(trimmed.toUpperCase()) ? "'" + text : text;
 }
 
-function readCell(cell: Cell): string {
+function readCell(cell: Cell, date1904: boolean): string {
   const formula = cell.formula;
   if (typeof formula === "string") return "=" + formula;
   const value = cell.value;
@@ -35,7 +35,8 @@ function readCell(cell: Cell): string {
   if (typeof value === "string") return textInput(value);
   if (typeof value === "number") return String(value);
   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
-  if (value instanceof Date) return String((value.getTime() - excelEpoch) / 86400000);
+  // Keep the workbook's serial, since formulas may compare dates with numeric inputs.
+  if (value instanceof Date) return String((value.getTime() - excelEpoch) / 86400000 - (date1904 ? 1462 : 0));
   if ("error" in value) return value.error;
   return textInput(cell.text);
 }
@@ -54,7 +55,7 @@ export async function readWorkbook(buffer: ArrayBuffer): Promise<NamedWorksheet[
     let columns = 1;
     worksheet.eachRow(row => row.eachCell((cell, column) => {
       if (cell.isMerged && cell.master !== cell) return;
-      const raw = readCell(cell);
+      const raw = readCell(cell, workbook.properties.date1904 === true);
       if (raw === "") return;
       if (row.number > spreadsheetLimits.rows || column > spreadsheetLimits.columns) {
         throw new Error(`Worksheet "${worksheet.name}" exceeds ${spreadsheetLimits.rows} rows or ${spreadsheetLimits.columns} columns.`);
