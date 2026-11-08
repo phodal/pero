@@ -3,6 +3,7 @@ package plugins
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -20,7 +21,11 @@ func TestPluginDataDirectorySanitizesTheName(t *testing.T) {
 		t.Fatalf("created=%s error=%v", created, err)
 	}
 	info, err := os.Lstat(created)
-	if err != nil || !info.IsDir() || info.Mode().Perm() != 0700 {
+	if err != nil || !info.IsDir() {
 		t.Fatalf("data directory=%v %v", info, err)
+	}
+	// Windows mode bits do not represent ACL privacy. Unix permissions remain strict.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0700 {
+		t.Fatalf("data directory mode=%v", info.Mode())
 	}
 }

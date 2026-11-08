@@ -208,7 +208,8 @@ func TestAgentProjectMemoryIsShownAndKeptInTheWorkspace(t *testing.T) {
 	}
 	var saw bool
 	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
-		saw = strings.Contains(request.System, "remember the port") && strings.Contains(request.System, filepath.Join(directory, "MEMORY.md"))
+		encodedPath, _ := json.Marshal(filepath.Join(directory, "MEMORY.md"))
+		saw = strings.Contains(request.System, "remember the port") && strings.Contains(request.System, string(encodedPath[1:len(encodedPath)-1]))
 		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
 	})
 	ctx := t.Context()
@@ -241,7 +242,8 @@ func TestAgentUserMemoryStaysInThePluginDataDirectory(t *testing.T) {
 	t.Setenv("PERO_PLUGIN_DATA_HOME", home)
 	var saw bool
 	adapter := harness.AdapterFunc(func(_ context.Context, request harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
-		saw = strings.Contains(request.System, filepath.Join(home, "agent-memory", "reviewer", "MEMORY.md")) && strings.Contains(request.System, "Current memory is empty.")
+		encodedPath, _ := json.Marshal(filepath.Join(home, "agent-memory", "reviewer", "MEMORY.md"))
+		saw = strings.Contains(request.System, string(encodedPath[1:len(encodedPath)-1])) && strings.Contains(request.System, "Current memory is empty.")
 		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}}}}, nil
 	})
 	ctx := t.Context()
