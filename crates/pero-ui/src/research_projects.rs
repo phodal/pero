@@ -36,6 +36,7 @@ pub(crate) struct ProjectEditor {
     _subscriptions: Vec<Subscription>,
 }
 impl ResearchProjectsView {
+    #[cfg(target_family = "wasm")]
     pub fn snapshot(&self, cx: &App) -> serde_json::Value {
         json!({"choosing":self.choosing,"loading":self.loading,"catalogs":self.catalogs,"error":self.error,
             "saving":self.pending.is_some() || self.resolving_workspace.is_some(),"editor":self.editor.as_ref().map(|editor|json!({

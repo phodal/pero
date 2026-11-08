@@ -15,8 +15,10 @@ use gpui_kit::{
 };
 use pero_contracts::{
     pane_tabs::{PaneItem, PaneItemKind, ViewId},
-    workspace_panes::{PaneId, PaneLayout, PaneLeaf},
+    workspace_panes::{PaneId, PaneLeaf},
 };
+#[cfg(target_family = "wasm")]
+use pero_contracts::workspace_panes::PaneLayout;
 use std::{cell::RefCell, collections::HashMap};
 
 /// Window chrome owns the outer height and separator; split panes own theirs.
@@ -46,6 +48,7 @@ impl PaneTabsUiState {
         self.switcher.borrow().is_some()
     }
     /// Read-only geometry from the same scroll handles used by the visible strips.
+    #[cfg(target_family = "wasm")]
     pub(crate) fn snapshot(&self, layout: &PaneLayout) -> serde_json::Value {
         let strips = self.strips.borrow();
         serde_json::json!(layout.leaves().iter().filter_map(|leaf| {
@@ -103,6 +106,7 @@ impl Render for PaneTabDrag {
 }
 
 impl Workbench {
+    #[cfg(target_family = "wasm")]
     pub(crate) fn pane_tabs_snapshot(&self, layout: &PaneLayout, cx: &App) -> serde_json::Value {
         let mut value = self.pane_tabs.snapshot(layout);
         for strip in value.as_array_mut().into_iter().flatten() {

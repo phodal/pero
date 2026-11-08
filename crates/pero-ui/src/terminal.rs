@@ -32,6 +32,7 @@ fn send(request: TerminalRequest) -> Result<(), String> {
     session_command(&value.to_string()).map_err(|_| "Local terminal is unavailable".into())
 }
 impl TerminalDock {
+    #[cfg(target_family = "wasm")]
     pub(crate) fn snapshot(&self, cx: &App) -> serde_json::Value {
         serde_json::json!({"visible":self.visible,"active":self.active,"tabs":self.tabs.iter().map(|view|{let v=view.read(cx);serde_json::json!({"id":v.id,"cwd":v.cwd,"text":v.parser.screen().contents(),"size":v.parser.screen().size(),"closed":v.closed,"status":v.status,"bounds":{"x":f32::from(v.bounds.origin.x),"y":f32::from(v.bounds.origin.y),"width":f32::from(v.bounds.size.width),"height":f32::from(v.bounds.size.height)}})}).collect::<Vec<_>>()})
     }

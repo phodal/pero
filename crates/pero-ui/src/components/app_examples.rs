@@ -56,6 +56,7 @@ impl Workbench {
             });
         Some(div().relative().child(button).child(state.bounds.probe("examples".into())).into_any_element())
     }
+    #[cfg(target_family = "wasm")]
     pub(crate) fn app_examples_bounds(&self)->Value {
         json!(self.app_examples.iter().map(|((app,panel),state)|(format!("{app}:{panel}"),state.bounds.snapshot())).collect::<std::collections::BTreeMap<_,_>>())
     }

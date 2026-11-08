@@ -18,6 +18,7 @@ impl ViewBounds {
             .absolute().top_0().left_0().size_full()
     }
 
+    #[cfg(any(target_family = "wasm", test))]
     pub fn snapshot(&self) -> serde_json::Value {
         serde_json::Value::Object(self.0.borrow().iter().map(|(key, bounds)| {
             (key.clone(), serde_json::json!({

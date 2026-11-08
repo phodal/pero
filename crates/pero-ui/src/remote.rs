@@ -125,6 +125,7 @@ impl RemoteState {
             _ => true,
         }
     }
+    #[cfg(target_family = "wasm")]
     pub fn snapshot(&self, cx: &App) -> Value {
         json!({"state":self.data,"creating":self.creating,"confirm_cancel":self.confirm_cancel,
             "connection_editing":self.connection.editing,"connection_url":self.connection.url.read(cx).value().as_ref(),

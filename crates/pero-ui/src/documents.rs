@@ -89,6 +89,7 @@ impl Workbench {
         cx.notify();
     }
 
+    #[cfg(target_family = "wasm")]
     pub(crate) fn has_unsaved_documents(&self, cx: &App) -> bool {
         self.documents.iter().any(|open| open.view.read(cx).dirty())
             || self.recovery.deferred.iter().any(|document| {

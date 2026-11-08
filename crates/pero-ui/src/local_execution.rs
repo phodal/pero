@@ -91,6 +91,7 @@ impl LocalExecution {
         }
     }
 
+    #[cfg(target_family = "wasm")]
     pub fn snapshot(&self, locale: &str, cx: &App) -> serde_json::Value {
         json!({"setup":self.setup,"status":self.status,"editing":self.editing,"pending":self.pending,
             "error_message":self.setup.error_message(locale),
