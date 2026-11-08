@@ -84,12 +84,6 @@ pub fn pip_arguments(packages: &[String]) -> Vec<String> {
     args
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum InterpreterLaunch {
-    Venv,
-    CondaPrefix,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PrefixMarker {
@@ -129,17 +123,6 @@ pub fn accept_marker(text: &str) -> Result<String, String> {
         );
     }
     Ok(marker.python)
-}
-
-/// A marker selects the conda prefix. Its absence leaves the venv rules in place.
-pub fn launch_plan(marker: Option<&str>) -> Result<InterpreterLaunch, String> {
-    match marker {
-        Some(text) => {
-            accept_marker(text)?;
-            Ok(InterpreterLaunch::CondaPrefix)
-        }
-        None => Ok(InterpreterLaunch::Venv),
-    }
 }
 
 pub fn accept_explicit(text: &str) -> Result<(), String> {
@@ -203,11 +186,6 @@ mod tests {
             r#"{"solver":"micromamba","version":"2.5.0-2","channels":["defaults"],"python":"3.12"}"#
         )
         .is_err());
-        assert!(launch_plan(None).unwrap() == InterpreterLaunch::Venv);
-        assert!(
-            launch_plan(Some(std::str::from_utf8(&marker_bytes("3.12")).unwrap())).unwrap()
-                == InterpreterLaunch::CondaPrefix
-        );
     }
 
     #[test]
