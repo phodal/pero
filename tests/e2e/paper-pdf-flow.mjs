@@ -77,8 +77,7 @@ export async function backToLibrary(frame) {
 export async function pdfAction(frame, name) {
   const viewer = frame.getByRole('region', { name: 'PDF reader', exact: true });
   await viewer.focus(); await viewer.press('Shift+F10');
-  // SDK context menus portal outside their trigger region, within the owning frame.
-  await frame.getByRole('menu', { name: 'PDF actions', exact: true }).getByRole('menuitem', { name, exact: true }).click();
+  await viewer.getByRole('menuitem', { name, exact: true }).click();
 }
 export async function exercisePdf({ frame, page, app, out, fixture, profile }) {
   const post = (path, body) => frame.locator('body').evaluate(async (_element, { path, body }) => {
