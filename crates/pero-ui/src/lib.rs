@@ -20,6 +20,8 @@ use pero_chat_ui::theme;
 mod view;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod sessions_view;
+#[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
+mod session_workspace;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod documents;
 #[cfg(any(target_family="wasm",feature="native"))]

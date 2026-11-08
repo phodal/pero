@@ -274,7 +274,7 @@ impl WorkbenchPreferences {
 
     pub fn bind(&mut self, workspace: String, project_id: String) {
         self.projects
-            .retain(|binding| binding.workspace != workspace);
+            .retain(|binding| !crate::workspace_path::WorkspacePath(&binding.workspace).matches(&workspace));
         self.projects.push(ProjectBinding {
             workspace,
             project_id,

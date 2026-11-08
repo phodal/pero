@@ -671,7 +671,7 @@ jobs:
       - name: Core Rust tests without GPUI or WASM compilation
         id: rust_tests
         if: ${{ !cancelled() && steps.node.outcome == 'success' && steps.rust.outcome == 'success' && steps.gpui.outcome == 'success' }}
-        run: node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker
+        run: node scripts/cargo.mjs test --locked -p pero-contracts -p pero-runtime -p pero-host -p pero-worker -p pero-ui -p pero-chat-ui
       - name: Build Host and Worker binaries
         id: host_build
         if: ${{ !cancelled() && steps.node.outcome == 'success' && steps.rust.outcome == 'success' && steps.gpui.outcome == 'success' }}
