@@ -4,11 +4,12 @@ import remarkGfm from 'remark-gfm';
 import { useAppContext } from '@pero/app-sdk';
 import { Button, CodeViewer, Feedback, type CodeViewerProps } from '@pero/app-sdk/ui';
 import { previewKind, sourceText, type PreviewKind, type PreviewSource } from './preview-source';
-import type { Asset } from './files';
+import type { Asset, MeshProvenance } from './files';
 import { TablePreview } from './table-preview';
 import { PdfPreview } from './pdf-preview';
 import './artifact-preview.css';
 
+const MeshPreview = lazy(() => import('./mesh-preview').then(value => ({ default: value.MeshPreview })));
 const NotebookPreview = lazy(() => import('./notebook-preview').then(value => ({ default: value.NotebookPreview })));
 
 function sourceLanguage(name: string): CodeViewerProps['language'] {
@@ -48,12 +49,12 @@ function HtmlPreview({ text, name }: { text: string; name: string }) {
 }
 
 /** Shared display projection. Acquisition, versions and evidence remain with the owner. */
-export function RichPreview({ source, kind: suppliedKind, onDiscuss, selectionOnly = false }: {
-  source: PreviewSource; kind?: PreviewKind; onDiscuss?(selection: string): Promise<void>; selectionOnly?: boolean;
+export function RichPreview({ source, provenance, kind: suppliedKind, onDiscuss, selectionOnly = false }: {
+  source: PreviewSource; provenance?: MeshProvenance; kind?: PreviewKind; onDiscuss?(selection: string): Promise<void>; selectionOnly?: boolean;
 }) {
   const { locale } = useAppContext(), zh = locale === 'zh-CN';
   const kind = suppliedKind ?? previewKind(source);
-  const binary = kind === 'image' || kind === 'pdf' || kind === 'opaque';
+  const binary = kind === 'mesh' || kind === 'image' || kind === 'pdf' || kind === 'opaque';
   const text = useMemo(() => binary ? '' : sourceText(source), [source, binary]);
   const [raw, setRaw] = useState(false), [notice, setNotice] = useState(''), [error, setError] = useState('');
   const [discussing, setDiscussing] = useState(false), [selection, setSelection] = useState('');
@@ -77,6 +78,7 @@ export function RichPreview({ source, kind: suppliedKind, onDiscuss, selectionOn
     {raw && <CodeViewer documentId={source.id} text={text} language="json" label={zh ? '源码' : 'Source'} />}
   </>;
   else if (raw || kind === 'code' || kind === 'text') preview = <CodeViewer documentId={source.id} text={text} language={sourceLanguage(source.name)} label={zh ? '源码' : 'Source'} wrap={kind === 'text'} onCursor={() => setSelection('')} />;
+  else if (kind === 'mesh') preview = <Suspense fallback={<p role="status">{zh ? '正在载入 3D 预览…' : 'Loading 3D preview…'}</p>}><MeshPreview source={source} provenance={provenance} /></Suspense>;
   else if (kind === 'image') preview = <ImagePreview source={source} zh={zh} download={download} />;
   else if (kind === 'pdf') preview = <PdfPreview source={source} zh={zh} onPageText={receivePageText} />;
   else if (kind === 'table') preview = <TablePreview asset={asset} />;
@@ -94,9 +96,9 @@ export function RichPreview({ source, kind: suppliedKind, onDiscuss, selectionOn
         setDiscussing(true); setError(''); setNotice('');
         void onDiscuss(selection || pageText).then(() => setNotice(zh ? '已加入提问' : 'Added to prompt')).catch(reason => setError(String(reason.message))).finally(() => setDiscussing(false));
       }}>{selection ? (zh ? '引用选区' : 'Discuss selection') : pageText ? (zh ? '引用本页' : 'Discuss page') : (zh ? '加入提问' : 'Add to prompt')}</Button>}
-      {kind !== 'image' && <Button variant="ghost" onClick={download}>{zh ? '下载' : 'Download'}</Button>}
+      {kind !== 'image' && kind !== 'mesh' && <Button variant="ghost" onClick={download}>{zh ? '下载' : 'Download'}</Button>}
     </nav>}
-    {kind !== 'image' && !auxiliary && <nav className="artifact-preview-toolbar" aria-label={zh ? '产物预览' : 'Artifact preview'}>
+    {kind !== 'image' && kind !== 'mesh' && !auxiliary && <nav className="artifact-preview-toolbar" aria-label={zh ? '产物预览' : 'Artifact preview'}>
       <span className="artifact-toolbar-spacer" />
       <Button variant="ghost" onClick={download}>{zh ? '下载' : 'Download'}</Button>
     </nav>}

@@ -36,6 +36,10 @@ test('bounded opaque imports are hashed, not parsed or executed', async () => {
   await assert.rejects(assetFrom(new File([], 'empty')), /nonempty/);
   await assert.rejects(assetFrom(new File([new Uint8Array(MAX_FILE + 1)], 'large')), /10 MiB/);
   assert.equal(inspect('unsafe.html'), 'html');
+  const mesh = await assetFrom(new File(['GLB bytes are validated by the mesh preview'], 'optics-table-66db15.glb', { type: 'model/gltf-binary' }));
+  assert.equal(inspect(mesh.name, mesh.mediaType), 'mesh');
+  assert.equal(inspect('extensionless', mesh.mediaType), 'mesh');
+  assert.equal(mesh.license, 'Unknown'); assert.equal(mesh.provenance, undefined);
 });
 test('thirteen independent synthetic examples include invalid and real engine inputs', () => {
   assert.equal(examples.length, 13); assert.equal(new Set(examples.map(x => x.name)).size, 13);
