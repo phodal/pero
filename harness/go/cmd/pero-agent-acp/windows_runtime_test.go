@@ -82,8 +82,17 @@ func TestWindowsACLCLIProcessApprovalAndWriteBoundary(t *testing.T) {
 		for _, tool := range request.Tools {
 			names[tool.Function.Name] = tool.Function.Description
 		}
-		if len(names) != 7 || names["table_render"] == "" || names["chart_render"] == "" || names["read_file"] == "" || names["list_directory"] == "" || names["search_files"] == "" || !strings.Contains(names["write_file"], "create-only") || !strings.Contains(names["shell"], "NOT isolated") {
-			t.Errorf("CLI must expose only charts, bounded files and the accurately labeled partial shell: %+v", request.Tools)
+		wantNames := []string{"table_render", "chart_render", "read_file", "list_directory", "search_files", "glob_files", "regex_search", "notebook_read", "notebook_image", "EnterPlanMode", "ReadToolOutput", "tool_search", "write_file", "shell"}
+		if len(names) != len(wantNames) {
+			t.Errorf("CLI native tool catalog: %+v", names)
+		}
+		for _, name := range wantNames {
+			if names[name] == "" {
+				t.Errorf("missing CLI native tool %q: %+v", name, names)
+			}
+		}
+		if !strings.Contains(names["write_file"], "create-only") || !strings.Contains(names["shell"], "NOT isolated") {
+			t.Errorf("CLI must accurately label create-only files and partial shell: %+v", names)
 		}
 		mu.Lock()
 		stage := calls
@@ -111,7 +120,8 @@ func TestWindowsACLCLIProcessApprovalAndWriteBoundary(t *testing.T) {
 	defer provider.Close()
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
-	child := exec.CommandContext(ctx, binary, "--endpoint", provider.URL+"/v1", "--model", "fixture", "--session-dir", sessions, "--workspace", workspace, "--enable-shell", "--shell", pwsh, "--sandbox", "windows-acl-workspace-write", "--approval", "ask", "--max-requests", "4", "--max-tokens", "512", "--max-retries", "0")
+	// Keep the catalog independent of optional host-installed PDF renderers.
+	child := exec.CommandContext(ctx, binary, "--endpoint", provider.URL+"/v1", "--model", "fixture", "--session-dir", sessions, "--workspace", workspace, "--pdf-renderer", "-", "--enable-shell", "--shell", pwsh, "--sandbox", "windows-acl-workspace-write", "--approval", "ask", "--max-requests", "4", "--max-tokens", "512", "--max-retries", "0")
 	child.Env = append(os.Environ(), "AGENT_PROVIDER_API_KEY=local-fixture-not-secret", "TMP="+privateTempRoot, "TEMP="+privateTempRoot)
 	input, err := child.StdinPipe()
 	if err != nil {

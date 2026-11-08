@@ -33,7 +33,8 @@ func TestWindowsPartialMountKeepsFileBoundaryAndAlwaysAsks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app, err := Mount(t.Context(), h, Options{Workspace: root, EnableShell: true, Shell: pwsh, Sandbox: &sandbox.Config{Backend: sandbox.BackendWindowsACL, Mode: sandbox.WorkspaceWrite}})
+	// Keep the catalog independent of optional host-installed PDF renderers.
+	app, err := Mount(t.Context(), h, Options{Workspace: root, EnableShell: true, Shell: pwsh, PDFRendererPath: "-", Sandbox: &sandbox.Config{Backend: sandbox.BackendWindowsACL, Mode: sandbox.WorkspaceWrite}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +67,16 @@ func TestWindowsPartialMountKeepsFileBoundaryAndAlwaysAsks(t *testing.T) {
 	for _, schema := range schemas {
 		names[schema.Name] = schema.Description
 	}
-	if len(names) != 5 || names["read_file"] == "" || names["list_directory"] == "" || names["search_files"] == "" || !strings.Contains(names["write_file"], "create-only") || names["edit_file"] != "" || !strings.Contains(names["shell"], "NOT isolated") {
+	wantNames := []string{"read_file", "list_directory", "search_files", "glob_files", "regex_search", "notebook_read", "notebook_image", "EnterPlanMode", "ReadToolOutput", "tool_search", "write_file", "shell"}
+	if len(names) != len(wantNames) {
+		t.Fatalf("Windows native tool catalog: %+v", names)
+	}
+	for _, name := range wantNames {
+		if names[name] == "" {
+			t.Fatalf("missing Windows native tool %q: %+v", name, names)
+		}
+	}
+	if !strings.Contains(names["write_file"], "create-only") || names["edit_file"] != "" || !strings.Contains(names["shell"], "NOT isolated") {
 		t.Fatalf("Windows native tools or boundary description: %+v", schemas)
 	}
 	a.Session().Append("turn/start", map[string]int{"turn": 1})
@@ -97,7 +107,8 @@ func TestWindowsReadOnlyMountOmitsFileMutations(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := t.TempDir()
-	app, err := Mount(t.Context(), h, Options{Workspace: root, EnableShell: true, Shell: pwsh, Sandbox: &sandbox.Config{Backend: sandbox.BackendWindowsACL, Mode: sandbox.ReadOnly}})
+	// Keep the catalog independent of optional host-installed PDF renderers.
+	app, err := Mount(t.Context(), h, Options{Workspace: root, EnableShell: true, Shell: pwsh, PDFRendererPath: "-", Sandbox: &sandbox.Config{Backend: sandbox.BackendWindowsACL, Mode: sandbox.ReadOnly}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +125,16 @@ func TestWindowsReadOnlyMountOmitsFileMutations(t *testing.T) {
 	for _, schema := range schemas {
 		names[schema.Name] = true
 	}
-	if len(names) != 4 || !names["read_file"] || !names["list_directory"] || !names["search_files"] || !names["shell"] || names["write_file"] || names["edit_file"] {
+	wantNames := []string{"read_file", "list_directory", "search_files", "glob_files", "regex_search", "notebook_read", "notebook_image", "EnterPlanMode", "ReadToolOutput", "tool_search", "shell"}
+	if len(names) != len(wantNames) {
+		t.Fatalf("read-only native tool catalog: %+v", names)
+	}
+	for _, name := range wantNames {
+		if !names[name] {
+			t.Fatalf("missing read-only native tool %q: %+v", name, names)
+		}
+	}
+	if names["write_file"] || names["edit_file"] {
 		t.Fatalf("read-only mutation capability leaked: %+v", names)
 	}
 }

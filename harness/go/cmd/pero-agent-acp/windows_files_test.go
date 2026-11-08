@@ -79,8 +79,14 @@ func TestWindowsFileCLIReadCreateApprovalBoundary(t *testing.T) {
 		for _, tool := range request.Tools {
 			names[tool.Function.Name] = tool.Function.Description
 		}
-		if len(names) != 6 || names["table_render"] == "" || names["chart_render"] == "" || names["read_file"] == "" || names["list_directory"] == "" || names["search_files"] == "" || names["write_file"] == "" || names["edit_file"] != "" || names["shell"] != "" {
-			t.Errorf("CLI must expose only charts, bounded reads and create-only writes: %+v", names)
+		wantNames := []string{"table_render", "chart_render", "read_file", "list_directory", "search_files", "glob_files", "regex_search", "notebook_read", "notebook_image", "EnterPlanMode", "ReadToolOutput", "tool_search", "write_file", "EnterWorktree", "ExitWorktree"}
+		if len(names) != len(wantNames) {
+			t.Errorf("CLI native tool catalog: %+v", names)
+		}
+		for _, name := range wantNames {
+			if names[name] == "" {
+				t.Errorf("missing CLI native tool %q: %+v", name, names)
+			}
 		}
 		description := strings.ToLower(names["write_file"])
 		if !strings.Contains(description, "new") || !strings.Contains(description, "existing") {
@@ -113,7 +119,8 @@ func TestWindowsFileCLIReadCreateApprovalBoundary(t *testing.T) {
 	defer provider.Close()
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
-	child := exec.CommandContext(ctx, binary, "--endpoint", provider.URL+"/v1", "--model", "fixture", "--session-dir", sessions, "--workspace", workspace, "--approval", "ask", "--max-requests", "8", "--max-tokens", "512", "--max-retries", "0")
+	// Keep the catalog independent of optional host-installed PDF renderers.
+	child := exec.CommandContext(ctx, binary, "--endpoint", provider.URL+"/v1", "--model", "fixture", "--session-dir", sessions, "--workspace", workspace, "--pdf-renderer", "-", "--approval", "ask", "--max-requests", "8", "--max-tokens", "512", "--max-retries", "0")
 	child.Env = append(os.Environ(), "AGENT_PROVIDER_API_KEY=local-fixture-not-secret")
 	input, err := child.StdinPipe()
 	if err != nil {
