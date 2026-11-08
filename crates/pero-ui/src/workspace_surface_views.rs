@@ -315,7 +315,7 @@ impl Workbench {
                     _ => None,
                 })
                 .collect::<Vec<_>>();
-            self.publish_app_surfaces(json!({"surfaces":apps,"open":open,"dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale}),cx);
+            self.publish_app_surfaces(json!({"surfaces":apps,"open":open,"dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale}));
             let web=surfaces.iter().filter_map(|surface|match &surface.route {WorkspaceRoute::Content(WorkspaceItem::Web(id))=>Some(json!({"id":id,"bounds":surface.bounds,"focused":self.navigation.pane_layout().and_then(|layout|layout.focused)==Some(surface.id)})),_=>None}).collect::<Vec<_>>();
             self.publish_web_surfaces(json!({"action":"web_surfaces","surfaces":web}), cx);
         }

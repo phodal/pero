@@ -323,14 +323,14 @@ mod surface {
         }
 
         /// The Web surface uses the content slot's actual GPUI layout bounds.
-        pub(crate) fn publish_app_surfaces(&mut self, mut payload: serde_json::Value, cx: &App) {
-            #[cfg(target_family="wasm")]
-            {
-                payload["open"] = json!(self.navigation.items().iter().filter_map(|item|match item {WorkspaceItem::App{name,panel}=>Some(json!({"name":name,"panel":panel})),_=>None}).collect::<Vec<_>>());
-                let payload=payload.to_string();
-                if self.app_surface!=payload {self.app_surface=payload;let _=app_surface(&self.app_surface);}
+        #[cfg(target_family = "wasm")]
+        pub(crate) fn publish_app_surfaces(&mut self, mut payload: serde_json::Value) {
+            payload["open"] = json!(self.navigation.items().iter().filter_map(|item|match item {WorkspaceItem::App{name,panel}=>Some(json!({"name":name,"panel":panel})),_=>None}).collect::<Vec<_>>());
+            let payload = payload.to_string();
+            if self.app_surface != payload {
+                self.app_surface = payload;
+                let _ = app_surface(&self.app_surface);
             }
-            let _=(&mut payload,cx);
         }
         pub(crate) fn sync_app_surface(&mut self, bounds: Option<Bounds<Pixels>>, cx: &mut Context<Self>) {
             #[cfg(not(target_family="wasm"))]
@@ -348,7 +348,7 @@ mod surface {
                     }
                     _ => json!({"visible":false,"dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale}),
                 };
-                self.publish_app_surfaces(payload,cx);
+                self.publish_app_surfaces(payload);
             }
             #[cfg(not(target_family = "wasm"))]
             let _ = (bounds, cx);

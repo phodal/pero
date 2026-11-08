@@ -73,6 +73,7 @@ pub(crate) struct Workbench {
     pub web_documents:Vec<pero_contracts::web_document::WebDocument>,
     pub web_address:Entity<InputState>,
     pub web_entry_open:bool,
+    #[cfg(target_family = "wasm")]
     pub web_surface:String,
     pub locale: String,
     pub input_locale: String,
@@ -334,7 +335,9 @@ impl Workbench {
             discovered_pull_requests:Default::default(), pull_requests:vec![],
             pull_request_index: Default::default(), pull_request_poll: 0, pull_request_poll_armed: false,
             restored_pull_requests: Vec::new(), pending_citations: Vec::new(), plan_sessions: Vec::new(),
-            web_documents:vec![],web_address,web_entry_open:false,web_surface:String::new(),
+            web_documents:vec![],web_address,web_entry_open:false,
+            #[cfg(target_family = "wasm")]
+            web_surface: String::new(),
             remote,
             local_execution,
             contribution: Default::default(),
