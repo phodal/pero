@@ -205,7 +205,14 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await grid.getByRole('button', { name: 'Clear cells' }).click();
   await expect(grid.locator('[data-cell=B2]')).toHaveValue('');
   await expect(first).toHaveValue('');
+  const createdResponse = page.waitForResponse(response =>
+    response.url() === origin + '/api/entries' && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'New notebook' }).click();
+  const created = await (await createdResponse).json();
+  // Creation retains the previous draft until the request completes. Wait for
+  // the new empty editor before typing, rather than renaming that old draft.
+  await expect(page.locator('[data-kind=spreadsheet]')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue(created.title);
   await page.getByRole('textbox', { name: 'Notebook title' }).fill('Copied review');
   const copiedBody = page.getByRole('textbox', { name: 'Notebook content' });
   await copiedBody.focus();
@@ -224,9 +231,9 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Locked control trial/ })).toBeChecked();
   await page.getByRole('button', { name: 'Save revision' }).click();
   await expect(page.locator('.notebook-status')).toHaveText('Revision 2');
-  const copiedCatalog = await (await fetch(origin + '/api/entries')).json();
-  const copiedSummary = copiedCatalog.entries.find(item => item.title === 'Copied review');
-  const copied = await (await fetch(origin + '/api/entries/' + copiedSummary.id)).json();
+  const copied = await (await fetch(origin + '/api/entries/' + created.id)).json();
+  assert.equal(copied.document.title, 'Copied review');
+  assert.equal(copied.revision, 2);
   const copiedNodes = copied.document.content.content;
   const copiedEvidence = copiedNodes.find(node => node.type === 'evidence');
   const copiedExperiment = copiedNodes.find(node => node.type === 'experiment');
