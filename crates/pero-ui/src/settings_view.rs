@@ -470,13 +470,8 @@ impl SettingsPanel {
         );
         let surface = self.preferences.layout.link_surface;
         let target = cx.entity().downgrade();
-        let choices = [
-            (LinkSurface::InApp, self.t("links.in_app").to_owned()),
-            (
-                LinkSurface::ExternalBrowser,
-                self.t("links.browser").to_owned(),
-            ),
-        ];
+        let choices = [LinkSurface::InApp, LinkSurface::ExternalBrowser]
+            .map(|choice| (choice, self.t(choice.key())));
         let link_control = selection_button(
             "settings-link-surface",
             self.t(surface.key()),

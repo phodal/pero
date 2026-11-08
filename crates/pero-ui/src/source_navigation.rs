@@ -1,9 +1,9 @@
 //! Citations open an existing owner. They do not create a page per source kind.
-use crate::{
-    app::Workbench,
-    workspace::{ConversationTab, WorkspaceItem},
+use crate::{app::Workbench, workspace::ConversationTab};
+use gpui_kit::{
+    component::{Disableable, Sizable},
+    gpui::*,
 };
-use gpui::*;
 use pero_contracts::{
     content_link::WorkspaceLink,
     source_target::{
@@ -221,11 +221,6 @@ impl Workbench {
         let path = path.to_owned();
         let connected = self.connected;
         let outline = PlanOutline::parse(text);
-        let heading = if outline.title.is_empty() {
-            self.t("plan.title").to_owned()
-        } else {
-            outline.title
-        };
         let progress = (!outline.todos.is_empty()).then(|| {
             format!(
                 "{} {}/{}",
@@ -234,6 +229,11 @@ impl Workbench {
                 outline.todos.len()
             )
         });
+        let heading = if outline.title.is_empty() {
+            self.t("plan.title").to_owned()
+        } else {
+            outline.title
+        };
         let todos = outline
             .todos
             .iter()
