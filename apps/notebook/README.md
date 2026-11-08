@@ -10,6 +10,7 @@ and Excel file exchange. The App owns editing and SQLite revisions.
 - Paste a saved Paper Agent citation or passage link into an Evidence block to retain its report digest and exact location.
 - Import a Paper report JSON into Evidence or a Control Lab export JSON into an Experiment reference. Choose the exact citation or trial. Notebook preserves the excerpt or recorded checks in each saved revision. Open the source in Paper Agent or Control Lab to inspect the owning record.
 - Save revisions, inspect earlier snapshots, and retain the current draft on a version conflict. The Workbench can open Chat with the saved Notebook revision, and authorized Agent tools can make scoped, version-checked edits.
+- Copy a group of research blocks into another notebook while retaining its internal Finding and cell citations. Copied blocks receive new IDs; frozen source identities and snapshots stay unchanged. References to blocks outside the copied group still need those blocks in the destination.
 
 From the repository root, install dependencies with `npm ci` and
 `npm ci --prefix apps/notebook`, then run `npm run dev:notebook` with a built
@@ -42,3 +43,19 @@ dynamic array spilling are outside the supported subset. XLOOKUP supports exact
 and numeric nearest matching with linear forward or reverse search.
 
 Bundled editor and spreadsheet library notices are in [licenses](licenses).
+
+## Agent reads
+
+`read-entry` returns small entries and individual blocks inline. An oversized
+entry returns a bounded `block-index` of IDs and types, including nested blocks.
+Read the selected `blockId`, or request `view: "index"` with `offset: nextOffset`
+to continue discovery. Always pin subsequent reads to the returned `revision`.
+
+An oversized block returns `json-chunk` content. Requesting `offset: 0` also
+starts a complete document read, including nodes without IDs. Continue with the
+same entry, revision and optional block ID until `nextOffset` is null, then join
+the content strings and parse the resulting JSON. Offsets count Unicode
+characters. Use the pinned revision as `baseRevision` when applying edits.
+
+Persisted documents with unsupported schema versions or unknown attributes are
+refused rather than opened and silently rewritten by an older editor.

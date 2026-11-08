@@ -18,3 +18,36 @@ The screenshots are local test output in `test-results/notebook/`. The browser
 and Electron flows use fixture inputs. Source opening was compiled for Native
 GPUI. Live Agent execution, physical validation, packaged distributions, and
 running the Native GPUI surface were outside this verification.
+
+## PR 181 completion checks
+
+The completion changes based on `48e9980` were checked on Linux on 2026-11-08.
+They add revision-pinned block discovery and complete large-content reads,
+strict persisted schema checks, clipboard citation remapping, 1904-date-system
+imports, and aggregate error propagation.
+
+- `npm run test:notebook`: 17 package tests, one editor identity test, and eight
+  Python tests passed. These include Unicode chunk reconstruction, paginated
+  nested block discovery, competing revision reads, refusal of unsupported
+  persisted documents without rewriting them, clipboard identity/citation
+  preservation, both Excel date systems, and selected formula error values.
+- `npm --prefix apps/notebook run typecheck` and `npm --prefix apps/notebook run
+  build` passed. Notebook no longer builds or bundles the unused Reader runtime.
+- `npx tsc -p scripts/ci/tsconfig.core.json` and nine CI/source-navigation tests
+  passed. Theme, design, App token, locale and protocol-generation checks passed.
+- `bazel run @npm//:sync` regenerated the workspace lock and action cache;
+  `bazel test --config=ci //:checks` passed all seven tests with frozen inputs.
+- Full `npm run check` requires the generated Reader Wasm module; the icon check
+  additionally requires the pinned GPUI Kit source. Neither was present in this
+  isolated checkout. Rust/Desktop/Native acceptance was not rerun here.
+- Local Chromium could not launch because the runtime disallowed its
+  ProcessSingleton socket. The new browser regression is therefore not counted
+  as locally passed. It exercises real copy serialization, cross-notebook paste,
+  undo/redo, save and reopen, with light and narrow-dark screenshots.
+
+The `Notebook revisions, workbook and browser contracts` GitHub Actions job now
+runs the unit tests, typecheck, standalone build and real backend/browser flow
+on every PR, retaining `test-results/notebook/` as a workflow artifact. The
+aggregate CI gate requires this job. Consult the PR's exact-head CI results for
+remote browser evidence rather than treating the earlier Desktop screenshots
+as verification of these completion changes.
