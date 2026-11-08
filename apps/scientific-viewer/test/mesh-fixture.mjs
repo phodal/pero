@@ -29,4 +29,3 @@ export function embeddedPngMesh() {
   doc.accessors[0].min = [-1, -1, 0]; doc.accessors[0].max = [1, 1, 0];
   return glb(doc, bin);
 }
-
