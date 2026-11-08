@@ -19,6 +19,11 @@ Task/Run 与远程 App 部署尚未与此机制连接。
 App 安装和执行仅依赖 Pero 自身的 App SDK、Host 与声明式后端协议；
 不需要外部 Point SDK checkout、兼容运行包或 Project 二进制。
 
+[ADR 0032](adr/0032-ai4s-notebook-block-editor.md) 定义 AI4S Notebook 的编辑与表格边界：
+继续用 Tiptap / ProseMirror 做块编辑，ExcelJS 与现有公式引擎服务内嵌表和
+XLSX，Univer 作为大表与高级函数的首选候选；科研块由 Notebook 保存证据身份与
+修订，专业编辑与计算留在对应 App。验收见 [Notebook 验证](fitness/notebook.md)。
+
 [ADR 0027](adr/0027-app-agent-plugins.md) 增加独立的 App Agent Plugin 声明、
 本地插件依赖与会话装配。App 声明领域指引、现有写入工具白名单和连接内调用预算；
 独立插件包提供 Skills 与 MCP。Rust Host 安装缺失的本地依赖、保留用户停用选择，

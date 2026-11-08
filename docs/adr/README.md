@@ -34,3 +34,4 @@
 - [0030: Composable compute environments for AI4S](0030-compute-environment-capabilities.md) — accepted; implementation in progress
 
 - [0031: Shared keyboard commands and Host-owned overrides](0031-keyboard-shortcut-contract.md)
+- [0032: AI4S Notebook block editor, sheets and scientific ownership](0032-ai4s-notebook-block-editor.md) — accepted for Notebook App
