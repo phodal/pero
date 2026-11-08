@@ -25,7 +25,8 @@ fn ordinary(path: &str) -> &str {
     // such as `name.`, `NUL`, or literal `..` must remain distinct.
     if drive.encode_utf16().count() >= 260
         || drive[3..].split('\\').any(|part| {
-            let stem = part.split('.').next().unwrap_or("").to_ascii_uppercase();
+            let stem = part.split('.').next().unwrap_or("")
+                .trim_end_matches(['.', ' ']).to_ascii_uppercase();
             part.ends_with(['.', ' '])
                 || part
                     .chars()
@@ -65,6 +66,10 @@ mod tests {
             (r"\\?\C:\name.", r"C:\name.", false),
             (r"\\?\C:\name ", r"C:\name ", false),
             (r"\\?\C:\NUL.txt", r"C:\NUL.txt", false),
+            (r"\\?\C:\NUL .txt", r"C:\NUL .txt", false),
+            (r"\\?\C:\COM1 .txt", r"C:\COM1 .txt", false),
+            (r"\\?\C:\con.. .txt", r"C:\con.. .txt", false),
+            (r"\\?\C:\report .txt", r"C:\report .txt", true),
             (r"\\?\C:\COM1", r"C:\COM1", false),
             (r"\\?\C:\CONIN$", r"C:\CONIN$", false),
             (r"\\?\C:\CONOUT$", r"C:\CONOUT$", false),
