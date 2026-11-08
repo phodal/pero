@@ -105,6 +105,7 @@ fn node_adapters_connect_and_reconnect() {
             String::from_utf8_lossy(&result.stderr)
         );
     }
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
