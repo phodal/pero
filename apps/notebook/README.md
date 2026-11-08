@@ -5,7 +5,7 @@ The reusable `@pero/notebook` package owns the document types, formula calculati
 and Excel file exchange. The App owns editing and SQLite revisions.
 
 - Edit paragraphs, headings, lists, checklists, quotes and code alongside spreadsheets, evidence, experiments and findings.
-- Enter formulas in a cell or the formula bar. Named worksheets in the same notebook can reference each other. Renaming a worksheet updates its formula references. Select a range to copy, clear, or fill down or right with Excel-style relative and absolute addresses. Paste CSV/TSV or import and export `.xlsx`.
+- Enter formulas in a cell or the formula bar. Named worksheets in the same notebook can reference each other. Renaming a worksheet updates its formula references. Select a range to copy, clear, or fill down or right with Excel-style relative and absolute addresses. Paste multiline CSV/TSV or import and export `.xlsx`. Single-line comma-containing text stays in one cell. In a notebook with multiple worksheets, each sheet's export action exports the complete workbook so formula dependencies remain present.
 - Attach units and versioned evidence references to individual cells. A Finding can cite evidence blocks in its notebook. Reference identity and version are recorded as provided by the researcher; this alone does not verify the source in its owning App.
 - Paste a saved Paper Agent citation or passage link into an Evidence block to retain its report digest and exact location.
 - Import a Paper report JSON into Evidence or a Control Lab export JSON into an Experiment reference. Choose the exact citation or trial. Notebook preserves the excerpt or recorded checks in each saved revision. Open the source in Paper Agent or Control Lab to inspect the owning record.

@@ -26,11 +26,13 @@ They add revision-pinned block discovery and complete large-content reads,
 strict persisted schema checks, clipboard citation remapping, 1904-date-system
 imports, and aggregate error propagation.
 
-- `npm run test:notebook`: 17 package tests, one editor identity test, and eight
+- `npm run test:notebook`: 17 package tests, one editor identity test, and nine
   Python tests passed. These include Unicode chunk reconstruction, paginated
   nested block discovery, competing revision reads, refusal of unsupported
   persisted documents without rewriting them, clipboard identity/citation
   preservation, both Excel date systems, and selected formula error values.
+  Ordered lists starting at zero or negative values also survive save/reopen;
+  dimensions, headings and revisions retain their existing positive bounds.
 - `npm --prefix apps/notebook run typecheck` and `npm --prefix apps/notebook run
   build` passed. Notebook no longer builds or bundles the unused Reader runtime.
 - `npx tsc -p scripts/ci/tsconfig.core.json` and nine CI/source-navigation tests
@@ -43,7 +45,9 @@ imports, and aggregate error propagation.
 - Local Chromium could not launch because the runtime disallowed its
   ProcessSingleton socket. The new browser regression is therefore not counted
   as locally passed. It exercises real copy serialization, cross-notebook paste,
-  undo/redo, save and reopen, with light and narrow-dark screenshots.
+  undo/redo, save and reopen, scalar comma pastes without neighboring-cell
+  overwrites, and block exports retaining cross-sheet dependencies, with light
+  and narrow-dark screenshots.
 
 The `Notebook revisions, workbook and browser contracts` GitHub Actions job now
 runs the unit tests, typecheck, standalone build and real backend/browser flow
