@@ -245,8 +245,7 @@ test('Paper Chat never clicks when painted bounds remain unavailable', async () 
   assert.ok(samples > 1, 'an initially false asynchronous sample must be retried');
 });
 
-import { askPaperChat } from '../../tests/e2e/paper-chat-controls.mjs';
-import { observeAppChatLaunch } from '../../tests/fixtures/app-chat-launch.mjs';
+import { askPaperChat, observePaperChatLaunch } from '../../tests/e2e/paper-chat-controls.mjs';
 
 test('Ask observer accepts only its source/origin and retains replies by actual request ID', () => {
   for (const origin of ['https://paper.test', 'pero-app://paper-agent']) for (const parent of [true, false]) {
@@ -254,12 +253,12 @@ test('Ask observer accepts only its source/origin and retains replies by actual 
     const trusted = {}, stranger = {}, frame = { src: `${origin}/reader`, contentWindow: trusted };
     const context = { URL, document: { querySelectorAll: () => [frame] }, window: { parent: trusted,
       addEventListener: (_type, listener) => { receive = listener; }, removeEventListener: (_type, listener) => { removed = listener; } } };
-    runInNewContext(`(${observeAppChatLaunch})({parent:${parent},origin:${JSON.stringify(origin)}})`, context);
+    runInNewContext(`(${observePaperChatLaunch})({parent:${parent},origin:${JSON.stringify(origin)}})`, context);
     const type = parent ? 'pero:app:chat' : 'pero:app:chat-result';
     for (const [source, eventOrigin] of [[stranger, origin], [trusted, 'https://wrong.test']]) {
       receive({ source, origin: eventOrigin, data: { type, id: 'wrong' } });
     }
-    const gate = context.window.appChatLaunch;
+    const gate = context.window.paperChatLaunch;
     assert.equal(gate.getRequest(), null); assert.deepEqual(Object.keys(gate.results), []);
     receive({ source: trusted, origin, data: { type, id: 'actual', ok: true } });
     if (parent) assert.equal(gate.getRequest(), 'actual');
@@ -272,7 +271,7 @@ test('Ask readiness waits beyond open and ignores another request acknowledgemen
   let open = false, painted = false, queries = 0, resultQueries = 0, parentDisposed = false, childDisposed = false;
   const page = {
     evaluate: async (fn, options) => {
-      if (fn === observeAppChatLaunch) { assert.equal(options.origin, 'https://paper.test'); return; }
+      if (fn === observePaperChatLaunch) { assert.equal(options.origin, 'https://paper.test'); return; }
       const source = String(fn);
       if (source.includes('location.protocol')) return 'https://host.test';
       if (source.includes('getRequest')) return 'actual';
@@ -283,7 +282,7 @@ test('Ask readiness waits beyond open and ignores another request acknowledgemen
     },
   };
   const frame = { locator: () => ({ evaluate: async (fn, arg) => {
-    if (fn === observeAppChatLaunch) { assert.equal(arg.origin, 'https://host.test'); return; }
+    if (fn === observePaperChatLaunch) { assert.equal(arg.origin, 'https://host.test'); return; }
     const source = String(fn);
     if (source.includes('location.protocol')) return 'https://paper.test';
     if (source.includes('dispose')) { childDisposed = true; return; }
@@ -299,7 +298,7 @@ test('Ask readiness waits beyond open and ignores another request acknowledgemen
 test('Ask readiness fails boundedly and cleans observers when only another request replies', async () => {
   let disposed = 0, resultQueries = 0;
   const page = { evaluate: async fn => {
-    if (fn === observeAppChatLaunch) return;
+    if (fn === observePaperChatLaunch) return;
     const source = String(fn);
     if (source.includes('location.protocol')) return 'https://host.test';
     if (source.includes('getRequest')) return 'actual';
@@ -307,7 +306,7 @@ test('Ask readiness fails boundedly and cleans observers when only another reque
     assert.fail('Host paint must not be accepted without the matching acknowledgement');
   } };
   const frame = { locator: () => ({ evaluate: async (fn, id) => {
-    if (fn === observeAppChatLaunch) return;
+    if (fn === observePaperChatLaunch) return;
     const source = String(fn);
     if (source.includes('location.protocol')) return 'https://paper.test';
     if (source.includes('dispose')) { disposed++; return; }
