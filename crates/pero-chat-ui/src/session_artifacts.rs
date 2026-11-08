@@ -210,9 +210,6 @@ impl ChatPanel {
     }
 
     pub(crate) fn refresh_artifacts(&mut self, thread: &str, cx: &mut Context<Self>) {
-        // Local drafts can be selected before Host startup. Leave the catalog
-        // unrequested so prepare_artifacts retries when readiness is painted.
-        if !self.connected { return; }
         let request_id = self.artifact_request_id("list");
         let state = self
             .artifacts
