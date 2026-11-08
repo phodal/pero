@@ -68,7 +68,14 @@ try {
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'control-lab', panel: 'main' } });
   frame = page.frameLocator('iframe[title="control-lab"]');
   await expect(frame.getByLabel('Template', { exact: true })).toBeVisible({ timeout: 20000 });
-  await frame.getByLabel('Template', { exact: true }).selectOption(scene);
+  const catalog = await frame.locator('body').evaluate(async () => (await fetch('/api/templates')).json());
+  const template = catalog.templates.find(item => item.id === scene);
+  expect(template, `Unknown Control Lab scene: ${scene}`).toBeDefined();
+  const templatePicker = frame.getByRole('button', { name: 'Template', exact: true });
+  await templatePicker.click();
+  await frame.getByRole('listbox', { name: 'Template', exact: true })
+    .getByRole('option', { name: template.title, exact: true }).click();
+  await expect(templatePicker).toHaveAttribute('data-value', scene);
   await frame.getByLabel('Total candidate budget', { exact: true }).fill('2');
   const created = page.waitForResponse(response => new URL(response.url()).pathname === '/api/experiments' && response.request().method() === 'POST');
   await frame.getByRole('button', { name: 'Freeze specification', exact: true }).click();

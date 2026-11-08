@@ -104,7 +104,10 @@ try {
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'control-lab', panel: 'main' } });
   frame = page.frameLocator('iframe[title="control-lab"]');
   await expect(frame.getByLabel('Template', { exact: true })).toBeVisible({ timeout: 20000 });
-  await frame.getByLabel('Template', { exact: true }).selectOption('robust-pid');
+  await frame.getByRole('button', { name: 'Template', exact: true }).click();
+  await frame.getByRole('listbox', { name: 'Template', exact: true })
+    .getByRole('option', { name: 'Robust filtered PID', exact: true }).click();
+  await expect(frame.getByRole('button', { name: 'Template', exact: true })).toContainText('Robust filtered PID');
   await frame.getByLabel('Observation window', { exact: true }).fill('6');
   await frame.getByLabel('Samples', { exact: true }).fill('601');
   await frame.getByLabel('Total candidate budget', { exact: true }).fill('3');

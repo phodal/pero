@@ -42,6 +42,13 @@ async function openLab() {
   frame = page.frameLocator('iframe[title="control-lab"]');
   await expect(frame.getByRole('heading', { name: 'Control Lab', exact: true })).toBeVisible({ timeout: 20000 });
 }
+async function selectTemplate(template) {
+  const picker = frame.getByRole('button', { name: 'Template', exact: true });
+  await picker.click();
+  await frame.getByRole('listbox', { name: 'Template', exact: true })
+    .getByRole('option', { name: template.title, exact: true }).click();
+  await expect(picker).toHaveAttribute('data-value', template.id);
+}
 async function action(label, path) {
   const response = page.waitForResponse(r => new URL(r.url()).pathname === path && r.request().method() === 'POST');
   await frame.getByRole('button', { name: label, exact: true }).click();
@@ -189,7 +196,7 @@ try {
   const finished = [];
   for (const template of catalog.templates) {
     if (finished.length) await frame.getByRole('button', { name: 'New experiment', exact: true }).click();
-    await frame.getByLabel('Template', { exact: true }).selectOption(template.id);
+    await selectTemplate(template);
     const budget = frame.getByLabel('Total candidate budget', { exact: true });
     await budget.fill('31');
     expect(await budget.evaluate(input => input.validity.valid)).toBe(false);
@@ -283,19 +290,25 @@ try {
       expect(createHash('sha256').update(artifact.text).digest('hex')).toBe(reference.sha256);
     }
     checks.push(`${template.engine}: real bounded search, numerical series/artifact hashes, immutable policy, locked separate verification, full denominator and saved-evidence reevaluation/export`);
-    const scenarioPicker = frame.getByLabel('Response scenario', { exact: true });
+    const scenarioPicker = frame.getByRole('button', { name: 'Response scenario', exact: true });
+    const scenarioOptions = frame.getByRole('listbox', { name: 'Response scenario', exact: true });
     const searchScenarios = saved.scenarios.filter(item => item.role === 'search');
-    await expect(scenarioPicker.locator('option')).toHaveCount(searchScenarios.length);
+    await scenarioPicker.click();
+    await expect(scenarioOptions.getByRole('option')).toHaveCount(searchScenarios.length);
+    await scenarioOptions.press('Escape');
     for (const scenario of searchScenarios) {
-      await scenarioPicker.selectOption(scenario.id);
-      await expect(scenarioPicker).toHaveValue(scenario.id);
+      await scenarioPicker.click();
+      await scenarioOptions.getByRole('option', { name: scenario.label, exact: true }).click();
+      await expect(scenarioPicker).toHaveAttribute('data-value', scenario.id);
       await expect(frame.getByRole('img').first()).toBeVisible();
     }
-    await scenarioPicker.selectOption(searchScenarios[0].id);
-    const signals = frame.getByRole('group', { name: 'Response signal' }).getByRole('button');
+    await scenarioPicker.click();
+    await scenarioOptions.getByRole('option', { name: searchScenarios[0].label, exact: true }).click();
+    const signals = frame.getByRole('tablist', { name: 'Response signal', exact: true }).getByRole('tab');
+    await expect(signals.first()).toBeVisible();
     for (let index = 0; index < await signals.count(); index++) {
       await signals.nth(index).click();
-      await expect(signals.nth(index)).toHaveAttribute('aria-pressed', 'true');
+      await expect(signals.nth(index)).toHaveAttribute('aria-selected', 'true');
       await expect(frame.getByRole('img').first()).toBeVisible();
     }
     await signals.first().click();
@@ -327,7 +340,7 @@ try {
   expect(rerun.trials).toEqual([]);
   expect(await read(experimentPath(first.id))).toEqual(first);
   await frame.getByRole('button', { name: 'New experiment', exact: true }).click();
-  await frame.getByLabel('Template', { exact: true }).selectOption(first.templateId);
+  await selectTemplate(catalog.templates.find(template => template.id === first.templateId));
   // 15 candidates × 5 search cases + 2 final cases = 77 attempts / 38,577 sample-points,
   // within the real 40,000-point frozen plan limit at 0.01 s resolution.
   await frame.getByLabel('Observation window', { exact: true }).fill('5');
@@ -363,7 +376,7 @@ try {
   const unavailable = await read('/api/templates');
   expect(unavailable.capabilities.find(item => item.engine === 'ngspice').available).toBe(false);
   const filter = unavailable.templates.find(item => item.engine === 'ngspice');
-  await frame.getByLabel('Template', { exact: true }).selectOption(filter.id);
+  await selectTemplate(filter);
   await expect(frame.getByText(/ngspice is unavailable/)).toBeVisible();
   await frame.getByLabel('Total candidate budget', { exact: true }).fill('1');
   const missing = await action('Freeze specification', '/api/experiments');
