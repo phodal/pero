@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from hashlib import sha256
 import json
+import math
 import re
 
 
@@ -37,6 +38,7 @@ REQUIRED_CHILDREN = {'doc', 'blockquote', 'bulletList', 'orderedList', 'taskList
 DOMAIN_BLOCKS = {'spreadsheet', 'evidence', 'experiment', 'finding'}
 SHA256 = re.compile(r'[a-f0-9]{64}')
 RUN_ID = re.compile(r'[a-f0-9]{32}')
+CONTROL_NAME = re.compile(r'[a-zA-Z0-9_-]{1,128}')
 JSON_NUMBER = re.compile(r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?')
 VERDICTS = ('PASS', 'FAIL', 'INCONCLUSIVE')
 
@@ -112,11 +114,12 @@ def _paper_snapshot(snapshot, source):
     if not isinstance(digest, str) or not digest.startswith('sha256:') or not SHA256.fullmatch(digest[7:]):
         raise ValueError('Invalid imported paper content digest')
     integer(snapshot['page'], 'PDF page')
-    integer(snapshot['occurrences'], 'quote occurrences')
-    for key in ('citationIndex', 'start', 'end'):
-        if type(snapshot[key]) is not int or not 0 <= snapshot[key] <= 999_999_999:
-            raise ValueError(f'Invalid imported {key}')
-    quote = string(snapshot['quote'], 'exact quote', required=True)
+    # The portable snapshot uses the same bounds as the Notebook export importer.
+    integer(snapshot['occurrences'], 'quote occurrences', 32_768)
+    integer(snapshot['citationIndex'], 'citation index', 12 * 8 - 1, minimum=0)
+    integer(snapshot['start'], 'quote start', minimum=0)
+    integer(snapshot['end'], 'quote end', minimum=snapshot['start'] + 1)
+    quote = string(snapshot['quote'], 'exact quote', 4_000, required=True)
     if snapshot['end'] - snapshot['start'] != len(quote):
         raise ValueError('Imported quote does not match its span')
     identity = snapshot['reportId']
@@ -139,8 +142,12 @@ def _control_snapshot(snapshot, source):
             app='control-lab', kind='verification-report', id=identity,
             version=snapshot['reportId'], locator=locator):
         raise ValueError('Control Lab snapshot does not match its source reference')
-    for key in ('candidateId', 'scenarioId', 'verifierVersion'):
-        string(snapshot[key], f'imported {key}', 128, required=True)
+    for key in ('candidateId', 'scenarioId'):
+        value = snapshot[key]
+        if not isinstance(value, str) or not CONTROL_NAME.fullmatch(value):
+            raise ValueError(f'Invalid imported {key}')
+    if snapshot['verifierVersion'] != 'control-lab-verifier-v1':
+        raise ValueError('Unsupported imported verifier version')
     if snapshot['phase'] not in ('search', 'verification') or snapshot['verdict'] not in VERDICTS:
         raise ValueError('Invalid imported trial phase or verdict')
     checks = snapshot['checks']
@@ -159,6 +166,8 @@ def _control_snapshot(snapshot, source):
             if value is not None and (not isinstance(value, str) or len(value) > 96 or not JSON_NUMBER.fullmatch(value)):
                 raise ValueError(f'Invalid imported check {key}')
             values[key] = None if value is None else json.loads(value)
+            if values[key] is not None and not math.isfinite(values[key]):
+                raise ValueError(f'Invalid imported check {key}')
         report_checks.append({**check, **values})
     body = {key: snapshot[key] for key in ('candidateId', 'specHash', 'verdict', 'verifierVersion')}
     body.update(checks=report_checks, evidence=[snapshot['observationId']])

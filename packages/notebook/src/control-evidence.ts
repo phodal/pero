@@ -83,7 +83,8 @@ function identifier(value: unknown, format: RegExp, name: string): string {
 }
 
 function boundedText(value: unknown, limit: number): value is string {
-  return typeof value === "string" && value.length <= limit;
+  // Owner JSON text limits count Unicode code points, as does Python storage.
+  return typeof value === "string" && Array.from(value).length <= limit;
 }
 
 function isVerdict(value: unknown): value is Verdict {
