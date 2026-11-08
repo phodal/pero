@@ -151,3 +151,36 @@ including plugin snapshot publication with an open directory handle and
 Git/native path comparisons in retained worktrees. Other failures use Unix
 path, permission or shell assumptions. These failures remain visible blockers;
 this follow-up does not weaken platform checks or claim a full CI pass.
+
+The bounded CI repairs keep the same platform capability boundaries:
+
+- Plugin snapshot readers close before publication. Failed native mounts retain
+  their cleanup owner, and Git worktree filesystem paths use native separators.
+  MCP file URIs keep drive letters in the path, ordinary UNC servers in the
+  authority, and device namespaces in their existing path encoding.
+- Portable fixtures avoid Unix-only names and encodings. Unsupported Windows
+  operations assert refusal, absent tools and unchanged data. The late-diagnostic
+  test waits for the receiving connection to observe the publication, rather
+  than only for a sending-process marker.
+- SDK token generation normalizes embedded CSS newlines and pins exact-checked
+  outputs to LF. A real Windows-style Git checkout test rejects stale outputs.
+- Desktop acceptance follows the current shared Select, Tabs, status regions,
+  portal menus and painted Composer bounds. Content, scientific-result and
+  permission assertions remain. MCP lifecycle's outer deadline now allows its
+  existing 600-second inner deadline and cleanup; other suite budgets stay fixed.
+- The Product startup failure artifact showed a local draft closed by an
+  artifact/changes request before Host readiness. Metadata refresh now waits
+  before marking the catalog requested, so the existing readiness repaint
+  resumes it. The startup acceptance still requires a healthy draft while held
+  and the same prepared session after release.
+- The Lab failure artifact already contained the correct composed request and
+  frozen context. Its acceptance waits for the matching SDK acknowledgement
+  before asserting the same draft, content and references, without repeating
+  approval or weakening the scope checks.
+
+Local verification: all 37 Go Harness packages passed the race suite; vet and
+the CLI build passed. Build-fixture tests passed 12/12, CI runner tests passed
+12/12, and the late-diagnostic test passed 60 race-enabled repetitions. Affected
+Go packages cross-compiled for Windows. Desktop test syntax and independent
+source review passed. These results do not replace the final full CI run or
+native Windows UI acceptance.
