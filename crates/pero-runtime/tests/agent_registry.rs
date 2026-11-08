@@ -3,9 +3,18 @@ use pero_contracts::HostEvent;
 use pero_runtime::acp::{self, SessionCommand};
 use std::{path::PathBuf, process::Command, sync::mpsc, time::Duration};
 
+struct FixtureRoot(PathBuf);
+impl Drop for FixtureRoot {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 #[test]
 fn node_adapters_connect_and_reconnect() {
     let root = std::env::temp_dir().join(format!("pero adapters {}", uuid::Uuid::new_v4()));
+    let cleanup = FixtureRoot(root);
+    let root = &cleanup.0;
     std::fs::create_dir_all(root.join("node_modules/.bin")).unwrap();
     std::fs::create_dir(root.join("adapters")).unwrap();
     let runtime = root.join("packages/agent-runtime");
@@ -96,7 +105,6 @@ fn node_adapters_connect_and_reconnect() {
             String::from_utf8_lossy(&result.stderr)
         );
     }
-    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
