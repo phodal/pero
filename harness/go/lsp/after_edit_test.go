@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/nativetools"
@@ -270,41 +269,7 @@ func TestLaterDiagnosticPublicationReachesNextPrompt(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "protocol.jsonl.release-followup"), []byte("go"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	// The fixture's marker only proves that it sent the publication. Wait for
-	// the receiving connection before starting the prompt that must consume it.
-	app.mu.Lock()
-	var source *instance
-	for key, candidate := range app.instances {
-		if key.agent == agent {
-			source = candidate
-			break
-		}
-	}
-	app.mu.Unlock()
-	if source == nil {
-		t.Fatal("saved-file diagnostic connection is missing")
-	}
-	wait, cancel := context.WithTimeout(t.Context(), 3*time.Second)
-	defer cancel()
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-wait.Done():
-			t.Fatal("follow-up diagnostic was not received", wait.Err())
-		case <-source.gate:
-		}
-		report := source.conn.peekDiagnostics()
-		source.gate <- struct{}{}
-		if report != nil && report.Generation >= 2 {
-			break
-		}
-		select {
-		case <-wait.Done():
-			t.Fatal("follow-up diagnostic was not received", wait.Err())
-		case <-ticker.C:
-		}
-	}
+	waitFixtureFile(t, filepath.Join(root, "protocol.jsonl.followup"))
 	if _, err := agent.Prompt(t.Context(), harness.Message{Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Check the later diagnostic."}}}); err != nil {
 		t.Fatal(err)
 	}
