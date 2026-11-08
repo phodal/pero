@@ -8,7 +8,10 @@ mod artifacts;
 mod workspace_changes;
 mod automation;
 mod automation_store;
+// The environment handoff is exercised by tests until production routes use it.
+#[cfg(test)]
 mod environment_uses;
+#[cfg(test)]
 mod environment_execution;
 mod apps;
 mod research_assets;

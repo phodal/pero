@@ -60,7 +60,7 @@ pub(in crate::agents) struct ResearchWorker {
     pub history_len: Option<usize>,
 }
 impl ResearchWorker {
-    pub fn start(&mut self, io: ResearchIo) {
+    pub(super) fn start(&mut self, io: ResearchIo) {
         if self.queue.is_some() {
             return;
         }
@@ -137,7 +137,7 @@ impl ResearchWorker {
             .values()
             .any(|p| !p.pending && p.error.is_some() && Instant::now() >= p.retry_at)
     }
-    pub fn observe(&mut self, run: Run, context: ResearchContext) -> Result<(), String> {
+    pub(super) fn observe(&mut self, run: Run, context: ResearchContext) -> Result<(), String> {
         let observed = (run.status.clone(), run.attempt as u64);
         let projection = self
             .projections
@@ -167,7 +167,7 @@ impl ResearchWorker {
             .get(thread)
             .and_then(|p| p.error.as_deref())
     }
-    pub fn request(
+    pub(super) fn request(
         &self,
         id: String,
         thread: String,

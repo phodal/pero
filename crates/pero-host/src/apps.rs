@@ -35,8 +35,19 @@ enum Request {
     Pluginenable { method: Method, id: String, name: AppName, enabled: bool },
     Agentrun { method: Method, id: String, name: AppName, request: pero_runtime::apps::agent_run::Request },
     #[serde(rename = "research-program")]
-    ResearchProgram { method: Method, id: String, name: AppName, #[serde(rename = "threadId")] thread_id: String,
-        tool: String, request: serde_json::Value, #[serde(rename = "operationId")] operation_id: String },
+    ResearchProgram {
+        #[serde(rename = "method")]
+        _method: Method,
+        #[serde(rename = "id")]
+        _id: String,
+        name: AppName,
+        #[serde(rename = "threadId")]
+        thread_id: String,
+        tool: String,
+        request: serde_json::Value,
+        #[serde(rename = "operationId")]
+        operation_id: String,
+    },
     Apiaccess { method: Method, id: String, name: AppName, path: String },
     Sdkcontext { method: Method, id: String, name: AppName },
     Agentcatalog { method: Method, id: String, name: AppName, path: String },
