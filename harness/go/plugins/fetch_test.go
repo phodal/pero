@@ -23,11 +23,20 @@ func TestFetchSnapshotsAndUpdates(t *testing.T) {
 		return strings.TrimSpace(string(out))
 	}
 	dependency := t.TempDir()
-	writePluginFiles(t, dependency, map[string]string{"nested/commands/hello.md": "Hello one."})
+	writePluginFiles(t, dependency, map[string]string{"nested/commands/hello.md": "Hello one.", "commands/standalone.md": "Standalone."})
 	git(dependency, "init", "-q")
 	git(dependency, "add", ".")
 	git(dependency, "commit", "-qm", "initial")
 	pinned := git(dependency, "rev-parse", "HEAD")
+	// Publishing must also release the root when no marketplace was present.
+	standalone, err := Fetch(t.Context(), dependency, t.TempDir(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(standalone.Directory, "commands", "standalone.md"))
+	if err != nil || string(content) != "Standalone." {
+		t.Fatalf("standalone snapshot: content=%q err=%v", content, err)
+	}
 	repo := t.TempDir()
 	source, _ := json.Marshal(dependency)
 	writePluginFiles(t, repo, map[string]string{".claude-plugin/marketplace.json": `{"name":"catalog","owner":{"name":"Fixture"},"plugins":[{"name":"remote","source":{"source":"git-subdir","url":` + string(source) + `,"path":"nested"}}]}`})

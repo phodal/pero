@@ -59,12 +59,14 @@ export async function createUiRuntime(t, component) {
   const outfile = resolve(temporary, 'ui.mjs');
   const contents = typeof component === 'object' ? component.contents : component ? `export * from './components/${component}';` : "export * from './ui'; export * as UI from './ui';";
   await build({ stdin: { contents, resolveDir: typeof component === 'object' ? component.resolveDir : resolve(import.meta.dirname, '../src'), loader: 'tsx' }, outfile, banner: { js: "import { createRequire as sdkTestCreateRequire } from 'node:module'; const require = sdkTestCreateRequire(import.meta.url);" }, bundle: true, jsx: 'automatic', platform: 'node', format: 'esm', mainFields: ['module', 'main'], loader: { '.css': typeof component === 'object' && component.cssText ? 'text' : 'empty' }, plugins: [{ name: 'host-react', setup(b) {
+    // ESM accepts file URLs; CommonJS require still needs a filesystem path.
+    const externalReact = (path, kind) => ({ path: kind.startsWith('require-') ? path : pathToFileURL(path).href, external: true });
     for (const [name, root] of Object.entries(typeof component === 'object' ? component.modules ?? {} : {})) b.onResolve({ filter: new RegExp(`^${name}$`) }, () => ({ path: require.resolve(name, { paths: [root] }) }));
     b.onResolve({ filter: /^@pero\/app-sdk$/ }, () => ({ path: resolve(import.meta.dirname, '../src/index.tsx') }));
     b.onResolve({ filter: /^@pero\/app-sdk\/ui$/ }, () => ({ path: resolve(import.meta.dirname, '../src/ui.tsx') }));
     b.onResolve({ filter: /^@pero\/app-sdk\/chart$/ }, () => ({ path: resolve(import.meta.dirname, '../src/chart/index.tsx') }));
-    b.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: resolve(reactRoot, args.path === 'react' ? 'index.js' : args.path.slice(6) + '.js'), external: true }));
-    b.onResolve({ filter: /^react-dom(?:\/.*)?$/ }, args => ({ path: resolve(domRoot, args.path === 'react-dom' ? 'index.js' : args.path.slice(10) + '.js'), external: true }));
+    b.onResolve({ filter: /^react(?:\/.*)?$/ }, args => externalReact(resolve(reactRoot, args.path === 'react' ? 'index.js' : args.path.slice(6) + '.js'), args.kind));
+    b.onResolve({ filter: /^react-dom(?:\/.*)?$/ }, args => externalReact(resolve(domRoot, args.path === 'react-dom' ? 'index.js' : args.path.slice(10) + '.js'), args.kind));
   } }] });
   const ui = await import(pathToFileURL(outfile));
   const render = element => React.act(async () => root.render(element));

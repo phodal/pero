@@ -1,5 +1,6 @@
 //! Project identity and task selection, independent of rendering and I/O.
 use pero_contracts::workbench::{ProjectBinding, RepositoryIdentity, WorkspaceRepository};
+use pero_contracts::workspace_path::WorkspacePath;
 use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -29,18 +30,20 @@ impl Project {
         for workspace in workspaces.iter().filter(|path| !path.is_empty()) {
             if projects
                 .iter()
-                .any(|project: &Self| project.workspace.as_ref() == Some(workspace))
+                .any(|project: &Self| project.contains_workspace(workspace))
             {
                 continue;
             }
             let shared_id = bindings
                 .iter()
+                // Older preferences may bind both spellings to different projects.
                 .find(|binding| binding.workspace == *workspace)
+                .or_else(|| bindings.iter().find(|binding| WorkspacePath(&binding.workspace).matches(workspace)))
                 .map(|binding| binding.project_id.clone())
                 .or_else(|| {
                     let repository = &workspaces_repositories
                         .iter()
-                        .find(|entry| entry.workspace == *workspace)?
+                        .find(|entry| WorkspacePath(&entry.workspace).matches(workspace))?
                         .repository;
                     let mut matching = repositories
                         .iter()
@@ -117,7 +120,7 @@ impl Project {
     }
 
     pub fn contains_workspace(&self, workspace: &str) -> bool {
-        self.workspaces.iter().any(|path| path == workspace)
+        self.workspaces.iter().any(|path| WorkspacePath(path).matches(workspace))
     }
 
     pub fn contains_task(&self, project_id: &str) -> bool {
@@ -198,6 +201,78 @@ impl TaskStatusFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn saved_windows_projects_keep_chats_bindings_and_research_identity() {
+        let legacy = r"\\?\C:\work\pero";
+        let current = r"C:\work\pero";
+        for (first, second, binding_path) in [
+            (current, legacy, legacy),
+            (legacy, current, current),
+        ] {
+            let workspaces = vec![first.into(), second.into(), r"D:\work\pero".into()];
+            let mut preferences = pero_contracts::workbench::WorkbenchPreferences::default();
+            preferences.bind(binding_path.into(), "team".into());
+            let projects = Project::catalog(&workspaces, &["team".into()], &preferences.projects, &[], &[]);
+            assert_eq!(projects.len(), 2);
+            assert_eq!(projects[0].shared_id.as_deref(), Some("team"));
+            for path in [legacy, current] {
+                assert!(projects[0].contains_workspace(path), "old and new chats remain grouped");
+                assert!(projects[0].matches_key(&format!("workspace:{path}")), "open tabs keep their project");
+            }
+            assert!(!projects[0].contains_workspace(r"D:\work\pero"));
+            let saved = pero_contracts::research_project::ResearchProject::new(
+                "question".into(), "Research question".into(), String::new(), Some(current.into()),
+            ).unwrap();
+            let research = Project::with_research(projects, &[saved]);
+            assert_eq!(research.len(), 2);
+            assert_eq!(research[0].key, "research:question");
+            assert_eq!(research[0].shared_id.as_deref(), Some("team"));
+            assert!(research[0].contains_workspace(current));
+
+            preferences.bind(first.into(), "updated-team".into());
+            assert_eq!(preferences.projects.len(), 1, "rebinding replaces the saved alias");
+            assert_eq!(preferences.projects[0].project_id, "updated-team");
+            assert!(preferences.valid());
+        }
+        let repository = RepositoryIdentity::from_git_remote("https://github.com/phodal/pero").unwrap();
+        let projects = Project::catalog(&[current.into(), legacy.into()], &["team".into()], &[], &[
+            WorkspaceRepository { workspace: legacy.into(), repository: repository.clone() },
+        ], &[ProjectRepository { project_id: "team".into(), repository }]);
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].shared_id.as_deref(), Some("team"));
+    }
+
+    #[test]
+    fn saved_alias_bindings_prefer_the_selected_workspace_spelling() {
+        let legacy = r"\\?\C:\work\pero";
+        let current = r"C:\work\pero";
+        for reverse_bindings in [false, true] {
+            for (selected, alias, expected) in [
+                (current, legacy, "current-team"),
+                (legacy, current, "legacy-team"),
+            ] {
+                // Older versions could persist both spellings with different bindings.
+                let mut preferences = pero_contracts::workbench::WorkbenchPreferences::default();
+                preferences.projects = vec![
+                    ProjectBinding { workspace: legacy.into(), project_id: "legacy-team".into() },
+                    ProjectBinding { workspace: current.into(), project_id: "current-team".into() },
+                ];
+                if reverse_bindings { preferences.projects.reverse(); }
+                assert!(preferences.valid(), "saved alias pairs must remain loadable");
+                let projects = Project::catalog(
+                    &[selected.into(), alias.into()], &[], &preferences.projects, &[], &[],
+                );
+                assert_eq!(projects.len(), 1);
+                assert_eq!(projects[0].shared_id.as_deref(), Some(expected));
+                assert!(projects[0].contains_workspace(alias));
+                preferences.bind(selected.into(), "updated-team".into());
+                assert_eq!(preferences.projects.len(), 1);
+                assert_eq!(preferences.projects[0].project_id, "updated-team");
+                assert!(preferences.valid());
+            }
+        }
+    }
+
     #[test]
     fn project_identity_requires_an_explicit_shared_binding() {
         let workspaces = vec![

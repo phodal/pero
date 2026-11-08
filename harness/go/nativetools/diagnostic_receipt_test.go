@@ -12,6 +12,18 @@ import (
 )
 
 func TestForegroundDiagnosticEligibility(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		h, err := harness.Boot(t.Context(), harness.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) })
+		app, err := Mount(t.Context(), h, Options{Workspace: t.TempDir(), ClaudeTools: true, EnableShell: true})
+		if app != nil || err == nil || !strings.Contains(err.Error(), "process-group ownership is unsupported") {
+			t.Fatalf("unsupported unsandboxed shell admission: app=%v error=%v", app, err)
+		}
+		return
+	}
 	f := newClaudeFixture(t, Options{EnableShell: true, BashOutput: BashOutputOptions{BashOutputMaxChars: 1024}})
 	for _, row := range []struct {
 		name, command string

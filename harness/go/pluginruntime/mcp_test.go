@@ -22,11 +22,16 @@ import (
 
 func TestMCPServerBindings(t *testing.T) {
 	root := t.TempDir()
-	executable := filepath.Join(root, "server")
-	if err := os.WriteFile(executable, []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+	hostExecutable, err := os.Executable()
+	if err != nil {
 		t.Fatal(err)
 	}
-	pkg := plugins.Package{Root: root, Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "memory", Transport: "stdio", Command: "server", Args: []string{"${CLAUDE_PLUGIN_ROOT}/server.py", "${CLAUDE_PROJECT_DIR}", "${EMPTY:-fallback}", "${MISSING:-fallback}", "$(literal)"}, Env: map[string]string{"TOKEN": "${TOKEN}", "CLAUDE_PLUGIN_ROOT": "cannot-override"}, TimeoutMilliseconds: 120}}}
+	executable := filepath.Join(root, "server"+filepath.Ext(hostExecutable))
+	// Resolution only inspects the executable; execution is covered by the stdio fixture below.
+	if err := os.WriteFile(executable, []byte("fixture"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	pkg := plugins.Package{Root: root, Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "memory", Transport: "stdio", Command: filepath.Base(executable), Args: []string{"${CLAUDE_PLUGIN_ROOT}/server.py", "${CLAUDE_PROJECT_DIR}", "${EMPTY:-fallback}", "${MISSING:-fallback}", "$(literal)"}, Env: map[string]string{"TOKEN": "${TOKEN}", "CLAUDE_PLUGIN_ROOT": "cannot-override"}, TimeoutMilliseconds: 120}}}
 	cwd := t.TempDir()
 	configs, err := MCPServers([]plugins.Package{pkg}, cwd, []string{"PATH=" + root, "TOKEN=private-canary", "EMPTY="})
 	if err != nil {
@@ -39,7 +44,7 @@ func TestMCPServerBindings(t *testing.T) {
 	if config.Name != "plugin_sample_memory" || config.Command != executable || config.CWD != cwd || config.Transport != harness.MCPStdio || config.ToolCallTimeoutMS != 0 || config.FailOnStartupError {
 		t.Fatal("MCP identity, executable or default timeout differs")
 	}
-	if !reflect.DeepEqual(config.Args, []string{filepath.Join(root, "server.py"), cwd, "", "fallback", "$(literal)"}) || config.Env["TOKEN"] != "private-canary" || config.Env["CLAUDE_PLUGIN_ROOT"] != root || config.Env["CLAUDE_PROJECT_DIR"] != cwd {
+	if !reflect.DeepEqual(config.Args, []string{root + "/server.py", cwd, "", "fallback", "$(literal)"}) || config.Env["TOKEN"] != "private-canary" || config.Env["CLAUDE_PLUGIN_ROOT"] != root || config.Env["CLAUDE_PROJECT_DIR"] != cwd {
 		t.Fatal("MCP values were not expanded with explicit scope and unset semantics")
 	}
 	for _, tc := range []struct {
@@ -52,7 +57,7 @@ func TestMCPServerBindings(t *testing.T) {
 		{"missing binding", plugins.MCPServerDefinition{Name: "memory", Transport: "http", URL: "${MISSING}"}, nil, cwd, true},
 		{"bad URL does not echo secret", plugins.MCPServerDefinition{Name: "memory", Transport: "http", URL: "private-canary://wrong"}, nil, cwd, false},
 		{"missing executable", plugins.MCPServerDefinition{Name: "memory", Command: "private-canary"}, nil, cwd, true},
-		{"ambient PATH is not used", plugins.MCPServerDefinition{Name: "memory", Command: "server"}, nil, cwd, true},
+		{"ambient PATH is not used", plugins.MCPServerDefinition{Name: "memory", Command: filepath.Base(executable)}, nil, cwd, true},
 		{"relative cwd", pkg.MCP[0], nil, "relative", false},
 		{"malformed binding", plugins.MCPServerDefinition{Name: "memory", Transport: "http", URL: "${UNCLOSED"}, nil, cwd, false},
 	} {
@@ -77,8 +82,8 @@ func TestBrokenPluginMCPDoesNotBlockAgent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	root, cwd := t.TempDir(), t.TempDir()
-	script := filepath.Join(root, "broken-server")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\nexit 1\n"), 0700); err != nil {
+	executable, err := os.Executable()
+	if err != nil {
 		t.Fatal(err)
 	}
 	h, err := harness.Boot(ctx, harness.Options{})
@@ -86,7 +91,7 @@ func TestBrokenPluginMCPDoesNotBlockAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
-	pkg := plugins.Package{Root: root, Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "broken", Transport: "stdio", Command: script}}}
+	pkg := plugins.Package{Root: root, Definition: plugins.Plugin{Name: "sample"}, MCP: []plugins.MCPServerDefinition{{Name: "broken", Transport: "stdio", Command: executable, Args: []string{"-test.run=^TestPluginMCPStdioFixture$"}, Env: map[string]string{"PLUGIN_MCP_FIXTURE": "broken"}}}}
 	if _, err := MountMCP(ctx, h, []plugins.Package{pkg}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -266,6 +271,9 @@ func TestMCPActivationCancellationCleansOwnedConnections(t *testing.T) {
 // The test binary is its own stdio server; no installed command or credential
 // participates in this integration fixture.
 func TestPluginMCPStdioFixture(t *testing.T) {
+	if os.Getenv("PLUGIN_MCP_FIXTURE") == "broken" {
+		os.Exit(1)
+	}
 	if os.Getenv("PLUGIN_MCP_FIXTURE") != "1" {
 		return
 	}

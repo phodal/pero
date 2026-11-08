@@ -25,24 +25,24 @@ func TestDeliveryRequirements(t *testing.T) {
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			root := t.TempDir()
-			if err := os.Mkdir(filepath.Join(root, "out."), 0700); err != nil {
+			if err := os.Mkdir(filepath.Join(root, "out"), 0700); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(root, "out.", "answer"), []byte(row.content), 0600); err != nil {
+			if err := os.WriteFile(filepath.Join(root, "out", "answer"), []byte(row.content), 0600); err != nil {
 				t.Fatal(err)
 			}
 			if row.extra {
-				if err := os.WriteFile(filepath.Join(root, "out.", "extra"), []byte("extra"), 0600); err != nil {
+				if err := os.WriteFile(filepath.Join(root, "out", "extra"), []byte("extra"), 0600); err != nil {
 					t.Fatal(err)
 				}
 			}
 			if row.symlink {
-				if err := os.Symlink("answer", filepath.Join(root, "out.", "linked")); err != nil {
+				if err := os.Symlink("answer", filepath.Join(root, "out", "linked")); err != nil {
 					t.Skip(err)
 				}
 			}
 			n := 3
-			d := &DeliverySpec{Artifacts: []ArtifactSpec{{Path: "out./answer", NonEmpty: true, Runes: &n, TrimSpace: true}}, FileSet: &FileSetSpec{Directory: "out.", Files: []string{"answer"}}}
+			d := &DeliverySpec{Artifacts: []ArtifactSpec{{Path: "out/answer", NonEmpty: true, Runes: &n, TrimSpace: true}}, FileSet: &FileSetSpec{Directory: "out", Files: []string{"answer"}}}
 			if err := d.validate(); err != nil {
 				t.Fatal(err)
 			}

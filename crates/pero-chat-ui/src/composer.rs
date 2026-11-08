@@ -36,11 +36,7 @@ impl ChatPanel {
             .map(|chat| chat.workspace.as_str())
             .filter(|path| !path.is_empty())
             .unwrap_or(&self.workspace);
-        let workspace = workspace_path
-            .rsplit(['/', '\\'])
-            .next()
-            .unwrap_or("Workspace")
-            .to_string();
+        let workspace = crate::composer_workspace::label(workspace_path).to_string();
         let can_retry = chat.is_some_and(|chat| chat.can_retry());
         let can_send = self.connected
             && self

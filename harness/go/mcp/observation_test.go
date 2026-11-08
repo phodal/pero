@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/url"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -167,8 +170,34 @@ func TestOversizedServerInstructionsRejectTheConnection(t *testing.T) {
 }
 
 func TestWorkspaceRootURISkipsRelativeDirectories(t *testing.T) {
-	roots := workspaceRoots([]string{"/tmp/workspace", "relative", ""})
-	if len(roots) != 1 || roots[0].URI != "file:///tmp/workspace" || roots[0].Name != "workspace" {
-		t.Fatalf("roots = %+v", roots)
+	directory := filepath.Join(t.TempDir(), "workspace #%.txt")
+	cases := []struct{ name, directory, host, path string }{
+		{"local root", directory, "", "/" + strings.TrimPrefix(filepath.ToSlash(directory), "/")},
+	}
+	if runtime.GOOS == "windows" {
+		cases = append(cases, []struct{ name, directory, host, path string }{
+			{"UNC share", `\\server\share\workspace #%.txt`, "server", "/share/workspace #%.txt"},
+			{"verbatim drive", `\\?\C:\workspace #%.txt`, "", "//?/C:/workspace #%.txt"},
+			{"device drive", `\\.\C:\workspace #%.txt`, "", "//./C:/workspace #%.txt"},
+			{"verbatim UNC", `\\?\UNC\server\share\workspace #%.txt`, "", "//?/UNC/server/share/workspace #%.txt"},
+		}...)
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			roots := workspaceRoots([]string{tc.directory, "relative", ""})
+			if len(roots) != 1 || roots[0].Name != "workspace" {
+				t.Fatalf("roots = %+v", roots)
+			}
+			uri, err := url.Parse(roots[0].URI)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if uri.Scheme != "file" || uri.Host != tc.host || uri.Path != tc.path || uri.Opaque != "" || uri.RawQuery != "" || uri.Fragment != "" {
+				t.Fatalf("workspace URI = %s, parsed = %+v; want host=%q path=%q", roots[0].URI, uri, tc.host, tc.path)
+			}
+			if !strings.HasSuffix(roots[0].URI, "workspace%20%23%25.txt") {
+				t.Fatalf("workspace URI did not escape reserved path characters: %s", roots[0].URI)
+			}
+		})
 	}
 }

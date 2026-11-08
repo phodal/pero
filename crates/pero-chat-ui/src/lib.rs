@@ -10,6 +10,8 @@ pub mod icon_theme;
 mod chat;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod composer;
+#[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
+mod composer_workspace;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod composer_actions;
 #[cfg(any(target_family = "wasm", feature = "native"))]

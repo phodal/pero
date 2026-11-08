@@ -29,6 +29,7 @@ pub mod session_history;
 pub mod usage;
 pub mod user_questions;
 pub mod workbench;
+pub mod workspace_path;
 pub mod web_document;
 pub mod table_projection;
 

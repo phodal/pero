@@ -140,6 +140,11 @@ func Fetch(ctx context.Context, source, cache, ref string) (FetchReceipt, error)
 	if err = ctx.Err(); err != nil {
 		return FetchReceipt{}, err
 	}
+	// Windows cannot rename a directory while its os.Root handle is open.
+	// Keep the deferred close for error paths, but release it before publication.
+	if err = reader.Close(); err != nil {
+		return FetchReceipt{}, err
+	}
 	// Allocate the final name independently of source metadata. Rename publishes
 	// one complete snapshot on the same filesystem; failed updates leave old ones.
 	final, err := os.MkdirTemp(cache, "snapshot-"+revision[:12]+"-")

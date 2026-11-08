@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ import (
 )
 
 func TestDeferredChildDiscoversAuthorizedUnactivatedTools(t *testing.T) {
+	shellAvailable := runtime.GOOS != "windows"
 	for _, kind := range []string{"Explore", "Plan", "worker", "parent-denied", "no-tools"} {
 		t.Run(kind, func(t *testing.T) {
 			root := t.TempDir()
@@ -70,7 +72,7 @@ func TestDeferredChildDiscoversAuthorizedUnactivatedTools(t *testing.T) {
 						claudeTextAnswer(w, "parent-deny-preserved")
 						return
 					}
-					if !slices.Contains(names, "Read") || (kind != "worker" && !slices.Contains(names, "Bash")) {
+					if !slices.Contains(names, "Read") || (kind != "worker" && shellAvailable != slices.Contains(names, "Bash")) {
 						t.Errorf("lost unactivated authorized tools: %v", names)
 					}
 					if kind == "worker" && slices.Contains(names, "Bash") {
@@ -86,7 +88,7 @@ func TestDeferredChildDiscoversAuthorizedUnactivatedTools(t *testing.T) {
 					t.Error("unexpected provider continuation")
 					w.WriteHeader(400)
 				}
-			}, true, []AgentDefinition{{Name: "worker", Description: "Read only", Instructions: "Read the existing file.", Tools: allowed}}, ClaudeOptions{}, nativetools.Options{Workspace: root, ClaudeTools: true, EnableShell: true, DeferToolLoading: true, SpillStore: harness.NewLocalSpillStore(t.TempDir() + "/saved")})
+			}, true, []AgentDefinition{{Name: "worker", Description: "Read only", Instructions: "Read the existing file.", Tools: allowed}}, ClaudeOptions{}, nativetools.Options{Workspace: root, ClaudeTools: true, EnableShell: shellAvailable, DeferToolLoading: true, SpillStore: harness.NewLocalSpillStore(t.TempDir() + "/saved")})
 			if kind == "parent-denied" {
 				parent, err := f.h.Agents().Create(f.ctx, harness.AgentOptions{CWD: root, Provider: "fixture", Model: "parent-model", MaxSteps: 5, DisableCompaction: true, Configure: func(ctx context.Context, run *point.Run, agent *harness.Agent) error {
 					_, err := f.h.Tools().Restrict(ctx, run, agent, harness.ToolRestriction{Deny: []string{"Read"}})

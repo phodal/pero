@@ -12,10 +12,7 @@ const INITIAL_VISIBLE_SESSIONS: usize = 5;
 const SESSION_REVEAL_STEP: usize = 10;
 impl Workbench {
     pub(crate) fn receive_session_workspace(&mut self, event: &pero_contracts::HostEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if event.kind == "error" || event.kind == "disconnected" { self.pending_session_workspace = None; }
-        if event.kind != "workspace" { return; }
-        let Some(expected) = self.pending_session_workspace.take() else { return; };
-        if expected != event.text { return; }
+        if !self.pending_session_workspace.receive(event) { return; }
         self.new_chat(cx);
         let composer = self.chat.read(cx).composer.clone();
         composer.update(cx, |input, cx| input.focus(window, cx));
@@ -56,17 +53,18 @@ impl Workbench {
                         } else { this.workspace_focus.focus(window, cx); }
                     }
                     SidebarAction::NewProjectChat(workspace) => {
-                        if this.workspace == *workspace {
+                        if pero_contracts::workspace_path::WorkspacePath(&this.workspace).matches(workspace) {
+                            this.pending_session_workspace.clear();
                             this.new_chat(cx);
                             let composer = this.chat.read(cx).composer.clone();
                             composer.update(cx, |input, cx| input.focus(window, cx));
                         } else {
-                            this.pending_session_workspace = Some(workspace.clone());
+                            this.pending_session_workspace.request(workspace.clone());
                             this.command(serde_json::json!({"action":"workspace","path":workspace}), cx);
                         }
                     }
                     SidebarAction::NewChat => {
-                        this.pending_session_workspace = None;
+                        this.pending_session_workspace.clear();
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                         this.new_chat(cx);
                         let composer = this.chat.read(cx).composer.clone();

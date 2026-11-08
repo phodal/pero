@@ -33,7 +33,8 @@ test('patched Kit retains its own workspace and leaves the source immutable', t 
   for (const [name, before, after] of [
     ['gpui-base-0.9.0-source-search', 'original', 'search patched'],
     ['gpui-base-0.9.0-edit-events', 'search patched', 'both patched'],
-    ['gpui-component-0.9.0-menu-height', 'both patched', 'all patched'],
+    ['gpui-base-0.9.0-html-flow-identity', 'both patched', 'html patched'],
+    ['gpui-component-0.9.0-menu-height', 'html patched', 'all patched'],
   ]) {
     write(`patches/${name}.patch`, `diff --git a/crates/base/src/lib.rs b/crates/base/src/lib.rs\n--- a/crates/base/src/lib.rs\n+++ b/crates/base/src/lib.rs\n@@ -1 +1 @@\n-// ${before}\n+// ${after}\n`);
   }

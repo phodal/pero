@@ -1,12 +1,14 @@
 ---
-kind: incident
-status: active
+kind: verification_report
 github_issue: 168
-github_state: OPEN
+github_state: CLOSED
 github_url: https://github.com/phodal/pero/issues/168
 ---
 
 # Windows 新聊天连接 Agent 报 os error 193
+
+Canonical tracker: [Windows chat background/path incident](2026-11-07-windows-chat-background-path.md).
+This report preserves the adapter reconnect investigation and verification evidence.
 
 新聊天自动准备或点击“重新连接 Agent”时，Host 报
 `Internal error: "%1 不是有效的 Win32 应用程序。（os error 193）"`。

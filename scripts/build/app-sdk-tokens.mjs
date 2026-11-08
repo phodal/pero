@@ -11,7 +11,8 @@ appearance += block(['[data-theme="dark"]','[data-theme="pero-dark"]'],{...palet
 appearance += '@media (prefers-color-scheme: dark) {\n'+block(['[data-theme="system"]'],{...palette.dark,...roles})+'}\n';
 const names = ['theme-light', 'theme-dark', 'theme-contrast', 'structure'];
 const design = await readFile(new URL('../../packages/pero-design/src/tokens.css', import.meta.url), 'utf8');
-const css = (await Promise.all(names.map(name => readFile(new URL(`${name}.css`, root), 'utf8')))).join('') + appearance + design;
+// Canonicalize embedded CSS before JSON escaping, independent of Git checkout defaults.
+const css = ((await Promise.all(names.map(name => readFile(new URL(`${name}.css`, root), 'utf8')))).join('') + appearance + design).replaceAll('\r\n', '\n');
 const outputs = {
   'appearance.css': appearance,
   'appearance-properties.mjs': '// Generated from the shared Pero palette.\nexport const APPEARANCE_PROPERTIES = '+JSON.stringify([...Object.keys(palette.light),'text-secondary','border-subtle'])+';\n',

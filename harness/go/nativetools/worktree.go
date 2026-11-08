@@ -227,7 +227,9 @@ func (owner *rootWorktrees) enter(ctx context.Context, request harness.ToolReque
 	if err != nil {
 		return harness.ToolResult{}, fmt.Errorf("worktree requires a Git checkout: %w", err)
 	}
-	if top != original {
+	// Git prints slash-separated filesystem paths even on Windows. Normalize
+	// only path-valued results, never refs, commit IDs or arbitrary Git output.
+	if filepath.Clean(top) != original {
 		return harness.ToolResult{}, errors.New("EnterWorktree requires the configured workspace to be the repository root")
 	}
 	if ref == "" {
@@ -315,7 +317,7 @@ func verifyRootWorktree(ctx context.Context, lease rootWorktreeLease) error {
 	if err != nil {
 		return err
 	}
-	if original != current {
+	if filepath.Clean(original) != filepath.Clean(current) {
 		return errors.New("worktree belongs to a different Git repository")
 	}
 	listing, err := rootGitLine(ctx, lease.Original, "worktree", "list", "--porcelain", "-z")
@@ -323,7 +325,7 @@ func verifyRootWorktree(ctx context.Context, lease rootWorktreeLease) error {
 		return err
 	}
 	for _, field := range strings.Split(listing, "\x00") {
-		if field == "worktree "+lease.Path {
+		if path, ok := strings.CutPrefix(field, "worktree "); ok && filepath.Clean(path) == lease.Path {
 			return nil
 		}
 	}

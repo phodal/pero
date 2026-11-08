@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -43,9 +44,17 @@ func TestAgentWorktreeIsolationWritesOutsideParentCheckout(t *testing.T) {
 		}
 		switch calls.Add(1) {
 		case 1:
-			args, _ := json.Marshal(map[string]string{"command": "printf 'isolated-worktree-marker\\n' > feature.txt"})
+			tool := "Bash"
+			arguments := map[string]string{"command": "printf 'isolated-worktree-marker\\n' > feature.txt"}
+			if runtime.GOOS == "windows" {
+				// Unsandboxed Windows shell is deliberately unavailable. Exercise
+				// the same isolated file authority through the supported Write tool.
+				tool = "Write"
+				arguments = map[string]string{"file_path": "feature.txt", "content": "isolated-worktree-marker\n"}
+			}
+			args, _ := json.Marshal(arguments)
 			quoted, _ := json.Marshal(string(args))
-			claudeHTTPAnswer(w, `{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"isolated-bash","type":"function","function":{"name":"Bash","arguments":`+string(quoted)+`}}]},"finish_reason":"tool_calls"}]}`)
+			claudeHTTPAnswer(w, `{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"isolated-bash","type":"function","function":{"name":"`+tool+`","arguments":`+string(quoted)+`}}]},"finish_reason":"tool_calls"}]}`)
 		default:
 			if _, err := os.Stat(filepath.Join(root, "feature.txt")); !os.IsNotExist(err) {
 				t.Error("worktree command landed in the parent checkout")
@@ -56,7 +65,7 @@ func TestAgentWorktreeIsolationWritesOutsideParentCheckout(t *testing.T) {
 			}
 			for _, line := range strings.Split(string(list), "\n") {
 				path, ok := strings.CutPrefix(line, "worktree ")
-				if !ok || path == root {
+				if !ok || filepath.Clean(path) == root {
 					continue
 				}
 				if body, err := os.ReadFile(filepath.Join(path, "feature.txt")); err == nil && string(body) == "isolated-worktree-marker\n" {
@@ -65,7 +74,7 @@ func TestAgentWorktreeIsolationWritesOutsideParentCheckout(t *testing.T) {
 			}
 			claudeTextAnswer(w, "isolated-result")
 		}
-	}, true, nil, ClaudeOptions{}, nativetools.Options{Workspace: root, ClaudeTools: true, EnableShell: true})
+	}, true, nil, ClaudeOptions{}, nativetools.Options{Workspace: root, ClaudeTools: true, EnableShell: runtime.GOOS != "windows"})
 	if _, err := harness.SetPermissionMode(f.parent.Session(), harness.PermissionAutoReview); err != nil {
 		t.Fatal(err)
 	}

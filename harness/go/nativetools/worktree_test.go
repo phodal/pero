@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/shell"
 )
 
 func initializeWorktreeRepository(t *testing.T, root string) {
@@ -35,7 +36,7 @@ func initializeWorktreeRepository(t *testing.T, root string) {
 }
 
 func TestRootWorktreeSwitchesRealFilesAndShellWithoutDiscardingChanges(t *testing.T) {
-	f := newClaudeFixture(t, Options{EnableShell: true})
+	f := newClaudeFixture(t, Options{EnableShell: runtime.GOOS != "windows"})
 	initializeWorktreeRepository(t, f.root)
 	if err := os.WriteFile(filepath.Join(f.root, "tracked.txt"), []byte("original dirty\n"), 0600); err != nil {
 		t.Fatal(err)
@@ -64,30 +65,38 @@ func TestRootWorktreeSwitchesRealFilesAndShellWithoutDiscardingChanges(t *testin
 	if write.IsError {
 		t.Fatal(write)
 	}
-	// A prior Bash cwd must not override the root transition.
-	f.app.background.mu.Lock()
-	f.app.background.shellCWD[f.allowed.ID()] = f.root
-	f.app.background.mu.Unlock()
-	if _, err := f.allowed.Session().Append("working-directory/change", rootWorktreeTransition{CWD: f.root}); err != nil {
-		t.Fatal(err)
-	}
-	lease, err := readRootWorktree(f.allowed.Session().Events())
-	if err != nil {
-		t.Fatal(err)
-	}
-	owner := rootWorktrees{app: f.app}
-	if err := owner.transition(t.Context(), f.allowed, *lease); err != nil {
-		t.Fatal(err)
-	}
-	bash := f.call(t, f.allowed, "Bash", map[string]any{"command": "printf shell-worktree > shell-marker"})
-	if bash.IsError {
-		t.Fatal(bash)
-	}
-	if data, err := os.ReadFile(filepath.Join(worktree, "shell-marker")); err != nil || string(data) != "shell-worktree" {
-		t.Fatalf("shell did not follow current cwd: %q %v", data, err)
-	}
-	if _, err := os.Stat(filepath.Join(f.root, "shell-marker")); !os.IsNotExist(err) {
-		t.Fatal("shell used stale original cwd")
+	if runtime.GOOS == "windows" {
+		// Unsandboxed Windows shell has no process-group owner. File-only
+		// worktrees remain supported; do not substitute an unowned shell.
+		if executor, err := shell.NewLocalExecutor(shell.LocalOptions{CWD: worktree}); executor != nil || err == nil || !strings.Contains(err.Error(), "process-group ownership is unsupported") {
+			t.Fatalf("unsandboxed Windows shell accepted: %v %v", executor, err)
+		}
+	} else {
+		// A prior Bash cwd must not override the root transition.
+		f.app.background.mu.Lock()
+		f.app.background.shellCWD[f.allowed.ID()] = f.root
+		f.app.background.mu.Unlock()
+		if _, err := f.allowed.Session().Append("working-directory/change", rootWorktreeTransition{CWD: f.root}); err != nil {
+			t.Fatal(err)
+		}
+		lease, err := readRootWorktree(f.allowed.Session().Events())
+		if err != nil {
+			t.Fatal(err)
+		}
+		owner := rootWorktrees{app: f.app}
+		if err := owner.transition(t.Context(), f.allowed, *lease); err != nil {
+			t.Fatal(err)
+		}
+		bash := f.call(t, f.allowed, "Bash", map[string]any{"command": "printf shell-worktree > shell-marker"})
+		if bash.IsError {
+			t.Fatal(bash)
+		}
+		if data, err := os.ReadFile(filepath.Join(worktree, "shell-marker")); err != nil || string(data) != "shell-worktree" {
+			t.Fatalf("shell did not follow current cwd: %q %v", data, err)
+		}
+		if _, err := os.Stat(filepath.Join(f.root, "shell-marker")); !os.IsNotExist(err) {
+			t.Fatal("shell used stale original cwd")
+		}
 	}
 	child, err := f.harness.Agents().Create(t.Context(), harness.AgentOptions{Parent: f.allowed, CWD: worktree})
 	if err != nil {
@@ -117,15 +126,25 @@ func TestRootWorktreeSwitchesRealFilesAndShellWithoutDiscardingChanges(t *testin
 	if _, err := os.Stat(filepath.Join(worktree, "retained.txt")); err != nil {
 		t.Fatal("shutdown removed retained worktree")
 	}
-	listing, err := rootGitLine(t.Context(), f.root, "worktree", "list", "--porcelain")
-	if err != nil || !strings.Contains(listing, worktree) {
-		t.Fatalf("worktree registration lost: %s %v", listing, err)
+	lease, err := readRootWorktree(f.allowed.Session().Events())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyRootWorktree(t.Context(), *lease); err != nil {
+		t.Fatalf("worktree registration lost: %v", err)
 	}
 }
 
 func TestRootWorktreeDiskResumeVerifiesRetainedRegistration(t *testing.T) {
 	f := newClaudeFixture(t, Options{})
 	initializeWorktreeRepository(t, f.root)
+	gitRoot, err := rootGitLine(t.Context(), f.root, "rev-parse", "--show-toplevel")
+	if err != nil || filepath.Clean(gitRoot) != f.app.files.Path() {
+		t.Fatalf("Git root does not identify the native workspace: %q %v", gitRoot, err)
+	}
+	if runtime.GOOS == "windows" && gitRoot == f.app.files.Path() {
+		t.Fatal("fixture did not exercise Git slash paths against native Windows paths")
+	}
 	disk, err := harness.NewJSONLSessionPersistence(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -134,6 +153,11 @@ func TestRootWorktreeDiskResumeVerifiesRetainedRegistration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := detach(); err != nil {
+			t.Error(err)
+		}
+	}()
 	entered := f.call(t, f.allowed, "EnterWorktree", map[string]any{})
 	var receipt rootWorktreeReceipt
 	if entered.IsError || json.Unmarshal([]byte(entered.Content[0].Text), &receipt) != nil {

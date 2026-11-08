@@ -264,12 +264,12 @@ mod tests {
         let path = std::env::temp_dir().join(format!("pero-engram-settings-{}.json", std::process::id()));
         let _ = fs::remove_file(&path);
         fs::write(&path, b"{}\n").unwrap();
-        let settings = EngramSettings { enabled: true, binary: "/usr/bin/engram".into() };
+        let settings = EngramSettings { enabled: true, binary: path.with_file_name("engram").to_string_lossy().into() };
         crate::settings::save_engram(&path, &settings).unwrap();
         assert_eq!(crate::settings::load_engram(&path), settings);
         let relative = EngramSettings { enabled: true, binary: "engram".into() };
         assert!(crate::settings::save_engram(&path, &relative).is_err());
-        assert_eq!(crate::settings::load_engram(&path).binary, "/usr/bin/engram");
+        assert_eq!(crate::settings::load_engram(&path), settings);
         let _ = fs::remove_file(&path);
     }
 

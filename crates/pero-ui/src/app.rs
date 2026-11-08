@@ -134,7 +134,7 @@ pub(crate) struct Workbench {
     pub session_search: Entity<InputState>,
     pub session_search_open: bool,
     pub session_menu_open: Option<String>,
-    pub pending_session_workspace: Option<String>,
+    pub pending_session_workspace: crate::session_workspace::PendingSessionWorkspace,
     pub spotlight: Option<Entity<crate::spotlight::SpotlightList>>,
     pub spotlight_query: String,
     pub workspace: String,
@@ -320,7 +320,7 @@ impl Workbench {
             session_search,
             session_search_open: false,
             session_menu_open: None,
-            pending_session_workspace: None,
+            pending_session_workspace: Default::default(),
             terminal: Default::default(),
             view_bounds: Default::default(),
             workspace_focus,
@@ -589,7 +589,7 @@ impl Workbench {
                 >(event.data.clone())
                 {
                     self.workspace_repositories
-                        .retain(|entry| entry.workspace != event.text);
+                        .retain(|entry| !pero_contracts::workspace_path::WorkspacePath(&entry.workspace).matches(&event.text));
                     if let Some(repository) = identity.repository {
                         self.workspace_repositories.push(
                             pero_contracts::workbench::WorkspaceRepository {
