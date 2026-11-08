@@ -1,0 +1,21 @@
+{
+  "name": "@pero/notebook",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Versioned scientific Notebook blocks and spreadsheet calculations",
+  "exports": {
+    ".": "./src/document.ts",
+    "./spreadsheet": "./src/spreadsheet.ts",
+    "./workbook": "./src/workbook.ts",
+    "./paper-evidence": "./src/paper-evidence.ts",
+    "./control-evidence": "./src/control-evidence.ts"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "exceljs": "4.4.0",
+    "fast-formula-parser": "1.0.19"
+  }
+}
