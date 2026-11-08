@@ -103,6 +103,37 @@ class NotebookTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, error):
                     NotebookDocument.parse(invalid)
 
+    def test_ordered_list_starts_roundtrip_without_relaxing_other_integer_bounds(self):
+        for start in (0, -3, 1, -2_147_483_648, 2_147_483_647,
+                      -2_147_483_649, 2_147_483_648, True, 0.5, '0', None):
+            with self.subTest(start=start):
+                original = document()
+                original['content']['content'].append({
+                    'type': 'orderedList', 'attrs': {'blockId': 'steps', 'start': start},
+                    'content': [{'type': 'listItem', 'content': [{'type': 'paragraph'}]}],
+                })
+                if type(start) is not int or not -2_147_483_648 <= start <= 2_147_483_647:
+                    with self.assertRaisesRegex(ValueError, 'Invalid list start'):
+                        NotebookDocument.parse(original)
+                    continue
+                with tempfile.TemporaryDirectory() as directory:
+                    store = EntryStore(directory)
+                    entry = store.create(NotebookDocument.parse(document()))
+                    store.commit(entry.identity, 1, lambda _old: NotebookDocument.parse(original))
+                    self.assertEqual(EntryStore(directory).read(entry.identity).document.wire(), original)
+        for node, message in [
+            ({'type': 'heading', 'attrs': {'level': 0}}, 'heading level'),
+            ({'type': 'spreadsheet', 'attrs': {'blockId': 'zero-rows',
+                'sheet': {'rows': 0, 'columns': 1, 'cells': {}}}}, 'row count'),
+        ]:
+            with self.subTest(node=node):
+                original = document()
+                original['content']['content'].append(node)
+                with self.assertRaisesRegex(ValueError, message):
+                    NotebookDocument.parse(original)
+        with self.assertRaisesRegex(ValueError, 'Invalid revision'):
+            AgentRead(revision=0)
+
     def test_imported_evidence_stays_bound_to_its_exact_source_and_check_values(self):
         original = document()
         nodes = original['content']['content']

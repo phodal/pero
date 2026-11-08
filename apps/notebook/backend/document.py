@@ -53,8 +53,8 @@ def string(value, name, maximum=MAX_TEXT, *, required=False):
     return value
 
 
-def integer(value, name, maximum=2_147_483_647):
-    if type(value) is not int or not 1 <= value <= maximum:
+def integer(value, name, maximum=2_147_483_647, *, minimum=1):
+    if type(value) is not int or not minimum <= value <= maximum:
         raise ValueError(f'Invalid {name}')
     return value
 
@@ -208,7 +208,8 @@ def _attributes(kind, value, identities):
         integer(value['level'], 'heading level', 6)
     elif kind == 'orderedList':
         if 'start' in value:
-            integer(value['start'], 'list start')
+            # HTML ordered lists (and pasted Tiptap lists) allow zero and negative starts.
+            integer(value['start'], 'list start', minimum=-2_147_483_648)
         if value.get('type') is not None and value['type'] not in ('1', 'a', 'A', 'i', 'I'):
             raise ValueError('Invalid list type')
     elif kind == 'taskItem' and 'checked' in value and type(value['checked']) is not bool:
