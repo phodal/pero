@@ -31,6 +31,24 @@ Agent and Control Lab, then run the Desktop test with
 `PERO_NOTEBOOK_OWNER_FIXTURES=1` and `PERO_APP_PYTHON` set to the executable
 in a virtual environment with the dependencies from both App manifests.
 
+## Code boundaries
+
+`@pero/notebook` owns document/reference values, reference completeness, worksheet
+rename transitions, formula calculations and owner-specific snapshot contracts.
+Consumers use its exported package paths. `worksheet` has no editor dependency;
+`workbook` adapts those values to ExcelJS. The App projects ProseMirror nodes into
+those values, applies one undoable transaction, and handles selection and I/O.
+Finding and cell controls share the same editor evidence query while retaining
+their different citation policies. A pinned reference or imported snapshot is
+not a claim of verification by the owning App.
+
+The Python boundary validates persisted documents and Agent operations; SQLite
+owns revision commits and HTTP maps domain/storage errors. Unsupported or corrupt
+saved documents return `stored-document-error`, separately from invalid new
+requests, and are never silently rewritten. Paper and Control portable snapshot
+shapes are checked against the same JSON examples in TypeScript and Python.
+Owner-specific digest checks remain at their existing import/storage boundaries.
+
 ## Data and format boundaries
 
 Notebook revisions retain cell source, formulas and scientific annotations.

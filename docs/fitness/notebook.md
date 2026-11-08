@@ -55,3 +55,27 @@ on every PR, retaining `test-results/notebook/` as a workflow artifact. The
 aggregate CI gate requires this job. Consult the PR's exact-head CI results for
 remote browser evidence rather than treating the earlier Desktop screenshots
 as verification of these completion changes.
+
+## Abstraction follow-up
+
+On 2026-11-08, the follow-up based on `5201bf5` moved shared reference status and
+worksheet rename rules into the Notebook package, reused one editor evidence
+projection, switched consumers to package exports, and distinguished stored
+revision errors from invalid requests. TypeScript and Python now run the same
+29 portable snapshot cases, including Unicode, numeric and identifier boundaries.
+
+- `npm run test:notebook`: 21 package tests, two editor tests and ten Python tests
+  passed. The new pure rename cases preserve input values and stable IDs, update
+  all unambiguous formulas, and reject duplicate or invalid names. The backend
+  retains original stored bytes and history after unreadable-revision errors.
+- Notebook typecheck and standalone build passed, as did core TypeScript and the
+  nine CI/source-navigation checks. Public package imports resolve in the actual
+  build, including the new worksheet and spreadsheet-range exports.
+  Full root `npm run check` still stops at the absent generated Reader Wasm
+  module; the focused Notebook and core checks do not replace that aggregate.
+- The browser regression additionally checks that worksheet rename and all of
+  its dependent formulas undo/redo together without undoing the preceding cell
+  edit. Local Chromium remained blocked at launch by the ProcessSingleton socket
+  restriction, before the App loaded. Exact-head CI owns that runtime evidence.
+- No new Desktop, Native, packaged distribution, live owner or multiplayer
+  acceptance is claimed by this refactor.

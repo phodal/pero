@@ -211,6 +211,24 @@ performance and full desktop Excel parity were not established.
 | Embed FortuneSheet as-is | Dynamic-eval insert-row fails under App script policy. |
 | Put professional editors inside Notebook blocks | Duplicates App authority; Notebook stops being a provenance/revision record. |
 
+## Implemented domain seams
+
+The Notebook package owns `ScientificReferenceState`, `ReferenceSnapshot` and
+`NotebookWorksheet`. Reference completeness has one pure definition; the App's
+shared evidence projection supplies both Findings and cell annotation controls.
+It does not combine their different citation policies or imply owner validation.
+
+Worksheet rename is a pure value transition that validates the name and rewrites
+unambiguous cross-sheet formula references. The ProseMirror adapter maps its result
+to one undoable transaction. ExcelJS imports the same worksheet name rule; the
+package does not depend on React, ProseMirror, Host or the HTTP backend.
+
+Python and TypeScript must each validate their external boundary. A shared JSON
+snapshot corpus checks their portable Paper/Control shape contract, while
+owner-specific import and digest verification stay separate. The store gives
+unreadable persisted revisions a distinct error from invalid incoming documents.
+No generic service, repository or validator framework is introduced.
+
 ## Consequences
 
 - Notebook continues on Tiptap / ProseMirror, ExcelJS and the formula subset in
