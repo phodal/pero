@@ -97,6 +97,8 @@ try {
   await expect(page.locator('#product-chat-toggle')).toHaveAttribute('aria-expanded','true');
   await startingChat.waitForFunction(()=>window.peroChatDiagnostics&&JSON.parse(window.peroChatDiagnostics.snapshot()).chats.length===1,undefined,{timeout:60000});
   const initialDraft=await startingChat.evaluate(()=>{const state=JSON.parse(window.peroChatDiagnostics.snapshot());return state.chats[state.activeChat];});
+  // No artifact/changes request may turn a local startup draft into an error.
+  expect((await startingChat.evaluate(() => JSON.parse(window.peroChatDiagnostics.snapshot()))).artifacts?.loading ?? false).toBe(false);
   expect(initialDraft.state).toBe('draft');
   expect(initialDraft.session_id).toBe('');
   expect(initialDraft.error).toBeNull();
@@ -123,6 +125,7 @@ try {
   if(startingDraft){
     await expect.poll(async()=>(await active()).state).toBe('idle');
     const prepared = await active();
+    await expect.poll(async () => (await state()).artifacts).toMatchObject({ thread_id: startingDraft, loading: false, error: null });
     expect(prepared.id).toBe(startingDraft);
     expect((await state()).chats.map(chat => chat.id)).toEqual([startingDraft]);
     expect(prepared.session_id).toBe('app-use-fixture');
