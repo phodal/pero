@@ -242,7 +242,7 @@ export default function Insights() {
       <p>{selectedThread !== null
         ? (locale === 'zh' ? '这份简报未能恢复。' : 'This brief could not be restored.')
         : (locale === 'zh' ? '部分历史简报未能恢复。' : 'Some previous briefs could not be restored.')}
-        {brief && <span className="point-insights-error-hint">{locale === 'zh' ? '下方保留最近可读取的简报。' : 'The latest readable brief remains below.'}</span>}
+        {brief && <span className="point-insights-error-hint">{locale === 'zh' ? '最近可读取的简报仍保留。' : 'The latest readable brief remains.'}</span>}
       </p>
       <div className="point-insights-restore-actions">
         <Button variant="link" disabled={loading} onClick={() => setAttempt(value => value + 1)}>{locale === 'zh' ? '重新读取' : 'Reload'}</Button>
@@ -255,7 +255,7 @@ export default function Insights() {
           {generationError.kind === 'needs_input'
             ? (locale === 'zh' ? '生成已暂停，需要在会话中补充信息。' : 'Generation paused and needs input in its session.')
             : (locale === 'zh' ? '上次生成未完成，请重试。' : 'The last brief did not complete. Please retry.')}
-          {brief && <span className="point-insights-error-hint">{locale === 'zh' ? '下方保留上次生成的简报。' : 'The previous brief remains below.'}</span>}
+          {brief && <span className="point-insights-error-hint">{locale === 'zh' ? '上次生成的简报仍保留。' : 'The previous brief remains.'}</span>}
         </Feedback>}
       {generationSession && <Button onClick={() => void openAppSession(generationSession).catch(reason => setGenerationError({ kind: 'host', message: String(reason) }))}>{locale === 'zh' ? '打开生成会话' : 'Open generation session'}</Button>}
     </>}
@@ -265,10 +265,8 @@ export default function Insights() {
       <LibraryHeader density="compact" className="point-pulse-top" title={locale === 'zh' ? '工作简报' : 'Work brief'}
         subtitle={brief ? undefined : locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'}
         actions={brief && generate} />
-      {brief ? <>
-        <div className="point-insights-feedback">{feedback}</div>
-        <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} />
-      </> : <Card tone="blue" variant="soft" className="point-insights-start">
+      {brief ? <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} notice={feedback} />
+        : <Card tone="blue" variant="soft" className="point-insights-start">
         <h2>{locale === 'zh' ? '今天有哪些值得关注的事？' : 'What deserves your attention today?'}</h2>
         {error || restoreError || generationError ? <div className="point-insights-feedback">{feedback}</div>
           : waiting || running ? <Feedback kind="status">{waiting

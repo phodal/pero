@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { openAppSession, useAppChat, useAppObject } from '@pero/app-sdk';
 import { Disclosure, Badge, Button, Card, CardHeader, EmptyIllustration, EmptyState, Icon } from '@pero/app-sdk/ui';
 import { cardKind, projectBrief } from './work-recap-model.mjs';
@@ -101,8 +101,8 @@ function Post({ card, t, locale }: { card: ResultCard; t: typeof copy.zh; locale
   </article>;
 }
 
-export function PulseHomeResult({ brief, createdAt, running, locale }: {
-  brief: ResultBrief; createdAt?: string; running?: boolean; locale: 'zh' | 'en';
+export function PulseHomeResult({ brief, createdAt, running, locale, notice }: {
+  brief: ResultBrief; createdAt?: string; running?: boolean; locale: 'zh' | 'en'; notice?: ReactNode;
 }) {
   const t = copy[locale], chat = useAppChat(), id = useId();
   useAppObject({ id: 'insights-brief', kind: 'work-brief', label: locale === 'zh' ? '工作简报' : 'Work brief', state: brief });
@@ -119,44 +119,50 @@ export function PulseHomeResult({ brief, createdAt, running, locale }: {
       .finally(() => setDiscussing(false));
   };
   if (!brief.cards.length && !brief.tomorrow && !summary) return <section className="point-insights-empty-result" aria-label={t.title}>
+    {notice}
     <EmptyState icon={<EmptyIllustration kind="brief"/>} description={t.personalEmpty}/>
     {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
     {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
   </section>;
   return <section aria-label={t.title}>
     {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
-    <div className="point-brief-layout" data-attention={edition.needCards.length ? 'true' : undefined}>
-      <section className="point-brief-summary" aria-labelledby={`${id}-summary`}>
-        <div className="point-brief-summary-head"><h2 id={`${id}-summary`}><Icon name="ai-sparkles" size={16}/>{t.summary}</h2>
-          {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
-        </div>
-        {summary ? <><div className="point-brief-summary-text"><RichText text={summary} /></div><p className="point-brief-summary-note">{t.summaryNote}</p></>
-          : <p className="point-brief-legacy-note">{t.legacy}</p>}
-      </section>
-      {!!edition.needCards.length && <Card asChild tone="apricot" variant="soft" className="point-brief-attention"><aside aria-labelledby={`${id}-attention`}>
-        <h2 id={`${id}-attention`} className="point-brief-section-title">{t.attention}</h2>
-        {edition.needCards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}
-      </aside></Card>}
-      {!!edition.cards.length && <section className="point-brief-findings" aria-labelledby={`${id}-findings`}>
-        <h2 id={`${id}-findings`} className="point-brief-section-title">{t.findings}</h2>
-        <div className="point-brief-topics">{edition.topics.map(topic => <Card asChild key={`${topic.type}:${topic.label}`} className="point-brief-topic"><section aria-label={topic.type === 'general' ? topic.label || undefined : t[topic.type]}>
-          <CardHeader tone={topic.type === 'engineering' ? 'blue' : topic.type === 'research' ? 'apricot' : 'neutral'}>
-            <h2 className="point-brief-topic-title">{topic.type === 'general' ? topic.label || t.findings : t[topic.type]}</h2>
-          </CardHeader>
-          <div className="point-pulse-feed">{topic.cards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}</div>
-        </section></Card>)}</div>
-      </section>}
-      <section className="point-brief-discussion" aria-labelledby={`${id}-discussion`}>
-        <div className="point-brief-discussion-head"><div><h2 id={`${id}-discussion`}>{t.discussion}</h2><p>{t.discussHint}</p></div>
-          <Button variant="primary" busy={discussing} onClick={() => discuss(t.discuss)}>{t.discuss}</Button>
-        </div>
-        <div className="point-brief-questions">{[t.continueQuestion, t.verifyQuestion].map(question => <Button key={question} disabled={discussing} onClick={() => discuss(question)}>{question}</Button>)}</div>
-        {discussionError && <InsightsError error={discussionError} locale={locale} context="action" />}
-        {brief.tomorrow && <section className="point-pulse-ahead"><h3>{t.ahead}</h3><ul>{brief.tomorrow.split(/\n+/).filter(line => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul></section>}
-        <Disclosure variant="inline" className="point-insights-diagnostics" onOpenChange={setOriginalOpen} summary={<>{t.original}</>}>
-          {originalOpen && <><p>{t.originalNote}</p><pre>{JSON.stringify(brief, null, 2)}</pre></>}
-        </Disclosure>
-      </section>
+    <div className="point-brief-layout">
+      <div className="point-brief-primary">
+        <section className="point-brief-summary" aria-labelledby={`${id}-summary`}>
+          <div className="point-brief-summary-head"><h2 id={`${id}-summary`}><Icon name="ai-sparkles" size={16}/>{t.summary}</h2>
+            {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
+          </div>
+          {summary ? <><div className="point-brief-summary-text"><RichText text={summary} /></div><p className="point-brief-summary-note">{t.summaryNote}</p></>
+            : <p className="point-brief-legacy-note">{t.legacy}</p>}
+        </section>
+        {!!edition.needCards.length && <Card asChild tone="apricot" variant="soft" className="point-brief-attention"><aside aria-labelledby={`${id}-attention`}>
+          <h2 id={`${id}-attention`} className="point-brief-section-title">{t.attention}</h2>
+          {edition.needCards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}
+        </aside></Card>}
+        {!!edition.cards.length && <section className="point-brief-findings" aria-labelledby={`${id}-findings`}>
+          <h2 id={`${id}-findings`} className="point-brief-section-title">{t.findings}</h2>
+          <div className="point-brief-topics">{edition.topics.map(topic => <Card asChild key={`${topic.type}:${topic.label}`} className="point-brief-topic"><section aria-label={topic.type === 'general' ? topic.label || undefined : t[topic.type]}>
+            <CardHeader tone={topic.type === 'engineering' ? 'blue' : topic.type === 'research' ? 'apricot' : 'neutral'}>
+              <h2 className="point-brief-topic-title">{topic.type === 'general' ? topic.label || t.findings : t[topic.type]}</h2>
+            </CardHeader>
+            <div className="point-pulse-feed">{topic.cards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}</div>
+          </section></Card>)}</div>
+        </section>}
+      </div>
+      <div className="point-brief-rail">
+        {notice}
+        <section className="point-brief-discussion" aria-labelledby={`${id}-discussion`}>
+          <div className="point-brief-discussion-head"><div><h2 id={`${id}-discussion`}>{t.discussion}</h2><p>{t.discussHint}</p></div>
+            <Button variant="primary" busy={discussing} onClick={() => discuss(t.discuss)}>{t.discuss}</Button>
+          </div>
+          <div className="point-brief-questions">{[t.continueQuestion, t.verifyQuestion].map(question => <Button key={question} disabled={discussing} onClick={() => discuss(question)}>{question}</Button>)}</div>
+          {discussionError && <InsightsError error={discussionError} locale={locale} context="action" />}
+          {brief.tomorrow && <section className="point-pulse-ahead"><h3>{t.ahead}</h3><ul>{brief.tomorrow.split(/\n+/).filter(line => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul></section>}
+          <Disclosure variant="inline" className="point-insights-diagnostics" onOpenChange={setOriginalOpen} summary={<>{t.original}</>}>
+            {originalOpen && <><p>{t.originalNote}</p><pre>{JSON.stringify(brief, null, 2)}</pre></>}
+          </Disclosure>
+        </section>
+      </div>
     </div>
   </section>;
 }

@@ -8,7 +8,7 @@ const copy = {
     generation: '简报暂时未能生成。请重试，或查看生成会话。',
     action: '暂时无法打开此内容，请重试。',
     research: '暂时无法读取研究检查，请重试。',
-    retained: '下方保留上次生成的简报。',
+    retained: '上次生成的简报仍保留。',
     details: '技术详情',
   },
   en: {
@@ -18,7 +18,7 @@ const copy = {
     generation: 'The brief could not be generated. Please retry or open the generation session.',
     action: 'This content could not be opened. Please retry.',
     research: 'Research checks could not be loaded. Please retry.',
-    retained: 'The previous brief remains below.',
+    retained: 'The previous brief remains.',
     details: 'Technical details',
   },
 };

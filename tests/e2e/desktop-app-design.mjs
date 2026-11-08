@@ -137,6 +137,10 @@ for (const appearance of [{locale:'en',size:14,width:1000,dark:false},{locale:'z
   await expect(page.getByRole('link',{name:'Named research source',exact:true})).toHaveAttribute('href','https://example.org/named-source');
   await expect(page.getByRole('listitem').filter({hasText:'Review the saved source.'})).toBeVisible();
   await expect(page.getByRole('listitem').filter({hasText:'Continue the existing study.'})).toBeVisible();
+  if(appearance.width>=1000){
+    const ahead=await page.evaluate(()=>{const findings=document.querySelector('.point-brief-findings').getBoundingClientRect(),next=document.querySelector('.point-pulse-ahead').getBoundingClientRect();return {findingsRight:findings.right,aheadLeft:next.left,findingsTop:findings.top,aheadTop:next.top};});
+    assert.ok(ahead.aheadLeft>=ahead.findingsRight-1,'next steps sit to the right of the findings');
+  }
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await shot(page,`insights-readable-evidence-${appearance.locale}`);
 });
@@ -178,6 +182,10 @@ for (const appearance of [{locale:'en',size:14,width:1200,dark:false},{locale:'z
   const boxes=await topics.evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};}));
   if(appearance.width>=700) assert.ok(boxes[1].left>=boxes[0].right && Math.abs(boxes[1].top-boxes[0].top)<1,'wide topics sit side by side');
   else assert.ok(boxes[1].top>=boxes[0].bottom,'narrow topics stack without overlap');
+  if(appearance.width>=1200){
+    const side=await Promise.all([summary,discussion].map(region=>region.evaluate(node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top};})));
+    assert.ok(side[1].left>=side[0].right-1 && Math.abs(side[1].top-side[0].top)<24,'discussion sits beside the summary');
+  }
 
   await expect(page.getByRole('heading',{name:'Routine build output omitted',exact:true})).toHaveCount(0);
   await expect(page.getByRole('link',{name:'Original source',exact:true})).toHaveAttribute('href','https://example.org/evidence');
@@ -314,6 +322,8 @@ test('Insights keeps readable history through recovery failures and clears its w
   await expect(page.getByRole('status')).toContainText('latest readable brief remains');
   await expect(page.getByRole('heading',{name:'Source change needs review',exact:true})).toBeVisible();
   assert.equal(starts,0);
+  const beside=await page.evaluate(()=>{const summary=document.querySelector('.point-brief-summary').getBoundingClientRect(),warning=document.querySelector('.point-insights-restore').getBoundingClientRect();return {summaryRight:summary.right,warningLeft:warning.left,summaryTop:summary.top,warningTop:warning.top};});
+  assert.ok(beside.warningLeft>=beside.summaryRight-1 && Math.abs(beside.warningTop-beside.summaryTop)<24,'restore warning sits beside the summary');
   await shot(page,'insights-restored-with-warning');
   await page.getByRole('button',{name:'Regenerate',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Fresh completed brief',exact:true})).toBeVisible();
