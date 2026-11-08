@@ -16,6 +16,11 @@ type Draft = {
 };
 
 const endpoint = (id: string) => `/api/entries/${encodeURIComponent(id)}`;
+function readEntry(entry: NotebookEntry): NotebookEntry {
+  if (entry.document.schemaVersion !== 1) throw new Error('Unsupported Notebook document version');
+  return entry;
+}
+
 function messageOf(cause: unknown) {
   if (cause instanceof AppApiError) {
     try {
@@ -87,7 +92,7 @@ function Notebook() {
     let live = true;
     setOpenError('');
     void api.get<NotebookEntry>(endpoint(selected)).then(entry => {
-      if (live) adopt(entry);
+      if (live) adopt(readEntry(entry));
     }).catch(cause => { if (live) setOpenError(messageOf(cause)); });
     return () => { live = false; };
   }, [selected, api, retry, adopt, active]);
@@ -153,7 +158,7 @@ function Notebook() {
   });
   const loadLatest = () => perform('reload', async () => {
     const entry = await api.get<NotebookEntry>(endpoint(selected));
-    adopt(entry, true);
+    adopt(readEntry(entry), true);
     updateList(entry);
   });
   const showHistory = () => {
@@ -230,7 +235,7 @@ function Notebook() {
               {!snapshot && history && <section aria-label={t('history')} className="notebook-revisions">
                 <ul>{history.map(revision => <li key={revision.revision}>
                   <Button variant="ghost" disabled={!!busy} onClick={() => void perform('history', async () => {
-                    setSnapshot(await api.get<NotebookEntry>(`${endpoint(selected)}/revisions/${revision.revision}`));
+                    setSnapshot(readEntry(await api.get<NotebookEntry>(`${endpoint(selected)}/revisions/${revision.revision}`)));
                   })}>{t('revision', { number: revision.revision })}</Button>
                   <time dateTime={revision.updatedAt}>{new Date(revision.updatedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')}</time>
                 </li>)}</ul>

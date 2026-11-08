@@ -1,7 +1,6 @@
 import { Node, type Editor, type JSONContent } from '@tiptap/core';
 import TaskItem from '@tiptap/extension-task-item';
 import TaskList from '@tiptap/extension-task-list';
-import { UniqueID } from '@tiptap/extension-unique-id';
 import { EditorContent, ReactNodeViewRenderer, useEditor, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useState } from 'react';
@@ -11,6 +10,7 @@ import type { NotebookDocument } from '../../../packages/notebook/src/document';
 import { readWorkbook, writeWorkbook } from '../../../packages/notebook/src/workbook';
 import { activeNotebookBlock, moveBlock, rememberWidgetFocus } from './block-order';
 import { isClipboardWidget } from './clipboard-block';
+import { NotebookIdentity } from './block-identity';
 import { ExperimentView, EvidenceView, FindingView } from './research-blocks';
 import { SpreadsheetView } from './spreadsheet';
 import { nextWorksheetName, worksheetBlocks } from './worksheet-model';
@@ -68,7 +68,7 @@ const extensions = [
     renderText() { return `[${messages[widget.name].en}]`; },
     addNodeView() { return ReactNodeViewRenderer(widget.view); },
   })),
-  UniqueID.configure({ attributeName: 'blockId', types: addressed }),
+  NotebookIdentity.configure({ attributeName: 'blockId', types: addressed }),
 ];
 
 function insertBlocks(editor: Editor, insert: JSONContent[]) {

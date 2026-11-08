@@ -147,6 +147,17 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(recordedVerdict).toContainText(trial.report.verdict);
   await expect(result.locator('[data-cell=A1]')).toHaveValue('12');
 
+  // Use the editor's real clipboard serialization, including research payloads.
+  const body = page.getByRole('textbox', { name: 'Notebook content' });
+  await body.focus();
+  await body.press('ControlOrMeta+a');
+  const clipboard = await body.evaluate(element => {
+    const data = new DataTransfer();
+    element.dispatchEvent(new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true }));
+    return { html: data.getData('text/html'), text: data.getData('text/plain') };
+  });
+  assert.match(clipboard.html, /data-notebook-block="evidence"/);
+
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export workbook' }).click();
   const bytes = await readFile(await (await download).path());
@@ -194,5 +205,45 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await grid.getByRole('button', { name: 'Clear cells' }).click();
   await expect(grid.locator('[data-cell=B2]')).toHaveValue('');
   await expect(first).toHaveValue('');
+  await page.getByRole('button', { name: 'New notebook' }).click();
+  await page.getByRole('textbox', { name: 'Notebook title' }).fill('Copied review');
+  const copiedBody = page.getByRole('textbox', { name: 'Notebook content' });
+  await copiedBody.focus();
+  await copiedBody.evaluate((element, clipboard) => {
+    const data = new DataTransfer();
+    data.setData('text/html', clipboard.html);
+    data.setData('text/plain', clipboard.text);
+    element.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  }, clipboard);
+  await expect(page.locator('[data-kind=evidence]')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.locator('[data-kind=evidence]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await expect(page.locator('[data-kind=evidence]')).toHaveCount(1);
+  await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
+  await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Locked control trial/ })).toBeChecked();
+  await page.getByRole('button', { name: 'Save revision' }).click();
+  await expect(page.locator('.notebook-status')).toHaveText('Revision 2');
+  const copiedCatalog = await (await fetch(origin + '/api/entries')).json();
+  const copiedSummary = copiedCatalog.entries.find(item => item.title === 'Copied review');
+  const copied = await (await fetch(origin + '/api/entries/' + copiedSummary.id)).json();
+  const copiedNodes = copied.document.content.content;
+  const copiedEvidence = copiedNodes.find(node => node.type === 'evidence');
+  const copiedExperiment = copiedNodes.find(node => node.type === 'experiment');
+  const copiedFinding = copiedNodes.find(node => node.type === 'finding');
+  assert.notEqual(copiedEvidence.attrs.blockId, source.attrs.blockId);
+  assert.notEqual(copiedExperiment.attrs.blockId, run.attrs.blockId);
+  assert.deepEqual(copiedEvidence.attrs.snapshot, source.attrs.snapshot);
+  assert.deepEqual(copiedExperiment.attrs.snapshot, run.attrs.snapshot);
+  assert.deepEqual(copiedFinding.attrs.evidenceIds, [copiedEvidence.attrs.blockId, copiedExperiment.attrs.blockId]);
+  assert.deepEqual(copiedNodes.filter(node => node.type === 'spreadsheet')[1].attrs.annotations.A1,
+    { unit: 'µL', evidenceIds: [copiedEvidence.attrs.blockId] });
+  await page.reload();
+  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
+  await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
+  await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.screenshot({ path: resolve(output, 'copied-notebook-narrow-dark.png'), fullPage: true });
   assert.deepEqual(errors, []);
 });

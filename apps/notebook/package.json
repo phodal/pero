@@ -6,8 +6,9 @@
   "scripts": {
     "build": "node ../../scripts/build/apps.mjs --app notebook",
     "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
-    "test": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
-    "test:browser": "node --test test/notebook-browser.mjs"
+    "test": "npm run test:editor && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
+    "test:browser": "node --test test/notebook-browser.mjs",
+    "test:editor": "node --test test/*.test.ts"
   },
   "dependencies": {
     "@tiptap/core": "3.33.0",
