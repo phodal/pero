@@ -59,7 +59,9 @@ export async function scientificViewerPreview() {
         if (!file.startsWith(dist + sep)) { response.writeHead(404).end(); return; }
         const bytes = await readFile(file);
         const type = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.svg': 'image/svg+xml' }[extname(file)] || 'application/octet-stream';
-        response.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' }).end(bytes);
+        response.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store',
+          'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'",
+        }).end(bytes);
       } catch (error) { response.writeHead(500, { 'Content-Type': 'text/plain' }).end(String(error)); }
     });
     // External binding is opt-in for the connected cloud browser; test runs stay loopback-only.

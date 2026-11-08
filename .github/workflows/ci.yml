@@ -66,6 +66,9 @@ jobs:
       - name: Verify imported files, charts, molecules and responsive themes
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: node tests/e2e/scientific-viewer-browser.mjs
+      - name: Verify Research Lab meshes, offline copies and resource cleanup
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: node tests/e2e/research-lab-browser.mjs
       - name: Verify artifact previews and Gallery keyboard behavior
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: node apps/scientific-viewer/test/artifact-browser.mjs
@@ -77,6 +80,7 @@ jobs:
           path: |
             test-results/scientific-viewer-browser/
             test-results/session-artifacts-viewer/
+            test-results/research-lab-browser/
           if-no-files-found: warn
 
   lcms2yield:
