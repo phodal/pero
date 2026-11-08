@@ -86,3 +86,40 @@ Wasm/web/Host/Desktop development builds, native UI compilation,
 `npm run check`, the contracts/UI library tests, Host resource tests and runtime
 settings persistence checks passed. Native compilation is separate from native
 GUI acceptance. No installed release was rebuilt or production service changed.
+
+## Project navigation — 2026-11-08
+
+Base `1c938e68` with local project UI changes. The project catalog now uses the
+shared GPUI list row and groups research projects separately from workspaces and
+shared projects. The project header uses the shared dropdown to switch projects.
+Project routes remain in navigation history. The window tab strip and its
+keyboard cycling use task tabs alongside the existing pane tab behavior.
+
+Research projects open to the goal and an action to link or open materials.
+Existing paper, study and experiment links moved from Overview to Materials &
+Experiments. The same link revisions, source navigation, recovery and unlink
+behavior still apply. Repository and PR browsing has its own clearly named tab.
+Local workspaces retain their ROADMAP path under View project tasks. The workspace
+path is shown in the overview and execution body so the tab row stays in place.
+
+The running macOS Native Preview was inspected while switching from `pero` to
+`pero-ws-b`. The dropdown opened below the heading, showed the current selection
+and switched directly to the target overview. The title bar had no project tabs
+and the chat toggle was present. The settings and execution headers were checked
+visually after moving the path into the page body.
+
+The isolated Electron local-start flow covered keyboard switching to a second
+workspace and reading its own ROADMAP without a Cloud account. It also checked
+that switching to Settings keeps the tab row in place. The light menu and
+narrow dark overview screenshots were inspected in `test-results/local-project-start/`.
+
+The research Projects Electron suite passed using an isolated Python 3.12
+environment with the dependencies pinned by Paper, Control Lab and Lab.
+Set `PERO_RESEARCH_TEST_PYTHON_ENV` to the prepared environment root when running
+`node tests/e2e/research-projects.mjs`. Synthetic records exercised association,
+exact source opening, settings-write recovery, restart persistence, stale
+references and unlinking. The project overview and linked materials screenshots
+were inspected in `test-results/research-projects-workspace-v1/`.
+
+The UI unit suite and repository checks passed. Scientific execution, signed
+packages and other Native platforms are outside this verification.

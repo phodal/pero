@@ -5,7 +5,12 @@ use crate::{
     workspace::{WorkbenchPage, WorkspaceItem},
 };
 use gpui_kit::{
-    component::{button::*, input::Input, *},
+    component::{
+        button::*,
+        input::Input,
+        menu::{DropdownMenu, PopupMenuItem},
+        *,
+    },
     prelude::*,
     *,
 };
@@ -171,6 +176,14 @@ impl Workbench {
         self.sync_follow(cx);
     }
 
+    fn project_groups(&self, cx: &App) -> [(&'static str, Vec<Project>); 2] {
+        let (research, workspaces): (Vec<_>, Vec<_>) = self
+            .project_catalog(cx)
+            .into_iter()
+            .partition(|project| project.research_id().is_some());
+        [("research.projects", research), ("project.workspaces", workspaces)]
+    }
+
     pub(crate) fn projects_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         div()
@@ -183,6 +196,7 @@ impl Workbench {
             .child(
                 div()
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .gap(px(12.))
                     .child(
@@ -195,33 +209,9 @@ impl Workbench {
                             .font_weight(FontWeight::MEDIUM)
                             .child(self.t("nav.projects")),
                     )
-                    .child(Button::new("project-new").primary().label(self.t("research.new"))
-                        .relative().child(self.view_bounds.projects.probe("new".into()))
-                        .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(true, window, cx))))
-                    .child(
-                        Button::new("project-open-folder")
-                            .outline()
-                            .label(self.t("project.open_folder"))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.command(json!({"action":"choose_workspace"}), cx)
-                            })),
-                    ),
-            )
-            .when(self.research.editor.is_some(), |el| el.child(self.research_editor(cx)))
-            .child(
-                div()
-                    .mt(px(pero_theme::WorkbenchStyle::SECTION))
-                    .border_t(px(0.5))
-                    .border_color(p.border)
                     .child(
                         Button::new("all-project-tasks")
                             .ghost()
-                            .w_full()
-                            .h(px(pero_theme::UiAppearance::global(cx)
-                                .typography
-                                .row_height()
-                                + 8.))
-                            .justify_start()
                             .label(self.t("project.all_tasks"))
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.selected_project = None;
@@ -233,56 +223,111 @@ impl Workbench {
                                 this.sync_follow(cx);
                             })),
                     )
-                    .children(self.project_catalog(cx).into_iter().enumerate().map(
-                        |(i, project)| {
-                            let path = project
-                                .workspace
-                                .clone()
-                                .unwrap_or_else(|| project.shared_id.clone().unwrap_or_default());
-                            let goal = self.preferences.research_projects.iter().find(|saved| project.key == format!("research:{}",saved.id)).map(|saved| saved.goal.clone()).filter(|goal| !goal.is_empty()).unwrap_or(path.clone());
-                            let key = project.key;
-                            div()
-                                .py(px(8.))
-                                .border_b(px(0.5))
-                                .border_color(p.border)
-                                .flex()
-                                .items_center()
-                                .gap(px(12.))
-                                .child(self.icon("folder"))
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .min_w_0()
-                                        .child(
-                                            div()
-                                                .font_weight(FontWeight::SEMIBOLD)
-                                                .child(project.name),
-                                        )
-                                        .child(
-                                            div()
-                                                .mt(px(4.))
-                                                .truncate()
-                                                .text_size(
-                                                    pero_theme::UiAppearance::global(cx)
-                                                        .text(pero_theme::TextRole::Caption),
-                                                )
-                                                .text_color(p.text_muted)
-                                                .child(goal),
-                                        ),
-                                )
-                                .child(
-                                    Button::new(("open-project", i))
-                                        .ghost()
-                                        .small()
-                                        .label(self.t("project.open"))
-                                        .relative().child(self.view_bounds.projects.probe(format!("open:{key}")))
-                                        .on_click(cx.listener(move |this, _, window, cx| {
-                                            this.open_project(key.clone(), window, cx)
-                                        })),
-                                )
-                        },
-                    )),
+                    .child(
+                        Button::new("project-open-folder")
+                            .outline()
+                            .label(self.t("project.open_folder"))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.command(json!({"action":"choose_workspace"}), cx)
+                            })),
+                    )
+                    .child(Button::new("project-new").primary().label(self.t("research.new"))
+                        .relative().child(self.view_bounds.projects.probe("new".into()))
+                        .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(true, window, cx)))),
             )
+            .when(self.research.editor.is_some(), |el| el.child(self.research_editor(cx)))
+            .children(self.project_groups(cx).into_iter().filter(|(_, projects)| !projects.is_empty()).map(|(label, projects)| {
+                div()
+                    .mt(px(pero_theme::WorkbenchStyle::SECTION))
+                    .child(
+                        div().pb(px(6.)).text_color(p.text_muted)
+                            .font_weight(FontWeight::MEDIUM).child(self.t(label)),
+                    )
+                    .children(projects.into_iter().map(|project| {
+                        let caption = project.research_id()
+                            .and_then(|id| self.preferences.research_projects.iter().find(|saved| saved.id == id))
+                            .map(|saved| saved.goal.clone())
+                            .filter(|goal| !goal.is_empty())
+                            .or(project.workspace)
+                            .or(project.shared_id);
+                        let key = project.key;
+                        let open_label = format!("{} {}", self.t("project.open"), project.name);
+                        let row_id = SharedString::from(format!("project-row:{key}"));
+                        let action = Button::new("open-project")
+                            .ghost()
+                            .small()
+                            .label(self.t("project.open"))
+                            .accessibility_label(open_label)
+                            .relative().child(self.view_bounds.projects.probe(format!("open:{key}")))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.open_project(key.clone(), window, cx)
+                            }));
+                        pero_theme::list_row(
+                            row_id,
+                            project.name,
+                            caption.map(Into::into),
+                            None,
+                            false,
+                            Some(action.into_any_element()),
+                            pero_theme::Chrome::from_app(cx),
+                        )
+                    }))
+            }))
+    }
+
+    fn project_switcher(&self, project: &Project, cx: &mut Context<Self>) -> impl IntoElement {
+        let owner = cx.entity().downgrade();
+        let selected = project.key.clone();
+        let groups = self.project_groups(cx).map(|(label, projects)| (self.t(label), projects));
+        let mut names = std::collections::BTreeMap::new();
+        for project in groups.iter().flat_map(|(_, projects)| projects) {
+            *names.entry(project.name.clone()).or_insert(0usize) += 1;
+        }
+        let browse = self.t("project.browse");
+        let appearance = pero_theme::UiAppearance::global(cx);
+        Button::new("project-switcher")
+            .ghost()
+            .h(px(appearance.typography.row_height() + 4.))
+            .px(px(4.))
+            .text_size(appearance.text(pero_theme::TextRole::Heading))
+            .label(project.name.clone())
+            .dropdown_caret(true)
+            .accessibility_label(format!("{} · {}", self.t("project.switch"), project.name))
+            .disabled(self.research.editor.is_some())
+            .relative()
+            .child(self.view_bounds.projects.probe("project-switcher".into()))
+            .dropdown_menu(move |mut menu, _, _| {
+                menu = menu.scrollable(true);
+                for (label, projects) in &groups {
+                    if projects.is_empty() {
+                        continue;
+                    }
+                    menu = menu.item(PopupMenuItem::label(*label));
+                    for project in projects {
+                        let key = project.key.clone();
+                        let current = key == selected;
+                        let title = if names[&project.name] > 1 {
+                            project.workspace.as_ref().or(project.shared_id.as_ref())
+                                .map(|path| format!("{} · {path}", project.name))
+                                .unwrap_or_else(|| project.name.clone())
+                        } else {
+                            project.name.clone()
+                        };
+                        let owner = owner.clone();
+                        menu = menu.item(PopupMenuItem::new(title).checked(current).on_click(
+                            move |_, window, cx| {
+                                if !current {
+                                    let _ = owner.update(cx, |this, cx| this.open_project(key.clone(), window, cx));
+                                }
+                            },
+                        ));
+                    }
+                }
+                let owner = owner.clone();
+                menu.separator().item(PopupMenuItem::new(browse).on_click(move |_, _, cx| {
+                    let _ = owner.update(cx, |this, cx| this.navigate(WorkbenchPage::Projects, cx));
+                }))
+            })
     }
 
     pub(crate) fn project_workspace(
@@ -292,14 +337,7 @@ impl Workbench {
     ) -> impl IntoElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let project = self.current_project(cx);
-        let name = project
-            .as_ref()
-            .map(|project| project.name.clone())
-            .unwrap_or_else(|| self.t("project.all_tasks").to_string());
-        let path = project
-            .as_ref()
-            .and_then(|project| project.workspace.clone())
-            .unwrap_or_default();
+        let is_research = project.as_ref().is_some_and(|project| project.research_id().is_some());
         div()
             .flex_1()
             .min_w_0()
@@ -312,28 +350,20 @@ impl Workbench {
                     .pt(px(pero_theme::WorkbenchStyle::PAGE))
                     .pb(px(10.))
                     .flex_shrink_0()
-                    .child(
-                        div()
+                    .child(div().flex().items_center().min_w_0().child(
+                        if let Some(project) = &project {
+                            self.project_switcher(project, cx).into_any_element()
+                        } else {
+                            div()
                             .text_size(
                                 pero_theme::UiAppearance::global(cx)
                                     .text(pero_theme::TextRole::Heading),
                             )
                             .font_weight(FontWeight::MEDIUM)
-                            .child(name),
-                    )
-                    .when(!path.is_empty() && matches!(self.project_tab, ProjectTab::Execution | ProjectTab::Settings), |el| {
-                        el.child(
-                            div()
-                                .mt(px(4.))
-                                .truncate()
-                                .text_size(
-                                    pero_theme::UiAppearance::global(cx)
-                                        .text(pero_theme::TextRole::Caption),
-                                )
-                                .text_color(p.text_muted)
-                                .child(path),
-                        )
-                    })
+                            .child(self.t("project.all_tasks"))
+                            .into_any_element()
+                        },
+                    ))
                     .child(
                         div()
                             .mt(px(8.))
@@ -341,7 +371,10 @@ impl Workbench {
                             .gap(px(8.))
                             .border_b(px(0.5))
                             .border_color(p.border)
-                            .children(ProjectTab::ALL.into_iter().enumerate().map(|(i, tab)| {
+                            .flex_wrap()
+                            .children(ProjectTab::ALL.into_iter().enumerate()
+                                .filter(|(_, tab)| *tab != ProjectTab::ResearchResources || is_research)
+                                .map(|(i, tab)| {
                                 Button::new(("project-tab", i))
                                     .ghost()
                                     .small()
@@ -371,7 +404,12 @@ impl Workbench {
                             })),
                     ),
             )
-            .when(self.project_tab == ProjectTab::Overview, |el| el.child(self.research_overview(cx)))
+            .when(self.project_tab == ProjectTab::Overview, |el| {
+                el.child(self.project_overview(project.as_ref(), cx))
+            })
+            .when(self.project_tab == ProjectTab::ResearchResources, |el| {
+                el.child(self.research_resources(cx))
+            })
             .when(self.project_tab == ProjectTab::Tasks, |el| {
                 el.child(self.project_tasks(narrow, cx))
             })

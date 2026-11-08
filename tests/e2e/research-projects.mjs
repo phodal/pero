@@ -13,7 +13,11 @@ const out = resolve(root, process.env.PERO_RESEARCH_TEST_OUTPUT || 'test-results
 await mkdir(out, { recursive: true });
 const settings = resolve(temp, 'settings.json');
 const agents = resolve(temp, 'agents.json');
-await writeFile(settings, JSON.stringify({ locale: 'en', workbench: { appearance: 'light' } }));
+const pythonEnv = process.env.PERO_RESEARCH_TEST_PYTHON_ENV;
+await writeFile(settings, JSON.stringify({
+  locale: 'en', workbench: { appearance: 'light' },
+  app_python: pythonEnv ? { default: resolve(pythonEnv) } : undefined,
+}));
 await writeFile(agents, JSON.stringify(['pero', 'codex', 'claude', 'copilot', 'grok', 'qoder', 'opencode'].map(id => ({
   id, name: id, command: resolve(temp, `unavailable-${id}`),
 }))));
@@ -85,12 +89,13 @@ async function api(frame, path, data) {
   }, { path, data });
 }
 async function attach(name, id, count) {
-  await clickControl('link');
+  if (!(await state()).researchProjects.choosing) await clickControl('link');
   await clickControl(`catalog:${name}`);
   await expect.poll(async () => (await state()).researchProjects.catalogs[name]?.resources.some(item => item.reference.id === id), { timeout: 120000 }).toBe(true);
   await clickControl(`attach:${name}:${id}`);
   await expect.poll(async () => (await savedProject()).resources.length).toBe(count);
   await expect.poll(async () => (await state()).researchProjects.saving).toBe(false);
+  expect((await state()).projectTab).toBe('research_resources');
   await expect.poll(async () => (await state()).researchProjects.loading).toEqual([]);
   await clickControl('link');
 }
@@ -126,16 +131,25 @@ try {
   await capture('01-project-without-directory');
   checks.push('invalid-title-recovery-and-project-without-directory');
 
+  await clickControl('research-continue');
+  await expect.poll(async () => (await state()).projectTab).toBe('research_resources');
+  expect((await state()).researchProjects.choosing).toBe(true);
   await attach('paper-agent', seeds.paper.id, 1);
   await attach('control-lab', seeds.control.id, 2);
   await attach('lab', seeds.lab.id, 3);
   await capture('02-three-linked-app-records');
   checks.push('explicit-cross-app-resource-links');
+  await clickControl('tab:project.overview');
   for (const [index, name, record] of [[0, 'paper-agent', seeds.paper], [1, 'control-lab', seeds.control], [2, 'lab', seeds.lab]]) {
+    await clickControl('research-continue');
     await clickControl(`resource-open:${index}`);
     await expect.poll(async () => (await state()).activeApp?.name).toBe(name);
     frame = page.frameLocator(`iframe[title="${name}"]`);
-    await expect(frame.getByRole('heading', { name: record.title || record.objective, exact: true }).first()).toBeVisible({ timeout: 120000 });
+    if (name === 'lab') {
+      await expect(frame.getByRole('combobox', { name: 'Saved experiments', exact: true })).toHaveValue(record.id);
+    } else {
+      await expect(frame.getByRole('heading', { name: record.title, exact: true }).first()).toBeVisible({ timeout: 120000 });
+    }
     if (name === 'paper-agent') expect((await api(frame, '/api/library')).papers.some(item => item.id === record.id)).toBe(true);
     else expect(await api(frame, `/api/experiments/${record.id}`)).toEqual(record);
     await capture(`03-open-${name}`);
@@ -214,6 +228,7 @@ try {
   await writeFile(settings, JSON.stringify(persisted));
   await launch(); await projectOverview();
   expect((await savedProject()).id).toBe(projectId); expect((await savedProject()).resources).toHaveLength(3);
+  await clickControl('research-continue');
   await capture('06-restart-persistent-links');
   checks.push('rename-stable-identity-and-restart-persistence');
   const currentPaper = (await state()).researchProjects.catalogs['paper-agent'].resources.find(item => item.reference.id === seeds.paper.id);
@@ -232,7 +247,8 @@ try {
   await clickAppShortcut(page, 'lab');
   frame = page.frameLocator('iframe[title="lab"]');
   expect(await api(frame, `/api/experiments/${seeds.lab.id}`)).toEqual(seeds.lab);
-  await projectOverview(); await capture('07-unlinked-reference-only');
+  await projectOverview(); await clickControl('research-continue');
+  await capture('07-unlinked-reference-only');
   checks.push('unlink-keeps-owning-app-data');
   await close();
   // Remove only this isolated fixture source to prove stale references remain visible.
@@ -241,6 +257,7 @@ try {
   await launch(); await projectOverview();
   expect((await savedProject()).resources).toHaveLength(2);
   expect((await state()).researchProjects.catalogs['paper-agent'].resources.some(item => item.reference.id === seeds.paper.id)).toBe(false);
+  await clickControl('research-continue');
   expect((await state()).projectControls['resource-open:0']).toBeUndefined();
   expect((await state()).projectControls['unlink:0']).toBeDefined();
   await capture('08-missing-original-record');

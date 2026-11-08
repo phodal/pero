@@ -45,7 +45,7 @@ impl Workbench {
     }
 
     pub(crate) fn project_tasks(&self, narrow: bool, cx: &mut Context<Self>) -> impl IntoElement {
-        if self.current_project(cx).is_some_and(|project| project.key.starts_with("research:") && project.workspace.is_none() && project.shared_id.is_none()) {
+        if self.current_project(cx).is_some_and(|project| project.research_id().is_some() && project.workspace.is_none() && project.shared_id.is_none()) {
             return div().flex_1().p(px(12.)).flex().flex_col().gap(px(12.))
                 .child(self.t("research.directory_needed"))
                 .child(Button::new("research-add-directory").outline().label(self.t("research.edit"))

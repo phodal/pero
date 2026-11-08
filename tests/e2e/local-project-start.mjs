@@ -1,16 +1,21 @@
 // Fresh profiles browse local projects before connecting a Cloud account.
 import { expect } from '@playwright/test';
 import { electron, focusPage } from './electron.mjs';
-import { openSettings, setAppearance } from './sidebar-controls.mjs';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { clickAppShortcut, openSettings, setAppearance } from './sidebar-controls.mjs';
+import { mkdtemp, mkdir, realpath, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '../..');
-const temp = await mkdtemp(resolve(tmpdir(), 'pero-local-start-'));
+const temp = await realpath(await mkdtemp(resolve(tmpdir(), 'pero-local-start-')));
 const out = resolve(root, 'test-results/local-project-start');
 await mkdir(out, { recursive: true });
 const settings = resolve(temp, 'settings.json');
-await writeFile(settings, JSON.stringify({ locale: 'zh-CN', workbench: { appearance: 'light' } }));
+const otherWorkspace = resolve(temp, 'another-workspace');
+await mkdir(otherWorkspace);
+await writeFile(resolve(otherWorkspace, 'ROADMAP.md'), '- [ ] Another workspace task\n');
+await writeFile(settings, JSON.stringify({ locale: 'zh-CN', workbench: {
+  appearance: 'light', projects: [{ workspace: otherWorkspace, project_id: 'fixture' }],
+} }));
 const agents = resolve(temp, 'agents.json');
 await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'Fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] }]));
 let app, page;
@@ -32,18 +37,37 @@ try {
   await launch();
   expect((await state()).localExecution.setup.onboarding_complete).toBe(false);
   expect((await state()).remote.state.configured).toBe(false);
+  await clickAppShortcut(page, 'projects');
   await capture('01-fresh-local-projects');
-  // Open the local workspace from the visible Project list.
-  await page.mouse.click(100, 100); await frame();
-  await page.mouse.click(await page.evaluate(() => innerWidth - 35), 151);
+  const workspace = (await state()).projectControls[`open:workspace:${root}`];
+  await page.mouse.click(workspace.x + workspace.width / 2, workspace.y + workspace.height / 2);
   await expect.poll(async () => (await state()).selectedProject).toBe(`workspace:${root}`);
   await expect.poll(async () => (await state()).localRoadmap.data.items.length).toBeGreaterThan(0);
   expect((await state()).localRoadmap.show_cloud).toBe(false);
   expect((await state()).projectTab).toBe('overview');
-  const tasks = (await state()).projectControls['tab:nav.tasks'];
+  expect((await state()).projectControls['tab:research.linked']).toBeUndefined();
+  await capture('02-workspace-overview');
+  const tasks = (await state()).projectControls['view-tasks'];
   await page.mouse.click(tasks.x + tasks.width / 2, tasks.y + tasks.height / 2);
   await expect.poll(async () => (await state()).projectTab).toBe('tasks');
   await capture('02-local-roadmap');
+  const switcher = (await state()).projectControls['project-switcher'];
+  await page.mouse.click(switcher.x + switcher.width / 2, switcher.y + switcher.height / 2);
+  await capture('02-project-switcher');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state()).selectedProject).toBe(`workspace:${otherWorkspace}`);
+  expect((await state()).projectTab).toBe('overview');
+  expect((await state()).activeTabBounds).toBeUndefined();
+  await expect.poll(async () => (await state()).localRoadmap.data?.items.map(item => item.title))
+    .toEqual(['Another workspace task']);
+  const settingsTab = (await state()).projectControls['tab:settings.title'];
+  await page.mouse.click(settingsTab.x + settingsTab.width / 2, settingsTab.y + settingsTab.height / 2);
+  await expect.poll(async () => (await state()).projectTab).toBe('settings');
+  await frame();
+  expect((await state()).projectControls['tab:settings.title'].y).toBe(settingsTab.y);
+  await capture('02-project-settings');
   await openSettings(page);
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
@@ -62,7 +86,7 @@ try {
   expect((await state()).remote.state.configured).toBe(false);
   await capture('06-restart-local');
   expect(errors).toEqual([]);
-  console.log('Passed: fresh/restarted local projects, offline ROADMAP, account entry, dark/narrow; no login required.');
+  console.log('Passed: fresh/restarted local projects, offline ROADMAP, keyboard project switching, account entry, dark/narrow.');
 } catch (error) {
   if (page) { await capture('failure'); await writeFile(resolve(out, 'failure-state.json'), JSON.stringify(await state(), null, 2)); }
   throw error;
