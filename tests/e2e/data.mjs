@@ -95,8 +95,13 @@ try {
   await preview().getByLabel('Unit for value', { exact: true }).press('Tab');
   await expect(preview().getByLabel('Unit for value', { exact: true })).toHaveValue('V');
   await preview().getByRole('tab', { name: 'Checks', exact: true }).click();
-  await expect(preview().locator('dt').filter({ hasText: /^Duplicate rows$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
-  await expect(preview().locator('dt').filter({ hasText: /^Empty strings$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('1');
+  // Counts and their drill-down actions share each definition; assert them separately.
+  for (const [label, action] of [['Duplicate rows', 'Show duplicate rows'], ['Empty strings', 'Show empty rows']]) {
+    const check = preview().locator('dt').filter({ hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
+    await expect.poll(() => check.evaluate(element => [...element.childNodes]
+      .filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join('').trim())).toBe('1');
+    await expect(check.getByRole('button', { name: action, exact: true })).toBeEnabled();
+  }
   await preview().getByRole('tab', { name: 'Table', exact: true }).click();
   await choose(preview(), 'Filter field', 'value');
   await choose(preview(), 'Condition', 'gte', 'At least');

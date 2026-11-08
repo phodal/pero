@@ -58,7 +58,7 @@ try{
    await frame.getByRole('tab',{name:'Table',exact:true}).click();await expect(frame.getByRole('table')).toBeVisible();if(example.name!=='quoted-table.csv'){await frame.getByRole('tab',{name:'Chart',exact:true}).click();await expect(frame.getByRole('img',{name:/^Chart of /})).toBeVisible();}
    if(example.name==='invalid-spectrum.csv')await expect(frame.getByRole('alert')).toContainText('2 missing or nonnumeric pairs');
   }
-  if(example.name.endsWith('.pdb')){await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();}
+  if(example.name.endsWith('.pdb')){await expect(frame.getByRole('region',{name:'Structure',exact:true}).getByRole('status')).toHaveText('Structure ready',{timeout:45000});await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();}
   if(example.name.endsWith('.smi')){await expect(frame.getByRole('img',{name:'Molecule 1',exact:true})).toBeVisible({timeout:45000});if(example.name.startsWith('invalid'))await expect(frame.getByRole('alert')).toContainText('Invalid molecule');}
   if(example.name.endsWith('.pdf')){
    const preview=frame.getByRole('region',{name:example.name,exact:true});
@@ -78,7 +78,7 @@ try{
  const marker="data_marker\n_struct.title '<b id=viewer-marker>untrusted</b>'\n";
  await frame.locator('input[type=file][aria-label="Import file"]').setInputFiles({name:'marker.cif',mimeType:'text/plain',buffer:Buffer.from(marker)});
  await expect(frame.getByRole('alert')).toContainText('preview blocked');await expect(frame.locator('#viewer-marker')).toHaveCount(0);
- await chooseFile('water.pdb');await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});
+ await chooseFile('water.pdb');await expect(frame.getByRole('region',{name:'Structure',exact:true}).getByRole('status')).toHaveText('Structure ready',{timeout:45000});
  const transfer=await frame.locator('.molecule-view').evaluateHandle((_node,text)=>{const data=new DataTransfer();data.items.add(new File([text],'marker.cif',{type:'text/plain'}));return data;},marker);
  await frame.locator('.msp-layout-standard').dispatchEvent('dragenter',{dataTransfer:transfer});
  await expect(frame.locator('.msp-drag-drop-overlay')).toBeVisible();
