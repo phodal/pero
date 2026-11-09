@@ -17,6 +17,7 @@ export async function verifySourceExcerpts(page, origin, output) {
   const attachment = page.locator('[data-kind=attachment]').first();
   await expect(button('Download file', attachment)).toBeEnabled();
   const open = async () => {
+    if (!await button('Hide more tools').count()) await button('More tools').click();
     await button('Insert source excerpt').click();
     const dialog = page.getByRole('dialog');
     await button('Source attachment', dialog).click();

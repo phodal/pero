@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 
+/** Secondary research tools stay disclosed across scenarios; open only when collapsed. */
+export async function ensureMoreTools(page) {
+  const hide = page.getByRole('button', { name: 'Hide more tools', exact: true });
+  if (await hide.count()) return;
+  await page.getByRole('button', { name: 'More tools', exact: true }).click();
+  await expect(hide).toBeVisible();
+}
+
 /** Creation retains the old draft while the real backend request is in flight. */
 export async function createNotebook(page, origin, title) {
   const creating = page.waitForResponse(response =>
