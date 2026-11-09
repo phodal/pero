@@ -95,7 +95,9 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
     { name: 'Controls', sheet: { rows: 1, columns: 1, cells: { A1: '2' } } },
     { name: 'Results', sheet: { rows: 1, columns: 1, cells: { A1: '=Controls!A1*3' } } },
   ]);
-  await page.getByRole('button', { name: 'More tools', exact: true }).click();
+  if (!await page.getByRole('button', { name: 'Hide more tools', exact: true }).count()) {
+    await page.getByRole('button', { name: 'More tools', exact: true }).click();
+  }
   await page.locator('input[type=file][accept=".xlsx"]').setInputFiles({ name: 'assay.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(workbook) });
   const tables = page.locator('[data-kind=spreadsheet]');

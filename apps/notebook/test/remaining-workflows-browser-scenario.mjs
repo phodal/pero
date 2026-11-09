@@ -25,7 +25,7 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   await page.screenshot({ path: resolve(output, 'notebook-home-provenance.png'), fullPage: true });
   await button('Close', page.getByRole('dialog')).click();
 
-  await button('More tools').click();
+  if (!await button('Hide more tools').count()) await button('More tools').click();
   await button('Preview file import').click();
   dialog = page.getByRole('dialog', { name: 'Preview file import', exact: true });
   const bytes = Buffer.from('Recorded mass: 2.5 mg.\r\n', 'utf8');

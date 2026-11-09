@@ -13,7 +13,7 @@ export async function verifyResearchPrintTools(page, origin, output) {
   await body.click(); await body.press('Control+\\');
   await expect(page.locator('[data-kind=section]')).toHaveCount(1);
   await page.getByLabel('Section title', { exact: true }).fill('Preparation');
-  await button('More tools').click();
+  if (!await button('Hide more tools').count()) await button('More tools').click();
   await button('Scientific tools').click();
   let dialog = page.getByRole('dialog', { name: 'Scientific tools', exact: true });
   await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('formula');
