@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AppCanvasRequests } from "./app-canvas.ts";
+import Ajv2020 from "ajv/dist/2020.js";
+import hostSchema from "../../../protocol/generated/host.schema.json" with { type: "json" };
 
 const action = {
   operation: "act",
@@ -137,4 +139,17 @@ test("originating frame cancellation denies late approval and releases late moun
   const late = new AppCanvasRequests(async input => { calls.push(input); return { instance: "late-instance" }; });
   await assert.rejects(late.apply({ operation: "mount", source: {} }, closed.signal), /was closed/);
   assert.deepEqual(calls.at(-1), { operation: "release", instance: "late-instance" });
+});
+
+
+test("Host Canvas protocol uses bounded numeric Notebook revisions", () => {
+  const ajv = new Ajv2020({ strict: true, strictTypes: false });
+  ajv.addSchema(hostSchema);
+  const validate = ajv.getSchema(`${hostSchema.$id}#/$defs/AppRequest`)!;
+  const source = { entryId: "a".repeat(32), revision: 1, blockId: "canvas", readOnly: false,
+    binding: { id: "binding", app: "data", panel: "main", view: "dataset-inspector", declaration: "b".repeat(64), inputs: { datasetId: "ds-" + "c".repeat(32) } } };
+  for (const [revision, accepted] of [[1, true], [2147483647, true], ["1", false], [0, false], [-1, false], [1.5, false], [2147483648, false]]) {
+    const request = { method: "apps", id: "mount", action: "canvas", name: "notebook", request: { operation: "mount", source: { ...source, revision } } };
+    assert.equal(validate(request), accepted, `Revision ${JSON.stringify(revision)}: ${ajv.errorsText(validate.errors)}`);
+  }
 });

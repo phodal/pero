@@ -1,3 +1,4 @@
+import { NotebookProjectRequests } from './notebook-projects.ts';
 import { AppCanvasRequests } from './app-canvas.ts';
 import { DoclingSetup, doclingInput, doclingStatus } from './docling-runtime.ts';
 import { randomUUID } from 'node:crypto';
@@ -51,6 +52,7 @@ export class DesktopApps {
   private reproductions = new Map<string, ReproductionPending>();
   private docling: DoclingSetup;
   private canvas: AppCanvasRequests;
+  private notebookProjects: NotebookProjectRequests;
   connectors?: (request: Record<string, unknown>) => Promise<unknown>;
   artifactSnapshot?: (thread: string, artifact: string, version: number, signal: AbortSignal) => Promise<ArtifactSnapshot>;
 
@@ -66,8 +68,9 @@ export class DesktopApps {
     private onAgentCancel?: (sessionId: string) => void,
     private confirmReproduction?: (summary: string, signal: AbortSignal) => Promise<boolean>,
     confirmDocling?: (summary: string, signal: AbortSignal, operation?: 'install' | 'revoke') => Promise<boolean>,
-    confirmCanvas?: (summary: string, signal: AbortSignal) => Promise<boolean>,
-  ) { this.canvas = new AppCanvasRequests(request => this.request('canvas', { name: 'notebook', request }), confirmCanvas);
+    confirmCanvas?: (summary: string, signal: AbortSignal, scope?: 'project') => Promise<boolean>,
+  ) { this.notebookProjects = new NotebookProjectRequests(request => this.request('notebook-projects', { name: 'notebook', request }), confirmCanvas ? (summary, signal) => confirmCanvas(summary, signal, 'project') : undefined);
+    this.canvas = new AppCanvasRequests(request => this.request('canvas', { name: 'notebook', request }), confirmCanvas);
     this.docling = new DoclingSetup(request => this.request('doclingruntime', { name: 'paper-agent', request }), confirmDocling); }
 
   accept(event: Event): boolean {
@@ -86,6 +89,7 @@ export class DesktopApps {
   close() {
     this.docling.close();
     this.canvas.close();
+    this.notebookProjects.close();
     for (const operation of this.reproductions.values()) operation.controller.abort();
     this.reproductions.clear();
     for (const request of this.pending.values()) {
@@ -260,6 +264,13 @@ export class DesktopApps {
         catch { return new Response('Expected only a scientific method', { status: 400 }); }
         const value = await this.request('environment', { name: url.hostname, target: input.target });
         return Response.json(value, { headers: { 'Cache-Control': 'no-store' } });
+      }
+      if (url.pathname === '/host/notebook-projects') {
+        if (url.hostname !== 'notebook' || caller !== origin) return new Response('Notebook origin required', { status: 403 });
+        if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 4096) return new Response('Request too large', { status: 413 });
+        return Response.json(await this.notebookProjects.apply(JSON.parse(body), request.signal), { headers: { 'Cache-Control': 'no-store' } });
       }
       if (url.pathname === '/host/canvas') {
         if (url.hostname !== 'notebook') return new Response('Notebook origin required', { status: 403 });

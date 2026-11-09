@@ -49,7 +49,7 @@ const apps = new DesktopApps(request => {
 sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId }),
 (summary, signal) => confirmReproduction(window, summary, signal),
 (summary, signal, operation) => confirmDoclingSetup(window, summary, signal, operation),
-(summary, signal) => confirmReproduction(window, summary, signal, true));
+(summary, signal, scope) => confirmReproduction(window, summary, signal, scope === 'project' ? 'project' : true));
 apps.artifactSnapshot = artifactDelivery.resolveSnapshot;
 let locale: 'en' | 'zh-CN' = 'en';
 function context() { return { product, locale, dark: nativeTheme.shouldUseDarkColors, connected: ready }; }

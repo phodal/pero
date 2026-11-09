@@ -554,6 +554,8 @@ impl Workbench {
             self.t("nav.papers")
         } else if reference.app == "control-lab" {
             "Control Lab"
+        } else if reference.app == "notebook" {
+            "Notebook"
         } else {
             "Lab"
         };
@@ -726,6 +728,7 @@ impl Workbench {
                         ("paper-agent", "nav.papers"),
                         ("control-lab", "research.control"),
                         ("lab", "research.lab"),
+                        ("notebook", "Notebook"),
                     ]
                     .into_iter()
                     .map(|(app, label)| {
@@ -736,7 +739,7 @@ impl Workbench {
                             .any(|record| record.name == app && record.enabled);
                         Button::new(SharedString::from(format!("research-catalog:{app}")))
                             .outline()
-                            .label(self.t(label))
+                            .label(if app == "notebook" { "Notebook" } else { self.t(label) })
                             .disabled(!available || self.research.loading.contains(app))
                             .relative()
                             .child(self.view_bounds.projects.probe(format!("catalog:{app}")))

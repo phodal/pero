@@ -158,3 +158,28 @@ test('Canvas transport rejects foreign origin and renderer consent; private tick
     assert.equal(response.headers.get('Cache-Control'), 'no-store');
   } finally { apps.close(); }
 });
+
+test('Notebook project route keeps foreign origins and generic preference writes out of trusted confirmation', async () => {
+  const calls: any[] = [], prompts: string[] = [];
+  const apps = new DesktopApps((request: any) => {
+    calls.push(request); assert.equal(request.action, 'notebook-projects'); assert.equal(request.name, 'notebook');
+    apps.accept({ version: 1, kind: 'apps_result', request_id: request.id, text: '', data: { ok: true,
+      value: request.request.operation === 'review' ? { summary: 'Actual Host project / saved Notebook v2' } : { state: 'completed', projects: [] } } });
+  }, () => {}, async () => undefined, undefined, undefined, undefined, undefined,
+  async summary => { prompts.push(summary); return true; });
+  const change = { projectId: 'host-project', entryId: 'a'.repeat(32), revision: 2, expectedRevision: null, linked: true, readOnly: false };
+  const request = (name: string, input: any, origin = `pero-app://${name}`) => new Request(`pero-app://${name}/host/notebook-projects`,
+    { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+  try {
+    assert.equal((await apps.serve(request('data', { operation: 'list' }))).status, 403);
+    assert.equal((await apps.serve(request('notebook', { operation: 'list' }, 'pero-app://data'))).status, 403);
+    assert.equal((await apps.serve(request('notebook', { operation: 'apply', change }))).status, 503);
+    assert.equal((await apps.serve(request('notebook', { operation: 'set', change, allow: true }))).status, 503);
+    assert.equal(calls.length, 0); assert.equal(prompts.length, 0);
+    const response = await apps.serve(request('notebook', { operation: 'set', change }));
+    assert.equal(response.status, 200); assert.equal(response.headers.get('Cache-Control'), 'no-store');
+    assert.equal((await response.json()).state, 'completed'); assert.equal(prompts.length, 1);
+    assert.deepEqual(calls.map(item => item.request.operation), ['review', 'apply']);
+    assert.deepEqual(calls[1].request.change, change);
+  } finally { apps.close(); }
+});
