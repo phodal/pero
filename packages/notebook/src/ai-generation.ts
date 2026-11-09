@@ -3,6 +3,7 @@ export interface GenerationTarget { entryId: string; revision: number }
 export interface FrozenGeneration { requestId: string; agentId: string; target: GenerationTarget; content: string; prompt: string }
 export interface GeneratedCandidates { response: CandidateResponse; baseContent: string; target: GenerationTarget; sessionId: string; requestId: string; agentId: string; transcript: string }
 export function freezeGeneration(requestId: string, agentId: string, target: GenerationTarget, content: string, goal: string): FrozenGeneration {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestId) || !agentId || agentId.length > 200) throw new Error('Invalid Host request or agent identity.');
   if (!/^[a-f0-9]{32}$/.test(target.entryId) || !Number.isSafeInteger(target.revision) || target.revision < 1) throw new Error('Open a saved entry revision first.');
   if (!goal.trim() || goal.length > 4000 || content.length > 100000) throw new Error('Provide a goal (up to 4,000 characters) and a draft of at most 100,000 characters.');
   JSON.parse(content);
@@ -19,3 +20,6 @@ export function readGeneratedCandidates(frozen: FrozenGeneration, sessionId: str
   if (!response.runs.some(run => !run.failed && Object.values(run.tables).some(rows => rows.length))) throw new Error('The completed session returned no successful candidate rows.');
   return { response, baseContent: frozen.content, target: frozen.target, requestId: frozen.requestId, agentId: frozen.agentId, sessionId, transcript };
 }
+export * from './ai-sources.ts';
+export * from './ai-proposals.ts';
+export * from './ai-recovery.ts';
