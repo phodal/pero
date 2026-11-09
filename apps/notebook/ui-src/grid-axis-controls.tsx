@@ -30,6 +30,9 @@ export function useGridAxisControls(root: RefObject<HTMLDivElement | null>, grid
   const count = (axis: Axis) => axis === 'row' ? grid.sheet.rows : grid.sheet.columns;
   const scroll = () => root.current?.querySelector<HTMLDivElement>('.notebook-grid-scroll');
   const rememberScroll = () => { const node = scroll(); if (node) retainedScroll.current = { left: node.scrollLeft, top: node.scrollTop }; };
+  // Capture the live position before this render commits. Scroll events on the
+  // grid do not reach the parent, and the commit below would otherwise restore 0.
+  rememberScroll();
   useLayoutEffect(() => {
     const node = scroll();
     if (node) { node.scrollLeft = retainedScroll.current.left; node.scrollTop = retainedScroll.current.top; }
