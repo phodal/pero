@@ -214,6 +214,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await page.getByRole('button', { name: 'Save revision' }).click();
   await expect(page.getByRole('button', { name: 'Load latest and discard draft' })).toBeVisible();
   await expect(title).toHaveValue('Unsaved review');
+  page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Load latest and discard draft' }).click();
   await expect(result.locator('[data-cell=A1]')).toHaveValue('15');
   await page.getByRole('button', { name: 'Revision history' }).click();

@@ -46,9 +46,9 @@ test('Content editing runs locally in Chromium with highlighted code and derived
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   const code = page.getByLabel('Code source (not executed)');
   await code.waitFor().catch(cause => { throw new Error(`${cause.message}\nBrowser errors: ${pageErrors.join('\n')}`); });
-  await code.click(); await page.keyboard.press('End'); await page.keyboard.press('Tab'); await page.keyboard.type('# local comment');
+  await code.click(); await page.keyboard.press('End'); await page.keyboard.press('Enter'); await page.keyboard.press('Tab'); await page.keyboard.type('# local comment');
   await page.waitForFunction(() => window.editor.getText().includes('# local comment'));
-  assert.match(await page.evaluate(() => window.editor.getText()), /print\(1\)\s+# local comment/);
+  assert.match(await page.evaluate(() => window.editor.getText()), /print\(1\)\n {4}# local comment/);
   assert.equal(await page.locator('.cm-mermaid-comment').count(), 1);
   await page.getByRole('button', { name: 'Code language' }).click();
   await page.getByRole('option', { name: 'JavaScript', exact: true }).click();

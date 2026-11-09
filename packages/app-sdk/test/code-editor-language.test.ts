@@ -14,7 +14,7 @@ test('CodeEditor language selection, indentation and read-only retain caller-own
     (content as HTMLElement).focus();
     content.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true, cancelable: true }));
   });
-  assert.match(value, /^\s+if True:/);
+  assert.match(value, /^ {4}if True:/);
   await render(React.createElement(ui.CodeEditorEngine, { value: 'const a = 1;', label: 'Source', language: 'javascript', onChange: change }));
   assert.equal(document.querySelector('.cm-mermaid-keyword')?.textContent, 'const');
   await render(React.createElement(ui.CodeEditorEngine, { value: 'const a = 1;', label: 'Source', language: 'plaintext', disabled: true, onChange: change }));

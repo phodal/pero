@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView, drawSelection, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
-import { LRLanguage, StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { LRLanguage, StreamLanguage, HighlightStyle, syntaxHighlighting, indentUnit } from '@codemirror/language';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { tags } from '@lezer/highlight';
 import { parser as javascriptParser } from '@lezer/javascript';
@@ -99,7 +99,7 @@ export function CodeEditorEngine({ id, value, label, disabled = false, language 
       state: EditorState.create({
         doc: value,
         extensions: [
-          syntax.current.of(languages[language]),
+          syntax.current.of([languages[language], indentUnit.of(language === 'mermaid' ? '  ' : '    ')]),
           syntaxHighlighting(colors),
           lineNumbers(),
           highlightActiveLine(),
@@ -145,7 +145,7 @@ export function CodeEditorEngine({ id, value, label, disabled = false, language 
           'aria-invalid': aria['aria-invalid'] ? 'true' : 'false',
             'aria-readonly': String(disabled), 'aria-disabled': String(disabled),
         })),
-        syntax.current.reconfigure(languages[language]),
+        syntax.current.reconfigure([languages[language], indentUnit.of(language === 'mermaid' ? '  ' : '    ')]),
         editing.current.reconfigure([EditorState.readOnly.of(disabled), EditorView.editable.of(!disabled)]),
       ],
     });
