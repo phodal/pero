@@ -571,6 +571,33 @@ mod docling_tests {
     }
 
     #[test]
+    fn sdk_context_preserves_catalog_and_existing_app_authority() {
+        let (host, requests) = mpsc::channel();
+        let (events, _) = async_channel::unbounded();
+        let apps = NativeApps::new(host, events, None);
+        for name in ["notebook", "demo"] {
+            let serving = apps.clone();
+            let response = std::thread::spawn(move || serving.serve(name,
+                Request::builder().uri(format!("pero-app://{name}/host/sdk")).body(Vec::new()).unwrap()));
+            let request: Value = serde_json::from_str(&requests.recv_timeout(Duration::from_secs(2)).unwrap()).unwrap();
+            assert_eq!(request["action"], "sdkcontext");
+            assert_eq!(request["name"], name);
+            let mut context = json!({"name":name,"version":"1","permissions":{"api":["/api"],"events":[],"host":[]}});
+            if name == "notebook" {
+                context["appViews"] = json!([{"app":"demo","title":"Demo","version":"2","revision":"a".repeat(64),
+                    "enabled":true,"panels":[{"id":"main","title":"Main"}],"actions":[{"name":"save","description":"Save a result"}]}]);
+            }
+            reply(&apps, &request, context.clone());
+            let response = response.join().unwrap();
+            assert_eq!(response.status(), 200);
+            assert_eq!(response.headers()["Cache-Control"], "no-store");
+            context["slots"] = json!([]);
+            assert_eq!(serde_json::from_slice::<Value>(response.body()).unwrap(), context);
+            assert!(requests.try_recv().is_err(), "Catalog reads must not resolve a backend");
+        }
+    }
+
+    #[test]
     fn selected_page_layout_outlives_default_proxy_deadline_only_on_its_route() {
         use std::io::{Read, Write};
         for (name, method, path, extended) in [

@@ -23,6 +23,33 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 } });
 const { DesktopApps } = await import('./apps.ts');
 
+test('Host SDK context carries installed view discovery without backend resolution or new authority', async () => {
+  let enabled = true;
+  const context = { name: 'notebook', version: '1', permissions: { api: ['/api'], events: [], host: [] },
+    appViews: [{ app: 'demo', title: 'Demo', version: '2', revision: 'a'.repeat(64), enabled: true,
+      panels: [{ id: 'main', title: 'Main' }], actions: [{ name: 'save', description: 'Save a result' }] }] };
+  const apps = new DesktopApps(command => {
+    const request = command as { id: string; name: string; action: string };
+    assert.equal(request.action, 'sdkcontext');
+    apps.accept({ version: 1, kind: 'apps_result', request_id: request.id, text: '', data: enabled
+      ? { ok: true, value: request.name === 'notebook' ? context : { name: request.name, version: '1', permissions: context.permissions } }
+      : { ok: false, error: 'App is not installed or enabled' } });
+  }, () => { throw new Error('Discovery must not publish Host events'); }, async () => undefined);
+  try {
+    for (const name of ['notebook', 'demo']) {
+      const response = await apps.serve(new Request(`pero-app://${name}/host/sdk`));
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('Cache-Control'), 'no-store');
+      const actual = await response.json();
+      assert.deepEqual(actual.permissions, context.permissions);
+      assert.deepEqual(actual.slots, ['conversation']);
+      assert.deepEqual(actual.appViews, name === 'notebook' ? context.appViews : undefined);
+    }
+    enabled = false;
+    assert.equal((await apps.serve(new Request('pero-app://notebook/host/sdk'))).status, 503);
+  } finally { apps.close(); }
+});
+
 test('App assets keep declared frame origins and allow same-app ancestors only for bundled reader frames', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pero-app-frames-'));
   const assets = ['index.html', 'artifact.html', '_reader/reader.html', '_paper-reader/frame.html',
