@@ -110,3 +110,47 @@ retains desktop and narrow-screen screenshots plus scrolled scientific-reference
 views in light and dark themes. Use the PR's latest exact-head CI and screenshot
 artifact for the executed result; source changes alone do not establish visual
 or Desktop/Native acceptance.
+
+## Expanded component coverage: current source scope
+
+The 2026-11-09 re-audit covers the expanded PR 181 working tree, not a released
+or exact-head browser-accepted build. The pinned reference mapping and remaining
+work are in [Notebook component parity](../design/notebook-component-parity.md).
+All 94 reference interaction groups remain mapped, including reference stubs;
+recovered families are tracked separately rather than counted as working UI.
+
+New source and test scope:
+
+| Capability | Implementation | Relevant test files (not a new run claim) |
+| --- | --- | --- |
+| Recoverable drafts | `frame.tsx`, `backend/drafts.py` and SQLite store separate debounced recovery drafts from published immutable revisions; corrupt/stale recovery is explicit. | `apps/notebook/test/test_drafts.py` |
+| Whole-document history and restoration | `packages/notebook/src/document-history.ts` owns Notes/title/metadata/procedure undo/redo; saved revision restoration creates a draft which explicit Save publishes as a new revision. | `packages/notebook/test/document-history.test.ts`, `apps/notebook/test/document-history-editor.test.ts` |
+| Six procedure kinds | `procedure-step-editor.tsx` and `workspace.ts` provide rich step content, table/image insertion, level/reorder/flags, manual completion, planned totals and wall-clock timers. | `apps/notebook/test/procedure-steps.test.ts`, `test_procedure_steps.py`, `packages/notebook/test/workspace.test.ts` |
+| Rich content | `code-block.tsx`, `text-tools.tsx`, `reference-mention.tsx` and `raster-edit.tsx` provide language-aware non-executing code, background marks, pinned mentions and bounded derived image edits. | `apps/notebook/test/content-editing.test.ts`, `content-editing-browser.mjs`, `editor-schema.test.ts`, `packages/app-sdk/test/code-editor-language.test.ts` |
+| Local sample intake | `sample-intake.tsx` and `backend/sample_intake.py` handle manual/scanner-keyboard/worklist/table/plate input, exact local-catalog resolution, duplicate/ambiguous/truncated results and pinned bindings. | `packages/notebook/test/sample-intake.test.ts`, `apps/notebook/test/test_sample_intake.py` |
+| Formula diagnostics | `formula-sandbox.tsx`, `formula-inspection.ts` and `formula-syntax.ts` reuse the worksheet engine for preview, typed results/errors, dependencies, engine tokens, lexical grouping and snapshots. Grouping is not an AST. | `packages/notebook/test/formula-sandbox.test.ts`, `formula-inspection.test.ts` |
+| Canvas navigation | `app-canvas.tsx` is mounted by `editor-extensions.ts`, persists a checked binding and calls Host navigation. No inline embedding, cross-App action or execution receipt is claimed. | `packages/notebook/test/app-canvas.test.ts`, `apps/notebook/test/test_app_canvas.py` |
+| Host AI proposals | `ai-tools.tsx` uses real Host availability/start/events/cancel, freezes request inputs and routes parsed candidates through review/stale checks. It inserts new literal-text rows, not typed existing-cell autofill. | `packages/notebook/test/ai-generation.test.ts`, `science-review.test.ts`, `apps/notebook/test/science-tools.test.ts` |
+| Templates, tables, mixtures and review | Versioned templates/search, local catalog registration/lookup, planned versus recorded mixtures, anchored comments/tasks, fixed-revision local review and comparison have UI/core/backend owners. | `test_templates_search.py`, `test_catalog.py`, `test_mixture.py`, `test_reviews.py`, `review-panel.test.ts`, package domain tests |
+
+UI paths above are under `apps/notebook/ui-src/` unless otherwise qualified.
+Unqualified Python/UI test filenames are under `apps/notebook/test/`; unqualified
+package test filenames in a package row share its `packages/notebook/test/` root.
+
+**Exact-head browser acceptance is pending.** This documentation audit inspected
+source and relevant test definitions; it did not execute the expanded suite.
+The browser scenarios `notebook-browser.mjs`, `notebook-components-scenario.mjs`,
+`grid-browser-scenario.mjs` and `content-editing-browser.mjs` must pass against the
+final integrated build and real temporary backend. jsdom coverage does not prove
+Chromium rendering, focus, layout or canvas pixels. Earlier `b358` screenshots
+are historical evidence only and do not verify these new controls. Earlier
+workspace/Desktop screenshots and passing CI likewise cannot be promoted to
+current exact-head acceptance. Record the final commit, test outcome and actual
+artifact links once available.
+
+Live configured-model completion/cancellation and Host navigation need actual
+owner runtime evidence. Inline Canvas/actions, typed AI autofill/extraction,
+collections/source workflows and other remaining capabilities are implementation
+work, not automatically external blockers. Multi-user identity, compliant
+signatures, remote registry/inventory and physical instrument outcomes require
+actual owners and separate acceptance; local records must not claim those events.
