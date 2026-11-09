@@ -125,3 +125,57 @@ test('printed duplicate-name worksheets retain each block calculation and match 
     assert.equal(document.querySelectorAll('figure p').length, 2);
   }
 });
+
+test('scientific blocks print as experiment records without attribute JSON', async t => {
+  const { React, ui, render } = await createUiRuntime(t, { resolveDir, contents: "export * from './notebook-print-content'; export { AppSdkProvider, createAppHost } from '@pero/app-sdk';" });
+  const recipe = {
+    name: 'Lysis buffer', output: 'LB-001', notes: 'Keep cold, then aliquot.',
+    target: { value: 10, unit: 'mL' }, additiveVolumes: false,
+    ingredients: [
+      { id: 'tris', reference: 'Tris base', source: 'Lot T-9', mode: 'quantity', target: { value: 1.2, unit: 'g' } },
+      { id: 'water', reference: 'Water', source: 'Milli-Q', mode: 'qs', target: { value: null, unit: 'mL' } },
+    ],
+  };
+  const sourceSha = 'b'.repeat(64);
+  const declaration = 'ab'.repeat(32);
+  const content = { type: 'doc', content: [
+    { type: 'mixturePrep', attrs: { label: 'Lysis mix', mixture: { version: 1, draft: recipe, recipes: [{ revision: 1, recipe }], measurements: { tris: { value: 1.21, unit: 'g' } }, records: [{ id: 'prep-1', recipeRevision: 1, recipe, operator: 'Ada', recordedAt: '2026-11-09T08:15:00.000Z', output: 'LB-001-actual', notes: 'Prepared overnight', actual: { tris: { value: 1.21, unit: 'g' }, water: { value: 9.4, unit: 'mL' } } }] } } },
+    { type: 'reactionScheme', attrs: { label: 'Scheme', reaction: { name: 'Esterification', notes: 'Acid catalyst, reflux 2 h.', molecules: [
+      { id: 'etoh', name: 'Ethanol', role: 'reactant', graph: { atoms: [{ id: 'a', element: 'C', x: 12.25, y: 40, charge: 0 }, { id: 'b', element: 'O', x: 80, y: 40, charge: -1 }], bonds: [{ id: 'bond', from: 'a', to: 'b', order: 1 }] } },
+      { id: 'ester', name: 'Ethyl acetate', role: 'product', graph: { atoms: [{ id: 'c', element: 'C', x: 1, y: 2, charge: 0 }], bonds: [] } },
+    ] }, record: { id: 'rxn-1', revision: 3, savedAt: '2026-11-09T09:00:00Z', definition: { name: 'Esterification', notes: 'hidden definition json', molecules: [] } } } },
+    { type: 'chemical', attrs: { chemical: { name: 'Caffeine', graph: { atoms: [{ id: 'n1', element: 'N', x: 12.25, y: 4, charge: 0 }], bonds: [] }, source: { id: 'rxn-1', revision: 3, moleculeId: 'mol-caf', original: { atoms: [{ element: 'N', x: 99.5, y: 1, charge: 0 }], bonds: [] } } } } },
+    { type: 'sampleIntake', attrs: { intake: { name: 'Plate map', mode: 'plate', field: 'barcode', schemaId: 'schema-1', input: `well\tid\nA1\tS-100\n${'x'.repeat(500)}`, fileName: 'plate.csv', plateSize: { rows: 8, columns: 12 }, bindings: [{ source: { mode: 'plate', input: 'S-100', fileName: 'plate.csv', row: 1, well: 'A1', field: 'barcode' }, snapshot: { catalogId: 'cat-1', records: [{ id: 'rec-1', version: 2, name: 'Stored sample A', registeredAt: '2026-11-09T07:00:00Z', values: { mass: { type: 'quantity', value: '15', unit: 'mg' }, blob: { type: 'object', value: { data: 'AAAABBBBCCCC' } } }, columns: [{ id: 'mass', name: 'Mass' }] }] } }] } } },
+    { type: 'savedSearch', attrs: { label: 'Open buffers', queryId: 'query-1', queryRevision: 4, mode: 'snapshot', snapshot: { queryId: 'query-1', queryRevision: 4, refreshedAt: '2026-11-09T10:00:00Z', results: [{ entryId: 'entry-9', revision: 2, title: 'Prior entry title', summary: 'buffer inventory', tags: ['stock'], updatedAt: '2026-11-08T00:00:00Z' }] } } },
+    { type: 'savedSearch', attrs: { label: 'Live buffers', queryId: 'query-live', queryRevision: 1, mode: 'live', snapshot: null } },
+    { type: 'appCanvas', attrs: { label: 'Dataset inspector', binding: { id: 'bind-1', app: 'data', panel: 'inspector', view: 'dataset', declaration, inputs: { dataset: 'measurements-set', payload: { data: 'EMBEDDEDFILEBYTES' } }, receipt: { result: { status: 'completed', outcome: 'applied', reason: 'Rows accepted', dataset: { name: 'measurements-set', bytes: 'MOREBYTES' } } } } } },
+    { type: 'appCanvas', attrs: { label: 'Unbound canvas', binding: null } },
+    { type: 'sourceExcerpt', attrs: { label: 'Methods quote', excerpt: { version: 'a'.repeat(64), start: 0, end: 15, quote: 'quoted passage', text: 'quoted passage and retained incubation narrative that must stay out of the print', source: { blockId: 'file-1', filename: 'methods.pdf', mime: 'application/pdf', sha256: sourceSha }, extraction: { version: 1, original: { sha256: 'c'.repeat(64), bytes: 99999 }, parser: { name: 'pdftotext', version: '1' }, method: 'native', textSha256: 'd'.repeat(64), segments: [{ start: 0, end: 15, page: 2, part: 'body', region: { x: 0.12, y: 0.34, width: 0.2, height: 0.1 }, score: null }], limitations: ['OCR was not used'] } } } },
+    { type: 'sourceExcerpt', attrs: { label: 'Empty excerpt', excerpt: null } },
+  ] };
+  await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) }, React.createElement(ui.NotebookPrintContent, {
+    document: { schemaVersion: 1, title: 'Experiment record', content }, entryId: 'entry', revision: 1, dirty: false, preparedAt: '2026-11-09T00:00:00Z',
+    settings: { version: 1, orientation: 'portrait', paper: 'A4', marginMm: 15, includeMetadata: false, includeInputs: false, sections: ['notes'] },
+  })));
+  const article = document.querySelector('.notebook-print-document')!;
+  const text = article.textContent!;
+  for (const readable of [
+    'Lysis mix', 'Lysis buffer', 'LB-001', 'Keep cold, then aliquot.', 'Tris base', 'Lot T-9', '1.2 g', '1.21 g',
+    'QS to final volume', 'Water', 'Milli-Q', 'Ada', '2026-11-09T08:15:00.000Z', '9.4 mL', 'Prepared overnight',
+    'Esterification', 'Acid catalyst, reflux 2 h.', 'Reactant', 'Ethanol', 'Product', 'Ethyl acetate', 'O charge -1',
+    'Saved record rxn-1 · v3 · 2026-11-09T09:00:00Z', 'Caffeine', 'mol-caf', 'Explicit atoms: N',
+    'Plate map', 'Plate mapping', 'Stored sample A', 'Well A1', 'S-100', 'Mass: 15 mg', 'plate.csv',
+    'Open buffers', 'Prior entry title', 'buffer inventory', 'stock', 'query-1', 'Live query',
+    'Dataset inspector', 'data / inspector', 'View dataset', 'dataset: measurements-set', 'Rows accepted',
+    `Declaration SHA-256: ${declaration}`, 'No canvas binding saved.',
+    'Methods quote', 'quoted passage', 'methods.pdf', 'application/pdf', 'Page 2', 'Extracted by pdftotext (native).',
+    'OCR was not used', `SHA-256: ${sourceSha}`, 'Full source text omitted.', 'Embedded bytes omitted.', 'Atom coordinates omitted.',
+    'No excerpt saved.',
+  ]) assert.match(text, new RegExp(readable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.equal(article.querySelector('pre'), null);
+  assert.doesNotMatch(text, /Recorded structured content/);
+  assert.doesNotMatch(text, /\{/);
+  for (const hidden of ['12.25', '99.5', '0.12', '0.34', 'AAAABBBBCCCC', 'EMBEDDEDFILEBYTES', 'MOREBYTES', 'hidden definition json', 'retained incubation narrative', 'x'.repeat(40), 'a'.repeat(64), 'c'.repeat(64), 'd'.repeat(64), '"ingredients"', '"declaration"', '"sha256"']) {
+    assert.equal(text.includes(hidden), false, hidden);
+  }
+});
