@@ -1,8 +1,13 @@
+import { NotebookContextProvider } from './notebook-context';
+import { NotebookSourceExcerptTools } from './source-excerpt';
 import { notebookHistoryGroup } from './editor-history';
+import { NotebookEditorDiagnostics } from './editor-inspector';
+import { NotebookScientificContentTools } from './scientific-content';
 import { notebookExtensions, widgets } from './editor-extensions';
 import { type Editor, type JSONContent } from '@tiptap/core';
+import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, Feedback, FilePicker, Icon, IconButton, Toolbar } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
@@ -77,6 +82,8 @@ function EditorToolbar({ editor, document, onCreateEntry, entryId, revision, his
   };
   return <><Toolbar className="notebook-toolbar" role="group" aria-label={t('format')}>
     <NotebookTextTools editor={editor} />
+    <NotebookSourceExcerptTools editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
+    <NotebookScientificContentTools onInsert={nodes => insertBlocks(editor, nodes)} />
     <NotebookScienceTools editor={editor} getTarget={() => ({ entryId, revision })} onInsert={nodes => { insertBlocks(editor, nodes); }} />
     <NotebookTemplateTools editor={editor} document={document} onCreateEntry={onCreateEntry} />
     <NotebookSavedSearchTools editor={editor} />
@@ -117,6 +124,7 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
   header?: ReactNode; readonly?: boolean; onChange?: (content: NotebookDocument['content'], historyGroup: string | null) => void;
 }) {
   const { t } = useAppI18n(messages);
+  const documentRef = useRef(entryDocument); documentRef.current = entryDocument;
   const editor = useEditor({
     extensions: historyControls ? notebookExtensions.map(extension => extension.name === 'starterKit' ? extension.configure({ undoRedo: false }) : extension) : notebookExtensions,
     content,
@@ -134,14 +142,22 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
   });
   useEffect(() => {
     if (!editor || JSON.stringify(editor.getJSON()) === JSON.stringify(content)) return;
-    const { from, to } = editor.state.selection;
+    const selection = editor.state.selection;
     editor.commands.setContent(content, { emitUpdate: false });
-    const end = editor.state.doc.content.size;
-    editor.commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) });
+    const doc = editor.state.doc;
+    const anchor = Math.min(selection.anchor, doc.content.size), head = Math.min(selection.head, doc.content.size);
+    const node = doc.nodeAt(anchor);
+    const restored = selection instanceof NodeSelection && node && NodeSelection.isSelectable(node)
+      ? NodeSelection.create(doc, anchor)
+      : TextSelection.between(doc.resolve(anchor), doc.resolve(head));
+    editor.view.dispatch(editor.state.tr.setSelection(restored));
   }, [editor, content]);
   if (!editor) return null;
-  return <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onChange={change => onDocumentChange?.(change)}>
+  return <NotebookContextProvider value={{ entryId, revision, readonly, document: entryDocument,
+    getDocument: () => ({ ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] }) }}>
+    <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onChange={change => onDocumentChange?.(change)}>
     {!readonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId} revision={revision} document={entryDocument} onCreateEntry={onCreateEntry} />}
+    <NotebookEditorDiagnostics editor={editor} />
     <div className="notebook-paper">{header}<EditorContent className="notebook-editor" editor={editor} /></div>
-  </NotebookWorkspace>;
+  </NotebookWorkspace></NotebookContextProvider>;
 }

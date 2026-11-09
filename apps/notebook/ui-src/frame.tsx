@@ -1,3 +1,4 @@
+import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
@@ -76,6 +77,7 @@ function Notebook() {
     return next;
   };
   const navigationRequest = useRef(0);
+  const handledLink = useRef('');
   const current = drafts[selected];
   const shown = snapshot ?? current?.entry;
   const draft = snapshot?.document ?? current?.document;
@@ -92,6 +94,19 @@ function Notebook() {
 
   useEffect(() => { if (active) void refresh(); }, [active, refresh]);
   useAppDataChanged(() => { void refresh(); setRetry(previous => previous + 1); });
+  useEffect(() => {
+    const followLink = () => {
+      const hash = window.location.hash, link = parseNotebookLink(hash);
+      if (!entries || handledLink.current === hash || !link || !/^[a-f0-9]{32}$/.test(link.entryId)) return;
+      if (!entries.some(entry => entry.id === link.entryId)) return;
+      handledLink.current = hash;
+      navigationRequest.current++;
+      setSelected(link.entryId); setSnapshot(null); setHistory(null); setOpenError('');
+    };
+    followLink(); window.addEventListener('hashchange', followLink);
+    return () => window.removeEventListener('hashchange', followLink);
+  }, [entries]);
+
 
   const adopt = useCallback((entry: NotebookEntry, discard = false) => {
     setDrafts(previous => {

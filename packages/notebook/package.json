@@ -31,7 +31,11 @@
     "./ai-generation": "./src/ai-generation.ts",
     "./document-history": "./src/document-history.ts",
     "./sample-intake": "./src/sample-intake.ts",
-    "./formula-syntax": "./src/formula-syntax.ts"
+    "./formula-syntax": "./src/formula-syntax.ts",
+    "./template-collections": "./src/template-collections.ts",
+    "./table-workflows": "./src/table-workflows.ts",
+    "./scientific-designs": "./src/scientific-designs.ts",
+    "./source-excerpt": "./src/source-excerpt.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"

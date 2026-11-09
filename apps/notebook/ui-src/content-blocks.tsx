@@ -1,3 +1,4 @@
+import { notebookLinkHash } from '@pero/notebook/workspace';
 import { Node } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { closeHistory } from '@tiptap/pm/history';
@@ -110,7 +111,8 @@ function SectionView(view: NodeViewProps) {
       if (link) {
         if (!anchor) throw new Error('Section identity is not available.');
         const url = new URL(window.location.href);
-        url.hash = anchor;
+        const entryId = container.current?.closest('[data-notebook-entry-id]')?.getAttribute('data-notebook-entry-id');
+        url.hash = entryId && blockId ? notebookLinkHash(entryId, blockId) : anchor;
         await navigator.clipboard.writeText(url.href);
       } else {
         const copied = view.editor.view.serializeForClipboard(new Slice(Fragment.from(view.node), 0, 0));

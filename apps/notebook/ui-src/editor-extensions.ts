@@ -1,3 +1,6 @@
+import { SourceExcerptView } from './source-excerpt';
+import { ReactionSchemeView, ChemicalView } from './scientific-content';
+import { emptyReaction, emptyMolecularGraph } from '@pero/notebook/scientific-designs';
 import { NotebookCodeBlock } from './code-block';
 import { ReferenceMention } from './reference-mention';
 import { SampleIntakeView } from './sample-intake';
@@ -23,6 +26,9 @@ import { NotebookTemplateOrigin } from './template-origin';
 import { SavedSearchView } from './saved-search';
 
 export const widgets = [
+  { name: 'sourceExcerpt', icon: 'document', defaults: { label: '', excerpt: null }, view: SourceExcerptView },
+  { name: 'reactionScheme', icon: 'flask', defaults: { reaction: emptyReaction(), record: null }, view: ReactionSchemeView },
+  { name: 'chemical', icon: 'flask', defaults: { chemical: { name: '', graph: emptyMolecularGraph(), source: null } }, view: ChemicalView },
   { name: 'sampleIntake', icon: 'flask', defaults: sampleIntakeDefaults, view: SampleIntakeView },
   { name: 'appCanvas', icon: 'document', defaults: { label: '', binding: null }, view: AppCanvasView },
   { name: 'mixturePrep', icon: 'flask', defaults: { label: '', mixture: emptyMixturePreparation() }, view: MixturePrepView },
