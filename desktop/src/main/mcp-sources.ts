@@ -16,6 +16,7 @@ type BoundView={view:McpView;tools:Set<string>};
 /** The privileged Host owns connections and bindings; frames cannot select their authority. */
 export class McpSources {
   private configs=new Map<string,McpServerConfig>();
+  private configWrite = Promise.resolve();
   private connected=new Map<string,Connected>();
   private bindings=new Map<string,BoundView>();
   private threads=new Set<string>();
@@ -60,9 +61,22 @@ export class McpSources {
       case 'list':return this.list();
       case 'resources':case 'templates':case 'read':case 'attach_resource':case 'cancel_open':throw new Error('Resource browsing requires a managed session panel');
       case 'configure':{
-        if(this.connected.has(command.config.id))throw new Error('Disconnect this server before changing its configuration');
-        this.configs.set(command.config.id,command.config);await mkdir(dirname(this.configPath),{recursive:true});
-        await writeFile(this.configPath+'.tmp',JSON.stringify([...this.configs.values()]),{mode:0o600});await rename(this.configPath+'.tmp',this.configPath);return this.list();
+        // Each save replaces the whole file, so base it on the last committed snapshot.
+        const write = this.configWrite.then(async () => {
+          const {config} = command;
+          if (this.connected.has(config.id)) throw new Error('Disconnect this server before changing its configuration');
+          const next = new Map(this.configs);
+          next.set(config.id, config);
+          const temp = this.configPath + '.tmp';
+          await mkdir(dirname(this.configPath), {recursive:true});
+          await writeFile(temp, JSON.stringify([...next.values()]), {mode:0o600});
+          await rename(temp, this.configPath);
+          this.configs = next;
+        });
+        // Report errors to this caller while allowing the next save to proceed.
+        this.configWrite = write.catch(() => {});
+        await write;
+        return this.list();
       }
       case 'connect':await this.connect(command.server);return this.list();
       case 'disconnect':await this.disconnect(command.server);return this.list();

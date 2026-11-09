@@ -1,6 +1,6 @@
-import test from 'node:test';
+import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdir,mkdtemp,rename,rm,rmdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {App} from '@modelcontextprotocol/ext-apps';
@@ -8,7 +8,49 @@ import {AppBridge} from '@modelcontextprotocol/ext-apps/app-bridge';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import {McpHost} from './mcp-host.ts';
+import {McpSources} from './mcp-sources.ts';
 import {startMcpFixture} from '../../../tests/fixtures/mcp-app/server.ts';
+
+async function configFixture(t:TestContext) {
+  const home = await mkdtemp(join(tmpdir(), 'pero-mcp-config-'));
+  t.after(() => rm(home, {recursive:true, force:true}));
+  const file = join(home, 'servers.json');
+  const sources = new McpSources(file);
+  const save = (id:string, title:string) => sources.command({
+    action:'configure', config:{id, title, transport:'http', url:'http://example.invalid', header_env:{}},
+  });
+  const reload = async () => {
+    const fresh = new McpSources(file);
+    await fresh.load();
+    return fresh.list();
+  };
+  return {file, sources, save, reload};
+}
+
+test('a rejected server edit stays out of the live catalog and subsequent saves', async t => {
+  const {file, sources, save, reload} = await configFixture(t);
+  await save('a', 'Original');
+  const original = sources.list();
+
+  // A directory at the destination makes file replacement fail even when tests run as root.
+  const backup = file + '.saved';
+  await rename(file, backup);
+  await mkdir(file);
+  await assert.rejects(save('a', 'Rejected edit'));
+  await rmdir(file);
+  await rename(backup, file);
+
+  assert.deepEqual(sources.list(), original);
+  await save('b', 'Other server');
+  assert.deepEqual((await reload()).map(({id, title}) => [id, title]), [['a', 'Original'], ['b', 'Other server']]);
+});
+
+test('overlapping server saves both survive reload', async t => {
+  const {save, reload} = await configFixture(t);
+  await Promise.all([save('a', 'First'), save('b', 'Second')]);
+  const entries = (await reload()).map(({id, title}) => [id, title]);
+  assert.deepEqual(Object.fromEntries(entries), {a:'First', b:'Second'});
+});
 
 test('real MCP transport, scoped resource, official App handshake and interactive tools close together',async()=>{
   const home=await mkdtemp(join(tmpdir(),'pero-mcp-app-'));
