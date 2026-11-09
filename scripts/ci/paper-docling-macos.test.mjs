@@ -12,6 +12,7 @@ test('real Mac Docling verification is scoped, opt-in, read-only and exact-head'
   const paths = workflow.on.pull_request.paths;
   assert.ok(paths.length > 0 && paths.every(path =>
     path === '.github/workflows/paper-docling-macos.yml' ||
+    path === 'packages/source-extraction/**' || path === 'scripts/build/source-parsers.mjs' ||
     path.startsWith('apps/paper-agent/') || path.startsWith('crates/pero-runtime/src/apps/docling')));
   const job = workflow.jobs.docling;
   assert.equal(job['runs-on'], 'macos-26');

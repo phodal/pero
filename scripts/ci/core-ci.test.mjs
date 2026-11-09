@@ -7,7 +7,7 @@ import { failures } from './gate.mjs';
 
 const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
 const { steps } = workflow.jobs.core;
-const checks = steps.filter(step => step.run && !['npm', 'gpui', 'paper_python', 'viewer_python',
+const checks = steps.filter(step => step.run && !['npm', 'gpui', 'paper_python', 'notebook_canvas_python', 'viewer_python',
   'hpc_npm', 'automations_npm', 'paper_npm', 'viewer_npm', 'host_build', 'mcp_build'].includes(step.id));
 
 // Interpret only this workflow's deliberately small condition vocabulary. This
@@ -60,6 +60,7 @@ test('failed prerequisites skip their consumers without hiding unrelated checks'
     ['host_build', ['app_canvas', 'host_stdio', 'host_research', 'host_mcp_settings', 'host_mcp_ownership', 'host_automation', 'host_app_automation', 'host_app_agent', 'control_lab_host'], ['rust_tests', 'core_types', 'mcp_build', 'control_lab']],
     ['mcp_build', ['host_mcp_settings', 'host_mcp_ownership'], ['host_stdio', 'host_research', 'host_app_agent']],
     ['paper_python', ['paper_backend', 'paper_pdf_http', 'paper_source_http', 'paper_source_cli', 'host_research'], ['data_backend', 'viewer_backend', 'paper_components', 'host_stdio']],
+    ['notebook_canvas_python', ['app_canvas'], ['paper_backend', 'core_types', 'host_build', 'host_stdio']],
     ['npm', ['core_types', 'app_use', 'paper_components', 'host_stdio'], ['rust_tests', 'host_build', 'paper_backend', 'data_backend']],
   ]) {
     const result = outcomes([failed]);

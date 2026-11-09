@@ -399,6 +399,11 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Package shared Paper parser before backend imports
+        run: node scripts/build/source-parsers.mjs
       - name: Paper metadata worker lifecycle on Windows
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -497,6 +502,9 @@ jobs:
       # The reader race contract executes the real, locked EmbedPDF plugin.
       - run: npm ci --prefix apps/paper-agent --ignore-scripts
       - run: node scripts/codegen/contracts.mjs --check
+      # Stdlib-only disposable reader contracts still import the real PDF owner.
+      - name: Package shared Paper parser before backend imports
+        run: node scripts/build/source-parsers.mjs
       - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs tests/build/product-chat-startup.test.mjs tests/build/product-shutdown.test.mjs
       - name: Offline research preflight, finalization and shutdown contracts
         run: node --test tests/runtime/research-quality/*.test.mjs
@@ -576,6 +584,13 @@ jobs:
         run: |
           node scripts/build/source-parsers.mjs
           python -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
+      - name: Prepare pinned Notebook Canvas Python environment
+        id: notebook_canvas_python
+        if: ${{ !cancelled() && steps.python.outcome == 'success' && steps.node.outcome == 'success' }}
+        run: |
+          node scripts/build/source-parsers.mjs
+          python -m venv "$RUNNER_TEMP/notebook-canvas-python"
+          "$RUNNER_TEMP/notebook-canvas-python/bin/python" -c 'import json,subprocess,sys; dependencies=json.load(open("apps/notebook/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
       - name: Paper backend contracts
         id: paper_backend
         if: ${{ !cancelled() && steps.paper_python.outcome == 'success' }}
@@ -684,7 +699,9 @@ jobs:
         run: node scripts/cargo.mjs build --locked -p pero-host -p pero-worker
       - name: Declared Canvas real Host and owner recovery contracts
         id: app_canvas
-        if: ${{ !cancelled() && steps.host_build.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.host_build.outcome == 'success' && steps.notebook_canvas_python.outcome == 'success' }}
+        env:
+          PERO_APP_PYTHON: ${{ runner.temp }}/notebook-canvas-python/bin/python
         run: node tests/contracts/app-canvas.mjs
       - name: App use authorization contracts
         id: app_use
