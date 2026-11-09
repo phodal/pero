@@ -22,9 +22,18 @@ export function notebookTab(page, name) {
   return page.locator('[role="tab"]').filter({ hasText: pattern });
 }
 
-/** Insert actions stay in the Insert menu. */
+/** Worksheet tools and cell details live in the spreadsheet Block actions menu. */
+export async function toggleSpreadsheetPanel(page, grid, name) {
+  await grid.getByRole('button', { name: 'Block actions', exact: true }).click();
+  await page.getByRole('menuitem', { name, exact: true }).click();
+}
+
+/** Insert actions stay in the Insert menu. The trigger is a real button; the details keeps dialogs mounted. */
 export async function ensureMoreTools(page) {
-  await openNotebookMenu(page, 'insert');
+  const details = page.locator('details.notebook-menu[data-menu="insert"]');
+  if (await details.evaluate(node => node.open)) return;
+  await page.getByRole('button', { name: 'Insert', exact: true }).click();
+  await expect(details).toHaveJSProperty('open', true);
 }
 
 /** Creation retains the old draft while the real backend request is in flight. */

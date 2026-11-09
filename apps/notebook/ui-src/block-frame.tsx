@@ -33,11 +33,15 @@ export function BlockFrame({ view, kind, title, caption, actions, menuActions, c
   // A native input retains its own focus and selection inside a widget.
   const anchorBlock = () => rememberWidgetFocus(view.editor, view.node.attrs.blockId);
   return <NodeViewWrapper ref={element} role="group" aria-label={t(kind)} contentEditable={false} className="notebook-block" data-kind={kind} onFocusCapture={anchorBlock}
-    data-selected={view.selected || undefined} data-notebook-block-id={view.node.attrs.blockId ?? undefined}>
+    data-selected={view.selected || undefined} data-collapsed={collapsed || undefined} data-notebook-block-id={view.node.attrs.blockId ?? undefined}>
     <div className="notebook-block-header">
-      <div className="notebook-block-title"><Icon name={icons[kind]} />{title ?? <strong>{t(kind)}</strong>}{caption}</div>
+      <div className="notebook-block-title">{kind !== 'spreadsheet' && <Icon name={icons[kind]} />}{title ?? <strong>{t(kind)}</strong>}{caption}</div>
       <div className="notebook-block-actions">
         {actions}
+        {kind === 'spreadsheet' && <>
+          <IconButton label={t('fullscreenBlock')} onClick={() => void fullscreen()}><Icon name="maximize" /></IconButton>
+          <IconButton label={t(collapsed ? 'expandBlock' : 'collapseBlock')} onClick={() => setCollapsed(value => !value)}><Icon name={collapsed ? 'chevron-down' : 'chevron-up'} /></IconButton>
+        </>}
         {<DropdownMenu>
           <DropdownMenuTrigger asChild><IconButton label={t('blockActions')}><Icon name="more" /></IconButton></DropdownMenuTrigger>
           <DropdownMenuContent align="end">

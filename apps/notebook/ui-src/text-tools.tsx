@@ -3,9 +3,9 @@ import { Extension, getMarkRange, Mark, type Editor } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { AllSelection, Plugin } from '@tiptap/pm/state';
 import { useEditorState } from '@tiptap/react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Dialog, Field, Icon, IconButton, Input, Select } from '@pero/app-sdk/ui';
+import { Button, Dialog, Field, Icon, IconButton, Input, Select, Toolbar } from '@pero/app-sdk/ui';
 const textTones = ['blue', 'green', 'rose', 'amber'] as const;
 type TextTone = typeof textTones[number];
 
@@ -133,6 +133,7 @@ export const messages = {
   cancel: { en: 'Cancel', zh: '取消' },
   close: { en: 'Close', zh: '关闭' },
   symbols: { en: 'Insert symbol', zh: '插入符号' },
+  more: { en: 'More', zh: '更多' },
   symbolLabel: { en: 'Insert {symbol} ({name})', zh: '插入 {symbol}（{name}）' },
   greek: { en: 'Greek letters', zh: '希腊字母' },
   mathematical: { en: 'Mathematics and units', zh: '数学与单位' },
@@ -164,6 +165,35 @@ const symbols = {
     ['µ', 'micro', '微'], ['Å', 'angstrom', '埃'], ['‰', 'per mille', '千分号'],
   ],
 } as const;
+
+/** Labeled overflow, outside the scrolling icon row so the panel is not clipped. */
+function FormatMenu({ name, children }: { name: string; children: ReactNode }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      const node = ref.current;
+      const target = event.target;
+      if (!node?.open || !(target instanceof Node) || node.contains(target) || node.parentElement?.contains(target)) return;
+      if (target instanceof Element && target.closest('dialog')) return;
+      node.open = false;
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, []);
+  return <div className="notebook-overflow">
+    <Button variant="ghost" className="notebook-overflow-trigger" onClick={() => {
+      const node = ref.current;
+      if (!node) return;
+      node.open = !node.open;
+      if (!node.open) return;
+      node.ownerDocument.querySelectorAll('details.notebook-menu[open]').forEach(other => { if (other !== node) other.removeAttribute('open'); });
+    }}>{name}<Icon name="chevron-down" size={12} /></Button>
+    <details ref={ref} className="notebook-menu" data-menu="format">
+      <summary className="notebook-visually-hidden">{name}</summary>
+      <div className="notebook-menu-panel">{children}</div>
+    </details>
+  </div>;
+}
 
 type Range = { from: number; to: number };
 type TextDialog = { kind: 'symbols'; selection: Range } | {
@@ -271,22 +301,33 @@ export function NotebookTextTools({ editor }: { editor: Editor }) {
     closeDialog();
   };
 
-  return <>
-    <Select className="notebook-block-select notebook-tool-extra" label={t('format')} value={status.format} disabled={!status.text} searchable={false}
+  const headingValue = status.format.startsWith('heading-') ? status.format : status.format === 'paragraph' ? 'paragraph' : '';
+  const toggleMark = (mark: typeof marks[number]) => {
+    const command = editor.chain().focus();
+    if (mark === 'subscript') command.unsetMark('superscript');
+    if (mark === 'superscript') command.unsetMark('subscript');
+    command.toggleMark(mark).run();
+  };
+  const markButton = (mark: typeof marks[number]) => <IconButton key={mark} label={t(mark)} aria-pressed={status.marks.includes(mark)}
+    disabled={!status.enabledMarks.includes(mark)} onMouseDown={event => event.preventDefault()} onClick={() => toggleMark(mark)}>{glyphs[mark]}</IconButton>;
+  const blockButton = (block: typeof blocks[number], icon: 'bullet' | 'ordered' | 'task' | 'quote' | 'code') => <IconButton key={block} label={t(block)} aria-pressed={status.format === block}
+    disabled={!status.text} onMouseDown={event => event.preventDefault()} onClick={() => chooseFormat(block)}><Icon name={icon} /></IconButton>;
+
+  return <div className="notebook-format">
+    <Toolbar className="notebook-toolbar" role="group" aria-label={t('format')}>
+    <Select className="notebook-heading-select" label={t('format')} value={headingValue} disabled={!status.text} searchable={false} menuMinWidth={0}
+      leading={<span aria-hidden="true" className="notebook-heading-mark">{headingValue.startsWith('heading-') ? `H${headingValue.slice(8)}` : 'H'}</span>}
       options={[
         { value: 'paragraph', label: t('paragraph') },
         ...headingLevels.map(level => ({ value: `heading-${level}`, label: t('heading', { level }) })),
-        ...blocks.map(value => ({ value, label: t(value) })),
       ]} onChange={chooseFormat} />
-    {marks.map(mark => <IconButton key={mark} className={mark === 'bold' || mark === 'italic' || mark === 'underline' ? 'notebook-tool-format' : 'notebook-tool-extra'} label={t(mark)} aria-pressed={status.marks.includes(mark)}
-      disabled={!status.enabledMarks.includes(mark)} onMouseDown={event => event.preventDefault()}
-      onClick={() => {
-        const command = editor.chain().focus();
-        if (mark === 'subscript') command.unsetMark('superscript');
-        if (mark === 'superscript') command.unsetMark('subscript');
-        command.toggleMark(mark).run();
-      }}>{glyphs[mark]}</IconButton>)}
-    <Select className="notebook-color-select notebook-tool-extra" label={t('textColor')} value={status.tone} disabled={!status.text || !editor.can().setMark('textColor', { tone: 'blue' })}
+    {markButton('bold')}
+    {markButton('italic')}
+    {markButton('strike')}
+    <IconButton label={t(status.link ? 'editLink' : 'insertLink')} aria-pressed={status.link} disabled={!status.canLink}
+      onMouseDown={event => event.preventDefault()} onClick={openLink}><Icon name="link" /></IconButton>
+    {markButton('code')}
+    <Select className="notebook-color-select" label={t('textColor')} value={status.tone} disabled={!status.text || !editor.can().setMark('textColor', { tone: 'blue' })}
       searchable={false} menuMinWidth={0} leading={<span aria-hidden="true" className={`notebook-text-${status.tone}`}>A</span>}
       options={['default', ...textTones].map(tone => ({ value: tone, label: t(tone as 'default' | TextTone) }))}
       onChange={tone => {
@@ -294,27 +335,38 @@ export function NotebookTextTools({ editor }: { editor: Editor }) {
         if (tone === 'default') command.unsetMark('textColor').run();
         else command.setMark('textColor', { tone }).run();
       }} />
-    {editor.schema.marks.textBackground && <Select className="notebook-color-select notebook-tool-extra" label={t('textBackground')} value={status.background}
-      disabled={!status.text || !editor.can().setMark('textBackground', { tone: 'blue' })} searchable={false}
-      leading={<span aria-hidden="true" className={`notebook-swatch notebook-background-${status.background}`} />}
-      options={['default', ...textTones].map(tone => ({ value: tone, label: t(tone as 'default' | TextTone) }))}
-      onChange={tone => {
-        const command = editor.chain().focus();
-        if (tone === 'default') command.unsetMark('textBackground').run();
-        else command.setMark('textBackground', { tone }).run();
-      }} />}
-    <IconButton className="notebook-tool-extra" label={t('indent')} disabled={!status.canIndent} onMouseDown={event => event.preventDefault()}
-      onClick={() => status.listItem && editor.chain().focus().sinkListItem(status.listItem).run()}><Icon name="chevron-right" /></IconButton>
-    <IconButton className="notebook-tool-extra" label={t('outdent')} disabled={!status.canOutdent} onMouseDown={event => event.preventDefault()}
-      onClick={() => status.listItem && editor.chain().focus().liftListItem(status.listItem).run()}><Icon name="chevron-left" /></IconButton>
-    <Button variant="ghost" className="notebook-clear-format notebook-tool-extra" aria-label={t('clear')} disabled={!status.text} onMouseDown={event => event.preventDefault()}
-      onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}><span className="notebook-visually-hidden">{t('clear')}</span></Button>
-    <IconButton className="notebook-tool-format" label={t(status.link ? 'editLink' : 'insertLink')} aria-pressed={status.link} disabled={!status.canLink}
-      onMouseDown={event => event.preventDefault()} onClick={openLink}><Icon name="link" /></IconButton>
-    <IconButton className="notebook-tool-extra" label={t('symbols')} disabled={!status.inline} onMouseDown={event => event.preventDefault()}
-      onClick={() => { const { from, to } = editor.state.selection; setDialog({ kind: 'symbols', selection: { from, to } }); }}>
-      <span aria-hidden="true">Ω</span>
-    </IconButton>
+    {markButton('subscript')}
+    {markButton('superscript')}
+    <span className="notebook-toolbar-divider" />
+    {blockButton('bulletList', 'bullet')}
+    {blockButton('orderedList', 'ordered')}
+    {blockButton('taskList', 'task')}
+    </Toolbar>
+    <FormatMenu name={t('more')}>
+      <Button variant="ghost" aria-label={t('underline')} aria-pressed={status.marks.includes('underline')} disabled={!status.enabledMarks.includes('underline')}
+        onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('underline')}>{t('underline')}</Button>
+      {editor.schema.marks.textBackground && <Select className="notebook-color-select" label={t('textBackground')} triggerLabel={t('textBackground')} value={status.background}
+        disabled={!status.text || !editor.can().setMark('textBackground', { tone: 'blue' })} searchable={false}
+        leading={<span aria-hidden="true" className={`notebook-swatch notebook-background-${status.background}`} />}
+        options={['default', ...textTones].map(tone => ({ value: tone, label: t(tone as 'default' | TextTone) }))}
+        onChange={tone => {
+          const command = editor.chain().focus();
+          if (tone === 'default') command.unsetMark('textBackground').run();
+          else command.setMark('textBackground', { tone }).run();
+        }} />}
+      <Button variant="ghost" aria-label={t('blockquote')} aria-pressed={status.format === 'blockquote'} disabled={!status.text}
+        onMouseDown={event => event.preventDefault()} onClick={() => chooseFormat('blockquote')}>{t('blockquote')}</Button>
+      <Button variant="ghost" aria-label={t('codeBlock')} aria-pressed={status.format === 'codeBlock'} disabled={!status.text}
+        onMouseDown={event => event.preventDefault()} onClick={() => chooseFormat('codeBlock')}>{t('codeBlock')}</Button>
+      <Button variant="ghost" aria-label={t('indent')} disabled={!status.canIndent} onMouseDown={event => event.preventDefault()}
+        onClick={() => status.listItem && editor.chain().focus().sinkListItem(status.listItem).run()}>{t('indent')}</Button>
+      <Button variant="ghost" aria-label={t('outdent')} disabled={!status.canOutdent} onMouseDown={event => event.preventDefault()}
+        onClick={() => status.listItem && editor.chain().focus().liftListItem(status.listItem).run()}>{t('outdent')}</Button>
+      <Button variant="ghost" aria-label={t('clear')} disabled={!status.text} onMouseDown={event => event.preventDefault()}
+        onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>{t('clear')}</Button>
+      <Button variant="ghost" aria-label={t('symbols')} disabled={!status.inline} onMouseDown={event => event.preventDefault()}
+        onClick={() => { const { from, to } = editor.state.selection; setDialog({ kind: 'symbols', selection: { from, to } }); }}>{t('symbols')}</Button>
+    </FormatMenu>
     {dialog?.kind === 'link' && <Dialog title={t(dialog.existing ? 'editLink' : 'insertLink')} closeLabel={t('close')}
       size="sm" restoreFocus={false} onClose={closeDialog} onSubmit={event => { event.preventDefault(); applyLink(); }}
       footerStart={dialog.existing && <Button variant="ghost" onClick={() => {
@@ -343,5 +395,5 @@ export function NotebookTextTools({ editor }: { editor: Editor }) {
         </div>
       </section>)}
     </Dialog>}
-  </>;
+  </div>;
 }

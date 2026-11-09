@@ -37,8 +37,7 @@ export function CellAnnotations({ view, address, editable }: {
     ...current,
     evidenceIds: checked ? [...current.evidenceIds, id] : current.evidenceIds.filter(value => value !== id),
   });
-  return <details className="notebook-cell-annotations">
-    <summary>{t('metadata')} · {address}{current.unit && ` · ${current.unit}`}</summary>
+  return <section className="notebook-cell-annotations" aria-label={`${t('metadata')} · ${address}`}>
     <label className="notebook-field">{t('unit')}
       <Input value={current.unit} readOnly={!editable} maxLength={128}
         onChange={event => apply({ ...current, unit: event.target.value })} />
@@ -56,5 +55,5 @@ export function CellAnnotations({ view, address, editable }: {
         <span>{t('missing')} · <code>{id}</code></span>
       </label>)}
     </fieldset>
-  </details>;
+  </section>;
 }

@@ -6,6 +6,7 @@ import { messages } from './messages';
 export type NotebookCommand = 'save' | 'export' | 'print' | 'section' | 'symbols' | 'search';
 export interface NotebookCommandHandlers { save?(): boolean | void; export?(): boolean | void; print?(): boolean | void; section?(): boolean | void; symbols?(): boolean | void; search?(): boolean | void }
 export const NOTEBOOK_SYMBOLS_EVENT = 'pero:notebook-symbols-open';
+export const NOTEBOOK_SHORTCUTS_EVENT = 'pero:notebook-shortcuts';
 /** App-local bindings never steal IME, modal, widget editing or Host shortcuts. */
 export function notebookCommand(event: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey' | 'isComposing' | 'repeat' | 'defaultPrevented' | 'target'>, entryId: string, readonly: boolean): NotebookCommand | null {
   if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || !(event.ctrlKey || event.metaKey) || !(event.target instanceof Element)) return null;
@@ -26,8 +27,13 @@ export function NotebookCommandTools({ entryId, readonly = false, handlers }: { 
       const command = notebookCommand(event, entryId, readonly), handler = command && handlers[command];
       if (handler && handler() !== false) event.preventDefault();
     };
+    const openShortcuts = () => setOpen(true);
     document.addEventListener('keydown', listen);
-    return () => document.removeEventListener('keydown', listen);
+    document.addEventListener(NOTEBOOK_SHORTCUTS_EVENT, openShortcuts);
+    return () => {
+      document.removeEventListener('keydown', listen);
+      document.removeEventListener(NOTEBOOK_SHORTCUTS_EVENT, openShortcuts);
+    };
   }, [entryId, readonly, handlers]);
   return <><Button variant="ghost" onClick={() => setOpen(true)}>{t('keyboardShortcuts')}</Button>{open && <Dialog title={t('notebookShortcuts')} closeLabel={t('closeShortcuts')} onClose={() => setOpen(false)} size="md">
     <p>{t('shortcutsHint')}</p>

@@ -46,7 +46,7 @@ try {
   await frame.getByRole('button', { name: 'New notebook' }).click({ timeout: 20_000 });
   await frame.getByRole('textbox', { name: 'Notebook title' }).fill('Notebook in Pero');
   await frame.getByRole('textbox', { name: 'Notebook content' }).fill('Read the original parameters.');
-  await frame.getByRole('button', { name: 'Insert block' }).click();
+  await frame.getByRole('button', { name: 'Insert', exact: true }).click();
   await frame.getByRole('menuitem', { name: 'Spreadsheet' }).click();
   const inputCell = frame.locator('[data-cell=A1]'), formulaCell = frame.locator('[data-cell=B1]');
   await inputCell.click();
@@ -58,7 +58,7 @@ try {
   await expect(inputCell).toHaveValue('2');
   await expect(formulaCell).toHaveValue('12');
   if (paper && control) {
-    await frame.getByRole('button', { name: 'Insert block' }).click();
+    await frame.getByRole('button', { name: 'Insert', exact: true }).click();
     await frame.getByRole('menuitem', { name: 'Evidence', exact: true }).click();
     const evidence = frame.locator('[data-kind=evidence]');
     await evidence.locator('input[type=file]').setInputFiles({ name: 'paper.json', mimeType: 'application/json', buffer: paper });
@@ -66,7 +66,7 @@ try {
     await frame.getByRole('option').nth(1).click();
     await evidence.getByRole('button', { name: 'Attach snapshot' }).click();
     await expect(evidence.locator('blockquote')).toHaveText('Second page. Exact original evidence.');
-    await frame.getByRole('button', { name: 'Insert block' }).click();
+    await frame.getByRole('button', { name: 'Insert', exact: true }).click();
     await frame.getByRole('menuitem', { name: 'Experiment reference', exact: true }).click();
     const experiment = frame.locator('[data-kind=experiment]');
     await experiment.locator('input[type=file]').setInputFiles({ name: 'control.json', mimeType: 'application/json', buffer: control });

@@ -223,6 +223,8 @@ export const messages = {
   blockActions: { en: 'Block actions', zh: '块操作' },
   remove: { en: 'Remove block', zh: '移除块' },
   insert: { en: 'Insert block', zh: '插入块' },
+  insertWord: { en: 'Insert', zh: '插入' },
+  moreBlocks: { en: 'More blocks', zh: '更多内容' },
   spreadsheet: { en: 'Spreadsheet', zh: '电子表格' },
   evidence: { en: 'Evidence', zh: '证据' },
   experiment: { en: 'Experiment reference', zh: '实验引用' },

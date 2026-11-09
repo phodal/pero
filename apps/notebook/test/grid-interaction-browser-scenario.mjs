@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 import { writeWorkbook } from '@pero/notebook/workbook';
-import { createNotebook, ensureMoreTools } from './notebook-browser-actions.mjs';
+import { createNotebook, ensureMoreTools, toggleSpreadsheetPanel } from './notebook-browser-actions.mjs';
 
 /** Real pointer/keyboard/layout acceptance, run in the existing backend/browser
  * fixture after other notebook scenarios. No new server or mock editor. */
@@ -29,7 +29,7 @@ export async function verifyDirectGridInteractions(page, origin) {
     await page.mouse.up();
   };
   await cell('A1').click();
-  await data.locator('summary').filter({ hasText: 'Cell details' }).click();
+  await toggleSpreadsheetPanel(page, data, 'Cell details');
   await data.getByLabel('Unit', { exact: true }).fill('mL');
   await drag(edge('Resize column A'), box => ({ ...box, x: box.x + 45 }));
   await expect(edge('Resize column A')).toHaveAttribute('aria-valuenow', '165');
@@ -64,7 +64,7 @@ export async function verifyDirectGridInteractions(page, origin) {
   await page.keyboard.press('Escape'); await page.mouse.up();
   await expect(edge('Resize column B')).toHaveAttribute('aria-valuenow', '175');
   // Reordering a merge into a discontiguous range must remain a rejected edit.
-  await data.locator('summary').filter({ hasText: 'Worksheet tools' }).click();
+  await toggleSpreadsheetPanel(page, data, 'Worksheet tools');
   await cell('A1').click(); await cell('A2').click({ modifiers: ['Shift'] });
   await data.getByRole('button', { name: 'Merge selected cells', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Confirm', exact: true }).click();

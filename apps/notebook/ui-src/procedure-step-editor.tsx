@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { NodeSelection, Selection, TextSelection } from '@tiptap/pm/state';
 import { useAppI18n } from '@pero/app-sdk';
-import { Badge, Button, Feedback, Field, FilePicker, NativeSelect, Toolbar } from '@pero/app-sdk/ui';
+import { Badge, Button, Feedback, Field, FilePicker, NativeSelect } from '@pero/app-sdk/ui';
 import type { NotebookNode } from '@pero/notebook';
 import { procedureElapsed, type NotebookProcedureStep, type ProcedureChange } from '@pero/notebook/workspace';
 import { notebookExtensions } from './editor-extensions';
@@ -93,7 +93,7 @@ export function ProcedureRichEditor({ content, text = '', kind, label, readonly,
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
   };
   return <div className="notebook-procedure-content" ref={container}>
-    {!readonly && <Toolbar role="group" aria-label={label ?? t('format')} className="notebook-toolbar">
+    {!readonly && <div className="notebook-procedure-tools">
       <NotebookTextTools editor={editor} />
       {(!kind || kind === 'image') && <FilePicker label={t('image')} accept="image/png,image/jpeg,image/webp" emptyLabel="" onFile={file => void insertImage(file)} />}
       {(!kind || kind === 'table') && <><Field label={t('plateSize')}>{control => <NativeSelect {...control} value={plateSize} onChange={event => setPlateSize(event.target.value)}>
@@ -102,7 +102,7 @@ export function ProcedureRichEditor({ content, text = '', kind, label, readonly,
         [{ type: 'spreadsheet', attrs: { label: nextWorksheetName(editor.state.doc), sheet: { rows, columns, cells: {} } } }, { type: 'paragraph' }]); }}>{t('plate')}</Button></>}
       {(!kind || kind === 'table') && <Button variant="ghost" onClick={() => editor.commands.insertContentAt(editor.state.doc.content.size,
         [{ type: 'spreadsheet', attrs: { label: '', sheet: { rows: 3, columns: 3, cells: {} } } }, { type: 'paragraph' }])}>{t('table')}</Button>}
-    </Toolbar>}
+    </div>}
     {error && <Feedback kind="error">{error}</Feedback>}
     <EditorContent editor={editor} />
   </div>;

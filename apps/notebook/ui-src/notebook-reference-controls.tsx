@@ -109,7 +109,7 @@ export function NotebookStatusBar({ editor, variant = 'bar' }: { editor: Editor;
   }}>fx</Button>;
   if (variant === 'toggle') return <>{toggle}{notice && <span role="status">{notice}</span>}</>;
   const summary = <output>{t('statusSummary', status)}</output>;
-  if (variant === 'output') return <footer className="notebook-status-bar" aria-label={t('notebookStatus')}><output>{t('sectionCount', { sections: status.sections })}</output></footer>;
+  if (variant === 'output') return <footer className="notebook-status-bar" aria-label={t('notebookStatus')}><output className="notebook-visually-hidden">{t('sectionCount', { sections: status.sections })}</output></footer>;
   return <footer className="notebook-status-bar notebook-workspace-actions" aria-label={t('notebookStatus')}>
     {summary}{toggle}{notice && <span role="status">{notice}</span>}
   </footer>;

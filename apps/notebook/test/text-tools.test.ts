@@ -109,9 +109,10 @@ test('Notebook text controls edit real marks, block structures and selected text
       await select('Formatting', 'paragraph');
       assert.equal(editor.getJSON().content[0].type, 'paragraph');
     }
-    for (const kind of ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock']) {
+    const blocks = { bulletList: 'Bullet list', orderedList: 'Numbered list', taskList: 'Checklist', blockquote: 'Quote', codeBlock: 'Code block' };
+    for (const [kind, label] of Object.entries(blocks)) {
       await reset();
-      await select('Formatting', kind);
+      await click(button(label));
       assert.equal(editor.getJSON().content[0].type, kind);
       await select('Formatting', 'paragraph');
       assert.equal(editor.getJSON().content[0].type, 'paragraph');
@@ -123,9 +124,10 @@ test('Notebook text controls edit real marks, block structures and selected text
     assert.ok(editor.getJSON().content.every((node: any) => node.content[0].marks?.[0].type === 'bold'));
     await select('Formatting', 'heading-2');
     assert.ok(editor.getJSON().content.every((node: any) => node.type === 'heading' && node.attrs.level === 2));
-    for (const kind of ['bulletList', 'orderedList', 'taskList']) {
+    for (const [kind, label] of Object.entries({ bulletList: 'Bullet list', orderedList: 'Numbered list', taskList: 'Checklist' })) {
       await reset('<p>First</p><p>Second</p>', { from: 1, to: 13 });
-      await select('Formatting', kind);
+      await click(button(label));
+      assert.equal(editor.getJSON().content[0].type, kind);
       let start = 0;
       editor.state.doc.descendants((node: { isText: boolean; text?: string }, pos: number) => { if (node.isText && node.text === 'Second') start = pos; });
       await act(() => editor.commands.setTextSelection(start));

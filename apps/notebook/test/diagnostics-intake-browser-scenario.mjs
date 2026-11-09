@@ -6,7 +6,7 @@ import { expect } from '@playwright/test';
 /** Real Notebook/SQLite flow. Host theme transport only; no inventory or diagnostic data fixtures. */
 export async function verifyDiagnosticsAndIntake(page, origin, output) {
   const button = (name, scope = page) => scope.getByRole('button', { name, exact: true });
-  const insert = async name => { await button('Insert block').click(); await page.getByRole('menuitem', { name, exact: true }).click(); };
+  const insert = async name => { await button('Insert').click(); await page.getByRole('menuitem', { name, exact: true }).click(); };
   await page.setViewportSize({ width: 1320, height: 950 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
   await createNotebook(page, origin, 'Diagnostics and sample propagation');

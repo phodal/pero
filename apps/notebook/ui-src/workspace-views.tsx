@@ -1,5 +1,4 @@
 import { messages as notebookMessages } from './messages';
-import { moveBlock } from './block-order';
 import { NamedReferenceTools, NotebookReplacementTools, NotebookStatusBar } from './notebook-reference-controls';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ProcedureRichEditor, ProcedureStepEditor, ProcedureTimerView } from './procedure-step-editor';
@@ -41,6 +40,7 @@ const messages = {
   export: { en: 'Export current JSON', zh: '导出当前 JSON' }, print: { en: 'Print current view', zh: '打印当前视图' },
   markdown: { en: 'Export Markdown', zh: '导出 Markdown' },
   help: { en: 'Shortcuts and local limits', zh: '快捷键与本地限制' },
+  keyboardShortcuts: { en: 'Keyboard shortcuts', zh: '快捷键' },
   exportHint: { en: 'JSON export is a snapshot of the shown document, including unsaved edits. Markdown includes raw cell inputs and recorded provenance, but omits file bytes and some formatting. Exporting and printing do not save a revision.', zh: 'JSON 导出包含当前显示的文档及未保存的更改。Markdown 包含单元格原始输入与已记录的来源，但不包含文件字节及部分格式。导出和打印不会保存修订。' },
   shortcutHint: { en: 'Ctrl/Cmd + Shift + F opens search here. Escape closes a dialog. Arrow keys move between tabs. Document undo/redo includes Notes, procedures and metadata. Dialog and review fields keep their own undo behavior.', zh: '在此处按 Ctrl/Cmd + Shift + F 打开搜索，Esc 关闭对话框，方向键切换标签页。文档撤销/重做包含笔记、步骤和元数据。对话框及审阅字段保留各自的撤销行为。' },
   limitsHint: { en: 'A notebook supports 50 procedures, 100 materials (including components, up to 4 levels) and 500 steps per procedure, and 50 tags. Planned durations are 0–10,080 minutes. Files and the complete document have separate size limits.', zh: '每本笔记最多包含 50 个流程、每个流程 100 项材料（含组分，最多 4 层）与 500 个步骤，以及 50 个标签。计划时长为 0–10,080 分钟。文件和整本文档另有大小限制。' },
@@ -239,7 +239,9 @@ export type NotebookChrome = {
   fileTools?: ReactNode;
 };
 
-function NotebookMenu({ name, menu, children, closeOnSelect = false, caret = false, label }: { name: string; menu: string; children: ReactNode; closeOnSelect?: boolean; caret?: boolean; label?: string }) {
+export function NotebookMenu({ name, menu, children, closeOnSelect = false, caret = false, label, icon }: {
+  name: string; menu: string; children: ReactNode; closeOnSelect?: boolean; caret?: boolean; label?: string; icon?: string;
+}) {
   const ref = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const close = (event: PointerEvent) => {
@@ -252,12 +254,16 @@ function NotebookMenu({ name, menu, children, closeOnSelect = false, caret = fal
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
   }, []);
-  return <details ref={ref} className="notebook-menu" data-menu={menu} onToggle={event => {
+  return <details ref={ref} className="notebook-menu" data-menu={menu} data-icon={icon || undefined} onToggle={event => {
     const node = event.currentTarget;
     if (!node.open) return;
     node.ownerDocument.querySelectorAll('details.notebook-menu[open]').forEach(other => { if (other !== node) other.removeAttribute('open'); });
   }}>
-    <summary>{label && <span className="notebook-visually-hidden">{label} </span>}{name}{caret && <Icon name="chevron-down" size={12} />}</summary>
+    <summary>
+      {label && <span className="notebook-visually-hidden">{label} </span>}
+      {icon ? <><Icon name={icon} size={16} /><span className="notebook-visually-hidden">{name}</span></> : name}
+      {caret && <Icon name="chevron-down" size={12} />}
+    </summary>
     <div className="notebook-menu-panel" onClick={event => {
       if (!closeOnSelect || !(event.target instanceof Element) || !event.target.closest('button, [role="tab"]')) return;
       ref.current?.removeAttribute('open');
@@ -265,10 +271,10 @@ function NotebookMenu({ name, menu, children, closeOnSelect = false, caret = fal
   </details>;
 }
 
-export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, chrome, historyControls, tools, insertTools, helpTools, children }: {
+export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, chrome, tools, helpTools, children }: {
   editor: Editor; entryId: string; revision: number; document: NotebookDocument; readonly: boolean;
   onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode;
-  chrome?: NotebookChrome; tools?: ReactNode; insertTools?: ReactNode; helpTools?: ReactNode;
+  chrome?: NotebookChrome; tools?: ReactNode; helpTools?: ReactNode;
   historyControls?: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void };
   onReplaceDocument?(document: NotebookDocument): void;
 }) {
@@ -346,41 +352,44 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   }}>
     <div className="notebook-jupyter">
       <div className="notebook-menubar">
-        {readonly ? <h1 className="notebook-title">{document.title}</h1> : <Input unstyled data-notebook-document-edit className="notebook-title" aria-label={notebook('title')} placeholder={notebook('untitled')}
-          value={document.title} maxLength={200} onChange={event => onChange({ title: event.target.value })} />}
-        <NotebookMenu name={t('file')} menu="file">
-          {!chrome?.snapshot && chrome?.onHistory && <Button variant="ghost" onClick={event => { chrome.onHistory?.(); event.currentTarget.closest('details')?.removeAttribute('open'); }}>{notebook('history')}</Button>}
-          {chrome?.fileTools}
-          {!readonly && onReplaceDocument && <Button variant="ghost" onClick={() => setDialog('replace')}>{t('documentActions')}</Button>}
-          <div className="notebook-menu-rule" role="separator" />
-          <Button variant="ghost" onClick={downloadJson}>{t('export')}</Button>
-          <Button variant="ghost" onClick={() => downloadFile('Notebook.md', notebookMarkdown({ ...document, content: editor.getJSON() as NotebookDocument['content'] }), 'text/markdown;charset=utf-8')}>{t('markdown')}</Button>
-          {sheetCount > 0 && <Button variant="ghost" onClick={() => void writeWorkbook(worksheetBlocks(editor.state.doc)).then(body => downloadFile('Notebook.xlsx', body, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')).catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))}>{notebook('exportWorkbook')}</Button>}
-        </NotebookMenu>
-        <NotebookMenu name={t('edit')} menu="edit" closeOnSelect>
-          {!readonly && <>
-            <Button variant="ghost" disabled={!historyControls?.canUndo} onClick={() => historyControls?.undo()}>{notebook('undo')}</Button>
-            <Button variant="ghost" disabled={!historyControls?.canRedo} onClick={() => historyControls?.redo()}>{notebook('redo')}</Button>
-            <Button variant="ghost" onClick={() => moveBlock(editor, -1)}>{notebook('up')}</Button>
-            <Button variant="ghost" onClick={() => moveBlock(editor, 1)}>{notebook('down')}</Button>
-          </>}
-          <Button variant="ghost" aria-label={t('search')} onClick={openSearch}><Icon name="search" />{t('search')}</Button>
-        </NotebookMenu>
-        {!readonly && <NotebookMenu name={t('insertMenu')} menu="insert">{insertTools}</NotebookMenu>}
-        <NotebookMenu name={t('helpMenu')} menu="help">
-          <Button variant="ghost" onClick={() => setDialog('help')}>{t('help')}</Button>
-          {helpTools}
-        </NotebookMenu>
-        <NotebookMenu name={t(view)} menu="view" closeOnSelect caret label={t('viewMenu')}>
-          <TabsList aria-label={t('views')} variant="navigation">{views.map(value =>
-            <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}</TabsList>
-        </NotebookMenu>
+        <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
+          {(['notes', 'relevant', 'metadata'] as const).map(value => <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}
+          <NotebookMenu name={t('viewMenu')} menu="view" icon="chevron-down">
+            {(['procedures', 'review'] as const).map(value => <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}
+          </NotebookMenu>
+        </TabsList>
       </div>
+      <div className="notebook-command-row">
       {chrome?.snapshot ? <div className="notebook-toolbar-end">
         <Button variant="ghost" onClick={chrome.onBack}>{notebook('backToDraft')}</Button>
         <Button variant="ghost" disabled={chrome.restoreDisabled} onClick={chrome.onRestore}>{notebook('restoreDraft')}</Button>
       </div> : tools}
+        <div className="notebook-view-actions">
+          {chrome && <span className="notebook-status" role="status">{chrome.status}</span>}
+          <IconButton label={t('search')} onClick={openSearch}><Icon name="search" /></IconButton>
+          <NotebookMenu name={t('file')} menu="file" icon="more">
+            {!chrome?.snapshot && chrome?.onHistory && <Button variant="ghost" onClick={event => { chrome.onHistory?.(); event.currentTarget.closest('details')?.removeAttribute('open'); }}>{notebook('history')}</Button>}
+            {chrome?.fileTools}
+            {!readonly && onReplaceDocument && <Button variant="ghost" onClick={() => setDialog('replace')}>{t('documentActions')}</Button>}
+            <div className="notebook-menu-rule" role="separator" />
+            <Button variant="ghost" onClick={downloadJson}>{t('export')}</Button>
+            <Button variant="ghost" onClick={() => downloadFile('Notebook.md', notebookMarkdown({ ...document, content: editor.getJSON() as NotebookDocument['content'] }), 'text/markdown;charset=utf-8')}>{t('markdown')}</Button>
+            {sheetCount > 0 && <Button variant="ghost" onClick={() => void writeWorkbook(worksheetBlocks(editor.state.doc)).then(body => downloadFile('Notebook.xlsx', body, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')).catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))}>{notebook('exportWorkbook')}</Button>}
+          </NotebookMenu>
+          <NotebookMenu name={t('helpMenu')} menu="help" icon="info">
+            <Button variant="ghost" onClick={() => setDialog('help')}>{t('help')}</Button>
+            {helpTools}
+          </NotebookMenu>
+        </div>
+      </div>
       <div className="notebook-diagnostics-host" />
+    </div>
+    <div className="notebook-entry-head">
+      <div className="notebook-entry-title">
+        <Icon name="document" />
+        {readonly ? <h1 className="notebook-title">{document.title}</h1> : <Input unstyled data-notebook-document-edit className="notebook-title" aria-label={notebook('title')} placeholder={notebook('untitled')}
+          value={document.title} maxLength={200} onChange={event => onChange({ title: event.target.value })} />}
+      </div>
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}
     {notice && <Feedback kind="success">{notice}</Feedback>}
@@ -407,7 +416,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     </TabsContent>
     <div className="notebook-statusbar">
       <NotebookStatusBar editor={editor} variant="output" />
-      {chrome && <span className="notebook-status" role="status">{chrome.status}</span>}
+      <Button variant="ghost" onClick={() => window.document.dispatchEvent(new CustomEvent('pero:notebook-shortcuts'))}>{t('keyboardShortcuts')}</Button>
     </div>
     {dialog === 'search' && <Dialog title={t('search')} closeLabel={t('close')} size="lg" onClose={() => setDialog(null)} restoreFocus={!navigated.current}>
       <Field label={t('searchLabel')} description={t('searchHint')}>{control => <SearchField {...control} value={query} onChange={event => setQuery(event.target.value)} />}</Field>

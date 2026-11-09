@@ -71,8 +71,14 @@ function isSectionDate(date: string): boolean {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
 }
 
+function shownSectionDate(date: string, locale: string) {
+  if (!isSectionDate(date) || date === '') return '';
+  const parsed = new Date(`${date}T00:00:00`);
+  return Number.isFinite(parsed.getTime()) ? new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(parsed) : '';
+}
+
 function SectionView(view: NodeViewProps) {
-  const { t } = useAppI18n(contentBlockMessages);
+  const { t, locale } = useAppI18n(contentBlockMessages);
   const { t: common } = useAppI18n(messages);
   const { label, date, blockId } = view.node.attrs as { label: string; date: string; blockId: string | null };
   const [expanded, setExpanded] = useState(true);
@@ -128,14 +134,15 @@ function SectionView(view: NodeViewProps) {
     finally { setCopying(false); }
   };
 
+  const shownDate = shownSectionDate(date, locale);
   return <NodeViewWrapper ref={container} className="notebook-block notebook-section" data-kind="section" role="group"
     aria-label={label || t('section')} id={anchor} data-selected={view.selected || undefined} data-notebook-block-id={blockId ?? undefined}>
-    <div className="notebook-block-header" contentEditable={false} onFocusCapture={() => rememberWidgetFocus(view.editor, blockId ?? undefined)}>
-      <div className="notebook-block-title">
-        <IconButton label={t(expanded ? 'collapseSection' : 'expandSection')} aria-expanded={expanded} aria-controls={contentId}
-          onClick={() => setExpanded(value => !value)}><Icon name={expanded ? 'chevron-down' : 'chevron-right'} /></IconButton>
-        {editable ? <Input unstyled className="notebook-block-name" aria-label={t('sectionTitle')} placeholder={t('section')}
-          maxLength={200} value={label} onChange={event => view.updateAttributes({ label: event.target.value })} /> : <strong>{label || t('section')}</strong>}
+    <div className="notebook-daybar" contentEditable={false} onFocusCapture={() => rememberWidgetFocus(view.editor, blockId ?? undefined)}>
+      <IconButton label={t(expanded ? 'collapseSection' : 'expandSection')} aria-expanded={expanded} aria-controls={contentId}
+        onClick={() => setExpanded(value => !value)}><Icon name={expanded ? 'chevron-down' : 'chevron-right'} /></IconButton>
+      <span className="notebook-daychip">
+        <Icon name="calendar" size={14} />
+        <span className="notebook-daytext" aria-hidden="true">{shownDate || t('sectionDate')}</span>
         {editable ? <Input className="notebook-section-date" type="date" aria-label={t('sectionDate')} value={date} min="0001-01-01" max="9999-12-31"
           aria-invalid={dateError || undefined} aria-describedby={dateError ? dateErrorId : undefined}
           onChange={event => {
@@ -143,10 +150,14 @@ function SectionView(view: NodeViewProps) {
             const valid = isSectionDate(value);
             setDateError(!valid);
             if (valid) view.updateAttributes({ date: value });
-          }} /> : date && <time dateTime={date}>{date}</time>}
-      </div>
+          }} /> : date && <time className="notebook-visually-hidden" dateTime={date}>{shownDate}</time>}
+      </span>
+      {editable ? <Input unstyled className="notebook-block-name" aria-label={t('sectionTitle')} placeholder={t('section')}
+        maxLength={200} value={label} onChange={event => view.updateAttributes({ label: event.target.value })} /> : <strong>{label || t('section')}</strong>}
+      <span className="notebook-dayactions">
+        <IconButton label={t('copySectionLink')} disabled={copying || !anchor} title={t('sectionLinkScope')} onClick={() => void copy(true)}><Icon name="link" /></IconButton>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild><IconButton label={common('blockActions')}><Icon name="more" /></IconButton></DropdownMenuTrigger>
+        <DropdownMenuTrigger asChild><IconButton label={common('blockActions')}><Icon name="gear" /></IconButton></DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem disabled={copying} onSelect={() => void copy(false)}>{t('copySection')}</DropdownMenuItem>
           <DropdownMenuItem disabled={copying || !anchor} title={t('sectionLinkScope')} onSelect={() => void copy(true)}>{t('copySectionLink')}</DropdownMenuItem>
@@ -157,6 +168,7 @@ function SectionView(view: NodeViewProps) {
           </>}
         </DropdownMenuContent>
       </DropdownMenu>
+      </span>
     </div>
     {dateError && <div contentEditable={false}><Feedback id={dateErrorId} kind="error">{t('sectionDateInvalid')}</Feedback></div>}
     {notice && <div contentEditable={false}><Feedback kind={notice === 'clipboardFailed' ? 'error' : 'success'}>{t(notice)}</Feedback></div>}

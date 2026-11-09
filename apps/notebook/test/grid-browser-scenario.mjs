@@ -1,4 +1,4 @@
-import { createNotebook, ensureMoreTools } from './notebook-browser-actions.mjs';
+import { createNotebook, ensureMoreTools, toggleSpreadsheetPanel } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 import { writeWorkbook } from '@pero/notebook/workbook';
@@ -18,8 +18,7 @@ export async function verifyGridTools(page, origin) {
   await expect(tables).toHaveCount(2);
   const data = tables.nth(0), dependent = tables.nth(1);
   const cell = address => data.locator(`[data-cell=${address}]`);
-  const tools = data.locator('summary').filter({ hasText: 'Worksheet tools' });
-  await tools.click();
+  await toggleSpreadsheetPanel(page, data, 'Worksheet tools');
   await cell('A1').click();
   await data.getByRole('button', { name: 'Bold', exact: true }).click();
   await data.getByRole('button', { name: 'Italic', exact: true }).click();
@@ -36,7 +35,7 @@ export async function verifyGridTools(page, origin) {
   await expect(cell('A1')).toHaveCSS('text-align', 'right');
 
   await cell('A2').click();
-  await data.locator('summary').filter({ hasText: 'Cell details' }).click();
+  await toggleSpreadsheetPanel(page, data, 'Cell details');
   await data.getByLabel('Unit', { exact: true }).fill('mL');
   const action = async name => {
     await data.getByRole('button', { name: 'Rows and columns', exact: true }).click();
@@ -124,7 +123,7 @@ export async function verifyGridTools(page, origin) {
   assert.equal(savedData.merges.length, 1);
   await page.reload();
   await expect(cell('B1')).toHaveCount(0);
-  await tools.click();
+  await toggleSpreadsheetPanel(page, data, 'Worksheet tools');
   await data.getByRole('button', { name: 'Unmerge cells', exact: true }).click();
   await expect(cell('B1')).toHaveValue('7');
   await page.getByRole('button', { name: 'Undo', exact: true }).click();

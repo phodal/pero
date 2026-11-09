@@ -77,9 +77,9 @@ export async function verifyReferenceControls(page, origin, output) {
   await button('Undo').click(); await expect(title()).toHaveValue('Pero research notebook example');
   await button('Redo').click(); await expect(title()).toHaveValue(replacement.title);
   await page.locator('[data-kind=spreadsheet] [data-cell=A1]').click();
-  await button('Toggle active formula inspector').click();
+  await button('Formula inspector').click();
   await expect(page.locator('.notebook-formula-inspector')).toBeVisible();
-  await button('Toggle active formula inspector').click();
+  await button('Formula inspector').click();
   await expect(page.locator('.notebook-formula-inspector')).toHaveCount(0);
   const saving = page.waitForResponse(response => response.url() === `${origin}/api/entries/${entry.id}` && response.request().method() === 'POST');
   await button('Save revision').click(); assert.ok((await saving).ok()); await expect(button('Save revision')).toBeDisabled();

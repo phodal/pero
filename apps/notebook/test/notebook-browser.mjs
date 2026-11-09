@@ -6,7 +6,7 @@ import { verifyStructuredFieldWorkflows } from './structured-field-browser-scena
 import { verifyProcedureParameters } from './procedure-parameters-browser-scenario.mjs';
 import { verifyReviewWorkflows } from './review-workflows-browser-scenario.mjs';
 import { verifyDirectGridInteractions } from './grid-interaction-browser-scenario.mjs';
-import { createNotebook, ensureMoreTools, openNotebookMenu } from './notebook-browser-actions.mjs';
+import { createNotebook, ensureMoreTools, openNotebookMenu, toggleSpreadsheetPanel } from './notebook-browser-actions.mjs';
 import { verifyProcedureWorkspace } from './procedure-workspace-browser-scenario.mjs';
 import { verifySourceExcerpts } from './source-excerpt-browser-scenario.mjs';
 import { verifyDiagnosticsAndIntake } from './diagnostics-intake-browser-scenario.mjs';
@@ -119,7 +119,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(result.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue(formula);
   await expect(result.locator('[data-cell=A1]')).toHaveValue('12');
 
-  await page.getByRole('button', { name: 'Insert block' }).click();
+  await page.getByRole('button', { name: 'Insert', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Evidence' }).click();
   const evidence = page.locator('[data-kind=evidence]');
   const paperExport = await readFile(resolve(app, '../../packages/notebook/test/fixtures/paper-report.json'));
@@ -135,7 +135,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
 
   const controlExport = await readFile(resolve(app, '../../packages/notebook/test/fixtures/control-export.json'));
   const trial = JSON.parse(controlExport).experiment.trials.at(-1);
-  await page.getByRole('button', { name: 'Insert block' }).click();
+  await page.getByRole('button', { name: 'Insert', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Experiment reference', exact: true }).click();
   const experiment = page.locator('[data-kind=experiment]');
   await experiment.locator('input[type=file]').setInputFiles({
@@ -147,14 +147,14 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const recordedVerdict = experiment.locator('.notebook-snapshot > .notebook-reference-actions');
   await expect(recordedVerdict).toContainText(trial.report.verdict);
   await experiment.getByLabel('Label').fill('Locked control trial');
-  await page.getByRole('button', { name: 'Insert block' }).click();
+  await page.getByRole('button', { name: 'Insert', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Finding', exact: true }).click();
   const finding = page.locator('[data-kind=finding]');
   await finding.getByLabel('Claim', { exact: true }).fill('Review both sources before accepting the result.');
   await finding.getByRole('checkbox', { name: /Paper passage/ }).click();
   await finding.getByRole('checkbox', { name: /Locked control trial/ }).click();
 
-  await result.locator('summary').filter({ hasText: 'Cell details' }).click();
+  await toggleSpreadsheetPanel(page, result, 'Cell details');
   await result.getByLabel('Unit', { exact: true }).fill('µL');
   await result.getByRole('checkbox', { name: 'Paper passage' }).click();
   await page.getByRole('button', { name: 'Save revision' }).click();
@@ -248,7 +248,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(result.getByRole('button', { name: 'Block actions' })).toBeFocused();
 
   await createNotebook(page, origin);
-  await page.getByRole('button', { name: 'Insert block' }).click();
+  await page.getByRole('button', { name: 'Insert', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Spreadsheet' }).click();
   const grid = page.locator('[data-kind=spreadsheet]');
   const first = grid.locator('[data-cell=A1]');
@@ -260,21 +260,23 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   });
   await grid.locator('[data-cell=B1]').click();
   await grid.locator('[data-cell=B2]').click({ modifiers: ['Shift'] });
+  const worksheetTools = () => toggleSpreadsheetPanel(page, grid, 'Worksheet tools');
+  await worksheetTools();
   await grid.getByRole('button', { name: 'Fill down' }).click();
   await expect(grid.locator('[data-cell=B2]')).toHaveValue('12');
   await first.click();
   await grid.locator('[data-cell=B2]').click({ modifiers: ['Shift'] });
   await grid.getByRole('button', { name: 'Clear cells' }).click();
+  await worksheetTools();
   await expect(grid.locator('[data-cell=B2]')).toHaveValue('');
   await expect(first).toHaveValue('');
   await grid.getByRole('button', { name: 'Block actions' }).click();
   await expect(page.getByRole('menuitem', { name: 'Export Excel', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(grid.getByRole('button', { name: 'Block actions' })).toBeFocused();
-  const worksheetTools = grid.locator('summary').filter({ hasText: 'Worksheet tools' });
-  await worksheetTools.click();
+  await worksheetTools();
   await expect(grid.getByRole('button', { name: 'Add row', exact: true })).toBeVisible();
-  await worksheetTools.click();
+  await worksheetTools();
   await expect(grid.getByRole('button', { name: 'Add row', exact: true })).toBeHidden();
   await grid.locator('[data-cell=B1]').fill('Keep neighboring cell');
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
