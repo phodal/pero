@@ -29,11 +29,14 @@ succeeded on recording commit `5ed4a040` (merge `67b48301`). Product run
 94 pinned reference groups. Its earlier “exact-head acceptance pending”
 sentence is superseded for runtime evidence by the checks below. Reference
 stubs remain requirements; no private reference source/assets were copied.
-`70d2e2fd` keeps Replace or restore and Keyboard shortcuts at their own
-content width on the scrolling status row through 760px, so one label does
-not paint over the other. `61e028c` shows short decimals in mixture quantity
-inputs and keeps the stored value until the field is edited. Document chrome
-from `c0c4b612` remains in this tree. None of these commits is a visual review.
+`70d2e2fd` keeps Replace or restore and Keyboard shortcuts at
+`flex: 0 0 auto` and `max-content` on the scrolling status row through 760px,
+so one label does not paint over the other. The 600×900 page overflow
+assertion (`documentElement.scrollWidth <= innerWidth`) was not weakened.
+`61e028c` shows short decimals in mixture quantity inputs and keeps the stored
+value until the field is edited. Document chrome from `c0c4b612` remains in
+this tree. None of these commits is A01 visual acceptance. Desktop and Native
+visuals were not reviewed.
 
 ### Checks on this head
 
@@ -44,7 +47,11 @@ success.
 - [Notebook revisions, workbook and browser contracts](https://github.com/phodal/pero/actions/runs/42582557017/job/129044544355)
   succeeded (07:57:21Z–08:00:24Z). Artifact
   [notebook-browser-728d5904…](https://github.com/phodal/pero/actions/runs/42582557017/artifacts/13658116486)
-  retains `test-results/notebook/`.
+  retains `copied-notebook-narrow-dark.png`. That PNG is 600×900. The page is
+  dark. On the tools row, “Replace or restore document” and “Keyboard
+  shortcuts” sit next to each other with a gap; the labels do not overlap.
+  “Editor diagnostics” and “Sections” continue on the same row. This is the
+  browser artifact only. Desktop and Native visuals were not reviewed.
 - [Notebook Canvas real Host and Chromium](https://github.com/phodal/pero/actions/runs/42582557017/job/129044544414)
   succeeded (07:57:20Z–07:58:43Z). Artifact
   [notebook-canvas-browser-728d5904…](https://github.com/phodal/pero/actions/runs/42582557017/artifacts/13657263798).
@@ -98,13 +105,14 @@ Still outside this goal:
 - Physical inventory movement and instrument runs.
 - Native WebView rendering and packaged distribution.
 
-[A01](../design/notebook-component-parity.md) stays partial. This record does
-not review narrow-dark, printed-page, Desktop, or Native screenshots for
-`70d2e2fd` or run 42582557017. Narrow document chrome through 760px remains in
-this tree: `0851c351` keeps the nowrap toolbar inside the viewport,
-`c0c4b612` shortens that chrome so the title stays on screen and document
-actions share a row with editor status, and `70d2e2fd` gives those action
-controls their own content width so the labels do not paint over each other.
+[A01](../design/notebook-component-parity.md) stays partial. Desktop and Native
+visuals were not reviewed. The 600×900 dark browser capture named above was
+inspected only for the tools-row overlap. A printed page was not reviewed.
+Narrow document chrome through 760px remains in this tree: `0851c351` keeps
+the nowrap toolbar inside the viewport, `c0c4b612` shortens that chrome so
+the title stays on screen and document actions share a row with editor
+status, and `70d2e2fd` gives those action controls `flex: 0 0 auto` and
+`max-content` so the labels do not paint over each other.
 `96fffc83` drops the published draft after save so reload does not restore an
 earlier debounce copy. The passing Chromium job checks a 600×900 dark
 viewport (`data-theme=pero-dark`, title still visible, no horizontal
@@ -189,9 +197,9 @@ The exact-head contracts for `70d2e2fd` are the “Checks on this head” sectio
 above. Older local counts below are historical and are not promoted to that
 head. The ELN goal is not complete. Notebook browser, Canvas Host, Native
 shell, Linux core, Official DSH, and the Linux CI gate passed on this head.
-Desktop, Windows ACL, paper-HTML, and A01 visual acceptance of the
-narrow-dark viewport, a printed page, Desktop, and Native screenshots were
-not reviewed here. The external boundaries above remain.
+A01 visual acceptance is not claimed. A printed page was not reviewed.
+Desktop and Native visuals were not reviewed. Windows ACL and paper-HTML
+jobs were skipped. The external boundaries above remain.
 
 Historical wave 4 source validation, based on `c5b9f202` and including the local
 controls, diagnostics and waiver fixes: **141 package tests, 77 editor tests,
