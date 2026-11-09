@@ -401,6 +401,77 @@ class NotebookTest(unittest.TestCase):
             NotebookDocument.parse(stored).block('inputs')['attrs']['sheet']['cells']['A1'],
             '=WEBSERVICE("https://example.invalid/hook")')
 
+    def test_agent_reads_stay_inside_one_entry_and_revision(self):
+        def paragraph(identity, text):
+            return {'type': 'paragraph', 'attrs': {'blockId': identity},
+                    'content': [{'type': 'text', 'text': text}]}
+
+        def note(title, blocks):
+            return {'schemaVersion': 1, 'title': title, 'content': {'type': 'doc', 'content': blocks}}
+
+        secret = 'secret-from-the-other-note'
+        later = 'later-only-revision'
+        bulk = note('Visible record', [
+            paragraph('intro', 'method'),
+            {'type': 'spreadsheet', 'attrs': {
+                'blockId': 'bulk', 'label': 'Bulk',
+                'sheet': {'rows': 200, 'columns': 2, 'cells': {
+                    f'{column}{row}': 'x' * 2500 for row in range(1, 201) for column in ('A', 'B')
+                }},
+            }},
+        ])
+        hidden = note('Hidden record', [paragraph('private-note', secret)])
+        with tempfile.TemporaryDirectory() as directory:
+            store = EntryStore(directory)
+            with ThreadingHTTPServer(('127.0.0.1', 0), handler(store, 'test-secret')) as server:
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    def request(method, path, data=None, authorized=True):
+                        connection = HTTPConnection('127.0.0.1', server.server_port, timeout=5)
+                        try:
+                            headers = {'Content-Type': 'application/json'}
+                            if authorized:
+                                headers['X-Pero-App-Token'] = 'test-secret'
+                            connection.request(method, path, json.dumps(data).encode() if data is not None else None, headers)
+                            response = connection.getresponse()
+                            return response.status, json.loads(response.read())
+                        finally:
+                            connection.close()
+
+                    status, first = request('POST', '/api/entries', {'title': 'Visible record'})
+                    status, second = request('POST', '/api/entries', {'title': 'Hidden record'})
+                    self.assertEqual(request('POST', f"/api/entries/{first['id']}", {'baseRevision': 1, 'document': bulk})[0], 200)
+                    self.assertEqual(request('POST', f"/api/entries/{second['id']}", {'baseRevision': 1, 'document': hidden})[0], 200)
+                    status, index = request('POST', '/api/agent-read', {'entryId': first['id']})
+                    self.assertEqual((status, index['format'], index['id'], index['revision']), (200, 'block-index', first['id'], 2))
+                    self.assertEqual([item['blockId'] for item in index['blocks']], ['intro', 'bulk'])
+                    listed = json.dumps(index)
+                    self.assertNotIn(secret, listed)
+                    self.assertNotIn('private-note', listed)
+                    self.assertNotIn('Hidden record', listed)
+                    status, other = request('POST', '/api/agent-read', {'entryId': second['id']})
+                    self.assertEqual(other['document']['content']['content'][0]['attrs']['blockId'], 'private-note')
+                    self.assertNotIn('bulk', json.dumps(other['document']))
+                    self.assertNotIn('x' * 2500, json.dumps(other))
+                    self.assertEqual(request('POST', '/api/agent-read', {'entryId': first['id'], 'blockId': 'private-note'})[0], 404)
+                    self.assertEqual(request('POST', '/api/agent-read', {'entryId': second['id'], 'blockId': 'bulk'})[0], 404)
+                    replacement = note('Visible record', [paragraph('later', later)])
+                    self.assertEqual(request('POST', f"/api/entries/{first['id']}", {'baseRevision': 2, 'document': replacement})[0], 200)
+                    status, pinned = request('POST', '/api/agent-read', {'entryId': first['id'], 'revision': 2})
+                    self.assertEqual((status, pinned['revision'], [item['blockId'] for item in pinned['blocks']]),
+                                     (200, 2, ['intro', 'bulk']))
+                    self.assertNotIn(later, json.dumps(pinned))
+                    status, current = request('POST', '/api/agent-read', {'entryId': first['id'], 'revision': 3})
+                    self.assertEqual(current['document']['content']['content'][0]['attrs']['blockId'], 'later')
+                    self.assertNotIn('bulk', json.dumps(current['document']))
+                    status, denied = request('POST', '/api/agent-read', {'entryId': second['id']}, authorized=False)
+                    self.assertEqual(status, 401)
+                    self.assertNotIn(secret, json.dumps(denied))
+                finally:
+                    server.shutdown()
+                    thread.join(3)
+
 
 if __name__ == '__main__':
     unittest.main()
