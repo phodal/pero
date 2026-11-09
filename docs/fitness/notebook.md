@@ -111,9 +111,9 @@ views in light and dark themes. Use the PR's latest exact-head CI and screenshot
 artifact for the executed result; source changes alone do not establish visual
 or Desktop/Native acceptance.
 
-## Expanded component coverage: current source scope
+## Expanded checkpoint coverage: source scope
 
-The 2026-11-09 re-audit covers the expanded PR 181 working tree, not a released
+The first 2026-11-09 re-audit covers the expanded PR 181 checkpoint, not a released
 or exact-head browser-accepted build. The pinned reference mapping and remaining
 work are in [Notebook component parity](../design/notebook-component-parity.md).
 All 94 reference interaction groups remain mapped, including reference stubs;
@@ -137,7 +137,7 @@ UI paths above are under `apps/notebook/ui-src/` unless otherwise qualified.
 Unqualified Python/UI test filenames are under `apps/notebook/test/`; unqualified
 package test filenames in a package row share its `packages/notebook/test/` root.
 
-**Exact-head browser acceptance is pending.** This documentation audit inspected
+**Checkpoint browser acceptance was pending at this audit.** This documentation audit inspected
 source and relevant test definitions; it did not execute the expanded suite.
 The browser scenarios `notebook-browser.mjs`, `notebook-components-scenario.mjs`,
 `grid-browser-scenario.mjs` and `content-editing-browser.mjs` must pass against the
@@ -154,3 +154,54 @@ collections/source workflows and other remaining capabilities are implementation
 work, not automatically external blockers. Multi-user identity, compliant
 signatures, remote registry/inventory and physical instrument outcomes require
 actual owners and separate acceptance; local records must not claim those events.
+
+## Wave 2 source integration and current acceptance boundary
+
+This section supersedes the earlier checkpoint's capability limitations where
+explicitly noted. Base checkpoint: `9f9b247f` (expanded baseline plus CI repairs). The following
+wave 2 work was frozen separately from in-progress Canvas and review workflows
+for validation. Integrated exact-head browser acceptance remains pending.
+
+| Wave 2 capability | Concrete source owner | Relevant tests / scenarios |
+| --- | --- | --- |
+| Template organization and table workflows | `template-collections.tsx`, `table-workflows.tsx`, `table-source.tsx`, `catalog-archive.tsx`; Python collection/workflow/archive modules own SQLite revisioned organization, view definitions, mappings/resync receipts and archive events. | `test_table_workflows.py`, `table-workflow-tools.test.ts`, `packages/notebook/test/table-workflows.test.ts`, `table-workflow-browser-scenario.mjs` |
+| Scientific designs | `plate-design-library.tsx`, `scientific-content.tsx`, `molecular-graph.tsx`, `backend/scientific_designs.py`, `packages/notebook/src/scientific-designs.ts`: immutable plate metadata/layout designs and structural molecular/reaction records, edit/revise, chemical extraction and MOL export. | `test_scientific_designs.py`, `scientific-content.test.ts`, `packages/notebook/test/scientific-designs.test.ts`, `scientific-content-scenario.mjs` |
+| Typed AI sources and recovery | `ai-tools.tsx`, `ai-cell-review.tsx`, `ai-history.tsx`, `ai-recovery.ts`, `backend/ai_proposals.py`; package `ai-proposals.ts`, `ai-sources.ts`, `ai-recovery.ts`: explicit bounded UTF-8 source selection, per-cell decisions, revision/draft/protected-value checks, durable requests/proposals and application recovery. | `ai-tools.test.ts`, `test_ai_proposals.py`, `packages/notebook/test/ai-proposals.test.ts`, `packages/notebook/test/ai-generation.test.ts` |
+| Diagnostics and sample propagation | `editor-diagnostics.ts`, mounted `editor-inspector.tsx`, `sample-catalog.tsx`, `sample-propagation.tsx`, `sample-intake.tsx`: real selection/paste/HTML observations, current schema/contracts, measured view-update duration; local catalog box grouping, worklist export and staged binding application. | `editor-diagnostics.test.ts`, `sample-intake-ui.test.ts`, `test_sample_intake.py`, `diagnostics-intake-browser-scenario.mjs` |
+| Source excerpts | `source-excerpt.tsx`, `backend/source_excerpt.py`, `packages/notebook/src/source-excerpt.ts`: exact retained UTF-8 source/quote/range/digest, attachment pin, edit, download and reveal, with stale-source checks. | `test_source_excerpt.py`, `source-excerpt-ui.test.ts`, `packages/notebook/test/source-excerpt.test.ts`, `source-excerpt-browser-scenario.mjs` |
+| Rich procedure relationships | `procedure-materials.tsx`, `procedure-step-editor.tsx`, `workspace-views.tsx`, package/Python workspace domains: rich introduction/material notes, nested materials, pinned local catalog picker, procedure/step/material deep links and well-grid insertion. | `procedure-workspace.test.ts`, `test_procedure_workspace.py`, `procedure-steps.test.ts`, `test_procedure_steps.py`, `procedure-workspace-browser-scenario.mjs` |
+| Canvas discovery | `app-canvas.tsx`, package Canvas domain and App SDK installed-view listing: actual installation declarations, enabled/missing/stale/cancel states and owner navigation. | `app-canvas.test.ts`, `test_app_canvas.py`, `packages/notebook/test/app-canvas.test.ts` |
+
+UI/test shorthand follows the preceding section. Test files identify coverage
+intent, not a claim that every scenario passed or that private reference code
+was reused. Chemical validation is structural, not chemical safety, valence,
+stereo, aromaticity or reaction balancing. AI/excerpt input support is bounded
+UTF-8 text, not PDF/image/Office/OCR. Catalog records/propagation are not physical
+inventory operations. Canvas inline Data embedding/actions are still in progress. Direct grid
+resize/reorder and a bounded formula source AST are now implemented; the source
+AST is not an internal evaluator AST and unsupported constructs fail explicitly.
+
+Current runtime evidence (2026-11-09):
+
+- Frozen wave 2: `npm run test:notebook` passed 107 package tests, 53 editor
+  tests and 78 Python tests. Notebook typecheck/build, generated protocol and
+  locale checks passed. Six SDK/desktop installed-view catalog tests passed.
+- [Base CI run 42549907982](https://github.com/phodal/pero/actions/runs/42549907982)
+  passed the main real-backend Notebook browser scenario, including component
+  workflows. Its separate content-editing scenario exposed raster crop-edge
+  interpolation bleeding outside the selected crop; that fix is tracked
+  separately. This is **not a full browser pass**.
+- The run's actual procedure desktop-light, retained-revision dark and review
+  narrow-dark screenshots were inspected. Their layout fit the captured views.
+  This evidence verifies only the base checkpoint, not wave 2 or future work.
+- Integrated wave 2 Chromium/backend scenarios, final artifacts, print,
+  Desktop/Native execution and configured live-model execution remain pending.
+  Local Chromium remains blocked by the established socket restriction; no
+  repeated launch or restriction bypass was attempted.
+
+Remaining locally implementable work beyond active Canvas includes review
+configuration/reassignment/bulk transitions, post-registration autofill and
+row-scoped entity/unit pickers, procedure parameter/cross-step relationships,
+master-mix/dependency diagnostics and print affordances, and durable image
+lineage/non-text extraction. See the parity document for exact limits. Missing
+implementation is not automatically an external permission blocker.
