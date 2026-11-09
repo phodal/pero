@@ -1,69 +1,125 @@
 import { useEffect, useRef, useState } from 'react';
-import { openAppSession, useAppAgent, useAppI18n } from '@pero/app-sdk';
-import { Button, Disclosure, Feedback, Field, NativeSelect, Textarea } from '@pero/app-sdk/ui';
-import { freezeGeneration, readGeneratedCandidates, type FrozenGeneration, type GeneratedCandidates, type GenerationTarget } from '@pero/notebook/ai-generation';
+import { openAppSession, useAppAgent } from '@pero/app-sdk';
+import { Button, Checkbox, Disclosure, Feedback, Field, FilePicker, NativeSelect, Textarea } from '@pero/app-sdk/ui';
+import { freezeGeneration, freezeTypedGeneration, isAIUnresolved, isTypedGeneration, listAISources, listAITables, readAIBlockSource, readAISourceBytes, readGeneratedCandidates, readTypedProposal, sourceFormatMessage, hasAIApplication,
+  type AIApplication, type AIRecovery, type AISource, type FrozenGeneration, type FrozenTypedGeneration, type GenerationTarget } from '@pero/notebook/ai-generation';
 import { CandidateReviewPanel } from './science-tools-review';
+import { AICellReview } from './ai-cell-review';
+import { AIHistory } from './ai-history';
+import { useAIRecovery } from './ai-recovery';
 import type { SciencePanelProps } from './science-tools-shared';
-const messages = {
-  goal: { en: 'Proposal goal', zh: '建议目标' }, agent: { en: 'Configured Host agent', zh: '已配置 Host Agent' }, generate: { en: 'Generate candidates', zh: '生成候选数据' },
-  unavailable: { en: 'No configured Host agent is available. Configure an agent in Host, then refresh. No model request or synthetic result is substituted.', zh: '没有可用的 Host Agent。请在 Host 配置 Agent 后刷新；不会用模拟结果替代。' },
-  refresh: { en: 'Refresh availability', zh: '刷新可用性' }, cancel: { en: 'Cancel session', zh: '取消会话' }, recover: { en: 'Reconcile original request', zh: '核对原请求' }, poll: { en: 'Refresh session status', zh: '刷新会话状态' }, open: { en: 'Open Host session', zh: '打开 Host 会话' },
-  scope: { en: 'Explicitly sends the current draft and saved revision to the selected Host agent. Output is reviewed as new literal-text rows; it never overwrites existing or protected cells. Closing this panel stops polling, not the Host session. Open the session to handle approvals or cancel.', zh: '点击后向所选 Host Agent 发送当前草稿与保存版本。输出需复核并作为新的字面文本行插入，不覆盖已有或受保护单元格。关闭面板仅停止轮询，不停止 Host 会话；可打开会话处理审批或取消。' },
-  transcript: { en: 'Host transcript', zh: 'Host 对话记录' }, unknown: { en: 'Request outcome unknown. Reconcile the same frozen request; do not start another.', zh: '请求结果未知。请核对同一个冻结请求，不要重新发起。' },
-};
-export function NotebookAITools({ getTarget, ...props }: SciencePanelProps & { getTarget(): GenerationTarget | null }) {
-  const agent = useAppAgent(), { t } = useAppI18n(messages);
-  const [goal, setGoal] = useState(''), [agentId, setAgentId] = useState(''), [frozen, setFrozen] = useState<FrozenGeneration | null>(null);
-  const [sessionId, setSession] = useState(''), [status, setStatus] = useState('idle'), [error, setError] = useState(''), [text, setText] = useState('');
-  const [generated, setGenerated] = useState<GeneratedCandidates>(), [busy, setBusy] = useState(false);
-  const live = useRef(true), polling = useRef(false), latest = useRef(agent); latest.current = agent;
-  const currentFrozen = useRef(frozen); currentFrozen.current = frozen;
+
+export function NotebookAITools({ getTarget, onApply, ...props }: SciencePanelProps & { getTarget(): GenerationTarget | null; onApply?(application: AIApplication): boolean }) {
+  const agent = useAppAgent(), target = getTarget(), recovery = useAIRecovery(target?.entryId ?? '');
+  const [goal, setGoal] = useState(''), [agentId, setAgentId] = useState(''), [mode, setMode] = useState('cells'), [blockId, setBlockId] = useState('');
+  const [emptyOnly, setEmptyOnly] = useState(true), [sources, setSources] = useState<AISource[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const live = useRef(true), operation = useRef(false), latest = useRef(agent); latest.current = agent;
   useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
-  const selected = agentId || agent.agents.find(item => item.available)?.id || '';
-  const pending = ['starting', 'unknown', 'running', 'needs_input', 'cancelling'].includes(status);
-  async function start(input: FrozenGeneration) {
-    setBusy(true); setStatus('starting'); setError('');
-    try { const result = await latest.current.start({ requestId: input.requestId, agentId: input.agentId, prompt: input.prompt }); if (live.current) { setSession(result.sessionId); setStatus('running'); } }
-    catch (cause) { if (live.current) { setStatus('unknown'); setError(String(cause)); } }
-    finally { if (live.current) setBusy(false); }
+  const record = recovery.workspace.record, selected = agentId || agent.agents.find(item => item.available)?.id || '';
+  const pending = !!record && isAIUnresolved(record), locked = busy || recovery.busy || !recovery.loaded;
+  const draft = props.getContent(), tables = listAITables(draft), options = listAISources(draft), selectedTable = blockId || tables[0]?.blockId || '';
+  const act = async (work: () => Promise<void>) => {
+    if (operation.current) return;
+    operation.current = true; setBusy(true); setError('');
+    try { await work(); } catch (cause) { if (live.current) setError(String(cause)); }
+    finally { operation.current = false; if (live.current) setBusy(false); }
+  };
+  async function start(frozen: FrozenGeneration | FrozenTypedGeneration) {
+    // Persist the request identity before talking to Host, including on same-request reconciliation.
+    const prepared: AIRecovery = { frozen, sessionId: '', status: 'starting', transcript: '', decisions: {}, application: 'reviewing' };
+    await recovery.save(prepared);
+    let sessionId: string;
+    try { sessionId = (await latest.current.start({ requestId: frozen.requestId, agentId: frozen.agentId, prompt: frozen.prompt })).sessionId; }
+    catch (cause) {
+      await recovery.save({ ...prepared, status: 'unknown' });
+      throw cause;
+    }
+    await recovery.save({ ...prepared, sessionId, status: 'running' });
   }
   async function poll() {
-    if (!sessionId || !frozen || polling.current) return;
-    polling.current = true;
-    try {
-      const result = await latest.current.events({ sessionId, after: 0 });
-      if (!live.current || currentFrozen.current !== frozen) return;
-      setStatus(result.status); setText(result.text); setError('');
-      if (result.status === 'completed') {
-        try { setGenerated(readGeneratedCandidates(frozen, sessionId, result.text)); }
-        catch (cause) { setGenerated(undefined); setError(String(cause)); }
-      }
-    } catch (cause) { if (live.current) { setError(String(cause)); setStatus('unavailable'); } }
-    finally { polling.current = false; }
+    const current = recovery.state.current.record;
+    if (!current?.sessionId || !recovery.loaded || ['applied', 'dismissed'].includes(current.application)) return;
+    const result = await latest.current.events({ sessionId: current.sessionId, after: 0 });
+    if (result.status !== current.status || result.text !== current.transcript) await recovery.save({ ...current, status: result.status, transcript: result.text, ...(result.text !== current.transcript ? { decisions: {}, application: 'reviewing' as const } : {}) });
   }
   useEffect(() => {
-    if (!sessionId || !['running', 'needs_input', 'cancelling'].includes(status)) return;
-    void poll(); const timer = setInterval(() => void poll(), 1500); return () => clearInterval(timer);
-  }, [sessionId, status, frozen]);
+    if (!record?.sessionId || !['running', 'needs_input', 'cancelling'].includes(record.status) || !recovery.loaded) return;
+    const timer = setInterval(() => { if (!operation.current) void act(poll); }, 1500);
+    return () => clearInterval(timer);
+  }, [record?.sessionId, record?.status, recovery.loaded]);
+  let generated, typed, parseError = '';
+  if (record?.status === 'completed') {
+    try { if (isTypedGeneration(record.frozen)) typed = readTypedProposal(record.frozen, record.sessionId, record.transcript); else generated = readGeneratedCandidates(record.frozen, record.sessionId, record.transcript); }
+    catch (cause) { parseError = String(cause); }
+  }
+  const addSource = (source: AISource) => setSources(previous => [...previous.filter(item => item.id !== source.id), source]);
+  const canStart = recovery.loaded && (!record || !pending && ['applied', 'dismissed'].includes(record.application));
+  const applicationPresent = !!record && hasAIApplication(draft, record.frozen.requestId, record.sessionId);
   return <div className="notebook-science-panel">
-    <p className="notebook-note">{t('scope')}</p>
-    {!agent.available && <Feedback kind="warning">{t('unavailable')}</Feedback>}
-    <Button disabled={busy} onClick={() => void agent.refresh()}>{t('refresh')}</Button>
-    <Field label={t('agent')}>{control => <NativeSelect {...control} value={selected} disabled={pending} onChange={event => setAgentId(event.target.value)}><option value="">—</option>{agent.agents.map(item => <option key={item.id} value={item.id} disabled={!item.available}>{item.name}</option>)}</NativeSelect>}</Field>
-    <Field label={t('goal')}>{control => <Textarea {...control} value={goal} maxLength={4000} disabled={pending} onChange={event => setGoal(event.target.value)} />}</Field>
-    <Button disabled={busy || pending || status === 'unavailable' || !agent.available || !selected || !goal.trim()} onClick={() => {
-      try { const target = getTarget(); if (!target) throw new Error('Open a saved entry first.'); const input = freezeGeneration(crypto.randomUUID(), selected, target, props.getContent(), goal); setFrozen(input); setSession(''); setGenerated(undefined); setText(''); void start(input); }
-      catch (cause) { setError(String(cause)); }
-    }}>{t('generate')}</Button>
-    {status === 'unknown' && frozen && <><Feedback kind="warning">{t('unknown')}</Feedback><Button disabled={busy} onClick={() => void start(frozen)}>{t('recover')}</Button></>}
-    {sessionId && <div className="notebook-science-actions">
-      <span role="status">{status} · {sessionId}</span>
-      <Button onClick={() => void openAppSession(sessionId).catch(cause => setError(String(cause)))}>{t('open')}</Button>
-      <Button disabled={busy} onClick={() => void poll()}>{t('poll')}</Button>
-      <Button disabled={busy || ['completed', 'failed', 'cancelled'].includes(status)} onClick={async () => { setBusy(true); setGenerated(undefined); try { await agent.cancel({ sessionId }); if (live.current) { setStatus('cancelling'); setGenerated(undefined); } } catch (cause) { if (live.current) setError(String(cause)); } finally { if (live.current) setBusy(false); } }}>{t('cancel')}</Button>
-    </div>}
+    <p className="notebook-note">Generate sends the listed selected sources and target table to the selected configured Host agent. New-row mode sends the current draft. Review all changes before applying. Closing this panel stops polling, not the Host session. / 生成将所选来源和目标表格发送至所选 Host Agent；新行模式发送当前草稿。修改须经复核，关闭面板不会取消 Host 会话。</p>
+    {!agent.available && <Feedback kind="warning">No configured Host agent is available. Configure one in Host and refresh. No synthetic output is substituted. / 没有可用的 Host Agent，请在 Host 配置后刷新，不使用模拟输出。</Feedback>}
+    <div className="notebook-science-actions"><Button disabled={locked} onClick={() => void agent.refresh()}>Refresh availability / 刷新可用性</Button><Button disabled={busy || recovery.busy} onClick={() => void recovery.load()}>Reload saved recovery / 重新载入恢复记录</Button></div>
+    {recovery.error && <Feedback kind="error">{recovery.error}</Feedback>}
+    {!target && <Feedback kind="warning">Open a saved entry first. / 请先打开已保存条目。</Feedback>}
+    <Field label="Configured Host agent / 已配置 Host Agent">{control => <NativeSelect {...control} value={selected} disabled={locked || pending} onChange={event => setAgentId(event.target.value)}><option value="">—</option>{agent.agents.map(item => <option key={item.id} value={item.id} disabled={!item.available}>{item.name}</option>)}</NativeSelect>}</Field>
+    <Field label="Proposal mode / 建议模式">{control => <NativeSelect {...control} value={mode} disabled={locked || pending} onChange={event => setMode(event.target.value)}><option value="cells">Extract and fill typed cells / 提取并填充类型单元格</option><option value="rows">Generate new literal-text rows / 生成新的字面文本行</option></NativeSelect>}</Field>
+    <Field label="Proposal goal / 建议目标">{control => <Textarea {...control} value={goal} maxLength={4000} disabled={locked || pending} onChange={event => setGoal(event.target.value)} />}</Field>
+    {mode === 'cells' && <>
+      <Field label="Editable target table / 可编辑目标表">{control => <NativeSelect {...control} value={selectedTable} disabled={locked || pending} onChange={event => setBlockId(event.target.value)}><option value="">—</option>{tables.map(table => <option key={table.blockId} value={table.blockId}>{table.table.name || table.blockId} · {table.kind}</option>)}</NativeSelect>}</Field>
+      {!tables.length && <Feedback kind="info">Add an input or registration table with a valid schema first. Protected, computed, lookup and source snapshots are not editable AI targets. / 请先添加具有有效字段定义的输入表或登记表，受保护、计算及来源快照不可作为写入目标。</Feedback>}
+      <label><Checkbox checked={emptyOnly} disabled={locked || pending} onCheckedChange={value => setEmptyOnly(value === true)} /> Fill empty cells only / 仅填充空单元格</label>
+      <p>{sourceFormatMessage}</p>
+      <Field label="Select a local notebook source / 选择笔记本地来源">{control => <NativeSelect {...control} value="" disabled={locked || pending} onChange={event => {
+        const option = options.find(item => item.id === event.target.value); if (option) void act(async () => addSource(await readAIBlockSource(option)));
+      }}><option value="">Choose source / 选择来源</option>{options.map(option => <option key={option.id} value={option.id} disabled={!option.supported}>{option.name}{option.supported ? '' : ' · Unsupported / 不支持'}</option>)}</NativeSelect>}</Field>
+      <FilePicker label="Read local text file / 读取本地文本文件" compact emptyLabel="" disabled={locked || pending} onFile={file => void act(async () => {
+        if (file.size > 65_536) throw new Error('Source exceeds 64 KiB; nothing was sent.');
+        addSource(await readAISourceBytes(crypto.randomUUID(), file.name, file.type, new Uint8Array(await file.arrayBuffer())));
+      })} />
+      <ul>{sources.map(source => <li key={source.id}>{source.name} · {source.bytes} bytes · SHA-256 {source.sha256.slice(0, 12)}<Button disabled={locked || pending} onClick={() => setSources(sources.filter(item => item.id !== source.id))}>Remove / 移除</Button><Disclosure summary="Preview source sent to Host / 预览发送至 Host 的来源"><pre className="notebook-science-json">{source.text}</pre></Disclosure></li>)}</ul>
+      {!onApply && <Feedback kind="warning">Typed application is unavailable in this surface. / 此界面无法应用类型单元格修改。</Feedback>}
+    </>}
+    <Button variant="primary" disabled={locked || !canStart || !agent.available || !selected || !goal.trim() || !target || mode === 'cells' && (!selectedTable || !sources.length || !onApply)} onClick={() => void act(async () => {
+      const currentTarget = getTarget(); if (!currentTarget) throw new Error('Open a saved entry first.');
+      const frozen = mode === 'cells' ? await freezeTypedGeneration(crypto.randomUUID(), selected, currentTarget, props.getContent(), goal, selectedTable, sources, emptyOnly) : freezeGeneration(crypto.randomUUID(), selected, currentTarget, props.getContent(), goal);
+      await start(frozen);
+    })}>Generate candidates</Button>
+    {record && <>
+      <p role="status">{record.status} · {record.frozen.agentId} · {record.sessionId || record.frozen.requestId}</p>
+      {isTypedGeneration(record.frozen) && <><p>Frozen sources / 冻结来源: {record.frozen.sources.map(source => source.name).join(', ')}</p><Disclosure summary="Frozen source content and digests / 冻结来源内容及摘要"><pre className="notebook-science-json">{JSON.stringify(record.frozen.sources, null, 2)}</pre></Disclosure></>}
+      {['unknown', 'starting'].includes(record.status) && !record.sessionId && <><Feedback kind="warning">Request outcome unknown. Reconcile the same frozen request; do not start another. / 请求结果未知，请核对同一冻结请求，不要重新发起。</Feedback><Button disabled={locked} onClick={() => void act(() => start(record.frozen))}>Reconcile original request / 核对原请求</Button></>}
+      {record.sessionId && <div className="notebook-science-actions">
+        <Button onClick={() => void openAppSession(record.sessionId).catch(cause => setError(String(cause)))}>Open Host session / 打开 Host 会话</Button>
+        <Button disabled={locked || ['applied', 'dismissed'].includes(record.application)} onClick={() => void act(poll)}>Refresh session status / 刷新会话状态</Button>
+        <Button disabled={locked || !pending} onClick={() => void act(async () => {
+          await recovery.save({ ...record, status: 'cancelling' });
+          await latest.current.cancel({ sessionId: record.sessionId });
+          // Only the next Host observation can confirm cancellation.
+        })}>Cancel session / 取消会话</Button>
+      </div>}
+      {record.transcript && <Disclosure summary="Host transcript / Host 对话记录"><pre className="notebook-science-json">{record.transcript}</pre></Disclosure>}
+      {parseError && <Feedback kind="error">{parseError}</Feedback>}
+      {record.application === 'applying' && applicationPresent && <Button disabled={locked} onClick={() => void act(async () => { await recovery.save({ ...record, application: 'applied' }); })}>Confirm recovered application / 确认恢复的应用记录</Button>}
+      {record.application === 'applied' && !applicationPresent && isTypedGeneration(record.frozen) && <Feedback kind="warning">Previously applied, but its provenance is absent from this draft. Check saved revisions or undo history before starting another proposal. No changes were replayed. / 此建议曾应用，但当前草稿中没有来源记录，请检查修订或撤销历史；未自动重复应用。</Feedback>}
+      {typed && record.application !== 'dismissed' && isTypedGeneration(record.frozen) && <AICellReview frozen={record.frozen} proposal={typed} decisions={record.decisions} busy={locked} applied={record.application === 'applied' || applicationPresent} getContent={props.getContent} getTarget={getTarget}
+        onDecide={decisions => act(async () => { await recovery.save({ ...record, decisions }); })}
+        onApply={async application => {
+          if (operation.current || !recovery.loaded || !onApply) throw new Error('Application is unavailable while another action is pending.');
+          operation.current = true; setBusy(true);
+          try {
+            await recovery.save({ ...record, application: 'applying' });
+            if (!onApply(application)) throw new Error('The editor did not apply the proposal. Check its draft and retry only after reviewing.');
+            await recovery.save({ ...record, application: 'applied' });
+          } finally { operation.current = false; if (live.current) setBusy(false); }
+        }} />}
+      {generated && record.application !== 'applied' && record.application !== 'dismissed' && <CandidateReviewPanel {...props} generated={generated} getTarget={getTarget} onSnapshot={(title, snapshot, rows) => {
+        if (locked) return false; const applied = props.onSnapshot(title, snapshot, rows);
+        if (applied) void act(async () => { await recovery.save({ ...record, application: 'applied' }); });
+        return applied;
+      }} />}
+      {!pending && !['applied', 'dismissed'].includes(record.application) && <Button disabled={locked} onClick={() => void act(async () => { await recovery.save({ ...record, application: 'dismissed' }); })}>Dismiss this review / 放弃此次复核</Button>}
+    </>}
+    {target && <AIHistory entryId={target.entryId} />}
     {error && <Feedback kind="error">{error}</Feedback>}
-    {text && <Disclosure summary={t('transcript')}><pre className="notebook-science-json">{text}</pre></Disclosure>}
-    {generated && <CandidateReviewPanel {...props} generated={generated} getTarget={getTarget} />}
   </div>;
 }
