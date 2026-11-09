@@ -168,6 +168,7 @@ def external_formula(value):
         character = value[index]
         if character in ('"', "'"):
             quote = character
+            content_start = index + 1
             index += 1
             while index < length:
                 if value[index] == quote:
@@ -177,6 +178,9 @@ def external_formula(value):
                     index += 1
                     break
                 index += 1
+            # '[Workbook]Sheet'!A1 reads another file when a spreadsheet calculates it.
+            if quote == "'" and index < length and value[index] == '!' and '[' in value[content_start:index - 1]:
+                return True
             continue
         if character == '|':
             return True
