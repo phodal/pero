@@ -1,6 +1,7 @@
 pub mod workspace_files;
 pub mod acp;
 pub mod agent_plugins;
+pub mod skill_market;
 pub mod context;
 pub mod file_documents;
 pub mod session_artifacts;
