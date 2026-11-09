@@ -22,7 +22,7 @@ export const messages = {
   exportDraft: { en: 'Export draft', zh: '导出草稿' },
   conflict: { en: 'Another change was saved first. Your draft is still here. You can export it before loading the latest revision.', zh: '已有更新先于此草稿保存。草稿仍然保留，可在载入最新修订前导出。' },
   askAgent: { en: 'Ask Agent', zh: '询问 Agent' },
-  askPrompt: { en: 'Read Notebook entry {id}, revision {number}. Review the methods, evidence and findings. Identify missing provenance and clearly distinguish evidence from suggestions.', zh: '阅读研究笔记 {id} 的修订 {number}。复核方法、证据与发现，指出缺少的来源，并区分已有证据与建议。' },
+  askPrompt: { en: 'Read Notebook entry {id}, revision {number}. If it is large, read-entry returns that revision’s block IDs and an offset for the next page. Review the methods, evidence and findings. Identify missing provenance and clearly distinguish evidence from suggestions.', zh: '阅读研究笔记 {id} 的修订 {number}。条目较大时，read-entry 返回该修订的块 ID 和下一页 offset。复核方法、证据与发现，指出缺少的来源，并区分已有证据与建议。' },
   body: { en: 'Notebook content', zh: '笔记正文' },
   format: { en: 'Formatting', zh: '格式' },
   paragraph: { en: 'Paragraph', zh: '段落' },

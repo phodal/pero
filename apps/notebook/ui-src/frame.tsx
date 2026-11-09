@@ -173,14 +173,31 @@ function Notebook() {
     id: 'notebook-entry',
     kind: 'notebook-entry',
     label: shown?.title || t('notebook'),
-    state: shown ? { entryId: shown.id, revision: shown.revision, title: shown.title } : { phase: 'empty' },
+    state: shown ? {
+      entryId: shown.id, revision: shown.revision, title: shown.title,
+      discovery: 'Call read for this entry and revision. A large entry returns format=block-index with blockId values. Pass offset to continue.',
+    } : { phase: 'empty' },
     actions: {
       read: {
-        description: 'Read this saved Notebook revision or a single block with its typed content and source references.',
-        parameters: { type: 'object', properties: { blockId: { type: 'string' } }, additionalProperties: false },
+        description: 'Read this open saved revision. A large entry returns format=block-index with up to 100 block IDs and types. Pass blockId to read one block, or offset to continue an index page or JSON chunk. This reads only the open entry at its saved revision.',
+        parameters: {
+          type: 'object',
+          properties: {
+            blockId: { type: 'string', minLength: 1, maxLength: 128 },
+            offset: { type: 'integer', minimum: 0, maximum: 2147483647 },
+            view: { type: 'string', enum: ['index'] },
+          },
+          additionalProperties: false,
+        },
         run: params => {
           if (!shown) throw new Error('Open a notebook revision first.');
-          return api.post('/api/agent-read', { entryId: shown.id, revision: shown.revision, ...(params.blockId ? { blockId: params.blockId } : {}) });
+          return api.post('/api/agent-read', {
+            entryId: shown.id,
+            revision: shown.revision,
+            ...(typeof params.blockId === 'string' ? { blockId: params.blockId } : {}),
+            ...(typeof params.offset === 'number' ? { offset: params.offset } : {}),
+            ...(params.view ? { view: params.view } : {}),
+          });
         },
       },
     },
