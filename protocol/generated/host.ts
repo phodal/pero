@@ -118,6 +118,7 @@ export type QuestionReply = AnsweredQuestions | CancelledQuestions;
 export type EngramSettingsRequest = GetEngramSettings | SetEngramSettings | SetEngramDocument;
 export type EngramBinary = string;
 export type AppRequest =
+  | SkillMarketApp
   | LocalEnvironmentApp
   | EnvironmentInspectionApp
   | AppApiAccess
@@ -141,9 +142,15 @@ export type AppRequest =
   | AutomationApp
   | ResearchAssetsApp;
 export type AppName = string;
+export type SkillMarketOperation =
+  SkillMarketRead | SkillMarketEntryOperation | SkillMarketEnable | SkillMarketRollback | SkillMarketCancel;
+/**
+ * User-managed inventory; skill instructions do not grant execution permissions.
+ */
+export type SkillMarketId = string;
+export type RequestId = string;
 export type LocalEnvironmentOperation =
   LocalEnvironmentCreate | LocalEnvironmentList | LocalEnvironmentPrepare | LocalEnvironmentBind;
-export type RequestId = string;
 export type AgentRunRequest =
   | AgentRunPrepare
   | AgentRunTerminal
@@ -1755,6 +1762,34 @@ export interface SetEngramDocument {
   scope: string;
   text: string;
 }
+export interface SkillMarketApp {
+  action: "skillsmarket";
+  name: AppName;
+  request: SkillMarketOperation;
+  method: "apps";
+  id: RequestId;
+}
+export interface SkillMarketRead {
+  operation: "catalog" | "installed";
+}
+export interface SkillMarketEntryOperation {
+  operation: "install" | "remove" | "check-update" | "update";
+  id: SkillMarketId;
+}
+export interface SkillMarketEnable {
+  operation: "enable";
+  id: SkillMarketId;
+  enabled: boolean;
+}
+export interface SkillMarketRollback {
+  operation: "rollback";
+  id: SkillMarketId;
+  revision?: string;
+}
+export interface SkillMarketCancel {
+  operation: "cancel";
+  id: SkillMarketId;
+}
 export interface LocalEnvironmentApp {
   action: "localenvironment";
   name: AppName;
@@ -3220,6 +3255,7 @@ export interface SessionCreatedData {
   appBinding?: AppSessionBinding;
   appPlugin?: AppPluginAssembly;
   agentPlugins?: AgentPluginRevision[];
+  skillSelections?: SkillMarketSelection[];
 }
 export interface AppSessionBinding {
   app: AppName;
@@ -3255,6 +3291,10 @@ export interface AppWriteRoute {
 export interface AgentPluginRevision {
   name: AppName;
   version: string;
+  revision: string;
+}
+export interface SkillMarketSelection {
+  id: string;
   revision: string;
 }
 export interface UserMessageEvent {
@@ -3704,6 +3744,10 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | SkillMarketCatalog
+    | SkillMarketInstalled
+    | SkillMarketUpdate
+    | SkillMarketCancelled
     | LocalEnvironmentRecord[]
     | EnvironmentInspectionReport
     | AgentPreparedContext
@@ -3727,6 +3771,45 @@ export interface AppSuccess {
     | AppGrant
     | ResearchAssetReply
     | ResearchBundleReply;
+}
+export interface SkillMarketCatalog {
+  schema_version: number;
+  generated_at: string;
+  issue_url: string;
+  source_document: unknown;
+  collection_status?: "collecting" | "complete";
+  categories?: SkillMarketCategories;
+  sources: AppDocumentSchema[];
+  skills: AppDocumentSchema[];
+  resources: AppDocumentSchema[];
+  exclusions: AppDocumentSchema[];
+  stats: AppDocumentSchema;
+}
+export interface SkillMarketCategories {
+  [k: string]: string | undefined;
+}
+export interface SkillMarketInstalled {
+  items: InstalledMarketSkill[];
+  supportedAgent: "pero";
+}
+export interface InstalledMarketSkill {
+  id: string;
+  revision: string;
+  enabled: boolean;
+  selected: boolean;
+  invocation: string;
+  previousRevision?: string;
+  versions: string[];
+  entry?: AppDocumentSchema;
+}
+export interface SkillMarketUpdate {
+  id: string;
+  currentRevision: string;
+  latestRevision: string;
+  updateAvailable: boolean;
+}
+export interface SkillMarketCancelled {
+  cancelled: true;
 }
 export interface LocalEnvironmentRecord {
   id: AppName;

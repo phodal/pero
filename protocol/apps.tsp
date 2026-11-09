@@ -79,6 +79,32 @@ model ProjectResourceReference { app: string; kind: string; id: string; revision
 model ProjectResourceSummary { reference: ProjectResourceReference; title: string; summary: string; status: string; verification?: string | null; location: string; ...AppClosed; }
 model ProjectResourceCatalog { app: string; resources: ProjectResourceSummary[]; error?: string | null; ...AppClosed; }
 model ConnectorsApp { action: "connectors"; name: AppName; ...RequestBase; }
+/** User-managed inventory; skill instructions do not grant execution permissions. */
+@minLength(1) @maxLength(2048) scalar SkillMarketId extends string;
+model SkillMarketRead { operation: "catalog" | "installed"; ...AppClosed; }
+model SkillMarketEntryOperation { operation: "install" | "remove" | "check-update" | "update"; id: SkillMarketId; ...AppClosed; }
+model SkillMarketEnable { operation: "enable"; id: SkillMarketId; enabled: boolean; ...AppClosed; }
+model SkillMarketCancel { operation: "cancel"; id: SkillMarketId; ...AppClosed; }
+model SkillMarketRollback { operation: "rollback"; id: SkillMarketId; revision?: string; ...AppClosed; }
+@oneOf union SkillMarketOperation { SkillMarketRead, SkillMarketEntryOperation, SkillMarketEnable, SkillMarketRollback, SkillMarketCancel }
+model SkillMarketApp { action: "skillsmarket"; name: AppName; request: SkillMarketOperation; ...RequestBase; }
+model SkillMarketCategories is Record<string>;
+model SkillMarketCatalog {
+  schema_version: uint32; generated_at: string; issue_url: string; source_document: unknown;
+  collection_status?: "collecting" | "complete"; categories?: SkillMarketCategories;
+  sources: AppDocumentSchema[]; skills: AppDocumentSchema[]; resources: AppDocumentSchema[];
+  exclusions: AppDocumentSchema[]; stats: AppDocumentSchema;
+  ...AppClosed;
+}
+model SkillMarketSelection { id: string; revision: string; ...AppClosed; }
+model InstalledMarketSkill {
+  id: string; revision: string; enabled: boolean; selected: boolean; invocation: string;
+  previousRevision?: string; versions: string[]; entry?: AppDocumentSchema;
+  ...AppClosed;
+}
+model SkillMarketInstalled { items: InstalledMarketSkill[]; supportedAgent: "pero"; ...AppClosed; }
+model SkillMarketUpdate { id: string; currentRevision: string; latestRevision: string; updateAvailable: boolean; ...AppClosed; }
+model SkillMarketCancelled { cancelled: true; ...AppClosed; }
 /** Paper may request only saved research identities; Host owns the fixed Data target. */
 @minLength(64) @maxLength(64) @pattern("^[a-f0-9]{64}$") scalar ResearchId extends string;
 model ResearchAssetStart { operation: "start"; bundleId: ResearchId; assetId: ResearchId; ...AppClosed; }
@@ -137,9 +163,9 @@ model LocalEnvironmentBind { operation:"bind";id:AppName;...AppClosed; }
 @oneOf union LocalEnvironmentOperation { LocalEnvironmentCreate,LocalEnvironmentList,LocalEnvironmentPrepare,LocalEnvironmentBind }
 model LocalEnvironmentApp {action:"localenvironment";name:AppName;request:LocalEnvironmentOperation;...RequestBase;}
 model LocalEnvironmentRecord {id:AppName;label:string;target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice"|"lcms2yield.inference";dependencies:string[];state:"created"|"preparing"|"ready"|"failed";log:string[];error:string|null;bound:boolean;...AppClosed;}
-@oneOf union AppRequest { LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ResolveStaticApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
+@oneOf union AppRequest { SkillMarketApp, LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ResolveStaticApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: LocalEnvironmentRecord[] | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
+model AppSuccess { ok: true; value: SkillMarketCatalog | SkillMarketInstalled | SkillMarketUpdate | SkillMarketCancelled | LocalEnvironmentRecord[] | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 

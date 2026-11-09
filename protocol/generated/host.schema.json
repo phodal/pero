@@ -1742,6 +1742,9 @@
       "title": "AppRequest",
       "oneOf": [
         {
+          "$ref": "#/$defs/SkillMarketApp"
+        },
+        {
           "$ref": "#/$defs/LocalEnvironmentApp"
         },
         {
@@ -2126,6 +2129,18 @@
         },
         "value": {
           "anyOf": [
+            {
+              "$ref": "#/$defs/SkillMarketCatalog"
+            },
+            {
+              "$ref": "#/$defs/SkillMarketInstalled"
+            },
+            {
+              "$ref": "#/$defs/SkillMarketUpdate"
+            },
+            {
+              "$ref": "#/$defs/SkillMarketCancelled"
+            },
             {
               "type": "array",
               "items": {
@@ -8876,6 +8891,48 @@
       ],
       "additionalProperties": false
     },
+    "InstalledMarketSkill": {
+      "title": "InstalledMarketSkill",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "selected": {
+          "type": "boolean"
+        },
+        "invocation": {
+          "type": "string"
+        },
+        "previousRevision": {
+          "type": "string"
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entry": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "enabled",
+        "selected",
+        "invocation",
+        "versions"
+      ],
+      "additionalProperties": false
+    },
     "InstallIconTheme": {
       "title": "InstallIconTheme",
       "type": "object",
@@ -14836,6 +14893,12 @@
           "items": {
             "$ref": "#/$defs/AgentPluginRevision"
           }
+        },
+        "skillSelections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SkillMarketSelection"
+          }
         }
       },
       "required": [
@@ -15421,6 +15484,338 @@
           "$ref": "#/$defs/ExecuteCommand"
         }
       ]
+    },
+    "SkillMarketApp": {
+      "title": "SkillMarketApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "skillsmarket"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "request": {
+          "$ref": "#/$defs/SkillMarketOperation"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "request",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "SkillMarketCancel": {
+      "title": "SkillMarketCancel",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "cancel"
+        },
+        "id": {
+          "$ref": "#/$defs/SkillMarketId"
+        }
+      },
+      "required": [
+        "operation",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "SkillMarketCancelled": {
+      "title": "SkillMarketCancelled",
+      "type": "object",
+      "properties": {
+        "cancelled": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "cancelled"
+      ],
+      "additionalProperties": false
+    },
+    "SkillMarketCatalog": {
+      "title": "SkillMarketCatalog",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "issue_url": {
+          "type": "string"
+        },
+        "source_document": {},
+        "collection_status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "collecting"
+            },
+            {
+              "type": "string",
+              "const": "complete"
+            }
+          ]
+        },
+        "categories": {
+          "$ref": "#/$defs/SkillMarketCategories"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppDocumentSchema"
+          }
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppDocumentSchema"
+          }
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppDocumentSchema"
+          }
+        },
+        "exclusions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppDocumentSchema"
+          }
+        },
+        "stats": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "issue_url",
+        "source_document",
+        "sources",
+        "skills",
+        "resources",
+        "exclusions",
+        "stats"
+      ],
+      "additionalProperties": false
+    },
+    "SkillMarketCategories": {
+      "title": "SkillMarketCategories",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "SkillMarketEnable": {
+      "title": "SkillMarketEnable",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "enable"
+        },
+        "id": {
+          "$ref": "#/$defs/SkillMarketId"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "operation",
+        "id",
+        "enabled"
+      ],
+      "additionalProperties": false
+    },
+    "SkillMarketEntryOperation": {
+      "title": "SkillMarketEntryOperation",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "install"
+            },
+            {
+              "type": "string",
+              "const": "remove"
+            },
+            {
+              "type": "string",
+              "const": "check-update"
+            },
+            {
+              "type": "string",
+              "const": "update"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/SkillMarketId"
+        }
+      },
+      "required": [
+        "operation",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "SkillMarketId": {
+      "title": "SkillMarketId",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "User-managed inventory; skill instructions do not grant execution permissions."
+    },
+    "SkillMarketInstalled": {
+      "title": "SkillMarketInstalled",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InstalledMarketSkill"
+          }
+        },
+        "supportedAgent": {
+          "type": "string",
+          "const": "pero"
+        }
+      },
+      "required": [
+        "items",
+        "supportedAgent"
+      ],
+      "additionalProperties": false
+    },
+    "SkillMarketOperation": {
+      "title": "SkillMarketOperation",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SkillMarketRead"
+        },
+        {
+          "$ref": "#/$defs/SkillMarketEntryOperation"
+        },
+        {
+          "$ref": "#/$defs/SkillMarketEnable"
+        },
+        {
+          "$ref": "#/$defs/SkillMarketRollback"
+        },
+        {
+          "$ref": "#/$defs/SkillMarketCancel"
+        }
+      ]
+    },
+    "SkillMarketRead": {
+      "title": "SkillMarketRead",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "catalog"
+            },
+            {
+              "type": "string",
+              "const": "installed"
+            }
+          ]
+        }
+      },
+      "required": [
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    "SkillMarketRollback": {
+      "title": "SkillMarketRollback",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "rollback"
+        },
+        "id": {
+          "$ref": "#/$defs/SkillMarketId"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "SkillMarketSelection": {
+      "title": "SkillMarketSelection",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "SkillMarketUpdate": {
+      "title": "SkillMarketUpdate",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "currentRevision": {
+          "type": "string"
+        },
+        "latestRevision": {
+          "type": "string"
+        },
+        "updateAvailable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "currentRevision",
+        "latestRevision",
+        "updateAvailable"
+      ],
+      "additionalProperties": false
     },
     "SourceChunk": {
       "title": "SourceChunk",

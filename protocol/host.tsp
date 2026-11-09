@@ -463,7 +463,7 @@ model AppAgentAttemptData {attempt:Pero.Apps.AgentRunAttempt;runTime?:string;...
 model AppAgentAttemptEvent {kind:"app_agent_attempt";...ThreadEventBase;data:AppAgentAttemptData}
 model AppAgentCancelData {runTime?:string;...Closed}
 model AppAgentCancelEvent {kind:"app_agent_cancel";...ThreadEventBase;data:AppAgentCancelData}
-model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; appPlugin?: Pero.Apps.AppPluginAssembly; agentPlugins?: Pero.Apps.AgentPluginRevision[]; ...Closed }
+model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; appPlugin?: Pero.Apps.AppPluginAssembly; agentPlugins?: Pero.Apps.AgentPluginRevision[]; skillSelections?: Pero.Apps.SkillMarketSelection[]; ...Closed }
 model SessionCreatedEvent { kind: "session_created"; ...ThreadEventBase; data: SessionCreatedData }
 model UserMessageContext {contexts: ContextReference[]; ...Closed}
 model UserMessageEvent { kind: "user_message"; ...ThreadEventBase; data?: UserMessageContext }
