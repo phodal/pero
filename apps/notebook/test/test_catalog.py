@@ -90,6 +90,8 @@ class CatalogStoreTest(unittest.TestCase):
         self.assertEqual(reopened.register({'submissionId': 'submit-1', 'table': table}), receipt)
         self.assertEqual(reopened.lookup(query())['total'], 1)
         self.assertEqual(reopened.lookup(query())['records'][0]['values']['name'], {'type': 'text', 'value': 'A'})
+        self.assertEqual(reopened.lookup(query())['records'][0]['name'], 'A')
+
         changed = copy.deepcopy(table)
         changed['rows'][0]['cells']['name'] = 'B'
         with self.assertRaises(SubmissionConflict):

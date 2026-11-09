@@ -101,6 +101,17 @@ def _serialized(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
 
 
+def _record_display_name(table, values):
+    """Prefer a Name/name text cell for review lists; fall back to the table title."""
+    preferred = next((column for column in table.columns
+                      if column.kind == 'text' and (column.identity == 'name' or column.name.strip().casefold() == 'name')), None)
+    if preferred:
+        cell = values.get(preferred.identity)
+        if isinstance(cell, dict) and cell.get('type') == 'text' and isinstance(cell.get('value'), str) and cell['value'].strip():
+            return cell['value']
+    return table.name
+
+
 @dataclass(frozen=True)
 class TypedCell:
     kind: str
@@ -462,13 +473,15 @@ class CatalogStore:
                     raise ValueError('Restore archived catalog records before registering an update')
                 record_id = current['id'] if current else uuid4().hex
                 version = current['version'] + 1 if current else 1
+                values = {key: cell.wire() for key, cell in cells}
                 record = {'id': record_id, 'version': version, 'schemaId': table.schema_id, 'schemaRevision': table.schema_revision,
-                          'tableId': table.identity, 'rowId': row_id, 'name': table.name, 'registeredAt': registered_at,
-                          'values': {key: cell.wire() for key, cell in cells}, 'columns': [column.wire() for column in table.columns]}
+                          'tableId': table.identity, 'rowId': row_id, 'name': _record_display_name(table, values), 'registeredAt': registered_at,
+                          'values': values, 'columns': [column.wire() for column in table.columns]}
                 if waiver:
                     record['waiver'] = waiver.wire()
                 connection.execute('INSERT INTO catalog_versions VALUES (?, ?, ?, ?, ?, ?)',
-                                   (record_id, version, table.schema_id, _serialized(record), _serialized(record).casefold(), registered_at))
+                                   (record_id, version, table.schema_id, _serialized(record),
+                                    f'{_serialized(record)}\n{table.name}'.casefold(), registered_at))
                 connection.execute('INSERT INTO catalog_rows VALUES (?, ?, ?, ?) ON CONFLICT (table_id, row_id) DO UPDATE SET version = excluded.version',
                                    (table.identity, row_id, record_id, version))
                 records.append({'rowId': row_id, 'recordId': record_id, 'version': version})
