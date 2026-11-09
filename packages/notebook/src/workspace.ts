@@ -244,7 +244,122 @@ export interface NotebookSearchItem {
   ownerId?: string;
 }
 
-/** A projection of recorded content, never attachment bytes or invented summaries. */
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+const recordedTexts = (...values: unknown[]): string[] => values.flatMap(value =>
+  typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)) ? [String(value)] : []);
+const quantityText = (value: unknown): string[] => {
+  const quantity = asRecord(value);
+  return quantity ? recordedTexts(quantity.value, quantity.unit) : [];
+};
+const recipeText = (value: unknown): string[] => {
+  const recipe = asRecord(value);
+  if (!recipe) return [];
+  const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients.flatMap(ingredient => {
+    const item = asRecord(ingredient);
+    return item ? recordedTexts(item.reference, item.source, item.mode, ...quantityText(item.target)) : [];
+  }) : [];
+  return [...recordedTexts(recipe.name, recipe.output, recipe.notes, ...quantityText(recipe.target)), ...ingredients];
+};
+const elementText = (graph: unknown): string[] => {
+  const atoms = asRecord(graph)?.atoms;
+  return Array.isArray(atoms) ? atoms.flatMap(atom => recordedTexts(asRecord(atom)?.element)) : [];
+};
+/** Recorded labels and values for blocks whose content lives in attributes.
+ * File bytes, structure coordinates and declaration digests stay out of search. */
+function recordedBlockSearch(type: string, attrs: Record<string, unknown>): { label: string; text: string } | null {
+  if (type === 'inputTable' || type === 'registrationTable') {
+    const table = asRecord(attrs.table);
+    const schema = asRecord(table?.schema);
+    const columnList = schema && Array.isArray(schema.columns) ? schema.columns : [];
+    const rowList = table && Array.isArray(table.rows) ? table.rows : [];
+    const columns = columnList.flatMap(column => recordedTexts(asRecord(column)?.name));
+    const cells = rowList.flatMap(row => {
+      const values = asRecord(asRecord(row)?.cells);
+      return values ? Object.values(values).flatMap(cell => recordedTexts(cell)) : [];
+    });
+    const receipts = Array.isArray(attrs.receipts) ? attrs.receipts.flatMap(receipt => {
+      const item = asRecord(receipt), waiver = asRecord(item?.waiver);
+      const records = Array.isArray(item?.records) ? item.records.flatMap(record => recordedTexts(asRecord(record)?.rowId, asRecord(record)?.recordId)) : [];
+      return [...recordedTexts(waiver?.reason, waiver?.attribution), ...records];
+    }) : [];
+    const label = recordedTexts(table?.name)[0] ?? '';
+    return { label, text: [label, ...columns, ...cells, ...receipts].join(' ') };
+  }
+  if (type === 'lookupTable') {
+    const query = recordedTexts(asRecord(attrs.query)?.text);
+    const snapshot = asRecord(attrs.snapshot);
+    const records = snapshot && Array.isArray(snapshot.records) ? snapshot.records : [];
+    const values = records.flatMap(record => {
+      const item = asRecord(record), cells = asRecord(item?.values);
+      const typed = cells ? Object.values(cells).flatMap(cell => recordedTexts(asRecord(cell)?.value, asRecord(cell)?.unit)) : [];
+      return [...recordedTexts(item?.name, item?.id), ...typed];
+    });
+    const label = query[0] || values[0] || '';
+    return { label, text: [...query, ...values].join(' ') };
+  }
+  if (type === 'mixturePrep') {
+    const mixture = asRecord(attrs.mixture);
+    const draft = recipeText(mixture?.draft);
+    const saved = mixture && Array.isArray(mixture.recipes) ? mixture.recipes.flatMap(item => recipeText(asRecord(item)?.recipe)) : [];
+    const prepared = mixture && Array.isArray(mixture.records) ? mixture.records.flatMap(item => {
+      const row = asRecord(item), actual = asRecord(row?.actual);
+      return [...recordedTexts(row?.operator, row?.notes, row?.output), ...recipeText(row?.recipe), ...(actual ? Object.values(actual).flatMap(quantityText) : [])];
+    }) : [];
+    const measurements = asRecord(mixture?.measurements);
+    const measured = measurements ? Object.values(measurements).flatMap(quantityText) : [];
+    const label = recordedTexts(attrs.label)[0] || draft[0] || '';
+    return { label, text: [label, ...draft, ...saved, ...prepared, ...measured].join(' ') };
+  }
+  if (type === 'chemical') {
+    const chemical = asRecord(attrs.chemical), source = asRecord(chemical?.source);
+    const label = recordedTexts(chemical?.name)[0] ?? '';
+    return { label, text: [label, ...elementText(chemical?.graph), ...recordedTexts(source?.moleculeId, source?.id)].join(' ') };
+  }
+  if (type === 'reactionScheme') {
+    const reaction = asRecord(attrs.reaction);
+    const molecules = reaction && Array.isArray(reaction.molecules) ? reaction.molecules.flatMap(molecule => {
+      const item = asRecord(molecule);
+      return item ? [...recordedTexts(item.name, item.role), ...elementText(item.graph)] : [];
+    }) : [];
+    const label = recordedTexts(reaction?.name)[0] ?? '';
+    return { label, text: [label, ...recordedTexts(reaction?.notes), ...molecules].join(' ') };
+  }
+  if (type === 'sampleIntake') {
+    const intake = asRecord(attrs.intake);
+    const bindings = intake && Array.isArray(intake.bindings) ? intake.bindings.flatMap(binding => {
+      const item = asRecord(binding), source = asRecord(item?.source), snapshot = asRecord(item?.snapshot);
+      const records = snapshot && Array.isArray(snapshot.records) ? snapshot.records : [];
+      return [...recordedTexts(source?.input, source?.well, source?.fileName), ...records.flatMap(record => recordedTexts(asRecord(record)?.name, asRecord(record)?.id))];
+    }) : [];
+    const label = recordedTexts(intake?.name)[0] ?? '';
+    return { label, text: [label, ...recordedTexts(intake?.mode, intake?.field, intake?.input, intake?.fileName), ...bindings].join(' ') };
+  }
+  if (type === 'sourceExcerpt') {
+    const excerpt = asRecord(attrs.excerpt), source = asRecord(excerpt?.source);
+    const label = recordedTexts(attrs.label)[0] || recordedTexts(source?.filename)[0] || '';
+    return { label, text: [label, ...recordedTexts(excerpt?.quote, excerpt?.text, source?.filename, source?.mime)].join(' ') };
+  }
+  if (type === 'savedSearch') {
+    const snapshot = asRecord(attrs.snapshot);
+    const results = snapshot && Array.isArray(snapshot.results) ? snapshot.results : [];
+    const found = results.flatMap(result => {
+      const item = asRecord(result);
+      const tags = item && Array.isArray(item.tags) ? item.tags.flatMap(tag => recordedTexts(tag)) : [];
+      return [...recordedTexts(item?.title, item?.summary, item?.entryId), ...tags];
+    });
+    const label = recordedTexts(attrs.label)[0] ?? '';
+    return { label, text: [label, ...recordedTexts(attrs.queryId), ...found].join(' ') };
+  }
+  if (type === 'appCanvas') {
+    const binding = asRecord(attrs.binding), inputs = asRecord(binding?.inputs);
+    const label = recordedTexts(attrs.label)[0] ?? '';
+    return { label, text: [label, ...recordedTexts(binding?.app, binding?.panel, binding?.view, binding?.id), ...(inputs ? Object.values(inputs).flatMap(value => recordedTexts(value)) : [])].join(' ') };
+  }
+  return null;
+}
+
+/** A projection of recorded content, never attachment bytes, coordinates or invented summaries. */
 export function notebookSearchItems(content: NotebookNode, procedures: NotebookProcedure[] = []): NotebookSearchItem[] {
   const items: NotebookSearchItem[] = [];
   const inlineText = (node: NotebookNode): string => node.type === 'hardBreak' ? '\n'
@@ -273,6 +388,9 @@ export function notebookSearchItems(content: NotebookNode, procedures: NotebookP
       label = strings(attrs.claim); text = strings(label, attrs.limitations, ...(attrs.evidenceIds as string[] ?? [])); outline = true;
     } else if (node.type === 'attachment') {
       label = strings(attrs.filename); text = strings(label, attrs.caption, attrs.mime, attrs.sha256); outline = true;
+    } else {
+      const recorded = recordedBlockSearch(node.type, attrs);
+      if (recorded) { label = recorded.label; text = recorded.text; outline = true; }
     }
     if (typeof id === 'string' && (text || outline)) items.push({ id, kind: node.type, label, text, depth, outline });
     for (const child of node.content ?? []) visit(child, depth + (node.type === 'section' ? 1 : 0));

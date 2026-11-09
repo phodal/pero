@@ -94,6 +94,16 @@ function content(): NotebookNode & { type: 'doc'; content: NotebookNode[] } {
       { type: 'evidence', attrs: { blockId: 'evidence', label: 'Paper source', source: { app: 'paper-agent', kind: 'report', id: 'source-id', version: 'v1', locator: 'pero-app-location://paper-agent/source-id' }, snapshot: { kind: 'paper-report', quote: 'Measured temperature', exportSha256: 'digest' } } },
       { type: 'experiment', attrs: { blockId: 'experiment', label: 'Trial reference', source: { app: 'control-lab', kind: 'trial', id: 'trial-id', version: '', locator: '' }, snapshot: null } },
       { type: 'attachment', attrs: { blockId: 'attachment', filename: 'sample.png', mime: 'image/png', data: 'secretFileBytes', caption: 'Instrument photograph', sha256: 'attachment-digest' } },
+      { type: 'inputTable', attrs: { blockId: 'inputs', table: { name: 'Daily counts', schema: { columns: [{ name: 'Count' }] }, rows: [{ cells: { count: '18 replicates' } }] } } },
+      { type: 'registrationTable', attrs: { blockId: 'registry', table: { name: 'Samples', schema: { columns: [{ name: 'Name' }] }, rows: [{ cells: { name: 'Stored sample A' } }] }, receipts: [{ records: [{ rowId: 'row-a', recordId: 'rec-1' }], waiver: { reason: 'field blank', attribution: 'local operator' }, inputHash: 'deadbeefhash' }] } },
+      { type: 'lookupTable', attrs: { blockId: 'lookup', query: { text: 'PBS stock' }, snapshot: { records: [{ id: 'rec-pbs', name: 'Phosphate buffer', values: { name: { type: 'text', value: 'Phosphate buffer', unit: 'mM' } } }] } } },
+      { type: 'mixturePrep', attrs: { blockId: 'mixture', label: 'Lysis mix', mixture: { draft: { name: 'Lysis buffer', notes: 'keep cold', ingredients: [{ reference: 'Tris', source: 'catalog tris', target: { value: 1, unit: 'g' } }] }, records: [{ operator: 'Ada', notes: 'prepared overnight' }] } } },
+      { type: 'chemical', attrs: { blockId: 'chemical', chemical: { name: 'Caffeine', graph: { atoms: [{ element: 'N', x: 12.25, y: 4 }] }, source: { moleculeId: 'mol-caf' } } } },
+      { type: 'reactionScheme', attrs: { blockId: 'reaction', reaction: { name: 'Esterification', notes: 'acid catalyst', molecules: [{ name: 'Ethanol', role: 'reactant', graph: { atoms: [{ element: 'O' }] } }] } } },
+      { type: 'sampleIntake', attrs: { blockId: 'intake', intake: { name: 'Plate map', mode: 'barcode', input: 'A1 barcode', fileName: 'plate.csv', bindings: [{ source: { input: 'A1 barcode', well: 'A1', fileName: 'plate.csv' }, snapshot: { records: [{ id: 'rec-1', name: 'Stored sample A' }] } }] } } },
+      { type: 'sourceExcerpt', attrs: { blockId: 'excerpt', label: 'Methods quote', excerpt: { quote: 'quoted passage', text: 'page text about incubation', source: { filename: 'methods.pdf', mime: 'application/pdf', sha256: 'excerptdigest' } } } },
+      { type: 'savedSearch', attrs: { blockId: 'saved', label: 'Open buffers', queryId: 'query-1', snapshot: { results: [{ title: 'Prior entry title', summary: 'buffer inventory', tags: ['stock'], entryId: 'entry-9' }] } } },
+      { type: 'appCanvas', attrs: { blockId: 'canvas', label: 'Dataset inspector', binding: { id: 'bind-1', app: 'data', panel: 'inspector', view: 'dataset', declaration: 'abcdefdeclaration', inputs: { dataset: 'measurements-set' } } } },
     ] },
   ] };
 }
@@ -104,9 +114,14 @@ test('search, outline and relevant-item projections address real nested content 
   for (const [query, ids] of [
     ['CONTROL café', ['body']], ['monday', ['section']], ['=A1*2', ['sheet']],
     ['source-id', ['evidence']], ['temperature', ['evidence']], ['photograph', ['attachment']],
-    ['secretFileBytes', []], ['not present', []],
+    ['18 replicates', ['inputs']], ['Stored sample A', ['registry', 'intake']], ['field blank', ['registry']],
+    ['PBS stock', ['lookup']], ['Phosphate buffer', ['lookup']], ['Tris', ['mixture']], ['Ada', ['mixture']],
+    ['Caffeine', ['chemical']], ['mol-caf', ['chemical']], ['Ethanol', ['reaction']], ['acid catalyst', ['reaction']],
+    ['A1 barcode', ['intake']], ['quoted passage', ['excerpt']], ['incubation', ['excerpt']],
+    ['Prior entry title', ['saved']], ['measurements-set', ['canvas']],
+    ['secretFileBytes', []], ['deadbeefhash', []], ['12.25', []], ['excerptdigest', []], ['abcdefdeclaration', []], ['not present', []],
   ] as const) assert.deepEqual(searchNotebook(items, query).map(item => item.id), ids);
-  assert.deepEqual(searchNotebook(items, '').map(item => item.id), ['heading', 'section', 'sheet', 'evidence', 'experiment', 'attachment']);
+  assert.deepEqual(searchNotebook(items, '').map(item => item.id), ['heading', 'section', 'sheet', 'evidence', 'experiment', 'attachment', 'inputs', 'registry', 'lookup', 'mixture', 'chemical', 'reaction', 'intake', 'excerpt', 'saved', 'canvas']);
   assert.equal(items.find(item => item.id === 'sheet')?.depth, 1);
   assert.deepEqual(notebookRelevantItems(tree).map(({ id, state, imported }) => ({ id, state, imported })), [
     { id: 'evidence', state: 'pinned', imported: true }, { id: 'experiment', state: 'unpinned', imported: false }, { id: 'attachment', state: 'embedded', imported: false },
