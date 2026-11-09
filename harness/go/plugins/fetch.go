@@ -130,6 +130,10 @@ func Fetch(ctx context.Context, source, cache, ref string) (FetchReceipt, error)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return FetchReceipt{}, err
 	}
+	// Windows cannot publish a directory while its rooted reader is still open.
+	if err := reader.Close(); err != nil {
+		return FetchReceipt{}, err
+	}
 	report, err := Inspect(ctx, root)
 	if err != nil {
 		return FetchReceipt{}, err
@@ -164,7 +168,7 @@ func Fetch(ctx context.Context, source, cache, ref string) (FetchReceipt, error)
 	return receipt, nil
 }
 
-func fetchGit(ctx context.Context, source, destination, ref, sha string) (string, error) {
+func fetchGit(ctx context.Context, source, destination, ref, sha string, checkoutPaths ...string) (string, error) {
 	if source == "" || strings.HasPrefix(source, "-") || strings.ContainsAny(source, "\x00\r\n") {
 		return "", errors.New("plugins: invalid Git source")
 	}
@@ -194,35 +198,117 @@ func fetchGit(ctx context.Context, source, destination, ref, sha string) (string
 		}
 		ref = sha
 	}
-	run := func(args ...string) (string, error) {
-		command := exec.CommandContext(ctx, "git", append([]string{"-c", "core.hooksPath=/dev/null", "-c", "protocol.ext.allow=never", "-c", "credential.interactive=false"}, args...)...)
-		command.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-		command.WaitDelay = time.Second
-		configureGitProcess(command)
-		out, err := command.Output()
-		if err != nil {
-			if ctx.Err() != nil {
-				return "", ctx.Err()
+	if _, err := runGit(ctx, "init", "init", "--quiet", destination); err != nil {
+		return "", err
+	}
+	fetchArgs := []string{"-C", destination, "fetch", "--quiet", "--depth=1", "--no-tags"}
+	if len(checkoutPaths) > 0 {
+		// Name the promisor remote so subsequent shared resources use the same source.
+		for _, args := range [][]string{
+			{"remote", "add", "origin", source},
+			{"config", "remote.origin.promisor", "true"},
+			{"config", "remote.origin.partialclonefilter", "blob:none"},
+		} {
+			if _, err := runGit(ctx, "configure selected source", append([]string{"-C", destination}, args...)...); err != nil {
+				return "", err
 			}
-			return "", errors.New("plugins: Git acquisition failed; check repository access and selected ref")
 		}
-		return strings.TrimSpace(string(out)), nil
+		fetchArgs = append(fetchArgs, "--filter=blob:none", "--", "origin", ref)
+	} else {
+		fetchArgs = append(fetchArgs, "--", source, ref)
 	}
-	if _, err := run("init", "--quiet", destination); err != nil {
+	if _, err := runGit(ctx, "fetch", fetchArgs...); err != nil {
 		return "", err
 	}
-	if _, err := run("-C", destination, "fetch", "--quiet", "--depth=1", "--no-tags", "--", source, ref); err != nil {
-		return "", err
-	}
-	revision, err := run("-C", destination, "rev-parse", "--verify", "FETCH_HEAD^{commit}")
+	revision, err := runGit(ctx, "resolve revision", "-C", destination, "rev-parse", "--verify", "FETCH_HEAD^{commit}")
 	if err != nil {
 		return "", err
 	}
 	if sha != "" && !strings.EqualFold(sha, revision) {
 		return "", errors.New("plugins: fetched revision does not match pinned SHA")
 	}
-	if _, err := run("-C", destination, "checkout", "--quiet", "--detach", revision); err != nil {
-		return "", err
+	if len(checkoutPaths) > 0 {
+		if err := checkoutGitPaths(ctx, destination, revision, checkoutPaths...); err != nil {
+			return "", err
+		}
+	} else {
+		if _, err := runGit(ctx, "checkout", "-C", destination, "checkout", "--quiet", "--detach", revision); err != nil {
+			return "", err
+		}
 	}
 	return revision, nil
+}
+
+func checkoutGitPaths(ctx context.Context, destination, revision string, paths ...string) error {
+	index := []string{"-C", destination, "rev-list", "--objects", "--missing=print", revision, "--"}
+	args := []string{"-C", destination, "checkout", "--quiet", revision, "--"}
+	for _, path := range paths {
+		literal := ":(literal)" + filepath.ToSlash(path)
+		index = append(index, literal)
+		args = append(args, literal)
+	}
+	objects, err := runGit(ctx, "index selected resources", index...)
+	if err != nil {
+		return err
+	}
+	var missing []string
+	for _, line := range strings.Split(objects, "\n") {
+		if strings.HasPrefix(line, "?") {
+			missing = append(missing, strings.TrimPrefix(line, "?"))
+		}
+	}
+	// Fetch explicitly before checkout: Windows Git may fail its first lazy read.
+	// Batches stay below Windows' command-line length limit.
+	for start := 0; start < len(missing); start += 64 {
+		fetch := []string{"-C", destination, "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", "--", "origin"}
+		fetch = append(fetch, missing[start:min(start+64, len(missing))]...)
+		if _, err := runGit(ctx, "fetch selected resources", fetch...); err != nil {
+			return err
+		}
+	}
+	_, err = runGit(ctx, "checkout selected resources", args...)
+	return err
+}
+
+func runGit(ctx context.Context, stage string, args ...string) (string, error) {
+	command := exec.CommandContext(ctx, "git", append([]string{"-c", "core.hooksPath=/dev/null", "-c", "core.autocrlf=false", "-c", "protocol.ext.allow=never", "-c", "credential.interactive=false"}, args...)...)
+	command.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	command.WaitDelay = time.Second
+	configureGitProcess(command)
+	out, err := command.Output()
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("plugins: Git %s interrupted: %w", stage, ctx.Err())
+		}
+		var exited *exec.ExitError
+		detail := "Git process could not start or complete; check the local Git installation and its helpers"
+		if errors.As(err, &exited) {
+			detail = gitFailureReason(string(exited.Stderr))
+		}
+		return "", fmt.Errorf("plugins: Git %s failed: %s", stage, detail)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// Return actionable categories, never raw Git stderr which may contain credentials.
+func gitFailureReason(stderr string) string {
+	text := strings.ToLower(stderr)
+	for _, group := range []struct {
+		needles []string
+		reason  string
+	}{
+		{[]string{"no space left", "not enough space", "disk full", "disk quota exceeded"}, "insufficient disk space; free space on the skills cache drive and retry"},
+		{[]string{"filename too long", "file name too long", "invalid path"}, "unsupported filesystem path; use a shorter cache path or check source filenames"},
+		{[]string{"couldn't find remote ref", "not our ref", "reference is not a tree", "bad object", "pathspec"}, "selected revision or resource is unavailable; check the pinned source and refresh the catalog"},
+		{[]string{"authentication failed", "repository not found", "could not read username", "access denied", "error: 403", "error: 401"}, "repository access denied; check repository visibility and Git credentials"},
+		{[]string{"could not resolve", "failed to connect", "connection", "timed out", "timeout", "rpc failed", "ssl", "certificate", "http/2", "error: 5"}, "network request failed; check the connection, proxy or certificate configuration and retry"},
+		{[]string{"permission denied", "dubious ownership", "unable to create"}, "filesystem access denied; check cache permissions and available disk space"},
+	} {
+		for _, needle := range group.needles {
+			if strings.Contains(text, needle) {
+				return group.reason
+			}
+		}
+	}
+	return "Git could not complete this stage; check repository access, the selected revision and local disk space"
 }
