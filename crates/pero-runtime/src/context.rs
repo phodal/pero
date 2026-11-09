@@ -15,7 +15,7 @@ use std::{
 #[path = "context_symbols.rs"]
 mod symbols;
 const MAX_TEXT: usize = 128_000;
-const MAX_RESULTS: usize = 100;
+pub const MAX_RESULTS: usize = 100;
 const MAX_SCAN: usize = 10_000;
 
 pub struct ContextSources<'a> {

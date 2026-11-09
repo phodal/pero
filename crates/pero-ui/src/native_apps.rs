@@ -414,7 +414,7 @@ impl NativeApps {
             let call: Value = serde_json::from_slice(body)?;
             let target = match call["capability"].as_str() {
                 Some("agent") => "app-agent", Some("insights") => "insights", Some("connectors") => "connectors",
-                Some("automation") => "automation", Some("research-assets") => "research-assets", _ => anyhow::bail!("Host capability unavailable"),
+                Some("automation") => "automation", Some("research-assets") => "research-assets", Some("skills") => "skills", _ => anyhow::bail!("Host capability unavailable"),
             };
             let mut input = call["input"].as_object().cloned().ok_or_else(|| anyhow::anyhow!("Host input must be an object"))?;
             let operation = call["operation"].as_str().ok_or_else(|| anyhow::anyhow!("Host operation is required"))?;
@@ -422,6 +422,13 @@ impl NativeApps {
             let forwarded = Request::builder().method("POST").uri(format!("pero-app://{name}/host/{target}"))
                 .header("Content-Type","application/json").body(serde_json::to_vec(&input)?)?;
             return self.respond(name,forwarded,is_live);
+        }
+        if path == "/host/skills" {
+            anyhow::ensure!(method == "POST" && body.len() <= 4096, "Invalid Skills request");
+            let operation: Value = serde_json::from_slice(body)?;
+            let value = self.request::<Value>("skillsmarket", json!({"name":name,"request":operation}))?;
+            return Ok(Response::builder().header("Content-Type","application/json").header("Cache-Control","no-store")
+                .body(serde_json::to_vec(&value)?)?);
         }
         if path == "/host/research-assets" {
             if method != "POST" {

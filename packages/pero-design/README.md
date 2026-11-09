@@ -101,6 +101,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 - `Progress` 只接收实际完成值与总量；没有依据时使用不确定进度，不能伪造百分比。
 - Dialog 长标题和 footer 可换行；嵌套 Select 的第一次 Escape 关闭选择框，
   第二次关闭 Dialog，逐层返回焦点。Table 的命名滚动区域可以聚焦后用方向键滚动。
+- `Dialog presentation="drawer"` 用于从目录打开对象详情，靠右占满高度，窄窗占满视口；复用 Dialog 的焦点约束、Escape、恢复焦点及可滚动正文，页脚操作保持可见。
 
 `Table` 支持数据驱动的 `rows` / `columns`，也支持保留来源结构的 children 形式：
 

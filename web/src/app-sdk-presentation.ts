@@ -3,6 +3,7 @@ export type AppPresentation =
   | { kind: 'app'; name: string; panel: string }
   | { kind: 'session'; sessionId: string }
   | { kind: 'research-source'; app: 'paper-agent' | 'control-lab'; href: string }
+  | { kind: 'skill'; source: string; message: string }
   | { kind: 'notify'; message: string; tone: 'info' | 'success' | 'error' }
   | { kind: 'badge'; count: number };
 
@@ -19,6 +20,9 @@ export function appPresentation(operation: unknown, input: unknown): AppPresenta
       return { kind: 'research-source', app: 'control-lab', href };
     throw new Error('Invalid research source location');
   }
+  if (operation === 'use-skill' && typeof value.source === 'string' && value.source.startsWith('pero-market-skill:') && value.source.length <= 4096 &&
+      (value.message === undefined || typeof value.message === 'string' && value.message.length <= 64000) && Object.keys(value).every(key => ['source','message'].includes(key)))
+    return {kind:'skill',source:value.source,message:typeof value.message === 'string' ? value.message : ''};
   if (operation === 'open-session' && typeof value.sessionId === 'string' && value.sessionId.trim() && value.sessionId.length <= 128 && Object.keys(value).every(key => key === 'sessionId'))
     return { kind: 'session', sessionId: value.sessionId };
   if (operation === 'navigate' && typeof value.path === 'string') {

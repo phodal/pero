@@ -11,6 +11,8 @@ type DialogBase = Omit<React.ComponentPropsWithoutRef<'dialog'>, 'title' | 'onSu
   children?: React.ReactNode;
   /** sm ≈ confirm / single field, md ≈ short form, lg ≈ editor or detail. */
   size?: 'sm' | 'md' | 'lg';
+  /** Right-edge detail surface; retains the modal's focus, Escape and restore behavior. */
+  presentation?: 'modal' | 'drawer';
   /** Close intent. Staying mounted refuses the close. */
   onClose: () => void;
   /** When set, the frame is a native form so Enter and footer submit keep FormData and validation. */
@@ -79,7 +81,7 @@ function showModal(dialog: HTMLDialogElement) {
  * node is still connected. Callers render conditionally or pass `open`.
  */
 export const Dialog = forwardRef<HTMLDialogElement, DialogProps>(function Dialog({
-  title, size = 'md', className, onClose, onSubmit, footer, footerStart, initialFocus,
+  title, size = 'md', presentation = 'modal', className, onClose, onSubmit, footer, footerStart, initialFocus,
   closeLabel, closeButton = true, open = true, restoreFocus = true, dismissOnBackdrop = false, unstyled = false,
   frameClassName, headerClassName, bodyClassName, footerClassName, closeButtonClassName, children,
   onKeyDown, onCancel, onClick, ...rest
@@ -152,6 +154,7 @@ export const Dialog = forwardRef<HTMLDialogElement, DialogProps>(function Dialog
     ref={setDialog}
     className={classes('pero-ui-dialog', className)}
     data-size={size}
+    data-presentation={presentation}
     data-unstyled={unstyled || undefined}
     aria-labelledby={rest['aria-labelledby'] ?? titleId}
     onKeyDown={event => {

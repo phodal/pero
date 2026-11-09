@@ -238,6 +238,10 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
           if (frame.name !== 'notebook' || frame.panel !== 'main') throw new Error('This App cannot open Notebook evidence');
           return command({action:'notebook_research_source',app:value.app,href:value.href});
         }
+        if (value.kind === 'skill') {
+          if (frame.name !== 'skills') throw new Error('Open installed skills from the Skills market');
+          return command({action:'skill_chat_open',source:value.source,message:value.message});
+        }
         if (value.kind === 'session') {
           if (!['insights', 'automations'].includes(frame.name)) throw new Error('This App cannot open Host sessions');
           return command({action:'automation_session_open',sessionId:value.sessionId});

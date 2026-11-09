@@ -15,7 +15,8 @@ const args = process.argv.slice(2);
 const appNames = args.includes('--app') ? [args[args.indexOf('--app') + 1]] : JSON.parse(await readFile(resolve(root, 'products/pero.json'), 'utf8')).apps;
 const readerDirectory = args.includes('--reader-dist') ? resolve(args[args.indexOf('--reader-dist') + 1]) : resolve(root, 'web/dist-reader');
 // Notebook opens frozen sources in their owning Apps; it does not embed Reader.
-const readerApps = appNames.filter(name => !['notebook', 'scientific-viewer', 'automations'].includes(name));
+// Skills consumes no document reader; carrying its Wasm prevents small updates on full disks.
+const readerApps = appNames.filter(name => !['notebook', 'scientific-viewer', 'automations', 'skills'].includes(name));
 if (readerApps.length && !args.includes('--reader-dist')) await buildReader();
 for (const appName of appNames) {
 if (appName === 'scientific-viewer') { await buildScientificViewer(); continue; }

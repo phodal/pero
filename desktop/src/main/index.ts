@@ -240,6 +240,7 @@ app.whenReady().then(async () => {
     PERO_AGENT_ROOT: root,
     ...(app.isPackaged ? { PERO_ADAPTER_NODE: process.execPath } : {}),
     ...(process.env.PERO_AGENTS_FILE ? { PERO_AGENTS_FILE: process.env.PERO_AGENTS_FILE } : {}),
+    ...(process.env.PERO_SKILLS_CATALOG ? { PERO_SKILLS_CATALOG: process.env.PERO_SKILLS_CATALOG } : {}),
     PERO_SETTINGS_PATH: runtimeSettingsPath,
     PERO_MCP_EXTERNAL:'1',
     PERO_APPS_ROOT: home.apps,

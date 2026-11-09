@@ -237,9 +237,9 @@ impl AppDefinition {
             return Err("App frame permissions allow at most 16 origins".into());
         }
         for grant in &value.permissions.host {
-            if !matches!(grant.as_str(), "agent" | "agent-plugin" | "insights" | "connectors" | "automation" | "research-assets" | "environments") || !seen.insert(grant.as_str()) {
+            if !matches!(grant.as_str(), "agent" | "agent-plugin" | "insights" | "connectors" | "automation" | "research-assets" | "environments" | "skills") || !seen.insert(grant.as_str()) {
                 return Err(
-                    "This Host supports only the App agent, agent-plugin, insights, connectors, automation, research-assets and environments permissions".into(),
+                    "This Host supports only the App agent, agent-plugin, insights, connectors, automation, research-assets, environments and skills permissions".into(),
                 );
             }
         }
@@ -365,6 +365,8 @@ mod tests {
             ("permissions", serde_json::json!({"host":["connectors"]}), true),
             ("permissions", serde_json::json!({"host":["research-assets"]}), true),
             ("permissions", serde_json::json!({"host":["environments"]}), true),
+            ("permissions", serde_json::json!({"host":["skills"]}), true),
+            ("permissions", serde_json::json!({"host":["skills","skills"]}), false),
             ("permissions", serde_json::json!({"host":["environments","environments"]}), false),
             ("permissions", serde_json::json!({"host":["agent","insights"]}), true),
             ("permissions", serde_json::json!({"host":["agent","agent"]}), false),

@@ -288,10 +288,17 @@ export class DesktopApps {
         const body = await request.text();
         if (Buffer.byteLength(body) > 256000) return new Response('Host request too large', {status:413});
         const {capability, operation, input} = JSON.parse(body);
-        const routes: Record<string,string> = {agent:'app-agent',insights:'insights',connectors:'connectors',automation:'automation','research-assets':'research-assets'};
+        const routes: Record<string,string> = {agent:'app-agent',insights:'insights',connectors:'connectors',automation:'automation','research-assets':'research-assets',skills:'skills'};
         if (!Object.hasOwn(routes, capability) || typeof operation !== 'string' || !input || typeof input !== 'object' || Array.isArray(input)) return new Response('Host capability unavailable', {status:403});
         const target = new URL(`/host/${routes[capability]}`, request.url);
         return this.serve(new Request(target, {method:'POST',headers:request.headers,body:JSON.stringify({...input,operation})}));
+      }
+      if (url.pathname === '/host/skills') {
+        if (request.method !== 'POST') return new Response('Method refused', {status:405});
+        const body = await request.text();
+        if (Buffer.byteLength(body) > 4096) return new Response('Request too large', {status:413});
+        const value = await this.request('skillsmarket', {name:url.hostname,request:JSON.parse(body)});
+        return Response.json(value, {headers:{'Cache-Control':'no-store'}});
       }
       if (url.pathname.startsWith('/api/')) await this.request('apiaccess', {name:url.hostname,path:url.pathname});
       const sdkInputPrefix = `/api/apps/${url.hostname}/inputs/`;

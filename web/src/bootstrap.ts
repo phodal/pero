@@ -89,6 +89,9 @@ try {
     deliver:(thread_id,contexts,text,replace)=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}})),
   });
   const apps = mountAppSurfaces(async value=>{
+    if ('action' in value && value.action === 'skill_chat_open') {
+      receive_host_event(JSON.stringify({version:1,kind:'skill_chat_open',request_id:null,text:'',data:value})); return;
+    }
     if ('action' in value && ['sdkpage','sdkbadge'].includes(String(value.action))) {
       receive_host_event(JSON.stringify({version:1,kind:value.action === 'sdkpage' ? 'app_sdk_page' : 'app_sdk_badge',request_id:null,text:'',data:value})); return;
     }

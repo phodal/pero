@@ -212,6 +212,12 @@ mod surface {
 
         pub(crate) fn receive_apps(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
             match event.kind.as_str() {
+                "skill_chat_open" => {
+                    if let Some(source) = event.data["source"].as_str() {
+                        self.new_chat(cx);
+                        self.chat.update(cx, |chat,cx| chat.add_market_skill(source, event.data["message"].as_str().unwrap_or_default(), cx));
+                    }
+                }
                 "app_sdk_page" => {
                     if let Ok(page) = serde_json::from_value(event.data["page"].clone()) { self.navigate(page, cx); }
                 }

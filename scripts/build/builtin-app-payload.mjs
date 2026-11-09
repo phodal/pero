@@ -1,7 +1,9 @@
-import { cpSync, existsSync, lstatSync, realpathSync, readdirSync, readFileSync, unlinkSync, linkSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { cpSync, existsSync, lstatSync, mkdirSync, realpathSync, readdirSync, readFileSync, unlinkSync, linkSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, resolve, sep } from 'node:path';
 
+const repoRoot = resolve(import.meta.dirname, '../..');
 const APP_ENTRIES = ['app.json', 'dist', 'backend', 'examples', 'evidence', 'THIRD_PARTY_NOTICES.md', 'README.md', 'licenses'];
 const PAPER_ENTRIES = [
   'tools/research.py', 'tools/locate-source.py', 'skills/research-resource-import/SKILL.md',
@@ -54,5 +56,13 @@ export function stageBuiltinApp(source, name, destination) {
   for (const entry of [...APP_ENTRIES, ...extra]) {
     const path = resolve(root, entry);
     if (existsSync(path)) cpSync(path, join(destination, entry), { recursive: true, filter: path => !path.includes('__pycache__') });
+  }
+  // The installed Skills app reads this file. It is not embedded in the Host binary.
+  if (name === 'skills') {
+    mkdirSync(destination, { recursive: true });
+    execFileSync(process.env.PYTHON || 'python3', [
+      resolve(repoRoot, 'scripts/research-skills/publish.py'),
+      '--output', join(destination, 'market-catalog.json'),
+    ], { stdio: 'pipe' });
   }
 }

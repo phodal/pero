@@ -60,6 +60,7 @@ export const uiStyles = `
 .pero-ui-dialog:not([data-unstyled]) { box-sizing: border-box; width: min(560px, calc(100vw - 32px)); max-height: min(80vh, 680px); padding:0; border: var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle, #ddd); border-radius:var(--pero-radius-xl, 12px); color: var(--pero-text, #202124); background: var(--pero-surface, #fff); box-shadow: 0 16px 48px var(--pero-domain-app-sdk-pero-ui-dialog-shadow, #0003); overflow: hidden; font:inherit; text-align:left; }
 .pero-ui-dialog:not([data-unstyled])[data-size=sm] { width: min(420px, calc(100vw - 32px)); }
 .pero-ui-dialog:not([data-unstyled])[data-size=lg] { width: min(720px, calc(100vw - 32px)); }
+.pero-ui-dialog:not([data-unstyled])[data-presentation=drawer] { inset:0 0 0 auto; margin:0; width:min(580px,100vw); max-width:100vw; height:100dvh; max-height:100dvh; border:0; border-left:var(--pero-border-width-thin,1px) solid var(--pero-border-subtle); border-radius:0; }
 .pero-ui-dialog:not([data-unstyled])[open] { display: flex; flex-direction: column; }
 .pero-ui-dialog:not([data-unstyled])::backdrop { background: var(--pero-domain-app-sdk-backdrop-bg, #0005); backdrop-filter: blur(2px); }
 .pero-ui-dialog *, .pero-ui-dialog *::before, .pero-ui-dialog *::after { box-sizing: border-box; }

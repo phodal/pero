@@ -409,7 +409,17 @@ impl Manager {
                     history: &history,
                     home: std::env::var_os("HOME").map(PathBuf::from),
                 };
-                let result = sources.search(kind, &query);
+                let result = sources.search(kind, &query).and_then(|mut items| {
+                    if kind == ContextKind::Skill {
+                        if let Some(apps) = &self.apps {
+                            let mut installed = apps.market_context_candidates(&query)?;
+                            installed.append(&mut items);
+                            installed.truncate(pero_runtime::context::MAX_RESULTS);
+                            return Ok(installed);
+                        }
+                    }
+                    Ok(items)
+                });
                 let event = match result {
                     Ok(items) => {
                         let mut event =
@@ -438,7 +448,11 @@ impl Manager {
                     history: &history,
                     home: std::env::var_os("HOME").map(PathBuf::from),
                 };
-                let event = match sources.resolve(kind, &source, start_line, end_line) {
+                let resolved = if kind == ContextKind::Skill && source.starts_with(pero_runtime::skill_market::CONTEXT_SOURCE_PREFIX) {
+                    self.apps.as_ref().ok_or_else(|| "Skills market is unavailable".to_string())
+                        .and_then(|apps| apps.resolve_market_context(&source))
+                } else { sources.resolve(kind, &source, start_line, end_line) };
+                let event = match resolved {
                     Ok(reference) => {
                         let mut event =
                             HostEvent::new("context_resolved", Some(request_id), String::new());

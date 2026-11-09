@@ -1,0 +1,146 @@
+{
+  "K-Dense-AI/scientific-agent-skills/skills/scientific-writing/SKILL.md": {
+    "name": "scientific-writing",
+    "revision": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a",
+    "title": "科学论文写作",
+    "summary": "组织论文结构，撰写和修订正文，让论点、数据与引用保持一致。",
+    "input": "论文提纲、已有草稿、研究结果与参考文献",
+    "output": "修订后的论文段落、证据缺口与修改说明",
+    "example": "请根据我的实验结果改写 Results 部分，保留原始数据，标出缺少证据的结论。"
+  },
+  "K-Dense-AI/scientific-agent-skills/skills/literature-review/SKILL.md": {
+    "name": "literature-review",
+    "revision": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a",
+    "title": "文献综述",
+    "summary": "制定检索策略、筛选文献并综合证据，保留检索范围与研究局限。",
+    "input": "研究问题、检索范围与纳入排除标准",
+    "output": "检索与筛选记录、文献综述和证据局限",
+    "example": "围绕单细胞空间转录组的数据整合，拟定综述检索策略，并列出纳入与排除标准。"
+  },
+  "blader/humanizer/SKILL.md": {
+    "name": "humanizer",
+    "revision": "0ef9fe5bc3572734fd3ae6c448fe00a30cd5dcf0",
+    "title": "学术表达去模板化",
+    "summary": "清理机械套话与夸大表达，保留事实、原意和作者自己的声音。",
+    "input": "需要编辑的论文段落或其他文本",
+    "output": "编辑后的文本与表达修改说明",
+    "example": "请检查以下段落中的机械套话，保持事实、术语和论证力度不变，再给出更自然的表达。"
+  },
+  "K-Dense-AI/scientific-agent-skills/skills/citation-management/SKILL.md": {
+    "name": "citation-management",
+    "revision": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a",
+    "title": "引文核验与管理",
+    "summary": "核对论文元数据与参考文献，将 DOI 转换为准确的 BibTeX 条目。",
+    "input": "DOI、论文信息或现有参考文献列表",
+    "output": "核对后的引用信息与 BibTeX 条目",
+    "example": "核查这份参考文献中的 DOI、作者和发表年份，并单列无法确认的条目。"
+  },
+  "K-Dense-AI/scientific-agent-skills/skills/statistical-analysis/SKILL.md": {
+    "name": "statistical-analysis",
+    "revision": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a",
+    "title": "统计分析与报告",
+    "summary": "选择合适的检验，检查统计假设，报告效应量与不确定性。",
+    "input": "实验或调查数据、研究问题和变量定义",
+    "output": "分析建议、假设检查与规范的统计报告",
+    "example": "我有三组独立样本。先检查适用的检验和假设，再说明效应量与不确定性应如何报告。"
+  },
+  "K-Dense-AI/scientific-agent-skills/skills/scientific-visualization/SKILL.md": {
+    "name": "scientific-visualization",
+    "revision": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a",
+    "title": "论文图表设计",
+    "summary": "制作清晰、可核对的科研图表，检查多面板布局、配色和导出条件。",
+    "input": "数据、现有图表、目标期刊或展示要求",
+    "output": "科研图表、布局建议与导出检查",
+    "example": "把这组实验数据整理为多面板图，保留误差与缺失值说明，并检查黑白打印的可读性。"
+  },
+  "K-Dense-AI/scientific-agent-skills/skills/peer-review/SKILL.md": {
+    "name": "peer-review",
+    "revision": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a",
+    "title": "论文审阅",
+    "summary": "从研究方法、统计和证据出发，形成具体、可追溯的审阅意见。",
+    "input": "获准审阅的稿件与必要研究材料",
+    "output": "结构化审稿意见、证据问题与修订建议",
+    "example": "审阅这篇稿件，区分主要问题与次要问题；每条意见都注明对应的段落或证据。"
+  },
+  "K-Dense-AI/scientific-agent-skills/skills/hypothesis-generation/SKILL.md": {
+    "name": "hypothesis-generation",
+    "revision": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a",
+    "title": "研究问题与假设",
+    "summary": "把初步观察转化为可检验的研究问题，比较竞争解释与区分性预测。",
+    "input": "初步观察、已有证据与研究背景",
+    "output": "候选假设、竞争解释与可检验的预测",
+    "example": "根据这些初步观察提出候选假设，分别列出竞争解释与能够区分它们的实验结果。"
+  },
+  "K-Dense-AI/scientific-agent-skills/skills/scientific-slides/SKILL.md": {
+    "name": "scientific-slides",
+    "revision": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a",
+    "title": "学术汇报",
+    "summary": "为组会、会议报告与答辩组织内容，规划节奏、版式和视觉检查。",
+    "input": "报告主题、论文或研究结果、听众与时长",
+    "output": "演示文稿结构、页面内容与视觉检查建议",
+    "example": "把这篇论文组织为 15 分钟组会报告，突出研究问题、关键证据与尚未解决的问题。"
+  },
+  "K-Dense-AI/scientific-agent-skills/skills/scanpy/SKILL.md": {
+    "name": "scanpy",
+    "revision": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a",
+    "title": "单细胞 RNA-seq 分析",
+    "summary": "完成单细胞数据质控、归一化、聚类与探索性标记分析，保留数据来源。",
+    "input": "单细胞表达数据与样本、批次等元信息",
+    "output": "质控与探索性分析结果、可视化和来源记录",
+    "example": "为这份 scRNA-seq 数据制定 Scanpy 分析流程，先确认计数矩阵来源和批次信息。"
+  },
+  "Orchestra-Research/AI-Research-SKILLs/19-emerging-techniques/knowledge-distillation/SKILL.md": {
+    "name": "knowledge-distillation",
+    "revision": "773a52944ba4747a18bd4ae9ade53fff041adcbc",
+    "title": "模型知识蒸馏",
+    "summary": "规划教师—学生模型蒸馏，比较软目标、温度缩放与压缩后的性能。",
+    "input": "教师与学生模型、训练数据与评价目标",
+    "output": "蒸馏方案、训练策略与性能评估计划",
+    "example": "针对一个小型学生模型设计蒸馏实验，列出温度与损失函数的对照条件和评估指标。"
+  },
+  "brycewang-stanford/Auto-Empirical-Research-Skills/skills/50-brycewang-aer-skills/skills/aer-consistency/SKILL.md": {
+    "name": "aer-consistency",
+    "revision": "bfa0a6e5a843babbf45a1ef1663fd5dc4f07c0ba",
+    "title": "论文一致性审校",
+    "summary": "核对摘要、正文与图表中的数字、样本量、交叉引用和参考文献。",
+    "input": "接近完成的实证论文与图表、参考文献",
+    "output": "数值、单位、样本量与引用的一致性问题清单",
+    "example": "检查摘要、正文和表格中的主要结果是否一致，尤其核对样本量、百分比与百分点。"
+  },
+  "brycewang-stanford/Auto-Empirical-Research-Skills/skills/50-brycewang-aer-skills/skills/aer-preregistration/SKILL.md": {
+    "name": "aer-preregistration",
+    "revision": "bfa0a6e5a843babbf45a1ef1663fd5dc4f07c0ba",
+    "title": "研究预注册",
+    "summary": "梳理主要结局、估计方程、样本量与偏离计划的披露要求。",
+    "input": "研究设计、主要结局、样本与分析计划",
+    "output": "预分析计划、注册核对项与报告要求",
+    "example": "整理这项实验的预分析计划，明确主要结局、多重检验和偏离计划的披露方式。"
+  },
+  "brycewang-stanford/Auto-Empirical-Research-Skills/skills/50-brycewang-aer-skills/skills/aer-paper-body/SKILL.md": {
+    "name": "aer-paper-body",
+    "revision": "bfa0a6e5a843babbf45a1ef1663fd5dc4f07c0ba",
+    "title": "实证论文正文",
+    "summary": "组织实证论文正文，将研究设计、识别策略和结果连成清楚的论证。",
+    "input": "研究设计、识别策略、分析结果与写作材料",
+    "output": "论文正文结构、段落与论证衔接建议",
+    "example": "根据现有识别策略和结果，先搭建正文结构，再标出还不足以支持结论的证据。"
+  },
+  "brycewang-stanford/Auto-Empirical-Research-Skills/skills/42-wanshuiyin-ARIS/skills/analyze-results/SKILL.md": {
+    "name": "analyze-results",
+    "revision": "bfa0a6e5a843babbf45a1ef1663fd5dc4f07c0ba",
+    "title": "实验结果解读",
+    "summary": "围绕已有实验结果识别规律与问题，为后续研究形成可核对的分析。",
+    "input": "实验结果、评价指标与研究背景",
+    "output": "结果解读、问题记录与后续分析建议",
+    "example": "阅读这些实验结果，区分观察到的事实、可能的解释和仍需要补做的验证。"
+  },
+  "K-Dense-AI/scientific-agent-skills/skills/scientific-critical-thinking/SKILL.md": {
+    "name": "scientific-critical-thinking",
+    "revision": "a25cf9ec00e2745d03f8704acf6f6919694ccd9a",
+    "title": "科研证据评估",
+    "summary": "检查研究主张的证据质量，识别偏倚、混杂因素与统计解释问题。",
+    "input": "科学主张、论文或研究设计",
+    "output": "证据评估、方法局限与待核对的问题",
+    "example": "评估这项研究是否足以支持其因果结论，重点区分混杂、选择偏差和统计不确定性。"
+  }
+}
