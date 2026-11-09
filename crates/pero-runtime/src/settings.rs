@@ -40,6 +40,10 @@ pub fn load_app_python(path: &Path) -> Result<PythonEnvironments, String> {
 }
 
 fn update(path: &Path, edit: impl FnOnce(&mut serde_json::Value)) -> io::Result<()> {
+    try_update(path, |value| { edit(value); Ok(()) })
+}
+
+fn try_update(path: &Path, edit: impl FnOnce(&mut serde_json::Value) -> io::Result<()>) -> io::Result<()> {
     let mut value = match std::fs::read(path) {
         Ok(bytes) => serde_json::from_slice::<serde_json::Value>(&bytes)?,
         Err(error) if error.kind() == io::ErrorKind::NotFound => serde_json::json!({}),
@@ -51,7 +55,7 @@ fn update(path: &Path, edit: impl FnOnce(&mut serde_json::Value)) -> io::Result<
             "Settings must be an object",
         ));
     }
-    edit(&mut value);
+    edit(&mut value)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -143,6 +147,38 @@ pub fn save_workbench(path: &Path, preferences: &pero_contracts::workbench::Work
     update(path, |value| value["workbench"] = preferences)
 }
 
+/// Read association state strictly: malformed settings must not look like no projects.
+pub fn load_notebook_projects(path: &Path) -> io::Result<pero_contracts::workbench::WorkbenchPreferences> {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Default::default()),
+        Err(error) => return Err(error),
+    };
+    let value: serde_json::Value = serde_json::from_slice(&bytes)?;
+    notebook_project_preferences(&value)
+}
+fn notebook_project_preferences(value: &serde_json::Value) -> io::Result<pero_contracts::workbench::WorkbenchPreferences> {
+    let preferences: pero_contracts::workbench::WorkbenchPreferences = if value.get("workbench").is_none() {
+        Default::default()
+    } else { serde_json::from_value(value["workbench"].clone())? };
+    if !preferences.valid() { return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid workbench preferences")); }
+    Ok(preferences)
+}
+/// Preserve all unrelated preferences and resources while applying one domain transition.
+pub fn save_notebook_project_link(path: &Path, change: &pero_contracts::research_project::NotebookProjectLink) -> io::Result<pero_contracts::workbench::WorkbenchPreferences> {
+    let mut result = None;
+    try_update(path, |value| {
+        let mut preferences = notebook_project_preferences(value)?;
+        let project = preferences.research_projects.iter_mut().find(|project| project.id == change.project_id)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Host project is unavailable"))?;
+        change.apply(project).map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
+        value["workbench"] = serde_json::to_value(&preferences)?;
+        result = Some(preferences);
+        Ok(())
+    })?;
+    Ok(result.expect("Successful settings transition"))
+}
+
 pub fn save_remote_connection(
     path: &Path,
     connection: Option<&RemoteConnectionSettings>,
@@ -160,6 +196,32 @@ pub fn save_remote_connection(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn notebook_project_link_is_narrow_durable_and_does_not_rewrite_stale_settings() {
+        use pero_contracts::research_project::{NotebookProjectLink,ResearchProject};
+        let path = std::env::temp_dir().join(format!("pero-notebook-project-{}.json",std::process::id()));
+        std::fs::write(&path,r#"{"unrelated":{"retained":true}}"#).unwrap();
+        let mut preferences = pero_contracts::workbench::WorkbenchPreferences::default();
+        preferences.research_projects.push(ResearchProject::new("actual-project".into(),"Actual project".into(),"Study".into(),Some("/private/workspace".into())).unwrap());
+        save_workbench(&path,&preferences).unwrap();
+        let change = NotebookProjectLink {project_id:"actual-project".into(),entry_id:"a".repeat(32),revision:1,
+            expected_revision:None,linked:true,read_only:false};
+        let next=save_notebook_project_link(&path,&change).unwrap();
+        assert_eq!(load_notebook_projects(&path).unwrap(),next);
+        assert_eq!(next.research_projects[0].resources[0].revision,"1");
+        let bytes=std::fs::read(&path).unwrap();
+        let saved:serde_json::Value=serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(saved["unrelated"]["retained"],true);
+        assert_eq!(next.research_projects[0].workspace,Some("/private/workspace".into()));
+        assert!(save_notebook_project_link(&path,&change).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(),bytes);
+        std::fs::write(&path,b"not JSON").unwrap();
+        assert!(load_notebook_projects(&path).is_err());
+        assert!(save_notebook_project_link(&path,&change).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(),b"not JSON");
+        let _=std::fs::remove_file(path);
+    }
+
     #[test]
     fn preferences_survive_restart_and_preserve_other_settings() {
         let path =

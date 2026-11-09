@@ -158,7 +158,8 @@ fn notebook_catalog_projects_installed_declarations_without_granting_access() {
     assert_eq!(cell_record["enabled"], false);
     assert_eq!(cell_record["panels"], serde_json::json!([{"id":"main","title":"Cell atlas"},{"id":"comparison","title":"Comparison"}]));
     assert_eq!(cell_record["actions"], serde_json::json!([{"name":"compare","description":"Compare selected observations"}]));
-    assert_eq!(cell_record.as_object().unwrap().keys().cloned().collect::<Vec<_>>(), vec!["actions","app","enabled","panels","revision","title","version"]);
+    let public_fields = cell_record.as_object().unwrap().keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(public_fields, ["actions","app","enabled","panels","revision","title","version"].into_iter().collect());
     assert_eq!(before["permissions"]["host"], serde_json::json!([]));
     assert!(!serde_json::to_string(&before).unwrap().contains("/api/compare"));
     assert!(!serde_json::to_string(&before).unwrap().contains("dist/index.html"));

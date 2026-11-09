@@ -60,7 +60,7 @@ impl ProjectResourceRef {
     pub fn valid(&self) -> bool {
         matches!(
             (self.app.as_str(), self.kind.as_str()),
-            ("paper-agent", "paper" | "study") | ("control-lab" | "lab", "experiment")
+            ("paper-agent", "paper" | "study") | ("control-lab" | "lab", "experiment") | ("notebook", "entry")
         ) && opaque_id(&self.id)
             && !self.revision.is_empty()
             && self.revision.len() <= 128
@@ -205,6 +205,43 @@ impl ResearchProject {
     }
 }
 
+/// A narrow explicit Notebook association. It cannot edit project settings or other owners.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NotebookProjectLink {
+    pub project_id: String,
+    pub entry_id: String,
+    pub revision: u64,
+    pub expected_revision: Option<String>,
+    pub linked: bool,
+    pub read_only: bool,
+}
+impl NotebookProjectLink {
+    pub fn validate(&self) -> Result<(), String> {
+        if !opaque_id(&self.project_id) || self.entry_id.len() != 32 ||
+            !self.entry_id.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) ||
+            self.revision == 0 || self.revision > 2_147_483_647 || self.expected_revision.as_ref().is_some_and(|value| value.parse::<u64>().map_or(true, |revision| revision == 0)) {
+            return Err("Choose a saved Notebook entry and an existing Host project".into());
+        }
+        if self.read_only { return Err("Read-only Notebook views cannot change project associations".into()); }
+        Ok(())
+    }
+    pub fn apply(&self, project: &mut ResearchProject) -> Result<(), String> {
+        self.validate()?;
+        if project.id != self.project_id { return Err("Host project is unavailable".into()); }
+        let observed = project.resources.iter().find(|item| item.app == "notebook" && item.kind == "entry" && item.id == self.entry_id);
+        if observed.map(|item| item.revision.as_str()) != self.expected_revision.as_deref() {
+            return Err("Project association changed. Reload Host projects before choosing again.".into());
+        }
+        if self.linked {
+            project.attach(ProjectResourceRef::new("notebook".into(), "entry".into(), self.entry_id.clone(), self.revision.to_string()).map_err(|error| error.to_string())?).map_err(|error| error.to_string())?;
+        } else {
+            project.detach("notebook", "entry", &self.entry_id);
+        }
+        Ok(())
+    }
+}
+
 fn opaque_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
@@ -216,6 +253,34 @@ fn opaque_id(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notebook_project_associations_preserve_other_owners_and_reject_stale_choices() {
+        let mut project = ResearchProject::new("project".into(), "Actual project".into(), "".into(), None).unwrap();
+        let paper = ProjectResourceRef::new("paper-agent".into(), "paper".into(), "p1".into(), "digest".into()).unwrap();
+        project.attach(paper.clone()).unwrap();
+        let mut change = NotebookProjectLink { project_id: "project".into(), entry_id: "a".repeat(32), revision: 2,
+            expected_revision: None, linked: true, read_only: false };
+        change.apply(&mut project).unwrap();
+        assert_eq!(project.resources[0],paper);
+        assert_eq!(project.resources[1].revision,"2");
+        let saved = project.clone();
+        assert!(change.apply(&mut project).is_err());
+        assert_eq!(project,saved);
+        change.expected_revision=Some("2".into()); change.revision=3;
+        change.apply(&mut project).unwrap();
+        assert_eq!(project.resources[1].revision,"3");
+        change.expected_revision=Some("3".into()); change.linked=false;
+        change.read_only=true;
+        assert!(change.apply(&mut project).is_err());
+        change.read_only=false;
+        change.apply(&mut project).unwrap();
+        assert_eq!(project.resources,vec![paper]);
+        for (id,revision) in [("../entry".to_owned(),1),("a".repeat(32),0)] {
+            change.entry_id=id;change.revision=revision;
+            assert!(change.validate().is_err());
+        }
+    }
 
     #[test]
     fn research_project_links_and_edits_preserve_identity_and_existing_evidence() {

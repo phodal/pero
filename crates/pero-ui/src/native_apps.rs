@@ -1,4 +1,6 @@
 //! Native App transport. The stdio Host remains the catalog/backend authority.
+#[path = "native_notebook_projects.rs"]
+mod native_notebook_projects;
 #[path = "native_app_canvas.rs"]
 mod canvas;
 use pero_contracts::HostEvent;
@@ -399,6 +401,7 @@ impl NativeApps {
             return Ok(Response::builder().header("Content-Type", "application/json")
                 .header("Cache-Control", "no-store").body(serde_json::to_vec(&value)?)?);
         }
+        if path == "/host/notebook-projects" { return self.notebook_projects_response(name, method.as_str(), body, is_live); }
         if path == "/host/canvas" { return self.canvas_response(name, method.as_str(), body, is_live); }
         if path == "/host/sdk" {
             anyhow::ensure!(method == "GET", "Method refused");
@@ -525,6 +528,10 @@ impl NativeApps {
                 // or error, rather than reporting a 503 after only 30 seconds.
                 if name == "paper-agent" && method == "POST" && path == "/api/numeric/layout" {
                     backend_request = backend_request.timeout(Duration::from_secs(210));
+                }
+                // Notebook's local parser is isolated with a 120-second deadline.
+                if name == "notebook" && method == "POST" && path == "/api/source-extraction" {
+                    backend_request = backend_request.timeout(Duration::from_secs(150));
                 }
                 let response = backend_request.send()?;
                 let status = response.status().as_u16();

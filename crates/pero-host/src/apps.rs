@@ -50,6 +50,8 @@ enum Request {
     },
     Apiaccess { method: Method, id: String, name: AppName, path: String },
     Sdkcontext { method: Method, id: String, name: AppName },
+    #[serde(rename = "notebook-projects")]
+    NotebookProjects { method: Method, id: String, name: AppName, request: crate::notebook_projects::Request },
     Canvas { method: Method, id: String, name: AppName, request: crate::app_canvas::Request },
     Agentcatalog { method: Method, id: String, name: AppName, path: String },
     Prepare { method: Method, id: String, name: AppName },
@@ -120,6 +122,7 @@ enum Request {
 
 #[derive(Clone)]
 pub struct Apps {
+    settings: Option<PathBuf>,
     canvas: std::sync::Arc<std::sync::Mutex<pero_runtime::apps::canvas::CanvasInstances>>,
     store: std::sync::Arc<std::sync::Mutex<Result<AppStore, String>>>,
     builtins: Option<PathBuf>,
@@ -204,6 +207,7 @@ impl Apps {
             Ok(store)
         })();
         Self {
+            settings: settings.map(Path::to_path_buf),
             canvas: Default::default(),
             store: std::sync::Arc::new(std::sync::Mutex::new(store)),
             builtins,
@@ -282,6 +286,10 @@ impl Apps {
             };
             match request {
                 Request::Canvas { .. } => unreachable!(),
+                Request::NotebookProjects { method, id, name, request } => {
+                    let _ = (method, id);
+                    return crate::notebook_projects::execute(store, self.settings.as_deref(), &name, request);
+                },
                 Request::Pluginlist { method, id } => {
                     let _ = (method, id);
                     serde_json::to_value(store.agent_plugins()?.list())

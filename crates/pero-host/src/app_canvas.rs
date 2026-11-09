@@ -21,7 +21,20 @@ pub(crate) enum Request {
 struct Field { label: String, value: String }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Action { name: AppName, label: String, params: Value }
+struct Action { name: AppName, label: String, params: Value, #[serde(default,skip_serializing_if="Vec::is_empty")] inputs: Vec<ActionInput> }
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all="camelCase",deny_unknown_fields)]
+struct ActionInput { name: String, label: String, max_length: usize }
+impl Action {
+    fn valid_inputs(&self) -> bool {
+        self.inputs.len() <= 8 && self.inputs.iter().enumerate().all(|(index, input)| {
+            !input.name.is_empty() && input.name.len() <= 64 && input.name.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_') &&
+            !self.inputs[..index].iter().any(|previous| previous.name == input.name) &&
+            !input.label.is_empty() && input.label.len() <= 200 && (1..=2000).contains(&input.max_length) &&
+            self.params.get(&input.name).and_then(Value::as_str).is_some_and(|value| value.chars().count() <= input.max_length)
+        })
+    }
+}
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Projection { title: String, fields: Vec<Field>, columns: Vec<String>, rows: Vec<Vec<String>>, notice: String, actions: Vec<Action> }
@@ -67,7 +80,7 @@ fn read_view(store: &Store, source: &CanvasSource) -> Result<Value, String> {
     if projection.title.len() > 200 || projection.notice.len() > 2000 || projection.fields.len() > 32 || projection.columns.len() > 16 || projection.rows.len() > 100 || projection.actions.len() > 8 ||
         projection.fields.iter().any(|field|field.label.len()>200 || field.value.len()>2000) ||
         projection.columns.iter().any(|label|label.len()>200) || projection.rows.iter().any(|row|row.len()!=projection.columns.len() || row.iter().any(|cell|cell.len()>2000)) ||
-        projection.actions.iter().any(|action| action.label.len()>200 || !view.actions.contains(&action.name)) {
+        projection.actions.iter().any(|action| action.label.len()>200 || !action.valid_inputs() || !view.actions.contains(&action.name)) {
         return Err("App view exceeds its declared display limits".into());
     }
     for action in &projection.actions {
@@ -76,8 +89,15 @@ fn read_view(store: &Store, source: &CanvasSource) -> Result<Value, String> {
     }
     serde_json::to_value(projection).map_err(|e|e.to_string())
 }
+fn operation_digest(document: &Value) -> Result<String, String> {
+    // Feature unification can enable serde_json/preserve_order. Hash canonical
+    // object order explicitly, including nested inputs and action parameters.
+    let mut canonical = document.clone();
+    canonical.sort_all_objects();
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(&canonical).map_err(|error| error.to_string())?)))
+}
 fn receipt(source: &CanvasSource, operation: &str, prepared: &pero_runtime::apps::canvas::CanvasAction, result: &Value) -> Result<Value, String> {
-    let digest = format!("{:x}", Sha256::digest(serde_json::to_vec(&prepared.document).map_err(|e| e.to_string())?));
+    let digest = operation_digest(&prepared.document)?;
     if result["operationId"] != operation || result["inputDigest"] != digest || result["status"] != "completed" {
         return Err("App result does not match the exact approved operation; outcome remains unknown".into());
     }
@@ -177,11 +197,23 @@ pub(crate) fn execute(store: Store, instances: Instances, caller: &AppName, inpu
 mod tests {
     use super::*;
     #[test]
+    fn operation_digest_matches_data_owner_independent_of_object_order() {
+        // Fixed Python owner vectors, not a digest produced by the implementation under test.
+        let archive: Value = serde_json::from_str(r#"{"operationId":"op","params":{"archived":true},"inputs":{"datasetId":"ds-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}"#).unwrap();
+        assert_eq!(operation_digest(&archive).unwrap(), "67ef93858a0e02d1993cadaa74771da4013e0d06bd49a06a8da489fa8991bccf");
+        let rename: Value = serde_json::from_str(r#"{"operationId":"rename","params":{"name":"样品 A","expectedProjectRef":"","projectRef":"","expectedArchived":false,"expectedName":"Dataset"},"inputs":{"datasetId":"ds-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}"#).unwrap();
+        assert_eq!(operation_digest(&rename).unwrap(), "7e0261cb95a569e0eb800415f4ff9fe5c9deca721dad3c473bdeb06519d5c958");
+        let original = rename.clone();
+        operation_digest(&rename).unwrap();
+        assert_eq!(rename, original, "Digesting must not rewrite the approved input");
+    }
+
+    #[test]
     fn owner_receipts_must_match_the_approved_envelope_not_just_operation_identity() {
         let source: CanvasSource=serde_json::from_value(json!({"entryId":"a".repeat(32),"revision":1,"blockId":"canvas","readOnly":false,
             "binding":{"id":"binding","app":"data","panel":"main","view":"dataset-inspector","declaration":"b".repeat(64),"inputs":{"datasetId":"ds-1"}}})).unwrap();
         let prepared=pero_runtime::apps::canvas::CanvasAction {name:AppName::try_from("canvas-archive".to_owned()).unwrap(),document:json!({"operationId":"op","inputs":{"datasetId":"ds-1"},"params":{"archived":true}}),ticket:"private".into(),state:ActionState::Dispatched};
-        let digest=format!("{:x}",Sha256::digest(serde_json::to_vec(&prepared.document).unwrap()));
+        let digest=operation_digest(&prepared.document).unwrap();
         let result=json!({"operationId":"op","inputDigest":digest,"status":"completed","dataset":{"archived":true}});
         let returned=receipt(&source,"op",&prepared,&result).unwrap();
         assert_eq!(returned["result"],result);assert_eq!(returned["revision"],1);
