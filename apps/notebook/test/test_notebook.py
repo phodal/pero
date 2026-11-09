@@ -375,5 +375,150 @@ class NotebookTest(unittest.TestCase):
                     thread.join(3)
 
 
+    def test_agent_cell_writes_reject_external_formulas(self):
+        fixture = json.loads((Path(__file__).resolve().parents[3] /
+                              'packages/notebook/test/fixtures/external-formulas.json').read_text())
+        original = NotebookDocument.parse(document())
+        for formula in fixture['external']:
+            with self.subTest(formula=formula):
+                for operation in (
+                    {'op': 'set_cells', 'blockId': 'inputs', 'cells': {'B1': formula}},
+                    {'op': 'insert_spreadsheet', 'name': 'Results', 'rows': 1, 'columns': 1, 'cells': {'A1': formula}},
+                ):
+                    with self.assertRaisesRegex(ValueError, 'External formulas'):
+                        parse_operations([operation], lambda: 'id')
+                self.assertEqual(original.block('inputs')['attrs']['sheet']['cells'], {'A1': '=1+2'})
+        for formula in fixture['ordinary']:
+            with self.subTest(formula=formula):
+                operations = parse_operations(
+                    [{'op': 'set_cells', 'blockId': 'inputs', 'cells': {'B2': formula}}], lambda: 'id')
+                updated = apply_operations(original, operations)
+                self.assertEqual(updated.block('inputs')['attrs']['sheet']['cells']['B2'], formula)
+                self.assertEqual(original.block('inputs')['attrs']['sheet']['cells'], {'A1': '=1+2'})
+        stored = document()
+        stored_formula = '=WEBSERVICE\u00a0("https://example.invalid/hook")'
+        stored['content']['content'][1]['attrs']['sheet']['cells']['A1'] = stored_formula
+        # A whole-document save keeps the formula text readable. Export, not parse, strips it.
+        self.assertEqual(NotebookDocument.parse(stored).block('inputs')['attrs']['sheet']['cells']['A1'], stored_formula)
+        with self.assertRaisesRegex(ValueError, 'External formulas'):
+            parse_operations([{'op': 'set_cells', 'blockId': 'inputs', 'cells': {'B1': stored_formula}}], lambda: 'id')
+
+    def test_agent_reads_stay_inside_one_entry_and_revision(self):
+        def paragraph(identity, text):
+            return {'type': 'paragraph', 'attrs': {'blockId': identity},
+                    'content': [{'type': 'text', 'text': text}]}
+
+        def note(title, blocks):
+            return {'schemaVersion': 1, 'title': title, 'content': {'type': 'doc', 'content': blocks}}
+
+        secret = 'secret-from-the-other-note'
+        later = 'later-only-revision'
+        bulk = note('Visible record', [
+            paragraph('intro', 'method'),
+            {'type': 'spreadsheet', 'attrs': {
+                'blockId': 'bulk', 'label': 'Bulk',
+                'sheet': {'rows': 200, 'columns': 2, 'cells': {
+                    f'{column}{row}': 'x' * 2500 for row in range(1, 201) for column in ('A', 'B')
+                }},
+            }},
+        ])
+        hidden = note('Hidden record', [paragraph('private-note', secret)])
+        with tempfile.TemporaryDirectory() as directory:
+            store = EntryStore(directory)
+            with ThreadingHTTPServer(('127.0.0.1', 0), handler(store, 'test-secret')) as server:
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    def request(method, path, data=None, authorized=True):
+                        connection = HTTPConnection('127.0.0.1', server.server_port, timeout=5)
+                        try:
+                            headers = {'Content-Type': 'application/json'}
+                            if authorized:
+                                headers['X-Pero-App-Token'] = 'test-secret'
+                            connection.request(method, path, json.dumps(data).encode() if data is not None else None, headers)
+                            response = connection.getresponse()
+                            return response.status, json.loads(response.read())
+                        finally:
+                            connection.close()
+
+                    status, first = request('POST', '/api/entries', {'title': 'Visible record'})
+                    status, second = request('POST', '/api/entries', {'title': 'Hidden record'})
+                    self.assertEqual(request('POST', f"/api/entries/{first['id']}", {'baseRevision': 1, 'document': bulk})[0], 200)
+                    self.assertEqual(request('POST', f"/api/entries/{second['id']}", {'baseRevision': 1, 'document': hidden})[0], 200)
+                    status, index = request('POST', '/api/agent-read', {'entryId': first['id']})
+                    self.assertEqual((status, index['format'], index['id'], index['revision']), (200, 'block-index', first['id'], 2))
+                    self.assertEqual([item['blockId'] for item in index['blocks']], ['intro', 'bulk'])
+                    listed = json.dumps(index)
+                    self.assertNotIn(secret, listed)
+                    self.assertNotIn('private-note', listed)
+                    self.assertNotIn('Hidden record', listed)
+                    status, other = request('POST', '/api/agent-read', {'entryId': second['id']})
+                    self.assertEqual(other['document']['content']['content'][0]['attrs']['blockId'], 'private-note')
+                    self.assertNotIn('bulk', json.dumps(other['document']))
+                    self.assertNotIn('x' * 2500, json.dumps(other))
+                    self.assertEqual(request('POST', '/api/agent-read', {'entryId': first['id'], 'blockId': 'private-note'})[0], 404)
+                    self.assertEqual(request('POST', '/api/agent-read', {'entryId': second['id'], 'blockId': 'bulk'})[0], 404)
+                    status, page = request('POST', '/api/agent-read', {
+                        'entryId': first['id'], 'revision': 2, 'blockId': 'bulk',
+                    })
+                    self.assertEqual((status, page['format'], page['revision']), (200, 'json-chunk', 2))
+                    self.assertIsNotNone(page['nextOffset'])
+                    self.assertLess(len(json.dumps(page, ensure_ascii=False).encode()), 1_000_000)
+                    self.assertNotIn(secret, page['content'])
+                    replacement = note('Visible record', [paragraph('later', later)])
+                    self.assertEqual(request('POST', f"/api/entries/{first['id']}", {
+                        'baseRevision': 2, 'document': replacement,
+                    })[0], 200)
+                    fragments = [page['content']]
+                    while page['nextOffset'] is not None:
+                        status, page = request('POST', '/api/agent-read', {
+                            'entryId': first['id'], 'revision': 2, 'blockId': 'bulk', 'offset': page['nextOffset'],
+                        })
+                        self.assertEqual((status, page['revision']), (200, 2))
+                        self.assertLess(len(json.dumps(page, ensure_ascii=False).encode()), 1_000_000)
+                        self.assertNotIn(secret, page['content'])
+                        self.assertNotIn(later, page['content'])
+                        fragments.append(page['content'])
+                    restored = json.loads(''.join(fragments))
+                    self.assertEqual(restored['attrs']['blockId'], 'bulk')
+                    self.assertEqual(restored['attrs']['sheet']['cells']['A1'], 'x' * 2500)
+                    status, pinned = request('POST', '/api/agent-read', {'entryId': first['id'], 'revision': 2})
+                    self.assertEqual((status, pinned['revision'], [item['blockId'] for item in pinned['blocks']]),
+                                     (200, 2, ['intro', 'bulk']))
+                    self.assertNotIn(later, json.dumps(pinned))
+                    status, current = request('POST', '/api/agent-read', {'entryId': first['id'], 'revision': 3})
+                    self.assertEqual(current['document']['content']['content'][0]['attrs']['blockId'], 'later')
+                    self.assertNotIn('bulk', json.dumps(current['document']))
+                    status, denied = request('POST', '/api/agent-read', {'entryId': second['id']}, authorized=False)
+                    self.assertEqual(status, 401)
+                    self.assertNotIn(secret, json.dumps(denied))
+                    wide = note('Index record', [{'type': 'blockquote', 'attrs': {'blockId': 'quote'}, 'content': [
+                        {'type': 'paragraph', 'attrs': {'blockId': f'p-{index}'}} for index in range(205)
+                    ]}])
+                    status, third = request('POST', '/api/entries', {'title': 'Index record'})
+                    self.assertEqual(request('POST', f"/api/entries/{third['id']}", {'baseRevision': 1, 'document': wide})[0], 200)
+                    discovered = []
+                    status, page = request('POST', '/api/agent-read', {'entryId': third['id'], 'view': 'index'})
+                    self.assertEqual((status, page['revision']), (200, 2))
+                    while True:
+                        self.assertLessEqual(len(page['blocks']), 100)
+                        self.assertNotIn(secret, json.dumps(page))
+                        self.assertNotIn('bulk', json.dumps(page))
+                        discovered.extend(item['blockId'] for item in page['blocks'])
+                        if page['nextOffset'] is None:
+                            break
+                        status, page = request('POST', '/api/agent-read', {
+                            'entryId': third['id'], 'revision': 2, 'view': 'index', 'offset': page['nextOffset'],
+                        })
+                        self.assertEqual(status, 200)
+                    self.assertEqual(discovered, ['quote'] + [f'p-{index}' for index in range(205)])
+                    self.assertEqual(request('POST', '/api/agent-read', {
+                        'entryId': second['id'], 'revision': 2, 'view': 'index', 'offset': 100,
+                    })[0], 400)
+                finally:
+                    server.shutdown()
+                    thread.join(3)
+
+
 if __name__ == '__main__':
     unittest.main()

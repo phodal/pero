@@ -26,7 +26,7 @@
       },
       {
         "name": "apply-edits",
-        "description": "Commit scoped edits to the saved entry at baseRevision. Read the target first. replace_text requires a unique exact match within one formatted text segment. set_cells stores raw inputs at uppercase addresses; empty values clear cells. add_finding references pinned evidence or experiments in this entry. Insert operations append when afterBlockId is omitted. Move and delete address top-level blocks; referenced evidence cannot be deleted. The batch commits together or fails. Re-read after a revision conflict.",
+        "description": "Commit scoped edits to the saved entry at baseRevision. Read the target first. replace_text requires a unique exact match within one formatted text segment. set_cells stores raw inputs at uppercase addresses; empty values clear cells. Formulas that contact another program or service are rejected. add_finding references pinned evidence or experiments in this entry. Insert operations append when afterBlockId is omitted. Move and delete address top-level blocks; referenced evidence cannot be deleted. The batch commits together or fails. Re-read after a revision conflict.",
         "path": "/api/agent-apply",
         "schema": {
           "type": "object",

@@ -1,5 +1,8 @@
 // @ts-expect-error fast-formula-parser publishes JavaScript without TypeScript declarations.
 import FastFormulaParser from "fast-formula-parser";
+import { externalFormulaNames } from "./formula-policy.ts";
+
+export { isExternalFormula } from "./formula-policy.ts";
 
 export interface Spreadsheet {
   rows: number;
@@ -269,7 +272,7 @@ const contextFunctions = {
   AVERAGEIF: conditionalAggregate(true),
 };
 
-const disabledFunctions = ["WEBSERVICE", "NOW", "TODAY", "RAND", "RANDBETWEEN"];
+const disabledFunctions = ["NOW", "TODAY", "RAND", "RANDBETWEEN", ...externalFormulaNames];
 const functions: Record<string, FormulaFunction> = {
   ...Object.fromEntries(disabledFunctions.map((name) => [name, () => FormulaError.NAME])),
   // The upstream numeric aggregations can skip errors from references.

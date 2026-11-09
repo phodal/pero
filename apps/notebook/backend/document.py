@@ -5,6 +5,7 @@ from hashlib import sha256
 import json
 import math
 import re
+import unicodedata
 
 
 MAX_DOCUMENT_BYTES = 2 * 1024 * 1024
@@ -86,6 +87,67 @@ def cell_values(value, rows=MAX_ROWS, columns=MAX_COLUMNS):
     for content in value.values():
         string(content, 'cell value', MAX_CELL)
     return value
+
+
+# Same external-calculation names as packages/notebook/src/formula-policy.ts.
+EXTERNAL_FORMULAS = {
+    'WEBSERVICE', 'FILTERXML', 'RTD', 'IMAGE', 'STOCKHISTORY', 'IMPORTDATA',
+    'IMPORTXML', 'IMPORTHTML', 'IMPORTFEED', 'IMPORTRANGE', 'GOOGLEFINANCE',
+    'CALL', 'REGISTER', 'REGISTER.ID', 'PY', 'PYTHON',
+}
+
+
+def _ignorable(character):
+    return character.isspace() or unicodedata.category(character) == 'Cf'
+
+
+def external_formula(value):
+    """Whether calculation can reach another program or service.
+
+    Unicode whitespace and format characters are ignored inside the name and
+    before '('. NotebookDocument.parse does not use this check. A whole-document
+    save stays readable when a cell already contains an external formula. Agent
+    cell writes reject new ones. Excel export stores any that remain as text,
+    not as a formula cell.
+    """
+    if not isinstance(value, str) or not value.startswith('='):
+        return False
+    index = 1
+    length = len(value)
+    while index < length:
+        character = value[index]
+        if character in ('"', "'"):
+            quote = character
+            index += 1
+            while index < length:
+                if value[index] == quote:
+                    if index + 1 < length and value[index + 1] == quote:
+                        index += 2
+                        continue
+                    index += 1
+                    break
+                index += 1
+            continue
+        if character == '|':
+            return True
+        if character.isascii() and (character.isalpha() or character == '_'):
+            start = index
+            index += 1
+            while index < length and (
+                value[index].isascii() and (value[index].isalnum() or value[index] in '._')
+                or _ignorable(value[index])
+            ):
+                index += 1
+            name = ''.join(part for part in value[start:index] if not _ignorable(part)).upper()
+            while name.startswith('_XLFN.') or name.startswith('_XLUDF.'):
+                name = name[6:] if name.startswith('_XLFN.') else name[7:]
+            if index < length and value[index] == '(':
+                tail = name.rpartition('.')[2]
+                if name in EXTERNAL_FORMULAS or tail in EXTERNAL_FORMULAS:
+                    return True
+            continue
+        index += 1
+    return False
 
 
 def evidence_ids(value):
