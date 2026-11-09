@@ -72,7 +72,14 @@ test('viewer loads inert selected source, supports missing/unavailable states, r
 test('legacy probe replaces history with local diagnostics and keeps non-script fallback', async t => {
   const html = await readFile(`${root}/apps/notebook/public/editor-probe.html`, 'utf8');
   const dom = new JSDOM(html); t.after(() => dom.window.close());
+  assert.equal(dom.window.document.querySelector('h1')?.textContent, 'Notebook diagnostics moved');
+  assert.equal(dom.window.document.querySelector('a')?.textContent, 'Open Notebook diagnostics');
   assert.equal(dom.window.document.querySelector('a')?.getAttribute('href'), './diagnostics.html');
+  const diagnostics = new JSDOM(await readFile(`${root}/apps/notebook/public/diagnostics.html`, 'utf8'));
+  t.after(() => diagnostics.window.close());
+  assert.equal(diagnostics.window.document.querySelector('h1')?.textContent, 'Notebook source diagnostics');
+  assert.equal(diagnostics.window.document.querySelector('a')?.textContent, 'Return to Notebook');
+  assert.equal(diagnostics.window.document.querySelector('a')?.getAttribute('href'), './index.html');
   const fallback = [...dom.window.document.querySelectorAll('p')].find(node => node.textContent === 'Automatic navigation requires JavaScript. Use the link above.');
   assert.ok(fallback);
   assert.equal(fallback.closest('noscript'), null, 'Fallback guidance stays available even when script execution is blocked without changing HTML parsing');

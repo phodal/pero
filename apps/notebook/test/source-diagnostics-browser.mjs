@@ -40,7 +40,7 @@ test('packaged Notebook diagnostics and legacy redirect work under App CSP', asy
   await expect(page.getByLabel('Read-only source text')).toBeVisible();
   const noScript = await browser.newPage({ javaScriptEnabled: false });
   await noScript.goto(origin + '/editor-probe.html');
-  await expect(noScript.getByRole('link', { name: 'Open Notebook diagnostics / 打开笔记本诊断' })).toHaveAttribute('href', './diagnostics.html');
+  await expect(noScript.getByRole('link', { name: 'Open Notebook diagnostics' })).toHaveAttribute('href', './diagnostics.html');
   await expect(noScript.getByText('Automatic navigation requires JavaScript. Use the link above.')).toBeVisible();
   assert.deepEqual(errors, []);
 });
