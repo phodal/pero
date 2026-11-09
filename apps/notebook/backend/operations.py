@@ -8,8 +8,15 @@ import re
 
 from document import (
     MAX_COLUMNS, MAX_ROWS, NotebookDocument, block_id, cell_values, check_coordinates,
-    evidence_ids, fields, integer, nodes, string,
+    evidence_ids, external_formula, fields, integer, nodes, string,
 )
+
+
+def _local_cells(value, rows=MAX_ROWS, columns=MAX_COLUMNS):
+    cells = cell_values(value, rows, columns)
+    if any(external_formula(content) for content in cells.values()):
+        raise ValueError('External formulas cannot be saved')
+    return cells
 
 
 @dataclass(frozen=True)
@@ -77,7 +84,7 @@ def parse_operations(values, new_id):
         op = value.get('op')
         if op == 'set_cells':
             fields(value, {'op', 'blockId', 'cells'})
-            cells = cell_values(value['cells'])
+            cells = _local_cells(value['cells'])
             if not cells:
                 raise ValueError('Select at least one cell')
             operations.append(SetCells(block_id(value['blockId']), cells))
@@ -104,7 +111,7 @@ def parse_operations(values, new_id):
                 raise ValueError('Invalid Excel worksheet name')
             rows = integer(value['rows'], 'row count', MAX_ROWS)
             columns = integer(value['columns'], 'column count', MAX_COLUMNS)
-            operations.append(InsertSpreadsheet(new_id(), name, rows, columns, cell_values(value['cells'], rows, columns),
+            operations.append(InsertSpreadsheet(new_id(), name, rows, columns, _local_cells(value['cells'], rows, columns),
                                                  _insertion_anchor(value)))
         elif op == 'move_block':
             fields(value, {'op', 'blockId', 'anchorBlockId', 'side'})

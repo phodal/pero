@@ -1,4 +1,5 @@
 import { spreadsheetLimits } from "./document.ts";
+import { isExternalFormula } from "./formula-policy.ts";
 import { cellAddress, shiftFormula, type Spreadsheet } from "./spreadsheet.ts";
 
 export interface CellPosition {
@@ -161,7 +162,7 @@ export function pasteCellGrid(sheet: Spreadsheet, target: CellPosition, rows: re
     width = Math.max(width, values.length);
     for (let column = 0; column < values.length; column++) {
       const value = values[column];
-      if (value.length > limits.cellLength) return null;
+      if (value.length > limits.cellLength || isExternalFormula(value)) return null;
       edit.set(target.column + column, target.row + row, value);
     }
   }
@@ -193,7 +194,7 @@ export function fillCellRange(sheet: Spreadsheet, range: CellRange, direction: "
       const sourceRow = direction === "down" ? start.row : row;
       const source = sheet.cells[cellAddress(sourceColumn, sourceRow)] ?? "";
       const value = shiftFormula(source, column - sourceColumn, row - sourceRow);
-      if (value.length > spreadsheetLimits.cellLength) return null;
+      if (value.length > spreadsheetLimits.cellLength || isExternalFormula(value)) return null;
       edit.set(column, row, value);
     }
   }

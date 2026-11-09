@@ -375,5 +375,32 @@ class NotebookTest(unittest.TestCase):
                     thread.join(3)
 
 
+    def test_agent_cell_writes_reject_external_formulas(self):
+        fixture = json.loads((Path(__file__).resolve().parents[3] /
+                              'packages/notebook/test/fixtures/external-formulas.json').read_text())
+        original = NotebookDocument.parse(document())
+        for formula in fixture['external']:
+            with self.subTest(formula=formula):
+                for operation in (
+                    {'op': 'set_cells', 'blockId': 'inputs', 'cells': {'B1': formula}},
+                    {'op': 'insert_spreadsheet', 'name': 'Results', 'rows': 1, 'columns': 1, 'cells': {'A1': formula}},
+                ):
+                    with self.assertRaisesRegex(ValueError, 'External formulas'):
+                        parse_operations([operation], lambda: 'id')
+                self.assertEqual(original.block('inputs')['attrs']['sheet']['cells'], {'A1': '=1+2'})
+        for formula in fixture['ordinary']:
+            with self.subTest(formula=formula):
+                operations = parse_operations(
+                    [{'op': 'set_cells', 'blockId': 'inputs', 'cells': {'B2': formula}}], lambda: 'id')
+                updated = apply_operations(original, operations)
+                self.assertEqual(updated.block('inputs')['attrs']['sheet']['cells']['B2'], formula)
+                self.assertEqual(original.block('inputs')['attrs']['sheet']['cells'], {'A1': '=1+2'})
+        stored = document()
+        stored['content']['content'][1]['attrs']['sheet']['cells']['A1'] = '=WEBSERVICE("https://example.invalid/hook")'
+        self.assertEqual(
+            NotebookDocument.parse(stored).block('inputs')['attrs']['sheet']['cells']['A1'],
+            '=WEBSERVICE("https://example.invalid/hook")')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import type { Cell, CellErrorValue, CellValue } from "exceljs";
 import { spreadsheetLimits } from "./document.ts";
+import { isExternalFormula } from "./formula-policy.ts";
 import { cellAddress } from "./spreadsheet.ts";
 import { isExcelWorksheetName, type NamedWorksheet } from "./worksheet.ts";
 
@@ -22,7 +23,11 @@ function textInput(text: string): string {
 
 function readCell(cell: Cell, date1904: boolean): string {
   const formula = cell.formula;
-  if (typeof formula === "string") return "=" + formula;
+  if (typeof formula === "string") {
+    const source = "=" + formula;
+    // Keep an imported external formula as text so a later export cannot reactivate it.
+    return isExternalFormula(source) ? "'" + source : source;
+  }
   const value = cell.value;
   if (value == null) return "";
   if (typeof value === "string") return textInput(value);
@@ -67,7 +72,7 @@ export async function readWorkbook(buffer: ArrayBuffer): Promise<NamedWorksheet[
 function writeCell(raw: string): CellValue {
   if (raw.startsWith("'")) return raw.slice(1);
   const trimmed = raw.trim();
-  if (raw.startsWith("=") && raw.length > 1) return { formula: raw.slice(1) };
+  if (raw.startsWith("=") && raw.length > 1 && !isExternalFormula(raw)) return { formula: raw.slice(1) };
   if (booleanInput.test(trimmed)) return trimmed.toUpperCase() === "TRUE";
   if (numberInput.test(trimmed)) {
     const number = trimmed.endsWith("%") ? Number(trimmed.slice(0, -1)) / 100 : Number(trimmed);
@@ -77,7 +82,7 @@ function writeCell(raw: string): CellValue {
   return raw;
 }
 
-/** Export the original expressions and ask Excel to compute its own cached results. */
+/** Export supported expressions and ask Excel to compute its own cached results. External formulas stay text. */
 export async function writeWorkbook(sheets: NamedWorksheet[]): Promise<ArrayBuffer> {
   if (sheets.length === 0) throw new Error("There are no worksheets to export.");
   if (sheets.length > maxWorksheets) throw new Error("An Excel file can contain up to 20 worksheets.");

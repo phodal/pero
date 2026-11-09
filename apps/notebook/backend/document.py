@@ -88,6 +88,56 @@ def cell_values(value, rows=MAX_ROWS, columns=MAX_COLUMNS):
     return value
 
 
+# Same external-calculation names as packages/notebook/src/formula-policy.ts.
+EXTERNAL_FORMULAS = {
+    'WEBSERVICE', 'FILTERXML', 'RTD', 'IMAGE', 'STOCKHISTORY', 'IMPORTDATA',
+    'IMPORTXML', 'IMPORTHTML', 'IMPORTFEED', 'IMPORTRANGE', 'GOOGLEFINANCE',
+    'CALL', 'REGISTER', 'REGISTER.ID',
+}
+
+
+def external_formula(value):
+    """A formula call or DDE link, not a mention inside text or a worksheet name."""
+    if not isinstance(value, str) or not value.startswith('='):
+        return False
+    index = 1
+    length = len(value)
+    while index < length:
+        character = value[index]
+        if character in ('"', "'"):
+            quote = character
+            index += 1
+            while index < length:
+                if value[index] == quote:
+                    if index + 1 < length and value[index + 1] == quote:
+                        index += 2
+                        continue
+                    index += 1
+                    break
+                index += 1
+            continue
+        if character == '|':
+            return True
+        if character.isascii() and (character.isalpha() or character == '_'):
+            start = index
+            index += 1
+            while index < length and value[index].isascii() and (value[index].isalnum() or value[index] in '._'):
+                index += 1
+            name = value[start:index].upper()
+            while name.startswith('_XLFN.') or name.startswith('_XLUDF.'):
+                name = name[6:] if name.startswith('_XLFN.') else name[7:]
+            cursor = index
+            while cursor < length and value[cursor] in ' \t\r\n':
+                cursor += 1
+            if cursor < length and value[cursor] == '(':
+                tail = name.rpartition('.')[2]
+                if name in EXTERNAL_FORMULAS or tail in EXTERNAL_FORMULAS:
+                    return True
+            continue
+        index += 1
+    return False
+
+
 def evidence_ids(value):
     if not isinstance(value, list) or len(value) > 100:
         raise ValueError('Invalid finding evidence IDs')

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { isExternalFormula } from "../src/formula-policy.ts";
+import { fillCellRange, pasteCellGrid } from "../src/spreadsheet-range.ts";
 import {
   cellAddress,
   evaluateSpreadsheet,
@@ -165,4 +168,25 @@ test("conditional and product aggregates preserve errors without including unsel
     } });
     assert.equal(result.E1, expected, formula);
   }
+});
+
+test("external formula policy matches the shared cases and keeps supported edits", () => {
+  const fixture = JSON.parse(readFileSync(new URL("./fixtures/external-formulas.json", import.meta.url), "utf8")) as {
+    external: string[];
+    ordinary: string[];
+  };
+  for (const formula of fixture.external) assert.equal(isExternalFormula(formula), true, formula);
+  for (const formula of fixture.ordinary) assert.equal(isExternalFormula(formula), false, formula);
+
+  const sheet = { rows: 2, columns: 2, cells: { A1: "=SUM(B1)", B1: "1" } };
+  assert.equal(pasteCellGrid(sheet, { column: 1, row: 1 }, [['=WEBSERVICE("https://example.invalid/hook")']]), null);
+  assert.equal(sheet.cells.B1, "1");
+  assert.equal(pasteCellGrid(sheet, { column: 1, row: 1 }, [["=A1*2"]])?.cells.B2, "=A1*2");
+  const filled = fillCellRange(sheet, { start: { column: 0, row: 0 }, end: { column: 0, row: 1 } }, "down");
+  assert.equal(filled?.cells.A2, "=SUM(B2)");
+  assert.equal(fillCellRange(
+    { rows: 2, columns: 1, cells: { A1: '=WEBSERVICE("https://example.invalid/hook")' } },
+    { start: { column: 0, row: 0 }, end: { column: 0, row: 1 } },
+    "down",
+  ), null);
 });
