@@ -17,7 +17,8 @@
     "scientific-viewer",
     "connectors",
     "automations",
-    "environments"
+    "environments",
+    "skills"
   ],
   "required": [
     "insights",

@@ -244,6 +244,7 @@ pub fn lookup(section: &str, value: &str) -> Option<&'static str> {
         ("apps", "connectors") => Some("plug"),
         ("apps", "automations") => Some("clock"),
         ("apps", "environments") => Some("server"),
+        ("apps", "skills") => Some("book-open-text"),
         _ => None,
     }
 }

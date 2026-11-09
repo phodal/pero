@@ -141,6 +141,7 @@
     "insights": "layout-list",
     "connectors": "plug",
     "automations": "clock",
-    "environments": "server"
+    "environments": "server",
+    "skills": "book-open-text"
   }
 }
