@@ -25,7 +25,7 @@ try {
     await writeFile(env.PERO_SETTINGS_PATH, JSON.stringify({ app_python: { apps: {
       'paper-agent': ownerPython, 'control-lab': ownerPython,
     } } }));
-  }
+  } else if (process.env.PERO_APP_PYTHON) await writeFile(env.PERO_SETTINGS_PATH, JSON.stringify({ app_python: { apps: { notebook: dirname(dirname(process.env.PERO_APP_PYTHON)) } } }));
   const paper = ownerFixtures && ownerExport('generate-paper-export.py', 'paper-agent');
   const control = ownerFixtures && ownerExport('control-export.py', 'control-lab');
   const expectedTrial = control && JSON.parse(control).experiment.trials.at(-1);
