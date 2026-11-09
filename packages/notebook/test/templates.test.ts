@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { NotebookDocument } from '../src/document.ts';
 import { instantiateTemplate, validateTemplateParameters, type PublishedTemplate } from '../src/templates.ts';
+import { createSourceExcerpt, readSourceExcerptAttachment, sourceExcerptAvailability, verifySourceExcerpt } from '../src/source-excerpt.ts';
 
 const document = (): NotebookDocument => ({ schemaVersion: 1, title: 'Source', content: { type: 'doc', content: [
   { type: 'paragraph', attrs: { blockId: 'text' }, content: [{ type: 'text', text: 'Title {{x}}' }] },
@@ -100,4 +101,28 @@ test('procedure runs reset while nested step content receives new identities', (
   assert.equal(step.content.content[0].attrs.blockId, result.origin.idMap.nested);
   assert.equal(step.id, result.origin.idMap.step);
   assert.equal(source.document.procedures[0].steps[0].completed, true);
+});
+
+test('template excerpts follow copied local attachments across rich roots without rewriting source bytes or external IDs', async () => {
+  const text = '\ufeffExact\r\n🧪 source', data = Buffer.from(text).toString('base64');
+  const sha256 = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))).toString('hex');
+  const attachment = { filename: 'source.txt', mime: 'text/plain', caption: '', data, sha256 };
+  const excerpt = createSourceExcerpt(await readSourceExcerptAttachment({ blockId: 'source', attachment }), 1, 6);
+  const source = template(); source.parameters = [];
+  source.document.content.content = [{ type: 'attachment', attrs: { blockId: 'source', ...attachment } }];
+  const chemical = { name: 'Portable', graph: { atoms: [], bonds: [] }, source: { id: 'source', revision: 1, moleculeId: 'source', original: { atoms: [], bonds: [] } } };
+  const materialSource = { source: 'notebook-local-catalog' as const, catalogId: 'catalog', recordId: 'source', version: 1, schemaId: 'source', schemaRevision: 1 };
+  source.document.procedures = [{ id: 'procedure', title: 'Method', description: '', steps: [], materials: [{ id: 'material', name: 'Selected', quantity: '', source: materialSource }],
+    introduction: { type: 'doc', content: [{ type: 'sourceExcerpt', attrs: { blockId: 'excerpt', label: '', excerpt } }, { type: 'chemical', attrs: { blockId: 'chemical', chemical } }] } }];
+  const copied = instantiateTemplate(source, {}, fresh), nodes = copied.document.procedures![0].introduction!.content!;
+  const next = nodes[0].attrs!.excerpt as typeof excerpt;
+  assert.deepEqual(next, { ...excerpt, source: { ...excerpt.source, blockId: copied.origin.idMap.source } });
+  assert.equal(sourceExcerptAvailability(next, [{ blockId: copied.origin.idMap.source, attachment }]), 'available');
+  await verifySourceExcerpt(next);
+  assert.deepEqual(nodes[1].attrs!.chemical, chemical);
+  assert.deepEqual(copied.document.procedures![0].materials[0].source, materialSource);
+  assert.equal(excerpt.source.blockId, 'source');
+  source.document.content.content = [{ type: 'paragraph', attrs: { blockId: 'source' } }];
+  const excerptOnly = instantiateTemplate(source, {}, fresh).document.procedures![0].introduction!.content![0].attrs!.excerpt;
+  assert.deepEqual(excerptOnly, excerpt, 'A non-attachment sharing the old ID must not retarget the retained source');
 });
