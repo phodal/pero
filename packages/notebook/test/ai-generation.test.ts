@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { freezeGeneration, generationIsCurrent, readGeneratedCandidates } from '../src/ai-generation.ts';
+const target = { entryId: 'a'.repeat(32), revision: 3 };
+const content = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Source' }] }] });
+const response = JSON.stringify({ runResults: [{ displayName: 'Proposal', modelFamily: 'Not reported', runConfigKey: 'request-1', hadError: false, newRows: { Results: [['2', 'block-1']] } }] });
+test('generation freezes input and guards both the saved revision and unsaved document', () => {
+  const input = freezeGeneration('request-1', 'agent-1', target, content, 'Propose rows');
+  assert.ok(input.prompt.includes(content));
+  assert.ok(generationIsCurrent(input, target, content));
+  assert.equal(generationIsCurrent(input, { ...target, revision: 4 }, content), false);
+  assert.equal(generationIsCurrent(input, target, content + ' '), false);
+  assert.equal(generationIsCurrent(input, null, content), false);
+  const result = readGeneratedCandidates(input, 'real-session', '```json\n' + response + '\n```');
+  assert.equal(result.sessionId, 'real-session');
+  assert.equal(result.target.revision, 3);
+  assert.deepEqual(result.response.runs[0].tables.Results, [['2', 'block-1']]);
+  for (const value of ['', '{}', response.replace('"hadError":false', '"hadError":true'), response.replace('[["2","block-1"]]', '[]')]) assert.throws(() => readGeneratedCandidates(input, 'session', value));
+  assert.throws(() => freezeGeneration('request', 'agent', { ...target, revision: 0 }, content, 'goal'));
+});
