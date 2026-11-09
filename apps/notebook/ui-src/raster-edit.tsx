@@ -1,21 +1,9 @@
 import { useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, Feedback, Field, Input, Select } from '@pero/app-sdk/ui';
-import { attachmentLimits } from '@pero/notebook/attachment';
+import { attachmentLimits, rasterEditPlan, rasterLimits, type RasterEdit } from '@pero/notebook/attachment';
 
-export type RasterEdit = { x: number; y: number; width: number; height: number; outputWidth: number; outputHeight: number; rotation: number };
-export const rasterLimits = { side: 8192, pixels: 16_777_216 } as const;
-/** Crop coordinates refer to the source. Output size is before clockwise rotation. */
-export function rasterEditPlan(sourceWidth: number, sourceHeight: number, edit: RasterEdit) {
-  const dimensions = [sourceWidth, sourceHeight, edit.width, edit.height, edit.outputWidth, edit.outputHeight];
-  if (dimensions.some(value => !Number.isInteger(value) || value <= 0 || value > rasterLimits.side) ||
-      [edit.x, edit.y].some(value => !Number.isInteger(value) || value < 0) ||
-      edit.x + edit.width > sourceWidth || edit.y + edit.height > sourceHeight ||
-      sourceWidth * sourceHeight > rasterLimits.pixels || edit.outputWidth * edit.outputHeight > rasterLimits.pixels ||
-      ![0, 90, 180, 270].includes(edit.rotation)) throw new Error('Invalid crop, rotation or output dimensions.');
-  return { ...edit, canvasWidth: edit.rotation % 180 ? edit.outputHeight : edit.outputWidth,
-    canvasHeight: edit.rotation % 180 ? edit.outputWidth : edit.outputHeight };
-}
+export { rasterEditPlan, rasterLimits, type RasterEdit } from '@pero/notebook/attachment';
 
 /** Decode local verified bytes, render a bounded PNG, then let attachment ingestion calculate its new digest. */
 export async function renderRasterEdit(blob: Blob, edit: RasterEdit): Promise<Blob> {
@@ -56,11 +44,11 @@ const messages = {
   outputWidth: { en: 'Output width (px)', zh: '输出宽度（像素）' },
   outputHeight: { en: 'Output height (px)', zh: '输出高度（像素）' },
   rotation: { en: 'Clockwise rotation', zh: '顺时针旋转' },
-  help: { en: 'Saves a derived PNG with a new content digest. Undo restores the original. Dimensions are pixels; output size is before rotation. Up to 8,192 px per side, 16 megapixels and 512 KiB.', zh: '保存派生 PNG 并生成新的内容摘要；撤销可恢复原图。尺寸单位为像素，输出尺寸指旋转前尺寸。每边最多 8,192 像素，总计 1,600 万像素及 512 KiB。' },
+  help: { en: 'Saves a derived PNG with a new content digest. Original bytes and edit parameters remain in the image history; Undo restores the previous image. Dimensions are pixels; output size is before rotation. Up to 8,192 px per side, 16 megapixels and 512 KiB. History retains at most 8 edits and 512 KiB of source files.', zh: '保存派生 PNG 并生成新的内容摘要；原始字节和编辑参数会保留在图片历史中；撤销可恢复上一张图片。尺寸单位为像素，输出尺寸指旋转前尺寸。每边最多 8,192 像素，总计 1,600 万像素及 512 KiB。历史最多保留 8 次编辑和 512 KiB 来源文件。' },
 };
 
 export function RasterEditDialog({ source, width, height, preview, onClose, onApply }: {
-  source: Blob; width: number; height: number; preview: string; onClose: () => void; onApply: (blob: Blob) => Promise<void>;
+  source: Blob; width: number; height: number; preview: string; onClose: () => void; onApply: (blob: Blob, edit: RasterEdit) => Promise<void>;
 }) {
   const { t } = useAppI18n(messages);
   const [edit, setEdit] = useState<RasterEdit>({ x: 0, y: 0, width, height, outputWidth: width, outputHeight: height, rotation: 0 });
@@ -68,7 +56,7 @@ export function RasterEditDialog({ source, width, height, preview, onClose, onAp
   const [error, setError] = useState('');
   const apply = async () => {
     setError(''); setBusy(true);
-    try { await onApply(await renderRasterEdit(source, edit)); onClose(); }
+    try { await onApply(await renderRasterEdit(source, edit), edit); onClose(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(false); }
   };
