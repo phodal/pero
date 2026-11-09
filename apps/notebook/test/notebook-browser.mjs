@@ -155,6 +155,18 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(evidence.locator('blockquote')).toHaveText(owner.sections[0].evidence[1].quote);
   await expect(recordedVerdict).toContainText(trial.report.verdict);
   await expect(result.locator('[data-cell=A1]')).toHaveValue('12');
+  const editReference = evidence.locator('summary').filter({ hasText: 'Edit reference' });
+  await expect(evidence.getByRole('button', { name: 'Import Paper report JSON' })).toBeHidden();
+  await editReference.click();
+  await expect(evidence.getByRole('button', { name: 'Import Paper report JSON' })).toBeVisible();
+  await evidence.locator('input[type=file]').setInputFiles({
+    name: 'invalid-report.json', mimeType: 'application/json', buffer: Buffer.from('{invalid'),
+  });
+  await expect(evidence.getByText('Paper Agent export must be valid UTF-8 JSON.')).toBeVisible();
+  await expect(evidence.locator('blockquote')).toHaveText(owner.sections[0].evidence[1].quote);
+  await expect(evidence.getByLabel('Label')).toHaveValue('Paper passage');
+  await editReference.click();
+  await expect(evidence.locator('blockquote')).toBeVisible();
 
   // Use the editor's real clipboard serialization, including research payloads.
   const body = page.getByRole('textbox', { name: 'Notebook content' });
@@ -172,14 +184,17 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const bytes = await readFile(await (await download).path());
   const reopened = await readWorkbook(Uint8Array.from(bytes).buffer);
   assert.deepEqual(reopened.map(({ name, sheet }) => [name, sheet.cells.A1]), [['Calibration data', '4'], ['Results', formula]]);
+  await result.getByRole('button', { name: 'Block actions' }).click();
   const blockDownload = page.waitForEvent('download');
-  await result.getByRole('button', { name: 'Export workbook' }).click();
+  await page.getByRole('menuitem', { name: 'Export workbook' }).click();
   const blockBytes = await readFile(await (await blockDownload).path());
   const blockWorkbook = await readWorkbook(Uint8Array.from(blockBytes).buffer);
   assert.deepEqual(blockWorkbook.map(({ name, sheet }) => [name, sheet.cells.A1]),
     [['Calibration data', '4'], ['Results', formula]]);
   assert.equal(evaluateWorkbook(blockWorkbook).Results.A1, 12);
   await mkdir(output, { recursive: true });
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+  await page.getByRole('textbox', { name: 'Notebook title' }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(output, 'saved-notebook.png'), fullPage: true });
 
   const update = await fetch(origin + '/api/agent-apply', {
@@ -200,6 +215,10 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await page.getByRole('button', { name: 'Revision 2', exact: true }).click();
   await expect(result.locator('[data-cell=A1]')).toHaveValue('12');
   await expect(result.locator('[data-cell=A1]')).toHaveAttribute('readonly', '');
+  await result.getByRole('button', { name: 'Block actions' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Export workbook' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(result.getByRole('button', { name: 'Block actions' })).toBeFocused();
 
   await page.getByRole('button', { name: 'New notebook' }).click();
   await page.getByRole('button', { name: 'Insert block' }).click();
@@ -221,7 +240,15 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await grid.getByRole('button', { name: 'Clear cells' }).click();
   await expect(grid.locator('[data-cell=B2]')).toHaveValue('');
   await expect(first).toHaveValue('');
-  await expect(grid.getByRole('button', { name: 'Export Excel', exact: true })).toBeVisible();
+  await grid.getByRole('button', { name: 'Block actions' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Export Excel', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(grid.getByRole('button', { name: 'Block actions' })).toBeFocused();
+  const worksheetTools = grid.locator('summary').filter({ hasText: 'Worksheet tools' });
+  await worksheetTools.click();
+  await expect(grid.getByRole('button', { name: 'Add row', exact: true })).toBeVisible();
+  await worksheetTools.click();
+  await expect(grid.getByRole('button', { name: 'Add row', exact: true })).toBeHidden();
   await grid.locator('[data-cell=B1]').fill('Keep neighboring cell');
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   for (const text of ['Sample A, replicate 2', '1,234']) {
@@ -284,8 +311,34 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
   await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
-  await page.emulateMedia({ colorScheme: 'dark' });
+  await finding.scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: 'Save revision' })).toBeVisible();
+  await expect(page.locator('.notebook-toolbar')).toBeVisible();
+  await page.screenshot({ path: resolve(output, 'copied-references.png'), fullPage: true });
+  await page.getByRole('textbox', { name: 'Notebook title' }).scrollIntoViewIfNeeded();
+  // The Host context, not the OS media query, owns an App's actual theme.
+  await page.evaluate(() => window.postMessage({ type: 'pero:app:context',
+    context: { locale: 'en', dark: true, active: true } }, location.origin));
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'pero-dark');
   await page.setViewportSize({ width: 600, height: 900 });
+  const navigation = page.getByRole('button', { name: 'Notebooks', exact: true });
+  await navigation.click();
+  await expect(navigation).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#notebook-list')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+  await expect(page.locator('[data-kind=spreadsheet]').first().locator('[data-cell=A1]')).toHaveValue('4');
+  await page.getByRole('textbox', { name: 'Notebook title' }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(output, 'copied-notebook-narrow-dark.png'), fullPage: true });
+  await finding.scrollIntoViewIfNeeded();
+  await expect(finding.getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
+  await expect(finding.getByRole('checkbox', { name: /Locked control trial/ })).toBeChecked();
+  await page.screenshot({ path: resolve(output, 'copied-references-dark.png'), fullPage: true });
+  await navigation.click();
+  await expect(navigation).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#notebook-list')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
+  await expect(finding.getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
   assert.deepEqual(errors, []);
 });

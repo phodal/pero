@@ -1,6 +1,10 @@
 # Notebook
 
 Notebook is an optional Workbench App for editing and reviewing research records.
+Its workspace keeps save/history and formatting controls outside a continuous
+reading surface. The notebook list can be collapsed for focused or narrow-screen
+editing. Worksheet tools and reference replacement are available on demand,
+while formulas, recorded source content and citation status stay visible.
 The reusable `@pero/notebook` package owns the document types, formula calculation
 and Excel file exchange. The App owns editing and SQLite revisions.
 

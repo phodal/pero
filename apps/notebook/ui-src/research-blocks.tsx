@@ -1,6 +1,6 @@
 import type { NodeViewProps } from '@tiptap/react';
 import { useEditorState } from '@tiptap/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { requestAppShell, useAppContext, useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Checkbox, Disclosure, Feedback, Icon, Input, Textarea } from '@pero/app-sdk/ui';
 import { parsePaperCitation, scientificReferenceState, type ScientificReference, type ReferenceSnapshot } from '@pero/notebook';
@@ -31,6 +31,8 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
   const { t } = useAppI18n(messages);
   const { name: appName } = useAppContext();
   const [citation, setCitation] = useState('');
+  const [editingReference, setEditingReference] = useState(!view.node.attrs.snapshot);
+  const labelInput = useRef<HTMLInputElement>(null);
   const [citationError, setCitationError] = useState(false);
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<{ locator: string; message: string } | null>(null);
@@ -65,36 +67,47 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
     source[field] && <div key={field}><dt>{t(labelKey)}</dt><dd>{source[field]}</dd></div>)}</dl>;
   const status = snapshot ? 'referenceImported' : pinned ? 'referencePinned' : complete ? 'referenceUnpinned' : 'referenceMissing';
 
-  return <BlockFrame view={view} kind={kind} caption={<Badge tone={pinned ? 'info' : 'neutral'}>{t(status)}</Badge>}
+  return <BlockFrame view={view} kind={kind}
+    title={editable ? <Input ref={labelInput} unstyled className="notebook-block-name" aria-label={t('referenceLabel')}
+      placeholder={t(kind)} maxLength={200} value={label} onChange={event => view.updateAttributes({ label: event.target.value })} />
+      : <strong>{label || t(kind)}</strong>}
+    caption={<Badge tone={pinned ? 'info' : 'neutral'}>{t(status)}</Badge>}
     actions={openAction && <Button variant="ghost" busy={opening} onClick={() => void openSource()}><Icon name="open" />{t(openAction)}</Button>}>
-    {editable && <ReferenceImport kind={kind} replacing={!!snapshot}
-      onAttach={value => {
-        view.updateAttributes({ label: value.label, source: value.reference, snapshot: value.snapshot });
-        setCitation('');
-        setCitationError(false);
-      }} />}
     {openError && openError.locator === source?.locator && <Feedback kind="error">{openError.message}</Feedback>}
-    {editable && <label className="notebook-field notebook-reference-wide">{t('referenceLabel')}
-      <Input maxLength={200} value={label} onChange={event => view.updateAttributes({ label: event.target.value })} />
-    </label>}
-    {!editable && label && <p><strong>{label}</strong></p>}
-    {snapshot ? <>
+    {snapshot && <>
       <SnapshotDetails snapshot={snapshot} />
       <Disclosure variant="inline" summary={t('referenceDetails')}>{reference}</Disclosure>
-      {editable && <Button variant="ghost" onClick={() => view.updateAttributes({ snapshot: null })}>{t('detachSnapshot')}</Button>}
-    </> : editable ? <div className="notebook-reference-fields notebook-manual-reference">
-      {referenceFields.map(([field, labelKey]) => <label className={`notebook-field${field === 'locator' ? ' notebook-reference-wide' : ''}`} key={field}>
-        {t(labelKey)}<Input maxLength={1024} value={source?.[field] ?? ''} onChange={event => changeSource(field, event.target.value)} />
-      </label>)}
-      {source && !complete && <p className="notebook-note notebook-reference-wide">{t('referencePartial')}</p>}
-      {kind === 'evidence' && <Disclosure variant="inline" className="notebook-reference-wide" summary={t('paperCitation')}>
+    </>}
+    {editable && <Disclosure variant="inline" className="notebook-reference-edit"
+      summary={t(snapshot ? 'editReference' : 'attachSource')} open={editingReference}
+      onOpenChange={setEditingReference}>
+      <ReferenceImport kind={kind} replacing={!!snapshot}
+        onAttach={value => {
+          view.updateAttributes({ label: value.label, source: value.reference, snapshot: value.snapshot });
+          setCitation('');
+          setCitationError(false);
+          setEditingReference(false);
+          requestAnimationFrame(() => labelInput.current?.focus());
+        }} />
+      {snapshot && <Button variant="ghost" onClick={() => view.updateAttributes({ snapshot: null })}>{t('detachSnapshot')}</Button>}
+    </Disclosure>}
+    {!snapshot && (editable ? <>
+      <Disclosure variant="inline" summary={t('referenceDetails')} defaultOpen={!!source}>
+        <div className="notebook-reference-fields notebook-manual-reference">
+          {referenceFields.map(([field, labelKey]) => <label className={`notebook-field${field === 'locator' ? ' notebook-reference-wide' : ''}`} key={field}>
+            {t(labelKey)}<Input maxLength={1024} value={source?.[field] ?? ''} onChange={event => changeSource(field, event.target.value)} />
+          </label>)}
+        </div>
+      </Disclosure>
+      {source && !complete && <p className="notebook-note">{t('referencePartial')}</p>}
+      {kind === 'evidence' && <Disclosure variant="inline" summary={t('paperCitation')}>
         <label className="notebook-field">{t('paperCitationUrl')}
           <Input value={citation} maxLength={256} onChange={event => { setCitation(event.target.value); setCitationError(false); }} />
         </label>
         <Button variant="ghost" disabled={!citation.trim()} onClick={attachCitation}>{t('attachCitation')}</Button>
         {citationError && <Feedback kind="error">{t('invalidCitation')}</Feedback>}
       </Disclosure>}
-    </div> : reference}
+    </> : reference)}
   </BlockFrame>;
 }
 

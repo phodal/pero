@@ -3,7 +3,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import TaskList from '@tiptap/extension-task-list';
 import { EditorContent, ReactNodeViewRenderer, useEditor, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, FilePicker, Icon, IconButton, Toolbar } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
@@ -172,8 +172,8 @@ function EditorToolbar({ editor }: { editor: Editor }) {
   </Toolbar>{error && <Feedback kind="error">{error}</Feedback>}</>;
 }
 
-export function NotebookEditor({ content, readonly = false, onChange }: {
-  content: NotebookDocument['content']; readonly?: boolean; onChange?: (content: NotebookDocument['content']) => void;
+export function NotebookEditor({ content, readonly = false, onChange, header }: {
+  content: NotebookDocument['content']; header?: ReactNode; readonly?: boolean; onChange?: (content: NotebookDocument['content']) => void;
 }) {
   const { t } = useAppI18n(messages);
   const editor = useEditor({
@@ -194,6 +194,6 @@ export function NotebookEditor({ content, readonly = false, onChange }: {
   if (!editor) return null;
   return <>
     {!readonly && <EditorToolbar editor={editor} />}
-    <EditorContent className="notebook-editor" editor={editor} />
+    <div className="notebook-paper">{header}<EditorContent className="notebook-editor" editor={editor} /></div>
   </>;
 }
