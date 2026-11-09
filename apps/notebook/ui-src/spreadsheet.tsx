@@ -373,7 +373,11 @@ export function SpreadsheetView(view: NodeViewProps) {
     <div className="notebook-formula">
       <output aria-label={t(isRange ? 'selectedRange' : 'cell', { address: rangeAddress })}>{rangeAddress}</output>
       <FormulaInput ref={formulaInput} onComplete={value => updateCell(address, value, true)} aria-label={t('rawCell')} placeholder={t('rawCell')} value={source} readOnly={!editable}
-        maxLength={spreadsheetLimits.cellLength} onChange={event => updateCell(address, event.target.value)}
+        maxLength={spreadsheetLimits.cellLength} onChange={event => {
+          // A rejected value does not change sheet state, so the controlled input must be put back.
+          if (isExternalFormula(event.target.value)) { event.target.value = source; setError(t('externalFormula')); return; }
+          updateCell(address, event.target.value);
+        }}
         onPaste={event => paste(event, active)} onKeyDown={event => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); focusCell(active); }
         }} />
@@ -435,7 +439,10 @@ export function SpreadsheetView(view: NodeViewProps) {
                   } else selectCell(position);
                 }}
                 onFocus={() => { if (!keepRangeFocus.current) selectCell(position); setFocused(key); }} onBlur={() => setFocused(null)}
-                onChange={event => { if (isRange) selectCell(position); updateCell(key, event.target.value); }}
+                onChange={event => {
+                  if (isExternalFormula(event.target.value)) { event.target.value = sheet.cells[key] ?? ''; setError(t('externalFormula')); return; }
+                  if (isRange) selectCell(position); updateCell(key, event.target.value);
+                }}
                 onKeyDown={event => onKey(event, position)} onCopy={copy} onCut={cut} onPaste={event => paste(event, position)} />
             </td>;
           })}

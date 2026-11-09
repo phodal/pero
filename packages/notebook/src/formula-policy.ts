@@ -57,6 +57,7 @@ export function isExternalFormula(source: string): boolean {
     const character = source[index];
     if (character === "\"" || character === "'") {
       const quote = character;
+      const contentStart = index + 1;
       index += 1;
       while (index < source.length) {
         if (source[index] === quote) {
@@ -69,6 +70,8 @@ export function isExternalFormula(source: string): boolean {
         }
         index += 1;
       }
+      // '[Workbook]Sheet'!A1 reads another file when a spreadsheet calculates it.
+      if (quote === "'" && source[index] === "!" && source.slice(contentStart, index - 1).includes("[")) return true;
       continue;
     }
     if (character === "|") return true;

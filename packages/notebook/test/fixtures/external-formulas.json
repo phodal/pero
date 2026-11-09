@@ -32,7 +32,8 @@
     "=PYTHON(\"print(1)\")",
     "=_xlfn.PY(\"print(1)\")",
     "=PY\u00a0(\"print(1)\")",
-    "=PYTHON\ufeff(\"print(1)\")"
+    "=PYTHON\ufeff(\"print(1)\")",
+    "='[Book]Data'!A1"
   ],
   "ordinary": [
     "=SUM(A1:A2)",
@@ -54,6 +55,7 @@
     "=SUM\u00a0(A1:A2)",
     "=SUM(WEBSERVICE\u00a0!A1)",
     "=\"WEBSERVICE\u00a0(\"\"https://example.invalid/hook\"\")\"",
-    "=PY"
+    "=PY",
+    "=\"[Book]\""
   ]
 }
