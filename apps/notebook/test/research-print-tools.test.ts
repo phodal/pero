@@ -133,13 +133,15 @@ test('scientific blocks print as experiment records without attribute JSON', asy
     target: { value: 10, unit: 'mL' }, additiveVolumes: false,
     ingredients: [
       { id: 'tris', reference: 'Tris base', source: 'Lot T-9', mode: 'quantity', target: { value: 1.2, unit: 'g' } },
+      { id: 'salt', reference: 'Salt', source: 'Lot S', mode: 'quantity', target: { value: 0.1 + 0.2, unit: 'g' } },
       { id: 'water', reference: 'Water', source: 'Milli-Q', mode: 'qs', target: { value: null, unit: 'mL' } },
     ],
   };
   const sourceSha = 'b'.repeat(64);
   const declaration = 'ab'.repeat(32);
+  const digest = 'e'.repeat(64);
   const content = { type: 'doc', content: [
-    { type: 'mixturePrep', attrs: { label: 'Lysis mix', mixture: { version: 1, draft: recipe, recipes: [{ revision: 1, recipe }], measurements: { tris: { value: 1.21, unit: 'g' } }, records: [{ id: 'prep-1', recipeRevision: 1, recipe, operator: 'Ada', recordedAt: '2026-11-09T08:15:00.000Z', output: 'LB-001-actual', notes: 'Prepared overnight', actual: { tris: { value: 1.21, unit: 'g' }, water: { value: 9.4, unit: 'mL' } } }] } } },
+    { type: 'mixturePrep', attrs: { label: 'Lysis mix', mixture: { version: 1, draft: recipe, recipes: [{ revision: 1, recipe }], measurements: { tris: { value: 1.21, unit: 'g' } }, records: [{ id: 'prep-1', recipeRevision: 1, recipe, operator: 'Ada', recordedAt: '2026-11-09T08:15:00.000Z', output: 'LB-001-actual', notes: 'Prepared overnight', actual: { tris: { value: 1.21, unit: 'g' }, salt: { value: 0.1 + 0.2, unit: 'g' }, water: { value: 9.4, unit: 'mL' } } }] } } },
     { type: 'reactionScheme', attrs: { label: 'Scheme', reaction: { name: 'Esterification', notes: 'Acid catalyst, reflux 2 h.', molecules: [
       { id: 'etoh', name: 'Ethanol', role: 'reactant', graph: { atoms: [{ id: 'a', element: 'C', x: 12.25, y: 40, charge: 0 }, { id: 'b', element: 'O', x: 80, y: 40, charge: -1 }], bonds: [{ id: 'bond', from: 'a', to: 'b', order: 1 }] } },
       { id: 'ester', name: 'Ethyl acetate', role: 'product', graph: { atoms: [{ id: 'c', element: 'C', x: 1, y: 2, charge: 0 }], bonds: [] } },
@@ -152,15 +154,21 @@ test('scientific blocks print as experiment records without attribute JSON', asy
     { type: 'appCanvas', attrs: { label: 'Unbound canvas', binding: null } },
     { type: 'sourceExcerpt', attrs: { label: 'Methods quote', excerpt: { version: 'a'.repeat(64), start: 0, end: 15, quote: 'quoted passage', text: 'quoted passage and retained incubation narrative that must stay out of the print', source: { blockId: 'file-1', filename: 'methods.pdf', mime: 'application/pdf', sha256: sourceSha }, extraction: { version: 1, original: { sha256: 'c'.repeat(64), bytes: 99999 }, parser: { name: 'pdftotext', version: '1' }, method: 'native', textSha256: 'd'.repeat(64), segments: [{ start: 0, end: 15, page: 2, part: 'body', region: { x: 0.12, y: 0.34, width: 0.2, height: 0.1 }, score: null }], limitations: ['OCR was not used'] } } } },
     { type: 'sourceExcerpt', attrs: { label: 'Empty excerpt', excerpt: null } },
+    { type: 'paragraph', content: [{ type: 'text', text: 'See ' }, { type: 'referenceMention', attrs: { label: 'Paper note', source: { app: 'paper-agent', kind: 'report-passage', id: 'rep-1', version: 'v2', locator: 'page 4 paragraph' } } }] },
+    { type: 'lookupTable', attrs: { label: 'Buffer lookup', query: { schemaId: 'schema-buffers', text: 'PBS', limit: 10 }, snapshot: { catalogId: 'cat-lookup', refreshedAt: '2026-11-09T11:00:00Z', total: 1, records: [{ id: 'buf-1', version: 3, name: 'Phosphate buffer', registeredAt: '2026-11-09T06:00:00Z', columns: [{ id: 'conc', name: 'Concentration' }, { id: 'blob', name: 'Raw file' }], values: { conc: { type: 'quantity', value: '10', unit: 'mM' }, blob: { type: 'object', value: { data: 'FILEBYTESLOOKUP' } } } }] } } },
+    { type: 'evidence', attrs: { label: 'Cited passage', blockId: 'ev-1', source: { app: 'paper-agent', kind: 'report-passage', id: 'rep-1', version: 'v2', locator: 'pero-app-location://paper-agent/main/report/abc/passage/def' }, snapshot: { kind: 'paper-report', quote: 'The yield increased.', page: 4, occurrences: 2, reportId: digest, fileDigest: digest, exportSha256: digest, start: 10, end: 28, x: 12.25, y: 40 } } },
+    { type: 'experiment', attrs: { label: 'Verification run', source: { app: 'control-lab', kind: 'verification-report', id: 'exp-1', version: 'v1', locator: 'pero-app-location://control-lab/main/experiment/abc/trial/def' }, snapshot: { kind: 'control-receipt', verdict: 'PASS', phase: 'verification', candidateId: 'cand-1', trialId: 'ab'.repeat(16), checks: [{ name: 'Mass balance', verdict: 'PASS', message: 'Within tolerance', actual: '1.0', limit: '0.1' }], specHash: digest, inputDigest: digest, exportSha256: digest, observationId: digest } } },
+    { type: 'registrationTable', attrs: { receipts: [{ catalogId: 'cat-reg', submissionId: 'sub-1', inputHash: digest, registeredAt: '2026-11-09T12:00:00Z', schemaId: 'schema-reg', schemaRevision: 2, records: [{ rowId: 'row-1', recordId: 'rec-reg', version: 1 }], waiver: { reason: 'Field left blank', attribution: 'Ada', inputHash: digest, issues: [{ code: 'required', rowId: 'row-1', columnId: 'mass' }] } }], table: { name: 'Registered samples', schema: { columns: [{ id: 'name', name: 'Name', type: 'text' }] }, rows: [{ id: 'row-1', cells: { name: 'Sample A' } }] } } },
+    { type: 'finding', attrs: { claim: 'Yield improved after the cold hold.', limitations: 'Single batch.', evidenceIds: ['ev-1', 'run-1'] } },
   ] };
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) }, React.createElement(ui.NotebookPrintContent, {
-    document: { schemaVersion: 1, title: 'Experiment record', content }, entryId: 'entry', revision: 1, dirty: false, preparedAt: '2026-11-09T00:00:00Z',
-    settings: { version: 1, orientation: 'portrait', paper: 'A4', marginMm: 15, includeMetadata: false, includeInputs: false, sections: ['notes'] },
+    document: { schemaVersion: 1, title: 'Experiment record', metadata: { project: 'Buffer study', author: 'Ada Lovelace', tags: ['lysis', 'qs'] }, procedures: [{ id: 'prep', title: 'Prep procedure', description: 'Bench steps', materials: [{ id: 'mat-1', name: 'Tris stock', quantity: '1.2 g', source: { source: 'notebook-local-catalog', catalogId: 'cat-mat', recordId: 'rec-tris', version: 4, schemaId: 'schema-mat', schemaRevision: 1 } }], steps: [] }], content }, entryId: 'entry', revision: 1, dirty: false, preparedAt: '2026-11-09T00:00:00Z',
+    settings: { version: 1, orientation: 'portrait', paper: 'A4', marginMm: 15, includeMetadata: true, includeInputs: false, sections: ['notes', 'procedure:prep'] },
   })));
   const article = document.querySelector('.notebook-print-document')!;
   const text = article.textContent!;
   for (const readable of [
-    'Lysis mix', 'Lysis buffer', 'LB-001', 'Keep cold, then aliquot.', 'Tris base', 'Lot T-9', '1.2 g', '1.21 g',
+    'Lysis mix', 'Lysis buffer', 'LB-001', 'Keep cold, then aliquot.', 'Tris base', 'Lot T-9', '1.2 g', '1.21 g', 'Salt', '0.3 g',
     'QS to final volume', 'Water', 'Milli-Q', 'Ada', '2026-11-09T08:15:00.000Z', '9.4 mL', 'Prepared overnight',
     'Esterification', 'Acid catalyst, reflux 2 h.', 'Reactant', 'Ethanol', 'Product', 'Ethyl acetate', 'O charge -1',
     'Saved record rxn-1 · v3 · 2026-11-09T09:00:00Z', 'Caffeine', 'mol-caf', 'Explicit atoms: N',
@@ -171,11 +179,56 @@ test('scientific blocks print as experiment records without attribute JSON', asy
     'Methods quote', 'quoted passage', 'methods.pdf', 'application/pdf', 'Page 2', 'Extracted by pdftotext (native).',
     'OCR was not used', `SHA-256: ${sourceSha}`, 'Full source text omitted.', 'Embedded bytes omitted.', 'Atom coordinates omitted.',
     'No excerpt saved.',
+    'Paper note', 'paper-agent / report-passage', 'rep-1', 'page 4 paragraph',
+    'Buffer lookup', 'PBS', 'schema-buffers', 'Phosphate buffer', 'buf-1', 'Concentration: 10 mM',
+    'Cited passage', 'The yield increased.', 'Page 4', '2 occurrences', `${digest.slice(0, 12)}…`,
+    'Verification run', 'control-lab / verification-report', 'PASS', 'Mass balance', 'Within tolerance', 'cand-1',
+    'Registered samples', 'Sample A', 'Field left blank', 'rec-reg', 'row-1 → rec-reg v1',
+    'Yield improved after the cold hold.', 'Single batch.', 'ev-1', '2 linked evidence blocks',
+    'Buffer study', 'Ada Lovelace', 'lysis', 'Prep procedure', 'Tris stock', 'rec-tris', 'cat-mat',
+    'Digest omitted.',
   ]) assert.match(text, new RegExp(readable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.equal(article.querySelector('pre'), null);
   assert.doesNotMatch(text, /Recorded structured content/);
   assert.doesNotMatch(text, /\{/);
-  for (const hidden of ['12.25', '99.5', '0.12', '0.34', 'AAAABBBBCCCC', 'EMBEDDEDFILEBYTES', 'MOREBYTES', 'hidden definition json', 'retained incubation narrative', 'x'.repeat(40), 'a'.repeat(64), 'c'.repeat(64), 'd'.repeat(64), '"ingredients"', '"declaration"', '"sha256"']) {
+  for (const hidden of ['12.25', '99.5', '0.12', '0.34', 'AAAABBBBCCCC', 'EMBEDDEDFILEBYTES', 'MOREBYTES', 'FILEBYTESLOOKUP', 'hidden definition json', 'retained incubation narrative', 'x'.repeat(40), 'a'.repeat(64), 'c'.repeat(64), 'd'.repeat(64), digest, '0.30000000000000004', '"ingredients"', '"declaration"', '"sha256"', '"evidenceIds"', '"receipts"']) {
     assert.equal(text.includes(hidden), false, hidden);
   }
+});
+
+test('mixture QS estimate and history show readable quantities without rewriting stored values', async t => {
+  let editor: any;
+  const runtime = await createUiRuntime(t, { resolveDir, contents: `
+    import { useEditor, EditorContent } from '@tiptap/react';
+    import { notebookExtensions } from './editor-extensions';
+    export { AppSdkProvider, createAppHost } from '@pero/app-sdk';
+    export function Fixture({ content, capture }) {
+      const editor = useEditor({ extensions: notebookExtensions, content });
+      capture(editor);
+      return <EditorContent editor={editor} />;
+    }
+  ` });
+  const { React, ui, render, dom } = runtime;
+  dom.window.HTMLElement.prototype.scrollIntoView = function () {};
+  const residue = 0.1 + 0.2;
+  const recipe = {
+    name: 'Buffer', output: 'batch', notes: '', target: { value: 1, unit: 'mL' }, additiveVolumes: true,
+    ingredients: [
+      { id: 'salt', reference: 'Salt', source: 'lot', mode: 'quantity', target: { value: residue, unit: 'mL' } },
+      { id: 'water', reference: 'Water', source: '', mode: 'qs', target: { value: null, unit: 'mL' } },
+    ],
+  };
+  const mixture = { version: 1, draft: recipe, recipes: [], measurements: {}, records: [{ id: 'rec', recipeRevision: 1, recipe, operator: 'Ada', recordedAt: '2026-11-09T00:00:00.000Z', output: 'out', notes: '', actual: { salt: { value: residue, unit: 'mL' }, water: { value: residue, unit: 'mL' } } }] };
+  await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) }, React.createElement(ui.Fixture, { content: { type: 'doc', content: [{ type: 'mixturePrep', attrs: { blockId: 'mix', mixture } }] }, capture: (value: any) => { editor = value; } })));
+  const block = document.querySelector('[data-kind=mixturePrep]')!;
+  assert.ok(block, document.body.textContent!.slice(0, 300));
+  const estimate = [...block.querySelectorAll('p')].find(node => node.textContent?.includes('QS planning estimate'));
+  assert.match(estimate?.textContent ?? '', /0\.7 mL/);
+  assert.doesNotMatch(estimate?.textContent ?? '', /999999|000000000000004/);
+  const history = block.querySelector('details')!;
+  assert.match(history.textContent!, /0\.3 mL/);
+  assert.doesNotMatch(history.textContent!, /000000000000004/);
+  assert.equal(editor.getJSON().content[0].attrs.mixture.draft.ingredients[0].target.value, residue);
+  assert.equal(editor.getJSON().content[0].attrs.mixture.records[0].actual.salt.value, residue);
+  await React.act(async () => editor.destroy());
 });

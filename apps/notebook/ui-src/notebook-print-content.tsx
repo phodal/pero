@@ -3,7 +3,7 @@ import { useAppI18n } from '@pero/app-sdk';
 import type { CellAnnotation, NotebookDocument, NotebookNode } from '@pero/notebook';
 import { notebookPrintSections, type NotebookPrintSettings } from '@pero/notebook/notebook-print';
 import { cellAddress, type Spreadsheet } from '@pero/notebook/spreadsheet';
-import { formatCellValue, type CellFormat } from '@pero/notebook/grid-presentation';
+import { displayNumber, formatCellValue, type CellFormat } from '@pero/notebook/grid-presentation';
 import { calculateNotebookWorksheets, type NotebookWorksheet } from '@pero/notebook/worksheet';
 import type { StructuredTableDraft } from '@pero/notebook/structured-table';
 import type { NotebookMaterial } from '@pero/notebook/workspace';
@@ -86,6 +86,26 @@ const printRecordMessages = {
   printExtractedBy: { en: 'Extracted by {parser} ({method}).', zh: '由 {parser} 提取（{method}）。' },
   printPage: { en: 'Page {page}', zh: '第 {page} 页' },
   printLimitations: { en: 'Limitations', zh: '局限' },
+  printLookupQuery: { en: 'Schema {schema} · {text} · limit {limit}', zh: '数据结构 {schema} · {text} · 上限 {limit}' },
+  printNoSnapshot: { en: 'No catalog snapshot recorded.', zh: '尚未记录目录快照。' },
+  printSnapshotCount: { en: '{count} of {total} records · refreshed {time}', zh: '{count} / {total} 条记录 · 刷新于 {time}' },
+  printNoSource: { en: 'No source reference.', zh: '无来源引用。' },
+  printVersion: { en: 'version {version}', zh: '版本 {version}' },
+  printLocator: { en: 'Locator: {locator}', zh: '定位：{locator}' },
+  printOccurrences: { en: '{count} occurrences', zh: '{count} 处出现' },
+  printCheckCount: { en: '{count} checks', zh: '{count} 项检查' },
+  printDigestOmitted: { en: 'Digest omitted.', zh: '已省略摘要。' },
+  printReceiptCount: { en: '{count} registration receipts', zh: '{count} 条登记回执' },
+  printRecordCount: { en: '{count} records', zh: '{count} 条记录' },
+  printWaiver: { en: 'Waiver: {reason} · {attribution} · {count} missing required cells', zh: '豁免：{reason} · {attribution} · {count} 个必填空缺' },
+  printEvidenceCount: { en: '{count} linked evidence blocks', zh: '{count} 个关联证据块' },
+  printNoEvidenceLinks: { en: 'No linked evidence.', zh: '无关联证据。' },
+  printMaterialSource: { en: 'Catalog {catalog} · record {record} · v{version} · schema {schema} v{schemaRevision}', zh: '目录 {catalog} · 记录 {record} · v{version} · 数据结构 {schema} v{schemaRevision}' },
+  printProject: { en: 'Project: {project}', zh: '项目：{project}' },
+  printAuthor: { en: 'Author: {author}', zh: '作者：{author}' },
+  printTags: { en: 'Tags: {tags}', zh: '标签：{tags}' },
+  printReport: { en: 'Report {id}', zh: '报告 {id}' },
+  printPhase: { en: 'Phase {phase}', zh: '阶段 {phase}' },
 } as const;
 
 const notebookPrintMessages = { ...messages, ...printRecordMessages };
@@ -99,7 +119,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 function textOf(value: unknown): string {
   if (typeof value === 'string') return value;
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'number' && Number.isFinite(value)) return displayNumber(value);
   return '';
 }
 function quantityLabel(value: unknown, unknownLabel: string): string {
@@ -120,7 +140,7 @@ function structureProse(graph: unknown, t: PrintTranslate): string {
     if (!element) continue;
     counts.set(element, (counts.get(element) ?? 0) + 1);
     const charge = row?.charge;
-    if (typeof charge === 'number' && Number.isFinite(charge) && charge !== 0) charges.push(t('printCharge', { element, charge }));
+    if (typeof charge === 'number' && Number.isFinite(charge) && charge !== 0) charges.push(t('printCharge', { element, charge: displayNumber(charge) }));
   }
   const formula = [...counts].map(([element, count]) => count > 1 ? `${element}${count}` : element).join('');
   const orders = { 1: 0, 2: 0, 3: 0 };
@@ -420,6 +440,161 @@ function excerptRecord(attrs: Record<string, unknown>, t: PrintTranslate): React
     {excerptHasRegion(excerpt.extraction) && <p>{t('printCoordinatesOmitted')}</p>}
   </>;
 }
+const digestKeys = ['inputHash', 'fileDigest', 'exportSha256', 'specHash', 'inputDigest', 'paperContentDigest', 'sha256', 'textSha256', 'observationId'];
+function markedOmission(value: unknown): { digest: boolean; coordinates: boolean; bytes: boolean } {
+  const item = asRecord(value);
+  if (!item) return { digest: false, coordinates: false, bytes: false };
+  const digest = digestKeys.some(key => textOf(item[key]).length > 0) || markedOmission(item.waiver).digest;
+  const coordinates = ['x', 'y', 'width', 'height'].some(key => typeof item[key] === 'number') || item.region != null;
+  const bytes = typeof item.data === 'string' || typeof item.bytes === 'string';
+  return { digest, coordinates, bytes };
+}
+function shortIdentity(value: unknown): string {
+  const text = textOf(value);
+  return /^[a-f0-9]{64}$/i.test(text) ? `${text.slice(0, 12)}…` : text;
+}
+function capped(value: unknown, limit = 500): string {
+  const text = textOf(value);
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+function referenceLine(source: Record<string, unknown> | null, t: PrintTranslate): string {
+  if (!source) return t('printNoSource');
+  const identity = [textOf(source.app), textOf(source.kind)].filter(Boolean).join(' / ');
+  const parts = [
+    identity,
+    textOf(source.id),
+    textOf(source.version) ? t('printVersion', { version: textOf(source.version) }) : '',
+    textOf(source.locator) ? t('printLocator', { locator: capped(source.locator) }) : '',
+  ].filter(Boolean);
+  return parts.join(' · ') || t('printNoSource');
+}
+function omissionNote(flags: { digest: boolean; coordinates: boolean; bytes: boolean }, t: PrintTranslate): ReactNode {
+  return <>
+    {flags.digest && <p>{t('printDigestOmitted')}</p>}
+    {flags.coordinates && <p>{t('printCoordinatesOmitted')}</p>}
+    {flags.bytes && <p>{t('printBytesOmitted')}</p>}
+  </>;
+}
+function referenceRecord(kind: string, attrs: Record<string, unknown>, t: PrintTranslate): ReactNode {
+  const source = asRecord(attrs.source);
+  const snapshot = asRecord(attrs.snapshot);
+  const title = textOf(attrs.label) || (kind === 'experiment' ? t('experiment') : t('evidence'));
+  const lines: string[] = [];
+  const flags = snapshot ? markedOmission(snapshot) : { digest: false, coordinates: false, bytes: false };
+  if (snapshot?.kind === 'paper-report') {
+    const quote = capped(snapshot.quote);
+    if (quote) lines.push(quote);
+    if (typeof snapshot.page === 'number' && Number.isFinite(snapshot.page)) lines.push(t('printPage', { page: displayNumber(snapshot.page) }));
+    if (textOf(snapshot.reportId)) lines.push(t('printReport', { id: shortIdentity(snapshot.reportId) }));
+    if (typeof snapshot.occurrences === 'number' && snapshot.occurrences > 1) lines.push(t('printOccurrences', { count: snapshot.occurrences }));
+  } else if (snapshot?.kind === 'control-receipt') {
+    if (textOf(snapshot.verdict)) lines.push(textOf(snapshot.verdict));
+    if (textOf(snapshot.phase)) lines.push(t('printPhase', { phase: textOf(snapshot.phase) }));
+    if (textOf(snapshot.candidateId)) lines.push(textOf(snapshot.candidateId));
+    const checks = Array.isArray(snapshot.checks) ? snapshot.checks : [];
+    lines.push(t('printCheckCount', { count: checks.length }));
+    for (const item of checks) {
+      const check = asRecord(item);
+      if (!check) continue;
+      const claim = [textOf(check.name), textOf(check.verdict), capped(check.message, 500)].filter(Boolean).join(' · ');
+      const bounds = [textOf(check.actual) && `actual ${textOf(check.actual)}`, textOf(check.limit) && `limit ${textOf(check.limit)}`].filter(Boolean).join(' · ');
+      if (claim || bounds) lines.push([claim, bounds].filter(Boolean).join(' · '));
+    }
+  } else if (snapshot) {
+    const name = textOf(snapshot.name) || textOf(snapshot.title) || textOf(snapshot.kind);
+    const claim = capped(snapshot.claim) || capped(snapshot.quote) || capped(snapshot.summary);
+    if (name) lines.push(name);
+    if (claim && claim !== name) lines.push(claim);
+  }
+  return <>
+    <h3>{title}</h3>
+    <p>{referenceLine(source, t)}</p>
+    {lines.length > 0 && <ul>{lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ul>}
+    {omissionNote(flags, t)}
+  </>;
+}
+function lookupRecord(attrs: Record<string, unknown>, t: PrintTranslate): ReactNode {
+  const query = asRecord(attrs.query);
+  const snapshot = asRecord(attrs.snapshot);
+  const records = Array.isArray(snapshot?.records) ? snapshot.records : [];
+  let bytes = false;
+  let digest = false;
+  return <>
+    <h3>{textOf(attrs.label) || t('lookupTable')}</h3>
+    <p>{t('printLookupQuery', { schema: textOf(query?.schemaId) || '*', text: textOf(query?.text) || '*', limit: textOf(query?.limit) || t('printUnnamed') })}</p>
+    {!snapshot ? <p>{t('printNoSnapshot')}</p> : <>
+      <p>{t('printSnapshotCount', { count: records.length, total: textOf(snapshot.total) || String(records.length), time: textOf(snapshot.refreshedAt) || t('printUnnamed') })}</p>
+      {textOf(snapshot.catalogId) && <p>{t('printCatalog', { id: textOf(snapshot.catalogId) })}</p>}
+      {records.length ? <ul>{records.map((item, index) => {
+        const record = asRecord(item);
+        if (!record) return <li key={index}>{t('printUnnamed')}</li>;
+        const values = asRecord(record.values);
+        const fields: string[] = [];
+        if (values) for (const [key, field] of Object.entries(values)) {
+          const shown = cellText(field);
+          if (shown === null) { bytes = true; continue; }
+          if (shown) fields.push(`${columnName(record, key)}: ${shown}`);
+        }
+        if (markedOmission(record.waiver).digest) digest = true;
+        return <li key={textOf(record.id) || index}>
+          <strong>{textOf(record.name) || t('printUnnamed')}</strong>
+          {textOf(record.id) && <> · {textOf(record.id)}</>}
+          {textOf(record.version) && <> · {t('printRecordVersion', { version: textOf(record.version) })}</>}
+          {textOf(record.registeredAt) && <> · {t('printRecordedAt')}: {textOf(record.registeredAt)}</>}
+          {fields.length > 0 && <p>{fields.join(' · ')}</p>}
+        </li>;
+      })}</ul> : <p>{t('printNoFrozenResults')}</p>}
+    </>}
+    {bytes && <p>{t('printBytesOmitted')}</p>}
+    {digest && <p>{t('printDigestOmitted')}</p>}
+  </>;
+}
+function receiptRecord(receipts: unknown, t: PrintTranslate): ReactNode {
+  const items = Array.isArray(receipts) ? receipts : [];
+  if (!items.length) return null;
+  let digest = false;
+  return <>
+    <p>{t('printReceiptCount', { count: items.length })}</p>
+    <ul>{items.map((item, index) => {
+      const receipt = asRecord(item);
+      if (!receipt) return <li key={index}>{t('printUnnamed')}</li>;
+      if (markedOmission(receipt).digest) digest = true;
+      const records = Array.isArray(receipt.records) ? receipt.records : [];
+      const waiver = asRecord(receipt.waiver);
+      const links = records.map(row => {
+        const record = asRecord(row);
+        return record ? `${textOf(record.rowId)} → ${textOf(record.recordId)} v${textOf(record.version)}` : '';
+      }).filter(Boolean);
+      return <li key={textOf(receipt.submissionId) || index}>
+        <p>{[textOf(receipt.registeredAt), textOf(receipt.catalogId) && t('printCatalog', { id: textOf(receipt.catalogId) }), textOf(receipt.schemaId) && `${t('printSchema')}: ${textOf(receipt.schemaId)}`].filter(Boolean).join(' · ')}</p>
+        <p>{t('printRecordCount', { count: records.length })}{links.length > 0 && <> · {links.join(' · ')}</>}</p>
+        {waiver && <p>{t('printWaiver', { reason: textOf(waiver.reason) || t('printUnnamed'), attribution: textOf(waiver.attribution) || t('printUnnamed'), count: Array.isArray(waiver.issues) ? waiver.issues.length : 0 })}</p>}
+      </li>;
+    })}</ul>
+    {digest && <p>{t('printDigestOmitted')}</p>}
+  </>;
+}
+function metadataRecord(metadata: unknown, t: PrintTranslate): ReactNode {
+  const item = asRecord(metadata);
+  if (!item) return null;
+  const tags = Array.isArray(item.tags) ? item.tags.map(textOf).filter(Boolean) : [];
+  return <>
+    {textOf(item.project) && <p>{t('printProject', { project: textOf(item.project) })}</p>}
+    {textOf(item.author) && <p>{t('printAuthor', { author: textOf(item.author) })}</p>}
+    {tags.length > 0 && <p>{t('printTags', { tags: tags.join(' · ') })}</p>}
+  </>;
+}
+function materialSourceLine(source: NotebookMaterial['source'], t: PrintTranslate): string {
+  const item = asRecord(source);
+  if (!item) return '';
+  return t('printMaterialSource', {
+    catalog: textOf(item.catalogId) || t('printUnnamed'),
+    record: textOf(item.recordId) || t('printUnnamed'),
+    version: textOf(item.version),
+    schema: textOf(item.schemaId) || t('printUnnamed'),
+    schemaRevision: textOf(item.schemaRevision),
+  });
+}
 function rootWorksheets(root: NotebookNode): NotebookWorksheet[] {
   const sheets: NotebookWorksheet[] = [];
   const visit = (node: NotebookNode) => {
@@ -462,7 +637,7 @@ function RichPrint({ root, includeInputs, contextRoot = root }: { root: Notebook
       case 'hardBreak': return <br key={key} />;
       case 'horizontalRule': return <hr key={key} />;
       case 'codeBlock': return <pre key={key}>{content}</pre>;
-      case 'referenceMention': return <span key={key}>{String(attrs.label)} ({printableRecord(attrs.source)})</span>;
+      case 'referenceMention': return <span key={key}>{textOf(attrs.label) || t('printUnnamed')} · {referenceLine(asRecord(attrs.source), t)}</span>;
       case 'spreadsheet': {
         const sheet = attrs.sheet as Spreadsheet, calculation = calculated.get(String(attrs.blockId))!;
         const { name, values, ambiguous } = calculation;
@@ -474,10 +649,17 @@ function RichPrint({ root, includeInputs, contextRoot = root }: { root: Notebook
       case 'registrationTable': case 'inputTable': {
         const table = attrs.table as StructuredTableDraft;
         return <figure key={key}><figcaption>{table.name || node.type}</figcaption><table><thead><tr>{table.schema.columns.map(column => <th key={column.id}>{column.name} ({column.type})</th>)}</tr></thead><tbody>{table.rows.map(row => <tr key={row.id}>{table.schema.columns.map(column => <td key={column.id}>{row.cells[column.id] ?? ''}</td>)}</tr>)}</tbody></table>
-          {!!(attrs.receipts as unknown[])?.length && <pre>{printableRecord(attrs.receipts)}</pre>}</figure>;
+          {receiptRecord(attrs.receipts, t)}</figure>;
       }
       case 'attachment': return <figure key={key}><figcaption>{String(attrs.filename)} {String(attrs.caption || '')}</figcaption>{/^image\/(png|jpeg|gif|webp)$/.test(String(attrs.mime)) && typeof attrs.data === 'string' ? <img src={`data:${attrs.mime};base64,${attrs.data}`} alt={String(attrs.caption || attrs.filename)} /> : <p>{t('printAttachmentBytes')}</p>}<small>SHA-256: {String(attrs.sha256)}</small></figure>;
-      case 'finding': return <section key={key}><h3>{t('finding')}</h3><p>{String(attrs.claim || '')}</p><p>{String(attrs.limitations || '')}</p><pre>{printableRecord(attrs.evidenceIds)}</pre></section>;
+      case 'finding': {
+        const ids = Array.isArray(attrs.evidenceIds) ? attrs.evidenceIds.map(textOf).filter(Boolean) : [];
+        return <section key={key}><h3>{t('finding')}</h3><p>{String(attrs.claim || '')}</p><p>{String(attrs.limitations || '')}</p>
+          <p>{ids.length ? t('printEvidenceCount', { count: ids.length }) : t('printNoEvidenceLinks')}</p>
+          {ids.length > 0 && <ul>{ids.map(id => <li key={id}>{id}</li>)}</ul>}</section>;
+      }
+      case 'lookupTable': return <section key={key}>{lookupRecord(attrs, t)}{content}</section>;
+      case 'evidence': case 'experiment': return <section key={key}>{referenceRecord(node.type, attrs, t)}{content}</section>;
       case 'mixturePrep': return <section key={key}>{mixtureRecord(attrs, t)}{content}</section>;
       case 'reactionScheme': return <section key={key}>{reactionRecord(attrs, t)}{content}</section>;
       case 'chemical': return <section key={key}>{chemicalRecord(attrs, t)}{content}</section>;
@@ -495,12 +677,12 @@ export function NotebookPrintContent({ document, settings, entryId, revision, di
 }) {
   const { t } = useAppI18n(notebookPrintMessages);
   const selected = new Set(settings.sections);
-  const materials = (items: NotebookMaterial[]): ReactNode => <ul>{items.map(item => <li key={item.id}><strong>{item.name}</strong> {item.quantity}{item.source && <pre>{printableRecord(item.source)}</pre>}{item.content && <RichPrint root={item.content} includeInputs={settings.includeInputs} />}{item.children && materials(item.children)}</li>)}</ul>;
+  const materials = (items: NotebookMaterial[]): ReactNode => <ul>{items.map(item => <li key={item.id}><strong>{item.name}</strong> {item.quantity}{item.source && <p>{materialSourceLine(item.source, t)}</p>}{item.content && <RichPrint root={item.content} includeInputs={settings.includeInputs} />}{item.children && materials(item.children)}</li>)}</ul>;
   // Keep original Notes order and its full calculation context even when only one section is printed.
   const filtered = { ...document.content, content: document.content.content.filter(node => selected.has(node.type === 'section' ? `section:${node.attrs!.blockId}` : 'notes')) };
   const sectionLabels = notebookPrintSections(document).filter(section => selected.has(section.id)).map(section => section.label).join(' · ');
   return <article className="notebook-print-document"><h1>{document.title}</h1><p>{dirty ? t('printUnsavedDraft') : t('printSavedRevision', { revision })}</p>
-    {settings.includeMetadata && <header><p>{t('printEntryMeta', { entryId, revision })}</p><p>{t('printPreparedAt', { preparedAt })}</p><p>{settings.paper} · {settings.orientation} · {settings.marginMm} mm</p>{document.metadata && <pre>{printableRecord(document.metadata)}</pre>}</header>}
+    {settings.includeMetadata && <header><p>{t('printEntryMeta', { entryId, revision })}</p><p>{t('printPreparedAt', { preparedAt })}</p><p>{settings.paper} · {settings.orientation} · {settings.marginMm} mm</p>{metadataRecord(document.metadata, t)}</header>}
     <RichPrint root={filtered} contextRoot={document.content} includeInputs={settings.includeInputs} />
     {(document.procedures ?? []).filter(procedure => selected.has(`procedure:${procedure.id}`)).map(procedure => <section key={procedure.id}><h2>{procedure.title}</h2>{procedure.introduction ? <RichPrint root={procedure.introduction} includeInputs={settings.includeInputs} /> : <p>{procedure.description}</p>}
       {!!procedure.materials.length && <><h3>{t('printMaterials')}</h3>{materials(procedure.materials)}</>}

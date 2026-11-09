@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { NodeViewProps } from '@tiptap/react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Feedback, Field, Input, Select, Textarea } from '@pero/app-sdk/ui';
+import { displayNumber } from '@pero/notebook/grid-presentation';
 import { mixtureUnits, editMixtureRecipe, mixtureDimension, mixtureQSEstimate, saveMixtureRecipe, recordMixturePreparation, type MixturePreparation, type MixtureQuantity, type MixtureRecipe } from '@pero/notebook/mixture';
 import { BlockFrame } from './block-frame';
 
@@ -32,6 +33,7 @@ export function MixturePrepView(view: NodeViewProps) {
   const changeRecipe = (patch: Partial<MixtureRecipe>) => { setError(''); update(editMixtureRecipe(state, { ...draft, ...patch })); };
   const run = (action: () => void) => { try { action(); setError(''); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } };
   const saved = state.recipes.at(-1), dirty = !saved || JSON.stringify(saved.recipe) !== JSON.stringify(draft);
+  const shownAmount = (value: number | null | undefined) => value == null ? t('unknown') : displayNumber(value);
   const quantity = (label: string, q: MixtureQuantity, onChange: (q: MixtureQuantity) => void, units = Object.keys(mixtureUnits), noValue = false) => <div className="notebook-mixture-quantity">
     <Field label={label}>{control => <Input {...control} type="number" min="0" max="1000000000000" step="any" disabled={!editable || noValue} placeholder={t('unknown')} value={q.value ?? ''} onChange={event => onChange({ ...q, value: event.target.value === '' ? null : Number(event.target.value) })} />}</Field>
     <Select label={`${label}: ${t('unit')}`} disabled={!editable} value={q.unit} options={units.map(unit => ({ value: unit, label: unit }))} onChange={unit => onChange({ ...q, unit })} />
@@ -65,7 +67,7 @@ export function MixturePrepView(view: NodeViewProps) {
     {editable && <Button disabled={draft.ingredients.length >= 100} onClick={() => changeRecipe({ ingredients: [...draft.ingredients, { id: crypto.randomUUID(), reference: '', source: '', mode: 'quantity', target: { value: null, unit: draft.target.unit } }] })}>{t('add')}</Button>}
     {draft.ingredients.some(i => i.mode === 'qs') && <>
       <Select label={t('assumption')} disabled={!editable} value={draft.additiveVolumes ? 'yes' : 'no'} options={[{ value: 'no', label: t('off') }, { value: 'yes', label: t('on') }]} onChange={value => changeRecipe({ additiveVolumes: value === 'yes' })} />
-      <p>{t('caveat')}</p><p>{t('assumption')}: {estimate?.value ?? t('unknown')} {estimate?.unit}</p>
+      <p>{t('caveat')}</p><p>{t('assumption')}: {shownAmount(estimate?.value)} {estimate?.unit}</p>
       {estimateError && <Feedback kind="error">{estimateError}</Feedback>}
     </>}
     {editable && <><Button disabled={!dirty || state.recipes.length >= 100} onClick={() => run(() => update(saveMixtureRecipe(state)))}>{t('save')}</Button>
@@ -80,8 +82,8 @@ export function MixturePrepView(view: NodeViewProps) {
     <h4>{t('history')}</h4>{!state.records.length && <p>{t('empty')}</p>}
     {state.records.map(record => <details key={record.id}><summary>{record.operator} · {record.recordedAt} · v{record.recipeRevision} · {record.output}</summary>
       <p>{record.id} · {record.recipe.name} · {record.notes}</p><p>{record.recipe.notes}</p>
-      <p>{t('target')}: {record.recipe.target.value} {record.recipe.target.unit}</p>
-      <ul>{record.recipe.ingredients.map(i => <li key={i.id}>{i.reference} · {i.source} · {t('planned')}: {i.mode === 'qs' ? t('qs') : i.target.value} {i.target.unit} · {t('actual')}: {record.actual[i.id].value} {record.actual[i.id].unit}</li>)}</ul>
+      <p>{t('target')}: {shownAmount(record.recipe.target.value)} {record.recipe.target.unit}</p>
+      <ul>{record.recipe.ingredients.map(i => <li key={i.id}>{i.reference} · {i.source} · {t('planned')}: {i.mode === 'qs' ? t('qs') : `${shownAmount(i.target.value)} ${i.target.unit}`} · {t('actual')}: {shownAmount(record.actual[i.id].value)} {record.actual[i.id].unit}</li>)}</ul>
     </details>)}
   </BlockFrame>;
 }

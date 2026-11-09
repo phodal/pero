@@ -85,7 +85,7 @@ export function gridWriteConflicts(grid: WorksheetGrid, range: CellRange): boole
   return grid.merges.some(merge => rangesIntersect(merge, range));
 }
 /** Display-only. A long tail of 0s or 9s is binary residue; exact integers and other long values stay. */
-function displayNumber(value: number): string {
+export function displayNumber(value: number): string {
   if (!Number.isFinite(value)) return String(value);
   const text = String(value);
   if (Number.isInteger(value)) return text;

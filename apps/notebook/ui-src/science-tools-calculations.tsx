@@ -47,14 +47,18 @@ export function SequencePanel({ onSnapshot }: SciencePanelProps) {
     <Button onClick={calculate}>{t('calculate')}</Button>
     {error && <Feedback kind="error">{t('failure')} {error}</Feedback>}
     {current && <>
-      {current.analysis.sequence.removed.length > 0 && <Feedback kind="warning">{t('removed')}<pre>{JSON.stringify(current.analysis.sequence.removed)}</pre><label><Checkbox checked={acknowledged} onCheckedChange={value => setAcknowledged(value === true)} /> {t('acknowledgeRemoval')}</label></Feedback>}
+      {current.analysis.sequence.removed.length > 0 && <Feedback kind="warning">{t('removed')}<ul>{current.analysis.sequence.removed.map((item, index) => <li key={`${item.position}-${index}`}>{item.character} · {item.position}</li>)}</ul><label><Checkbox checked={acknowledged} onCheckedChange={value => setAcknowledged(value === true)} /> {t('acknowledgeRemoval')}</label></Feedback>}
       <div className="notebook-science-metrics">
         <strong>{current.analysis.length} nt</strong><strong>GC {current.analysis.gcPercent.toFixed(2)}%</strong><strong>ORF {current.analysis.orfs.length}</strong>
         <strong>Tm {'celsius' in current.melting ? `${current.melting.celsius.toFixed(2)} °C` : '—'}</strong>
       </div>
       {'unavailable' in current.melting && <Feedback kind="warning">Tm: {current.melting.unavailable}</Feedback>}
       <div className="notebook-science-result"><strong>{t('translation')}</strong><code>{current.analysis.translation || '∅'}</code><strong>{t('complement')}</strong><code>{current.analysis.complement}</code><strong>{t('reverseComplement')}</strong><code>{current.analysis.reverseComplement}</code></div>
-      <Disclosure summary={t('details')}><pre className="notebook-science-json">{JSON.stringify({ ...current.analysis, meltingInput: conditions, melting: current.melting }, null, 2)}</pre></Disclosure>
+      <Disclosure className="notebook-science-raw" summary={t('details')}>
+        <p>{current.analysis.method}</p>
+        <p>{current.analysis.limits}</p>
+        {current.analysis.orfs.length > 0 && <ul>{current.analysis.orfs.map((orf, index) => <li key={`${orf.strand}-${orf.start}-${index}`}>{orf.strand} {orf.start}–{orf.end} · {orf.length} nt</li>)}</ul>}
+      </Disclosure>
       <Button variant="primary" disabled={!!current.analysis.sequence.removed.length && !acknowledged} onClick={() => onSnapshot(t('sequence'), { ...current.analysis, meltingInput: conditions, melting: current.melting, removalAcknowledged: acknowledged })}>{t('insert')}</Button>
     </>}
   </div>;
@@ -86,7 +90,11 @@ export function ChemistryPanel({ onSnapshot }: SciencePanelProps) {
     {result?.status === 'missing' && <Feedback kind="warning">{t('missing')}<ul>{result.alternatives.map(value => <li key={value}>{value}</li>)}</ul></Feedback>}
     {result?.status === 'solved' && <>
       <strong className="notebook-science-metrics">{t(input.target)} = {result.formatted} {result.unit}</strong>
-      <Disclosure summary={t('details')}><pre className="notebook-science-json">{JSON.stringify(result, null, 2)}</pre></Disclosure>
+      <Disclosure className="notebook-science-raw" summary={t('details')}>
+        <p>{result.method}</p>
+        {result.derivations.length > 0 && <ul>{result.derivations.map(line => <li key={line}>{line}</li>)}</ul>}
+        <p>{result.limits}</p>
+      </Disclosure>
       <Button variant="primary" onClick={() => onSnapshot(t('chemistry'), result)}>{t('insert')}</Button>
     </>}
   </div>;

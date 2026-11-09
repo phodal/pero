@@ -47,13 +47,30 @@ test('scientific tools insert auditable snapshots, refuse stale acceptance and p
   const snapshots = () => editor.getJSON().content.filter((node: any) => node.type === 'codeBlock').map((node: any) => JSON.parse(node.content[0].text));
 
   await t.test('sequence computation is inserted once and stale draft changes are refused', async () => {
-    await openTool('sequence'); await fill('Sequence (IUPAC, up to 20,000 nt)', 'ATGAAATAA'); await click(button('Calculate')); await click(button('Insert snapshot'));
+    await openTool('sequence'); await fill('Sequence (IUPAC, up to 20,000 nt)', 'ATGAAATAA'); await click(button('Calculate'));
+    assert.match(document.body.textContent!, /9 nt/); assert.match(document.body.textContent!, /MK\*/);
+    const details = document.querySelector('.notebook-science-panel details') as HTMLDetailsElement | null;
+    assert.ok(details); assert.equal(details.open, false);
+    assert.equal(document.querySelector('.notebook-science-json'), null);
+    assert.match(details.textContent!, /pero-sequence\/1/); assert.doesNotMatch(details.textContent!, /"gcPercent"|"meltingInput"/);
+    await click(button('Insert snapshot'));
     assert.equal(snapshots()[0].translation, 'MK*'); assert.equal(snapshots()[0].input, 'ATGAAATAA');
     await click(button('Insert snapshot')); assert.equal(snapshots().length, 1); assert.match(document.body.textContent!, /already been inserted/);
     await fill('Sequence (IUPAC, up to 20,000 nt)', 'ATGGCTTAA'); await click(button('Calculate'));
     await act(() => editor.commands.insertContentAt(1, 'New draft text. '));
     await click(button('Insert snapshot')); assert.equal(snapshots().length, 1); assert.match(document.body.textContent!, /notebook changed/);
     await click(button('Close')); assert.equal(document.querySelector('dialog'), null);
+  });
+
+  await t.test('chemistry shows the solved quantity without dumping the raw result', async () => {
+    await openTool('chemistry'); await fill('Mass', '10'); await fill('Formula weight', '100'); await click(button('Calculate'));
+    assert.match(document.body.textContent!, /Amount = 0\.100 mol/);
+    const details = document.querySelector('.notebook-science-panel details') as HTMLDetailsElement | null;
+    assert.ok(details); assert.equal(details.open, false);
+    assert.equal(document.querySelector('.notebook-science-json'), null);
+    assert.match(details.textContent!, /n = mass × purity \/ formula weight/);
+    assert.doesNotMatch(details.textContent!, /"normalized"|"significantFigures"/);
+    await click(button('Close'));
   });
 
   await t.test('candidate review edits literal text into a fresh uniquely named worksheet', async () => {

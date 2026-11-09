@@ -19,6 +19,13 @@ test('quantities preserve unknowns, convert explicit units, and reject incompati
 });
 test('QS arithmetic is conditional, bounded, dimensional, and never a measured amount', () => {
   const state = recipe(); assert.deepEqual(mixtureQSEstimate(state.draft), { value: 80, unit: 'mL' });
+  const binary = recipe();
+  binary.draft.target = { value: 1, unit: 'mL' };
+  binary.draft.ingredients = [
+    { id: 'a', reference: 'a', source: '', mode: 'quantity', target: { value: 0.1 + 0.2, unit: 'mL' } },
+    { id: 'b', reference: 'b', source: '', mode: 'qs', target: { value: null, unit: 'mL' } },
+  ];
+  assert.equal(mixtureQSEstimate(binary.draft)?.value, 1 - (0.1 + 0.2));
   assert.deepEqual(state.measurements, {});
   state.draft.additiveVolumes = false; assert.equal(mixtureQSEstimate(state.draft)?.value, null);
   state.draft.additiveVolumes = true; state.draft.ingredients[0].target.value = .2;
