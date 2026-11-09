@@ -6,6 +6,8 @@ import { Badge, Button, Checkbox, Dialog, Feedback, Field, Input, Select, Textar
 import type { NotebookDocument, NotebookNode } from '@pero/notebook';
 import { instantiateTemplate, templateBindingChoices, validateTemplateParameters, type PublishedTemplate, type TemplateKind, type TemplateParameter, type TemplateSummary, type TemplateValue, type TemplateOrigin } from '@pero/notebook/templates';
 import { activeNotebookBlock } from './block-order';
+import { TemplateCollections } from './template-collections';
+import { collectionPath, type TemplateCollectionLibrary } from '@pero/notebook/template-collections';
 
 const messages = {
   library: { en: 'Templates', zh: '模板库' }, close: { en: 'Close', zh: '关闭' },
@@ -73,6 +75,7 @@ function TemplateLibrary({ editor, onCreateEntry, capture, onClose }: NotebookTe
 }) {
   const api = useAppApi(), { t } = useAppI18n(messages);
   const [list, setList] = useState<TemplateSummary[] | null>(null), [selected, setSelected] = useState<PublishedTemplate | null>(null);
+  const [collection, setCollection] = useState(''), [organization, setOrganization] = useState<TemplateCollectionLibrary | null>(null);
   const [filter, setFilter] = useState(''), [archived, setArchived] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [publishing, setPublishing] = useState(false), [base, setBase] = useState<TemplateSummary | null>(null);
@@ -138,7 +141,7 @@ function TemplateLibrary({ editor, onCreateEntry, capture, onClose }: NotebookTe
     }
     if (alive.current) onClose();
   });
-  const shown = list?.filter(item => (archived || !item.archived) && `${item.name} ${item.collections.join(' ')}`.toLocaleLowerCase().includes(filter.toLocaleLowerCase()));
+  const shown = list?.filter(item => (!collection || collectionPath(organization?.collections ?? [], organization?.memberships[item.id] ?? '').some(parent => parent.id === collection)) && (archived || !item.archived) && `${item.name} ${item.collections.join(' ')}`.toLocaleLowerCase().includes(filter.toLocaleLowerCase()));
   const updateParameter = (index: number, patch: Partial<TemplateParameter>) => setParameters(previous => previous.map((item, offset) => offset === index ? { ...item, ...patch } : item));
   return <Dialog title={t('library')} closeLabel={t('close')} size="lg" onClose={onClose}>
     <p>{t('local')}</p>
@@ -166,6 +169,7 @@ function TemplateLibrary({ editor, onCreateEntry, capture, onClose }: NotebookTe
       <div className="notebook-template-actions"><Button disabled={busy} onClick={() => setPublishing(false)}>{t('cancel')}</Button><Button variant="primary" busy={busy} disabled={!name.trim()} onClick={() => void publish()}>{t('publishNow')}</Button></div>
     </div> : <>
       <div className="notebook-template-actions"><Button disabled={busy || !editor.isEditable} onClick={() => beginPublication()}>{t('publish')}</Button></div>
+      <TemplateCollections templateId={selected?.id} selected={collection} onSelect={setCollection} onLibrary={setOrganization} />
       <Field label={t('filter')}>{control => <Input {...control} disabled={busy} value={filter} onChange={event => setFilter(event.target.value)} />}</Field>
       <label><Checkbox checked={archived} onCheckedChange={checked => setArchived(checked === true)} />{t('archived')}</label>
       {!list && !error && <p role="status">{t('loading')}</p>}

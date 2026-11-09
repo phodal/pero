@@ -9,8 +9,13 @@ import {
   type StructuredColumn, type StructuredTableAttributes, type TableChange, type TableIssueCode, type TypedCell,
 } from '@pero/notebook/structured-table';
 import { BlockFrame } from './block-frame';
+import { projectTableView, type TableViewDefinition } from '@pero/notebook/table-workflows';
+import { TableWorkflowTools } from './table-workflows';
+import { useNotebookContext } from './notebook-context';
 
 export const structuredTableMessages = {
+  projected: { en: 'View: {name} · {visible} of {total} rows', zh: '视图：{name} · {total} 行中的 {visible} 行' },
+  filteredEmpty: { en: 'No rows match this view. Show all rows or edit its filter.', zh: '没有匹配此视图的行。请显示全部行或修改筛选条件。' },
   inputTable: { en: 'Input table', zh: '输入表' },
   registrationTable: { en: 'Registration table', zh: '登记表' },
   lookupTable: { en: 'Lookup table', zh: '查询表' },
@@ -170,6 +175,13 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
   const { t } = useAppI18n(structuredTableMessages), api = useAppApi();
   const attrs = view.node.attrs as StructuredTableAttributes;
   const { table, receipts } = attrs;
+  const entryContext = useNotebookContext();
+  const viewScope = `${entryContext?.entryId ?? ''}:${table.id}`;
+  const [selectedView, setSelectedView] = useState<{ scope: string; view: TableViewDefinition | null }>({ scope: viewScope, view: null });
+  const activeView = selectedView.scope === viewScope ? selectedView.view : null;
+  const setActiveView = (value: TableViewDefinition | null) => setSelectedView({ scope: viewScope, view: value });
+  let projected = { columns: table.schema.columns, rows: table.rows }, viewError = '';
+  try { projected = projectTableView(table, activeView); } catch (cause) { viewError = cause instanceof Error ? cause.message : String(cause); }
   const current = useRef(attrs); current.current = attrs;
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -203,19 +215,23 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
     caption={<Badge tone={submitted ? 'info' : 'neutral'}>{t(submitted ? 'submitted' : receipts.length ? 'changed' : 'inputDraft')}</Badge>}>
     <div className="notebook-structured-metadata"><span>{t('schema')}: <code>{table.schema.id}</code></span><span>{t('revision', { number: table.schema.revision })}</span></div>
     {registration && <p className="notebook-note">{t('catalogScope')}</p>}
+    <TableWorkflowTools table={table} receipts={receipts} editable={editable} activeView={activeView} onViewChange={setActiveView} onApplyTable={next => { if (mounted.current && view.editor.isEditable) view.updateAttributes({ table: next }); }} />
+    {activeView && !viewError && <p className="notebook-note">{t('projected', { name: activeView.name, visible: projected.rows.length, total: table.rows.length })}</p>}
+    {viewError && <Feedback kind="warning">{viewError}</Feedback>}
     {issues.length > 0 && <Feedback kind="warning">{t('validation', { count: issues.length })}
       <ul>{issues.filter(issue => !issue.rowId).map((issue, index) => <li key={index}>{issue.columnId ? `${table.schema.columns.find(col => col.id === issue.columnId)?.name || issue.columnId}: ` : ''}{t(issueKey(issue.code))}</li>)}</ul>
     </Feedback>}
     <div className="notebook-structured-scroll"><table className="notebook-structured-grid"><thead><tr><th>{t('row')}</th>
-      {table.schema.columns.map(col => <th key={col.id}>
+      {projected.columns.map(col => <th key={col.id}>
         {editable ? <Button variant="ghost" title={t('columnSettings')} onClick={() => setColumn(col)}>{col.name || t('columnSettings')}{col.required ? ' *' : ''}</Button> : <strong>{col.name}{col.required ? ' *' : ''}</strong>}
         <div className="notebook-note">{t(col.type)}</div>
         {col.type === 'quantity' && <small>{t('quantityHint', { units: col.units.join(', ') })}</small>}
       </th>)}{editable && <th />}</tr></thead>
-      <tbody>{table.rows.map((row, index) => <tr key={row.id}><th scope="row" title={row.id}>{index + 1}</th>
-        {table.schema.columns.map(col => <td key={col.id}><TypedCellEditor column={col} raw={row.cells[col.id] ?? ''} label={`${col.name}, ${t('row')} ${index + 1}`} disabled={!editable} onChange={value => edit({ type: 'cell', rowId: row.id, columnId: col.id, value })} /></td>)}
+      <tbody>{projected.rows.map(row => { const index = table.rows.findIndex(item => item.id === row.id); return <tr key={row.id}><th scope="row" title={row.id}>{index + 1}</th>
+        {projected.columns.map(col => <td key={col.id}><TypedCellEditor column={col} raw={row.cells[col.id] ?? ''} label={`${col.name}, ${t('row')} ${index + 1}`} disabled={!editable} onChange={value => edit({ type: 'cell', rowId: row.id, columnId: col.id, value })} /></td>)}
         {editable && <td><Button variant="ghost" onClick={() => edit({ type: 'removeRow', id: row.id })}>{t('removeRow', { number: index + 1 })}</Button></td>}
-      </tr>)}</tbody></table></div>
+      </tr>; })}</tbody></table></div>
+    {!!table.rows.length && !projected.rows.length && <p>{t('filteredEmpty')}</p>}
     {!table.rows.length && <p className="notebook-note">{t('noRows')}</p>}
     {editable && <div className="notebook-structured-actions">
       <Button variant="ghost" disabled={table.rows.length >= structuredTableLimits.rows} onClick={() => edit({ type: 'addRow', id: identity() })}>{t('addRow')}</Button>
