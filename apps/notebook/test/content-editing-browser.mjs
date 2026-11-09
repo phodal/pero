@@ -29,8 +29,8 @@ test('Content editing runs locally in Chromium with highlighted code and derived
   ` }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'empty' },
     alias: { react: resolve(root, 'node_modules/react'), 'react-dom': resolve(root, 'node_modules/react-dom'), '@pero/app-sdk/ui': resolve(root, 'packages/app-sdk/src/ui.tsx'), '@pero/app-sdk': resolve(root, 'packages/app-sdk/src/index.tsx') } });
   const server = createServer((req, res) => {
-    res.setHeader('Content-Type', req.url === '/script.js' ? 'text/javascript' : 'text/html');
-    res.end(req.url === '/script.js' ? result.outputFiles[0].contents : '<div id="root"></div><script src="/script.js"></script>');
+    res.setHeader('Content-Type', req.url === '/script.js' ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8');
+    res.end(req.url === '/script.js' ? result.outputFiles[0].contents : '<meta charset="utf-8"><div id="root"></div><script src="/script.js"></script>');
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(() => new Promise(resolve => server.close(resolve)));

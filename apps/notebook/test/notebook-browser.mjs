@@ -1,3 +1,7 @@
+import { verifyReferenceControls } from './reference-controls-browser-scenario.mjs';
+import { verifyRemainingNotebookWorkflows } from './remaining-workflows-browser-scenario.mjs';
+import { verifySourceExtraction } from './source-extraction-browser-scenario.mjs';
+import { verifyResearchPrintTools } from './research-print-browser-scenario.mjs';
 import { verifyStructuredFieldWorkflows } from './structured-field-browser-scenario.mjs';
 import { verifyProcedureParameters } from './procedure-parameters-browser-scenario.mjs';
 import { verifyReviewWorkflows } from './review-workflows-browser-scenario.mjs';
@@ -32,6 +36,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   t.after(() => rm(directory, { recursive: true, force: true }));
   const files = new Map(await Promise.all([
     ['/', 'index.html', 'text/html'], ['/index.js', 'index.js', 'text/javascript'], ['/index.css', 'index.css', 'text/css'],
+    ['/source-evidence.json', 'source-evidence.json', 'application/json'],
   ].map(async ([path, name, type]) => [path, { body: await readFile(resolve(app, 'dist', name)), type }])));
   const backend = spawn(process.env.PYTHON || 'python3', [resolve(app, 'backend/server.py')], {
     env: { ...process.env, PERO_APP_DATA: directory, PERO_APP_TOKEN: token, PYTHONDONTWRITEBYTECODE: '1' },
@@ -51,7 +56,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const server = createServer(async (request, response) => {
     const file = files.get(request.url);
     if (file) {
-      response.writeHead(200, { 'Content-Type': file.type, 'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:" });
+      response.writeHead(200, { 'Content-Type': file.type + '; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:" });
       return response.end(file.body);
     }
     if (request.url === '/host/sdk') return response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}');
@@ -352,9 +357,9 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await expect(finding.getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
   for (const [name, verify] of [
-    ['grid-tools', verifyGridTools], ['notebook-components', verifyNotebookComponents],
+    ['reference-controls', verifyReferenceControls], ['grid-tools', verifyGridTools], ['notebook-components', verifyNotebookComponents],
     ['table-workflows', verifyTableWorkflows], ['scientific-designs', verifyScientificDesigns],
-    ['source-excerpts', verifySourceExcerpts], ['diagnostics-and-intake', verifyDiagnosticsAndIntake],
+    ['source-excerpts', verifySourceExcerpts], ['source-extraction', verifySourceExtraction], ['research-print', verifyResearchPrintTools], ['remaining-workflows', verifyRemainingNotebookWorkflows], ['diagnostics-and-intake', verifyDiagnosticsAndIntake],
     ['review-workflows', verifyReviewWorkflows], ['structured-field-workflows', verifyStructuredFieldWorkflows], ['procedure-parameters', verifyProcedureParameters], ['procedure-workspace', verifyProcedureWorkspace], ['direct-grid-interactions', verifyDirectGridInteractions],
   ]) {
     scenario = name;

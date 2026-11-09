@@ -40,44 +40,7 @@ defaults:
 jobs:
   notebook:
     name: Notebook revisions, workbook and browser contracts
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            apps/notebook/package-lock.json
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Prepare Notebook dependencies and browser
-        id: prepare
-        run: |
-          npm ci --ignore-scripts
-          npm ci --prefix apps/notebook --ignore-scripts
-          npx playwright install --with-deps chromium
-          npm --prefix apps/notebook run build
-      - name: Verify documents, formulas, XLSX exchange and Agent revisions
-        run: npm run test:notebook
-      - name: Verify installed App catalog owner contracts
-        run: node --test packages/app-sdk/test/installed-app-views.test.mjs packages/app-sdk/test/app-canvas.test.mjs desktop/src/main/apps-frames.test.ts desktop/src/main/app-canvas.test.ts
-      - name: Verify Notebook types
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        run: npm --prefix apps/notebook run typecheck
-      - name: Verify real editor persistence, imports and clipboard references
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        run: npm --prefix apps/notebook run test:browser
-      - name: Retain Notebook browser evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: notebook-browser-${{ github.sha }}
-          path: test-results/notebook/
-          if-no-files-found: warn
+    uses: ./.github/workflows/notebook.yml
 
   scientific-viewer:
     name: Scientific Viewer browser inspection
@@ -610,7 +573,9 @@ jobs:
       - name: Install pinned Paper backend dependencies
         id: paper_python
         if: ${{ !cancelled() && steps.python.outcome == 'success' }}
-        run: python -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
+        run: |
+          node scripts/build/source-parsers.mjs
+          python -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
       - name: Paper backend contracts
         id: paper_backend
         if: ${{ !cancelled() && steps.paper_python.outcome == 'success' }}
@@ -962,6 +927,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  notebook-canvas:
+    name: Notebook Canvas real Host browser acceptance
+    uses: ./.github/workflows/notebook-canvas.yml
+
   native-ui:
     name: Native shell compilation and unit contracts
     uses: ./.github/workflows/native-ui.yml
@@ -969,7 +938,7 @@ jobs:
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [native-ui, paper-html-live, core, data, lab, control-lab, virtual-cell, notebook, scientific-viewer, lcms2yield, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [notebook-canvas, native-ui, paper-html-live, core, data, lab, control-lab, virtual-cell, notebook, scientific-viewer, lcms2yield, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

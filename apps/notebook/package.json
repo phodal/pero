@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "pretest": "node ../../scripts/build/source-parsers.mjs",
     "build": "node ../../scripts/build/apps.mjs --app notebook",
     "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
     "test": "npm run test:editor && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
-    "test:browser": "node --test test/notebook-browser.mjs test/content-editing-browser.mjs",
+    "test:browser": "node --test test/notebook-browser.mjs test/content-editing-browser.mjs test/source-diagnostics-browser.mjs",
     "test:editor": "node --test --test-concurrency=4 test/*.test.ts"
   },
   "dependencies": {

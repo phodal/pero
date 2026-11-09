@@ -30,6 +30,9 @@ from scientific_routes import scientific_route
 from ai_proposals import AIProposalStore
 from ai_routes import ai_route
 from app_canvas import verify_source
+from worksheet_amendments import WorksheetAmendmentStore, worksheet_amendment_route
+from source_parsers import source_extraction_route
+from notebook_home import notebook_home
 
 
 ENTRY_ID = re.compile(r'[a-f0-9]{32}')
@@ -57,6 +60,7 @@ def handler(store, secret):
     archives = CatalogArchiveStore(catalog)
     scientific = ScientificDesignStore(store)
     proposals = AIProposalStore(store)
+    amendments = WorksheetAmendmentStore(store)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -118,7 +122,9 @@ def handler(store, secret):
                 return self.error(500, 'storage-error', 'Notebook storage operation failed')
 
         def get(self):
-            for route, owner in ((ai_route, proposals), (scientific_route, scientific)):
+            if self.path == '/api/notebook-home':
+                return self.reply(200, notebook_home(store))
+            for route, owner in ((ai_route, proposals), (scientific_route, scientific), (worksheet_amendment_route, amendments)):
                 response = route(owner, 'GET', self.path, self.body)
                 if response is not None:
                     return self.reply(*response)
@@ -165,9 +171,12 @@ def handler(store, secret):
             return self.reply(200, store.read(match[1]).wire())
 
         def post(self):
+            response = source_extraction_route('POST', self.path, self.body)
+            if response is not None:
+                return self.reply(*response)
             if self.path == '/internal/canvas/source':
                 return self.reply(200, verify_source(store, self.body()))
-            for route, owner in ((ai_route, proposals), (scientific_route, scientific)):
+            for route, owner in ((ai_route, proposals), (scientific_route, scientific), (worksheet_amendment_route, amendments)):
                 response = route(owner, 'POST', self.path, self.body)
                 if response is not None:
                     return self.reply(*response)
@@ -205,6 +214,9 @@ def handler(store, secret):
                     data = fields(self.body(), {'revision'})
                     return self.reply(200, saved_searches.run(identity, integer(data['revision'], 'query revision')))
                 return self.error(404, 'not-found', 'Route not found')
+            if self.path == '/api/document/validate':
+                data = fields(self.body(), {'document'})
+                return self.reply(200, {'document': NotebookDocument.parse(data['document']).wire()})
             if self.path == '/api/entries':
                 data = fields(self.body(), set(), {'title', 'document'})
                 if 'document' in data and 'title' in data:
