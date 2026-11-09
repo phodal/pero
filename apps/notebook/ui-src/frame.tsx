@@ -274,7 +274,12 @@ function Notebook() {
     const id = draft.entry.id;
     draftWriteEpoch.current[id] = (draftWriteEpoch.current[id] ?? 0) + 1;
     try {
-      const entry = await sequence(id, () => api.post<NotebookEntry>(endpoint(id), { baseRevision: draft.entry.revision, document: draft.document }));
+      const entry = await sequence(id, async () => {
+        const saved = await api.post<NotebookEntry>(endpoint(id), { baseRevision: draft.entry.revision, document: draft.document });
+        // The published document replaces any earlier debounce copy. A copy left behind reloads in place of this revision.
+        await api.post(`${endpoint(id)}/draft/discard`, { baseRevision: saved.revision });
+        return saved;
+      });
       setDrafts(previous => {
         const latest = previous[id];
         return { ...previous, [id]: { ...latest, entry, newer: false,
