@@ -67,7 +67,7 @@ export function CandidateReviewPanel({ onSnapshot, getContent, generated, getTar
         </tr>)}</tbody>
       </Table>
       {!visible.length && <p>{t('noRows')}</p>}
-      {visible.length > 25 && <div className="notebook-science-actions"><Button aria-label="Previous page / 上一页" disabled={page === 0} onClick={() => setPage(page - 1)}>←</Button><span>{page + 1}/{Math.ceil(visible.length / 25)}</span><Button aria-label="Next page / 下一页" disabled={(page + 1) * 25 >= visible.length} onClick={() => setPage(page + 1)}>→</Button></div>}
+      {visible.length > 25 && <div className="notebook-science-actions"><Button aria-label={t('previousPage')} disabled={page === 0} onClick={() => setPage(page - 1)}>←</Button><span>{page + 1}/{Math.ceil(visible.length / 25)}</span><Button aria-label={t('nextPage')} disabled={(page + 1) * 25 >= visible.length} onClick={() => setPage(page + 1)}>→</Button></div>}
       <Disclosure summary={t('extraRows')}><ul>{review.response.runs.map((run, index) => <li key={index}><strong>{run.name} · {run.family}</strong> {run.failed ? t('failed') : `${run.tables[review.table]?.length ?? 0} ${t('row')}`}<pre className="notebook-science-json">{JSON.stringify(run.tables[review.table] ?? [], null, 2)}</pre></li>)}</ul></Disclosure>
       <label><Checkbox checked={acknowledged} onCheckedChange={value => setAcknowledged(value === true)} /> {t('reviewAck')}</label>
       {error && <Feedback kind="error">{error}</Feedback>}
@@ -91,7 +91,7 @@ export function RecordedChecksPanel({ onSnapshot }: SciencePanelProps) {
     <JsonReviewInput format={checksFormat} invalidate={() => { setChecks(null); setAcknowledged(false); }} load={raw => { setChecks(parseRecordedChecks(raw)); setAcknowledged(false); }} />
     <p className="notebook-note">{t('checksLimits')}</p>
     {checks && <>
-      <Feedback kind={checks.status === 'error' ? 'error' : checks.status === 'partial' ? 'warning' : 'info'}>{t(checks.status)}{checks.error && `: ${checks.error}`}{checks.missing.length > 0 && <p>Missing / 缺失: {checks.missing.join(', ')}</p>}</Feedback>
+      <Feedback kind={checks.status === 'error' ? 'error' : checks.status === 'partial' ? 'warning' : 'info'}>{t(checks.status)}{checks.error && `: ${checks.error}`}{checks.missing.length > 0 && <p>{t('missingFields', { names: checks.missing.join(', ') })}</p>}</Feedback>
       <p className="notebook-note">{checks.traceId ?? '∅'} · {checks.checkedAt ?? '∅'} · v{checks.checkedVersion ?? '∅'}</p>
       <div className="notebook-science-checks">{checks.items.map((item, i) => <div key={i}>
         <label><Checkbox checked={item.acknowledged} aria-label={`${t('acknowledged')} ${i + 1}`} onCheckedChange={value => { setChecks({ ...checks, items: checks.items.map((check, index) => index === i ? { ...check, acknowledged: value === true } : check) }); setAcknowledged(false); }} /> {item.text}</label>

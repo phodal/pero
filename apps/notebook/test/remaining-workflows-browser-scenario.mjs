@@ -61,8 +61,8 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   if (!await button('Hide more tools').count()) await button('More tools').click();
   await button('Scientific tools').click(); dialog = page.getByRole('dialog', { name: 'Scientific tools', exact: true });
   await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('ai');
-  await dialog.getByLabel('Proposal mode / 建议模式').selectOption('checks');
-  await dialog.getByLabel('Proposal goal / 建议目标').fill('Review missing units');
+  await dialog.getByLabel('Proposal mode').selectOption('checks');
+  await dialog.getByLabel('Proposal goal').fill('Review missing units');
   await expect(dialog).toContainText('No configured Host agent is available');
   await expect(button('Generate candidates', dialog)).toBeDisabled();
   await button('Close', dialog).click();

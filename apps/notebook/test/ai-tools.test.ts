@@ -54,39 +54,39 @@ test('AI UI recovers unknown Host outcome, persists cell decisions, applies once
     Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(node, value); node.dispatchEvent(new dom.window.Event(node.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
   });
   const settled = async (condition: () => boolean) => { const deadline = Date.now() + 4000; while (!condition() && Date.now() < deadline) await React.act(async () => new Promise<void>(done => setImmediate(done))); assert.ok(condition(), document.body.textContent!.slice(-2000)); };
-  await mount(); await settled(() => !button('Reload saved recovery / 重新载入恢复记录').disabled);
-  await fill('Proposal goal / 建议目标', 'Extract the recorded sample mass');
-  await fill('Select a local notebook source / 选择笔记本地来源', 'source');
+  await mount(); await settled(() => !button('Reload saved recovery').disabled);
+  await fill('Proposal goal', 'Extract the recorded sample mass');
+  await fill('Select a local notebook source', 'source');
   await settled(() => !button('Generate candidates').disabled);
   assert.equal(requests.length, 0); // Selecting readable source bytes never starts a model request.
   await React.act(async () => { button('Generate candidates').click(); button('Generate candidates').click(); });
   await settled(() => document.body.textContent!.includes('Request outcome unknown'));
   assert.equal(sessions.size, 1); assert.equal(requests.length, 1);
   await render(null); await mount();
-  await settled(() => !![...document.querySelectorAll('button')].find(node => node.textContent === 'Reconcile original request / 核对原请求'));
-  await click(button('Reconcile original request / 核对原请求'));
-  await settled(() => document.body.textContent!.includes('host-session-1') && !button('Refresh session status / 刷新会话状态').disabled);
+  await settled(() => !![...document.querySelectorAll('button')].find(node => node.textContent === 'Reconcile original request'));
+  await click(button('Reconcile original request'));
+  await settled(() => document.body.textContent!.includes('host-session-1') && !button('Refresh session status').disabled);
   assert.equal(sessions.size, 1); assert.equal(requests[0].requestId, requests[1].requestId); assert.equal(requests[0].prompt, requests[1].prompt);
-  await click(button('Refresh session status / 刷新会话状态'));
+  await click(button('Refresh session status'));
   await settled(() => !![...document.querySelectorAll('button')].find(node => node.textContent === 'Accept / 接受'));
   await click(button('Accept / 接受')); await settled(() => !button('Reject / 拒绝').disabled);
   await render(null); await mount(); await settled(() => !![...document.querySelectorAll('button')].find(node => node.textContent === 'Accept / 接受') && button('Accept / 接受').disabled);
   const acknowledgment = [...document.querySelectorAll('label')].find(node => node.textContent!.includes('I reviewed all changes'))!.querySelector<HTMLElement>('[role=checkbox]')!;
   await click(acknowledgment); await click(button('Apply accepted cells / 应用已接受单元格'));
-  await settled(() => document.body.textContent!.includes('Applied to the draft with provenance') && !button('Reload saved recovery / 重新载入恢复记录').disabled);
+  await settled(() => document.body.textContent!.includes('Applied to the draft with provenance') && !button('Reload saved recovery').disabled);
   assert.equal(applications, 1); assert.equal(JSON.parse(content).content[1].attrs.table.rows[0].cells.mass, '2.5 mg');
-  await render(null); await mount(); await settled(() => document.body.textContent!.includes('Applied to the draft with provenance') && !button('Reload saved recovery / 重新载入恢复记录').disabled);
+  await render(null); await mount(); await settled(() => document.body.textContent!.includes('Applied to the draft with provenance') && !button('Reload saved recovery').disabled);
   assert.equal(applications, 1);
   hostStatus = 'running';
-  await fill('Proposal goal / 建议目标', 'A second request'); await fill('Select a local notebook source / 选择笔记本地来源', 'source');
+  await fill('Proposal goal', 'A second request'); await fill('Select a local notebook source', 'source');
   await settled(() => !button('Generate candidates').disabled); await click(button('Generate candidates'));
-  await settled(() => document.body.textContent!.includes('host-session-2') && !button('Cancel session / 取消会话').disabled);
-  await click(button('Cancel session / 取消会话')); await settled(() => document.body.textContent!.includes('cancelling') && !button('Refresh session status / 刷新会话状态').disabled);
+  await settled(() => document.body.textContent!.includes('host-session-2') && !button('Cancel session').disabled);
+  await click(button('Cancel session')); await settled(() => document.body.textContent!.includes('cancelling') && !button('Refresh session status').disabled);
   assert.equal(cancellations, 1); assert.ok(button('Generate candidates').disabled);
-  hostStatus = 'cancelled'; await click(button('Refresh session status / 刷新会话状态')); await settled(() => document.body.textContent!.includes('cancelled') && !button('Reload saved recovery / 重新载入恢复记录').disabled);
+  hostStatus = 'cancelled'; await click(button('Refresh session status')); await settled(() => document.body.textContent!.includes('cancelled') && !button('Reload saved recovery').disabled);
   assert.equal(applications, 1);
-  await click(button('Dismiss this review / 放弃此次复核'));
-  await settled(() => !button('Reload saved recovery / 重新载入恢复记录').disabled);
+  await click(button('Dismiss this review'));
+  await settled(() => !button('Reload saved recovery').disabled);
   await render(null);
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   dom.window.HTMLDialogElement.prototype.close = function () { this.open = false; };
@@ -98,9 +98,9 @@ test('AI UI recovers unknown Host outcome, persists cell decisions, applies once
   // StarterKit does not persist paragraph block IDs by itself; use the table block as the target and retain a source paragraph via a global attribute.
   await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.NotebookScienceTools, { editor, getTarget: () => ({ entryId: entry.id, revision: 1 }), onInsert: () => assert.fail('Typed application must use the atomic replacement callback') })));
   await click(button('Scientific tools')); await fill('Scientific tools', 'ai');
-  await settled(() => !button('Reload saved recovery / 重新载入恢复记录').disabled);
+  await settled(() => !button('Reload saved recovery').disabled);
   hostStatus = 'completed'; proposedMass = '3.5 mg';
-  await fill('Proposal goal / 建议目标', 'Review a changed measurement from the selected source');
+  await fill('Proposal goal', 'Review a changed measurement from the selected source');
   // Supply a real readable local file through the file picker because this minimal editor does not install paragraph IDs.
   const fileInput = document.querySelector<HTMLInputElement>('input[type=file]')!; assert.ok(fileInput);
   const localFile = { name: 'source.txt', type: 'text/plain', size: 19, arrayBuffer: async () => new TextEncoder().encode('Sample mass: 3.5 mg.').buffer };
@@ -108,7 +108,7 @@ test('AI UI recovers unknown Host outcome, persists cell decisions, applies once
   const emptyCheck = [...document.querySelectorAll('label')].find(node => node.textContent!.includes('Fill empty cells only'))!.querySelector<HTMLElement>('[role=checkbox]')!;
   await settled(() => emptyCheck.getAttribute('aria-disabled') !== 'true' && !emptyCheck.hasAttribute('disabled'));
   await click(emptyCheck); assert.equal(emptyCheck.getAttribute('aria-checked'), 'false'); await settled(() => !button('Generate candidates').disabled); await click(button('Generate candidates'));
-  await settled(() => document.body.textContent!.includes('host-session-3') && !button('Refresh session status / 刷新会话状态').disabled);
+  await settled(() => document.body.textContent!.includes('host-session-3') && !button('Refresh session status').disabled);
   // Use the source ID captured in the actual frozen request, not a fixture-only alias.
   const saved = await actualFetch(`/api/entries/${entry.id}/ai-workspace`).then(response => response.json());
   const sourceId = saved.record.frozen.sources[0].id;
@@ -120,13 +120,13 @@ test('AI UI recovers unknown Host outcome, persists cell decisions, applies once
     }
     return result;
   };
-  await click(button('Refresh session status / 刷新会话状态'));
+  await click(button('Refresh session status'));
   await settled(() => !![...document.querySelectorAll('button')].find(node => node.textContent === 'Accept / 接受'));
   await click(button('Accept / 接受')); await settled(() => !button('Reject / 拒绝').disabled);
   const finalAck = [...document.querySelectorAll('label')].find(node => node.textContent!.includes('I reviewed all changes'))!.querySelector<HTMLElement>('[role=checkbox]')!;
   const beforeApply = JSON.stringify(editor.getJSON());
   await click(finalAck); await click(button('Apply accepted cells / 应用已接受单元格'));
-  await settled(() => document.body.textContent!.includes('Applied to the draft with provenance') && !button('Reload saved recovery / 重新载入恢复记录').disabled);
+  await settled(() => document.body.textContent!.includes('Applied to the draft with provenance') && !button('Reload saved recovery').disabled);
   assert.equal(editor.getJSON().content.find((node: any) => node.type === 'inputTable').attrs.table.rows[0].cells.mass, '3.5 mg');
   await React.act(async () => { assert.ok(editor.commands.undo()); });
   assert.equal(JSON.stringify(editor.getJSON()), beforeApply, 'Typed replacement and provenance must undo together');

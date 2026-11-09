@@ -293,4 +293,10 @@ export const messages = {
   sheetName: { en: 'Sheet name', zh: '工作表名称' },
   invalidSheetName: { en: 'Enter a valid Excel worksheet name of up to 31 characters.', zh: '请输入不超过 31 个字符的有效 Excel 工作表名称。' },
   pendingReference: { en: 'Complete or clear the incomplete source reference before saving.', zh: '请填写完整的来源引用，或清空未完成的引用后保存。' },
+  printEntryReference: { en: 'Entry reference', zh: '条目引用' },
+  printDuplicateWorksheet: { en: 'Duplicate worksheet name: only local cell references are calculated.', zh: '工作表名称重复，仅计算本表单元格引用。' },
+  printCalculatedLocally: { en: 'Calculated locally from recorded inputs; not measured results.', zh: '根据已记输入本地计算，不是实测结果。' },
+  printStoredCells: { en: 'All stored cells are shown, including cells covered by editor merges.', zh: '展示全部已存单元格，包括编辑器合并区域内的单元格。' },
+  printAttachmentBytes: { en: 'Attachment bytes are not included in print.', zh: '打印不包含附件字节。' },
+  printRecordedStructured: { en: 'Recorded structured content', zh: '已记录结构化内容' },
 } as const;

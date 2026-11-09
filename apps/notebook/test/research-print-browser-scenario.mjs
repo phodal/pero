@@ -18,10 +18,10 @@ export async function verifyResearchPrintTools(page, origin, output) {
   let dialog = page.getByRole('dialog', { name: 'Scientific tools', exact: true });
   await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('formula');
   await dialog.locator('summary').filter({ hasText: 'Master-mix worked example' }).click();
-  await button('Set 100 reactions / 设为 100', dialog).click();
+  await button('Set 100 reactions', dialog).click();
   await expect(dialog.locator('p[role=status]')).toContainText('2200 µL');
-  await button('Insert editable worksheet and recipe / 插入可编辑工作表与配方', dialog).click();
-  await button('Insert editable worksheet and recipe / 插入可编辑工作表与配方', dialog).click();
+  await button('Insert editable worksheet and recipe', dialog).click();
+  await button('Insert editable worksheet and recipe', dialog).click();
   await expect(dialog.getByText(/already been inserted/)).toBeVisible();
   await button('Close', dialog).click();
   await expect(page.locator('[data-kind=spreadsheet]')).toHaveCount(1);

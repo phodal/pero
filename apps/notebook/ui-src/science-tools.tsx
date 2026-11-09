@@ -41,7 +41,7 @@ export function NotebookScienceTools({ editor, onInsert, getTarget = () => null 
     }
     return insertSnapshot(example, [
       { type: 'spreadsheet', attrs: { label: name, sheet: example.worksheet.sheet, annotations: {} } },
-      { type: 'mixturePrep', attrs: { label: 'Master-mix planning example', mixture } },
+      { type: 'mixturePrep', attrs: { label: t('masterMixTitle'), mixture } },
     ]);
   };
   const onApply = (application: AIApplication) => {
@@ -71,9 +71,9 @@ export function NotebookScienceTools({ editor, onInsert, getTarget = () => null 
             <dt>{t('review')}</dt><dd>{t('reviewLimits')}</dd>
             <dt>{t('checks')}</dt><dd>{t('checksLimits')}</dd>
           </dl>
-          <p className="notebook-note">Pero method versions and complete inputs are included in each snapshot. / 每份快照包含 Pero 方法版本与完整输入。</p>
-          <p className="notebook-note">Research inventories are not executable features. / 研究目录不等于可执行功能。</p>
-          <a href="https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi" target="_blank" rel="noreferrer">NCBI genetic code tables / 遗传密码表</a>
+          <p className="notebook-note">{t('methodVersions')}</p>
+          <p className="notebook-note">{t('inventories')}</p>
+          <a href="https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi" target="_blank" rel="noreferrer">{t('ncbiTables')}</a>
         </div>}
       </div>
     </Dialog>}

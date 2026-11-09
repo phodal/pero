@@ -23,7 +23,7 @@ export async function verifySourceExtraction(page, origin, output) {
   await button('Source attachment', dialog).click(); await page.getByRole('option', { name: 'original.pdf · application/pdf', exact: true }).click();
   await expect(dialog.getByLabel('Source text (read-only)', { exact: true })).toHaveCount(0);
   const extracting = page.waitForResponse(response => response.url() === origin + '/api/source-extraction' && response.request().method() === 'POST');
-  await button('Extract source locally / 本地提取来源', dialog).click();
+  await button('Extract source locally', dialog).click();
   const response = await extracting; assert.equal(response.ok(), true, await response.text());
   const result = await response.json(); assert.equal(result.text, 'Sample 42 mg');
   await expect(dialog.getByLabel('Source text (read-only)', { exact: true })).toHaveValue(result.text);

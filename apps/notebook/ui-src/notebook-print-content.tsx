@@ -22,11 +22,12 @@ function rootWorksheets(root: NotebookNode): NotebookWorksheet[] {
   return sheets;
 }
 function RichPrint({ root, includeInputs, contextRoot = root }: { root: NotebookNode; includeInputs: boolean; contextRoot?: NotebookNode }) {
+  const { t } = useAppI18n(messages);
   const calculated = calculateNotebookWorksheets(rootWorksheets(contextRoot));
   const nodeView = (node: NotebookNode, key: number): ReactNode => {
     const attrs = node.attrs ?? {}, content = node.content?.map(nodeView);
     switch (node.type) {
-      case 'namedReference': return <section key={key}><h3>{String(attrs.name)}</h3><p>{String(attrs.notes)}</p><small>Entry reference / 条目引用</small></section>;
+      case 'namedReference': return <section key={key}><h3>{String(attrs.name)}</h3><p>{String(attrs.notes)}</p><small>{t('printEntryReference')}</small></section>;
       case 'doc': return <Fragment key={key}>{content}</Fragment>;
       case 'text': {
         let result: ReactNode = node.text;
@@ -44,7 +45,7 @@ function RichPrint({ root, includeInputs, contextRoot = root }: { root: Notebook
       }
       case 'paragraph': return <p key={key}>{content ?? <br />}</p>;
       case 'heading': return <h3 key={key}>{content}</h3>;
-      case 'section': return <section key={key}><h2>{String(attrs.label || 'Section / 章节')}</h2>{!!attrs.date && <p>{String(attrs.date)}</p>}{content}</section>;
+      case 'section': return <section key={key}><h2>{String(attrs.label || t('section'))}</h2>{!!attrs.date && <p>{String(attrs.date)}</p>}{content}</section>;
       case 'blockquote': return <blockquote key={key}>{content}</blockquote>;
       case 'bulletList': case 'taskList': return <ul key={key}>{content}</ul>;
       case 'orderedList': return <ol key={key} start={typeof attrs.start === 'number' ? attrs.start : 1}>{content}</ol>;
@@ -58,18 +59,18 @@ function RichPrint({ root, includeInputs, contextRoot = root }: { root: Notebook
         const sheet = attrs.sheet as Spreadsheet, calculation = calculated.get(String(attrs.blockId))!;
         const { name, values, ambiguous } = calculation;
         const annotations = attrs.annotations as Record<string, CellAnnotation> | undefined, formats = attrs.formats as Record<string, CellFormat> | undefined;
-        return <figure key={key}><figcaption>{name}</figcaption>{ambiguous && <p>Duplicate worksheet name: only local cell references are calculated. / 工作表名称重复，仅计算本表单元格引用。</p>}<table><thead><tr><th>Cell</th>{Array.from({ length: sheet.columns }, (_, c) => <th key={c}>{cellAddress(c, 0).replace(/1$/, '')}</th>)}</tr></thead>
-          <tbody>{Array.from({ length: sheet.rows }, (_, r) => <tr key={r}><th>{r + 1}</th>{Array.from({ length: sheet.columns }, (_, c) => { const address = cellAddress(c, r), raw = sheet.cells[address] ?? ''; return <td key={c} style={{ textAlign: formats?.[address]?.align, fontWeight: formats?.[address]?.bold ? 'bold' : undefined, fontStyle: formats?.[address]?.italic ? 'italic' : undefined }}>{formatCellValue(values[address], formats?.[address])}{annotations?.[address]?.unit && <small>{annotations[address].unit}</small>}{!!annotations?.[address]?.evidenceIds.length && <small>Evidence / 证据: {annotations[address].evidenceIds.join(', ')}</small>}{includeInputs && raw.startsWith('=') && <small>{raw}</small>}</td>; })}</tr>)}</tbody></table>
-          <small>Calculated locally from recorded inputs; not measured results. / 根据已记输入本地计算，不是实测结果。</small>{!!(attrs.merges as unknown[])?.length && <small>All stored cells are shown, including cells covered by editor merges. / 展示全部已存单元格，包括编辑器合并区域内的单元格。</small>}</figure>;
+        return <figure key={key}><figcaption>{name}</figcaption>{ambiguous && <p>{t('printDuplicateWorksheet')}</p>}<table><thead><tr><th>Cell</th>{Array.from({ length: sheet.columns }, (_, c) => <th key={c}>{cellAddress(c, 0).replace(/1$/, '')}</th>)}</tr></thead>
+          <tbody>{Array.from({ length: sheet.rows }, (_, r) => <tr key={r}><th>{r + 1}</th>{Array.from({ length: sheet.columns }, (_, c) => { const address = cellAddress(c, r), raw = sheet.cells[address] ?? ''; return <td key={c} style={{ textAlign: formats?.[address]?.align, fontWeight: formats?.[address]?.bold ? 'bold' : undefined, fontStyle: formats?.[address]?.italic ? 'italic' : undefined }}>{formatCellValue(values[address], formats?.[address])}{annotations?.[address]?.unit && <small>{annotations[address].unit}</small>}{!!annotations?.[address]?.evidenceIds.length && <small>{t('evidence')}: {annotations[address].evidenceIds.join(', ')}</small>}{includeInputs && raw.startsWith('=') && <small>{raw}</small>}</td>; })}</tr>)}</tbody></table>
+          <small>{t('printCalculatedLocally')}</small>{!!(attrs.merges as unknown[])?.length && <small>{t('printStoredCells')}</small>}</figure>;
       }
       case 'registrationTable': case 'inputTable': {
         const table = attrs.table as StructuredTableDraft;
         return <figure key={key}><figcaption>{table.name || node.type}</figcaption><table><thead><tr>{table.schema.columns.map(column => <th key={column.id}>{column.name} ({column.type})</th>)}</tr></thead><tbody>{table.rows.map(row => <tr key={row.id}>{table.schema.columns.map(column => <td key={column.id}>{row.cells[column.id] ?? ''}</td>)}</tr>)}</tbody></table>
           {!!(attrs.receipts as unknown[])?.length && <pre>{printableRecord(attrs.receipts)}</pre>}</figure>;
       }
-      case 'attachment': return <figure key={key}><figcaption>{String(attrs.filename)} {String(attrs.caption || '')}</figcaption>{/^image\/(png|jpeg|gif|webp)$/.test(String(attrs.mime)) && typeof attrs.data === 'string' ? <img src={`data:${attrs.mime};base64,${attrs.data}`} alt={String(attrs.caption || attrs.filename)} /> : <p>Attachment bytes are not included in print. / 打印不包含附件字节。</p>}<small>SHA-256: {String(attrs.sha256)}</small></figure>;
-      case 'finding': return <section key={key}><h3>Finding / 发现</h3><p>{String(attrs.claim || '')}</p><p>{String(attrs.limitations || '')}</p><pre>{printableRecord(attrs.evidenceIds)}</pre></section>;
-      default: return <section key={key}><h3>{String(attrs.label || node.type)}</h3><p>Recorded structured content / 已记录结构化内容</p><pre>{printableRecord(attrs)}</pre>{content}</section>;
+      case 'attachment': return <figure key={key}><figcaption>{String(attrs.filename)} {String(attrs.caption || '')}</figcaption>{/^image\/(png|jpeg|gif|webp)$/.test(String(attrs.mime)) && typeof attrs.data === 'string' ? <img src={`data:${attrs.mime};base64,${attrs.data}`} alt={String(attrs.caption || attrs.filename)} /> : <p>{t('printAttachmentBytes')}</p>}<small>SHA-256: {String(attrs.sha256)}</small></figure>;
+      case 'finding': return <section key={key}><h3>{t('finding')}</h3><p>{String(attrs.claim || '')}</p><p>{String(attrs.limitations || '')}</p><pre>{printableRecord(attrs.evidenceIds)}</pre></section>;
+      default: return <section key={key}><h3>{String(attrs.label || node.type)}</h3><p>{t('printRecordedStructured')}</p><pre>{printableRecord(attrs)}</pre>{content}</section>;
     }
   };
   return <>{nodeView(root, 0)}</>;

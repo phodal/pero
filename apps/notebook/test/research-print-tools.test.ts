@@ -22,18 +22,18 @@ test('research example recomputes with real owners, inserts explicit snapshots a
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) }, React.createElement(ui.NotebookResearchTools, { worksheets: sheets, onSnapshot: (...args: any[]) => snapshots.push(args), onInsertExample: (example: any) => inserted.push(example) })));
   await click([...document.querySelectorAll('summary')].find(node => node.textContent!.includes('Master-mix'))!);
   assert.match(document.body.textContent!, /1760 µL/);
-  await click(button('Set 100 reactions / 设为 100')); assert.match(document.body.textContent!, /2200 µL/);
-  await click(button('Insert editable worksheet and recipe / 插入可编辑工作表与配方'));
+  await click(button('Set 100 reactions')); assert.match(document.body.textContent!, /2200 µL/);
+  await click(button('Insert editable worksheet and recipe'));
   assert.equal(inserted[0].total, 2200); assert.deepEqual(inserted[0].mixture.records, []);
-  await click(button('Insert example snapshot / 插入示例快照')); assert.equal(snapshots[0][1].input.reactions, 100);
-  await fill('Reaction count / 反应数', '0'); assert.match(document.body.textContent!, /Use 1–10,000 reactions/);
-  assert.equal([...document.querySelectorAll('button')].some(node => node.textContent === 'Insert editable worksheet and recipe / 插入可编辑工作表与配方'), false);
+  await click(button('Insert example snapshot')); assert.equal(snapshots[0][1].input.reactions, 100);
+  await fill('Reaction count', '0'); assert.match(document.body.textContent!, /Use 1–10,000 reactions/);
+  assert.equal([...document.querySelectorAll('button')].some(node => node.textContent === 'Insert editable worksheet and recipe'), false);
   await click([...document.querySelectorAll('summary')].find(node => node.textContent!.includes('Compare formula'))!);
-  await click(button('Pin baseline / 固定基准')); await click(button('Insert comparison snapshot / 插入比较快照'));
+  await click(button('Pin baseline')); await click(button('Insert comparison snapshot'));
   assert.equal(snapshots[1][1].comparison.sameResult, true); assert.equal(snapshots[1][1].comparison.sameSource, false);
   await click([...document.querySelectorAll('summary')].find(node => node.textContent!.includes('Technical dependencies'))!);
-  await fill('Search Pero dependencies and sources / 搜索 Pero 依赖与来源', 'fast-formula-parser'); assert.match(document.body.textContent!, /1.0.19/);
-  await fill('Search Pero dependencies and sources / 搜索 Pero 依赖与来源', 'nonexistent-private-path'); assert.match(document.body.textContent!, /No matching Pero sources/);
+  await fill('Search Pero dependencies and sources', 'fast-formula-parser'); assert.match(document.body.textContent!, /1.0.19/);
+  await fill('Search Pero dependencies and sources', 'nonexistent-private-path'); assert.match(document.body.textContent!, /No matching Pero sources/);
 });
 
 test('print preview preserves cross-section calculations, filters real output and persists settings before actual print invocation', async t => {
@@ -95,16 +95,16 @@ test('science-tool insertion uses real notebook identities and unique recipe ref
   const open = async () => { await click(button('Scientific tools')); await fill('Scientific tools', 'formula'); await click([...document.querySelectorAll('summary')].find(node => node.textContent!.includes('Master-mix'))!); };
   const sheets = () => editor.getJSON().content.filter((node: any) => node.type === 'spreadsheet');
   const recipes = () => editor.getJSON().content.filter((node: any) => node.type === 'mixturePrep');
-  await open(); await click(button('Insert editable worksheet and recipe / 插入可编辑工作表与配方'));
+  await open(); await click(button('Insert editable worksheet and recipe'));
   assert.equal(sheets().length, 1, document.body.textContent!.slice(0,500)); assert.equal(recipes().length, 1);
   const firstIds = [sheets()[0].attrs.blockId, recipes()[0].attrs.blockId]; assert.equal(new Set(firstIds).size, 2); assert.ok(firstIds.every(Boolean));
-  await click(button('Insert editable worksheet and recipe / 插入可编辑工作表与配方')); assert.equal(sheets().length, 1); assert.match(document.body.textContent!, /already been inserted/);
-  await click(button('Set 100 reactions / 设为 100')); await click(button('Insert editable worksheet and recipe / 插入可编辑工作表与配方'));
+  await click(button('Insert editable worksheet and recipe')); assert.equal(sheets().length, 1); assert.match(document.body.textContent!, /already been inserted/);
+  await click(button('Set 100 reactions')); await click(button('Insert editable worksheet and recipe'));
   assert.equal(sheets().length, 2); assert.equal(sheets()[1].attrs.label, 'Master mix 2');
   for (const recipe of [recipes()[1].attrs.mixture.draft, recipes()[1].attrs.mixture.recipes[0].recipe]) assert.equal(recipe.ingredients[0].source, 'Master mix 2!C4');
   assert.ok(!firstIds.includes(sheets()[1].attrs.blockId)); assert.deepEqual(recipes()[1].attrs.mixture.records, []);
   await React.act(async () => editor.commands.insertContentAt(1, 'Intervening edit. '));
-  await click(button('Reset example / 重置示例')); await click(button('Insert editable worksheet and recipe / 插入可编辑工作表与配方'));
+  await click(button('Reset example')); await click(button('Insert editable worksheet and recipe'));
   assert.equal(sheets().length, 2); assert.match(document.body.textContent!, /notebook changed/);
   await click(button('Close')); assert.equal(document.querySelector('dialog'), null);
 });

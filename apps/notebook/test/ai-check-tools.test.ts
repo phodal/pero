@@ -55,26 +55,26 @@ test('check-generation UI persists Host input, feedback and one reviewed snapsho
   // The reload button stays available while loading. Wait on the actual editing and
   // generation guards, including a deterministically delayed real SQLite response.
   await settle(() => !holdInitialRecovery);
-  assert.equal(field('Proposal mode / 建议模式').disabled, true);
+  assert.equal(field('Proposal mode').disabled, true);
   assert.equal(button('Generate candidates').disabled, true);
   assert.equal(starts.length, 0);
   await React.act(async () => releaseRecovery());
-  await settle(() => !field('Proposal mode / 建议模式').disabled);
-  await fill('Proposal mode / 建议模式', 'checks'); await fill('Proposal goal / 建议目标', 'Review missing units');
+  await settle(() => !field('Proposal mode').disabled);
+  await fill('Proposal mode', 'checks'); await fill('Proposal goal', 'Review missing units');
   await settle(() => !button('Generate candidates').disabled);
-  await click(button('Generate candidates')); await settle(() => !button('Reload saved recovery / 重新载入恢复记录').disabled && document.body.textContent!.includes('check-host-session'));
+  await click(button('Generate candidates')); await settle(() => !button('Reload saved recovery').disabled && document.body.textContent!.includes('check-host-session'));
   assert.equal(starts.length, 1); assert.match(starts[0].prompt, /missing units/);
   const pending = await actualFetch(`/api/entries/${entry.id}/ai-workspace`).then(result => result.json());
   assert.equal(pending.record.frozen.mode, 'checks'); assert.equal(pending.record.frozen.content, content);
-  await click(button('Refresh session status / 刷新会话状态')); await settle(() => document.body.textContent!.includes('Record the signal units.') && !button('Reload saved recovery / 重新载入恢复记录').disabled);
+  await click(button('Refresh session status')); await settle(() => document.body.textContent!.includes('Record the signal units.') && !button('Reload saved recovery').disabled);
   const usefulness = document.querySelector<HTMLButtonElement>('[aria-label="Usefulness / 实用性 · check-1"]');
   assert.ok(usefulness); usefulness.getBoundingClientRect = () => ({ left: 20, top: 20, right: 220, bottom: 50, width: 200, height: 30, x: 20, y: 20, toJSON() {} }); await click(usefulness); const option = [...document.querySelectorAll('[role=option]')].find(node => node.textContent?.includes('Useful / 有用')); assert.ok(option, document.body.innerHTML.slice(-10000)); await click(option);
-  await settle(() => !button('Reload saved recovery / 重新载入恢复记录').disabled);
-  await render(null); await mount(); await settle(() => document.body.textContent!.includes('Useful / 有用') && !button('Reload saved recovery / 重新载入恢复记录').disabled);
+  await settle(() => !button('Reload saved recovery').disabled);
+  await render(null); await mount(); await settle(() => document.body.textContent!.includes('Useful / 有用') && !button('Reload saved recovery').disabled);
   assert.equal(starts.length, 1); assert.equal(inserts, 0);
   const ack = [...document.querySelectorAll('label')].find(node => node.textContent!.includes('I reviewed these suggestions'))!.querySelector('[role=checkbox]')!;
   await click(ack); await click(button('Insert reviewed check suggestions / 插入已复核检查建议'));
-  await settle(() => document.body.textContent!.includes('Review snapshot is in the draft') && !button('Reload saved recovery / 重新载入恢复记录').disabled);
+  await settle(() => document.body.textContent!.includes('Review snapshot is in the draft') && !button('Reload saved recovery').disabled);
   assert.equal(inserts, 1); assert.match(content, /pero-host-check-suggestions\/1/);
   await render(null); await mount(); await settle(() => document.body.textContent!.includes('Review snapshot is in the draft'));
   assert.equal(inserts, 1); assert.equal(starts.length, 1);

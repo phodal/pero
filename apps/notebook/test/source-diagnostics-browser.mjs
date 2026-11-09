@@ -25,9 +25,9 @@ test('packaged Notebook diagnostics and legacy redirect work under App CSP', asy
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin + '/editor-probe.html?next=https://untrusted.invalid#private');
   await expect(page).toHaveURL(origin + '/diagnostics.html');
-  await expect(page.getByLabel('Read-only source text / 只读源码')).toContainText('import');
-  await page.getByLabel('Packaged source / 打包源码', { exact: true }).selectOption('packages/notebook/src/formula-syntax.ts');
-  await expect(page.getByLabel('Read-only source text / 只读源码')).toContainText('export');
+  await expect(page.getByLabel('Read-only source text')).toContainText('import');
+  await page.getByLabel('Packaged source', { exact: true }).selectOption('packages/notebook/src/formula-syntax.ts');
+  await expect(page.getByLabel('Read-only source text')).toContainText('export');
   await expect(page.getByText('Evidence build SHA-256:', { exact: false })).toBeVisible();
   await page.locator('summary').click();
   await expect(page.getByText(/react: 19.2.8/).first()).toBeVisible();
@@ -36,8 +36,8 @@ test('packaged Notebook diagnostics and legacy redirect work under App CSP', asy
   await page.route('**/source-evidence.json', route => route.fulfill({ status: 404 }));
   await page.reload(); await expect(page.getByText(/was not packaged/)).toBeVisible();
   await page.unroute('**/source-evidence.json');
-  await page.getByRole('button', { name: 'Retry source evidence / 重试来源证据', exact: true }).click();
-  await expect(page.getByLabel('Read-only source text / 只读源码')).toBeVisible();
+  await page.getByRole('button', { name: 'Retry source evidence', exact: true }).click();
+  await expect(page.getByLabel('Read-only source text')).toBeVisible();
   const noScript = await browser.newPage({ javaScriptEnabled: false });
   await noScript.goto(origin + '/editor-probe.html');
   await expect(noScript.getByRole('link', { name: 'Open Notebook diagnostics / 打开笔记本诊断' })).toHaveAttribute('href', './diagnostics.html');
