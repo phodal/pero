@@ -25,6 +25,8 @@ export const subscribeAppEvent: AppHost['subscribe'] = (name, callback) => {
 export const navigateApp: AppHost['navigate'] = path => requestAppShell<void>('navigate', { path });
 /** Opens an existing session through the owning Host; never submits a prompt. */
 export const openAppSession = (sessionId: string): Promise<void> => requestAppShell<void>('open-session', { sessionId });
+/** Skills market only: open a normal Host draft with a resolved installed skill, without enabling or sending it. */
+export const useInstalledSkill = (source: string, message = ''): Promise<void> => requestAppShell<void>('use-skill', { source, message });
 export const notifyApp: AppHost['notify'] = (message, options) => { void requestAppShell('notify', { message, ...options }); };
 export const setAppBadge: AppHost['setBadge'] = count => { void requestAppShell('badge', { count }); };
 export const callAppHost: HostCallFn = async (capability, operation, input) => {

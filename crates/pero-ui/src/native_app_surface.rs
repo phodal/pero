@@ -418,6 +418,14 @@ impl Workbench {
                             this.begin_mcp_app(reply_id, &scope.app, &scope.panel, input, cx).map_err(|error| anyhow::anyhow!(error))?;
                             deferred = true;
                         }
+                        Some("use-skill") => {
+                            anyhow::ensure!(scope.app == "skills", "Open installed skills from the Skills market");
+                            let source = input["source"].as_str().filter(|source|source.starts_with("pero-market-skill:") && source.len() <= 4096).ok_or_else(||anyhow::anyhow!("Invalid installed skill source"))?;
+                            let text = input["message"].as_str().unwrap_or_default();
+                            anyhow::ensure!(input.get("message").is_none_or(serde_json::Value::is_string) && text.len() <= 64000 && input.as_object().is_some_and(|value|value.keys().all(|key|["source","message"].contains(&key.as_str()))), "Invalid skill draft");
+                            this.new_chat(cx);
+                            this.chat.update(cx,|chat,cx|chat.add_market_skill(source,text,cx));
+                        }
                         Some("open-session") => {
                             anyhow::ensure!(["insights", "automations"].contains(&scope.app.as_str()), "This App cannot open Host sessions");
                             let id = input["sessionId"].as_str().filter(|id| !id.trim().is_empty() && id.len() <= 128).ok_or_else(|| anyhow::anyhow!("Invalid session"))?;

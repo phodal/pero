@@ -4,6 +4,8 @@ use pero_contracts::HostEvent;
 use pero_runtime::apps::agent::AgentRequest;
 use pero_runtime::apps::{AppName, AppStore};
 use std::path::{Path, PathBuf};
+#[path = "skill_market.rs"]
+mod skill_market;
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -14,6 +16,7 @@ enum Method {
 #[derive(serde::Deserialize)]
 #[serde(tag = "action", rename_all = "lowercase", deny_unknown_fields)]
 enum Request {
+    Skillsmarket {method:Method,id:String,name:AppName,request:pero_runtime::skill_market::Request},
     List {
         method: Method,
         id: String,
@@ -119,6 +122,7 @@ enum Request {
 
 #[derive(Clone)]
 pub struct Apps {
+    market: skill_market::Market,
     store: std::sync::Arc<std::sync::Mutex<Result<AppStore, String>>>,
     builtins: Option<PathBuf>,
     names: Option<Vec<String>>,
@@ -150,6 +154,7 @@ impl Apps {
     }
     pub fn shutdown_guard(&self) -> AppsShutdown { AppsShutdown(self.clone()) }
     fn shutdown(&self) {
+        self.market.shutdown();
         self.shutting_down.store(true, std::sync::atomic::Ordering::SeqCst);
         if let Ok(guard) = self.store.lock() { if let Ok(store) = guard.as_ref() { store.shutdown_docling_runtime(); } }
     }
@@ -202,6 +207,7 @@ impl Apps {
             Ok(store)
         })();
         Self {
+            market: skill_market::open(settings),
             store: std::sync::Arc::new(std::sync::Mutex::new(store)),
             builtins,
             names,
@@ -275,6 +281,11 @@ impl Apps {
                 let _ = crate::emit(event);
             };
             match request {
+                Request::Skillsmarket {method,id,name,request} => {
+                    let _=(method,id);store.require_grant(&name,"skills")?;
+                    drop(guard);
+                    return self.skill_market(request);
+                }
                 Request::Pluginlist { method, id } => {
                     let _ = (method, id);
                     serde_json::to_value(store.agent_plugins()?.list())

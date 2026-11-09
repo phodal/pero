@@ -249,6 +249,16 @@ impl ChatPanel {
         cx.notify();
     }
 
+    /// The market opens an ordinary draft; Host resolves its immutable skill version.
+    pub fn add_market_skill(&mut self, source: &str, message: &str, cx: &mut Context<Self>) {
+        self.next_request += 1;
+        let request = format!("market-skill-{}", self.next_request);
+        self.composer_state.paste_requests.insert(request.clone());
+        self.command(json!({"action":"resolve_context","request_id":request,"kind":ContextKind::Skill,"source":source}),cx);
+        if !message.is_empty() { self.compose(message.into(), cx); }
+        cx.notify();
+    }
+
     pub fn new_chat_in_scope(
         &mut self,
         scope: Option<pero_contracts::AppChatScope>,

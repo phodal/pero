@@ -416,8 +416,8 @@ func packageResources(ctx context.Context, root *os.Root, excluded map[string]bo
 
 func textResourceExtension(extension string) bool {
 	switch strings.ToLower(extension) {
-	case ".md", ".txt", ".json", ".yaml", ".yml", ".adoc", ".py", ".js", ".mjs", ".sh", ".xml", ".svg", ".csv", ".drawio",
-		".toml", ".ts", ".tsx", ".jsx", ".html", ".htm", ".css", ".sql", ".rst", ".tex", ".mermaid", ".mmd", ".puml", ".plantuml", ".ini", ".cfg", ".conf", ".dot", ".go", ".rs", ".kt", ".c", ".h", ".cpp", ".java", ".r", ".ipynb":
+	case ".md", ".markdown", ".bib", ".txt", ".json", ".yaml", ".yml", ".adoc", ".py", ".js", ".mjs", ".sh", ".xml", ".svg", ".csv", ".drawio",
+		".toml", ".ts", ".tsx", ".jsx", ".html", ".htm", ".css", ".sql", ".rst", ".tex", ".mermaid", ".mmd", ".puml", ".plantuml", ".ini", ".cfg", ".conf", ".dot", ".go", ".rs", ".kt", ".c", ".h", ".cpp", ".java", ".r", ".do", ".ado", ".ipynb":
 		return true
 	}
 	return false

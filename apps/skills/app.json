@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "skills",
+  "version": "0.1.0",
+  "displayName": "Skills",
+  "description": "发现科研技能，核对来源并管理会话使用。",
+  "permissions": { "host": ["skills"] },
+  "contributes": { "panels": [{ "id": "main", "title": "Skills", "entry": "dist/index.html" }] }
+}

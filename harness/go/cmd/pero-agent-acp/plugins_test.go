@@ -6,8 +6,32 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestFetchSkillCommandRejectsUnsafeSources(t *testing.T) {
+	commit := strings.Repeat("a", 40)
+	digest := strings.Repeat("b", 64)
+	for _, source := range []string{"/tmp/skills", "ssh://git@github.com/owner/repo.git", "https://github.com/owner/repo.git?token=1", "https://example.com/owner/repo.git"} {
+		err := runPlugins([]string{"fetch-skill", source, t.TempDir(), commit, "SKILL.md", "market-test", digest}, &bytes.Buffer{})
+		if err == nil || !strings.Contains(err.Error(), "public GitHub") {
+			t.Fatalf("%s: %v", source, err)
+		}
+	}
+	err := runPlugins([]string{"fetch-skill", "https://github.com/owner/repo.git", t.TempDir(), "HEAD", "SKILL.md", "market-test", digest}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "invalid pinned skill selection") {
+		t.Fatalf("unpinned revision accepted: %v", err)
+	}
+	err = runPlugins([]string{"fetch-skill", "https://github.com/owner/repo.git", t.TempDir(), commit, "skills/archive!/SKILL.md", "market-test", digest}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "invalid pinned skill selection") {
+		t.Fatalf("archive path accepted: %v", err)
+	}
+	err = runPlugins([]string{"skill-observe", "git@github.com:owner/repo.git", "SKILL.md"}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "public GitHub") {
+		t.Fatalf("observe source: %v", err)
+	}
+}
 
 func TestPluginInspectionCommands(t *testing.T) {
 	root := t.TempDir()

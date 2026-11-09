@@ -11,6 +11,16 @@ import { stageBuiltinApp } from './builtin-app-payload.mjs';
 const root = resolve(import.meta.dirname, '../..');
 const modules = resolve(root, 'apps/paper-agent/node_modules');
 
+test('Skills builds without the unused document reader payload', () => {
+  const directory=mkdtempSync(join(tmpdir(),'pero-skills-payload-'));
+  try {
+    writeFileSync(join(directory,'index.html'),'unused reader fixture');
+    execFileSync(process.execPath,[join(root,'scripts/build/apps.mjs'),'--app','skills','--reader-dist',directory],{cwd:root,stdio:'pipe',timeout:30_000});
+    assert.equal(existsSync(join(root,'apps/skills/dist/_reader')),false,'A skill catalog does not consume a document reader');
+    assert(existsSync(join(root,'apps/skills/dist/index.html')));
+  } finally {rmSync(directory,{recursive:true,force:true});}
+});
+
 for (const ancestorReact of [false, true]) {
   test(`App and shared SDK use one App-owned React runtime (ancestor React: ${ancestorReact})`, () => {
     const directory = mkdtempSync(join(tmpdir(), 'pero-app-react-'));

@@ -52,6 +52,16 @@ impl Manager {
                 "MCP settings are unavailable or invalid; review local connector settings"
             })?;
         let mut agent = agent.with_managed_mcp(&configuration);
+        let market_skills = if scope.is_none() {
+            self.apps.as_ref().map(|apps| apps.market_selections()).transpose()?.unwrap_or_default()
+        } else {Vec::new()};
+        if !market_skills.is_empty() && agent.id != "pero" {
+            return Err("Selected marketplace skills currently require the Pero Agent; disable them in Skills or select Pero".into());
+        }
+        for skill in &market_skills {
+            agent.args.push("--plugin-dir".into());
+            agent.args.push(skill.directory.to_string_lossy().into_owned());
+        }
         let mut plugins = match (&scope, &self.apps) {
             (Some(scope), Some(apps)) => apps.session_plugins(&AppName::try_from(scope.app.clone())?, &scope.panel)?,
             _ => None,
@@ -104,6 +114,9 @@ impl Manager {
         let mut event = HostEvent::new("session_created", None, String::new());
         event.thread_id = Some(thread_id.clone());
         event.data = serde_json::json!({"agent":agent.id,"workspace":self.workspace});
+        if !market_skills.is_empty() {
+            event.data["skillSelections"] = serde_json::json!(market_skills.iter().map(|skill|serde_json::json!({"id":skill.id,"revision":skill.revision})).collect::<Vec<_>>());
+        }
         if let Some(plugins) = &plugins {
             if let Some(assembly) = &plugins.assembly {
                 event.data["appPlugin"] = serde_json::to_value(assembly).map_err(|error| error.to_string())?;

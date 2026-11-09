@@ -25,6 +25,15 @@ App 安装和执行仅依赖 Pero 自身的 App SDK、Host 与声明式后端协
 并为 App 会话冻结指引与 MCP 配置。共享 App Use 适配器执行工具准入，ACP 继续
 拥有会话与 MCP 生命周期；不引入 Point runtime 或通用模块插件加载器。
 
+Skills 市场复用这些执行边界：内置 Skills App 读取固定来源目录，Rust Host
+保存当前 profile 的安装版本与后续普通会话选择，Go 插件获取/检查生成单技能视图。
+新普通 Pero 会话冻结所选插件目录并记录版本；App 会话继续由原有声明装配。
+聊天“技能”来源直接读取当前 profile 的已安装快照，允许用户在未打开全局装配开关时
+显式选择；解析校验固定内容并沿原 ContextReference 发送，不复制全局目录或自动启用。
+取消和关闭由获取进程的 owner 处理，更新不改写已有会话。当前适配静态 skill，
+保留其固定仓库内可定位的 Markdown 引用资源；目录记录不代表科研或宿主认证。范围与实际证据见
+[Skills 市场验证](fitness/skills-marketplace.md)，需求由 [#156](https://github.com/phodal/pero/issues/156) 跟踪。
+
 [ADR 0025](adr/0025-connectors-app.md) 将 Connectors 管理界面作为 Workbench App
 接入。App 声明 `connectors` 权限，Rust Host 校验其启用状态；Electron Main
 和 Native 壳装配同一个管理器、系统凭据与便携 MCP 驱动。Native 经私有 stdio

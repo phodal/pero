@@ -2,6 +2,7 @@ export type AppPresentation =
   | { kind: 'page'; page: 'conversation' | 'document' | 'web' | 'projects' | 'agents' | 'tasks' | 'workers' | 'apps' | 'insights' | 'connections' }
   | { kind: 'app'; name: string; panel: string }
   | { kind: 'session'; sessionId: string }
+  | { kind: 'skill'; source: string; message: string }
   | { kind: 'notify'; message: string; tone: 'info' | 'success' | 'error' }
   | { kind: 'badge'; count: number };
 
@@ -9,6 +10,9 @@ export type AppPresentation =
 export function appPresentation(operation: unknown, input: unknown): AppPresentation {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid App presentation request');
   const value = input as Record<string, unknown>;
+  if (operation === 'use-skill' && typeof value.source === 'string' && value.source.startsWith('pero-market-skill:') && value.source.length <= 4096 &&
+      (value.message === undefined || typeof value.message === 'string' && value.message.length <= 64000) && Object.keys(value).every(key => ['source','message'].includes(key)))
+    return {kind:'skill',source:value.source,message:typeof value.message === 'string' ? value.message : ''};
   if (operation === 'open-session' && typeof value.sessionId === 'string' && value.sessionId.trim() && value.sessionId.length <= 128 && Object.keys(value).every(key => key === 'sessionId'))
     return { kind: 'session', sessionId: value.sessionId };
   if (operation === 'navigate' && typeof value.path === 'string') {

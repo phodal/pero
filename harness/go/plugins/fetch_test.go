@@ -69,11 +69,39 @@ func TestFetchSnapshotsAndUpdates(t *testing.T) {
 	}
 	if _, err := Fetch(t.Context(), repo, cache, "missing-ref"); err == nil {
 		t.Fatal("invalid ref succeeded")
+	} else if !strings.Contains(err.Error(), "Git fetch failed") || !strings.Contains(err.Error(), "revision") {
+		t.Fatalf("missing ref should identify its stage and actionable cause: %v", err)
 	}
 	pinPath := filepath.Join(t.TempDir(), "pin")
 	actual, err := fetchGit(t.Context(), dependency, pinPath, "", pinned)
 	if err != nil || actual != pinned {
 		t.Fatalf("pin=%s err=%v", actual, err)
+	}
+	// A filter-capable source sends only objects needed by the chosen subtree.
+	writePluginFiles(t, dependency, map[string]string{"unselected/large.txt": strings.Repeat("not-selected", 10000)})
+	git(dependency, "add", ".")
+	git(dependency, "commit", "-qm", "unselected payload")
+	git(dependency, "config", "uploadpack.allowFilter", "true")
+	git(dependency, "config", "uploadpack.allowAnySHA1InWant", "true")
+	selection := filepath.Join(t.TempDir(), "selection")
+	if _, err := fetchGit(t.Context(), dependency, selection, "", git(dependency, "rev-parse", "HEAD"), "nested"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(selection, "unselected/large.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("unselected file was checked out")
+	}
+	large := git(dependency, "rev-parse", "HEAD:unselected/large.txt")
+	if _, err := os.Stat(filepath.Join(selection, ".git/objects", large[:2], large[2:])); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("unselected blob was downloaded despite source filtering support")
+	}
+	indexes, err := filepath.Glob(filepath.Join(selection, ".git/objects/pack/*.idx"))
+	if err != nil {
+		t.Fatalf("selected source packs: %v", err)
+	}
+	for _, index := range indexes {
+		if strings.Contains(git(selection, "verify-pack", "-v", index), large) {
+			t.Fatal("unselected blob was downloaded despite source filtering support")
+		}
 	}
 	entries, _ := os.ReadDir(cache)
 	if len(entries) != 2 {
@@ -91,5 +119,25 @@ func TestFetchRejectsEscapingConfiguration(t *testing.T) {
 		if _, err := fetchGit(t.Context(), source, filepath.Join(t.TempDir(), "target"), "", ""); err == nil || strings.Contains(err.Error(), "private-canary") {
 			t.Fatalf("source validation: %v", err)
 		}
+	}
+}
+
+func TestGitFailureReasons(t *testing.T) {
+	for _, test := range []struct{ stderr, want string }{
+		{"fatal: cannot create object: No space left on device private-canary", "insufficient disk space"},
+		{"fatal: write error: Disk quota exceeded private-canary", "insufficient disk space"},
+		{"error: unable to create file: Filename too long private-canary", "filesystem path"},
+		{"fatal: couldn't find remote ref private-canary", "selected revision"},
+		{"fatal: Authentication failed for https://private-canary@example.invalid/repo", "repository access denied"},
+		{"error: RPC failed; curl 56 connection reset private-canary", "network request failed"},
+		{"fatal: Permission denied private-canary", "filesystem access denied"},
+		{"fatal: private-canary unexpected failure", "could not complete this stage"},
+	} {
+		t.Run(test.want+test.stderr[:5], func(t *testing.T) {
+			actual := gitFailureReason(test.stderr)
+			if !strings.Contains(actual, test.want) || strings.Contains(actual, "private-canary") {
+				t.Fatalf("Git failure should be actionable without reflecting secrets: %s", actual)
+			}
+		})
 	}
 }

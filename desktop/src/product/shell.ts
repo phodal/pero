@@ -49,6 +49,7 @@ const mcpListeners = new Set<(event: HostEvent) => void>();
 let mcpAgents: ReturnType<typeof admitAgents> = [];
 const surface = mountAppSurfaces(async value => {
   const request = value as {action?:string;name?:string;count?:number;panel?:string};
+  if (request.action === 'skill_chat_open') throw new Error('Open installed skills in the Pero workbench to start an ordinary chat');
   if (request.action === 'sdkpage') throw new Error('Workspace pages are unavailable in this App product');
   if (request.action === 'sdkbadge') { appBadges.set(request.name!,request.count!);update();return; }
   if (request.action === 'open') {
