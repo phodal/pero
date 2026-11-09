@@ -44,7 +44,8 @@ test('deep links resolve actual owner/tab including non-searchable blocks withou
   assert.deepEqual(notebookTarget(value, 'notes'), { tab: 'notes', ownerId: 'notes' });
   assert.equal(notebookTarget(value, 'gone'), null);
   assert.deepEqual(parseNotebookLink(notebookLinkHash('entry', 'buffer-notes')), { entryId: 'entry', targetId: 'buffer-notes' });
-  for (const hash of ['', '#notebook-entry=entry', '#notebook-entry=entry&notebook-target=bad%20id']) assert.equal(parseNotebookLink(hash), null);
+  assert.deepEqual(parseNotebookLink('#notebook-entry=entry'), { entryId: 'entry', targetId: '' });
+  for (const hash of ['', '#notebook-entry=entry&notebook-target=bad%20id']) assert.equal(parseNotebookLink(hash), null);
   assert.deepEqual(value, before);
 });
 

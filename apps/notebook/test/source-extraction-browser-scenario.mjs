@@ -14,9 +14,9 @@ export async function verifySourceExtraction(page, origin, output) {
   const entry = await post('/api/entries', { document: { schemaVersion: 1, title: 'Local PDF extraction acceptance', content: { type: 'doc', content: [
     { type: 'attachment', attrs: { blockId: 'original', ...file, caption: '' } }, { type: 'sourceExcerpt', attrs: { blockId: 'excerpt', label: 'PDF quote', excerpt: null } },
   ] } } });
-  await page.goto(`${origin}/#notebook-entry=${entry.id}`);
+  await page.evaluate(id => { location.hash = `notebook-entry=${id}`; }, entry.id);
   const button = (name, scope = page) => scope.getByRole('button', { name, exact: true });
-  await expect(page.getByRole('textbox', { name: 'Notebook title', exact: true })).toHaveValue('Local PDF extraction acceptance');
+  await expect(page.getByRole('textbox', { name: 'Notebook title', exact: true })).toHaveValue('Local PDF extraction acceptance', { timeout: 15000 });
   const block = page.locator('[data-kind=sourceExcerpt]');
   await button('Configure source excerpt', block).click();
   const dialog = page.getByRole('dialog');

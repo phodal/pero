@@ -430,7 +430,10 @@ export function notebookLinkHash(entryId: string, targetId: string): string {
 export function parseNotebookLink(hash: string): { entryId: string; targetId: string } | null {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
   const entryId = params.get('notebook-entry'), targetId = params.get('notebook-target');
-  return entryId && targetId && validId(entryId) && validId(targetId) ? { entryId, targetId } : null;
+  if (!entryId || !validId(entryId)) return null;
+  // Entry-only hashes open the notebook; block targets remain optional view state.
+  if (!targetId) return { entryId, targetId: '' };
+  return validId(targetId) ? { entryId, targetId } : null;
 }
 export function notebookTarget(document: NotebookDocument, id: string): { tab: 'notes' | 'procedures'; procedureId?: string; ownerId: string } | null {
   const contains = (node: NotebookNode): boolean => node.attrs?.blockId === id || (node.content ?? []).some(contains);

@@ -244,7 +244,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   };
   const navigate = useRef(openBlock); navigate.current = openBlock;
   useEffect(() => {
-    const fromHash = () => { const target = parseNotebookLink(window.location.hash); if (target?.entryId === entryId) navigate.current(target.targetId); };
+    const fromHash = () => { const target = parseNotebookLink(window.location.hash); if (target?.entryId === entryId && target.targetId) navigate.current(target.targetId); };
     fromHash(); window.addEventListener('hashchange', fromHash);
     return () => window.removeEventListener('hashchange', fromHash);
   }, [entryId]);
