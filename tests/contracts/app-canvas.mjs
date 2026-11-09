@@ -1,5 +1,6 @@
 // Real Host + installed Notebook/Data backends. No Agent session or target App origin is used.
 import assert from "node:assert/strict";
+import { notebookProjectFixture, verifyNotebookProjects } from "./notebook-projects.mjs";
 import { execFileSync, spawn } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -86,7 +87,7 @@ try {
   );
   await writeFile(
     resolve(directory, "settings.json"),
-    JSON.stringify({ app_python: { default: resolve(directory, "python") } }),
+    JSON.stringify({ app_python: { default: resolve(directory, "python") }, workbench: { research_projects: [notebookProjectFixture] } }),
   );
   host = await launch();
   for (const name of ["notebook", "data"]) {
@@ -97,6 +98,11 @@ try {
       resolve(target, "backend"),
       { recursive: true },
     );
+    if (name === "notebook")
+      await cp(
+        resolve(root, "packages/source-extraction/python/pero_source_tools.py"),
+        resolve(target, "backend/pero_source_tools.py"),
+      );
     if (name === "data") {
       await mkdir(resolve(target, "backend/_core"), { recursive: true });
       for (const module of ["dataset.py", "view.py", "chart_document.py"])
@@ -130,6 +136,7 @@ try {
     assert.equal(response.ok, true, JSON.stringify(value));
     return value;
   };
+  await verifyNotebookProjects(host, backend, resolve(directory, "settings.json"));
   await backend("data", "/api/import", {
     name: "actual.csv",
     kind: "dataset",
