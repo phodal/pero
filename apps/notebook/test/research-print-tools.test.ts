@@ -111,14 +111,14 @@ test('science-tool insertion uses real notebook identities and unique recipe ref
 
 test('printed duplicate-name worksheets retain each block calculation and match the editor', async t => {
   let editor: any; t.after(() => editor?.destroy());
-  const { React, ui, render } = await createUiRuntime(t, { resolveDir, contents: "export * from './notebook-print-content'; export * from './worksheet-model'; export { notebookExtensions } from './editor-extensions'; export { Editor } from '@tiptap/core';" });
+  const { React, ui, render } = await createUiRuntime(t, { resolveDir, contents: "export * from './notebook-print-content'; export * from './worksheet-model'; export { notebookExtensions } from './editor-extensions'; export { Editor } from '@tiptap/core'; export { AppSdkProvider, createAppHost } from '@pero/app-sdk';" });
   for (const secondName of ['Data', 'data']) {
     const content = { type: 'doc', content: [
       { type: 'spreadsheet', attrs: { blockId: 'first', label: 'Data', sheet: { rows: 1, columns: 2, cells: { A1: '2', B1: '=A1*3' } } } },
       { type: 'spreadsheet', attrs: { blockId: 'second', label: secondName, sheet: { rows: 1, columns: 2, cells: { A1: '9', B1: '=A1*3' } } } },
     ] };
     editor?.destroy(); editor = new ui.Editor({ extensions: ui.notebookExtensions, content });
-    await render(React.createElement(ui.NotebookPrintContent, { document: { schemaVersion: 1, title: 'Repeated names', content }, entryId: 'entry', revision: 1, dirty: false, preparedAt: '2026-11-09T00:00:00Z', settings: { version: 1, orientation: 'portrait', paper: 'A4', marginMm: 15, includeMetadata: false, includeInputs: false, sections: ['notes'] } }));
+    await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) }, React.createElement(ui.NotebookPrintContent, { document: { schemaVersion: 1, title: 'Repeated names', content }, entryId: 'entry', revision: 1, dirty: false, preparedAt: '2026-11-09T00:00:00Z', settings: { version: 1, orientation: 'portrait', paper: 'A4', marginMm: 15, includeMetadata: false, includeInputs: false, sections: ['notes'] } })));
     const printed = [...document.querySelectorAll('figure')].map(figure => [...figure.querySelectorAll('tbody td')].map(cell => cell.textContent));
     assert.deepEqual(printed, [['2', '6'], ['9', '27']]);
     assert.deepEqual(printed, ['first', 'second'].map(id => Object.values(ui.worksheetCalculation(editor.state.doc, id).values).map(String)));

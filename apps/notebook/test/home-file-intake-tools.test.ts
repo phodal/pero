@@ -16,11 +16,11 @@ test('Home shows provenance, reuses saved local labels, preserves tags and honor
   await mount(); assert.match(document.body.textContent!, /instance/); assert.match(document.body.textContent!, /paper-agent \/ report \/ source/); assert.match(document.body.textContent!, /does not change project membership/);
   const select = document.querySelector<HTMLSelectElement>('select')!;
   await React.act(async () => { select.value = 'Project B'; select.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
-  await click(button('Apply labels to draft / 应用标签到草稿'));
+  await click(button('Apply labels to draft'));
   assert.deepEqual(metadata, { project: 'Project B', author: 'Author A', tags: ['retain'] }); assert.equal(closed, 1);
   await click(button('Tracked record · v3')); assert.equal(opened, entry.id);
   await render(null); await mount(true); assert.equal(document.querySelectorAll('input:not([disabled])').length, 0);
-  assert.equal([...document.querySelectorAll('button')].some(node => node.textContent === 'Apply labels to draft / 应用标签到草稿'), false);
+  assert.equal([...document.querySelectorAll('button')].some(node => node.textContent === 'Apply labels to draft'), false);
 });
 
 test('staged local files preview before insertion, cancel late reads, reject stale drafts and insert once with original digest', async t => {
@@ -40,14 +40,14 @@ test('staged local files preview before insertion, cancel late reads, reject sta
   await mount(); await choose(file('observations.txt', 'Measured 2.5 mg.')); await settle(() => document.body.textContent!.includes('SHA-256:'));
   assert.equal(inserts, 0); assert.match(document.body.textContent!, /Measured 2.5 mg/);
   await React.act(async () => editor.commands.insertContentAt(1, 'changed '));
-  await click(button('Insert reviewed file / 插入已复核文件')); assert.equal(inserts, 0); assert.match(document.body.textContent!, /draft changed/);
-  await click(button('Discard staged file / 放弃待导入文件')); assert.equal(editor.getJSON().content.some((node: any) => node.type === 'attachment'), false);
+  await click(button('Insert reviewed file')); assert.equal(inserts, 0); assert.match(document.body.textContent!, /draft changed/);
+  await click(button('Discard staged file')); assert.equal(editor.getJSON().content.some((node: any) => node.type === 'attachment'), false);
   let resolveRead: (() => void) | undefined;
   await choose({ name: 'late.txt', type: 'text/plain', size: 4, arrayBuffer: async () => { await new Promise<void>(done => { resolveRead = done; }); return new TextEncoder().encode('late').buffer; } });
-  await click(button('Cancel file read / 取消文件读取')); await React.act(async () => resolveRead!());
-  assert.equal(document.querySelector('[aria-label="Staged file / 待导入文件"]'), null);
+  await click(button('Cancel file read')); await React.act(async () => resolveRead!());
+  assert.equal(document.querySelector('[aria-label="Staged file"]'), null);
   await choose(file('observations.txt', 'Measured 2.5 mg.')); await settle(() => document.body.textContent!.includes('SHA-256:'));
-  await React.act(async () => { button('Insert reviewed file / 插入已复核文件').click(); button('Insert reviewed file / 插入已复核文件').click(); });
+  await React.act(async () => { button('Insert reviewed file').click(); button('Insert reviewed file').click(); });
   assert.equal(inserts, 1); assert.equal(closed, 1);
   const imported = editor.getJSON().content.find((node: any) => node.type === 'attachment'); assert.equal(imported.attrs.filename, 'observations.txt'); assert.match(imported.attrs.sha256, /^[a-f0-9]{64}$/);
   assert.equal(atob(imported.attrs.data), 'Measured 2.5 mg.');

@@ -18,9 +18,9 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   await button('Notebook home').click();
   let dialog = page.getByRole('dialog', { name: 'Notebook home and provenance', exact: true });
   await expect(dialog).toContainText(created.id); await expect(dialog).toContainText('does not change project membership');
-  await dialog.getByRole('textbox', { name: 'Project label / 项目标签', exact: true }).fill('Workflow acceptance');
-  await dialog.getByRole('textbox', { name: 'Author label / 作者标签', exact: true }).fill('Unverified local label');
-  await button('Apply labels to draft / 应用标签到草稿', dialog).click(); await save();
+  await dialog.getByRole('textbox', { name: 'Project label', exact: true }).fill('Workflow acceptance');
+  await dialog.getByRole('textbox', { name: 'Author label', exact: true }).fill('Unverified local label');
+  await button('Apply labels to draft', dialog).click(); await save();
   await button('Notebook home').click(); await expect(page.getByRole('dialog')).toContainText('Workflow acceptance');
   await page.screenshot({ path: resolve(output, 'notebook-home-provenance.png'), fullPage: true });
   await button('Close', page.getByRole('dialog')).click();
@@ -32,9 +32,9 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   await dialog.locator('input[type=file]').setInputFiles({ name: 'source.txt', mimeType: 'text/plain', buffer: bytes });
   await expect(dialog).toContainText('Recorded mass: 2.5 mg.');
   await expect(page.locator('[data-kind=attachment]')).toHaveCount(0);
-  await dialog.getByRole('textbox', { name: 'Notebook filename / 笔记文件名' }).fill('reviewed-source.txt');
+  await dialog.getByRole('textbox', { name: 'Notebook filename' }).fill('reviewed-source.txt');
   await page.screenshot({ path: resolve(output, 'notebook-staged-file-preview.png'), fullPage: true });
-  await button('Insert reviewed file / 插入已复核文件', dialog).click();
+  await button('Insert reviewed file', dialog).click();
   await expect(page.locator('[data-kind=attachment]')).toHaveCount(1); await save();
   const saved = await page.request.get(`${origin}/api/entries/${created.id}`).then(result => result.json());
   const attachment = saved.document.content.content.find(node => node.type === 'attachment');

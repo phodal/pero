@@ -66,13 +66,13 @@ export async function verifyResearchPrintTools(page, origin, output) {
   try {
     await button('Worksheet amendments').click();
     dialog = page.getByRole('dialog', { name: 'Worksheet amendments', exact: true });
-    await dialog.getByLabel('Cell address / 单元格地址', { exact: true }).fill('B1');
-    await dialog.getByLabel('New raw input / 新原始输入', { exact: true }).fill('101');
-    await dialog.getByLabel('Local author attribution / 本地署名', { exact: true }).fill('Local researcher');
-    await dialog.getByLabel('Reason for amendment / 更正原因', { exact: true }).fill('Correct reaction-count transcription');
-    await button('Review amendment / 复核更正', dialog).click();
+    await dialog.getByLabel('Cell address', { exact: true }).fill('B1');
+    await dialog.getByLabel('New raw input', { exact: true }).fill('101');
+    await dialog.getByLabel('Local author attribution', { exact: true }).fill('Local researcher');
+    await dialog.getByLabel('Reason for amendment', { exact: true }).fill('Correct reaction-count transcription');
+    await button('Review amendment', dialog).click();
     await expect(dialog.locator('pre').first()).toContainText('"before": "100"');
-    await button('Create audited revision / 创建有审计的新版本', dialog).click();
+    await button('Create audited revision', dialog).click();
     let timer;
     try { assert.ok((await Promise.race([completed, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Amendment did not reach the backend within 15 seconds')), 15000); })])).ok()); } finally { clearTimeout(timer); }
     await button('Close amendments', dialog).click();

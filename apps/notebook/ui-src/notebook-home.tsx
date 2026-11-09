@@ -51,28 +51,28 @@ export function NotebookHome({ entry, document, dirty, readonly, onOpenEntry, on
   const shown = library?.entries.filter(item => !filter || item.project === filter) ?? [];
   const changed = project !== initial.current.project || author !== initial.current.author;
   return <Dialog title={t('notebookHomeTitle')} closeLabel={t('closeAction')} size="lg" onClose={onClose}>
-    <h3>{document.title}</h3><p>{entry.id} · v{entry.revision} · schema {document.schemaVersion}</p><p>{entry.updatedAt} {dirty && <Badge tone="warning">Unsaved draft / 未发布草稿</Badge>}</p>
-    <p>Notebook owns local drafts and immutable published revisions. Scientific objects, Host projects, accounts and execution remain with their owners. / Notebook 管理本地草稿与不可变已发布版本；科学对象、Host 项目、账号和执行由原应用管理。</p>
+    <h3>{document.title}</h3><p>{entry.id} · v{entry.revision} · schema {document.schemaVersion}</p><p>{entry.updatedAt} {dirty && <Badge tone="warning">{t('homeUnsavedDraft')}</Badge>}</p>
+    <p>{t('homeOwnershipHint')}</p>
     <NotebookProjectAssociations entryId={entry.id} revision={entry.revision} readonly={readonly} dirty={dirty} onOpenEntry={id => { onOpenEntry(id); onClose(); }} />
-    <section aria-label="Project and author labels / 项目与作者标签"><h4>Project and author labels / 项目与作者标签</h4>
-      <p>Choose saved display labels or enter new ones. This does not change project membership, object ownership, or authenticated identity. / 选择已保存显示标签或输入新标签，不会变更项目成员、对象所有权或认证身份。</p>
+    <section aria-label={t('homeLabelsSection')}><h4>{t('homeLabelsSection')}</h4>
+      <p>{t('homeLabelsHint')}</p>
       {(['project', 'author'] as const).map(field => <div key={field}>
-        <Field label={field === 'project' ? 'Saved project label / 已保存项目标签' : 'Saved author label / 已保存作者标签'}>{control => <NativeSelect {...control} disabled={readonly || busy} value="" onChange={event => { if (event.target.value) (field === 'project' ? setProject : setAuthor)(event.target.value); }}><option value="">Choose / 选择</option>{choices(field).map(value => <option key={value} value={value}>{value}</option>)}</NativeSelect>}</Field>
-        <Field label={field === 'project' ? 'Project label / 项目标签' : 'Author label / 作者标签'}>{control => <Input {...control} disabled={readonly} maxLength={200} value={field === 'project' ? project : author} onChange={event => (field === 'project' ? setProject : setAuthor)(event.target.value)} />}</Field>
+        <Field label={field === 'project' ? t('savedProjectLabel') : t('savedAuthorLabel')}>{control => <NativeSelect {...control} disabled={readonly || busy} value="" onChange={event => { if (event.target.value) (field === 'project' ? setProject : setAuthor)(event.target.value); }}><option value="">{t('chooseLabel')}</option>{choices(field).map(value => <option key={value} value={value}>{value}</option>)}</NativeSelect>}</Field>
+        <Field label={field === 'project' ? t('projectLabel') : t('authorLabel')}>{control => <Input {...control} disabled={readonly} maxLength={200} value={field === 'project' ? project : author} onChange={event => (field === 'project' ? setProject : setAuthor)(event.target.value)} />}</Field>
       </div>)}
       {!readonly && <Button variant="primary" disabled={!changed || !onMetadata} onClick={() => {
-        if (JSON.stringify(document.metadata ?? { project: '', author: '', tags: [] }) !== JSON.stringify(initial.current)) { setError('Metadata changed while this dialog was open. Close and reopen to review it. / 对话框打开期间元数据已更改，请重新打开。'); return; }
+        if (JSON.stringify(document.metadata ?? { project: '', author: '', tags: [] }) !== JSON.stringify(initial.current)) { setError(t('homeMetadataChanged')); return; }
         onMetadata?.({ ...initial.current, project, author }); onClose();
-      }}>Apply labels to draft / 应用标签到草稿</Button>}
+      }}>{t('applyLabelsToDraft')}</Button>}
     </section>
-    <Disclosure summary={`Template provenance / 模板来源 (${origins.size})`}><ul>{[...origins.values()].map(origin => <li key={origin.instanceId}>{origin.templateId} · v{origin.revision} · instance {origin.instanceId}<pre className="notebook-science-json">{JSON.stringify({ parameters: origin.parameterValues, identities: origin.idMap }, null, 2)}</pre></li>)}</ul>{!origins.size && <p>No template origin recorded. / 未记录模板来源。</p>}</Disclosure>
-    <Disclosure summary={`Scientific source identities / 科学来源身份 (${sources.length})`}><ul>{sources.map(({ blockId, source }, index) => <li key={index}>{blockId} · {source.app} / {source.kind} / {source.id} · {source.version || 'Unpinned / 未固定版本'} <Badge>{scientificReferenceState(source)}</Badge><p>{source.locator}</p></li>)}</ul><p>Recorded identities are not an owner verification. / 已记录身份不等于来源方验证。</p></Disclosure>
-    <Disclosure summary={`Embedded file provenance / 内嵌文件来源 (${files.length})`}><ul>{files.map(({ blockId, file }) => <li key={blockId}>{file.filename} · {file.mime}<p style={{ overflowWrap: 'anywhere' }}>SHA-256: {file.sha256}</p><p>{file.derivation?.steps.length ?? 0} recorded image edits / 已记录图片编辑</p></li>)}</ul></Disclosure>
-    <section aria-label="Saved entries / 已保存条目"><h4>Saved entries / 已保存条目</h4><Field label="Filter saved project / 筛选已保存项目">{control => <NativeSelect {...control} value={filter} onChange={event => setFilter(event.target.value)}><option value="">All projects / 全部项目</option>{choices('project').map(value => <option key={value} value={value}>{value}</option>)}</NativeSelect>}</Field>
-      <Button busy={busy} disabled={busy} onClick={() => void load()}>Reload saved entries / 重新载入条目</Button>
-      {library?.limited && <Feedback kind="info">Showing the 500 most recently saved entries. / 显示最近保存的 500 条记录。</Feedback>}
-      {!library && busy && <p role="status">Loading saved entries / 正在加载已保存条目</p>}
-      {library && !shown.length && <p>No matching entries. / 无匹配条目。</p>}
+    <Disclosure summary={t('templateProvenance', { count: origins.size })}><ul>{[...origins.values()].map(origin => <li key={origin.instanceId}>{origin.templateId} · v{origin.revision} · instance {origin.instanceId}<pre className="notebook-science-json">{JSON.stringify({ parameters: origin.parameterValues, identities: origin.idMap }, null, 2)}</pre></li>)}</ul>{!origins.size && <p>{t('noTemplateOrigin')}</p>}</Disclosure>
+    <Disclosure summary={t('scientificSourceIdentities', { count: sources.length })}><ul>{sources.map(({ blockId, source }, index) => <li key={index}>{blockId} · {source.app} / {source.kind} / {source.id} · {source.version || t('unpinnedVersion')} <Badge>{scientificReferenceState(source)}</Badge><p>{source.locator}</p></li>)}</ul><p>{t('recordedIdentitiesHint')}</p></Disclosure>
+    <Disclosure summary={t('embeddedFileProvenance', { count: files.length })}><ul>{files.map(({ blockId, file }) => <li key={blockId}>{file.filename} · {file.mime}<p style={{ overflowWrap: 'anywhere' }}>SHA-256: {file.sha256}</p><p>{t('recordedImageEdits', { count: file.derivation?.steps.length ?? 0 })}</p></li>)}</ul></Disclosure>
+    <section aria-label={t('savedEntries')}><h4>{t('savedEntries')}</h4><Field label={t('filterSavedProject')}>{control => <NativeSelect {...control} value={filter} onChange={event => setFilter(event.target.value)}><option value="">{t('allProjects')}</option>{choices('project').map(value => <option key={value} value={value}>{value}</option>)}</NativeSelect>}</Field>
+      <Button busy={busy} disabled={busy} onClick={() => void load()}>{t('reloadSavedEntries')}</Button>
+      {library?.limited && <Feedback kind="info">{t('showingRecentEntries')}</Feedback>}
+      {!library && busy && <p role="status">{t('loadingSavedEntries')}</p>}
+      {library && !shown.length && <p>{t('noMatchingEntries')}</p>}
       <ul>{shown.map(item => <li key={item.entryId}><Button variant="link" onClick={() => { onOpenEntry(item.entryId); onClose(); }}>{item.title} · v{item.revision}</Button> · {item.project} · {item.author}</li>)}</ul>
     </section>
     {error && <Feedback kind="error">{error}</Feedback>}
