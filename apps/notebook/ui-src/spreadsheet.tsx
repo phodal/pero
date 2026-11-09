@@ -4,7 +4,7 @@ import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, Input, Table } from '@pero/app-sdk/ui';
 import { spreadsheetLimits } from '@pero/notebook';
-import { cellAddress, evaluateSpreadsheet, formulaFunctions, type Spreadsheet } from '@pero/notebook/spreadsheet';
+import { cellAddress, evaluateSpreadsheet, formulaFunctions, isExternalFormula, type Spreadsheet } from '@pero/notebook/spreadsheet';
 import {
   cellRangeLabel, clearCellRange, encodeCellRange, fillCellRange, normalizeCellRange, parseCellClipboard,
   pasteCellGrid, rangeContains, type CellPosition,
@@ -79,12 +79,19 @@ export function SpreadsheetView(view: NodeViewProps) {
     }
     return true;
   });
-  const updateCell = (cell: string, value: string) => setSheet(current => {
-    const cells = { ...current.cells };
-    if (value) cells[cell] = value;
-    else delete cells[cell];
-    return { ...current, cells };
-  });
+  const updateCell = (cell: string, value: string) => {
+    if (isExternalFormula(value)) {
+      setError(t('externalFormula'));
+      return;
+    }
+    setSheet(current => {
+      const cells = { ...current.cells };
+      if (value) cells[cell] = value;
+      else delete cells[cell];
+      return { ...current, cells };
+    });
+    setError(previous => previous === t('externalFormula') ? '' : previous);
+  };
   const selectCell = (position: CellPosition) => setSelection({ anchor: position, focus: position });
   const focusCell = (position: CellPosition) => {
     keepRangeFocus.current = true;
@@ -116,6 +123,10 @@ export function SpreadsheetView(view: NodeViewProps) {
     event.stopPropagation();
     const data = isTable ? parseCellClipboard(text) : [[text]];
     if (!data) { setError(t('gridPasteInvalid')); return; }
+    if (data.some(row => row.some(isExternalFormula))) {
+      setError(t('externalFormula'));
+      return;
+    }
     const target = isRange ? range.start : position;
     if (!setSheet(current => pasteCellGrid(current, target, data), true)) {
       setError(t('gridPasteLimit'));
@@ -133,6 +144,18 @@ export function SpreadsheetView(view: NodeViewProps) {
     setError('');
   };
   const fill = (direction: 'down' | 'right', selection = range) => {
+    const sources: string[] = [];
+    if (direction === 'down') {
+      for (let column = selection.start.column; column <= selection.end.column; column += 1)
+        sources.push(sheet.cells[cellAddress(column, selection.start.row)] ?? '');
+    } else {
+      for (let row = selection.start.row; row <= selection.end.row; row += 1)
+        sources.push(sheet.cells[cellAddress(selection.start.column, row)] ?? '');
+    }
+    if (sources.some(isExternalFormula)) {
+      setError(t('externalFormula'));
+      return;
+    }
     const filled = setSheet(current => fillCellRange(current, selection, direction), true);
     setError(filled ? '' : t('fillLimit'));
   };
