@@ -16,6 +16,7 @@ pub(crate) struct NativeAppPage {
     location: Option<String>,
     context: Value,
     pending: std::collections::HashSet<String>,
+    canvas_owner: bool,
     docling_live: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 pub(crate) struct NativeAppMessage(pub Value);
@@ -62,6 +63,7 @@ impl NativeAppPage {
         let (ipc_client, ipc_owner, ipc_live, ipc_replies) = (client.clone(), name.clone(), docling_live.clone(), sender.clone());
         #[cfg(target_os = "macos")]
         let ipc_generation = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let protocol_live = docling_live.clone();
         let allowed = format!("pero-app://{name}/");
         let ipc_origin = allowed.clone();
         let builder = wry::WebViewBuilder::new()
@@ -74,7 +76,9 @@ impl NativeAppPage {
             .with_asynchronous_custom_protocol("pero-app".into(), move |_, request, responder| {
                 let client = client.clone();
                 let name = owner.clone();
-                std::thread::spawn(move || responder.respond(client.serve(&name, request)));
+                let live = protocol_live.clone();
+                std::thread::spawn(move || responder.respond(client.serve_scoped(&name, request,
+                    || live.load(std::sync::atomic::Ordering::Acquire))));
             })
             .with_navigation_handler(move |uri| {
                 if uri.starts_with(&allowed) || frame_origins.iter().any(|origin| uri == *origin || uri.strip_prefix(origin).is_some_and(|tail| tail.starts_with('/'))) {
@@ -172,6 +176,7 @@ impl NativeAppPage {
             location:None,
             context: Value::Null,
             pending: Default::default(),
+            canvas_owner: name == "notebook",
             docling_live,
         }
     }
@@ -260,6 +265,7 @@ impl Drop for NativeAppPage {
         // A request queued before tab close may not reach prepare until later.
         // Its native confirmation must still be refused after the owner is gone.
         self.docling_live.store(false, std::sync::atomic::Ordering::Release);
+        if self.canvas_owner { crate::native::apps().cancel_canvas_confirmation(); }
     }
 }
 impl Render for NativeAppPage {
@@ -531,7 +537,10 @@ impl Workbench {
                 name: name.clone(),
                 panel: panel.clone(),
             }) && self.apps.retains_panel(name, panel);
-            if !keep { page.view.read(cx).docling_live.store(false, std::sync::atomic::Ordering::Release); }
+            if !keep {
+                page.view.read(cx).docling_live.store(false, std::sync::atomic::Ordering::Release);
+                if name == "notebook" { crate::native::apps().cancel_canvas_confirmation(); }
+            }
             keep
         });
         if self.native_app_pages.keys().filter(|(name, _)| name == "paper-agent").count() < paper_pages {

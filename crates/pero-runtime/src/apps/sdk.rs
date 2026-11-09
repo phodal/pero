@@ -8,11 +8,15 @@ pub struct Permissions { api: Vec<String>, events: Vec<String>, host: Vec<String
 pub struct DeclaredPanel { id: AppName, title: String }
 #[derive(Serialize)]
 pub struct DeclaredAction { name: AppName, description: String }
+#[derive(Serialize)]
+pub struct DeclaredCanvas { id: AppName, title: String, inputs: serde_json::Value }
 /// Discovery is a projection of installed declarations, never an execution grant.
 #[derive(Serialize)]
 pub struct InstalledAppViews {
     app: AppName, title: String, version: String, revision: String, enabled: bool,
     panels: Vec<DeclaredPanel>, actions: Vec<DeclaredAction>,
+    #[serde(skip_serializing_if="Vec::is_empty")]
+    canvases: Vec<DeclaredCanvas>,
 }
 #[derive(Serialize)]
 pub struct Context {
@@ -37,6 +41,9 @@ impl AppStore {
                 version: definition.version.clone(), revision: definition.revision(), enabled: app.enabled,
                 panels: definition.contributes.panels.iter().map(|panel| DeclaredPanel {
                     id: panel.id.clone(), title: panel.title.clone(),
+                }).collect(),
+                canvases: definition.contributes.canvases.iter().map(|view| DeclaredCanvas {
+                    id: view.id.clone(), title: view.title.clone(), inputs: view.inputs.clone(),
                 }).collect(),
                 actions: definition.contributes.writes.iter().map(|action| DeclaredAction {
                     name: action.name.clone(), description: action.description.clone(),

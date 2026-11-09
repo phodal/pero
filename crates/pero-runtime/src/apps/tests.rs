@@ -458,3 +458,29 @@ fn app_run_access_uses_enabled_pero_agent_grants() {
         assert!(store.agent_declaration_revision(&name).is_err());
     }
 }
+
+#[test]
+fn canvas_admission_rechecks_installation_revision_and_declared_inputs_without_starting_backend() {
+    use super::canvas::CanvasBinding;
+    let workspace=Workspace::new();
+    let source=workspace.package(Some("python"));
+    let manifest=include_bytes!("../../../../apps/data/app.json");
+    let definition=AppDefinition::parse(manifest).unwrap();
+    fs::write(source.join("app.json"),manifest).unwrap();
+    let name=AppName::try_from("data".to_owned()).unwrap();
+    let mut store=AppStore::open(workspace.0.join("managed/apps"),PythonEnvironments::default()).unwrap();
+    store.install(&source).unwrap();
+    let binding: CanvasBinding=serde_json::from_value(serde_json::json!({"id":"binding","app":"data","panel":"main",
+        "view":"dataset-inspector","declaration":definition.revision(),"inputs":{"datasetId":format!("ds-{}","a".repeat(32))}})).unwrap();
+    assert!(store.canvas_view(&binding).is_err());
+    store.set_enabled(&name,true).unwrap();assert!(store.canvas_view(&binding).is_ok());
+    let mut changed=binding.clone();changed.declaration="b".repeat(64);assert!(store.canvas_view(&changed).is_err());
+    changed=binding.clone();changed.inputs=serde_json::json!({"datasetId":"../private"});assert!(store.canvas_view(&changed).is_err());
+    let action=AppName::try_from("canvas-archive".to_owned()).unwrap();
+    let document=serde_json::json!({"operationId":"operation","inputs":binding.inputs,"params":{"archived":true}});
+    assert!(store.canvas_action(&binding,&action,&document).is_ok());
+    assert!(store.canvas_action(&binding,&AppName::try_from("unrelated".to_owned()).unwrap(),&document).is_err());
+    assert!(store.processes.is_empty());
+    store.set_enabled(&name,false).unwrap();assert!(store.canvas_view(&binding).is_err());
+    store.uninstall(&name).unwrap();assert!(store.canvas_view(&binding).is_err());
+}

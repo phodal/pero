@@ -24,10 +24,13 @@ pub(crate) struct Prompt {
     pub id: u64,
     pub summary: String,
     pub revoke: bool,
+    #[serde(default)]
+    pub action: Option<String>,
 }
 
 struct Pending {
     id: u64,
+    owner: String,
     cancelled: bool,
     answer: Option<mpsc::Sender<bool>>,
 }
@@ -71,6 +74,36 @@ impl NativeDocling {
         Some(pending.id)
     }
 
+    fn cancel_matching(&self, matches: impl Fn(&str) -> bool) -> Option<u64> {
+        let mut state = self.0.lock().unwrap();
+        let pending = state.pending.as_mut().filter(|pending| matches(&pending.owner))?;
+        pending.cancelled = true;
+        if let Some(answer) = pending.answer.take() { let _ = answer.send(false); }
+        Some(pending.id)
+    }
+    fn cancel_owner(&self, owner: &str) -> Option<u64> { self.cancel_matching(|value| value == owner) }
+    pub fn cancel_canvases(&self) -> Option<u64> { self.cancel_matching(|value| value.starts_with("canvas:")) }
+    pub fn cancel_canvas(&self, instance: &str) -> Option<u64> { self.cancel_owner(&format!("canvas:{instance}")) }
+
+    /// Same private consent queue as installation. A WebView can request, never answer.
+    pub fn confirm_canvas(&self, instance: &str, summary: String,
+        show: impl Fn(Prompt) -> Result<(), String>, dismiss: impl Fn(u64)) -> Result<bool, String> {
+        let (answer, result) = mpsc::channel();
+        let id = {
+            let mut state = self.0.lock().unwrap();
+            if state.pending.is_some() { return Err("Finish the current confirmation first".into()); }
+            state.next += 1;
+            let id = state.next;
+            state.pending = Some(Pending { id, owner: format!("canvas:{instance}"), cancelled: false, answer: Some(answer) });
+            id
+        };
+        if show(Prompt { id, summary, revoke: false, action: Some("Run declared App action".into()) }).is_err() { self.answer(id, false); }
+        let allowed = result.recv().unwrap_or(false);
+        let accepted = self.0.lock().unwrap().pending.take().is_some_and(|pending| pending.id == id && !pending.cancelled && allowed);
+        dismiss(id);
+        Ok(accepted)
+    }
+
     pub fn apply(
         &self,
         input: Input,
@@ -81,7 +114,7 @@ impl NativeDocling {
         match input {
             Input::Status {} => return host(json!({"operation":"status"})).map(public_status),
             Input::Cancel {} => {
-                if let Some(id) = self.cancel() {
+                if let Some(id) = self.cancel_owner("docling") {
                     dismiss(id);
                 }
                 return host(json!({"operation":"cancel"})).map(public_status);
@@ -98,6 +131,7 @@ impl NativeDocling {
             let id = state.next;
             state.pending = Some(Pending {
                 id,
+                owner: "docling".into(),
                 cancelled: false,
                 answer: Some(answer),
             });
@@ -141,6 +175,7 @@ impl NativeDocling {
                 id,
                 summary,
                 revoke,
+                action: None,
             })
             .is_err()
             {
@@ -210,6 +245,27 @@ fn public_status(value: Value) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn canvas_consent_is_private_scoped_and_dismissed_on_close() {
+        for decision in ["approve","deny","close","cancel","unavailable"] {
+            let queue=NativeDocling::default();
+            let allowed=queue.confirm_canvas("one","Exact saved source and action".into(),|prompt| {
+                assert!(prompt.action.is_some());
+                assert!(queue.cancel_canvas("other").is_none());
+                assert!(queue.confirm_canvas("two","Another".into(), |_|panic!("overlapping prompt"), |_|{}).is_err());
+                match decision {
+                    "approve"=>queue.answer(prompt.id,true),
+                    "deny"=>queue.answer(prompt.id,false),
+                    "close"=>{queue.cancel();queue.answer(prompt.id,true);},
+                    "cancel"=>{queue.cancel_canvas("one");queue.answer(prompt.id,true);},
+                    _=>return Err("UI unavailable".into()),
+                }
+                Ok(())
+            },|id|assert!(!queue.pending(id))).unwrap();
+            assert_eq!(allowed,decision=="approve");
+        }
+    }
 
     fn prepared(component: Component) -> Value {
         json!({"state":"requires-approval","component":component,"summary":"Fixed official component, size and source","ticket":"private-ticket"})

@@ -1,4 +1,6 @@
 //! Native App transport. The stdio Host remains the catalog/backend authority.
+#[path = "native_app_canvas.rs"]
+mod canvas;
 use pero_contracts::HostEvent;
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -80,6 +82,9 @@ impl NativeApps {
         if let Some(id) = self.docling.cancel() {
             self.dismiss_docling(id);
         }
+    }
+    pub(super) fn cancel_canvas_confirmation(&self) {
+        if let Some(id) = self.docling.cancel_canvases() { self.dismiss_docling(id); }
     }
     pub(super) fn disconnect(&self) {
         self.disconnected.store(true, Ordering::Release);
@@ -312,7 +317,10 @@ impl NativeApps {
         });
     }
     pub fn serve(&self, name: &str, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
-        match self.respond(name, request) {
+        self.serve_scoped(name, request, || true)
+    }
+    pub(super) fn serve_scoped(&self, name: &str, request: Request<Vec<u8>>, is_live: impl Fn() -> bool) -> Response<Vec<u8>> {
+        match self.respond(name, request, &is_live) {
             Ok(response) => response,
             Err(error) => Response::builder()
                 .status(503)
@@ -321,7 +329,7 @@ impl NativeApps {
                 .unwrap(),
         }
     }
-    fn respond(&self, name: &str, request: Request<Vec<u8>>) -> anyhow::Result<Response<Vec<u8>>> {
+    fn respond(&self, name: &str, request: Request<Vec<u8>>, is_live: &dyn Fn() -> bool) -> anyhow::Result<Response<Vec<u8>>> {
         let uri = url::Url::parse(&request.uri().to_string())?;
         anyhow::ensure!(
             uri.scheme() == "pero-app" && uri.host_str() == Some(name),
@@ -391,6 +399,7 @@ impl NativeApps {
             return Ok(Response::builder().header("Content-Type", "application/json")
                 .header("Cache-Control", "no-store").body(serde_json::to_vec(&value)?)?);
         }
+        if path == "/host/canvas" { return self.canvas_response(name, method.as_str(), body, is_live); }
         if path == "/host/sdk" {
             anyhow::ensure!(method == "GET", "Method refused");
             let mut info: Value = self.request("sdkcontext", json!({"name":name}))?;
@@ -409,7 +418,7 @@ impl NativeApps {
             input.insert("operation".into(),json!(operation));
             let forwarded = Request::builder().method("POST").uri(format!("pero-app://{name}/host/{target}"))
                 .header("Content-Type","application/json").body(serde_json::to_vec(&input)?)?;
-            return self.respond(name,forwarded);
+            return self.respond(name,forwarded,is_live);
         }
         if path == "/host/research-assets" {
             if method != "POST" {
