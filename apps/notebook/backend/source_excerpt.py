@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from hashlib import sha256
 import re
 
+from source_extraction import SourceExtraction, OFFICE, PDF, IMAGES
+
 from document import block_id, fields, integer, string
 
 MAX_SOURCE_BYTES = 128 * 1024
@@ -17,13 +19,13 @@ class SourceExcerptSource:
     sha256: str
 
     @classmethod
-    def parse(cls, value):
+    def parse(cls, value, extracted=False):
         fields(value, {'blockId', 'filename', 'mime', 'sha256'})
         identity = block_id(value['blockId'])
         filename = string(value['filename'], 'source filename', 255, required=True)
         if filename in {'.', '..'} or re.search(r'[\x00-\x1f\x7f/\\]', filename):
             raise ValueError('Invalid source filename')
-        if not isinstance(value['mime'], str) or value['mime'] not in SOURCE_MIMES:
+        if not isinstance(value['mime'], str) or value['mime'] not in (SOURCE_MIMES | {PDF, *IMAGES, *OFFICE} if extracted else SOURCE_MIMES):
             raise ValueError('Unsupported source MIME type')
         digest = value['sha256']
         if not isinstance(digest, str) or not re.fullmatch(r'[a-f0-9]{64}', digest):
@@ -42,11 +44,12 @@ class SourceExcerpt:
     start: int
     end: int
     quote: str
+    extraction: dict | None = None
 
     @classmethod
     def parse(cls, value):
-        fields(value, {'source', 'version', 'text', 'start', 'end', 'quote'})
-        source = SourceExcerptSource.parse(value['source'])
+        fields(value, {'source', 'version', 'text', 'start', 'end', 'quote'}, {'extraction'})
+        source = SourceExcerptSource.parse(value['source'], 'extraction' in value)
         if value['version'] != source.sha256:
             raise ValueError('Source excerpt version must be its immutable digest')
         text = string(value['text'], 'source text', MAX_SOURCE_BYTES)
@@ -58,17 +61,18 @@ class SourceExcerpt:
             raise ValueError('Source text must contain valid Unicode scalar values') from error
         if len(raw) > MAX_SOURCE_BYTES:
             raise ValueError('Source text exceeds 128 KiB')
-        if sha256(raw).hexdigest() != source.sha256:
+        extraction = SourceExtraction.parse(value['extraction'], text, source.sha256).value if 'extraction' in value else None
+        if sha256(raw).hexdigest() != (extraction['textSha256'] if extraction else source.sha256):
             raise ValueError('Retained source digest does not match its text')
         start = integer(value['start'], 'source start', len(text), minimum=0)
         end = integer(value['end'], 'source end', len(text), minimum=start + 1)
         quote = string(value['quote'], 'source quote', MAX_SOURCE_BYTES)
         if text[start:end] != quote:
             raise ValueError('Source quote does not match its codepoint range')
-        return cls(source, source.sha256, text, start, end, quote)
+        return cls(source, source.sha256, text, start, end, quote, extraction)
 
     def wire(self):
-        return dict(source=self.source.wire(), version=self.version, text=self.text, start=self.start, end=self.end, quote=self.quote)
+        return dict(source=self.source.wire(), version=self.version, text=self.text, start=self.start, end=self.end, quote=self.quote, **({'extraction': self.extraction} if self.extraction else {}))
 
 
 def parse_source_excerpt_attributes(value):

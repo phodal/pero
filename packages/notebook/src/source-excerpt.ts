@@ -1,10 +1,11 @@
+import { extractedSourceMimes, isSourceExtraction, type SourceExtraction } from './source-extraction.ts';
 import type { NotebookDocument, NotebookNode } from './document.ts';
 import { notebookContentRoots } from './workspace.ts';
 import { attachmentBytes, isAttachmentAttributes, isAttachmentFilename, type AttachmentAttributes } from './attachment.ts';
 
 /** An immutable local text snapshot, not a claim of external source authenticity. */
 export interface SourceExcerptSource { blockId: string; filename: string; mime: string; sha256: string }
-export interface SourceExcerptText { source: SourceExcerptSource; text: string }
+export interface SourceExcerptText { source: SourceExcerptSource; text: string; extraction?: SourceExtraction }
 export interface SourceExcerpt extends SourceExcerptText { version: string; start: number; end: number; quote: string }
 export interface SourceExcerptAttributes { label: string; excerpt: SourceExcerpt | null }
 export interface SourceExcerptAttachment { blockId: string; attachment: AttachmentAttributes }
@@ -27,12 +28,13 @@ function textBytes(text: string): Uint8Array<ArrayBuffer> {
 
 /** Synchronous clipboard admission checks shape/range/quote, not SHA-256 equality. */
 export function isSourceExcerpt(value: unknown): value is SourceExcerpt {
-  if (!object(value) || Object.keys(value).length !== 6 || !object(value.source) || Object.keys(value.source).length !== 4) return false;
+  if (!object(value) || Object.keys(value).length !== (Object.hasOwn(value, 'extraction') ? 7 : 6) || !object(value.source) || Object.keys(value.source).length !== 4) return false;
   const source = value.source;
   if (typeof source.blockId !== 'string' || !blockPattern.test(source.blockId) || typeof source.filename !== 'string' || !isAttachmentFilename(source.filename) ||
-      typeof source.mime !== 'string' || !isSourceExcerptMime(source.mime) || typeof source.sha256 !== 'string' || !digestPattern.test(source.sha256) ||
+      typeof source.mime !== 'string' || !(isSourceExcerptMime(source.mime) || value.extraction && extractedSourceMimes.has(source.mime)) || typeof source.sha256 !== 'string' || !digestPattern.test(source.sha256) ||
       value.version !== source.sha256 || typeof value.text !== 'string' || typeof value.quote !== 'string' ||
       typeof value.start !== 'number' || !Number.isInteger(value.start) || typeof value.end !== 'number' || !Number.isInteger(value.end)) return false;
+  if (value.extraction !== undefined && !isSourceExtraction(value.extraction, value.text, source.sha256)) return false;
   try { textBytes(value.text); } catch { return false; }
   const points = Array.from(value.text);
   return value.start >= 0 && value.end > value.start && value.end <= points.length && value.quote === points.slice(value.start, value.end).join('');
@@ -71,7 +73,7 @@ export function createSourceExcerpt(snapshot: SourceExcerptText, start: number, 
 
 export async function verifySourceExcerpt(value: unknown): Promise<SourceExcerpt> {
   if (!isSourceExcerpt(value)) throw new Error('Invalid source excerpt.');
-  if (await sha256(textBytes(value.text)) !== value.source.sha256) throw new Error('Retained source digest does not match its text.');
+  if (await sha256(textBytes(value.text)) !== (value.extraction?.textSha256 ?? value.source.sha256)) throw new Error('Retained source digest does not match its text.');
   return value;
 }
 
@@ -95,6 +97,7 @@ export function sourceExcerptAvailability(excerpt: SourceExcerpt, attachments: r
   const { attachment } = matches[0];
   if (attachment.filename !== excerpt.source.filename || attachment.mime !== excerpt.source.mime || attachment.sha256 !== excerpt.source.sha256) return 'changed';
   try {
+    if (excerpt.extraction) return attachmentBytes(attachment.data).length === excerpt.extraction.original.bytes ? 'available' : 'changed';
     const bytes = attachmentBytes(attachment.data), retained = textBytes(excerpt.text);
     return bytes.length === retained.length && bytes.every((byte, index) => byte === retained[index]) ? 'available' : 'changed';
   } catch { return 'changed'; }

@@ -1,14 +1,14 @@
 """PDF download, PDFium parsing and region rendering; no Agent execution."""
 from contextlib import closing
 import io
-import threading
+from pero_source_tools import PDFIUM_LOCK, pdf_engine
 
 from .model import Invalid, PaperSnapshot, digest
 from .pdf import PdfAnchor, PdfDocument, PdfPage, PdfRect
 
 from .local_pdf import LocalPdf
 # PDFium prohibits simultaneous calls even for different documents.
-PDFIUM_LOCK = threading.Lock()
+
 
 
 class PdfFiles:
@@ -124,8 +124,6 @@ class PdfFiles:
     @staticmethod
     def _engine():
         try:
-            import pypdfium2
-            import PIL.Image  # noqa: F401
+            return pdf_engine()
         except ImportError as error:
             raise Invalid('Install Paper Agent PDF dependencies in the shared Python environment: pip install pypdfium2==5.0.0 Pillow==12.0.0', 503) from error
-        return pypdfium2

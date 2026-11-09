@@ -105,7 +105,7 @@ test('source excerpts select real attachments, retain bytes, cancel drafts, reje
   assert.equal((button('Download retained source') as HTMLButtonElement).disabled, false);
   await mount({ type: 'doc', content: [{ type: 'sourceExcerpt', attrs: { label: '', excerpt: null } }] });
   await click(button('Configure source excerpt'));
-  assert.match(document.querySelector('dialog')!.textContent!, /Attach a UTF-8 text file/);
+  assert.match(document.querySelector('dialog')!.textContent!, /Attach a text, PDF, image or Office file/);
   await click(button('Cancel')); assert.equal(data()[0].attrs.excerpt, null);
 });
 

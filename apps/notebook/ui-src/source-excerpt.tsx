@@ -1,3 +1,6 @@
+import { extractedSourceMimes } from '@pero/notebook/source-extraction';
+import { verifiedAttachmentBytes } from '@pero/notebook/attachment';
+import { SourceExtractionPicker, SourceExtractionDetails } from './source-extraction';
 import { useEffect, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import type { NodeViewProps } from '@tiptap/react';
@@ -15,8 +18,8 @@ export const sourceExcerptMessages = {
   configure: { en: 'Configure source excerpt', zh: '配置来源摘录' }, update: { en: 'Update excerpt', zh: '更新摘录' },
   label: { en: 'Excerpt label', zh: '摘录标题' }, source: { en: 'Source attachment', zh: '来源附件' },
   choose: { en: 'Choose an attachment', zh: '选择附件' }, close: { en: 'Close', zh: '关闭' }, cancel: { en: 'Cancel', zh: '取消' },
-  empty: { en: 'Attach a UTF-8 text file to this notebook, then choose the passage to retain.', zh: '请先向笔记附加 UTF-8 文本文件，然后选择要保留的段落。' },
-  scope: { en: 'Retains the full source text (up to 128 KiB) and your exact quote in this revision. Supports plain text, Markdown, CSV, TSV, JSON and NDJSON. The source attachment is never changed.', zh: '在修订中保留完整来源文本（最多 128 KiB）及精确摘录。支持纯文本、Markdown、CSV、TSV、JSON 和 NDJSON。不会修改来源附件。' },
+  empty: { en: 'Attach a text, PDF, image or Office file to this notebook, then choose the passage to retain.', zh: '请先向笔记附加文本、PDF、图片或 Office 文件，然后选择要保留的段落。' },
+  scope: { en: 'Retains the full source text (up to 128 KiB) and your exact quote in this revision. Reads UTF-8 text directly; PDF, PNG/JPEG/WebP, DOCX/XLSX/PPTX require explicit local extraction. Derived text retains parser and source locations; OCR needs review. The source attachment is never changed.', zh: '在修订中保留完整来源文本（最多 128 KiB）及精确摘录。文本直接读取；PDF、图片和 Office 需明确本地提取，保留解析器和位置，OCR 需复核。不会修改来源附件。' },
   provenance: { en: 'Local source reference only. Integrity checks do not authenticate the author, origin or scientific claims.', zh: '仅为本地来源引用。完整性校验不验证作者、出处或科学结论。' },
   start: { en: 'Start offset (codepoints, inclusive)', zh: '起始偏移（码点，包含）' }, end: { en: 'End offset (codepoints, exclusive)', zh: '结束偏移（码点，不包含）' },
   full: { en: 'Source text (read-only)', zh: '来源文本（只读）' }, select: { en: 'Use highlighted text', zh: '使用高亮选区' },
@@ -27,7 +30,7 @@ export const sourceExcerptMessages = {
   available: { en: 'Original attachment is available and unchanged.', zh: '原始附件可用且未改变。' }, changed: { en: 'Original attachment changed. This excerpt retains its pinned version.', zh: '原始附件已更改。此摘录保留其固定版本。' },
   missing: { en: 'Original attachment is no longer in this notebook. The retained text and quote remain available.', zh: '原始附件已不在此笔记中，保留文本及摘录仍可用。' },
   missingSection: { en: 'Original attachment is not in this editor section. Other notebook sections were not checked. The retained text and quote remain available.', zh: '此编辑区域中没有原始附件，尚未检查笔记的其他区域。保留文本及摘录仍可用。' },
-  emptySection: { en: 'Attach a UTF-8 text file to this editor section, then choose the passage to retain.', zh: '请先向此编辑区域附加 UTF-8 文本文件，然后选择要保留的段落。' },
+  emptySection: { en: 'Attach a text, PDF, image or Office file to this editor section, then choose the passage to retain.', zh: '请先向此编辑区域附加文本、PDF、图片或 Office 文件，然后选择要保留的段落。' },
   download: { en: 'Download retained source', zh: '下载保留来源' }, details: { en: 'Source details and retained text', zh: '来源详情及保留文本' },
   showSource: { en: 'Locate original attachment', zh: '定位原始附件' }, retry: { en: 'Reload selected attachment', zh: '重新加载所选附件' },
   stale: { en: 'The source attachment changed or was removed. Reload it and select the passage again.', zh: '来源附件已改变或移除。请重新加载并选择段落。' },
@@ -59,6 +62,7 @@ function SourceExcerptComposer({ editor, initial, onConfirm, onCancel }: {
     const candidate = find(id);
     try {
       if (!candidate) throw new Error(t('stale'));
+      if (extractedSourceMimes.has(candidate.attachment.mime)) return;
       const snapshot = await readSourceExcerptAttachment(candidate);
       if (request.current !== generation) return;
       if (!sameSourceExcerptAttachment(candidate, find(id))) throw new Error(t('stale'));
@@ -92,6 +96,10 @@ function SourceExcerptComposer({ editor, initial, onConfirm, onCancel }: {
     {error && <Feedback kind="error">{error}</Feedback>}
     {stale && <Feedback kind="warning">{t('stale')}</Feedback>}
     {selected && <Button disabled={busy} onClick={() => void load(selected)}>{t('retry')}</Button>}
+    {selected && extractedSourceMimes.has(find(selected)?.attachment.mime ?? '') && <SourceExtractionPicker key={`${selected}:${find(selected)?.attachment.sha256}:${find(selected)?.attachment.data}`} file={find(selected)!.attachment} onReset={() => setLoaded(null)} onExtract={result => {
+      const candidate = find(selected); if (!candidate || candidate.attachment.sha256 !== result.extraction.original.sha256) { setError(t('stale')); return; }
+      setLoaded({ candidate, snapshot: { ...result, source: { blockId: selected, filename: candidate.attachment.filename, mime: candidate.attachment.mime, sha256: candidate.attachment.sha256 } } }); setStart('0'); setEnd('0'); setError('');
+    }} />}
     {loaded && <>
       <Field label={t('full')}>{control => <Textarea {...control} ref={preview} readOnly rows={10} value={loaded.snapshot.text} />}</Field>
       <p className="notebook-note">{t('rangeHelp')}</p>
@@ -104,6 +112,7 @@ function SourceExcerptComposer({ editor, initial, onConfirm, onCancel }: {
         <Field label={t('start')}>{control => <Input {...control} type="number" min={0} step={1} value={start} onChange={event => setStart(event.target.value)} />}</Field>
         <Field label={t('end')}>{control => <Input {...control} type="number" min={1} step={1} value={end} onChange={event => setEnd(event.target.value)} />}</Field>
       </div>
+      {loaded.snapshot.extraction && <SourceExtractionDetails extraction={loaded.snapshot.extraction} start={Number(start)} end={Number(end)} />}
       <strong>{t('preview')}</strong>
       {excerpt ? <blockquote className="notebook-snapshot-quote" style={{ whiteSpace: 'pre-wrap' }}>{excerpt.quote}</blockquote> : <p>{t('selectHint')}</p>}
     </>}
@@ -129,11 +138,15 @@ export function SourceExcerptView(view: NodeViewProps) {
     return () => { live = false; };
   }, [excerpt]);
   const current = verified === excerpt ? verified : null, validShape = isSourceExcerpt(excerpt);
-  const availability = current ? sourceExcerptAvailability(current, candidates) : null;
+  const [originalChecked, setOriginalChecked] = useState<{ data: string; sha256: string; valid: boolean } | null>(null);
+  const original = current && candidates.find(candidate => candidate.blockId === current.source.blockId)?.attachment;
+  useEffect(() => { let live = true; if (original && current?.extraction) void verifiedAttachmentBytes(original).then(() => { if (live) setOriginalChecked({ data: original.data, sha256: original.sha256, valid: true }); }, () => { if (live) setOriginalChecked({ data: original.data, sha256: original.sha256, valid: false }); }); return () => { live = false; }; }, [original?.data, original?.sha256, !!current?.extraction]);
+  const provisional = current ? sourceExcerptAvailability(current, candidates) : null;
+  const availability = provisional === 'available' && current?.extraction ? (originalChecked?.data === original?.data && originalChecked?.sha256 === original?.sha256 ? originalChecked?.valid ? 'available' : 'changed' : null) : provisional;
   const edit = () => setEditing({ attrs: { label, excerpt }, captured: JSON.stringify({ label, excerpt }) });
   const download = () => {
     if (!current) return;
-    try { downloadFile(current.source.filename, new TextEncoder().encode(current.text), 'application/octet-stream'); setDownloadError(false); }
+    try { downloadFile(current.extraction ? `${current.source.filename}.extracted.txt` : current.source.filename, new TextEncoder().encode(current.text), 'application/octet-stream'); setDownloadError(false); }
     catch { setDownloadError(true); }
   };
   return <BlockFrame view={view} kind="sourceExcerpt" title={<strong>{label || t('title')}</strong>}>
@@ -156,6 +169,7 @@ export function SourceExcerptView(view: NodeViewProps) {
         }}>{t('showSource')}</Button>}
       </div>
       {downloadError && <Feedback kind="error">{t('downloadFailed')}</Feedback>}
+      {current?.extraction && <SourceExtractionDetails extraction={current.extraction} start={current.start} end={current.end} />}
       {validShape && <Disclosure summary={t('details')}><dl className="notebook-reference-details">
         <div><dt>Block ID</dt><dd><code>{excerpt.source.blockId}</code></dd></div><div><dt>MIME</dt><dd>{excerpt.source.mime}</dd></div>
         <div><dt>SHA-256 / version</dt><dd><code>{excerpt.version}</code></dd></div></dl>
