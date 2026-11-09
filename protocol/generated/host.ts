@@ -118,6 +118,7 @@ export type QuestionReply = AnsweredQuestions | CancelledQuestions;
 export type EngramSettingsRequest = GetEngramSettings | SetEngramSettings | SetEngramDocument;
 export type EngramBinary = string;
 export type AppRequest =
+  | AppCanvasRequest
   | LocalEnvironmentApp
   | EnvironmentInspectionApp
   | AppApiAccess
@@ -141,9 +142,11 @@ export type AppRequest =
   | AutomationApp
   | ResearchAssetsApp;
 export type AppName = string;
+export type CanvasOperation =
+  CanvasMount | CanvasRead | CanvasRelease | CanvasPrepare | CanvasDecide | CanvasStatus | CanvasCancel;
+export type RequestId = string;
 export type LocalEnvironmentOperation =
   LocalEnvironmentCreate | LocalEnvironmentList | LocalEnvironmentPrepare | LocalEnvironmentBind;
-export type RequestId = string;
 export type AgentRunRequest =
   | AgentRunPrepare
   | AgentRunTerminal
@@ -1755,6 +1758,70 @@ export interface SetEngramDocument {
   scope: string;
   text: string;
 }
+export interface AppCanvasRequest {
+  action: "canvas";
+  name: AppName;
+  request: CanvasOperation;
+  method: "apps";
+  id: RequestId;
+}
+export interface CanvasMount {
+  operation: "mount";
+  source: CanvasSource;
+}
+export interface CanvasSource {
+  entryId: string;
+  revision: string;
+  blockId: string;
+  binding: CanvasBinding;
+  readOnly: boolean;
+}
+export interface CanvasBinding {
+  id: string;
+  app: AppName;
+  panel: AppName;
+  view: AppName;
+  declaration: string;
+  inputs: AppDocumentSchema;
+}
+/**
+ * Public catalog: no local paths or backend credentials.
+ */
+export interface AppDocumentSchema {
+  [k: string]: unknown | undefined;
+}
+export interface CanvasRead {
+  operation: "read";
+  instance: string;
+}
+export interface CanvasRelease {
+  operation: "release";
+  instance: string;
+}
+export interface CanvasPrepare {
+  operation: "prepare";
+  instance: string;
+  operationId: string;
+  action: AppName;
+  params: AppDocumentSchema;
+}
+export interface CanvasDecide {
+  operation: "decide";
+  instance: string;
+  operationId: string;
+  ticket: string;
+  allow: boolean;
+}
+export interface CanvasStatus {
+  operation: "status";
+  instance: string;
+  operationId: string;
+}
+export interface CanvasCancel {
+  operation: "cancel";
+  instance: string;
+  operationId: string;
+}
 export interface LocalEnvironmentApp {
   action: "localenvironment";
   name: AppName;
@@ -1844,12 +1911,6 @@ export interface AgentRunPrepare {
 }
 export interface AgentScope {
   workspaceId: string;
-}
-/**
- * Public catalog: no local paths or backend credentials.
- */
-export interface AppDocumentSchema {
-  [k: string]: unknown | undefined;
 }
 export interface AgentRunTerminal {
   operation: "terminal";
@@ -3704,6 +3765,7 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | CanvasReply
     | LocalEnvironmentRecord[]
     | EnvironmentInspectionReport
     | AgentPreparedContext
@@ -3727,6 +3789,39 @@ export interface AppSuccess {
     | AppGrant
     | ResearchAssetReply
     | ResearchBundleReply;
+}
+export interface CanvasReply {
+  history?: CanvasHistoryItem[];
+  state?: string;
+  instance?: string;
+  source?: CanvasSource;
+  projection?: CanvasProjection;
+  ticket?: string;
+  summary?: string;
+  message?: string;
+  receipt?: AppDocumentSchema;
+}
+export interface CanvasHistoryItem {
+  operationId: string;
+  action: AppName;
+  state: string;
+}
+export interface CanvasProjection {
+  title: string;
+  fields: CanvasField[];
+  columns: string[];
+  rows: string[][];
+  notice: string;
+  actions: CanvasAction[];
+}
+export interface CanvasField {
+  label: string;
+  value: string;
+}
+export interface CanvasAction {
+  name: AppName;
+  label: string;
+  params: AppDocumentSchema;
 }
 export interface LocalEnvironmentRecord {
   id: AppName;
@@ -3778,6 +3873,7 @@ export interface AppSdkPermissions {
   host: string[];
 }
 export interface InstalledAppViews {
+  canvases?: DeclaredCanvasView[];
   app: AppName;
   title: string;
   version: string;
@@ -3785,6 +3881,11 @@ export interface InstalledAppViews {
   enabled: boolean;
   panels: DeclaredAppPanel[];
   actions: DeclaredAppAction[];
+}
+export interface DeclaredCanvasView {
+  id: AppName;
+  title: string;
+  inputs: AppDocumentSchema;
 }
 export interface DeclaredAppPanel {
   id: AppName;

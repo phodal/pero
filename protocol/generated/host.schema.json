@@ -1435,6 +1435,37 @@
       ],
       "additionalProperties": false
     },
+    "AppCanvasRequest": {
+      "title": "AppCanvasRequest",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "canvas"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "request": {
+          "$ref": "#/$defs/CanvasOperation"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "request",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "AppChatScope": {
       "title": "AppChatScope",
       "type": "object",
@@ -1741,6 +1772,9 @@
     "AppRequest": {
       "title": "AppRequest",
       "oneOf": [
+        {
+          "$ref": "#/$defs/AppCanvasRequest"
+        },
         {
           "$ref": "#/$defs/LocalEnvironmentApp"
         },
@@ -2132,6 +2166,9 @@
         },
         "value": {
           "anyOf": [
+            {
+              "$ref": "#/$defs/CanvasReply"
+            },
             {
               "type": "array",
               "items": {
@@ -5347,6 +5384,396 @@
       ],
       "additionalProperties": false
     },
+    "CanvasAction": {
+      "title": "CanvasAction",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "label": {
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasBinding": {
+      "title": "CanvasBinding",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "app": {
+          "$ref": "#/$defs/AppName"
+        },
+        "panel": {
+          "$ref": "#/$defs/AppName"
+        },
+        "view": {
+          "$ref": "#/$defs/AppName"
+        },
+        "declaration": {
+          "type": "string"
+        },
+        "inputs": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "id",
+        "app",
+        "panel",
+        "view",
+        "declaration",
+        "inputs"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasCancel": {
+      "title": "CanvasCancel",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "cancel"
+        },
+        "instance": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "instance",
+        "operationId"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasDecide": {
+      "title": "CanvasDecide",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "decide"
+        },
+        "instance": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "ticket": {
+          "type": "string"
+        },
+        "allow": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "operation",
+        "instance",
+        "operationId",
+        "ticket",
+        "allow"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasField": {
+      "title": "CanvasField",
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasHistoryItem": {
+      "title": "CanvasHistoryItem",
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/$defs/AppName"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operationId",
+        "action",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasMount": {
+      "title": "CanvasMount",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "mount"
+        },
+        "source": {
+          "$ref": "#/$defs/CanvasSource"
+        }
+      },
+      "required": [
+        "operation",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasOperation": {
+      "title": "CanvasOperation",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CanvasMount"
+        },
+        {
+          "$ref": "#/$defs/CanvasRead"
+        },
+        {
+          "$ref": "#/$defs/CanvasRelease"
+        },
+        {
+          "$ref": "#/$defs/CanvasPrepare"
+        },
+        {
+          "$ref": "#/$defs/CanvasDecide"
+        },
+        {
+          "$ref": "#/$defs/CanvasStatus"
+        },
+        {
+          "$ref": "#/$defs/CanvasCancel"
+        }
+      ]
+    },
+    "CanvasPrepare": {
+      "title": "CanvasPrepare",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "prepare"
+        },
+        "instance": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/$defs/AppName"
+        },
+        "params": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "operation",
+        "instance",
+        "operationId",
+        "action",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasProjection": {
+      "title": "CanvasProjection",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CanvasField"
+          }
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "notice": {
+          "type": "string"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CanvasAction"
+          }
+        }
+      },
+      "required": [
+        "title",
+        "fields",
+        "columns",
+        "rows",
+        "notice",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasRead": {
+      "title": "CanvasRead",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "read"
+        },
+        "instance": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "instance"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasRelease": {
+      "title": "CanvasRelease",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "release"
+        },
+        "instance": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "instance"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasReply": {
+      "title": "CanvasReply",
+      "type": "object",
+      "properties": {
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CanvasHistoryItem"
+          }
+        },
+        "state": {
+          "type": "string"
+        },
+        "instance": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/CanvasSource"
+        },
+        "projection": {
+          "$ref": "#/$defs/CanvasProjection"
+        },
+        "ticket": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "receipt": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CanvasSource": {
+      "title": "CanvasSource",
+      "type": "object",
+      "properties": {
+        "entryId": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "blockId": {
+          "type": "string"
+        },
+        "binding": {
+          "$ref": "#/$defs/CanvasBinding"
+        },
+        "readOnly": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "entryId",
+        "revision",
+        "blockId",
+        "binding",
+        "readOnly"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasStatus": {
+      "title": "CanvasStatus",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "status"
+        },
+        "instance": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "instance",
+        "operationId"
+      ],
+      "additionalProperties": false
+    },
     "ChangedFile": {
       "title": "ChangedFile",
       "type": "object",
@@ -6827,6 +7254,27 @@
       "required": [
         "id",
         "title"
+      ],
+      "additionalProperties": false
+    },
+    "DeclaredCanvasView": {
+      "title": "DeclaredCanvasView",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/AppName"
+        },
+        "title": {
+          "type": "string"
+        },
+        "inputs": {
+          "$ref": "#/$defs/AppDocumentSchema"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "inputs"
       ],
       "additionalProperties": false
     },
@@ -8920,6 +9368,12 @@
       "title": "InstalledAppViews",
       "type": "object",
       "properties": {
+        "canvases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DeclaredCanvasView"
+          }
+        },
         "app": {
           "$ref": "#/$defs/AppName"
         },
