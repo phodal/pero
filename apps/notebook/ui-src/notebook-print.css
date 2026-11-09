@@ -1,0 +1,24 @@
+.notebook-print-options { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-3); margin-block: var(--pero-spacing-3); }
+.notebook-print-options label { display: inline-flex; align-items: center; gap: var(--pero-spacing-1); }
+.notebook-print-output { display: none; }
+.notebook-print-preview { overflow: auto; max-height: 65vh; margin-block: var(--pero-spacing-4); padding: var(--pero-spacing-4); border: var(--pero-hairline); background: var(--pero-surface); }
+.notebook-print-document { overflow-wrap: anywhere; }
+.notebook-print-document table { width: 100%; border-collapse: collapse; }
+.notebook-print-document th, .notebook-print-document td { border: var(--pero-hairline); padding: 4px 6px; vertical-align: top; text-align: left; }
+.notebook-print-document pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.notebook-print-document figure { margin: 1rem 0; }
+.notebook-print-document figcaption { font-weight: 600; margin-bottom: .4rem; }
+.notebook-print-document img { max-width: 100%; height: auto; }
+.notebook-print-document small { display: block; font-size: 12px; }
+.notebook-print-document footer { border-top: var(--pero-hairline); padding-top: 1rem; margin-top: 1rem; font-size: 12px; }
+.notebook-amendment-fields { display: grid; gap: var(--pero-spacing-3); }
+@media print {
+  body:has(> .notebook-print-output) > :not(.notebook-print-output) { display: none !important; }
+  body:has(> .notebook-print-output), .notebook-print-output { margin: 0 !important; padding: 0 !important; height: auto !important; overflow: visible !important; background: white !important; color: black !important; }
+  .notebook-print-output { display: block !important; font: 10pt/1.4 system-ui, sans-serif; }
+  .notebook-print-document th, .notebook-print-document td { border: 1px solid #777; }
+  .notebook-print-document thead { display: table-header-group; }
+  .notebook-print-document tr, .notebook-print-document img { break-inside: avoid; }
+  .notebook-print-document h1, .notebook-print-document h2, .notebook-print-document h3 { break-after: avoid; }
+  .notebook-print-document a { color: black; }
+}
