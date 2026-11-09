@@ -1,6 +1,60 @@
 # Notebook verification
 
-## Exact head: `94ecc010` (2026-11-09)
+## Exact head: `9b0c987a` (2026-11-09)
+
+Verified head: `9b0c987a90df71392f97b20783db5aa8e85bfd6b`
+(`test(notebook): point the desktop profile at the prepared venv`) on
+`codex/notebook-blocks`, [PR 181](https://github.com/phodal/pero/pull/181).
+GitHub reports the pull request `MERGEABLE` with merge state `CLEAN`.
+[Actions run 42604212999](https://github.com/phodal/pero/actions/runs/42604212999)
+is the pull_request run for that SHA. The workflow conclusion is success.
+Attempt 1 is the only attempt. A documentation commit on top of `9b0c987a`
+does not by itself re-prove these jobs. A01 stays partial.
+
+### Checks on this head
+
+Passed on [run 42604212999](https://github.com/phodal/pero/actions/runs/42604212999).
+Each job below is the single attempt on this head.
+
+- [Notebook revisions, workbook and browser contracts](https://github.com/phodal/pero/actions/runs/42604212999/job/129115880848)
+  succeeded (10:50:53Z–10:54:31Z).
+- [Notebook Canvas real Host and Chromium](https://github.com/phodal/pero/actions/runs/42604212999/job/129115880869)
+  succeeded (10:50:52Z–10:52:20Z).
+- [Native shell compilation and unit contracts](https://github.com/phodal/pero/actions/runs/42604212999/job/129115881046)
+  succeeded (10:50:52Z–10:53:59Z). Compilation and unit contracts are not
+  rendered Native WebView acceptance.
+- [Official DSH AST comparison contracts](https://github.com/phodal/pero/actions/runs/42604212999/job/129115880772)
+  succeeded (10:50:52Z–10:51:14Z).
+- [Linux CI gate](https://github.com/phodal/pero/actions/runs/42604212999/job/129119378597)
+  succeeded (10:58:34Z–10:58:40Z).
+
+Notebook revisions, Notebook Canvas, Native shell, Official DSH, and the Linux
+CI gate passed on `9b0c987a`. The Desktop acceptance job on this run was
+skipped. Native notebook chrome was not shown. Native remains the Wry WebView
+and stays unreviewed.
+
+### Desktop profile and screenshot
+
+`tests/e2e/notebook.mjs` at this head writes the fresh profile from
+`PERO_APP_PYTHON`. When owner fixtures are off and `PERO_APP_PYTHON` is set,
+the harness writes `settings.json` with `app_python.apps.notebook` set to
+`dirname(dirname(PERO_APP_PYTHON))`. The Host reads that binding from the
+fresh profile.
+
+`/tmp/pero-eln-desktop/test-results/notebook/desktop.png` (2976×2108, written
+2026-11-09 18:48:48 +0800) is the local Desktop Electron Workbench capture.
+It shows **New notebook**, the toolbar **Ask Agent**, **Revision history**,
+**Save revision**, **Notebook home**, **Print options**, and **Worksheet
+amendments**, and the document **Notebook in Pero**, Revision 2, with
+“Read the original parameters.” Sheet1 A1 is 2 and B1 is 12. The revision
+line reads “Revision saved 11/9/2026, 6:48:48 PM”. Native notebook chrome is
+not in that capture.
+
+Remote provider file-list, download, and sync, configured live-model
+execution, multi-user authenticated signatures, physical inventory movement
+and instrument runs, and Native WebView rendering stay outside this record.
+
+## Prior recorded head: `94ecc010` (2026-11-09)
 
 Verified head: `94ecc010697443ffe5a79ee3e96fca35a44d4a7e`
 (`Merge branch 'master' into codex/notebook-blocks`) on
@@ -16,7 +70,7 @@ artifact names use the checkout merge SHA.
 A documentation commit on top of `94ecc010` does not by itself re-prove
 these jobs. Desktop and Native visuals were not reviewed. A01 stays partial.
 
-### Checks on this head
+### Checks on `94ecc010`
 
 Passed on [run 42594802214](https://github.com/phodal/pero/actions/runs/42594802214).
 Each job below is the single attempt on this head.
@@ -243,14 +297,16 @@ authenticated signature or a visual review.
 
 ### Evidence ledger and final gate
 
-The exact-head contracts for `94ecc010` are the “Checks on this head” section
-above: [run 42594802214](https://github.com/phodal/pero/actions/runs/42594802214).
-Notebook browser, Canvas Host, Native shell, Official DSH, and the Linux CI
-gate passed on that head, and the pull request merge is clean. The
-`70d2e2fd` section records the prior product head. Older local counts below
-are historical and are not promoted to `94ecc010`. A01 stays partial.
-Desktop and Native visuals were not reviewed. The external boundaries above
-remain.
+The exact-head contracts for `9b0c987a` are the “Checks on this head” section
+above: [run 42604212999](https://github.com/phodal/pero/actions/runs/42604212999).
+Notebook revisions, Notebook Canvas, Native shell, Official DSH, and the Linux
+CI gate passed on that head. The desktop screenshot in that section is the
+Electron Workbench capture. Native visual stays unreviewed. The `94ecc010`
+section records the prior head, and the `70d2e2fd` section records the prior
+product head. Older local counts below are historical and are not promoted to
+`9b0c987a`. A01 stays partial. Remote provider sync, live-model execution,
+multi-user signatures, physical instruments, and Native WebView stay outside
+this record.
 
 Historical wave 4 source validation, based on `c5b9f202` and including the local
 controls, diagnostics and waiver fixes: **141 package tests, 77 editor tests,
