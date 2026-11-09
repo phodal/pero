@@ -1,76 +1,86 @@
 # Notebook verification
 
-## Exact head: `61e028c` (2026-11-09)
+## Exact head: `70d2e2fd` (2026-11-09)
 
-Verified product head: `61e028c4264d9d302fde4c2c7eeaacd8796ad0d5`
-(`fix(notebook): show short decimals in mixture quantity inputs`) on
+Verified product head: `70d2e2fd7f61f2e2029ebde8a84c0098c10402a8`
+(`fix(notebook): keep narrow action controls from overlapping`) on
 `codex/notebook-blocks`, [PR 181](https://github.com/phodal/pero/pull/181).
-[Actions run 42580075914](https://github.com/phodal/pero/actions/runs/42580075914)
+[Actions run 42582557017](https://github.com/phodal/pero/actions/runs/42582557017)
 checked that head. The pull_request checkout merge is
-`a867bfdab755f9661ad139385e941171c9ff4fac`
-(`Merge 61e028c4… into bf32df68…`); artifact names use that merge SHA.
+`728d59045dcc4492f1f91c2d8e68a835b2c8e7e5`
+(`Merge 70d2e2fd… into bf32df68…`); artifact names use that merge SHA.
 This ledger does not mark the ELN goal complete. Desktop acceptance, Windows
 ACL, and paper-HTML jobs were skipped, so these checks are not full-platform
 or visual acceptance.
-A documentation commit on top of `61e028c` does not by itself re-prove these
-jobs. The earlier green run
-[42576754065](https://github.com/phodal/pero/actions/runs/42576754065) checked
-product head `c0c4b612`. Docs run
+A documentation commit on top of `70d2e2fd` does not by itself re-prove these
+jobs. Run
+[42581310460](https://github.com/phodal/pero/actions/runs/42581310460)
+checked docs head `6a4758c6` (merge `1f84cd91`); its Linux CI gate failed
+because Standalone harness Bazel setup returned HTTP 504. Run
+[42580075914](https://github.com/phodal/pero/actions/runs/42580075914)
+checked product head `61e028c` (merge `a867bfda`) and its DSH attempts failed
+on the tree-sitter download. Docs run
 [42578100117](https://github.com/phodal/pero/actions/runs/42578100117)
-succeeded on recording commit `5ed4a040` (merge `67b48301`) and is not this
-product head. This head replaces `c0c4b612` for the jobs below.
+succeeded on recording commit `5ed4a040` (merge `67b48301`). Product run
+[42576754065](https://github.com/phodal/pero/actions/runs/42576754065) checked
+`c0c4b612`. Those runs are not this head.
 
 [Component parity](../design/notebook-component-parity.md) still retains all
 94 pinned reference groups. Its earlier “exact-head acceptance pending”
 sentence is superseded for runtime evidence by the checks below. Reference
 stubs remain requirements; no private reference source/assets were copied.
-`61e028c` shows short decimals in mixture quantity inputs and keeps the stored
-value until the field is edited. It is not a ledger-only commit. Document
-chrome from `c0c4b612` remains in this tree.
+`70d2e2fd` keeps Replace or restore and Keyboard shortcuts at their own
+content width on the scrolling status row through 760px, so one label does
+not paint over the other. `61e028c` shows short decimals in mixture quantity
+inputs and keeps the stored value until the field is edited. Document chrome
+from `c0c4b612` remains in this tree. None of these commits is a visual review.
 
 ### Checks on this head
 
-Passed on [run 42580075914](https://github.com/phodal/pero/actions/runs/42580075914).
-The Notebook, Canvas, Native shell, and Linux core jobs below are the attempt 1
-executions. Attempt 2 reran the failed DSH job and the Linux CI gate; it did
-not rerun these four.
+Passed on [run 42582557017](https://github.com/phodal/pero/actions/runs/42582557017).
+Each job below is the single attempt on this head. The workflow conclusion is
+success.
 
-- [Notebook revisions, workbook and browser contracts](https://github.com/phodal/pero/actions/runs/42580075914/job/129039082563)
-  succeeded (07:34:13Z–07:36:47Z). Artifact
-  [notebook-browser-a867bfda…](https://github.com/phodal/pero/actions/runs/42580075914/artifacts/13656917658)
+- [Notebook revisions, workbook and browser contracts](https://github.com/phodal/pero/actions/runs/42582557017/job/129044544355)
+  succeeded (07:57:21Z–08:00:24Z). Artifact
+  [notebook-browser-728d5904…](https://github.com/phodal/pero/actions/runs/42582557017/artifacts/13658116486)
   retains `test-results/notebook/`.
-- [Notebook Canvas real Host and Chromium](https://github.com/phodal/pero/actions/runs/42580075914/job/129039031407)
-  succeeded (07:34:04Z–07:35:40Z). Artifact
-  [notebook-canvas-browser-a867bfda…](https://github.com/phodal/pero/actions/runs/42580075914/artifacts/13657037106).
-- [Native shell compilation and unit contracts](https://github.com/phodal/pero/actions/runs/42580075914/job/129039075048)
-  succeeded (07:33:49Z–07:36:12Z). Compilation and unit contracts are not
+- [Notebook Canvas real Host and Chromium](https://github.com/phodal/pero/actions/runs/42582557017/job/129044544414)
+  succeeded (07:57:20Z–07:58:43Z). Artifact
+  [notebook-canvas-browser-728d5904…](https://github.com/phodal/pero/actions/runs/42582557017/artifacts/13657263798).
+- [Native shell compilation and unit contracts](https://github.com/phodal/pero/actions/runs/42582557017/job/129044544684)
+  succeeded (07:57:22Z–08:00:24Z). Compilation and unit contracts are not
   rendered Native WebView acceptance.
-- [Linux core types, permissions and durable runtime](https://github.com/phodal/pero/actions/runs/42580075914/job/129039030505)
-  succeeded (07:33:50Z–07:39:07Z).
+- [Linux core types, permissions and durable runtime](https://github.com/phodal/pero/actions/runs/42582557017/job/129044544236)
+  succeeded (07:57:21Z–08:05:03Z).
 
-[Official DSH AST comparison contracts](https://github.com/phodal/pero/actions/runs/42580075914/job/129039029215)
-failed on both attempts with HTTP 504 downloading
+[Official DSH AST comparison contracts](https://github.com/phodal/pero/actions/runs/42582557017/job/129044544380)
+succeeded (07:57:21Z–07:57:54Z). No DSH code was changed. Earlier heads
+`61e028c` and `36fb8a4b` failed this download with HTTP 504 for
 `https://github.com/tree-sitter/tree-sitter/releases/download/v0.25.10/tree-sitter-linux-x64.gz`
-(attempt 1 at 07:34:12Z, job
-[129036582502](https://github.com/phodal/pero/actions/runs/42580075914/job/129036582502);
-attempt 2 at 07:41:28Z, job
-[129039029215](https://github.com/phodal/pero/actions/runs/42580075914/job/129039029215)).
-That was an external download failure. No DSH product code was changed.
-The same download failed twice on the earlier product head `36fb8a4b` in
-[run 42568134548](https://github.com/phodal/pero/actions/runs/42568134548).
+([run 42580075914](https://github.com/phodal/pero/actions/runs/42580075914),
+jobs
+[129036582502](https://github.com/phodal/pero/actions/runs/42580075914/job/129036582502)
+and
+[129039029215](https://github.com/phodal/pero/actions/runs/42580075914/job/129039029215);
+[run 42568134548](https://github.com/phodal/pero/actions/runs/42568134548)).
+Those 504s are not this head.
 
-[Linux CI gate](https://github.com/phodal/pero/actions/runs/42580075914/job/129039163311)
-failed (07:41:34Z–07:41:43Z) because required check `ast` failed. Its input
-recorded `notebook`, `notebook-canvas`, `native-ui`, and `core` as success.
-`desktop`, `desktop-linux`, `desktop-acceptance`, `windows-acl-sandbox`, and
-`paper-html-live` were skipped. On `c0c4b612`,
-[run 42576754065](https://github.com/phodal/pero/actions/runs/42576754065)
-had passed Official DSH and this gate. That run is no longer the current
-evidence.
+[Standalone harness Bazel contracts](https://github.com/phodal/pero/actions/runs/42582557017/job/129044544458)
+succeeded (07:57:21Z–08:03:56Z). On `6a4758c6` the same job stopped in
+`bazel-contrib/setup-bazel@0.19.1` with HTTP 504. That external failure is
+not this head.
 
-Notebook revisions, Canvas Host, Native shell, and Linux core are green on
-`61e028c`. Official DSH and the Linux CI gate are not. The workflow conclusion
-is failure.
+[Linux CI gate](https://github.com/phodal/pero/actions/runs/42582557017/job/129047325261)
+succeeded (08:05:06Z–08:05:12Z). Its input recorded `notebook`,
+`notebook-canvas`, `native-ui`, `core`, `ast`, and `harness-bazel` as
+success. `desktop`, `desktop-linux`, `desktop-acceptance`,
+`windows-acl-sandbox`, and `paper-html-live` were skipped.
+
+Notebook revisions, Canvas Host, Native shell, Linux core, Official DSH, and
+the Linux CI gate are green on `70d2e2fd`. Skipped Desktop, Windows ACL, and
+paper-HTML jobs are still unverified. The workflow conclusion is success.
+That success is not ELN completion and not A01 visual acceptance.
 
 ### Local workflows and remaining boundaries
 
@@ -90,16 +100,18 @@ Still outside this goal:
 
 [A01](../design/notebook-component-parity.md) stays partial. This record does
 not review narrow-dark, printed-page, Desktop, or Native screenshots for
-`61e028c` or run 42580075914. Narrow document chrome through 760px remains in
-this tree: `0851c351` keeps the nowrap toolbar inside the viewport, and
+`70d2e2fd` or run 42582557017. Narrow document chrome through 760px remains in
+this tree: `0851c351` keeps the nowrap toolbar inside the viewport,
 `c0c4b612` shortens that chrome so the title stays on screen and document
-actions share a row with editor status. `96fffc83` drops the published draft
-after save so reload does not restore an earlier debounce copy. The passing
-Chromium job checks a 600×900 dark viewport (`data-theme=pero-dark`, title
-still visible, no horizontal overflow) and opens Notebook home at 760×950.
-Those checks are contract execution. A green browser job is not A01 visual
-acceptance. Screenshot notes from docs run 42578100117 stay on recording
-commit `5ed4a040` and are not this product head.
+actions share a row with editor status, and `70d2e2fd` gives those action
+controls their own content width so the labels do not paint over each other.
+`96fffc83` drops the published draft after save so reload does not restore an
+earlier debounce copy. The passing Chromium job checks a 600×900 dark
+viewport (`data-theme=pero-dark`, title still visible, no horizontal
+overflow) and opens Notebook home at 760×950. Those checks are contract
+execution. A green browser job is not A01 visual acceptance. Screenshot notes
+from docs run 42578100117 stay on recording commit `5ed4a040`, and notes for
+run 42580075914 stay on `61e028c`. Neither is this head.
 
 Chrome polish from `f40feb1a` is in this head: the document title stays outside
 workspace tabs so Metadata/Relevant views no longer hide `Notebook title`;
@@ -139,8 +151,8 @@ Unqualified UI/backend/test paths are under `apps/notebook/` in their respective
   `test_named_reference.py`, `registration-waiver.test.ts`,
   `test_registration_waiver.py`, `registration-waiver-browser-scenario.mjs`,
   `source-diagnostics.test.ts` and `source-diagnostics-browser.mjs`. The
-  `61e028c` browser job executed these scenarios. The product behavior is the
-  `61e028c` tree. That is contract execution,
+  `70d2e2fd` browser job executed these scenarios. The product behavior is the
+  `70d2e2fd` tree. That is contract execution,
   not A01 visual acceptance. The audit found no additional missing local
   workflow among these previously open items.
 - PDF native page text, DOCX/XLSX/PPTX text and explicit image/scanned-PDF OCR are
@@ -168,17 +180,18 @@ The implemented `required-missing-v1` registration waiver retains exact input,
 reason, local attribution and waived missing-cell identities on immutable catalog
 records and receipts. It cannot waive supplied types, units, options or schema.
 `verifyRegistrationWaiver` runs from the `table-workflows` scenario inside the
-passing Notebook browser job on `61e028c`. That execution is not an
+passing Notebook browser job on `70d2e2fd`. That execution is not an
 authenticated signature or a visual review.
 
 ### Evidence ledger and final gate
 
-The exact-head contracts for `61e028c` are the “Checks on this head” section
+The exact-head contracts for `70d2e2fd` are the “Checks on this head” section
 above. Older local counts below are historical and are not promoted to that
-head. The ELN goal is not complete. Official DSH and the Linux CI gate failed
-on this head because the tree-sitter download returned HTTP 504. A01 visual
-acceptance of the narrow-dark viewport, a printed page, Desktop, and Native
-screenshots was not reviewed here. The external boundaries above remain.
+head. The ELN goal is not complete. Notebook browser, Canvas Host, Native
+shell, Linux core, Official DSH, and the Linux CI gate passed on this head.
+Desktop, Windows ACL, paper-HTML, and A01 visual acceptance of the
+narrow-dark viewport, a printed page, Desktop, and Native screenshots were
+not reviewed here. The external boundaries above remain.
 
 Historical wave 4 source validation, based on `c5b9f202` and including the local
 controls, diagnostics and waiver fixes: **141 package tests, 77 editor tests,
@@ -187,7 +200,7 @@ controls, diagnostics and waiver fixes: **141 package tests, 77 editor tests,
 core TypeScript, generated contracts and locales also passed. The preceding
 freeze passed five Bazel generated checks; the final package-export cache is
 regenerated before publication. These local results do not by themselves
-establish the `61e028c` Chromium, Rust Host, or Native shell results, and they
+establish the `70d2e2fd` Chromium, Rust Host, or Native shell results, and they
 do not cover remote-provider or live-model acceptance.
 
 
@@ -206,15 +219,15 @@ do not cover remote-provider or live-model acceptance.
   succeeded at `c5b9f202`.
   That checkpoint's Notebook browser/Host runs had numeric-revision, receipt-order,
   fixture-charset and selector failures, with fixes subsequently made in the working
-  tree. This is not the `61e028c` browser/Host result recorded above.
+  tree. This is not the `70d2e2fd` browser/Host result recorded above.
 - The later local pre-controls freeze passed 139 package, 117 Notebook Python,
   71 editor, 28 SDK, 67 Data and nine build/CI-runner checks plus five Bazel checks.
   Subsequent reference-control edits mean these are prior-tree results, not
-  counts for `61e028c`. Exact-head CI for the current head is the checks section
+  counts for `70d2e2fd`. Exact-head CI for the current head is the checks section
   above, not these local totals.
 - Local Chromium remains blocked by the established ProcessSingleton socket
   restriction. No restriction bypass or new local browser pass is claimed.
-  The `61e028c` browser and Canvas jobs are the CI runs of the built App with
+  The `70d2e2fd` browser and Canvas jobs are the CI runs of the built App with
   a real temporary backend; their artifacts hold the screenshots. Passing those
   jobs is separate from an A01 visual review.
 - Native compilation/unit tests are not rendered Native WebView acceptance.
