@@ -8,7 +8,7 @@
     "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
     "test": "npm run test:editor && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
     "test:browser": "node --test test/notebook-browser.mjs test/content-editing-browser.mjs",
-    "test:editor": "node --test test/*.test.ts"
+    "test:editor": "node --test --test-concurrency=4 test/*.test.ts"
   },
   "dependencies": {
     "@tiptap/core": "3.33.0",

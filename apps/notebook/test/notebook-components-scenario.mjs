@@ -82,9 +82,10 @@ export async function verifyNotebookComponents(page, origin, output) {
   await page.getByLabel('Material 1', { exact: true }).fill('Buffer');
   await page.getByLabel('Quantity 1', { exact: true }).fill('10 mL');
   const kinds = ['Header', 'Description', 'Step', 'Image', 'Table', 'Timer'];
+  const procedureSteps = page.getByRole('region', { name: 'Steps', exact: true }).locator('.notebook-procedure-steps > li');
   for (const [index, kind] of kinds.entries()) {
     await button('Add step').click();
-    const step = page.locator('.notebook-procedure-steps > li').nth(index);
+    const step = procedureSteps.nth(index);
     await select('Step kind', kind, step);
     await step.getByRole('textbox', { name: 'Step formatting', exact: true }).fill(`${kind} instructions`);
     await step.getByLabel(`Planned minutes ${index + 1}`, { exact: true }).fill('2');
@@ -93,14 +94,14 @@ export async function verifyNotebookComponents(page, origin, output) {
   await page.getByLabel('Planned minutes 1', { exact: true }).fill('-1');
   await expect(page.getByText('Enter 0–10,080 minutes, or leave blank.')).toBeVisible();
   await page.getByLabel('Planned minutes 1', { exact: true }).fill('2');
-  const imageStep = page.locator('.notebook-procedure-steps > li').nth(3);
+  const imageStep = procedureSteps.nth(3);
   await imageStep.locator('input[type=file]').setInputFiles({ name: 'pixel.png', mimeType: 'image/png',
     buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9S8AAAAASUVORK5CYII=', 'base64') });
   await expect(imageStep.locator('[data-kind=attachment] img')).toBeVisible();
-  const tableStep = page.locator('.notebook-procedure-steps > li').nth(4);
+  const tableStep = procedureSteps.nth(4);
   await button('Insert editable table', tableStep).click();
   await tableStep.locator('[data-cell=A1]').fill('7');
-  const timerStep = page.locator('.notebook-procedure-steps > li').nth(5);
+  const timerStep = procedureSteps.nth(5);
   await button('Start timer', timerStep).click();
   await expect(button('Start timer', timerStep)).toBeDisabled();
   await expect(timerStep.locator('output')).not.toHaveText('Actual elapsed: 0.0 seconds');
@@ -110,7 +111,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   await expect(timerStep.locator('output')).toHaveText('Actual elapsed: 0.0 seconds');
   await button('Remove procedure').click();
   await button('Cancel', page.getByRole('dialog')).click();
-  await expect(page.locator('.notebook-procedure-steps > li')).toHaveCount(6);
+  await expect(procedureSteps).toHaveCount(6);
   await shot('procedures-desktop-light');
   await save(2);
   const entries = await json('/api/entries');
@@ -289,7 +290,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   await tab('Procedures');
   await expect(button('Add procedure')).toHaveCount(0);
   await expect(button('Start timer')).toHaveCount(0);
-  await expect(page.locator('.notebook-procedure-prose').first()).toHaveAttribute('contenteditable', 'false');
+  await expect(procedureSteps.first().getByRole('textbox', { name: 'Step formatting', exact: true })).toHaveAttribute('contenteditable', 'false');
   await tab('Review and activity');
   await expect(button('Start comment thread')).toHaveCount(0);
   await tab('Notes');

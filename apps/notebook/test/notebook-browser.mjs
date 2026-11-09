@@ -1,3 +1,6 @@
+import { verifyStructuredFieldWorkflows } from './structured-field-browser-scenario.mjs';
+import { verifyProcedureParameters } from './procedure-parameters-browser-scenario.mjs';
+import { verifyReviewWorkflows } from './review-workflows-browser-scenario.mjs';
 import { verifyDirectGridInteractions } from './grid-interaction-browser-scenario.mjs';
 import { createNotebook } from './notebook-browser-actions.mjs';
 import { verifyProcedureWorkspace } from './procedure-workspace-browser-scenario.mjs';
@@ -352,7 +355,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
     ['grid-tools', verifyGridTools], ['notebook-components', verifyNotebookComponents],
     ['table-workflows', verifyTableWorkflows], ['scientific-designs', verifyScientificDesigns],
     ['source-excerpts', verifySourceExcerpts], ['diagnostics-and-intake', verifyDiagnosticsAndIntake],
-    ['procedure-workspace', verifyProcedureWorkspace], ['direct-grid-interactions', verifyDirectGridInteractions],
+    ['review-workflows', verifyReviewWorkflows], ['structured-field-workflows', verifyStructuredFieldWorkflows], ['procedure-parameters', verifyProcedureParameters], ['procedure-workspace', verifyProcedureWorkspace], ['direct-grid-interactions', verifyDirectGridInteractions],
   ]) {
     scenario = name;
     try { await verify(page, origin, output); }

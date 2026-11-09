@@ -11,6 +11,7 @@
     "./worksheet": "./src/worksheet.ts",
     "./attachment": "./src/attachment.ts",
     "./workspace": "./src/workspace.ts",
+    "./procedure-parameters": "./src/procedure-parameters.ts",
     "./spreadsheet-range": "./src/spreadsheet-range.ts",
     "./paper-evidence": "./src/paper-evidence.ts",
     "./control-evidence": "./src/control-evidence.ts",

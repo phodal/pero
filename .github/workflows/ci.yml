@@ -64,7 +64,7 @@ jobs:
       - name: Verify documents, formulas, XLSX exchange and Agent revisions
         run: npm run test:notebook
       - name: Verify installed App catalog owner contracts
-        run: node --test packages/app-sdk/test/installed-app-views.test.mjs desktop/src/main/apps-frames.test.ts
+        run: node --test packages/app-sdk/test/installed-app-views.test.mjs packages/app-sdk/test/app-canvas.test.mjs desktop/src/main/apps-frames.test.ts desktop/src/main/app-canvas.test.ts
       - name: Verify Notebook types
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: npm --prefix apps/notebook run typecheck
@@ -717,6 +717,10 @@ jobs:
         id: host_build
         if: ${{ !cancelled() && steps.node.outcome == 'success' && steps.rust.outcome == 'success' && steps.gpui.outcome == 'success' }}
         run: node scripts/cargo.mjs build --locked -p pero-host -p pero-worker
+      - name: Declared Canvas real Host and owner recovery contracts
+        id: app_canvas
+        if: ${{ !cancelled() && steps.host_build.outcome == 'success' }}
+        run: node tests/contracts/app-canvas.mjs
       - name: App use authorization contracts
         id: app_use
         if: ${{ !cancelled() && steps.npm.outcome == 'success' }}
@@ -958,10 +962,14 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  native-ui:
+    name: Native shell compilation and unit contracts
+    uses: ./.github/workflows/native-ui.yml
+
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [paper-html-live, core, data, lab, control-lab, virtual-cell, notebook, scientific-viewer, lcms2yield, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [native-ui, paper-html-live, core, data, lab, control-lab, virtual-cell, notebook, scientific-viewer, lcms2yield, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

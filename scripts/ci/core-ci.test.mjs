@@ -56,8 +56,8 @@ test('every assertion failure leaves independent core checks running and the gat
 test('failed prerequisites skip their consumers without hiding unrelated checks', () => {
   for (const [failed, skipped, running] of [
     ['paper_npm', ['paper_components', 'paper_types', 'paper_availability', 'paper_manual', 'app_build_contracts'], ['viewer_unit', 'hpc_ui', 'core_types', 'rust_tests', 'host_stdio']],
-    ['rust', ['rust_tests', 'host_build', 'host_stdio'], ['paper_components', 'core_types', 'app_use', 'mcp_build']],
-    ['host_build', ['host_stdio', 'host_research', 'host_mcp_settings', 'host_mcp_ownership', 'host_automation', 'host_app_automation', 'host_app_agent', 'control_lab_host'], ['rust_tests', 'core_types', 'mcp_build', 'control_lab']],
+    ['rust', ['rust_tests', 'host_build', 'host_stdio', 'app_canvas'], ['paper_components', 'core_types', 'app_use', 'mcp_build']],
+    ['host_build', ['app_canvas', 'host_stdio', 'host_research', 'host_mcp_settings', 'host_mcp_ownership', 'host_automation', 'host_app_automation', 'host_app_agent', 'control_lab_host'], ['rust_tests', 'core_types', 'mcp_build', 'control_lab']],
     ['mcp_build', ['host_mcp_settings', 'host_mcp_ownership'], ['host_stdio', 'host_research', 'host_app_agent']],
     ['paper_python', ['paper_backend', 'paper_pdf_http', 'paper_source_http', 'paper_source_cli', 'host_research'], ['data_backend', 'viewer_backend', 'paper_components', 'host_stdio']],
     ['npm', ['core_types', 'app_use', 'paper_components', 'host_stdio'], ['rust_tests', 'host_build', 'paper_backend', 'data_backend']],
