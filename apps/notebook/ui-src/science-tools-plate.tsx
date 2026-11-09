@@ -2,16 +2,20 @@ import { useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Checkbox, Feedback, Field, Input, NativeSelect } from '@pero/app-sdk/ui';
 import { assignPlate, createPlate, plateRectangle, plateRowLabel, plateSnapshot, plateTraversal, plateWellIndex, plateWellName, type PlateDirection } from '@pero/notebook/science-plate';
+import { emptyPlateMetadata, parsePlateDesign, type RecordPin } from '../../../packages/notebook/src/scientific-designs';
+import { PlateDesignLibrary } from './plate-design-library';
 import { scienceMessages, type SciencePanelProps } from './science-tools-shared';
 
 export function PlatePanel({ onSnapshot }: SciencePanelProps) {
   const { t } = useAppI18n(scienceMessages);
   const [layout, setLayout] = useState(() => createPlate(8, 12)), [selected, setSelected] = useState([0]), [anchor, setAnchor] = useState(0);
   const [direction, setDirection] = useState<PlateDirection>('rows'), [group, setGroup] = useState(''), [additive, setAdditive] = useState(false), [range, setRange] = useState('A1:B3'), [error, setError] = useState('');
+  const [metadata, setMetadata] = useState(emptyPlateMetadata), [origin, setOrigin] = useState<RecordPin | null>(null);
   const order = plateTraversal(selected, layout.size, direction);
   const act = (action: () => void) => { try { action(); setError(''); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } };
   return <div className="notebook-science-panel">
     <p className="notebook-note">{t('plateHint')}</p>
+    <PlateDesignLibrary layout={layout} metadata={metadata} origin={origin} onMetadata={setMetadata} onOrigin={setOrigin} onLoad={(next, fields, source) => { setLayout(next); setMetadata(fields); setOrigin(source); setSelected([0]); setAnchor(0); }} />
     <div className="notebook-science-fields">
       <Field label={t('size')} description={t('resize')}>{control => <NativeSelect {...control} value={`${layout.size.rows}x${layout.size.columns}`} onChange={event => {
         const [rows, columns] = event.target.value.split('x').map(Number); setLayout(createPlate(rows, columns)); setSelected([0]); setAnchor(0); setError('');
@@ -48,6 +52,6 @@ export function PlatePanel({ onSnapshot }: SciencePanelProps) {
       </div>
     </div>
     <p className="notebook-note" role="status">{order.length}: {order.slice(0, 96).map(i => plateWellName(i, layout.size)).join(' → ')}{order.length > 96 ? ' …' : ''}</p>
-    <Button variant="primary" onClick={() => { const snapshot = plateSnapshot(layout, order, direction); onSnapshot(t('plate'), snapshot, snapshot.wells.map(well => [well.well, well.groups.join(' + '), well.order === null ? '' : String(well.order)])); }}>{t('insert')}</Button>
+    <Button variant="primary" onClick={() => act(() => { const validated = parsePlateDesign({ name: 'Plate layout', description: '', layout, metadata, origin }); const snapshot = { ...plateSnapshot(layout, order, direction), metadata: validated.metadata, designOrigin: validated.origin }; onSnapshot(t('plate'), snapshot, snapshot.wells.map(well => [well.well, well.groups.join(' + '), well.order === null ? '' : String(well.order)])); })}>{t('insert')}</Button>
   </div>;
 }
