@@ -428,7 +428,7 @@ function Notebook() {
                 onSave={snapshot ? undefined : () => { if (current.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); }}
                 onReplaceDocument={snapshot ? undefined : document => {
                   const history = transitionDocument(current.history, { type: 'restore', document });
-                  setReplacementNotice('Current document replaced. Undo restores the previous draft. / 已替换当前文档，可撤销恢复。');
+                  setReplacementNotice(t('documentReplaced'));
                   setDrafts(previous => ({ ...previous, [selected]: { ...previous[selected], history, document: history.present, dirty: true, durable: false,
                     editorEpoch: previous[selected].editorEpoch + 1, storageError: previous[selected].recoveryProtected ? previous[selected].storageError : '' } }));
                 }}

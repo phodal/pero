@@ -72,17 +72,24 @@ export function observeEditor(editor: Editor, changed: (sample: EditorTiming) =>
   const dom = editor.view.dom; dom.addEventListener('paste', paste, true);
   return () => { editor.off('beforeTransaction', before); editor.off('transaction', after); dom.removeEventListener('paste', paste, true); };
 }
+const capabilityContracts = {
+  registered: { en: 'Registered in this editor', zh: '已注册到当前编辑器' },
+  formula: { en: 'Curated function menu, not the entire engine', zh: '常用函数菜单，非完整引擎列表' },
+  procedure: { en: 'Local procedure kind, not instrument execution', zh: '本地步骤类型，非仪器执行' },
+  intake: { en: 'Pinned local-catalog selection, not physical stock', zh: '固定本地目录版本，非实物库存' },
+} as const;
 export interface NotebookCapability { kind: 'node' | 'mark' | 'extension' | 'field' | 'formula' | 'procedure' | 'intake'; name: string; owner: string; contract: string }
 /** Generated from this editor's runtime schema and Pero's exported domain contracts, not a recovered source index. */
-export function notebookCapabilities(editor: Editor): NotebookCapability[] {
+export function notebookCapabilities(editor: Editor, locale: 'en' | 'zh' = 'en'): NotebookCapability[] {
+  const contract = (key: keyof typeof capabilityContracts) => capabilityContracts[key][locale];
   return [
     ...Object.entries(editor.schema.nodes).map(([name, type]) => ({ kind: 'node' as const, name, owner: '@tiptap/core · active editor schema', contract: JSON.stringify({ group: type.spec.group ?? '', content: type.spec.content ?? '', atom: type.isAtom, attributes: Object.keys(type.spec.attrs ?? {}) }) })),
     ...Object.entries(editor.schema.marks).map(([name, type]) => ({ kind: 'mark' as const, name, owner: '@tiptap/core · active editor schema', contract: JSON.stringify({ excludes: type.spec.excludes ?? '', attributes: Object.keys(type.spec.attrs ?? {}) }) })),
-    ...editor.extensionManager.extensions.filter(extension => extension.type === 'extension').map(extension => ({ kind: 'extension' as const, name: extension.name, owner: '@tiptap/core · registered extension', contract: 'Registered in this editor / 已注册到当前编辑器' })),
+    ...editor.extensionManager.extensions.filter(extension => extension.type === 'extension').map(extension => ({ kind: 'extension' as const, name: extension.name, owner: '@tiptap/core · registered extension', contract: contract('registered') })),
     ...columnTypes.map(name => ({ kind: 'field' as const, name, owner: '@pero/notebook/structured-table', contract: JSON.stringify(structuredTableLimits) })),
-    ...formulaFunctions.map(name => ({ kind: 'formula' as const, name, owner: '@pero/notebook/spreadsheet', contract: 'Curated function menu, not the entire engine / 常用函数菜单，非完整引擎列表' })),
-    ...procedureKinds.map(name => ({ kind: 'procedure' as const, name, owner: '@pero/notebook/workspace', contract: 'Local procedure kind, not instrument execution / 本地步骤类型，非仪器执行' })),
-    ...intakeModes.map(name => ({ kind: 'intake' as const, name, owner: '@pero/notebook/sample-intake', contract: 'Pinned local-catalog selection, not physical stock / 固定本地目录版本，非实物库存' })),
+    ...formulaFunctions.map(name => ({ kind: 'formula' as const, name, owner: '@pero/notebook/spreadsheet', contract: contract('formula') })),
+    ...procedureKinds.map(name => ({ kind: 'procedure' as const, name, owner: '@pero/notebook/workspace', contract: contract('procedure') })),
+    ...intakeModes.map(name => ({ kind: 'intake' as const, name, owner: '@pero/notebook/sample-intake', contract: contract('intake') })),
   ];
 }
 export function searchCapabilities(capabilities: readonly NotebookCapability[], query: string, kind = ''): NotebookCapability[] {

@@ -36,7 +36,7 @@ export function NotebookEditorDiagnostics({ editor }: { editor: Editor }) {
   </div>;
 }
 function EditorInspectorPanel({ editor }: { editor: Editor }) {
-  const { t } = useAppI18n(messages);
+  const { t, locale } = useAppI18n(messages);
   const [tab, setTab] = useState('selection'), [query, setQuery] = useState(''), [kind, setKind] = useState('');
   const [snapshot, setSnapshot] = useState(() => inspectEditor(editor));
   const [pastes, setPastes] = useState<PasteDiagnostic[]>([]), [timings, setTimings] = useState<EditorTiming[]>([]);
@@ -58,7 +58,7 @@ function EditorInspectorPanel({ editor }: { editor: Editor }) {
     }, event => capture(event, 'editor'));
     return () => { mounted.current = false; unsubscribe(); };
   }, [editor]);
-  const summary = timingSummary(timings), capabilities = searchCapabilities(notebookCapabilities(editor), query, kind);
+  const summary = timingSummary(timings), capabilities = searchCapabilities(notebookCapabilities(editor, locale), query, kind);
   function text(label: string, content: DiagnosticText) {
     return <details><summary>{label}</summary><pre>{content.text || '∅'}</pre>
       {content.truncated && <p>{t('bounded', { limit: diagnosticLimits.text, length: content.length })}</p>}</details>;
@@ -97,7 +97,7 @@ function EditorInspectorPanel({ editor }: { editor: Editor }) {
     </>}
     <p>{t('exportNote')}</p><Button variant="ghost" onClick={() => downloadFile('Notebook-diagnostics.json', JSON.stringify({
       format: 'pero-notebook-diagnostics-v1', scope: 'local observations; bounded text; view-update timings only', limits: diagnosticLimits, snapshot, pastes, timings,
-      capabilities: notebookCapabilities(editor),
+      capabilities: notebookCapabilities(editor, locale),
     }, null, 2), 'application/json')}>{t('download')}</Button>
   </section>;
 }
