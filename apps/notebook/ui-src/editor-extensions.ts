@@ -1,3 +1,4 @@
+import { NamedReferenceView } from './notebook-reference-controls';
 import { SourceExcerptView } from './source-excerpt';
 import { ReactionSchemeView, ChemicalView } from './scientific-content';
 import { emptyReaction, emptyMolecularGraph } from '@pero/notebook/scientific-designs';
@@ -26,6 +27,7 @@ import { NotebookTemplateOrigin } from './template-origin';
 import { SavedSearchView } from './saved-search';
 
 export const widgets = [
+  { name: 'namedReference', icon: 'document', defaults: { kind: 'entry', name: '', notes: '' }, view: NamedReferenceView },
   { name: 'sourceExcerpt', icon: 'document', defaults: { label: '', excerpt: null }, view: SourceExcerptView },
   { name: 'reactionScheme', icon: 'flask', defaults: { reaction: emptyReaction(), record: null }, view: ReactionSchemeView },
   { name: 'chemical', icon: 'flask', defaults: { chemical: { name: '', graph: emptyMolecularGraph(), source: null } }, view: ChemicalView },

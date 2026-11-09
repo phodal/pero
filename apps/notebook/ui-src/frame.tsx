@@ -1,3 +1,6 @@
+import { NotebookHomeTools } from './notebook-home';
+import { NotebookPrintTools } from './notebook-print';
+import { WorksheetAmendments } from './worksheet-amendments';
 import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -64,6 +67,7 @@ function Notebook() {
   const [catalogError, setCatalogError] = useState('');
   const [openError, setOpenError] = useState('');
   const [error, setError] = useState('');
+  const [replacementNotice, setReplacementNotice] = useState('');
   const [retry, setRetry] = useState(0);
   const catalogRequest = useRef(0);
 
@@ -201,12 +205,23 @@ function Notebook() {
   };
   const choose = (id: string) => {
     if (id === selected) return;
-    setSelected(id);
+    setSelected(id); setReplacementNotice('');
     setSnapshot(null);
     setHistory(null);
     setError('');
     setOpenError('');
   };
+  useEffect(() => {
+    const receive = (event: MessageEvent) => {
+      if (event.source !== window.parent || event.data?.type !== 'pero:app:location' || typeof event.data.location !== 'string') return;
+      const match = /^entry\/([a-f0-9]{32})$/.exec(event.data.location);
+      if (!match) return;
+      navigationRequest.current++;
+      setSelected(match[1]); setSnapshot(null); setHistory(null); setError(''); setOpenError('');
+    };
+    window.addEventListener('message', receive);
+    return () => window.removeEventListener('message', receive);
+  }, []);
   const updateList = (entry: NotebookEntrySummary) => {
     catalogRequest.current++;
     const { id, title, revision, updatedAt } = entry;
@@ -335,6 +350,7 @@ function Notebook() {
     actions={<IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>}>
     {catalogError && <Feedback kind="error" variant="block">{catalogError} <Button onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
     {error && <Feedback kind="error" variant="block">{error}</Feedback>}
+    {replacementNotice && <Feedback kind="success" variant="block">{replacementNotice}</Feedback>}
     {!entries ? (catalogError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
       : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />}
         heading={t('noNotebooks')} description={t('start')} />
@@ -375,6 +391,11 @@ function Notebook() {
                   <Button variant="primary" busy={busy === 'save'} disabled={!current.dirty || current.newer || current.recoveryProtected || !!busy}
                     onClick={() => void save(current)}><Icon name="save" /> {t('save')}</Button>
                 </>}
+                <NotebookHomeTools key={`home:${shown.id}:${shown.revision}`} entry={shown} document={draft} dirty={!snapshot && current.dirty} readonly={!!snapshot || !!busy}
+                  onOpenEntry={id => { if (!busy) choose(id); }} onMetadata={metadata => updateDraft({ metadata })} />
+                <NotebookPrintTools key={`print:${shown.id}:${shown.revision}`} document={draft} entryId={shown.id} revision={shown.revision} dirty={!snapshot && current.dirty} />
+                <WorksheetAmendments key={`amend:${shown.id}:${shown.revision}`} entry={shown} dirty={current.dirty} readonly={!!snapshot || !!busy}
+                  onCommitted={entry => { adopt(readEntry(entry)); updateList(entry); }} />
               </div>
               {!snapshot && current.storageError && <Feedback kind="error" variant="block">{current.storageError}
                 <Button onClick={() => downloadFile('notebook-draft-recovery.json', current.recovery ?? JSON.stringify(current.document, null, 2), 'application/json')}>{t('exportRecovery')}</Button>
@@ -402,6 +423,13 @@ function Notebook() {
                   </time></p>
                 </header>}
                 historyControls={{ canUndo: !!current.history.past.length, canRedo: !!current.history.future.length, undo: () => applyHistory({ type: 'undo' }), redo: () => applyHistory({ type: 'redo' }) }}
+                onSave={snapshot ? undefined : () => { if (current.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); }}
+                onReplaceDocument={snapshot ? undefined : document => {
+                  const history = transitionDocument(current.history, { type: 'restore', document });
+                  setReplacementNotice('Current document replaced. Undo restores the previous draft. / 已替换当前文档，可撤销恢复。');
+                  setDrafts(previous => ({ ...previous, [selected]: { ...previous[selected], history, document: history.present, dirty: true, durable: false,
+                    editorEpoch: previous[selected].editorEpoch + 1, storageError: previous[selected].recoveryProtected ? previous[selected].storageError : '' } }));
+                }}
                 readonly={!!snapshot} document={draft} entryId={shown.id} revision={shown.revision} onCreateEntry={createFromDocument} onDocumentChange={snapshot ? undefined : updateDraft}
                 content={draft.content} onChange={snapshot ? undefined : (content, group) => updateDraft({ content }, group)} />
             </div>}

@@ -1,3 +1,7 @@
+import { DatedSectionTools, NamedReferenceTools, NotebookStatusBar } from './notebook-reference-controls';
+import { NotebookFileIntake } from './file-intake';
+import { NotebookCommandTools, NOTEBOOK_SYMBOLS_EVENT } from './notebook-commands';
+import { NOTEBOOK_PRINT_OPEN_EVENT } from './notebook-print';
 import { NotebookContextProvider } from './notebook-context';
 import { NotebookSourceExcerptTools } from './source-excerpt';
 import { notebookHistoryGroup } from './editor-history';
@@ -82,9 +86,12 @@ function EditorToolbar({ editor, document, onCreateEntry, entryId, revision, his
   };
   return <><Toolbar className="notebook-toolbar" role="group" aria-label={t('format')}>
     <NotebookTextTools editor={editor} />
+    <DatedSectionTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
+    <NamedReferenceTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
     <NotebookSourceExcerptTools editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
     <NotebookScientificContentTools onInsert={nodes => insertBlocks(editor, nodes)} />
     <NotebookScienceTools editor={editor} getTarget={() => ({ entryId, revision })} onInsert={nodes => { insertBlocks(editor, nodes); }} />
+    <NotebookFileIntake editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
     <NotebookTemplateTools editor={editor} document={document} onCreateEntry={onCreateEntry} />
     <NotebookSavedSearchTools editor={editor} />
     <span className="notebook-toolbar-divider" />
@@ -97,7 +104,7 @@ function EditorToolbar({ editor, document, onCreateEntry, entryId, revision, his
             {t('plateGeometry', { wells: rows * columns, rows, columns })}
           </DropdownMenuItem>)}
         </DropdownMenuSubContent></DropdownMenuSub>
-        {widgets.filter(widget => widget.name !== 'attachment' && widget.name !== 'savedSearch').map(widget => <DropdownMenuItem key={widget.name} onSelect={() => insertBlocks(editor, [{
+        {widgets.filter(widget => widget.name !== 'namedReference' && widget.name !== 'attachment' && widget.name !== 'savedSearch').map(widget => <DropdownMenuItem key={widget.name} onSelect={() => insertBlocks(editor, [{
           type: widget.name, attrs: widget.name === 'spreadsheet' ? { label: nextWorksheetName(editor.state.doc) } : ['inputTable', 'registrationTable'].includes(widget.name) ? { table: createStructuredTable(crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()), receipts: [] } : undefined,
         }])}><Icon name={widget.icon} />{t(widget.name)}</DropdownMenuItem>)}
       </DropdownMenuContent>
@@ -117,11 +124,12 @@ function EditorToolbar({ editor, document, onCreateEntry, entryId, revision, his
   </Toolbar>{error && <Feedback kind="error">{error}</Feedback>}</>;
 }
 
-export function NotebookEditor({ content, document: entryDocument, onDocumentChange, onCreateEntry, entryId, revision, readonly = false, onChange, header, historyControls }: {
+export function NotebookEditor({ content, document: entryDocument, onDocumentChange, onCreateEntry, entryId, revision, readonly = false, onChange, header, historyControls, onSave, onReplaceDocument }: {
   content: NotebookDocument['content']; document: NotebookDocument; onDocumentChange?: (change: Partial<NotebookDocument>) => void;
   onCreateEntry?: (document: NotebookDocument) => Promise<void>; entryId: string; revision: number;
   historyControls?: DocumentHistoryControls;
-  header?: ReactNode; readonly?: boolean; onChange?: (content: NotebookDocument['content'], historyGroup: string | null) => void;
+  onReplaceDocument?(document: NotebookDocument): void;
+  onSave?(): void; header?: ReactNode; readonly?: boolean; onChange?: (content: NotebookDocument['content'], historyGroup: string | null) => void;
 }) {
   const { t } = useAppI18n(messages);
   const documentRef = useRef(entryDocument); documentRef.current = entryDocument;
@@ -155,9 +163,16 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
   if (!editor) return null;
   return <NotebookContextProvider value={{ entryId, revision, readonly, document: entryDocument,
     getDocument: () => ({ ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] }) }}>
-    <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onChange={change => onDocumentChange?.(change)}>
+    <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onReplaceDocument={onReplaceDocument} onChange={change => onDocumentChange?.(change)}>
     {!readonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId} revision={revision} document={entryDocument} onCreateEntry={onCreateEntry} />}
+    <NotebookCommandTools entryId={entryId} readonly={readonly} handlers={{ save: onSave,
+      export: () => downloadFile('Notebook.json', JSON.stringify({ ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
+      print: () => { window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } })); },
+      ...(!readonly ? { section: () => insertBlocks(editor, [{ type: 'section', content: [{ type: 'paragraph' }] }]),
+        symbols: () => { editor.view.dom.dispatchEvent(new CustomEvent(NOTEBOOK_SYMBOLS_EVENT)); } } : {}),
+    }} />
     <NotebookEditorDiagnostics editor={editor} />
+    <NotebookStatusBar editor={editor} />
     <div className="notebook-paper">{header}<EditorContent className="notebook-editor" editor={editor} /></div>
   </NotebookWorkspace></NotebookContextProvider>;
 }

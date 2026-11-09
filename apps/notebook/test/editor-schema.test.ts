@@ -13,6 +13,7 @@ test('every mounted Notebook widget and inline mention survives editor serializa
   const { ui } = runtime;
   const contents = ui.widgets.map((widget: { name: string; defaults: object }, index: number) => ({
     type: widget.name, attrs: { ...structuredClone(widget.defaults), blockId: `widget-${index}`,
+      ...(widget.name === 'namedReference' ? { name: 'Preparation', notes: 'Record settings before measuring.' } : {}),
       ...(widget.name === 'savedSearch' ? { queryId: 'query' } : {}),
       ...(widget.name === 'attachment' ? { filename: 'empty.txt', mime: 'text/plain', data: '', caption: '', sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' } : {}),
     },

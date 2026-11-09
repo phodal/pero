@@ -25,7 +25,7 @@ MARKS = {'bold', 'italic', 'strike', 'code', 'underline', 'subscript', 'superscr
 BLOCKS = {
     'paragraph', 'heading', 'blockquote', 'horizontalRule', 'codeBlock',
     'bulletList', 'orderedList', 'taskList', 'spreadsheet', 'evidence',
-    'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake', 'reactionScheme', 'chemical', 'sourceExcerpt',
+    'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake', 'reactionScheme', 'chemical', 'sourceExcerpt', 'namedReference',
 }
 CONTAINERS = {
     'doc': BLOCKS,
@@ -41,7 +41,7 @@ CONTAINERS = {
     'section': BLOCKS,
 }
 REQUIRED_CHILDREN = {'doc', 'blockquote', 'bulletList', 'orderedList', 'taskList', 'section'}
-DOMAIN_BLOCKS = {'spreadsheet', 'evidence', 'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake', 'reactionScheme', 'chemical', 'sourceExcerpt'}
+DOMAIN_BLOCKS = {'spreadsheet', 'evidence', 'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake', 'reactionScheme', 'chemical', 'sourceExcerpt', 'namedReference'}
 SHA256 = re.compile(r'[a-f0-9]{64}')
 RUN_ID = re.compile(r'[a-f0-9]{32}')
 CONTROL_NAME = re.compile(r'[a-zA-Z0-9_-]{1,128}')
@@ -308,6 +308,7 @@ def _attributes(kind, value, identities):
         'experiment': {'label', 'source'},
         'finding': {'claim', 'limitations', 'evidenceIds'},
         'section': {'label', 'date'},
+        'namedReference': {'kind', 'name', 'notes'},
         'attachment': {'filename', 'mime', 'data', 'caption', 'sha256'},
         'referenceMention': {'label', 'source'},
         'reactionScheme': {'reaction', 'record'},
@@ -381,6 +382,11 @@ def _attributes(kind, value, identities):
         string(value['claim'], 'claim')
         string(value['limitations'], 'limitations')
         evidence_ids(value['evidenceIds'])
+    elif kind == 'namedReference':
+        if value['kind'] != 'entry':
+            raise ValueError('Invalid named reference kind')
+        string(value['name'], 'reference name', MAX_TITLE, required=True)
+        string(value['notes'], 'reference notes', 20000, required=True)
     elif kind == 'section':
         string(value['label'], 'section title', MAX_TITLE)
         calendar_date(value['date'])

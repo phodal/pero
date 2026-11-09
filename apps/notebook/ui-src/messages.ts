@@ -1,4 +1,5 @@
 export const messages = {
+  namedReference: { en: 'Named reference', zh: '命名引用' },
   sampleIntake: { en: 'Sample intake', zh: '样本导入' },
   draftStored: { en: 'Draft stored locally', zh: '草稿已保存在本地' },
   draftNotStored: { en: 'Draft not stored', zh: '草稿尚未保存' },
