@@ -86,3 +86,56 @@ export function bindIntake(intake: SampleIntake, result: IntakeResult, recordId:
   if (!isSampleIntake(next)) throw new Error('Duplicate record, occupied well, or binding limit reached.');
   return next;
 }
+
+/** The user chooses a real text field as a box/location label. No inventory schema is assumed. */
+export interface CatalogBox { label: string; records: CatalogRecord[] }
+export function catalogBoxes(snapshot: CatalogSnapshot, fieldId: string): CatalogBox[] {
+  const groups = new Map<string, CatalogRecord[]>();
+  for (const record of snapshot.records) {
+    const cell = record.values[fieldId];
+    if (!record.columns.some(column => column.id === fieldId && column.type === 'text') || cell?.type !== 'text' || !cell.value.trim()) continue;
+    const group = groups.get(cell.value) ?? []; group.push(record); groups.set(cell.value, group);
+  }
+  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([label, records]) => ({ label, records }));
+}
+export function bindCatalogSelection(intake: SampleIntake, snapshot: CatalogSnapshot, recordIds: readonly string[]): SampleIntake {
+  if (!recordIds.length || new Set(recordIds).size !== recordIds.length) throw new Error('Choose distinct existing catalog records.');
+  const bindings = recordIds.map((id, index) => {
+    const record = snapshot.records.find(record => record.id === id);
+    if (!record) throw new Error('Selected catalog record is no longer in this result.');
+    return { source: { mode: 'manual' as const, input: id, fileName: '', row: intake.bindings.length + index + 1, well: '', field: '$id' },
+      snapshot: { ...snapshot, records: [record] } };
+  });
+  const next = { ...intake, bindings: [...intake.bindings, ...structuredClone(bindings)] };
+  if (!isSampleIntake(next)) throw new Error('Duplicate record or binding limit reached.');
+  return next;
+}
+export interface IntakePropagation {
+  sourceId: string; targetId: string; sourceBefore: string; targetBefore: string; bindingCount: number; targetAfter: SampleIntake;
+}
+/** Stage immutable associations into another intake block, never inventory movement. */
+export function stageIntakePropagation(sourceId: string, source: SampleIntake, targetId: string, target: SampleIntake): IntakePropagation {
+  if (!sourceId || !targetId || sourceId === targetId) throw new Error('Choose a different destination intake block.');
+  if (!source.bindings.length) throw new Error('Select source records before staging.');
+  if (source.bindings.some(binding => binding.source.well) && (source.plateSize.rows !== target.plateSize.rows || source.plateSize.columns !== target.plateSize.columns)) throw new Error('Source and destination plate sizes must match.');
+  const targetAfter = { ...target, bindings: structuredClone([...target.bindings, ...source.bindings]) };
+  if (!isSampleIntake(targetAfter)) throw new Error('Destination contains duplicate records, occupied wells, or exceeds the binding limit.');
+  return { sourceId, targetId, sourceBefore: JSON.stringify(source), targetBefore: JSON.stringify(target), bindingCount: source.bindings.length, targetAfter };
+}
+export function applyIntakePropagation(plan: IntakePropagation, source: SampleIntake, target: SampleIntake): SampleIntake {
+  if (JSON.stringify(source) !== plan.sourceBefore || JSON.stringify(target) !== plan.targetBefore) throw new Error('Source or destination changed. Stage the propagation again.');
+  return structuredClone(plan.targetAfter);
+}
+/** CSV for review, with spreadsheet-formula escaping. JSON export preserves exact values. */
+export function intakeWorklistCsv(intake: SampleIntake): string {
+  const quote = (value: string | number) => {
+    const text = String(value), safe = /^[\s]*[=+\-@]/.test(text) || /^[\t\r\n]/.test(text) ? `'${text}` : text;
+    return `"${safe.replaceAll('"', '""')}"`;
+  };
+  const rows: (string | number)[][] = [['recordId', 'version', 'catalogId', 'name', 'sourceMode', 'sourceInput', 'sourceField', 'sourceFile', 'sourceRow', 'well', 'refreshedAt']];
+  for (const { source, snapshot } of intake.bindings) {
+    const record = snapshot.records[0];
+    rows.push([record.id, record.version, snapshot.catalogId, record.name, source.mode, source.input, source.field, source.fileName, source.row, source.well, snapshot.refreshedAt]);
+  }
+  return rows.map(row => row.map(quote).join(',')).join('\r\n') + '\r\n';
+}
