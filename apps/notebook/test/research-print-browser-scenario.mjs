@@ -28,7 +28,7 @@ export async function verifyResearchPrintTools(page, origin, output) {
   await expect(page.locator('[data-kind=mixturePrep]')).toHaveCount(1);
   await expect(page.locator('[data-kind=spreadsheet] [data-cell=C6]')).toHaveValue('2200');
   const saving = page.waitForResponse(response => response.url() === `${origin}/api/entries/${entry.id}` && response.request().method() === 'POST');
-  await button('Save', page).click(); assert.ok((await saving).ok()); await expect(button('Save')).toBeDisabled();
+  await button('Save revision', page).click(); assert.ok((await saving).ok()); await expect(button('Save revision')).toBeDisabled();
   const saved = await request(`/api/entries/${entry.id}`);
   await button('Print options').click();
   dialog = page.getByRole('dialog', { name: 'Print options', exact: true });
