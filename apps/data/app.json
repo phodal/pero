@@ -4,6 +4,89 @@
   "version": "0.1.0",
   "displayName": "Data",
   "description": "Manage local scientific datasets and model files.",
-  "contributes": {"panels": [{"id": "main", "title": "Data", "entry": "dist/index.html"}]},
-  "backend": {"type": "python", "entry": "backend/server.py"}
+  "contributes": {
+    "panels": [
+      {
+        "id": "main",
+        "title": "Data",
+        "entry": "dist/index.html"
+      }
+    ],
+    "writes": [
+      {
+        "name": "canvas-archive",
+        "description": "Archive or restore this local dataset metadata. Files and immutable versions are retained.",
+        "path": "/api/canvas/archive",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "operationId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "inputs": {
+              "type": "object",
+              "properties": {
+                "datasetId": {
+                  "type": "string",
+                  "pattern": "^ds-[a-f0-9]{32}$"
+                }
+              },
+              "required": [
+                "datasetId"
+              ],
+              "additionalProperties": false
+            },
+            "params": {
+              "type": "object",
+              "properties": {
+                "archived": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "archived"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "operationId",
+            "inputs",
+            "params"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ],
+    "canvases": [
+      {
+        "id": "dataset-inspector",
+        "title": "Dataset inspector",
+        "read": "/internal/canvas/dataset",
+        "inputs": {
+          "type": "object",
+          "properties": {
+            "datasetId": {
+              "type": "string",
+              "pattern": "^ds-[a-f0-9]{32}$"
+            }
+          },
+          "required": [
+            "datasetId"
+          ],
+          "additionalProperties": false
+        },
+        "actions": [
+          "canvas-archive"
+        ],
+        "status": "/internal/canvas/status"
+      }
+    ]
+  },
+  "backend": {
+    "type": "python",
+    "entry": "backend/server.py"
+  }
 }

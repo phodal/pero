@@ -7,6 +7,7 @@ import signal
 import threading
 
 from analysis import Analysis
+from canvas import projection as canvas_projection, archive as canvas_archive, status as canvas_status
 from catalog import Catalog, IMPORT_LIMIT, ImportFile
 from datasets import DatasetEdit, PreviewRequest, SaveView
 from downloads import Downloads
@@ -51,7 +52,7 @@ def handler(downloads, secret):
                 routes = (
                     '/api/import', '/api/download', '/api/cancel', '/api/inspect',
                     '/api/datasets/update', '/api/views', '/api/source', '/api/records', '/api/export',
-                    '/api/chart', '/api/chart/validate',
+                    '/api/chart', '/api/chart/validate', '/internal/canvas/dataset', '/internal/canvas/status', '/api/canvas/archive',
                     '/api/research-download', '/api/research-status', '/api/research-cancel',
                 )
                 if self.command != 'POST' or self.path not in routes:
@@ -70,6 +71,12 @@ def handler(downloads, secret):
                 data = json.loads(raw)
                 if not isinstance(data, dict):
                     raise ValueError('Expected a JSON object')
+                if self.path == '/internal/canvas/dataset':
+                    return self.reply(200, canvas_projection(downloads.catalog, data))
+                if self.path == '/internal/canvas/status':
+                    return self.reply(200, canvas_status(downloads.catalog, data))
+                if self.path == '/api/canvas/archive':
+                    return self.reply(200, canvas_archive(downloads.catalog, data))
                 if self.path == '/api/research-download':
                     return self.reply(200, downloads.start_research(ResearchAsset.parse(data)))
                 if self.path in ('/api/research-status', '/api/research-cancel'):

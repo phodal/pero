@@ -29,6 +29,7 @@ from scientific_designs import ScientificDesignStore
 from scientific_routes import scientific_route
 from ai_proposals import AIProposalStore
 from ai_routes import ai_route
+from app_canvas import verify_source
 
 
 ENTRY_ID = re.compile(r'[a-f0-9]{32}')
@@ -164,6 +165,8 @@ def handler(store, secret):
             return self.reply(200, store.read(match[1]).wire())
 
         def post(self):
+            if self.path == '/internal/canvas/source':
+                return self.reply(200, verify_source(store, self.body()))
             for route, owner in ((ai_route, proposals), (scientific_route, scientific)):
                 response = route(owner, 'POST', self.path, self.body)
                 if response is not None:

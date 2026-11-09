@@ -94,6 +94,7 @@ class Catalog:
         raw = json.loads(path.read_text(encoding='utf-8')) if path.exists() else []
         self.legacy = raw if isinstance(raw, list) and path.exists() else None
         self.prior = None
+        self.canvas_receipts = raw.get('canvasReceipts', {}) if isinstance(raw, dict) else {}
         if isinstance(raw, list):
             self.assets = [Asset(**item) for item in raw]
             self.datasets = [Dataset.for_asset(a.id, a.name, a.kind) for a in self.assets]
@@ -123,14 +124,17 @@ class Catalog:
         temporary.write_text(json.dumps(value, ensure_ascii=False, allow_nan=False), encoding='utf-8')
         temporary.replace(path)
 
-    def _save(self, assets, datasets, views):
+    def _save(self, assets, datasets, views, canvas_receipts=None):
         # A single replacement publishes files' metadata and logical references together.
         if self.legacy is not None and not (self.directory / 'catalog.v1.backup.json').exists():
             self.atomic('catalog.v1.backup.json', self.legacy)
         if self.prior is not None and not (self.directory / 'catalog.v2.backup.json').exists():
             self.atomic('catalog.v2.backup.json', self.prior)
+        receipts = self.canvas_receipts if canvas_receipts is None else canvas_receipts
         self.atomic('catalog.json', dict(schemaVersion=SCHEMA, assets=[asdict(a) for a in assets],
-                                        datasets=[asdict(d) for d in datasets], views=[v.public() for v in views]))
+                                        datasets=[asdict(d) for d in datasets], views=[v.public() for v in views],
+                                        **({'canvasReceipts': receipts} if receipts else {})))
+        self.canvas_receipts = receipts
         self.assets, self.datasets, self.views = assets, datasets, views
         self.legacy = None
         self.prior = None
