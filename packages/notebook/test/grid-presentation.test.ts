@@ -19,6 +19,13 @@ test('presentation changes preserve source precision and evidence, including cle
   const pasted = { ...formatted, sheet: result.sheet };
   assert.equal(formatCellValue(evaluateSpreadsheet(pasted.sheet).A1, pasted.formats.A1), '0.67');
   assert.equal(evaluateSpreadsheet(pasted.sheet).B2, 2);
+  const calculated = evaluateSpreadsheet({ rows: 1, columns: 1, cells: { A1: '=0.1+0.2' } });
+  assert.equal(calculated.A1, 0.1 + 0.2);
+  for (const [value, shown] of [
+    [calculated.A1, '0.3'], [0.7 + 0.1, '0.8'], [1, '1'], [-2, '-2'], [1e21, '1e+21'],
+    [1 / 3, '0.3333333333333333'], [Math.PI, '3.141592653589793'], [1.23e-8, '1.23e-8'],
+  ] as const) assert.equal(formatCellValue(value), shown, String(value));
+  assert.equal(formatCellValue(0.1 + 0.2, { precision: 4 }), '0.3000');
   const cleared = formatCellRange(pasted, selection, null);
   assert.deepEqual(cleared.formats, {});
   assert.equal(cleared.sheet.cells.A1, '=2/3');

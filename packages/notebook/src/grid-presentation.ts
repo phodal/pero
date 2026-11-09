@@ -84,10 +84,43 @@ export function unmergeCellRange(grid: WorksheetGrid, range: CellRange): Workshe
 export function gridWriteConflicts(grid: WorksheetGrid, range: CellRange): boolean {
   return grid.merges.some(merge => rangesIntersect(merge, range));
 }
+/** Display-only. A long tail of 0s or 9s is binary residue; exact integers and other long values stay. */
+function displayNumber(value: number): string {
+  if (!Number.isFinite(value)) return String(value);
+  const text = String(value);
+  if (Number.isInteger(value)) return text;
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(text);
+  if (!match) return text;
+  const [, sign, whole, fraction = '', exponent = ''] = match;
+  const digits = `${whole}${fraction}`;
+  const run = /([09])\1{7,}/.exec(digits);
+  if (!run || (run.index === 0 && run[1] === '0')) return text;
+  const tail = digits.slice(run.index);
+  if (!/^([09])\1{7,}\d{0,2}$/.test(tail)) return text;
+  const keep = digits.slice(0, run.index);
+  let rounded = keep;
+  if (run[1] === '9') {
+    const chars = [...keep];
+    let index = chars.length - 1;
+    while (index >= 0 && chars[index] === '9') { chars[index] = '0'; index -= 1; }
+    if (index < 0) chars.unshift('1');
+    else chars[index] = String(Number(chars[index]) + 1);
+    rounded = chars.join('');
+  }
+  const point = whole.length + rounded.length - keep.length;
+  const coefficient = (point <= 0 ? `0.${'0'.repeat(-point)}${rounded}`
+    : point >= rounded.length ? `${rounded}${'0'.repeat(point - rounded.length)}`
+    : `${rounded.slice(0, point)}.${rounded.slice(point).replace(/0+$/, '')}`).replace(/\.$/, '');
+  const parsed = Number(`${sign}${coefficient}${exponent ? `e${exponent.replace(/^\+/, '')}` : ''}`);
+  const scale = Math.max(Math.abs(value), Math.abs(parsed));
+  if (!Number.isFinite(parsed) || (scale !== 0 && Math.abs(parsed - value) / scale > 1e-12)) return text;
+  return String(parsed);
+}
 export function formatCellValue(value: CellValue | undefined, format?: CellFormat): string {
   if (value === undefined) return '';
   if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
-  return typeof value === 'number' && format?.precision !== undefined ? value.toFixed(format.precision) : String(value);
+  if (typeof value !== 'number') return String(value);
+  return format?.precision !== undefined ? value.toFixed(format.precision) : displayNumber(value);
 }
 /** CSV contains evaluated values, not source formulas. Protect text from formula injection on spreadsheet import. */
 export function exportWorksheetCsv(sheet: Spreadsheet, values: Record<string, CellValue>): string {
