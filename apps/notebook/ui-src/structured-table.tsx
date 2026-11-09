@@ -1,20 +1,27 @@
-import type { NodeViewProps } from '@tiptap/react';
+import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppI18n } from '@pero/app-sdk';
-import { Badge, Button, Checkbox, Dialog, Disclosure, Feedback, Input, Select, Textarea } from '@pero/app-sdk/ui';
+import { Badge, Button, Checkbox, Dialog, Disclosure, Feedback, Field, Input, NativeSelect, Select, Textarea } from '@pero/app-sdk/ui';
 import {
-  canonicalStructuredTable, changeStructuredTable, columnTypes, isCatalogSnapshot, isRegistrationReceipt,
+  applyCatalogCellSelection, applyRegistrationReceipt, canonicalStructuredTable, changeStructuredTable, columnTypes, isCatalogSnapshot, isRegistrationReceipt,
   isStructuredColumn, lookupTableDefaults, parseTypedCell, structuredTableLimits, validateStructuredTable,
   type CatalogQuery, type CatalogSnapshot, type ColumnType, type LookupTableAttributes, type RegistrationReceipt,
-  type StructuredColumn, type StructuredTableAttributes, type TableChange, type TableIssueCode, type TypedCell,
+  type StructuredColumn, type StructuredTableAttributes, type StructuredTableDraft, type TableChange, type TableIssueCode, type TypedCell,
 } from '@pero/notebook/structured-table';
 import { BlockFrame } from './block-frame';
 import { projectTableView, type TableViewDefinition } from '@pero/notebook/table-workflows';
 import { TableWorkflowTools } from './table-workflows';
 import { useNotebookContext } from './notebook-context';
+import { CatalogCellPicker, QuantityCellEditor } from './structured-field-picker';
 
 export const structuredTableMessages = {
   projected: { en: 'View: {name} · {visible} of {total} rows', zh: '视图：{name} · {total} 行中的 {visible} 行' },
+  pickCatalog: { en: 'Choose catalog value for {cell}', zh: '为 {cell} 选择目录值' },
+  autofill: { en: 'After registration, fill references into', zh: '登记后将引用填入' },
+  autofillNone: { en: 'Do not autofill', zh: '不自动填充' },
+  autofillHint: { en: 'Choose an optional object column to fill empty cells with committed catalog, record and version identities. Existing values stay unchanged. Filled references are draft edits, not a second registration.', zh: '选择可选对象列，将已提交的目录、记录和版本身份填入空单元格。保留已有值。填入的引用属于草稿编辑，不会再次登记。' },
+  committed: { en: 'The local catalog committed {count} records. Any filled references belong to this draft; save the entry to retain them.', zh: '本地目录已提交 {count} 条记录。填入的引用属于当前草稿，请保存笔记以保留这些引用。' },
+  receiptUnapplied: { en: 'The catalog committed this snapshot, but the notebook is now read-only. The draft was not changed.', zh: '目录已提交此快照，但笔记现为只读。草稿未更改。' },
   filteredEmpty: { en: 'No rows match this view. Show all rows or edit its filter.', zh: '没有匹配此视图的行。请显示全部行或修改筛选条件。' },
   inputTable: { en: 'Input table', zh: '输入表' },
   registrationTable: { en: 'Registration table', zh: '登记表' },
@@ -32,7 +39,7 @@ export const structuredTableMessages = {
   changed: { en: 'Unsubmitted changes', zh: '有尚未提交的更改' },
   submit: { en: 'Submit rows to local catalog', zh: '将行提交到本地目录' },
   retrySubmit: { en: 'Retry this submission', zh: '重试本次提交' },
-  submitError: { en: 'Submission could not be confirmed. Your draft and earlier receipts are retained. Retry uses the same submission ID for unchanged input.', zh: '无法确认提交结果，草稿和已有回执均已保留。输入不变时，重试将使用相同提交 ID。' },
+  submitError: { en: 'Submission was not applied to this draft. Existing cells and receipts are retained; a catalog commit is not rolled back. Retry uses the same submission ID for unchanged input.', zh: '提交未应用到当前草稿。已有单元格和回执均已保留；已提交的目录记录不会回滚。输入不变时，重试将使用相同提交 ID。' },
   invalidResponse: { en: 'The catalog returned an invalid response.', zh: '目录返回了无效响应。' },
   validation: { en: 'Resolve {count} validation issues before submitting.', zh: '请先修正 {count} 项验证问题再提交。' },
   addRow: { en: 'Add row', zh: '添加行' },
@@ -45,7 +52,7 @@ export const structuredTableMessages = {
   requiredLabel: { en: 'Required', zh: '必填' },
   controlledOptions: { en: 'Allowed text values, one per line (empty permits any text)', zh: '允许的文本值，每行一个（留空表示不限）' },
   allowedUnits: { en: 'Allowed units, one per line', zh: '允许的单位，每行一个' },
-  quantityHint: { en: 'Enter amount and unit, e.g. 2.5 mg. Allowed: {units}. Units are retained exactly; no implicit conversion.', zh: '请输入数值和单位，例如 2.5 mg。允许单位：{units}。单位按原样保存，不会自动换算。' },
+  quantityHint: { en: 'Enter an amount and select its unit. Allowed: {units}. Changing units does not convert the amount.', zh: '请输入数值并选择单位。允许单位：{units}。更改单位不会换算数值。' },
   objectHint: { en: 'JSON object', zh: 'JSON 对象' },
   removeColumn: { en: 'Remove column', zh: '移除此列' },
   removeColumnNote: { en: 'Removing a column also removes its draft cells. Notebook Undo restores them; submitted versions stay unchanged.', zh: '移除列会同时移除草稿中的对应单元格；可通过笔记撤销恢复。已提交版本不会改变。' },
@@ -146,9 +153,10 @@ function TypedCellEditor({ column, raw, label, disabled, onChange }: {
   if (raw && choices.length && !choices.some(choice => choice.value === raw)) choices.unshift({ value: raw, label: raw });
   return <div className="notebook-typed-cell">
     {column.type === 'missing' ? <Input aria-label={label} value={raw} disabled={disabled} maxLength={4096} placeholder="—" onChange={event => onChange(event.target.value)} />
+      : column.type === 'quantity' ? <QuantityCellEditor column={column} raw={raw} label={label} disabled={disabled} invalid={!!error} onChange={onChange} />
       : column.type === 'object' ? <Textarea aria-label={label} rows={2} maxLength={4096} readOnly={disabled} value={raw} placeholder="{}" aria-invalid={!!error} onChange={event => onChange(event.target.value)} />
       : choices.length ? <Select label={label} value={raw} disabled={disabled} aria-invalid={!!error} options={[{ value: '', label: t('missing') }, ...choices]} onChange={onChange} />
-      : <Input aria-label={label} readOnly={disabled} value={raw} maxLength={4096} aria-invalid={!!error} placeholder={column.type === 'date' ? 'YYYY-MM-DD' : column.type === 'quantity' ? `2.5 ${column.units[0] ?? ''}` : ''} onChange={event => onChange(event.target.value)} />}
+      : <Input aria-label={label} readOnly={disabled} value={raw} maxLength={4096} aria-invalid={!!error} placeholder={column.type === 'date' ? 'YYYY-MM-DD' : ''} onChange={event => onChange(event.target.value)} />}
     {error && <span className="notebook-cell-error">{t(issueKey(error))}</span>}
   </div>;
 }
@@ -183,9 +191,18 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
   let projected = { columns: table.schema.columns, rows: table.rows }, viewError = '';
   try { projected = projectTableView(table, activeView); } catch (cause) { viewError = cause instanceof Error ? cause.message : String(cause); }
   const current = useRef(attrs); current.current = attrs;
+  const scope = useRef({ key: viewScope });
+  if (scope.current.key !== viewScope) scope.current = { key: viewScope };
+  const inFlight = useRef(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [column, setColumn] = useState<StructuredColumn | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [picker, setPicker] = useState<{ scope: string; table: StructuredTableDraft; rowId: string; column: StructuredColumn; label: string } | null>(null);
+  const [autofill, setAutofill] = useState({ scope: viewScope, columnId: '' });
+  const autofillColumns = table.schema.columns.filter(column => column.type === 'object' && !column.required);
+  const referenceColumnId = autofill.scope === viewScope && autofillColumns.some(column => column.id === autofill.columnId) ? autofill.columnId : '';
+  const [confirmation, setConfirmation] = useState<{ scope: string; receipt: RegistrationReceipt; applied: boolean } | null>(null);
+  useEffect(() => { setPicker(null); setColumn(null); setError(''); setConfirmation(null); }, [viewScope]);
   const [hashed, setHashed] = useState({ canonical: '', hash: '', failed: false });
   const canonical = canonicalStructuredTable(table);
   const hash = hashed.canonical === canonical ? hashed.hash : '';
@@ -195,20 +212,25 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
     void inputHash(canonical).then(hash => { if (active) setHashed({ canonical, hash, failed: false }); }).catch(() => { if (active) setHashed({ canonical, hash: '', failed: true }); });
     return () => { active = false; };
   }, [canonical]);
-  const editable = view.editor.isEditable && !busy;
+  const editorEditable = useEditorState({ editor: view.editor, selector: ({ editor }) => editor.isEditable });
+  const editable = editorEditable && !busy;
   const issues = validateStructuredTable(table);
   const submitted = receipts.some(receipt => receipt.tableId === table.id && receipt.inputHash === hash);
-  const edit = (change: TableChange) => { view.updateAttributes({ table: changeStructuredTable(current.current.table, change) }); setError(''); };
+  const edit = (change: TableChange) => { if (!view.editor.isEditable || inFlight.current) return; view.updateAttributes({ table: changeStructuredTable(current.current.table, change) }); setError(''); };
   const submit = async () => {
-    if (busy || !hash || issues.length) return;
-    const submittedTable = table, submittedHash = hash;
-    setBusy(true); setError('');
+    if (inFlight.current || !view.editor.isEditable || !hash || issues.length) return;
+    const input = { table, inputHash: hash, submissionId: hash, referenceColumnId }, submittedScope = scope.current;
+    inFlight.current = true; setBusy(true); setError(''); setConfirmation(null);
     try {
-      const receipt = await api.post<unknown>('/api/catalog/register', { submissionId: submittedHash, table: submittedTable });
-      if (!isRegistrationReceipt(receipt) || receipt.inputHash !== submittedHash || receipt.submissionId !== submittedHash || receipt.tableId !== submittedTable.id) throw new Error(t('invalidResponse'));
-      if (mounted.current && !current.current.receipts.some(item => item.catalogId === receipt.catalogId && item.submissionId === receipt.submissionId)) view.updateAttributes({ receipts: [...current.current.receipts, receipt] });
-    } catch (cause) { if (mounted.current) setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { if (mounted.current) setBusy(false); }
+      const receipt = await api.post<unknown>('/api/catalog/register', { submissionId: input.submissionId, table: input.table });
+      if (!isRegistrationReceipt(receipt)) throw new Error(t('invalidResponse'));
+      if (!mounted.current || scope.current !== submittedScope) return;
+      const next = applyRegistrationReceipt(current.current, input, receipt);
+      if (!view.editor.isEditable) { setConfirmation({ scope: submittedScope.key, receipt, applied: false }); return; }
+      view.updateAttributes(next);
+      setConfirmation({ scope: submittedScope.key, receipt, applied: true });
+    } catch (cause) { if (mounted.current && scope.current === submittedScope) setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { inFlight.current = false; if (mounted.current) setBusy(false); }
   };
   const kind = registration ? 'registrationTable' : 'inputTable';
   return <BlockFrame view={view} kind={kind} title={<Input className="notebook-block-name" unstyled aria-label={t('tableName')} placeholder={t(kind)} maxLength={200} readOnly={!editable} value={table.name} onChange={event => edit({ type: 'name', value: event.target.value })} />}
@@ -228,7 +250,10 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
         {col.type === 'quantity' && <small>{t('quantityHint', { units: col.units.join(', ') })}</small>}
       </th>)}{editable && <th />}</tr></thead>
       <tbody>{projected.rows.map(row => { const index = table.rows.findIndex(item => item.id === row.id); return <tr key={row.id}><th scope="row" title={row.id}>{index + 1}</th>
-        {projected.columns.map(col => <td key={col.id}><TypedCellEditor column={col} raw={row.cells[col.id] ?? ''} label={`${col.name}, ${t('row')} ${index + 1}`} disabled={!editable} onChange={value => edit({ type: 'cell', rowId: row.id, columnId: col.id, value })} /></td>)}
+        {projected.columns.map(col => { const label = `${col.name}, ${t('row')} ${index + 1}`; return <td key={col.id}>
+          <TypedCellEditor column={col} raw={row.cells[col.id] ?? ''} label={label} disabled={!editable} onChange={value => edit({ type: 'cell', rowId: row.id, columnId: col.id, value })} />
+          {editable && col.type !== 'missing' && <Button variant="ghost" onClick={() => setPicker({ scope: viewScope, table: structuredClone(table), rowId: row.id, column: col, label })}>{t('pickCatalog', { cell: label })}</Button>}
+        </td>; })}
         {editable && <td><Button variant="ghost" onClick={() => edit({ type: 'removeRow', id: row.id })}>{t('removeRow', { number: index + 1 })}</Button></td>}
       </tr>; })}</tbody></table></div>
     {!!table.rows.length && !projected.rows.length && <p>{t('filteredEmpty')}</p>}
@@ -237,11 +262,23 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
       <Button variant="ghost" disabled={table.rows.length >= structuredTableLimits.rows} onClick={() => edit({ type: 'addRow', id: identity() })}>{t('addRow')}</Button>
       <Button variant="ghost" disabled={table.schema.columns.length >= structuredTableLimits.columns} onClick={() => setColumn({ id: identity(), name: t('column', { number: table.schema.columns.length + 1 }), type: 'text', required: false, options: [], units: [] })}>{t('addColumn')}</Button>
     </div>}
-    {registration && view.editor.isEditable && <Button variant="primary" busy={busy} disabled={!!issues.length || !hash || receipts.length >= structuredTableLimits.receipts} onClick={() => void submit()}>{t(error ? 'retrySubmit' : submitted ? 'resubmit' : 'submit')}</Button>}
+    {registration && editorEditable && <>
+      <Field label={t('autofill')}>{control => <NativeSelect {...control} value={referenceColumnId} disabled={!editable} onChange={event => setAutofill({ scope: viewScope, columnId: event.target.value })}>
+        <option value="">{t('autofillNone')}</option>{autofillColumns.map(column => <option key={column.id} value={column.id}>{column.name}</option>)}
+      </NativeSelect>}</Field><p className="notebook-note">{t('autofillHint')}</p>
+      <Button variant="primary" busy={busy} disabled={!!issues.length || !hash || receipts.length >= structuredTableLimits.receipts} onClick={() => void submit()}>{t(error ? 'retrySubmit' : submitted ? 'resubmit' : 'submit')}</Button>
+    </>}
+    {confirmation?.scope === viewScope && <Feedback kind={confirmation.applied ? 'success' : 'warning'}>{t(confirmation.applied ? 'committed' : 'receiptUnapplied', { count: confirmation.receipt.records.length })}</Feedback>}
     {registration && hashFailed && <Feedback kind="error">{t('hashUnavailable')}</Feedback>}
     {receipts.length >= structuredTableLimits.receipts && <Feedback kind="warning">{t('receiptLimit')}</Feedback>}
     {error && <Feedback kind="error">{t('submitError')} {error}</Feedback>}
     <ReceiptHistory receipts={receipts} />
+    {picker?.scope === viewScope && <CatalogCellPicker column={picker.column} label={picker.label} editable={editable} onClose={() => setPicker(null)}
+      onApply={(snapshot, recordId, selection) => {
+        if (!view.editor.isEditable || inFlight.current) return;
+        view.updateAttributes({ table: applyCatalogCellSelection(current.current.table, picker.table, picker.rowId, picker.column.id, snapshot, recordId, selection) });
+        setPicker(null);
+      }} />}
     {column && <ColumnSettings column={column} removable={table.schema.columns.some(col => col.id === column.id) && table.schema.columns.length > 1} onClose={() => setColumn(null)}
       onRemove={() => { edit({ type: 'removeColumn', id: column.id }); setColumn(null); }}
       onSave={next => { edit({ type: table.schema.columns.some(col => col.id === column.id) ? 'configureColumn' : 'addColumn', column: next }); setColumn(null); }} />}

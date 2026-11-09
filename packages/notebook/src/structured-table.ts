@@ -30,6 +30,15 @@ export interface CatalogSnapshot {
 }
 export interface StructuredTableAttributes { table: StructuredTableDraft; receipts: RegistrationReceipt[] }
 export interface LookupTableAttributes { query: CatalogQuery; snapshot: CatalogSnapshot | null }
+/** A frozen identity observed from the local catalog, not an inventory reservation. */
+export interface CatalogEntityReference {
+  source: 'notebook-local-catalog'; catalogId: string; recordId: string; version: number;
+  schemaId: string; schemaRevision: number;
+}
+export type CatalogCellSelection = { type: 'reference' } | { type: 'field'; columnId: string };
+export interface RegistrationInput {
+  table: StructuredTableDraft; inputHash: string; submissionId: string; referenceColumnId: string;
+}
 
 const id = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
 const text = (value: unknown, max: number): value is string => typeof value === 'string' && [...value].length <= max;
@@ -157,9 +166,70 @@ export const lookupTableDefaults: LookupTableAttributes = { query: { schemaId: '
 
 /** Stable UTF-8 JSON shared with the catalog. Raw draft text, not rounded floats, is hashed. */
 export function canonicalStructuredTable(table: StructuredTableDraft): string {
-  const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical) : object(value)
-    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
-  return JSON.stringify(canonical(table));
+  return canonicalStructuredValue(table);
+}
+
+/** The picker only writes one explicitly selected cell; it never converts units or coerces types. */
+export function catalogCellValue(column: StructuredColumn, snapshot: CatalogSnapshot, recordId: string, selection: CatalogCellSelection): string {
+  const record = snapshot.records.find(record => record.id === recordId);
+  if (!record) throw new Error('Select a record from the loaded catalog snapshot.');
+  let raw: string;
+  if (selection.type === 'reference') {
+    if (column.type !== 'object') throw new Error('Pinned catalog references require an object column.');
+    const reference: CatalogEntityReference = { source: snapshot.source, catalogId: snapshot.catalogId, recordId: record.id,
+      version: record.version, schemaId: record.schemaId, schemaRevision: record.schemaRevision };
+    raw = JSON.stringify(reference);
+  } else {
+    const value = record.values[selection.columnId];
+    if (!value || (value.type !== 'missing' && value.type !== column.type)) throw new Error('Choose a source field with the same value type.');
+    raw = value.type === 'missing' ? '' : value.type === 'quantity' ? `${value.value} ${value.unit}`
+      : value.type === 'object' ? JSON.stringify(value.value) : String(value.value);
+  }
+  const parsed = parseTypedCell(column, raw);
+  if ('error' in parsed) throw new Error(`The selected value does not meet the target column rules (${parsed.error}).`);
+  return raw;
+}
+
+export function applyCatalogCellSelection(table: StructuredTableDraft, expected: StructuredTableDraft, rowId: string, columnId: string,
+  snapshot: CatalogSnapshot, recordId: string, selection: CatalogCellSelection): StructuredTableDraft {
+  if (canonicalStructuredTable(table) !== canonicalStructuredTable(expected)) throw new Error('The table changed while the picker was open. Close it and select again.');
+  const column = table.schema.columns.find(column => column.id === columnId);
+  if (!column) throw new Error('The selected column no longer exists.');
+  return changeStructuredTable(table, { type: 'cell', rowId, columnId, value: catalogCellValue(column, snapshot, recordId, selection) });
+}
+
+/** A committed receipt and optional blank-only autofill enter the draft in one transaction. */
+export function applyRegistrationReceipt(current: StructuredTableAttributes, input: RegistrationInput, receipt: RegistrationReceipt): StructuredTableAttributes {
+  if (receipt.inputHash !== input.inputHash || receipt.submissionId !== input.submissionId || receipt.tableId !== input.table.id ||
+      receipt.schemaId !== input.table.schema.id || receipt.schemaRevision !== input.table.schema.revision ||
+      receipt.records.length !== input.table.rows.length || !input.table.rows.every(row => receipt.records.some(record => record.rowId === row.id))) {
+    throw new Error('The catalog receipt does not match the submitted table and rows.');
+  }
+  if (canonicalStructuredTable(current.table) !== canonicalStructuredTable(input.table)) {
+    throw new Error('The catalog committed the submitted snapshot, but this draft changed. No cells or receipts were replaced. Restore that input and retry to recover its receipt.');
+  }
+  let table = current.table;
+  if (input.referenceColumnId) {
+    const column = table.schema.columns.find(column => column.id === input.referenceColumnId);
+    if (!column || column.type !== 'object' || column.required || validateStructuredColumn(column).length) throw new Error('Autofill requires an optional object column.');
+    table = { ...table, rows: table.rows.map(row => {
+      if ((row.cells[column.id] ?? '').trim()) return row;
+      const record = receipt.records.find(record => record.rowId === row.id)!;
+      const reference: CatalogEntityReference = { source: receipt.source, catalogId: receipt.catalogId, recordId: record.recordId,
+        version: record.version, schemaId: receipt.schemaId, schemaRevision: receipt.schemaRevision };
+      return { ...row, cells: { ...row.cells, [column.id]: JSON.stringify(reference) } };
+    }) };
+  }
+  const known = current.receipts.find(item => item.catalogId === receipt.catalogId && item.submissionId === receipt.submissionId);
+  if (known && canonicalStructuredValue(known) !== canonicalStructuredValue(receipt)) throw new Error('The catalog returned a conflicting receipt for this submission.');
+  if (!known && current.receipts.length >= structuredTableLimits.receipts) throw new Error('This table has reached its retained receipt limit.');
+  return { table, receipts: known ? current.receipts : [...current.receipts, receipt] };
+}
+
+function canonicalStructuredValue(value: unknown): string {
+  const ordered = (item: unknown): unknown => Array.isArray(item) ? item.map(ordered) : object(item)
+    ? Object.fromEntries(Object.keys(item).sort().map(key => [key, ordered(item[key])])) : item;
+  return JSON.stringify(ordered(value));
 }
 
 export function isRegistrationReceipt(value: unknown): value is RegistrationReceipt {
