@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useMemo, useRef, useState, type ComponentPropsWithoutRef } from 'react';
+import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentPropsWithoutRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Input } from '@pero/app-sdk/ui';
@@ -20,6 +20,13 @@ export const FormulaInput = forwardRef<HTMLInputElement, Props>(function Formula
   const [caret, setCaret] = useState<number | null>(null), [chosen, choose] = useState(0), [dismissed, dismiss] = useState(false);
   const [scroll, setScroll] = useState(0);
   const [position, setPosition] = useState({ left: 0, top: 0, width: 0 });
+  const pendingCaret = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const node = input.current, next = pendingCaret.current;
+    if (!node || next === null) return;
+    if (document.activeElement !== node) node.focus({ preventScroll: true });
+    if (node.selectionStart !== next || node.selectionEnd !== next) node.setSelectionRange(next, next);
+  });
   const formula = value.startsWith('=');
   const syntax = useMemo(() => formula ? inspectFormulaSyntax(value) : null, [value, formula]);
   const completion = useMemo(() => focused && !props.readOnly && !composing && !dismissed && caret !== null ? formulaCompletion(value, caret) : null,
@@ -45,11 +52,8 @@ export const FormulaInput = forwardRef<HTMLInputElement, Props>(function Formula
     if (caret === null || props.readOnly || composing) return;
     const replacement = completeFormulaFunction(value, caret, name);
     if (!replacement) return;
+    pendingCaret.current = replacement.caret;
     onComplete(replacement.source); dismiss(true);
-    requestAnimationFrame(() => {
-      input.current?.focus({ preventScroll: true }); input.current?.setSelectionRange(replacement.caret, replacement.caret);
-      if (input.current) selection(input.current);
-    });
   };
   let offset = 0;
   const highlights = syntax?.tokens.map(token => {
@@ -61,8 +65,12 @@ export const FormulaInput = forwardRef<HTMLInputElement, Props>(function Formula
       aria-autocomplete="list" aria-controls={names.length ? id : undefined} aria-activedescendant={names.length ? `${id}-${selected}` : undefined}
       onFocus={event => { focus(true); selection(event.currentTarget); props.onFocus?.(event); }}
       onBlur={event => { focus(false); dismiss(false); props.onBlur?.(event); }}
-      onChange={event => { dismiss(false); choose(0); selection(event.currentTarget); props.onChange?.(event); }}
-      onSelect={event => { selection(event.currentTarget); props.onSelect?.(event); }}
+      onChange={event => { pendingCaret.current = null; dismiss(false); choose(0); selection(event.currentTarget); props.onChange?.(event); }}
+      onSelect={event => {
+        const node = event.currentTarget;
+        if (pendingCaret.current !== null && (node.selectionStart !== pendingCaret.current || node.selectionEnd !== pendingCaret.current)) pendingCaret.current = null;
+        selection(node); props.onSelect?.(event);
+      }}
       onScroll={event => { setScroll(event.currentTarget.scrollLeft); props.onScroll?.(event); }}
       onCompositionStart={event => { compose(true); props.onCompositionStart?.(event); }}
       onCompositionEnd={event => { compose(false); selection(event.currentTarget); props.onCompositionEnd?.(event); }}
