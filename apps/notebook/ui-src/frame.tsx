@@ -101,15 +101,17 @@ function Notebook() {
   useEffect(() => {
     const followLink = () => {
       const hash = window.location.hash, link = parseNotebookLink(hash);
-      if (!entries || handledLink.current === hash || !link || !/^[a-f0-9]{32}$/.test(link.entryId)) return;
-      if (!entries.some(entry => entry.id === link.entryId)) return;
+      // Wait for the first catalog load, but open valid deep links even when the
+      // summary list is still stale after an out-of-band create.
+      if (entries === null || handledLink.current === hash || !link || !/^[a-f0-9]{32}$/.test(link.entryId)) return;
       handledLink.current = hash;
       navigationRequest.current++;
       setSelected(link.entryId); setSnapshot(null); setHistory(null); setOpenError('');
+      if (!entries.some(entry => entry.id === link.entryId)) void refresh();
     };
     followLink(); window.addEventListener('hashchange', followLink);
     return () => window.removeEventListener('hashchange', followLink);
-  }, [entries]);
+  }, [entries, refresh]);
 
 
   const adopt = useCallback((entry: NotebookEntry, discard = false) => {

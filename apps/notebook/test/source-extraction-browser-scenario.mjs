@@ -16,6 +16,7 @@ export async function verifySourceExtraction(page, origin, output) {
   ] } } });
   await page.goto(`${origin}/#notebook-entry=${entry.id}`);
   const button = (name, scope = page) => scope.getByRole('button', { name, exact: true });
+  await expect(page.getByRole('textbox', { name: 'Notebook title', exact: true })).toHaveValue('Local PDF extraction acceptance');
   const block = page.locator('[data-kind=sourceExcerpt]');
   await button('Configure source excerpt', block).click();
   const dialog = page.getByRole('dialog');
