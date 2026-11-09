@@ -1,4 +1,12 @@
+import { isSampleIntakeAttributes } from '@pero/notebook/sample-intake';
+import { parseAppCanvasBinding } from '@pero/notebook/app-canvas';
+import { parseMixturePreparation } from '@pero/notebook/mixture';
+import { isSavedSearchAttributes } from '@pero/notebook/saved-search';
+import { isGridPresentation } from '@pero/notebook/grid-presentation';
+import type { Spreadsheet } from '@pero/notebook/spreadsheet';
+import { isStructuredTableAttributes } from '@pero/notebook/structured-table';
 import { spreadsheetLimits } from '@pero/notebook';
+import { isAttachmentAttributes } from '@pero/notebook/attachment';
 import { isPaperCitationSnapshot } from '@pero/notebook/paper-evidence';
 import { isControlEvidenceSnapshot, parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
 
@@ -27,13 +35,26 @@ function cells(value: unknown, rows: number, columns: number, valid: (item: unkn
 /** Clipboard HTML may contain user-supplied data attributes outside this editor. */
 export function isClipboardWidget(kind: string, attrs: Record<string, unknown>): boolean {
   switch (kind) {
+    case 'sampleIntake': return isSampleIntakeAttributes(attrs);
+    case 'appCanvas':
+      try { parseAppCanvasBinding(attrs.binding); return text(attrs.label, 200); } catch { return false; }
+    case 'mixturePrep':
+      try { return text(attrs.label, 200) && !!parseMixturePreparation(attrs.mixture); } catch { return false; }
+    case 'savedSearch':
+      return isSavedSearchAttributes({ ...attrs, blockId: 'clipboard' });
+    case 'inputTable':
+    case 'registrationTable':
+    case 'lookupTable':
+      return isStructuredTableAttributes(kind, attrs);
+    case 'attachment':
+      return isAttachmentAttributes(attrs);
     case 'spreadsheet': {
       const { sheet, label, annotations } = attrs;
       if (!text(label, 200) || !object(sheet) || Object.keys(sheet).length !== 3) return false;
       const { rows, columns } = sheet;
       if (typeof rows !== 'number' || !Number.isInteger(rows) || rows < 1 || rows > spreadsheetLimits.rows ||
           typeof columns !== 'number' || !Number.isInteger(columns) || columns < 1 || columns > spreadsheetLimits.columns) return false;
-      return cells(sheet.cells, rows, columns, value => text(value, spreadsheetLimits.cellLength)) &&
+      return isGridPresentation(attrs, sheet as unknown as Spreadsheet) && cells(sheet.cells, rows, columns, value => text(value, spreadsheetLimits.cellLength)) &&
         cells(annotations ?? {}, rows, columns, value => object(value) && Object.keys(value).length === 2 &&
           text(value.unit, 128) && ids(value.evidenceIds));
     }

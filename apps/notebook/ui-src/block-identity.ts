@@ -1,3 +1,4 @@
+import { copyTemplateOrigin } from '@pero/notebook/templates';
 import { UniqueID } from '@tiptap/extension-unique-id';
 import { Fragment, Slice, type Node } from '@tiptap/pm/model';
 import { Plugin } from '@tiptap/pm/state';
@@ -8,7 +9,12 @@ export function copyNotebookBlocks(slice: Slice): Slice {
   const ids = new Map<string, string>();
   slice.content.descendants(node => {
     if (node.attrs.blockId) ids.set(node.attrs.blockId, crypto.randomUUID());
+    if (node.type.name === 'inputTable' || node.type.name === 'registrationTable') {
+      ids.set(node.attrs.table.id, crypto.randomUUID());
+      for (const row of node.attrs.table.rows) ids.set(row.id, crypto.randomUUID());
+    }
   });
+  const copiedInstances = new Map<string, string>();
   const references = (values: string[]) => values.map(id => ids.get(id) ?? id);
   const copy = (fragment: Fragment): Fragment => {
     const nodes: Node[] = [];
@@ -16,6 +22,10 @@ export function copyNotebookBlocks(slice: Slice): Slice {
       if (node.isText) { nodes.push(node); return; }
       const attrs = { ...node.attrs };
       if ('blockId' in attrs) attrs.blockId = ids.get(attrs.blockId) ?? crypto.randomUUID();
+      if (node.type.name === 'inputTable' || node.type.name === 'registrationTable') {
+        attrs.table = { ...attrs.table, id: ids.get(attrs.table.id), rows: attrs.table.rows.map((row: { id: string }) => ({ ...row, id: ids.get(row.id) })) };
+      }
+      if (attrs.templateOrigin) attrs.templateOrigin = copyTemplateOrigin(attrs.templateOrigin, ids, copiedInstances, () => crypto.randomUUID());
       if (node.type.name === 'finding') attrs.evidenceIds = references(attrs.evidenceIds);
       if (node.type.name === 'spreadsheet') {
         attrs.annotations = Object.fromEntries(Object.entries(attrs.annotations as Record<string, CellAnnotation>)
