@@ -60,7 +60,8 @@ test('Content editing runs locally in Chromium with highlighted code and derived
   await expect(code).toHaveAttribute('contenteditable', 'false');
   await expect(page.getByRole('button', { name: 'Code language', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Remove code block', exact: true })).toHaveCount(0);
-  await code.click(); await page.keyboard.type('not editable');
+  // Intentionally target the disabled editor to verify attempted typing cannot change its content.
+  await code.click({ force: true }); await page.keyboard.type('not editable');
   assert.equal(await page.evaluate(() => window.editor.getText()), 'const x = 1;');
   await page.evaluate(() => window.editor.setEditable(true));
   await expect(code).toHaveAttribute('contenteditable', 'true');

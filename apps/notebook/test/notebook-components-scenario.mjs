@@ -119,7 +119,8 @@ export async function verifyNotebookComponents(page, origin, output) {
   assert.equal(summary.title, title);
   const id = created.id;
   const saved = () => json(`/api/entries/${id}`);
-  assert.deepEqual((await saved()).document.procedures[0].steps.map(step => step.kind), kinds.map(kind => kind.toLowerCase()));
+  // Older snapshots omit kind for ordinary steps; compare the domain's effective kinds.
+  assert.deepEqual((await saved()).document.procedures[0].steps.map(step => step.kind ?? 'step'), kinds.map(kind => kind.toLowerCase()));
   await tab('Metadata');
   await page.getByLabel('Project label', { exact: true }).fill('Durable draft project');
   await expect.poll(async () => (await json(`/api/entries/${id}/draft`)).draft?.document.metadata.project).toBe('Durable draft project');
