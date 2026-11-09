@@ -1,3 +1,5 @@
+import { verifyNotebookComponents } from './notebook-components-scenario.mjs';
+import { verifyGridTools } from './grid-browser-scenario.mjs';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
@@ -15,7 +17,7 @@ const app = resolve(import.meta.dirname, '..');
 const output = resolve(app, '../../test-results/notebook');
 const token = 'notebook-browser-fixture';
 
-test('Notebook saves an Excel workbook, cell evidence and revisions through its real backend', { timeout: 45_000 }, async t => {
+test('Notebook saves an Excel workbook, cell evidence and revisions through its real backend', { timeout: 300_000 }, async t => {
   const directory = await mkdtemp(resolve(tmpdir(), 'pero-notebook-browser-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const files = new Map(await Promise.all([
@@ -72,7 +74,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
     { name: 'Controls', sheet: { rows: 1, columns: 1, cells: { A1: '2' } } },
     { name: 'Results', sheet: { rows: 1, columns: 1, cells: { A1: '=Controls!A1*3' } } },
   ]);
-  await page.locator('input[type=file]').setInputFiles({ name: 'assay.xlsx',
+  await page.locator('input[type=file][accept=".xlsx"]').setInputFiles({ name: 'assay.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(workbook) });
   const tables = page.locator('[data-kind=spreadsheet]');
   await expect(tables).toHaveCount(2);
@@ -340,5 +342,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(page.locator('#notebook-list')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await expect(finding.getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
+  await verifyGridTools(page, origin);
+  await verifyNotebookComponents(page, origin, output);
   assert.deepEqual(errors, []);
 });
