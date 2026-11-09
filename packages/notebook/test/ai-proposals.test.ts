@@ -21,7 +21,8 @@ test('source extraction reads selected bytes, rejects unsupported/binary/oversiz
   for (const [name, mime, bytes] of [['paper.pdf', 'application/pdf', new Uint8Array([1])], ['x.txt', 'text/plain', new Uint8Array([0xff])], ['x.txt', 'text/plain', new Uint8Array([0])], ['x.txt', 'text/plain', new Uint8Array(65_537)]] as const) await assert.rejects(readAISourceBytes('file', name, mime, bytes));
   const attrs = { blockId: 'attachment-1', filename: 'file.csv', mime: 'text/csv', data: btoa(read.text), caption: '', sha256: read.sha256 };
   const options = listAISources(JSON.stringify({ type: 'doc', content: [{ type: 'attachment', attrs }, { type: 'attachment', attrs: { ...attrs, blockId: 'pdf', filename: 'paper.pdf', mime: 'application/pdf' } }] }));
-  assert.equal(options.length, 2); assert.equal(options[1].supported, false);
+  assert.equal(options.length, 2); assert.equal(options[1].supported, true);
+  await assert.rejects(readAIBlockSource(options[1]), /explicit local extraction/);
   assert.equal((await readAIBlockSource(options[0])).text, read.text);
   await assert.rejects(readAIBlockSource({ ...options[0], node: { ...options[0].node, attrs: { ...attrs, sha256: 'f'.repeat(64) } } }), /SHA-256/);
 });
