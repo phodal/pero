@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useAppInfo, useAppI18n } from "./host";
 import { Button, Feedback, Table } from "./ui";
+import { CanvasActionForm, type CanvasAction } from "./canvas-action-form";
 
 export interface CanvasSource {
   entryId: string;
@@ -22,7 +23,7 @@ interface Projection {
   columns: string[];
   rows: string[][];
   notice: string;
-  actions: { name: string; label: string; params: Record<string, unknown> }[];
+  actions: CanvasAction[];
 }
 interface MountedView {
   instance: string;
@@ -65,6 +66,10 @@ const messages = {
   complete: {
     en: "The App returned a completed result. This is not independent verification.",
     zh: "App 已返回完成结果。这不代表独立验证通过。",
+  },
+  notApplied: {
+    en: "The App did not apply this change. Refresh the view and review the current values before trying again.",
+    zh: "App 未应用此变更。请刷新视图，核对当前值后再试。",
   },
   unknown: {
     en: "The action outcome is not yet known. Check status before repeating it.",
@@ -224,6 +229,8 @@ export function DeclaredAppCanvas({
       }
     }
   };
+  const ownerResult = result?.receipt?.result;
+  const notApplied = !!ownerResult && typeof ownerResult === 'object' && 'outcome' in ownerResult && ownerResult.outcome === 'not-applied';
   return (
     <section aria-label="Declared App view" aria-busy={loading || running}>
       {loading && <p role="status">{t("loading")}</p>}
@@ -263,8 +270,9 @@ export function DeclaredAppCanvas({
             <p>{t("readonly")}</p>
           ) : (
             view.projection.actions.map((action) => (
-              <Button
-                key={action.name}
+              <CanvasActionForm
+                key={`${view.instance}:${action.name}`}
+                action={action}
                 disabled={
                   running ||
                   loading ||
@@ -273,10 +281,8 @@ export function DeclaredAppCanvas({
                     (item) => item.state === "outcome-unknown",
                   )
                 }
-                onClick={() => void act(action)}
-              >
-                {action.label}
-              </Button>
+                onSubmit={value => void act(value)}
+              />
             ))
           )}
         </>
@@ -311,10 +317,10 @@ export function DeclaredAppCanvas({
       )}
       {result && (
         <Feedback
-          kind={result.state === "outcome-unknown" ? "warning" : "info"}
+          kind={result.state === "outcome-unknown" || notApplied ? "warning" : "info"}
         >
           {t(
-            result.state === "completed"
+            notApplied ? "notApplied" : result.state === "completed"
               ? "complete"
               : result.state === "cancelled"
                 ? "cancelled"

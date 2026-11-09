@@ -58,6 +58,78 @@
           ],
           "additionalProperties": false
         }
+      },
+      {
+        "name": "canvas-update",
+        "description": "Rename this local dataset and edit its Data project-reference label. Immutable files and versions are unchanged.",
+        "path": "/api/canvas/update",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "operationId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "inputs": {
+              "type": "object",
+              "properties": {
+                "datasetId": {
+                  "type": "string",
+                  "pattern": "^ds-[a-f0-9]{32}$"
+                }
+              },
+              "required": [
+                "datasetId"
+              ],
+              "additionalProperties": false
+            },
+            "params": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "pattern": "^[^\\x00-\\x1f]*\\S[^\\x00-\\x1f]*$"
+                },
+                "projectRef": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[^\\x00-\\x1f]*$"
+                },
+                "expectedName": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "pattern": "^[^\\x00-\\x1f]*\\S[^\\x00-\\x1f]*$"
+                },
+                "expectedProjectRef": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[^\\x00-\\x1f]*$"
+                },
+                "expectedArchived": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "projectRef",
+                "expectedName",
+                "expectedProjectRef",
+                "expectedArchived"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "operationId",
+            "inputs",
+            "params"
+          ],
+          "additionalProperties": false
+        }
       }
     ],
     "canvases": [
@@ -79,7 +151,8 @@
           "additionalProperties": false
         },
         "actions": [
-          "canvas-archive"
+          "canvas-archive",
+          "canvas-update"
         ],
         "status": "/internal/canvas/status"
       }

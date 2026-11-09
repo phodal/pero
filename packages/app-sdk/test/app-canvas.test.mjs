@@ -222,3 +222,39 @@ test("remount can inspect durable unknown operations in readonly mode without di
     false,
   );
 });
+
+test('owner-declared bounded text edits preserve drafts on denial and route exact values only through Canvas', async t => {
+  const env = await createUiRuntime(t, { contents: "export { DeclaredAppCanvas } from './app-canvas'; export { AppSdkProvider, createAppHost } from './host';", resolveDir: new URL('../src', import.meta.url).pathname });
+  const { React, ui, render, click, dom } = env, calls = [];
+  const edit = { name: 'canvas-update', label: 'Save dataset details', params: { name: 'Actual dataset', projectRef: '', expectedName: 'Actual dataset', expectedProjectRef: '', expectedArchived: false },
+    inputs: [{ name: 'name', label: 'Dataset name', maxLength: 200 }, { name: 'projectRef', label: 'Project reference (Data label)', maxLength: 200 }] };
+  t.mock.method(globalThis, 'fetch', async (_path, init) => {
+    const input = JSON.parse(init.body); calls.push(input);
+    return Response.json(input.operation === 'mount' ? { instance: 'edit-instance', source, projection: { ...projection, actions: [edit] } } : { state: input.operation === 'act' ? 'cancelled' : 'released' });
+  });
+  const mount = (readOnly = false) => render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', active: true }) }, React.createElement(ui.DeclaredAppCanvas, { source: { ...source, readOnly } })));
+  await mount();
+  const field = document.querySelector('input'); assert.equal(field.maxLength, 200);
+  await React.act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(field, '测量 renamed'); field.dispatchEvent(new dom.window.Event('input', { bubbles: true })); });
+  assert.equal(calls.filter(call => call.operation === 'act').length, 0);
+  await click([...document.querySelectorAll('button')].find(button => button.textContent === 'Save dataset details'));
+  assert.deepEqual(calls.find(call => call.operation === 'act').params, { ...edit.params, name: '测量 renamed' });
+  assert.equal(document.querySelector('input').value, '测量 renamed'); assert.match(document.body.textContent, /cancelled before execution/);
+  await mount(true); assert.equal(document.querySelector('input'), null);
+});
+
+test('known owner refusal is shown as not applied rather than a successful dataset mutation', async t => {
+  const env = await createUiRuntime(t, { contents: "export { DeclaredAppCanvas } from './app-canvas'; export { AppSdkProvider, createAppHost } from './host';", resolveDir: new URL('../src', import.meta.url).pathname });
+  const { React, ui, render, click } = env;
+  t.mock.method(globalThis, 'fetch', async (_path, init) => {
+    const input = JSON.parse(init.body);
+    return Response.json(input.operation === 'mount' ? { instance: 'stale-instance', source, projection } : {
+      state: 'completed', receipt: { result: { status: 'completed', outcome: 'not-applied', reason: 'Dataset metadata changed', dataset: { name: 'Newer owner value' } } },
+    });
+  });
+  await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', active: true }) }, React.createElement(ui.DeclaredAppCanvas, { source })));
+  await click([...document.querySelectorAll('button')].find(button => button.textContent === 'Archive dataset'));
+  assert.match(document.body.textContent, /The App did not apply this change/);
+  assert.doesNotMatch(document.body.textContent, /The App returned a completed result/);
+  assert.match(document.body.textContent, /Newer owner value/);
+});
