@@ -12,6 +12,7 @@ export async function verifyDirectGridInteractions(page, origin) {
     { name: 'Data', sheet: { rows: 4, columns: 10, cells: { A1: '2', A2: '3', C1: '5', H1: 'tail' } } },
     { name: 'Dependent', sheet: { rows: 1, columns: 1, cells: { A1: '=Data!A1*3' } } },
   ]);
+  await page.getByRole('button', { name: 'More tools', exact: true }).click();
   await page.locator('input[type=file][accept=".xlsx"]').setInputFiles({ name: 'direct-grid.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(workbook) });
   const data = page.locator('[data-kind=spreadsheet]').nth(0), dependent = page.locator('[data-kind=spreadsheet]').nth(1);

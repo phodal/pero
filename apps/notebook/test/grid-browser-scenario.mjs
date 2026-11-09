@@ -11,6 +11,7 @@ export async function verifyGridTools(page, origin) {
     { name: 'Data', sheet: { rows: 4, columns: 3, cells: { A1: '=1/3', B1: '7', A2: '2', A3: '3', C4: 'tail' } } },
     { name: 'Dependent', sheet: { rows: 1, columns: 1, cells: { A1: '=Data!$A$2*3' } } },
   ]);
+  await page.getByRole('button', { name: 'More tools', exact: true }).click();
   await page.locator('input[type=file][accept=".xlsx"]').setInputFiles({ name: 'grid.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(workbook) });
   const tables = page.locator('[data-kind=spreadsheet]');

@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
+import { useAppI18n } from '@pero/app-sdk';
 import type { CellAnnotation, NotebookDocument, NotebookNode } from '@pero/notebook';
 import { notebookPrintSections, type NotebookPrintSettings } from '@pero/notebook/notebook-print';
 import { cellAddress, type Spreadsheet } from '@pero/notebook/spreadsheet';
@@ -6,6 +7,7 @@ import { formatCellValue, type CellFormat } from '@pero/notebook/grid-presentati
 import { calculateNotebookWorksheets, type NotebookWorksheet } from '@pero/notebook/worksheet';
 import type { StructuredTableDraft } from '@pero/notebook/structured-table';
 import type { NotebookMaterial } from '@pero/notebook/workspace';
+import { messages } from './messages';
 
 function printableRecord(value: unknown): string {
   return JSON.stringify(value, (key, item) => key === 'data' && typeof item === 'string' ? '[Embedded file bytes omitted from print]' : item, 2);
@@ -75,17 +77,19 @@ function RichPrint({ root, includeInputs, contextRoot = root }: { root: Notebook
 export function NotebookPrintContent({ document, settings, entryId, revision, dirty, preparedAt }: {
   document: NotebookDocument; settings: NotebookPrintSettings; entryId: string; revision: number; dirty: boolean; preparedAt: string;
 }) {
+  const { t } = useAppI18n(messages);
   const selected = new Set(settings.sections);
   const materials = (items: NotebookMaterial[]): ReactNode => <ul>{items.map(item => <li key={item.id}><strong>{item.name}</strong> {item.quantity}{item.source && <pre>{printableRecord(item.source)}</pre>}{item.content && <RichPrint root={item.content} includeInputs={settings.includeInputs} />}{item.children && materials(item.children)}</li>)}</ul>;
   // Keep original Notes order and its full calculation context even when only one section is printed.
   const filtered = { ...document.content, content: document.content.content.filter(node => selected.has(node.type === 'section' ? `section:${node.attrs!.blockId}` : 'notes')) };
-  return <article className="notebook-print-document"><h1>{document.title}</h1><p>{dirty ? 'UNSAVED DRAFT / 未保存草稿' : `Saved revision / 已保存版本 ${revision}`}</p>
-    {settings.includeMetadata && <header><p>Entry / 条目: {entryId} · Base revision / 基准版本: {revision}</p><p>Prepared / 生成时间: {preparedAt}</p><p>{settings.paper} · {settings.orientation} · {settings.marginMm} mm</p>{document.metadata && <pre>{printableRecord(document.metadata)}</pre>}</header>}
+  const sectionLabels = notebookPrintSections(document).filter(section => selected.has(section.id)).map(section => section.label).join(' · ');
+  return <article className="notebook-print-document"><h1>{document.title}</h1><p>{dirty ? t('printUnsavedDraft') : t('printSavedRevision', { revision })}</p>
+    {settings.includeMetadata && <header><p>{t('printEntryMeta', { entryId, revision })}</p><p>{t('printPreparedAt', { preparedAt })}</p><p>{settings.paper} · {settings.orientation} · {settings.marginMm} mm</p>{document.metadata && <pre>{printableRecord(document.metadata)}</pre>}</header>}
     <RichPrint root={filtered} contextRoot={document.content} includeInputs={settings.includeInputs} />
     {(document.procedures ?? []).filter(procedure => selected.has(`procedure:${procedure.id}`)).map(procedure => <section key={procedure.id}><h2>{procedure.title}</h2>{procedure.introduction ? <RichPrint root={procedure.introduction} includeInputs={settings.includeInputs} /> : <p>{procedure.description}</p>}
-      {!!procedure.materials.length && <><h3>Materials / 材料</h3>{materials(procedure.materials)}</>}
-      <ol>{procedure.steps.map(step => <li key={step.id}><p>{step.completed ? '☑' : '☐'} {step.kind ?? 'step'}{step.critical ? ' · Critical / 关键' : ''}{step.pause ? ' · Pause / 暂停' : ''}{step.minutes !== null ? ` · ${step.minutes} min planned / 计划` : ''}</p>
-        {step.content ? <RichPrint root={step.content} includeInputs={settings.includeInputs} /> : <p>{step.text}</p>}{step.timer && <p>Recorded timer / 已记录计时: {step.timer.elapsedMs} ms{step.timer.startedAt !== null ? ' (running / 运行中)' : ''}</p>}</li>)}</ol></section>)}
-    <footer>Sections / 章节: {notebookPrintSections(document).filter(section => selected.has(section.id)).map(section => section.label).join(' · ')}. Printing does not save or verify this entry. / 打印不代表保存或验证。</footer>
+      {!!procedure.materials.length && <><h3>{t('printMaterials')}</h3>{materials(procedure.materials)}</>}
+      <ol>{procedure.steps.map(step => <li key={step.id}><p>{step.completed ? '☑' : '☐'} {step.kind ?? 'step'}{step.critical ? ` · ${t('printCritical')}` : ''}{step.pause ? ` · ${t('printPause')}` : ''}{step.minutes !== null ? ` · ${t('printMinutesPlanned', { minutes: step.minutes })}` : ''}</p>
+        {step.content ? <RichPrint root={step.content} includeInputs={settings.includeInputs} /> : <p>{step.text}</p>}{step.timer && <p>{t('printRecordedTimer', { elapsedMs: step.timer.elapsedMs, running: step.timer.startedAt !== null ? t('printTimerRunning') : '' })}</p>}</li>)}</ol></section>)}
+    <footer>{t('printFooter', { sections: sectionLabels })}</footer>
   </article>;
 }

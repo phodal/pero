@@ -30,17 +30,17 @@ export function NotebookCommandTools({ entryId, readonly = false, handlers }: { 
     return () => document.removeEventListener('keydown', listen);
   }, [entryId, readonly, handlers]);
   return <><Button variant="ghost" onClick={() => setOpen(true)}>{t('keyboardShortcuts')}</Button>{open && <Dialog title={t('notebookShortcuts')} closeLabel={t('closeShortcuts')} onClose={() => setOpen(false)} size="md">
-    <p>Use Command on macOS, Control elsewhere. Commands apply only to the focused notebook; text and grid editing keep their own shortcuts. / macOS 使用 Command，其他系统使用 Control；仅作用于当前笔记。</p>
+    <p>{t('shortcutsHint')}</p>
     <dl>
-      {handlers.save && <><dt>⌘ / Ctrl + S</dt><dd>Save a new revision / 保存新版本</dd></>}
-      {handlers.export && <><dt>Tools → Export current JSON</dt><dd>Export includes unsaved edits. Ctrl/Command + Shift + S remains the text strike shortcut. / 导出包含未保存编辑；Ctrl/Command + Shift + S 保留删除线格式快捷键。</dd></>}
-      {handlers.print && <><dt>⌘ / Ctrl + P</dt><dd>Print configuration and preview / 打印设置与预览</dd></>}
-      {handlers.section && <><dt>⌘ / Ctrl + \</dt><dd>Insert a section at the active text editor / 在当前文本编辑器插入章节</dd></>}
-      {handlers.symbols && <><dt>⌘ / Ctrl + ;</dt><dd>Insert a symbol at the text selection / 在所选文本处插入符号</dd></>}
-      <dt>⌘ / Ctrl + Z · Shift + Z</dt><dd>Document undo / redo; local form fields retain native history / 文档撤销与重做，表单保留原生历史</dd>
-      <dt>⌘ / Ctrl + Shift + F</dt><dd>Search this notebook / 搜索当前笔记</dd>
-      <dt>Escape</dt><dd>Close the active menu/dialog or cancel a grid edit / 关闭当前菜单、窗口或取消表格编辑</dd>
-      <dt>Section actions → Copy section link</dt><dd>Stable entry and section link; opening it reveals the section / 稳定条目与章节链接，打开后展开目标</dd>
+      {handlers.save && <><dt>⌘ / Ctrl + S</dt><dd>{t('shortcutSave')}</dd></>}
+      {handlers.export && <><dt>Tools → Export current JSON</dt><dd>{t('shortcutExport')}</dd></>}
+      {handlers.print && <><dt>⌘ / Ctrl + P</dt><dd>{t('shortcutPrint')}</dd></>}
+      {handlers.section && <><dt>⌘ / Ctrl + \</dt><dd>{t('shortcutSection')}</dd></>}
+      {handlers.symbols && <><dt>⌘ / Ctrl + ;</dt><dd>{t('shortcutSymbols')}</dd></>}
+      <dt>⌘ / Ctrl + Z · Shift + Z</dt><dd>{t('shortcutUndo')}</dd>
+      <dt>⌘ / Ctrl + Shift + F</dt><dd>{t('shortcutSearch')}</dd>
+      <dt>Escape</dt><dd>{t('shortcutEscape')}</dd>
+      <dt>Section actions → Copy section link</dt><dd>{t('shortcutSectionLink')}</dd>
     </dl>
   </Dialog>}</>;
 }

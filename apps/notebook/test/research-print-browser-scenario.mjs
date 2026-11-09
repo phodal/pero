@@ -32,25 +32,25 @@ export async function verifyResearchPrintTools(page, origin, output) {
   const saved = await request(`/api/entries/${entry.id}`);
   await button('Print options').click();
   dialog = page.getByRole('dialog', { name: 'Print options', exact: true });
-  await dialog.getByLabel('Paper / 纸张', { exact: true }).selectOption('Letter');
-  await dialog.getByLabel('Orientation / 方向', { exact: true }).selectOption('landscape');
-  await dialog.getByLabel('Margins (mm, 5–40) / 页边距', { exact: true }).fill('12');
-  await dialog.getByLabel('Show formulas under calculated values / 计算值下显示公式', { exact: true }).check();
-  await button('Save print preferences / 保存打印偏好', dialog).click();
+  await dialog.getByLabel('Paper', { exact: true }).selectOption('Letter');
+  await dialog.getByLabel('Orientation', { exact: true }).selectOption('landscape');
+  await dialog.getByLabel('Margins (mm, 5–40)', { exact: true }).fill('12');
+  await dialog.getByLabel('Show formulas under calculated values', { exact: true }).check();
+  await button('Save print preferences', dialog).click();
   await expect(page.locator('.notebook-print-preview')).toContainText('2200');
   await page.screenshot({ path: resolve(output, 'research-print-preview-light.png'), fullPage: true });
   await page.emulateMedia({ media: 'print' });
   await expect(page.locator('.notebook-print-output')).toBeVisible();
-  await expect(page.locator('.notebook-print-output')).toContainText(`Saved revision / 已保存版本 ${saved.revision}`);
+  await expect(page.locator('.notebook-print-output')).toContainText(`Saved revision ${saved.revision}`);
   await expect(page.locator('.notebook-print-output button, .notebook-print-output input')).toHaveCount(0);
   assert.equal(await page.locator('.notebook-print-output').evaluate(element => getComputedStyle(element).overflow), 'visible');
   await page.pdf({ path: resolve(output, 'research-configured-print.pdf'), preferCSSPageSize: true, printBackground: true });
   await page.screenshot({ path: resolve(output, 'research-print-output.png'), fullPage: true });
   await page.emulateMedia({ media: 'screen' });
-  await button('Close print options / 关闭打印设置', dialog).click();
+  await button('Close print options', dialog).click();
   await button('Print options').click();
-  await expect(page.getByLabel('Orientation / 方向', { exact: true })).toHaveValue('landscape');
-  await button('Close print options / 关闭打印设置').click();
+  await expect(page.getByLabel('Orientation', { exact: true })).toHaveValue('landscape');
+  await button('Close print options').click();
 
   // Hold an already committed HTTP response, dismiss the dialog and edit the current draft.
   // When it arrives, frame adoption must preserve that edit and mark it as a conflict.
@@ -75,7 +75,7 @@ export async function verifyResearchPrintTools(page, origin, output) {
     await button('Create audited revision / 创建有审计的新版本', dialog).click();
     let timer;
     try { assert.ok((await Promise.race([completed, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Amendment did not reach the backend within 15 seconds')), 15000); })])).ok()); } finally { clearTimeout(timer); }
-    await button('Close amendments / 关闭修订', dialog).click();
+    await button('Close amendments', dialog).click();
     await page.locator('[data-kind=spreadsheet] [data-cell=B1]').fill('103');
     release();
     await expect(page.getByText(/Another change was saved first. Your draft is still here/)).toBeVisible();
