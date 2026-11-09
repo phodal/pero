@@ -24,5 +24,11 @@ export async function createNotebook(page, origin, title) {
   await expect(page.locator('.notebook-status')).toHaveText(`Revision ${entry.revision}`);
   await expect(page.getByRole('textbox', { name: 'Notebook content', exact: true })).toHaveText('');
   if (title !== undefined) await titleInput.fill(title);
+  // Reload selects the latest entry unless the address names one. Drop a deep link
+  // left by an earlier scenario so this notebook, not that older entry, comes back.
+  await page.evaluate(() => {
+    if (!location.hash.includes('notebook-entry=')) return;
+    history.replaceState(null, '', `${location.pathname}${location.search}`);
+  });
   return entry;
 }
