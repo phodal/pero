@@ -67,7 +67,7 @@ test('source excerpts select real attachments, retain bytes, cancel drafts, reje
   await open(); await range('2', '8'); await fill('Excerpt label', 'Pinned observation');
   await click(button('Insert source excerpt', document.querySelector('dialog')!)); await checked();
   assert.equal(data().length, 1); assert.equal(data()[0].attrs.excerpt.quote, '🧪e\u0301\r\n终');
-  assert.deepEqual({ ...editor.getJSON().content.find((node: any) => node.type === 'attachment').attrs }, { ...original.attrs, templateOrigin: null });
+  assert.deepEqual({ ...editor.getJSON().content.find((node: any) => node.type === 'attachment').attrs }, { ...original.attrs, templateOrigin: null, derivation: null });
   assert.match(document.body.textContent!, /Retained text integrity verified/);
   assert.match(document.body.textContent!, /Original attachment is available and unchanged/);
   const pinned = structuredClone(data()[0].attrs);

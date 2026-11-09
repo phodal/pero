@@ -1,10 +1,9 @@
 """The versioned Notebook content accepted by storage and the App editor."""
 
 from dataclasses import dataclass
+from attachment import attachment
 from datetime import date
 from hashlib import sha256
-import base64
-import binascii
 import json
 import math
 import re
@@ -84,28 +83,6 @@ def calendar_date(value):
             date.fromisoformat(value)
         except ValueError as error:
             raise ValueError('Invalid section date') from error
-
-
-def attachment(value):
-    """A bounded immutable file snapshot; only raster images are previewable."""
-    filename = string(value['filename'], 'attachment filename', 255, required=True)
-    if filename in {'.', '..'} or re.search(r'[\x00-\x1f\x7f/\\]', filename):
-        raise ValueError('Invalid attachment filename')
-    mime = string(value['mime'], 'attachment MIME type', 127, required=True)
-    if not re.fullmatch(r'[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*', mime):
-        raise ValueError('Invalid attachment MIME type')
-    if mime.startswith('image/') and mime not in {'image/png', 'image/jpeg', 'image/webp'}:
-        raise ValueError('Unsupported image type')
-    data = string(value['data'], 'attachment data', 4 * ((512 * 1024 + 2) // 3))
-    try:
-        raw = base64.b64decode(data, validate=True)
-    except (ValueError, binascii.Error) as error:
-        raise ValueError('Invalid attachment base64') from error
-    if len(raw) > 512 * 1024 or base64.b64encode(raw).decode() != data:
-        raise ValueError('Invalid attachment size or base64')
-    if value['sha256'] != sha256(raw).hexdigest():
-        raise ValueError('Attachment digest does not match its bytes')
-    string(value['caption'], 'attachment caption', 2000)
 
 
 def text_mark(value):
@@ -350,7 +327,7 @@ def _attributes(kind, value, identities):
         'heading': {'level'}, 'orderedList': {'start', 'type'},
         'taskItem': {'checked'}, 'codeBlock': {'language'},
         'spreadsheet': {'label', 'annotations', 'formats', 'rowHeights', 'columnWidths', 'merges'},
-        'evidence': {'snapshot'}, 'experiment': {'snapshot'},
+        'evidence': {'snapshot'}, 'experiment': {'snapshot'}, 'attachment': {'derivation'},
     }.get(kind, set())
     if kind not in {'doc', 'text', 'hardBreak', 'referenceMention'}:
         optional = optional | {'blockId', 'templateOrigin'}

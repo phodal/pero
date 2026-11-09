@@ -2,15 +2,16 @@ import { notebookLinkHash } from '@pero/notebook/workspace';
 import { Node } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { closeHistory } from '@tiptap/pm/history';
-import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react';
+import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, useEditorState, type NodeViewProps } from '@tiptap/react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, Icon, IconButton, Input, Textarea } from '@pero/app-sdk/ui';
-import { attachmentBytes, attachmentLimits, isAttachmentAttributes, isAttachmentFilename, isAttachmentMime, isPreviewImage, type AttachmentAttributes } from '@pero/notebook/attachment';
+import { attachmentLimits, deriveImageAttachment, verifiedAttachmentBytes, isAttachmentFilename, isAttachmentMime, isPreviewImage, type AttachmentAttributes } from '@pero/notebook/attachment';
 import { BlockFrame } from './block-frame';
 import { moveBlock, rememberWidgetFocus, topLevelBlock } from './block-order';
 import { messages } from './messages';
 import { RasterEditDialog, rasterEditPlan } from './raster-edit';
+import { ImageHistory } from './image-history';
 
 export { attachmentDefaults, attachmentLimits, type AttachmentAttributes } from '@pero/notebook/attachment';
 
@@ -186,21 +187,21 @@ export const Section = Node.create({
   addNodeView() { return ReactNodeViewRenderer(SectionView); },
 });
 
-type VerifiedAttachment = { filename: string; data: string; mime: string; sha256: string; bytes: Uint8Array<ArrayBuffer>; preview: string | null };
+type VerifiedAttachment = { filename: string; data: string; mime: string; sha256: string; derivation: AttachmentAttributes['derivation']; bytes: Uint8Array<ArrayBuffer>; preview: string | null };
 
 export function AttachmentView(view: NodeViewProps) {
   const { t } = useAppI18n(contentBlockMessages);
-  const { filename, mime, data, caption, sha256 } = view.node.attrs as AttachmentAttributes;
+  const { filename, mime, data, caption, sha256, derivation } = view.node.attrs as AttachmentAttributes;
   const [verified, setVerified] = useState<VerifiedAttachment | null>(null);
   const [invalid, setInvalid] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
   const [downloadFailed, setDownloadFailed] = useState(false);
-  const editable = view.editor.isEditable;
+  const editable = useEditorState({ editor: view.editor, selector: ({ editor }) => editor.isEditable });
   const [imageEdit, setImageEdit] = useState<{ width: number; height: number; sha256: string } | null>(null);
   const [editError, setEditError] = useState(false);
   const [openingEdit, setOpeningEdit] = useState(false);
   // A previous attachment must never be presented as the current file during verification.
-  const current = verified && verified.filename === filename && verified.data === data && verified.mime === mime && verified.sha256 === sha256 ? verified : null;
+  const current = verified && verified.filename === filename && verified.data === data && verified.mime === mime && verified.sha256 === sha256 && verified.derivation === derivation ? verified : null;
 
   useEffect(() => {
     let live = true;
@@ -209,17 +210,14 @@ export function AttachmentView(view: NodeViewProps) {
     setPreviewFailed(false);
     setDownloadFailed(false);
     const verify = async () => {
-      if (!isAttachmentAttributes({ filename, mime, data, caption: '', sha256 })) throw new Error('Invalid attachment.');
-      const bytes = attachmentBytes(data);
-      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-      if (Array.from(digest, value => value.toString(16).padStart(2, '0')).join('') !== sha256) throw new Error('Attachment digest mismatch.');
+      const bytes = await verifiedAttachmentBytes({ filename, mime, data, caption: '', sha256, derivation });
       if (!live) return;
       if (isPreviewImage(mime)) preview = URL.createObjectURL(new Blob([bytes], { type: mime }));
-      setVerified({ filename, data, mime, sha256, bytes, preview });
+      setVerified({ filename, data, mime, sha256, derivation, bytes, preview });
     };
     void verify().catch(() => { if (live) setInvalid(true); });
     return () => { live = false; if (preview) URL.revokeObjectURL(preview); };
-  }, [filename, mime, data, sha256]);
+  }, [filename, mime, data, sha256, derivation]);
 
   const openImageEdit = async () => {
     if (!current || !editable) return;
@@ -254,15 +252,17 @@ export function AttachmentView(view: NodeViewProps) {
     {editable && imageEdit?.sha256 === sha256 && current?.preview && <RasterEditDialog
       width={imageEdit.width} height={imageEdit.height} preview={current.preview}
       source={new Blob([current.bytes], { type: mime })} onClose={() => setImageEdit(null)}
-      onApply={async blob => {
+      onApply={async (blob, edit) => {
         const derived = await createAttachment(new File([blob], `${filename.replace(/\.[^.]+$/, '').slice(0, 230)}-edited.png`, { type: 'image/png' }));
         const position = view.getPos();
         const node = typeof position === 'number' ? view.editor.state.doc.nodeAt(position) : null;
-        if (!view.editor.isEditable || !node || node.attrs.sha256 !== sha256) throw new Error('The attachment changed. Reopen the image editor.');
+        if (!view.editor.isEditable || !node || node.attrs.sha256 !== sha256 || node.attrs.data !== data || node.attrs.derivation !== derivation) throw new Error('The attachment changed. Reopen the image editor.');
         view.editor.view.dispatch(closeHistory(view.editor.state.tr).setNodeMarkup(position!, undefined, {
-          ...node.attrs, ...derived, caption: node.attrs.caption,
+          ...node.attrs, ...deriveImageAttachment({ filename, mime, data, sha256, caption: node.attrs.caption, derivation },
+            derived, imageEdit.width, imageEdit.height, edit),
         }));
       }} />}
+    {current && derivation && <ImageHistory derivation={derivation} />}
     {downloadFailed && <Feedback kind="error">{t('attachmentDownloadFailed')}</Feedback>}
     {editable ? <label className="notebook-field">{t('attachmentCaption')}
       <Textarea rows={2} maxLength={attachmentLimits.caption} value={caption} onChange={event => view.updateAttributes({ caption: event.target.value })} />
