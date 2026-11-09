@@ -1,3 +1,5 @@
+import { isSourceExcerptAttributes } from '@pero/notebook/source-excerpt';
+import { isScientificContentAttributes } from '@pero/notebook/scientific-designs';
 import { isSampleIntakeAttributes } from '@pero/notebook/sample-intake';
 import { parseAppCanvasBinding } from '@pero/notebook/app-canvas';
 import { parseMixturePreparation } from '@pero/notebook/mixture';
@@ -35,6 +37,9 @@ function cells(value: unknown, rows: number, columns: number, valid: (item: unkn
 /** Clipboard HTML may contain user-supplied data attributes outside this editor. */
 export function isClipboardWidget(kind: string, attrs: Record<string, unknown>): boolean {
   switch (kind) {
+    case 'sourceExcerpt': return isSourceExcerptAttributes(attrs);
+    case 'reactionScheme':
+    case 'chemical': return isScientificContentAttributes(kind, attrs);
     case 'sampleIntake': return isSampleIntakeAttributes(attrs);
     case 'appCanvas':
       try { parseAppCanvasBinding(attrs.binding); return text(attrs.label, 200); } catch { return false; }
