@@ -50,6 +50,9 @@ test('local review UI retains rejected input, requires explicit decisions, archi
   };
   await mount();
   await settled(() => !button('Start comment thread').disabled);
+  assert.deepEqual([...document.querySelectorAll('.pero-ui-empty-heading')].map(node => node.textContent), [
+    'No comment threads yet', 'No local tasks yet', 'No local review records yet', 'No recorded changes yet',
+  ]);
   await click(button('Start comment thread'));
   await fill(field('Comment'), 'Keep this question after failure'); failNext = true;
   await click(button('Save record', dialog()));

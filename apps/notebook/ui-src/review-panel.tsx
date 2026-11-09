@@ -289,7 +289,7 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
           {!readonly && data && <ReviewBulk kind="threads" items={filtered.map(item => ({ ...item, label: `${item.comments[0]?.text ?? item.id} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
           <Select label={t('filter')} value={filter} onChange={setFilter} options={[{ value: 'all', label: t('all') }, { value: 'unresolved', label: t('unresolved') }]} />
         </div>
-        {data && !filtered.length && <EmptyState title={t(data.threads.length ? 'noMatches' : 'noComments')} />}
+        {data && !filtered.length && <EmptyState heading={t(data.threads.length ? 'noMatches' : 'noComments')} />}
         <ul className="notebook-review-list">{filtered.map(thread => <li key={thread.id}>
           <Badge>{t(thread.status)}</Badge>{anchorView(thread)}
           <ol className="notebook-review-comments">{thread.comments.map(comment => <li key={comment.id}>
@@ -308,7 +308,7 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
         <p className="notebook-workspace-hint">{t('taskHint')}</p>
         {!readonly && <Button disabled={disabled || !saved} onClick={() => open('task')}>{t('addTask')}</Button>}
         {!readonly && data && <ReviewBulk kind="tasks" items={data.tasks.map(item => ({ ...item, label: `${item.title} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
-        {data && !data.tasks.length && <EmptyState title={t('noTasks')} />}
+        {data && !data.tasks.length && <EmptyState heading={t('noTasks')} />}
         <ul className="notebook-review-list">{data?.tasks.map(task => <li key={task.id}>
           <div className="notebook-workspace-actions"><strong>{task.title}</strong><Badge>{t(task.status)}</Badge>
             {task.deadline && task.deadline < localDate && !['done', 'cancelled'].includes(task.status) && <Badge>{t('overdue')}</Badge>}</div>
@@ -323,7 +323,7 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
         {!readonly && <Button disabled={disabled || !saved} onClick={() => open('review')}>{t('requestReview')} · r{revision}</Button>}
         {!readonly && data && <ReviewBulk kind="reviews" items={data.reviews.filter(item => item.status !== 'retracted').map(item => ({ ...item, label: `${item.reviewerDisplay} · r${item.anchor.revision} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
         {data && <ReviewWorkflows data={data} revision={revision} actor={actor} disabled={disabled || !saved} readonly={readonly} mutate={run} error={error} reload={reload} snapshot={(number, onLoaded) => <SavedRevision entryId={entryId} revision={number} onLoaded={onLoaded} />} />}
-        {data && !data.reviews.length && <EmptyState title={t('noReviews')} />}
+        {data && !data.reviews.length && <EmptyState heading={t('noReviews')} />}
         <ul className="notebook-review-list">{data?.reviews.map(review => <li key={review.id}>
           <div className="notebook-workspace-actions"><Badge>{t(review.status)}</Badge><strong>{review.reviewerDisplay}</strong><time>{review.updatedAt}</time></div>
           {review.stale && <Feedback kind="warning">{t('stale')}</Feedback>}{anchorView(review)}
@@ -344,7 +344,7 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
         {historyError && <Feedback kind="error">{historyError}</Feedback>}
         {!revisions && !historyError && <p role="status">{t('loading')}</p>}
         {revisions && <HistoryComparison entryId={entryId} revisions={revisions} />}
-        <h3>{t('timeline')}</h3>{data && !data.activity.length && <EmptyState title={t('noActivity')} />}
+        <h3>{t('timeline')}</h3>{data && !data.activity.length && <EmptyState heading={t('noActivity')} />}
         {data?.activityLimited && <p className="notebook-workspace-hint">{t('activityLimit')}</p>}
         <ol className="notebook-review-list">{data?.activity.map(item => <li key={item.id}>
           <div className="notebook-workspace-actions"><time>{item.at}</time><strong>{item.actorDisplay}</strong><span>{item.action in messages ? t(item.action as MessageKey) : item.action}</span><Badge>r{item.revision} · v{item.version}</Badge></div>

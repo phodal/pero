@@ -211,7 +211,7 @@ function ProceduresView({ procedures, readonly, onChange, selected, setSelected,
       {!readonly && procedure && <Button variant="ghost" onClick={() => setRemoving(procedure.id)}>{t('removeProcedure')}</Button>}
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}
-    {!procedure ? <EmptyState title={t('noProcedures')} description={t('noProceduresHint')} /> : <ProcedureFields key={procedure.id} procedure={procedure} readonly={readonly} apply={apply} onCopyLink={onCopyLink} />}
+    {!procedure ? <EmptyState heading={t('noProcedures')} description={t('noProceduresHint')} /> : <ProcedureFields key={procedure.id} procedure={procedure} readonly={readonly} apply={apply} onCopyLink={onCopyLink} />}
     {!readonly && removingProcedure && <Dialog title={t('removeProcedure')} closeLabel={t('close')} onClose={() => setRemoving(null)}
       footer={<><Button variant="ghost" onClick={() => setRemoving(null)}>{t('cancel')}</Button><Button onClick={() => { apply({ type: 'remove', id: removingProcedure.id }); setRemoving(null); }}>{t('removeProcedure')}</Button></>}>
       <p>{t('removeProcedureHint')}</p><strong>{removingProcedure.title || t('newProcedure')}</strong>
@@ -315,7 +315,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     <TabsContent className="notebook-workspace-panel" value="relevant" forceMount>
       <p className="notebook-workspace-hint">{t('relevantHint')}</p>
       {!readonly && <NamedReferenceTools onInsert={nodes => { editor.commands.insertContentAt(editor.state.doc.content.size, [...nodes, { type: 'paragraph' }]); }} />}
-      {!relevant.length && <EmptyState title={t('noRelevant')} description={t('noRelevantHint')} />}
+      {!relevant.length && <EmptyState heading={t('noRelevant')} description={t('noRelevantHint')} />}
       <ul className="notebook-relevant-list">{relevant.map(item => <li key={item.id}>
         <div className="notebook-workspace-actions"><strong>{item.label || t(item.kind)}</strong><Badge>{t(item.kind)}</Badge><Badge>{t(item.state)}</Badge>{item.imported && <Badge>{t('imported')}</Badge>}</div>
         {item.notes && <p>{item.notes}</p>}
@@ -332,7 +332,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     {dialog === 'search' && <Dialog title={t('search')} closeLabel={t('close')} size="lg" onClose={() => setDialog(null)} restoreFocus={!navigated.current}>
       <Field label={t('searchLabel')} description={t('searchHint')}>{control => <SearchField {...control} value={query} onChange={event => setQuery(event.target.value)} />}</Field>
       <p className="notebook-workspace-hint" role="status">{t('resultCount', { count: results.length })}</p>
-      {!results.length && <EmptyState title={t(query.trim() ? 'noMatches' : 'noOutline')} description={query.trim() ? undefined : t('noOutlineHint')} />}
+      {!results.length && <EmptyState heading={t(query.trim() ? 'noMatches' : 'noOutline')} description={query.trim() ? undefined : t('noOutlineHint')} />}
       <ul className="notebook-search-results">{results.slice(0, 100).map(item => <li key={item.id} data-nested={item.depth > 0 || undefined}>
         <Button variant="ghost" onClick={() => openBlock(item.id)}>
           <span><strong>{item.label.trim().slice(0, 160) || t(item.kind as MessageKey)}</strong><small>{t(item.kind as MessageKey)}</small>

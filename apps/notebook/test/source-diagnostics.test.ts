@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { createHash } from 'node:crypto';
+import { JSDOM } from 'jsdom';
 import { createUiRuntime } from '../../../packages/app-sdk/test/ui-test-runtime.mjs';
 import { notebookSourceEvidence } from '../../../scripts/build/notebook-diagnostics.mjs';
 const root = fileURLToPath(new URL('../../..', import.meta.url));
@@ -68,9 +69,13 @@ test('viewer loads inert selected source, supports missing/unavailable states, r
   assert.match(document.body.textContent!, /Evidence build SHA-256/);
 });
 
-test('legacy probe replaces history with local diagnostics and keeps non-script fallback', async () => {
+test('legacy probe replaces history with local diagnostics and keeps non-script fallback', async t => {
   const html = await readFile(`${root}/apps/notebook/public/editor-probe.html`, 'utf8');
-  assert.match(html, /href="\.\/diagnostics.html"/); assert.match(html, /<noscript>/);
+  const dom = new JSDOM(html); t.after(() => dom.window.close());
+  assert.equal(dom.window.document.querySelector('a')?.getAttribute('href'), './diagnostics.html');
+  const fallback = [...dom.window.document.querySelectorAll('p')].find(node => node.textContent === 'Automatic navigation requires JavaScript. Use the link above.');
+  assert.ok(fallback);
+  assert.equal(fallback.closest('noscript'), null, 'Fallback guidance stays available even when script execution is blocked without changing HTML parsing');
   const destinations: string[] = [];
   runInNewContext(await readFile(`${root}/apps/notebook/public/editor-probe.js`, 'utf8'), { window: { location: { search: '?next=https://untrusted.invalid', hash: '#private-path', replace: (path: string) => destinations.push(path) } } });
   assert.deepEqual(destinations, ['./diagnostics.html']);

@@ -76,3 +76,34 @@ test('status reports list nesting and section count and targets only the active 
   ui.rememberWidgetFocus(editor, 'active-sheet');
   await click(document.querySelector('button')!); assert.equal(target, 'active-sheet');
 });
+
+test('workspace empty states render their labels and guidance in the active view', async t => {
+  let editor: any; t.after(() => editor?.destroy());
+  const { React, ui, dom, render, click } = await createUiRuntime(t, { ...component,
+    contents: component.contents + ` export { NotebookWorkspace } from './workspace-views';`,
+  });
+  dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  dom.window.HTMLDialogElement.prototype.close = function () { this.open = false; };
+  const content = { type: 'doc', content: [{ type: 'paragraph', attrs: { blockId: 'notes' } }] };
+  editor = new ui.Editor({ extensions: ui.notebookExtensions, content });
+  await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'notebook', locale: 'en' }) },
+    React.createElement(ui.NotebookWorkspace, { editor, entryId: 'empty', revision: 1, document: { schemaVersion: 1, title: 'Empty', content }, readonly: false, onChange() {} })));
+  for (const [tab, heading, guidance] of [
+    ['Procedures', 'No procedures yet', 'Add a procedure to record materials and step-by-step instructions.'],
+    ['Relevant items', 'No relevant items yet', 'Add a named entry reference here'],
+  ]) {
+    const trigger = [...document.querySelectorAll<HTMLElement>('[role=tab]')].find(node => node.textContent === tab)!;
+    await React.act(async () => trigger.focus());
+    const panel = document.querySelector('[role=tabpanel][data-state=active]')!;
+    assert.equal(panel.querySelector('.pero-ui-empty-heading')?.textContent, heading);
+    assert.ok(panel.querySelector('.pero-ui-empty-description')?.textContent?.includes(guidance));
+  }
+  await click(document.querySelector('button[aria-label="Search and outline"]')!);
+  assert.equal(document.querySelector('dialog .pero-ui-empty-heading')?.textContent, 'No outline entries yet');
+  const search = document.querySelector('dialog input')!;
+  await React.act(async () => {
+    Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(search, 'unmatched');
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+  assert.equal(document.querySelector('dialog .pero-ui-empty-heading')?.textContent, 'No matching blocks');
+});
