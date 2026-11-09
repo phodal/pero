@@ -78,10 +78,15 @@ def entry_search_text(document):
         values.extend([document.metadata.project, document.metadata.author, *document.metadata.tags])
     for procedure in document.procedures or ():
         value = procedure.wire()
-        values.extend([value['title'], value['description']])
+        values.append(value['title'])
+        if procedure.introduction is None:
+            values.append(value['description'])
         values.extend(step['text'] for step in value['steps'] if 'content' not in step)
-        for material in value['materials']:
-            values.extend([material['name'], material['quantity']])
+        for root in procedure.materials:
+            for material in root.descendants():
+                values.extend([material.name, material.quantity])
+                if material.source:
+                    values.extend([material.source.catalog_id, material.source.record_id, material.source.schema_id])
     return ' '.join(values)
 
 

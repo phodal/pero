@@ -30,6 +30,19 @@ test('procedure table editor inserts the real editable spreadsheet and reports p
     cell.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
   });
   assert.equal(patch.content.content.find((node: any) => node.type === 'spreadsheet').attrs.sheet.cells.A1, '=2+3');
+  const label = [...document.querySelectorAll('label')].find(item => item.textContent === 'Well grid size')!;
+  const size = document.getElementById(label.htmlFor)!;
+  await React.act(async () => {
+    Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype, 'value')!.set!.call(size, '4x6');
+    size.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  });
+  const wellGrid = [...document.querySelectorAll('button')].find(item => item.textContent === 'Insert well grid')!;
+  await click(wellGrid); await click(wellGrid);
+  const plates = patch.content.content.filter((node: any) => node.type === 'spreadsheet').slice(1);
+  assert.equal(plates.length, 2);
+  assert.deepEqual(plates.map((node: any) => [node.attrs.sheet.rows, node.attrs.sheet.columns]), [[4, 6], [4, 6]]);
+  assert.notEqual(plates[0].attrs.label, plates[1].attrs.label);
+  assert.notEqual(plates[0].attrs.blockId, plates[1].attrs.blockId);
 });
 
 test('procedure timer controls dispatch explicit clock actions and readonly cannot operate it', async t => {

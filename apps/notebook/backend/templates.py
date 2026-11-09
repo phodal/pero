@@ -159,10 +159,10 @@ def preserve_template_origins(before, after):
     """Existing lineage cannot be edited in place; removing an instance is permitted."""
     def document_nodes(document):
         yield from nodes(document['content'])
-        for procedure in document.get('procedures', ()):
-            for step in procedure['steps']:
-                if 'content' in step:
-                    yield from nodes(step['content'])
+        from workspace import NotebookProcedure
+        for value in document.get('procedures', ()):
+            for root in NotebookProcedure.parse(value).content_roots():
+                yield from nodes(root)
 
     def origins(document):
         result = {}
