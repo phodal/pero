@@ -15,12 +15,18 @@ export type TypedCell =
   | { type: 'object'; value: { [key: string]: JsonValue } };
 export type TableIssueCode = 'required' | 'decimal' | 'quantity' | 'unit' | 'boolean' | 'date' | 'object' | 'missing' | 'option' | 'name' | 'duplicateName' | 'columnRules' | 'rows';
 export interface TableIssue { code: TableIssueCode; rowId?: string; columnId?: string }
+export interface RegistrationWaiver {
+  policy: 'required-missing-v1'; inputHash: string; reason: string; attribution: string;
+  issues: { code: 'required'; rowId: string; columnId: string }[];
+}
 export interface RegistrationReceipt {
+  waiver?: RegistrationWaiver;
   source: 'notebook-local-catalog'; catalogId: string; submissionId: string; inputHash: string; tableId: string;
   schemaId: string; schemaRevision: number; registeredAt: string;
   records: { rowId: string; recordId: string; version: number }[];
 }
 export interface CatalogRecord {
+  waiver?: RegistrationWaiver;
   id: string; version: number; schemaId: string; schemaRevision: number; tableId: string; rowId: string;
   name: string; registeredAt: string; values: Record<string, TypedCell>; columns: StructuredColumn[];
 }
@@ -37,6 +43,7 @@ export interface CatalogEntityReference {
 }
 export type CatalogCellSelection = { type: 'reference' } | { type: 'field'; columnId: string };
 export interface RegistrationInput {
+  waiver?: RegistrationWaiver;
   table: StructuredTableDraft; inputHash: string; submissionId: string; referenceColumnId: string;
 }
 
@@ -50,6 +57,24 @@ const decimal = (value: string) => /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+
 const list = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 100 && value.every(item => text(item, 200) && item.trim() === item && !!item) && distinct(value);
 const digest = (value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const timestamp = (value: unknown): value is string => text(value, 40) && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(value) && Number.isFinite(Date.parse(value));
+
+/** A local, self-attributed exception, not authenticated approval or a compliance signature. */
+export function createRegistrationWaiver(table: StructuredTableDraft, inputHash: string, reason: string, attribution: string): RegistrationWaiver {
+  const issues = validateStructuredTable(table);
+  if (!issues.length || issues.some(issue => issue.code !== 'required' || !issue.rowId || !issue.columnId)) throw new Error('Only missing required cells can be waived.');
+  const waiver: RegistrationWaiver = { policy: 'required-missing-v1', inputHash, reason, attribution,
+    issues: issues as RegistrationWaiver['issues'] };
+  if (!isRegistrationWaiver(waiver)) throw new Error('Provide a reason and local attribution for this input.');
+  return waiver;
+}
+export function isRegistrationWaiver(value: unknown): value is RegistrationWaiver {
+  return object(value) && fields(value, ['policy', 'inputHash', 'reason', 'attribution', 'issues']) && value.policy === 'required-missing-v1' && digest(value.inputHash) &&
+    text(value.reason, 500) && !!value.reason.trim() && text(value.attribution, 200) && !!value.attribution.trim() && Array.isArray(value.issues) && value.issues.length > 0 && value.issues.length <= 10000 &&
+    value.issues.every(issue => object(issue) && fields(issue, ['code', 'rowId', 'columnId']) && issue.code === 'required' && id(issue.rowId) && id(issue.columnId)) &&
+    distinct(value.issues.map(issue => `${issue.rowId}:${issue.columnId}`));
+}
+const auditFields = (value: Record<string, unknown>, keys: string[]) => fields(value, Object.hasOwn(value, 'waiver') ? [...keys, 'waiver'] : keys) &&
+  (!Object.hasOwn(value, 'waiver') || isRegistrationWaiver(value.waiver));
 
 export function isStructuredColumn(value: unknown): value is StructuredColumn {
   return object(value) && fields(value, ['id', 'name', 'type', 'required', 'options', 'units']) && id(value.id) && text(value.name, 200) &&
@@ -200,6 +225,8 @@ export function applyCatalogCellSelection(table: StructuredTableDraft, expected:
 
 /** A committed receipt and optional blank-only autofill enter the draft in one transaction. */
 export function applyRegistrationReceipt(current: StructuredTableAttributes, input: RegistrationInput, receipt: RegistrationReceipt): StructuredTableAttributes {
+  if (canonicalStructuredValue(receipt.waiver ?? null) !== canonicalStructuredValue(input.waiver ?? null)) throw new Error('The catalog receipt does not match the approved waiver.');
+  if (input.waiver && canonicalStructuredValue(createRegistrationWaiver(input.table, input.inputHash, input.waiver.reason, input.waiver.attribution)) !== canonicalStructuredValue(input.waiver)) throw new Error('The waiver is stale.');
   if (receipt.inputHash !== input.inputHash || receipt.submissionId !== input.submissionId || receipt.tableId !== input.table.id ||
       receipt.schemaId !== input.table.schema.id || receipt.schemaRevision !== input.table.schema.revision ||
       receipt.records.length !== input.table.rows.length || !input.table.rows.every(row => receipt.records.some(record => record.rowId === row.id))) {
@@ -233,10 +260,11 @@ function canonicalStructuredValue(value: unknown): string {
 }
 
 export function isRegistrationReceipt(value: unknown): value is RegistrationReceipt {
-  return object(value) && fields(value, ['source', 'catalogId', 'submissionId', 'inputHash', 'tableId', 'schemaId', 'schemaRevision', 'registeredAt', 'records']) &&
-    value.source === 'notebook-local-catalog' && id(value.catalogId) && id(value.submissionId) && digest(value.inputHash) && id(value.tableId) && id(value.schemaId) && integer(value.schemaRevision) && timestamp(value.registeredAt) &&
+  return object(value) && auditFields(value, ['source', 'catalogId', 'submissionId', 'inputHash', 'tableId', 'schemaId', 'schemaRevision', 'registeredAt', 'records']) &&
+    (!value.waiver || (value.waiver as RegistrationWaiver).inputHash === value.inputHash) && value.source === 'notebook-local-catalog' && id(value.catalogId) && id(value.submissionId) && digest(value.inputHash) && id(value.tableId) && id(value.schemaId) && integer(value.schemaRevision) && timestamp(value.registeredAt) &&
     Array.isArray(value.records) && value.records.length > 0 && value.records.length <= 200 && value.records.every(record => object(record) && fields(record, ['rowId', 'recordId', 'version']) &&
-      id(record.rowId) && id(record.recordId) && integer(record.version)) && distinct(value.records.map(record => record.rowId)) && distinct(value.records.map(record => record.recordId));
+      id(record.rowId) && id(record.recordId) && integer(record.version)) &&
+    (!value.waiver || (value.waiver as RegistrationWaiver).issues.every(issue => (value.records as { rowId: string }[]).some(row => row.rowId === issue.rowId))) && distinct(value.records.map(record => record.rowId)) && distinct(value.records.map(record => record.recordId));
 }
 export function isCatalogQuery(value: unknown): value is CatalogQuery {
   return object(value) && fields(value, ['schemaId', 'text', 'limit']) && (value.schemaId === '' || id(value.schemaId)) && text(value.text, 200) && integer(value.limit, 1, 200);
@@ -253,14 +281,17 @@ function isTypedCell(value: unknown): value is TypedCell {
 export function isCatalogSnapshot(value: unknown): value is CatalogSnapshot {
   if (!object(value) || !fields(value, ['source', 'catalogId', 'query', 'refreshedAt', 'total', 'records']) || value.source !== 'notebook-local-catalog' || !id(value.catalogId) || !isCatalogQuery(value.query) ||
       !timestamp(value.refreshedAt) || !integer(value.total, 0) || !Array.isArray(value.records) || value.records.length > value.query.limit || value.records.length > value.total) return false;
-  return value.records.every(record => object(record) && fields(record, ['id', 'version', 'schemaId', 'schemaRevision', 'tableId', 'rowId', 'name', 'registeredAt', 'values', 'columns']) &&
+  return value.records.every(record => object(record) && auditFields(record, ['id', 'version', 'schemaId', 'schemaRevision', 'tableId', 'rowId', 'name', 'registeredAt', 'values', 'columns']) &&
     id(record.id) && integer(record.version) && id(record.schemaId) && integer(record.schemaRevision) && id(record.tableId) && id(record.rowId) && text(record.name, 200) && timestamp(record.registeredAt) &&
     Array.isArray(record.columns) && record.columns.length > 0 && record.columns.length <= 50 && record.columns.every(isStructuredColumn) && distinct(record.columns.map(column => column.id)) &&
     object(record.values) && fields(record.values, record.columns.map(column => column.id)) && Object.values(record.values).every(isTypedCell) &&
+    (!(record.waiver as RegistrationWaiver | undefined)?.issues.some(issue => issue.rowId === record.rowId && !(record.columns as StructuredColumn[]).some(column => column.id === issue.columnId))) &&
     record.columns.every(column => {
       const value = (record.values as Record<string, TypedCell>)[column.id];
       if (validateStructuredColumn(column).length) return false;
-      if (value.type === 'missing') return !column.required;
+      const waived = (record.waiver as RegistrationWaiver | undefined)?.issues.some(issue => issue.rowId === record.rowId && issue.columnId === column.id) ?? false;
+      if (waived && (value.type !== 'missing' || !column.required)) return false;
+      if (value.type === 'missing') return !column.required || waived;
       return value.type === column.type && (value.type !== 'quantity' || column.units.includes(value.unit)) &&
         (value.type !== 'text' || !column.options.length || column.options.includes(value.value.trim()));
     })) && distinct(value.records.map(record => record.id));

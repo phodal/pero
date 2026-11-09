@@ -220,7 +220,9 @@ class StructuredTableDraft:
         return {'id': self.identity, 'name': self.name, 'schema': {'id': self.schema_id, 'revision': self.schema_revision,
                 'columns': [column.wire() for column in self.columns]}, 'rows': [row.wire() for row in self.rows]}
 
-    def typed_rows(self):
+    def typed_rows(self, waiver=None):
+        if waiver:
+            waiver.validate_input(self, sha256(_serialized(self.wire()).encode()).hexdigest())
         if not self.name.strip() or not self.rows:
             raise ValueError('Name the table and add at least one row before submitting')
         names = [column.name.strip().lower() for column in self.columns]
@@ -234,11 +236,49 @@ class StructuredTableDraft:
             cells = []
             for column in self.columns:
                 try:
-                    cells.append((column.identity, column.parse_cell(raw.get(column.identity, ''))))
+                    cells.append((column.identity, TypedCell('missing') if waiver and (row.identity, column.identity) in waiver.issues
+                                  else column.parse_cell(raw.get(column.identity, ''))))
                 except ValueError as error:
                     raise ValueError(f'Row {row.identity}, column {column.name}: {error}') from error
             result.append((row.identity, tuple(cells)))
         return tuple(result)
+
+
+@dataclass(frozen=True)
+class RegistrationWaiver:
+    """Local exception for absent required values, never malformed supplied values."""
+    input_hash: str
+    reason: str
+    attribution: str
+    issues: tuple[tuple[str, str], ...]
+
+    @classmethod
+    def parse(cls, value):
+        _fields(value, ('policy', 'inputHash', 'reason', 'attribution', 'issues'))
+        if value['policy'] != 'required-missing-v1' or not isinstance(value['inputHash'], str) or not re.fullmatch('[a-f0-9]{64}', value['inputHash']):
+            raise ValueError('Invalid waiver policy or input hash')
+        if not isinstance(value['issues'], list) or not 1 <= len(value['issues']) <= 10000:
+            raise ValueError('A waiver must identify missing required cells')
+        issues = []
+        for issue in value['issues']:
+            _fields(issue, ('code', 'rowId', 'columnId'))
+            if issue['code'] != 'required':
+                raise ValueError('Only missing required values may be waived')
+            issues.append((_id(issue['rowId']), _id(issue['columnId'])))
+        if len(set(issues)) != len(issues):
+            raise ValueError('Duplicate waived issue')
+        return cls(value['inputHash'], _text(value['reason'], 500, required=True),
+                   _text(value['attribution'], 200, required=True), tuple(issues))
+
+    def wire(self):
+        return dict(policy='required-missing-v1', inputHash=self.input_hash, reason=self.reason, attribution=self.attribution,
+                    issues=[dict(code='required', rowId=row, columnId=column) for row, column in self.issues])
+
+    def validate_input(self, table, input_hash):
+        expected = {(row.identity, col.identity) for row in table.rows for col in table.columns
+                    if col.required and not dict(row.cells).get(col.identity, '').strip()}
+        if self.input_hash != input_hash or set(self.issues) != expected:
+            raise ValueError('Waiver does not match the current input and missing required cells')
 
 
 @dataclass(frozen=True)
@@ -257,9 +297,13 @@ class CatalogQuery:
 
 
 def _receipt(value):
-    _fields(value, ('source', 'catalogId', 'submissionId', 'inputHash', 'tableId', 'schemaId', 'schemaRevision', 'registeredAt', 'records'))
+    _fields(value, ('source', 'catalogId', 'submissionId', 'inputHash', 'tableId', 'schemaId', 'schemaRevision', 'registeredAt', 'records'), ('waiver',))
     if value['source'] != SOURCE or not isinstance(value['inputHash'], str) or not re.fullmatch('[a-f0-9]{64}', value['inputHash']):
         raise ValueError('Invalid catalog receipt provenance')
+    if 'waiver' in value:
+        waiver = RegistrationWaiver.parse(value['waiver'])
+        if waiver.input_hash != value['inputHash']:
+            raise ValueError('Waiver hash differs from receipt')
     for key in ('catalogId', 'submissionId', 'tableId', 'schemaId'):
         _id(value[key])
     _integer(value['schemaRevision'])
@@ -271,6 +315,8 @@ def _receipt(value):
         _id(record['rowId'])
         _id(record['recordId'])
         _integer(record['version'])
+    if 'waiver' in value and any(issue[0] not in {row['rowId'] for row in value['records']} for issue in waiver.issues):
+        raise ValueError('Waiver refers to an unregistered row')
     if any(len({row[key] for row in value['records']}) != len(value['records']) for key in ('rowId', 'recordId')):
         raise ValueError('Duplicate registered row or record')
 
@@ -307,7 +353,7 @@ def _snapshot(value):
         raise ValueError('Invalid catalog snapshot')
     identities = set()
     for record in value['records']:
-        _fields(record, ('id', 'version', 'schemaId', 'schemaRevision', 'tableId', 'rowId', 'name', 'registeredAt', 'values', 'columns'))
+        _fields(record, ('id', 'version', 'schemaId', 'schemaRevision', 'tableId', 'rowId', 'name', 'registeredAt', 'values', 'columns'), ('waiver',))
         for key in ('id', 'schemaId', 'tableId', 'rowId'):
             _id(record[key])
         if record['id'] in identities:
@@ -323,12 +369,17 @@ def _snapshot(value):
         ids = {column.identity for column in columns}
         if len(ids) != len(columns) or not isinstance(record['values'], dict) or record['values'].keys() != ids:
             raise ValueError('Invalid catalog values')
+        for cell in record['values'].values():
+            _typed_value(cell)
+        waiver = RegistrationWaiver.parse(record['waiver']) if 'waiver' in record else None
+        missing = {(record['rowId'], col.identity) for col in columns if col.required and record['values'][col.identity].get('type') == 'missing'}
+        if waiver and {issue for issue in waiver.issues if issue[0] == record['rowId']} != missing:
+            raise ValueError('Waiver does not match recorded missing values')
         for column in columns:
             column.validate()
             cell = record['values'][column.identity]
-            _typed_value(cell)
             if cell['type'] == 'missing':
-                if column.required:
+                if column.required and not waiver:
                     raise ValueError('Required catalog value is missing')
             elif cell['type'] != column.kind or (column.kind == 'quantity' and cell['unit'] not in column.units) or (column.options and cell['value'].strip() not in column.options):
                 raise ValueError('Catalog value does not match its schema')
@@ -383,18 +434,20 @@ class CatalogStore:
         return connection
 
     def register(self, payload):
-        _fields(payload, ('submissionId', 'table'))
+        _fields(payload, ('submissionId', 'table'), ('waiver',))
         submission_id = _id(payload['submissionId'])
         table = StructuredTableDraft.parse(payload['table'])
-        typed_rows = table.typed_rows()
         raw = _serialized(table.wire())
         input_hash = sha256(raw.encode()).hexdigest()
+        waiver = RegistrationWaiver.parse(payload['waiver']) if 'waiver' in payload else None
+        typed_rows = table.typed_rows(waiver)
+        stored_input = _serialized(dict(table=table.wire(), waiver=waiver.wire())) if waiver else raw
         columns = _serialized([column.wire() for column in table.columns])
         with closing(self._connect()) as connection, connection:
             connection.execute('BEGIN IMMEDIATE')
-            existing = connection.execute('SELECT input_hash, receipt FROM catalog_submissions WHERE id = ?', (submission_id,)).fetchone()
+            existing = connection.execute('SELECT input_hash, input, receipt FROM catalog_submissions WHERE id = ?', (submission_id,)).fetchone()
             if existing:
-                if existing['input_hash'] != input_hash:
+                if existing['input_hash'] != input_hash or existing['input'] != stored_input:
                     raise SubmissionConflict('Submission ID already belongs to another input. Submit the edited draft with a new ID.')
                 return json.loads(existing['receipt'])
             schema = connection.execute('SELECT columns FROM catalog_schemas WHERE id = ? AND revision = ?', (table.schema_id, table.schema_revision)).fetchone()
@@ -412,6 +465,8 @@ class CatalogStore:
                 record = {'id': record_id, 'version': version, 'schemaId': table.schema_id, 'schemaRevision': table.schema_revision,
                           'tableId': table.identity, 'rowId': row_id, 'name': table.name, 'registeredAt': registered_at,
                           'values': {key: cell.wire() for key, cell in cells}, 'columns': [column.wire() for column in table.columns]}
+                if waiver:
+                    record['waiver'] = waiver.wire()
                 connection.execute('INSERT INTO catalog_versions VALUES (?, ?, ?, ?, ?, ?)',
                                    (record_id, version, table.schema_id, _serialized(record), _serialized(record).casefold(), registered_at))
                 connection.execute('INSERT INTO catalog_rows VALUES (?, ?, ?, ?) ON CONFLICT (table_id, row_id) DO UPDATE SET version = excluded.version',
@@ -419,7 +474,9 @@ class CatalogStore:
                 records.append({'rowId': row_id, 'recordId': record_id, 'version': version})
             receipt = {'source': SOURCE, 'catalogId': self.identity, 'submissionId': submission_id, 'inputHash': input_hash, 'tableId': table.identity,
                        'schemaId': table.schema_id, 'schemaRevision': table.schema_revision, 'registeredAt': registered_at, 'records': records}
-            connection.execute('INSERT INTO catalog_submissions VALUES (?, ?, ?, ?)', (submission_id, input_hash, raw, _serialized(receipt)))
+            if waiver:
+                receipt['waiver'] = waiver.wire()
+            connection.execute('INSERT INTO catalog_submissions VALUES (?, ?, ?, ?)', (submission_id, input_hash, stored_input, _serialized(receipt)))
             return receipt
 
     def lookup(self, query):

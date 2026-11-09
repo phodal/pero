@@ -3,9 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Checkbox, Dialog, Disclosure, Feedback, Field, Input, NativeSelect, Select, Textarea } from '@pero/app-sdk/ui';
 import {
-  applyCatalogCellSelection, applyRegistrationReceipt, canonicalStructuredTable, changeStructuredTable, columnTypes, isCatalogSnapshot, isRegistrationReceipt,
+  createRegistrationWaiver, applyCatalogCellSelection, applyRegistrationReceipt, canonicalStructuredTable, changeStructuredTable, columnTypes, isCatalogSnapshot, isRegistrationReceipt,
   isStructuredColumn, lookupTableDefaults, parseTypedCell, structuredTableLimits, validateStructuredTable,
-  type CatalogQuery, type CatalogSnapshot, type ColumnType, type LookupTableAttributes, type RegistrationReceipt,
+  type RegistrationWaiver, type CatalogQuery, type CatalogSnapshot, type ColumnType, type LookupTableAttributes, type RegistrationReceipt,
   type StructuredColumn, type StructuredTableAttributes, type StructuredTableDraft, type TableChange, type TableIssueCode, type TypedCell,
 } from '@pero/notebook/structured-table';
 import { BlockFrame } from './block-frame';
@@ -15,6 +15,11 @@ import { useNotebookContext } from './notebook-context';
 import { CatalogCellPicker, QuantityCellEditor } from './structured-field-picker';
 
 export const structuredTableMessages = {
+  waiver: { en: 'Local validation waiver', zh: '本地验证豁免' },
+  waiverScope: { en: 'Policy required-missing-v1: only absent required values may be waived. Supplied values must remain valid. Attribution is self-declared, not authenticated approval. Review the listed cells before submitting.', zh: '规则 required-missing-v1：仅可豁免必填缺失值。已填值仍须有效。署名为自行声明，不代表身份验证审批。提交前请复核所列单元格。' },
+  waiverReason: { en: 'Waiver reason', zh: '豁免原因' },
+  waiverActor: { en: 'Local attribution', zh: '本地署名' },
+  waiverSubmit: { en: 'Submit with explicit waiver', zh: '明确豁免并提交' },
   projected: { en: 'View: {name} · {visible} of {total} rows', zh: '视图：{name} · {total} 行中的 {visible} 行' },
   pickCatalog: { en: 'Choose catalog value for {cell}', zh: '为 {cell} 选择目录值' },
   autofill: { en: 'After registration, fill references into', zh: '登记后将引用填入' },
@@ -161,12 +166,19 @@ function TypedCellEditor({ column, raw, label, disabled, onChange }: {
   </div>;
 }
 
+function WaiverAudit({ waiver }: { waiver: RegistrationWaiver }) {
+  const { t } = useAppI18n(structuredTableMessages);
+  return <Feedback kind="warning"><strong>{t('waiver')} · {waiver.policy}</strong><p>{waiver.reason} · {waiver.attribution}</p>
+    <ul>{waiver.issues.map(issue => <li key={`${issue.rowId}:${issue.columnId}`}>{issue.rowId} / {issue.columnId}: {t('error_required')}</li>)}</ul></Feedback>;
+}
+
 function ReceiptHistory({ receipts }: { receipts: RegistrationReceipt[] }) {
   const { t } = useAppI18n(structuredTableMessages);
   if (!receipts.length) return null;
   return <Disclosure variant="inline" summary={t('receiptHistory', { count: receipts.length })}>
     <p className="notebook-note">{t('receiptScope')}</p>
     {[...receipts].reverse().map(receipt => <Disclosure key={`${receipt.catalogId}:${receipt.submissionId}`} variant="inline" summary={`${receipt.registeredAt} · ${receipt.records.length}`}>
+      {receipt.waiver && <WaiverAudit waiver={receipt.waiver} />}
       <dl className="notebook-reference-details">
         <div><dt>{t('catalogId')}</dt><dd><code>{receipt.catalogId}</code></dd></div>
         <div><dt>{t('submissionId')}</dt><dd><code>{receipt.submissionId}</code></dd></div>
@@ -203,8 +215,10 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
   const referenceColumnId = autofill.scope === viewScope && autofillColumns.some(column => column.id === autofill.columnId) ? autofill.columnId : '';
   const [confirmation, setConfirmation] = useState<{ scope: string; receipt: RegistrationReceipt; applied: boolean } | null>(null);
   useEffect(() => { setPicker(null); setColumn(null); setError(''); setConfirmation(null); }, [viewScope]);
+  const [waiverForm, setWaiverForm] = useState({ canonical: '', reason: '', attribution: '' });
   const [hashed, setHashed] = useState({ canonical: '', hash: '', failed: false });
   const canonical = canonicalStructuredTable(table);
+  useEffect(() => { setWaiverForm({ canonical: '', reason: '', attribution: '' }); }, [canonical, viewScope]);
   const hash = hashed.canonical === canonical ? hashed.hash : '';
   const hashFailed = hashed.canonical === canonical && hashed.failed;
   useEffect(() => {
@@ -217,12 +231,16 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
   const issues = validateStructuredTable(table);
   const submitted = receipts.some(receipt => receipt.tableId === table.id && receipt.inputHash === hash);
   const edit = (change: TableChange) => { if (!view.editor.isEditable || inFlight.current) return; view.updateAttributes({ table: changeStructuredTable(current.current.table, change) }); setError(''); };
-  const submit = async () => {
-    if (inFlight.current || !view.editor.isEditable || !hash || issues.length) return;
-    const input = { table, inputHash: hash, submissionId: hash, referenceColumnId }, submittedScope = scope.current;
+  const submit = async (waive = false) => {
+    if (inFlight.current || !view.editor.isEditable || !hash || (issues.length && !waive)) return;
+    const submittedScope = scope.current;
+    if (waive && waiverForm.canonical !== canonical) return;
+    const waiver = waive ? createRegistrationWaiver(table, hash, waiverForm.reason, waiverForm.attribution) : undefined;
+    const input = { table, inputHash: hash, submissionId: hash, referenceColumnId, waiver };
     inFlight.current = true; setBusy(true); setError(''); setConfirmation(null);
     try {
-      const receipt = await api.post<unknown>('/api/catalog/register', { submissionId: input.submissionId, table: input.table });
+      if (waiver) input.submissionId = await inputHash(JSON.stringify(waiver));
+      const receipt = await api.post<unknown>('/api/catalog/register', { submissionId: input.submissionId, table: input.table, ...(waiver ? { waiver } : {}) });
       if (!isRegistrationReceipt(receipt)) throw new Error(t('invalidResponse'));
       if (!mounted.current || scope.current !== submittedScope) return;
       const next = applyRegistrationReceipt(current.current, input, receipt);
@@ -263,6 +281,13 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
       <Button variant="ghost" disabled={table.schema.columns.length >= structuredTableLimits.columns} onClick={() => setColumn({ id: identity(), name: t('column', { number: table.schema.columns.length + 1 }), type: 'text', required: false, options: [], units: [] })}>{t('addColumn')}</Button>
     </div>}
     {registration && editorEditable && <>
+      {issues.length > 0 && issues.every(issue => issue.code === 'required') && <Disclosure variant="inline" summary={t('waiver')}>
+        <p>{t('waiverScope')}</p>
+        <ul>{issues.map(issue => <li key={`${issue.rowId}:${issue.columnId}`}>{issue.rowId} / {issue.columnId}: {t('error_required')}</li>)}</ul>
+        <Field label={t('waiverReason')}>{control => <Textarea {...control} disabled={!editable} maxLength={500} value={waiverForm.canonical === canonical ? waiverForm.reason : ''} onChange={event => setWaiverForm({ canonical, reason: event.target.value, attribution: waiverForm.canonical === canonical ? waiverForm.attribution : '' })} />}</Field>
+        <Field label={t('waiverActor')}>{control => <Input {...control} disabled={!editable} maxLength={200} value={waiverForm.canonical === canonical ? waiverForm.attribution : ''} onChange={event => setWaiverForm({ canonical, attribution: event.target.value, reason: waiverForm.canonical === canonical ? waiverForm.reason : '' })} />}</Field>
+        <Button disabled={!editable || !hash || waiverForm.canonical !== canonical || !waiverForm.reason.trim() || !waiverForm.attribution.trim() || receipts.length >= structuredTableLimits.receipts} onClick={() => void submit(true)}>{t('waiverSubmit')}</Button>
+      </Disclosure>}
       <Field label={t('autofill')}>{control => <NativeSelect {...control} value={referenceColumnId} disabled={!editable} onChange={event => setAutofill({ scope: viewScope, columnId: event.target.value })}>
         <option value="">{t('autofillNone')}</option>{autofillColumns.map(column => <option key={column.id} value={column.id}>{column.name}</option>)}
       </NativeSelect>}</Field><p className="notebook-note">{t('autofillHint')}</p>
@@ -332,7 +357,7 @@ function CatalogResults({ snapshot }: { snapshot: CatalogSnapshot }) {
       <tbody>{snapshot.records.map(record => <tr key={record.id}>
         <td><strong>{record.name}</strong><br /><code>{record.id}</code><br /><small>{record.registeredAt}</small></td><td>{record.version}</td>
         <td><code>{record.schemaId}</code><br />{t('revision', { number: record.schemaRevision })}</td>
-        <td><dl>{record.columns.map(column => <div key={column.id}><dt>{column.name}</dt><dd>{typedText(record.values[column.id])}</dd></div>)}</dl></td>
+        <td>{record.waiver && <WaiverAudit waiver={record.waiver} />}<dl>{record.columns.map(column => <div key={column.id}><dt>{column.name}</dt><dd>{typedText(record.values[column.id])}</dd></div>)}</dl></td>
       </tr>)}</tbody></table></div>}
   </div>;
 }

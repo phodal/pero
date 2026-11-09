@@ -1,3 +1,4 @@
+import { verifyRegistrationWaiver } from './registration-waiver-browser-scenario.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
@@ -162,4 +163,5 @@ export async function verifyTableWorkflows(page, origin, output) {
   assert.equal((await request('/api/entries/' + entry.id)).revision, 3);
   await page.setViewportSize({ width: 1320, height: 950 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
+  await verifyRegistrationWaiver(page, origin, output);
 }

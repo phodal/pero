@@ -170,3 +170,20 @@ test('registration fills committed identities atomically, retries failures and g
   await prepare(); malformed = true; await click(button(submit));
   assert.equal(attrs().receipts.length, 0); assert.match(document.body.textContent!, /receipt does not match/);
 });
+
+
+test('waiver approval is cleared by edits even when undo restores the original snapshot', async t => {
+  const ui = await fixture(t, async () => { throw new Error('Approval reset must not submit'); });
+  await ui.mount('registrationTable');
+  await ui.fill('Name, Row 1', '');
+  await ui.fill('Waiver reason', 'Awaiting identification');
+  await ui.fill('Local attribution', 'Local researcher');
+  await ui.ready('Submit with explicit waiver');
+  await ui.fill('Table name', 'Changed name');
+  assert.equal(ui.field('Waiver reason').value, '');
+  assert.equal(ui.field('Local attribution').value, '');
+  await ui.fill('Table name', 'Samples');
+  assert.equal(ui.field('Waiver reason').value, '');
+  assert.equal(ui.field('Local attribution').value, '');
+  assert.equal(ui.button('Submit with explicit waiver').disabled, true);
+});
