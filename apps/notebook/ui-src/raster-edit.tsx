@@ -22,6 +22,14 @@ export async function renderRasterEdit(blob: Blob, edit: RasterEdit): Promise<Bl
   const image = await createImageBitmap(blob);
   try {
     const plan = rasterEditPlan(image.width, image.height, edit);
+    // Isolate the crop at native resolution before filtering. Resampling a source
+    // rectangle directly can blend pixels just outside the selected crop.
+    const cropped = document.createElement('canvas');
+    cropped.width = edit.width;
+    cropped.height = edit.height;
+    const cropContext = cropped.getContext('2d');
+    if (!cropContext) throw new Error('Canvas is unavailable.');
+    cropContext.drawImage(image, -edit.x, -edit.y);
     const canvas = document.createElement('canvas');
     canvas.width = plan.canvasWidth;
     canvas.height = plan.canvasHeight;
@@ -29,8 +37,7 @@ export async function renderRasterEdit(blob: Blob, edit: RasterEdit): Promise<Bl
     if (!context) throw new Error('Canvas is unavailable.');
     context.translate(canvas.width / 2, canvas.height / 2);
     context.rotate(edit.rotation * Math.PI / 180);
-    context.drawImage(image, edit.x, edit.y, edit.width, edit.height,
-      -edit.outputWidth / 2, -edit.outputHeight / 2, edit.outputWidth, edit.outputHeight);
+    context.drawImage(cropped, -edit.outputWidth / 2, -edit.outputHeight / 2, edit.outputWidth, edit.outputHeight);
     const result = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not encode image.')), 'image/png'));
     if (result.size > attachmentLimits.bytes) throw new Error('Edited PNG exceeds 512 KiB. Reduce the output dimensions.');
     return result;
