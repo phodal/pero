@@ -1,6 +1,56 @@
 # Notebook verification
 
-## Exact head: `70d2e2fd` (2026-11-09)
+## Exact head: `94ecc010` (2026-11-09)
+
+Verified head: `94ecc010697443ffe5a79ee3e96fca35a44d4a7e`
+(`Merge branch 'master' into codex/notebook-blocks`) on
+`codex/notebook-blocks`, [PR 181](https://github.com/phodal/pero/pull/181).
+GitHub reports the pull request `MERGEABLE` with merge state `CLEAN`.
+[Actions run 42594802214](https://github.com/phodal/pero/actions/runs/42594802214)
+is the pull_request run for that SHA. The workflow conclusion is success.
+The pull_request checkout merge is
+`98194e0e6d8620cc39efdfc6ba1d34df57cb4856`
+(`Merge 94ecc010… into b4039d94…`). Its tree matches
+`94ecc010^{tree}` (`56ef22e64dd51af35eed6b0e01cbd722e8d85ac0`);
+artifact names use the checkout merge SHA.
+A documentation commit on top of `94ecc010` does not by itself re-prove
+these jobs. Desktop and Native visuals were not reviewed. A01 stays partial.
+
+### Checks on this head
+
+Passed on [run 42594802214](https://github.com/phodal/pero/actions/runs/42594802214).
+Each job below is the single attempt on this head.
+
+- [Notebook revisions, workbook and browser contracts](https://github.com/phodal/pero/actions/runs/42594802214/job/129084737993)
+  succeeded (09:37:09Z–09:40:04Z).
+- [Notebook Canvas real Host and Chromium](https://github.com/phodal/pero/actions/runs/42594802214/job/129084737536)
+  succeeded (09:37:09Z–09:39:25Z).
+- [Native shell compilation and unit contracts](https://github.com/phodal/pero/actions/runs/42594802214/job/129084738095)
+  succeeded (09:37:10Z–09:45:45Z). Compilation and unit contracts are not
+  rendered Native WebView acceptance.
+- [Official DSH AST comparison contracts](https://github.com/phodal/pero/actions/runs/42594802214/job/129084737709)
+  succeeded (09:37:09Z–09:37:36Z).
+- [Linux CI gate](https://github.com/phodal/pero/actions/runs/42594802214/job/129088221403)
+  succeeded (09:45:48Z–09:45:54Z).
+
+Notebook browser, Canvas Host, Native shell, Official DSH, and the Linux CI
+gate are green on `94ecc010`. The merge is clean. The Desktop acceptance
+job on this run was skipped. Desktop and Native visuals remain unreviewed.
+
+`npm run test:notebook:desktop` (`node tests/e2e/notebook.mjs`), run from
+`/tmp/pero-eln-final` at this head, exited 1 before a window opened:
+
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from /private/tmp/pero-eln-final/tests/e2e/notebook.mjs
+```
+
+This checkout has no `node_modules` and no `desktop/dist/main.cjs`.
+`apps/notebook/README.md` installs with root `npm ci` and
+`npm ci --prefix apps/notebook`, then expects a built Workbench and Host.
+That is not one install-and-run command. This failure is not Desktop
+acceptance.
+
+## Prior product head: `70d2e2fd` (2026-11-09)
 
 Verified product head: `70d2e2fd7f61f2e2029ebde8a84c0098c10402a8`
 (`fix(notebook): keep narrow action controls from overlapping`) on
@@ -23,7 +73,7 @@ on the tree-sitter download. Docs run
 [42578100117](https://github.com/phodal/pero/actions/runs/42578100117)
 succeeded on recording commit `5ed4a040` (merge `67b48301`). Product run
 [42576754065](https://github.com/phodal/pero/actions/runs/42576754065) checked
-`c0c4b612`. Those runs are not this head.
+`c0c4b612`. Those runs are not `70d2e2fd`.
 
 [Component parity](../design/notebook-component-parity.md) still retains all
 94 pinned reference groups. Its earlier “exact-head acceptance pending”
@@ -38,7 +88,7 @@ value until the field is edited. Document chrome from `c0c4b612` remains in
 this tree. None of these commits is A01 visual acceptance. Desktop and Native
 visuals were not reviewed.
 
-### Checks on this head
+### Checks on `70d2e2fd`
 
 Passed on [run 42582557017](https://github.com/phodal/pero/actions/runs/42582557017).
 Each job below is the single attempt on this head. The workflow conclusion is
@@ -71,12 +121,12 @@ jobs
 and
 [129039029215](https://github.com/phodal/pero/actions/runs/42580075914/job/129039029215);
 [run 42568134548](https://github.com/phodal/pero/actions/runs/42568134548)).
-Those 504s are not this head.
+Those 504s are not `70d2e2fd`.
 
 [Standalone harness Bazel contracts](https://github.com/phodal/pero/actions/runs/42582557017/job/129044544458)
 succeeded (07:57:21Z–08:03:56Z). On `6a4758c6` the same job stopped in
 `bazel-contrib/setup-bazel@0.19.1` with HTTP 504. That external failure is
-not this head.
+not `70d2e2fd`.
 
 [Linux CI gate](https://github.com/phodal/pero/actions/runs/42582557017/job/129047325261)
 succeeded (08:05:06Z–08:05:12Z). Its input recorded `notebook`,
@@ -193,13 +243,14 @@ authenticated signature or a visual review.
 
 ### Evidence ledger and final gate
 
-The exact-head contracts for `70d2e2fd` are the “Checks on this head” section
-above. Older local counts below are historical and are not promoted to that
-head. The ELN goal is not complete. Notebook browser, Canvas Host, Native
-shell, Linux core, Official DSH, and the Linux CI gate passed on this head.
-A01 visual acceptance is not claimed. A printed page was not reviewed.
-Desktop and Native visuals were not reviewed. Windows ACL and paper-HTML
-jobs were skipped. The external boundaries above remain.
+The exact-head contracts for `94ecc010` are the “Checks on this head” section
+above: [run 42594802214](https://github.com/phodal/pero/actions/runs/42594802214).
+Notebook browser, Canvas Host, Native shell, Official DSH, and the Linux CI
+gate passed on that head, and the pull request merge is clean. The
+`70d2e2fd` section records the prior product head. Older local counts below
+are historical and are not promoted to `94ecc010`. A01 stays partial.
+Desktop and Native visuals were not reviewed. The external boundaries above
+remain.
 
 Historical wave 4 source validation, based on `c5b9f202` and including the local
 controls, diagnostics and waiver fixes: **141 package tests, 77 editor tests,
