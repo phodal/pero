@@ -1873,6 +1873,12 @@
         },
         "permissions": {
           "$ref": "#/$defs/AppSdkPermissions"
+        },
+        "appViews": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InstalledAppViews"
+          }
         }
       },
       "required": [
@@ -6790,6 +6796,40 @@
       ],
       "additionalProperties": false
     },
+    "DeclaredAppAction": {
+      "title": "DeclaredAppAction",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "DeclaredAppPanel": {
+      "title": "DeclaredAppPanel",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/AppName"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "additionalProperties": false
+    },
     "DeleteCommand": {
       "title": "DeleteCommand",
       "type": "object",
@@ -8873,6 +8913,49 @@
         "path",
         "method",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "InstalledAppViews": {
+      "title": "InstalledAppViews",
+      "type": "object",
+      "properties": {
+        "app": {
+          "$ref": "#/$defs/AppName"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "panels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DeclaredAppPanel"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DeclaredAppAction"
+          }
+        }
+      },
+      "required": [
+        "app",
+        "title",
+        "version",
+        "revision",
+        "enabled",
+        "panels",
+        "actions"
       ],
       "additionalProperties": false
     },

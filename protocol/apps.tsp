@@ -30,7 +30,10 @@ model AppRecord {
 model BackendAccess { url: string; token: string; ...AppClosed; }
 model AppAccess { root: string; entry: string; frameOrigins?: string[]; backend?: BackendAccess; ...AppClosed; }
 model AppSdkPermissions {api:string[];events:string[];host:string[];...AppClosed}
-model AppSdkContext {name:AppName;version:string;permissions:AppSdkPermissions;...AppClosed}
+model DeclaredAppPanel {id:AppName;title:string;...AppClosed}
+model DeclaredAppAction {name:AppName;description:string;...AppClosed}
+model InstalledAppViews {app:AppName;title:string;version:string;revision:string;enabled:boolean;panels:DeclaredAppPanel[];actions:DeclaredAppAction[];...AppClosed}
+model AppSdkContext {name:AppName;version:string;permissions:AppSdkPermissions;appViews?:InstalledAppViews[];...AppClosed}
 model AppApiAccess {action:"apiaccess";name:AppName;path:string;...RequestBase}
 model AppSdkRequest {action:"sdkcontext";name:AppName;...RequestBase}
 model RequestBase { method: "apps"; id: RequestId; ...AppClosed; }

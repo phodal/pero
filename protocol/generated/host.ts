@@ -3770,11 +3770,29 @@ export interface AppSdkContext {
   name: AppName;
   version: string;
   permissions: AppSdkPermissions;
+  appViews?: InstalledAppViews[];
 }
 export interface AppSdkPermissions {
   api: string[];
   events: string[];
   host: string[];
+}
+export interface InstalledAppViews {
+  app: AppName;
+  title: string;
+  version: string;
+  revision: string;
+  enabled: boolean;
+  panels: DeclaredAppPanel[];
+  actions: DeclaredAppAction[];
+}
+export interface DeclaredAppPanel {
+  id: AppName;
+  title: string;
+}
+export interface DeclaredAppAction {
+  name: AppName;
+  description: string;
 }
 export interface AgentRun {
   id: string;
