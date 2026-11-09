@@ -18,6 +18,19 @@ import (
 func runPlugins(args []string, output io.Writer) error {
 	operation, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if len(args) == 3 && args[0] == "skill-observe" {
+		if err := plugins.PublicGitHubSkillSource(args[1]); err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(operation, 30*time.Second)
+		defer cancel()
+		revision, digest, err := plugins.ObserveSkill(ctx, args[1], args[2])
+		if err != nil {
+			return err
+		}
+		_, err = io.WriteString(output, revision+" "+digest+"\n")
+		return err
+	}
 	if len(args) == 2 && args[0] == "skill-head" {
 		ctx, cancel := context.WithTimeout(operation, 30*time.Second)
 		defer cancel()
@@ -31,6 +44,9 @@ func runPlugins(args []string, output io.Writer) error {
 	if len(args) > 0 && args[0] == "fetch-skill" {
 		if len(args) != 7 {
 			return errors.New("usage: pero-agent-acp plugins fetch-skill GIT_SOURCE CACHE_DIRECTORY COMMIT SKILL_PATH NAMESPACE SHA256")
+		}
+		if err := plugins.PublicGitHubSkillSource(args[1]); err != nil {
+			return err
 		}
 		ctx, cancel := context.WithTimeout(operation, 5*time.Minute)
 		defer cancel()

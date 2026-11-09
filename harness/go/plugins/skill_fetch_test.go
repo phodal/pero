@@ -148,6 +148,23 @@ func TestFetchSelectedSkill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	executable := filepath.Join(repo, "run-helper.bin")
+	if err := os.WriteFile(executable, []byte("not text"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	git("add", ".")
+	git("commit", "-qm", "executable resource")
+	executableReceipt, err := plugins.FetchSkill(t.Context(), repo, t.TempDir(), git("rev-parse", "HEAD"), "SKILL.md", "market-root", fmt.Sprintf("%x", sha256.Sum256([]byte(rootBody))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(filepath.Join(executableReceipt.Directory, "source", "run-helper.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm()&0111 != 0 {
+		t.Fatalf("copied non-text file kept executable mode %o", info.Mode().Perm())
+	}
 	if err := filepath.WalkDir(rootReceipt.Directory, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -158,5 +175,60 @@ func TestFetchSelectedSkill(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSkillFetchSafety(t *testing.T) {
+	for _, source := range []string{"ssh://github.com/owner/repo.git", "https://example.com/owner/repo.git", "https://github.com/owner/repo/extra.git", "/tmp/local-repo"} {
+		if err := plugins.PublicGitHubSkillSource(source); err == nil {
+			t.Fatalf("accepted source %s", source)
+		}
+	}
+	if err := plugins.PublicGitHubSkillSource("https://github.com/owner/repo.git"); err != nil {
+		t.Fatal(err)
+	}
+	repo := t.TempDir()
+	body := "---\nname: fenced\ndescription: Dynamic fence\n---\n```!\necho must-not-run\n```\n"
+	path := filepath.Join(repo, "SKILL.md")
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git := func(args ...string) string {
+		t.Helper()
+		command := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		command.Env = append(os.Environ(), "GIT_AUTHOR_NAME=Fixture", "GIT_AUTHOR_EMAIL=fixture@example.invalid", "GIT_COMMITTER_NAME=Fixture", "GIT_COMMITTER_EMAIL=fixture@example.invalid")
+		out, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git: %v %s", err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-q")
+	git("add", ".")
+	git("commit", "-qm", "fence")
+	digest := fmt.Sprintf("%x", sha256.Sum256([]byte(body)))
+	if _, err := plugins.FetchSkill(t.Context(), repo, t.TempDir(), git("rev-parse", "HEAD"), "SKILL.md", "market-test", digest); err == nil || !strings.Contains(err.Error(), "dynamic commands") {
+		t.Fatalf("fenced dynamic command accepted: %v", err)
+	}
+	oversized := strings.Repeat("x", (1<<20)+1)
+	if err := os.WriteFile(path, []byte(oversized), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git("add", ".")
+	git("commit", "-qm", "oversized")
+	prefix := oversized[:1<<20]
+	if _, err := plugins.FetchSkill(t.Context(), repo, t.TempDir(), git("rev-parse", "HEAD"), "SKILL.md", "market-test", fmt.Sprintf("%x", sha256.Sum256([]byte(prefix)))); err == nil || strings.Contains(err.Error(), "differs from catalog") || !strings.Contains(err.Error(), "size limit") {
+		t.Fatalf("oversized skill misreported integrity: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "payload.bin"), []byte(strings.Repeat("y", (8<<20)+1)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git("add", ".")
+	git("commit", "-qm", "too large")
+	if _, err := plugins.FetchSkill(t.Context(), repo, t.TempDir(), git("rev-parse", "HEAD"), "SKILL.md", "market-test", digest); err == nil || !strings.Contains(err.Error(), "size limit") {
+		t.Fatalf("oversized directory accepted: %v", err)
 	}
 }

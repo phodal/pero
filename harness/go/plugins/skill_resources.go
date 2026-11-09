@@ -17,6 +17,10 @@ import (
 var markdownInlineResource = regexp.MustCompile(`\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+[^)]*)?\)`)
 var markdownNamedResource = regexp.MustCompile(`(?m)^\s{0,3}\[[^\]]+\]:\s*(?:<([^>]+)>|([^\s]+))`)
 
+// maxSkillBundleBytes bounds the selected directory and its linked text files.
+// The checkout itself is refused before blobs above this budget are downloaded.
+const maxSkillBundleBytes int64 = 8 << 20
+
 // bundleSkillResources keeps the chosen subtree and linked repository text files.
 // Related SKILLs and plugin integration files are not imported through links.
 func bundleSkillResources(ctx context.Context, original, target, revision, skillPath string) error {
@@ -27,6 +31,7 @@ func bundleSkillResources(ctx context.Context, original, target, revision, skill
 	}
 	defer root.Close()
 	var markdown []string
+	var copiedBytes int64
 	copied := make(map[string]bool)
 	selected, err := fs.Sub(os.DirFS(original), selectedDir)
 	if err != nil {
@@ -64,11 +69,15 @@ func bundleSkillResources(ctx context.Context, original, target, revision, skill
 		if err != nil {
 			return err
 		}
+		if err = accountSkillBytes(&copiedBytes, info.Size()); err != nil {
+			return err
+		}
 		destination := filepath.Join(target, filepath.FromSlash(resource))
 		if err = os.MkdirAll(filepath.Dir(destination), 0700); err != nil {
 			return err
 		}
-		output, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600|info.Mode().Perm()&0111)
+		// Copied resources are data. Do not retain executable bits from the source tree.
+		output, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 		if err != nil {
 			return err
 		}
@@ -136,6 +145,9 @@ func bundleSkillResources(ctx context.Context, original, target, revision, skill
 				if err != nil {
 					return fmt.Errorf("plugins: cannot read a linked skill resource: %w", err)
 				}
+				if err = accountSkillBytes(&copiedBytes, int64(len(data))); err != nil {
+					return err
+				}
 				destination := filepath.Join(target, filepath.FromSlash(resource))
 				if err = os.MkdirAll(filepath.Dir(destination), 0700); err != nil {
 					return err
@@ -150,6 +162,14 @@ func bundleSkillResources(ctx context.Context, original, target, revision, skill
 			}
 		}
 	}
+	return nil
+}
+
+func accountSkillBytes(total *int64, size int64) error {
+	if size < 0 || size > maxSkillBundleBytes || *total > maxSkillBundleBytes-size {
+		return errors.New("plugins: selected skill directory exceeds the size limit")
+	}
+	*total += size
 	return nil
 }
 

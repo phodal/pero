@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -228,6 +229,9 @@ func fetchGit(ctx context.Context, source, destination, ref, sha string, checkou
 		return "", errors.New("plugins: fetched revision does not match pinned SHA")
 	}
 	if len(checkoutPaths) > 0 {
+		if err := enforceSelectionBudget(ctx, destination, revision, checkoutPaths); err != nil {
+			return "", err
+		}
 		if err := checkoutGitPaths(ctx, destination, revision, checkoutPaths...); err != nil {
 			return "", err
 		}
@@ -237,6 +241,39 @@ func fetchGit(ctx context.Context, source, destination, ref, sha string, checkou
 		}
 	}
 	return revision, nil
+}
+
+func enforceSelectionBudget(ctx context.Context, destination, revision string, paths []string) error {
+	args := []string{"-C", destination, "ls-tree", "-r", "-l", "-z", revision, "--"}
+	for _, path := range paths {
+		args = append(args, ":(literal)"+filepath.ToSlash(path))
+	}
+	output, err := runGit(ctx, "measure selected skill", args...)
+	if err != nil {
+		return err
+	}
+	var total int64
+	for _, record := range strings.Split(output, "\x00") {
+		if record == "" {
+			continue
+		}
+		meta := record
+		if tab := strings.IndexByte(record, '\t'); tab >= 0 {
+			meta = record[:tab]
+		}
+		fields := strings.Fields(meta)
+		if len(fields) < 4 || fields[1] != "blob" {
+			continue
+		}
+		size, err := strconv.ParseInt(fields[3], 10, 64)
+		if err != nil {
+			return errors.New("plugins: selected skill directory exceeds the size limit")
+		}
+		if err = accountSkillBytes(&total, size); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func checkoutGitPaths(ctx context.Context, destination, revision string, paths ...string) error {
