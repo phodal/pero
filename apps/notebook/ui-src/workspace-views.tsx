@@ -1,0 +1,304 @@
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ProcedureStepEditor, ProcedureTimerView } from './procedure-step-editor';
+import { ReviewerPanel } from './review-panel';
+import type { Editor } from '@tiptap/core';
+import { NodeSelection, Selection } from '@tiptap/pm/state';
+import { downloadFile, useAppI18n } from '@pero/app-sdk';
+import { Badge, Button, Checkbox, Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, Field, Icon, IconButton, Input, SearchField, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
+import type { NotebookDocument } from '@pero/notebook';
+import { changeMetadata, changeProcedures, procedureKinds, procedurePlannedMinutes, notebookMarkdown, notebookRelevantItems, notebookSearchItems, searchNotebook, workspaceLimits,
+  type MetadataChange, type NotebookMetadata, type NotebookProcedure, type NotebookProcedureStep, type ProcedureChange } from '@pero/notebook/workspace';
+
+const messages = {
+  header: { en: 'Header', zh: '标题' }, description: { en: 'Description', zh: '说明' }, image: { en: 'Image', zh: '图片' }, table: { en: 'Table', zh: '表格' }, timer: { en: 'Timer', zh: '计时器' },
+  stepKind: { en: 'Step kind', zh: '步骤类型' }, plannedTotal: { en: 'Total planned: {minutes} minutes', zh: '计划总时长：{minutes} 分钟' },
+  review: { en: 'Review and activity', zh: '审阅与活动' },
+  views: { en: 'Notebook views', zh: '笔记视图' },
+  notes: { en: 'Notes', zh: '笔记' }, procedures: { en: 'Procedures', zh: '实验步骤' },
+  relevant: { en: 'Relevant items', zh: '相关条目' }, metadata: { en: 'Metadata', zh: '元数据' },
+  search: { en: 'Search and outline', zh: '搜索与大纲' }, searchLabel: { en: 'Search notebook content', zh: '搜索笔记内容' },
+  searchHint: { en: 'Search prose, section names, worksheet cells and reference identities. Leave empty for the outline.', zh: '可搜索正文、章节名、单元格和引用身份。留空显示大纲。' },
+  noMatches: { en: 'No matching blocks', zh: '没有匹配的内容块' }, noOutline: { en: 'No outline entries yet', zh: '暂无大纲条目' },
+  noOutlineHint: { en: 'Add headings, sections or research blocks in Notes.', zh: '在笔记中添加标题、章节或科研块。' },
+  resultCount: { en: '{count} blocks', zh: '{count} 个内容块' }, resultLimit: { en: 'Showing the first 100 matches. Refine your search to see others.', zh: '显示前 100 个匹配项，可缩小搜索范围查看其他结果。' },
+  unavailable: { en: 'This block is no longer in the document.', zh: '此内容块已不在文档中。' },
+  close: { en: 'Close', zh: '关闭' }, tools: { en: 'Notebook tools', zh: '笔记工具' },
+  export: { en: 'Export current JSON', zh: '导出当前 JSON' }, print: { en: 'Print current view', zh: '打印当前视图' },
+  markdown: { en: 'Export Markdown', zh: '导出 Markdown' },
+  help: { en: 'Shortcuts and local limits', zh: '快捷键与本地限制' },
+  exportHint: { en: 'JSON export is a snapshot of the shown document, including unsaved edits. Markdown includes raw cell inputs and recorded provenance, but omits file bytes and some formatting. Exporting and printing do not save a revision.', zh: 'JSON 导出包含当前显示的文档及未保存的更改。Markdown 包含单元格原始输入与已记录的来源，但不包含文件字节及部分格式。导出和打印不会保存修订。' },
+  shortcutHint: { en: 'Ctrl/Cmd + Shift + F opens search here. Escape closes a dialog. Arrow keys move between tabs. Document undo/redo includes Notes, procedures and metadata. Dialog and review fields keep their own undo behavior.', zh: '在此处按 Ctrl/Cmd + Shift + F 打开搜索，Esc 关闭对话框，方向键切换标签页。文档撤销/重做包含笔记、步骤和元数据。对话框及审阅字段保留各自的撤销行为。' },
+  limitsHint: { en: 'A notebook supports 50 procedures, 100 materials and 500 steps per procedure, and 50 tags. Planned durations are 0–10,080 minutes. Files and the complete document have separate size limits.', zh: '每本笔记最多包含 50 个流程、每个流程 100 项材料与 500 个步骤，以及 50 个标签。计划时长为 0–10,080 分钟。文件和整本文档另有大小限制。' },
+  persistenceHint: { en: 'Local drafts are saved automatically and recovered after restart when storage succeeds. Use Save revision to create a permanent revision; check the draft status for storage errors.', zh: '本地草稿会自动保存，存储成功后可在重启时恢复。使用「保存修订」创建永久修订；请留意草稿状态中的存储错误。' },
+  project: { en: 'Project label', zh: '项目标签' }, author: { en: 'Author label', zh: '作者标签' },
+  metadataHint: { en: 'These are display labels only. They do not link a Host project, change membership, or verify the author’s identity.', zh: '这些仅为显示标签，不会关联 Host 项目、变更成员权限或验证作者身份。' },
+  tags: { en: 'Tags', zh: '标签' }, tag: { en: 'New tag', zh: '新标签' }, addTag: { en: 'Add tag', zh: '添加标签' },
+  removeTag: { en: 'Remove tag {name}', zh: '移除标签 {name}' }, noTags: { en: 'No tags', zh: '暂无标签' },
+  duplicate: { en: 'That tag already exists.', zh: '该标签已存在。' }, invalid: { en: 'Check the field value and its stated limit.', zh: '请检查字段值及其限制。' },
+  limit: { en: 'This list has reached its size limit.', zh: '此列表已达到数量上限。' },
+  procedureHint: { en: 'Write methods and record completion manually. Critical and pause flags are annotations. Timers measure manually started wall-clock time, not equipment execution.', zh: '编写方法并手动记录完成情况。「关键」与「暂停点」是注释。计时器测量手动开始的墙钟时长，不代表设备执行。' },
+  addProcedure: { en: 'Add procedure', zh: '添加流程' }, newProcedure: { en: 'Untitled procedure', zh: '未命名流程' },
+  chooseProcedure: { en: 'Choose procedure', zh: '选择流程' }, procedureTitle: { en: 'Procedure title', zh: '流程标题' },
+  introduction: { en: 'Introduction', zh: '简介' }, removeProcedure: { en: 'Remove procedure', zh: '移除流程' },
+  removeProcedureHint: { en: 'Remove this procedure and its materials and steps from the current draft? Existing saved revisions remain unchanged.', zh: '从当前草稿中移除此流程及其材料和步骤？已保存的修订不受影响。' },
+  cancel: { en: 'Cancel', zh: '取消' }, noProcedures: { en: 'No procedures yet', zh: '暂无流程' },
+  noProceduresHint: { en: 'Add a procedure to record materials and step-by-step instructions.', zh: '添加流程以记录材料和逐步操作说明。' },
+  materials: { en: 'Materials', zh: '材料' }, addMaterial: { en: 'Add material', zh: '添加材料' },
+  materialName: { en: 'Material {number}', zh: '材料 {number}' }, quantity: { en: 'Quantity {number}', zh: '用量 {number}' },
+  removeMaterial: { en: 'Remove material {number}', zh: '移除材料 {number}' }, noMaterials: { en: 'No materials recorded', zh: '未记录材料' },
+  steps: { en: 'Steps', zh: '步骤' }, addStep: { en: 'Add step', zh: '添加步骤' },
+  stepText: { en: 'Step text {number}', zh: '步骤内容 {number}' }, stepLevel: { en: 'Step level {number}', zh: '步骤层级 {number}' },
+  step: { en: 'Step', zh: '步骤' }, section: { en: 'Section', zh: '章节' }, substep: { en: 'Substep', zh: '子步骤' },
+  critical: { en: 'Critical', zh: '关键' }, pause: { en: 'Pause point', zh: '暂停点' }, completed: { en: 'Completed (manual)', zh: '已完成（手动记录）' },
+  completedCount: { en: '{done} of {total} checked', zh: '{done}/{total} 项已勾选' },
+  duration: { en: 'Planned minutes {number}', zh: '计划分钟数 {number}' },
+  durationLimit: { en: 'Enter 0–10,080 minutes, or leave blank.', zh: '请输入 0–10,080 分钟，或留空。' },
+  removeStep: { en: 'Remove step {number}', zh: '移除步骤 {number}' },
+  up: { en: 'Move step {number} up', zh: '向上移动步骤 {number}' }, down: { en: 'Move step {number} down', zh: '向下移动步骤 {number}' },
+  noSteps: { en: 'No steps recorded', zh: '未记录步骤' },
+  relevantHint: { en: 'These items come from actual blocks in Notes. A pinned identity records a version; it is not owner verification.', zh: '这些条目来自笔记中的实际内容块。固定身份仅表示已记录版本，不代表来源应用已验证。' },
+  noRelevant: { en: 'No relevant items yet', zh: '暂无相关条目' },
+  noRelevantHint: { en: 'Insert evidence, an experiment reference or an attachment in Notes.', zh: '在笔记中插入证据、实验引用或附件。' },
+  evidence: { en: 'Evidence', zh: '证据' }, experiment: { en: 'Experiment reference', zh: '实验引用' }, attachment: { en: 'Attachment', zh: '附件' },
+  spreadsheet: { en: 'Spreadsheet', zh: '电子表格' }, finding: { en: 'Finding', zh: '研究发现' },
+  paragraph: { en: 'Paragraph', zh: '段落' }, heading: { en: 'Heading', zh: '标题' }, codeBlock: { en: 'Code block', zh: '代码块' },
+  missing: { en: 'No source', zh: '无来源' }, partial: { en: 'Incomplete source', zh: '来源不完整' },
+  unpinned: { en: 'Unpinned reference', zh: '未固定版本' }, pinned: { en: 'Pinned reference', zh: '已固定版本' },
+  embedded: { en: 'Embedded file snapshot', zh: '内嵌文件快照' }, imported: { en: 'Imported snapshot', zh: '已导入快照' },
+  goToBlock: { en: 'Open block in Notes', zh: '在笔记中打开内容块' },
+} as const;
+type MessageKey = keyof typeof messages;
+
+/** Route history only from controls that edit the document, never local forms. */
+export function documentHistoryShortcut(event: {
+  target: EventTarget | null; key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean;
+}): 'undo' | 'redo' | null {
+  const target = event.target;
+  if (!(target instanceof Element) || target.closest('[role="dialog"], [role="alertdialog"]')
+    || !target.closest('[data-notebook-document-edit], .notebook-editor')
+    || !(event.ctrlKey || event.metaKey) || event.altKey) return null;
+  const key = event.key.toLowerCase();
+  return key === 'z' || key === 'y' ? event.shiftKey || key === 'y' ? 'redo' : 'undo' : null;
+}
+
+function MetadataView({ metadata, readonly, onChange }: {
+  metadata: NotebookMetadata; readonly: boolean; onChange: (metadata: NotebookMetadata) => void;
+}) {
+  const { t } = useAppI18n(messages);
+  const [tag, setTag] = useState(''), [error, setError] = useState('');
+  const apply = (change: MetadataChange) => {
+    if (readonly) return;
+    const result = changeMetadata(metadata, change);
+    if (result.status !== 'ok') { setError(t(result.status)); return; }
+    setError(''); onChange(result.metadata);
+    if (change.type === 'addTag') setTag('');
+  };
+  return <div className="notebook-workspace-form">
+    <p className="notebook-workspace-hint">{t('metadataHint')}</p>
+    {(['project', 'author'] as const).map(key => <Field key={key} label={t(key)}>{control =>
+      <Input {...control} data-notebook-document-edit value={metadata[key]} readOnly={readonly} maxLength={workspaceLimits.label}
+        onChange={event => apply({ type: key, value: event.target.value })} />}</Field>)}
+    <section aria-label={t('tags')}>
+      <h3>{t('tags')}</h3>
+      <ul className="notebook-tag-list">{metadata.tags.map((value, index) => <li key={`${index}:${value}`}>
+        <Badge>{value}</Badge>{!readonly && <IconButton label={t('removeTag', { name: value })}
+          onClick={() => apply({ type: 'removeTag', index })}><Icon name="close" /></IconButton>}
+      </li>)}</ul>
+      {!metadata.tags.length && <p className="notebook-workspace-hint">{t('noTags')}</p>}
+      {!readonly && <form className="notebook-workspace-actions" onSubmit={event => { event.preventDefault(); apply({ type: 'addTag', value: tag }); }}>
+        <Field label={t('tag')}>{control => <Input {...control} maxLength={workspaceLimits.tagLength} value={tag} onChange={event => setTag(event.target.value)} />}</Field>
+        <Button type="submit" disabled={!tag.trim() || metadata.tags.length >= workspaceLimits.tags}>{t('addTag')}</Button>
+      </form>}
+    </section>
+    {error && <Feedback kind="error">{error}</Feedback>}
+  </div>;
+}
+
+function DurationField({ minutes, number, readonly, onChange }: { minutes: number | null; number: number; readonly: boolean; onChange: (minutes: number | null) => void }) {
+  const { t } = useAppI18n(messages);
+  const [raw, setRaw] = useState(minutes === null ? '' : String(minutes));
+  const [invalid, setInvalid] = useState(false);
+  useEffect(() => { setRaw(minutes === null ? '' : String(minutes)); setInvalid(false); }, [minutes]);
+  return <Field label={t('duration', { number })} error={invalid ? t('durationLimit') : undefined}>{control =>
+    <Input {...control} type="number" min={0} max={workspaceLimits.minutes} step="any" value={raw} readOnly={readonly}
+      onChange={event => {
+        const value = event.target.value; setRaw(value);
+        const valid = !event.target.validity.badInput && (value === '' || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= workspaceLimits.minutes));
+        setInvalid(!valid);
+        if (valid) onChange(value === '' ? null : Number(value));
+      }} />}</Field>;
+}
+
+function ProcedureFields({ procedure, readonly, apply }: { procedure: NotebookProcedure; readonly: boolean; apply: (change: ProcedureChange) => void }) {
+  const { t } = useAppI18n(messages);
+  const id = procedure.id;
+  const editStep = (stepId: string, patch: Partial<Omit<NotebookProcedureStep, 'id'>>) => apply({ type: 'editStep', id, stepId, patch });
+  return <div className="notebook-workspace-form" data-notebook-document-edit>
+    <Field label={t('procedureTitle')}>{control => <Input {...control} value={procedure.title} maxLength={workspaceLimits.label} readOnly={readonly}
+      onChange={event => apply({ type: 'edit', id, patch: { title: event.target.value } })} />}</Field>
+    <Field label={t('introduction')}>{control => <Textarea {...control} value={procedure.description} rows={3} maxLength={workspaceLimits.text} readOnly={readonly}
+      onChange={event => apply({ type: 'edit', id, patch: { description: event.target.value } })} />}</Field>
+    <section aria-label={t('materials')}>
+      <div className="notebook-workspace-actions"><h3>{t('materials')}</h3>{!readonly &&
+        <Button variant="ghost" disabled={procedure.materials.length >= workspaceLimits.materials} onClick={() => apply({ type: 'addMaterial', id, materialId: crypto.randomUUID() })}><Icon name="plus" />{t('addMaterial')}</Button>}</div>
+      {!procedure.materials.length && <p className="notebook-workspace-hint">{t('noMaterials')}</p>}
+      <ol className="notebook-materials">{procedure.materials.map((material, index) => <li key={material.id}>
+        <Field label={t('materialName', { number: index + 1 })}>{control => <Input {...control} readOnly={readonly} maxLength={workspaceLimits.label} value={material.name}
+          onChange={event => apply({ type: 'editMaterial', id, materialId: material.id, patch: { name: event.target.value } })} />}</Field>
+        <Field label={t('quantity', { number: index + 1 })}>{control => <Input {...control} readOnly={readonly} maxLength={workspaceLimits.label} value={material.quantity}
+          onChange={event => apply({ type: 'editMaterial', id, materialId: material.id, patch: { quantity: event.target.value } })} />}</Field>
+        {!readonly && <IconButton label={t('removeMaterial', { number: index + 1 })} onClick={() => apply({ type: 'removeMaterial', id, materialId: material.id })}><Icon name="close" /></IconButton>}
+      </li>)}</ol>
+    </section>
+    <section aria-label={t('steps')}>
+      <div className="notebook-workspace-actions"><h3>{t('steps')}</h3>
+        <Badge>{t('plannedTotal', { minutes: procedurePlannedMinutes(procedure) })}</Badge>
+        <Badge>{t('completedCount', { done: procedure.steps.filter(step => step.completed).length, total: procedure.steps.length })}</Badge>
+        {!readonly && <Button variant="ghost" disabled={procedure.steps.length >= workspaceLimits.steps} onClick={() => apply({ type: 'addStep', id, stepId: crypto.randomUUID() })}><Icon name="plus" />{t('addStep')}</Button>}
+      </div>
+      {!procedure.steps.length && <p className="notebook-workspace-hint">{t('noSteps')}</p>}
+      <ol className="notebook-procedure-steps">{procedure.steps.map((step, index) => <li key={step.id} data-level={step.level} data-critical={step.critical || undefined}>
+        <div className="notebook-workspace-actions"><strong>{index + 1}.</strong>
+          <Select label={t('stepLevel', { number: index + 1 })} value={step.level} disabled={readonly}
+            options={(['step', 'section', 'substep'] as const).map(level => ({ value: level, label: t(level) }))}
+            onChange={value => editStep(step.id, { level: value as NotebookProcedureStep['level'] })} />
+          {!readonly && <>
+            <IconButton label={t('up', { number: index + 1 })} disabled={index === 0} onClick={() => apply({ type: 'moveStep', id, stepId: step.id, direction: -1 })}><Icon name="up" /></IconButton>
+            <IconButton label={t('down', { number: index + 1 })} disabled={index === procedure.steps.length - 1} onClick={() => apply({ type: 'moveStep', id, stepId: step.id, direction: 1 })}><Icon name="down" /></IconButton>
+            <IconButton label={t('removeStep', { number: index + 1 })} onClick={() => apply({ type: 'removeStep', id, stepId: step.id })}><Icon name="close" /></IconButton>
+          </>}
+        </div>
+        <Select label={t('stepKind')} value={step.kind ?? 'step'} disabled={readonly}
+          options={procedureKinds.map(kind => ({ value: kind, label: t(kind) }))}
+          onChange={kind => editStep(step.id, { kind: kind as NotebookProcedureStep['kind'], ...(kind !== 'timer' ? { timer: undefined } : {}) })} />
+        <ProcedureStepEditor step={step} readonly={readonly} onChange={patch => editStep(step.id, patch)} />
+        {step.kind === 'timer' && <ProcedureTimerView step={step} readonly={readonly}
+          onAction={(action, now) => apply({ type: 'timer', id, stepId: step.id, action, now })} />}
+        <div className="notebook-workspace-actions">
+          {(['critical', 'pause', 'completed'] as const).map(key => <label key={key} className="notebook-checkbox">
+            <Checkbox checked={step[key]} disabled={readonly} onCheckedChange={checked => editStep(step.id, { [key]: checked === true })} />{t(key)}
+          </label>)}
+          <DurationField minutes={step.minutes} number={index + 1} readonly={readonly} onChange={minutes => editStep(step.id, { minutes })} />
+        </div>
+      </li>)}</ol>
+    </section>
+  </div>;
+}
+
+function ProceduresView({ procedures, readonly, onChange }: { procedures: NotebookProcedure[]; readonly: boolean; onChange: (procedures: NotebookProcedure[]) => void }) {
+  const { t } = useAppI18n(messages);
+  const [selected, setSelected] = useState(procedures[0]?.id ?? ''), [removing, setRemoving] = useState(false), [error, setError] = useState('');
+  const procedure = procedures.find(item => item.id === selected) ?? procedures[0];
+  const apply = (change: ProcedureChange) => {
+    if (readonly) return;
+    const result = changeProcedures(procedures, change);
+    if (result.status !== 'ok') { setError(t(result.status === 'missing' ? 'unavailable' : result.status)); return; }
+    setError(''); onChange(result.procedures);
+    if (change.type === 'add') setSelected(change.id);
+  };
+  return <>
+    <p className="notebook-workspace-hint">{t('procedureHint')}</p>
+    <div className="notebook-workspace-actions">
+      {procedure && <Select label={t('chooseProcedure')} value={procedure.id}
+        options={procedures.map(item => ({ value: item.id, label: item.title || t('newProcedure') }))} onChange={setSelected} />}
+      {!readonly && <Button disabled={procedures.length >= workspaceLimits.procedures} onClick={() => apply({ type: 'add', id: crypto.randomUUID(), title: t('newProcedure') })}><Icon name="plus" />{t('addProcedure')}</Button>}
+      {!readonly && procedure && <Button variant="ghost" onClick={() => setRemoving(true)}>{t('removeProcedure')}</Button>}
+    </div>
+    {error && <Feedback kind="error">{error}</Feedback>}
+    {!procedure ? <EmptyState title={t('noProcedures')} description={t('noProceduresHint')} /> : <ProcedureFields key={procedure.id} procedure={procedure} readonly={readonly} apply={apply} />}
+    {removing && procedure && <Dialog title={t('removeProcedure')} closeLabel={t('close')} onClose={() => setRemoving(false)}
+      footer={<><Button variant="ghost" onClick={() => setRemoving(false)}>{t('cancel')}</Button><Button onClick={() => { apply({ type: 'remove', id: procedure.id }); setRemoving(false); }}>{t('removeProcedure')}</Button></>}>
+      <p>{t('removeProcedureHint')}</p><strong>{procedure.title || t('newProcedure')}</strong>
+    </Dialog>}
+  </>;
+}
+
+export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, children }: {
+  editor: Editor; entryId: string; revision: number; document: NotebookDocument; readonly: boolean;
+  onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode;
+}) {
+  const { t } = useAppI18n(messages);
+  const [tab, setTab] = useState('notes'), [dialog, setDialog] = useState<'search' | 'help' | null>(null);
+  const [query, setQuery] = useState(''), [pendingBlock, setPendingBlock] = useState<string | null>(null), [error, setError] = useState('');
+  const navigated = useRef(false);
+  const items = useMemo(() => notebookSearchItems(document.content), [document.content]);
+  const relevant = useMemo(() => notebookRelevantItems(document.content), [document.content]);
+  const results = useMemo(() => searchNotebook(items, query), [items, query]);
+  const metadata = document.metadata ?? { project: '', author: '', tags: [] };
+  const openBlock = (id: string) => { navigated.current = true; setDialog(null); setTab('notes'); setPendingBlock(id); };
+  useEffect(() => {
+    if (!pendingBlock || tab !== 'notes' || editor.isDestroyed) return;
+    let position: number | null = null;
+    editor.state.doc.descendants((node, pos) => { if (node.attrs.blockId === pendingBlock) { position = pos; return false; } });
+    if (position === null) { setError(t('unavailable')); setPendingBlock(null); return; }
+    const pos: number = position;
+    const node = editor.state.doc.nodeAt(pos)!;
+    const dom = editor.view.nodeDOM(pos);
+    if (dom instanceof HTMLElement) dom.dispatchEvent(new CustomEvent('notebook-reveal', { bubbles: true }));
+    const frame = requestAnimationFrame(() => {
+      if (editor.isDestroyed) return;
+      const selection = NodeSelection.isSelectable(node) ? NodeSelection.create(editor.state.doc, pos) : Selection.near(editor.state.doc.resolve(pos));
+      editor.view.dispatch(editor.state.tr.setSelection(selection).scrollIntoView());
+      editor.view.focus();
+      if (dom instanceof HTMLElement) dom.scrollIntoView({ block: 'center' });
+      setPendingBlock(null); setError('');
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingBlock, tab, editor, t]);
+  const openSearch = () => { navigated.current = false; setDialog('search'); };
+  return <Tabs className="notebook-workspace" value={tab} onValueChange={setTab} onKeyDown={event => {
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
+  }}>
+    <div className="notebook-workspace-navigation">
+      <TabsList aria-label={t('views')} variant="navigation">{(['notes', 'procedures', 'relevant', 'metadata', 'review'] as const).map(value =>
+        <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}</TabsList>
+      <Toolbar role="group" aria-label={t('tools')}>
+        <IconButton label={t('search')} onClick={openSearch}><Icon name="search" /></IconButton>
+        <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost">{t('tools')}<Icon name="chevron-down" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => downloadFile('Notebook.json', JSON.stringify({ ...document, content: editor.getJSON() }, null, 2), 'application/json')}>{t('export')}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => downloadFile('Notebook.md', notebookMarkdown({ ...document, content: editor.getJSON() as NotebookDocument['content'] }), 'text/markdown;charset=utf-8')}>{t('markdown')}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => window.print()}>{t('print')}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setDialog('help')}>{t('help')}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </Toolbar>
+    </div>
+    {error && <Feedback kind="error">{error}</Feedback>}
+    <TabsContent className="notebook-notes-panel" value="notes" forceMount>{children}</TabsContent>
+    <TabsContent className="notebook-workspace-panel" value="procedures" forceMount>
+      <ProceduresView procedures={document.procedures ?? []} readonly={readonly} onChange={procedures => onChange({ procedures })} />
+    </TabsContent>
+    <TabsContent className="notebook-workspace-panel" value="relevant" forceMount>
+      <p className="notebook-workspace-hint">{t('relevantHint')}</p>
+      {!relevant.length && <EmptyState title={t('noRelevant')} description={t('noRelevantHint')} />}
+      <ul className="notebook-relevant-list">{relevant.map(item => <li key={item.id}>
+        <div className="notebook-workspace-actions"><strong>{item.label || t(item.kind)}</strong><Badge>{t(item.kind)}</Badge><Badge>{t(item.state)}</Badge>{item.imported && <Badge>{t('imported')}</Badge>}</div>
+        {item.source && <p className="notebook-workspace-hint">{[item.source.app, item.source.kind, item.source.id, item.source.version].filter(Boolean).join(' · ')}</p>}
+        <Button variant="ghost" onClick={() => openBlock(item.id)}>{t('goToBlock')}</Button>
+      </li>)}</ul>
+    </TabsContent>
+    <TabsContent className="notebook-workspace-panel" value="metadata" forceMount>
+      <MetadataView metadata={metadata} readonly={readonly} onChange={value => onChange({ metadata: value })} />
+    </TabsContent>
+    <TabsContent className="notebook-workspace-panel" value="review">
+      <ReviewerPanel entryId={entryId} revision={revision} document={document} readonly={readonly} onRevealBlock={openBlock} />
+    </TabsContent>
+    {dialog === 'search' && <Dialog title={t('search')} closeLabel={t('close')} size="lg" onClose={() => setDialog(null)} restoreFocus={!navigated.current}>
+      <Field label={t('searchLabel')} description={t('searchHint')}>{control => <SearchField {...control} value={query} onChange={event => setQuery(event.target.value)} />}</Field>
+      <p className="notebook-workspace-hint" role="status">{t('resultCount', { count: results.length })}</p>
+      {!results.length && <EmptyState title={t(query.trim() ? 'noMatches' : 'noOutline')} description={query.trim() ? undefined : t('noOutlineHint')} />}
+      <ul className="notebook-search-results">{results.slice(0, 100).map(item => <li key={item.id} data-nested={item.depth > 0 || undefined}>
+        <Button variant="ghost" onClick={() => openBlock(item.id)}>
+          <span><strong>{item.label.trim().slice(0, 160) || t(item.kind as MessageKey)}</strong><small>{t(item.kind as MessageKey)}</small>
+            {query.trim() && <span className="notebook-search-excerpt">{item.text.slice(Math.max(0, item.text.toLocaleLowerCase().indexOf(query.trim().toLocaleLowerCase()) - 40), Math.max(0, item.text.toLocaleLowerCase().indexOf(query.trim().toLocaleLowerCase()) - 40) + 220)}</span>}
+          </span>
+        </Button>
+      </li>)}</ul>
+      {results.length > 100 && <p className="notebook-workspace-hint">{t('resultLimit')}</p>}
+    </Dialog>}
+    {dialog === 'help' && <Dialog title={t('help')} closeLabel={t('close')} onClose={() => setDialog(null)}>
+      <p>{t('shortcutHint')}</p><p>{t('exportHint')}</p><p>{t('procedureHint')}</p><p>{t('limitsHint')}</p><p>{t('persistenceHint')}</p>
+    </Dialog>}
+  </Tabs>;
+}
