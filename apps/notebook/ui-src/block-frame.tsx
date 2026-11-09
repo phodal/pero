@@ -39,8 +39,8 @@ export function BlockFrame({ view, kind, title, caption, actions, menuActions, c
       <div className="notebook-block-actions">
         {actions}
         {kind === 'spreadsheet' && <>
-          <IconButton label={t('fullscreenBlock')} onClick={() => void fullscreen()}><Icon name="maximize" /></IconButton>
-          <IconButton label={t(collapsed ? 'expandBlock' : 'collapseBlock')} onClick={() => setCollapsed(value => !value)}><Icon name={collapsed ? 'chevron-down' : 'chevron-up'} /></IconButton>
+          <IconButton label={t('fullscreenBlock')} onClick={() => void fullscreen()}><Icon name="expand" /></IconButton>
+          <IconButton className="notebook-sheet-toggle" label={t(collapsed ? 'expandBlock' : 'collapseBlock')} onClick={() => setCollapsed(value => !value)}><Icon name={collapsed ? 'chevron-down' : 'chevron-up'} /></IconButton>
         </>}
         {<DropdownMenu>
           <DropdownMenuTrigger asChild><IconButton label={t('blockActions')}><Icon name="more" /></IconButton></DropdownMenuTrigger>

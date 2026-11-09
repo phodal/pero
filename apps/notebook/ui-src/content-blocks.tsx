@@ -74,7 +74,7 @@ function isSectionDate(date: string): boolean {
 function shownSectionDate(date: string, locale: string) {
   if (!isSectionDate(date) || date === '') return '';
   const parsed = new Date(`${date}T00:00:00`);
-  return Number.isFinite(parsed.getTime()) ? new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(parsed) : '';
+  return Number.isFinite(parsed.getTime()) ? new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long', day: 'numeric' }).format(parsed) : '';
 }
 
 function SectionView(view: NodeViewProps) {

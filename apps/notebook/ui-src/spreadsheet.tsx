@@ -23,6 +23,8 @@ import { useGridAxisControls } from './grid-axis-controls';
 import { FormulaInput } from './formula-input';
 import { FormulaSourceTree } from './formula-source-tree';
 import './grid-interactions.css';
+
+const rowIndexWidth = 68;
 import { CellAnnotations } from './cell-annotations';
 import { messages } from './messages';
 import { renameWorksheet, worksheetBlocks, worksheetCalculation } from './worksheet-model';
@@ -37,12 +39,14 @@ const gridMessages = {
   ...messages,
   format: { en: 'Cell formatting', zh: '单元格格式' },
   bold: { en: 'Bold', zh: '加粗' }, italic: { en: 'Italic', zh: '斜体' }, underline: { en: 'Underline', zh: '下划线' },
+  strike: { en: 'Strikethrough', zh: '删除线' },
   foreground: { en: 'Text color', zh: '文字颜色' }, background: { en: 'Cell background', zh: '单元格背景' },
   default: { en: 'Default', zh: '默认' }, blue: { en: 'Blue', zh: '蓝色' }, green: { en: 'Green', zh: '绿色' }, rose: { en: 'Rose', zh: '玫红' },
   alignment: { en: 'Alignment', zh: '对齐' }, left: { en: 'Left', zh: '左对齐' }, center: { en: 'Center', zh: '居中' }, right: { en: 'Right', zh: '右对齐' },
   precision: { en: 'Decimal places', zh: '小数位数' }, auto: { en: 'Automatic', zh: '自动' },
   clearFormat: { en: 'Clear formatting', zh: '清除格式' },
   structure: { en: 'Rows and columns', zh: '行与列' },
+  tableSettings: { en: 'Table settings', zh: '表格设置' },
   insertRow: { en: 'Insert row before', zh: '在前面插入行' }, insertColumn: { en: 'Insert column before', zh: '在前面插入列' },
   deleteRow: { en: 'Delete row', zh: '删除行' }, deleteColumn: { en: 'Delete column', zh: '删除列' },
   rowUp: { en: 'Move row up', zh: '上移行' }, rowDown: { en: 'Move row down', zh: '下移行' },
@@ -170,6 +174,18 @@ export function SpreadsheetView(view: NodeViewProps) {
     setError('');
     return true;
   });
+  const structureItems = () => <>
+    <DropdownMenuItem disabled={sheet.rows >= spreadsheetLimits.rows} onSelect={() => structure({ kind: 'insert', axis: 'row', index: active.row })}>{t('insertRow')}</DropdownMenuItem>
+    <DropdownMenuItem disabled={sheet.columns >= spreadsheetLimits.columns} onSelect={() => structure({ kind: 'insert', axis: 'column', index: active.column })}>{t('insertColumn')}</DropdownMenuItem>
+    <DropdownMenuItem disabled={sheet.rows <= 1} onSelect={() => setDialog('deleteRow')}>{t('deleteRow')}</DropdownMenuItem>
+    <DropdownMenuItem disabled={sheet.columns <= 1} onSelect={() => setDialog('deleteColumn')}>{t('deleteColumn')}</DropdownMenuItem>
+    <DropdownMenuItem disabled={active.row === 0} onSelect={() => structure({ kind: 'move', axis: 'row', index: active.row, to: active.row - 1 })}>{t('rowUp')}</DropdownMenuItem>
+    <DropdownMenuItem disabled={active.row === sheet.rows - 1} onSelect={() => structure({ kind: 'move', axis: 'row', index: active.row, to: active.row + 1 })}>{t('rowDown')}</DropdownMenuItem>
+    <DropdownMenuItem disabled={active.column === 0} onSelect={() => structure({ kind: 'move', axis: 'column', index: active.column, to: active.column - 1 })}>{t('columnLeft')}</DropdownMenuItem>
+    <DropdownMenuItem disabled={active.column === sheet.columns - 1} onSelect={() => structure({ kind: 'move', axis: 'column', index: active.column, to: active.column + 1 })}>{t('columnRight')}</DropdownMenuItem>
+    <DropdownMenuItem onSelect={() => { setSize(String(presentation.rowHeights[active.row] ?? gridDimensionLimits.row.default)); setDialog('resizeRow'); }}>{t('resizeRow')}</DropdownMenuItem>
+    <DropdownMenuItem onSelect={() => { setSize(String(presentation.columnWidths[active.column] ?? gridDimensionLimits.column.default)); setDialog('resizeColumn'); }}>{t('resizeColumn')}</DropdownMenuItem>
+  </>;
   const addRows = () => {
     const requested = Number(rowBatch);
     if (!Number.isInteger(requested) || requested < 1) return;
@@ -181,6 +197,7 @@ export function SpreadsheetView(view: NodeViewProps) {
     (axis, index, to) => structure({ kind: 'move', axis, index, to }));
   const format = (patch: CellFormat | null) => setGrid(current => formatCellRange(current, range, patch), true);
   const currentFormat = presentation.formats[address] ?? {};
+  const align = currentFormat.align ?? (typeof values[address] === 'number' ? 'right' : 'left');
   const inspection = useMemo(() => (inspector || isFormulaError(values[address])) && !calculation?.ambiguous
     ? inspectWorksheetCell(worksheetBlocks(view.editor.state.doc), calculation?.name ?? label, address) : null,
   [inspector, calculation, values, address, label, view.editor]);
@@ -197,6 +214,13 @@ export function SpreadsheetView(view: NodeViewProps) {
       return { ...current, cells };
     }, batch);
     setError(previous => previous === t('externalFormula') ? '' : previous);
+  };
+  const insertFunction = (name: string) => {
+    updateCell(address, `=${name}()`);
+    requestAnimationFrame(() => {
+      formulaInput.current?.focus();
+      formulaInput.current?.setSelectionRange(name.length + 2, name.length + 2);
+    });
   };
   const selectCell = (position: CellPosition) => setSelection({ anchor: position, focus: position });
   const focusCell = (position: CellPosition) => {
@@ -332,14 +356,13 @@ export function SpreadsheetView(view: NodeViewProps) {
     setWorksheetName(null);
   };
   return <BlockFrame view={view} kind="spreadsheet"
-    actions={editable && <IconButton label={t('exportCsv')} disabled={exporting} onClick={() => downloadFile(`${(calculation?.name ?? label).replace(/[<>|"\u0000-\u001f]/g, '_')}.csv`, exportWorksheetCsv(sheet, values), 'text/csv;charset=utf-8')}><Icon name="download" /></IconButton>}
+    actions={editable && <IconButton className="notebook-sheet-download" label={t('exportCsv')} disabled={exporting} onClick={() => downloadFile(`${(calculation?.name ?? label).replace(/[<>|"\u0000-\u001f]/g, '_')}.csv`, exportWorksheetCsv(sheet, values), 'text/csv;charset=utf-8')}><Icon name="download" /></IconButton>}
     menuActions={<>
       {editable && <DropdownMenuItem onSelect={() => setToolsOpen(value => !value)}>{t('worksheetTools')}</DropdownMenuItem>}
       {editable && <DropdownMenuItem onSelect={() => setDetailsOpen(value => !value)}>{t('cellDetails')}</DropdownMenuItem>}
       <DropdownMenuItem disabled={exporting} onSelect={() => void exportExcel()}>{t(hasMultipleSheets ? 'exportWorkbook' : 'exportExcel')}</DropdownMenuItem>
       <DropdownMenuItem onSelect={() => downloadFile(`${(calculation?.name ?? label).replace(/[<>|"\u0000-\u001f]/g, '_')}.csv`, exportWorksheetCsv(sheet, values), 'text/csv;charset=utf-8')}>{t('exportCsv')}</DropdownMenuItem>
     </>}
-    caption={<span className="notebook-sheet-collapsed-size">{t('rowCount', { rows: sheet.rows })}</span>}
     title={editable ? <Input unstyled className="notebook-block-name" aria-label={t('sheetName')} value={worksheetName ?? calculation?.name ?? label}
         onChange={event => setWorksheetName(event.target.value)} onBlur={applyWorksheetName} maxLength={31}
         onKeyDown={event => {
@@ -364,18 +387,7 @@ export function SpreadsheetView(view: NodeViewProps) {
               fill('down', normalizeCellRange(active, { column: active.column, row: active.row + 1 }))}>{t('fillNext')}</Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="ghost">{t('structure')}</Button></DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem disabled={sheet.rows >= spreadsheetLimits.rows} onSelect={() => structure({ kind: 'insert', axis: 'row', index: active.row })}>{t('insertRow')}</DropdownMenuItem>
-                <DropdownMenuItem disabled={sheet.columns >= spreadsheetLimits.columns} onSelect={() => structure({ kind: 'insert', axis: 'column', index: active.column })}>{t('insertColumn')}</DropdownMenuItem>
-                <DropdownMenuItem disabled={sheet.rows <= 1} onSelect={() => setDialog('deleteRow')}>{t('deleteRow')}</DropdownMenuItem>
-                <DropdownMenuItem disabled={sheet.columns <= 1} onSelect={() => setDialog('deleteColumn')}>{t('deleteColumn')}</DropdownMenuItem>
-                <DropdownMenuItem disabled={active.row === 0} onSelect={() => structure({ kind: 'move', axis: 'row', index: active.row, to: active.row - 1 })}>{t('rowUp')}</DropdownMenuItem>
-                <DropdownMenuItem disabled={active.row === sheet.rows - 1} onSelect={() => structure({ kind: 'move', axis: 'row', index: active.row, to: active.row + 1 })}>{t('rowDown')}</DropdownMenuItem>
-                <DropdownMenuItem disabled={active.column === 0} onSelect={() => structure({ kind: 'move', axis: 'column', index: active.column, to: active.column - 1 })}>{t('columnLeft')}</DropdownMenuItem>
-                <DropdownMenuItem disabled={active.column === sheet.columns - 1} onSelect={() => structure({ kind: 'move', axis: 'column', index: active.column, to: active.column + 1 })}>{t('columnRight')}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => { setSize(String(presentation.rowHeights[active.row] ?? gridDimensionLimits.row.default)); setDialog('resizeRow'); }}>{t('resizeRow')}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => { setSize(String(presentation.columnWidths[active.column] ?? gridDimensionLimits.column.default)); setDialog('resizeColumn'); }}>{t('resizeColumn')}</DropdownMenuItem>
-              </DropdownMenuContent>
+              <DropdownMenuContent>{structureItems()}</DropdownMenuContent>
             </DropdownMenu>
             <Button variant="ghost" disabled={!presentation.merges.some(merge => rangeContains(range, merge.start) || rangeContains(merge, active))}
               onClick={() => setGrid(current => unmergeCellRange(current, range), true)}>{t('unmerge')}</Button>
@@ -383,13 +395,7 @@ export function SpreadsheetView(view: NodeViewProps) {
               <DropdownMenuTrigger asChild><Button variant="ghost" aria-label={t('functions')}>Σ</Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => setDialog('functions')}>{t('functionHelp')}</DropdownMenuItem>
-                {formulaFunctions.map(name => <DropdownMenuItem key={name} onSelect={() => {
-                  updateCell(address, `=${name}()`);
-                  requestAnimationFrame(() => {
-                    formulaInput.current?.focus();
-                    formulaInput.current?.setSelectionRange(name.length + 2, name.length + 2);
-                  });
-                }}>{name}</DropdownMenuItem>)}
+                {formulaFunctions.map(name => <DropdownMenuItem key={name} onSelect={() => insertFunction(name)}>{name}</DropdownMenuItem>)}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -402,20 +408,40 @@ export function SpreadsheetView(view: NodeViewProps) {
         onClick={() => format({ [key]: !currentFormat[key] })}><Icon name={key} /></Button>)}
       <Button variant="ghost" aria-label={t('underline')} aria-pressed={!!currentFormat.underline}
         onClick={() => format({ underline: !currentFormat.underline })}><u aria-hidden="true">U</u></Button>
+      <Button variant="ghost" aria-label={t('strike')} aria-pressed={!!currentFormat.strike}
+        onClick={() => format({ strike: !currentFormat.strike })}><s aria-hidden="true">S</s></Button>
+      <span className="notebook-format-divider" aria-hidden="true" />
       <Select className="notebook-color-select" label={t('foreground')} value={currentFormat.foreground ?? 'default'}
-        leading={<span aria-hidden="true">A</span>} onChange={value => format({ foreground: value as CellColor })}
+        leading={<span aria-hidden="true" className={`notebook-text-${currentFormat.foreground ?? 'default'}`}>A</span>} onChange={value => format({ foreground: value as CellColor })}
         options={(['default', 'blue', 'green', 'rose'] as const).map(value => ({ value, label: t(value) }))} />
-      <Select className="notebook-color-select" label={t('background')} value={currentFormat.background ?? 'default'}
-        leading={<span aria-hidden="true" className="notebook-swatch" />} onChange={value => format({ background: value as CellColor })}
-        options={(['default', 'blue', 'green', 'rose'] as const).map(value => ({ value, label: t(value) }))} />
-      <Select className="notebook-color-select" label={t('alignment')} value={currentFormat.align ?? 'left'}
-        leading={<span aria-hidden="true">≡</span>} onChange={value => format({ align: value as CellFormat['align'] })}
-        options={(['left', 'center', 'right'] as const).map(value => ({ value, label: t(value) }))} />
+      <span className="notebook-format-divider" aria-hidden="true" />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button variant="ghost" className="notebook-format-menu" aria-label={t(align)}><span aria-hidden="true" className="notebook-align-mark" data-align={align}><i /><i /><i /></span><Icon name="chevron-down" size={12} /></Button></DropdownMenuTrigger>
+        <DropdownMenuContent>
+          {(['left', 'center', 'right'] as const).map(value => <DropdownMenuItem key={value} onSelect={() => format({ align: value })}>{t(value)}</DropdownMenuItem>)}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <span className="notebook-format-divider" aria-hidden="true" />
       <Button variant="ghost" aria-label={t('merge')} disabled={!isRange} onClick={() => setDialog('merge')}><Icon name="table" /></Button>
+      <span className="notebook-format-divider" aria-hidden="true" />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button variant="ghost" className="notebook-format-menu" aria-label={t('tableSettings')}><Icon name="gear" /><Icon name="chevron-down" size={12} /></Button></DropdownMenuTrigger>
+        <DropdownMenuContent>
+          {(['default', 'blue', 'green', 'rose'] as const).map(value => <DropdownMenuItem key={value} onSelect={() => format({ background: value })}>{t('background')}: {t(value)}</DropdownMenuItem>)}
+          {structureItems()}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <span className="notebook-format-divider" aria-hidden="true" />
       </>}
-      <Button variant="ghost" aria-label={t('inspector')} aria-pressed={inspector} onClick={() => setInspector(value => !value)}>fx</Button>
-    </div>
-    <div className="notebook-formula">
+      <div className="notebook-formula">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button variant="ghost" className="notebook-formula-fx" aria-label={t('insertFunction')}>ƒx<Icon name="chevron-down" size={12} /></Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onSelect={() => setInspector(value => !value)}>{t('inspector')}</DropdownMenuItem>
+          {formulaFunctions.map(name => <DropdownMenuItem key={name} onSelect={() => insertFunction(name)}>{name}</DropdownMenuItem>)}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <div className="notebook-formula-field">
       <output aria-label={t(isRange ? 'selectedRange' : 'cell', { address: rangeAddress })}>{rangeAddress}</output>
       <FormulaInput ref={formulaInput} onComplete={value => updateCell(address, value, true)} aria-label={t('rawCell')} placeholder="" value={source} readOnly={!editable}
         maxLength={spreadsheetLimits.cellLength} onChange={event => {
@@ -426,16 +452,18 @@ export function SpreadsheetView(view: NodeViewProps) {
         onPaste={event => paste(event, active)} onKeyDown={event => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); focusCell(active); }
         }} />
+      </div>
+      </div>
     </div>
     <div ref={grid} onScrollCapture={axisControls.rememberScroll}
-      style={{ '--notebook-grid-width': `${44 + Array.from({ length: sheet.columns }, (_, column) => axisControls.size('column', column)).reduce((sum, width) => sum + width, 0)}px` } as CSSProperties}>
+      style={{ '--notebook-grid-width': `${rowIndexWidth + Array.from({ length: sheet.columns }, (_, column) => axisControls.size('column', column)).reduce((sum, width) => sum + width, 0)}px` } as CSSProperties}>
       <Table label={t('spreadsheet')} density="compact" layout="fixed" className="notebook-grid-scroll" tableClassName="notebook-grid">
-        <colgroup><col style={{ width: 44 }} />{Array.from({ length: sheet.columns }, (_, column) => <col key={column} style={{ width: axisControls.size('column', column) }} />)}</colgroup>
+        <colgroup><col style={{ width: rowIndexWidth }} />{Array.from({ length: sheet.columns }, (_, column) => <col key={column} style={{ width: axisControls.size('column', column) }} />)}</colgroup>
         <thead><tr><th scope="col" aria-label="#" />
-          {Array.from({ length: sheet.columns }, (_, column) => axisControls.header('column', column))}
+          {Array.from({ length: sheet.columns }, (_, column) => axisControls.header('column', column, column >= range.start.column && column <= range.end.column))}
         </tr></thead>
         <tbody>{Array.from({ length: sheet.rows }, (_, row) => <tr key={row} style={{ height: axisControls.size('row', row) }}>
-          {axisControls.header('row', row)}
+          {axisControls.header('row', row, row >= range.start.row && row <= range.end.row)}
           {Array.from({ length: sheet.columns }, (_, column) => {
             const key = cellAddress(column, row);
             const raw = sheet.cells[key] ?? '';
@@ -447,9 +475,10 @@ export function SpreadsheetView(view: NodeViewProps) {
             if (merge && (merge.start.column !== column || merge.start.row !== row)) return null;
             return <td key={key} rowSpan={merge ? merge.end.row - row + 1 : undefined} colSpan={merge ? merge.end.column - column + 1 : undefined}
               data-foreground={cellFormat?.foreground} data-background={cellFormat?.background}
-              data-bold={cellFormat?.bold || undefined} data-italic={cellFormat?.italic || undefined} data-underline={cellFormat?.underline || undefined}
-              data-align={cellFormat?.align} data-active={key === address || undefined}
+              data-bold={cellFormat?.bold || undefined} data-italic={cellFormat?.italic || undefined} data-underline={cellFormat?.underline || undefined} data-strike={cellFormat?.strike || undefined}
+              data-align={cellFormat?.align ?? (typeof computed === 'number' ? 'right' : undefined)} data-active={key === address || undefined}
               data-range-selected={isRange && rangeContains(range, position) || undefined} data-error={isFormulaError(computed) || undefined}>
+              <span className="notebook-cell-display" aria-hidden="true"><span>{text}</span></span>
               <FormulaInput unstyled onComplete={value => updateCell(key, value, true)} className="notebook-cell" aria-label={t('cell', { address: key })} data-cell={key}
                 value={editable && focused === key ? raw : text} readOnly={!editable} maxLength={spreadsheetLimits.cellLength}
                 onMouseDown={event => {

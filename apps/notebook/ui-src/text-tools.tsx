@@ -323,10 +323,10 @@ export function NotebookTextTools({ editor }: { editor: Editor }) {
       ]} onChange={chooseFormat} />
     {markButton('bold')}
     {markButton('italic')}
+    {markButton('underline')}
     {markButton('strike')}
     <IconButton label={t(status.link ? 'editLink' : 'insertLink')} aria-pressed={status.link} disabled={!status.canLink}
       onMouseDown={event => event.preventDefault()} onClick={openLink}><Icon name="link" /></IconButton>
-    {markButton('code')}
     <Select className="notebook-color-select" label={t('textColor')} value={status.tone} disabled={!status.text || !editor.can().setMark('textColor', { tone: 'blue' })}
       searchable={false} menuMinWidth={0} leading={<span aria-hidden="true" className={`notebook-text-${status.tone}`}>A</span>}
       options={['default', ...textTones].map(tone => ({ value: tone, label: t(tone as 'default' | TextTone) }))}
@@ -343,8 +343,8 @@ export function NotebookTextTools({ editor }: { editor: Editor }) {
     {blockButton('taskList', 'task')}
     </Toolbar>
     <FormatMenu name={t('more')}>
-      <Button variant="ghost" aria-label={t('underline')} aria-pressed={status.marks.includes('underline')} disabled={!status.enabledMarks.includes('underline')}
-        onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('underline')}>{t('underline')}</Button>
+      <Button variant="ghost" aria-label={t('code')} aria-pressed={status.marks.includes('code')} disabled={!status.enabledMarks.includes('code')}
+        onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('code')}>{t('code')}</Button>
       {editor.schema.marks.textBackground && <Select className="notebook-color-select" label={t('textBackground')} triggerLabel={t('textBackground')} value={status.background}
         disabled={!status.text || !editor.can().setMark('textBackground', { tone: 'blue' })} searchable={false}
         leading={<span aria-hidden="true" className={`notebook-swatch notebook-background-${status.background}`} />}

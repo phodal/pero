@@ -60,7 +60,7 @@ test('dimensions are bounded and evaluated CSV preserves unrounded values with s
 test('presentation boundary accepts legacy defaults and rejects unsafe coordinates, styles, dimensions and overlaps', async () => {
   const { isGridPresentation } = await import('../src/grid-presentation.ts');
   const initial = grid();
-  for (const metadata of [{}, initial, { formats: { A1: { precision: 0, foreground: 'rose', bold: false } }, rowHeights: { 0: 240 }, merges: [selection] }]) {
+  for (const metadata of [{}, initial, { formats: { A1: { precision: 0, foreground: 'rose', bold: false, strike: true } }, rowHeights: { 0: 240 }, merges: [selection] }]) {
     assert.equal(isGridPresentation(metadata, initial.sheet), true);
   }
   for (const metadata of [

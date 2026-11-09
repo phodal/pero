@@ -78,7 +78,8 @@ export async function verifyDirectGridInteractions(page, origin) {
   await expect(cell('J4')).toHaveValue('=SUM()');
   assert.equal(await cell('J4').evaluate(input => input.selectionStart), 5);
   await cell('J4').fill('=SUM(2,3)');
-  await data.getByRole('button', { name: 'Formula inspector', exact: true }).click();
+  await data.getByRole('button', { name: 'Insert function', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Formula inspector', exact: true }).click();
   await expect(cell('J4')).toHaveValue('5');
   await expect(data.locator('[data-formula-token=Function]')).toHaveText('SUM(');
   await data.locator('summary').filter({ hasText: 'Source syntax tree' }).click();

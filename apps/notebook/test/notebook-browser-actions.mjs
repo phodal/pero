@@ -19,7 +19,7 @@ export async function openNotebookView(page, name) {
 /** Hidden view tabs stay in the document while the View menu is closed. */
 export function notebookTab(page, name) {
   const pattern = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
-  return page.locator('[role="tab"]').filter({ hasText: pattern });
+  return page.locator('[role="tab"]').filter({ hasText: pattern }).or(page.locator(`[role="tab"][aria-label="${name.replace(/"/g, '')}"]`));
 }
 
 /** Worksheet tools and cell details live in the spreadsheet Block actions menu. */

@@ -118,7 +118,8 @@ export function useGridAxisControls(root: RefObject<HTMLDivElement | null>, grid
     }
   };
   const size = (axis: Axis, index: number) => preview?.kind === 'resize' && preview.axis === axis && preview.index === index ? preview.value : dimensions(axis, index);
-  const header = (axis: Axis, index: number) => <th scope={axis === 'row' ? 'row' : 'col'} key={index} data-grid-axis={axis} data-grid-index={index}
+  const header = (axis: Axis, index: number, selected = false) => <th scope={axis === 'row' ? 'row' : 'col'} key={index} data-grid-axis={axis} data-grid-index={index}
+    data-axis-selected={selected || undefined}
     data-move-target={preview?.kind === 'move' && preview.changed && preview.axis === axis && preview.value === index || undefined}>
     {editable ? <>
       <Button variant="ghost" className="notebook-axis-move" aria-label={t('move', { axis: t(axis), label: caption(axis, index) })}

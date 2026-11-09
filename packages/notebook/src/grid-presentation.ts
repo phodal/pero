@@ -7,6 +7,7 @@ export interface CellFormat {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  strike?: boolean;
   foreground?: CellColor;
   background?: CellColor;
   align?: 'left' | 'center' | 'right';
@@ -22,7 +23,7 @@ export interface WorksheetGrid extends GridPresentation {
   sheet: Spreadsheet;
   annotations: Record<string, CellAnnotation>;
 }
-export const gridDimensionLimits = { row: { min: 24, max: 240, default: 32 }, column: { min: 64, max: 640, default: 120 } } as const;
+export const gridDimensionLimits = { row: { min: 24, max: 240, default: 25 }, column: { min: 64, max: 640, default: 120 } } as const;
 export const emptyGridPresentation = (): GridPresentation => ({ formats: {}, rowHeights: {}, columnWidths: {}, merges: [] });
 
 export function cellPosition(address: string): CellPosition | null {
@@ -149,7 +150,7 @@ export function isGridPresentation(value: unknown, sheet: Spreadsheet): boolean 
     const position = cellPosition(address);
     if (!position || position.column >= sheet.columns || position.row >= sheet.rows || !record(format)) return false;
     for (const [key, setting] of Object.entries(format)) {
-      if (['bold', 'italic', 'underline'].includes(key)) { if (typeof setting !== 'boolean') return false; }
+      if (['bold', 'italic', 'underline', 'strike'].includes(key)) { if (typeof setting !== 'boolean') return false; }
       else if (key === 'foreground' || key === 'background') { if (!['default', 'blue', 'green', 'rose'].includes(setting as string)) return false; }
       else if (key === 'align') { if (!['left', 'center', 'right'].includes(setting as string)) return false; }
       else if (key === 'precision') { if (typeof setting !== 'number' || !Number.isInteger(setting) || setting < 0 || setting > 12) return false; }

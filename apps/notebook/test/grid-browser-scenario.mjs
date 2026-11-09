@@ -133,7 +133,8 @@ export async function verifyGridTools(page, origin) {
   await cell('A1').click();
   await data.getByRole('button', { name: 'Clear formatting', exact: true }).click();
   await expect(cell('A1')).toHaveValue('0.3333333333333333');
-  await dependent.getByRole('button', { name: 'Formula inspector', exact: true }).click();
+  await dependent.getByRole('button', { name: 'Insert function', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Formula inspector', exact: true }).click();
   await expect(dependent.getByRole('region', { name: 'Formula inspector' })).toContainText('Data!A3');
   await expect(dependent.getByRole('region', { name: 'Formula inspector' })).toContainText('number');
   await data.getByRole('button', { name: 'Functions', exact: true }).click();

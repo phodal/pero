@@ -2,6 +2,8 @@
 .notebook-grid-scroll .notebook-grid { width: var(--notebook-grid-width); min-width: var(--notebook-grid-width); }
 .notebook-grid th[data-grid-axis] { position: relative; padding: 0; }
 .notebook-grid th[data-grid-axis="row"] { position: sticky; left: 0; z-index: 2; min-width: 2.75rem; }
+.notebook-block[data-kind="spreadsheet"] .notebook-grid th[data-grid-axis="row"] { min-width: 30px; }
+.notebook-block[data-kind="spreadsheet"] .notebook-grid tbody .notebook-axis-move { padding-inline: 0; }
 .notebook-grid thead th { background: var(--pero-surface-muted); }
 .notebook-grid .notebook-axis-move { width: 100%; min-height: 1.5rem; padding: 0 var(--pero-spacing-2); border-radius: 0; cursor: grab; touch-action: none; user-select: none; }
 .notebook-grid .notebook-axis-move:active { cursor: grabbing; }

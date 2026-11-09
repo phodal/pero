@@ -68,9 +68,8 @@ function InsertMenu({ name, children }: { name: string; children: ReactNode }) {
   </div>;
 }
 
-function EditorToolbar({ editor, onSave, saveDisabled, saveBusy, historyControls, insertTools }: {
+function EditorToolbar({ editor, historyControls, insertTools }: {
   historyControls?: DocumentHistoryControls; editor: Editor; insertTools?: ReactNode;
-  onSave?: () => void; saveDisabled?: boolean; saveBusy?: boolean;
 }) {
   const { t } = useAppI18n(messages);
   const status = useEditorState({
@@ -82,7 +81,6 @@ function EditorToolbar({ editor, onSave, saveDisabled, saveBusy, historyControls
   });
   return <div className="notebook-commandbar">
     <div className="notebook-command-fixed">
-      {onSave && <IconButton label={t('save')} busy={saveBusy} disabled={saveDisabled} onClick={onSave}><Icon name="save" /></IconButton>}
       <IconButton label={t('undo')} disabled={!(historyControls?.canUndo ?? status.canUndo)} onClick={() => historyControls ? historyControls.undo() : editor.chain().focus().undo().run()}><Icon name="undo" /></IconButton>
       <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
       {insertTools}
@@ -115,7 +113,11 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
     if (!widget) return null;
     return <Button variant="ghost" role="menuitem" key={widget.name} onClick={event => {
       insertBlocks(editor, [{
-        type: widget.name, attrs: widget.name === 'spreadsheet' ? { label: nextWorksheetName(editor.state.doc) } : ['inputTable', 'registrationTable'].includes(widget.name) ? { table: createStructuredTable(crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()), receipts: [] } : undefined,
+        type: widget.name, attrs: widget.name === 'spreadsheet' ? {
+          label: nextWorksheetName(editor.state.doc),
+          columnWidths: Object.fromEntries(Array.from({ length: widget.defaults.sheet.columns }, (_, column) => [column, 160])),
+          rowHeights: Object.fromEntries(Array.from({ length: widget.defaults.sheet.rows }, (_, row) => [row, 38])),
+        } : ['inputTable', 'registrationTable'].includes(widget.name) ? { table: createStructuredTable(crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()), receipts: [] } : undefined,
       }]);
       closeMenu(event.currentTarget);
     }}><Icon name={widget.icon} />{t(widget.name)}</Button>;
@@ -208,7 +210,7 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
     getDocument: () => ({ ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] }) }}>
     <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onChange={change => onDocumentChange?.(change)}
       onReplaceDocument={readonly ? undefined : onReplaceDocument} chrome={chrome} historyControls={historyControls}
-      tools={!readonly && <EditorToolbar historyControls={historyControls} editor={editor} onSave={onSave} saveDisabled={chrome?.saveDisabled} saveBusy={chrome?.saveBusy}
+      tools={!readonly && <EditorToolbar historyControls={historyControls} editor={editor}
         insertTools={<InsertMenu name={t('insertWord')}>
           <NotebookInsertTools editor={editor} document={entryDocument} entryId={entryId} revision={revision} onCreateEntry={onCreateEntry} />
         </InsertMenu>} />}
