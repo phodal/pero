@@ -12,9 +12,12 @@ checked that head. The pull_request checkout merge is
 This ledger does not mark the ELN goal complete. Desktop acceptance, Windows
 ACL, and paper-HTML jobs were skipped on this Linux CI gate, so a green gate
 is not full-platform or visual acceptance.
-A documentation commit on top of `c0c4b612` does not by itself re-prove these
-jobs. The earlier ledger head `3924f94b` recorded the same five checks for
-product `36fb8a4b`; this head replaces that record.
+Recording commit `5ed4a040` also passed
+[run 42578100117](https://github.com/phodal/pero/actions/runs/42578100117)
+(merge `67b48301`): Notebook revisions, Canvas Host, Native shell, Official DSH,
+and the Linux CI gate succeeded, with the same desktop, Windows ACL, and
+paper-HTML skips. The earlier ledger head `3924f94b` recorded the same five
+checks for product `36fb8a4b`; this head replaces that record.
 
 [Component parity](../design/notebook-component-parity.md) still retains all
 94 pinned reference groups. Its earlier “exact-head acceptance pending”
@@ -82,11 +85,20 @@ on screen and document actions share a row with editor status. `96fffc83`
 drops the published draft after save so reload does not restore an earlier
 debounce copy. The passing Chromium job already checks a 600×900 dark
 viewport (`data-theme=pero-dark`, title still visible, no horizontal
-overflow) and opens Notebook home at 760×950. Screenshots include
-`copied-notebook-narrow-dark.png` and `notebook-home-narrow-dark.png`. This
-record does not include a visual review of those screenshots, a printed
-page, Desktop, or Native. A green browser job is not A01 Desktop or Native
-visual acceptance.
+overflow) and opens Notebook home at 760×950. Screenshots from run 42578100117
+artifact `notebook-browser-67b48301` were inspected.
+`copied-notebook-narrow-dark.png` is 600×900 and dark: the title “Copied review”
+is on screen, revision/save/home/print share a row, and the five workspace tabs
+fit. On the tools row, “Replace or restore” is drawn over “Keyboard shortcuts”.
+`notebook-home-narrow-dark.png` is 760×950: the provenance dialog is readable,
+including local project/author labels and “Host projects are unavailable”; the
+dialog covers part of the document title behind it.
+`research-print-preview-light.png` shows Letter, landscape, 12 mm margins and a
+content preview. `research-configured-print.pdf` is a 2-page Chromium
+Letter-landscape PDF (792×612 pt) of that preparation content, with formulas
+under calculated values. That is a browser print artifact, not a physical page.
+Desktop and Native visuals were not reviewed. A green browser job is not A01
+Desktop or Native visual acceptance.
 
 Chrome polish from `f40feb1a` is in this head: the document title stays outside
 workspace tabs so Metadata/Relevant views no longer hide `Notebook title`;
