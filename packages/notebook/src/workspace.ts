@@ -267,6 +267,8 @@ export function notebookSearchItems(content: NotebookNode, procedures: NotebookP
       label = strings(attrs.label) || source?.id || ''; outline = true;
       const snapshot = attrs.snapshot as { quote?: string; title?: string; verdict?: string } | null;
       text = strings(label, source?.app, source?.kind, source?.id, source?.version, source?.locator, snapshot?.quote, snapshot?.title, snapshot?.verdict);
+    } else if (node.type === 'namedReference') {
+      label = strings(attrs.name); text = strings(label, attrs.notes); outline = true;
     } else if (node.type === 'finding') {
       label = strings(attrs.claim); text = strings(label, attrs.limitations, ...(attrs.evidenceIds as string[] ?? [])); outline = true;
     } else if (node.type === 'attachment') {
@@ -307,9 +309,10 @@ export function searchNotebook(items: NotebookSearchItem[], query: string): Note
 
 export interface NotebookRelevantItem {
   id: string;
-  kind: 'evidence' | 'experiment' | 'attachment';
+  kind: 'evidence' | 'experiment' | 'attachment' | 'namedReference';
+  notes?: string;
   label: string;
-  state: ScientificReferenceState | 'embedded';
+  state: ScientificReferenceState | 'embedded' | 'authored';
   imported: boolean;
   source: ScientificReference | null;
 }
@@ -323,6 +326,8 @@ export function notebookRelevantItems(content: NotebookNode): NotebookRelevantIt
         const source = attrs.source as ScientificReference | null;
         items.push({ id: attrs.blockId, kind: node.type, label: String(attrs.label || source?.id || ''), source,
           state: scientificReferenceState(source), imported: !!attrs.snapshot });
+      } else if (node.type === 'namedReference') {
+        items.push({ id: attrs.blockId, kind: 'namedReference', label: String(attrs.name), notes: String(attrs.notes), state: 'authored', imported: false, source: null });
       } else if (node.type === 'attachment') {
         items.push({ id: attrs.blockId, kind: 'attachment', label: String(attrs.filename || ''), state: 'embedded', imported: false, source: null });
       }
@@ -369,6 +374,7 @@ export function notebookMarkdown(document: NotebookDocument): string {
     const children = node.content ?? [];
     const blocks = () => children.map(render).join('\n\n');
     switch (node.type) {
+      case 'namedReference': return `**${escape(attrs.name)}** (entry reference)\n\n${escape(attrs.notes)}`;
       case 'doc': return blocks();
       case 'hardBreak': return '  \n';
       case 'paragraph': return children.map(render).join('');

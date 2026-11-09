@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type KeyboardEvent } from 'react';
+import { NOTEBOOK_FORMULA_INSPECTOR_EVENT } from './notebook-reference-controls';
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type KeyboardEvent } from 'react';
 import { closeHistory } from '@tiptap/pm/history';
 import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
@@ -91,6 +92,11 @@ export function SpreadsheetView(view: NodeViewProps) {
   const [size, setSize] = useState('');
   const [functionName, setFunctionName] = useState('SUM');
   const [inspector, setInspector] = useState(false);
+  useEffect(() => {
+    const toggle = (event: Event) => { if ((event as CustomEvent).detail === view.node.attrs.blockId) setInspector(value => !value); };
+    const element = view.editor.view.dom; element.addEventListener(NOTEBOOK_FORMULA_INSPECTOR_EVENT, toggle);
+    return () => element.removeEventListener(NOTEBOOK_FORMULA_INSPECTOR_EVENT, toggle);
+  }, [view.editor, view.node.attrs.blockId]);
   const [worksheetName, setWorksheetName] = useState<string | null>(null);
   const grid = useRef<HTMLDivElement>(null);
   const keepRangeFocus = useRef(false);

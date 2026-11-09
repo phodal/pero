@@ -1,3 +1,5 @@
+import { NamedReferenceTools, NotebookReplacementTools } from './notebook-reference-controls';
+import { NOTEBOOK_PRINT_OPEN_EVENT } from './notebook-print';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ProcedureRichEditor, ProcedureStepEditor, ProcedureTimerView } from './procedure-step-editor';
 import { ProcedureParameters } from './procedure-parameters';
@@ -12,6 +14,7 @@ import { changeMetadata, changeProcedures, notebookLinkHash, parseNotebookLink, 
   type MetadataChange, type NotebookMetadata, type NotebookProcedure, type NotebookProcedureStep, type ProcedureChange } from '@pero/notebook/workspace';
 
 const messages = {
+  namedReference: { en: 'Named reference', zh: '命名引用' }, authored: { en: 'Human-authored entry', zh: '手写条目' },
   parameter: { en: 'Parameter', zh: '参数' },
   procedure: { en: 'Procedure', zh: '流程' }, material: { en: 'Material', zh: '材料' },
   copyLink: { en: 'Copy link', zh: '复制链接' }, copied: { en: 'Link copied', zh: '链接已复制' }, copyFailed: { en: 'Could not copy the link. Check clipboard access and try again.', zh: '无法复制链接，请检查剪贴板访问后重试。' },
@@ -64,7 +67,7 @@ const messages = {
   noSteps: { en: 'No steps recorded', zh: '未记录步骤' },
   relevantHint: { en: 'These items come from actual blocks in Notes. A pinned identity records a version; it is not owner verification.', zh: '这些条目来自笔记中的实际内容块。固定身份仅表示已记录版本，不代表来源应用已验证。' },
   noRelevant: { en: 'No relevant items yet', zh: '暂无相关条目' },
-  noRelevantHint: { en: 'Insert evidence, an experiment reference or an attachment in Notes.', zh: '在笔记中插入证据、实验引用或附件。' },
+  noRelevantHint: { en: 'Add a named entry reference here, or insert scientific evidence, an experiment reference or an attachment in Notes.', zh: '可在此添加命名条目引用，或在笔记中插入科学证据、实验引用或附件。' },
   evidence: { en: 'Evidence', zh: '证据' }, experiment: { en: 'Experiment reference', zh: '实验引用' }, attachment: { en: 'Attachment', zh: '附件' },
   spreadsheet: { en: 'Spreadsheet', zh: '电子表格' }, finding: { en: 'Finding', zh: '研究发现' },
   paragraph: { en: 'Paragraph', zh: '段落' }, heading: { en: 'Heading', zh: '标题' }, codeBlock: { en: 'Code block', zh: '代码块' },
@@ -216,9 +219,9 @@ function ProceduresView({ procedures, readonly, onChange, selected, setSelected,
   </>;
 }
 
-export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, children }: {
+export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, children }: {
   editor: Editor; entryId: string; revision: number; document: NotebookDocument; readonly: boolean;
-  onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode;
+  onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode; onReplaceDocument?(document: NotebookDocument): void;
 }) {
   const { t } = useAppI18n(messages);
   const [tab, setTab] = useState('notes'), [dialog, setDialog] = useState<'search' | 'help' | null>(null);
@@ -296,12 +299,13 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
           <DropdownMenuContent align="end">
             <DropdownMenuItem onSelect={() => downloadFile('Notebook.json', JSON.stringify({ ...document, content: editor.getJSON() }, null, 2), 'application/json')}>{t('export')}</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => downloadFile('Notebook.md', notebookMarkdown({ ...document, content: editor.getJSON() as NotebookDocument['content'] }), 'text/markdown;charset=utf-8')}>{t('markdown')}</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => window.print()}>{t('print')}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } }))}>{t('print')}</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setDialog('help')}>{t('help')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </Toolbar>
     </div>
+    {!readonly && onReplaceDocument && <NotebookReplacementTools getDocument={() => ({ ...document, content: editor.getJSON() as NotebookDocument['content'] })} onReplace={onReplaceDocument} />}
     {error && <Feedback kind="error">{error}</Feedback>}
     {notice && <Feedback kind="success">{notice}</Feedback>}
     <TabsContent className="notebook-notes-panel" value="notes" forceMount>{children}</TabsContent>
@@ -310,9 +314,11 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     </TabsContent>
     <TabsContent className="notebook-workspace-panel" value="relevant" forceMount>
       <p className="notebook-workspace-hint">{t('relevantHint')}</p>
+      {!readonly && <NamedReferenceTools onInsert={nodes => { editor.commands.insertContentAt(editor.state.doc.content.size, [...nodes, { type: 'paragraph' }]); }} />}
       {!relevant.length && <EmptyState title={t('noRelevant')} description={t('noRelevantHint')} />}
       <ul className="notebook-relevant-list">{relevant.map(item => <li key={item.id}>
         <div className="notebook-workspace-actions"><strong>{item.label || t(item.kind)}</strong><Badge>{t(item.kind)}</Badge><Badge>{t(item.state)}</Badge>{item.imported && <Badge>{t('imported')}</Badge>}</div>
+        {item.notes && <p>{item.notes}</p>}
         {item.source && <p className="notebook-workspace-hint">{[item.source.app, item.source.kind, item.source.id, item.source.version].filter(Boolean).join(' · ')}</p>}
         <Button variant="ghost" onClick={() => openBlock(item.id)}>{t('goToBlock')}</Button>
       </li>)}</ul>
