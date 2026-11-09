@@ -88,6 +88,8 @@ pub struct AppWriteRoute {
 #[serde(deny_unknown_fields)]
 pub struct AppContributions {
     pub panels: Vec<AppPanel>,
+    #[serde(default, skip_serializing_if="Vec::is_empty")]
+    pub canvases: Vec<super::canvas::CanvasDefinition>,
     #[serde(default,skip_serializing_if="Vec::is_empty")]
     pub writes: Vec<AppWriteRoute>,
     #[serde(default, rename = "agentPlugin", skip_serializing_if = "Option::is_none")]
@@ -266,6 +268,7 @@ impl AppDefinition {
         for route in &value.contributes.writes {
             if !names.insert(route.name.as_str())||route.description.trim().is_empty()||route.description.len()>1000||!route.path.starts_with("/api/")||!relative_entry(&route.path[1..])||!route.schema.is_object()||serde_json::to_vec(&route.schema).map_err(|e|e.to_string())?.len()>16384{return Err("App write route needs a unique name, description, local /api path and bounded schema".into());}
         }
+        super::canvas::validate_definitions(&value)?;
         if let Some(backend) = &value.backend {
             let supported = match backend.kind {
                 BackendKind::Python => backend.entry.ends_with(".py"),
