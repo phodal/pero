@@ -203,6 +203,9 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   });
   assert.match(clipboard.html, /data-notebook-block="evidence"/);
 
+  if (!await page.getByRole('button', { name: 'Hide more tools', exact: true }).count()) {
+    await page.getByRole('button', { name: 'More tools', exact: true }).click();
+  }
   const download = page.waitForEvent('download');
   await page.locator('.notebook-toolbar').getByRole('button', { name: 'Export workbook' }).click();
   const bytes = await readFile(await (await download).path());
