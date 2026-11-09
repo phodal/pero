@@ -56,9 +56,10 @@ test('narrow notebook chrome stays one row without hiding the title or more tool
   assert.equal(declarations(compact, '.notebook-document-header').get('display'), 'flex');
   assert.equal(declarations(compact, '.notebook-document-header > .notebook-title').get('padding-block'), '0px');
   const toolbars = declarations(compact, '.notebook-editor-toolbars');
-  assert.equal(toolbars.get('flex-wrap'), 'nowrap');
-  assert.equal(toolbars.get('overflow-x'), 'auto');
-  assert.equal(declarations(compact, '.notebook-editor-toolbars > .notebook-toolbar.pero-ui-toolbar:not([data-unstyled])').get('width'), 'max-content');
+  assert.equal(toolbars.get('position'), 'relative');
+  assert.equal(toolbars.get('overflow'), 'visible');
+  assert.equal(toolbars.get('contain'), 'none');
+  assert.equal(toolbars.get('max-width'), '100%');
   assert.equal(declarations(compact, '.notebook-paper').get('margin-top'), 'var(--pero-spacing-1)');
   assert.equal(toolbar.get('width'), '100%');
   assert.equal(toolbar.get('max-width'), '100%');
@@ -72,8 +73,11 @@ test('narrow notebook chrome stays one row without hiding the title or more tool
   assert.equal(declarations(compact, '.notebook-document-controls').get('flex-wrap'), 'nowrap');
   assert.equal(declarations(compact, '.notebook-toolbar .pero-ui-button').get('white-space'), 'nowrap');
   assert.equal(declarations(compact, '.notebook-toolbar-secondary').get('padding-top'), '0px');
-  assert.equal(declarations(sheet, '.notebook-toolbar').get('flex-wrap'), 'wrap');
-  assert.equal(declarations(sheet, '.notebook-toolbar-secondary').get('padding-top'), 'var(--pero-spacing-1)');
+  assert.equal(declarations(sheet, '.notebook-toolbar').get('flex-wrap'), 'nowrap');
+  assert.equal(declarations(sheet, '.notebook-toolbar').get('overflow-x'), 'auto');
+  assert.equal(declarations(sheet, '.notebook-menubar').get('display'), 'flex');
+  assert.equal(declarations(sheet, '.notebook-menubar').get('flex-wrap'), 'nowrap');
+  assert.equal(declarations(sheet, '.notebook-menu-panel').get('position'), 'absolute');
 
   for (const rule of styleRules(compact)) {
     assert.equal(rule.style?.display === 'none' && /\.notebook-title|(^|,)\s*h1\b/.test(rule.selectorText ?? ''), false, rule.selectorText);

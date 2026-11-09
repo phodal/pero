@@ -6,7 +6,7 @@ import { verifyStructuredFieldWorkflows } from './structured-field-browser-scena
 import { verifyProcedureParameters } from './procedure-parameters-browser-scenario.mjs';
 import { verifyReviewWorkflows } from './review-workflows-browser-scenario.mjs';
 import { verifyDirectGridInteractions } from './grid-interaction-browser-scenario.mjs';
-import { createNotebook } from './notebook-browser-actions.mjs';
+import { createNotebook, ensureMoreTools, openNotebookMenu } from './notebook-browser-actions.mjs';
 import { verifyProcedureWorkspace } from './procedure-workspace-browser-scenario.mjs';
 import { verifySourceExcerpts } from './source-excerpt-browser-scenario.mjs';
 import { verifyDiagnosticsAndIntake } from './diagnostics-intake-browser-scenario.mjs';
@@ -95,9 +95,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
     { name: 'Controls', sheet: { rows: 1, columns: 1, cells: { A1: '2' } } },
     { name: 'Results', sheet: { rows: 1, columns: 1, cells: { A1: '=Controls!A1*3' } } },
   ]);
-  if (!await page.getByRole('button', { name: 'Hide more tools', exact: true }).count()) {
-    await page.getByRole('button', { name: 'More tools', exact: true }).click();
-  }
+  await ensureMoreTools(page);
   await page.locator('input[type=file][accept=".xlsx"]').setInputFiles({ name: 'assay.xlsx',
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(workbook) });
   const tables = page.locator('[data-kind=spreadsheet]');
@@ -205,11 +203,9 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   });
   assert.match(clipboard.html, /data-notebook-block="evidence"/);
 
-  if (!await page.getByRole('button', { name: 'Hide more tools', exact: true }).count()) {
-    await page.getByRole('button', { name: 'More tools', exact: true }).click();
-  }
+  await openNotebookMenu(page, 'file');
   const download = page.waitForEvent('download');
-  await page.locator('.notebook-toolbar').getByRole('button', { name: 'Export workbook' }).click();
+  await page.getByRole('button', { name: 'Export workbook', exact: true }).click();
   const bytes = await readFile(await (await download).path());
   const reopened = await readWorkbook(Uint8Array.from(bytes).buffer);
   assert.deepEqual(reopened.map(({ name, sheet }) => [name, sheet.cells.A1]), [['Calibration data', '4'], ['Results', formula]]);
@@ -241,6 +237,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Load latest and discard draft' }).click();
   await expect(result.locator('[data-cell=A1]')).toHaveValue('15');
+  await openNotebookMenu(page, 'file');
   await page.getByRole('button', { name: 'Revision history' }).click();
   await page.getByRole('button', { name: 'Revision 2', exact: true }).click();
   await expect(result.locator('[data-cell=A1]')).toHaveValue('12');

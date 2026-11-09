@@ -1,3 +1,4 @@
+import { notebookTab } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
@@ -19,7 +20,7 @@ export async function verifyProcedureParameters(page, origin, output) {
   ] }] } });
   const button = (name, scope = page) => scope.getByRole('button', { name, exact: true });
   await page.goto(`${origin}/#notebook-entry=${entry.id}&notebook-target=method`);
-  await expect(page.getByRole('tab', { name: 'Procedures', exact: true })).toHaveAttribute('data-state', 'active');
+  await expect(notebookTab(page, 'Procedures')).toHaveAttribute('data-state', 'active');
   const source = page.locator('[data-parameter-id="input-volume"]'), total = page.locator('[data-parameter-id="total-volume"]');
   await expect(source).toContainText('Changed since binding'); await expect(total).toContainText('Changed since binding');
   await button('Edit parameter', source).click();

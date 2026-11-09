@@ -1,4 +1,4 @@
-import { createNotebook } from './notebook-browser-actions.mjs';
+import { createNotebook, ensureMoreTools, openNotebookMenu } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
@@ -17,7 +17,7 @@ export async function verifySourceExcerpts(page, origin, output) {
   const attachment = page.locator('[data-kind=attachment]').first();
   await expect(button('Download file', attachment)).toBeEnabled();
   const open = async () => {
-    if (!await button('Hide more tools').count()) await button('More tools').click();
+    await ensureMoreTools(page);
     await button('Insert source excerpt').click();
     const dialog = page.getByRole('dialog');
     await button('Source attachment', dialog).click();
@@ -72,6 +72,7 @@ export async function verifySourceExcerpts(page, origin, output) {
   await page.screenshot({ path: resolve(output, 'source-excerpt-retained-narrow-dark.png'), fullPage: true });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1320, height: 950 });
+  await openNotebookMenu(page, 'file');
   await button('Revision history').click(); await button('Revision 2').click();
   await expect(button('Update excerpt', block)).toHaveCount(0);
   await expect(button('Download retained source', block)).toBeEnabled();

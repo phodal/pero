@@ -1,12 +1,30 @@
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 
-/** Secondary research tools stay disclosed across scenarios; open only when collapsed. */
+/** Open one notebook menu. Dialog-owning items stay mounted inside it. */
+export async function openNotebookMenu(page, menu) {
+  const details = page.locator(`details.notebook-menu[data-menu="${menu}"]`);
+  if (!(await details.evaluate(node => node.open))) await details.locator('summary').click();
+  await expect(details).toHaveJSProperty('open', true);
+  return details;
+}
+
+/** Workspace views live in the View menu. Review sections stay direct tabs. */
+export async function openNotebookView(page, name) {
+  const tab = page.getByRole('tab', { name, exact: true });
+  if (!(await tab.isVisible())) await openNotebookMenu(page, 'view');
+  await tab.click();
+}
+
+/** Hidden view tabs stay in the document while the View menu is closed. */
+export function notebookTab(page, name) {
+  const pattern = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+  return page.locator('[role="tab"]').filter({ hasText: pattern });
+}
+
+/** Insert actions stay in the Insert menu. */
 export async function ensureMoreTools(page) {
-  const hide = page.getByRole('button', { name: 'Hide more tools', exact: true });
-  if (await hide.count()) return;
-  await page.getByRole('button', { name: 'More tools', exact: true }).click();
-  await expect(hide).toBeVisible();
+  await openNotebookMenu(page, 'insert');
 }
 
 /** Creation retains the old draft while the real backend request is in flight. */

@@ -1,4 +1,4 @@
-import { createNotebook } from './notebook-browser-actions.mjs';
+import { createNotebook, ensureMoreTools } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
@@ -9,7 +9,7 @@ export async function verifyScientificDesigns(page, origin, output) {
   const button = (name, scope = page) => scope.getByRole('button', { name, exact: true });
   await page.setViewportSize({ width: 1320, height: 950 });
   await createNotebook(page, origin, 'Scientific design acceptance');
-  if (!await button('Hide more tools').count()) await button('More tools').click();
+  await ensureMoreTools(page);
   await button('Insert reaction sketch').click();
   const reaction = page.locator('[data-kind=reactionScheme]').first();
   await reaction.getByLabel('Name', { exact: true }).fill('Explicit graph conversion');
@@ -44,7 +44,7 @@ export async function verifyScientificDesigns(page, origin, output) {
   await expect(chemical.getByText(/Extracted from recorded/)).toBeVisible();
   await page.screenshot({ path: resolve(output, 'scientific-graph-light.png'), fullPage: true });
 
-  if (!await button('Hide more tools').count()) await button('More tools').click();
+  await ensureMoreTools(page);
   await button('Scientific tools').click();
   const dialog = page.getByRole('dialog', { name: 'Scientific tools', exact: true });
   await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('plate');

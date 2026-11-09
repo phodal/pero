@@ -1,5 +1,6 @@
 import './editor-inspector.css';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/core';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, Field, Input, NativeSelect, Textarea } from '@pero/app-sdk/ui';
@@ -30,9 +31,14 @@ const messages = {
 export function NotebookEditorDiagnostics({ editor }: { editor: Editor }) {
   const { t } = useAppI18n(messages);
   const [open, setOpen] = useState(false);
+  const host = open ? document.querySelector('.notebook-diagnostics-host') : null;
+  const panel = open ? <EditorInspectorPanel editor={editor} /> : null;
   return <div className="notebook-editor-diagnostics">
     <Button variant="ghost" aria-expanded={open} onClick={() => setOpen(value => !value)}>{t(open ? 'close' : 'title')}</Button>
-    {open && <EditorInspectorPanel editor={editor} />}
+    {host && panel ? createPortal(<div className="notebook-editor-diagnostics notebook-diagnostics-panel">
+      <Button variant="ghost" onClick={() => setOpen(false)}>{t('close')}</Button>
+      {panel}
+    </div>, host) : panel}
   </div>;
 }
 function EditorInspectorPanel({ editor }: { editor: Editor }) {

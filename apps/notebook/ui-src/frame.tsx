@@ -5,7 +5,7 @@ import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Disclosure, EmptyState, Feedback, FilePicker, Icon, IconButton, Input, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, Disclosure, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
 import { documentHistory, transitionDocument, type DocumentHistory } from '@pero/notebook/document-history';
 import { NotebookEditor } from './editor';
@@ -381,29 +381,6 @@ function Notebook() {
               event.preventDefault(); event.stopPropagation();
               applyHistory({ type: action });
             }}>
-              <div className="notebook-document-controls">
-                <span className="notebook-status" role="status">{t('revision', { number: shown.revision })}
-                  {!snapshot && current.dirty ? ` · ${busy === 'save' ? t('saving') : current.durable ? t('draftStored') : current.storageError ? t('draftNotStored') : t('draftStoring')}` : ''}</span>
-                {window.parent !== window && <Button variant="ghost" disabled={!!busy} onClick={() => void ask(shown)}><Icon name="agent" /> {t('askAgent')}</Button>}
-                {snapshot ? <><Button disabled={!!busy} onClick={() => setSnapshot(null)}>{t('backToDraft')}</Button>
-                  <Button disabled={!!busy || current.newer} onClick={() => {
-                    try {
-                      const restored = transitionDocument(current.history, { type: 'restore', document: snapshot.document });
-                      setDrafts(previous => ({ ...previous, [selected]: { ...previous[selected], history: restored,
-                        document: restored.present, dirty: true, durable: false, storageError: previous[selected].recoveryProtected ? previous[selected].storageError : '' } }));
-                      setSnapshot(null);
-                    } catch (cause) { setError(messageOf(cause)); }
-                  }}>{t('restoreDraft')}</Button></> : <>
-                  <Button variant="ghost" aria-expanded={!!history} disabled={!!busy} onClick={() => void showHistory()}>{t('history')}</Button>
-                  <Button variant="primary" busy={busy === 'save'} disabled={!current.dirty || current.newer || current.recoveryProtected || !!busy}
-                    onClick={() => void save(current)}><Icon name="save" /> {t('save')}</Button>
-                </>}
-                <NotebookHomeTools key={`home:${shown.id}:${shown.revision}`} entry={shown} document={draft} dirty={!snapshot && current.dirty} readonly={!!snapshot || !!busy}
-                  onOpenEntry={id => { if (!busy) choose(id); }} onMetadata={metadata => updateDraft({ metadata })} />
-                <NotebookPrintTools key={`print:${shown.id}:${shown.revision}`} document={draft} entryId={shown.id} revision={shown.revision} dirty={!snapshot && current.dirty} />
-                <WorksheetAmendments key={`amend:${shown.id}:${shown.revision}`} entry={shown} dirty={current.dirty} readonly={!!snapshot || !!busy}
-                  onCommitted={entry => { adopt(readEntry(entry)); updateList(entry); }} />
-              </div>
               {!snapshot && current.storageError && <Feedback kind="error" variant="block">{current.storageError}
                 <Button onClick={() => downloadFile('notebook-draft-recovery.json', current.recovery ?? JSON.stringify(current.document, null, 2), 'application/json')}>{t('exportRecovery')}</Button>
                 {!current.recoveryProtected && <Button onClick={() => setDrafts(previous => ({ ...previous, [selected]: { ...previous[selected], durable: false, storageError: '' } }))}>{t('retry')}</Button>}
@@ -422,13 +399,33 @@ function Notebook() {
                 </li>)}</ul>
               </section>}
               <NotebookEditor key={snapshot ? `${snapshot.id}:revision:${snapshot.revision}` : `${selected}:draft:${current.editorEpoch}`}
-                header={<header className="notebook-document-header">
-                  {snapshot ? <h1>{draft.title}</h1> : <Input unstyled data-notebook-document-edit className="notebook-title" aria-label={t('title')} placeholder={t('untitled')}
-                    value={draft.title} maxLength={200} onChange={event => updateDraft({ title: event.target.value })} />}
-                  <p className="notebook-revision-date">{t('savedRevision')} <time dateTime={shown.updatedAt}>
-                    {new Date(shown.updatedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')}
-                  </time></p>
-                </header>}
+                chrome={{
+                  status: `${t('revision', { number: shown.revision })}${!snapshot && current.dirty ? ` · ${busy === 'save' ? t('saving') : current.durable ? t('draftStored') : current.storageError ? t('draftNotStored') : t('draftStoring')}` : ''}`,
+                  onSave: snapshot ? undefined : () => { if (current.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); },
+                  saveBusy: busy === 'save',
+                  saveDisabled: !current.dirty || current.newer || current.recoveryProtected || !!busy,
+                  onHistory: snapshot ? undefined : () => void showHistory(),
+                  snapshot: !!snapshot,
+                  onBack: () => setSnapshot(null),
+                  onRestore: () => {
+                    if (!snapshot) return;
+                    try {
+                      const restored = transitionDocument(current.history, { type: 'restore', document: snapshot.document });
+                      setDrafts(previous => ({ ...previous, [selected]: { ...previous[selected], history: restored,
+                        document: restored.present, dirty: true, durable: false, storageError: previous[selected].recoveryProtected ? previous[selected].storageError : '' } }));
+                      setSnapshot(null);
+                    } catch (cause) { setError(messageOf(cause)); }
+                  },
+                  restoreDisabled: !!busy || current.newer,
+                  fileTools: <>
+                    {window.parent !== window && <Button variant="ghost" disabled={!!busy} onClick={() => void ask(shown)}><Icon name="agent" /> {t('askAgent')}</Button>}
+                    <NotebookHomeTools key={`home:${shown.id}:${shown.revision}`} entry={shown} document={draft} dirty={!snapshot && current.dirty} readonly={!!snapshot || !!busy}
+                      onOpenEntry={id => { if (!busy) choose(id); }} onMetadata={metadata => updateDraft({ metadata })} />
+                    <NotebookPrintTools key={`print:${shown.id}:${shown.revision}`} document={draft} entryId={shown.id} revision={shown.revision} dirty={!snapshot && current.dirty} />
+                    <WorksheetAmendments key={`amend:${shown.id}:${shown.revision}`} entry={shown} dirty={current.dirty} readonly={!!snapshot || !!busy}
+                      onCommitted={entry => { adopt(readEntry(entry)); updateList(entry); }} />
+                  </>,
+                }}
                 historyControls={{ canUndo: !!current.history.past.length, canRedo: !!current.history.future.length, undo: () => applyHistory({ type: 'undo' }), redo: () => applyHistory({ type: 'redo' }) }}
                 onSave={snapshot ? undefined : () => { if (current.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); }}
                 onReplaceDocument={snapshot ? undefined : document => {

@@ -1,3 +1,4 @@
+import { ensureMoreTools } from './notebook-browser-actions.mjs';
 import { verifyRegistrationWaiver } from './registration-waiver-browser-scenario.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
@@ -27,7 +28,7 @@ export async function verifyTableWorkflows(page, origin, output) {
   await page.setViewportSize({ width: 1320, height: 950 });
   await page.reload();
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue(entry.document.title);
-  if (!await button('Hide more tools').count()) await button('More tools').click();
+  await ensureMoreTools(page);
   await button('Templates').click();
   await button('Create collection').click();
   let dialog = page.getByRole('dialog', { name: 'Create collection', exact: true });

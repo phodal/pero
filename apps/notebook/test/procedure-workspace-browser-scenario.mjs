@@ -1,3 +1,4 @@
+import { notebookTab, openNotebookView } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
@@ -21,7 +22,7 @@ export async function verifyProcedureWorkspace(page, origin, output) {
   const link = `${origin}/#notebook-entry=${entry.id}&notebook-target=procedure-intro`;
   await page.goto(link);
   await expect(page.getByRole('textbox', { name: 'Notebook title', exact: true })).toHaveValue(entry.document.title);
-  await expect(page.getByRole('tab', { name: 'Procedures', exact: true })).toHaveAttribute('data-state', 'active');
+  await expect(notebookTab(page, 'Procedures')).toHaveAttribute('data-state', 'active');
   await expect(page.getByRole('textbox', { name: 'Procedure title', exact: true })).toHaveValue('Rich method');
   const introduction = page.getByRole('textbox', { name: 'Introduction', exact: true });
   await introduction.fill('Keep samples on ice before mixing.');
@@ -37,13 +38,13 @@ export async function verifyProcedureWorkspace(page, origin, output) {
   await expect(child.getByRole('textbox', { name: 'Material 1.1', exact: true })).toHaveValue('Procedure registered buffer');
   await button('Add material notes', child).click();
   await child.getByRole('textbox', { name: 'Material notes 1.1', exact: true }).fill('Use freshly prepared buffer.');
-  await page.getByRole('tab', { name: 'Notes', exact: true }).click();
+  await openNotebookView(page, 'Notes');
   const notes = page.locator('.notebook-notes-panel .tiptap').first();
   await notes.fill('Unsaved observation retained through deep links');
   await page.evaluate(() => { location.hash = '#notebook-entry=' + new URLSearchParams(location.hash.slice(1)).get('notebook-entry') + '&notebook-target=procedure-mixture'; });
-  await expect(page.getByRole('tab', { name: 'Procedures', exact: true })).toHaveAttribute('data-state', 'active');
+  await expect(notebookTab(page, 'Procedures')).toHaveAttribute('data-state', 'active');
   await expect(introduction).toHaveText('Keep samples on ice before mixing.');
-  await page.getByRole('tab', { name: 'Notes', exact: true }).click();
+  await openNotebookView(page, 'Notes');
   await expect(notes).toHaveText('Unsaved observation retained through deep links');
   await button('Save revision').click();
   await expect.poll(async () => (await request('/api/entries/' + entry.id)).revision).toBe(2);
@@ -57,10 +58,10 @@ export async function verifyProcedureWorkspace(page, origin, output) {
   const childBlock = component.content.content[0].attrs.blockId;
   await page.goto(`${origin}/#notebook-entry=${entry.id}&notebook-target=${childBlock}`);
   await page.reload();
-  await expect(page.getByRole('tab', { name: 'Procedures', exact: true })).toHaveAttribute('data-state', 'active');
+  await expect(notebookTab(page, 'Procedures')).toHaveAttribute('data-state', 'active');
   await expect(page.getByRole('textbox', { name: 'Material notes 1.1', exact: true })).toHaveText('Use freshly prepared buffer.');
   await page.screenshot({ path: resolve(output, 'procedure-rich-materials-light.png'), fullPage: true });
-  await page.getByRole('tab', { name: 'Notes', exact: true }).click();
+  await openNotebookView(page, 'Notes');
   await expect(page.locator('.notebook-notes-panel .tiptap').first()).toHaveText('Unsaved observation retained through deep links');
   const original = await request('/api/entries/' + entry.id + '/revisions/1');
   assert.equal(original.document.procedures[1].materials[0].children, undefined);

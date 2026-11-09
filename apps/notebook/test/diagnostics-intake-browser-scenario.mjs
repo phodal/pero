@@ -1,4 +1,4 @@
-import { createNotebook } from './notebook-browser-actions.mjs';
+import { createNotebook, openNotebookMenu } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
@@ -12,6 +12,7 @@ export async function verifyDiagnosticsAndIntake(page, origin, output) {
   await createNotebook(page, origin, 'Diagnostics and sample propagation');
   const notes = page.locator('.notebook-editor [contenteditable=true]').first();
   await notes.fill('Clipboard acceptance text');
+  await openNotebookMenu(page, 'help');
   await button('Editor diagnostics').click();
   const diagnostics = page.getByRole('region', { name: 'Editor diagnostics', exact: true });
   await notes.click(); await page.keyboard.press('End'); await page.keyboard.type(' and live edit');

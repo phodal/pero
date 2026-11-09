@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
-import { createNotebook } from './notebook-browser-actions.mjs';
+import { createNotebook, ensureMoreTools, openNotebookMenu } from './notebook-browser-actions.mjs';
 
 /** CI browser acceptance: real saved revisions, rendered print CSS and retained late edits. */
 export async function verifyResearchPrintTools(page, origin, output) {
@@ -13,7 +13,7 @@ export async function verifyResearchPrintTools(page, origin, output) {
   await body.click(); await body.press('Control+\\');
   await expect(page.locator('[data-kind=section]')).toHaveCount(1);
   await page.getByLabel('Section title', { exact: true }).fill('Preparation');
-  if (!await button('Hide more tools').count()) await button('More tools').click();
+  await ensureMoreTools(page);
   await button('Scientific tools').click();
   let dialog = page.getByRole('dialog', { name: 'Scientific tools', exact: true });
   await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('formula');
@@ -30,8 +30,12 @@ export async function verifyResearchPrintTools(page, origin, output) {
   const saving = page.waitForResponse(response => response.url() === `${origin}/api/entries/${entry.id}` && response.request().method() === 'POST');
   await button('Save revision', page).click(); assert.ok((await saving).ok()); await expect(button('Save revision')).toBeDisabled();
   const saved = await request(`/api/entries/${entry.id}`);
+  await openNotebookMenu(page, 'file');
   await button('Print options').click();
   dialog = page.getByRole('dialog', { name: 'Print options', exact: true });
+  await expect(dialog.getByRole('checkbox', { name: 'Notes', exact: true })).toBeChecked();
+  await expect(dialog.getByRole('checkbox', { name: 'Preparation', exact: true })).toBeChecked();
+  await expect(dialog.getByText('Notes / 笔记')).toHaveCount(0);
   await dialog.getByLabel('Paper', { exact: true }).selectOption('Letter');
   await dialog.getByLabel('Orientation', { exact: true }).selectOption('landscape');
   await dialog.getByLabel('Margins (mm, 5–40)', { exact: true }).fill('12');
@@ -48,6 +52,7 @@ export async function verifyResearchPrintTools(page, origin, output) {
   await page.screenshot({ path: resolve(output, 'research-print-output.png'), fullPage: true });
   await page.emulateMedia({ media: 'screen' });
   await button('Close print options', dialog).click();
+  await openNotebookMenu(page, 'file');
   await button('Print options').click();
   await expect(page.getByLabel('Orientation', { exact: true })).toHaveValue('landscape');
   await button('Close print options').click();
@@ -64,6 +69,7 @@ export async function verifyResearchPrintTools(page, origin, output) {
     const response = await route.fetch(); observed(response); await released; await route.fulfill({ response });
   });
   try {
+    await openNotebookMenu(page, 'file');
     await button('Worksheet amendments').click();
     dialog = page.getByRole('dialog', { name: 'Worksheet amendments', exact: true });
     await dialog.getByLabel('Cell address', { exact: true }).fill('B1');

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
-import { createNotebook } from './notebook-browser-actions.mjs';
+import { createNotebook, openNotebookView } from './notebook-browser-actions.mjs';
 
 /** CI scenario for the real browser/SQLite harness. Does not authenticate participant labels. */
 export async function verifyReviewWorkflows(page, origin, output) {
   const button = (name, root = page) => root.getByRole('button', { name, exact: true });
-  const tab = name => page.getByRole('tab', { name, exact: true }).click();
+  const tab = name => openNotebookView(page, name);
   const json = async (path, body) => {
     const response = body === undefined ? await page.request.get(origin + path) : await page.request.post(origin + path, { data: body });
     assert.equal(response.ok(), true, await response.text()); return response.json();

@@ -92,7 +92,7 @@ export function NotebookReplacementTools({ getDocument, onReplace, layout = 'bar
   </div>;
 }
 
-export function NotebookStatusBar({ editor }: { editor: Editor }) {
+export function NotebookStatusBar({ editor, variant = 'bar' }: { editor: Editor; variant?: 'bar' | 'output' | 'toggle' }) {
   const { t } = useAppI18n(messages);
   const status = useEditorState({ editor, selector: ({ editor }) => {
     let sections = 0; editor.state.doc.descendants(node => { if (node.type.name === 'section') sections++; });
@@ -102,13 +102,15 @@ export function NotebookStatusBar({ editor }: { editor: Editor }) {
       indent: ancestors.filter(name => ['listItem', 'taskItem'].includes(name)).length };
   } });
   const [notice, setNotice] = useState('');
+  const toggle = <Button variant="ghost" aria-label={t('toggleFormulaInspector')} title={t('toggleFormulaInspector')} onClick={() => {
+    const block = activeNotebookBlock(editor);
+    if (block?.node.type.name !== 'spreadsheet') { setNotice(t('selectWorksheetFirst')); return; }
+    editor.view.dom.dispatchEvent(new CustomEvent(NOTEBOOK_FORMULA_INSPECTOR_EVENT, { detail: block.node.attrs.blockId })); setNotice('');
+  }}>fx</Button>;
+  if (variant === 'toggle') return <>{toggle}{notice && <span role="status">{notice}</span>}</>;
+  const summary = <output>{t('statusSummary', status)}</output>;
+  if (variant === 'output') return <footer className="notebook-status-bar" aria-label={t('notebookStatus')}><output>{t('sectionCount', { sections: status.sections })}</output></footer>;
   return <footer className="notebook-status-bar notebook-workspace-actions" aria-label={t('notebookStatus')}>
-    <output>{t('statusSummary', status)}</output>
-    <Button variant="ghost" onClick={() => {
-      const block = activeNotebookBlock(editor);
-      if (block?.node.type.name !== 'spreadsheet') { setNotice(t('selectWorksheetFirst')); return; }
-      editor.view.dom.dispatchEvent(new CustomEvent(NOTEBOOK_FORMULA_INSPECTOR_EVENT, { detail: block.node.attrs.blockId })); setNotice('');
-    }}>{t('toggleFormulaInspector')}</Button>
-    {notice && <span role="status">{notice}</span>}
+    {summary}{toggle}{notice && <span role="status">{notice}</span>}
   </footer>;
 }
