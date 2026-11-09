@@ -14,6 +14,13 @@ The final commit, exact-head CI outcome/counts and screenshot/artifact links
 must be recorded after integration freezes. Unit tests, jsdom controls,
 compilation and historical screenshots cannot establish a current browser pass.
 
+Chrome polish on `f40feb1a`: the document title stays outside workspace tabs so
+Metadata/Relevant views no longer hide `Notebook title`; secondary research and
+import controls sit behind **More tools**; replace/restore JSON is disclosed on
+demand; product chrome uses locale messages instead of hardcoded bilingual pairs.
+Local Notebook typecheck and the four `reference-controls` editor tests passed.
+Exact-head browser/Host acceptance must still be rerun on this commit.
+
 | Current local capability | Concrete source owners | Test / scenario evidence to run on final head |
 | --- | --- | --- |
 | Recovery/history and rich editing | `frame.tsx`, `backend/drafts.py`, package document-history, `text-tools.tsx`, `code-block.tsx`, `raster-edit.tsx` | `test_drafts.py`, `document-history-editor.test.ts`, `content-editing-browser.mjs` |
