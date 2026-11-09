@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
+import { useMemo, useRef, useState, type ClipboardEvent, type CSSProperties, type KeyboardEvent } from 'react';
 import { closeHistory } from '@tiptap/pm/history';
 import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
@@ -14,10 +14,14 @@ import {
   gridWriteConflicts, mergeCellRange, mergedCell, resizeGridAxis, unmergeCellRange,
   type CellColor, type CellFormat, type WorksheetGrid,
 } from '@pero/notebook/grid-presentation';
-import { changeWorksheetStructure, type AxisChange, type StructuredWorksheet } from '@pero/notebook/worksheet-structure';
+import { changeWorksheetStructure, mapWorksheetPosition, type AxisChange, type StructuredWorksheet } from '@pero/notebook/worksheet-structure';
 import { formulaHelp, inspectWorksheetCell } from '@pero/notebook/formula-inspection';
 import { writeWorkbook } from '@pero/notebook/workbook';
 import { BlockFrame } from './block-frame';
+import { useGridAxisControls } from './grid-axis-controls';
+import { FormulaInput } from './formula-input';
+import { FormulaSourceTree } from './formula-source-tree';
+import './grid-interactions.css';
 import { CellAnnotations } from './cell-annotations';
 import { messages } from './messages';
 import { renameWorksheet, worksheetBlocks, worksheetCalculation } from './worksheet-model';
@@ -110,6 +114,7 @@ export function SpreadsheetView(view: NodeViewProps) {
   const address = cellAddress(active.column, active.row);
   const source = sheet.cells[address] ?? '';
   const setGrid = (edit: (current: WorksheetGrid) => WorksheetGrid | null, batch = false) => view.editor.commands.command(({ tr }) => {
+    if (!view.editor.isEditable) return false;
     const position = view.getPos();
     const node = typeof position === 'number' ? tr.doc.nodeAt(position) : null;
     if (typeof position !== 'number' || node?.type.name !== 'spreadsheet') return false;
@@ -128,6 +133,7 @@ export function SpreadsheetView(view: NodeViewProps) {
     return next ? { ...current, sheet: next } : null;
   }, batch);
   const structure = (change: AxisChange) => view.editor.commands.command(({ tr }) => {
+    if (!view.editor.isEditable) return false;
     const worksheets: StructuredWorksheet[] = worksheetBlocks(tr.doc).map(worksheet => {
       let attrs = {};
       tr.doc.descendants(node => { if (node.type.name === 'spreadsheet' && node.attrs.blockId === worksheet.id) attrs = node.attrs; });
@@ -146,15 +152,20 @@ export function SpreadsheetView(view: NodeViewProps) {
         tr.setNodeMarkup(position, undefined, { ...node.attrs, sheet: next, annotations, formats, rowHeights, columnWidths, merges });
       }
     });
+    setSelection(current => ({ anchor: mapWorksheetPosition(current.anchor, change), focus: mapWorksheetPosition(current.focus, change) }));
     setError('');
     return true;
   });
+  const axisControls = useGridAxisControls(grid, presentation, editable,
+    (axis, index, pixels) => setGrid(current => resizeGridAxis(current, axis, index, pixels), true),
+    (axis, index, to) => structure({ kind: 'move', axis, index, to }));
   const format = (patch: CellFormat | null) => setGrid(current => formatCellRange(current, range, patch), true);
   const currentFormat = presentation.formats[address] ?? {};
   const inspection = useMemo(() => (inspector || isFormulaError(values[address])) && !calculation?.ambiguous
     ? inspectWorksheetCell(worksheetBlocks(view.editor.state.doc), calculation?.name ?? label, address) : null,
   [inspector, calculation, values, address, label, view.editor]);
-  const updateCell = (cell: string, value: string) => {
+  const updateCell = (cell: string, value: string, batch = false) => {
+    if (!view.editor.isEditable) return;
     if (isExternalFormula(value)) {
       setError(t('externalFormula'));
       return;
@@ -164,7 +175,7 @@ export function SpreadsheetView(view: NodeViewProps) {
       if (value) cells[cell] = value;
       else delete cells[cell];
       return { ...current, cells };
-    });
+    }, batch);
     setError(previous => previous === t('externalFormula') ? '' : previous);
   };
   const selectCell = (position: CellPosition) => setSelection({ anchor: position, focus: position });
@@ -351,11 +362,11 @@ export function SpreadsheetView(view: NodeViewProps) {
           options={[{ value: 'auto', label: t('auto') }, ...Array.from({ length: 13 }, (_, index) => ({ value: String(index), label: String(index) }))]} />
         <Button variant="ghost" onClick={() => format(null)}>{t('clearFormat')}</Button>
       </div>
-      <p className="notebook-note">{t('gridHint')} {t('rangeHint')}</p>
+      <p className="notebook-note">{t('gridHint')} {t('rangeHint')} {axisControls.instructions}</p>
     </Disclosure>}
     <div className="notebook-formula">
       <output aria-label={t(isRange ? 'selectedRange' : 'cell', { address: rangeAddress })}>{rangeAddress}</output>
-      <Input ref={formulaInput} aria-label={t('rawCell')} placeholder={t('rawCell')} value={source} readOnly={!editable}
+      <FormulaInput ref={formulaInput} onComplete={value => updateCell(address, value, true)} aria-label={t('rawCell')} placeholder={t('rawCell')} value={source} readOnly={!editable}
         maxLength={spreadsheetLimits.cellLength} onChange={event => updateCell(address, event.target.value)}
         onPaste={event => paste(event, active)} onKeyDown={event => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); focusCell(active); }
@@ -384,14 +395,15 @@ export function SpreadsheetView(view: NodeViewProps) {
         <Button variant="ghost" onClick={clear}>{t('clearCells')}</Button>
       </>}
     </div>
-    <div ref={grid}>
-      <Table label={t('spreadsheet')} density="compact" className="notebook-grid-scroll" tableClassName="notebook-grid">
-        <colgroup><col />{Array.from({ length: sheet.columns }, (_, column) => <col key={column} style={{ width: presentation.columnWidths[column] ?? gridDimensionLimits.column.default }} />)}</colgroup>
+    <div ref={grid} onScrollCapture={axisControls.rememberScroll}
+      style={{ '--notebook-grid-width': `${44 + Array.from({ length: sheet.columns }, (_, column) => axisControls.size('column', column)).reduce((sum, width) => sum + width, 0)}px` } as CSSProperties}>
+      <Table label={t('spreadsheet')} density="compact" layout="fixed" className="notebook-grid-scroll" tableClassName="notebook-grid">
+        <colgroup><col style={{ width: 44 }} />{Array.from({ length: sheet.columns }, (_, column) => <col key={column} style={{ width: axisControls.size('column', column) }} />)}</colgroup>
         <thead><tr><th scope="col" aria-label="#" />
-          {Array.from({ length: sheet.columns }, (_, column) => <th scope="col" key={column}>{cellAddress(column, 0).slice(0, -1)}</th>)}
+          {Array.from({ length: sheet.columns }, (_, column) => axisControls.header('column', column))}
         </tr></thead>
-        <tbody>{Array.from({ length: sheet.rows }, (_, row) => <tr key={row} style={{ height: presentation.rowHeights[row] ?? gridDimensionLimits.row.default }}>
-          <th scope="row">{row + 1}</th>
+        <tbody>{Array.from({ length: sheet.rows }, (_, row) => <tr key={row} style={{ height: axisControls.size('row', row) }}>
+          {axisControls.header('row', row)}
           {Array.from({ length: sheet.columns }, (_, column) => {
             const key = cellAddress(column, row);
             const raw = sheet.cells[key] ?? '';
@@ -404,9 +416,9 @@ export function SpreadsheetView(view: NodeViewProps) {
             return <td key={key} rowSpan={merge ? merge.end.row - row + 1 : undefined} colSpan={merge ? merge.end.column - column + 1 : undefined}
               data-foreground={cellFormat?.foreground} data-background={cellFormat?.background}
               data-bold={cellFormat?.bold || undefined} data-italic={cellFormat?.italic || undefined} data-underline={cellFormat?.underline || undefined}
-              data-align={cellFormat?.align} style={{ minWidth: presentation.columnWidths[column] ?? gridDimensionLimits.column.default }} data-active={key === address || undefined}
+              data-align={cellFormat?.align} data-active={key === address || undefined}
               data-range-selected={isRange && rangeContains(range, position) || undefined} data-error={isFormulaError(computed) || undefined}>
-              <Input unstyled className="notebook-cell" aria-label={t('cell', { address: key })} data-cell={key}
+              <FormulaInput unstyled onComplete={value => updateCell(key, value, true)} className="notebook-cell" aria-label={t('cell', { address: key })} data-cell={key}
                 value={editable && focused === key ? raw : text} readOnly={!editable} maxLength={spreadsheetLimits.cellLength}
                 onMouseDown={event => {
                   if (event.button !== 0) return;
@@ -424,6 +436,7 @@ export function SpreadsheetView(view: NodeViewProps) {
         </tr>)}</tbody>
       </Table>
     </div>
+    <div className="notebook-grid-status" role="status">{axisControls.announcement}</div>
     {inspection?.type === 'error' && <Feedback kind="error">{t('selectedError', { address, value: String(values[address]) })}</Feedback>}
     {inspector && inspection && <section className="notebook-formula-inspector" aria-label={t('inspector')}>
       <dl><dt>{t('rawSource')}</dt><dd>{inspection.source || '∅'}</dd><dt>{t('evaluated')}</dt><dd>{formatCellValue(inspection.value)}</dd>
@@ -433,6 +446,7 @@ export function SpreadsheetView(view: NodeViewProps) {
         {dependency.sheet}!{cellRangeLabel({ start: dependency.from, end: dependency.to })}
       </li>)}</ul> : <p>{t('noDependencies')}</p>}
       <p className="notebook-note">{t('dependencyHint')}</p>
+      <FormulaSourceTree syntax={inspection.syntax} />
     </section>}
     {dialog && dialog !== 'functions' && <Dialog title={t(dialog)} closeLabel={t('close')} onClose={() => setDialog(null)}
       onSubmit={event => {

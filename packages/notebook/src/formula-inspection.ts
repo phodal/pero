@@ -1,4 +1,5 @@
-import { evaluateWorkbook, type CellValue, type FormulaDependency } from './spreadsheet.ts';
+import { spreadsheetLimits } from './document.ts';
+import { evaluateWorkbook, formulaFunctions, isExternalFormula, type CellValue, type FormulaDependency } from './spreadsheet.ts';
 import { inspectFormulaSyntax, type FormulaSyntax } from './formula-syntax.ts';
 import type { NamedWorksheet } from './worksheet.ts';
 
@@ -77,6 +78,32 @@ export function inspectFormulaSandbox(worksheets: readonly NamedWorksheet[], nam
   const match = /^([A-Z]{1,3})([1-9]\d*)$/.exec(address);
   const column = match?.[1].split('').reduce((value, letter) => value * 26 + letter.charCodeAt(0) - 64, 0) ?? 0;
   if (!match || column > sheet.sheet.columns || Number(match[2]) > sheet.sheet.rows) throw new Error('Choose a cell inside the selected worksheet.');
-  if (!source.startsWith('=') || source.length > 8192) throw new Error('Enter a formula starting with =, up to 8,192 characters.');
+  if (!source.startsWith('=') || source.length > spreadsheetLimits.cellLength) throw new Error('Enter a formula starting with =, up to 8,192 characters.');
   return inspectWorksheetCell(worksheets.map(item => item === sheet ? { ...item, sheet: { ...item.sheet, cells: { ...item.sheet.cells, [address]: source } } } : item), name, address);
+}
+
+export interface FormulaCompletion { start: number; end: number; prefix: string; names: string[] }
+/** Complete only an engine-recognized identifier at the caret. Quoted strings,
+ * sheet qualifiers, cell addresses and range endpoints are never functions. */
+export function formulaCompletion(source: string, caret: number): FormulaCompletion | null {
+  if (!Number.isInteger(caret) || caret < 1 || caret > source.length || isExternalFormula(source)) return null;
+  const { tokens } = inspectFormulaSyntax(source);
+  const index = tokens.findIndex(token => token.start < caret && token.end >= caret);
+  const token = tokens[index];
+  if (!token || !['Column', 'Name', 'Function', 'ExcelRefFunction', 'ExcelConditionalRefFunction'].includes(token.kind)) return null;
+  if (['Colon', 'Sheet', 'SheetQuoted'].includes(tokens[index - 1]?.kind) || tokens[index + 1]?.kind === 'Colon') return null;
+  const name = token.text.replace(/\s*\($/, '');
+  if (!/^[A-Z][A-Z0-9_.]*$/i.test(name) || caret > token.start + name.length) return null;
+  const prefix = source.slice(token.start, caret).toUpperCase();
+  const names = formulaFunctions.filter(name => name.startsWith(prefix));
+  return names.length ? { start: token.start, end: token.start + name.length, prefix, names } : null;
+}
+/** One replacement preserves existing arguments and places the caret inside (). */
+export function completeFormulaFunction(source: string, caret: number, name: string): { source: string; caret: number } | null {
+  const completion = formulaCompletion(source, caret);
+  if (!completion?.names.includes(name)) return null;
+  const suffix = source.slice(completion.end), opening = /^\s*\(/.exec(suffix);
+  const next = source.slice(0, completion.start) + name + (opening ? '' : '()') + suffix;
+  if (next.length > spreadsheetLimits.cellLength) return null;
+  return { source: next, caret: completion.start + name.length + (opening?.[0].length ?? 1) };
 }

@@ -2,7 +2,7 @@ import { spreadsheetLimits } from './document.ts';
 import { cellAddress } from './spreadsheet.ts';
 import type { NotebookWorksheet } from './worksheet.ts';
 import { cellPosition, type WorksheetGrid } from './grid-presentation.ts';
-import type { CellRange } from './spreadsheet-range.ts';
+import type { CellPosition, CellRange } from './spreadsheet-range.ts';
 
 export interface StructuredWorksheet extends NotebookWorksheet, WorksheetGrid {}
 export type AxisChange = { axis: 'row' | 'column' } & (
@@ -22,6 +22,11 @@ function axisMap(change: AxisChange): IndexMap {
     if (change.index > change.to && value >= change.to && value < change.index) return value + 1;
     return value;
   };
+}
+/** Keep UI anchors on the same cells after a successful structure transition.
+ * Deleted anchors fall on the next cell; the caller clamps to the new grid. */
+export function mapWorksheetPosition(position: CellPosition, change: AxisChange): CellPosition {
+  return { ...position, [change.axis]: axisMap(change)(position[change.axis]) ?? change.index };
 }
 /** A range must still be representable as one contiguous rectangle after a move. */
 function mapInterval(start: number, end: number, change: AxisChange): [number, number] | null | 'split' {
