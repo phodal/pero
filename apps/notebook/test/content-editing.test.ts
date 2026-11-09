@@ -73,3 +73,41 @@ test('Background, code and reference mentions preserve semantic document content
     assert.throws(() => ui.rasterEditPlan(4, 2, edit));
   }
 });
+
+test('Code blocks follow live read-only changes without replacing their document node', async t => {
+  let editor: any;
+  t.after(async () => { await React.act(async () => editor?.destroy()); });
+  const { ui, React, render } = await createUiRuntime(t, {
+    resolveDir: fileURLToPath(new URL('../ui-src', import.meta.url)),
+    contents: `import React from 'react';
+      import { useEditor, EditorContent } from '@tiptap/react';
+      import StarterKit from '@tiptap/starter-kit';
+      import { NotebookCodeBlock } from './code-block';
+      export { AppSdkProvider, createAppHost } from '@pero/app-sdk';
+      export function Fixture({ capture }) {
+        const editor = useEditor({ extensions: [StarterKit.configure({ codeBlock: false, trailingNode: false }), NotebookCodeBlock],
+          content: '<pre><code class="language-python">print(1)</code></pre>' });
+        capture(editor); return <EditorContent editor={editor}/>;
+      }`,
+  });
+  await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'notebook', locale: 'en' }) },
+    React.createElement(ui.Fixture, { capture: (value: any) => { editor = value; } })));
+  const source = () => document.querySelector('[aria-label="Code source (not executed)"]')!;
+  const language = () => document.querySelector<HTMLButtonElement>('button[aria-label="Code language"]')!;
+  const remove = () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Remove code block');
+  const node = editor.state.doc.firstChild;
+  assert.equal(source().getAttribute('contenteditable'), 'true');
+  assert.equal(language().disabled, false);
+  assert.ok(remove());
+  await React.act(async () => editor.setEditable(false));
+  assert.equal(editor.state.doc.firstChild, node);
+  assert.equal(source().getAttribute('contenteditable'), 'false');
+  assert.equal(language().disabled, true);
+  assert.equal(remove(), undefined);
+  assert.equal(editor.getText(), 'print(1)');
+  await React.act(async () => editor.setEditable(true));
+  assert.equal(editor.state.doc.firstChild, node);
+  assert.equal(source().getAttribute('contenteditable'), 'true');
+  assert.equal(language().disabled, false);
+  assert.ok(remove());
+});

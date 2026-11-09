@@ -1,5 +1,5 @@
 import CodeBlock from '@tiptap/extension-code-block';
-import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react';
+import { NodeViewWrapper, ReactNodeViewRenderer, useEditorState, type NodeViewProps } from '@tiptap/react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, CodeEditor, Select } from '@pero/app-sdk/ui';
 import { rememberWidgetFocus } from './block-order';
@@ -14,17 +14,18 @@ const messages = {
 
 function CodeBlockView(view: NodeViewProps) {
   const { t } = useAppI18n(messages);
+  const editable = useEditorState({ editor: view.editor, selector: ({ editor }) => editor.isEditable });
   const language = notebookCodeLanguages.includes(view.node.attrs.language) ? view.node.attrs.language : 'plaintext';
   return <NodeViewWrapper className="notebook-block notebook-code-block" contentEditable={false}
     data-notebook-block-id={view.node.attrs.blockId ?? undefined}
     onFocusCapture={() => rememberWidgetFocus(view.editor, view.node.attrs.blockId)}>
     <div className="notebook-block-header">
-      <Select label={t('language')} value={language} disabled={!view.editor.isEditable} searchable={false}
+      <Select label={t('language')} value={language} disabled={!editable} searchable={false}
         options={notebookCodeLanguages.map(value => ({ value, label: value === 'plaintext' ? t('plaintext') : value === 'python' ? 'Python' : 'JavaScript' }))}
         onChange={value => view.editor.isEditable && view.updateAttributes({ language: value })} />
-      {view.editor.isEditable && <Button variant="ghost" onClick={view.deleteNode}>{t('remove')}</Button>}
+      {editable && <Button variant="ghost" onClick={view.deleteNode}>{t('remove')}</Button>}
     </div>
-    <CodeEditor label={t('code')} language={language} value={view.node.textContent} disabled={!view.editor.isEditable}
+    <CodeEditor label={t('code')} language={language} value={view.node.textContent} disabled={!editable}
       onChange={text => {
         const position = view.getPos();
         if (!view.editor.isEditable || typeof position !== 'number' || view.node.textContent === text) return;

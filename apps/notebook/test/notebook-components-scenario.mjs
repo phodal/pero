@@ -1,3 +1,4 @@
+import { createNotebook } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
@@ -31,10 +32,8 @@ export async function verifyNotebookComponents(page, origin, output) {
   await page.setViewportSize({ width: 1320, height: 950 });
   await theme(false);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'pero-light');
-  await button('New notebook').click();
-  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Untitled notebook');
   const title = 'Component acceptance';
-  await page.getByRole('textbox', { name: 'Notebook title' }).fill(title);
+  const created = await createNotebook(page, origin, title);
   await page.getByRole('textbox', { name: 'Notebook content' }).fill('Independent local component acceptance');
   await insert('Section');
   const section = page.locator('[data-kind=section]').first();
@@ -115,7 +114,10 @@ export async function verifyNotebookComponents(page, origin, output) {
   await shot('procedures-desktop-light');
   await save(2);
   const entries = await json('/api/entries');
-  const id = entries.entries.find(entry => entry.title === title).id;
+  const summary = entries.entries.find(entry => entry.id === created.id);
+  assert.ok(summary, `Created notebook ${created.id} missing from catalog: ${JSON.stringify(entries.entries)}`);
+  assert.equal(summary.title, title);
+  const id = created.id;
   const saved = () => json(`/api/entries/${id}`);
   assert.deepEqual((await saved()).document.procedures[0].steps.map(step => step.kind), kinds.map(kind => kind.toLowerCase()));
   await tab('Metadata');

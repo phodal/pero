@@ -1,10 +1,11 @@
+import { createNotebook } from './notebook-browser-actions.mjs';
 import { verifyNotebookComponents } from './notebook-components-scenario.mjs';
 import { verifyGridTools } from './grid-browser-scenario.mjs';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -61,16 +62,19 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   t.after(() => new Promise(done => { server.close(done); server.closeAllConnections(); }));
   const origin = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch({ executablePath: process.env.PERO_CHROMIUM_EXECUTABLE, headless: true });
+  let scenario = 'workbook-revisions-and-clipboard';
   t.after(async () => {
-    try { await mkdir(output, { recursive: true }); await page.screenshot({ path: resolve(output, 'checkpoint-final.png'), fullPage: true }); }
-    finally { await browser.close(); }
+    try {
+      await mkdir(output, { recursive: true });
+      await writeFile(resolve(output, 'browser-context.json'), JSON.stringify({ scenario, url: page.url(), errors }, null, 2));
+      await page.screenshot({ path: resolve(output, `checkpoint-${scenario}.png`), fullPage: true });
+    } finally { await browser.close(); }
   });
   const page = await browser.newPage({ viewport: { width: 1320, height: 950 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin);
-  await page.getByRole('button', { name: 'New notebook' }).click();
-  await page.getByRole('textbox', { name: 'Notebook title' }).fill('Assay review');
+  await createNotebook(page, origin, 'Assay review');
   await page.getByRole('textbox', { name: 'Notebook content' }).fill('Calibration and controls');
 
   const workbook = await writeWorkbook([
@@ -226,7 +230,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await page.keyboard.press('Escape');
   await expect(result.getByRole('button', { name: 'Block actions' })).toBeFocused();
 
-  await page.getByRole('button', { name: 'New notebook' }).click();
+  await createNotebook(page, origin);
   await page.getByRole('button', { name: 'Insert block' }).click();
   await page.getByRole('menuitem', { name: 'Spreadsheet' }).click();
   const grid = page.locator('[data-kind=spreadsheet]');
@@ -273,15 +277,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
     await expect(first).toHaveValue(text);
     await expect(grid.locator('[data-cell=B1]')).toHaveValue('Keep neighboring cell');
   }
-  const createdResponse = page.waitForResponse(response =>
-    response.url() === origin + '/api/entries' && response.request().method() === 'POST');
-  await page.getByRole('button', { name: 'New notebook' }).click();
-  const created = await (await createdResponse).json();
-  // Creation retains the previous draft until the request completes. Wait for
-  // the new empty editor before typing, rather than renaming that old draft.
-  await expect(page.locator('[data-kind=spreadsheet]')).toHaveCount(0);
-  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue(created.title);
-  await page.getByRole('textbox', { name: 'Notebook title' }).fill('Copied review');
+  const created = await createNotebook(page, origin, 'Copied review');
   const copiedBody = page.getByRole('textbox', { name: 'Notebook content' });
   await copiedBody.focus();
   await copiedBody.evaluate((element, clipboard) => {
@@ -346,7 +342,12 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(page.locator('#notebook-list')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await expect(finding.getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
-  await verifyGridTools(page, origin);
-  await verifyNotebookComponents(page, origin, output);
+  for (const [name, verify] of [
+    ['grid-tools', verifyGridTools], ['notebook-components', verifyNotebookComponents],
+  ]) {
+    scenario = name;
+    try { await verify(page, origin, output); }
+    catch (cause) { throw new Error(`Notebook scenario ${name}: ${cause.message}\nBrowser errors: ${JSON.stringify(errors)}`, { cause }); }
+  }
   assert.deepEqual(errors, []);
 });

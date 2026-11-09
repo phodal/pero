@@ -4,8 +4,8 @@ import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
-import { mkdir } from 'node:fs/promises';
-import { chromium } from '@playwright/test';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { chromium, expect } from '@playwright/test';
 
 // Uses actual CodeMirror, Canvas, PNG encoding, WebCrypto and ProseMirror transactions.
 test('Content editing runs locally in Chromium with highlighted code and derived image undo', { timeout: 60_000 }, async t => {
@@ -38,6 +38,7 @@ test('Content editing runs locally in Chromium with highlighted code and derived
   t.after(async () => {
     try {
       const output = resolve(root, 'test-results/notebook'); await mkdir(output, { recursive: true });
+      await writeFile(resolve(output, 'content-editing-errors.json'), JSON.stringify(pageErrors, null, 2));
       await page.screenshot({ path: resolve(output, 'content-editing-final.png'), fullPage: true });
     } finally { await browser.close(); }
   });
@@ -56,8 +57,15 @@ test('Content editing runs locally in Chromium with highlighted code and derived
   await page.evaluate(() => window.editor.commands.setContent({ type:'doc', content:[{type:'codeBlock',attrs:{language:'javascript'},content:[{type:'text',text:'const x = 1;'}]}] }));
   await page.waitForFunction(() => document.querySelector('.cm-mermaid-keyword')?.textContent === 'const');
   await page.evaluate(() => window.editor.setEditable(false));
-  assert.equal(await code.getAttribute('contenteditable'), 'false');
-  assert.equal(await page.getByRole('button', { name: 'Remove code block' }).count(), 0);
+  await expect(code).toHaveAttribute('contenteditable', 'false');
+  await expect(page.getByRole('button', { name: 'Code language', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Remove code block', exact: true })).toHaveCount(0);
+  await code.click(); await page.keyboard.type('not editable');
+  assert.equal(await page.evaluate(() => window.editor.getText()), 'const x = 1;');
+  await page.evaluate(() => window.editor.setEditable(true));
+  await expect(code).toHaveAttribute('contenteditable', 'true');
+  await expect(page.getByRole('button', { name: 'Code language', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Remove code block', exact: true })).toBeVisible();
   const resultImage = await page.evaluate(async () => {
     const canvas = document.createElement('canvas'); canvas.width = 4; canvas.height = 2;
     const ctx = canvas.getContext('2d'); ctx.fillStyle='red'; ctx.fillRect(0,0,2,2); ctx.fillStyle='blue'; ctx.fillRect(2,0,2,2);
@@ -80,4 +88,5 @@ test('Content editing runs locally in Chromium with highlighted code and derived
   assert.equal(resultImage.saved, resultImage.derived);
   assert.equal(resultImage.restored, resultImage.original);
   assert.equal(resultImage.mime, 'image/png');
+  assert.deepEqual(pageErrors, []);
 });

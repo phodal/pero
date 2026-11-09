@@ -1,3 +1,4 @@
+import { createNotebook } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 import { writeWorkbook } from '@pero/notebook/workbook';
@@ -5,8 +6,7 @@ import { writeWorkbook } from '@pero/notebook/workbook';
 /** Run after the existing saved-notebook scenarios, using their real backend and page. */
 export async function verifyGridTools(page, origin) {
   await page.setViewportSize({ width: 1320, height: 950 });
-  await page.getByRole('button', { name: 'New notebook', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Notebook title', exact: true }).fill('Grid tools acceptance');
+  const created = await createNotebook(page, origin, 'Grid tools acceptance');
   const workbook = await writeWorkbook([
     { name: 'Data', sheet: { rows: 4, columns: 3, cells: { A1: '=1/3', B1: '7', A2: '2', A3: '3', C4: 'tail' } } },
     { name: 'Dependent', sheet: { rows: 1, columns: 1, cells: { A1: '=Data!$A$2*3' } } },
@@ -72,8 +72,8 @@ export async function verifyGridTools(page, origin) {
   await action('Resize row');
   await page.getByRole('dialog').getByLabel('Size in pixels').fill('60');
   await page.getByRole('dialog').getByRole('button', { name: 'Confirm', exact: true }).click();
-  assert.ok((await cell('A1').locator('..').boundingBox()).width >= 180);
-  assert.ok((await cell('A1').locator('../..').boundingBox()).height >= 60);
+  await expect.poll(async () => (await cell('A1').locator('..').boundingBox())?.width ?? 0, { message: 'Resized column width' }).toBeGreaterThanOrEqual(180);
+  await expect.poll(async () => (await cell('A1').locator('../..').boundingBox())?.height ?? 0, { message: 'Resized row height' }).toBeGreaterThanOrEqual(60);
   await cell('A1').click();
   await cell('B1').click({ modifiers: ['Shift'] });
   const copied = await cell('B1').evaluate(input => {
@@ -108,9 +108,11 @@ export async function verifyGridTools(page, origin) {
   await expect(data.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue('=1/3');
   await page.getByRole('button', { name: 'Save revision', exact: true }).click();
   await expect(page.locator('.notebook-status')).toHaveText('Revision 2');
-  const entries = await (await fetch(origin + '/api/entries')).json();
-  const savedId = entries.entries.find(entry => entry.title === 'Grid tools acceptance').id;
-  const saved = await (await fetch(`${origin}/api/entries/${savedId}`)).json();
+  const response = await page.request.get(`${origin}/api/entries/${created.id}`);
+  assert.equal(response.ok(), true, await response.text());
+  const saved = await response.json();
+  assert.equal(saved.document.title, 'Grid tools acceptance');
+  assert.equal(saved.revision, 2);
   const savedData = saved.document.content.content.find(node => node.type === 'spreadsheet' && node.attrs.label === 'Data').attrs;
   assert.equal(savedData.sheet.cells.A1, '=1/3');
   assert.equal(savedData.sheet.cells.B1, '7');
