@@ -39,7 +39,19 @@ test('narrow notebook chrome stays one row without hiding the title or more tool
   assert.equal(actionStatus.get('flex-direction'), 'row');
   assert.equal(actionStatus.get('flex-wrap'), 'nowrap');
   assert.equal(actionStatus.get('overflow-x'), 'auto');
-  assert.equal(declarations(compact, '.notebook-action-status > .notebook-notes-utilities').get('width'), 'auto');
+  assert.equal(actionStatus.get('contain'), 'paint');
+  assert.equal(actionStatus.get('max-width'), '100%');
+  for (const selector of ['.notebook-action-status > .notebook-document-actions', '.notebook-action-status > .notebook-notes-utilities']) {
+    const item = declarations(compact, selector);
+    assert.equal(item.get('flex'), '0 0 auto', selector);
+    assert.equal(item.get('width'), 'max-content', selector);
+    assert.equal(item.get('min-width'), 'max-content', selector);
+    assert.equal(item.get('max-width'), 'none', selector);
+    assert.equal(item.get('overflow'), 'visible', selector);
+    assert.equal(item.get('contain'), 'none', selector);
+  }
+  assert.equal(declarations(compact, '.notebook-document-actions.pero-ui-disclosure > summary').get('white-space'), 'nowrap');
+  assert.equal(declarations(compact, '.notebook-document-actions.pero-ui-disclosure > summary').get('min-width'), 'max-content');
   assert.equal(declarations(compact, '.notebook-document-actions.pero-ui-disclosure:not([data-unstyled])').get('padding-top'), '0px');
   assert.equal(declarations(compact, '.notebook-document-header').get('display'), 'flex');
   assert.equal(declarations(compact, '.notebook-document-header > .notebook-title').get('padding-block'), '0px');

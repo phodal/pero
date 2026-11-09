@@ -127,7 +127,7 @@ html, body, #app { height: 100%; }
 }
 .notebook-cell:focus { outline: 1px solid var(--pero-focus); outline-offset: -1px; }
 .notebook-split[data-stacked] > .notebook-nav[data-sized] { flex: 0 0 auto; min-height: 0; max-height: min(8rem, 25dvh); }
-/* Title stays visible. Document actions and status share one row; formatting and More tools share one scrolling row. */
+/* Title stays visible. Document actions and status share one scrolling row, each at its content width so the labels do not paint over each other. Formatting and More tools share one scrolling row. */
 @media (max-width: 760px) {
   .notebook-document,
   .notebook-document-header,
@@ -182,12 +182,13 @@ html, body, #app { height: 100%; }
   }
   .notebook-action-status > .notebook-document-actions,
   .notebook-action-status > .notebook-notes-utilities {
-    flex: 1 1 auto; width: auto; min-width: 0; max-width: 100%;
+    flex: 0 0 auto; width: max-content; min-width: max-content; max-width: none;
+    overflow: visible; contain: none;
   }
   .notebook-document-actions.pero-ui-disclosure:not([data-unstyled]) {
     padding: 0; border: 0; background: transparent;
   }
-  .notebook-document-actions.pero-ui-disclosure > summary { white-space: nowrap; }
+  .notebook-document-actions.pero-ui-disclosure > summary { white-space: nowrap; min-width: max-content; }
   .notebook-editor-toolbars {
     display: flex; flex-wrap: nowrap; align-items: center; gap: var(--pero-spacing-1);
     box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%;
