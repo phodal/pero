@@ -1,3 +1,5 @@
+import { materialItems, notebookContentRoots } from './workspace.ts';
+import { copySourceExcerpt, type SourceExcerpt } from './source-excerpt.ts';
 import type { NotebookDocument, NotebookNode, CellAnnotation } from './document.ts';
 
 /** Local published templates. Revisions are immutable; archive prevents new instances. */
@@ -37,7 +39,7 @@ function bind(document: NotebookDocument, parameter: TemplateParameter): (value:
     return value => { if (!String(value).trim() || String(value).length > 200) throw new Error('Invalid entry title.'); document.title = String(value); };
   }
   let found: NotebookNode | undefined;
-  visit(document.content, node => { if (node.attrs?.blockId === target.blockId) found = node; });
+  for (const root of notebookContentRoots(document)) visit(root, node => { if (node.attrs?.blockId === target.blockId) found = node; });
   if (!found) throw new Error(`Parameter ${parameter.key} has a stale block binding.`);
   const node = found;
   if (target.kind === 'block-text') {
@@ -97,25 +99,26 @@ export function instantiateTemplate(template: PublishedTemplate, values: Record<
     if (value === undefined) { if (parameter.required) throw new Error(`Missing ${parameter.label}.`); continue; }
     validateValue(parameter, value); bind(document, parameter)(value); parameterEntries.push([parameter.key, value]);
   }
-  const roots: NotebookNode[] = [document.content];
+  const roots = notebookContentRoots(document);
   for (const procedure of document.procedures ?? []) for (const step of procedure.steps) {
     const typed = step as typeof step & { content?: NotebookNode; timer?: { elapsedMs: number; startedAt: number | null } };
-    if (typed.content) roots.push(typed.content);
     step.completed = false;
     if (typed.timer) typed.timer = { elapsedMs: 0, startedAt: null };
   }
-  const existing = new Set<string>();
+  const existing = new Set<string>(), attachments = new Set<string>();
   for (const root of roots) visit(root, node => {
     if (typeof node.attrs?.blockId === 'string') existing.add(node.attrs.blockId);
+    if (node.type === 'attachment' && typeof node.attrs?.blockId === 'string') attachments.add(node.attrs.blockId);
     if (['inputTable', 'registrationTable'].includes(node.type)) {
       const table = node.attrs!.table as { id: string; rows: { id: string }[] };
       existing.add(table.id); for (const row of table.rows) existing.add(row.id);
     }
   });
-  for (const procedure of document.procedures ?? []) for (const item of [procedure, ...procedure.materials, ...procedure.steps]) existing.add(item.id);
+  for (const procedure of document.procedures ?? []) for (const item of [procedure, ...materialItems(procedure.materials), ...procedure.steps]) existing.add(item.id);
   const allocated = new Set<string>();
   const fresh = () => { const id = newId(); if (!validId(id) || existing.has(id) || allocated.has(id)) throw new Error('Template identity factory must return fresh IDs.'); allocated.add(id); return id; };
   const idMap: Record<string, string> = Object.fromEntries([...existing].map(id => [id, fresh()]));
+  const copiedAttachments = new Map([...attachments].map(id => [id, idMap[id]]));
   const remap = (ids: string[]) => ids.map(id => idMap[id] ?? id);
   for (const root of roots) visit(root, node => {
     if (!['doc', 'text', 'hardBreak', 'referenceMention'].includes(node.type)) node.attrs = { ...node.attrs, blockId: typeof node.attrs?.blockId === 'string' ? idMap[node.attrs.blockId] : fresh() };
@@ -125,10 +128,11 @@ export function instantiateTemplate(template: PublishedTemplate, values: Record<
       // Schema IDs, column IDs, catalog references and submission receipts are fixed source identities.
     }
     if (node.type === 'finding') node.attrs!.evidenceIds = remap(node.attrs!.evidenceIds as string[]);
+    if (node.type === 'sourceExcerpt') node.attrs!.excerpt = copySourceExcerpt(node.attrs!.excerpt as SourceExcerpt | null, copiedAttachments);
     if (node.type === 'spreadsheet') node.attrs!.annotations = Object.fromEntries(Object.entries(node.attrs!.annotations as Record<string, CellAnnotation> ?? {})
       .map(([address, annotation]) => [address, { ...annotation, evidenceIds: remap(annotation.evidenceIds) }]));
   });
-  for (const procedure of document.procedures ?? []) for (const item of [procedure, ...procedure.materials, ...procedure.steps]) item.id = idMap[item.id];
+  for (const procedure of document.procedures ?? []) for (const item of [procedure, ...materialItems(procedure.materials), ...procedure.steps]) item.id = idMap[item.id];
   const origin: TemplateOrigin = { templateId: template.id, revision: template.revision, instanceId: fresh(), parameterValues: Object.fromEntries(parameterEntries), idMap };
   if (template.kind === 'entry') Object.assign(document, { templateOrigin: origin });
   else for (const node of document.content.content) node.attrs = { ...node.attrs, templateOrigin: origin };
@@ -138,7 +142,7 @@ export function instantiateTemplate(template: PublishedTemplate, values: Record<
 /** Explicit text/cell/checkbox fields for the publication form. */
 export function templateBindingChoices(document: NotebookDocument, kind: TemplateKind): { label: string; target: TemplateTarget; types: TemplateParameter['type'][] }[] {
   const result: ReturnType<typeof templateBindingChoices> = kind === 'entry' ? [{ label: 'Entry title', target: { kind: 'title' }, types: ['text'] }] : [];
-  visit(document.content, node => {
+  for (const root of notebookContentRoots(document)) visit(root, node => {
     const blockId = node.attrs?.blockId;
     if (typeof blockId !== 'string') return;
     const label = String(node.attrs?.label || node.attrs?.claim || node.content?.find(child => child.text)?.text || node.type).slice(0, 60);

@@ -7,7 +7,26 @@ export interface NotebookMetadata {
   tags: string[];
 }
 
-export interface NotebookMaterial { id: string; name: string; quantity: string }
+/** A pinned identity selected from Notebook's local registered catalog, not live inventory. */
+export interface MaterialSource {
+  source: 'notebook-local-catalog'; catalogId: string; recordId: string; version: number;
+  schemaId: string; schemaRevision: number;
+}
+export interface NotebookMaterial {
+  id: string; name: string; quantity: string;
+  source?: MaterialSource;
+  content?: NotebookNode;
+  children?: NotebookMaterial[];
+}
+export function materialItems(materials: readonly NotebookMaterial[]): NotebookMaterial[] {
+  return materials.flatMap(item => [item, ...materialItems(item.children ?? [])]);
+}
+/** Shared tree roots for search, templates and navigation; rich content wins over legacy prose. */
+export function notebookContentRoots(document: Pick<NotebookDocument, 'content' | 'procedures'>): NotebookNode[] {
+  return [document.content, ...(document.procedures ?? []).flatMap(procedure =>
+    [procedure.introduction, ...materialItems(procedure.materials).map(item => item.content), ...procedure.steps.map(step => step.content)]
+      .filter((node): node is NotebookNode => !!node))];
+}
 export const procedureKinds = ['header', 'step', 'description', 'image', 'table', 'timer'] as const;
 export type ProcedureKind = typeof procedureKinds[number];
 /** Manual wall-clock measurement, never an instrument execution receipt. */
@@ -38,22 +57,24 @@ export interface NotebookProcedure {
   id: string;
   title: string;
   description: string;
+  introduction?: NotebookNode;
   materials: NotebookMaterial[];
   steps: NotebookProcedureStep[];
 }
 
 export const workspaceLimits = {
   label: 200, tags: 50, tagLength: 100, procedures: 50, materials: 100,
-  steps: 500, text: 32768, minutes: 10080,
+  steps: 500, materialDepth: 4, text: 32768, minutes: 10080,
 } as const;
 
 export type ProcedureChange =
   | { type: 'add'; id: string; title: string }
   | { type: 'remove'; id: string }
-  | { type: 'edit'; id: string; patch: Partial<Pick<NotebookProcedure, 'title' | 'description'>> }
-  | { type: 'addMaterial'; id: string; materialId: string }
+  | { type: 'edit'; id: string; patch: Partial<Pick<NotebookProcedure, 'title' | 'description' | 'introduction'>> }
+  | { type: 'addMaterial'; id: string; materialId: string; parentId?: string }
   | { type: 'removeMaterial'; id: string; materialId: string }
-  | { type: 'editMaterial'; id: string; materialId: string; patch: Partial<Pick<NotebookMaterial, 'name' | 'quantity'>> }
+  | { type: 'editMaterial'; id: string; materialId: string; patch: Partial<Pick<NotebookMaterial, 'name' | 'quantity' | 'source' | 'content'>> }
+  | { type: 'moveMaterial'; id: string; materialId: string; direction: -1 | 1 }
   | { type: 'addStep'; id: string; stepId: string; kind?: ProcedureKind }
   | { type: 'timer'; id: string; stepId: string; action: 'start' | 'pause' | 'reset'; now: number }
   | { type: 'removeStep'; id: string; stepId: string }
@@ -66,9 +87,13 @@ const validText = (text: string, limit: number) => [...text].length <= limit;
 
 /** Typed local authoring transitions. Wire validation belongs to the storage boundary. */
 export function changeProcedures(procedures: NotebookProcedure[], change: ProcedureChange): ProcedureResult {
+  const identities = new Set<string>();
+  for (const procedure of procedures) for (const item of [procedure, ...materialItems(procedure.materials), ...procedure.steps]) identities.add(item.id);
+  const visit = (node: NotebookNode) => { if (typeof node.attrs?.blockId === 'string') identities.add(node.attrs.blockId); for (const child of node.content ?? []) visit(child); };
+  for (const procedure of procedures) for (const root of [procedure.introduction, ...materialItems(procedure.materials).map(item => item.content), ...procedure.steps.map(item => item.content)]) if (root) visit(root);
   if (change.type === 'add') {
     if (procedures.length >= workspaceLimits.procedures) return { status: 'limit' };
-    if (!validId(change.id) || procedures.some(item => item.id === change.id) || !validText(change.title, workspaceLimits.label)) return { status: 'invalid' };
+    if (!validId(change.id) || identities.has(change.id) || !validText(change.title, workspaceLimits.label)) return { status: 'invalid' };
     return { status: 'ok', procedures: [...procedures, { id: change.id, title: change.title, description: '', materials: [], steps: [] }] };
   }
   const index = procedures.findIndex(item => item.id === change.id);
@@ -82,24 +107,49 @@ export function changeProcedures(procedures: NotebookProcedure[], change: Proced
       if (!validText(next.title, workspaceLimits.label) || !validText(next.description, workspaceLimits.text)) return { status: 'invalid' };
       break;
     }
-    case 'addMaterial': {
-      if (procedure.materials.length >= workspaceLimits.materials) return { status: 'limit' };
-      if (!validId(change.materialId) || [...procedure.materials, ...procedure.steps].some(item => item.id === change.materialId)) return { status: 'invalid' };
-      next = { ...procedure, materials: [...procedure.materials, { id: change.materialId, name: '', quantity: '' }] };
-      break;
-    }
+    case 'addMaterial':
     case 'removeMaterial':
-    case 'editMaterial': {
-      if (!procedure.materials.some(item => item.id === change.materialId)) return { status: 'missing' };
-      const materials = change.type === 'removeMaterial' ? procedure.materials.filter(item => item.id !== change.materialId)
-        : procedure.materials.map(item => item.id === change.materialId ? { ...item, ...change.patch } : item);
-      if (materials.some(item => !validText(item.name, workspaceLimits.label) || !validText(item.quantity, workspaceLimits.label))) return { status: 'invalid' };
+    case 'editMaterial':
+    case 'moveMaterial': {
+      const all = materialItems(procedure.materials);
+      if (change.type === 'addMaterial') {
+        if (all.length >= workspaceLimits.materials) return { status: 'limit' };
+        if (!validId(change.materialId) || identities.has(change.materialId)) return { status: 'invalid' };
+      } else if (!all.some(item => item.id === change.materialId)) return { status: 'missing' };
+      if (change.type === 'addMaterial' && change.parentId && !all.some(item => item.id === change.parentId)) return { status: 'missing' };
+      let tooDeep = false, invalid = false;
+      const update = (items: NotebookMaterial[], parentId?: string, depth = 1): NotebookMaterial[] => {
+        if (change.type === 'addMaterial' && change.parentId === parentId) {
+          if (depth > workspaceLimits.materialDepth) { tooDeep = true; return items; }
+          return [...items, { id: change.materialId, name: '', quantity: '' }];
+        }
+        const next = items.flatMap(item => {
+          if (item.id === change.materialId) {
+            if (change.type === 'removeMaterial') return [];
+            if (change.type === 'editMaterial') {
+              const updated = { ...item, ...change.patch };
+              if (!validText(updated.name, workspaceLimits.label) || !validText(updated.quantity, workspaceLimits.label)) invalid = true;
+              return [updated];
+            }
+          }
+          return [{ ...item, ...(item.children || (change.type === 'addMaterial' && change.parentId === item.id)
+            ? { children: update(item.children ?? [], item.id, depth + 1) } : {}) }];
+        });
+        if (change.type === 'moveMaterial') {
+          const index = next.findIndex(item => item.id === change.materialId), target = index + change.direction;
+          if (index >= 0 && target >= 0 && target < next.length) [next[index], next[target]] = [next[target], next[index]];
+        }
+        return next;
+      };
+      const materials = update(procedure.materials);
+      if (tooDeep) return { status: 'limit' };
+      if (invalid) return { status: 'invalid' };
       next = { ...procedure, materials };
       break;
     }
     case 'addStep': {
       if (procedure.steps.length >= workspaceLimits.steps) return { status: 'limit' };
-      if (!validId(change.stepId) || [...procedure.materials, ...procedure.steps].some(item => item.id === change.stepId)) return { status: 'invalid' };
+      if (!validId(change.stepId) || identities.has(change.stepId)) return { status: 'invalid' };
       next = { ...procedure, steps: [...procedure.steps, { id: change.stepId, ...(change.kind ? { kind: change.kind } : {}), text: '', level: 'step', critical: false, pause: false, minutes: null, completed: false }] };
       break;
     }
@@ -161,10 +211,12 @@ export interface NotebookSearchItem {
   text: string;
   depth: number;
   outline: boolean;
+  procedureId?: string;
+  ownerId?: string;
 }
 
 /** A projection of recorded content, never attachment bytes or invented summaries. */
-export function notebookSearchItems(content: NotebookNode): NotebookSearchItem[] {
+export function notebookSearchItems(content: NotebookNode, procedures: NotebookProcedure[] = []): NotebookSearchItem[] {
   const items: NotebookSearchItem[] = [];
   const inlineText = (node: NotebookNode): string => node.type === 'hardBreak' ? '\n'
     : node.type === 'referenceMention' ? [node.attrs?.label, ...Object.values((node.attrs?.source ?? {}) as ScientificReference)].join(' ')
@@ -195,6 +247,26 @@ export function notebookSearchItems(content: NotebookNode): NotebookSearchItem[]
     for (const child of node.content ?? []) visit(child, depth + (node.type === 'section' ? 1 : 0));
   };
   visit(content, 0);
+  for (const procedure of procedures) {
+    const start = items.length;
+    items.push({ id: procedure.id, kind: 'procedure', label: procedure.title, text: `${procedure.title} ${procedure.introduction ? '' : procedure.description}`, depth: 0, outline: true });
+    const rich = (node: NotebookNode | undefined, ownerId: string, depth: number) => {
+      if (!node) return;
+      const offset = items.length; visit(node, depth);
+      for (const item of items.slice(offset)) item.ownerId = ownerId;
+    };
+    rich(procedure.introduction, procedure.id, 1);
+    const materials = (values: NotebookMaterial[], depth: number) => { for (const item of values) {
+      items.push({ id: item.id, kind: 'material', label: item.name, text: [item.name, item.quantity, ...Object.values(item.source ?? {})].join(' '), depth, outline: true });
+      rich(item.content, item.id, depth + 1); materials(item.children ?? [], depth + 1);
+    } };
+    materials(procedure.materials, 1);
+    for (const step of procedure.steps) {
+      items.push({ id: step.id, kind: 'step', label: step.text || step.kind || 'Step', text: step.content ? '' : step.text, depth: 1, outline: true });
+      rich(step.content, step.id, 2);
+    }
+    for (const item of items.slice(start)) item.procedureId = procedure.id;
+  }
   return items;
 }
 
@@ -301,11 +373,34 @@ export function notebookMarkdown(document: NotebookDocument): string {
       default: return `### ${escape(node.type)}\n\n${fenced(JSON.stringify(attrs, null, 2), 'json')}${children.length ? `\n\n${blocks()}` : ''}`;
     }
   };
+  const renderMaterials = (materials: NotebookMaterial[], depth = 0): string => materials.map(item => {
+    const source = item.source ? ` (Local catalog ${code(item.source.catalogId)}, record ${code(item.source.recordId)} v${item.source.version}, schema ${code(item.source.schemaId)} v${item.source.schemaRevision})` : '';
+    return `${'  '.repeat(depth)}- ${escape(item.name)}: ${escape(item.quantity)}${source}${item.content ? `\n${render(item.content).split('\n').map(line => `${'  '.repeat(depth + 1)}${line}`).join('\n')}` : ''}${item.children?.length ? `\n${renderMaterials(item.children, depth + 1)}` : ''}`;
+  }).join('\n');
   const parts = [`# ${escape(document.title)}`, render(document.content)];
   if (document.metadata) parts.push(`## Metadata\n\nDisplay labels only; not project membership or verified authorship.\n\n- Project: ${escape(document.metadata.project)}\n- Author: ${escape(document.metadata.author)}\n- Tags: ${document.metadata.tags.map(escape).join(', ')}`);
   for (const procedure of document.procedures ?? []) {
     const steps = procedure.steps.map((step, index) => `${index + 1}. [${step.completed ? 'x' : ' '}] ${step.content ? render(step.content) : escape(step.text)}\n   Kind: ${step.kind ?? 'step'}; recorded elapsed milliseconds: ${step.timer?.elapsedMs ?? 0}; running since: ${step.timer?.startedAt ?? 'stopped'};\n   Level: ${step.level}; critical: ${step.critical}; pause: ${step.pause}; planned minutes: ${step.minutes ?? 'unset'}.`).join('\n');
-    parts.push(`## ${escape(procedure.title)}\n\n${escape(procedure.description)}\n\n### Materials\n\n${table([['Material', 'Quantity'], ...procedure.materials.map(item => [escape(item.name), escape(item.quantity)])])}\n\n### Steps\n\nManual completion and annotations, not execution receipts.\n\n${steps}`);
+    parts.push(`## ${escape(procedure.title)}\n\n${procedure.introduction ? render(procedure.introduction) : escape(procedure.description)}\n\n### Materials\n\n${renderMaterials(procedure.materials)}\n\n### Steps\n\nManual completion and annotations, not execution receipts.\n\n${steps}`);
   }
   return `${parts.join('\n\n').trim()}\n`;
+}
+
+/** Same-document navigation is view state only; it never rewrites or saves a draft. */
+export function notebookLinkHash(entryId: string, targetId: string): string {
+  return `#${new URLSearchParams({ 'notebook-entry': entryId, 'notebook-target': targetId })}`;
+}
+export function parseNotebookLink(hash: string): { entryId: string; targetId: string } | null {
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  const entryId = params.get('notebook-entry'), targetId = params.get('notebook-target');
+  return entryId && targetId && validId(entryId) && validId(targetId) ? { entryId, targetId } : null;
+}
+export function notebookTarget(document: NotebookDocument, id: string): { tab: 'notes' | 'procedures'; procedureId?: string; ownerId: string } | null {
+  const contains = (node: NotebookNode): boolean => node.attrs?.blockId === id || (node.content ?? []).some(contains);
+  if (contains(document.content)) return { tab: 'notes', ownerId: id };
+  for (const procedure of document.procedures ?? []) {
+    if (procedure.id === id || (procedure.introduction && contains(procedure.introduction))) return { tab: 'procedures', procedureId: procedure.id, ownerId: procedure.id };
+    for (const item of [...materialItems(procedure.materials), ...procedure.steps]) if (item.id === id || (item.content && contains(item.content))) return { tab: 'procedures', procedureId: procedure.id, ownerId: item.id };
+  }
+  return null;
 }

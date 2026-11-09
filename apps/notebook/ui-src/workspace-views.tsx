@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ProcedureStepEditor, ProcedureTimerView } from './procedure-step-editor';
+import { ProcedureRichEditor, ProcedureStepEditor, ProcedureTimerView } from './procedure-step-editor';
+import { ProcedureMaterials } from './procedure-materials';
 import { ReviewerPanel } from './review-panel';
 import type { Editor } from '@tiptap/core';
 import { NodeSelection, Selection } from '@tiptap/pm/state';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
-import { Badge, Button, Checkbox, Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, Field, Icon, IconButton, Input, SearchField, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toolbar } from '@pero/app-sdk/ui';
+import { Badge, Button, Checkbox, Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, Field, Icon, IconButton, Input, SearchField, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
-import { changeMetadata, changeProcedures, procedureKinds, procedurePlannedMinutes, notebookMarkdown, notebookRelevantItems, notebookSearchItems, searchNotebook, workspaceLimits,
+import { changeMetadata, changeProcedures, notebookLinkHash, parseNotebookLink, notebookTarget, procedureKinds, procedurePlannedMinutes, notebookMarkdown, notebookRelevantItems, notebookSearchItems, searchNotebook, workspaceLimits,
   type MetadataChange, type NotebookMetadata, type NotebookProcedure, type NotebookProcedureStep, type ProcedureChange } from '@pero/notebook/workspace';
 
 const messages = {
+  procedure: { en: 'Procedure', zh: '流程' }, material: { en: 'Material', zh: '材料' },
+  copyLink: { en: 'Copy link', zh: '复制链接' }, copied: { en: 'Link copied', zh: '链接已复制' }, copyFailed: { en: 'Could not copy the link. Check clipboard access and try again.', zh: '无法复制链接，请检查剪贴板访问后重试。' },
   header: { en: 'Header', zh: '标题' }, description: { en: 'Description', zh: '说明' }, image: { en: 'Image', zh: '图片' }, table: { en: 'Table', zh: '表格' }, timer: { en: 'Timer', zh: '计时器' },
   stepKind: { en: 'Step kind', zh: '步骤类型' }, plannedTotal: { en: 'Total planned: {minutes} minutes', zh: '计划总时长：{minutes} 分钟' },
   review: { en: 'Review and activity', zh: '审阅与活动' },
@@ -17,7 +20,7 @@ const messages = {
   notes: { en: 'Notes', zh: '笔记' }, procedures: { en: 'Procedures', zh: '实验步骤' },
   relevant: { en: 'Relevant items', zh: '相关条目' }, metadata: { en: 'Metadata', zh: '元数据' },
   search: { en: 'Search and outline', zh: '搜索与大纲' }, searchLabel: { en: 'Search notebook content', zh: '搜索笔记内容' },
-  searchHint: { en: 'Search prose, section names, worksheet cells and reference identities. Leave empty for the outline.', zh: '可搜索正文、章节名、单元格和引用身份。留空显示大纲。' },
+  searchHint: { en: 'Search Notes, procedure introductions, materials, steps, worksheet cells and reference identities. Leave empty for the outline.', zh: '可搜索笔记、流程简介、材料、步骤、单元格和引用身份。留空显示大纲。' },
   noMatches: { en: 'No matching blocks', zh: '没有匹配的内容块' }, noOutline: { en: 'No outline entries yet', zh: '暂无大纲条目' },
   noOutlineHint: { en: 'Add headings, sections or research blocks in Notes.', zh: '在笔记中添加标题、章节或科研块。' },
   resultCount: { en: '{count} blocks', zh: '{count} 个内容块' }, resultLimit: { en: 'Showing the first 100 matches. Refine your search to see others.', zh: '显示前 100 个匹配项，可缩小搜索范围查看其他结果。' },
@@ -28,7 +31,7 @@ const messages = {
   help: { en: 'Shortcuts and local limits', zh: '快捷键与本地限制' },
   exportHint: { en: 'JSON export is a snapshot of the shown document, including unsaved edits. Markdown includes raw cell inputs and recorded provenance, but omits file bytes and some formatting. Exporting and printing do not save a revision.', zh: 'JSON 导出包含当前显示的文档及未保存的更改。Markdown 包含单元格原始输入与已记录的来源，但不包含文件字节及部分格式。导出和打印不会保存修订。' },
   shortcutHint: { en: 'Ctrl/Cmd + Shift + F opens search here. Escape closes a dialog. Arrow keys move between tabs. Document undo/redo includes Notes, procedures and metadata. Dialog and review fields keep their own undo behavior.', zh: '在此处按 Ctrl/Cmd + Shift + F 打开搜索，Esc 关闭对话框，方向键切换标签页。文档撤销/重做包含笔记、步骤和元数据。对话框及审阅字段保留各自的撤销行为。' },
-  limitsHint: { en: 'A notebook supports 50 procedures, 100 materials and 500 steps per procedure, and 50 tags. Planned durations are 0–10,080 minutes. Files and the complete document have separate size limits.', zh: '每本笔记最多包含 50 个流程、每个流程 100 项材料与 500 个步骤，以及 50 个标签。计划时长为 0–10,080 分钟。文件和整本文档另有大小限制。' },
+  limitsHint: { en: 'A notebook supports 50 procedures, 100 materials (including components, up to 4 levels) and 500 steps per procedure, and 50 tags. Planned durations are 0–10,080 minutes. Files and the complete document have separate size limits.', zh: '每本笔记最多包含 50 个流程、每个流程 100 项材料（含组分，最多 4 层）与 500 个步骤，以及 50 个标签。计划时长为 0–10,080 分钟。文件和整本文档另有大小限制。' },
   persistenceHint: { en: 'Local drafts are saved automatically and recovered after restart when storage succeeds. Use Save revision to create a permanent revision; check the draft status for storage errors.', zh: '本地草稿会自动保存，存储成功后可在重启时恢复。使用「保存修订」创建永久修订；请留意草稿状态中的存储错误。' },
   project: { en: 'Project label', zh: '项目标签' }, author: { en: 'Author label', zh: '作者标签' },
   metadataHint: { en: 'These are display labels only. They do not link a Host project, change membership, or verify the author’s identity.', zh: '这些仅为显示标签，不会关联 Host 项目、变更成员权限或验证作者身份。' },
@@ -129,27 +132,18 @@ function DurationField({ minutes, number, readonly, onChange }: { minutes: numbe
       }} />}</Field>;
 }
 
-function ProcedureFields({ procedure, readonly, apply }: { procedure: NotebookProcedure; readonly: boolean; apply: (change: ProcedureChange) => void }) {
+function ProcedureFields({ procedure, readonly, apply, onCopyLink }: { procedure: NotebookProcedure; readonly: boolean; apply: (change: ProcedureChange) => void; onCopyLink: (id: string) => void }) {
   const { t } = useAppI18n(messages);
   const id = procedure.id;
   const editStep = (stepId: string, patch: Partial<Omit<NotebookProcedureStep, 'id'>>) => apply({ type: 'editStep', id, stepId, patch });
-  return <div className="notebook-workspace-form" data-notebook-document-edit>
+  return <div className="notebook-workspace-form" data-notebook-document-edit id={`notebook-target-${procedure.id}`} tabIndex={-1}>
     <Field label={t('procedureTitle')}>{control => <Input {...control} value={procedure.title} maxLength={workspaceLimits.label} readOnly={readonly}
       onChange={event => apply({ type: 'edit', id, patch: { title: event.target.value } })} />}</Field>
-    <Field label={t('introduction')}>{control => <Textarea {...control} value={procedure.description} rows={3} maxLength={workspaceLimits.text} readOnly={readonly}
-      onChange={event => apply({ type: 'edit', id, patch: { description: event.target.value } })} />}</Field>
-    <section aria-label={t('materials')}>
-      <div className="notebook-workspace-actions"><h3>{t('materials')}</h3>{!readonly &&
-        <Button variant="ghost" disabled={procedure.materials.length >= workspaceLimits.materials} onClick={() => apply({ type: 'addMaterial', id, materialId: crypto.randomUUID() })}><Icon name="plus" />{t('addMaterial')}</Button>}</div>
-      {!procedure.materials.length && <p className="notebook-workspace-hint">{t('noMaterials')}</p>}
-      <ol className="notebook-materials">{procedure.materials.map((material, index) => <li key={material.id}>
-        <Field label={t('materialName', { number: index + 1 })}>{control => <Input {...control} readOnly={readonly} maxLength={workspaceLimits.label} value={material.name}
-          onChange={event => apply({ type: 'editMaterial', id, materialId: material.id, patch: { name: event.target.value } })} />}</Field>
-        <Field label={t('quantity', { number: index + 1 })}>{control => <Input {...control} readOnly={readonly} maxLength={workspaceLimits.label} value={material.quantity}
-          onChange={event => apply({ type: 'editMaterial', id, materialId: material.id, patch: { quantity: event.target.value } })} />}</Field>
-        {!readonly && <IconButton label={t('removeMaterial', { number: index + 1 })} onClick={() => apply({ type: 'removeMaterial', id, materialId: material.id })}><Icon name="close" /></IconButton>}
-      </li>)}</ol>
+    <section aria-label={t('introduction')}><h3>{t('introduction')}</h3>
+      <ProcedureRichEditor content={procedure.introduction} text={procedure.description} label={t('introduction')} readonly={readonly}
+        onChange={introduction => apply({ type: 'edit', id, patch: { introduction } })} />
     </section>
+    <ProcedureMaterials procedure={procedure} readonly={readonly} apply={apply} onCopyLink={onCopyLink} />
     <section aria-label={t('steps')}>
       <div className="notebook-workspace-actions"><h3>{t('steps')}</h3>
         <Badge>{t('plannedTotal', { minutes: procedurePlannedMinutes(procedure) })}</Badge>
@@ -157,8 +151,8 @@ function ProcedureFields({ procedure, readonly, apply }: { procedure: NotebookPr
         {!readonly && <Button variant="ghost" disabled={procedure.steps.length >= workspaceLimits.steps} onClick={() => apply({ type: 'addStep', id, stepId: crypto.randomUUID() })}><Icon name="plus" />{t('addStep')}</Button>}
       </div>
       {!procedure.steps.length && <p className="notebook-workspace-hint">{t('noSteps')}</p>}
-      <ol className="notebook-procedure-steps">{procedure.steps.map((step, index) => <li key={step.id} data-level={step.level} data-critical={step.critical || undefined}>
-        <div className="notebook-workspace-actions"><strong>{index + 1}.</strong>
+      <ol className="notebook-procedure-steps">{procedure.steps.map((step, index) => <li key={step.id} id={`notebook-target-${step.id}`} tabIndex={-1} data-level={step.level} data-critical={step.critical || undefined}>
+        <div className="notebook-workspace-actions"><strong>{index + 1}.</strong><Button variant="ghost" onClick={() => onCopyLink(step.id)}>{t('copyLink')}</Button>
           <Select label={t('stepLevel', { number: index + 1 })} value={step.level} disabled={readonly}
             options={(['step', 'section', 'substep'] as const).map(level => ({ value: level, label: t(level) }))}
             onChange={value => editStep(step.id, { level: value as NotebookProcedureStep['level'] })} />
@@ -185,10 +179,14 @@ function ProcedureFields({ procedure, readonly, apply }: { procedure: NotebookPr
   </div>;
 }
 
-function ProceduresView({ procedures, readonly, onChange }: { procedures: NotebookProcedure[]; readonly: boolean; onChange: (procedures: NotebookProcedure[]) => void }) {
+function ProceduresView({ procedures, readonly, onChange, selected, setSelected, onCopyLink }: {
+  procedures: NotebookProcedure[]; readonly: boolean; onChange: (procedures: NotebookProcedure[]) => void;
+  selected: string; setSelected: (id: string) => void; onCopyLink: (id: string) => void;
+}) {
   const { t } = useAppI18n(messages);
-  const [selected, setSelected] = useState(procedures[0]?.id ?? ''), [removing, setRemoving] = useState(false), [error, setError] = useState('');
+  const [removing, setRemoving] = useState<string | null>(null), [error, setError] = useState('');
   const procedure = procedures.find(item => item.id === selected) ?? procedures[0];
+  const removingProcedure = procedures.find(item => item.id === removing);
   const apply = (change: ProcedureChange) => {
     if (readonly) return;
     const result = changeProcedures(procedures, change);
@@ -202,13 +200,14 @@ function ProceduresView({ procedures, readonly, onChange }: { procedures: Notebo
       {procedure && <Select label={t('chooseProcedure')} value={procedure.id}
         options={procedures.map(item => ({ value: item.id, label: item.title || t('newProcedure') }))} onChange={setSelected} />}
       {!readonly && <Button disabled={procedures.length >= workspaceLimits.procedures} onClick={() => apply({ type: 'add', id: crypto.randomUUID(), title: t('newProcedure') })}><Icon name="plus" />{t('addProcedure')}</Button>}
-      {!readonly && procedure && <Button variant="ghost" onClick={() => setRemoving(true)}>{t('removeProcedure')}</Button>}
+      {procedure && <Button variant="ghost" onClick={() => onCopyLink(procedure.id)}>{t('copyLink')}</Button>}
+      {!readonly && procedure && <Button variant="ghost" onClick={() => setRemoving(procedure.id)}>{t('removeProcedure')}</Button>}
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}
-    {!procedure ? <EmptyState title={t('noProcedures')} description={t('noProceduresHint')} /> : <ProcedureFields key={procedure.id} procedure={procedure} readonly={readonly} apply={apply} />}
-    {removing && procedure && <Dialog title={t('removeProcedure')} closeLabel={t('close')} onClose={() => setRemoving(false)}
-      footer={<><Button variant="ghost" onClick={() => setRemoving(false)}>{t('cancel')}</Button><Button onClick={() => { apply({ type: 'remove', id: procedure.id }); setRemoving(false); }}>{t('removeProcedure')}</Button></>}>
-      <p>{t('removeProcedureHint')}</p><strong>{procedure.title || t('newProcedure')}</strong>
+    {!procedure ? <EmptyState title={t('noProcedures')} description={t('noProceduresHint')} /> : <ProcedureFields key={procedure.id} procedure={procedure} readonly={readonly} apply={apply} onCopyLink={onCopyLink} />}
+    {!readonly && removingProcedure && <Dialog title={t('removeProcedure')} closeLabel={t('close')} onClose={() => setRemoving(null)}
+      footer={<><Button variant="ghost" onClick={() => setRemoving(null)}>{t('cancel')}</Button><Button onClick={() => { apply({ type: 'remove', id: removingProcedure.id }); setRemoving(null); }}>{t('removeProcedure')}</Button></>}>
+      <p>{t('removeProcedureHint')}</p><strong>{removingProcedure.title || t('newProcedure')}</strong>
     </Dialog>}
   </>;
 }
@@ -221,11 +220,46 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   const [tab, setTab] = useState('notes'), [dialog, setDialog] = useState<'search' | 'help' | null>(null);
   const [query, setQuery] = useState(''), [pendingBlock, setPendingBlock] = useState<string | null>(null), [error, setError] = useState('');
   const navigated = useRef(false);
-  const items = useMemo(() => notebookSearchItems(document.content), [document.content]);
+  const [selectedProcedure, setSelectedProcedure] = useState('');
+  const [procedureTarget, setProcedureTarget] = useState<{ id: string; ownerId: string } | null>(null);
+  const [notice, setNotice] = useState('');
+  const items = useMemo(() => notebookSearchItems(document.content, document.procedures), [document.content, document.procedures]);
   const relevant = useMemo(() => notebookRelevantItems(document.content), [document.content]);
   const results = useMemo(() => searchNotebook(items, query), [items, query]);
   const metadata = document.metadata ?? { project: '', author: '', tags: [] };
-  const openBlock = (id: string) => { navigated.current = true; setDialog(null); setTab('notes'); setPendingBlock(id); };
+  const openBlock = (id: string) => {
+    const target = notebookTarget(document, id);
+    if (!target) { setError(t('unavailable')); return; }
+    navigated.current = true; setDialog(null); setError(''); setTab(target.tab);
+    if (target.tab === 'notes') { setProcedureTarget(null); setPendingBlock(id); }
+    else { setPendingBlock(null); setSelectedProcedure(target.procedureId!); setProcedureTarget({ id, ownerId: target.ownerId }); }
+  };
+  const navigate = useRef(openBlock); navigate.current = openBlock;
+  useEffect(() => {
+    const fromHash = () => { const target = parseNotebookLink(window.location.hash); if (target?.entryId === entryId) navigate.current(target.targetId); };
+    fromHash(); window.addEventListener('hashchange', fromHash);
+    return () => window.removeEventListener('hashchange', fromHash);
+  }, [entryId]);
+  const copyLink = async (id: string) => {
+    const url = new URL(window.location.href); url.hash = notebookLinkHash(entryId, id);
+    try { await navigator.clipboard.writeText(url.href); setNotice(t('copied')); }
+    catch { setError(t('copyFailed')); }
+  };
+  useEffect(() => {
+    if (!procedureTarget || tab !== 'procedures') return;
+    let frame = 0, attempts = 0;
+    const reveal = () => {
+      const owner = window.document.getElementById(`notebook-target-${procedureTarget.ownerId}`);
+      if (!owner) { setError(t('unavailable')); setProcedureTarget(null); return; }
+      const editors = [...owner.querySelectorAll<HTMLElement>('.notebook-procedure-content')];
+      if (procedureTarget.id !== procedureTarget.ownerId && editors.some(element => !element.querySelector('.tiptap')) && attempts++ < 20) { frame = requestAnimationFrame(reveal); return; }
+      owner.focus(); owner.scrollIntoView({ block: 'center' });
+      for (const element of editors) element.dispatchEvent(new CustomEvent('notebook-focus-rich', { detail: procedureTarget.id }));
+      setProcedureTarget(null);
+    };
+    frame = requestAnimationFrame(reveal);
+    return () => cancelAnimationFrame(frame);
+  }, [procedureTarget, tab, selectedProcedure, t]);
   useEffect(() => {
     if (!pendingBlock || tab !== 'notes' || editor.isDestroyed) return;
     let position: number | null = null;
@@ -246,7 +280,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     return () => cancelAnimationFrame(frame);
   }, [pendingBlock, tab, editor, t]);
   const openSearch = () => { navigated.current = false; setDialog('search'); };
-  return <Tabs className="notebook-workspace" value={tab} onValueChange={setTab} onKeyDown={event => {
+  return <Tabs className="notebook-workspace" data-notebook-entry-id={entryId} value={tab} onValueChange={setTab} onKeyDown={event => {
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
   }}>
     <div className="notebook-workspace-navigation">
@@ -265,9 +299,10 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
       </Toolbar>
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}
+    {notice && <Feedback kind="success">{notice}</Feedback>}
     <TabsContent className="notebook-notes-panel" value="notes" forceMount>{children}</TabsContent>
     <TabsContent className="notebook-workspace-panel" value="procedures" forceMount>
-      <ProceduresView procedures={document.procedures ?? []} readonly={readonly} onChange={procedures => onChange({ procedures })} />
+      <ProceduresView procedures={document.procedures ?? []} readonly={readonly} selected={selectedProcedure} setSelected={setSelectedProcedure} onCopyLink={id => void copyLink(id)} onChange={procedures => onChange({ procedures })} />
     </TabsContent>
     <TabsContent className="notebook-workspace-panel" value="relevant" forceMount>
       <p className="notebook-workspace-hint">{t('relevantHint')}</p>
@@ -293,7 +328,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
           <span><strong>{item.label.trim().slice(0, 160) || t(item.kind as MessageKey)}</strong><small>{t(item.kind as MessageKey)}</small>
             {query.trim() && <span className="notebook-search-excerpt">{item.text.slice(Math.max(0, item.text.toLocaleLowerCase().indexOf(query.trim().toLocaleLowerCase()) - 40), Math.max(0, item.text.toLocaleLowerCase().indexOf(query.trim().toLocaleLowerCase()) - 40) + 220)}</span>}
           </span>
-        </Button>
+        </Button><Button variant="ghost" onClick={() => void copyLink(item.id)}>{t('copyLink')}</Button>
       </li>)}</ul>
       {results.length > 100 && <p className="notebook-workspace-hint">{t('resultLimit')}</p>}
     </Dialog>}
