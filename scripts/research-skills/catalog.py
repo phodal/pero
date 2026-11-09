@@ -399,6 +399,100 @@ def canonical_spdx(value: str | None) -> str | None:
             return value.strip()
     return None
 
+def _opening(body: str) -> str:
+    text = body.lstrip(" ")
+    while text.startswith(">"):
+        text = text[1:].lstrip(" ")
+    return text
+
+
+def _strip_fences(text: str) -> str:
+    lines, kept, fence = text.splitlines(keepends=True), [], None
+    for line in lines:
+        marker = re.match(r"(`{3,}|~{3,})", _opening(line.rstrip("\r\n")))
+        if marker:
+            run = marker.group(1)
+            if fence is None:
+                fence = run
+                continue
+            if run[0] == fence[0] and len(run) >= len(fence):
+                fence = None
+                continue
+        if fence is None:
+            kept.append(line)
+    return "".join(kept)
+
+
+def _redact_secrets(text: str) -> str:
+    return re.sub(
+        r"(?i)(?<![A-Za-z0-9_])(api[-_]?key|apikey|authorization|password|secret|token)(?![A-Za-z0-9_])\s*[:=]\s*[^\s\",]+",
+        lambda match: match.group(1) + "=<redacted>",
+        text,
+    )
+
+
+def _clean_text(text: str, cap: bool) -> str:
+    cleaned = _redact_secrets(_strip_fences(text))
+    if cap and len(cleaned) > 4000:
+        return cleaned[:4000].rstrip() + "…"
+    return cleaned
+
+
+def _runtime_source(source: dict) -> dict:
+    kept = {key: source.get(key) for key in ("repository", "commit", "path", "url", "sha256") if key in source}
+    if source.get("archive"):
+        kept["archive"] = source["archive"]
+    return kept
+
+
+def runtime_catalog(document: dict) -> dict:
+    """Marketplace projection: no raw frontmatter, fenced extraction, or credential-shaped text."""
+    skills = []
+    for item in document.get("skills", []):
+        skill = {
+            "id": item["id"],
+            "name": item.get("name", ""),
+            "title_zh": item.get("title_zh", ""),
+            "description": _clean_text(item.get("description") or "", False),
+            "description_zh": _clean_text(item.get("description_zh") or "", False),
+            "category": item.get("category", ""),
+            "category_zh": item.get("category_zh", ""),
+            "kind": item.get("kind", ""),
+            "source": _runtime_source(item.get("source") or {}),
+            "sources": [_runtime_source(source) for source in item.get("sources") or []],
+            "license": {key: (item.get("license") or {}).get(key) for key in ("spdx", "status", "evidence_url")},
+            "compatibility": item.get("compatibility") or {"declared": [], "status": "unverified"},
+            "verification": {
+                "content": (item.get("verification") or {}).get("content", "parsed"),
+                "runtime": "not_run",
+                "notes": [_clean_text(note, False) for note in (item.get("verification") or {}).get("notes") or []],
+            },
+        }
+        for key in ("dependencies", "inputs", "outputs", "examples"):
+            skill[key] = [
+                {"heading": section.get("heading", ""), "text": _clean_text(section.get("text") or "", True)}
+                for section in item.get(key) or []
+                if _clean_text(section.get("text") or "", True)
+            ]
+        skills.append(skill)
+    return {
+        "schema_version": document.get("schema_version", 1),
+        "collection_status": document.get("collection_status", "complete"),
+        "generated_at": document.get("generated_at", ""),
+        "issue_url": document.get("issue_url", ""),
+        "source_document": document.get("source_document", ""),
+        "categories": document.get("categories") or {},
+        "sources": [
+            {"repository": source.get("repository"), "commit": source.get("commit"), "url": source.get("url")}
+            for source in document.get("sources") or []
+        ],
+        "skills": skills,
+        "resources": [],
+        "exclusions": [],
+        "stats": document.get("stats") or {},
+    }
+
+
 def describe_zh(name: str, description: str, category: str) -> str:
     if re.search(r"[\u4e00-\u9fff]", description):
         return description

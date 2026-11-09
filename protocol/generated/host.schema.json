@@ -15485,6 +15485,13 @@
         }
       ]
     },
+    "SkillDigest": {
+      "title": "SkillDigest",
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
     "SkillMarketApp": {
       "title": "SkillMarketApp",
       "type": "object",
@@ -15667,10 +15674,6 @@
             {
               "type": "string",
               "const": "check-update"
-            },
-            {
-              "type": "string",
-              "const": "update"
             }
           ]
         },
@@ -15720,6 +15723,9 @@
         },
         {
           "$ref": "#/$defs/SkillMarketEntryOperation"
+        },
+        {
+          "$ref": "#/$defs/SkillMarketUpdateOperation"
         },
         {
           "$ref": "#/$defs/SkillMarketEnable"
@@ -15800,10 +15806,13 @@
           "type": "string"
         },
         "currentRevision": {
-          "type": "string"
+          "$ref": "#/$defs/SkillRevision"
         },
         "latestRevision": {
-          "type": "string"
+          "$ref": "#/$defs/SkillRevision"
+        },
+        "latestSha256": {
+          "$ref": "#/$defs/SkillDigest"
         },
         "updateAvailable": {
           "type": "boolean"
@@ -15813,9 +15822,44 @@
         "id",
         "currentRevision",
         "latestRevision",
+        "latestSha256",
         "updateAvailable"
       ],
       "additionalProperties": false
+    },
+    "SkillMarketUpdateOperation": {
+      "title": "SkillMarketUpdateOperation",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "update"
+        },
+        "id": {
+          "$ref": "#/$defs/SkillMarketId"
+        },
+        "revision": {
+          "$ref": "#/$defs/SkillRevision"
+        },
+        "sha256": {
+          "$ref": "#/$defs/SkillDigest"
+        }
+      },
+      "required": [
+        "operation",
+        "id",
+        "revision",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "description": "Update installs exactly the revision and content digest returned by check-update."
+    },
+    "SkillRevision": {
+      "title": "SkillRevision",
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 40,
+      "pattern": "^[0-9a-fA-F]{40}$"
     },
     "SourceChunk": {
       "title": "SourceChunk",

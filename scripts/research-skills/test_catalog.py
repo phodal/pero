@@ -1,6 +1,7 @@
+import json
 import unittest
 
-from catalog import canonical_spdx, classify, parse_skill, consolidate, extract_sections, make_entry, resource_fingerprint, spdx_from_text
+from catalog import canonical_spdx, classify, parse_skill, consolidate, extract_sections, make_entry, resource_fingerprint, runtime_catalog, spdx_from_text
 
 
 class CatalogTest(unittest.TestCase):
@@ -95,6 +96,25 @@ class CatalogTest(unittest.TestCase):
                 actual = extract_sections(content)
                 for name, sections in expected.items():
                     self.assertEqual([(section.heading, section.text) for section in getattr(actual, name)], sections)
+
+    def test_runtime_catalog_omits_extraction_and_secrets(self):
+        digest = "b" * 64
+        document = {"schema_version": 1, "generated_at": "2026-11-09", "issue_url": "https://example.invalid/156",
+                    "sources": [{"repository": "owner/repo", "commit": "a" * 40, "url": "https://github.com/owner/repo"}],
+                    "skills": [{"id": "owner/repo/SKILL.md", "name": "read", "kind": "research_skill",
+                                "description": "Read evidence", "frontmatter_yaml": "token: hidden",
+                                "examples": [{"heading": "Usage", "text": "See\n```python\nimport os\n```\napi_key: supersecretvalue"}],
+                                "source": {"repository": "owner/repo", "commit": "a" * 40, "path": "SKILL.md", "sha256": digest, "git_blob_sha": "c" * 40},
+                                "license": {"spdx": "MIT", "status": "declared_in_skill", "evidence_url": "https://example.invalid/LICENSE", "declaration": "MIT"},
+                                "verification": {"content": "parsed", "runtime": "not_run", "notes": []}}]}
+        served = json.dumps(runtime_catalog(document))
+        self.assertNotIn("frontmatter_yaml", served)
+        self.assertNotIn("import os", served)
+        self.assertNotIn("supersecretvalue", served)
+        self.assertNotIn("git_blob_sha", served)
+        self.assertIn("api_key=<redacted>", served)
+        self.assertIn(digest, served)
+        self.assertEqual(runtime_catalog(document)["skills"][0]["source"]["sha256"], digest)
 
     def test_declared_dependencies(self):
         source = b"---\nname: knowledge-distillation\ndescription: Compress a language model.\ndependencies: [transformers, torch, datasets]\n---\n# Distillation\n## Requirements\nGPU access\n"

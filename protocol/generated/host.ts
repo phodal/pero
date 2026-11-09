@@ -143,11 +143,18 @@ export type AppRequest =
   | ResearchAssetsApp;
 export type AppName = string;
 export type SkillMarketOperation =
-  SkillMarketRead | SkillMarketEntryOperation | SkillMarketEnable | SkillMarketRollback | SkillMarketCancel;
+  | SkillMarketRead
+  | SkillMarketEntryOperation
+  | SkillMarketUpdateOperation
+  | SkillMarketEnable
+  | SkillMarketRollback
+  | SkillMarketCancel;
 /**
  * User-managed inventory; skill instructions do not grant execution permissions.
  */
 export type SkillMarketId = string;
+export type SkillRevision = string;
+export type SkillDigest = string;
 export type RequestId = string;
 export type LocalEnvironmentOperation =
   LocalEnvironmentCreate | LocalEnvironmentList | LocalEnvironmentPrepare | LocalEnvironmentBind;
@@ -1773,8 +1780,17 @@ export interface SkillMarketRead {
   operation: "catalog" | "installed";
 }
 export interface SkillMarketEntryOperation {
-  operation: "install" | "remove" | "check-update" | "update";
+  operation: "install" | "remove" | "check-update";
   id: SkillMarketId;
+}
+/**
+ * Update installs exactly the revision and content digest returned by check-update.
+ */
+export interface SkillMarketUpdateOperation {
+  operation: "update";
+  id: SkillMarketId;
+  revision: SkillRevision;
+  sha256: SkillDigest;
 }
 export interface SkillMarketEnable {
   operation: "enable";
@@ -3804,8 +3820,9 @@ export interface InstalledMarketSkill {
 }
 export interface SkillMarketUpdate {
   id: string;
-  currentRevision: string;
-  latestRevision: string;
+  currentRevision: SkillRevision;
+  latestRevision: SkillRevision;
+  latestSha256: SkillDigest;
   updateAvailable: boolean;
 }
 export interface SkillMarketCancelled {

@@ -48,25 +48,40 @@ fn market_version_choices() {
         );
     }
     assert!(updated.rollback(&entry.id, Some("unknown")).is_err());
-    assert!(restored
-        .enable(&entry.id, false)
-        .unwrap()
-        .selections()
-        .unwrap()
-        .is_empty());
+    assert!(
+        restored
+            .enable(&entry.id, false)
+            .unwrap()
+            .selections()
+            .unwrap()
+            .is_empty()
+    );
     assert!(restored.remove(&entry.id).unwrap().items.is_empty());
     assert_eq!(restored.items[&entry.id].versions.len(), 2);
-    assert!(restored
-        .remove(&entry.id)
-        .unwrap()
-        .installed_versions()
-        .unwrap()
-        .is_empty());
+    assert!(
+        restored
+            .remove(&entry.id)
+            .unwrap()
+            .installed_versions()
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(updated.installed_versions().unwrap()[0].revision, "new");
     assert_eq!(restored.installed_versions().unwrap()[0].revision, "old");
     let mut unsupported = entry;
     unsupported.license.spdx = None;
     assert!(unsupported.installable().is_err());
+}
+
+#[test]
+fn update_request_keeps_the_observed_pin() {
+    assert!(
+        serde_json::from_str::<Request>(r#"{"operation":"update","id":"source/read"}"#).is_err()
+    );
+    let request: Request = serde_json::from_str(r#"{"operation":"update","id":"source/read","revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}"#).unwrap();
+    assert!(
+        matches!(request, Request::Update { revision, sha256, .. } if revision.len()==40 && sha256.len()==64)
+    );
 }
 
 #[test]
@@ -134,10 +149,12 @@ fn acquisition_cancel_and_shutdown_preserve_installed_version() {
             control.cancel("selected").unwrap();
         }
         assert!(worker.join().unwrap().unwrap_err().contains("cancelled"));
-        assert!(control
-            .publish("selected", || fs::write(&installed, "new-version")
-                .map_err(|e| e.to_string()))
-            .is_err());
+        assert!(
+            control
+                .publish("selected", || fs::write(&installed, "new-version")
+                    .map_err(|e| e.to_string()))
+                .is_err()
+        );
         assert_eq!(fs::read_to_string(&installed).unwrap(), "previous-version");
         control.finish("selected");
         assert_eq!(control.begin("next").is_ok(), !shutdown);

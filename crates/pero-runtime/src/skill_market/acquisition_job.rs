@@ -11,6 +11,9 @@ pub enum AcquisitionKind {
 pub struct SkillAcquisition {
     pub(super) entry: SkillCatalogEntry,
     pub(super) current_revision: Option<String>,
+    pub(super) installed_sha256: String,
+    pub(super) pinned_revision: Option<String>,
+    pub(super) pinned_sha256: Option<String>,
     pub(super) kind: AcquisitionKind,
     pub(super) root: PathBuf,
     pub(super) harness: String,
@@ -18,7 +21,10 @@ pub struct SkillAcquisition {
 }
 pub enum AcquisitionResult {
     Installed(SkillVersion),
-    Upstream { latest_revision: String },
+    Upstream {
+        latest_revision: String,
+        latest_sha256: String,
+    },
 }
 #[derive(Deserialize)]
 struct Receipt {
@@ -43,31 +49,46 @@ impl SkillAcquisition {
     }
     pub fn run(&self) -> Result<AcquisitionResult, String> {
         let mut entry = self.entry.clone();
-        let revision = match self.kind {
-            AcquisitionKind::Install => entry.source.commit.clone(),
-            AcquisitionKind::Update | AcquisitionKind::CheckUpdate => {
-                let value = self.command(&[
-                    "skill-head".into(),
-                    format!("https://github.com/{}.git", entry.source.repository),
-                ])?;
-                let revision = value.trim().to_owned();
-                if !super::store::hex(&revision, 40) {
-                    return Err("Upstream did not return a complete commit id".into());
-                }
-                revision
-            }
-        };
         if matches!(self.kind, AcquisitionKind::CheckUpdate) {
+            let value = self.command(&[
+                "skill-observe".into(),
+                format!("https://github.com/{}.git", entry.source.repository),
+                entry.source.path.clone(),
+            ])?;
+            let mut fields = value.split_whitespace();
+            let revision = fields.next().unwrap_or("").to_owned();
+            let digest = fields.next().unwrap_or("").to_owned();
+            if fields.next().is_some()
+                || !super::store::hex(&revision, 40)
+                || !super::store::hex(&digest, 64)
+            {
+                return Err("Upstream did not return a pinned revision and content digest".into());
+            }
             return Ok(AcquisitionResult::Upstream {
                 latest_revision: revision,
+                latest_sha256: digest,
             });
         }
-        let namespace = format!("market-{:x}", Sha256::digest(entry.id.as_bytes()));
-        let expected = if revision == entry.source.commit {
-            entry.source.sha256.clone()
-        } else {
-            String::new()
+        let revision = match self.kind {
+            AcquisitionKind::Install => entry.source.commit.clone(),
+            AcquisitionKind::Update => self
+                .pinned_revision
+                .clone()
+                .ok_or("Update requires the observed revision")?,
+            AcquisitionKind::CheckUpdate => unreachable!("check-update returns before fetch"),
         };
+        let namespace = format!("market-{:x}", Sha256::digest(entry.id.as_bytes()));
+        let expected = match self.kind {
+            AcquisitionKind::Install => entry.source.sha256.clone(),
+            AcquisitionKind::Update => self
+                .pinned_sha256
+                .clone()
+                .ok_or("Update requires the observed content digest")?,
+            AcquisitionKind::CheckUpdate => unreachable!("check-update returns before fetch"),
+        };
+        if !super::store::hex(&expected, 64) {
+            return Err("Skill acquisition requires a pinned content digest".into());
+        }
         let output = self.command(&[
             "fetch-skill".into(),
             format!("https://github.com/{}.git", entry.source.repository),
@@ -84,7 +105,7 @@ impl SkillAcquisition {
         if !directory.starts_with(root)
             || receipt.revision != revision
             || !super::store::hex(&receipt.sha256, 64)
-            || (!expected.is_empty() && receipt.sha256 != expected)
+            || !receipt.sha256.eq_ignore_ascii_case(&expected)
         {
             return Err("Harness skill receipt does not match the requested source".into());
         }

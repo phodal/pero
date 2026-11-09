@@ -11,6 +11,7 @@ import json
 import re
 import subprocess
 import tempfile
+import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -43,7 +44,12 @@ def raw(repo: str, commit: str, path: str, cache: Path, blob: str | None = None)
                 content = response.read(64 * 1024 * 1024 + 1)
             if len(content) > 64 * 1024 * 1024:
                 raise ValueError("Source file exceeds 64 MiB collection limit")
-            target.write_bytes(content)
+            temporary = target.with_name(f"{target.name}.{uuid.uuid4().hex}.tmp")
+            try:
+                temporary.write_bytes(content)
+                temporary.replace(target)
+            finally:
+                temporary.unlink(missing_ok=True)
             return content
         except (urllib.error.URLError, TimeoutError) as error:
             last_error = error

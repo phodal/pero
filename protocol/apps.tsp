@@ -82,11 +82,15 @@ model ConnectorsApp { action: "connectors"; name: AppName; ...RequestBase; }
 /** User-managed inventory; skill instructions do not grant execution permissions. */
 @minLength(1) @maxLength(2048) scalar SkillMarketId extends string;
 model SkillMarketRead { operation: "catalog" | "installed"; ...AppClosed; }
-model SkillMarketEntryOperation { operation: "install" | "remove" | "check-update" | "update"; id: SkillMarketId; ...AppClosed; }
+model SkillMarketEntryOperation { operation: "install" | "remove" | "check-update"; id: SkillMarketId; ...AppClosed; }
+@minLength(40) @maxLength(40) @pattern("^[0-9a-fA-F]{40}$") scalar SkillRevision extends string;
+@minLength(64) @maxLength(64) @pattern("^[0-9a-fA-F]{64}$") scalar SkillDigest extends string;
+/** Update installs exactly the revision and content digest returned by check-update. */
+model SkillMarketUpdateOperation { operation: "update"; id: SkillMarketId; revision: SkillRevision; sha256: SkillDigest; ...AppClosed; }
 model SkillMarketEnable { operation: "enable"; id: SkillMarketId; enabled: boolean; ...AppClosed; }
 model SkillMarketCancel { operation: "cancel"; id: SkillMarketId; ...AppClosed; }
 model SkillMarketRollback { operation: "rollback"; id: SkillMarketId; revision?: string; ...AppClosed; }
-@oneOf union SkillMarketOperation { SkillMarketRead, SkillMarketEntryOperation, SkillMarketEnable, SkillMarketRollback, SkillMarketCancel }
+@oneOf union SkillMarketOperation { SkillMarketRead, SkillMarketEntryOperation, SkillMarketUpdateOperation, SkillMarketEnable, SkillMarketRollback, SkillMarketCancel }
 model SkillMarketApp { action: "skillsmarket"; name: AppName; request: SkillMarketOperation; ...RequestBase; }
 model SkillMarketCategories is Record<string>;
 model SkillMarketCatalog {
@@ -103,7 +107,7 @@ model InstalledMarketSkill {
   ...AppClosed;
 }
 model SkillMarketInstalled { items: InstalledMarketSkill[]; supportedAgent: "pero"; ...AppClosed; }
-model SkillMarketUpdate { id: string; currentRevision: string; latestRevision: string; updateAvailable: boolean; ...AppClosed; }
+model SkillMarketUpdate { id: string; currentRevision: SkillRevision; latestRevision: SkillRevision; latestSha256: SkillDigest; updateAvailable: boolean; ...AppClosed; }
 model SkillMarketCancelled { cancelled: true; ...AppClosed; }
 /** Paper may request only saved research identities; Host owns the fixed Data target. */
 @minLength(64) @maxLength(64) @pattern("^[a-f0-9]{64}$") scalar ResearchId extends string;

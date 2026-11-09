@@ -173,11 +173,17 @@ try {
   assert.equal(ready.kind, 'session_ready', ready.text);
   await prompt('selected', `${installed.invocation.startsWith('/') ? '' : '/'}${installed.invocation} Check the observed research data.`);
   assert.deepEqual(errors, []); assert.equal(requests.length, 2);
-  assert.equal((await ok('check-update', { id })).updateAvailable, false);
+  const currentCheck = await ok('check-update', { id });
+  assert.equal(currentCheck.updateAvailable, false);
+  assert.equal(currentCheck.latestSha256, sha(skill));
+  assert.equal((await market('update', { id })).ok, false);
   await writeFile(join(repo, 'skills/research-audit/SKILL.md'), skill.replace('V1', 'V2')); git('add', '.'); git('commit', '-m', 'Revise audit');
   const nextRevision = git('rev-parse', 'HEAD');
-  assert.equal((await ok('check-update', { id })).latestRevision, nextRevision);
-  const updated = (await ok('update', { id })).items[0];
+  const observed = await ok('check-update', { id });
+  assert.equal(observed.latestRevision, nextRevision);
+  assert.equal(observed.latestSha256, sha(skill.replace('V1', 'V2')));
+  assert.equal(observed.updateAvailable, true);
+  const updated = (await ok('update', { id, revision: observed.latestRevision, sha256: observed.latestSha256 })).items[0];
   assert.equal(updated.revision, nextRevision); assert.equal(updated.previousRevision, revision);
   assert.equal((await ok('rollback', { id, revision })).items[0].revision, revision);
   // Existing selected session still has its original package after disable/remove.

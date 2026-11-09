@@ -2,13 +2,15 @@
 mod acquisition;
 mod acquisition_job;
 pub use acquisition_job::{AcquisitionKind, AcquisitionResult, SkillAcquisition};
+mod catalog;
+pub use catalog::sanitize_catalog;
 mod context;
 pub use context::CONTEXT_SOURCE_PREFIX;
 mod store;
 pub use acquisition::AcquisitionControl;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf};
-pub use store::{CatalogLocation, SkillMarketStore};
+pub use store::{CatalogLocation, SkillMarketStore, read_installed_context};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SkillSource {
@@ -272,7 +274,11 @@ pub enum Request {
     #[serde(rename = "check-update")]
     CheckUpdate { id: String },
     #[serde(rename = "update")]
-    Update { id: String },
+    Update {
+        id: String,
+        revision: String,
+        sha256: String,
+    },
     #[serde(rename = "rollback")]
     Rollback {
         id: String,
@@ -282,7 +288,7 @@ pub enum Request {
 impl Request {
     pub fn acquisition_id(&self) -> Option<&str> {
         match self {
-            Self::Install { id } | Self::Update { id } | Self::CheckUpdate { id } => Some(id),
+            Self::Install { id } | Self::Update { id, .. } | Self::CheckUpdate { id } => Some(id),
             _ => None,
         }
     }
