@@ -4,13 +4,14 @@ use pero_contracts::research_project::NotebookProjectLink;
 
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "kebab-case", rename_all_fields = "camelCase", deny_unknown_fields)]
-enum Input { List, Set { change: NotebookProjectLink }, Cancel { entry_id: String } }
+// A tagged unit variant would ignore extra list fields despite deny_unknown_fields.
+enum Input { List {}, Set { change: NotebookProjectLink }, Cancel { entry_id: String } }
 impl NativeApps {
     pub(super) fn notebook_projects_response(&self, name: &str, method: &str, body: &[u8], is_live: &dyn Fn() -> bool) -> anyhow::Result<Response<Vec<u8>>> {
         anyhow::ensure!(is_live() && name == "notebook" && method == "POST" && body.len() <= 4096, "Notebook project request refused");
         let input: Input = serde_json::from_slice(body)?;
         let result: Value = match input {
-            Input::List => self.request("notebook-projects", json!({"name":name,"request":{"operation":"list"}}))?,
+            Input::List {} => self.request("notebook-projects", json!({"name":name,"request":{"operation":"list"}}))?,
             Input::Cancel {entry_id} => {
                 if let Some(id) = self.docling.cancel_canvas(&format!("project:{entry_id}")) { self.dismiss_docling(id); }
                 json!({"state":"cancel-requested"})
@@ -38,8 +39,28 @@ mod tests {
     use super::*;
     #[test]
     fn project_transport_rejects_private_and_generic_settings_operations() {
-        for value in [json!({"operation":"apply","change":{}}), json!({"operation":"list","allow":true}), json!({"operation":"settings","preferences":{}})] {
-            assert!(serde_json::from_value::<Input>(value).is_err());
+        let change = json!({"projectId":"project","entryId":"a".repeat(32),"revision":1,
+            "expectedRevision":null,"linked":true,"readOnly":false});
+        for (case, value) in [
+            ("private apply", json!({"operation":"apply","change":change})),
+            ("list with approval", json!({"operation":"list","allow":true})),
+            ("list with settings", json!({"operation":"list","preferences":{}})),
+            ("generic settings", json!({"operation":"settings","preferences":{}})),
+            ("cancel with approval", json!({"operation":"cancel","entryId":"a".repeat(32),"allow":true})),
+            ("cancel with private ticket", json!({"operation":"cancel","entryId":"a".repeat(32),"ticket":"forged"})),
+            ("set with approval", json!({"operation":"set","change":change,"allow":true})),
+            ("set with nested approval", json!({"operation":"set","change":{
+                "projectId":"project","entryId":"a".repeat(32),"revision":1,
+                "expectedRevision":null,"linked":true,"readOnly":false,"allow":true}})),
+        ] {
+            assert!(serde_json::from_value::<Input>(value).is_err(), "Accepted {case}");
+        }
+        for (case, value) in [
+            ("list", json!({"operation":"list"})),
+            ("set", json!({"operation":"set","change":change})),
+            ("cancel", json!({"operation":"cancel","entryId":"a".repeat(32)})),
+        ] {
+            assert!(serde_json::from_value::<Input>(value).is_ok(), "Rejected {case}");
         }
     }
 }

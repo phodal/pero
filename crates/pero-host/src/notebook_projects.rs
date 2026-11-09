@@ -9,7 +9,8 @@ use std::path::Path;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum Request {
-    List,
+    // A struct variant makes deny_unknown_fields apply even to this empty payload.
+    List {},
     Review { change: NotebookProjectLink },
     Apply { change: NotebookProjectLink },
 }
@@ -30,7 +31,7 @@ pub(crate) fn execute(store: &mut AppStore, settings: Option<&Path>, caller: &Ap
         "id":item.reference.id,"revision":item.reference.revision,"title":item.title
     })).collect::<Vec<_>>());
     let (change, apply) = match input {
-        Request::List => return Ok(json!({"projects":projects(&preferences),"entries":entries})),
+        Request::List {} => return Ok(json!({"projects":projects(&preferences),"entries":entries})),
         Request::Review {change} => (change, false),
         Request::Apply {change} => (change, true),
     };
@@ -54,4 +55,35 @@ pub(crate) fn execute(store: &mut AppStore, settings: Option<&Path>, caller: &Ap
     // Workbench receives the same authoritative preferences as its own project editor.
     let _ = crate::emit(event);
     Ok(json!({"state":"completed","projects":projects(&next),"entries":entries}))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn project_requests_accept_only_the_declared_owner_payload() {
+        let change = json!({"projectId":"project","entryId":"a".repeat(32),"revision":1,
+            "expectedRevision":null,"linked":true,"readOnly":false});
+        for (case, value) in [
+            ("list with approval", json!({"operation":"list","allow":true})),
+            ("list with settings", json!({"operation":"list","preferences":{}})),
+            ("renderer set", json!({"operation":"set","change":change})),
+            ("generic settings", json!({"operation":"settings","preferences":{}})),
+            ("review with approval", json!({"operation":"review","change":change,"allow":true})),
+            ("apply with private ticket", json!({"operation":"apply","change":change,"ticket":"forged"})),
+            ("apply with nested preferences", json!({"operation":"apply","change":{
+                "projectId":"project","entryId":"a".repeat(32),"revision":1,
+                "expectedRevision":null,"linked":true,"readOnly":false,"preferences":{}}})),
+        ] {
+            assert!(serde_json::from_value::<Request>(value).is_err(), "Accepted {case}");
+        }
+        for (case, value) in [
+            ("list", json!({"operation":"list"})),
+            ("review", json!({"operation":"review","change":change})),
+            ("apply", json!({"operation":"apply","change":change})),
+        ] {
+            assert!(serde_json::from_value::<Request>(value).is_ok(), "Rejected {case}");
+        }
+    }
 }
