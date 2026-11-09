@@ -7,7 +7,7 @@
     "build": "node ../../scripts/build/apps.mjs --app notebook",
     "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
     "test": "npm run test:editor && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
-    "test:browser": "node --test test/notebook-browser.mjs",
+    "test:browser": "node --test test/notebook-browser.mjs test/content-editing-browser.mjs",
     "test:editor": "node --test test/*.test.ts"
   },
   "dependencies": {
@@ -19,7 +19,8 @@
     "@tiptap/react": "3.33.0",
     "@tiptap/starter-kit": "3.33.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "@tiptap/extension-code-block": "3.33.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

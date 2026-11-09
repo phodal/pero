@@ -173,7 +173,7 @@ def _references(block):
 
 
 def apply_operations(original, operations):
-    document = NotebookDocument(original.title, deepcopy(original.content))
+    document = deepcopy(original)
     blocks = document.content['content']
     for operation in operations:
         if isinstance(operation, AddFinding):
@@ -206,7 +206,7 @@ def apply_operations(original, operations):
         if isinstance(operation, InsertSpreadsheet):
             labels = [
                 node['attrs'].get('label', '').lower()
-                for node in nodes(document.content) if node['type'] == 'spreadsheet'
+                for node in document.nodes() if node['type'] == 'spreadsheet'
             ]
             names = {label for label in labels if label.strip()}
             next_sheet = 1
@@ -230,7 +230,7 @@ def apply_operations(original, operations):
         if isinstance(operation, DeleteBlock):
             removed = blocks.pop(_top_level_index(blocks, operation.identity))
             identities = {node.get('attrs', {}).get('blockId') for node in nodes(removed)}
-            if any(identity in identities for node in nodes(document.content) for identity in _references(node)):
+            if any(identity in identities for node in document.nodes() for identity in _references(node)):
                 raise ValueError('A Finding or cell annotation still references this block')
             continue
         block = document.block(operation.identity)

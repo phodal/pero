@@ -9,11 +9,18 @@ import signal
 import sqlite3
 import threading
 from uuid import uuid4
+from urllib.parse import parse_qs, urlsplit
 
+from drafts import Draft, DraftStore, StoredDraftError
 from agent_read import AgentRead
 from document import MAX_DOCUMENT_BYTES, NotebookDocument, fields, integer
 from operations import apply_operations, parse_operations
 from store import EntryStore, MissingEntry, RevisionConflict, StoredDocumentError
+from templates import TemplateStore, TemplateDefinition, MissingTemplate
+from saved_search import SavedSearchStore, SavedSearchDefinition, MissingSavedSearch
+from reviews import ReviewStore
+from review_routes import review_route
+from catalog import CatalogStore, SubmissionConflict, SchemaConflict
 
 
 ENTRY_ID = re.compile(r'[a-f0-9]{32}')
@@ -32,6 +39,10 @@ def invalid_constant(_value):
 
 def handler(store, secret):
     token = secret.encode()
+    templates, saved_searches = TemplateStore(store), SavedSearchStore(store)
+    reviews = ReviewStore(store)
+    drafts = DraftStore(store)
+    catalog = CatalogStore(store.path)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -54,7 +65,7 @@ def handler(store, secret):
             if self.headers.get('Transfer-Encoding') or media_type != 'application/json':
                 raise ValueError('A JSON request with Content-Length is required')
             length = int(self.headers.get('Content-Length', 0))
-            if not 0 < length <= MAX_DOCUMENT_BYTES + 4096:
+            if not 0 < length <= MAX_DOCUMENT_BYTES + 65536:
                 raise ValueError('Notebook request exceeds the size limit')
             raw = self.rfile.read(length)
             if len(raw) != length:
@@ -78,8 +89,12 @@ def handler(store, secret):
                 return route()
             except RevisionConflict as error:
                 return self.error(409, 'revision-conflict', str(error), currentRevision=error.current_revision)
-            except MissingEntry as error:
+            except (SubmissionConflict, SchemaConflict) as error:
+                return self.error(409, 'catalog-conflict', str(error))
+            except (MissingEntry, MissingTemplate, MissingSavedSearch) as error:
                 return self.error(404, 'not-found', str(error))
+            except StoredDraftError as error:
+                return self.error(409, 'stored-draft-error', str(error), recovery=error.raw)
             except StoredDocumentError as error:
                 return self.error(500, 'stored-document-error', str(error),
                                   entryId=error.identity, revision=error.revision)
@@ -89,6 +104,33 @@ def handler(store, secret):
                 return self.error(500, 'storage-error', 'Notebook storage operation failed')
 
         def get(self):
+            response = review_route(reviews, 'GET', self.path, self.body)
+            if response is not None:
+                return self.reply(*response)
+            parts = urlsplit(self.path)
+            if parts.path == '/api/catalog/lookup':
+                query = parse_qs(parts.query, keep_blank_values=True)
+                if set(query) - {'schemaId', 'text', 'limit'} or any(len(values) != 1 for values in query.values()):
+                    raise ValueError('Invalid catalog query parameters')
+                lookup = {'schemaId': query.get('schemaId', [''])[0], 'text': query.get('text', [''])[0],
+                          'limit': int(query.get('limit', ['100'])[0])}
+                return self.reply(200, catalog.lookup(lookup))
+            if parts.path in ('/api/templates', '/api/saved-searches'):
+                if parts.query:
+                    raise ValueError('Collection routes do not accept query parameters')
+                return self.reply(200, {'templates': templates.list()} if parts.path == '/api/templates'
+                                  else {'searches': saved_searches.list()})
+            library = re.fullmatch(r'/api/(templates|saved-searches)/([a-f0-9]{32})', parts.path)
+            if library:
+                query = parse_qs(parts.query, keep_blank_values=True)
+                if set(query) - {'revision'} or len(query.get('revision', [])) > 1:
+                    raise ValueError('Invalid library query parameters')
+                revision = integer(int(query['revision'][0]), 'revision') if 'revision' in query else None
+                owner = templates if library[1] == 'templates' else saved_searches
+                return self.reply(200, owner.read(library[2], revision))
+            draft_path = re.fullmatch(r'/api/entries/([a-f0-9]{32})/draft', self.path)
+            if draft_path:
+                return self.reply(200, {'draft': drafts.read(draft_path[1])})
             if self.path == '/api/entries':
                 return self.reply(200, {'entries': store.list()})
             match = ENTRY_PATH.fullmatch(self.path)
@@ -102,9 +144,42 @@ def handler(store, secret):
             return self.reply(200, store.read(match[1]).wire())
 
         def post(self):
+            draft_path = re.fullmatch(r'/api/entries/([a-f0-9]{32})/draft(/discard)?', self.path)
+            if draft_path:
+                if draft_path[2]:
+                    data = fields(self.body(), {'baseRevision'})
+                    drafts.discard(draft_path[1], integer(data['baseRevision'], 'base revision'))
+                    return self.reply(200, {'discarded': True})
+                return self.reply(200, drafts.save(draft_path[1], Draft.parse(self.body())))
+            response = review_route(reviews, 'POST', self.path, self.body)
+            if response is not None:
+                return self.reply(*response)
+            if self.path == '/api/catalog/register':
+                return self.reply(200, catalog.register(self.body()))
+            if self.path == '/api/templates':
+                return self.reply(201, templates.publish(TemplateDefinition.parse(self.body())))
+            if self.path == '/api/saved-searches':
+                return self.reply(201, saved_searches.save(SavedSearchDefinition.parse(self.body())))
+            library = re.fullmatch(r'/api/(templates|saved-searches)/([a-f0-9]{32})/(revisions|archive|run)', self.path)
+            if library:
+                kind, identity, action = library.groups()
+                if action == 'revisions':
+                    data = fields(self.body(), {'expectedRevision', 'definition'})
+                    revision = integer(data['expectedRevision'], 'expected revision')
+                    result = templates.publish(TemplateDefinition.parse(data['definition']), identity, revision) if kind == 'templates' else saved_searches.save(SavedSearchDefinition.parse(data['definition']), identity, revision)
+                    return self.reply(201, result)
+                if kind == 'templates' and action == 'archive':
+                    data = fields(self.body(), {'archived'})
+                    return self.reply(200, templates.archive(identity, data['archived']))
+                if kind == 'saved-searches' and action == 'run':
+                    data = fields(self.body(), {'revision'})
+                    return self.reply(200, saved_searches.run(identity, integer(data['revision'], 'query revision')))
+                return self.error(404, 'not-found', 'Route not found')
             if self.path == '/api/entries':
-                data = fields(self.body(), set(), {'title'})
-                document = NotebookDocument.parse({
+                data = fields(self.body(), set(), {'title', 'document'})
+                if 'document' in data and 'title' in data:
+                    raise ValueError('Import a document or create a title, not both')
+                document = NotebookDocument.parse(data['document'] if 'document' in data else {
                     'schemaVersion': 1, 'title': data.get('title', 'Untitled'),
                     'content': {'type': 'doc', 'content': [{'type': 'paragraph', 'attrs': {'blockId': uuid4().hex}}]},
                 })

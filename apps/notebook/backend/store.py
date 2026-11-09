@@ -122,4 +122,12 @@ class EntryStore:
             current = self._read(connection, identity)
             if current.revision != expected_revision:
                 raise RevisionConflict(current.revision)
-            return self._insert(connection, identity, current.revision + 1, edit(current.document))
+            from templates import preserve_template_origins
+            document = edit(current.document)
+            preserve_template_origins(current.document.wire(), document.wire())
+            entry = self._insert(connection, identity, current.revision + 1, document)
+            # Only clear the draft actually published; a newer recovery copy is retained.
+            if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='drafts'").fetchone():
+                connection.execute('DELETE FROM drafts WHERE entry_id = ? AND document = ?',
+                                   (identity, document.serialized()))
+            return entry

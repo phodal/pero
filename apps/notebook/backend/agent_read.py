@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import json
 
-from document import block_id, integer, nodes
+from document import block_id, integer
 
 
 # Leave room for entry metadata under Desktop App Use's 1,000,000 byte limit.
@@ -43,7 +43,7 @@ class AgentRead:
         if self.view == 'index' or (target == 'document' and self.offset is None
                                      and len(serialized.encode()) > INLINE_BYTES):
             blocks = [{'blockId': node['attrs']['blockId'], 'type': node['type']}
-                      for node in nodes(document.content) if node.get('attrs', {}).get('blockId')]
+                      for node in document.nodes() if node.get('attrs', {}).get('blockId')]
             offset = self.offset or 0
             if offset and offset >= len(blocks):
                 raise ValueError('Read offset lies outside the block index')

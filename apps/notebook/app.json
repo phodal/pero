@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "displayName": "Notebook",
   "description": "Write, link and review versioned research records.",
+  "permissions": { "host": ["agent"] },
   "contributes": {
     "panels": [{ "id": "main", "title": "Notebook", "entry": "dist/index.html" }],
     "writes": [

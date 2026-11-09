@@ -1,10 +1,15 @@
 """The versioned Notebook content accepted by storage and the App editor."""
 
 from dataclasses import dataclass
+from datetime import date
 from hashlib import sha256
+import base64
+import binascii
 import json
 import math
 import re
+from urllib.parse import urlsplit
+from workspace import NotebookMetadata, NotebookProcedure, parse_procedures
 import unicodedata
 
 
@@ -17,11 +22,11 @@ MAX_COLUMNS = 50
 
 BLOCK_ID = re.compile(r'[A-Za-z0-9_-]{1,128}')
 CELL_ADDRESS = re.compile(r'([A-Z]{1,2})([1-9][0-9]{0,2})')
-MARKS = {'bold', 'italic', 'strike', 'code'}
+MARKS = {'bold', 'italic', 'strike', 'code', 'underline', 'subscript', 'superscript', 'textColor', 'textBackground', 'link'}
 BLOCKS = {
     'paragraph', 'heading', 'blockquote', 'horizontalRule', 'codeBlock',
     'bulletList', 'orderedList', 'taskList', 'spreadsheet', 'evidence',
-    'experiment', 'finding',
+    'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake',
 }
 CONTAINERS = {
     'doc': BLOCKS,
@@ -31,12 +36,13 @@ CONTAINERS = {
     'bulletList': {'listItem'},
     'orderedList': {'listItem'},
     'taskList': {'taskItem'},
-    'paragraph': {'text', 'hardBreak'},
-    'heading': {'text', 'hardBreak'},
+    'paragraph': {'text', 'hardBreak', 'referenceMention'},
+    'heading': {'text', 'hardBreak', 'referenceMention'},
     'codeBlock': {'text'},
+    'section': BLOCKS,
 }
-REQUIRED_CHILDREN = {'doc', 'blockquote', 'bulletList', 'orderedList', 'taskList'}
-DOMAIN_BLOCKS = {'spreadsheet', 'evidence', 'experiment', 'finding'}
+REQUIRED_CHILDREN = {'doc', 'blockquote', 'bulletList', 'orderedList', 'taskList', 'section'}
+DOMAIN_BLOCKS = {'spreadsheet', 'evidence', 'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake'}
 SHA256 = re.compile(r'[a-f0-9]{64}')
 RUN_ID = re.compile(r'[a-f0-9]{32}')
 CONTROL_NAME = re.compile(r'[a-zA-Z0-9_-]{1,128}')
@@ -66,6 +72,73 @@ def block_id(value):
     if not isinstance(value, str) or not BLOCK_ID.fullmatch(value):
         raise ValueError('Invalid block ID')
     return value
+
+
+def calendar_date(value):
+    """An optional day label, not the time of a saved revision or experiment."""
+    string(value, 'section date', 10)
+    if value:
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+            raise ValueError('Invalid section date')
+        try:
+            date.fromisoformat(value)
+        except ValueError as error:
+            raise ValueError('Invalid section date') from error
+
+
+def attachment(value):
+    """A bounded immutable file snapshot; only raster images are previewable."""
+    filename = string(value['filename'], 'attachment filename', 255, required=True)
+    if filename in {'.', '..'} or re.search(r'[\x00-\x1f\x7f/\\]', filename):
+        raise ValueError('Invalid attachment filename')
+    mime = string(value['mime'], 'attachment MIME type', 127, required=True)
+    if not re.fullmatch(r'[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*', mime):
+        raise ValueError('Invalid attachment MIME type')
+    if mime.startswith('image/') and mime not in {'image/png', 'image/jpeg', 'image/webp'}:
+        raise ValueError('Unsupported image type')
+    data = string(value['data'], 'attachment data', 4 * ((512 * 1024 + 2) // 3))
+    try:
+        raw = base64.b64decode(data, validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError('Invalid attachment base64') from error
+    if len(raw) > 512 * 1024 or base64.b64encode(raw).decode() != data:
+        raise ValueError('Invalid attachment size or base64')
+    if value['sha256'] != sha256(raw).hexdigest():
+        raise ValueError('Attachment digest does not match its bytes')
+    string(value['caption'], 'attachment caption', 2000)
+
+
+def text_mark(value):
+    """Interpret editor marks at the persistence boundary without active URL/CSS payloads."""
+    fields(value, {'type'}, {'attrs'})
+    kind = value['type']
+    if not isinstance(kind, str) or kind not in MARKS:
+        raise ValueError('Unknown text mark')
+    attrs = value.get('attrs', {})
+    if kind in {'textColor', 'textBackground'}:
+        fields(attrs, {'tone'})
+        if attrs['tone'] not in {'blue', 'green', 'rose', 'amber'}:
+            raise ValueError('Invalid text color')
+    elif kind == 'link':
+        fields(attrs, {'href'}, {'target', 'rel', 'class', 'title'})
+        href = string(attrs['href'], 'link URL', 2048, required=True)
+        if (not re.match(r'^(?:https?://|mailto:)', href, re.I)
+                or re.search(r'[\s\x00-\x20\x7f]', href)):
+            raise ValueError('Invalid link URL')
+        try:
+            parsed = urlsplit(href)
+            if parsed.scheme.lower() in {'http', 'https'} and not parsed.hostname:
+                raise ValueError('Invalid link host')
+            if parsed.scheme.lower() == 'mailto' and not parsed.path:
+                raise ValueError('Invalid mail recipient')
+        except ValueError as error:
+            raise ValueError('Invalid link URL') from error
+        if attrs.get('target') not in (None, '_blank') or attrs.get('rel') not in (None, 'noopener noreferrer nofollow'):
+            raise ValueError('Invalid link behavior')
+        if attrs.get('class') is not None or attrs.get('title') is not None:
+            raise ValueError('Invalid link presentation')
+    else:
+        fields(attrs, set())
 
 
 def check_coordinates(value, rows, columns):
@@ -257,18 +330,31 @@ def _attributes(kind, value, identities):
         'evidence': {'label', 'source'},
         'experiment': {'label', 'source'},
         'finding': {'claim', 'limitations', 'evidenceIds'},
+        'section': {'label', 'date'},
+        'attachment': {'filename', 'mime', 'data', 'caption', 'sha256'},
+        'referenceMention': {'label', 'source'},
+        'sampleIntake': {'intake'},
+        'appCanvas': {'label', 'binding'},
+        'mixturePrep': {'label', 'mixture'},
+        'inputTable': {'table', 'receipts'},
+        'registrationTable': {'table', 'receipts'},
+        'lookupTable': {'query', 'snapshot'},
+        'savedSearch': {'label', 'queryId', 'queryRevision', 'mode', 'snapshot'},
     }.get(kind, set())
     if kind in DOMAIN_BLOCKS:
         required = required | {'blockId'}
     optional = {
         'heading': {'level'}, 'orderedList': {'start', 'type'},
         'taskItem': {'checked'}, 'codeBlock': {'language'},
-        'spreadsheet': {'label', 'annotations'},
+        'spreadsheet': {'label', 'annotations', 'formats', 'rowHeights', 'columnWidths', 'merges'},
         'evidence': {'snapshot'}, 'experiment': {'snapshot'},
     }.get(kind, set())
-    if kind not in {'doc', 'text', 'hardBreak'}:
-        optional = optional | {'blockId'}
+    if kind not in {'doc', 'text', 'hardBreak', 'referenceMention'}:
+        optional = optional | {'blockId', 'templateOrigin'}
     fields(value, required, optional)
+    if value.get('templateOrigin') is not None:
+        from templates import parse_template_origin
+        parse_template_origin(value['templateOrigin'])
     identity = value.get('blockId')
     if identity is not None or kind in DOMAIN_BLOCKS:
         identity = block_id(identity)
@@ -294,6 +380,8 @@ def _attributes(kind, value, identities):
         rows = integer(sheet['rows'], 'row count', MAX_ROWS)
         columns = integer(sheet['columns'], 'column count', MAX_COLUMNS)
         cell_values(sheet['cells'], rows, columns)
+        from grid import GridPresentation
+        GridPresentation.parse(value, rows, columns)
         if 'annotations' in value:
             annotations = value['annotations']
             check_coordinates(annotations, rows, columns)
@@ -313,6 +401,34 @@ def _attributes(kind, value, identities):
         string(value['claim'], 'claim')
         string(value['limitations'], 'limitations')
         evidence_ids(value['evidenceIds'])
+    elif kind == 'section':
+        string(value['label'], 'section title', MAX_TITLE)
+        calendar_date(value['date'])
+    elif kind == 'attachment':
+        attachment(value)
+    elif kind in {'inputTable', 'registrationTable', 'lookupTable'}:
+        from catalog import validate_attribute
+        validate_attribute(kind, {key: item for key, item in value.items() if key != 'templateOrigin'})
+    elif kind == 'referenceMention':
+        string(value['label'], 'mention label', 200, required=True)
+        source = fields(value['source'], {'app', 'kind', 'id', 'version', 'locator'})
+        for key, item in source.items():
+            string(item, 'mention identity', 1024, required=key != 'locator')
+            if re.search(r'[\x00-\x1f\x7f]', item):
+                raise ValueError('Invalid mention identity')
+    elif kind == 'sampleIntake':
+        from sample_intake import validate_sample_intake_attributes
+        validate_sample_intake_attributes({key: item for key, item in value.items() if key != 'templateOrigin'})
+    elif kind == 'appCanvas':
+        from app_canvas import AppCanvasBinding
+        string(value['label'], 'App Canvas label', MAX_TITLE)
+        AppCanvasBinding.parse(value['binding'])
+    elif kind == 'mixturePrep':
+        from mixture import parse_mixture_attributes
+        parse_mixture_attributes(value)
+    elif kind == 'savedSearch':
+        from saved_search import parse_saved_search_attributes
+        parse_saved_search_attributes(value)
 
 
 def _node(value, allowed, identities, depth=0):
@@ -329,12 +445,12 @@ def _node(value, allowed, identities, depth=0):
         raise ValueError('Only text nodes contain text')
     if 'marks' in value:
         marks = value['marks']
-        if kind not in {'text', 'hardBreak'} or not isinstance(marks, list) or len(marks) > len(MARKS):
+        if kind not in {'text', 'hardBreak', 'referenceMention'} or not isinstance(marks, list) or len(marks) > len(MARKS):
             raise ValueError('Invalid text marks')
         for mark in marks:
-            fields(mark, {'type'})
-            if not isinstance(mark['type'], str) or mark['type'] not in MARKS:
-                raise ValueError('Unknown text mark')
+            text_mark(mark)
+        if {'subscript', 'superscript'} <= {mark['type'] for mark in marks}:
+            raise ValueError('Text cannot be both subscript and superscript')
         if len({mark['type'] for mark in marks}) != len(marks):
             raise ValueError('Duplicate text mark')
     if 'content' in value or kind in REQUIRED_CHILDREN or kind in {'listItem', 'taskItem'}:
@@ -361,24 +477,47 @@ def nodes(node):
 class NotebookDocument:
     title: str
     content: dict
+    metadata: NotebookMetadata | None = None
+    procedures: tuple[NotebookProcedure, ...] | None = None
+    template_origin: dict | None = None
 
     @classmethod
     def parse(cls, value):
-        fields(value, {'schemaVersion', 'title', 'content'})
+        fields(value, {'schemaVersion', 'title', 'content'}, {'metadata', 'procedures', 'templateOrigin'})
         if type(value['schemaVersion']) is not int or value['schemaVersion'] != 1:
             raise ValueError('Unsupported Notebook document version')
         title = string(value['title'], 'entry title', MAX_TITLE, required=True)
-        _node(value['content'], {'doc'}, set())
-        document = cls(title, value['content'])
+        identities = set()
+        _node(value['content'], {'doc'}, identities)
+        from templates import parse_template_origin
+        origin = parse_template_origin(value['templateOrigin']) if value.get('templateOrigin') is not None else None
+        document = cls(title, value['content'],
+                       NotebookMetadata.parse(value['metadata']) if 'metadata' in value else None,
+                       parse_procedures(value['procedures'], identities) if 'procedures' in value else None, origin)
         if len(document.serialized().encode()) > MAX_DOCUMENT_BYTES:
             raise ValueError('Notebook document exceeds the size limit')
         return document
 
     def wire(self):
-        return {'schemaVersion': 1, 'title': self.title, 'content': self.content}
+        result = {'schemaVersion': 1, 'title': self.title, 'content': self.content}
+        if self.metadata is not None:
+            result['metadata'] = self.metadata.wire()
+        if self.procedures is not None:
+            result['procedures'] = [item.wire() for item in self.procedures]
+        if self.template_origin is not None:
+            result['templateOrigin'] = self.template_origin
+        return result
 
     def serialized(self):
         return json.dumps(self.wire(), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
 
+    def nodes(self):
+        """All recorded block trees: Notes followed by procedure step content."""
+        yield from nodes(self.content)
+        for procedure in self.procedures or ():
+            for step in procedure.steps:
+                if step.content is not None:
+                    yield from nodes(step.content)
+
     def block(self, identity):
-        return next((node for node in nodes(self.content) if node.get('attrs', {}).get('blockId') == identity), None)
+        return next((node for node in self.nodes() if node.get('attrs', {}).get('blockId') == identity), None)
