@@ -43,14 +43,7 @@
 - 显式联网获取固定版本 Humanizer、知识蒸馏和五个 AER skill，并核对真实正文与引用资源。没有调用付费模型，不把公共获取成功标为科学方法验证。
 - 日常 profile 正常重启：排除未使用阅读器后，受管 Skills bundle 与源码构建摘要一致，原有 3 项安装记录及 state 摘要保持，实际观察到新列表和详情抽屉。
 
-已逐张检查下列截图，内容为公开目录、fixture 会话或日常市场 UI，无凭据和私密聊天。用户已明确批准提交目录大文件与这四张截图。
-
-| 场景 | 截图 |
-| --- | --- |
-| 浅色完整目录 | ![Skills 列表](images/skills-marketplace/catalog-light.png) |
-| 详情抽屉、来源与固定版本 | ![详情抽屉](images/skills-marketplace/detail-light-keyboard.png) |
-| 普通聊天的已安装技能引用 | ![技能引用](images/skills-marketplace/explicit-skill-chip.png) |
-| 正常入口重启后的中文市场 | ![重启后的市场](images/skills-marketplace/daily-new-ui.png) |
+上述观察来自公开目录、fixture 会话和日常市场 UI，记录中没有凭据或私密聊天。验收截图不放入仓库。
 
 ## 复现
 
