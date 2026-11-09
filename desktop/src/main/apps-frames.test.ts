@@ -135,3 +135,26 @@ test('Scientific Viewer reads fixed Host snapshots without backend startup or pu
     assert.equal(resolutions, fixtures.length, 'Refused requests must not resolve or read a snapshot');
   } finally { apps.close(); await rm(root, { recursive: true, force: true }); }
 });
+
+test('Canvas transport rejects foreign origin and renderer consent; private tickets never reach App', async () => {
+  const calls: any[] = [];
+  const apps = new DesktopApps(command => {
+    const request = command as any; calls.push(request);
+    assert.equal(request.action, 'canvas'); assert.equal(request.name, 'notebook');
+    apps.accept({ version: 1, kind: 'apps_result', request_id: request.id, text: '', data: { ok: true, value: request.request.operation === 'prepare'
+      ? { state: 'requires-approval', ticket: 'private', summary: 'Exact saved source' }
+      : { state: 'completed', receipt: { operationId: 'op' } } } });
+  }, () => assert.fail('Private event forwarded'), async () => undefined, undefined, undefined, undefined, undefined, async () => true);
+  const action = { operation: 'act', instance: 'instance', operationId: 'op', action: 'canvas-archive', params: { archived: true } };
+  const request = (name: string, body: object, origin = `pero-app://${name}`) => new Request(`pero-app://${name}/host/canvas`, { method: 'POST', headers: { Origin: origin }, body: JSON.stringify(body) });
+  try {
+    assert.equal((await apps.serve(request('data', action))).status, 403);
+    assert.equal((await apps.serve(request('notebook', action, 'pero-app://data'))).status, 403);
+    assert.equal((await apps.serve(request('notebook', { ...action, allow: true }))).status, 503);
+    assert.equal(calls.length, 0);
+    const response = await apps.serve(request('notebook', action));
+    assert.deepEqual(await response.json(), { state: 'completed', receipt: { operationId: 'op' } });
+    assert.equal(calls.length, 2); assert.equal(calls[1].request.ticket, 'private');
+    assert.equal(response.headers.get('Cache-Control'), 'no-store');
+  } finally { apps.close(); }
+});
