@@ -1,0 +1,41 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { bindIntake, intakeRequests, isSampleIntake, parseIntakeFile, resolveIntake, sampleIntakeDefaults } from '../src/sample-intake.ts';
+import type { CatalogSnapshot } from '../src/structured-table.ts';
+const snapshot: CatalogSnapshot = { source: 'notebook-local-catalog', catalogId: 'local', query: { text: '', schemaId: '', limit: 200 }, refreshedAt: '2026-11-09T00:00:00Z', total: 1, records: [{ id: 'r1', version: 1, schemaId: 's1', schemaRevision: 1, tableId: 't1', rowId: 'row1', name: 'Sample', registeredAt: '2026-11-09T00:00:00Z', columns: [{ id: 'barcode', name: 'Barcode', type: 'text', required: true, units: [], options: [] }], values: { barcode: { type: 'text', value: '00123' } } }] };
+test('source lookup distinguishes exact text, missing, ambiguous, duplicate and incomplete', () => {
+  const request = { input: '00123', row: 1, well: '' };
+  assert.equal(resolveIntake(request, snapshot, 'barcode').status, 'unique');
+  assert.equal(resolveIntake({ ...request, input: '123' }, snapshot, 'barcode').status, 'missing');
+  assert.equal(resolveIntake(request, snapshot, '$id').status, 'missing');
+  assert.equal(resolveIntake(request, { ...snapshot, total: 2, records: [...snapshot.records, { ...snapshot.records[0], id: 'r2' }] }, 'barcode').status, 'ambiguous');
+  assert.equal(resolveIntake(request, snapshot, 'barcode', [request]).status, 'duplicate');
+  assert.equal(resolveIntake(request, { ...snapshot, total: 201 }, 'barcode').status, 'incomplete');
+});
+test('explicit selected versions retain provenance across reload and catalog changes', () => {
+  const intake = { ...structuredClone(sampleIntakeDefaults.intake), mode: 'barcode' as const, field: 'barcode', input: '00123' };
+  const result = resolveIntake(intakeRequests(intake)[0], structuredClone(snapshot), 'barcode');
+  const next = bindIntake(intake, result, 'r1');
+  result.snapshot.records[0].version = 2;
+  assert.equal(next.bindings[0].snapshot.records[0].version, 1);
+  assert.equal(next.bindings[0].source.input, '00123');
+  assert.ok(isSampleIntake(JSON.parse(JSON.stringify(next))));
+  assert.throws(() => bindIntake(next, result, 'r1'), /Duplicate/);
+  assert.throws(() => bindIntake(intake, result, 'invented'), /Select/);
+  assert.throws(() => bindIntake(intake, { ...result, status: 'incomplete' }, 'r1'), /incomplete/);
+  assert.equal(isSampleIntake({ ...next, bindings: [{ ...next.bindings[0], source: { ...next.bindings[0].source, input: 'wrong' } }] }), false);
+});
+test('bounded CSV/TSV sources preserve quoted IDs and validate plate mapping', () => {
+  assert.deepEqual(parseIntakeFile('id\r\n"a,b"\r\n"a""b"', ','), [['id'], ['a,b'], ['a"b']]);
+  assert.throws(() => parseIntakeFile('"unfinished', ','), /Unclosed/);
+  assert.throws(() => parseIntakeFile('"a"x', ','), /Malformed/);
+  assert.throws(() => parseIntakeFile('x'.repeat(100001), ','), /exceeds/);
+  const plate = { ...sampleIntakeDefaults.intake, mode: 'plate' as const, input: 'well\tid\nA1\tr1\nH12\tr1' };
+  const requests = intakeRequests(plate);
+  let next = bindIntake(plate, resolveIntake(requests[0], snapshot, '$id'), 'r1');
+  next = bindIntake(next, resolveIntake(requests[1], snapshot, '$id'), 'r1');
+  assert.equal(next.bindings.length, 2);
+  assert.throws(() => intakeRequests({ ...plate, input: 'well\tid\nA1\tr1\nA1\tr2' }), /once/);
+  assert.throws(() => intakeRequests({ ...plate, input: 'well\tid\nI1\tr1' }), /outside/);
+  assert.throws(() => intakeRequests({ ...plate, input: 'id\tr1' }), /headers/);
+});
