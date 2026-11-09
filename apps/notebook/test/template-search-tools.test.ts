@@ -39,7 +39,7 @@ test('template and query dialogs use persisted results and retain provenance thr
     const path = String(input); calls.push(path);
     if (delayDetail && path.includes('/api/templates/')) await new Promise<void>(resolve => { resolveDetail = resolve; });
     if (path.endsWith('/revisions')) return new Response(JSON.stringify({ detail: 'The query changed. Reload its current revision.' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
-    const body = path.includes('/api/templates/') ? published : path.endsWith('/api/templates') ? { templates: [published] }
+    const body = path.endsWith('/api/template-collections') ? { revision: 0, collections: [], memberships: {} } : path.includes('/api/templates/') ? published : path.endsWith('/api/templates') ? { templates: [published] }
       : path.endsWith('/api/saved-searches') ? { searches: [saved] } : path.endsWith('/run') ? projection : null;
     return new Response(JSON.stringify(body), { status: body ? 200 : 404, headers: { 'Content-Type': 'application/json' } });
   } });

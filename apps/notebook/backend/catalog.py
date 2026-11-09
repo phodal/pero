@@ -369,6 +369,8 @@ class CatalogStore:
                 CREATE TABLE IF NOT EXISTS catalog_versions (
                     record_id TEXT NOT NULL, version INTEGER NOT NULL, schema_id TEXT NOT NULL, data TEXT NOT NULL,
                     search_text TEXT NOT NULL, registered_at TEXT NOT NULL, PRIMARY KEY (record_id, version));
+                CREATE TABLE IF NOT EXISTS catalog_archives (record_id TEXT PRIMARY KEY, revision INTEGER NOT NULL, archived INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS catalog_archive_history (record_id TEXT NOT NULL, revision INTEGER NOT NULL, event TEXT NOT NULL, PRIMARY KEY(record_id, revision));
                 CREATE TABLE IF NOT EXISTS catalog_submissions (
                     id TEXT PRIMARY KEY, input_hash TEXT NOT NULL, input TEXT NOT NULL, receipt TEXT NOT NULL);
             ''')
@@ -403,6 +405,8 @@ class CatalogStore:
             records = []
             for row_id, cells in typed_rows:
                 current = connection.execute('SELECT id, version FROM catalog_rows WHERE table_id = ? AND row_id = ?', (table.identity, row_id)).fetchone()
+                if current and connection.execute('SELECT 1 FROM catalog_archives WHERE record_id = ? AND archived = 1', (current['id'],)).fetchone():
+                    raise ValueError('Restore archived catalog records before registering an update')
                 record_id = current['id'] if current else uuid4().hex
                 version = current['version'] + 1 if current else 1
                 record = {'id': record_id, 'version': version, 'schemaId': table.schema_id, 'schemaRevision': table.schema_revision,
@@ -423,10 +427,15 @@ class CatalogStore:
         query = CatalogQuery.parse(query)
         with closing(self._connect()) as connection:
             connection.execute('BEGIN')
-            params = (query.schema_id, query.schema_id, query.text.casefold())
-            selection = '''FROM catalog_rows r JOIN catalog_versions v ON v.record_id = r.id AND v.version = r.version
-                WHERE (? = '' OR v.schema_id = ?) AND instr(v.search_text, ?) > 0'''
-            total = connection.execute('SELECT COUNT(*) ' + selection, params).fetchone()[0]
-            rows = connection.execute('SELECT v.data ' + selection + ' ORDER BY v.registered_at DESC, v.record_id LIMIT ?', (*params, query.limit))
-            records = [json.loads(row['data']) for row in rows]
-            return {'source': SOURCE, 'catalogId': self.identity, 'query': query.wire(), 'refreshedAt': datetime.now(timezone.utc).isoformat(timespec='microseconds'), 'total': total, 'records': records}
+            return self.lookup_in_connection(connection, query)
+
+    def lookup_in_connection(self, connection, query):
+        """Read one source snapshot in the caller's existing SQLite transaction."""
+        params = (query.schema_id, query.schema_id, query.text.casefold())
+        selection = """FROM catalog_rows r JOIN catalog_versions v ON v.record_id = r.id AND v.version = r.version
+            WHERE (? = '' OR v.schema_id = ?) AND instr(v.search_text, ?) > 0
+            AND NOT EXISTS (SELECT 1 FROM catalog_archives a WHERE a.record_id = r.id AND a.archived = 1)"""
+        total = connection.execute('SELECT COUNT(*) ' + selection, params).fetchone()[0]
+        rows = connection.execute('SELECT v.data ' + selection + ' ORDER BY v.registered_at DESC, v.record_id LIMIT ?', (*params, query.limit))
+        records = [json.loads(row['data']) for row in rows]
+        return {'source': SOURCE, 'catalogId': self.identity, 'query': query.wire(), 'refreshedAt': datetime.now(timezone.utc).isoformat(timespec='microseconds'), 'total': total, 'records': records}
