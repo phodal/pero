@@ -9,7 +9,7 @@ export async function verifyDirectGridInteractions(page, origin) {
   await page.setViewportSize({ width: 1320, height: 950 });
   await createNotebook(page, origin, 'Direct grid interactions');
   const workbook = await writeWorkbook([
-    { name: 'Data', sheet: { rows: 4, columns: 10, cells: { A1: '2', A2: '3', C1: '5', H1: 'tail' } } },
+    { name: 'Data', sheet: { rows: 4, columns: 10, cells: { A1: '2', A2: '3', C1: '5', H1: 'tail', J4: '0' } } },
     { name: 'Dependent', sheet: { rows: 1, columns: 1, cells: { A1: '=Data!A1*3' } } },
   ]);
   if (!await page.getByRole('button', { name: 'Hide more tools', exact: true }).count()) {
