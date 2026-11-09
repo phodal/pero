@@ -58,3 +58,28 @@ test('document shortcuts leave review and transient dialog inputs to local undo'
   assert.equal(ui.documentHistoryShortcut(event('notes', { altKey: true })), null);
   assert.equal(ui.documentHistoryShortcut(event('notes', { key: 'a' })), null);
 });
+
+test('quick import, cell edit and worksheet rename remain separate whole-document undo units', async t => {
+  const { ui } = await createUiRuntime(t, { resolveDir: fileURLToPath(new URL('../ui-src', import.meta.url)), contents: `
+    export { Editor } from '@tiptap/core'; export { notebookExtensions } from './editor-extensions';
+    export { notebookHistoryGroup } from './editor-history'; export { renameWorksheet } from './worksheet-model';
+    export { documentHistory, transitionDocument } from '@pero/notebook/document-history';
+  ` });
+  let now = 100;
+  let state = ui.documentHistory({ schemaVersion: 1, title: 'History', content: { type: 'doc', content: [{ type: 'paragraph', attrs: { blockId: 'text' } }] } });
+  const editor = new ui.Editor({ extensions: ui.notebookExtensions, content: state.present.content,
+    onUpdate: ({ editor: instance, transaction }: any) => {
+      state = ui.transitionDocument(state, { type: 'edit', document: { ...state.present, content: instance.getJSON() }, group: ui.notebookHistoryGroup(transaction), at: now++ });
+    },
+  });
+  editor.commands.insertContentAt(1, 'A'); editor.commands.insertContentAt(2, 'B');
+  assert.equal(state.past.length, 1, 'consecutive prose typing is grouped');
+  editor.commands.insertContentAt(editor.state.doc.content.size, { type: 'spreadsheet', attrs: { blockId: 'sheet', label: 'Controls', sheet: { rows: 1, columns: 1, cells: { A1: '2' } } } });
+  const position = editor.state.doc.content.firstChild.nodeSize;
+  editor.view.dispatch(editor.state.tr.setNodeMarkup(position, undefined, { ...editor.state.doc.nodeAt(position).attrs, sheet: { rows: 1, columns: 1, cells: { A1: '4' } } }));
+  ui.renameWorksheet(editor, 'sheet', 'Calibration data');
+  assert.equal(state.past.length, 4, 'structural and widget edits never merge just because they occur quickly');
+  const undone = ui.transitionDocument(state, { type: 'undo' }).present.content.content.find((node: any) => node.type === 'spreadsheet');
+  assert.equal(undone.attrs.label, 'Controls'); assert.equal(undone.attrs.sheet.cells.A1, '4');
+  editor.destroy();
+});

@@ -61,7 +61,10 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   t.after(() => new Promise(done => { server.close(done); server.closeAllConnections(); }));
   const origin = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch({ executablePath: process.env.PERO_CHROMIUM_EXECUTABLE, headless: true });
-  t.after(() => browser.close());
+  t.after(async () => {
+    try { await mkdir(output, { recursive: true }); await page.screenshot({ path: resolve(output, 'checkpoint-final.png'), fullPage: true }); }
+    finally { await browser.close(); }
+  });
   const page = await browser.newPage({ viewport: { width: 1320, height: 950 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));

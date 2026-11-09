@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
+import { mkdir } from 'node:fs/promises';
 import { chromium } from '@playwright/test';
 
 // Uses actual CodeMirror, Canvas, PNG encoding, WebCrypto and ProseMirror transactions.
@@ -26,7 +27,7 @@ test('Content editing runs locally in Chromium with highlighted code and derived
       window.editor=editor;return <EditorContent editor={editor}/>;}
     createRoot(document.getElementById('root')).render(<AppSdkProvider host={createAppHost({name:'notebook',locale:'en'})}><Fixture/></AppSdkProvider>);
   ` }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'empty' },
-    alias: { '@pero/app-sdk/ui': resolve(root, 'packages/app-sdk/src/ui.tsx'), '@pero/app-sdk': resolve(root, 'packages/app-sdk/src/index.tsx') } });
+    alias: { react: resolve(root, 'node_modules/react'), 'react-dom': resolve(root, 'node_modules/react-dom'), '@pero/app-sdk/ui': resolve(root, 'packages/app-sdk/src/ui.tsx'), '@pero/app-sdk': resolve(root, 'packages/app-sdk/src/index.tsx') } });
   const server = createServer((req, res) => {
     res.setHeader('Content-Type', req.url === '/script.js' ? 'text/javascript' : 'text/html');
     res.end(req.url === '/script.js' ? result.outputFiles[0].contents : '<div id="root"></div><script src="/script.js"></script>');
@@ -34,11 +35,17 @@ test('Content editing runs locally in Chromium with highlighted code and derived
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(() => new Promise(resolve => server.close(resolve)));
   const browser = await chromium.launch({ executablePath: process.env.PERO_CHROMIUM_EXECUTABLE, headless: true });
-  t.after(() => browser.close());
+  t.after(async () => {
+    try {
+      const output = resolve(root, 'test-results/notebook'); await mkdir(output, { recursive: true });
+      await page.screenshot({ path: resolve(output, 'content-editing-final.png'), fullPage: true });
+    } finally { await browser.close(); }
+  });
   const page = await browser.newPage();
+  const pageErrors = []; page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   const code = page.getByLabel('Code source (not executed)');
-  await code.waitFor();
+  await code.waitFor().catch(cause => { throw new Error(`${cause.message}\nBrowser errors: ${pageErrors.join('\n')}`); });
   await code.click(); await page.keyboard.press('End'); await page.keyboard.press('Tab'); await page.keyboard.type('# local comment');
   await page.waitForFunction(() => window.editor.getText().includes('# local comment'));
   assert.match(await page.evaluate(() => window.editor.getText()), /print\(1\)\s+# local comment/);

@@ -12,7 +12,7 @@ export function documentHistory(document: NotebookDocument): DocumentHistory {
   return { past: [], present: document, future: [], group: null, editedAt: 0 };
 }
 export type DocumentEdit =
-  | { type: 'edit'; document: NotebookDocument; group: string; at: number }
+  | { type: 'edit'; document: NotebookDocument; group: string | null; at: number }
   | { type: 'restore'; document: NotebookDocument }
   | { type: 'undo' }
   | { type: 'redo' };
@@ -29,7 +29,7 @@ export function transitionDocument(state: DocumentHistory, edit: DocumentEdit): 
   if (edit.type === 'restore' && JSON.stringify(edit.document.templateOrigin) !== JSON.stringify(state.present.templateOrigin)) {
     throw new Error('This revision has different template provenance. Export it or create a separate entry instead.');
   }
-  const grouped = edit.type === 'edit' && state.group === edit.group && edit.at >= state.editedAt && edit.at - state.editedAt < 750;
+  const grouped = edit.type === 'edit' && edit.group !== null && state.group === edit.group && edit.at >= state.editedAt && edit.at - state.editedAt < 750;
   return { past: grouped ? state.past : [...state.past, state.present].slice(-50), present: edit.document,
     future: [], group: edit.type === 'edit' ? edit.group : null, editedAt: edit.type === 'edit' ? edit.at : 0 };
 }

@@ -173,12 +173,12 @@ function Notebook() {
         storageError: draft.recoveryProtected ? draft.storageError : '' } };
     });
   };
-  const updateDraft = (change: Partial<NotebookDocument>) => {
+  const updateDraft = (change: Partial<NotebookDocument>, group: string | null = Object.keys(change).join(',')) => {
     const at = Date.now();
     setDrafts(previous => {
       const draft = previous[selected];
       if (!draft) return previous;
-      const history = transitionDocument(draft.history, { type: 'edit', document: { ...draft.document, ...change }, group: Object.keys(change).join(','), at });
+      const history = transitionDocument(draft.history, { type: 'edit', document: { ...draft.document, ...change }, group, at });
       if (history === draft.history) return previous;
       return { ...previous, [selected]: { ...draft, history, document: history.present, dirty: true, durable: false,
         storageError: draft.recoveryProtected ? draft.storageError : '' } };
@@ -388,7 +388,7 @@ function Notebook() {
                 </header>}
                 historyControls={{ canUndo: !!current.history.past.length, canRedo: !!current.history.future.length, undo: () => applyHistory({ type: 'undo' }), redo: () => applyHistory({ type: 'redo' }) }}
                 readonly={!!snapshot} document={draft} entryId={shown.id} revision={shown.revision} onCreateEntry={createFromDocument} onDocumentChange={snapshot ? undefined : updateDraft}
-                content={draft.content} onChange={snapshot ? undefined : content => updateDraft({ content })} />
+                content={draft.content} onChange={snapshot ? undefined : (content, group) => updateDraft({ content }, group)} />
             </div>}
         </SplitPane>
       </Split>}

@@ -1,3 +1,4 @@
+import { notebookHistoryGroup } from './editor-history';
 import { notebookExtensions, widgets } from './editor-extensions';
 import { type Editor, type JSONContent } from '@tiptap/core';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
@@ -113,7 +114,7 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
   content: NotebookDocument['content']; document: NotebookDocument; onDocumentChange?: (change: Partial<NotebookDocument>) => void;
   onCreateEntry?: (document: NotebookDocument) => Promise<void>; entryId: string; revision: number;
   historyControls?: DocumentHistoryControls;
-  header?: ReactNode; readonly?: boolean; onChange?: (content: NotebookDocument['content']) => void;
+  header?: ReactNode; readonly?: boolean; onChange?: (content: NotebookDocument['content'], historyGroup: string | null) => void;
 }) {
   const { t } = useAppI18n(messages);
   const editor = useEditor({
@@ -129,7 +130,7 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
         },
       },
     },
-    onUpdate: ({ editor: instance }) => onChange?.(instance.getJSON() as NotebookDocument['content']),
+    onUpdate: ({ editor: instance, transaction }) => onChange?.(instance.getJSON() as NotebookDocument['content'], notebookHistoryGroup(transaction)),
   });
   useEffect(() => {
     if (!editor || JSON.stringify(editor.getJSON()) === JSON.stringify(content)) return;
