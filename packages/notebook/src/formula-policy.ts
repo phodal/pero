@@ -15,6 +15,9 @@ const externalNames = new Set([
   "CALL",
   "REGISTER",
   "REGISTER.ID",
+  // Excel Python runs caller-supplied code when the workbook calculates.
+  "PY",
+  "PYTHON",
 ]);
 
 export const externalFormulaNames = [...externalNames];
@@ -42,6 +45,11 @@ function isExternalName(name: string): boolean {
   return separator >= 0 && externalNames.has(name.slice(separator + 1));
 }
 
+/** Unicode spaces and format characters are not part of a function name. */
+function isIgnorable(character: string): boolean {
+  return /[\s\p{Cf}]/u.test(character);
+}
+
 /** A formula call or DDE link, not a mention inside text or a worksheet name. */
 export function isExternalFormula(source: string): boolean {
   if (!source.startsWith("=")) return false;
@@ -67,10 +75,9 @@ export function isExternalFormula(source: string): boolean {
     if (/[A-Za-z_]/.test(character)) {
       const start = index;
       index += 1;
-      while (index < source.length && /[A-Za-z0-9._]/.test(source[index])) index += 1;
-      let cursor = index;
-      while (cursor < source.length && /[ \t\r\n]/.test(source[cursor])) cursor += 1;
-      if (source[cursor] === "(" && isExternalName(bareName(source.slice(start, index)))) return true;
+      while (index < source.length && (/[A-Za-z0-9._]/.test(source[index]) || isIgnorable(source[index]))) index += 1;
+      const token = [...source.slice(start, index)].filter(part => !isIgnorable(part)).join("");
+      if (source[index] === "(" && isExternalName(bareName(token))) return true;
       continue;
     }
     index += 1;

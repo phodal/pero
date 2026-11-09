@@ -5,6 +5,7 @@ from hashlib import sha256
 import json
 import math
 import re
+import unicodedata
 
 
 MAX_DOCUMENT_BYTES = 2 * 1024 * 1024
@@ -92,12 +93,23 @@ def cell_values(value, rows=MAX_ROWS, columns=MAX_COLUMNS):
 EXTERNAL_FORMULAS = {
     'WEBSERVICE', 'FILTERXML', 'RTD', 'IMAGE', 'STOCKHISTORY', 'IMPORTDATA',
     'IMPORTXML', 'IMPORTHTML', 'IMPORTFEED', 'IMPORTRANGE', 'GOOGLEFINANCE',
-    'CALL', 'REGISTER', 'REGISTER.ID',
+    'CALL', 'REGISTER', 'REGISTER.ID', 'PY', 'PYTHON',
 }
 
 
+def _ignorable(character):
+    return character.isspace() or unicodedata.category(character) == 'Cf'
+
+
 def external_formula(value):
-    """A formula call or DDE link, not a mention inside text or a worksheet name."""
+    """Whether calculation can reach another program or service.
+
+    Unicode whitespace and format characters are ignored inside the name and
+    before '('. NotebookDocument.parse does not use this check. A whole-document
+    save stays readable when a cell already contains an external formula. Agent
+    cell writes reject new ones. Excel export stores any that remain as text,
+    not as a formula cell.
+    """
     if not isinstance(value, str) or not value.startswith('='):
         return False
     index = 1
@@ -121,15 +133,15 @@ def external_formula(value):
         if character.isascii() and (character.isalpha() or character == '_'):
             start = index
             index += 1
-            while index < length and value[index].isascii() and (value[index].isalnum() or value[index] in '._'):
+            while index < length and (
+                value[index].isascii() and (value[index].isalnum() or value[index] in '._')
+                or _ignorable(value[index])
+            ):
                 index += 1
-            name = value[start:index].upper()
+            name = ''.join(part for part in value[start:index] if not _ignorable(part)).upper()
             while name.startswith('_XLFN.') or name.startswith('_XLUDF.'):
                 name = name[6:] if name.startswith('_XLFN.') else name[7:]
-            cursor = index
-            while cursor < length and value[cursor] in ' \t\r\n':
-                cursor += 1
-            if cursor < length and value[cursor] == '(':
+            if index < length and value[index] == '(':
                 tail = name.rpartition('.')[2]
                 if name in EXTERNAL_FORMULAS or tail in EXTERNAL_FORMULAS:
                     return True

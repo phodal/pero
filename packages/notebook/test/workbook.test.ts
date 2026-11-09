@@ -5,6 +5,10 @@ import ExcelJS from "exceljs";
 import { evaluateSpreadsheet } from "../src/spreadsheet.ts";
 import { readWorkbook, writeWorkbook } from "../src/workbook.ts";
 
+function compactFormula(formula: string): string {
+  return formula.replace(/[\s\p{Cf}]/gu, "").toUpperCase();
+}
+
 function worksheetFormulas(buffer: ArrayBuffer): string[] {
   const bytes = Buffer.from(new Uint8Array(buffer));
   const formulas: string[] = [];
@@ -73,7 +77,7 @@ test("Excel date imports retain serial values in both workbook date systems", as
 
 test("Excel export keeps supported formulas and stores external formulas as text", async () => {
   const sheet = {
-    rows: 3, columns: 3,
+    rows: 4, columns: 4,
     cells: {
       A1: '=WEBSERVICE("https://example.invalid/hook")',
       A2: "1",
@@ -84,6 +88,10 @@ test("Excel export keeps supported formulas and stores external formulas as text
       C1: '=FILTERXML("<root/>","//root")',
       C2: '=RTD("prog.id","","topic")',
       C3: '=IMPORTXML("https://example.invalid/hook","//a")',
+      D1: "=WEBSERVICE\u00a0(\"https://example.invalid/hook\")",
+      D2: "=WEB\u200bSERVICE(\"https://example.invalid/hook\")",
+      D3: "=PY(\"print(1)\")",
+      D4: "=PYTHON\ufeff(\"print(1)\")",
     },
   };
   assert.equal(evaluateSpreadsheet(sheet).A1, "#NAME?");
@@ -94,7 +102,8 @@ test("Excel export keeps supported formulas and stores external formulas as text
   }];
   const bytes = await writeWorkbook(workbook);
   const formulas = worksheetFormulas(bytes);
-  assert.deepEqual(formulas.filter(formula => /WEBSERVICE|FILTERXML|RTD|IMPORTXML|cmd\|/i.test(formula)), []);
+  assert.deepEqual(formulas.map(compactFormula).filter(formula =>
+    /WEBSERVICE|FILTERXML|RTD|IMPORTXML|PYTHON|PY\(|CMD\|/.test(formula)), []);
   assert.ok(formulas.includes("SUM(A2:A3)"), formulas.join("\n"));
   assert.ok(formulas.some(formula => formula.includes("Calibration data")), formulas.join("\n"));
 
@@ -111,11 +120,15 @@ test("Excel export keeps supported formulas and stores external formulas as text
   worksheet.getCell("A2").value = 1;
   worksheet.getCell("A3").value = 2;
   worksheet.getCell("B1").value = { formula: "SUM(A2:A3)" };
+  worksheet.getCell("C1").value = { formula: "WEBSERVICE\u00a0(\"https://example.invalid/hook\")" };
+  worksheet.getCell("C2").value = { formula: "PY(\"print(1)\")" };
   const importedBytes = new Uint8Array(await source.xlsx.writeBuffer());
   const [imported] = await readWorkbook(importedBytes.buffer);
   assert.equal(imported.sheet.cells.A1, `'=WEBSERVICE("https://example.invalid/hook")`);
   assert.equal(imported.sheet.cells.B1, "=SUM(A2:A3)");
+  assert.equal(imported.sheet.cells.C1, "'=WEBSERVICE\u00a0(\"https://example.invalid/hook\")");
+  assert.equal(imported.sheet.cells.C2, "'=PY(\"print(1)\")");
   const reexported = worksheetFormulas(await writeWorkbook([imported]));
-  assert.deepEqual(reexported.filter(formula => /WEBSERVICE/i.test(formula)), []);
+  assert.deepEqual(reexported.map(compactFormula).filter(formula => /WEBSERVICE|PY\(/.test(formula)), []);
   assert.ok(reexported.includes("SUM(A2:A3)"), reexported.join("\n"));
 });

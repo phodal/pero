@@ -396,10 +396,12 @@ class NotebookTest(unittest.TestCase):
                 self.assertEqual(updated.block('inputs')['attrs']['sheet']['cells']['B2'], formula)
                 self.assertEqual(original.block('inputs')['attrs']['sheet']['cells'], {'A1': '=1+2'})
         stored = document()
-        stored['content']['content'][1]['attrs']['sheet']['cells']['A1'] = '=WEBSERVICE("https://example.invalid/hook")'
-        self.assertEqual(
-            NotebookDocument.parse(stored).block('inputs')['attrs']['sheet']['cells']['A1'],
-            '=WEBSERVICE("https://example.invalid/hook")')
+        stored_formula = '=WEBSERVICE\u00a0("https://example.invalid/hook")'
+        stored['content']['content'][1]['attrs']['sheet']['cells']['A1'] = stored_formula
+        # A whole-document save keeps the formula text readable. Export, not parse, strips it.
+        self.assertEqual(NotebookDocument.parse(stored).block('inputs')['attrs']['sheet']['cells']['A1'], stored_formula)
+        with self.assertRaisesRegex(ValueError, 'External formulas'):
+            parse_operations([{'op': 'set_cells', 'blockId': 'inputs', 'cells': {'B1': stored_formula}}], lambda: 'id')
 
     def test_agent_reads_stay_inside_one_entry_and_revision(self):
         def paragraph(identity, text):
@@ -456,8 +458,30 @@ class NotebookTest(unittest.TestCase):
                     self.assertNotIn('x' * 2500, json.dumps(other))
                     self.assertEqual(request('POST', '/api/agent-read', {'entryId': first['id'], 'blockId': 'private-note'})[0], 404)
                     self.assertEqual(request('POST', '/api/agent-read', {'entryId': second['id'], 'blockId': 'bulk'})[0], 404)
+                    status, page = request('POST', '/api/agent-read', {
+                        'entryId': first['id'], 'revision': 2, 'blockId': 'bulk',
+                    })
+                    self.assertEqual((status, page['format'], page['revision']), (200, 'json-chunk', 2))
+                    self.assertIsNotNone(page['nextOffset'])
+                    self.assertLess(len(json.dumps(page, ensure_ascii=False).encode()), 1_000_000)
+                    self.assertNotIn(secret, page['content'])
                     replacement = note('Visible record', [paragraph('later', later)])
-                    self.assertEqual(request('POST', f"/api/entries/{first['id']}", {'baseRevision': 2, 'document': replacement})[0], 200)
+                    self.assertEqual(request('POST', f"/api/entries/{first['id']}", {
+                        'baseRevision': 2, 'document': replacement,
+                    })[0], 200)
+                    fragments = [page['content']]
+                    while page['nextOffset'] is not None:
+                        status, page = request('POST', '/api/agent-read', {
+                            'entryId': first['id'], 'revision': 2, 'blockId': 'bulk', 'offset': page['nextOffset'],
+                        })
+                        self.assertEqual((status, page['revision']), (200, 2))
+                        self.assertLess(len(json.dumps(page, ensure_ascii=False).encode()), 1_000_000)
+                        self.assertNotIn(secret, page['content'])
+                        self.assertNotIn(later, page['content'])
+                        fragments.append(page['content'])
+                    restored = json.loads(''.join(fragments))
+                    self.assertEqual(restored['attrs']['blockId'], 'bulk')
+                    self.assertEqual(restored['attrs']['sheet']['cells']['A1'], 'x' * 2500)
                     status, pinned = request('POST', '/api/agent-read', {'entryId': first['id'], 'revision': 2})
                     self.assertEqual((status, pinned['revision'], [item['blockId'] for item in pinned['blocks']]),
                                      (200, 2, ['intro', 'bulk']))
@@ -468,6 +492,29 @@ class NotebookTest(unittest.TestCase):
                     status, denied = request('POST', '/api/agent-read', {'entryId': second['id']}, authorized=False)
                     self.assertEqual(status, 401)
                     self.assertNotIn(secret, json.dumps(denied))
+                    wide = note('Index record', [{'type': 'blockquote', 'attrs': {'blockId': 'quote'}, 'content': [
+                        {'type': 'paragraph', 'attrs': {'blockId': f'p-{index}'}} for index in range(205)
+                    ]}])
+                    status, third = request('POST', '/api/entries', {'title': 'Index record'})
+                    self.assertEqual(request('POST', f"/api/entries/{third['id']}", {'baseRevision': 1, 'document': wide})[0], 200)
+                    discovered = []
+                    status, page = request('POST', '/api/agent-read', {'entryId': third['id'], 'view': 'index'})
+                    self.assertEqual((status, page['revision']), (200, 2))
+                    while True:
+                        self.assertLessEqual(len(page['blocks']), 100)
+                        self.assertNotIn(secret, json.dumps(page))
+                        self.assertNotIn('bulk', json.dumps(page))
+                        discovered.extend(item['blockId'] for item in page['blocks'])
+                        if page['nextOffset'] is None:
+                            break
+                        status, page = request('POST', '/api/agent-read', {
+                            'entryId': third['id'], 'revision': 2, 'view': 'index', 'offset': page['nextOffset'],
+                        })
+                        self.assertEqual(status, 200)
+                    self.assertEqual(discovered, ['quote'] + [f'p-{index}' for index in range(205)])
+                    self.assertEqual(request('POST', '/api/agent-read', {
+                        'entryId': second['id'], 'revision': 2, 'view': 'index', 'offset': 100,
+                    })[0], 400)
                 finally:
                     server.shutdown()
                     thread.join(3)

@@ -21,7 +21,18 @@
     "=CALL(\"libc\",\"system\",\"F\",\"calc\")",
     "=REGISTER(\"kernel32\",\"GetTickCount\",\"J\")",
     "=REGISTER.ID(\"kernel32\",\"GetTickCount\",\"J\")",
-    "=cmd|'/c calc'!A0"
+    "=cmd|'/c calc'!A0",
+    "=WEBSERVICE\u00a0(\"https://example.invalid/hook\")",
+    "=WEBSERVICE\u200b(\"https://example.invalid/hook\")",
+    "=WEBSERVICE\u3000(\"https://example.invalid/hook\")",
+    "=WEB\u200bSERVICE(\"https://example.invalid/hook\")",
+    "=_xlfn\u200b.WEBSERVICE(\"https://example.invalid/hook\")",
+    "=_xlfn.\u200bWEBSERVICE(\"https://example.invalid/hook\")",
+    "=PY(\"print(1)\")",
+    "=PYTHON(\"print(1)\")",
+    "=_xlfn.PY(\"print(1)\")",
+    "=PY\u00a0(\"print(1)\")",
+    "=PYTHON\ufeff(\"print(1)\")"
   ],
   "ordinary": [
     "=SUM(A1:A2)",
@@ -39,6 +50,10 @@
     "TRUE",
     "=A1&\"|note\"",
     "=\"a|b\"",
-    "='cmd|calc'!A1"
+    "='cmd|calc'!A1",
+    "=SUM\u00a0(A1:A2)",
+    "=SUM(WEBSERVICE\u00a0!A1)",
+    "=\"WEBSERVICE\u00a0(\"\"https://example.invalid/hook\"\")\"",
+    "=PY"
   ]
 }
