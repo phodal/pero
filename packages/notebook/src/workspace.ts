@@ -1,3 +1,4 @@
+import { isProcedureParameter, procedureParameterLimits, type ProcedureParameter } from './procedure-parameters.ts';
 import { scientificReferenceState, type NotebookDocument, type NotebookNode, type ScientificReference, type ScientificReferenceState } from './document.ts';
 
 /** Display labels only. These do not grant project membership or verify authorship. */
@@ -58,6 +59,7 @@ export interface NotebookProcedure {
   title: string;
   description: string;
   introduction?: NotebookNode;
+  parameters?: ProcedureParameter[];
   materials: NotebookMaterial[];
   steps: NotebookProcedureStep[];
 }
@@ -71,6 +73,9 @@ export type ProcedureChange =
   | { type: 'add'; id: string; title: string }
   | { type: 'remove'; id: string }
   | { type: 'edit'; id: string; patch: Partial<Pick<NotebookProcedure, 'title' | 'description' | 'introduction'>> }
+  | { type: 'addParameter'; id: string; parameter: ProcedureParameter }
+  | { type: 'editParameter'; id: string; parameterId: string; expectedVersion: number; patch: Partial<Omit<ProcedureParameter, 'id' | 'version'>> }
+  | { type: 'removeParameter'; id: string; parameterId: string; expectedVersion: number }
   | { type: 'addMaterial'; id: string; materialId: string; parentId?: string }
   | { type: 'removeMaterial'; id: string; materialId: string }
   | { type: 'editMaterial'; id: string; materialId: string; patch: Partial<Pick<NotebookMaterial, 'name' | 'quantity' | 'source' | 'content'>> }
@@ -80,7 +85,7 @@ export type ProcedureChange =
   | { type: 'removeStep'; id: string; stepId: string }
   | { type: 'editStep'; id: string; stepId: string; patch: Partial<Omit<NotebookProcedureStep, 'id'>> }
   | { type: 'moveStep'; id: string; stepId: string; direction: -1 | 1 };
-export type ProcedureResult = { status: 'ok'; procedures: NotebookProcedure[] } | { status: 'limit' | 'invalid' | 'missing' };
+export type ProcedureResult = { status: 'ok'; procedures: NotebookProcedure[] } | { status: 'limit' | 'invalid' | 'missing' | 'stale' };
 
 const validId = (id: string) => /^[A-Za-z0-9_-]{1,128}$/.test(id);
 const validText = (text: string, limit: number) => [...text].length <= limit;
@@ -88,7 +93,7 @@ const validText = (text: string, limit: number) => [...text].length <= limit;
 /** Typed local authoring transitions. Wire validation belongs to the storage boundary. */
 export function changeProcedures(procedures: NotebookProcedure[], change: ProcedureChange): ProcedureResult {
   const identities = new Set<string>();
-  for (const procedure of procedures) for (const item of [procedure, ...materialItems(procedure.materials), ...procedure.steps]) identities.add(item.id);
+  for (const procedure of procedures) for (const item of [procedure, ...(procedure.parameters ?? []), ...materialItems(procedure.materials), ...procedure.steps]) identities.add(item.id);
   const visit = (node: NotebookNode) => { if (typeof node.attrs?.blockId === 'string') identities.add(node.attrs.blockId); for (const child of node.content ?? []) visit(child); };
   for (const procedure of procedures) for (const root of [procedure.introduction, ...materialItems(procedure.materials).map(item => item.content), ...procedure.steps.map(item => item.content)]) if (root) visit(root);
   if (change.type === 'add') {
@@ -106,6 +111,30 @@ export function changeProcedures(procedures: NotebookProcedure[], change: Proced
       next = { ...procedure, ...change.patch };
       if (!validText(next.title, workspaceLimits.label) || !validText(next.description, workspaceLimits.text)) return { status: 'invalid' };
       break;
+    }
+    case 'addParameter':
+    case 'editParameter':
+    case 'removeParameter': {
+      const parameters = [...procedure.parameters ?? []];
+      if (change.type === 'addParameter') {
+        if (parameters.length >= procedureParameterLimits.parameters) return { status: 'limit' };
+        if (identities.has(change.parameter.id) || change.parameter.version !== 1 || !isProcedureParameter(change.parameter)) return { status: 'invalid' };
+        if (change.parameter.stepId !== null && !procedure.steps.some(step => step.id === change.parameter.stepId)) return { status: 'missing' };
+        parameters.push(change.parameter);
+      } else {
+        const offset = parameters.findIndex(item => item.id === change.parameterId);
+        if (offset < 0) return { status: 'missing' };
+        const parameter = parameters[offset];
+        if (parameter.version !== change.expectedVersion) return { status: 'stale' };
+        if (change.type === 'removeParameter') parameters.splice(offset, 1);
+        else {
+          const updated = { ...parameter, ...change.patch, version: parameter.version + 1 };
+          if (!isProcedureParameter(updated)) return { status: 'invalid' };
+          if (updated.stepId !== null && !procedure.steps.some(step => step.id === updated.stepId)) return { status: 'missing' };
+          parameters[offset] = updated;
+        }
+      }
+      next = { ...procedure, parameters }; break;
     }
     case 'addMaterial':
     case 'removeMaterial':
@@ -250,6 +279,7 @@ export function notebookSearchItems(content: NotebookNode, procedures: NotebookP
   for (const procedure of procedures) {
     const start = items.length;
     items.push({ id: procedure.id, kind: 'procedure', label: procedure.title, text: `${procedure.title} ${procedure.introduction ? '' : procedure.description}`, depth: 0, outline: true });
+    for (const parameter of procedure.parameters ?? []) items.push({ id: parameter.id, kind: 'parameter', label: parameter.name || parameter.id, text: JSON.stringify(parameter), depth: 1, outline: false, ownerId: parameter.id });
     const rich = (node: NotebookNode | undefined, ownerId: string, depth: number) => {
       if (!node) return;
       const offset = items.length; visit(node, depth);
@@ -381,7 +411,8 @@ export function notebookMarkdown(document: NotebookDocument): string {
   if (document.metadata) parts.push(`## Metadata\n\nDisplay labels only; not project membership or verified authorship.\n\n- Project: ${escape(document.metadata.project)}\n- Author: ${escape(document.metadata.author)}\n- Tags: ${document.metadata.tags.map(escape).join(', ')}`);
   for (const procedure of document.procedures ?? []) {
     const steps = procedure.steps.map((step, index) => `${index + 1}. [${step.completed ? 'x' : ' '}] ${step.content ? render(step.content) : escape(step.text)}\n   Kind: ${step.kind ?? 'step'}; recorded elapsed milliseconds: ${step.timer?.elapsedMs ?? 0}; running since: ${step.timer?.startedAt ?? 'stopped'};\n   Level: ${step.level}; critical: ${step.critical}; pause: ${step.pause}; planned minutes: ${step.minutes ?? 'unset'}.`).join('\n');
-    parts.push(`## ${escape(procedure.title)}\n\n${procedure.introduction ? render(procedure.introduction) : escape(procedure.description)}\n\n### Materials\n\n${renderMaterials(procedure.materials)}\n\n### Steps\n\nManual completion and annotations, not execution receipts.\n\n${steps}`);
+    const parameters = procedure.parameters?.length ? `\n\n### Parameters and step outputs\n\nRecorded draft inputs and version pins, not execution receipts.\n\n${fenced(JSON.stringify(procedure.parameters, null, 2), 'json')}` : '';
+    parts.push(`## ${escape(procedure.title)}\n\n${procedure.introduction ? render(procedure.introduction) : escape(procedure.description)}${parameters}\n\n### Materials\n\n${renderMaterials(procedure.materials)}\n\n### Steps\n\nManual completion and annotations, not execution receipts.\n\n${steps}`);
   }
   return `${parts.join('\n\n').trim()}\n`;
 }
@@ -399,6 +430,7 @@ export function notebookTarget(document: NotebookDocument, id: string): { tab: '
   const contains = (node: NotebookNode): boolean => node.attrs?.blockId === id || (node.content ?? []).some(contains);
   if (contains(document.content)) return { tab: 'notes', ownerId: id };
   for (const procedure of document.procedures ?? []) {
+    if (procedure.parameters?.some(parameter => parameter.id === id)) return { tab: 'procedures', procedureId: procedure.id, ownerId: id };
     if (procedure.id === id || (procedure.introduction && contains(procedure.introduction))) return { tab: 'procedures', procedureId: procedure.id, ownerId: procedure.id };
     for (const item of [...materialItems(procedure.materials), ...procedure.steps]) if (item.id === id || (item.content && contains(item.content))) return { tab: 'procedures', procedureId: procedure.id, ownerId: item.id };
   }

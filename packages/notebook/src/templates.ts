@@ -1,3 +1,4 @@
+import { copyProcedureParameters } from './procedure-parameters.ts';
 import { materialItems, notebookContentRoots } from './workspace.ts';
 import { copySourceExcerpt, type SourceExcerpt } from './source-excerpt.ts';
 import type { NotebookDocument, NotebookNode, CellAnnotation } from './document.ts';
@@ -114,7 +115,7 @@ export function instantiateTemplate(template: PublishedTemplate, values: Record<
       existing.add(table.id); for (const row of table.rows) existing.add(row.id);
     }
   });
-  for (const procedure of document.procedures ?? []) for (const item of [procedure, ...materialItems(procedure.materials), ...procedure.steps]) existing.add(item.id);
+  for (const procedure of document.procedures ?? []) for (const item of [procedure, ...materialItems(procedure.materials), ...procedure.steps, ...(procedure.parameters ?? [])]) existing.add(item.id);
   const allocated = new Set<string>();
   const fresh = () => { const id = newId(); if (!validId(id) || existing.has(id) || allocated.has(id)) throw new Error('Template identity factory must return fresh IDs.'); allocated.add(id); return id; };
   const idMap: Record<string, string> = Object.fromEntries([...existing].map(id => [id, fresh()]));
@@ -132,7 +133,10 @@ export function instantiateTemplate(template: PublishedTemplate, values: Record<
     if (node.type === 'spreadsheet') node.attrs!.annotations = Object.fromEntries(Object.entries(node.attrs!.annotations as Record<string, CellAnnotation> ?? {})
       .map(([address, annotation]) => [address, { ...annotation, evidenceIds: remap(annotation.evidenceIds) }]));
   });
-  for (const procedure of document.procedures ?? []) for (const item of [procedure, ...materialItems(procedure.materials), ...procedure.steps]) item.id = idMap[item.id];
+  for (const procedure of document.procedures ?? []) {
+    if (procedure.parameters) procedure.parameters = copyProcedureParameters(procedure.parameters, idMap);
+    for (const item of [procedure, ...materialItems(procedure.materials), ...procedure.steps]) item.id = idMap[item.id];
+  }
   const origin: TemplateOrigin = { templateId: template.id, revision: template.revision, instanceId: fresh(), parameterValues: Object.fromEntries(parameterEntries), idMap };
   if (template.kind === 'entry') Object.assign(document, { templateOrigin: origin });
   else for (const node of document.content.content) node.attrs = { ...node.attrs, templateOrigin: origin };
