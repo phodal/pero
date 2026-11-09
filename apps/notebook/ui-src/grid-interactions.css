@@ -1,0 +1,32 @@
+/* Worksheet interaction geometry; semantic colors and controls come from App SDK. */
+.notebook-grid-scroll .notebook-grid { width: var(--notebook-grid-width); min-width: var(--notebook-grid-width); }
+.notebook-grid th[data-grid-axis] { position: relative; padding: 0; }
+.notebook-grid th[data-grid-axis="row"] { position: sticky; left: 0; z-index: 2; min-width: 2.75rem; }
+.notebook-grid thead th { background: var(--pero-surface-muted); }
+.notebook-grid .notebook-axis-move { width: 100%; min-height: 1.5rem; padding: 0 var(--pero-spacing-2); border-radius: 0; cursor: grab; touch-action: none; user-select: none; }
+.notebook-grid .notebook-axis-move:active { cursor: grabbing; }
+.notebook-axis-resize { position: absolute; z-index: 3; display: block; touch-action: none; }
+.notebook-axis-resize[data-axis="column"] { top: 0; right: -4px; bottom: 0; width: 9px; cursor: col-resize; }
+.notebook-axis-resize[data-axis="row"] { bottom: -4px; left: 0; right: 0; height: 9px; cursor: row-resize; }
+.notebook-axis-resize:hover, .notebook-axis-resize:focus-visible { background: var(--pero-accent-soft); outline: 2px solid var(--pero-focus); outline-offset: -2px; }
+.notebook-grid th[data-move-target] { background: var(--pero-accent-soft); box-shadow: inset 0 0 0 2px var(--pero-focus); }
+.notebook-grid td { position: relative; }
+.notebook-grid .notebook-cell { min-width: 0; min-height: 0; height: 100%; }
+.notebook-grid-status:empty { display: none; }
+.notebook-grid-status { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.notebook-formula-input { min-width: 0; position: relative; text-align: inherit; }
+input.notebook-formula-source.pero-ui-input { color: transparent; caret-color: var(--pero-text); text-align: left; }
+.notebook-formula-highlight { position: absolute; inset: 0; pointer-events: none; overflow: hidden; white-space: pre; display: flex; align-items: center; color: var(--pero-text); text-align: left; }
+.notebook-formula-highlight.pero-ui-input[aria-hidden] { background: transparent; border-color: transparent; }
+.notebook-formula-highlight > span { display: inline-block; }
+.notebook-grid .notebook-formula-highlight { display: flex; align-items: center; }
+[data-formula-token="Cell"], [data-formula-token="Sheet"], [data-formula-token="SheetQuoted"], [data-formula-token="Column"] { color: var(--pero-link); }
+[data-formula-token="Function"], [data-formula-token="ExcelRefFunction"], [data-formula-token="ExcelConditionalRefFunction"] { color: var(--pero-tint-blue-text); }
+[data-formula-token="String"] { color: var(--pero-success); }
+[data-formula-token="Number"], [data-formula-token="Boolean"] { color: var(--pero-tint-apricot-text); }
+[data-formula-token="FormulaErrorT"], [data-formula-token="RefError"] { color: var(--pero-error); }
+.notebook-formula-completions { position: fixed; z-index: 1000; max-height: 232px; overflow: auto; padding: var(--pero-spacing-1); background: var(--pero-surface); color: var(--pero-text); border: var(--pero-hairline); border-radius: var(--pero-radius-sm); box-shadow: var(--pero-elevation-md); }
+.notebook-formula-completions > button { display: flex; width: 100%; flex-wrap: wrap; justify-content: start; text-align: left; white-space: normal; }
+.notebook-formula-completions > button[aria-selected="true"] { background: var(--pero-accent-soft); }
+.notebook-formula-completions small { width: 100%; font-size: var(--pero-font-caption); }
+@media (forced-colors: active) { input.notebook-formula-source.pero-ui-input { color: CanvasText; } .notebook-formula-highlight { display: none; } }

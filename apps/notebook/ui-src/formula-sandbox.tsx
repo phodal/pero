@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Disclosure, Feedback, Field, Input, NativeSelect, Textarea } from '@pero/app-sdk/ui';
 import { formulaHelp, inspectFormulaSandbox, type FormulaInspection } from '@pero/notebook/formula-inspection';
 import type { NamedWorksheet } from '@pero/notebook/worksheet';
+import { FormulaSourceTree } from './formula-source-tree';
 
 export interface FormulaSandboxProps {
   worksheets: readonly NamedWorksheet[];
@@ -46,6 +47,7 @@ export function FormulaSandboxPanel({ worksheets, onSnapshot }: FormulaSandboxPr
       <h4>Observed dependencies / 实际读取</h4>
       <pre className="notebook-science-json">{JSON.stringify(current.dependencies, null, 2)}</pre>
       <Disclosure summary="Engine tokens / 引擎词元"><pre className="notebook-science-json">{JSON.stringify(current.syntax.tokens, null, 2)}</pre>{current.syntax.error && <Feedback kind="error">{current.syntax.error}</Feedback>}</Disclosure>
+      <FormulaSourceTree syntax={current.syntax} />
       <Disclosure summary="Lexical structure (not AST) / 词法结构（非 AST）">
         <p className="notebook-note">The engine evaluates with embedded parser actions and does not expose an AST. This view groups its original tokens by delimiters only; it does not describe operator precedence or execution order. / 引擎不生成 AST，此处仅展示词元的括号分组，不代表运算优先级或执行顺序。</p>
         <pre className="notebook-science-json">{JSON.stringify(current.syntax.structure, null, 2)}</pre>
