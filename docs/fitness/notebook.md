@@ -205,3 +205,40 @@ row-scoped entity/unit pickers, procedure parameter/cross-step relationships,
 master-mix/dependency diagnostics and print affordances, and durable image
 lineage/non-text extraction. See the parity document for exact limits. Missing
 implementation is not automatically an external permission blocker.
+
+## Wave 3 implementation checkpoint
+
+This checkpoint follows `03ecb9f8` and supersedes the corresponding earlier gap
+rows, without claiming complete reference parity or rendered Native acceptance.
+
+- Canvas has a declared, data-only inline Data inspector, exact saved Notebook
+  source admission, private shell confirmation, atomic Data receipts, independent
+  lifecycle and restart/remount recovery. Arbitrary App panels are not embedded.
+  Imported retained receipts remain unverified; readonly is a restrictive flag,
+  not an authenticated editor principal. See [Canvas owner contract](../design/notebook-canvas-owner.md).
+- Local review workflows have immutable configuration versions, ordered/parallel
+  stages, explicit own-label decisions, pending reassignment and durable partial
+  bulk outcomes. Attribution remains unverified local labels.
+- Structured fields have row-scoped catalog selection, exact quantity/unit
+  editing and atomic blank-only post-registration reference autofill. Structural
+  type/schema validity cannot be bypassed.
+- Procedure parameters pin stable table fields and versioned cross-step inputs,
+  reuse the existing formula evaluator and expose missing/stale/ambiguous/cyclic
+  states. Template copies remap internal parameter/table/step references.
+- Image derivations retain original/intermediate bytes, hash links and exact edit
+  parameters across notebook JSON/revisions/undo. Limits are eight edits and
+  512 KiB retained sources within the notebook size bound. Verified hash integrity
+  does not attest that edits were independently replayed or externally approved.
+
+Frozen validation: 127 package, 58 editor, 97 Notebook Python, 66 Data Python,
+13 SDK/Desktop Canvas/discovery tests passed; Notebook typecheck/build, core
+TypeScript, generated contracts/locales and five frozen Bazel checks passed.
+Browser, real Host/Rust and Native-feature acceptance are pending exact-head CI.
+A dedicated macOS Native compilation/unit-contract job is included; compilation
+is not proof of rendered WebView interaction. Local Cargo is unavailable and
+Chromium remains blocked by the established socket restriction.
+
+Print/research/amendment workflows, non-text extraction and the remaining
+reference workflow audit continue separately. Unknown-license reference assets
+are not reused. Real model/service/identity/hardware outcomes need their actual
+owner and separate acceptance, not simulated completion.
