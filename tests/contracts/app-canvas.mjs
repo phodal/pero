@@ -1,13 +1,15 @@
 // Real Host + installed Notebook/Data backends. No Agent session or target App origin is used.
 import assert from "node:assert/strict";
 import { notebookProjectFixture, verifyNotebookProjects } from "./notebook-projects.mjs";
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import Ajv2020 from "ajv/dist/2020.js";
 import schema from "../../protocol/generated/host.schema.json" with { type: "json" };
+import { canvasPythonEnvironment } from "../fixtures/canvas-python.mjs";
+const pythonEnvironment = canvasPythonEnvironment();
 const root = resolve(import.meta.dirname, "../.."),
   directory = await mkdtemp(resolve(tmpdir(), "pero-canvas-contract-"));
 const ajv = new Ajv2020({ strict: true, strictTypes: false });
@@ -80,14 +82,9 @@ async function launch() {
 }
 let host;
 try {
-  execFileSync(
-    process.env.PERO_APP_PYTHON || "python3",
-    ["-I", "-m", "venv", "--without-pip", resolve(directory, "python")],
-    { timeout: 30000 },
-  );
   await writeFile(
     resolve(directory, "settings.json"),
-    JSON.stringify({ app_python: { default: resolve(directory, "python") }, workbench: { research_projects: [notebookProjectFixture] } }),
+    JSON.stringify({ app_python: { default: pythonEnvironment }, workbench: { research_projects: [notebookProjectFixture] } }),
   );
   host = await launch();
   for (const name of ["notebook", "data"]) {

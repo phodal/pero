@@ -1,6 +1,7 @@
 // Chromium + production Notebook UI/SDK + production Desktop Canvas adapter +
 // real Rust Host and installed Python owners. No Electron or Native GUI claim.
 // Build: npm --prefix apps/notebook run build && npm run build:host
+// PERO_APP_PYTHON must name a venv interpreter with Notebook's declared Python pins installed.
 // Run: npx playwright install chromium && node --test tests/e2e/notebook-canvas-browser.mjs
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

@@ -49,6 +49,11 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Build real Host without Desktop or Wasm
         run: node scripts/cargo.mjs build --locked -p pero-host
+      - name: Prepare declared Notebook Python environment
+        run: |
+          python -m venv "$RUNNER_TEMP/notebook-canvas-python"
+          "$RUNNER_TEMP/notebook-canvas-python/bin/python" -c 'import json,subprocess,sys; dependencies=json.load(open("apps/notebook/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
+          echo "PERO_APP_PYTHON=$RUNNER_TEMP/notebook-canvas-python/bin/python" >> "$GITHUB_ENV"
       - name: Verify Canvas against actual Notebook and Data owners
         env:
           PYTHONDONTWRITEBYTECODE: '1'

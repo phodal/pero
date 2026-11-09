@@ -1,7 +1,7 @@
 // Real installed Apps and Rust Host, with loopback HTTP in place of Electron's
 // custom protocol. Only the trusted-shell confirmation callback is test-driven.
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { AppCanvasRequests } from '../../desktop/src/main/app-canvas.ts';
+import { canvasPythonEnvironment } from './canvas-python.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 
@@ -63,6 +64,7 @@ async function launchHost(directory) {
 
 /** No synthetic App projection, owner receipt or approval ticket enters here. */
 export async function createNotebookCanvasHost(t) {
+  const pythonEnvironment = canvasPythonEnvironment();
   const directory = await mkdtemp(resolve(tmpdir(), 'pero-notebook-canvas-browser-'));
   let host, server;
   const confirmations = [], requests = [];
@@ -87,9 +89,7 @@ export async function createNotebookCanvasHost(t) {
     try { await host?.close(); }
     finally { await rm(directory, { recursive: true, force: true }); }
   });
-  execFileSync(process.env.PERO_APP_PYTHON || 'python3',
-    ['-I', '-m', 'venv', '--without-pip', resolve(directory, 'python')], { timeout: 30_000 });
-  await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ app_python: { default: resolve(directory, 'python') } }));
+  await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ app_python: { default: pythonEnvironment } }));
   host = await launchHost(directory);
   for (const name of ['notebook', 'data']) {
     const target = resolve(directory, 'sources', name);
