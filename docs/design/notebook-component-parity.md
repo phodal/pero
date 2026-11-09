@@ -1,6 +1,6 @@
 # Notebook component capability parity
 
-Audit date: 2026-11-09. Scope: PR 181 integrated wave 4 working tree based on `c5b9f202`. This is a source audit, not a frozen-head acceptance claim. The latest local completion paths are source-integrated; exact-head integrated CI and browser acceptance remain pending.
+Audit date: 2026-11-09. Scope: PR 181 on `codex/notebook-blocks`. Source audit of local workflows at `ec69cba2`. Notebook browser, Canvas Host, and Native shell contracts passed on that commit in [run 42584431139](https://github.com/phodal/pero/actions/runs/42584431139), and Official DSH and the Linux CI gate passed in the same run. Product layout evidence remains `70d2e2fd` in [run 42582557017](https://github.com/phodal/pero/actions/runs/42582557017). A01 Desktop and Native visuals remain unreviewed.
 
 ## Reference and evidence rules
 
@@ -90,4 +90,4 @@ Authenticated identity/reviewer decisions, compliant signatures, notification de
 
 Publish a fragment and insert twice with disjoint IDs; save/query/freeze materials; register local material and retain receipt; distinguish mixture targets/actuals; refresh/freeze lookup; run a declared Canvas action; review model proposals against a fixed input; add comments/tasks/review; show staleness; compare/restore; reload/export/import and verify retained identities, provenance, receipts, cancellation and failures. Include newly added amendments, extraction, project associations and local completion workflows.
 
-[Native compile/unit CI](https://github.com/phodal/pero/actions/runs/42553040882/job/128952620581) succeeded at `c5b9f202`, while that checkpoint's Notebook browser/Host runs exposed numeric-revision, receipt-order, fixture-charset and selector issues subsequently fixed in the working tree. Neither those fixes nor earlier passing unit counts establish a final browser pass. Final commit, exact-head CI counts and artifact links belong in [Notebook verification](../fitness/notebook.md). Accurate current claim: substantial bounded local implementation with pending integrated acceptance, not all components verified.
+[Native compile/unit CI](https://github.com/phodal/pero/actions/runs/42553040882/job/128952620581) succeeded at `c5b9f202`, while that checkpoint's Notebook browser/Host runs exposed numeric-revision, receipt-order, fixture-charset and selector issues subsequently fixed in the working tree. Exact-head CI counts and artifact links belong in [Notebook verification](../fitness/notebook.md). Notebook browser, Canvas Host, Native shell, Official DSH, and the Linux CI gate passed on `ec69cba2` in [run 42584431139](https://github.com/phodal/pero/actions/runs/42584431139). A01 Desktop and Native visuals remain unreviewed.
