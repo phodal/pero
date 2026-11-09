@@ -35,6 +35,14 @@ test('narrow notebook chrome stays one row without hiding the title or more tool
   assert.equal(toolbar.get('flex-wrap'), 'nowrap');
   assert.equal(toolbar.get('overflow-x'), 'auto');
   assert.equal(toolbar.get('padding-top'), 'var(--pero-spacing-1)');
+  assert.equal(toolbar.get('width'), '100%');
+  assert.equal(toolbar.get('max-width'), '100%');
+  assert.equal(toolbar.get('box-sizing'), 'border-box');
+  assert.equal(toolbar.get('contain'), 'paint');
+  assert.equal(declarations(compact, '.notebook-document').get('min-width'), '0px');
+  assert.equal(declarations(compact, '.notebook-document').get('max-width'), '100%');
+  assert.equal(declarations(compact, '.notebook-sticky-header').get('min-width'), '0px');
+  assert.equal(declarations(compact, '.notebook-workspace-navigation').get('width'), '100%');
   assert.equal(declarations(compact, '.notebook-notes-utilities').get('flex-wrap'), 'nowrap');
   assert.equal(declarations(compact, '.notebook-document-controls').get('flex-wrap'), 'nowrap');
   assert.equal(declarations(compact, '.notebook-toolbar .pero-ui-button').get('white-space'), 'nowrap');

@@ -125,6 +125,10 @@ html, body, #app { height: 100%; }
 .notebook-split[data-stacked] > .notebook-nav[data-sized] { flex: 0 0 auto; min-height: 0; max-height: min(8rem, 25dvh); }
 /* One scrolling row of primary actions. The title stays in the header; research tools stay behind More tools. */
 @media (max-width: 760px) {
+  .notebook-document,
+  .notebook-document-header,
+  .notebook-sticky-header,
+  .notebook-workspace { min-width: 0; max-width: 100%; }
   .notebook-document { padding: var(--pero-spacing-2); }
   .notebook-document-header { padding-bottom: 0; }
   .notebook-sticky-header { padding-bottom: var(--pero-spacing-1); margin-bottom: var(--pero-spacing-1); }
@@ -136,10 +140,13 @@ html, body, #app { height: 100%; }
     flex-wrap: nowrap;
     align-items: center;
     gap: var(--pero-spacing-1);
+    box-sizing: border-box;
+    width: 100%;
     min-width: 0;
     max-width: 100%;
     overflow-x: auto;
     overscroll-behavior-x: contain;
+    contain: paint;
   }
   .notebook-document-controls { margin-top: 0; padding-bottom: 0; }
   .notebook-toolbar.pero-ui-toolbar:not([data-unstyled]) { padding-top: var(--pero-spacing-1); }
@@ -154,9 +161,9 @@ html, body, #app { height: 100%; }
   .notebook-toolbar .pero-ui-button,
   .notebook-notes-utilities .pero-ui-button,
   .notebook-notes-utilities output { white-space: nowrap; }
-  .notebook-workspace-navigation { flex-wrap: nowrap; min-width: 0; }
+  .notebook-workspace-navigation { flex-wrap: nowrap; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
   .notebook-workspace-navigation > .pero-ui-tabs-list[data-variant=navigation]:not([data-unstyled]) {
-    flex: 1 1 auto; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain;
+    flex: 1 1 auto; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; contain: paint;
   }
   .notebook-document-actions { margin: 0 0 var(--pero-spacing-1); }
   .notebook-paper { margin-top: var(--pero-spacing-2); padding: var(--pero-spacing-4) var(--pero-spacing-2); }
