@@ -75,7 +75,38 @@ revision errors from invalid requests. TypeScript and Python now run the same
   module; the focused Notebook and core checks do not replace that aggregate.
 - The browser regression additionally checks that worksheet rename and all of
   its dependent formulas undo/redo together without undoing the preceding cell
-  edit. Local Chromium remained blocked at launch by the ProcessSingleton socket
+  edit. Dark-theme capture now sends the actual App SDK context and asserts the
+  applied theme, instead of only emulating the OS preference. The old capture
+  did not establish dark-theme rendering. Copied references are captured after
+  scrolling them into view. Local Chromium remained blocked at launch by the ProcessSingleton socket
   restriction, before the App loaded. Exact-head CI owns that runtime evidence.
 - No new Desktop, Native, packaged distribution, live owner or multiplayer
   acceptance is claimed by this refactor.
+
+## Notebook workspace follow-up
+
+The UI follow-up on 2026-11-09 compares Notebook concepts with the requested
+`phodal/benchling-notebook-lab` reference at `8fd07848`. Its source and recorded
+browser verification describe document chrome, continuous paper and disclosed
+metadata. No published preview was found, and the recorded
+`evidence/notebook-desktop.png` is absent at that commit. The reference was not
+rerun and no pixel-level match is claimed. No reference source, production CSS or
+artwork was copied; implementation uses Pero App SDK components and tokens.
+
+Before-change browser evidence is the `7787ed09` artifact from
+[CI run 42537103399](https://github.com/phodal/pero/actions/runs/42537103399/artifacts/13640115778).
+The default Notebook surface is now a focused document workspace: save/history
+and formatting tools are outside the reading surface, the real notebook list
+can be folded, and actual worksheet/reference names replace repeated type
+headings. Sheet tools/help and reference replacement are disclosed on demand.
+Formulas, imported excerpts/results, citation status, errors and missing sources
+remain visible. No new experiment/date model, fake hierarchy or execution state
+is introduced; the date shown belongs to the saved revision.
+
+The browser regression exercises edit/read-only exports through the block menu,
+Escape focus recovery, worksheet controls, failed replacement-import retention,
+collapsed navigation, width bounds and real App SDK dark-theme transitions. It
+retains desktop and narrow-screen screenshots plus scrolled scientific-reference
+views in light and dark themes. Use the PR's latest exact-head CI and screenshot
+artifact for the executed result; source changes alone do not establish visual
+or Desktop/Native acceptance.
