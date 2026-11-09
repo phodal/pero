@@ -1,4 +1,4 @@
-import { renameWorksheetReferences, type Spreadsheet } from "./spreadsheet.ts";
+import { evaluateSpreadsheet, evaluateWorkbook, renameWorksheetReferences, type CellValue, type Spreadsheet } from "./spreadsheet.ts";
 
 export interface NamedWorksheet {
   name: string;
@@ -8,6 +8,34 @@ export interface NamedWorksheet {
 /** Stable Notebook block identity is separate from the formula-visible name. */
 export interface NotebookWorksheet extends NamedWorksheet {
   id: string;
+}
+
+/** Unnamed blocks receive formula-visible names without changing saved labels or IDs. */
+export function resolveWorksheetNames(worksheets: readonly NotebookWorksheet[]): NotebookWorksheet[] {
+  const used = new Set(worksheets.filter(sheet => sheet.name.trim()).map(sheet => sheet.name.toLowerCase()));
+  let next = 1;
+  return worksheets.map(sheet => {
+    if (sheet.name.trim()) return sheet;
+    while (used.has(`sheet${next}`)) next++;
+    const name = `Sheet${next++}`;
+    used.add(name.toLowerCase());
+    return { ...sheet, name };
+  });
+}
+
+export interface CalculatedWorksheet { name: string; ambiguous: boolean; values: Record<string, CellValue> }
+/** Calculation results belong to stable block IDs, never to potentially duplicate
+ * display names. Ambiguous sheets retain local-cell calculations; qualified
+ * references remain unresolved, matching the editor's existing semantics. */
+export function calculateNotebookWorksheets(worksheets: readonly NotebookWorksheet[]): Map<string, CalculatedWorksheet> {
+  const sheets = resolveWorksheetNames(worksheets);
+  const counts = new Map<string, number>();
+  for (const { name } of sheets) counts.set(name.toLowerCase(), (counts.get(name.toLowerCase()) ?? 0) + 1);
+  const workbook = evaluateWorkbook(sheets);
+  return new Map(sheets.map(({ id, name, sheet }) => {
+    const ambiguous = counts.get(name.toLowerCase())! > 1;
+    return [id, { name, ambiguous, values: ambiguous ? evaluateSpreadsheet(sheet) : workbook[name] }];
+  }));
 }
 
 export function isExcelWorksheetName(name: string): boolean {

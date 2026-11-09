@@ -43,3 +43,27 @@ test("worksheet rename refuses invalid or duplicate names and retains ambiguous 
   assert.equal(renamed.worksheets[3].name, "CONTROLS");
   assert.deepEqual(renamed.worksheets.map(worksheet => worksheet.sheet), ambiguous.map(worksheet => worksheet.sheet));
 });
+
+test('worksheet calculations stay keyed to stable IDs when names collide, including letter case', async () => {
+  const { calculateNotebookWorksheets, resolveWorksheetNames } = await import('../src/worksheet.ts');
+  for (const secondName of ['Data', 'data']) {
+    const original = [
+      { id: 'first', name: 'Data', sheet: { rows: 1, columns: 3, cells: { A1: '2', B1: '=A1*3', C1: '=Data!A1' } } },
+      { id: 'second', name: secondName, sheet: { rows: 1, columns: 2, cells: { A1: '9', B1: '=A1*3' } } },
+      { id: 'third', name: 'Summary', sheet: { rows: 1, columns: 1, cells: { A1: '=Data!A1' } } },
+    ];
+    const before = structuredClone(original), result = calculateNotebookWorksheets(original);
+    assert.deepEqual(result.get('first'), { name: 'Data', ambiguous: true, values: { A1: 2, B1: 6, C1: '#REF!' } });
+    assert.deepEqual(result.get('second'), { name: secondName, ambiguous: true, values: { A1: 9, B1: 27 } });
+    assert.equal(result.get('third')!.values.A1, '#REF!');
+    assert.deepEqual(original, before);
+  }
+  const unnamed = [
+    { id: 'named', name: 'Sheet1', sheet: { rows: 1, columns: 1, cells: { A1: '4' } } },
+    { id: 'empty', name: '', sheet: { rows: 1, columns: 1, cells: { A1: '=Sheet1!A1*2' } } },
+    { id: 'spaces', name: '   ', sheet: { rows: 1, columns: 1, cells: { A1: '=Sheet2!A1*2' } } },
+  ];
+  assert.deepEqual(resolveWorksheetNames(unnamed).map(sheet => sheet.name), ['Sheet1', 'Sheet2', 'Sheet3']);
+  const result = calculateNotebookWorksheets(unnamed);
+  assert.equal(result.get('empty')!.values.A1, 8); assert.equal(result.get('spaces')!.values.A1, 16);
+});
