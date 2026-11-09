@@ -1773,6 +1773,9 @@
       "title": "AppRequest",
       "oneOf": [
         {
+          "$ref": "#/$defs/NotebookProjectsApp"
+        },
+        {
           "$ref": "#/$defs/AppCanvasRequest"
         },
         {
@@ -2166,6 +2169,9 @@
         },
         "value": {
           "anyOf": [
+            {
+              "$ref": "#/$defs/NotebookProjectsReply"
+            },
             {
               "$ref": "#/$defs/CanvasReply"
             },
@@ -5396,12 +5402,41 @@
         },
         "params": {
           "$ref": "#/$defs/AppDocumentSchema"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CanvasActionInput"
+          }
         }
       },
       "required": [
         "name",
         "label",
         "params"
+      ],
+      "additionalProperties": false
+    },
+    "CanvasActionInput": {
+      "title": "CanvasActionInput",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "maxLength"
       ],
       "additionalProperties": false
     },
@@ -5731,7 +5766,7 @@
           "type": "string"
         },
         "revision": {
-          "type": "string"
+          "$ref": "#/$defs/NotebookRevision"
         },
         "blockId": {
           "type": "string"
@@ -11406,6 +11441,221 @@
         "action",
         "thread_id",
         "agent_id"
+      ],
+      "additionalProperties": false
+    },
+    "NotebookProjectEntryRef": {
+      "title": "NotebookProjectEntryRef",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "NotebookProjectLink": {
+      "title": "NotebookProjectLink",
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "entryId": {
+          "type": "string"
+        },
+        "revision": {
+          "$ref": "#/$defs/NotebookRevision"
+        },
+        "expectedRevision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "linked": {
+          "type": "boolean"
+        },
+        "readOnly": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "projectId",
+        "entryId",
+        "revision",
+        "expectedRevision",
+        "linked",
+        "readOnly"
+      ],
+      "additionalProperties": false
+    },
+    "NotebookProjectsApp": {
+      "title": "NotebookProjectsApp",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "notebook-projects"
+        },
+        "name": {
+          "$ref": "#/$defs/AppName"
+        },
+        "request": {
+          "$ref": "#/$defs/NotebookProjectsOperation"
+        },
+        "method": {
+          "type": "string",
+          "const": "apps"
+        },
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        }
+      },
+      "required": [
+        "action",
+        "name",
+        "request",
+        "method",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "NotebookProjectsChange": {
+      "title": "NotebookProjectsChange",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "review"
+            },
+            {
+              "type": "string",
+              "const": "apply"
+            }
+          ]
+        },
+        "change": {
+          "$ref": "#/$defs/NotebookProjectLink"
+        }
+      },
+      "required": [
+        "operation",
+        "change"
+      ],
+      "additionalProperties": false
+    },
+    "NotebookProjectsList": {
+      "title": "NotebookProjectsList",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "list"
+        }
+      },
+      "required": [
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    "NotebookProjectsOperation": {
+      "title": "NotebookProjectsOperation",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NotebookProjectsList"
+        },
+        {
+          "$ref": "#/$defs/NotebookProjectsChange"
+        }
+      ]
+    },
+    "NotebookProjectsReply": {
+      "title": "NotebookProjectsReply",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NotebookProjectSummary"
+          }
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NotebookSavedEntry"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "NotebookProjectSummary": {
+      "title": "NotebookProjectSummary",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NotebookProjectEntryRef"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "entries"
+      ],
+      "additionalProperties": false
+    },
+    "NotebookRevision": {
+      "title": "NotebookRevision",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "NotebookSavedEntry": {
+      "title": "NotebookSavedEntry",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "revision"
       ],
       "additionalProperties": false
     },

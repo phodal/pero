@@ -98,3 +98,6 @@ export function useAppDataChanged(refresh:()=>void|Promise<void>){
   const latest=useRef(refresh);latest.current=refresh;
   useEffect(()=>{const receive=()=>{void latest.current();};window.addEventListener('pero:app:data-changed',receive);return()=>window.removeEventListener('pero:app:data-changed',receive);},[]);
 }
+
+export { listNotebookProjects, setNotebookProjectLink, cancelNotebookProjectLink } from './notebook-projects';
+export type { NotebookProjectCatalog, NotebookProjectLink } from './notebook-projects';

@@ -118,6 +118,7 @@ export type QuestionReply = AnsweredQuestions | CancelledQuestions;
 export type EngramSettingsRequest = GetEngramSettings | SetEngramSettings | SetEngramDocument;
 export type EngramBinary = string;
 export type AppRequest =
+  | NotebookProjectsApp
   | AppCanvasRequest
   | LocalEnvironmentApp
   | EnvironmentInspectionApp
@@ -142,9 +143,11 @@ export type AppRequest =
   | AutomationApp
   | ResearchAssetsApp;
 export type AppName = string;
+export type NotebookProjectsOperation = NotebookProjectsList | NotebookProjectsChange;
+export type NotebookRevision = number;
+export type RequestId = string;
 export type CanvasOperation =
   CanvasMount | CanvasRead | CanvasRelease | CanvasPrepare | CanvasDecide | CanvasStatus | CanvasCancel;
-export type RequestId = string;
 export type LocalEnvironmentOperation =
   LocalEnvironmentCreate | LocalEnvironmentList | LocalEnvironmentPrepare | LocalEnvironmentBind;
 export type AgentRunRequest =
@@ -1758,6 +1761,28 @@ export interface SetEngramDocument {
   scope: string;
   text: string;
 }
+export interface NotebookProjectsApp {
+  action: "notebook-projects";
+  name: AppName;
+  request: NotebookProjectsOperation;
+  method: "apps";
+  id: RequestId;
+}
+export interface NotebookProjectsList {
+  operation: "list";
+}
+export interface NotebookProjectsChange {
+  operation: "review" | "apply";
+  change: NotebookProjectLink;
+}
+export interface NotebookProjectLink {
+  projectId: string;
+  entryId: string;
+  revision: NotebookRevision;
+  expectedRevision: string | null;
+  linked: boolean;
+  readOnly: boolean;
+}
 export interface AppCanvasRequest {
   action: "canvas";
   name: AppName;
@@ -1771,7 +1796,7 @@ export interface CanvasMount {
 }
 export interface CanvasSource {
   entryId: string;
-  revision: string;
+  revision: NotebookRevision;
   blockId: string;
   binding: CanvasBinding;
   readOnly: boolean;
@@ -3765,6 +3790,7 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | NotebookProjectsReply
     | CanvasReply
     | LocalEnvironmentRecord[]
     | EnvironmentInspectionReport
@@ -3789,6 +3815,26 @@ export interface AppSuccess {
     | AppGrant
     | ResearchAssetReply
     | ResearchBundleReply;
+}
+export interface NotebookProjectsReply {
+  state?: string;
+  summary?: string;
+  projects?: NotebookProjectSummary[];
+  entries?: NotebookSavedEntry[];
+}
+export interface NotebookProjectSummary {
+  id: string;
+  title: string;
+  entries: NotebookProjectEntryRef[];
+}
+export interface NotebookProjectEntryRef {
+  id: string;
+  revision: string;
+}
+export interface NotebookSavedEntry {
+  id: string;
+  title: string;
+  revision: string;
 }
 export interface CanvasReply {
   history?: CanvasHistoryItem[];
@@ -3822,6 +3868,12 @@ export interface CanvasAction {
   name: AppName;
   label: string;
   params: AppDocumentSchema;
+  inputs?: CanvasActionInput[];
+}
+export interface CanvasActionInput {
+  name: string;
+  label: string;
+  maxLength: number;
 }
 export interface LocalEnvironmentRecord {
   id: AppName;
