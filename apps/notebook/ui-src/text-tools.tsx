@@ -1,8 +1,9 @@
+import { NOTEBOOK_SYMBOLS_EVENT } from './notebook-commands';
 import { Extension, getMarkRange, Mark, type Editor } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { AllSelection, Plugin } from '@tiptap/pm/state';
 import { useEditorState } from '@tiptap/react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, Field, Icon, IconButton, Input, Select } from '@pero/app-sdk/ui';
 import { NotebookReferenceMentionPicker } from './reference-mention';
@@ -207,6 +208,15 @@ export function NotebookTextTools({ editor }: { editor: Editor }) {
       if (!editor.isDestroyed) editor.commands.focus(undefined, { scrollIntoView: false });
     }
   }, [dialog, editor]);
+  useEffect(() => {
+    const openSymbols = () => {
+      const { from, to, $from, $to } = editor.state.selection;
+      if (!editor.isDestroyed && editor.isEditable && $from.parent.inlineContent && $to.parent.inlineContent) setDialog({ kind: 'symbols', selection: { from, to } });
+    };
+    const element = editor.view.dom;
+    element.addEventListener(NOTEBOOK_SYMBOLS_EVENT, openSymbols);
+    return () => element.removeEventListener(NOTEBOOK_SYMBOLS_EVENT, openSymbols);
+  }, [editor]);
   if (!status.editable) return null;
 
   const closeDialog = () => { returnToEditor.current = true; setDialog(null); };

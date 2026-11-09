@@ -10,6 +10,7 @@
     "./workbook": "./src/workbook.ts",
     "./worksheet": "./src/worksheet.ts",
     "./attachment": "./src/attachment.ts",
+    "./named-reference": "./src/named-reference.ts",
     "./workspace": "./src/workspace.ts",
     "./procedure-parameters": "./src/procedure-parameters.ts",
     "./spreadsheet-range": "./src/spreadsheet-range.ts",
@@ -36,7 +37,10 @@
     "./template-collections": "./src/template-collections.ts",
     "./table-workflows": "./src/table-workflows.ts",
     "./scientific-designs": "./src/scientific-designs.ts",
-    "./source-excerpt": "./src/source-excerpt.ts"
+    "./source-excerpt": "./src/source-excerpt.ts",
+    "./research-tools": "./src/research-tools.ts",
+    "./notebook-print": "./src/notebook-print.ts",
+    "./source-extraction": "./src/source-extraction.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"

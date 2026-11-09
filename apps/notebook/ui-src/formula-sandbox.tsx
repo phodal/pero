@@ -3,9 +3,12 @@ import { Button, Disclosure, Feedback, Field, Input, NativeSelect, Textarea } fr
 import { formulaHelp, inspectFormulaSandbox, type FormulaInspection } from '@pero/notebook/formula-inspection';
 import type { NamedWorksheet } from '@pero/notebook/worksheet';
 import { FormulaSourceTree } from './formula-source-tree';
+import { NotebookResearchTools } from './research-tools';
+import type { masterMixExample } from '@pero/notebook/research-tools';
 
 export interface FormulaSandboxProps {
   worksheets: readonly NamedWorksheet[];
+  onInsertExample?(example: ReturnType<typeof masterMixExample>): void;
   onSnapshot(title: string, snapshot: unknown, rows?: string[][]): boolean | void;
 }
 const examples = [
@@ -16,7 +19,7 @@ const examples = [
   ['Error / 错误', '=1/0'],
 ] as const;
 
-export function FormulaSandboxPanel({ worksheets, onSnapshot }: FormulaSandboxProps) {
+export function FormulaSandboxPanel({ worksheets, onSnapshot, onInsertExample }: FormulaSandboxProps) {
   const [name, setName] = useState(worksheets[0]?.name ?? ''), [address, setAddress] = useState('A1');
   const [source, setSource] = useState('=SUM(1,2,3)'), [error, setError] = useState('');
   const [result, setResult] = useState<{ inspection: FormulaInspection; signature: string } | null>(null);
@@ -29,6 +32,7 @@ export function FormulaSandboxPanel({ worksheets, onSnapshot }: FormulaSandboxPr
   };
   return <div className="notebook-science-panel">
     <h3>Formula workbench / 公式工作台</h3>
+    <NotebookResearchTools worksheets={worksheets} onSnapshot={onSnapshot} onInsertExample={onInsertExample} />
     <p className="notebook-note">Uses the Notebook calculation engine and current worksheet values. The selected cell is replaced only in this preview, so referencing it creates a circular reference. Worksheets are never edited. / 使用当前工作表数据试算，仅在预览中替换所选单元格，不修改工作表。</p>
     {!worksheets.length && <Feedback kind="info">Add a worksheet to the note to choose a calculation context. / 请先在笔记中添加工作表。</Feedback>}
     <div className="notebook-science-fields">

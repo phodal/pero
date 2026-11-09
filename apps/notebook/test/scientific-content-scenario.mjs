@@ -44,8 +44,8 @@ export async function verifyScientificDesigns(page, origin, output) {
   await page.screenshot({ path: resolve(output, 'scientific-graph-light.png'), fullPage: true });
 
   await button('Scientific tools').click();
-  await page.getByLabel('Scientific tools', { exact: true }).selectOption('plate');
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('dialog', { name: 'Scientific tools', exact: true });
+  await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('plate');
   await dialog.getByText('Reusable plate designs', { exact: true }).click();
   await dialog.getByLabel('Plate design name', { exact: true }).fill('Reusable controls');
   await dialog.getByLabel('Plate barcode', { exact: true }).fill('PLATE-7');

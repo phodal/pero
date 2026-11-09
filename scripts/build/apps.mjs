@@ -1,3 +1,5 @@
+import { packageNotebookDiagnostics } from './notebook-diagnostics.mjs';
+import { packageSourceParsers } from './source-parsers.mjs';
 import { appSdkAliases } from './app-sdk.mjs';
 import { build } from 'esbuild';
 import { buildScientificViewer } from './scientific-viewer.mjs';
@@ -32,8 +34,10 @@ if (appName === 'data') {
   for (const name of modules)
     await cp(resolve(root, 'harness/go/charts/python', name), resolve(appRoot, 'backend/_core', name));
 }
+await packageSourceParsers(root, appName);
 const outdir = resolve(appRoot, 'dist');
 await mkdir(outdir, { recursive: true });
+await packageNotebookDiagnostics(root, appName);
 await build({
   absWorkingDir: root,
   entryPoints: [resolve(appRoot, 'ui-src/frame.tsx')],

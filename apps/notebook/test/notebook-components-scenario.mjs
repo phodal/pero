@@ -207,7 +207,7 @@ export async function verifyNotebookComponents(page, origin, output) {
 
   await button('Scientific tools').click();
   dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Scientific tools', { exact: true }).selectOption('sequence');
+  await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('sequence');
   await dialog.getByLabel('Sequence (IUPAC, up to 20,000 nt)', { exact: true }).fill('ATGAAATAA');
   await button('Calculate', dialog).click();
   await button('Insert snapshot', dialog).click();
@@ -215,7 +215,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   await button('Insert snapshot', dialog).click();
   await expect(dialog).toContainText('This snapshot has already been inserted.');
   await shot('scientific-snapshot');
-  await dialog.getByLabel('Scientific tools', { exact: true }).selectOption('ai');
+  await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('ai');
   await expect(dialog).toContainText('No configured Host agent is available.');
   await expect(button('Generate candidates', dialog)).toBeDisabled();
   await shot('ai-host-unavailable');

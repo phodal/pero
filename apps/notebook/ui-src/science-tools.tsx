@@ -10,6 +10,7 @@ import { PlatePanel } from './science-tools-plate';
 import { CandidateReviewPanel, RecordedChecksPanel } from './science-tools-review';
 import { scienceMessages, scienceSnapshotNodes } from './science-tools-shared';
 import { worksheetBlocks } from './worksheet-model';
+import type { masterMixExample } from '@pero/notebook/research-tools';
 
 const toolNames = ['formula', 'ai', 'review', 'sequence', 'chemistry', 'plate', 'checks', 'capabilities'] as const;
 type Tool = typeof toolNames[number];
@@ -18,15 +19,30 @@ export function NotebookScienceTools({ editor, onInsert, getTarget = () => null 
   const { t } = useAppI18n(scienceMessages);
   const [open, setOpen] = useState(false), [tool, setTool] = useState<Tool>('review'), [notice, setNotice] = useState(''), [error, setError] = useState('');
   const base = useRef(''), lastInserted = useRef('');
-  const onSnapshot = (title: string, snapshot: unknown, rows?: string[][]) => {
+  const insertSnapshot = (snapshot: unknown, nodes: JSONContent[]) => {
     if (editor.isDestroyed || !editor.isEditable || JSON.stringify(editor.getJSON()) !== base.current) { setError(t('stale')); return false; }
     const signature = JSON.stringify(snapshot);
     if (signature === lastInserted.current) { setError(t('duplicate')); return false; }
     const before = JSON.stringify(editor.getJSON());
-    onInsert(scienceSnapshotNodes(title, snapshot, rows, worksheetBlocks(editor.state.doc).map(sheet => sheet.name)));
+    onInsert(nodes);
     const after = JSON.stringify(editor.getJSON());
     if (after === before) { setError(t('failure')); return false; }
     base.current = after; lastInserted.current = signature; setNotice(t('inserted')); setError(''); return true;
+  };
+  const onSnapshot = (title: string, snapshot: unknown, rows?: string[][]) => insertSnapshot(snapshot,
+    scienceSnapshotNodes(title, snapshot, rows, worksheetBlocks(editor.state.doc).map(sheet => sheet.name)));
+  const onInsertExample = (example: ReturnType<typeof masterMixExample>) => {
+    const existing = new Set(worksheetBlocks(editor.state.doc).map(sheet => sheet.name.toLowerCase()));
+    let name = example.worksheet.name, suffix = 2;
+    while (existing.has(name.toLowerCase())) name = `${example.worksheet.name} ${suffix++}`;
+    const mixture = structuredClone(example.mixture);
+    for (const recipe of [mixture.draft, ...mixture.recipes.map(revision => revision.recipe)]) for (const ingredient of recipe.ingredients) {
+      if (ingredient.source.startsWith(example.worksheet.name + '!')) ingredient.source = name + ingredient.source.slice(example.worksheet.name.length);
+    }
+    return insertSnapshot(example, [
+      { type: 'spreadsheet', attrs: { label: name, sheet: example.worksheet.sheet, annotations: {} } },
+      { type: 'mixturePrep', attrs: { label: 'Master-mix planning example', mixture } },
+    ]);
   };
   const onApply = (application: AIApplication) => {
     if (editor.isDestroyed || !editor.isEditable || JSON.stringify(editor.getJSON()) !== application.baseContent) {
@@ -46,7 +62,7 @@ export function NotebookScienceTools({ editor, onInsert, getTarget = () => null 
       <Field label={t('tools')}>{control => <NativeSelect {...control} value={tool} onChange={event => { setTool(event.target.value as Tool); setNotice(''); setError(''); }}>{toolNames.map(name => <option key={name} value={name}>{t(name)}</option>)}</NativeSelect>}</Field>
       {notice && <Feedback kind="success">{notice}</Feedback>}{error && <Feedback kind="error">{error}</Feedback>}
       <div key={tool} className="notebook-science-content">
-        {tool === 'formula' ? <FormulaSandboxPanel worksheets={worksheetBlocks(editor.state.doc)} onSnapshot={onSnapshot} /> : tool === 'ai' ? <NotebookAITools key={getTarget()?.entryId ?? "unavailable"} {...props} getTarget={getTarget} onApply={onApply} /> : tool === 'sequence' ? <SequencePanel {...props} /> : tool === 'chemistry' ? <ChemistryPanel {...props} /> : tool === 'plate' ? <PlatePanel {...props} /> : tool === 'checks' ? <RecordedChecksPanel {...props} /> : tool === 'review' ? <CandidateReviewPanel {...props} /> : <div className="notebook-science-panel">
+        {tool === 'formula' ? <FormulaSandboxPanel worksheets={worksheetBlocks(editor.state.doc)} onSnapshot={onSnapshot} onInsertExample={onInsertExample} /> : tool === 'ai' ? <NotebookAITools key={getTarget()?.entryId ?? "unavailable"} {...props} getTarget={getTarget} onApply={onApply} /> : tool === 'sequence' ? <SequencePanel {...props} /> : tool === 'chemistry' ? <ChemistryPanel {...props} /> : tool === 'plate' ? <PlatePanel {...props} /> : tool === 'checks' ? <RecordedChecksPanel {...props} /> : tool === 'review' ? <CandidateReviewPanel {...props} /> : <div className="notebook-science-panel">
           <h3>{t('capabilities')}</h3>
           <dl>
             <dt>{t('sequence')}</dt><dd>{t('sequenceLimits')}</dd>
