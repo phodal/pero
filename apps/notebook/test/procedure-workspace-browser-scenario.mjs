@@ -31,7 +31,7 @@ export async function verifyProcedureWorkspace(page, origin, output) {
   await child.getByRole('textbox', { name: 'Quantity 1.1', exact: true }).fill('1 mL');
   await button('Select registered material', child).click();
   const picker = page.getByRole('dialog', { name: 'Select registered material', exact: true });
-  await picker.getByRole('textbox', { name: 'Search registered materials', exact: true }).fill('Procedure registered buffer');
+  await picker.getByRole('searchbox', { name: 'Search registered materials', exact: true }).fill('Procedure registered buffer');
   await button('Find records', picker).click();
   await button('Use Procedure registered buffer · v1', picker).click();
   await expect(child.getByRole('textbox', { name: 'Material 1.1', exact: true })).toHaveValue('Procedure registered buffer');
