@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } fr
 import { closeHistory } from '@tiptap/pm/history';
 import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, Input, Table } from '@pero/app-sdk/ui';
+import { Button, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, Input, Table } from '@pero/app-sdk/ui';
 import { spreadsheetLimits } from '@pero/notebook';
 import { cellAddress, evaluateSpreadsheet, formulaFunctions, type Spreadsheet } from '@pero/notebook/spreadsheet';
 import {
@@ -185,20 +185,24 @@ export function SpreadsheetView(view: NodeViewProps) {
     setError(result === 'invalid' ? t('invalidSheetName') : result === 'duplicate' ? t('workbookNameConflict') : '');
     setWorksheetName(null);
   };
-  return <BlockFrame view={view} kind="spreadsheet" actions={<Button variant="ghost" busy={exporting} onClick={() => void exportExcel()}>{t(hasMultipleSheets ? 'exportWorkbook' : 'exportExcel')}</Button>}>
-    {editable ? <div className="notebook-sheet-controls">
-      <Input aria-label={t('sheetName')} value={worksheetName ?? calculation?.name ?? label}
+  return <BlockFrame view={view} kind="spreadsheet"
+    title={editable ? <Input unstyled className="notebook-block-name" aria-label={t('sheetName')} value={worksheetName ?? calculation?.name ?? label}
         onChange={event => setWorksheetName(event.target.value)} onBlur={applyWorksheetName} maxLength={31}
         onKeyDown={event => {
           if (event.nativeEvent.isComposing) return;
           if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
           if (event.key === 'Escape') { event.preventDefault(); setWorksheetName(null); }
-        }} />
+        }} /> : <strong>{calculation?.name || label || t('spreadsheet')}</strong>}
+    menuActions={<DropdownMenuItem disabled={exporting} onSelect={() => void exportExcel()}>{t(hasMultipleSheets ? 'exportWorkbook' : 'exportExcel')}</DropdownMenuItem>}>
+    {editable && <Disclosure variant="inline" className="notebook-sheet-tools" summary={t('worksheetTools')}>
+      <div className="notebook-sheet-controls">
       <Button variant="ghost" onClick={() => setSheet(current => ({ ...current, rows: Math.min(current.rows + 1, spreadsheetLimits.rows) }))} disabled={sheet.rows >= spreadsheetLimits.rows}>{t('addRow')}</Button>
       <Button variant="ghost" onClick={() => setSheet(current => ({ ...current, columns: Math.min(current.columns + 1, spreadsheetLimits.columns) }))} disabled={sheet.columns >= spreadsheetLimits.columns}>{t('addColumn')}</Button>
       <Button variant="ghost" disabled={isRange || active.row === sheet.rows - 1 || !source} onClick={() =>
         fill('down', normalizeCellRange(active, { column: active.column, row: active.row + 1 }))}>{t('fillNext')}</Button>
-    </div> : label && <p className="notebook-note">{label}</p>}
+      </div>
+      <p className="notebook-note">{t('gridHint')} {t('rangeHint')}</p>
+    </Disclosure>}
     <div className="notebook-formula">
       <output aria-label={t(isRange ? 'selectedRange' : 'cell', { address: rangeAddress })}>{rangeAddress}</output>
       <Input ref={formulaInput} aria-label={t('rawCell')} placeholder={t('rawCell')} value={source} readOnly={!editable}
@@ -261,7 +265,6 @@ export function SpreadsheetView(view: NodeViewProps) {
       </Table>
     </div>
     <CellAnnotations view={view} address={address} editable={editable} />
-    {editable && <p className="notebook-note">{t('gridHint')} {t('rangeHint')}</p>}
     {calculation?.ambiguous && <Feedback kind="error">{t('workbookNameConflict')}</Feedback>}
     {error && <Feedback kind="error">{error}</Feedback>}
   </BlockFrame>;

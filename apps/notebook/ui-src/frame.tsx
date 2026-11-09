@@ -47,6 +47,7 @@ function Notebook() {
   const api = useAppApi(), chat = useAppChat();
   const [entries, setEntries] = useState<NotebookEntrySummary[] | null>(null);
   const [selected, setSelected] = useState('');
+  const [navigationOpen, setNavigationOpen] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [history, setHistory] = useState<NotebookEntrySummary[] | null>(null);
   const [snapshot, setSnapshot] = useState<NotebookEntry | null>(null);
@@ -192,7 +193,8 @@ function Notebook() {
   });
 
   return <AppFrame label={t('notebook')} className="notebook-app"
-    tools={<Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button>}
+    tools={<><Button variant="ghost" aria-expanded={navigationOpen} aria-controls="notebook-list"
+      onClick={() => setNavigationOpen(open => !open)}>{t('notebooks')}</Button><Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button></>}
     actions={<IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>}>
     {catalogError && <Feedback kind="error" variant="block">{catalogError} <Button onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
     {error && <Feedback kind="error" variant="block">{error}</Feedback>}
@@ -200,7 +202,7 @@ function Notebook() {
       : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />}
         heading={t('noNotebooks')} description={t('start')} />
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
-        <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
+        {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
           <ul className="notebook-list">
             {entries.map(entry => {
               const local = drafts[entry.id];
@@ -209,24 +211,20 @@ function Notebook() {
                 meta={local?.dirty ? t('unsaved') : t('revision', { number: entry.revision })} /></li>;
             })}
           </ul>
-        </SplitPane>
+        </SplitPane>}
         <SplitPane as="section" id="notebook-document" aria-label={t('body')} min={350} className="notebook-page">
           {openError && <Feedback kind="error" variant="block">{openError} <Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback>}
           {!shown || !draft || !current ? (openError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
             : <div className="notebook-document">
-              <div className="notebook-document-header">
-                {snapshot ? <h1>{draft.title}</h1> : <Input unstyled className="notebook-title" aria-label={t('title')} placeholder={t('untitled')}
-                  value={draft.title} maxLength={200} onChange={event => updateDraft({ title: event.target.value })} />}
-                <div className="notebook-document-controls">
-                  <span className="notebook-status" role="status">{t('revision', { number: shown.revision })}
-                    {!snapshot && current.dirty ? ` · ${t(busy === 'save' ? 'saving' : 'unsaved')}` : ''}</span>
-                  {window.parent !== window && <Button variant="ghost" disabled={!!busy} onClick={() => void ask(shown)}><Icon name="agent" /> {t('askAgent')}</Button>}
-                  {snapshot ? <Button disabled={!!busy} onClick={() => setSnapshot(null)}>{t('backToDraft')}</Button> : <>
-                    <Button variant="ghost" aria-expanded={!!history} disabled={!!busy} onClick={() => void showHistory()}>{t('history')}</Button>
-                    <Button variant="primary" busy={busy === 'save'} disabled={!current.dirty || current.newer || !!busy}
-                      onClick={() => void save(current)}><Icon name="save" /> {t('save')}</Button>
-                  </>}
-                </div>
+              <div className="notebook-document-controls">
+                <span className="notebook-status" role="status">{t('revision', { number: shown.revision })}
+                  {!snapshot && current.dirty ? ` · ${t(busy === 'save' ? 'saving' : 'unsaved')}` : ''}</span>
+                {window.parent !== window && <Button variant="ghost" disabled={!!busy} onClick={() => void ask(shown)}><Icon name="agent" /> {t('askAgent')}</Button>}
+                {snapshot ? <Button disabled={!!busy} onClick={() => setSnapshot(null)}>{t('backToDraft')}</Button> : <>
+                  <Button variant="ghost" aria-expanded={!!history} disabled={!!busy} onClick={() => void showHistory()}>{t('history')}</Button>
+                  <Button variant="primary" busy={busy === 'save'} disabled={!current.dirty || current.newer || !!busy}
+                    onClick={() => void save(current)}><Icon name="save" /> {t('save')}</Button>
+                </>}
               </div>
               {!snapshot && current.newer && <Feedback kind="warning" variant="block">
                 {t('conflict')} <Button onClick={() => downloadFile('notebook-draft.json', JSON.stringify(current.document, null, 2), 'application/json')}>{t('exportDraft')}</Button>
@@ -241,6 +239,13 @@ function Notebook() {
                 </li>)}</ul>
               </section>}
               <NotebookEditor key={snapshot ? `${snapshot.id}:revision:${snapshot.revision}` : `${selected}:draft:${current.editorEpoch}`}
+                header={<header className="notebook-document-header">
+                  {snapshot ? <h1>{draft.title}</h1> : <Input unstyled className="notebook-title" aria-label={t('title')} placeholder={t('untitled')}
+                    value={draft.title} maxLength={200} onChange={event => updateDraft({ title: event.target.value })} />}
+                  <p className="notebook-revision-date">{t('savedRevision')} <time dateTime={shown.updatedAt}>
+                    {new Date(shown.updatedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')}
+                  </time></p>
+                </header>}
                 readonly={!!snapshot} content={draft.content} onChange={snapshot ? undefined : content => updateDraft({ content })} />
             </div>}
         </SplitPane>
