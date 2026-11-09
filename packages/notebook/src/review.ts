@@ -68,3 +68,33 @@ export function reviewAnchorBlocks(document: NotebookDocument): { value: string;
   visit(document.content);
   return items;
 }
+
+/** Wire projections from the local review owner, not authenticated identities. */
+export interface LocalReviewStage { id: string; name: string; participants: string[] }
+export interface LocalReviewWorkflow {
+  id: string; version: number; name: string; stages: LocalReviewStage[]; createdAt: string;
+  authorDisplay: string; identityScope: 'unverified_local_label';
+}
+export interface LocalReviewAssignment {
+  id: string; stageId: string; participantDisplay: string; status: 'pending' | 'approved' | 'changes_requested' | 'rejected';
+  decidedAt: string | null; reason: string | null; actorDisplay: string | null; identityScope: 'unverified_local_label';
+}
+export interface LocalReviewRun {
+  id: string; version: number; revision: number; workflow: LocalReviewWorkflow; assignments: LocalReviewAssignment[];
+  status: 'requested' | 'approved' | 'changes_requested' | 'rejected' | 'withdrawn'; activeStageId: string | null;
+  requesterDisplay: string; note: string; previousRunId: string | null; createdAt: string; updatedAt: string; stale: boolean;
+  mode: 'local_workflow'; identityScope: 'unverified_local_label';
+}
+export interface LocalWorkflowWorkspace { workflowConfigs: LocalReviewWorkflow[]; workflowRuns: LocalReviewRun[] }
+export interface LocalBulkResult { index: number; id: string | null; ok: boolean; code?: string; detail?: string; currentVersion?: number }
+
+/** Configuration history stays available; selectors default to the latest saved version. */
+export function latestReviewWorkflows(configs: LocalReviewWorkflow[]): LocalReviewWorkflow[] {
+  const latest = new Map<string, LocalReviewWorkflow>();
+  for (const config of configs) if (!latest.has(config.id) || latest.get(config.id)!.version < config.version) latest.set(config.id, config);
+  return [...latest.values()];
+}
+export function summarizeReviewBulk(results: LocalBulkResult[]): { succeeded: number; failed: number; failedIds: string[] } {
+  return { succeeded: results.filter(item => item.ok).length, failed: results.filter(item => !item.ok).length,
+    failedIds: results.filter(item => !item.ok && item.id !== null).map(item => item.id!) };
+}

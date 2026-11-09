@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppApiError, downloadFile, useAppApi, useAppDataChanged, useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Checkbox, CodeCompare, Dialog, EmptyState, Feedback, Field, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from '@pero/app-sdk/ui';
 import type { NotebookDocument, NotebookEntry, NotebookEntrySummary } from '@pero/notebook';
-import { compareNotebookRevisions, reviewAnchorBlocks } from '@pero/notebook/review';
+import { type LocalWorkflowWorkspace, type LocalBulkResult, compareNotebookRevisions, reviewAnchorBlocks } from '@pero/notebook/review';
 import { notebookMarkdown } from '@pero/notebook/workspace';
+import { ReviewWorkflows } from './review-workflows';
+import { ReviewBulk } from './review-bulk';
 
 const messages = {
   comments: { en: 'Comments', zh: '评论' }, tasks: { en: 'Local tasks', zh: '本地任务' },
@@ -35,6 +37,7 @@ const messages = {
   status: { en: 'Status', zh: '状态' }, requestReview: { en: 'Request local self-review', zh: '请求本地自我复核' },
   reviewHint: { en: 'Review a fixed saved revision yourself. This is neither an independent reviewer approval nor a compliance electronic signature.', zh: '由你自己复核固定的已保存修订。这不是独立审核人的批准，也不是合规电子签名。' },
   requested: { en: 'Requested', zh: '已请求' }, approved: { en: 'Approved locally', zh: '本地已批准' },
+  rejected: { en: 'Rejected locally', zh: '本地已拒绝' }, reject: { en: 'Reject my review', zh: '拒绝我的复核' },
   changes_requested: { en: 'Changes requested', zh: '要求修改' }, retracted: { en: 'Retracted', zh: '已撤回' },
   begin: { en: 'Begin my review', zh: '开始我的复核' }, approve: { en: 'Record my approval', zh: '记录我的批准' },
   requestChanges: { en: 'Request changes', zh: '要求修改' }, retract: { en: 'Retract review', zh: '撤回复核' },
@@ -57,6 +60,10 @@ const messages = {
   'create-thread': { en: 'Started thread', zh: '新建线程' }, 'edit-comment': { en: 'Edited comment', zh: '编辑评论' },
   'resolve-thread': { en: 'Resolved thread', zh: '解决线程' }, 'reopen-thread': { en: 'Reopened thread', zh: '重新打开线程' },
   'create-task': { en: 'Created local task', zh: '创建本地任务' }, 'update-task': { en: 'Updated local task', zh: '更新本地任务' },
+  'save-workflow': { en: 'Saved workflow version', zh: '保存流程版本' }, 'request-workflow': { en: 'Requested workflow review', zh: '请求流程复核' },
+  'decide-workflow': { en: 'Recorded workflow decision', zh: '记录流程决定' }, 'reassign-workflow': { en: 'Reassigned pending review', zh: '重新分配待办复核' },
+  'withdraw-workflow': { en: 'Withdrew workflow review', zh: '撤回流程复核' }, 'set-task-status': { en: 'Changed task status', zh: '更改任务状态' },
+  'reassign-task': { en: 'Reassigned local task', zh: '重新分配本地任务' }, details: { en: 'Saved event details', zh: '已保存事件详情' },
   'request-review': { en: 'Requested local review', zh: '请求本地复核' }, 'transition-review': { en: 'Recorded local review action', zh: '记录本地复核操作' },
 } as const;
 type MessageKey = keyof typeof messages;
@@ -66,9 +73,9 @@ type Comment = { id: string; text: string; authorDisplay: string; createdAt: str
 type Thread = Anchored & { status: 'open' | 'resolved'; comments: Comment[] };
 type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled';
 type Task = Anchored & { title: string; description: string; ownerDisplay: string; deadline: string; status: TaskStatus };
-type ReviewStatus = 'requested' | 'in_progress' | 'approved' | 'changes_requested' | 'retracted';
+type ReviewStatus = 'requested' | 'in_progress' | 'approved' | 'changes_requested' | 'rejected' | 'retracted';
 type Review = Anchored & { reviewerDisplay: string; status: ReviewStatus; note: string; previousReviewId: string | null; decisionAt: string | null; decisionReason: string | null; decisionStatus: ReviewStatus | null; decisionBy: string | null };
-type Workspace = { entryId: string; headRevision: number; threads: Thread[]; tasks: Task[]; reviews: Review[]; activity: { id: number; at: string; actorDisplay: string; action: string; recordId: string; revision: number; version: number; detail: string }[]; activityLimited: boolean };
+type Workspace = LocalWorkflowWorkspace & { bulkResults?: LocalBulkResult[]; entryId: string; headRevision: number; threads: Thread[]; tasks: Task[]; reviews: Review[]; activity: { id: number; at: string; actorDisplay: string; action: string; recordId: string; revision: number; version: number; detail: string }[]; activityLimited: boolean };
 type Composer = { kind: 'comment' | 'reply' | 'edit-comment' | 'task' | 'review' | 'decision'; id?: string; version: number; revision: number; blockId: string; quote: string; text: string; title: string; description: string; owner: string; deadline: string; status: string; commentId?: string; previousReviewId?: string; reviewer?: string; confirmed: boolean };
 
 export interface ReviewerPanelProps {
@@ -84,6 +91,23 @@ function messageOf(cause: unknown) {
     try { const body = JSON.parse(cause.body) as { detail?: string }; if (body.detail) return body.detail; } catch { /* Transport errors may be plain text. */ }
   }
   return cause instanceof Error ? cause.message : String(cause);
+}
+
+function ReviewEventDetail({ action, detail }: { action: string; detail: string }) {
+  const { t } = useAppI18n(messages);
+  if (!action.endsWith('workflow') && action !== 'reassign-task') return <p className="notebook-review-text">{detail}</p>;
+  let summary = detail;
+  try {
+    const event = JSON.parse(detail) as { name?: string; version?: number; previousOwner?: string; owner?: string; reason?: string;
+      command?: { reason?: string; note?: string; participant?: string }; previousAssignment?: { participant?: string } };
+    summary = action === 'save-workflow' ? `${event.name} · v${event.version}`
+      : action === 'reassign-workflow' ? `${event.previousAssignment?.participant} → ${event.command?.participant}
+${event.command?.reason ?? ''}`
+        : action === 'reassign-task' ? `${event.previousOwner} → ${event.owner}
+${event.reason ?? ''}`
+          : event.command?.reason || event.command?.note || t(action as MessageKey);
+  } catch { /* Older local events can contain plain text. */ }
+  return <><p className="notebook-review-text">{summary}</p><details><summary>{t('details')}</summary><p className="notebook-review-text">{detail}</p></details></>;
 }
 
 function SavedRevision({ entryId, revision, onLoaded }: { entryId: string; revision: number; onLoaded?: (ready: boolean) => void }) {
@@ -205,8 +229,16 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
       if (!live.current) return;
       epoch.current++; setData(result); setLoadError(''); setLoading(false); requestIdentity.current = null;
       if (closeOnSuccess && currentDialog === dialogEpoch.current) { setFormOpen(false); setForm(null); }
+      return result;
     } catch (cause) { if (live.current) setError(messageOf(cause)); }
     finally { lock.current = false; if (live.current) setPending(false); }
+  };
+  const reload = async () => {
+    try {
+      const result = await api.get<Workspace>(`${endpoint(entryId)}/review-workspace`);
+      if (live.current) setData(result);
+      return result;
+    } catch (cause) { if (live.current) setError(messageOf(cause)); }
   };
   const submit = () => {
     if (!form) return;
@@ -254,6 +286,7 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
       <TabsContent value="comments" forceMount>
         <div className="notebook-workspace-actions">
           {!readonly && <Button disabled={disabled || !saved} onClick={() => open('comment')}>{t('addComment')}</Button>}
+          {!readonly && data && <ReviewBulk kind="threads" items={filtered.map(item => ({ ...item, label: `${item.comments[0]?.text ?? item.id} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
           <Select label={t('filter')} value={filter} onChange={setFilter} options={[{ value: 'all', label: t('all') }, { value: 'unresolved', label: t('unresolved') }]} />
         </div>
         {data && !filtered.length && <EmptyState title={t(data.threads.length ? 'noMatches' : 'noComments')} />}
@@ -274,6 +307,7 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
       <TabsContent value="tasks" forceMount>
         <p className="notebook-workspace-hint">{t('taskHint')}</p>
         {!readonly && <Button disabled={disabled || !saved} onClick={() => open('task')}>{t('addTask')}</Button>}
+        {!readonly && data && <ReviewBulk kind="tasks" items={data.tasks.map(item => ({ ...item, label: `${item.title} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
         {data && !data.tasks.length && <EmptyState title={t('noTasks')} />}
         <ul className="notebook-review-list">{data?.tasks.map(task => <li key={task.id}>
           <div className="notebook-workspace-actions"><strong>{task.title}</strong><Badge>{t(task.status)}</Badge>
@@ -287,17 +321,19 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
       <TabsContent value="reviews" forceMount>
         <p className="notebook-workspace-hint">{t('reviewHint')}</p>
         {!readonly && <Button disabled={disabled || !saved} onClick={() => open('review')}>{t('requestReview')} · r{revision}</Button>}
+        {!readonly && data && <ReviewBulk kind="reviews" items={data.reviews.filter(item => item.status !== 'retracted').map(item => ({ ...item, label: `${item.reviewerDisplay} · r${item.anchor.revision} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
+        {data && <ReviewWorkflows data={data} revision={revision} actor={actor} disabled={disabled || !saved} readonly={readonly} mutate={run} error={error} reload={reload} snapshot={(number, onLoaded) => <SavedRevision entryId={entryId} revision={number} onLoaded={onLoaded} />} />}
         {data && !data.reviews.length && <EmptyState title={t('noReviews')} />}
         <ul className="notebook-review-list">{data?.reviews.map(review => <li key={review.id}>
           <div className="notebook-workspace-actions"><Badge>{t(review.status)}</Badge><strong>{review.reviewerDisplay}</strong><time>{review.updatedAt}</time></div>
           {review.stale && <Feedback kind="warning">{t('stale')}</Feedback>}{anchorView(review)}
           {review.note && <p className="notebook-review-text">{review.note}</p>}
           {review.previousReviewId && <small>{t('previous')}: {review.previousReviewId}</small>}
-          {review.decisionStatus && <p className="notebook-review-text">{t('previousDecision')}: {t(review.decisionStatus)} · {review.decisionBy} · {review.decisionAt}\n{review.decisionReason}</p>}
+          {review.decisionStatus && <p className="notebook-review-text">{t('previousDecision')}: {t(review.decisionStatus)} · {review.decisionBy} · {review.decisionAt}<br />{review.decisionReason}</p>}
           {!readonly && <div className="notebook-workspace-actions">
             {(['requested', 'in_progress'].includes(review.status) ? [
               ...(review.status === 'requested' ? [{ status: 'in_progress', label: 'begin' }] : []),
-              { status: 'approved', label: 'approve' }, { status: 'changes_requested', label: 'requestChanges' },
+              { status: 'approved', label: 'approve' }, { status: 'changes_requested', label: 'requestChanges' }, { status: 'rejected', label: 'reject' },
             ] : []).concat(review.status !== 'retracted' ? [{ status: 'retracted', label: 'retract' }] : []).map(action =>
               <Button key={action.status} variant="ghost" disabled={disabled} onClick={() => open('decision', { id: review.id, version: review.version, revision: review.anchor.revision, status: action.status, reviewer: review.reviewerDisplay, confirmed: false })}>{t(action.label as MessageKey)}</Button>)}
             <Button variant="ghost" disabled={disabled || !saved} onClick={() => open('review', { previousReviewId: review.id })}>{t('fresh')} · r{revision}</Button>
@@ -312,7 +348,7 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
         {data?.activityLimited && <p className="notebook-workspace-hint">{t('activityLimit')}</p>}
         <ol className="notebook-review-list">{data?.activity.map(item => <li key={item.id}>
           <div className="notebook-workspace-actions"><time>{item.at}</time><strong>{item.actorDisplay}</strong><span>{item.action in messages ? t(item.action as MessageKey) : item.action}</span><Badge>r{item.revision} · v{item.version}</Badge></div>
-          <p className="notebook-review-text">{item.detail}</p>
+          <ReviewEventDetail action={item.action} detail={item.detail} />
         </li>)}</ol>
       </TabsContent>
     </Tabs>
