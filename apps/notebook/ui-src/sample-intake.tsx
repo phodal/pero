@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import type { NodeViewProps } from '@tiptap/react';
-import { useAppApi, useAppI18n } from '@pero/app-sdk';
+import { downloadFile, useAppApi, useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Feedback, FilePicker, Input, Select, Textarea } from '@pero/app-sdk/ui';
-import { bindIntake, intakeModes, intakeRequests, resolveIntake, type IntakeMode, type IntakeResult, type SampleIntake } from '@pero/notebook/sample-intake';
+import { bindIntake, intakeModes, intakeRequests, intakeWorklistCsv, resolveIntake, type IntakeMode, type IntakeResult, type SampleIntake } from '@pero/notebook/sample-intake';
 import { isCatalogSnapshot, type StructuredTableAttributes } from '@pero/notebook/structured-table';
 import { BlockFrame } from './block-frame';
+import { SampleCatalogBrowser } from './sample-catalog';
+import { SamplePropagation } from './sample-propagation';
 const messages = {
+  exportCsv: { en: 'Export review worklist CSV', zh: '导出复核工作清单 CSV' }, exportJson: { en: 'Export pinned bindings JSON', zh: '导出固定绑定 JSON' },
+  exportScope: { en: 'CSV includes record versions and source identity. Spreadsheet-formula prefixes are escaped; JSON retains exact source values and snapshots. These are review files, not instrument commands.', zh: 'CSV 包含记录版本和来源身份，对电子表格公式前缀进行转义；JSON 保留精确原值及快照。这些是复核文件，非仪器命令。' },
   title: { en: 'Sample intake', zh: '样品来源选择' }, name: { en: 'Batch name', zh: '批次名称' },
   scope: { en: 'Select existing Notebook local-catalog records. No physical inventory, movement or instrument operation. Saved bindings retain the selected version and original input; imported snapshots are not owner verification.', zh: '选择 Notebook 本地目录中已有的记录。不操作物理库存、移液或仪器。保存所选版本与原始输入；导入快照不代表目录所有者核验。' },
   mode: { en: 'Input source', zh: '输入来源' }, manual: { en: 'Manual identifiers', zh: '手工标识符' }, barcode: { en: 'Keyboard barcode scanner', zh: '键盘条码扫描器' }, worklist: { en: 'Worklist', zh: '工作清单' }, table: { en: 'Structured table', zh: '结构化表格' }, plate: { en: 'Plate mapping', zh: '孔板映射' },
@@ -74,6 +78,12 @@ export function SampleIntakeView(view: NodeViewProps) {
     {results.length > 0 && <div aria-live="polite">
       <Button disabled={!editable || !results.some(r => r.status === 'unique' && !intake.bindings.some(b => b.snapshot.catalogId === r.snapshot.catalogId && b.snapshot.records[0].id === r.candidates[0].id && b.source.well === r.request.well))} onClick={() => select(results.filter(r => r.status === 'unique' && !intake.bindings.some(b => b.snapshot.catalogId === r.snapshot.catalogId && b.snapshot.records[0].id === r.candidates[0].id && b.source.well === r.request.well)).map(result => ({ result, id: result.candidates[0].id })))}>{t('all')}</Button>
       {results.map((result, i) => <div key={i}><p>{result.request.well} {result.request.input}: {t(result.status)}</p>{result.candidates.map(record => <p key={record.id}>{record.name} / {record.id} / v{record.version} <Button disabled={!editable || result.status === 'duplicate' || result.status === 'incomplete' || intake.bindings.some(b => b.snapshot.catalogId === result.snapshot.catalogId && b.snapshot.records[0].id === record.id && b.source.well === result.request.well)} onClick={() => select([{ result, id: record.id }])}>{t('select')}</Button></p>)}</div>)}
+    </div>}
+    <SampleCatalogBrowser intake={intake} editable={editable} onChange={next => view.updateAttributes({ intake: next })} />
+    <SamplePropagation view={view} />
+    {intake.bindings.length > 0 && <div><p>{t('exportScope')}</p>
+      <Button variant="ghost" onClick={() => downloadFile('Notebook-sample-worklist.csv', intakeWorklistCsv(intake), 'text/csv;charset=utf-8')}>{t('exportCsv')}</Button>
+      <Button variant="ghost" onClick={() => downloadFile('Notebook-sample-bindings.json', JSON.stringify({ format: 'pero-notebook-sample-worklist-v1', scope: 'pinned local associations, not physical inventory', intake }, null, 2), 'application/json')}>{t('exportJson')}</Button>
     </div>}
     <strong>{t('saved')}</strong>{!intake.bindings.length && <p>{t('empty')}</p>}
     <ul>{intake.bindings.map((binding, index) => <li key={index}>{binding.source.well} {binding.snapshot.records[0].name} / {binding.snapshot.records[0].id} / v{binding.snapshot.records[0].version}<br />{t(binding.source.mode)}: {binding.source.input} ({binding.source.field}) · {binding.source.fileName} #{binding.source.row}<br />{binding.snapshot.catalogId} · {binding.snapshot.refreshedAt} <Button disabled={!editable} onClick={() => edit({ bindings: intake.bindings.filter((_, i) => i !== index) })}>{t('remove')}</Button></li>)}</ul>
