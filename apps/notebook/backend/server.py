@@ -21,6 +21,14 @@ from saved_search import SavedSearchStore, SavedSearchDefinition, MissingSavedSe
 from reviews import ReviewStore
 from review_routes import review_route
 from catalog import CatalogStore, SubmissionConflict, SchemaConflict
+from template_collections import TemplateCollectionStore
+from table_workflows import TableWorkflowStore
+from catalog_archive import CatalogArchiveStore
+from table_workflow_routes import table_workflow_route
+from scientific_designs import ScientificDesignStore
+from scientific_routes import scientific_route
+from ai_proposals import AIProposalStore
+from ai_routes import ai_route
 
 
 ENTRY_ID = re.compile(r'[a-f0-9]{32}')
@@ -43,6 +51,11 @@ def handler(store, secret):
     reviews = ReviewStore(store)
     drafts = DraftStore(store)
     catalog = CatalogStore(store.path)
+    collections = TemplateCollectionStore(store, templates)
+    workflows = TableWorkflowStore(store, catalog)
+    archives = CatalogArchiveStore(catalog)
+    scientific = ScientificDesignStore(store)
+    proposals = AIProposalStore(store)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -104,6 +117,13 @@ def handler(store, secret):
                 return self.error(500, 'storage-error', 'Notebook storage operation failed')
 
         def get(self):
+            for route, owner in ((ai_route, proposals), (scientific_route, scientific)):
+                response = route(owner, 'GET', self.path, self.body)
+                if response is not None:
+                    return self.reply(*response)
+            response = table_workflow_route(collections, workflows, archives, 'GET', self.path, self.body)
+            if response is not None:
+                return self.reply(*response)
             response = review_route(reviews, 'GET', self.path, self.body)
             if response is not None:
                 return self.reply(*response)
@@ -144,6 +164,13 @@ def handler(store, secret):
             return self.reply(200, store.read(match[1]).wire())
 
         def post(self):
+            for route, owner in ((ai_route, proposals), (scientific_route, scientific)):
+                response = route(owner, 'POST', self.path, self.body)
+                if response is not None:
+                    return self.reply(*response)
+            response = table_workflow_route(collections, workflows, archives, 'POST', self.path, self.body)
+            if response is not None:
+                return self.reply(*response)
             draft_path = re.fullmatch(r'/api/entries/([a-f0-9]{32})/draft(/discard)?', self.path)
             if draft_path:
                 if draft_path[2]:

@@ -1,4 +1,10 @@
+import { verifyDirectGridInteractions } from './grid-interaction-browser-scenario.mjs';
 import { createNotebook } from './notebook-browser-actions.mjs';
+import { verifyProcedureWorkspace } from './procedure-workspace-browser-scenario.mjs';
+import { verifySourceExcerpts } from './source-excerpt-browser-scenario.mjs';
+import { verifyDiagnosticsAndIntake } from './diagnostics-intake-browser-scenario.mjs';
+import { verifyScientificDesigns } from './scientific-content-scenario.mjs';
+import { verifyTableWorkflows } from './table-workflow-browser-scenario.mjs';
 import { verifyNotebookComponents } from './notebook-components-scenario.mjs';
 import { verifyGridTools } from './grid-browser-scenario.mjs';
 import assert from 'node:assert/strict';
@@ -18,7 +24,7 @@ const app = resolve(import.meta.dirname, '..');
 const output = resolve(app, '../../test-results/notebook');
 const token = 'notebook-browser-fixture';
 
-test('Notebook saves an Excel workbook, cell evidence and revisions through its real backend', { timeout: 300_000 }, async t => {
+test('Notebook saves an Excel workbook, cell evidence and revisions through its real backend', { timeout: 480_000 }, async t => {
   const directory = await mkdtemp(resolve(tmpdir(), 'pero-notebook-browser-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const files = new Map(await Promise.all([
@@ -344,6 +350,9 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(finding.getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
   for (const [name, verify] of [
     ['grid-tools', verifyGridTools], ['notebook-components', verifyNotebookComponents],
+    ['table-workflows', verifyTableWorkflows], ['scientific-designs', verifyScientificDesigns],
+    ['source-excerpts', verifySourceExcerpts], ['diagnostics-and-intake', verifyDiagnosticsAndIntake],
+    ['procedure-workspace', verifyProcedureWorkspace], ['direct-grid-interactions', verifyDirectGridInteractions],
   ]) {
     scenario = name;
     try { await verify(page, origin, output); }

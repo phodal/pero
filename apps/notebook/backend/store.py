@@ -107,6 +107,8 @@ class EntryStore:
         return Entry(identity, row['revision'], row['updated_at'], document)
 
     def _insert(self, connection, identity, revision, document):
+        from scientific_designs import validate_local_chemical_sources
+        validate_local_chemical_sources(connection, document)
         updated_at = datetime.now(timezone.utc).isoformat(timespec='microseconds')
         connection.execute('INSERT INTO revisions VALUES (?, ?, ?, ?, ?)',
                            (identity, revision, updated_at, document.title, document.serialized()))

@@ -41,7 +41,7 @@ jobs:
   notebook:
     name: Notebook revisions, workbook and browser contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -63,6 +63,8 @@ jobs:
           npm --prefix apps/notebook run build
       - name: Verify documents, formulas, XLSX exchange and Agent revisions
         run: npm run test:notebook
+      - name: Verify installed App catalog owner contracts
+        run: node --test packages/app-sdk/test/installed-app-views.test.mjs desktop/src/main/apps-frames.test.ts
       - name: Verify Notebook types
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: npm --prefix apps/notebook run typecheck

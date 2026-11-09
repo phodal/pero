@@ -26,7 +26,7 @@ MARKS = {'bold', 'italic', 'strike', 'code', 'underline', 'subscript', 'superscr
 BLOCKS = {
     'paragraph', 'heading', 'blockquote', 'horizontalRule', 'codeBlock',
     'bulletList', 'orderedList', 'taskList', 'spreadsheet', 'evidence',
-    'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake',
+    'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake', 'reactionScheme', 'chemical', 'sourceExcerpt',
 }
 CONTAINERS = {
     'doc': BLOCKS,
@@ -42,7 +42,7 @@ CONTAINERS = {
     'section': BLOCKS,
 }
 REQUIRED_CHILDREN = {'doc', 'blockquote', 'bulletList', 'orderedList', 'taskList', 'section'}
-DOMAIN_BLOCKS = {'spreadsheet', 'evidence', 'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake'}
+DOMAIN_BLOCKS = {'spreadsheet', 'evidence', 'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake', 'reactionScheme', 'chemical', 'sourceExcerpt'}
 SHA256 = re.compile(r'[a-f0-9]{64}')
 RUN_ID = re.compile(r'[a-f0-9]{32}')
 CONTROL_NAME = re.compile(r'[a-zA-Z0-9_-]{1,128}')
@@ -333,6 +333,9 @@ def _attributes(kind, value, identities):
         'section': {'label', 'date'},
         'attachment': {'filename', 'mime', 'data', 'caption', 'sha256'},
         'referenceMention': {'label', 'source'},
+        'reactionScheme': {'reaction', 'record'},
+        'chemical': {'chemical'},
+        'sourceExcerpt': {'label', 'excerpt'},
         'sampleIntake': {'intake'},
         'appCanvas': {'label', 'binding'},
         'mixturePrep': {'label', 'mixture'},
@@ -416,6 +419,12 @@ def _attributes(kind, value, identities):
             string(item, 'mention identity', 1024, required=key != 'locator')
             if re.search(r'[\x00-\x1f\x7f]', item):
                 raise ValueError('Invalid mention identity')
+    elif kind in {'reactionScheme', 'chemical'}:
+        from scientific_designs import parse_scientific_attributes
+        parse_scientific_attributes(kind, value)
+    elif kind == 'sourceExcerpt':
+        from source_excerpt import parse_source_excerpt_attributes
+        parse_source_excerpt_attributes({key: value[key] for key in ('label', 'excerpt')})
     elif kind == 'sampleIntake':
         from sample_intake import validate_sample_intake_attributes
         validate_sample_intake_attributes({key: item for key, item in value.items() if key != 'templateOrigin'})
@@ -512,12 +521,11 @@ class NotebookDocument:
         return json.dumps(self.wire(), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
 
     def nodes(self):
-        """All recorded block trees: Notes followed by procedure step content."""
+        """All recorded block trees: Notes, introductions, material notes and steps."""
         yield from nodes(self.content)
         for procedure in self.procedures or ():
-            for step in procedure.steps:
-                if step.content is not None:
-                    yield from nodes(step.content)
+            for root in procedure.content_roots():
+                yield from nodes(root)
 
     def block(self, identity):
         return next((node for node in self.nodes() if node.get('attrs', {}).get('blockId') == identity), None)
