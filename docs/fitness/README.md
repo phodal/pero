@@ -12,6 +12,9 @@ usage: [Research quality gate](paper-research-quality.md).
 Original Fisher Table III data, frozen numerical reanalysis and an independent
 exact-arithmetic checker: [Real-source result reproduction](paper-fisher-reproduction.md).
 
+Pinned research catalog, Skills marketplace, profile-owned installation and
+selected Harness invocation: [Skills marketplace](skills-marketplace.md).
+
 Opt-in native Go engineering contracts, acceptance evidence, skills budgets and
 memory attribution: [Engineering profile](engineering-profile.md).
 
