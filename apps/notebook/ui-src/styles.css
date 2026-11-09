@@ -25,6 +25,10 @@ html, body, #app { height: 100%; }
 .notebook-title:focus { outline: none; border-bottom-color: var(--pero-focus); }
 .notebook-document-controls { flex: 0 0 auto; padding-bottom: var(--pero-spacing-2); display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-spacing-1); margin-top: var(--pero-spacing-1); }
 .notebook-document-actions { margin: var(--pero-spacing-1) 0 var(--pero-spacing-2); }
+.notebook-action-status { display: flex; flex-direction: column; align-items: stretch; gap: var(--pero-spacing-1); min-width: 0; }
+.notebook-action-status > .notebook-document-actions,
+.notebook-action-status > .notebook-notes-utilities { margin: 0; }
+.notebook-workspace:not(:has(.notebook-notes-panel:not([hidden]))) .notebook-action-status > .notebook-notes-utilities { display: none; }
 .notebook-document-actions .notebook-replacement-menu { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-2); align-items: center; }
 .notebook-notes-utilities { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); margin-top: var(--pero-spacing-2); color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .notebook-notes-utilities .notebook-status-bar, .notebook-notes-utilities .notebook-editor-diagnostics { margin: 0; }
@@ -123,16 +127,21 @@ html, body, #app { height: 100%; }
 }
 .notebook-cell:focus { outline: 1px solid var(--pero-focus); outline-offset: -1px; }
 .notebook-split[data-stacked] > .notebook-nav[data-sized] { flex: 0 0 auto; min-height: 0; max-height: min(8rem, 25dvh); }
-/* One scrolling row of primary actions. The title stays in the header; research tools stay behind More tools. */
+/* Title stays visible. Document actions and status share one row; formatting and More tools share one scrolling row. */
 @media (max-width: 760px) {
   .notebook-document,
   .notebook-document-header,
   .notebook-sticky-header,
   .notebook-workspace { min-width: 0; max-width: 100%; }
-  .notebook-document { padding: var(--pero-spacing-2); }
-  .notebook-document-header { padding-bottom: 0; }
-  .notebook-sticky-header { padding-bottom: var(--pero-spacing-1); margin-bottom: var(--pero-spacing-1); }
-  .notebook-revision-date { margin-top: 0; }
+  .notebook-document { padding: var(--pero-spacing-1) var(--pero-spacing-2); }
+  .notebook-document-header {
+    display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--pero-spacing-2); row-gap: 0;
+    min-width: 0; padding-bottom: 0;
+  }
+  .notebook-document-header > .notebook-title,
+  .notebook-document-header > h1 { flex: 1 1 12rem; width: auto; min-width: 0; padding-block: 0; }
+  .notebook-sticky-header { padding-bottom: 0; margin-bottom: 0; }
+  .notebook-revision-date { flex: 1 1 auto; margin: 0; white-space: nowrap; }
   .notebook-document-controls,
   .notebook-notes-utilities,
   .notebook-notes-utilities .notebook-status-bar,
@@ -149,9 +158,9 @@ html, body, #app { height: 100%; }
     contain: paint;
   }
   .notebook-document-controls { margin-top: 0; padding-bottom: 0; }
-  .notebook-toolbar.pero-ui-toolbar:not([data-unstyled]) { padding-top: var(--pero-spacing-1); }
+  .notebook-toolbar.pero-ui-toolbar:not([data-unstyled]) { padding-top: 0; }
   .notebook-toolbar-secondary { padding-top: 0; }
-  .notebook-notes-utilities { margin-top: var(--pero-spacing-1); }
+  .notebook-notes-utilities { margin-top: 0; }
   .notebook-toolbar.pero-ui-toolbar:not([data-unstyled]) > *,
   .notebook-document-controls > *,
   .notebook-notes-utilities > *,
@@ -165,8 +174,29 @@ html, body, #app { height: 100%; }
   .notebook-workspace-navigation > .pero-ui-tabs-list[data-variant=navigation]:not([data-unstyled]) {
     flex: 1 1 auto; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; contain: paint;
   }
-  .notebook-document-actions { margin: 0 0 var(--pero-spacing-1); }
-  .notebook-paper { margin-top: var(--pero-spacing-2); padding: var(--pero-spacing-4) var(--pero-spacing-2); }
+  .notebook-document-actions { margin: 0; }
+  .notebook-action-status {
+    flex-direction: row; flex-wrap: nowrap; align-items: center; gap: var(--pero-spacing-1);
+    box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%;
+    overflow-x: auto; overscroll-behavior-x: contain; contain: paint;
+  }
+  .notebook-action-status > .notebook-document-actions,
+  .notebook-action-status > .notebook-notes-utilities {
+    flex: 1 1 auto; width: auto; min-width: 0; max-width: 100%;
+  }
+  .notebook-document-actions.pero-ui-disclosure:not([data-unstyled]) {
+    padding: 0; border: 0; background: transparent;
+  }
+  .notebook-document-actions.pero-ui-disclosure > summary { white-space: nowrap; }
+  .notebook-editor-toolbars {
+    display: flex; flex-wrap: nowrap; align-items: center; gap: var(--pero-spacing-1);
+    box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%;
+    overflow-x: auto; overscroll-behavior-x: contain; contain: paint;
+  }
+  .notebook-editor-toolbars > .notebook-toolbar.pero-ui-toolbar:not([data-unstyled]) {
+    width: max-content; max-width: none; flex: 0 0 auto; overflow: visible; contain: none;
+  }
+  .notebook-paper { margin-top: var(--pero-spacing-1); padding: var(--pero-spacing-2); }
 }
 @media (max-width: 650px) {
   .notebook-reference-fields, .notebook-reference-details > div { grid-template-columns: 1fr; }

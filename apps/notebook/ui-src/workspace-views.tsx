@@ -220,9 +220,9 @@ function ProceduresView({ procedures, readonly, onChange, selected, setSelected,
   </>;
 }
 
-export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, header, children }: {
+export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, header, status, children }: {
   editor: Editor; entryId: string; revision: number; document: NotebookDocument; readonly: boolean;
-  onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode; header?: ReactNode; onReplaceDocument?(document: NotebookDocument): void;
+  onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode; header?: ReactNode; status?: ReactNode; onReplaceDocument?(document: NotebookDocument): void;
 }) {
   const { t } = useAppI18n(messages);
   const [tab, setTab] = useState('notes'), [dialog, setDialog] = useState<'search' | 'help' | null>(null);
@@ -307,9 +307,12 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
         </DropdownMenu>
       </Toolbar>
     </div>
-    {!readonly && onReplaceDocument && <Disclosure className="notebook-document-actions" defaultOpen={false} summary={t('documentActions')}>
-      <NotebookReplacementTools layout="menu" getDocument={() => ({ ...document, content: editor.getJSON() as NotebookDocument['content'] })} onReplace={onReplaceDocument} />
-    </Disclosure>}
+    {(status || (!readonly && onReplaceDocument)) && <div className="notebook-action-status">
+      {!readonly && onReplaceDocument && <Disclosure className="notebook-document-actions" defaultOpen={false} summary={t('documentActions')}>
+        <NotebookReplacementTools layout="menu" getDocument={() => ({ ...document, content: editor.getJSON() as NotebookDocument['content'] })} onReplace={onReplaceDocument} />
+      </Disclosure>}
+      {status}
+    </div>}
     {error && <Feedback kind="error">{error}</Feedback>}
     {notice && <Feedback kind="success">{notice}</Feedback>}
     <TabsContent className="notebook-notes-panel" value="notes" forceMount>{children}</TabsContent>

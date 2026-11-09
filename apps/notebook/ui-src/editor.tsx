@@ -85,7 +85,8 @@ function EditorToolbar({ editor, document, onCreateEntry, entryId, revision, his
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
   };
   const [more, setMore] = useState(false);
-  return <>
+  return <div className="notebook-editor-tools">
+    <div className="notebook-editor-toolbars">
     <Toolbar className="notebook-toolbar" role="group" aria-label={t('format')}>
       <NotebookTextTools editor={editor} />
       <DatedSectionTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
@@ -127,8 +128,9 @@ function EditorToolbar({ editor, document, onCreateEntry, entryId, revision, his
       <FilePicker compact label={t('importExcel')} emptyLabel="" accept=".xlsx" variant="ghost" busy={importing} onFile={file => void importExcel(file)} />
       {status.hasSheets && <Button variant="ghost" onClick={() => void exportExcel()}>{t('exportWorkbook')}</Button>}
     </Toolbar>}
+    </div>
     {error && <Feedback kind="error">{error}</Feedback>}
-  </>;
+  </div>;
 }
 
 export function NotebookEditor({ content, document: entryDocument, onDocumentChange, onCreateEntry, entryId, revision, readonly = false, onChange, header, historyControls, onSave, onReplaceDocument }: {
@@ -170,9 +172,8 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
   if (!editor) return null;
   return <NotebookContextProvider value={{ entryId, revision, readonly, document: entryDocument,
     getDocument: () => ({ ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] }) }}>
-    <NotebookWorkspace header={header} editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onReplaceDocument={onReplaceDocument} onChange={change => onDocumentChange?.(change)}>
-      {!readonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId} revision={revision} document={entryDocument} onCreateEntry={onCreateEntry} />}
-      <div className="notebook-notes-utilities">
+    <NotebookWorkspace header={header} editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onReplaceDocument={onReplaceDocument} onChange={change => onDocumentChange?.(change)}
+      status={<div className="notebook-notes-utilities">
         <NotebookCommandTools entryId={entryId} readonly={readonly} handlers={{ save: onSave,
           export: () => downloadFile('Notebook.json', JSON.stringify({ ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
           print: () => { window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } })); },
@@ -181,7 +182,8 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
         }} />
         <NotebookEditorDiagnostics editor={editor} />
         <NotebookStatusBar editor={editor} />
-      </div>
+      </div>}>
+      {!readonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId} revision={revision} document={entryDocument} onCreateEntry={onCreateEntry} />}
       <div className="notebook-paper"><EditorContent className="notebook-editor" editor={editor} /></div>
     </NotebookWorkspace></NotebookContextProvider>;
 }
