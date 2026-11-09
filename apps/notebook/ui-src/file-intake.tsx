@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Editor, JSONContent } from '@tiptap/core';
-import { listInstalledAppViews, requestAppShell, type InstalledAppViews } from '@pero/app-sdk';
+import { listInstalledAppViews, requestAppShell, useAppI18n, type InstalledAppViews } from '@pero/app-sdk';
 import { Button, Dialog, Disclosure, Feedback, Field, FilePicker, Input, Textarea } from '@pero/app-sdk/ui';
 import { attachmentBytes, isAttachmentFilename, isPreviewImage, type AttachmentAttributes } from '@pero/notebook/attachment';
 import { createAttachment } from './content-blocks';
+import { messages } from './messages';
 
 export function NotebookFileIntake({ editor, onInsert }: { editor: Editor; onInsert(nodes: JSONContent[]): void }) {
+  const { t } = useAppI18n(messages);
   const [open, setOpen] = useState(false);
-  return <><Button variant="ghost" disabled={!editor.isEditable} onClick={() => setOpen(true)}>Preview file import / 预览文件导入</Button>{open && <FileIntakeDialog editor={editor} onInsert={onInsert} onClose={() => setOpen(false)} />}</>;
+  return <><Button variant="ghost" disabled={!editor.isEditable} onClick={() => setOpen(true)}>{t('previewFileImport')}</Button>{open && <FileIntakeDialog editor={editor} onInsert={onInsert} onClose={() => setOpen(false)} />}</>;
 }
 
 export function FileIntakeDialog({ editor, onInsert, onClose }: { editor: Editor; onInsert(nodes: JSONContent[]): void; onClose(): void }) {
+  const { t } = useAppI18n(messages);
   const [file, setFile] = useState<AttachmentAttributes | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [preview, setPreview] = useState(''), [catalog, setCatalog] = useState<InstalledAppViews[] | null>(null), [catalogError, setCatalogError] = useState('');
   const [catalogBusy, setCatalogBusy] = useState(false), [navigating, setNavigating] = useState('');
@@ -53,7 +56,7 @@ export function FileIntakeDialog({ editor, onInsert, onClose }: { editor: Editor
     } catch (cause) { if (live.current) setCatalogError(String(cause)); }
     finally { if (live.current) setNavigating(''); }
   };
-  return <Dialog title="Preview file import / 预览文件导入" closeLabel="Close / 关闭" size="lg" onClose={onClose}>
+  return <Dialog title={t('previewFileImport')} closeLabel={t('closeAction')} size="lg" onClose={onClose}>
     <p>Select or drop a local file, inspect its exact bytes and confirm insertion. Nothing is sent to an external account. Up to 512 KiB per file, within the 2 MiB Notebook limit. / 选择或拖入本地文件，检查内容后确认插入，不会发送到外部账号。单个文件最多 512 KiB，笔记总计最多 2 MiB。</p>
     <div onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => {
       event.preventDefault(); if (!editor.isEditable || busy) return;

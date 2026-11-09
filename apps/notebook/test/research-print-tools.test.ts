@@ -45,7 +45,7 @@ test('print preview preserves cross-section calculations, filters real output an
   ] }, procedures: [{ id: 'procedure', title: 'Hidden procedure tab', description: 'Print this without switching tabs', materials: [], steps: [] }] };
   let printed = 0; dom.window.print = () => { printed++; assert.match(document.querySelector('.notebook-print-output')!.textContent!, /21/); };
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) }, React.createElement(ui.NotebookPrintTools, { document: documentValue, entryId: 'entry', revision: 2, dirty: true })));
-  await click(button('Print options / 打印设置'));
+  await click(button('Print options'));
   const output = () => document.querySelector('.notebook-print-output')!;
   assert.match(output().textContent!, /UNSAVED DRAFT/); assert.match(output().textContent!, /Hidden procedure tab/);
   assert.equal(output().querySelector('button, input, textarea, script'), null);
@@ -55,7 +55,7 @@ test('print preview preserves cross-section calculations, filters real output an
   assert.match(output().textContent!, /=Data!A1\*3/); assert.match(output().querySelector('style')!.textContent!, /size: Letter landscape; margin: 12mm/);
   await click(button('Save print preferences / 保存打印偏好')); await click(button('Print / 打印')); assert.equal(printed, 1);
   await click(button('Close print options / 关闭打印设置')); assert.equal(document.querySelector('.notebook-print-output'), null);
-  await click(button('Print options / 打印设置')); assert.equal(field('Orientation / 方向').value, 'landscape'); assert.equal(field('Inputs').checked, false);
+  await click(button('Print options')); assert.equal(field('Orientation / 方向').value, 'landscape'); assert.equal(field('Inputs').checked, false);
   await fill('Margins (mm, 5–40) / 页边距', '0'); assert.equal(document.querySelector('.notebook-print-output'), null); assert.equal((button('Print / 打印') as HTMLButtonElement).disabled, true);
   await click(button('Close print options / 关闭打印设置'));
   await React.act(async () => window.dispatchEvent(new dom.window.CustomEvent(ui.NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId: 'other' } }))); assert.equal(document.querySelector('dialog'), null);
@@ -79,7 +79,7 @@ test('scoped commands preserve widget/native/IME/modal keys and symbol command u
   await React.act(async () => editor.commands.setTextSelection(3));
   assert.equal(await press(editor.view.dom, ';'), true); assert.match(document.querySelector('dialog')!.textContent!, /Insert symbol/);
   await click(button('Insert α (alpha)')); assert.equal(editor.getText(), 'teαxt');
-  await click(button('Keyboard shortcuts / 快捷键')); const dialog = document.querySelector('dialog')!;
+  await click(button('Keyboard shortcuts')); const dialog = document.querySelector('dialog')!;
   assert.equal(await press(dialog, 's'), false); await click(button('Close shortcuts / 关闭快捷键'));
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) }, React.createElement(ui.NotebookCommandTools, { entryId: 'entry', readonly: true, handlers })));
   assert.equal(await press(editor.view.dom, '\\'), false); assert.equal(await press(editor.view.dom, 's'), false); assert.equal(await press(editor.view.dom, 'p'), true);

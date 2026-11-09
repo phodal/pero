@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog } from '@pero/app-sdk/ui';
+import { messages } from './messages';
 
 export type NotebookCommand = 'save' | 'export' | 'print' | 'section' | 'symbols' | 'search';
 export interface NotebookCommandHandlers { save?(): boolean | void; export?(): boolean | void; print?(): boolean | void; section?(): boolean | void; symbols?(): boolean | void; search?(): boolean | void }
@@ -17,6 +19,7 @@ export function notebookCommand(event: Pick<KeyboardEvent, 'key' | 'ctrlKey' | '
   return key === '\\' ? 'section' : key === ';' ? 'symbols' : null;
 }
 export function NotebookCommandTools({ entryId, readonly = false, handlers }: { entryId: string; readonly?: boolean; handlers: NotebookCommandHandlers }) {
+  const { t } = useAppI18n(messages);
   const [open, setOpen] = useState(false);
   useEffect(() => {
     const listen = (event: KeyboardEvent) => {
@@ -26,7 +29,7 @@ export function NotebookCommandTools({ entryId, readonly = false, handlers }: { 
     document.addEventListener('keydown', listen);
     return () => document.removeEventListener('keydown', listen);
   }, [entryId, readonly, handlers]);
-  return <><Button variant="ghost" onClick={() => setOpen(true)}>Keyboard shortcuts / 快捷键</Button>{open && <Dialog title="Notebook shortcuts / 笔记快捷键" closeLabel="Close shortcuts / 关闭快捷键" onClose={() => setOpen(false)} size="md">
+  return <><Button variant="ghost" onClick={() => setOpen(true)}>{t('keyboardShortcuts')}</Button>{open && <Dialog title={t('notebookShortcuts')} closeLabel={t('closeShortcuts')} onClose={() => setOpen(false)} size="md">
     <p>Use Command on macOS, Control elsewhere. Commands apply only to the focused notebook; text and grid editing keep their own shortcuts. / macOS 使用 Command，其他系统使用 Control；仅作用于当前笔记。</p>
     <dl>
       {handlers.save && <><dt>⌘ / Ctrl + S</dt><dd>Save a new revision / 保存新版本</dd></>}

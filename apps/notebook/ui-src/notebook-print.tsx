@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, Feedback, Field, Input, NativeSelect } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
 import { defaultPrintSettings, notebookPageRule, notebookPrintSections, parsePrintSettings, type NotebookPrintSettings } from '@pero/notebook/notebook-print';
 import { NotebookPrintContent } from './notebook-print-content';
+import { messages } from './messages';
 import './notebook-print.css';
 
 export const NOTEBOOK_PRINT_OPEN_EVENT = 'pero:notebook-print-open';
 export function NotebookPrintTools({ document: notebook, entryId, revision, dirty = false }: { document: NotebookDocument; entryId: string; revision: number; dirty?: boolean }) {
+  const { t } = useAppI18n(messages);
   const [open, setOpen] = useState(false), [settings, setSettings] = useState<NotebookPrintSettings>(() => defaultPrintSettings(notebook));
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [preparedAt, setPreparedAt] = useState('');
   const sections = notebookPrintSections(notebook), storageKey = `pero:notebook:print:v1:${entryId}`;
@@ -28,8 +31,8 @@ export function NotebookPrintTools({ document: notebook, entryId, revision, dirt
   const saveSettings = () => { try { window.localStorage.setItem(storageKey, JSON.stringify(settings)); setNotice('Print preferences saved for this entry on this device. / 已在本设备保存此条目的打印偏好。'); } catch { setError('Print settings could not be saved. Printing is still available. / 无法保存设置，仍可打印。'); } };
   const output = <NotebookPrintContent document={notebook} settings={settings} entryId={entryId} revision={revision} dirty={dirty} preparedAt={preparedAt} />;
   return <>
-    <Button variant="ghost" onClick={load}>Print options / 打印设置</Button>
-    {open && <Dialog title="Print options / 打印设置" closeLabel="Close print options / 关闭打印设置" size="lg" onClose={() => setOpen(false)}>
+    <Button variant="ghost" onClick={load}>{t('printOptions')}</Button>
+    {open && <Dialog title={t('printOptions')} closeLabel={t('closePrintOptions')} size="lg" onClose={() => setOpen(false)}>
       <div className="notebook-science-fields">
         <Field label="Paper / 纸张">{control => <NativeSelect {...control} value={settings.paper} onChange={event => change({ paper: event.target.value as NotebookPrintSettings['paper'] })}><option>A4</option><option>Letter</option></NativeSelect>}</Field>
         <Field label="Orientation / 方向">{control => <NativeSelect {...control} value={settings.orientation} onChange={event => change({ orientation: event.target.value as NotebookPrintSettings['orientation'] })}><option value="portrait">Portrait / 纵向</option><option value="landscape">Landscape / 横向</option></NativeSelect>}</Field>

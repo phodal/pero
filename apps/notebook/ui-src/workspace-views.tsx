@@ -8,7 +8,7 @@ import { ReviewerPanel } from './review-panel';
 import type { Editor } from '@tiptap/core';
 import { NodeSelection, Selection } from '@tiptap/pm/state';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
-import { Badge, Button, Checkbox, Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, Field, Icon, IconButton, Input, SearchField, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { Badge, Button, Checkbox, Dialog, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, Field, Icon, IconButton, Input, SearchField, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
 import { changeMetadata, changeProcedures, notebookLinkHash, parseNotebookLink, notebookTarget, procedureKinds, procedurePlannedMinutes, notebookMarkdown, notebookRelevantItems, notebookSearchItems, searchNotebook, workspaceLimits,
   type MetadataChange, type NotebookMetadata, type NotebookProcedure, type NotebookProcedureStep, type ProcedureChange } from '@pero/notebook/workspace';
@@ -30,7 +30,8 @@ const messages = {
   noOutlineHint: { en: 'Add headings, sections or research blocks in Notes.', zh: '在笔记中添加标题、章节或科研块。' },
   resultCount: { en: '{count} blocks', zh: '{count} 个内容块' }, resultLimit: { en: 'Showing the first 100 matches. Refine your search to see others.', zh: '显示前 100 个匹配项，可缩小搜索范围查看其他结果。' },
   unavailable: { en: 'This block is no longer in the document.', zh: '此内容块已不在文档中。' },
-  close: { en: 'Close', zh: '关闭' }, tools: { en: 'Notebook tools', zh: '笔记工具' },
+  close: { en: 'Close', zh: '关闭' },   tools: { en: 'Notebook tools', zh: '笔记工具' },
+  documentActions: { en: 'Replace or restore document', zh: '替换或恢复文档' },
   export: { en: 'Export current JSON', zh: '导出当前 JSON' }, print: { en: 'Print current view', zh: '打印当前视图' },
   markdown: { en: 'Export Markdown', zh: '导出 Markdown' },
   help: { en: 'Shortcuts and local limits', zh: '快捷键与本地限制' },
@@ -219,9 +220,9 @@ function ProceduresView({ procedures, readonly, onChange, selected, setSelected,
   </>;
 }
 
-export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, children }: {
+export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, header, children }: {
   editor: Editor; entryId: string; revision: number; document: NotebookDocument; readonly: boolean;
-  onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode; onReplaceDocument?(document: NotebookDocument): void;
+  onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode; header?: ReactNode; onReplaceDocument?(document: NotebookDocument): void;
 }) {
   const { t } = useAppI18n(messages);
   const [tab, setTab] = useState('notes'), [dialog, setDialog] = useState<'search' | 'help' | null>(null);
@@ -290,6 +291,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   return <Tabs className="notebook-workspace" data-notebook-entry-id={entryId} value={tab} onValueChange={setTab} onKeyDown={event => {
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
   }}>
+    {header && <div className="notebook-sticky-header">{header}</div>}
     <div className="notebook-workspace-navigation">
       <TabsList aria-label={t('views')} variant="navigation">{(['notes', 'procedures', 'relevant', 'metadata', 'review'] as const).map(value =>
         <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}</TabsList>
@@ -305,7 +307,9 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
         </DropdownMenu>
       </Toolbar>
     </div>
-    {!readonly && onReplaceDocument && <NotebookReplacementTools getDocument={() => ({ ...document, content: editor.getJSON() as NotebookDocument['content'] })} onReplace={onReplaceDocument} />}
+    {!readonly && onReplaceDocument && <Disclosure className="notebook-document-actions" defaultOpen={false} summary={t('documentActions')}>
+      <NotebookReplacementTools layout="menu" getDocument={() => ({ ...document, content: editor.getJSON() as NotebookDocument['content'] })} onReplace={onReplaceDocument} />
+    </Disclosure>}
     {error && <Feedback kind="error">{error}</Feedback>}
     {notice && <Feedback kind="success">{notice}</Feedback>}
     <TabsContent className="notebook-notes-panel" value="notes" forceMount>{children}</TabsContent>

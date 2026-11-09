@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { useAppApi } from '@pero/app-sdk';
+import { useAppApi, useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, Disclosure, Feedback, Field, Input, NativeSelect, Textarea } from '@pero/app-sdk/ui';
 import type { NotebookEntry, NotebookNode } from '@pero/notebook';
 import { notebookContentRoots } from '@pero/notebook/workspace';
 import type { Spreadsheet } from '@pero/notebook/spreadsheet';
+import { messages } from './messages';
 
 interface AmendmentReceipt { id: string; worksheetId: string; baseRevision: number; revision: number; author: string; reason: string; recordedAt: string; changes: { address: string; before: string; after: string }[] }
 export function WorksheetAmendments({ entry, dirty, readonly = false, onCommitted }: { entry: NotebookEntry; dirty: boolean; readonly?: boolean; onCommitted(entry: NotebookEntry): void }) {
+  const { t } = useAppI18n(messages);
   const api = useAppApi();
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [worksheetId, setWorksheet] = useState(''), [address, setAddress] = useState('A1'), [value, setValue] = useState('');
@@ -20,8 +22,8 @@ export function WorksheetAmendments({ entry, dirty, readonly = false, onCommitte
   const changed = () => { setPreview(false); setOperationId(''); setError(''); };
   const load = async () => { setBusy(true); setError(''); try { setReceipts((await api.get<{ amendments: AmendmentReceipt[] }>(`/api/entries/${entry.id}/amendments`)).amendments); } catch (cause) { setError(String(cause)); } finally { setBusy(false); } };
   return <>
-    <Button variant="ghost" onClick={() => { setOpen(true); changed(); setWorksheet(worksheets[0]?.id ?? ''); void load(); }}>Worksheet amendments / 工作表修订</Button>
-    {open && <Dialog title="Worksheet amendments / 工作表修订" closeLabel="Close amendments / 关闭修订" size="lg" onClose={() => setOpen(false)}>
+    <Button variant="ghost" onClick={() => { setOpen(true); changed(); setWorksheet(worksheets[0]?.id ?? ''); void load(); }}>{t('worksheetAmendments')}</Button>
+    {open && <Dialog title={t('worksheetAmendments')} closeLabel={t('closeAmendments')} size="lg" onClose={() => setOpen(false)}>
       <p>Every amendment creates a new saved entry revision with a reason and before/after cell audit. Historical sheets and receipts remain unchanged. Attribution is a local label, not an authenticated signature. / 每次更正创建新版本与前后值审计，不修改历史回执；本地署名不是认证签名。</p>
       {(dirty || readonly) && <Feedback kind="warning">{readonly ? 'Return to the latest entry to amend a worksheet. / 请返回最新版本。' : 'Save or discard the current draft before amending. / 请先保存或放弃草稿。'}</Feedback>}
       {!worksheets.length && <Feedback kind="info">This revision has no worksheet. / 当前版本没有工作表。</Feedback>}

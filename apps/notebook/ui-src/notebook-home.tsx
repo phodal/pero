@@ -1,11 +1,12 @@
 import { NotebookProjectAssociations } from './notebook-projects';
 import { useEffect, useRef, useState } from 'react';
-import { useAppApi } from '@pero/app-sdk';
+import { useAppApi, useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Dialog, Disclosure, Feedback, Field, Input, NativeSelect } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type NotebookDocument, type NotebookEntry, type ScientificReference } from '@pero/notebook';
 import { notebookContentRoots, type NotebookMetadata } from '@pero/notebook/workspace';
 import type { TemplateOrigin } from '@pero/notebook/templates';
 import type { AttachmentAttributes } from '@pero/notebook/attachment';
+import { messages } from './messages';
 
 interface HomeEntry { entryId: string; title: string; revision: number; project: string; author: string }
 interface HomeLibrary { scope: 'local-display-labels'; entries: HomeEntry[]; limited: boolean }
@@ -15,11 +16,13 @@ export interface NotebookHomeProps {
 }
 
 export function NotebookHomeTools(props: NotebookHomeProps) {
+  const { t } = useAppI18n(messages);
   const [open, setOpen] = useState(false);
-  return <><Button variant="ghost" onClick={() => setOpen(true)}>Notebook home / 笔记主页</Button>{open && <NotebookHome {...props} onClose={() => setOpen(false)} />}</>;
+  return <><Button variant="ghost" onClick={() => setOpen(true)}>{t('notebookHome')}</Button>{open && <NotebookHome {...props} onClose={() => setOpen(false)} />}</>;
 }
 
 export function NotebookHome({ entry, document, dirty, readonly, onOpenEntry, onMetadata, onClose }: NotebookHomeProps & { onClose(): void }) {
+  const { t } = useAppI18n(messages);
   const api = useAppApi(), initial = useRef(document.metadata ?? { project: '', author: '', tags: [] });
   const [project, setProject] = useState(initial.current.project), [author, setAuthor] = useState(initial.current.author), [filter, setFilter] = useState('');
   const [library, setLibrary] = useState<HomeLibrary | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -47,7 +50,7 @@ export function NotebookHome({ entry, document, dirty, readonly, onOpenEntry, on
   const choices = (field: 'project' | 'author') => [...new Set((library?.entries ?? []).map(item => item[field]).filter(Boolean))].sort();
   const shown = library?.entries.filter(item => !filter || item.project === filter) ?? [];
   const changed = project !== initial.current.project || author !== initial.current.author;
-  return <Dialog title="Notebook home and provenance / 笔记主页与来源" closeLabel="Close / 关闭" size="lg" onClose={onClose}>
+  return <Dialog title={t('notebookHomeTitle')} closeLabel={t('closeAction')} size="lg" onClose={onClose}>
     <h3>{document.title}</h3><p>{entry.id} · v{entry.revision} · schema {document.schemaVersion}</p><p>{entry.updatedAt} {dirty && <Badge tone="warning">Unsaved draft / 未发布草稿</Badge>}</p>
     <p>Notebook owns local drafts and immutable published revisions. Scientific objects, Host projects, accounts and execution remain with their owners. / Notebook 管理本地草稿与不可变已发布版本；科学对象、Host 项目、账号和执行由原应用管理。</p>
     <NotebookProjectAssociations entryId={entry.id} revision={entry.revision} readonly={readonly} dirty={dirty} onOpenEntry={id => { onOpenEntry(id); onClose(); }} />

@@ -13,6 +13,7 @@ export async function verifyResearchPrintTools(page, origin, output) {
   await body.click(); await body.press('Control+\\');
   await expect(page.locator('[data-kind=section]')).toHaveCount(1);
   await page.getByLabel('Section title', { exact: true }).fill('Preparation');
+  await button('More tools').click();
   await button('Scientific tools').click();
   let dialog = page.getByRole('dialog', { name: 'Scientific tools', exact: true });
   await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('formula');
@@ -29,8 +30,8 @@ export async function verifyResearchPrintTools(page, origin, output) {
   const saving = page.waitForResponse(response => response.url() === `${origin}/api/entries/${entry.id}` && response.request().method() === 'POST');
   await button('Save', page).click(); assert.ok((await saving).ok()); await expect(button('Save')).toBeDisabled();
   const saved = await request(`/api/entries/${entry.id}`);
-  await button('Print options / 打印设置').click();
-  dialog = page.getByRole('dialog', { name: 'Print options / 打印设置', exact: true });
+  await button('Print options').click();
+  dialog = page.getByRole('dialog', { name: 'Print options', exact: true });
   await dialog.getByLabel('Paper / 纸张', { exact: true }).selectOption('Letter');
   await dialog.getByLabel('Orientation / 方向', { exact: true }).selectOption('landscape');
   await dialog.getByLabel('Margins (mm, 5–40) / 页边距', { exact: true }).fill('12');
@@ -47,7 +48,7 @@ export async function verifyResearchPrintTools(page, origin, output) {
   await page.screenshot({ path: resolve(output, 'research-print-output.png'), fullPage: true });
   await page.emulateMedia({ media: 'screen' });
   await button('Close print options / 关闭打印设置', dialog).click();
-  await button('Print options / 打印设置').click();
+  await button('Print options').click();
   await expect(page.getByLabel('Orientation / 方向', { exact: true })).toHaveValue('landscape');
   await button('Close print options / 关闭打印设置').click();
 
@@ -63,8 +64,8 @@ export async function verifyResearchPrintTools(page, origin, output) {
     const response = await route.fetch(); observed(response); await released; await route.fulfill({ response });
   });
   try {
-    await button('Worksheet amendments / 工作表修订').click();
-    dialog = page.getByRole('dialog', { name: 'Worksheet amendments / 工作表修订', exact: true });
+    await button('Worksheet amendments').click();
+    dialog = page.getByRole('dialog', { name: 'Worksheet amendments', exact: true });
     await dialog.getByLabel('Cell address / 单元格地址', { exact: true }).fill('B1');
     await dialog.getByLabel('New raw input / 新原始输入', { exact: true }).fill('101');
     await dialog.getByLabel('Local author attribution / 本地署名', { exact: true }).fill('Local researcher');

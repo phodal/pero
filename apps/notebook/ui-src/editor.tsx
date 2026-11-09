@@ -84,44 +84,51 @@ function EditorToolbar({ editor, document, onCreateEntry, entryId, revision, his
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
   };
-  return <><Toolbar className="notebook-toolbar" role="group" aria-label={t('format')}>
-    <NotebookTextTools editor={editor} />
-    <DatedSectionTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
-    <NamedReferenceTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
-    <NotebookSourceExcerptTools editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
-    <NotebookScientificContentTools onInsert={nodes => insertBlocks(editor, nodes)} />
-    <NotebookScienceTools editor={editor} getTarget={() => ({ entryId, revision })} onInsert={nodes => { insertBlocks(editor, nodes); }} />
-    <NotebookFileIntake editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
-    <NotebookTemplateTools editor={editor} document={document} onCreateEntry={onCreateEntry} />
-    <NotebookSavedSearchTools editor={editor} />
-    <span className="notebook-toolbar-divider" />
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild><Button variant="ghost"><Icon name="plus" /> {t('insert')}</Button></DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuItem onSelect={() => insertBlocks(editor, [{ type: 'section', attrs: { label: '', date: '' }, content: [{ type: 'paragraph' }] }])}>{t('section')}</DropdownMenuItem>
-        <DropdownMenuSub><DropdownMenuSubTrigger>{t('wellPlate')}</DropdownMenuSubTrigger><DropdownMenuSubContent>
-          {[[2, 3], [4, 6], [6, 8], [8, 12], [16, 24], [32, 48]].map(([rows, columns]) => <DropdownMenuItem key={rows} onSelect={() => insertBlocks(editor, [{ type: 'spreadsheet', attrs: { label: nextWorksheetName(editor.state.doc), sheet: { rows, columns, cells: {} } } }])}>
-            {t('plateGeometry', { wells: rows * columns, rows, columns })}
-          </DropdownMenuItem>)}
-        </DropdownMenuSubContent></DropdownMenuSub>
-        {widgets.filter(widget => widget.name !== 'namedReference' && widget.name !== 'attachment' && widget.name !== 'savedSearch').map(widget => <DropdownMenuItem key={widget.name} onSelect={() => insertBlocks(editor, [{
-          type: widget.name, attrs: widget.name === 'spreadsheet' ? { label: nextWorksheetName(editor.state.doc) } : ['inputTable', 'registrationTable'].includes(widget.name) ? { table: createStructuredTable(crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()), receipts: [] } : undefined,
-        }])}><Icon name={widget.icon} />{t(widget.name)}</DropdownMenuItem>)}
-      </DropdownMenuContent>
-    </DropdownMenu>
-    <FilePicker compact label={t('attachment')} emptyLabel="" variant="ghost" busy={importing} onFile={file => {
-      setImporting(true); setError('');
-      void createAttachment(file, contentT).then(attrs => { if (!editor.isDestroyed) insertBlocks(editor, [{ type: 'attachment', attrs }]); })
-        .catch(cause => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setImporting(false));
-    }} />
-    <FilePicker compact label={t('importExcel')} emptyLabel="" accept=".xlsx" variant="ghost" busy={importing} onFile={file => void importExcel(file)} />
-    {status.hasSheets && <Button variant="ghost" onClick={() => void exportExcel()}>{t('exportWorkbook')}</Button>}
-    <span className="notebook-toolbar-divider" />
-    <IconButton label={t('up')} disabled={!status.canMoveUp} onClick={() => moveBlock(editor, -1)}><Icon name="up" /></IconButton>
-    <IconButton label={t('down')} disabled={!status.canMoveDown} onClick={() => moveBlock(editor, 1)}><Icon name="down" /></IconButton>
-    <IconButton label={t('undo')} disabled={!(historyControls?.canUndo ?? status.canUndo)} onClick={() => historyControls ? historyControls.undo() : editor.chain().focus().undo().run()}><Icon name="undo" /></IconButton>
-    <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
-  </Toolbar>{error && <Feedback kind="error">{error}</Feedback>}</>;
+  const [more, setMore] = useState(false);
+  return <>
+    <Toolbar className="notebook-toolbar" role="group" aria-label={t('format')}>
+      <NotebookTextTools editor={editor} />
+      <DatedSectionTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
+      <NamedReferenceTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
+      <span className="notebook-toolbar-divider" />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button variant="ghost"><Icon name="plus" /> {t('insert')}</Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onSelect={() => insertBlocks(editor, [{ type: 'section', attrs: { label: '', date: '' }, content: [{ type: 'paragraph' }] }])}>{t('section')}</DropdownMenuItem>
+          <DropdownMenuSub><DropdownMenuSubTrigger>{t('wellPlate')}</DropdownMenuSubTrigger><DropdownMenuSubContent>
+            {[[2, 3], [4, 6], [6, 8], [8, 12], [16, 24], [32, 48]].map(([rows, columns]) => <DropdownMenuItem key={rows} onSelect={() => insertBlocks(editor, [{ type: 'spreadsheet', attrs: { label: nextWorksheetName(editor.state.doc), sheet: { rows, columns, cells: {} } } }])}>
+              {t('plateGeometry', { wells: rows * columns, rows, columns })}
+            </DropdownMenuItem>)}
+          </DropdownMenuSubContent></DropdownMenuSub>
+          {widgets.filter(widget => widget.name !== 'namedReference' && widget.name !== 'attachment' && widget.name !== 'savedSearch').map(widget => <DropdownMenuItem key={widget.name} onSelect={() => insertBlocks(editor, [{
+            type: widget.name, attrs: widget.name === 'spreadsheet' ? { label: nextWorksheetName(editor.state.doc) } : ['inputTable', 'registrationTable'].includes(widget.name) ? { table: createStructuredTable(crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()), receipts: [] } : undefined,
+          }])}><Icon name={widget.icon} />{t(widget.name)}</DropdownMenuItem>)}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <FilePicker compact label={t('attachment')} emptyLabel="" variant="ghost" busy={importing} onFile={file => {
+        setImporting(true); setError('');
+        void createAttachment(file, contentT).then(attrs => { if (!editor.isDestroyed) insertBlocks(editor, [{ type: 'attachment', attrs }]); })
+          .catch(cause => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setImporting(false));
+      }} />
+      <Button variant="ghost" aria-expanded={more} onClick={() => setMore(value => !value)}>{t(more ? 'hideMoreTools' : 'moreTools')}</Button>
+      <span className="notebook-toolbar-divider" />
+      <IconButton label={t('up')} disabled={!status.canMoveUp} onClick={() => moveBlock(editor, -1)}><Icon name="up" /></IconButton>
+      <IconButton label={t('down')} disabled={!status.canMoveDown} onClick={() => moveBlock(editor, 1)}><Icon name="down" /></IconButton>
+      <IconButton label={t('undo')} disabled={!(historyControls?.canUndo ?? status.canUndo)} onClick={() => historyControls ? historyControls.undo() : editor.chain().focus().undo().run()}><Icon name="undo" /></IconButton>
+      <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
+    </Toolbar>
+    {more && <Toolbar className="notebook-toolbar notebook-toolbar-secondary" role="group" aria-label={t('moreTools')}>
+      <NotebookSourceExcerptTools editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
+      <NotebookScientificContentTools onInsert={nodes => insertBlocks(editor, nodes)} />
+      <NotebookScienceTools editor={editor} getTarget={() => ({ entryId, revision })} onInsert={nodes => { insertBlocks(editor, nodes); }} />
+      <NotebookFileIntake editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
+      <NotebookTemplateTools editor={editor} document={document} onCreateEntry={onCreateEntry} />
+      <NotebookSavedSearchTools editor={editor} />
+      <FilePicker compact label={t('importExcel')} emptyLabel="" accept=".xlsx" variant="ghost" busy={importing} onFile={file => void importExcel(file)} />
+      {status.hasSheets && <Button variant="ghost" onClick={() => void exportExcel()}>{t('exportWorkbook')}</Button>}
+    </Toolbar>}
+    {error && <Feedback kind="error">{error}</Feedback>}
+  </>;
 }
 
 export function NotebookEditor({ content, document: entryDocument, onDocumentChange, onCreateEntry, entryId, revision, readonly = false, onChange, header, historyControls, onSave, onReplaceDocument }: {
@@ -163,16 +170,18 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
   if (!editor) return null;
   return <NotebookContextProvider value={{ entryId, revision, readonly, document: entryDocument,
     getDocument: () => ({ ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] }) }}>
-    <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onReplaceDocument={onReplaceDocument} onChange={change => onDocumentChange?.(change)}>
-    {!readonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId} revision={revision} document={entryDocument} onCreateEntry={onCreateEntry} />}
-    <NotebookCommandTools entryId={entryId} readonly={readonly} handlers={{ save: onSave,
-      export: () => downloadFile('Notebook.json', JSON.stringify({ ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
-      print: () => { window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } })); },
-      ...(!readonly ? { section: () => insertBlocks(editor, [{ type: 'section', content: [{ type: 'paragraph' }] }]),
-        symbols: () => { editor.view.dom.dispatchEvent(new CustomEvent(NOTEBOOK_SYMBOLS_EVENT)); } } : {}),
-    }} />
-    <NotebookEditorDiagnostics editor={editor} />
-    <NotebookStatusBar editor={editor} />
-    <div className="notebook-paper">{header}<EditorContent className="notebook-editor" editor={editor} /></div>
-  </NotebookWorkspace></NotebookContextProvider>;
+    <NotebookWorkspace header={header} editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onReplaceDocument={onReplaceDocument} onChange={change => onDocumentChange?.(change)}>
+      {!readonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId} revision={revision} document={entryDocument} onCreateEntry={onCreateEntry} />}
+      <div className="notebook-notes-utilities">
+        <NotebookCommandTools entryId={entryId} readonly={readonly} handlers={{ save: onSave,
+          export: () => downloadFile('Notebook.json', JSON.stringify({ ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
+          print: () => { window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } })); },
+          ...(!readonly ? { section: () => insertBlocks(editor, [{ type: 'section', content: [{ type: 'paragraph' }] }]),
+            symbols: () => { editor.view.dom.dispatchEvent(new CustomEvent(NOTEBOOK_SYMBOLS_EVENT)); } } : {}),
+        }} />
+        <NotebookEditorDiagnostics editor={editor} />
+        <NotebookStatusBar editor={editor} />
+      </div>
+      <div className="notebook-paper"><EditorContent className="notebook-editor" editor={editor} /></div>
+    </NotebookWorkspace></NotebookContextProvider>;
 }

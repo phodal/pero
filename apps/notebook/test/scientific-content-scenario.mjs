@@ -9,6 +9,7 @@ export async function verifyScientificDesigns(page, origin, output) {
   const button = (name, scope = page) => scope.getByRole('button', { name, exact: true });
   await page.setViewportSize({ width: 1320, height: 950 });
   await createNotebook(page, origin, 'Scientific design acceptance');
+  await button('More tools').click();
   await button('Insert reaction sketch').click();
   const reaction = page.locator('[data-kind=reactionScheme]').first();
   await reaction.getByLabel('Name', { exact: true }).fill('Explicit graph conversion');
@@ -43,6 +44,7 @@ export async function verifyScientificDesigns(page, origin, output) {
   await expect(chemical.getByText(/Extracted from recorded/)).toBeVisible();
   await page.screenshot({ path: resolve(output, 'scientific-graph-light.png'), fullPage: true });
 
+  await button('More tools').click();
   await button('Scientific tools').click();
   const dialog = page.getByRole('dialog', { name: 'Scientific tools', exact: true });
   await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('plate');

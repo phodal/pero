@@ -15,18 +15,19 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
     await button('Save revision').click(); assert.equal((await response).ok(), true); await expect(button('Save revision')).toBeDisabled();
   };
   await save();
-  await button('Notebook home / 笔记主页').click();
-  let dialog = page.getByRole('dialog', { name: 'Notebook home and provenance / 笔记主页与来源', exact: true });
+  await button('Notebook home').click();
+  let dialog = page.getByRole('dialog', { name: 'Notebook home and provenance', exact: true });
   await expect(dialog).toContainText(created.id); await expect(dialog).toContainText('does not change project membership');
   await dialog.getByRole('textbox', { name: 'Project label / 项目标签', exact: true }).fill('Workflow acceptance');
   await dialog.getByRole('textbox', { name: 'Author label / 作者标签', exact: true }).fill('Unverified local label');
   await button('Apply labels to draft / 应用标签到草稿', dialog).click(); await save();
-  await button('Notebook home / 笔记主页').click(); await expect(page.getByRole('dialog')).toContainText('Workflow acceptance');
+  await button('Notebook home').click(); await expect(page.getByRole('dialog')).toContainText('Workflow acceptance');
   await page.screenshot({ path: resolve(output, 'notebook-home-provenance.png'), fullPage: true });
-  await button('Close / 关闭', page.getByRole('dialog')).click();
+  await button('Close', page.getByRole('dialog')).click();
 
-  await button('Preview file import / 预览文件导入').click();
-  dialog = page.getByRole('dialog', { name: 'Preview file import / 预览文件导入', exact: true });
+  await button('More tools').click();
+  await button('Preview file import').click();
+  dialog = page.getByRole('dialog', { name: 'Preview file import', exact: true });
   const bytes = Buffer.from('Recorded mass: 2.5 mg.\r\n', 'utf8');
   await dialog.locator('input[type=file]').setInputFiles({ name: 'source.txt', mimeType: 'text/plain', buffer: bytes });
   await expect(dialog).toContainText('Recorded mass: 2.5 mg.');
@@ -48,6 +49,7 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   const published = await page.request.post(origin + '/api/templates', { data: definition }); assert.equal(published.ok(), true, await published.text());
   const first = await published.json(); document.content.content[0].content[0].text = 'Later protocol step';
   const revised = await page.request.post(`${origin}/api/templates/${first.id}/revisions`, { data: { expectedRevision: 1, definition } }); assert.equal(revised.ok(), true, await revised.text());
+  if (!await button('Hide more tools').count()) await button('More tools').click();
   await button('Templates').click(); dialog = page.getByRole('dialog', { name: 'Templates', exact: true });
   await button('Browser revision comparison · v2', dialog).click(); await button('Compare published revisions', dialog).click();
   await expect(dialog).toContainText('Earlier protocol step'); await expect(dialog).toContainText('Later protocol step');
@@ -56,6 +58,7 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   const unchanged = await page.request.get(`${origin}/api/entries/${created.id}`).then(result => result.json());
   assert.deepEqual(unchanged, saved, 'Read-only comparison must never update the saved entry');
 
+  if (!await button('Hide more tools').count()) await button('More tools').click();
   await button('Scientific tools').click(); dialog = page.getByRole('dialog', { name: 'Scientific tools', exact: true });
   await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('ai');
   await dialog.getByLabel('Proposal mode / 建议模式').selectOption('checks');
@@ -65,7 +68,7 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   await button('Close', dialog).click();
   await page.setViewportSize({ width: 760, height: 950 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: true, active: true } }, location.origin));
-  await button('Notebook home / 笔记主页').click();
+  await button('Notebook home').click();
   await page.screenshot({ path: resolve(output, 'notebook-home-narrow-dark.png'), fullPage: true });
-  await button('Close / 关闭', page.getByRole('dialog')).click();
+  await button('Close', page.getByRole('dialog')).click();
 }

@@ -154,6 +154,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   await shot('catalog-frozen-query');
   // Publish the selected query block and insert two independent copies.
   await lookup.getByLabel('Search catalog records', { exact: true }).click();
+  await button('More tools').click();
   await button('Templates').click();
   let dialog = page.getByRole('dialog');
   await button('Publish from current content', dialog).click();
@@ -164,6 +165,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   await shot('template-published');
   await button('Insert independent fragment', dialog).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  if (!await button('Hide more tools').count()) await button('More tools').click();
   await button('Templates').click();
   dialog = page.getByRole('dialog');
   await button('Frozen query fragment · v1', dialog).click();
@@ -205,6 +207,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   await expect(mixture.locator('details')).toContainText('Measured quantity: 9.8');
   await shot('mixture-planned-and-measured');
 
+  await button('More tools').click();
   await button('Scientific tools').click();
   dialog = page.getByRole('dialog');
   await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('sequence');

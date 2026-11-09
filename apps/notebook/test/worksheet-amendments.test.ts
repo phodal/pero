@@ -33,7 +33,7 @@ test('amendment UI previews exact edits, retries lost responses against a single
   const field = (label: string) => { const node = [...document.querySelectorAll('label')].find(item => item.textContent === label); assert.ok(node, label); return document.getElementById(node.htmlFor) as HTMLInputElement; };
   const fill = async (label: string, value: string) => React.act(async () => { const node = field(label), type = node.tagName === 'TEXTAREA' ? dom.window.HTMLTextAreaElement : dom.window.HTMLInputElement; Object.getOwnPropertyDescriptor(type.prototype, 'value')!.set!.call(node, value); node.dispatchEvent(new dom.window.Event('input', { bubbles: true })); });
   const settled = async (condition: () => boolean) => { const end = Date.now() + 5000; while (!condition() && Date.now() < end) await React.act(async () => new Promise<void>(done => setImmediate(done))); assert.ok(condition(), document.body.textContent!.slice(-1500)); };
-  await mount(); await click(button('Worksheet amendments / 工作表修订'));
+  await mount(); await click(button('Worksheet amendments'));
   await settled(() => !(document.querySelector('fieldset') as HTMLFieldSetElement).disabled);
   await fill('New raw input / 新原始输入', '3'); await fill('Local author attribution / 本地署名', 'Researcher'); await fill('Reason for amendment / 更正原因', 'Corrected transcription');
   await click(button('Review amendment / 复核更正')); assert.match(document.body.textContent!, /"before": "2"/); assert.match(document.body.textContent!, /"after": "3"/);
