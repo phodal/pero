@@ -2,13 +2,20 @@ import { useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } fr
 import { closeHistory } from '@tiptap/pm/history';
 import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
-import { Button, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, Input, Table } from '@pero/app-sdk/ui';
+import { Button, Dialog, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, Input, Select, Table } from '@pero/app-sdk/ui';
 import { spreadsheetLimits } from '@pero/notebook';
 import { cellAddress, evaluateSpreadsheet, formulaFunctions, isExternalFormula, type Spreadsheet } from '@pero/notebook/spreadsheet';
 import {
   cellRangeLabel, clearCellRange, encodeCellRange, fillCellRange, normalizeCellRange, parseCellClipboard,
   pasteCellGrid, rangeContains, type CellPosition, type RangeEditError,
 } from '@pero/notebook/spreadsheet-range';
+import {
+  clipboardTarget, emptyGridPresentation, exportWorksheetCsv, formatCellRange, formatCellValue, gridDimensionLimits,
+  gridWriteConflicts, mergeCellRange, mergedCell, resizeGridAxis, unmergeCellRange,
+  type CellColor, type CellFormat, type WorksheetGrid,
+} from '@pero/notebook/grid-presentation';
+import { changeWorksheetStructure, type AxisChange, type StructuredWorksheet } from '@pero/notebook/worksheet-structure';
+import { formulaHelp, inspectWorksheetCell } from '@pero/notebook/formula-inspection';
 import { writeWorkbook } from '@pero/notebook/workbook';
 import { BlockFrame } from './block-frame';
 import { CellAnnotations } from './cell-annotations';
@@ -23,6 +30,37 @@ const arrows: Partial<Record<string, CellPosition>> = {
 };
 const gridMessages = {
   ...messages,
+  format: { en: 'Cell formatting', zh: '单元格格式' },
+  bold: { en: 'Bold', zh: '加粗' }, italic: { en: 'Italic', zh: '斜体' }, underline: { en: 'Underline', zh: '下划线' },
+  foreground: { en: 'Text color', zh: '文字颜色' }, background: { en: 'Cell background', zh: '单元格背景' },
+  default: { en: 'Default', zh: '默认' }, blue: { en: 'Blue', zh: '蓝色' }, green: { en: 'Green', zh: '绿色' }, rose: { en: 'Rose', zh: '玫红' },
+  alignment: { en: 'Alignment', zh: '对齐' }, left: { en: 'Left', zh: '左对齐' }, center: { en: 'Center', zh: '居中' }, right: { en: 'Right', zh: '右对齐' },
+  precision: { en: 'Decimal places', zh: '小数位数' }, auto: { en: 'Automatic', zh: '自动' },
+  clearFormat: { en: 'Clear formatting', zh: '清除格式' },
+  structure: { en: 'Rows and columns', zh: '行与列' },
+  insertRow: { en: 'Insert row before', zh: '在前面插入行' }, insertColumn: { en: 'Insert column before', zh: '在前面插入列' },
+  deleteRow: { en: 'Delete row', zh: '删除行' }, deleteColumn: { en: 'Delete column', zh: '删除列' },
+  rowUp: { en: 'Move row up', zh: '上移行' }, rowDown: { en: 'Move row down', zh: '下移行' },
+  columnLeft: { en: 'Move column left', zh: '左移列' }, columnRight: { en: 'Move column right', zh: '右移列' },
+  resizeRow: { en: 'Resize row', zh: '调整行高' }, resizeColumn: { en: 'Resize column', zh: '调整列宽' },
+  pixels: { en: 'Size in pixels', zh: '像素尺寸' },
+  merge: { en: 'Merge selected cells', zh: '合并选中单元格' }, unmerge: { en: 'Unmerge cells', zh: '取消合并' },
+  mergePolicy: { en: 'Only the upper-left cell is shown. All covered values, formulas, formatting and evidence are retained, continue calculating, and reappear when you unmerge. Merge this range?', zh: '仅显示左上角单元格。被覆盖的值、公式、格式和证据均保留并继续计算，取消合并后重新显示。是否合并？' },
+  deletePolicy: { en: 'This removes the selected row or column, including its values, formatting and evidence. References are updated; references to deleted cells become #REF!. You can undo this change.', zh: '这将删除所选行或列及其值、格式和证据，同时更新引用；指向已删除单元格的引用变为 #REF!。可以撤销此操作。' },
+  mergeConflict: { en: 'Unmerge the affected cells before pasting, filling or merging this range.', zh: '请先取消受影响单元格的合并，再粘贴、填充或合并此区域。' },
+  structuralError: { en: 'The change was not applied. A formula or merged range cannot be rewritten safely: {detail}', zh: '未应用此修改。有公式或合并区域无法安全更新：{detail}' },
+  cutRange: { en: 'Cut range', zh: '剪切区域' },
+  cutChanged: { en: 'The cells changed while copying. Their current contents were kept.', zh: '复制期间单元格发生变化，当前内容已保留。' },
+  exportCsv: { en: 'Export evaluated CSV', zh: '导出计算结果 CSV' },
+  functionHelp: { en: 'Function search and help', zh: '函数搜索与帮助' },
+  searchFunctions: { en: 'Search functions', zh: '搜索函数' }, insertFunction: { en: 'Insert function', zh: '插入函数' },
+  inspector: { en: 'Formula inspector', zh: '公式检查器' },
+  rawSource: { en: 'Source input', zh: '原始输入' }, evaluated: { en: 'Calculated value', zh: '计算值' }, valueType: { en: 'Value type', zh: '值类型' },
+  dependencies: { en: 'Dependencies read by the evaluator', zh: '计算引擎读取的依赖' },
+  noDependencies: { en: 'No cell references were read for this result.', zh: '此结果未读取单元格引用。' },
+  dependencyHint: { en: 'These are references observed during calculation, not a reconstructed syntax tree. Conditional or dynamic formulas may read only some references.', zh: '这里展示计算时实际读取的引用，并非重建的语法树。条件或动态公式可能只读取部分引用。' },
+  selectedError: { en: '{address} evaluates to {value}. Check the source input and referenced cells.', zh: '{address} 的计算结果为 {value}，请检查原始输入及引用单元格。' },
+  confirm: { en: 'Confirm', zh: '确认' }, cancel: { en: 'Cancel', zh: '取消' }, close: { en: 'Close', zh: '关闭' },
   copyRange: { en: 'Copy range', zh: '复制区域' },
   copyFailed: { en: 'Clipboard access failed. Use the keyboard copy shortcut in the grid.', zh: '无法访问剪贴板，请在表格中使用键盘复制快捷键。' },
   fillDown: { en: 'Fill down', zh: '向下填充' },
@@ -45,6 +83,10 @@ export function SpreadsheetView(view: NodeViewProps) {
   const [focused, setFocused] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [dialog, setDialog] = useState<'merge' | 'deleteRow' | 'deleteColumn' | 'resizeRow' | 'resizeColumn' | 'functions' | null>(null);
+  const [size, setSize] = useState('');
+  const [functionName, setFunctionName] = useState('SUM');
+  const [inspector, setInspector] = useState(false);
   const [worksheetName, setWorksheetName] = useState<string | null>(null);
   const grid = useRef<HTMLDivElement>(null);
   const keepRangeFocus = useRef(false);
@@ -58,27 +100,60 @@ export function SpreadsheetView(view: NodeViewProps) {
     column: Math.max(0, Math.min(column, sheet.columns - 1)),
     row: Math.max(0, Math.min(row, sheet.rows - 1)),
   });
-  const active = clamp(selection.anchor);
+  const presentation = { ...emptyGridPresentation(), ...view.node.attrs, sheet, annotations: view.node.attrs.annotations ?? {} } as WorksheetGrid;
+  const selectedMerge = mergedCell(presentation.merges, clamp(selection.anchor));
+  const active = selectedMerge?.start ?? clamp(selection.anchor);
   const endpoint = clamp(selection.focus);
   const range = normalizeCellRange(active, endpoint);
   const rangeAddress = cellRangeLabel(range);
   const isRange = range.start.column !== range.end.column || range.start.row !== range.end.row;
   const address = cellAddress(active.column, active.row);
   const source = sheet.cells[address] ?? '';
-  const setSheet = (edit: (current: Spreadsheet) => Spreadsheet | null, batch = false) => view.editor.commands.command(({ tr }) => {
+  const setGrid = (edit: (current: WorksheetGrid) => WorksheetGrid | null, batch = false) => view.editor.commands.command(({ tr }) => {
     const position = view.getPos();
     const node = typeof position === 'number' ? tr.doc.nodeAt(position) : null;
     if (typeof position !== 'number' || node?.type.name !== 'spreadsheet') return false;
-    const current = node.attrs.sheet as Spreadsheet;
+    const current = { ...emptyGridPresentation(), ...node.attrs, annotations: node.attrs.annotations ?? {} } as WorksheetGrid;
     const next = edit(current);
     if (!next) return false;
     if (next !== current) {
       if (batch || separateNextEdit.current) closeHistory(tr);
       separateNextEdit.current = batch;
-      tr.setNodeMarkup(position, undefined, { ...node.attrs, sheet: next });
+      tr.setNodeMarkup(position, undefined, { ...node.attrs, ...next });
     }
     return true;
   });
+  const setSheet = (edit: (current: Spreadsheet) => Spreadsheet | null, batch = false) => setGrid(current => {
+    const next = edit(current.sheet);
+    return next ? { ...current, sheet: next } : null;
+  }, batch);
+  const structure = (change: AxisChange) => view.editor.commands.command(({ tr }) => {
+    const worksheets: StructuredWorksheet[] = worksheetBlocks(tr.doc).map(worksheet => {
+      let attrs = {};
+      tr.doc.descendants(node => { if (node.type.name === 'spreadsheet' && node.attrs.blockId === worksheet.id) attrs = node.attrs; });
+      return { ...emptyGridPresentation(), annotations: {}, ...attrs, ...worksheet };
+    });
+    const result = changeWorksheetStructure(worksheets, blockId, change);
+    if (result.status !== 'ok') { setError(t('structuralError', { detail: result.detail ?? result.status })); return false; }
+    closeHistory(tr);
+    separateNextEdit.current = true;
+    const changes = new Map(result.worksheets.map(worksheet => [worksheet.id, worksheet]));
+    tr.doc.descendants((node, position) => {
+      if (node.type.name !== 'spreadsheet') return;
+      const changed = changes.get(node.attrs.blockId);
+      if (changed) {
+        const { sheet: next, annotations, formats, rowHeights, columnWidths, merges } = changed;
+        tr.setNodeMarkup(position, undefined, { ...node.attrs, sheet: next, annotations, formats, rowHeights, columnWidths, merges });
+      }
+    });
+    setError('');
+    return true;
+  });
+  const format = (patch: CellFormat | null) => setGrid(current => formatCellRange(current, range, patch), true);
+  const currentFormat = presentation.formats[address] ?? {};
+  const inspection = useMemo(() => (inspector || isFormulaError(values[address])) && !calculation?.ambiguous
+    ? inspectWorksheetCell(worksheetBlocks(view.editor.state.doc), calculation?.name ?? label, address) : null,
+  [inspector, calculation, values, address, label, view.editor]);
   const updateCell = (cell: string, value: string) => {
     if (isExternalFormula(value)) {
       setError(t('externalFormula'));
@@ -105,13 +180,22 @@ export function SpreadsheetView(view: NodeViewProps) {
     event.clipboardData.setData('text/plain', encodeCellRange(sheet, range));
     setError('');
   };
-  const copyRange = async () => {
+  const copyRange = async (cut = false) => {
+    const snapshot = encodeCellRange(sheet, range);
     try {
-      await navigator.clipboard.writeText(encodeCellRange(sheet, range));
-      setError('');
+      await navigator.clipboard.writeText(snapshot);
+      if (cut && view.editor.isEditable) {
+        const cleared = setSheet(current => encodeCellRange(current, range) === snapshot ? clearCellRange(current, range) : null, true);
+        setError(cleared ? '' : t('cutChanged'));
+      } else setError('');
     } catch {
       setError(t('copyFailed'));
     }
+  };
+  const cut = (event: ClipboardEvent<HTMLInputElement>) => {
+    if (!isRange || !editable) return;
+    copy(event);
+    setSheet(current => clearCellRange(current, range), true);
   };
   const paste = (event: ClipboardEvent<HTMLInputElement>, position: CellPosition) => {
     if (!editable) return;
@@ -124,6 +208,8 @@ export function SpreadsheetView(view: NodeViewProps) {
     const data = isTable ? parseCellClipboard(text) : [[text]];
     if (!data) { setError(t('gridPasteInvalid')); return; }
     const target = isRange ? range.start : position;
+    const pastedRange = clipboardTarget(target, data);
+    if (pastedRange && gridWriteConflicts(presentation, pastedRange)) { setError(t('mergeConflict')); return; }
     let failure: RangeEditError | null = null;
     if (!setSheet(current => {
       const result = pasteCellGrid(current, target, data);
@@ -148,6 +234,7 @@ export function SpreadsheetView(view: NodeViewProps) {
     setError('');
   };
   const fill = (direction: 'down' | 'right', selection = range) => {
+    if (gridWriteConflicts(presentation, selection)) { setError(t('mergeConflict')); return; }
     let failure: RangeEditError | null = null;
     const filled = setSheet(current => {
       const result = fillCellRange(current, selection, direction);
@@ -180,6 +267,11 @@ export function SpreadsheetView(view: NodeViewProps) {
       selectCell(next);
       focusCell(next);
       return;
+    }
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      const next = clamp({ column: position.column + (event.shiftKey ? -1 : 1), row: position.row });
+      selectCell(next); focusCell(next); return;
     }
     if (event.key === 'Enter' || event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
@@ -216,13 +308,48 @@ export function SpreadsheetView(view: NodeViewProps) {
           if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
           if (event.key === 'Escape') { event.preventDefault(); setWorksheetName(null); }
         }} /> : <strong>{calculation?.name || label || t('spreadsheet')}</strong>}
-    menuActions={<DropdownMenuItem disabled={exporting} onSelect={() => void exportExcel()}>{t(hasMultipleSheets ? 'exportWorkbook' : 'exportExcel')}</DropdownMenuItem>}>
+    menuActions={<>
+      <DropdownMenuItem disabled={exporting} onSelect={() => void exportExcel()}>{t(hasMultipleSheets ? 'exportWorkbook' : 'exportExcel')}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => downloadFile(`${(calculation?.name ?? label).replace(/[<>|"\u0000-\u001f]/g, '_')}.csv`, exportWorksheetCsv(sheet, values), 'text/csv;charset=utf-8')}>{t('exportCsv')}</DropdownMenuItem>
+    </>}>
     {editable && <Disclosure variant="inline" className="notebook-sheet-tools" summary={t('worksheetTools')}>
       <div className="notebook-sheet-controls">
-      <Button variant="ghost" onClick={() => setSheet(current => ({ ...current, rows: Math.min(current.rows + 1, spreadsheetLimits.rows) }))} disabled={sheet.rows >= spreadsheetLimits.rows}>{t('addRow')}</Button>
-      <Button variant="ghost" onClick={() => setSheet(current => ({ ...current, columns: Math.min(current.columns + 1, spreadsheetLimits.columns) }))} disabled={sheet.columns >= spreadsheetLimits.columns}>{t('addColumn')}</Button>
+      <Button variant="ghost" onClick={() => structure({ kind: 'insert', axis: 'row', index: sheet.rows })} disabled={sheet.rows >= spreadsheetLimits.rows}>{t('addRow')}</Button>
+      <Button variant="ghost" onClick={() => structure({ kind: 'insert', axis: 'column', index: sheet.columns })} disabled={sheet.columns >= spreadsheetLimits.columns}>{t('addColumn')}</Button>
       <Button variant="ghost" disabled={isRange || active.row === sheet.rows - 1 || !source} onClick={() =>
         fill('down', normalizeCellRange(active, { column: active.column, row: active.row + 1 }))}>{t('fillNext')}</Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button variant="ghost">{t('structure')}</Button></DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem disabled={sheet.rows >= spreadsheetLimits.rows} onSelect={() => structure({ kind: 'insert', axis: 'row', index: active.row })}>{t('insertRow')}</DropdownMenuItem>
+          <DropdownMenuItem disabled={sheet.columns >= spreadsheetLimits.columns} onSelect={() => structure({ kind: 'insert', axis: 'column', index: active.column })}>{t('insertColumn')}</DropdownMenuItem>
+          <DropdownMenuItem disabled={sheet.rows <= 1} onSelect={() => setDialog('deleteRow')}>{t('deleteRow')}</DropdownMenuItem>
+          <DropdownMenuItem disabled={sheet.columns <= 1} onSelect={() => setDialog('deleteColumn')}>{t('deleteColumn')}</DropdownMenuItem>
+          <DropdownMenuItem disabled={active.row === 0} onSelect={() => structure({ kind: 'move', axis: 'row', index: active.row, to: active.row - 1 })}>{t('rowUp')}</DropdownMenuItem>
+          <DropdownMenuItem disabled={active.row === sheet.rows - 1} onSelect={() => structure({ kind: 'move', axis: 'row', index: active.row, to: active.row + 1 })}>{t('rowDown')}</DropdownMenuItem>
+          <DropdownMenuItem disabled={active.column === 0} onSelect={() => structure({ kind: 'move', axis: 'column', index: active.column, to: active.column - 1 })}>{t('columnLeft')}</DropdownMenuItem>
+          <DropdownMenuItem disabled={active.column === sheet.columns - 1} onSelect={() => structure({ kind: 'move', axis: 'column', index: active.column, to: active.column + 1 })}>{t('columnRight')}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => { setSize(String(presentation.rowHeights[active.row] ?? gridDimensionLimits.row.default)); setDialog('resizeRow'); }}>{t('resizeRow')}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => { setSize(String(presentation.columnWidths[active.column] ?? gridDimensionLimits.column.default)); setDialog('resizeColumn'); }}>{t('resizeColumn')}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Button variant="ghost" disabled={!isRange} onClick={() => setDialog('merge')}>{t('merge')}</Button>
+      <Button variant="ghost" disabled={!presentation.merges.some(merge => rangeContains(range, merge.start) || rangeContains(merge, active))}
+        onClick={() => setGrid(current => unmergeCellRange(current, range), true)}>{t('unmerge')}</Button>
+      </div>
+      <div className="notebook-sheet-controls" role="group" aria-label={t('format')}>
+        {(['bold', 'italic', 'underline'] as const).map(key => <Button key={key} variant="ghost" aria-pressed={!!currentFormat[key]}
+          onClick={() => format({ [key]: !currentFormat[key] })}>{t(key)}</Button>)}
+        {(['foreground', 'background'] as const).map(key => <Select key={key} label={t(key)} value={currentFormat[key] ?? 'default'}
+          triggerLabel={`${t(key)}: ${t(currentFormat[key] ?? 'default')}`} onChange={value => format({ [key]: value as CellColor })}
+          options={(['default', 'blue', 'green', 'rose'] as const).map(value => ({ value, label: t(value) }))} />)}
+        <Select label={t('alignment')} value={currentFormat.align ?? 'left'} onChange={value => format({ align: value as CellFormat['align'] })}
+          options={(['left', 'center', 'right'] as const).map(value => ({ value, label: t(value) }))} />
+        <Select label={t('precision')} value={currentFormat.precision === undefined ? 'auto' : String(currentFormat.precision)}
+          triggerLabel={`${t('precision')}: ${currentFormat.precision ?? t('auto')}`}
+          onChange={value => format({ precision: value === 'auto' ? undefined : Number(value) })}
+          options={[{ value: 'auto', label: t('auto') }, ...Array.from({ length: 13 }, (_, index) => ({ value: String(index), label: String(index) }))]} />
+        <Button variant="ghost" onClick={() => format(null)}>{t('clearFormat')}</Button>
       </div>
       <p className="notebook-note">{t('gridHint')} {t('rangeHint')}</p>
     </Disclosure>}
@@ -236,6 +363,7 @@ export function SpreadsheetView(view: NodeViewProps) {
       {editable && <DropdownMenu>
         <DropdownMenuTrigger asChild><Button variant="ghost">{t('functions')}</Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setDialog('functions')}>{t('functionHelp')}</DropdownMenuItem>
           {formulaFunctions.map(name => <DropdownMenuItem key={name} onSelect={() => {
             updateCell(address, `=${name}()`);
             requestAnimationFrame(() => {
@@ -246,28 +374,37 @@ export function SpreadsheetView(view: NodeViewProps) {
         </DropdownMenuContent>
       </DropdownMenu>}
     </div>
-    {isRange && <div className="notebook-sheet-controls">
+    <div className="notebook-sheet-controls">
       <Button variant="ghost" onClick={() => void copyRange()}>{t('copyRange')}</Button>
+      <Button variant="ghost" aria-pressed={inspector} onClick={() => setInspector(value => !value)}>{t('inspector')}</Button>
       {editable && <>
+        <Button variant="ghost" onClick={() => void copyRange(true)}>{t('cutRange')}</Button>
         <Button variant="ghost" disabled={range.start.row === range.end.row} onClick={() => fill('down')}>{t('fillDown')}</Button>
         <Button variant="ghost" disabled={range.start.column === range.end.column} onClick={() => fill('right')}>{t('fillRight')}</Button>
         <Button variant="ghost" onClick={clear}>{t('clearCells')}</Button>
       </>}
-    </div>}
+    </div>
     <div ref={grid}>
       <Table label={t('spreadsheet')} density="compact" className="notebook-grid-scroll" tableClassName="notebook-grid">
+        <colgroup><col />{Array.from({ length: sheet.columns }, (_, column) => <col key={column} style={{ width: presentation.columnWidths[column] ?? gridDimensionLimits.column.default }} />)}</colgroup>
         <thead><tr><th scope="col" aria-label="#" />
           {Array.from({ length: sheet.columns }, (_, column) => <th scope="col" key={column}>{cellAddress(column, 0).slice(0, -1)}</th>)}
         </tr></thead>
-        <tbody>{Array.from({ length: sheet.rows }, (_, row) => <tr key={row}>
+        <tbody>{Array.from({ length: sheet.rows }, (_, row) => <tr key={row} style={{ height: presentation.rowHeights[row] ?? gridDimensionLimits.row.default }}>
           <th scope="row">{row + 1}</th>
           {Array.from({ length: sheet.columns }, (_, column) => {
             const key = cellAddress(column, row);
             const raw = sheet.cells[key] ?? '';
             const computed = values[key];
-            const text = computed === undefined ? '' : typeof computed === 'boolean' ? (computed ? 'TRUE' : 'FALSE') : String(computed);
+            const cellFormat = presentation.formats[key];
+            const text = formatCellValue(computed, cellFormat);
             const position = { column, row };
-            return <td key={key} data-active={key === address || undefined}
+            const merge = mergedCell(presentation.merges, position);
+            if (merge && (merge.start.column !== column || merge.start.row !== row)) return null;
+            return <td key={key} rowSpan={merge ? merge.end.row - row + 1 : undefined} colSpan={merge ? merge.end.column - column + 1 : undefined}
+              data-foreground={cellFormat?.foreground} data-background={cellFormat?.background}
+              data-bold={cellFormat?.bold || undefined} data-italic={cellFormat?.italic || undefined} data-underline={cellFormat?.underline || undefined}
+              data-align={cellFormat?.align} style={{ minWidth: presentation.columnWidths[column] ?? gridDimensionLimits.column.default }} data-active={key === address || undefined}
               data-range-selected={isRange && rangeContains(range, position) || undefined} data-error={isFormulaError(computed) || undefined}>
               <Input unstyled className="notebook-cell" aria-label={t('cell', { address: key })} data-cell={key}
                 value={editable && focused === key ? raw : text} readOnly={!editable} maxLength={spreadsheetLimits.cellLength}
@@ -281,12 +418,50 @@ export function SpreadsheetView(view: NodeViewProps) {
                 }}
                 onFocus={() => { if (!keepRangeFocus.current) selectCell(position); setFocused(key); }} onBlur={() => setFocused(null)}
                 onChange={event => { if (isRange) selectCell(position); updateCell(key, event.target.value); }}
-                onKeyDown={event => onKey(event, position)} onCopy={copy} onPaste={event => paste(event, position)} />
+                onKeyDown={event => onKey(event, position)} onCopy={copy} onCut={cut} onPaste={event => paste(event, position)} />
             </td>;
           })}
         </tr>)}</tbody>
       </Table>
     </div>
+    {inspection?.type === 'error' && <Feedback kind="error">{t('selectedError', { address, value: String(values[address]) })}</Feedback>}
+    {inspector && inspection && <section className="notebook-formula-inspector" aria-label={t('inspector')}>
+      <dl><dt>{t('rawSource')}</dt><dd>{inspection.source || '∅'}</dd><dt>{t('evaluated')}</dt><dd>{formatCellValue(inspection.value)}</dd>
+        <dt>{t('valueType')}</dt><dd>{inspection.type}</dd></dl>
+      <strong>{t('dependencies')}</strong>
+      {inspection.dependencies.length ? <ul>{inspection.dependencies.map((dependency, index) => <li key={index}>
+        {dependency.sheet}!{cellRangeLabel({ start: dependency.from, end: dependency.to })}
+      </li>)}</ul> : <p>{t('noDependencies')}</p>}
+      <p className="notebook-note">{t('dependencyHint')}</p>
+    </section>}
+    {dialog && dialog !== 'functions' && <Dialog title={t(dialog)} closeLabel={t('close')} onClose={() => setDialog(null)}
+      onSubmit={event => {
+        event.preventDefault();
+        if (dialog === 'merge') {
+          const result = mergeCellRange(presentation, range, true);
+          if (result.status !== 'ok') { setError(t('mergeConflict')); setDialog(null); return; }
+          setGrid(current => { const latest = mergeCellRange(current, range, true); return latest.status === 'ok' ? latest.grid : null; }, true);
+        } else if (dialog === 'deleteRow' || dialog === 'deleteColumn') {
+          structure({ kind: 'delete', axis: dialog === 'deleteRow' ? 'row' : 'column', index: dialog === 'deleteRow' ? active.row : active.column });
+        } else {
+          const axis = dialog === 'resizeRow' ? 'row' : 'column';
+          setGrid(current => resizeGridAxis(current, axis, active[axis], Number(size)), true);
+        }
+        setDialog(null);
+      }} footer={<><Button variant="ghost" onClick={() => setDialog(null)}>{t('cancel')}</Button><Button type="submit">{t('confirm')}</Button></>}>
+      {dialog === 'merge' ? <p>{t('mergePolicy')}</p> : dialog.startsWith('delete') ? <p>{t('deletePolicy')}</p> :
+        <label className="notebook-field">{t('pixels')}<Input type="number" required step={1}
+          min={gridDimensionLimits[dialog === 'resizeRow' ? 'row' : 'column'].min}
+          max={gridDimensionLimits[dialog === 'resizeRow' ? 'row' : 'column'].max} value={size} onChange={event => setSize(event.target.value)} /></label>}
+    </Dialog>}
+    {dialog === 'functions' && <Dialog title={t('functionHelp')} closeLabel={t('close')} onClose={() => setDialog(null)}
+      footer={<Button onClick={() => { updateCell(address, `=${functionName}()`); setDialog(null); requestAnimationFrame(() => {
+        formulaInput.current?.focus(); formulaInput.current?.setSelectionRange(functionName.length + 2, functionName.length + 2);
+      }); }}>{t('insertFunction')}</Button>}>
+      <Select label={t('searchFunctions')} searchable showHint value={functionName} onChange={setFunctionName}
+        options={formulaFunctions.map(value => ({ value, label: value, hint: formulaHelp[value].description }))} />
+      <p>{formulaHelp[functionName].syntax}</p><p>{formulaHelp[functionName].description}</p>
+    </Dialog>}
     <CellAnnotations view={view} address={address} editable={editable} />
     {calculation?.ambiguous && <Feedback kind="error">{t('workbookNameConflict')}</Feedback>}
     {error && <Feedback kind="error">{error}</Feedback>}

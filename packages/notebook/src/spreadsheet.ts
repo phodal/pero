@@ -1,3 +1,4 @@
+import { sanitizeSequence, complementSequence } from './science-sequence.ts';
 // @ts-expect-error fast-formula-parser publishes JavaScript without TypeScript declarations.
 import FastFormulaParser from "fast-formula-parser";
 import { externalFormulaNames } from "./formula-policy.ts";
@@ -11,6 +12,15 @@ export interface Spreadsheet {
 }
 
 export type CellValue = string | number | boolean;
+export interface FormulaDependency {
+  sheet: string;
+  from: { column: number; row: number };
+  to: { column: number; row: number };
+}
+export interface CalculationObserver {
+  reference?: (source: { sheet: string; address: string }, dependency: FormulaDependency) => void;
+  result?: (source: { sheet: string; address: string }, value: CellValue, error: boolean) => void;
+}
 type FormulaFailure = Error & { error: string; details?: unknown };
 type FormulaValue = CellValue | FormulaFailure | null;
 
@@ -321,6 +331,18 @@ const functions: Record<string, FormulaFunction> = {
     }
     return total;
   },
+  REVERSECOMPLEMENT: (...args) => {
+    if (args.length < 1 || args.length > 2) return FormulaError.VALUE;
+    const sequence = vector(args[0]), alphabet = args[1] ? vector(args[1]) : ['DNA'];
+    if (sequence?.length !== 1 || alphabet?.length !== 1) return FormulaError.VALUE;
+    if (sequence[0] instanceof FormulaError) return sequence[0];
+    if (alphabet[0] instanceof FormulaError) return alphabet[0];
+    if (typeof sequence[0] !== 'string' || !['DNA', 'RNA'].includes(String(alphabet[0]).toUpperCase())) return FormulaError.VALUE;
+    try {
+      const cleaned = sanitizeSequence(sequence[0], String(alphabet[0]).toUpperCase() as 'DNA' | 'RNA');
+      return cleaned.removed.length ? FormulaError.VALUE : complementSequence(cleaned, true);
+    } catch { return FormulaError.VALUE; }
+  },
   XLOOKUP: xlookup,
   SLOPE: linearStatistic((xx, xy) => xy / xx),
   INTERCEPT: linearStatistic((xx, xy, _yy, xMean, yMean) => yMean - xy / xx * xMean),
@@ -333,14 +355,14 @@ export const formulaFunctions = [
   "SUMIF", "AVERAGEIF", "SUMPRODUCT", "IF", "IFERROR", "AND", "OR", "NOT",
   "ROUND", "ABS", "SQRT", "LOG10", "EXP", "POWER", "ISNUMBER", "DAYS",
   "CONCAT", "LEFT", "RIGHT", "LEN", "INDEX", "VLOOKUP", "XLOOKUP",
-  "CORREL", "SLOPE", "INTERCEPT", "RSQ",
+  "CORREL", "SLOPE", "INTERCEPT", "RSQ", "REVERSECOMPLEMENT",
 ] as const;
 
 export function evaluateSpreadsheet(sheet: Spreadsheet): Record<string, CellValue> {
   return evaluateWorkbook([{ name: SHEET_NAME, sheet }])[SHEET_NAME];
 }
 
-export function evaluateWorkbook(sheets: readonly { name: string; sheet: Spreadsheet }[]): Record<string, Record<string, CellValue>> {
+export function evaluateWorkbook(sheets: readonly { name: string; sheet: Spreadsheet }[], observer?: CalculationObserver): Record<string, Record<string, CellValue>> {
   const worksheets: Worksheet[] = sheets.map(({ name, sheet }) => ({
     name, sheet, calculated: new Map(), active: new Map(), cycleMembers: new Set(),
   }));
@@ -353,12 +375,24 @@ export function evaluateWorkbook(sheets: readonly { name: string; sheet: Spreads
   // A parser holds mutable parse state, so nested references need another instance.
   const parsers: FormulaParser[] = [];
 
+  const observeReference = (name: string | undefined, from: Coordinate, to: Coordinate) => {
+    const current = stack[stack.length - 1];
+    if (current) observer?.reference?.({ sheet: current.worksheet.name, address: current.address }, {
+      sheet: name ?? current.worksheet.name,
+      from: { column: from.col - 1, row: from.row - 1 }, to: { column: to.col - 1, row: to.row - 1 },
+    });
+  };
+  const observeResult = (worksheet: Worksheet, address: string, value: FormulaValue) => {
+    observer?.result?.({ sheet: worksheet.name, address }, value instanceof FormulaError ? value.error : value as CellValue ?? '', value instanceof FormulaError);
+  };
   const onCell = ({ sheet: name, col, row }: CellReference): FormulaValue => {
+    observeReference(name, { col, row }, { col, row });
     const worksheet = name && byName.get(name.toLowerCase());
     return worksheet ? evaluate(worksheet, { row, col }) : FormulaError.REF;
   };
 
   const onRange = ({ sheet: name, from, to }: RangeReference): FormulaValue[][] => {
+    observeReference(name, from, to);
     const worksheet = name && byName.get(name.toLowerCase());
     if (!worksheet) return [[FormulaError.REF]];
     const { sheet } = worksheet;
@@ -385,6 +419,7 @@ export function evaluateWorkbook(sheets: readonly { name: string; sheet: Spreads
     if (!source.startsWith("=")) {
       const value = literalValue(source);
       calculated.set(address, value);
+      observeResult(worksheet, address, value);
       return value;
     }
 
@@ -425,6 +460,7 @@ export function evaluateWorkbook(sheets: readonly { name: string; sheet: Spreads
     }
     if (cycleMembers.has(address)) result = circular;
     calculated.set(address, result);
+    observeResult(worksheet, address, result);
     return result;
   }
 
