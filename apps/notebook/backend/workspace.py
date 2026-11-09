@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import math
 import re
+from procedure_parameters import ProcedureParameter, parse_parameters
 
 
 def text(value, name, maximum):
@@ -180,11 +181,12 @@ class NotebookProcedure:
     materials: tuple[ProcedureMaterial, ...]
     steps: tuple[ProcedureStep, ...]
     introduction: dict | None = None
+    parameters: tuple[ProcedureParameter, ...] | None = None
 
     @classmethod
     def parse(cls, value, identities=None):
         required = {'id', 'title', 'description', 'materials', 'steps'}
-        if not isinstance(value, dict) or not required <= value.keys() or value.keys() - required - {'introduction'}:
+        if not isinstance(value, dict) or not required <= value.keys() or value.keys() - required - {'introduction', 'parameters'}:
             raise ValueError('Invalid procedure fields')
         identities = identities if identities is not None else set()
         row_id = claim_identity(value['id'], identities)
@@ -192,8 +194,9 @@ class NotebookProcedure:
         budget = [0]
         materials = tuple(ProcedureMaterial.parse(item, identities, budget) for item in collection(value['materials'], 100))
         steps = tuple(ProcedureStep.parse(item, identities) for item in collection(value['steps'], 500))
+        parameters = parse_parameters(value['parameters'], identities) if 'parameters' in value else None
         return cls(row_id, text(value['title'], 'procedure title', 200),
-                   text(value['description'], 'procedure description', 32768), materials, steps, introduction)
+                   text(value['description'], 'procedure description', 32768), materials, steps, introduction, parameters)
 
     def content_roots(self):
         if self.introduction is not None:
@@ -209,7 +212,8 @@ class NotebookProcedure:
     def wire(self):
         return dict(id=self.id, title=self.title, description=self.description,
                     materials=[item.wire() for item in self.materials], steps=[item.wire() for item in self.steps],
-                    **({'introduction': self.introduction} if self.introduction is not None else {}))
+                    **({'introduction': self.introduction} if self.introduction is not None else {}),
+                    **({'parameters': [item.wire() for item in self.parameters]} if self.parameters is not None else {}))
 
 
 def parse_procedures(value, identities=None):

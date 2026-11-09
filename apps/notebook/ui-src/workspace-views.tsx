@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ProcedureRichEditor, ProcedureStepEditor, ProcedureTimerView } from './procedure-step-editor';
+import { ProcedureParameters } from './procedure-parameters';
 import { ProcedureMaterials } from './procedure-materials';
 import { ReviewerPanel } from './review-panel';
 import type { Editor } from '@tiptap/core';
@@ -11,6 +12,7 @@ import { changeMetadata, changeProcedures, notebookLinkHash, parseNotebookLink, 
   type MetadataChange, type NotebookMetadata, type NotebookProcedure, type NotebookProcedureStep, type ProcedureChange } from '@pero/notebook/workspace';
 
 const messages = {
+  parameter: { en: 'Parameter', zh: '参数' },
   procedure: { en: 'Procedure', zh: '流程' }, material: { en: 'Material', zh: '材料' },
   copyLink: { en: 'Copy link', zh: '复制链接' }, copied: { en: 'Link copied', zh: '链接已复制' }, copyFailed: { en: 'Could not copy the link. Check clipboard access and try again.', zh: '无法复制链接，请检查剪贴板访问后重试。' },
   header: { en: 'Header', zh: '标题' }, description: { en: 'Description', zh: '说明' }, image: { en: 'Image', zh: '图片' }, table: { en: 'Table', zh: '表格' }, timer: { en: 'Timer', zh: '计时器' },
@@ -38,6 +40,7 @@ const messages = {
   tags: { en: 'Tags', zh: '标签' }, tag: { en: 'New tag', zh: '新标签' }, addTag: { en: 'Add tag', zh: '添加标签' },
   removeTag: { en: 'Remove tag {name}', zh: '移除标签 {name}' }, noTags: { en: 'No tags', zh: '暂无标签' },
   duplicate: { en: 'That tag already exists.', zh: '该标签已存在。' }, invalid: { en: 'Check the field value and its stated limit.', zh: '请检查字段值及其限制。' },
+  stale: { en: 'This parameter changed. Reopen it and review the latest version.', zh: '此参数已更改，请重新打开并审阅最新版本。' },
   limit: { en: 'This list has reached its size limit.', zh: '此列表已达到数量上限。' },
   procedureHint: { en: 'Write methods and record completion manually. Critical and pause flags are annotations. Timers measure manually started wall-clock time, not equipment execution.', zh: '编写方法并手动记录完成情况。「关键」与「暂停点」是注释。计时器测量手动开始的墙钟时长，不代表设备执行。' },
   addProcedure: { en: 'Add procedure', zh: '添加流程' }, newProcedure: { en: 'Untitled procedure', zh: '未命名流程' },
@@ -143,6 +146,7 @@ function ProcedureFields({ procedure, readonly, apply, onCopyLink }: { procedure
       <ProcedureRichEditor content={procedure.introduction} text={procedure.description} label={t('introduction')} readonly={readonly}
         onChange={introduction => apply({ type: 'edit', id, patch: { introduction } })} />
     </section>
+    <ProcedureParameters procedure={procedure} readonly={readonly} apply={apply} />
     <ProcedureMaterials procedure={procedure} readonly={readonly} apply={apply} onCopyLink={onCopyLink} />
     <section aria-label={t('steps')}>
       <div className="notebook-workspace-actions"><h3>{t('steps')}</h3>
