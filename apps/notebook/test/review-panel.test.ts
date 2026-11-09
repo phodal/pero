@@ -81,6 +81,10 @@ test('local review UI retains rejected input, requires explicit decisions, archi
   await mount(2, revised);
   await settled(() => document.body.textContent?.includes('Older revision; does not review the latest content') === true);
   assert.match(document.body.textContent!, /Approved locally/);
+  const recordedDecision = [...document.querySelectorAll('p')].find(node => node.textContent?.startsWith('Recorded decision:'));
+  assert.ok(recordedDecision);
+  assert.equal(recordedDecision.textContent!.includes('\\n'), false, 'A literal backslash-n must not be displayed between the timestamp and reason');
+  assert.equal(recordedDecision.querySelectorAll('br').length, 1, 'The recorded reason starts on a new line');
   await click(button('Request a fresh review · r2'));
   await settled(() => !button('Save record', dialog()).disabled);
   await click(button('Save record', dialog())); await settled(() => !document.querySelector('dialog'));

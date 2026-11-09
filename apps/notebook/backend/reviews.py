@@ -26,13 +26,14 @@ class ReviewConflict(Exception):
 
 
 TaskStatus = Literal['todo', 'in_progress', 'done', 'cancelled']
-ReviewStatus = Literal['requested', 'in_progress', 'approved', 'changes_requested', 'retracted']
+ReviewStatus = Literal['requested', 'in_progress', 'approved', 'changes_requested', 'rejected', 'retracted']
 TASK_STATUSES = ('todo', 'in_progress', 'done', 'cancelled')
 REVIEW_TRANSITIONS = {
-    'requested': ('in_progress', 'approved', 'changes_requested', 'retracted'),
-    'in_progress': ('approved', 'changes_requested', 'retracted'),
+    'requested': ('in_progress', 'approved', 'changes_requested', 'rejected', 'retracted'),
+    'in_progress': ('approved', 'changes_requested', 'rejected', 'retracted'),
     'approved': ('retracted',),
     'changes_requested': ('retracted',),
+    'rejected': ('retracted',),
     'retracted': (),
 }
 
@@ -106,6 +107,19 @@ class UpdateTask(Command):
 
 
 @dataclass(frozen=True)
+class SetTaskStatus(Command):
+    identity: str
+    status: TaskStatus
+
+
+@dataclass(frozen=True)
+class ReassignTask(Command):
+    identity: str
+    owner: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class RequestReview(Command):
     anchor: Anchor
     reviewer: str
@@ -133,6 +147,8 @@ def parse_command(value):
         'resolve-thread': ({'id'}, set()), 'reopen-thread': ({'id'}, set()),
         'create-task': ({'revision', 'title', 'ownerDisplay'}, {'blockId', 'quote', 'description', 'deadline'}),
         'update-task': ({'id', 'title', 'ownerDisplay', 'status'}, {'description', 'deadline'}),
+        'set-task-status': ({'id', 'status'}, set()),
+        'reassign-task': ({'id', 'ownerDisplay', 'reason'}, set()),
         'request-review': ({'revision', 'reviewerDisplay', 'mode'}, {'note', 'previousReviewId'}),
         'transition-review': ({'id', 'status', 'note', 'confirmedLocalDecision'}, set()),
     }
@@ -167,6 +183,14 @@ def parse_command(value):
         if not isinstance(data['status'], str) or data['status'] not in TASK_STATUSES:
             raise ValueError('Invalid local task status')
         return UpdateTask(*base, block_id(data['id']), title, description, owner, deadline, data['status'])
+    if action == 'set-task-status':
+        if not isinstance(data['status'], str) or data['status'] not in TASK_STATUSES:
+            raise ValueError('Invalid local task status')
+        return SetTaskStatus(*base, block_id(data['id']), data['status'])
+    if action == 'reassign-task':
+        return ReassignTask(*base, block_id(data['id']),
+                            string(data['ownerDisplay'], 'owner label', 120, required=True).strip(),
+                            string(data['reason'], 'reassignment reason', 8000, required=True))
     if action == 'request-review':
         reviewer = string(data['reviewerDisplay'], 'local reviewer label', 120, required=True).strip()
         if data['mode'] != 'local_self_review' or reviewer != actor:
@@ -286,6 +310,14 @@ def change_record(current: Record | None, command: Command, at: str, identity: s
             if status == current.status:
                 raise ValueError('This thread is already in that state')
             return replace(current, status=status, version=version + 1, updated_at=at)
+    if isinstance(current, LocalTask) and isinstance(command, SetTaskStatus):
+        if current.status == command.status:
+            raise ValueError('This task is already in that state')
+        return replace(current, status=command.status, version=version + 1, updated_at=at)
+    if isinstance(current, LocalTask) and isinstance(command, ReassignTask):
+        if current.owner == command.owner:
+            raise ValueError('This task is already assigned to that label')
+        return replace(current, owner=command.owner, version=version + 1, updated_at=at)
     if isinstance(current, LocalTask) and isinstance(command, UpdateTask):
         return replace(current, title=command.title, description=command.description, owner=command.owner,
                        deadline=command.deadline, status=command.status, version=version + 1, updated_at=at)
@@ -295,7 +327,7 @@ def change_record(current: Record | None, command: Command, at: str, identity: s
         if command.status not in REVIEW_TRANSITIONS[current.status]:
             raise ValueError('That review transition is not allowed; request a fresh review instead')
         result = replace(current, status=command.status, note=command.note, version=version + 1, updated_at=at)
-        if command.status in ('approved', 'changes_requested'):
+        if command.status in ('approved', 'changes_requested', 'rejected'):
             result = replace(result, decision_at=at, decision_reason=command.note,
                              decision_status=command.status, decision_by=command.actor)
         # Retraction does not overwrite the previous decision; the transition event records its reason.
@@ -315,7 +347,7 @@ def _record(table, payload):
 def _table(command):
     if isinstance(command, (CreateThread, Reply, SetThreadStatus)):
         return 'notebook_comment_threads'
-    if isinstance(command, (CreateTask, UpdateTask)):
+    if isinstance(command, (CreateTask, UpdateTask, SetTaskStatus, ReassignTask)):
         return 'notebook_local_tasks'
     return 'notebook_review_records'
 
@@ -341,6 +373,11 @@ class ReviewStore:
             connection.execute('''CREATE TABLE IF NOT EXISTS notebook_review_requests (
                 entry_id TEXT NOT NULL, request_id TEXT NOT NULL, fingerprint TEXT NOT NULL,
                 record_id TEXT NOT NULL, PRIMARY KEY(entry_id, request_id))''')
+
+        from review_workflows import ReviewWorkflowStore
+        from review_batches import ReviewBatchStore
+        self.workflows = ReviewWorkflowStore(self)
+        self.batches = ReviewBatchStore(self)
 
     def _read(self, connection, entry_id):
         head = self.store._read(connection, entry_id)
@@ -368,6 +405,7 @@ class ReviewStore:
                                'action': row['action'], 'recordId': row['record_id'], 'revision': row['revision'],
                                'version': row['version'], 'detail': row['detail'], 'identityScope': 'local_operator'}
                               for row in rows]
+        result.update(self.workflows.read(connection, entry_id, head.revision))
         result['activityLimited'] = connection.execute(
             'SELECT COUNT(*) FROM notebook_review_activity WHERE entry_id = ?', (entry_id,)).fetchone()[0] > 500
         return result
@@ -378,54 +416,65 @@ class ReviewStore:
             return self._read(connection, entry_id)
 
     def apply(self, entry_id, value):
+        from review_workflows import WORKFLOW_ACTIONS
+        if isinstance(value, dict) and value.get('action') in WORKFLOW_ACTIONS:
+            return self.workflows.apply(entry_id, value)
+        if isinstance(value, dict) and value.get('action') == 'bulk-change':
+            return self.batches.apply(entry_id, value)
         command = parse_command(value)
-        fingerprint = json.dumps(asdict(command), sort_keys=True, ensure_ascii=False)
-        table = _table(command)
         with closing(self.store._connect()) as connection, connection:
             connection.execute('BEGIN IMMEDIATE')
-            self.store._read(connection, entry_id)
-            receipt = connection.execute('''SELECT fingerprint, record_id FROM notebook_review_requests
-                WHERE entry_id = ? AND request_id = ?''', (entry_id, command.request_id)).fetchone()
-            if receipt:
-                if receipt['fingerprint'] != fingerprint:
-                    raise ValueError('This request ID was already used for a different change')
-                return {**self._read(connection, entry_id), 'recordId': receipt['record_id'], 'replayed': True}
-            creating = isinstance(command, (CreateThread, CreateTask, RequestReview))
-            current = None
-            if creating:
-                anchor = command.anchor
-                pinned = self.store._read(connection, entry_id, anchor.revision)
-                if anchor.block_id:
-                    block = pinned.document.block(anchor.block_id)
-                    if block is None:
-                        raise MissingReviewObject('Anchor block is absent from the selected saved revision')
-                    if anchor.quote and anchor.quote not in _text(block):
-                        raise ValueError('The quoted text is not in this block at the selected saved revision')
-                if isinstance(command, RequestReview) and command.previous_id:
-                    previous = connection.execute(f'SELECT payload FROM {table} WHERE entry_id = ? AND id = ?',
-                                                  (entry_id, command.previous_id)).fetchone()
-                    if previous is None:
-                        raise MissingReviewObject('Previous review not found in this entry')
-                count = connection.execute(f'SELECT COUNT(*) FROM {table} WHERE entry_id = ?', (entry_id,)).fetchone()[0]
-                if count >= 1000:
-                    raise ValueError('This entry has reached the limit of 1,000 local records of this kind')
-            else:
-                row = connection.execute(f'SELECT payload FROM {table} WHERE entry_id = ? AND id = ?',
-                                         (entry_id, command.identity)).fetchone()
-                if row is None:
-                    raise MissingReviewObject('Local record not found in this entry')
-                current = _record(table, row['payload'])
-            at = datetime.now(timezone.utc).isoformat(timespec='microseconds')
-            record = change_record(current, command, at, uuid4().hex)
-            connection.execute(f'''INSERT INTO {table} (entry_id,id,payload) VALUES (?,?,?)
-                ON CONFLICT(entry_id,id) DO UPDATE SET payload=excluded.payload''',
-                (entry_id, record.id, json.dumps(asdict(record), ensure_ascii=False)))
-            detail = (command.note if isinstance(command, (RequestReview, TransitionReview)) else
-                      command.text if isinstance(command, (CreateThread, Reply)) else
-                      f'{record.title}: {record.status}' if isinstance(record, LocalTask) else record.status)
-            connection.execute('''INSERT INTO notebook_review_activity
-                (entry_id,at,actor,action,record_id,revision,version,detail) VALUES (?,?,?,?,?,?,?,?)''',
-                (entry_id, at, command.actor, command.action, record.id, record.anchor.revision, record.version, detail))
-            connection.execute('INSERT INTO notebook_review_requests VALUES (?,?,?,?)',
-                               (entry_id, command.request_id, fingerprint, record.id))
-            return {**self._read(connection, entry_id), 'recordId': record.id, 'replayed': False}
+            result = self._apply(connection, entry_id, command)
+            return {**self._read(connection, entry_id), **result}
+
+    def _apply(self, connection, entry_id, command):
+        fingerprint = json.dumps(asdict(command), sort_keys=True, ensure_ascii=False)
+        table = _table(command)
+        self.store._read(connection, entry_id)
+        receipt = connection.execute('''SELECT fingerprint, record_id FROM notebook_review_requests
+            WHERE entry_id = ? AND request_id = ?''', (entry_id, command.request_id)).fetchone()
+        if receipt:
+            if receipt['fingerprint'] != fingerprint:
+                raise ValueError('This request ID was already used for a different change')
+            return {'recordId': receipt['record_id'], 'replayed': True}
+        creating = isinstance(command, (CreateThread, CreateTask, RequestReview))
+        current = None
+        if creating:
+            anchor = command.anchor
+            pinned = self.store._read(connection, entry_id, anchor.revision)
+            if anchor.block_id:
+                block = pinned.document.block(anchor.block_id)
+                if block is None:
+                    raise MissingReviewObject('Anchor block is absent from the selected saved revision')
+                if anchor.quote and anchor.quote not in _text(block):
+                    raise ValueError('The quoted text is not in this block at the selected saved revision')
+            if isinstance(command, RequestReview) and command.previous_id:
+                previous = connection.execute(f'SELECT payload FROM {table} WHERE entry_id = ? AND id = ?',
+                                              (entry_id, command.previous_id)).fetchone()
+                if previous is None:
+                    raise MissingReviewObject('Previous review not found in this entry')
+            count = connection.execute(f'SELECT COUNT(*) FROM {table} WHERE entry_id = ?', (entry_id,)).fetchone()[0]
+            if count >= 1000:
+                raise ValueError('This entry has reached the limit of 1,000 local records of this kind')
+        else:
+            row = connection.execute(f'SELECT payload FROM {table} WHERE entry_id = ? AND id = ?',
+                                     (entry_id, command.identity)).fetchone()
+            if row is None:
+                raise MissingReviewObject('Local record not found in this entry')
+            current = _record(table, row['payload'])
+        at = datetime.now(timezone.utc).isoformat(timespec='microseconds')
+        record = change_record(current, command, at, uuid4().hex)
+        connection.execute(f'''INSERT INTO {table} (entry_id,id,payload) VALUES (?,?,?)
+            ON CONFLICT(entry_id,id) DO UPDATE SET payload=excluded.payload''',
+            (entry_id, record.id, json.dumps(asdict(record), ensure_ascii=False)))
+        detail = (command.note if isinstance(command, (RequestReview, TransitionReview)) else
+                  command.text if isinstance(command, (CreateThread, Reply)) else
+                  f'{record.title}: {record.status}' if isinstance(record, LocalTask) else record.status)
+        if isinstance(command, ReassignTask):
+            detail = json.dumps({'previousOwner': current.owner, 'owner': record.owner, 'reason': command.reason}, ensure_ascii=False)
+        connection.execute('''INSERT INTO notebook_review_activity
+            (entry_id,at,actor,action,record_id,revision,version,detail) VALUES (?,?,?,?,?,?,?,?)''',
+            (entry_id, at, command.actor, command.action, record.id, record.anchor.revision, record.version, detail))
+        connection.execute('INSERT INTO notebook_review_requests VALUES (?,?,?,?)',
+                           (entry_id, command.request_id, fingerprint, record.id))
+        return {'recordId': record.id, 'replayed': False}
