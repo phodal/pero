@@ -150,24 +150,28 @@ function editSheet(sheet: Spreadsheet) {
   };
 }
 
-export function pasteCellGrid(sheet: Spreadsheet, target: CellPosition, rows: readonly (readonly string[])[]): Spreadsheet | null {
+export type RangeEditError = "limit" | "external";
+export type RangeEdit = { readonly sheet: Spreadsheet } | { readonly error: RangeEditError };
+
+export function pasteCellGrid(sheet: Spreadsheet, target: CellPosition, rows: readonly (readonly string[])[]): RangeEdit {
   const limits = spreadsheetLimits;
-  if (!positionInSheet(target, limits.columns, limits.rows) || target.row + rows.length > limits.rows) return null;
+  if (!positionInSheet(target, limits.columns, limits.rows) || target.row + rows.length > limits.rows) return { error: "limit" };
 
   const edit = editSheet(sheet);
   let width = 0;
   for (let row = 0; row < rows.length; row++) {
     const values = rows[row];
-    if (target.column + values.length > limits.columns) return null;
+    if (target.column + values.length > limits.columns) return { error: "limit" };
     width = Math.max(width, values.length);
     for (let column = 0; column < values.length; column++) {
       const value = values[column];
-      if (value.length > limits.cellLength || isExternalFormula(value)) return null;
+      if (value.length > limits.cellLength) return { error: "limit" };
+      if (isExternalFormula(value)) return { error: "external" };
       edit.set(target.column + column, target.row + row, value);
     }
   }
-  if (width === 0) return sheet;
-  return edit.finish(Math.max(sheet.rows, target.row + rows.length), Math.max(sheet.columns, target.column + width));
+  if (width === 0) return { sheet };
+  return { sheet: edit.finish(Math.max(sheet.rows, target.row + rows.length), Math.max(sheet.columns, target.column + width)) };
 }
 
 export function clearCellRange(sheet: Spreadsheet, range: CellRange): Spreadsheet {
@@ -181,8 +185,8 @@ export function clearCellRange(sheet: Spreadsheet, range: CellRange): Spreadshee
   return edit.finish();
 }
 
-export function fillCellRange(sheet: Spreadsheet, range: CellRange, direction: "down" | "right"): Spreadsheet | null {
-  if (!rangeInSheet(sheet, range)) return null;
+export function fillCellRange(sheet: Spreadsheet, range: CellRange, direction: "down" | "right"): RangeEdit {
+  if (!rangeInSheet(sheet, range)) return { error: "limit" };
 
   const edit = editSheet(sheet);
   const { start, end } = range;
@@ -194,9 +198,10 @@ export function fillCellRange(sheet: Spreadsheet, range: CellRange, direction: "
       const sourceRow = direction === "down" ? start.row : row;
       const source = sheet.cells[cellAddress(sourceColumn, sourceRow)] ?? "";
       const value = shiftFormula(source, column - sourceColumn, row - sourceRow);
-      if (value.length > spreadsheetLimits.cellLength || isExternalFormula(value)) return null;
+      if (value.length > spreadsheetLimits.cellLength) return { error: "limit" };
+      if (isExternalFormula(value)) return { error: "external" };
       edit.set(column, row, value);
     }
   }
-  return edit.finish();
+  return { sheet: edit.finish() };
 }

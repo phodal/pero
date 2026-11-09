@@ -7,7 +7,7 @@ import { spreadsheetLimits } from '@pero/notebook';
 import { cellAddress, evaluateSpreadsheet, formulaFunctions, isExternalFormula, type Spreadsheet } from '@pero/notebook/spreadsheet';
 import {
   cellRangeLabel, clearCellRange, encodeCellRange, fillCellRange, normalizeCellRange, parseCellClipboard,
-  pasteCellGrid, rangeContains, type CellPosition,
+  pasteCellGrid, rangeContains, type CellPosition, type RangeEditError,
 } from '@pero/notebook/spreadsheet-range';
 import { writeWorkbook } from '@pero/notebook/workbook';
 import { BlockFrame } from './block-frame';
@@ -123,13 +123,17 @@ export function SpreadsheetView(view: NodeViewProps) {
     event.stopPropagation();
     const data = isTable ? parseCellClipboard(text) : [[text]];
     if (!data) { setError(t('gridPasteInvalid')); return; }
-    if (data.some(row => row.some(isExternalFormula))) {
-      setError(t('externalFormula'));
-      return;
-    }
     const target = isRange ? range.start : position;
-    if (!setSheet(current => pasteCellGrid(current, target, data), true)) {
-      setError(t('gridPasteLimit'));
+    let failure: RangeEditError | null = null;
+    if (!setSheet(current => {
+      const result = pasteCellGrid(current, target, data);
+      if ('error' in result) {
+        failure = result.error;
+        return null;
+      }
+      return result.sheet;
+    }, true)) {
+      setError(t(failure === 'external' ? 'externalFormula' : 'gridPasteLimit'));
       return;
     }
     setError('');
@@ -144,20 +148,16 @@ export function SpreadsheetView(view: NodeViewProps) {
     setError('');
   };
   const fill = (direction: 'down' | 'right', selection = range) => {
-    const sources: string[] = [];
-    if (direction === 'down') {
-      for (let column = selection.start.column; column <= selection.end.column; column += 1)
-        sources.push(sheet.cells[cellAddress(column, selection.start.row)] ?? '');
-    } else {
-      for (let row = selection.start.row; row <= selection.end.row; row += 1)
-        sources.push(sheet.cells[cellAddress(selection.start.column, row)] ?? '');
-    }
-    if (sources.some(isExternalFormula)) {
-      setError(t('externalFormula'));
-      return;
-    }
-    const filled = setSheet(current => fillCellRange(current, selection, direction), true);
-    setError(filled ? '' : t('fillLimit'));
+    let failure: RangeEditError | null = null;
+    const filled = setSheet(current => {
+      const result = fillCellRange(current, selection, direction);
+      if ('error' in result) {
+        failure = result.error;
+        return null;
+      }
+      return result.sheet;
+    }, true);
+    setError(filled ? '' : t(failure === 'external' ? 'externalFormula' : 'fillLimit'));
   };
   const onKey = (event: KeyboardEvent<HTMLInputElement>, position: CellPosition) => {
     if (event.nativeEvent.isComposing) return;

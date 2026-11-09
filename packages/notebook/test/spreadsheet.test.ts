@@ -179,14 +179,17 @@ test("external formula policy matches the shared cases and keeps supported edits
   for (const formula of fixture.ordinary) assert.equal(isExternalFormula(formula), false, formula);
 
   const sheet = { rows: 2, columns: 2, cells: { A1: "=SUM(B1)", B1: "1" } };
-  assert.equal(pasteCellGrid(sheet, { column: 1, row: 1 }, [['=WEBSERVICE("https://example.invalid/hook")']]), null);
+  const blocked = pasteCellGrid(sheet, { column: 1, row: 1 }, [["=WEBSERVICE\u00a0(\"https://example.invalid/hook\")"]]);
+  assert.deepEqual(blocked, { error: "external" });
   assert.equal(sheet.cells.B1, "1");
-  assert.equal(pasteCellGrid(sheet, { column: 1, row: 1 }, [["=A1*2"]])?.cells.B2, "=A1*2");
+  const pasted = pasteCellGrid(sheet, { column: 1, row: 1 }, [["=A1*2"]]);
+  assert.equal("sheet" in pasted && pasted.sheet.cells.B2, "=A1*2");
   const filled = fillCellRange(sheet, { start: { column: 0, row: 0 }, end: { column: 0, row: 1 } }, "down");
-  assert.equal(filled?.cells.A2, "=SUM(B2)");
-  assert.equal(fillCellRange(
-    { rows: 2, columns: 1, cells: { A1: '=WEBSERVICE("https://example.invalid/hook")' } },
+  assert.equal("sheet" in filled && filled.sheet.cells.A2, "=SUM(B2)");
+  assert.deepEqual(fillCellRange(
+    { rows: 2, columns: 1, cells: { A1: "=PY(\"print(1)\")" } },
     { start: { column: 0, row: 0 }, end: { column: 0, row: 1 } },
     "down",
-  ), null);
+  ), { error: "external" });
+  assert.deepEqual(pasteCellGrid(sheet, { column: 1, row: 1 }, [["x".repeat(5000)]]), { error: "limit" });
 });
