@@ -89,7 +89,9 @@ JSX/TSX、CSS、HTML 和纯文本。`startLine` 用于绝对行号；`documentId
 ```
 
 `CodeCompare` 支持原生文本 diff、映射区块、同步滚动、定位和评审评论。
-`CodeEditor` 用于受控 Mermaid 草稿，支持撤销/重做、缩进和禁用状态。
+`CodeEditor` 用于受控源码草稿，支持撤销/重做、Tab 缩进和禁用状态。
+`language` 可选 `mermaid`（默认）、`python`、`javascript` 或 `plaintext`；切换语言保留文本，
+只改变语法高亮。组件不执行代码，文档身份、保存和权限仍由调用方持有。
 `CommandLine` 只读显示带高亮的命令。SDK 没有 LSP、代码执行或任意字符区间的
 持久批注功能。
 
