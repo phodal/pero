@@ -6,6 +6,7 @@ import json
 import re
 
 from document import block_id, fields, integer
+from source_extraction import SourceExtraction
 from catalog import StructuredTableDraft
 
 STATUSES = {'starting', 'unknown', 'running', 'needs_input', 'cancelling', 'completed', 'failed', 'cancelled', 'unavailable'}
@@ -26,7 +27,11 @@ class ProposalRecovery:
     def parse(cls, value, entry_id):
         data = fields(value, {'frozen', 'sessionId', 'status', 'transcript', 'decisions', 'application'})
         frozen = fields(data['frozen'], {'requestId', 'agentId', 'target', 'content', 'prompt'}, {'mode', 'table', 'sources', 'goal', 'emptyOnly'})
-        if 'mode' in frozen:
+        if frozen.get('mode') == 'checks':
+            fields(frozen, {'requestId', 'agentId', 'target', 'content', 'prompt', 'mode', 'goal'})
+            if not bounded_text(frozen['goal'], 'check goal', 4000).strip():
+                raise ValueError('Check goal is required')
+        elif 'mode' in frozen:
             fields(frozen, {'requestId', 'agentId', 'target', 'content', 'prompt', 'mode', 'table', 'sources', 'goal', 'emptyOnly'})
             if frozen['mode'] != 'cells' or type(frozen['emptyOnly']) is not bool:
                 raise ValueError('Invalid typed proposal mode')
@@ -41,7 +46,7 @@ class ProposalRecovery:
                 raise ValueError('Select 1–8 sources')
             total, identities = 0, set()
             for source in sources:
-                fields(source, {'id', 'name', 'kind', 'sha256', 'bytes', 'text'})
+                fields(source, {'id', 'name', 'kind', 'sha256', 'bytes', 'text'}, {'extraction'})
                 identity = block_id(source['id'])
                 if identity in identities:
                     raise ValueError('Duplicate source identity')
@@ -56,6 +61,10 @@ class ProposalRecovery:
                 raw = text.encode('utf-8')
                 if len(raw) != size or sha256(raw).hexdigest() != digest:
                     raise ValueError('Selected source text does not match its UTF-8 byte count or SHA-256')
+                if 'extraction' in source:
+                    receipt = SourceExtraction.parse(source['extraction'], text).value
+                    if receipt['textSha256'] != digest:
+                        raise ValueError('Selected source differs from extraction receipt')
                 total += size
             if total > 96 * 1024:
                 raise ValueError('Selected sources exceed 96 KiB')

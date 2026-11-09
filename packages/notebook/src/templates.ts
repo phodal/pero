@@ -179,3 +179,5 @@ export function copyTemplateOrigin(origin: TemplateOrigin, copiedIds: ReadonlyMa
   if (!instanceId) { instanceId = newId(); copiedInstances.set(origin.instanceId, instanceId); }
   return { ...structuredClone(origin), instanceId, idMap: Object.fromEntries(Object.entries(origin.idMap).map(([source, target]) => [source, copiedIds.get(target) ?? target])) };
 }
+
+export { compareTemplateRevisions } from './template-comparison.ts';

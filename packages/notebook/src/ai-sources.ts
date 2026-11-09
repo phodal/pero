@@ -1,13 +1,15 @@
+import { isSourceExtraction, extractedSourceMimes, type SourceExtraction } from './source-extraction.ts';
 import { attachmentBytes, isAttachmentAttributes, type AttachmentAttributes } from './attachment.ts';
 import type { NotebookNode } from './document.ts';
 
 export const aiSourceLimits = { files: 8, bytes: 64 * 1024, totalBytes: 96 * 1024 } as const;
-export interface AISource { id: string; name: string; kind: 'file' | 'attachment' | 'block'; sha256: string; bytes: number; text: string }
+export interface AISource { id: string; name: string; kind: 'file' | 'attachment' | 'block'; sha256: string; bytes: number; text: string; extraction?: SourceExtraction }
 export interface AISourceOption { id: string; name: string; node: NotebookNode; supported: boolean; reason: string }
 const textExtensions = /\.(txt|md|csv|tsv|json|fasta|fa|log)$/i;
 const textMimes = new Set(['text/plain', 'text/markdown', 'text/csv', 'text/tab-separated-values', 'application/json']);
-export const sourceFormatMessage = 'UTF-8 TXT, Markdown, CSV, TSV, JSON, FASTA and LOG only, up to 64 KiB per source and 96 KiB selected. PDF, images, office documents and binary formats are unsupported; no OCR is performed.';
+export const sourceFormatMessage = 'UTF-8 TXT, Markdown, CSV, TSV, JSON, FASTA and LOG are read directly, up to 64 KiB per source and 96 KiB selected. PDF, PNG/JPEG/WebP and DOCX/XLSX/PPTX support explicit local extraction before generation. OCR must be reviewed; original files stay local.';
 function supportedFile(name: string, mime: string) { return textExtensions.test(name) || textMimes.has(mime); }
+export const sourceNeedsExtraction = (mime: string): boolean => extractedSourceMimes.has(mime);
 export function listAISources(content: string): AISourceOption[] {
   const result: AISourceOption[] = [];
   const walk = (node: NotebookNode) => {
@@ -17,7 +19,7 @@ export function listAISources(content: string): AISourceOption[] {
         const attrs = node.attrs?.attachment ?? node.attrs;
         const { filename, mime, data, caption, sha256 } = attrs as AttachmentAttributes;
         const attachment = { filename, mime, data, caption, sha256 };
-        if (isAttachmentAttributes(attachment)) result.push({ id: blockId, name: attachment.filename, node, supported: supportedFile(attachment.filename, attachment.mime), reason: supportedFile(attachment.filename, attachment.mime) ? '' : sourceFormatMessage });
+        if (isAttachmentAttributes(attachment)) result.push({ id: blockId, name: attachment.filename, node, supported: supportedFile(attachment.filename, attachment.mime) || sourceNeedsExtraction(attachment.mime), reason: supportedFile(attachment.filename, attachment.mime) || sourceNeedsExtraction(attachment.mime) ? '' : sourceFormatMessage });
       } else if (['paragraph', 'heading', 'codeBlock', 'blockquote'].includes(node.type)) result.push({ id: blockId, name: `${node.type}: ${nodeText(node).slice(0, 80) || blockId}`, node, supported: true, reason: '' });
     }
     node.content?.forEach(walk);
@@ -56,6 +58,7 @@ export async function validateAISources(sources: AISource[]): Promise<void> {
   if (sources.reduce((sum, source) => sum + source.bytes, 0) > aiSourceLimits.totalBytes) throw new Error('Selected sources exceed the 96 KiB total limit. Remove a source; nothing is silently truncated.');
   for (const source of sources) if (typeof source.id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(source.id) || typeof source.name !== 'string' || !source.name || source.name.length > 255 || !['file', 'attachment', 'block'].includes(source.kind) || typeof source.text !== 'string' || !/^[a-f0-9]{64}$/.test(source.sha256) || !Number.isSafeInteger(source.bytes) || source.bytes < 1 || source.bytes > aiSourceLimits.bytes || new TextEncoder().encode(source.text).length !== source.bytes) throw new Error('Invalid source identity, text or byte count. Reselect its bytes.');
   for (const source of sources) {
+    if (source.extraction !== undefined && (!isSourceExtraction(source.extraction, source.text) || source.extraction.textSha256 !== source.sha256)) throw new Error('Invalid extracted-source provenance.');
     const bytes = new TextEncoder().encode(source.text);
     if (new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes) !== source.text || await sourceDigest(bytes) !== source.sha256) throw new Error('Source text does not match its saved UTF-8 SHA-256. The stored source has not been changed.');
   }

@@ -23,3 +23,5 @@ export function readGeneratedCandidates(frozen: FrozenGeneration, sessionId: str
 export * from './ai-sources.ts';
 export * from './ai-proposals.ts';
 export * from './ai-recovery.ts';
+
+export * from './ai-checks.ts';

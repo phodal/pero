@@ -1,3 +1,4 @@
+import { isCheckGeneration, type FrozenCheckGeneration } from './ai-checks.ts';
 import { isStructuredTable } from './structured-table.ts';
 import { validateAISources } from './ai-sources.ts';
 import type { FrozenGeneration } from './ai-generation.ts';
@@ -6,7 +7,7 @@ export const aiStatuses = ['starting', 'unknown', 'running', 'needs_input', 'can
 export type AIStatus = typeof aiStatuses[number];
 /** A local durable record of Host identity and human review, never a second execution owner. */
 export interface AIRecovery {
-  frozen: FrozenGeneration | FrozenTypedGeneration;
+  frozen: FrozenGeneration | FrozenTypedGeneration | FrozenCheckGeneration;
   sessionId: string;
   status: AIStatus;
   transcript: string;
@@ -14,7 +15,7 @@ export interface AIRecovery {
   application: 'reviewing' | 'applying' | 'applied' | 'dismissed';
 }
 export interface AIWorkspace { version: number; record: AIRecovery | null }
-export function isTypedGeneration(frozen: FrozenGeneration | FrozenTypedGeneration): frozen is FrozenTypedGeneration { return 'mode' in frozen && frozen.mode === 'cells'; }
+export function isTypedGeneration(frozen: FrozenGeneration | FrozenTypedGeneration | FrozenCheckGeneration): frozen is FrozenTypedGeneration { return 'mode' in frozen && frozen.mode === 'cells'; }
 export function isAIUnresolved(record: AIRecovery): boolean { return !['completed', 'failed', 'cancelled'].includes(record.status); }
 export async function recoveredAIWorkspace(raw: unknown): Promise<AIWorkspace> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid AI recovery response.');
@@ -25,5 +26,6 @@ export async function recoveredAIWorkspace(raw: unknown): Promise<AIWorkspace> {
     if (!frozen.table || !['inputTable', 'registrationTable'].includes(frozen.table.kind) || typeof frozen.table.blockId !== 'string' || !isStructuredTable(frozen.table.table) || !Array.isArray(frozen.sources) || typeof frozen.goal !== 'string' || typeof frozen.emptyOnly !== 'boolean') throw new Error('Stored typed proposal is invalid. It has not been overwritten.');
     await validateAISources(frozen.sources);
   }
+  if (value.record && isCheckGeneration(value.record.frozen) && (typeof value.record.frozen.goal !== 'string' || !value.record.frozen.goal.trim() || value.record.frozen.goal.length > 4000)) throw new Error('Stored check goal is invalid. It has not been overwritten.');
   return value;
 }

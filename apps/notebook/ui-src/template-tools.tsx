@@ -1,3 +1,4 @@
+import { TemplateRevisionComparison } from './template-comparison';
 import { useEffect, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
@@ -182,6 +183,7 @@ function TemplateLibrary({ editor, onCreateEntry, capture, onClose }: NotebookTe
           <Select label={t('version')} value={String(selected.revision)} disabled={busy}
             options={Array.from({ length: list?.find(item => item.id === selected.id)?.revision ?? selected.revision }, (_, index) => ({ value: String(index + 1), label: `v${index + 1}` }))} onChange={value => void choose(selected.id, Number(value))} />
           <pre className="notebook-template-preview" aria-label={t('preview')}>{contentPreview(selected.document.content) || selected.document.title}</pre>
+          <TemplateRevisionComparison key={`${selected.id}:${selected.revision}`} template={selected} latestRevision={list?.find(item => item.id === selected.id)?.revision ?? selected.revision} />
           <p>{t(selected.archived ? 'archivedHint' : selected.kind === 'entry' ? 'entryHint' : 'fragmentHint')}</p>
           {selected.parameters.map(parameter => <Field key={parameter.key} label={`${parameter.label} (${t(parameter.type)}, ${t(parameter.required ? 'required' : 'optional')})`}>
             {control => parameter.type === 'boolean' ? <Select {...control} disabled={busy} label={parameter.label} value={values[parameter.key] ?? (parameter.default === undefined ? '' : String(parameter.default))} options={[

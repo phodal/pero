@@ -99,7 +99,7 @@ export function hasAIApplication(content: string, requestId: string, sessionId: 
     if (node.type === 'codeBlock') {
       try {
         const value = JSON.parse((node.content ?? []).map(child => child.text ?? '').join(''));
-        if (value.method === 'pero-host-typed-proposal/1' && value.requestId === requestId && value.sessionId === sessionId) found = true;
+        if (['pero-host-typed-proposal/1', 'pero-host-check-suggestions/1'].includes(value.method) && value.requestId === requestId && value.sessionId === sessionId) found = true;
       } catch { /* Ordinary code blocks are not application receipts. */ }
     }
     node.content?.forEach(visit);
