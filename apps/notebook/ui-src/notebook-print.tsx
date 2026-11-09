@@ -4,7 +4,7 @@ import { useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, Feedback, Field, Input, NativeSelect } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
 import { defaultPrintSettings, notebookPageRule, notebookPrintSections, parsePrintSettings, type NotebookPrintSettings } from '@pero/notebook/notebook-print';
-import { NotebookPrintContent } from './notebook-print-content';
+import { NotebookPrintContent, visiblePrintSectionLabel } from './notebook-print-content';
 import { messages } from './messages';
 import './notebook-print.css';
 
@@ -38,7 +38,7 @@ export function NotebookPrintTools({ document: notebook, entryId, revision, dirt
         <Field label={t('printOrientation')}>{control => <NativeSelect {...control} value={settings.orientation} onChange={event => change({ orientation: event.target.value as NotebookPrintSettings['orientation'] })}><option value="portrait">{t('printPortrait')}</option><option value="landscape">{t('printLandscape')}</option></NativeSelect>}</Field>
         <Field label={t('printMargins')}>{control => <Input {...control} type="number" min={5} max={40} value={Number.isNaN(settings.marginMm) ? '' : settings.marginMm} onChange={event => change({ marginMm: event.target.value === '' ? NaN : Number(event.target.value) })} />}</Field>
       </div>
-      <fieldset><legend>{t('printIncludeSections')}</legend><div className="notebook-print-options">{sections.map(section => <label key={section.id}><input type="checkbox" checked={settings.sections.includes(section.id)} onChange={event => change({ sections: event.target.checked ? [...settings.sections, section.id] : settings.sections.filter(id => id !== section.id) })} />{section.label}</label>)}</div></fieldset>
+      <fieldset><legend>{t('printIncludeSections')}</legend><div className="notebook-print-options">{sections.map(section => <label key={section.id}><input type="checkbox" checked={settings.sections.includes(section.id)} onChange={event => change({ sections: event.target.checked ? [...settings.sections, section.id] : settings.sections.filter(id => id !== section.id) })} />{visiblePrintSectionLabel(section, t)}</label>)}</div></fieldset>
       <div className="notebook-print-options"><label><input type="checkbox" checked={settings.includeMetadata} onChange={event => change({ includeMetadata: event.target.checked })} />{t('printIncludeMetadata')}</label><label><input type="checkbox" checked={settings.includeInputs} onChange={event => change({ includeInputs: event.target.checked })} />{t('printShowFormulas')}</label></div>
       <p className="notebook-note">{t('printHint')}</p>
       {!valid && <Feedback kind="warning">{t('printInvalid')}</Feedback>}

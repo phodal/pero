@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import type { CellAnnotation, NotebookDocument, NotebookNode } from '@pero/notebook';
-import { notebookPrintSections, type NotebookPrintSettings } from '@pero/notebook/notebook-print';
+import { notebookPrintSections, type NotebookPrintSection, type NotebookPrintSettings } from '@pero/notebook/notebook-print';
 import { cellAddress, type Spreadsheet } from '@pero/notebook/spreadsheet';
 import { displayNumber, formatCellValue, type CellFormat } from '@pero/notebook/grid-presentation';
 import { calculateNotebookWorksheets, type NotebookWorksheet } from '@pero/notebook/worksheet';
@@ -672,6 +672,11 @@ function RichPrint({ root, includeInputs, contextRoot = root }: { root: Notebook
   };
   return <>{nodeView(root, 0)}</>;
 }
+export function visiblePrintSectionLabel(section: NotebookPrintSection, translate: (key: 'printNotesSection' | 'printUntitledSection' | 'printUntitledProcedure') => string): string {
+  if (section.label.trim()) return section.label;
+  if (section.kind === 'notes') return translate('printNotesSection');
+  return translate(section.kind === 'procedure' ? 'printUntitledProcedure' : 'printUntitledSection');
+}
 export function NotebookPrintContent({ document, settings, entryId, revision, dirty, preparedAt }: {
   document: NotebookDocument; settings: NotebookPrintSettings; entryId: string; revision: number; dirty: boolean; preparedAt: string;
 }) {
@@ -680,7 +685,7 @@ export function NotebookPrintContent({ document, settings, entryId, revision, di
   const materials = (items: NotebookMaterial[]): ReactNode => <ul>{items.map(item => <li key={item.id}><strong>{item.name}</strong> {item.quantity}{item.source && <p>{materialSourceLine(item.source, t)}</p>}{item.content && <RichPrint root={item.content} includeInputs={settings.includeInputs} />}{item.children && materials(item.children)}</li>)}</ul>;
   // Keep original Notes order and its full calculation context even when only one section is printed.
   const filtered = { ...document.content, content: document.content.content.filter(node => selected.has(node.type === 'section' ? `section:${node.attrs!.blockId}` : 'notes')) };
-  const sectionLabels = notebookPrintSections(document).filter(section => selected.has(section.id)).map(section => section.label).join(' · ');
+  const sectionLabels = notebookPrintSections(document).filter(section => selected.has(section.id)).map(section => visiblePrintSectionLabel(section, t)).join(' · ');
   return <article className="notebook-print-document"><h1>{document.title}</h1><p>{dirty ? t('printUnsavedDraft') : t('printSavedRevision', { revision })}</p>
     {settings.includeMetadata && <header><p>{t('printEntryMeta', { entryId, revision })}</p><p>{t('printPreparedAt', { preparedAt })}</p><p>{settings.paper} · {settings.orientation} · {settings.marginMm} mm</p>{metadataRecord(document.metadata, t)}</header>}
     <RichPrint root={filtered} contextRoot={document.content} includeInputs={settings.includeInputs} />

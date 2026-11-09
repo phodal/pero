@@ -2,12 +2,17 @@ import type { NotebookDocument, NotebookNode } from './document.ts';
 
 export interface NotebookPrintSettings { version: 1; orientation: 'portrait' | 'landscape'; paper: 'A4' | 'Letter'; marginMm: number; includeMetadata: boolean; includeInputs: boolean; sections: string[] }
 export interface NotebookPrintSection { id: string; label: string; kind: 'notes' | 'section' | 'procedure'; nodes?: NotebookNode[]; procedureId?: string }
+/** User-authored names only. Empty means the editor supplies the locale fallback. */
+function authoredPrintLabel(value: unknown): string {
+  const label = typeof value === 'string' ? value : '';
+  return label.trim() ? label : '';
+}
 export function notebookPrintSections(document: NotebookDocument): NotebookPrintSection[] {
   const ordinary = document.content.content.filter(node => node.type !== 'section');
   return [
-    ...(ordinary.length ? [{ id: 'notes', label: 'Notes / 笔记', kind: 'notes' as const, nodes: ordinary }] : []),
-    ...document.content.content.filter(node => node.type === 'section').map(node => ({ id: `section:${node.attrs!.blockId}`, label: String(node.attrs?.label || 'Untitled section / 未命名章节'), kind: 'section' as const, nodes: [node] })),
-    ...(document.procedures ?? []).map(procedure => ({ id: `procedure:${procedure.id}`, label: procedure.title || 'Untitled procedure / 未命名流程', kind: 'procedure' as const, procedureId: procedure.id })),
+    ...(ordinary.length ? [{ id: 'notes', label: '', kind: 'notes' as const, nodes: ordinary }] : []),
+    ...document.content.content.filter(node => node.type === 'section').map(node => ({ id: `section:${node.attrs!.blockId}`, label: authoredPrintLabel(node.attrs?.label), kind: 'section' as const, nodes: [node] })),
+    ...(document.procedures ?? []).map(procedure => ({ id: `procedure:${procedure.id}`, label: authoredPrintLabel(procedure.title), kind: 'procedure' as const, procedureId: procedure.id })),
   ];
 }
 export function defaultPrintSettings(document: NotebookDocument): NotebookPrintSettings {
