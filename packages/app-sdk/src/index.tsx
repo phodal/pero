@@ -14,6 +14,8 @@ import { mountAppConversation } from './chat-slot';
 import { AppApiProvider } from './host';
 import { subscribeAppEvent, navigateApp, notifyApp, setAppBadge, launchAppChat, callAppHost } from './iframe-host';
 export { openAppSession, requestAppShell } from './iframe-host';
+export { DeclaredAppCanvas } from './app-canvas';
+export type { CanvasSource } from './app-canvas';
 export { listInstalledAppViews } from './installed-app-views';
 export type { InstalledAppViews } from './installed-app-views';
 export { openPaperApp } from './navigation';

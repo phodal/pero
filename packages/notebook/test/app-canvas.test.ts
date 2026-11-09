@@ -20,3 +20,16 @@ test('saved bindings survive unavailable Apps; only Host declarations establish 
   }
   assert.equal(appCanvasAvailability(null, [app]), 'unbound');
 });
+test('embedded bindings preserve exact inputs and unverified retained bytes across serialization', () => {
+  const binding = { id: 'binding', app: 'data', panel: 'main', view: 'dataset-inspector', declaration: 'a'.repeat(64), inputs: { datasetId: 'ds-' + 'b'.repeat(32) }, receipt: { imported: 'not authenticated evidence' } };
+  assert.deepEqual(parseAppCanvasBinding(JSON.parse(JSON.stringify(binding))), binding);
+  for (const bad of [{ ...binding, declaration: 'old' }, { ...binding, inputs: [] }, { ...binding, view: '../private' }, { ...binding, receipt: 'done' }, { id: 'binding', app: 'data', panel: 'main', receipt: {} }]) assert.throws(() => parseAppCanvasBinding(bad));
+});
+
+test('embedded availability uses actual current declaration rather than panel availability', () => {
+  const binding = { id: 'binding', app: 'data', panel: 'main', view: 'dataset-inspector', declaration: 'a'.repeat(64), inputs: {} };
+  const app = { app: 'data', enabled: true, revision: binding.declaration, panels: [{ id: 'main' }], canvases: [{ id: 'dataset-inspector' }] };
+  assert.equal(appCanvasAvailability(binding, [app]), 'available');
+  assert.equal(appCanvasAvailability(binding, [{ ...app, canvases: [] }]), 'missing-view');
+  assert.equal(appCanvasAvailability(binding, [{ ...app, revision: 'b'.repeat(64) }]), 'changed-declaration');
+});

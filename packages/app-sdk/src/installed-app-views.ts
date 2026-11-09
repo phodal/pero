@@ -7,6 +7,7 @@ export interface InstalledAppViews {
   enabled: boolean;
   panels: { id: string; title: string }[];
   actions: { name: string; description: string }[];
+  canvases?: { id: string; title: string; inputs: Record<string, unknown> }[];
 }
 
 /** Uses the same SDK context transport in Electron and Native; no backend is resolved. */
@@ -29,9 +30,11 @@ export async function listInstalledAppViews(signal?: AbortSignal): Promise<Insta
         value.actions.some((action: unknown) => !object(action) || !identifier(action.name) || !text(action.description, 1000))) {
       throw new Error('Host returned an invalid installed App catalog.');
     }
+    if (value.canvases !== undefined && (!Array.isArray(value.canvases) || value.canvases.length > 8 || value.canvases.some((view: unknown) => !object(view) || !identifier(view.id) || !text(view.title, 200) || !object(view.inputs)))) throw new Error('Host returned invalid embedded view declarations.');
     names.add(value.app);
     // Keep only public declaration fields; no relative entries, API paths or credentials.
     return { app: value.app, title: value.title, version: value.version, revision: value.revision, enabled: value.enabled,
+      ...(Array.isArray(value.canvases) ? { canvases: value.canvases.map(view => ({ id: view.id, title: view.title, inputs: view.inputs })) } : {}),
       panels: value.panels.map(({ id, title }: InstalledAppViews['panels'][number]) => ({ id, title })),
       actions: value.actions.map(({ name, description }: InstalledAppViews['actions'][number]) => ({ name, description })) };
   });

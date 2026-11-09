@@ -32,10 +32,27 @@ model AppAccess { root: string; entry: string; frameOrigins?: string[]; backend?
 model AppSdkPermissions {api:string[];events:string[];host:string[];...AppClosed}
 model DeclaredAppPanel {id:AppName;title:string;...AppClosed}
 model DeclaredAppAction {name:AppName;description:string;...AppClosed}
-model InstalledAppViews {app:AppName;title:string;version:string;revision:string;enabled:boolean;panels:DeclaredAppPanel[];actions:DeclaredAppAction[];...AppClosed}
+model DeclaredCanvasView {id:AppName;title:string;inputs:AppDocumentSchema;...AppClosed}
+model InstalledAppViews {canvases?:DeclaredCanvasView[];app:AppName;title:string;version:string;revision:string;enabled:boolean;panels:DeclaredAppPanel[];actions:DeclaredAppAction[];...AppClosed}
 model AppSdkContext {name:AppName;version:string;permissions:AppSdkPermissions;appViews?:InstalledAppViews[];...AppClosed}
 model AppApiAccess {action:"apiaccess";name:AppName;path:string;...RequestBase}
 model AppSdkRequest {action:"sdkcontext";name:AppName;...RequestBase}
+model CanvasBinding {id:string;app:AppName;panel:AppName;view:AppName;declaration:string;inputs:AppDocumentSchema;...AppClosed}
+model CanvasSource {entryId:string;revision:uint64;blockId:string;binding:CanvasBinding;readOnly:boolean;...AppClosed}
+model CanvasMount {operation:"mount";source:CanvasSource;...AppClosed}
+model CanvasRead {operation:"read";instance:string;...AppClosed}
+model CanvasRelease {operation:"release";instance:string;...AppClosed}
+model CanvasPrepare {operation:"prepare";instance:string;operationId:string;action:AppName;params:AppDocumentSchema;...AppClosed}
+model CanvasDecide {operation:"decide";instance:string;operationId:string;ticket:string;allow:boolean;...AppClosed}
+model CanvasStatus {operation:"status";instance:string;operationId:string;...AppClosed}
+model CanvasCancel {operation:"cancel";instance:string;operationId:string;...AppClosed}
+@oneOf union CanvasOperation {CanvasMount,CanvasRead,CanvasRelease,CanvasPrepare,CanvasDecide,CanvasStatus,CanvasCancel}
+model AppCanvasRequest {action:"canvas";name:AppName;request:CanvasOperation;...RequestBase}
+model CanvasField {label:string;value:string;...AppClosed}
+model CanvasAction {name:AppName;label:string;params:AppDocumentSchema;...AppClosed}
+model CanvasProjection {title:string;fields:CanvasField[];columns:string[];rows:string[][];notice:string;actions:CanvasAction[];...AppClosed}
+model CanvasHistoryItem {operationId:string;action:AppName;state:string;...AppClosed}
+model CanvasReply {history?:CanvasHistoryItem[];state?:string;instance?:string;source?:CanvasSource;`projection`?:CanvasProjection;ticket?:string;summary?:string;message?:string;receipt?:AppDocumentSchema;...AppClosed}
 model RequestBase { method: "apps"; id: RequestId; ...AppClosed; }
 model ListApps { action: "list"; ...RequestBase; }
 model InstallApp { action: "install"; path: string; ...RequestBase; }
@@ -140,9 +157,9 @@ model LocalEnvironmentBind { operation:"bind";id:AppName;...AppClosed; }
 @oneOf union LocalEnvironmentOperation { LocalEnvironmentCreate,LocalEnvironmentList,LocalEnvironmentPrepare,LocalEnvironmentBind }
 model LocalEnvironmentApp {action:"localenvironment";name:AppName;request:LocalEnvironmentOperation;...RequestBase;}
 model LocalEnvironmentRecord {id:AppName;label:string;target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice"|"lcms2yield.inference";dependencies:string[];state:"created"|"preparing"|"ready"|"failed";log:string[];error:string|null;bound:boolean;...AppClosed;}
-@oneOf union AppRequest { LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ResolveStaticApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
+@oneOf union AppRequest { AppCanvasRequest, LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ResolveStaticApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: LocalEnvironmentRecord[] | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
+model AppSuccess { ok: true; value: CanvasReply | LocalEnvironmentRecord[] | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 
