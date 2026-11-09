@@ -211,6 +211,8 @@ test('mixture QS estimate and history show readable quantities without rewriting
   const { React, ui, render, dom } = runtime;
   dom.window.HTMLElement.prototype.scrollIntoView = function () {};
   const residue = 0.1 + 0.2;
+  const planned = 440.00000000000006;
+  const target = 880.0000000000001;
   const recipe = {
     name: 'Buffer', output: 'batch', notes: '', target: { value: 1, unit: 'mL' }, additiveVolumes: true,
     ingredients: [
@@ -218,17 +220,43 @@ test('mixture QS estimate and history show readable quantities without rewriting
       { id: 'water', reference: 'Water', source: '', mode: 'qs', target: { value: null, unit: 'mL' } },
     ],
   };
-  const mixture = { version: 1, draft: recipe, recipes: [], measurements: {}, records: [{ id: 'rec', recipeRevision: 1, recipe, operator: 'Ada', recordedAt: '2026-11-09T00:00:00.000Z', output: 'out', notes: '', actual: { salt: { value: residue, unit: 'mL' }, water: { value: residue, unit: 'mL' } } }] };
+  const draft = { ...recipe, target: { value: target, unit: 'mL' }, ingredients: recipe.ingredients.map(item => item.id === 'salt' ? { ...item, target: { value: planned, unit: 'mL' } } : item) };
+  const mixture = { version: 1, draft, recipes: [], measurements: { salt: { value: residue, unit: 'mL' } }, records: [{ id: 'rec', recipeRevision: 1, recipe, operator: 'Ada', recordedAt: '2026-11-09T00:00:00.000Z', output: 'out', notes: '', actual: { salt: { value: residue, unit: 'mL' }, water: { value: residue, unit: 'mL' } } }] };
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) }, React.createElement(ui.Fixture, { content: { type: 'doc', content: [{ type: 'mixturePrep', attrs: { blockId: 'mix', mixture } }] }, capture: (value: any) => { editor = value; } })));
   const block = document.querySelector('[data-kind=mixturePrep]')!;
   assert.ok(block, document.body.textContent!.slice(0, 300));
   const estimate = [...block.querySelectorAll('p')].find(node => node.textContent?.includes('QS planning estimate'));
-  assert.match(estimate?.textContent ?? '', /0\.7 mL/);
-  assert.doesNotMatch(estimate?.textContent ?? '', /999999|000000000000004/);
+  assert.match(estimate?.textContent ?? '', /440 mL/);
+  assert.doesNotMatch(estimate?.textContent ?? '', /0000000000000/);
   const history = block.querySelector('details')!;
   assert.match(history.textContent!, /0\.3 mL/);
   assert.doesNotMatch(history.textContent!, /000000000000004/);
-  assert.equal(editor.getJSON().content[0].attrs.mixture.draft.ingredients[0].target.value, residue);
-  assert.equal(editor.getJSON().content[0].attrs.mixture.records[0].actual.salt.value, residue);
+  const { field, fill } = controls(runtime);
+  const mixtureState = () => editor.getJSON().content[0].attrs.mixture;
+  const values = (label: string) => [...document.querySelectorAll('label')].filter(node => node.textContent === label).map(label => (document.getElementById(label.htmlFor) as HTMLInputElement).value);
+  assert.deepEqual(values('Planned quantity'), ['440', '']);
+  assert.deepEqual(values('Measured quantity'), ['0.3', '']);
+  for (const [label, shown, stored] of [
+    ['Final target', '880', target],
+    ['Planned quantity', '440', planned],
+    ['Measured quantity', '0.3', residue],
+  ] as const) {
+    const read = () => label === 'Final target' ? mixtureState().draft.target.value : label === 'Planned quantity' ? mixtureState().draft.ingredients[0].target.value : mixtureState().measurements.salt.value;
+    assert.equal(field(label).value, shown, label);
+    assert.equal(read(), stored, label);
+    await fill(label, shown);
+    await React.act(async () => { field(label).dispatchEvent(new dom.window.FocusEvent('blur', { bubbles: true })); });
+    assert.equal(field(label).value, shown, label);
+    assert.equal(read(), stored, `${label} unchanged`);
+  }
+  await fill('Operator (self-reported)', 'Ada');
+  assert.equal(field('Planned quantity').value, '440');
+  assert.equal(mixtureState().draft.target.value, target);
+  assert.equal(mixtureState().draft.ingredients[0].target.value, planned);
+  assert.equal(mixtureState().measurements.salt.value, residue);
+  await fill('Planned quantity', '100');
+  assert.equal(field('Planned quantity').value, '100');
+  assert.equal(mixtureState().draft.ingredients[0].target.value, 100);
+  assert.equal(mixtureState().records[0].actual.salt.value, residue);
   await React.act(async () => editor.destroy());
 });

@@ -34,8 +34,13 @@ export function MixturePrepView(view: NodeViewProps) {
   const run = (action: () => void) => { try { action(); setError(''); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } };
   const saved = state.recipes.at(-1), dirty = !saved || JSON.stringify(saved.recipe) !== JSON.stringify(draft);
   const shownAmount = (value: number | null | undefined) => value == null ? t('unknown') : displayNumber(value);
+  const quantityText = (value: number | null) => value == null ? '' : displayNumber(value);
   const quantity = (label: string, q: MixtureQuantity, onChange: (q: MixtureQuantity) => void, units = Object.keys(mixtureUnits), noValue = false) => <div className="notebook-mixture-quantity">
-    <Field label={label}>{control => <Input {...control} type="number" min="0" max="1000000000000" step="any" disabled={!editable || noValue} placeholder={t('unknown')} value={q.value ?? ''} onChange={event => onChange({ ...q, value: event.target.value === '' ? null : Number(event.target.value) })} />}</Field>
+    <Field label={label}>{control => <Input {...control} type="number" min="0" max="1000000000000" step="any" disabled={!editable || noValue} placeholder={t('unknown')} value={quantityText(q.value)} onChange={event => {
+      const text = event.target.value;
+      if (text === quantityText(q.value)) return;
+      onChange({ ...q, value: text === '' ? null : Number(text) });
+    }} />}</Field>
     <Select label={`${label}: ${t('unit')}`} disabled={!editable} value={q.unit} options={units.map(unit => ({ value: unit, label: unit }))} onChange={unit => onChange({ ...q, unit })} />
   </div>;
   let estimate: MixtureQuantity | null = null, estimateError = '';
