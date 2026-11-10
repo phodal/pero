@@ -16,7 +16,7 @@ export function appPresentation(operation: unknown, input: unknown): AppPresenta
     if (href !== href.trim()) throw new Error('Invalid research source location');
     if (/^pero-app-location:\/\/paper-agent\/main\/report\/[a-f0-9]{64}\/(?:citation\/[0-9]{1,9}|passage\/[a-f0-9]{64})$/.test(href))
       return { kind: 'research-source', app: 'paper-agent', href };
-    if (/^pero-app-location:\/\/control-lab\/main\/experiment\/[a-f0-9]{32}\/trial\/[a-f0-9]{32}$/.test(href))
+    if (/^pero-app-location:\/\/control-lab\/main\/experiment\/[a-f0-9]{32}(?:\/trial\/[a-f0-9]{32})?$/.test(href))
       return { kind: 'research-source', app: 'control-lab', href };
     throw new Error('Invalid research source location');
   }

@@ -61,6 +61,7 @@ impl AppLocation {
                 hex(report, 64) && !index.is_empty() && index.len() <= 9 && index.bytes().all(|byte| byte.is_ascii_digit())
             }
             ("paper-agent", ["report", report, "passage", passage]) => hex(report, 64) && hex(passage, 64),
+            ("control-lab", ["experiment", experiment]) => hex(experiment, 32),
             ("control-lab", ["experiment", experiment, "trial", trial]) => hex(experiment, 32) && hex(trial, 32),
             _ => false,
         };
@@ -95,7 +96,7 @@ mod location_tests {
             (format!("pero-app-location://paper-agent/main/report/{digest}/citation/0"), true),
             (format!("pero-app-location://paper-agent/main/report/{digest}/passage/{digest}"), true),
             (format!("pero-app-location://control-lab/main/experiment/{id}/trial/{id}"), true),
-            (format!("pero-app-location://control-lab/main/experiment/{id}"), false),
+            (format!("pero-app-location://control-lab/main/experiment/{id}"), true),
             (format!("pero-app-location://paper-agent/main/report/{digest}/citation/0?extra=1"), false),
             (format!("pero-app-location://data/main/report/{digest}/citation/0"), false),
         ] {

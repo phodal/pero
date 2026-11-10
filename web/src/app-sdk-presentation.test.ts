@@ -26,9 +26,10 @@ test('Notebook source navigation accepts only exact Paper and Control Lab locati
   const digest = 'a'.repeat(64), id = 'a'.repeat(32);
   const paper = `pero-app-location://paper-agent/main/report/${digest}/citation/0`;
   const trial = `pero-app-location://control-lab/main/experiment/${id}/trial/${id}`;
-  for (const [href, app] of [[paper, 'paper-agent'], [trial, 'control-lab']])
+  const experiment = `pero-app-location://control-lab/main/experiment/${id}`;
+  for (const [href, app] of [[paper, 'paper-agent'], [trial, 'control-lab'], [experiment, 'control-lab']])
     assert.deepEqual(appPresentation('open-research-source', { href }), { kind: 'research-source', app, href });
   for (const input of [{ href: paper, unexpected: 1 }, { href: paper + '?extra=1' }, { href: paper.replace('main', 'other') },
-    { href: trial.replace('/trial/' + id, '') }, { href: trial.replace('control-lab', 'lab') }])
+    { href: experiment + '/trial' }, { href: trial.replace('control-lab', 'lab') }])
     assert.throws(() => appPresentation('open-research-source', input));
 });

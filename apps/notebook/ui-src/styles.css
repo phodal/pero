@@ -524,6 +524,7 @@ form.notebook-workspace-actions { align-items: end; }
 .notebook-science-content { margin-top: var(--pero-spacing-4); }
 .notebook-science-panel { display: grid; gap: var(--pero-spacing-3); min-width: 0; }
 .notebook-science-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--pero-spacing-3); }
+.notebook-control-canvas-inputs { grid-column: 1 / -1; min-width: 0; }
 .notebook-science-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-spacing-2); }
 .notebook-science-actions label { display: inline-flex; align-items: center; gap: var(--pero-spacing-1); }
 .notebook-science-metrics { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-4); padding: var(--pero-spacing-3); background: var(--pero-accent-soft); color: var(--pero-accent-text); }

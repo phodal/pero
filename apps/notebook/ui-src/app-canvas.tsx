@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { NodeViewProps } from '@tiptap/react';
 import { DeclaredAppCanvas, listInstalledAppViews, requestAppShell, useAppI18n, type InstalledAppViews } from '@pero/app-sdk';
 import { Button, Feedback, Field, Input, Select, Textarea } from '@pero/app-sdk/ui';
 import { appCanvasAvailability, appCanvasPath, parseAppCanvasBinding, type AppCanvasBinding } from '@pero/notebook/app-canvas';
 import { BlockFrame } from './block-frame';
 import { useNotebookContext } from './notebook-context';
+import { ControlLabInputs, ControlLabInputError, controlMapping, controlParameterOptions, controlPins, sameControlPins } from './control-lab-canvas';
+
+const controlView = 'notebook-experiment';
 
 const messages = {
   embedded: { en: 'Embedded view', zh: '内嵌视图' }, inputs: { en: 'View inputs (JSON)', zh: '视图输入（JSON）' },
@@ -21,6 +24,7 @@ const messages = {
   source: { en: 'Source: current Host installation catalog. Refresh to check changes.', zh: '来源：当前 Host 安装目录。刷新以检查变更。' },
   stale: { en: 'Showing the previous catalog; current availability is unverified.', zh: '当前显示上次目录；最新可用性尚未核实。' },
   limits: { en: 'Only explicitly declared data views render inline. App actions require trusted Host confirmation; a saved binding grants no execution permission. Other panels open in their owning App.', zh: '仅显式声明的数据视图可内嵌显示。App 操作需要可信 Host 确认；保存绑定不授予执行权限。其他面板在所属 App 中打开。' },
+  openExperiment: { en: 'Open created experiment', zh: '打开已创建的实验' },
   opened: { en: 'Host acknowledged navigation. No App action was executed by this Canvas.', zh: 'Host 已确认导航。此画布未执行 App 操作。' },
   actions: { en: 'Declared App actions', zh: 'App 声明的操作' },
   'unbound': { en: 'Choose an installed App and its declared view to bind this Canvas.', zh: '选择已安装 App 和声明视图以绑定此画布。' },
@@ -37,6 +41,7 @@ export function AppCanvasView(view: NodeViewProps) {
   const { t } = useAppI18n(messages), binding = view.node.attrs.binding as AppCanvasBinding | null;
   const [app, setApp] = useState(binding?.app ?? ''), [panel, setPanel] = useState(binding?.panel ?? '');
   const [embedded, setEmbedded] = useState(binding?.view ?? ''), [inputs, setInputs] = useState(JSON.stringify(binding?.inputs ?? {}, null, 2));
+  const [mapping, setMapping] = useState(() => controlMapping(binding?.inputs));
   const [catalog, setCatalog] = useState<InstalledAppViews[] | null>(null), [verified, setVerified] = useState(false);
   const [error, setError] = useState(''), [busy, setBusy] = useState<'catalog' | 'navigation' | null>(null), [opened, setOpened] = useState(false);
   const pending = useRef<AbortController | null>(null);
@@ -65,12 +70,23 @@ export function AppCanvasView(view: NodeViewProps) {
     void load();
     return () => { pending.current?.abort(); pending.current = null; };
   }, []);
-  useEffect(() => { setApp(binding?.app ?? ''); setPanel(binding?.panel ?? ''); setEmbedded(binding?.view ?? ''); setInputs(JSON.stringify(binding?.inputs ?? {}, null, 2)); setOpened(false); }, [binding?.id, binding?.app, binding?.panel, binding?.view]);
+  useEffect(() => { setApp(binding?.app ?? ''); setPanel(binding?.panel ?? ''); setEmbedded(binding?.view ?? ''); setInputs(JSON.stringify(binding?.inputs ?? {}, null, 2)); setMapping(controlMapping(binding?.inputs)); setOpened(false); }, [binding?.id, binding?.app, binding?.panel, binding?.view]);
   const selectedApp = catalog?.find(item => item.app === app);
   const selectedView = selectedApp?.canvases?.find(item => item.id === embedded);
   const boundApp = catalog?.find(item => item.app === binding?.app);
   const selectedPanel = selectedApp?.panels.find(item => item.id === panel);
   const availability = appCanvasAvailability(binding, verified ? catalog : null);
+  const selectingControl = app === 'control-lab' && embedded === controlView;
+  const boundControl = binding?.app === 'control-lab' && binding.view === controlView;
+  const controlDocument = selectingControl || boundControl ? context?.document : undefined;
+  const choices = useMemo(() => controlDocument ? controlParameterOptions(controlDocument) : null, [controlDocument]);
+  const pins = selectingControl && choices ? controlPins(choices, mapping) : null;
+  const staleControl = boundControl && !!choices &&
+    !sameControlPins(controlPins(choices, controlMapping(binding.inputs)), binding.inputs);
+  const experimentResult = binding?.receipt?.result;
+  const experimentId = boundControl && experimentResult && typeof experimentResult === 'object' && 'experimentId' in experimentResult &&
+    typeof experimentResult.experimentId === 'string' && /^[a-f0-9]{32}$/.test(experimentResult.experimentId)
+    ? experimentResult.experimentId : null;
   return <BlockFrame view={view} kind="appCanvas" title={<strong>{view.node.attrs.label || t('title')}</strong>}>
     <p className="notebook-note">{t('limits')}</p>
     {binding && <p>{binding.app} / {binding.panel} · {binding.id}</p>}
@@ -88,19 +104,33 @@ export function AppCanvasView(view: NodeViewProps) {
         options={(selectedApp?.panels ?? []).map(item => ({ value: item.id, label: item.title, hint: item.id }))} onChange={setPanel} />
       {!!selectedApp?.canvases?.length && <Select label={t('embedded')} value={embedded} disabled={!!busy || !verified}
         options={[{ value: '', label: t('panelOnly') }, ...selectedApp.canvases.map(item => ({ value: item.id, label: item.title }))]} onChange={setEmbedded} />}
-      {selectedView && <><Field label={t('inputs')}>{control => <Textarea {...control} value={inputs} onChange={event => setInputs(event.target.value)} rows={4} />}</Field>
+      {selectingControl && choices && <ControlLabInputs choices={choices} mapping={mapping} onChange={setMapping} />}
+      {selectingControl && !pins && <ControlLabInputError />}
+      {selectedView && !selectingControl && <><Field label={t('inputs')}>{control => <Textarea {...control} value={inputs} onChange={event => setInputs(event.target.value)} rows={4} />}</Field>
         <details><summary>{t('schema')}</summary><pre>{JSON.stringify(selectedView.inputs, null, 2)}</pre></details></>}
-      <Button disabled={!!busy || !verified || !selectedApp?.enabled || !selectedPanel} onClick={() => {
+      <Button disabled={!!busy || !verified || !selectedApp?.enabled || !selectedPanel || (selectingControl && !pins)} onClick={() => {
         try {
-          const next = parseAppCanvasBinding({ id: binding?.id ?? crypto.randomUUID(), app, panel,
-            ...(selectedView ? { view: selectedView.id, declaration: selectedApp!.revision, inputs: JSON.parse(inputs) } : {}) });
+          const currentPins = selectingControl && context ? controlPins(controlParameterOptions(context.getDocument()), mapping) : null;
+          if (selectingControl && !currentPins) return;
+          const unchangedControl = !!currentPins && boundControl && sameControlPins(currentPins, binding.inputs);
+          const id = currentPins && !unchangedControl ? crypto.randomUUID().replaceAll('-', '') : binding?.id ?? crypto.randomUUID();
+          const next = parseAppCanvasBinding({ id, app, panel,
+            ...(selectedView ? { view: selectedView.id, declaration: selectedApp!.revision,
+              inputs: currentPins ? { submissionId: id, ...currentPins } : JSON.parse(inputs) } : {}),
+            ...(unchangedControl && binding.receipt ? { receipt: binding.receipt } : {}) });
           view.updateAttributes({ binding: next }); setError(''); setOpened(false);
         } catch (cause) { setError(String(cause)); }
       }}>{t('bind')}</Button>
       <Button disabled={!binding || !!busy} onClick={() => { view.updateAttributes({ binding: null }); setOpened(false); }}>{t('remove')}</Button>
     </div>}
     {binding && <Button busy={busy === 'navigation'} disabled={!!busy} onClick={() => void load(binding)}>{t('open')}</Button>}
-    {binding?.view && <><p className="notebook-note">{t('saved')}</p>{context && <DeclaredAppCanvas source={{ entryId: context.entryId, revision: context.revision, blockId: view.node.attrs.blockId,
+    {experimentId && <Button onClick={() => {
+      setError('');
+      void requestAppShell('open-research-source', { href: `pero-app-location://control-lab/main/experiment/${experimentId}` })
+        .catch(cause => setError(String(cause)));
+    }}>{t('openExperiment')}</Button>}
+    {staleControl && <ControlLabInputError stale />}
+    {binding?.view && !staleControl && <><p className="notebook-note">{t('saved')}</p>{context && <DeclaredAppCanvas source={{ entryId: context.entryId, revision: context.revision, blockId: view.node.attrs.blockId,
       readOnly: context.readonly || !view.editor.isEditable, binding: { id: binding.id, app: binding.app, panel: binding.panel, view: binding.view!, declaration: binding.declaration!, inputs: binding.inputs! } }} onResult={receipt => {
         if (!view.editor.isEditable) return;
         try { view.updateAttributes({ binding: parseAppCanvasBinding({ ...binding, receipt }) }); }
