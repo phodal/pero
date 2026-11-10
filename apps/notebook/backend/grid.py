@@ -1,4 +1,8 @@
-"""Validated visual grid metadata, independent of stored cell inputs."""
+"""Validated visual grid metadata, independent of stored cell inputs.
+
+Notes and row filters are sheet-operation state: they do not change formula
+inputs. Lengths match sheetOperationLimits in packages/notebook/src/sheet-operations.ts.
+"""
 from dataclasses import dataclass
 import re
 
@@ -13,13 +17,13 @@ class GridPresentation:
     @classmethod
     def parse(cls, value, rows, columns):
         # Import at the parsing boundary to keep Notebook's schema composition acyclic.
-        from document import check_coordinates, fields, integer
+        from document import check_coordinates, fields, integer, string
         formats = value.get('formats', {})
         check_coordinates(formats, rows, columns)
         for style in formats.values():
-            fields(style, set(), {'bold', 'italic', 'underline', 'foreground', 'background', 'align', 'precision'})
+            fields(style, set(), {'bold', 'italic', 'underline', 'strike', 'foreground', 'background', 'align', 'precision'})
             for key, setting in style.items():
-                if key in {'bold', 'italic', 'underline'} and type(setting) is not bool:
+                if key in {'bold', 'italic', 'underline', 'strike'} and type(setting) is not bool:
                     raise ValueError('Invalid cell text style')
                 if key in {'foreground', 'background'} and setting not in {'default', 'blue', 'green', 'rose'}:
                     raise ValueError('Invalid cell color')
@@ -37,6 +41,13 @@ class GridPresentation:
                     raise ValueError('Invalid grid dimension index')
                 integer(pixels, 'grid pixels', maximum, minimum=minimum)
             dimensions.append(sizes)
+        names = value.get('columnNames', {})
+        if not isinstance(names, dict) or len(names) > columns:
+            raise ValueError('Invalid column names')
+        for index, name in names.items():
+            if not isinstance(index, str) or not re.fullmatch(r'0|[1-9][0-9]*', index) or int(index) >= columns:
+                raise ValueError('Invalid column name index')
+            string(name, 'column name', 80, required=True)
         merges = value.get('merges', [])
         if not isinstance(merges, list) or len(merges) > rows * columns // 2:
             raise ValueError('Invalid merged ranges')
@@ -55,4 +66,26 @@ class GridPresentation:
             if cells & occupied:
                 raise ValueError('Merged ranges overlap')
             occupied.update(cells)
+        parse_sheet_operations(value, rows, columns)
         return cls(formats, *dimensions, tuple(merges))
+
+
+def parse_sheet_operations(value, rows, columns):
+    """Accept cell notes and a row filter. Both are optional on older sheets."""
+    from document import check_coordinates, fields, integer, string
+    notes = value.get('notes', {})
+    if not isinstance(notes, dict):
+        raise ValueError('Invalid cell notes')
+    check_coordinates(notes, rows, columns)
+    for note in notes.values():
+        text = string(note, 'cell note', 500, required=True)
+        if text != text.strip() or any(ord(character) < 32 for character in text):
+            raise ValueError('Invalid cell note')
+    row_filter = value.get('rowFilter', None)
+    if row_filter is None:
+        return
+    fields(row_filter, {'column', 'query'})
+    integer(row_filter['column'], 'filter column', columns - 1, minimum=0)
+    query = string(row_filter['query'], 'row filter', 200, required=True)
+    if query != query.strip() or any(ord(character) < 32 for character in query):
+        raise ValueError('Invalid row filter')

@@ -6,6 +6,7 @@ import { parseAppCanvasBinding } from '@pero/notebook/app-canvas';
 import { parseMixturePreparation } from '@pero/notebook/mixture';
 import { isSavedSearchAttributes } from '@pero/notebook/saved-search';
 import { isGridPresentation } from '@pero/notebook/grid-presentation';
+import { parseSheetOperations } from '@pero/notebook/sheet-operations';
 import type { Spreadsheet } from '@pero/notebook/spreadsheet';
 import { isStructuredTableAttributes } from '@pero/notebook/structured-table';
 import { spreadsheetLimits } from '@pero/notebook';
@@ -63,7 +64,8 @@ export function isClipboardWidget(kind: string, attrs: Record<string, unknown>):
           typeof columns !== 'number' || !Number.isInteger(columns) || columns < 1 || columns > spreadsheetLimits.columns) return false;
       return isGridPresentation(attrs, sheet as unknown as Spreadsheet) && cells(sheet.cells, rows, columns, value => text(value, spreadsheetLimits.cellLength)) &&
         cells(annotations ?? {}, rows, columns, value => object(value) && Object.keys(value).length === 2 &&
-          text(value.unit, 128) && ids(value.evidenceIds));
+          text(value.unit, 128) && ids(value.evidenceIds)) &&
+        parseSheetOperations(attrs, sheet as unknown as Spreadsheet) !== null;
     }
     case 'experiment':
     case 'evidence': {

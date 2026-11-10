@@ -17,8 +17,12 @@ import {
 } from '@pero/notebook/grid-presentation';
 import { changeWorksheetStructure, mapWorksheetPosition, type AxisChange, type StructuredWorksheet } from '@pero/notebook/worksheet-structure';
 import { formulaHelp, inspectWorksheetCell } from '@pero/notebook/formula-inspection';
+import { asOperableGrid, hiddenRows } from '@pero/notebook/sheet-operations';
 import { writeWorkbook } from '@pero/notebook/workbook';
 import { BlockFrame } from './block-frame';
+import { SheetOperations } from './sheet-operations';
+import { CellLinkControl } from './cell-link-control';
+import { RenameColumnDialog } from './column-heading';
 import { useGridAxisControls } from './grid-axis-controls';
 import { FormulaInput } from './formula-input';
 import { FormulaSourceTree } from './formula-source-tree';
@@ -40,6 +44,10 @@ const gridMessages = {
   format: { en: 'Cell formatting', zh: '单元格格式' },
   bold: { en: 'Bold', zh: '加粗' }, italic: { en: 'Italic', zh: '斜体' }, underline: { en: 'Underline', zh: '下划线' },
   strike: { en: 'Strikethrough', zh: '删除线' },
+  renameColumn: { en: 'Rename column', zh: '重命名列' },
+  openLink: { en: 'Open link', zh: '打开链接' },
+  invalidColumnName: { en: 'Enter a column name up to 80 characters.', zh: '请输入不超过 80 个字符的列名。' },
+  invalidCellLink: { en: 'Enter an http or https address, or leave it empty to remove the link.', zh: '请输入 http 或 https 地址，留空则移除链接。' },
   foreground: { en: 'Text color', zh: '文字颜色' }, background: { en: 'Cell background', zh: '单元格背景' },
   default: { en: 'Default', zh: '默认' }, blue: { en: 'Blue', zh: '蓝色' }, green: { en: 'Green', zh: '绿色' }, rose: { en: 'Rose', zh: '玫红' },
   alignment: { en: 'Alignment', zh: '对齐' }, left: { en: 'Left', zh: '左对齐' }, center: { en: 'Center', zh: '居中' }, right: { en: 'Right', zh: '右对齐' },
@@ -99,6 +107,7 @@ export function SpreadsheetView(view: NodeViewProps) {
   const [exporting, setExporting] = useState(false);
   const [dialog, setDialog] = useState<'merge' | 'deleteRow' | 'deleteColumn' | 'resizeRow' | 'resizeColumn' | 'functions' | null>(null);
   const [size, setSize] = useState('');
+  const [columnRename, setColumnRename] = useState<string | null>(null);
   const [functionName, setFunctionName] = useState('SUM');
   const [inspector, setInspector] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -122,7 +131,13 @@ export function SpreadsheetView(view: NodeViewProps) {
     column: Math.max(0, Math.min(column, sheet.columns - 1)),
     row: Math.max(0, Math.min(row, sheet.rows - 1)),
   });
-  const presentation = { ...emptyGridPresentation(), ...view.node.attrs, sheet, annotations: view.node.attrs.annotations ?? {} } as WorksheetGrid;
+  const presentation = asOperableGrid({ ...emptyGridPresentation(), ...view.node.attrs, sheet, annotations: view.node.attrs.annotations ?? {} } as WorksheetGrid);
+  const skippedRows = new Set(hiddenRows(presentation));
+  const shownRowSpan = (start: number, end: number) => {
+    let count = 0;
+    for (let index = start; index <= end; index += 1) if (!skippedRows.has(index)) count += 1;
+    return count;
+  };
   const selectedMerge = mergedCell(presentation.merges, clamp(selection.anchor));
   const active = selectedMerge?.start ?? clamp(selection.anchor);
   const endpoint = clamp(selection.focus);
@@ -136,7 +151,7 @@ export function SpreadsheetView(view: NodeViewProps) {
     const position = view.getPos();
     const node = typeof position === 'number' ? tr.doc.nodeAt(position) : null;
     if (typeof position !== 'number' || node?.type.name !== 'spreadsheet') return false;
-    const current = { ...emptyGridPresentation(), ...node.attrs, annotations: node.attrs.annotations ?? {} } as WorksheetGrid;
+    const current = asOperableGrid({ ...emptyGridPresentation(), ...node.attrs, annotations: node.attrs.annotations ?? {} } as WorksheetGrid);
     const next = edit(current);
     if (!next) return false;
     if (next !== current) {
@@ -166,8 +181,11 @@ export function SpreadsheetView(view: NodeViewProps) {
       if (node.type.name !== 'spreadsheet') return;
       const changed = changes.get(node.attrs.blockId);
       if (changed) {
-        const { sheet: next, annotations, formats, rowHeights, columnWidths, merges } = changed;
-        tr.setNodeMarkup(position, undefined, { ...node.attrs, sheet: next, annotations, formats, rowHeights, columnWidths, merges });
+        const { sheet: next, annotations, formats, rowHeights, columnWidths, columnNames, merges, notes, rowFilter } = changed;
+        tr.setNodeMarkup(position, undefined, {
+          ...node.attrs, sheet: next, annotations, formats, rowHeights, columnWidths, columnNames, merges,
+          notes: notes ?? node.attrs.notes ?? {}, rowFilter: rowFilter === undefined ? node.attrs.rowFilter ?? null : rowFilter,
+        });
       }
     });
     setSelection(current => ({ anchor: mapWorksheetPosition(current.anchor, change), focus: mapWorksheetPosition(current.focus, change) }));
@@ -185,6 +203,7 @@ export function SpreadsheetView(view: NodeViewProps) {
     <DropdownMenuItem disabled={active.column === sheet.columns - 1} onSelect={() => structure({ kind: 'move', axis: 'column', index: active.column, to: active.column + 1 })}>{t('columnRight')}</DropdownMenuItem>
     <DropdownMenuItem onSelect={() => { setSize(String(presentation.rowHeights[active.row] ?? gridDimensionLimits.row.default)); setDialog('resizeRow'); }}>{t('resizeRow')}</DropdownMenuItem>
     <DropdownMenuItem onSelect={() => { setSize(String(presentation.columnWidths[active.column] ?? gridDimensionLimits.column.default)); setDialog('resizeColumn'); }}>{t('resizeColumn')}</DropdownMenuItem>
+    <DropdownMenuItem onSelect={() => setColumnRename(presentation.columnNames[String(active.column)] ?? '')}>{t('renameColumn')}</DropdownMenuItem>
   </>;
   const addRows = () => {
     const requested = Number(rowBatch);
@@ -194,7 +213,8 @@ export function SpreadsheetView(view: NodeViewProps) {
   };
   const axisControls = useGridAxisControls(grid, presentation, editable,
     (axis, index, pixels) => setGrid(current => resizeGridAxis(current, axis, index, pixels), true),
-    (axis, index, to) => structure({ kind: 'move', axis, index, to }));
+    (axis, index, to) => structure({ kind: 'move', axis, index, to }),
+    index => setColumnRename(presentation.columnNames[String(index)] ?? ''));
   const format = (patch: CellFormat | null) => setGrid(current => formatCellRange(current, range, patch), true);
   const currentFormat = presentation.formats[address] ?? {};
   const align = currentFormat.align ?? (typeof values[address] === 'number' ? 'right' : 'left');
@@ -410,6 +430,8 @@ export function SpreadsheetView(view: NodeViewProps) {
         onClick={() => format({ underline: !currentFormat.underline })}><u aria-hidden="true">U</u></Button>
       <Button variant="ghost" aria-label={t('strike')} aria-pressed={!!currentFormat.strike}
         onClick={() => format({ strike: !currentFormat.strike })}><s aria-hidden="true">S</s></Button>
+      <CellLinkControl variant="button" address={address} url={presentation.annotations[address]?.url}
+        commit={edit => setGrid(edit, true)} onInvalid={() => setError(t('invalidCellLink'))} />
       <span className="notebook-format-divider" aria-hidden="true" />
       <Select className="notebook-color-select" label={t('foreground')} value={currentFormat.foreground ?? 'default'}
         leading={<span aria-hidden="true" className={`notebook-text-${currentFormat.foreground ?? 'default'}`}>A</span>} onChange={value => format({ foreground: value as CellColor })}
@@ -462,7 +484,7 @@ export function SpreadsheetView(view: NodeViewProps) {
         <thead><tr><th scope="col" aria-label="#" />
           {Array.from({ length: sheet.columns }, (_, column) => axisControls.header('column', column, column >= range.start.column && column <= range.end.column))}
         </tr></thead>
-        <tbody>{Array.from({ length: sheet.rows }, (_, row) => <tr key={row} style={{ height: axisControls.size('row', row) }}>
+        <tbody>{Array.from({ length: sheet.rows }, (_, row) => skippedRows.has(row) ? null : <tr key={row} style={{ height: axisControls.size('row', row) }}>
           {axisControls.header('row', row, row >= range.start.row && row <= range.end.row)}
           {Array.from({ length: sheet.columns }, (_, column) => {
             const key = cellAddress(column, row);
@@ -472,13 +494,15 @@ export function SpreadsheetView(view: NodeViewProps) {
             const text = formatCellValue(computed, cellFormat);
             const position = { column, row };
             const merge = mergedCell(presentation.merges, position);
-            if (merge && (merge.start.column !== column || merge.start.row !== row)) return null;
-            return <td key={key} rowSpan={merge ? merge.end.row - row + 1 : undefined} colSpan={merge ? merge.end.column - column + 1 : undefined}
+            const drawMerge = merge && !skippedRows.has(merge.start.row) ? merge : undefined;
+            if (drawMerge && (drawMerge.start.column !== column || drawMerge.start.row !== row)) return null;
+            return <td key={key} rowSpan={drawMerge ? shownRowSpan(drawMerge.start.row, drawMerge.end.row) : undefined} colSpan={drawMerge ? drawMerge.end.column - column + 1 : undefined}
               data-foreground={cellFormat?.foreground} data-background={cellFormat?.background}
               data-bold={cellFormat?.bold || undefined} data-italic={cellFormat?.italic || undefined} data-underline={cellFormat?.underline || undefined} data-strike={cellFormat?.strike || undefined}
               data-align={cellFormat?.align ?? (typeof computed === 'number' ? 'right' : undefined)} data-active={key === address || undefined}
               data-range-selected={isRange && rangeContains(range, position) || undefined} data-error={isFormulaError(computed) || undefined}>
               <span className="notebook-cell-display" aria-hidden="true"><span>{text}</span></span>
+              {presentation.annotations[key]?.url && <a className="notebook-cell-link" href={presentation.annotations[key].url} target="_blank" rel="noreferrer">{t('openLink')}</a>}
               <FormulaInput unstyled onComplete={value => updateCell(key, value, true)} className="notebook-cell" aria-label={t('cell', { address: key })} data-cell={key}
                 value={editable && focused === key ? raw : text} readOnly={!editable} maxLength={spreadsheetLimits.cellLength}
                 onMouseDown={event => {
@@ -507,6 +531,8 @@ export function SpreadsheetView(view: NodeViewProps) {
       </div>
       <span className="notebook-sheet-size">{t('rowCount', { rows: sheet.rows })}</span>
     </div>}
+    <SheetOperations grid={presentation} sheetName={calculation?.name ?? label} address={address} readonly={!editable}
+      onChange={next => { setGrid(() => next, true); }} />
     <div className="notebook-grid-status" role="status">{axisControls.announcement}</div>
     {inspection?.type === 'error' && <Feedback kind="error">{t('selectedError', { address, value: String(values[address]) })}</Feedback>}
     {inspector && inspection && <section className="notebook-formula-inspector" aria-label={t('inspector')}>
@@ -519,6 +545,8 @@ export function SpreadsheetView(view: NodeViewProps) {
       <p className="notebook-note">{t('dependencyHint')}</p>
       <FormulaSourceTree syntax={inspection.syntax} />
     </section>}
+    {columnRename !== null && <RenameColumnDialog column={active.column} initialName={columnRename}
+      commit={edit => setGrid(edit, true)} onInvalid={() => setError(t('invalidColumnName'))} onClose={() => setColumnRename(null)} />}
     {dialog && dialog !== 'functions' && <Dialog title={t(dialog)} closeLabel={t('close')} onClose={() => setDialog(null)}
       onSubmit={event => {
         event.preventDefault();

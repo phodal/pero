@@ -1,4 +1,4 @@
-import { spreadsheetLimits, type CellAnnotation } from './document.ts';
+import { parseCellUrl, spreadsheetLimits, type CellAnnotation } from './document.ts';
 import { cellAddress, type CellValue, type Spreadsheet } from './spreadsheet.ts';
 import { normalizeCellRange, rangeContains, type CellPosition, type CellRange } from './spreadsheet-range.ts';
 
@@ -17,6 +17,7 @@ export interface GridPresentation {
   formats: Record<string, CellFormat>;
   rowHeights: Record<string, number>;
   columnWidths: Record<string, number>;
+  columnNames: Record<string, string>;
   merges: CellRange[];
 }
 export interface WorksheetGrid extends GridPresentation {
@@ -24,7 +25,36 @@ export interface WorksheetGrid extends GridPresentation {
   annotations: Record<string, CellAnnotation>;
 }
 export const gridDimensionLimits = { row: { min: 24, max: 240, default: 25 }, column: { min: 64, max: 640, default: 120 } } as const;
-export const emptyGridPresentation = (): GridPresentation => ({ formats: {}, rowHeights: {}, columnWidths: {}, merges: [] });
+export const emptyGridPresentation = (): GridPresentation => ({ formats: {}, rowHeights: {}, columnWidths: {}, columnNames: {}, merges: [] });
+
+/** A renamed column keeps its letter address. The heading shows the name. */
+export function columnHeading(index: number, names: Record<string, string> = {}): string {
+  const name = names[String(index)]?.trim();
+  return name || cellAddress(index, 0).replace(/[0-9]+$/, '');
+}
+export function renameGridColumn(grid: WorksheetGrid, index: number, name: string): WorksheetGrid | null {
+  if (!Number.isInteger(index) || index < 0 || index >= grid.sheet.columns) return null;
+  const text = name.trim();
+  if ([...text].length > 80) return null;
+  const columnNames = { ...grid.columnNames };
+  if (text) columnNames[String(index)] = text;
+  else delete columnNames[String(index)];
+  return { ...grid, columnNames };
+}
+export function setCellLink(grid: WorksheetGrid, address: string, raw: string): WorksheetGrid | null {
+  const position = cellPosition(address);
+  if (!position || position.column >= grid.sheet.columns || position.row >= grid.sheet.rows) return null;
+  const url = parseCellUrl(raw);
+  if (url === null) return null;
+  const current = grid.annotations[address] ?? { unit: '', evidenceIds: [] };
+  const next: CellAnnotation = { ...current };
+  if (url) next.url = url;
+  else delete next.url;
+  const annotations = { ...grid.annotations };
+  if (!next.unit && !next.evidenceIds.length && !next.url) delete annotations[address];
+  else annotations[address] = next;
+  return { ...grid, annotations };
+}
 
 export function cellPosition(address: string): CellPosition | null {
   const match = /^([A-Z]{1,3})([1-9]\d*)$/.exec(address);
@@ -163,6 +193,11 @@ export function isGridPresentation(value: unknown, sheet: Spreadsheet): boolean 
     const limit = gridDimensionLimits[axis];
     if (Object.entries(dimensions).some(([index, pixels]) => !/^(?:0|[1-9]\d*)$/.test(index) || Number(index) >= count ||
       typeof pixels !== 'number' || !Number.isInteger(pixels) || pixels < limit.min || pixels > limit.max)) return false;
+  }
+  const columnNames = value.columnNames === undefined ? {} : value.columnNames;
+  if (!record(columnNames) || Object.keys(columnNames).length > sheet.columns) return false;
+  for (const [index, name] of Object.entries(columnNames)) {
+    if (!/^(?:0|[1-9]\d*)$/.test(index) || Number(index) >= sheet.columns || typeof name !== 'string' || !name.trim() || [...name].length > 80) return false;
   }
   const merges = value.merges === undefined ? [] : value.merges;
   if (!Array.isArray(merges) || merges.length > Math.floor(sheet.rows * sheet.columns / 2)) return false;

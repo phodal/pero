@@ -2,9 +2,13 @@ import { spreadsheetLimits } from './document.ts';
 import { cellAddress } from './spreadsheet.ts';
 import type { NotebookWorksheet } from './worksheet.ts';
 import { cellPosition, type WorksheetGrid } from './grid-presentation.ts';
+import type { RowFilter } from './sheet-operations.ts';
 import type { CellPosition, CellRange } from './spreadsheet-range.ts';
 
-export interface StructuredWorksheet extends NotebookWorksheet, WorksheetGrid {}
+export interface StructuredWorksheet extends NotebookWorksheet, WorksheetGrid {
+  notes?: Record<string, string>;
+  rowFilter?: RowFilter | null;
+}
 export type AxisChange = { axis: 'row' | 'column' } & (
   | { kind: 'insert'; index: number }
   | { kind: 'delete'; index: number }
@@ -107,6 +111,20 @@ export function rewriteStructuralFormula(source: string, currentName: string, ch
   }
   return output;
 }
+function moveKeyedIndex(values: Record<string, string>, change: AxisChange): Record<string, string> {
+  const mapped: Record<string, string> = {}, map = axisMap(change);
+  for (const [key, value] of Object.entries(values)) {
+    const index = map(Number(key));
+    if (index !== null) mapped[String(index)] = value;
+  }
+  return mapped;
+}
+/** A column edit keeps the filter on the same field. Deleting that column clears it. */
+function shiftRowFilter(filter: RowFilter | null | undefined, change: AxisChange): RowFilter | null | undefined {
+  if (filter == null || change.axis === 'row') return filter;
+  const column = axisMap(change)(filter.column);
+  return column === null ? null : { column, query: filter.query };
+}
 function moveAddressMap<T>(values: Record<string, T>, change: AxisChange): Record<string, T> {
   const mapped: Record<string, T> = {}, map = axisMap(change);
   for (const [address, value] of Object.entries(values)) {
@@ -157,6 +175,8 @@ export function changeWorksheetStructure(worksheets: readonly StructuredWorkshee
         if (index !== null) movedDimensions[index] = value;
       }
       updated = { ...updated, merges, formats: moveAddressMap(worksheet.formats, change), annotations: moveAddressMap(worksheet.annotations, change),
+        notes: moveAddressMap(worksheet.notes ?? {}, change), rowFilter: shiftRowFilter(worksheet.rowFilter, change) ?? null,
+        columnNames: change.axis === 'column' ? moveKeyedIndex(worksheet.columnNames ?? {}, change) : { ...worksheet.columnNames ?? {} },
         ...(change.axis === 'row' ? { rowHeights: movedDimensions } : { columnWidths: movedDimensions }),
         sheet: { ...updated.sheet, cells: moveAddressMap(cells, change),
           [change.axis === 'row' ? 'rows' : 'columns']: size + (change.kind === 'insert' ? 1 : change.kind === 'delete' ? -1 : 0) } };

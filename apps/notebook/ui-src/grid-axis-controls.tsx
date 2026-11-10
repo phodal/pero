@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
 import { Button } from '@pero/app-sdk/ui';
 import { useAppI18n } from '@pero/app-sdk';
-import { cellAddress } from '@pero/notebook/spreadsheet';
-import { gridDimensionLimits, type WorksheetGrid } from '@pero/notebook/grid-presentation';
+import { columnHeading, gridDimensionLimits, type WorksheetGrid } from '@pero/notebook/grid-presentation';
+import { ColumnHeading } from './column-heading';
 
 type Axis = 'row' | 'column';
 type Gesture = { axis: Axis; index: number; pointer: number; start: number; original: number; value: number; kind: 'resize' | 'move'; changed: boolean };
@@ -14,12 +14,13 @@ const labels = {
   previewMove: { en: 'Move {axis} {label} to position {value}', zh: '将{axis} {label} 移至第 {value} 个位置' },
   previewSize: { en: '{axis} {label}: {value} pixels', zh: '{axis} {label}：{value} 像素' },
 };
-const caption = (axis: Axis, index: number) => axis === 'row' ? String(index + 1) : cellAddress(index, 0).slice(0, -1);
+const caption = (axis: Axis, index: number, names: Record<string, string>) => axis === 'row' ? String(index + 1) : columnHeading(index, names);
 
 /** Transient pointer previews never write the document. Commit once on release,
  * cancel on Escape/capture loss/read-only, and delegate every domain edit. */
 export function useGridAxisControls(root: RefObject<HTMLDivElement | null>, grid: WorksheetGrid, editable: boolean,
-  resize: (axis: Axis, index: number, size: number) => boolean, move: (axis: Axis, index: number, to: number) => boolean) {
+  resize: (axis: Axis, index: number, size: number) => boolean, move: (axis: Axis, index: number, to: number) => boolean,
+  renameColumn?: (index: number) => void) {
   const { t } = useAppI18n(labels);
   const [preview, setPreview] = useState<Gesture | null>(null);
   const gesture = useRef<Gesture | null>(null);
@@ -52,8 +53,12 @@ export function useGridAxisControls(root: RefObject<HTMLDivElement | null>, grid
     window.addEventListener('keydown', escape, true);
     return () => window.removeEventListener('keydown', escape, true);
   }, [!!preview]);
+  const label = (axis: Axis, index: number) => caption(axis, index, grid.columnNames ?? {});
+  const heading = (axis: Axis, index: number) => axis === 'column'
+    ? <ColumnHeading index={index} names={grid.columnNames ?? {}} />
+    : String(index + 1);
   const describe = (current: Gesture) => t(current.kind === 'move' ? 'previewMove' : 'previewSize', {
-    axis: t(current.axis), label: caption(current.axis, current.index), value: current.value + (current.kind === 'move' ? 1 : 0),
+    axis: t(current.axis), label: label(current.axis, current.index), value: current.value + (current.kind === 'move' ? 1 : 0),
   });
   const begin = (event: PointerEvent<HTMLElement>, axis: Axis, index: number, kind: Gesture['kind']) => {
     if (!editable || event.button !== 0 || gesture.current) return;
@@ -122,17 +127,18 @@ export function useGridAxisControls(root: RefObject<HTMLDivElement | null>, grid
     data-axis-selected={selected || undefined}
     data-move-target={preview?.kind === 'move' && preview.changed && preview.axis === axis && preview.value === index || undefined}>
     {editable ? <>
-      <Button variant="ghost" className="notebook-axis-move" aria-label={t('move', { axis: t(axis), label: caption(axis, index) })}
+      <Button variant="ghost" className="notebook-axis-move" aria-label={t('move', { axis: t(axis), label: label(axis, index) })}
         title={t('instructions')} data-move-axis={axis} data-move-index={index}
         onPointerDown={event => begin(event, axis, index, 'move')} onPointerMove={drag} onPointerUp={finish} onPointerCancel={cancel} onLostPointerCapture={cancel}
-        onKeyDown={event => key(event, axis, index, 'move')}>{caption(axis, index)}</Button>
+        onDoubleClick={event => { if (axis !== 'column' || !renameColumn) return; event.preventDefault(); event.stopPropagation(); renameColumn(index); }}
+        onKeyDown={event => key(event, axis, index, 'move')}>{heading(axis, index)}</Button>
       <span role="separator" tabIndex={0} aria-orientation={axis === 'row' ? 'horizontal' : 'vertical'}
-        aria-label={t('resize', { axis: t(axis), label: caption(axis, index) })} aria-valuemin={gridDimensionLimits[axis].min}
+        aria-label={t('resize', { axis: t(axis), label: label(axis, index) })} aria-valuemin={gridDimensionLimits[axis].min}
         aria-valuemax={gridDimensionLimits[axis].max} aria-valuenow={size(axis, index)} aria-valuetext={`${size(axis, index)} px`}
         className="notebook-axis-resize" data-axis={axis} title={t('instructions')}
         onPointerDown={event => begin(event, axis, index, 'resize')} onPointerMove={drag} onPointerUp={finish} onPointerCancel={cancel} onLostPointerCapture={cancel}
         onKeyDown={event => key(event, axis, index, 'resize')} />
-    </> : caption(axis, index)}
+    </> : heading(axis, index)}
   </th>;
   return { header, size, rememberScroll, instructions: t('instructions'), announcement: preview?.changed ? describe(preview) : announcement };
 }

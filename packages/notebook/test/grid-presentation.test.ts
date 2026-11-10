@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { displayNumber, emptyGridPresentation, formatCellRange, formatCellValue, mergeCellRange, unmergeCellRange, gridWriteConflicts, resizeGridAxis, exportWorksheetCsv, type WorksheetGrid } from '../src/grid-presentation.ts';
+import { columnHeading, displayNumber, emptyGridPresentation, formatCellRange, formatCellValue, mergeCellRange, renameGridColumn, setCellLink, unmergeCellRange, gridWriteConflicts, resizeGridAxis, exportWorksheetCsv, type WorksheetGrid } from '../src/grid-presentation.ts';
 import { pasteCellGrid } from '../src/spreadsheet-range.ts';
 import { evaluateSpreadsheet } from '../src/spreadsheet.ts';
 
@@ -66,6 +66,7 @@ test('presentation boundary accepts legacy defaults and rejects unsafe coordinat
   for (const metadata of [
     { formats: { D1: {} } }, { formats: { a1: {} } }, { formats: { A1: { precision: 13 } } }, { formats: { A1: { precision: 0.5 } } },
     { formats: { A1: { foreground: 'red' } } }, { formats: { A1: { fontSize: 100 } } }, { formats: { A1: { bold: 1 } } },
+    { columnNames: { 3: 'Solution' } }, { columnNames: { 0: '' } }, { columnNames: { 0: 'x'.repeat(81) } },
     { rowHeights: { '01': 32 } }, { rowHeights: { 3: 32 } }, { columnWidths: { 1: 641 } }, { rowHeights: { 1: 20.5 } },
     { formats: null }, { merges: [selection, selection] }, { merges: [{ ...selection, other: true }] },
     { merges: [{ start: { column: 0, row: 0 }, end: { column: 3, row: 1 } }] },
@@ -74,4 +75,13 @@ test('presentation boundary accepts legacy defaults and rejects unsafe coordinat
   const automatic = formatCellRange(formatCellRange(initial, selection, { precision: 3, bold: true }), selection, { precision: undefined });
   assert.equal(isGridPresentation(automatic, automatic.sheet), true);
   assert.deepEqual(automatic.formats.A1, { bold: true });
+  assert.equal(isGridPresentation({ columnNames: { 0: '1x Solution' } }, initial.sheet), true);
+  const named = renameGridColumn(initial, 0, ' 1x Solution ');
+  assert.equal(named && columnHeading(0, named.columnNames), '1x Solution');
+  assert.equal(renameGridColumn(initial, 9, 'Solution'), null);
+  const linked = setCellLink(initial, 'B1', 'https://example.test/method');
+  assert.equal(linked?.annotations.B1.url, 'https://example.test/method');
+  assert.equal(linked?.annotations.B1.unit, 'mL');
+  assert.equal(setCellLink(initial, 'B1', 'javascript:alert(1)'), null);
+  assert.equal(setCellLink(linked ?? initial, 'A1', '')?.annotations.A1, undefined);
 });

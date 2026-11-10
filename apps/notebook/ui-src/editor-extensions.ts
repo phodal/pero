@@ -39,7 +39,7 @@ export const widgets = [
   { name: 'registrationTable', icon: 'table', defaults: structuredTableDefaults, view: RegistrationTableView },
   { name: 'lookupTable', icon: 'search', defaults: lookupTableDefaults, view: LookupTableView },
   { name: 'attachment', icon: 'file', defaults: attachmentDefaults, view: AttachmentView },
-  { name: 'spreadsheet', icon: 'table', defaults: { label: '', sheet: { rows: 5, columns: 5, cells: {} }, annotations: {}, formats: {}, rowHeights: {}, columnWidths: {}, merges: [] }, view: SpreadsheetView },
+  { name: 'spreadsheet', icon: 'table', defaults: { label: '', sheet: { rows: 5, columns: 5, cells: {} }, annotations: {}, formats: {}, rowHeights: {}, columnWidths: {}, columnNames: {}, merges: [], notes: {}, rowFilter: null }, view: SpreadsheetView },
   { name: 'evidence', icon: 'document', defaults: { label: '', source: null, snapshot: null }, view: EvidenceView },
   { name: 'experiment', icon: 'flask', defaults: { label: '', source: null, snapshot: null }, view: ExperimentView },
   { name: 'finding', icon: 'search', defaults: { claim: '', limitations: '', evidenceIds: [] }, view: FindingView },

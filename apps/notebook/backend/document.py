@@ -331,7 +331,7 @@ def _attributes(kind, value, identities):
     optional = {
         'heading': {'level'}, 'orderedList': {'start', 'type'},
         'taskItem': {'checked'}, 'codeBlock': {'language'},
-        'spreadsheet': {'label', 'annotations', 'formats', 'rowHeights', 'columnWidths', 'merges'},
+        'spreadsheet': {'label', 'annotations', 'formats', 'rowHeights', 'columnWidths', 'columnNames', 'merges', 'notes', 'rowFilter'},
         'evidence': {'snapshot'}, 'experiment': {'snapshot'}, 'attachment': {'derivation'},
     }.get(kind, set())
     if kind not in {'doc', 'text', 'hardBreak', 'referenceMention'}:
@@ -371,9 +371,14 @@ def _attributes(kind, value, identities):
             annotations = value['annotations']
             check_coordinates(annotations, rows, columns)
             for annotation in annotations.values():
-                fields(annotation, {'unit', 'evidenceIds'})
+                fields(annotation, {'unit', 'evidenceIds'}, {'url'})
                 string(annotation['unit'], 'cell unit', 128)
                 evidence_ids(annotation['evidenceIds'])
+                if 'url' in annotation:
+                    link = string(annotation['url'], 'cell link', 2048, required=True)
+                    parts = urlsplit(link)
+                    if parts.scheme not in {'http', 'https'} or not parts.netloc:
+                        raise ValueError('Invalid cell link')
     elif kind in {'evidence', 'experiment'}:
         string(value['label'], 'reference label', MAX_TITLE)
         source = value['source']

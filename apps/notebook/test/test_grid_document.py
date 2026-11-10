@@ -16,6 +16,11 @@ class GridDocumentTest(unittest.TestCase):
         def document(value):
             return {'schemaVersion': 1, 'title': 'Grid', 'content': {'type': 'doc', 'content': [{'type': 'spreadsheet', 'attrs': value}]}}
         self.assertEqual(NotebookDocument.parse(document(attrs)).wire(), document(attrs))
+        named = deepcopy(attrs)
+        named['columnNames'] = {'0': '1x Solution'}
+        named['formats']['A1']['strike'] = True
+        named['annotations'] = {'A1': {'unit': 'mL', 'evidenceIds': [], 'url': 'https://example.test/method'}}
+        self.assertEqual(NotebookDocument.parse(document(named)).wire(), document(named))
         identified = document(attrs)
         identified['identity'] = {'code': 'EXP25000012', 'status': 'in_progress'}
         identified['notices'] = [{'id': 'mention-1', 'name': 'Ada', 'at': '2026-11-10T00:00:00.000Z', 'note': 'check the table'}]
@@ -34,3 +39,29 @@ class GridDocumentTest(unittest.TestCase):
                 changed = deepcopy(attrs); changed[key] = value
                 NotebookDocument.parse(document(changed))
 
+    def test_notes_and_row_filter_roundtrip_without_changing_cells(self):
+        attrs = {'blockId': 'grid', 'sheet': {'rows': 3, 'columns': 3, 'cells': {'A1': 'sample', 'B1': '=A1'}},
+                 'annotations': {'A1': {'unit': 'mL', 'evidenceIds': [], 'url': 'https://example.test/method'}},
+                 'notes': {'A1': 'diluted 1:10', 'B2': 'n' * 500},
+                 'rowFilter': {'column': 0, 'query': 'q' * 200}}
+        def document(value):
+            return {'schemaVersion': 1, 'title': 'Grid', 'content': {'type': 'doc', 'content': [{'type': 'spreadsheet', 'attrs': value}]}}
+        parsed = NotebookDocument.parse(document(attrs))
+        self.assertEqual(parsed.wire(), document(attrs))
+        self.assertEqual(parsed.wire()['content']['content'][0]['attrs']['sheet']['cells']['B1'], '=A1')
+        cases = [
+            ('notes', {'A9': 'out'}), ('notes', {'A1': ''}), ('notes', {'A1': '  x'}),
+            ('notes', {'A1': 'a\nb'}), ('notes', {'A1': 1}), ('notes', []),
+            ('notes', {'A1': 'n' * 501}), ('rowFilter', {'column': 0, 'query': 'a', 'extra': True}),
+            ('rowFilter', {'column': -1, 'query': 'a'}), ('rowFilter', {'column': 3, 'query': 'a'}),
+            ('rowFilter', {'column': 0, 'query': ''}), ('rowFilter', {'column': 0, 'query': ' a '}),
+            ('rowFilter', {'column': 0, 'query': 'a\nb'}), ('rowFilter', {'column': True, 'query': 'a'}),
+            ('rowFilter', []), ('rowFilter', {'column': 0}),
+        ]
+        for key, value in cases:
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                changed = deepcopy(attrs); changed[key] = value
+                NotebookDocument.parse(document(changed))
+        absent = deepcopy(attrs)
+        absent.pop('notes'); absent.pop('rowFilter')
+        self.assertEqual(NotebookDocument.parse(document(absent)).wire(), document(absent))

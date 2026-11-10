@@ -1,7 +1,9 @@
 import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Checkbox, Input } from '@pero/app-sdk/ui';
-import type { CellAnnotation } from '@pero/notebook';
+import { type CellAnnotation } from '@pero/notebook';
+import { emptyGridPresentation, type WorksheetGrid } from '@pero/notebook/grid-presentation';
+import { CellLinkControl } from './cell-link-control';
 import { notebookEvidence } from './evidence-model';
 
 const messages = {
@@ -18,6 +20,7 @@ export function CellAnnotations({ view, address, editable }: {
 }) {
   const { t } = useAppI18n(messages);
   const annotations = (view.node.attrs.annotations ?? {}) as Record<string, CellAnnotation>;
+  const grid = { ...emptyGridPresentation(), sheet: view.node.attrs.sheet, annotations } as WorksheetGrid;
   const current = annotations[address] ?? { unit: '', evidenceIds: [] };
   const evidence = useEditorState({
     editor: view.editor,
@@ -27,7 +30,7 @@ export function CellAnnotations({ view, address, editable }: {
 
   const apply = (next: CellAnnotation) => {
     const updated = { ...annotations };
-    if (next.unit || next.evidenceIds.length) updated[address] = next;
+    if (next.unit || next.evidenceIds.length || next.url) updated[address] = next;
     else delete updated[address];
     view.updateAttributes({ annotations: updated });
   };
@@ -42,6 +45,8 @@ export function CellAnnotations({ view, address, editable }: {
       <Input value={current.unit} readOnly={!editable} maxLength={128}
         onChange={event => apply({ ...current, unit: event.target.value })} />
     </label>
+    <CellLinkControl variant="field" address={address} grid={grid} editable={editable}
+      onAnnotations={next => view.updateAttributes({ annotations: next })} />
     <fieldset className="notebook-evidence-links">
       <legend>{t('evidence')}</legend>
       {editable && !sources.length && !missing.length && <p className="notebook-note">{t('empty')}</p>}

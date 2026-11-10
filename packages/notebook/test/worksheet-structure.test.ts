@@ -78,6 +78,11 @@ test('structure edits retain merges, bounded limits and worksheet renaming', () 
   assert.equal(result.status, 'ok');
   if (result.status !== 'ok') return;
   assert.equal(result.worksheets[0].merges[0].end.row, 3);
+  const named = worksheets();
+  named[0].columnNames = { 1: '1x Solution' };
+  const shifted = changeWorksheetStructure(named, 'data', { kind: 'insert', axis: 'column', index: 1 });
+  assert.equal(shifted.status, 'ok');
+  if (shifted.status === 'ok') assert.equal(shifted.worksheets[0].columnNames['2'], '1x Solution');
   const renamed = renameWorksheet(result.worksheets, 'data', 'Measurements');
   assert.equal(renamed.status, 'ok');
   if (renamed.status === 'ok') assert.equal(renamed.worksheets[1].sheet.cells.A1, "='Measurements'!$A$3*2");
@@ -85,4 +90,37 @@ test('structure edits retain merges, bounded limits and worksheet renaming', () 
   assert.equal(changeWorksheetStructure(initial, 'data', { kind: 'insert', axis: 'row', index: 0 }).status, 'limit');
   initial[0].sheet.columns = 50;
   assert.equal(changeWorksheetStructure(initial, 'data', { kind: 'insert', axis: 'column', index: 0 }).status, 'limit');
+});
+
+test('structure edits move notes with cells and keep a row filter on its column', () => {
+  const sheet = (): StructuredWorksheet => ({
+    ...emptyGridPresentation(), id: 'data', name: 'Data', annotations: { B2: { unit: 'mL', evidenceIds: [] } },
+    sheet: { rows: 3, columns: 3, cells: { A1: 'a', B2: 'b', C3: 'c' } },
+    notes: { A1: 'first', B2: 'middle', C3: 'last' }, rowFilter: { column: 1, query: 'b' },
+  });
+  const other = (): StructuredWorksheet => ({
+    ...emptyGridPresentation(), id: 'other', name: 'Other', annotations: {},
+    sheet: { rows: 1, columns: 1, cells: {} }, notes: { A1: 'stay' }, rowFilter: { column: 0, query: 'stay' },
+  });
+  const cases: { change: AxisChange; notes: Record<string, string>; filter: { column: number; query: string } | null; annotation?: string }[] = [
+    { change: { kind: 'insert', axis: 'row', index: 1 }, notes: { A1: 'first', B3: 'middle', C4: 'last' }, filter: { column: 1, query: 'b' }, annotation: 'B3' },
+    { change: { kind: 'delete', axis: 'row', index: 1 }, notes: { A1: 'first', C2: 'last' }, filter: { column: 1, query: 'b' } },
+    { change: { kind: 'move', axis: 'row', index: 1, to: 2 }, notes: { A1: 'first', B3: 'middle', C2: 'last' }, filter: { column: 1, query: 'b' }, annotation: 'B3' },
+    { change: { kind: 'insert', axis: 'column', index: 1 }, notes: { A1: 'first', C2: 'middle', D3: 'last' }, filter: { column: 2, query: 'b' }, annotation: 'C2' },
+    { change: { kind: 'delete', axis: 'column', index: 1 }, notes: { A1: 'first', B3: 'last' }, filter: null },
+    { change: { kind: 'move', axis: 'column', index: 1, to: 2 }, notes: { A1: 'first', C2: 'middle', B3: 'last' }, filter: { column: 2, query: 'b' }, annotation: 'C2' },
+  ];
+  for (const { change, notes, filter, annotation } of cases) {
+    const initial = [sheet(), other()];
+    const before = structuredClone(initial);
+    const result = changeWorksheetStructure(initial, 'data', change);
+    assert.equal(result.status, 'ok', JSON.stringify(change));
+    if (result.status !== 'ok') return;
+    assert.deepEqual(result.worksheets[0].notes, notes, JSON.stringify(change));
+    assert.deepEqual(result.worksheets[0].rowFilter, filter, JSON.stringify(change));
+    assert.equal(annotation ? result.worksheets[0].annotations[annotation]?.unit : result.worksheets[0].annotations.B2?.unit, annotation ? 'mL' : undefined, JSON.stringify(change));
+    assert.deepEqual(result.worksheets[1].notes, { A1: 'stay' });
+    assert.deepEqual(result.worksheets[1].rowFilter, { column: 0, query: 'stay' });
+    assert.deepEqual(initial, before);
+  }
 });

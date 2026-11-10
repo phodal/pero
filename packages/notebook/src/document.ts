@@ -47,6 +47,18 @@ export function scientificReferenceState(source: ScientificReference | null | un
 export interface CellAnnotation {
   unit: string;
   evidenceIds: string[];
+  url?: string;
+}
+
+/** Empty clears the link. Only http and https addresses are kept. */
+export function parseCellUrl(value: string): string | null {
+  const text = value.trim();
+  if (!text) return '';
+  if (text.length > 2048) return null;
+  let url: URL;
+  try { url = new URL(text); } catch { return null; }
+  if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) return null;
+  return url.toString();
 }
 
 export function parsePaperCitation(value: string): ScientificReference | null {
