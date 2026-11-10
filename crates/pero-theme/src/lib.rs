@@ -19,7 +19,7 @@ mod research_result;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub use research_result::{research_result, research_note, research_table_style};
 #[cfg(any(target_family = "wasm", feature = "native"))]
-pub use feedback::{feedback, feedback_actions, feedback_details, opening_panel, FeedbackKind};
+pub use feedback::{app_status_panel, feedback, feedback_actions, feedback_details, opening_panel, FeedbackKind};
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod shell;
 #[cfg(any(target_family = "wasm", feature = "native"))]

@@ -47,29 +47,43 @@ pub fn feedback(
 }
 
 /// Full-surface indeterminate progress while an App panel is starting.
-/// Centered hero layout: not EmptyState (no empty CTA) and not inline Feedback.
 pub fn opening_panel(
     id: impl Into<ElementId>,
     kicker: impl Into<SharedString>,
     title: impl Into<SharedString>,
     description: impl Into<SharedString>,
     chrome: Chrome,
-) -> Div {
+) -> Stateful<Div> {
+    app_status_panel(id, kicker, title, description, FeedbackKind::Progress, [], chrome)
+}
+
+/// Shared cover for startup and its environment prerequisite.
+pub fn app_status_panel(
+    id: impl Into<ElementId>,
+    kicker: impl Into<SharedString>,
+    title: impl Into<SharedString>,
+    description: impl Into<SharedString>,
+    kind: FeedbackKind,
+    footer: impl IntoIterator<Item = AnyElement>,
+    chrome: Chrome,
+) -> Stateful<Div> {
     let p = chrome.palette;
     div()
+        .id(id)
         .flex()
         .flex_1()
         .flex_col()
         .items_center()
-        .justify_center()
         .min_h_0()
         .min_w_0()
         .w_full()
         .h_full()
+        .overflow_y_scroll()
         .p(chrome.geo(SPACE_24))
         .child(
             div()
-                .id(id)
+                .my_auto()
+                .flex_shrink_0()
                 .w_full()
                 .max_w(px(520.))
                 .flex()
@@ -80,8 +94,7 @@ pub fn opening_panel(
                 .bg(p.tint_blue_surface)
                 .px(chrome.geo(SPACE_24))
                 .py(px(48.))
-                .role(Role::Status)
-                .child(opening_motif(chrome))
+                .child(opening_motif(kind == FeedbackKind::Progress, chrome))
                 .child(
                     div()
                         .text_size(chrome.text(TYPE_CAPTION))
@@ -92,9 +105,11 @@ pub fn opening_panel(
                 )
                 .child(
                     div()
+                        .id("app-panel-status-title")
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_size(chrome.text(TYPE_TITLE))
-                        .text_color(p.text)
+                        .text_color(if kind == FeedbackKind::Error { p.error } else { p.text })
+                        .role(if kind == FeedbackKind::Error { Role::Alert } else { Role::Status })
                         .text_center()
                         .whitespace_normal()
                         .child(title.into()),
@@ -108,12 +123,43 @@ pub fn opening_panel(
                         .whitespace_normal()
                         .child(description.into()),
                 )
-                .child(opening_spinner(chrome)),
+                .when(kind == FeedbackKind::Progress, |el| el.child(opening_spinner(chrome)))
+                .children(footer),
         )
 }
 
-fn opening_motif(chrome: Chrome) -> Div {
+fn opening_motif(busy: bool, chrome: Chrome) -> Div {
     let p = chrome.palette;
+    let sparkle = div()
+        .absolute()
+        .top(px(-6.))
+        .right(px(-8.))
+        .size(px(22.))
+        .rounded(chrome.geo(RADIUS_SELECTION))
+        .bg(p.surface)
+        .border_1()
+        .border_color(p.border)
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(
+            Icon::default()
+                .path("icons/sparkles.svg")
+                .size(px(12.))
+                .text_color(p.tint_blue_strong),
+        );
+    let sparkle = if busy {
+        sparkle.with_animation(
+            "opening-sparkle",
+            Animation::new(Duration::from_millis(1400)).repeat(),
+            |mark, delta| {
+                let wave = (delta * std::f32::consts::TAU).sin().abs();
+                mark.opacity(0.4 + 0.6 * wave)
+            },
+        ).into_any_element()
+    } else {
+        sparkle.into_any_element()
+    };
     div()
         .relative()
         .flex()
@@ -125,34 +171,7 @@ fn opening_motif(chrome: Chrome) -> Div {
             div()
                 .relative()
                 .child(opening_tile("icons/layout-grid.svg", 56., chrome))
-                .child(
-                    div()
-                        .absolute()
-                        .top(px(-6.))
-                        .right(px(-8.))
-                        .size(px(22.))
-                        .rounded(chrome.geo(RADIUS_SELECTION))
-                        .bg(p.surface)
-                        .border_1()
-                        .border_color(p.border)
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .with_animation(
-                            "opening-sparkle",
-                            Animation::new(Duration::from_millis(1400)).repeat(),
-                            |mark, delta| {
-                                let wave = (delta * std::f32::consts::TAU).sin().abs();
-                                mark.opacity(0.4 + 0.6 * wave)
-                            },
-                        )
-                        .child(
-                            Icon::default()
-                                .path("icons/sparkles.svg")
-                                .size(px(12.))
-                                .text_color(p.tint_blue_strong),
-                        ),
-                ),
+                .child(sparkle),
         )
         .child(opening_connector(chrome))
         .child(opening_tile("icons/file.svg", 40., chrome))

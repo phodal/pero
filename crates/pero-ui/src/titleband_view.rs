@@ -99,7 +99,7 @@ impl Workbench {
     fn focused_column_app(&self, cx: &App) -> Option<titleband::FocusedApp> {
         let (name, panel) = self.focused_app()?;
         if self.apps.preparation.as_ref().is_some_and(|value| {
-            value.name == name && value.phase != "ready" && value.phase != "failed"
+            value.name == name && value.phase != "ready"
         }) {
             return None;
         }
@@ -127,14 +127,6 @@ impl Workbench {
     }
 
     fn app_header_failed(&self, name: &str, panel: &str, cx: &App) -> bool {
-        if self
-            .apps
-            .preparation
-            .as_ref()
-            .is_some_and(|value| value.name == name && value.phase == "failed")
-        {
-            return true;
-        }
         #[cfg(not(target_family = "wasm"))]
         {
             let key = (name.to_owned(), panel.to_owned());
@@ -146,7 +138,7 @@ impl Workbench {
         }
         #[cfg(target_family = "wasm")]
         {
-            let _ = (panel, cx);
+            let _ = (name, panel, cx);
             self.apps.error.is_some()
         }
     }
@@ -466,12 +458,7 @@ impl Workbench {
                     }
                 }
                 Action::Retry => {
-                    let label = if self.apps.preparation.as_ref().is_some_and(|value| value.phase == "failed")
-                    {
-                        self.t("apps.env_retry")
-                    } else {
-                        self.t("apps.retry_open")
-                    };
+                    let label = self.t("apps.retry_open");
                     painted.push(
                         pero_theme::action_button("titleband-retry", label, pero_theme::ActionKind::Primary, pero_theme::Chrome::from_app(cx), cx)
                             .on_click(cx.listener(|this, _, _, cx| this.retry_focused_app(cx)))
@@ -529,16 +516,6 @@ impl Workbench {
 
     fn retry_focused_app(&mut self, cx: &mut Context<Self>) {
         let Some((name, panel)) = self.focused_app() else { return };
-        if self
-            .apps
-            .preparation
-            .as_ref()
-            .is_some_and(|value| value.name == name && value.phase == "failed")
-        {
-            self.pending_app = Some((name.clone(), panel));
-            self.command(json!({"action":"apps_prepare","name":name}), cx);
-            return;
-        }
         #[cfg(not(target_family = "wasm"))]
         {
             self.native_app_pages.remove(&(name.clone(), panel.clone()));

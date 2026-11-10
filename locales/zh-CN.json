@@ -548,6 +548,7 @@
   "apps.env_failed": "安装失败",
   "apps.env_retry": "重新安装",
   "apps.env_title": "环境安装",
+  "apps.env_panel_kicker": "应用环境",
   "apps.env_preparing_hint": "正在为此应用准备依赖，可展开详情查看安装进度。",
   "apps.env_ready_hint": "现在可以打开此应用。",
   "apps.env_failed_hint": "环境准备未完成。可以重试，或展开详情查看原因。",

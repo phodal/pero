@@ -173,7 +173,8 @@ mod surface {
     }
 
     impl Workbench {
-        pub(crate) fn app_preparation_content(&self, cx: &mut Context<Self>) -> AnyElement {
+        #[cfg(not(target_family = "wasm"))]
+        pub(crate) fn app_preparation_content(&self, in_panel: bool, cx: &mut Context<Self>) -> AnyElement {
             use pero_theme::{ActionKind, FeedbackKind, action_button, feedback, feedback_actions, feedback_details};
             let Some(value) = &self.apps.preparation else { return div().into_any_element(); };
             let chrome = pero_theme::Chrome::from_app(cx);
@@ -187,8 +188,7 @@ mod surface {
                 _ => ("apps.env_failed", "apps.env_failed_hint", FeedbackKind::Error),
             };
             let mut actions = Vec::new();
-            let header_owns_retry = value.phase == "failed" && self.focused_app().is_some_and(|(name, _)| name == value.name);
-            if (value.phase == "failed" || value.phase == "required") && !header_owns_retry {
+            if value.phase == "failed" || value.phase == "required" {
                 actions.push(action_button("app-env-retry", self.t(if value.phase == "required" {
                     "apps.env_prepare"
                 } else { "apps.env_retry" }), ActionKind::Primary, chrome, cx)
@@ -210,11 +210,18 @@ mod surface {
                         cx.notify();
                     })).into_any_element());
             }
-            feedback("app-env-feedback", self.t(title), self.t(description), kind, chrome)
-                .child(feedback_actions(actions, chrome))
-                .when(value.details_open, |el| el.child(feedback_details(
-                    "app-env-diagnostics", value.log.join("\n"), chrome)))
-                .into_any_element()
+            let details = value.details_open.then(|| feedback_details(
+                "app-env-diagnostics", value.log.join("\n"), chrome).into_any_element());
+            let actions = (!actions.is_empty()).then(|| feedback_actions(actions, chrome).into_any_element());
+            if in_panel {
+                pero_theme::app_status_panel(
+                    "app-env-feedback", self.t("apps.env_panel_kicker"), self.t(title),
+                    self.t(description), kind, actions.into_iter().chain(details), chrome,
+                ).into_any_element()
+            } else {
+                feedback("app-env-feedback", self.t(title), self.t(description), kind, chrome)
+                    .children(actions).children(details).into_any_element()
+            }
         }
 
         pub(crate) fn installed_app_title(&self, name: &str, display_name: &str) -> String {
@@ -435,7 +442,7 @@ mod surface {
                 }
             }
             #[cfg(not(target_family = "wasm"))]
-            let preparation = self.apps.preparation.as_ref().filter(|value| value.phase != "ready").map(|_| self.app_preparation_content(cx));
+            let preparation = self.apps.preparation.as_ref().filter(|value| value.phase != "ready").map(|_| self.app_preparation_content(false, cx));
             #[cfg(target_family = "wasm")]
             let preparation: Option<AnyElement> = None;
             let chrome = pero_theme::Chrome::from_app(cx);

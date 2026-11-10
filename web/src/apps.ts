@@ -16,7 +16,7 @@ declare global { interface Window { peroColumnHeader?(json: string): void } }
 export type AppSurface = { visible: boolean; name?: string; panel?: string; left?: number; top?: number; width?: number; height?: number; dark: boolean; locale: string; appearance?: AppearanceSnapshot; pane?:number; focused?:boolean; open?:{name:string;panel:string}[] };
 export type AppSurfaceSlot=Omit<AppSurface,'dark'|'locale'|'appearance'|'open'>;
 export type AppSurfaceBatch = {surfaces:AppSurfaceSlot[];dark:boolean;locale:string;appearance?:AppearanceSnapshot;open?:{name:string;panel:string}[]};
-type Mount = {region:HTMLElement;status:HTMLDivElement;useStatus:HTMLDivElement;surface:AppSurface;error:string;presenceExpiry?:ReturnType<typeof setTimeout>};
+type Mount = {region:HTMLElement;status:HTMLDivElement;useStatus:HTMLDivElement;surface:AppSurface;error:string;statusKey?:string;presenceExpiry?:ReturnType<typeof setTimeout>};
 type Frame = { documents:AppDocuments; element: HTMLIFrameElement; name: string; panel: string; ready: boolean; failed: boolean; timer: ReturnType<typeof setTimeout>; contextKey?: string; dispose(): void };
 type AppUsePresence = { scope: { app: string; panel: string }; title?: string; standing: string[]; tasks: { id: string; actions: string[]; expiresAt: number }[] };
 export type AppChatSlot = { scope: { app: string; panel: string }; rect: { x: number; y: number; width: number; height: number } };
@@ -81,7 +81,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   const mount=(name:string,panel:string)=>{
     const identity=key(name,panel);let slot=mounts.get(identity);if(slot)return slot;
     const element=document.createElement('section');element.className='app-panel-surface';element.setAttribute('aria-label',name);
-    const status=document.createElement('div');status.className='app-panel-status';status.setAttribute('role','status');
+    const status=document.createElement('div');status.className='app-panel-status';
     const useStatus=document.createElement('div');useStatus.hidden=true;useStatus.setAttribute('aria-label','App Use');
     useStatus.style.cssText='position:absolute;bottom:0;left:0;right:0;display:none;flex-wrap:wrap;gap:6px 12px;padding:5px 10px;box-sizing:border-box;border-top:1px solid var(--pero-border);background:var(--pero-surface);color:var(--pero-text);font:12px system-ui';
     element.append(status,useStatus);region.append(element);
@@ -147,40 +147,74 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   const renderStatus = (slot:Mount) => {
     const {surface,status}=slot;
     const frame = active(slot);
-    const required = preparation.get(surface.name)?.phase === 'required';
-    status.toggleAttribute('data-preparation', required);
-    if (required) {
-      status.replaceChildren(); status.hidden = false;
-      const t = (key: Parameters<typeof translate>[1]) => translate(normalizeLocale(surface.locale), key);
-      const title = document.createElement('strong'); title.textContent = t('apps.env_required');
-      const notice = document.createElement('p'); notice.textContent = t('apps.env_notice');
-      const details = document.createElement('details');
-      const summary = document.createElement('summary'); summary.textContent = t('apps.env_log');
-      const reason = document.createElement('pre'); reason.textContent = preparation.get(surface.name)!.message;
-      details.append(summary, reason);
-      const prepare = document.createElement('button'); prepare.textContent = t('apps.env_prepare');
-      prepare.onclick = () => { prepare.disabled = true; void command({ action: 'apps_prepare', name: surface.name }); };
-      status.append(title, notice, prepare, details);
+    const record = preparation.get(surface.name);
+    if (surface.visible) preparation.showInPanel(surface.name);
+    const phase = record?.value.phase === 'ready' ? undefined : record?.value.phase;
+    const t = (key: Parameters<typeof translate>[1]) => translate(normalizeLocale(surface.locale), key);
+    const message = phase ? '' : slot.error || (frame?.failed ? t('apps.panel_timeout') : '');
+    status.hidden = !!frame?.ready && !phase && !message;
+    const nextKey = JSON.stringify([surface.locale, phase, message, status.hidden]);
+    const log = phase ? record?.log.join('\n') ?? '' : '';
+    if (nextKey === slot.statusKey) {
+      const output = status.querySelector('pre');
+      if (output && output.textContent !== log) output.textContent = log;
       return;
     }
-    const message = slot.error || (frame?.failed ? translate(normalizeLocale(surface.locale), 'apps.panel_timeout') : '');
+    slot.statusKey = nextKey;
+    const expanded = status.querySelector('details')?.open ?? false;
+    const logFocused = status.querySelector('summary') === document.activeElement;
     status.replaceChildren();
-    status.hidden = !!frame?.ready && !message;
+    status.toggleAttribute('data-preparation', !!phase);
     if (status.hidden) return;
-    const text = document.createElement('span');
-    text.textContent = message || translate(normalizeLocale(surface.locale), 'apps.loading_panel');
-    status.append(text);
-    if (message) {
+    const busy = !message && phase !== 'required' && phase !== 'failed';
+    const card = document.createElement('div'); card.className = 'app-panel-status-card';
+    const motif = document.createElement('div'); motif.className = 'app-panel-status-motif';
+    motif.setAttribute('aria-hidden', 'true');
+    motif.append(document.createElement('span'), document.createElement('span'), document.createElement('span'));
+    const kicker = document.createElement('div'); kicker.className = 'app-panel-status-kicker';
+    kicker.textContent = t(phase ? 'apps.env_panel_kicker' : 'apps.loading_panel_kicker');
+    const title = document.createElement('strong');
+    title.setAttribute('role', phase === 'failed' || message ? 'alert' : 'status');
+    title.textContent = phase ? t(`apps.env_${phase}`) : t(message ? 'apps.open_failed' : 'apps.loading_panel');
+    const description = document.createElement('p');
+    description.textContent = message || t(phase === 'required' ? 'apps.env_notice' : phase === 'failed' ? 'apps.env_failed_hint' : phase ? 'apps.env_preparing_hint' : 'apps.loading_panel_hint');
+    card.append(motif, kicker, title, description);
+    if (busy) {
+      const progress = document.createElement('div'); progress.className = 'app-panel-status-spinner';
+      progress.setAttribute('aria-hidden', 'true');
+      card.append(progress);
+    }
+    if (phase === 'required' || phase === 'failed') {
+      const prepare = document.createElement('button');
+      prepare.textContent = t(phase === 'required' ? 'apps.env_prepare' : 'apps.env_retry');
+      prepare.onclick = async () => {
+        prepare.disabled = true;
+        try {
+          await command({ action: 'apps_prepare', name: surface.name });
+        } finally {
+          prepare.disabled = false;
+        }
+      };
+      card.append(prepare);
+    } else if (message) {
       const retry = document.createElement('button');
-      retry.textContent = translate(normalizeLocale(surface.locale), 'apps.refresh');
+      retry.textContent = t('apps.refresh');
       retry.onclick = () => {
         if (!surface.name) return;
         if (frame) { clearTimeout(frame.timer); frame.dispose(); frame.element.remove(); frames.delete(key(frame.name, frame.panel)); slotRequests.delete(frame); reconcileSlot(); }
         slot.error = ''; renderStatus(slot);
         void command({ action: 'apps_open', name: surface.name, panel: surface.panel });
       };
-      status.append(retry);
+      card.append(retry);
     }
+    if (phase) {
+      const details = document.createElement('details'); details.open = expanded;
+      const summary = document.createElement('summary'); summary.textContent = t('apps.env_log');
+      const output = document.createElement('pre'); output.textContent = log;
+      details.append(summary, output); card.append(details);
+    }
+    status.append(card);
+    if (logFocused) card.querySelector('summary')?.focus({ preventScroll: true });
   };
   const update=()=>{
     const visible=[...mounts.values()].filter(slot=>slot.surface.visible);
@@ -362,17 +396,16 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       update();
     },
     event(event: HostEvent) {
-      preparation.event(event, ![...mounts.values()].some(slot => slot.surface.visible && slot.surface.name === (event.data as { name?: string })?.name));
       if (event.kind === 'apps_preparation') {
         const value = event.data as { name: string; phase: string };
-        if (value.phase === 'required') for (const slot of mounts.values()) {
-          if (slot.surface.name === value.name) renderStatus(slot);
-        }
-        if (value.phase === 'ready') for (const slot of mounts.values()) {
-          if (slot.surface.name === value.name && slot.error && slot.surface.visible) {
-            slot.error = ''; renderStatus(slot);
+        const panels = [...mounts.values()].filter(slot => slot.surface.name === value.name);
+        preparation.event(event, panels.length === 0);
+        for (const slot of panels) {
+          if (value.phase === 'ready' && slot.error && slot.surface.visible) {
+            slot.error = '';
             void command({ action: 'apps_open', name: value.name, panel: slot.surface.panel });
           }
+          renderStatus(slot);
         }
       }
       if(event.kind==='icon_themes'||event.kind==='icon_themes_error'){iconTheme=(event.data as {theme:IconThemePackage|null}).theme;for(const frame of frames.values())frame.element.contentWindow?.postMessage({type:'pero:app:icon-theme',theme:iconTheme},'*');}
