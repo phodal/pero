@@ -7,6 +7,15 @@ import { MethodSpec } from "./method";
 import type { Benchmark, Comparison, Run, State } from "./types";
 import "./styles.css";
 
+function retainNewerRuns(prior: State | null, next: State): State {
+  if (!prior) return next;
+  const known = new Map(prior.runs.map(run => [run.id, run]));
+  return { ...next, runs: next.runs.map(run => {
+    const current = known.get(run.id);
+    return current && current.updatedAt > run.updatedAt ? current : run;
+  }) };
+}
+
 const noParameters = { type: "object", properties: {}, additionalProperties: false };
 const idParameters = {
   type: "object", properties: { id: { type: "string", minLength: 1, maxLength: 100 } },
@@ -37,9 +46,11 @@ export default function HpcBenchmarks() {
   const filteredBenchmarks = data?.benchmarks.filter(item => `${item.name} ${item.version}`.toLowerCase().includes(query.trim().toLowerCase())) ?? [];
 
   const onError = (value: unknown) => { setError(value instanceof Error ? value.message : String(value)); setNotice(null); };
+  const stateTicket = React.useRef(0);
   const refresh = useCallback(async () => {
+    const ticket = ++stateTicket.current;
     const state = await api.get<State>("/api/state");
-    setData(state);
+    if (ticket === stateTicket.current) setData(prior => retainNewerRuns(prior, state));
     return state;
   }, [api]);
   const initialize = useCallback(async () => {
@@ -55,7 +66,8 @@ export default function HpcBenchmarks() {
     let stopped = false;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "hidden") return;
-      void api.get<State>("/api/state").then(state => { if (!stopped) setData(state); }).catch(value => {
+      const ticket = ++stateTicket.current;
+      void api.get<State>("/api/state").then(state => { if (!stopped && ticket === stateTicket.current) setData(prior => retainNewerRuns(prior, state)); }).catch(value => {
         if (!stopped) setError(value instanceof Error ? value.message : String(value));
       });
     }, 1200);
@@ -65,8 +77,10 @@ export default function HpcBenchmarks() {
   function chooseBenchmark(benchmark: Benchmark) { setBenchmarkId(benchmark.id); setSelectedRunId(""); setTab("method"); }
   async function openRun(run: Run) {
     setSelectedRunId(run.id); setBenchmarkId(run.benchmarkId); setTab("runs");
+    const ticket = ++stateTicket.current;
     const result = await api.get<{ run: Run }>(`/api/runs/${encodeURIComponent(run.id)}`);
-    setData(prior => prior ? { ...prior, runs: prior.runs.map(item => item.id === run.id ? result.run : item) } : prior);
+    if (ticket !== stateTicket.current) return;
+    setData(prior => prior ? { ...prior, runs: prior.runs.map(item => item.id !== run.id || item.updatedAt > result.run.updatedAt ? item : result.run) } : prior);
   }
   async function startRun() {
     if (!selectedBenchmark) return;
@@ -149,7 +163,7 @@ export default function HpcBenchmarks() {
 
   return <div className="hpc-app" {...appObjectProps("hpc-benchmarks")}>
     <h1 className="visually-hidden">{t("title")}</h1>
-    <AppBar columnHeader className="app-header" aria-label={t("title")} actions={<>
+    <AppBar className="app-header" aria-label={t("title")} actions={<>
       <IconButton label={t("refresh")} disabled={loading || busy} onClick={() => void refresh().catch(onError)}><Icon name="sync" size={16} /></IconButton>
         <Button className="discuss-button" aria-label={t("discuss")} title={t("discuss")} disabled={loading || !selectedBenchmark} onClick={() => void discuss().catch(onError)}><Icon name="agent" size={14} /><span>{t("discuss")}</span></Button>
         <Button variant="primary" disabled={loading || busy || Boolean(active) || !selectedBenchmark?.available || !data?.runtime.reframeAvailable} onClick={() => void startRun()}><Icon name="play" size={14} />{t(selectedBenchmark?.available ? "run" : "runBenchmark")}</Button>
