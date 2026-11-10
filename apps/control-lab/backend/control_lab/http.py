@@ -5,7 +5,7 @@ import json
 import re
 
 from .experiments import Goal, Invalid, TEMPLATES, canonical
-from . import engines
+from . import canvas, engines
 
 
 def agent_summary(record):
@@ -74,6 +74,12 @@ def handler(store, secret):
                     if len(raw)!=length: raise Invalid('Incomplete request')
                     data = json.loads(raw)
                     if not isinstance(data,dict): raise Invalid('Request must be a JSON object')
+                    if self.path == '/internal/canvas/experiment':
+                        return self.reply(200, canvas.projection(data))
+                    if self.path == '/internal/canvas/status':
+                        return self.reply(200, canvas.operation(store, data))
+                    if self.path == '/api/canvas/create-experiment':
+                        return self.reply(200, canvas.operation(store, data, create=True))
                     if self.path == '/api/experiments': return self.reply(201,store.create(data))
                     if self.path == '/api/agent-step':
                         fields = {'read': set(), 'baseline': set(), 'search-next': set(), 'search': set(), 'propose': {'parameters'},

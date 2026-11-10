@@ -130,6 +130,75 @@
           ],
           "additionalProperties": false
         }
+      },
+      {
+        "name": "create-experiment",
+        "description": "Create a frozen PI controller specification from the saved Notebook parameters. Run it separately in Control Lab.",
+        "path": "/api/canvas/create-experiment",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "operationId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$"},
+            "inputs": {
+              "type": "object",
+              "properties": {
+                "submissionId": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+                "horizon": {"$ref": "#/$defs/parameter"},
+                "samples": {"$ref": "#/$defs/parameter"}
+              },
+              "required": ["submissionId", "horizon", "samples"],
+              "additionalProperties": false
+            },
+            "params": {"type": "object", "additionalProperties": false}
+          },
+          "required": ["operationId", "inputs", "params"],
+          "additionalProperties": false,
+          "$defs": {
+            "parameter": {
+              "type": "object",
+              "properties": {
+                "procedureId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$"},
+                "parameterId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$"},
+                "version": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+                "value": {"type": "string", "minLength": 1, "maxLength": 128}
+              },
+              "required": ["procedureId", "parameterId", "version", "value"],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    ],
+    "canvases": [
+      {
+        "id": "notebook-experiment",
+        "title": "PI controller experiment",
+        "read": "/internal/canvas/experiment",
+        "status": "/internal/canvas/status",
+        "inputs": {
+          "type": "object",
+          "properties": {
+            "submissionId": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+            "horizon": {"$ref": "#/$defs/parameter"},
+            "samples": {"$ref": "#/$defs/parameter"}
+          },
+          "required": ["submissionId", "horizon", "samples"],
+          "additionalProperties": false,
+          "$defs": {
+            "parameter": {
+              "type": "object",
+              "properties": {
+                "procedureId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$"},
+                "parameterId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$"},
+                "version": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+                "value": {"type": "string", "minLength": 1, "maxLength": 128}
+              },
+              "required": ["procedureId", "parameterId", "version", "value"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "actions": ["create-experiment"]
       }
     ]
   },

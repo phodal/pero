@@ -12,6 +12,7 @@ from .conversation import project_candidate
 from .experiments import MAX_EVIDENCE_ATTEMPTS, Attempt, Candidate, ExperimentSpec, Invalid, Trial, admit_attempts, candidates, canonical, input_digest, proposal, sample_reservation, template
 from .verification import Observation, aggregate, verify_observation
 from . import engines
+from .canvas import NotebookExperiment
 
 
 def now():
@@ -106,9 +107,23 @@ class ExperimentStore:
             return {'experiments': [{k:r[k] for k in keys} for r in sorted(self.records.values(),key=lambda r:(r['createdAt'],r['id']),reverse=True)]}
 
     def create(self, data):
-        spec = ExperimentSpec.parse(data)
+        with self.lock:
+            return self._create(ExperimentSpec.parse(data), uuid.uuid4().hex)
+
+    def notebook_experiment(self, submission: NotebookExperiment, *, create):
+        with self.lock:
+            if submission.identity in self.records or submission.identity in self.fenced:
+                record = self.get_record(submission.identity)
+                if record.get('notebookInputsDigest') != submission.inputs_digest:
+                    raise Invalid('This Notebook binding already belongs to different inputs')
+                return deepcopy(record)
+            if create:
+                return self._create(submission.spec, submission.identity, submission.inputs_digest)
+            return None
+
+    def _create(self, spec, identity, notebook_inputs_digest=None):
         item = template(spec.template_id)
-        record = dict(id=uuid.uuid4().hex, title=item.title, createdAt=now(), specHash=spec.hash,
+        record = dict(id=identity, title=item.title, createdAt=now(), specHash=spec.hash,
                       **spec.to_dict(), status='idle', operation=None, progress=dict(completed=0,total=0),
                       error=None, candidates=[], lockedCandidateId=None, trials=[], report=None,
                       reports=[], candidateLock=None, provenance=deepcopy(self.provenance),
@@ -122,9 +137,10 @@ class ExperimentStore:
                 'Search compares nominal, gain ±20% and damping ±20%. Final verification repeats nominal and damping -20% as separate trials; those traces are not drawn on the search chart.',
                 'Gain and phase margins come from python-control. They are input-output margins, not an independent recomputation, and they do not replace internal stability. An undefined crossover is inconclusive.',
             ])
-        with self.lock:
-            self.save(record)
-            return deepcopy(record)
+        if notebook_inputs_digest is not None:
+            record['notebookInputsDigest'] = notebook_inputs_digest
+        self.save(record)
+        return deepcopy(record)
 
     def lock_candidate(self, identity, candidate_id):
         with self.lock:

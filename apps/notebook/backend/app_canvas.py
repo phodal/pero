@@ -3,6 +3,8 @@ from dataclasses import dataclass
 import re
 import json
 
+from control_lab_canvas import require_saved_control_parameters
+
 
 @dataclass(frozen=True)
 class AppCanvasBinding:
@@ -76,4 +78,6 @@ def verify_source(entries, value):
     actual = block['attrs'].get('binding')
     if not isinstance(actual, dict) or {key: item for key, item in actual.items() if key != 'receipt'} != check.binding:
         raise ValueError('Save the current Canvas binding before mounting or running an action')
+    if actual.get('app') == 'control-lab' and actual.get('view') == 'notebook-experiment':
+        require_saved_control_parameters(saved.document, check.binding)
     return {'valid': True}
