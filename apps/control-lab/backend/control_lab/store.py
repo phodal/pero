@@ -8,6 +8,7 @@ import threading
 import uuid
 import platform
 
+from .conversation import project_candidate
 from .experiments import MAX_EVIDENCE_ATTEMPTS, Attempt, Candidate, ExperimentSpec, Invalid, Trial, admit_attempts, candidates, canonical, input_digest, proposal, sample_reservation, template
 from .verification import Observation, aggregate, verify_observation
 from . import engines
@@ -88,6 +89,14 @@ class ExperimentStore:
     def read(self, identity):
         with self.lock:
             return deepcopy(self.get_record(identity))
+
+    def project(self, identity, candidate_id):
+        """Read-only conversation receipt. Availability is observed here; the record is not changed."""
+        with self.lock:
+            engine = template(self.get_record(identity)['templateId']).engine
+        available = any(item['engine'] == engine and item['available'] for item in engines.capabilities())
+        with self.lock:
+            return project_candidate(self.get_record(identity), candidate_id, available)
 
     def listing(self):
         with self.lock:

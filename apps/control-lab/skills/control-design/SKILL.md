@@ -23,6 +23,16 @@ effort, stability and sampling evidence where required; a response settling
 around the wrong value is not successful tracking. Read failed or inconclusive
 scenario evidence before choosing what to try next.
 
+After an approved `propose`, `baseline`, or `search-next` finishes, call
+`project-result` with that candidate id. The shared conversation renders this
+read-only receipt: its chart and checks, the citation, the method, and the
+units. Wait until the operation is idle before projecting. Do not copy those
+numbers into `chart_render` or `table_render`. The receipt status is the check.
+`pass` applies only to that candidate's current search inputs and is not device
+acceptance. `check_failed`, `inconclusive`, `unchecked`, `failed`, and
+`unavailable` are different outcomes. A report in `notApplicable` belongs to
+another input; do not describe it as the result of the new parameters.
+
 Choose and lock one candidate based on the search evidence. Run the complete
 frozen final verification scenarios, then inspect the independent report and
 its saved observations. Report the verdict, failed or missing criteria,

@@ -8,6 +8,7 @@ test('Agent routes expose only existing experiments and bounded proposals', () =
   const routes = app.contributes.writes as { name: string; schema: Record<string, unknown> }[];
   const step = AppParameterSchema.parse(routes.find(route => route.name === 'experiment-step')!.schema);
   const propose = AppParameterSchema.parse(routes.find(route => route.name === 'propose-candidate')!.schema);
+  const project = AppParameterSchema.parse(routes.find(route => route.name === 'project-result')!.schema);
   const experimentId = 'a'.repeat(32);
   for (const action of ['read', 'baseline', 'search-next', 'search', 'cancel', 'lock', 'verify', 'reevaluate'])
     assert.doesNotThrow(() => step.validate({ action, experimentId }));
@@ -21,6 +22,9 @@ test('Agent routes expose only existing experiments and bounded proposals', () =
     { action: 'read', experimentId, parameters: { horizon: 50 } },
   ]) assert.throws(() => step.validate(document));
   assert.doesNotThrow(() => propose.validate({ action: 'propose', experimentId, parameters: { kp: 3 } }));
+  assert.doesNotThrow(() => project.validate({ action: 'project', experimentId, candidateId: 'proposal-' + 'a'.repeat(16) }));
+  assert.throws(() => project.validate({ action: 'project', experimentId }));
+  assert.throws(() => project.validate({ action: 'propose', experimentId, candidateId: 'baseline' }));
   for (const document of [
     { action: 'propose', experimentId, parameters: { horizon: 50 } },
     { action: 'propose', experimentId, parameters: { kp: 3 }, criteria: {} },

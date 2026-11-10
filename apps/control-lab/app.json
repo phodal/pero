@@ -98,6 +98,38 @@
           ],
           "additionalProperties": false
         }
+      },
+      {
+        "name": "project-result",
+        "description": "Project one saved candidate into a versioned conversation receipt. Read-only: it does not solve, lock, or change parameters. Call it after the approved propose, baseline, or search-next operation is idle. The receipt's status is unavailable, failed, unchecked, check_failed, inconclusive, or pass for these search scenarios only. A saved report is included only when a fresh check binds the current parameters; changing parameters leaves the old check in notApplicable and does not mark the new input passed. Cite the receipt citation. Do not copy its numbers into chart_render or table_render, and do not treat the receipt as device acceptance.",
+        "path": "/api/agent-step",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "project"
+              ]
+            },
+            "experimentId": {
+              "type": "string",
+              "minLength": 32,
+              "maxLength": 32
+            },
+            "candidateId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "action",
+            "experimentId",
+            "candidateId"
+          ],
+          "additionalProperties": false
+        }
       }
     ]
   },
