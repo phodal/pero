@@ -565,6 +565,7 @@
   "apps.hide_diagnostics": "收起详情",
   "apps.copy_diagnostics": "复制诊断信息",
   "apps.loading_panel": "正在打开应用…",
+  "apps.loading_panel_kicker": "马上就能开始工作",
   "apps.loading_panel_hint": "应用正在启动，就绪后会在此处显示。",
   "apps.panel_timeout": "应用未能加载，请重试或返回应用列表。",
   "apps.native_unavailable": "请在 Pero Desktop 中打开应用。原生预览暂不支持 Web 面板。",

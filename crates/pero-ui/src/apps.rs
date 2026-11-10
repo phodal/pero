@@ -378,6 +378,7 @@ mod surface {
                 #[cfg(target_family="wasm")]
                 {
                 let owner = cx.entity().clone();
+                let chrome = pero_theme::Chrome::from_app(cx);
                 return div()
                     .on_prepaint(move |bounds, _, cx| {
                         owner.update(cx, |this, cx| this.sync_app_surface(Some(bounds), cx))
@@ -385,12 +386,17 @@ mod surface {
                     .flex_1()
                     .min_w_0()
                     .h_full()
-                    .p(px(pero_theme::WorkbenchStyle::PAGE))
-                    .text_color(p.text_muted)
                     .child(if !self.layout.embedded_surface_visible {
-                        ""
+                        div().into_any_element()
                     } else {
-                        self.t("apps.loading_panel")
+                        pero_theme::opening_panel(
+                            "wasm-app-loading-feedback",
+                            self.t("apps.loading_panel_kicker"),
+                            self.t("apps.loading_panel"),
+                            self.t("apps.loading_panel_hint"),
+                            chrome,
+                        )
+                        .into_any_element()
                     })
                     .into_any_element();
                 }

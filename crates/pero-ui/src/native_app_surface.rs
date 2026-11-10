@@ -272,19 +272,30 @@ impl Render for NativeAppPage {
             });
         }
         div()
+            .relative()
             .flex()
             .flex_col()
             .flex_1()
             .min_h_0()
             .min_w_0()
             .h_full()
-            .when(!self.ready && self.error.is_none(), |el| {
-                el.child(pero_contracts::i18n::text(
-                    self.context["locale"].as_str().unwrap_or("en"),
-                    "apps.loading_panel",
-                ))
-            })
             .children(self.view.clone().filter(|_| self.error.is_none() && self.context["active"] != false))
+            .when(!self.ready && self.error.is_none(), |el| {
+                let locale = self.context["locale"].as_str().unwrap_or("en");
+                let chrome = pero_theme::Chrome::from_app(cx);
+                el.child(
+                    pero_theme::opening_panel(
+                        "native-app-page-opening",
+                        pero_contracts::i18n::text(locale, "apps.loading_panel_kicker"),
+                        pero_contracts::i18n::text(locale, "apps.loading_panel"),
+                        pero_contracts::i18n::text(locale, "apps.loading_panel_hint"),
+                        chrome,
+                    )
+                    .absolute()
+                    .inset_0()
+                    .bg(chrome.palette.bg),
+                )
+            })
     }
 }
 pub(crate) struct RetainedApp {
@@ -623,8 +634,13 @@ impl Workbench {
                     if let Some(page) = self.native_app_pages.get(&key) {
                         el.child(page.view.clone())
                     } else {
-                        el.child(pero_theme::feedback("native-app-loading-feedback", self.t("apps.loading_panel"), self.t("apps.loading_panel_hint"),
-                            pero_theme::FeedbackKind::Progress, chrome))
+                        el.child(pero_theme::opening_panel(
+                            "native-app-loading-feedback",
+                            self.t("apps.loading_panel_kicker"),
+                            self.t("apps.loading_panel"),
+                            self.t("apps.loading_panel_hint"),
+                            chrome,
+                        ))
                     }
                 },
             )

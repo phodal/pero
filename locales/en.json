@@ -565,6 +565,7 @@
   "apps.hide_diagnostics": "Hide details",
   "apps.copy_diagnostics": "Copy diagnostics",
   "apps.loading_panel": "Opening app…",
+  "apps.loading_panel_kicker": "Almost ready to work",
   "apps.loading_panel_hint": "The app is starting. Its content will appear here when ready.",
   "apps.panel_timeout": "The app did not load. Retry or return to Apps.",
   "apps.native_unavailable": "Open Apps in Pero Desktop. Web panels are unavailable in the native preview.",
