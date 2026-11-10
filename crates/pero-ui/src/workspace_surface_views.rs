@@ -237,10 +237,14 @@ impl Workbench {
                 { let _=(name,panel); div().flex_1().min_h_0().into_any_element() }
             },
             Some(WorkspaceRoute::Content(WorkspaceItem::Web(id))) => {
+                let address_on_pane = !self.web_in_titleband()
+                    && self.navigation.current() == Some(&WorkspaceItem::Web(id.clone()));
                 #[cfg(target_family = "wasm")]
                 {
                     let _ = id;
-                    div().flex_1().min_h_0().into_any_element()
+                    div().flex_1().min_h_0().flex().flex_col()
+                        .when(address_on_pane, |el| el.child(self.web_toolbar(false, cx)))
+                        .into_any_element()
                 }
                 #[cfg(not(target_family = "wasm"))]
                 {
@@ -248,6 +252,9 @@ impl Workbench {
                         .flex_1()
                         .min_h_0()
                         .min_w_0()
+                        .flex()
+                        .flex_col()
+                        .when(address_on_pane, |el| el.child(self.web_toolbar(false, cx)))
                         .children(
                             self.native_web_pages
                                 .get(id)
@@ -281,6 +288,7 @@ impl Workbench {
         let has_recent = !recent.is_empty();
         let pane_id = leaf.id;
         let pane = pane_id.0 as usize;
+        let p = chrome.palette;
         div()
             .id(("pane-empty", pane))
             .flex_1()
@@ -295,100 +303,126 @@ impl Workbench {
             .py(chrome.geo(pero_theme::SPACE_24))
             .child(
                 div()
+                    .id(("pane-empty-guide", pane))
                     .w_full()
-                    .max_w(px(420.))
+                    .max_w(px(640.))
                     .flex()
                     .flex_col()
                     .items_center()
-                    .gap(chrome.geo(pero_theme::SPACE_16))
-                    .child(
-                        div()
-                            .text_size(chrome.text(pero_theme::TYPE_HEADING))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(chrome.palette.text)
-                            .text_center()
-                            .child(self.t("workspace.empty")),
-                    )
-                    .child(
-                        div()
-                            .max_w(px(360.))
-                            .text_size(chrome.text(pero_theme::TYPE_BODY))
-                            .text_color(chrome.palette.text_muted)
-                            .text_center()
-                            .whitespace_normal()
-                            .child(self.t(if has_recent {
-                                "workspace.empty_closed_hint"
-                            } else {
-                                "workspace.empty_hint"
-                            })),
-                    )
+                    .gap(chrome.geo(pero_theme::SPACE_20))
+                    .rounded(px(20.))
+                    .bg(p.tint_blue_surface)
+                    .px(chrome.geo(pero_theme::SPACE_24))
+                    .py(px(36.))
+                    .child(guide_motif(chrome))
                     .child(
                         div()
                             .flex()
+                            .flex_col()
                             .items_center()
                             .gap(chrome.geo(pero_theme::SPACE_8))
                             .child(
-                                pero_theme::action_button(
-                                    ("pane-empty-chat", pane),
-                                    self.t("chat.new"),
-                                    pero_theme::ActionKind::Primary,
-                                    chrome,
-                                    cx,
-                                )
-                                .on_click(cx.listener(move |this, _, window, cx| {
+                                div()
+                                    .text_size(chrome.text(pero_theme::TYPE_CAPTION))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(p.tint_blue_text)
+                                    .child(self.t("workspace.empty_kicker")),
+                            )
+                            .child(
+                                div()
+                                    .text_size(chrome.text(pero_theme::TYPE_TITLE))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(p.text)
+                                    .text_center()
+                                    .child(self.t("workspace.empty")),
+                            )
+                            .child(
+                                div()
+                                    .max_w(px(360.))
+                                    .text_size(chrome.text(pero_theme::TYPE_BODY))
+                                    .text_color(p.text_muted)
+                                    .text_center()
+                                    .whitespace_normal()
+                                    .child(self.t(if has_recent {
+                                        "workspace.empty_closed_hint"
+                                    } else {
+                                        "workspace.empty_hint"
+                                    })),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .w_full()
+                            .flex()
+                            .flex_wrap()
+                            .items_stretch()
+                            .gap(chrome.geo(pero_theme::SPACE_12))
+                            .child(guide_choice(
+                                ("pane-empty-chat", pane),
+                                "icons/message-circle.svg",
+                                self.t("chat.new"),
+                                self.t("workspace.empty_chat_detail"),
+                                p.accent_soft,
+                                p.accent_text,
+                                chrome,
+                                cx.listener(move |this, _, window, cx| {
                                     this.focus_pane(pane_id, window, cx);
                                     this.new_chat(cx);
                                     let composer = this.chat.read(cx).composer.clone();
                                     composer.update(cx, |input, cx| input.focus(window, cx));
-                                })),
-                            )
-                            .child(
-                                pero_theme::action_button(
-                                    ("pane-empty-apps", pane),
-                                    self.t("apps.manage"),
-                                    pero_theme::ActionKind::Ghost,
-                                    chrome,
-                                    cx,
-                                )
-                                .on_click(cx.listener(|this, _, _, cx| {
+                                }),
+                            ))
+                            .child(guide_choice(
+                                ("pane-empty-apps", pane),
+                                "icons/layout-grid.svg",
+                                self.t("apps.manage"),
+                                self.t("workspace.empty_apps_detail"),
+                                p.tint_apricot_surface,
+                                p.tint_apricot_text,
+                                chrome,
+                                cx.listener(|this, _, _, cx| {
                                     this.navigate(crate::workspace::WorkbenchPage::Apps, cx);
                                     this.refresh_apps(cx);
-                                })),
-                            ),
+                                }),
+                            )),
                     )
-                    .when(has_recent, |column| {
-                        column.child(
+                    .when(has_recent, |card| {
+                        card.child(
                             div()
                                 .w_full()
                                 .flex()
                                 .flex_col()
                                 .gap(chrome.geo(pero_theme::SPACE_4))
+                                .pt(chrome.geo(pero_theme::SPACE_4))
+                                .border_t_1()
+                                .border_color(p.border)
                                 .child(
                                     div()
+                                        .pt(chrome.geo(pero_theme::SPACE_8))
                                         .px(chrome.geo(pero_theme::SPACE_8))
                                         .text_size(chrome.text(pero_theme::TYPE_CAPTION))
-                                        .text_color(chrome.palette.text_muted)
+                                        .text_color(p.text_muted)
                                         .child(self.t("workspace.recently_closed")),
                                 )
-                                .children(recent.into_iter().map(|(index, title, icon)| {
-                                    pero_theme::action_button(
-                                        SharedString::from(format!("pane-reopen:{pane}:{index}")),
-                                        title.clone(),
-                                        pero_theme::ActionKind::Ghost,
-                                        chrome,
-                                        cx,
-                                    )
-                                    .w_full()
-                                    .justify_start()
-                                    .icon(Icon::default().path(
-                                        pero_chat_ui::icon_theme::asset_path(&icon),
-                                    ))
-                                    .tooltip(title)
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.reopen_closed_at(pane_id, index, window, cx);
-                                    }))
-                                    .into_any_element()
-                                })),
+                                .child(
+                                    div()
+                                        .w_full()
+                                        .flex()
+                                        .flex_wrap()
+                                        .gap(chrome.geo(pero_theme::SPACE_8))
+                                        .children(recent.into_iter().map(|(index, title, icon)| {
+                                            guide_chip(
+                                                SharedString::from(format!("pane-reopen:{pane}:{index}")),
+                                                title,
+                                                pero_chat_ui::icon_theme::asset_path(&icon),
+                                                chrome,
+                                                cx.listener(move |this, _, window, cx| {
+                                                    this.reopen_closed_at(pane_id, index, window, cx);
+                                                }),
+                                            )
+                                            .into_any_element()
+                                        })),
+                                )
                         )
                     }),
             )
@@ -456,4 +490,166 @@ impl Workbench {
         #[cfg(not(target_family = "wasm"))]
         self.sync_web_surface(None, cx);
     }
+}
+
+fn guide_motif(chrome: pero_theme::Chrome<'_>) -> Div {
+    let p = chrome.palette;
+    div()
+        .flex()
+        .items_center()
+        .gap(chrome.geo(pero_theme::SPACE_12))
+        .child(guide_tile("icons/message-circle.svg", 44., p.surface, p.accent_text, chrome))
+        .child(guide_dots(p.tint_blue_strong))
+        .child(
+            div().relative().child(
+                guide_tile("icons/sparkles.svg", 64., p.surface, p.tint_blue_strong, chrome)
+                    .with_animation(
+                        "empty-guide-sparkle",
+                        Animation::new(std::time::Duration::from_millis(1600)).repeat(),
+                        |tile, delta| {
+                            let wave = (delta * std::f32::consts::TAU).sin().abs();
+                            tile.opacity(0.72 + 0.28 * wave)
+                        },
+                    ),
+            ),
+        )
+        .child(guide_dots(p.tint_blue_strong))
+        .child(guide_tile("icons/layout-grid.svg", 44., p.surface, p.tint_apricot_strong, chrome))
+}
+
+fn guide_tile(path: &'static str, size: f32, fill: Hsla, ink: Hsla, chrome: pero_theme::Chrome<'_>) -> Div {
+    let icon = (size * 0.42).max(16.);
+    div()
+        .size(px(size))
+        .rounded(chrome.geo(pero_theme::RADIUS_PANEL))
+        .bg(fill)
+        .border_1()
+        .border_color(chrome.palette.border)
+        .flex()
+        .items_center()
+        .justify_center()
+        .shadow(vec![
+            BoxShadow::new(px(0.), px(6.), chrome.palette.text.opacity(0.08)).blur_radius(px(16.)),
+        ])
+        .child(Icon::default().path(path).size(px(icon)).text_color(ink))
+}
+
+fn guide_dots(color: Hsla) -> Div {
+    div().flex().items_center().gap(px(4.)).children((0..4).map(move |_| {
+        div().size(px(4.)).rounded(px(99.)).bg(color.opacity(0.55))
+    }))
+}
+
+fn guide_choice(
+    id: impl Into<ElementId>,
+    icon: &'static str,
+    title: impl Into<SharedString>,
+    detail: impl Into<SharedString>,
+    tile: Hsla,
+    ink: Hsla,
+    chrome: pero_theme::Chrome<'_>,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    let title = title.into();
+    let detail = detail.into();
+    let border = chrome.palette.border;
+    div()
+        .id(id)
+        .flex_1()
+        .min_w(px(210.))
+        .h(px(168.))
+        .flex()
+        .flex_col()
+        .justify_between()
+        .gap(chrome.geo(pero_theme::SPACE_12))
+        .p(chrome.geo(pero_theme::SPACE_16))
+        .rounded(chrome.geo(pero_theme::RADIUS_PANEL))
+        .border_1()
+        .border_color(border)
+        .bg(chrome.palette.surface)
+        .cursor_pointer()
+        .shadow(vec![
+            BoxShadow::new(px(0.), px(8.), chrome.palette.text.opacity(0.06)).blur_radius(px(18.)),
+        ])
+        .hover(move |card| card.border_color(ink))
+        .on_click(on_click)
+        .child(
+            div()
+                .size(px(40.))
+                .rounded(chrome.geo(pero_theme::RADIUS_SELECTION))
+                .bg(tile)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(Icon::default().path(icon).size(px(20.)).text_color(ink)),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(4.))
+                .child(
+                    div()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_size(chrome.text(pero_theme::TYPE_HEADING))
+                        .text_color(chrome.palette.text)
+                        .child(title),
+                )
+                .child(
+                    div()
+                        .text_size(chrome.text(pero_theme::TYPE_CAPTION))
+                        .text_color(chrome.palette.text_muted)
+                        .whitespace_normal()
+                        .child(detail),
+                ),
+        )
+        .child(
+            div()
+                .flex()
+                .justify_end()
+                .text_color(ink)
+                .child(Icon::default().path("icons/arrow-right.svg").size(px(16.))),
+        )
+}
+
+fn guide_chip(
+    id: impl Into<ElementId>,
+    title: impl Into<SharedString>,
+    icon: impl Into<SharedString>,
+    chrome: pero_theme::Chrome<'_>,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    let title = title.into();
+    let hover = chrome.palette.surface_hover;
+    div()
+        .id(id)
+        .max_w(px(220.))
+        .h(px(32.))
+        .flex()
+        .items_center()
+        .gap(chrome.geo(pero_theme::SPACE_8))
+        .px(chrome.geo(pero_theme::SPACE_12))
+        .rounded(px(99.))
+        .border_1()
+        .border_color(chrome.palette.border)
+        .bg(chrome.palette.surface)
+        .cursor_pointer()
+        .hover(move |chip| chip.bg(hover))
+        .on_click(on_click)
+        .child(
+            Icon::default()
+                .path(icon.into())
+                .size(px(14.))
+                .text_color(chrome.palette.text_muted),
+        )
+        .child(
+            div()
+                .min_w_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .text_size(chrome.text(pero_theme::TYPE_CAPTION))
+                .text_color(chrome.palette.text)
+                .child(title),
+        )
 }
