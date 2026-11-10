@@ -102,6 +102,10 @@ pub struct ChatPanel {
     pub compact: bool,
     /// The shell places this conversation in a dock with a close action.
     pub docked: bool,
+    /// The workbench titleband is drawing the side resources header.
+    pub host_titleband: bool,
+    /// Side resources column measured by the last layout. Bottom stack is none.
+    pub resource_column: Option<crate::artifact_panel::ResourceColumn>,
     pub(crate) pending_prompts: Vec<ComposerInsertion>,
     pub scope: Option<pero_contracts::AppChatScope>,
     pub(crate) scope_selection: HashMap<Option<pero_contracts::AppChatScope>, String>,
@@ -179,6 +183,8 @@ impl ChatPanel {
             can_open_documents: false,
             compact: false,
             docked: false,
+            host_titleband: false,
+            resource_column: None,
             pending_prompts: vec![],
             scope: None,
             scope_selection: HashMap::new(),

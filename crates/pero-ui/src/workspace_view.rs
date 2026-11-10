@@ -510,8 +510,7 @@ impl Workbench {
             .h_full()
             .flex()
             .items_center()
-            .when(ruled, |el| el.border_b_1().border_color(p.border))
-            .bg(p.color(if ruled { "bg" } else { "surface-muted" }))
+            .when(ruled, |el| el.border_b_1().border_color(p.border).bg(p.color("bg")))
             .child(
                 div()
                     .id("workspace-tab-scroll")

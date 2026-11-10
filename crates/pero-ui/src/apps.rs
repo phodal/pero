@@ -8,6 +8,29 @@ pub(crate) struct AppPanel {
     pub entry: String,
 }
 
+/// One `contributes.columnHeader` action, read from the installed definition.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub(crate) struct ColumnHeaderAction {
+    pub id: String,
+    pub label: String,
+    #[serde(default, rename = "zh")]
+    pub chinese_label: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub(crate) struct ColumnHeaderContribution {
+    #[serde(default)]
+    pub actions: Vec<ColumnHeaderAction>,
+}
+
+impl ColumnHeaderContribution {
+    fn is_empty(&self) -> bool {
+        self.actions.is_empty()
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct InstalledApp {
     pub name: String,
@@ -20,6 +43,10 @@ pub(crate) struct InstalledApp {
     #[serde(default)]
     pub tenure: String,
     pub panels: Vec<AppPanel>,
+    /// Not part of the host catalog summary. The shell copies it from the
+    /// installed definition when that definition is available.
+    #[serde(default, rename = "columnHeader", skip_serializing_if = "ColumnHeaderContribution::is_empty")]
+    pub column_header: ColumnHeaderContribution,
 }
 
 /// App shortcut placement and optional catalog management.
@@ -160,7 +187,8 @@ mod surface {
                 _ => ("apps.env_failed", "apps.env_failed_hint", FeedbackKind::Error),
             };
             let mut actions = Vec::new();
-            if value.phase == "failed" || value.phase == "required" {
+            let header_owns_retry = value.phase == "failed" && self.focused_app().is_some_and(|(name, _)| name == value.name);
+            if (value.phase == "failed" || value.phase == "required") && !header_owns_retry {
                 actions.push(action_button("app-env-retry", self.t(if value.phase == "required" {
                     "apps.env_prepare"
                 } else { "apps.env_retry" }), ActionKind::Primary, chrome, cx)
@@ -576,6 +604,7 @@ mod tests {
                 } else {
                     vec![]
                 },
+                column_header: ColumnHeaderContribution::default(),
             };
             let mut workspace = AppCatalog::default();
             workspace.replace_catalog(vec![app(true, true)]);

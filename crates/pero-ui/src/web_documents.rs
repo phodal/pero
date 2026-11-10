@@ -323,7 +323,31 @@ impl Workbench {
             }
         }
     }
-    pub(crate) fn web_toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn web_refresh_button(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let page = self.navigation.current().and_then(|item| {
+            if let WorkspaceItem::Web(id) = item {
+                self.web_documents.iter().find(|page| &page.id == id)
+            } else {
+                None
+            }
+        })?;
+        let source = page.id.clone();
+        Some(
+            Button::new("web_reload")
+                .ghost()
+                .small()
+                .icon(Icon::default().path(pero_chat_ui::assets::UiIcon::named("refresh").path()))
+                .tooltip(self.t("web.reload"))
+                .accessibility_label(self.t("web.reload"))
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.web_command(json!({"action":"web_reload","id":source}), window, cx)
+                }))
+                .into_any_element(),
+        )
+    }
+    /// `band` places the address in the main column header. The pane fallback
+    /// keeps the bordered row for a web document that is not the main column.
+    pub(crate) fn web_toolbar(&self, band: bool, cx: &mut Context<Self>) -> AnyElement {
         let current = self.navigation.current().and_then(|item| {
             if let WorkspaceItem::Web(id) = item {
                 self.web_documents.iter().find(|page| &page.id == id)
@@ -335,10 +359,12 @@ impl Workbench {
             .flex()
             .items_center()
             .gap(px(4.))
-            .p(px(4.))
-            .border_b_1()
-            .border_color(cx.theme().border);
-        if let Some(page) = current {
+            .h_full()
+            .min_w_0()
+            .flex_1()
+            .when(!band, |el| el.p(px(4.)).border_b_1().border_color(cx.theme().border));
+        if !band {
+            if let Some(page) = current {
             for (action, icon, label, disabled) in [("web_reload", "refresh", "web.reload", false)]
             {
                 let source = page.id.clone();
@@ -356,6 +382,7 @@ impl Workbench {
                             this.web_command(json!({"action":action,"id":source}), window, cx)
                         })),
                 );
+            }
             }
         }
         toolbar = toolbar.child(

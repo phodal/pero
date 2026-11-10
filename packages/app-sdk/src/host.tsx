@@ -471,9 +471,13 @@ export function AppDesktop({ active = true, className, fallback, target }: { act
 }
 
 const AppTitlebarContext = createContext<HTMLElement | null>(null);
+const HostColumnHeaderContext = createContext(false);
 
-export function AppSdkProvider({ host, titlebar = null, children }: { host: AppHost; titlebar?: HTMLElement | null; children: ReactNode }) {
-  return React.createElement(AppSdkContext.Provider, { value: host }, React.createElement(AppTitlebarContext.Provider, { value: titlebar }, children));
+/** True when the workbench column header owns `contributes.columnHeader` actions. */
+export function useHostColumnHeader() { return useContext(HostColumnHeaderContext); }
+
+export function AppSdkProvider({ host, titlebar = null, columnHeader = false, children }: { host: AppHost; titlebar?: HTMLElement | null; columnHeader?: boolean; children: ReactNode }) {
+  return React.createElement(AppSdkContext.Provider, { value: host }, React.createElement(HostColumnHeaderContext.Provider, { value: columnHeader }, React.createElement(AppTitlebarContext.Provider, { value: titlebar }, children)));
 }
 
 /** Renders its children in the shell's titlebar action slot while the App is active. Without a slot (standalone host)
@@ -508,6 +512,7 @@ export function AppApiProvider({
   allowedHostCapabilities = [],
   hostCallFn,
   titlebar,
+  columnHeader = false,
   children,
 }: {
   appName: string;
@@ -533,6 +538,8 @@ export function AppApiProvider({
   allowedHostCapabilities?: string[];
   hostCallFn?: HostCallFn;
   titlebar?: HTMLElement | null;
+  /** The host column header is the owner of manifest column-header actions. */
+  columnHeader?: boolean;
   children: ReactNode;
 }) {
   const apiKey = JSON.stringify(allowedApiPaths);
@@ -581,5 +588,5 @@ export function AppApiProvider({
     [appName, eventKey, headersKey, subscribeFn, active],
   );
   const providerHost = React.useMemo(() => Object.freeze({ ...host, subscribe }), [host, subscribe]);
-  return React.createElement(AppSdkProvider, { host: providerHost, titlebar, children });
+  return React.createElement(AppSdkProvider, { host: providerHost, titlebar, columnHeader, children });
 }

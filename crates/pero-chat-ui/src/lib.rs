@@ -37,6 +37,8 @@ mod session_artifacts;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod artifact_panel;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+pub use artifact_panel::{ResourceColumn, ResourcePrimary};
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod pane_toolbar;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod artifact_surface;

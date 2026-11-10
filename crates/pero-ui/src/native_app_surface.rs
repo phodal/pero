@@ -280,6 +280,7 @@ impl NativeAppPage {
     }
     pub(crate) fn sync(&mut self, mut context: Value, cx: &mut Context<Self>) {
         context["titlebar"]=json!(true);
+        context["hostColumnHeader"]=json!(true);
         if !context["active"].as_bool().unwrap_or(false) || self.error.is_some() {
             if let Some(view) = &self.view {
                 view.update(cx, |view, _| view.hide());
@@ -319,6 +320,12 @@ impl NativeAppPage {
         Ok(())
     }
 }
+impl NativeAppPage {
+    pub(crate) fn failure(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
+}
+
 impl Drop for NativeAppPage {
     fn drop(&mut self) {
         // A request queued before tab close may not reach prepare until later.
@@ -663,25 +670,26 @@ impl Workbench {
             .h_full()
             .when_some(error.clone(), |el, error| {
                 let diagnostics = format!("App: {name}\nPanel: {panel}\n{error}");
+                let header_owns_retry = self.focused_app().is_some_and(|(active, active_panel)| active == name && active_panel == panel);
                 el.child(
                     pero_theme::feedback("native-app-error-feedback", self.t("apps.open_failed"), self.t("apps.open_failed_hint"),
                         pero_theme::FeedbackKind::Error, chrome)
                         .child(pero_theme::feedback_actions([
-                            pero_theme::action_button("native-app-retry", self.t("apps.retry_open"),
+                            (!header_owns_retry).then(|| pero_theme::action_button("native-app-retry", self.t("apps.retry_open"),
                                 pero_theme::ActionKind::Primary, chrome, cx)
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.native_app_pages.remove(&(name.clone(), panel.clone()));
                                     this.pending_app=Some((name.clone(),panel.clone()));
                                     this.refresh_apps(cx);
-                                })).into_any_element(),
-                            pero_theme::action_button("native-app-error-details", self.t(if self.apps.error_details_open {
+                                })).into_any_element()),
+                            Some(pero_theme::action_button("native-app-error-details", self.t(if self.apps.error_details_open {
                                     "apps.hide_diagnostics"
                                 } else { "apps.show_diagnostics" }), pero_theme::ActionKind::Ghost, chrome, cx)
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.apps.error_details_open = !this.apps.error_details_open;
                                     cx.notify();
-                                })).into_any_element(),
-                        ], chrome))
+                                })).into_any_element()),
+                        ].into_iter().flatten(), chrome))
                         .when(self.apps.error_details_open, |el| el.child(
                             div().flex().flex_col().gap(px(8.)).min_w_0()
                                 .child(pero_theme::feedback_details("native-app-diagnostics", error, chrome))

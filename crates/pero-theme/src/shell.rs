@@ -6,8 +6,9 @@ use crate::{
 };
 use gpui_kit::{prelude::*, *};
 
-/// One window bar: platform controls, optional content tabs, and global actions.
-/// The content already owns its title, so there is deliberately no title slot.
+/// Flat single-column bar. The workbench titleband is the headers of the
+/// columns under it: each segment is that column's primary and actions, at
+/// that column's width. It is not a row of global buttons.
 pub fn window_bar(
     id: impl Into<ElementId>,
     leading: AnyElement,
@@ -52,17 +53,13 @@ pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> 
         .gap(chrome.geo(SPACE_4))
 }
 
-/// Depth on the leading edge of the content surface. Translucent ink draws the
-/// seam, and the short blur keeps it from reading as a black cut.
-pub fn edge_shadow(ink: Hsla) -> Vec<BoxShadow> {
-    vec![
-        BoxShadow::new(px(-1.), px(0.), ink.opacity(0.28))
-            .blur_radius(px(0.))
-            .spread_radius(px(0.)),
-        BoxShadow::new(px(-10.), px(1.), ink.opacity(0.14))
-            .blur_radius(px(14.))
-            .spread_radius(px(-6.)),
-    ]
+/// A short lift on the leading and top edges, about 2px. The ink is the border
+/// tone, so the seam stays in the same family as the chrome instead of reading
+/// as a black cut.
+pub fn edge_shadow(color: Hsla) -> Vec<BoxShadow> {
+    vec![BoxShadow::new(px(-5.5), px(-5.5), color.opacity(0.7))
+        .blur_radius(px(0.7))
+        .spread_radius(px(-5.))]
 }
 
 /// Group related navigation; a separator marks a change of navigation scope,

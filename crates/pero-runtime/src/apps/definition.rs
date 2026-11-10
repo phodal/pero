@@ -84,6 +84,35 @@ pub struct AppWriteRoute {
     pub schema: serde_json::Value,
 }
 
+/// Actions an App contributes to the host main column's ColumnHeader.
+/// Empty actions means that header has no app actions.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AppColumnHeader {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actions: Vec<AppColumnHeaderAction>,
+}
+
+impl AppColumnHeader {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.actions.is_empty()
+    }
+}
+
+/// One action the host places in the main column's ColumnHeader.
+/// `id` stays stable across states; `icon` is a shared icon name.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AppColumnHeaderAction {
+    pub id: AppName,
+    pub label: String,
+    /// Chinese label. The shell picks this when the workbench locale is Chinese.
+    #[serde(default, rename = "zh", skip_serializing_if = "Option::is_none")]
+    pub chinese_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AppContributions {
@@ -92,6 +121,8 @@ pub struct AppContributions {
     pub writes: Vec<AppWriteRoute>,
     #[serde(default, rename = "agentPlugin", skip_serializing_if = "Option::is_none")]
     pub agent_plugin: Option<super::agent_plugin::AppAgentPlugin>,
+    #[serde(default, rename = "columnHeader", skip_serializing_if = "AppColumnHeader::is_empty")]
+    pub column_header: AppColumnHeader,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -251,6 +282,30 @@ impl AppDefinition {
         }
         if value.contributes.panels.is_empty() || value.contributes.panels.len() > 8 {
             return Err("This Host supports one to eight App panels".into());
+        }
+        if value.contributes.column_header.actions.len() > 16 {
+            return Err("App columnHeader allows at most 16 actions".into());
+        }
+        let mut action_ids = std::collections::BTreeSet::new();
+        for action in &value.contributes.column_header.actions {
+            let icon_ok = action
+                .icon
+                .as_ref()
+                .is_none_or(|icon| AppName::try_from(icon.clone()).is_ok());
+            let chinese_ok = action.chinese_label.as_ref().is_none_or(|label| {
+                !label.trim().is_empty() && label.len() <= 200
+            });
+            if !action_ids.insert(action.id.as_str())
+                || action.label.trim().is_empty()
+                || action.label.len() > 200
+                || !icon_ok
+                || !chinese_ok
+            {
+                return Err(
+                    "App columnHeader action needs a unique id, a label, and an optional icon name"
+                        .into(),
+                );
+            }
         }
         for panel in &value.contributes.panels {
             if panel.title.trim().is_empty()
@@ -439,5 +494,71 @@ mod tests {
                 "{entry}"
             );
         }
+    }
+
+    #[test]
+    fn column_header_actions() {
+        let base = serde_json::json!({"schemaVersion":1,"name":"virtual-cell","version":"0.1.0",
+            "displayName":"Virtual Cell","contributes":{"panels":[{"id":"main","title":"Cell","entry":"dist/index.html"}]}});
+        let too_many = serde_json::json!({
+            "actions": (0..17).map(|index| serde_json::json!({"id": format!("action-{index}"), "label": "Action"})).collect::<Vec<_>>()
+        });
+        let long_label = "x".repeat(201);
+        for (header, accepted) in [
+            (None, true),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":"Import","zh":"导入","icon":"upload"}]})), true),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":"Import","icon":"upload"}]})), true),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":"Import"}]})), true),
+            (Some(serde_json::json!({"actions":[{"id":"chevron-right","label":"Next","icon":"chevron-right"}]})), true),
+            (Some(serde_json::json!({"actions":[]})), true),
+            (Some(serde_json::json!({})), true),
+            (Some(serde_json::json!({"actions":[{"label":"Import"}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import"}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"","label":"Import"}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"Import","label":"Import"}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":""}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":" "}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import","label": long_label}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":"Import","zh":""}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":"Import","zh":" "}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":"Import","icon":"../upload.svg"}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":"Import","icon":""}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":"Import"}],"primary":"App"})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":"Import","shortcut":true}]})), false),
+            (Some(serde_json::json!({"actions":[{"id":"import","label":"Import"},{"id":"import","label":"Again"}]})), false),
+            (Some(too_many), false),
+        ] {
+            let mut candidate = base.clone();
+            if let Some(header) = &header {
+                candidate["contributes"]["columnHeader"] = header.clone();
+            }
+            let result = AppDefinition::parse(&serde_json::to_vec(&candidate).unwrap());
+            assert_eq!(result.is_ok(), accepted, "{header:?} {result:?}");
+        }
+
+        let declared = AppDefinition::parse(&serde_json::to_vec(&base).unwrap()).unwrap();
+        assert!(declared.contributes.column_header.actions.is_empty());
+        assert!(serde_json::to_value(&declared).unwrap()["contributes"].get("columnHeader").is_none());
+        let mut empty = base.clone();
+        empty["contributes"]["columnHeader"] = serde_json::json!({"actions":[]});
+        let empty = AppDefinition::parse(&serde_json::to_vec(&empty).unwrap()).unwrap();
+        assert!(empty.contributes.column_header.actions.is_empty());
+        assert_eq!(declared.revision(), empty.revision());
+
+        let mut ready = base.clone();
+        ready["contributes"]["columnHeader"] = serde_json::json!({"actions":[{"id":"import","label":"Import","icon":"upload"}]});
+        let ready = AppDefinition::parse(&serde_json::to_vec(&ready).unwrap()).unwrap();
+        let action = &ready.contributes.column_header.actions[0];
+        assert_eq!(action.id.as_str(), "import");
+        assert_eq!(action.label, "Import");
+        assert_eq!(action.icon.as_deref(), Some("upload"));
+        assert!(action.chinese_label.is_none());
+        let mut localized = base.clone();
+        localized["contributes"]["columnHeader"] = serde_json::json!({"actions":[{"id":"import","label":"Import","zh":"导入"}]});
+        let localized = AppDefinition::parse(&serde_json::to_vec(&localized).unwrap()).unwrap();
+        assert_eq!(
+            localized.contributes.column_header.actions[0].chinese_label.as_deref(),
+            Some("导入")
+        );
     }
 }

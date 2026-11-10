@@ -299,11 +299,10 @@ impl Workbench {
             .flex_shrink_0()
             .when(placement == TabBarPlacement::WindowChrome, |bar| bar.h(pero_theme::Chrome::from_app(cx).control(crate::components::sidebar::WINDOW_CHROME)))
             .when(placement == TabBarPlacement::Pane, |bar| {
-                bar.h(px(height)).border_b(px(0.5)).border_color(p.border)
+                bar.h(px(height)).border_b(px(0.5)).border_color(p.border).bg(p.surface_muted)
             })
             .flex()
             .items_center()
-            .bg(p.surface_muted)
             .when(count > 0, |bar| {
                 bar.child(
                     div()
@@ -373,9 +372,10 @@ impl Workbench {
                         menu
                     }),
             ))
-            .when(!connector, |bar| bar.child(self.pane_actions(pane, cx)))
+            .when(placement == TabBarPlacement::Pane && !connector, |bar| bar.child(self.pane_actions(pane, cx)))
             .when(
-                !self.preferences.layout.chat_open
+                placement == TabBarPlacement::Pane
+                    && !self.preferences.layout.chat_open
                     && self.navigation.pane_layout()
                         .is_some_and(|layout| layout.conversation().is_none())
                     && matches!(leaf.route(), Some(WorkspaceRoute::Content(

@@ -1,3 +1,6 @@
+mod titleband;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod titleband_view;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod terminal;
 #[cfg(any(target_family = "wasm", feature = "native"))]

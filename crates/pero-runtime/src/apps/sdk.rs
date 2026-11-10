@@ -1,11 +1,19 @@
 //! Public SDK context contains declarations, never backend paths or credentials.
+use super::definition::AppColumnHeader;
 use super::{AppName, AppStore};
 use serde::Serialize;
 
 #[derive(Serialize)]
 pub struct Permissions { api: Vec<String>, events: Vec<String>, host: Vec<String> }
 #[derive(Serialize)]
-pub struct Context { name: AppName, version: String, permissions: Permissions }
+pub struct Context {
+    name: AppName,
+    version: String,
+    permissions: Permissions,
+    /// Copied from the installed definition. The catalog summary does not carry it.
+    #[serde(rename = "columnHeader", skip_serializing_if = "AppColumnHeader::is_empty")]
+    column_header: AppColumnHeader,
+}
 
 impl AppStore {
     pub fn sdk_context(&self, name: &AppName) -> Result<Context, String> {
@@ -16,9 +24,14 @@ impl AppStore {
             else if definition.permissions.host.iter().any(|grant| grant == "agent") { vec!["/api/workspaces".into(), "/api/harnesses".into()] }
             else { Vec::new() }
         });
-        Ok(Context { name: name.clone(), version: definition.version.clone(), permissions: Permissions {
-            api, events: definition.permissions.events.clone(), host: definition.permissions.host.clone(),
-        } })
+        Ok(Context {
+            name: name.clone(),
+            version: definition.version.clone(),
+            permissions: Permissions {
+                api, events: definition.permissions.events.clone(), host: definition.permissions.host.clone(),
+            },
+            column_header: definition.contributes.column_header.clone(),
+        })
     }
 }
 

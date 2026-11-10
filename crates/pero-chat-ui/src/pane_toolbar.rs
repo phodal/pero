@@ -30,6 +30,8 @@ impl ChatPanel {
         thread: &str,
         state: &ArtifactCollection,
         compact: bool,
+        // The workbench column header owns this toolbar, so it does not draw a second edge under itself.
+        band: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
@@ -354,8 +356,7 @@ impl ChatPanel {
             .gap(px(4.))
             .when(compact, |el| el.flex_col().items_stretch().justify_center().py(px(3.)))
             .when(!compact, |el| el.items_center())
-            .border_b(px(0.5))
-            .border_color(p.border)
+            .when(!band, |el| el.border_b(px(0.5)).border_color(p.border))
             .child(destinations)
             .children(leading_identity)
             .child(actions)
