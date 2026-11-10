@@ -708,4 +708,26 @@ mod tests {
         }
         let _ = fs::remove_dir_all(&dir);
     }
+
+    #[test]
+    fn an_unrelated_thread_ignores_an_engram_directory() {
+        let root = std::env::temp_dir().join(format!("pero-insights-engram-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let events = sample();
+        let events = &events[..events.len() - 1];
+        let plain_dir = root.join("plain");
+        let beside_dir = root.join("beside");
+        fs::create_dir_all(&plain_dir).unwrap();
+        fs::create_dir_all(beside_dir.join("engram").join("project-key")).unwrap();
+        let secret = "ENGRAM-SECRET-SHOULD-NOT-ENTER-INSIGHTS";
+        fs::write(beside_dir.join("engram").join("project-key").join("notes.txt"), secret).unwrap();
+        let plain = analyze_history(events, "thread-1", &plain_dir.join("sessions.jsonl"), TimeMs::new(10), 8).unwrap();
+        let beside = analyze_history(events, "thread-1", &beside_dir.join("sessions.jsonl"), TimeMs::new(10), 8).unwrap();
+        assert_eq!(plain.to_json(), beside.to_json());
+        let body = serde_json::to_string(&beside.to_json()).unwrap();
+        assert!(!body.contains(secret));
+        assert_eq!(beside.analysis.metrics.turns, plain.analysis.metrics.turns);
+        assert_eq!(beside.analysis.turns[0].request, "Review restart recovery");
+        let _ = fs::remove_dir_all(&root);
+    }
 }
