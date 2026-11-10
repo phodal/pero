@@ -1,6 +1,6 @@
 ---
 kind: incident
-status: in_progress
+status: resolved
 ---
 
 # Completed science cells must release cancellation ownership
@@ -39,5 +39,8 @@ Local verification with official Go 1.26.4 on Linux:
 - The full Harness module passed `go test -race -count=1 ./...` (37 packages).
 - `go vet ./scienceenv` and `git diff --check` passed.
 
-Exact-head CI is pending. The local compiler
-version differs from CI's Go 1.27.3; local checks do not replace CI acceptance.
+[Exact-head CI on `21e3d513`](https://github.com/phodal/pero/actions/runs/42750510935)
+passed Harness Go contracts with Go 1.27.3 and the standalone Harness Bazel
+race contracts with its pinned Go 1.26.4. The kernel lifecycle incident is resolved. The unrelated
+Notebook browser menu-navigation failure in that run remains tracked by the PR;
+this result does not claim the entire run passed.
