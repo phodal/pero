@@ -186,3 +186,23 @@ This is a native library build. Wasm was not built or run. No Workbench window
 was opened, so theme, narrow layout, keyboard and copy were not visually checked
 for the new receipt. The parser and button actions exist; they are not a
 screenshot acceptance.
+
+## 2026-11-10 Molecule receipt and formula identity
+
+The same virtualenv, after `rdkit==2026.9.1` (reported version 2026.09.1):
+
+`/tmp/control-lab-py/bin/python -m unittest discover -s apps/scientific-viewer/test -p 'test_molecule_conversation.py'`
+
+passed both tests. The real case depicts `CCO` and `C[C@H](O)C(=O)O`, keeps
+`invalid@@` as `Invalid molecule` with no SVG or descriptors, and repeats the
+same version. RDKit prints its usual SMILES parse errors for the invalid record.
+
+`PERO_MOLECULE_PYTHON=/tmp/control-lab-py/bin/python go -C harness/go test ./molecules -count=1`
+
+passed the missing-backend case and the real RDKit case. The model summary does
+not contain the SVG. `go -C harness/go build -o /tmp/pero-agent-acp ./cmd/pero-agent-acp`
+succeeded.
+
+A second `pero-chat-ui` native library run passed 44 tests, adding the molecule
+receipt test and the formula-source citation assertion. Wasm and the Workbench
+were still not run, so the RDKit SVG was not observed inside GPUI.

@@ -72,9 +72,9 @@ Scientific Authoring + Computational Verification 是整体方向，但展示、
 
 ### 后续增量：完整科学表达与引用
 
-- [ ] 补齐上表各类型，逐项记录支持范围及未支持项；化学至少覆盖反应式和真实 RDKit 二维结构。
-- [ ] 文献、公式、图、表的引用可稳定定位；修订和重新编号不把历史引用静默指向另一内容。
-- [ ] 已展示内容能继续作为明确版本的后续对话上下文；可交付或关联 Paper 稿件，来源关系不丢失。
+- [ ] 补齐上表各类型，逐项记录支持范围及未支持项；化学至少覆盖反应式和真实 RDKit 二维结构。反应式仍是既有 LaTeX。RDKit 二维结构已有内联回执，见 2026-11-10 分子记录。其余类型未补齐。
+- [ ] 文献、公式、图、表的引用可稳定定位；修订和重新编号不把历史引用静默指向另一内容。公式引用是源码哈希；Control 与分子回执各有版本。文献、图、表的编号系统仍未做。
+- [ ] 已展示内容能继续作为明确版本的后续对话上下文；可交付或关联 Paper 稿件，来源关系不丢失。工具摘要带有 citation。Paper 稿件关联未做。
 
 ### 共同验收
 
@@ -227,4 +227,12 @@ Control Lab 继续拥有求解和检查。新增只读 `project-result`（agent-
 
 求解器不可用、计算失败和尚未检查在回执里分开。解释写明方法是 `control-lab-verifier-v1` 的 Hurwitz 与冻结有限窗口，不是设备验收，也不适用于其他参数。引用形如 `control-lab:{experimentId}@{version}`，版本由规范哈希、当前参数和各搜索场景的观测/报告身份决定。
 
-尚未完成：通用图表/表格的计算方法、公式/图/表/文献的稳定编号、RDKit 二维结构内联、Paper 稿件关联、ngspice 主动滤波器这条会话闭环，以及本回执在 Workbench 明暗主题、窄窗、键盘和复制上的界面验收。Native 库测试已运行；Wasm 与完整 Workbench 没有运行。没有新的真实模型请求。详情见 [科学会话验收](../fitness/scientific-conversation.md)。
+当时尚未完成：通用图表/表格的计算方法、文献和图/表编号、Paper 稿件关联、ngspice 主动滤波器这条会话闭环，以及本回执在 Workbench 明暗主题、窄窗、键盘和复制上的界面验收。Native 库测试已运行；Wasm 与完整 Workbench 没有运行。没有新的真实模型请求。分子回执见下一节。详情见 [科学会话验收](../fitness/scientific-conversation.md)。
+
+## 2026-11-10 分子结构与公式引用
+
+化学结构继续由 Scientific Viewer 的 `preview` 拥有。`conversation.py` 只把这次预览投影成 `pero.molecule-conversation.v1`。内置 harness 的 `molecule_render` 调用它；模型看到的是不含 SVG 的摘要，会话界面看到完整回执。无效记录没有图，也没有被补成 0 的描述符。真实 RDKit 2026.09.1 对 `CCO`、`C[C@H](O)C(=O)O` 和 `invalid@@` 的结果与既有分子测试一致：乙醇 MolWt 约 46.069，无效输入保留 `Invalid molecule`。同一输入再次投影得到同一版本。
+
+公式的稳定引用是源码的 SHA-256，形如 `formula:{hash}`。它不使用公式在消息里的位置，因此前面的文字改动或重新编号不会把旧引用指到另一条公式。复制源码的原按钮保留。
+
+反应式仍只是 LaTeX，不是反应机理或 RDKit 反应绘图。文献编号、图/表编号、Paper 稿件关联、ngspice 会话闭环，以及分子图在 Workbench 里的明暗、窄窗和键盘验收都还没有做。Wasm 没有运行。
