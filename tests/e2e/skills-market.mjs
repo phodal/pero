@@ -160,11 +160,37 @@ try {
   await installedDetail.getByRole('button',{name:'Roll back',exact:true}).press('Enter');
   await expect(installedDetail).toContainText(previous);
   await capture('installed-selection-light');
+  // The detail drawer covers the workbench canvas. Close it before using the visible Settings control.
+  await installedDetail.getByRole('button',{name:'Close details',exact:true}).press('Escape');
+  await expect(installedDetail).not.toBeVisible();
+  // Fractional devicePixelRatio on this display makes the canvas one pixel taller than
+  // Math.round(innerHeight * dpr). Nudge the content height until that existing check matches.
+  const [contentWidth, contentHeight] = await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].getContentSize());
+  let aligned = false;
+  for (let delta = 0; delta < 64 && !aligned; delta++) {
+    const height = contentHeight + (delta % 2 === 0 ? delta / 2 : -((delta + 1) / 2));
+    await app.evaluate(({BrowserWindow}, next) => BrowserWindow.getAllWindows()[0].setContentSize(next[0], next[1]), [contentWidth, height]);
+    aligned = await page.evaluate(() => new Promise(resolve => {
+      const started = performance.now();
+      const tick = () => {
+        const canvas = document.querySelector('canvas');
+        const ok = !!canvas && canvas.width === Math.round(innerWidth * devicePixelRatio) && canvas.height === Math.round(innerHeight * devicePixelRatio);
+        if (ok || performance.now() - started > 300) resolve(ok);
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }));
+  }
+  if (!aligned) throw new Error('canvas size did not match the settings control check');
   await setAppearance(page,'dark');
   await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
-  await expect(frame.getByRole('tab',{name:'来源与版本',exact:true})).toBeVisible();
+  await frame.getByRole('region',{name:'科研技能',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
+  const narrowDetail = frame.getByRole('dialog',{name:'技能详情',exact:true});
+  await expect(narrowDetail.getByRole('tab',{name:'来源与版本',exact:true})).toBeVisible();
+  await narrowDetail.getByRole('tab',{name:'来源与版本',exact:true}).press('Enter');
   await app.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.setMinimumSize(480,600);window.setSize(720,850);});
-  await expect(frame.getByRole('dialog')).toBeVisible();
+  await expect(narrowDetail).toBeVisible();
+  await expect(narrowDetail).toContainText(previous);
   expect(await frame.locator('html').evaluate(node=>node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await capture('installed-dark-narrow-zh');
   checks.push('keyboard management of fixture installed metadata through actual Host enable/rollback, live zh/dark/narrow and no document overflow');
