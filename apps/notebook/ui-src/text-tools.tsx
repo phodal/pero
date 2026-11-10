@@ -328,7 +328,6 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
     {markButton('strike')}
     <IconButton label={t(status.link ? 'editLink' : 'insertLink')} aria-pressed={status.link} disabled={!status.canLink}
       onMouseDown={event => event.preventDefault()} onClick={openLink}><Icon name="link" /></IconButton>
-    {markButton('code')}
     <Select className="notebook-color-select" label={t('textColor')} value={status.tone} disabled={!status.text || !editor.can().setMark('textColor', { tone: 'blue' })}
       searchable={false} menuMinWidth={0} leading={<span aria-hidden="true" className={`notebook-text-${status.tone}`}>A</span>}
       options={['default', ...textTones].map(tone => ({ value: tone, label: t(tone as 'default' | TextTone) }))}
@@ -346,6 +345,7 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
     </Toolbar>
     {entryTools && <EntryAiTools editor={editor} />}
     <FormatMenu name={t('more')}>
+      {markButton('code')}
       {editor.schema.marks.textBackground && <Select className="notebook-color-select" label={t('textBackground')} triggerLabel={t('textBackground')} value={status.background}
         disabled={!status.text || !editor.can().setMark('textBackground', { tone: 'blue' })} searchable={false}
         leading={<span aria-hidden="true" className={`notebook-swatch notebook-background-${status.background}`} />}

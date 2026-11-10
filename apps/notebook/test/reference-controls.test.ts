@@ -77,7 +77,7 @@ test('status reports list nesting and section count and targets only the active 
   await click(document.querySelector('button')!); assert.equal(target, 'active-sheet');
 });
 
-test('workspace keeps view navigation out of the header and retains each view and its empty state', async t => {
+test('workspace empty states render their labels and guidance in the active view', async t => {
   let editor: any; t.after(() => editor?.destroy());
   const { React, ui, dom, render, click } = await createUiRuntime(t, { ...component,
     contents: component.contents + ` export { NotebookWorkspace } from './workspace-views';`,
@@ -88,14 +88,12 @@ test('workspace keeps view navigation out of the header and retains each view an
   editor = new ui.Editor({ extensions: ui.notebookExtensions, content });
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'notebook', locale: 'en' }) },
     React.createElement(ui.NotebookWorkspace, { editor, entryId: 'empty', revision: 1, document: { schemaVersion: 1, title: 'Empty', content }, readonly: false, onChange() {} })));
-  assert.equal(document.querySelector('.notebook-jupyter [role=tab]'), null);
-  assert.equal(document.querySelector('.notebook-jupyter [data-menu=view]'), null);
   assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Notebook title"]')?.value, 'Empty');
-  const viewMenu = document.querySelector<HTMLDetailsElement>('.notebook-statusbar details[data-menu=view]')!;
-  assert.ok(viewMenu);
-  viewMenu.open = true;
-  const viewTabs = [...viewMenu.querySelectorAll<HTMLElement>('[role=tab]')];
-  assert.deepEqual(viewTabs.map(node => node.textContent), ['Notes', 'Procedures', 'Relevant items', 'Metadata', 'Review and activity']);
+  const notes = document.querySelector<HTMLElement>('.notebook-menubar [role=tab][data-view=notes]');
+  assert.equal(notes?.textContent, 'Empty');
+  assert.equal(notes?.getAttribute('aria-label'), 'Notes');
+  assert.deepEqual([...document.querySelectorAll('.notebook-menubar > .notebook-view-tabs > [role=tab]')].map(node => node.textContent), ['Empty', 'Relevant items', 'Metadata']);
+  assert.equal(document.querySelector('.notebook-statusbar details[data-menu=view]'), null);
   for (const [tab, heading, guidance] of [
     ['Procedures', 'No procedures yet', 'Add a procedure to record materials and step-by-step instructions.'],
     ['Relevant items', 'No relevant items yet', 'Add a named entry reference here'],

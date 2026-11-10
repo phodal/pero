@@ -33,11 +33,18 @@ html, body, #app { height: 100%; }
 .notebook-notes-utilities { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--pero-spacing-2); box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; margin-top: var(--pero-spacing-1); overflow-x: auto; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .notebook-notes-utilities .notebook-status-bar, .notebook-notes-utilities .notebook-editor-diagnostics { margin: 0; }
 .notebook-jupyter { flex: 0 0 auto; background: var(--pero-material-reading); border-bottom: 1px solid var(--notebook-rule-strong); }
-.notebook-command-row { display: flex; align-items: center; gap: var(--pero-spacing-2); box-sizing: border-box; width: 100%; min-width: 0; }
+.notebook-menubar { display: flex; align-items: center; flex-wrap: nowrap; gap: var(--pero-spacing-2); box-sizing: border-box; width: 100%; min-width: 0; min-height: 36px; padding: 0 var(--pero-spacing-2); overflow: visible; }
+.notebook-command-row { display: flex; align-items: center; gap: var(--pero-spacing-2); box-sizing: border-box; width: 100%; min-width: 0; border-top: 1px solid var(--notebook-rule); }
 .notebook-command-row > .notebook-commandbar,
 .notebook-command-row > .notebook-toolbar-end { flex: 1 1 auto; width: auto; min-width: 0; border-top: 0; }
 .notebook-statusbar .notebook-view-actions { margin-inline-start: auto; }
 .notebook-statusbar .notebook-view-actions .notebook-status { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.notebook-view-tabs.pero-ui-tabs-list[data-variant=navigation]:not([data-unstyled]) { flex: 1 1 auto; align-items: center; flex-wrap: nowrap; gap: 18px; min-width: 0; overflow-x: auto; border: 0; background: transparent; }
+.notebook-view-tabs.pero-ui-tabs-list > .pero-ui-tabs-trigger:not([data-unstyled]) { min-height: 32px; padding: 0; border: 0; border-radius: 0; color: color-mix(in srgb, var(--pero-text) 82%, var(--pero-surface)); font-size: 11px; letter-spacing: 0; text-transform: uppercase; }
+.notebook-view-tabs.pero-ui-tabs-list > .pero-ui-tabs-trigger:not([data-unstyled]):not([data-state=active]) { margin-inline-end: 4px; padding: 0; }
+.notebook-view-tabs.pero-ui-tabs-list > .pero-ui-tabs-trigger[data-view="notes"]:not([data-unstyled]) { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; }
+.notebook-view-tabs.pero-ui-tabs-list > .pero-ui-tabs-trigger:not([data-unstyled])[data-state=active] { height: 22px; min-height: 22px; margin-inline-end: 11px; padding: 0 12px; border-bottom-color: transparent; border-radius: 2px; background: var(--pero-text); color: var(--pero-bg); font-size: 13px; font-weight: var(--pero-font-weight-semibold); line-height: 22px; letter-spacing: 0; text-transform: none; }
+.notebook-menubar .notebook-status { flex: 0 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; }
 .notebook-view-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; }
 .notebook-statusbar .notebook-view-actions .pero-ui-icon-button:not([data-variant=unstyled]) { width: 24px; height: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 3px; background: transparent; box-shadow: none; color: var(--pero-text-muted); }
 .notebook-statusbar .notebook-view-actions .notebook-menu[data-icon] > summary { width: 24px; min-width: 24px; height: 24px; padding: 0; border-radius: 3px; background: transparent; color: var(--pero-text-muted); }
@@ -59,13 +66,16 @@ html, body, #app { height: 100%; }
 .notebook-workspace[data-notebook-view="notes"] .notebook-prose { min-height: 0; padding-top: 0; font-size: 13px; }
 .notebook-menu { position: relative; flex: 0 0 auto; }
 .notebook-menu > summary { display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: var(--pero-radius-sm); color: var(--pero-text); font-size: var(--pero-font-body); line-height: 28px; list-style: none; cursor: pointer; user-select: none; white-space: nowrap; }
-.notebook-view-tabs.pero-ui-tabs-list[data-variant=navigation]:not([data-unstyled]) { display: flex; flex-direction: column; align-items: stretch; gap: 0; min-width: 12rem; border: 0; background: transparent; }
-.notebook-view-tabs.pero-ui-tabs-list > .pero-ui-tabs-trigger:not([data-unstyled]) { justify-content: flex-start; min-height: 32px; padding: 0 10px; letter-spacing: 0; text-transform: none; }
+.notebook-view-tabs .notebook-menu[data-menu="view"] { margin-inline-start: 0; }
+.notebook-view-tabs .notebook-menu[data-menu="view"] > summary { width: 28px; padding: 0; justify-content: center; color: color-mix(in srgb, var(--pero-text) 82%, var(--pero-surface)); }
+.notebook-view-tabs .notebook-menu-panel { display: grid; min-width: 12rem; padding: 4px; }
+.notebook-view-tabs .notebook-menu-panel > .pero-ui-tabs-trigger { justify-content: flex-start; min-height: 32px; padding: 0 10px; letter-spacing: 0; text-transform: none; }
+.notebook-menu[data-menu="view"] > summary { font-weight: var(--pero-font-weight-semibold); }
 .notebook-menu[data-menu="view"] .notebook-menu-panel { left: auto; right: 0; }
 .notebook-menu > summary::-webkit-details-marker, .notebook-menu > summary::marker { content: ''; display: none; }
 .notebook-menu > summary:hover, .notebook-menu[open] > summary { background: var(--pero-surface-muted); }
 .notebook-menu[data-icon] > summary { width: 28px; padding: 0; justify-content: center; }
-.notebook-commandbar { display: flex; align-items: center; gap: var(--pero-spacing-2); box-sizing: border-box; width: 100%; min-width: 0; overflow: visible; border-top: var(--pero-hairline); padding: 9px var(--pero-spacing-2); font-size: var(--pero-font-tab); }
+.notebook-commandbar { display: flex; align-items: center; gap: var(--pero-spacing-2); box-sizing: border-box; width: 100%; min-width: 0; overflow: visible; border-top: var(--pero-hairline); padding: 6px var(--pero-spacing-2); font-size: var(--pero-font-tab); }
 .notebook-command-row > .notebook-commandbar { border-top: 0; }
 .notebook-commandbar .pero-ui-button:not([data-variant=unstyled]),
 .notebook-format .pero-ui-button:not([data-variant=unstyled]) { appearance: none; height: 24px; min-height: 24px; border: 0; border-radius: 3px; background-color: var(--notebook-chip); box-shadow: none; font-size: var(--pero-font-tab); }

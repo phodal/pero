@@ -6,7 +6,7 @@ import { verifyStructuredFieldWorkflows } from './structured-field-browser-scena
 import { verifyProcedureParameters } from './procedure-parameters-browser-scenario.mjs';
 import { verifyReviewWorkflows } from './review-workflows-browser-scenario.mjs';
 import { verifyDirectGridInteractions } from './grid-interaction-browser-scenario.mjs';
-import { createNotebook, ensureMoreTools, openNotebookMenu, openNotebookView, toggleSpreadsheetPanel } from './notebook-browser-actions.mjs';
+import { createNotebook, ensureMoreTools, openNotebookMenu, toggleSpreadsheetPanel } from './notebook-browser-actions.mjs';
 import { verifyProcedureWorkspace } from './procedure-workspace-browser-scenario.mjs';
 import { verifySourceExcerpts } from './source-excerpt-browser-scenario.mjs';
 import { verifyDiagnosticsAndIntake } from './diagnostics-intake-browser-scenario.mjs';
@@ -331,9 +331,8 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await page.reload();
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
-  await expect(page.locator('.notebook-jupyter [role=tab], .notebook-jupyter [data-menu=view]')).toHaveCount(0);
-  await expect(page.locator('.notebook-menubar')).toHaveCount(0);
-  await expect(page.locator('.notebook-statusbar details[data-menu=view] summary')).toBeVisible();
+  await expect(page.locator('.notebook-menubar [role=tab][data-view=notes]')).toHaveText('Copied review');
+  await expect(page.locator('.notebook-statusbar details[data-menu=view]')).toHaveCount(0);
   await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
   await finding.scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: 'Save revision' })).toBeVisible();
@@ -355,25 +354,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(page.locator('[data-kind=spreadsheet]').first().locator('[data-cell=A1]')).toHaveValue('4');
   await page.getByRole('textbox', { name: 'Notebook title' }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(output, 'copied-notebook-narrow-dark.png'), fullPage: true });
-  // The compact View menu retains every workspace without the old header tabs.
-  const viewMenu = page.locator('.notebook-statusbar details[data-menu=view]');
-  for (const name of ['Metadata', 'Relevant items', 'Notes']) {
-    await openNotebookView(page, name);
-    await expect(page.getByRole('tab', { name, exact: true })).toHaveAttribute('aria-selected', 'true');
-    const bounds = await viewMenu.locator('.notebook-menu-panel').boundingBox();
-    assert.ok(bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 600);
-    await viewMenu.locator('summary').click();
-    await expect(viewMenu).toHaveJSProperty('open', false);
-  }
-  await viewMenu.locator('summary').focus();
-  await page.keyboard.press('Enter');
-  await expect(viewMenu).toHaveJSProperty('open', true);
-  await page.getByRole('tab', { name: 'Notes', exact: true }).focus();
-  await page.keyboard.press('ArrowDown');
-  await expect(page.getByRole('tab', { name: 'Procedures', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await openNotebookView(page, 'Notes');
-  await viewMenu.locator('summary').click();
-  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
+  await expect(page.locator('.notebook-menubar [role=tab][data-view=notes]')).toHaveText('Copied review');
   await finding.scrollIntoViewIfNeeded();
   await expect(finding.getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
   await expect(finding.getByRole('checkbox', { name: /Locked control trial/ })).toBeChecked();
