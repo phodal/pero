@@ -82,17 +82,19 @@ node tests/e2e/skills-market-chat.mjs
 - `PERO_SKILLS_MARKET_PUBLIC=1 node tests/runtime/skills-market.mjs`：通过。公开来源 `blader/humanizer/SKILL.md` 提交 `0ef9fe5bc3572734fd3ae6c448fe00a30cd5dcf0`，正文 SHA-256 `0612f1dfb1672b0ea9b97e139bf1f06cabe98d8b27424fe8ff01e1fb4cc99cad`。模型是回环脚本，不是真实模型。
 - Electron 工作台（GPUI Wasm，非独立 Native 壳、非签名包）通过浅色目录、键盘详情、目录文件被移走后的刷新失败仍保留列表、已安装浅色详情，以及关闭详情后用可见设置切到深色、中文键盘页签、720×850 窄窗。截图 `installed-dark-narrow-zh.png` 为 711×809。详情抽屉盖住画布时不能点设置；先关闭抽屉后，设置命中画布。这台显示器的分数倍缩放让画布高度比 `Math.round(innerHeight * devicePixelRatio)` 多 1 像素，测试只把内容高度挪到现有检查能够成立的位置，没有改侧栏。
 
-目录刷新曾在文件已被移走后继续返回第一次缓存，界面不显示失败。Host 现在按文件标识重新读取；文件不存在时返回 “Skill catalog is unavailable”，已显示的列表仍由 App 保留。
+目录刷新曾在文件已被移走后继续返回第一次缓存，界面不显示失败。Host 现在按文件长度和修改时间决定是否重读；文件不存在时返回 “Skill catalog is unavailable”，已显示的列表仍由 App 保留。长度和修改时间都没变的替换仍会沿用已解析结果。
 
 同一工作区补跑第 9 条相关回归，没有改权限实现：
 
 - `go test -count=1`：`harness` 的拒绝/询问与 workspace-write 范围、`skills` 的工具授予/限制及 frontmatter 惰性、`pluginruntime` 的 skill 命令仍走会话询问（含 session ask defeats skill preapproval）、`acp` 的权限重载、会话生命周期和 MCP 观察生命周期，四组均为 ok。
 - `pero-runtime` `apps::agent_plugin` 两项：声明写入必须唯一且 MCP 名称不超过 64 字节，技能说明只拼进指令、不扩大工具名单。
 - `node tests/runtime/skills-market.mjs`：外部 App 不能管理技能；显式上下文可以到达另一个 ACP 身份，但不因此全局启用。启用市场选择后，未适配 Agent 创建会话得到 `session_error`，正文要求改用 Pero，会话不是 `session_ready`。模型仍是回环脚本。
+- `tests/e2e/skills-market-install.mjs`：7 项通过。一项获取被按住时另一项仍可安装并启用；取消只撤被按住的那项；放开后重试装上两项且选择还在；重启后两条安装记录仍在。
+- `tests/e2e/skills-market-chat.mjs`：可见安装后技能保持未全局启用。去使用打开未发送的普通草稿，另一个普通会话的选择器仍能选中它，已安装正文到达回环 provider 一次。这不是真实模型调用。
 
 ## 仍阻塞关闭的原文条目
 
 - 第 11 条的浅色、深色、窄窗、长名称、键盘和移除确认已在本次 Electron 工作台观察到。截图留在本机 `test-results/skills-market/`，不放入仓库。
-- 第 12 条的显式 opt-in 真实模型没有跑。本机 `node_modules/.bin/codex login status` 为 Not logged in，开发 `.env` 和环境变量都没有 `DEEPSEEK_API_KEY`。回环模型不算真实模型。这一项保持未验收。
+- 第 12 条的显式 opt-in 真实模型没有跑。正常配置位置是仓库 `.env` 的 `DEEPSEEK_API_KEY`，或已登录的 Codex。当前没有这份 `.env`，进程里也没有 `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`；`node_modules/.bin/codex login status` 为 Not logged in。回环模型不算真实模型。这一项保持未验收。
 
 目录包含不支持安装的 ZIP/动态执行条目。未知或仅仓库级许可不会强行安装。静态技能不自动安装第三方依赖。旧会话已加载的正文不能通过停用/移除抹除。#156 在第 12 条真实模型完成前保持开放。
