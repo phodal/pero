@@ -13,6 +13,7 @@ import { spreadsheetLimits } from '@pero/notebook';
 import { isAttachmentAttributes } from '@pero/notebook/attachment';
 import { isPaperCitationSnapshot } from '@pero/notebook/paper-evidence';
 import { isControlEvidenceSnapshot, parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
+import { persistedBlockTypes } from '@pero/notebook/interchange';
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -66,6 +67,16 @@ export function isClipboardWidget(kind: string, attrs: Record<string, unknown>):
         cells(annotations ?? {}, rows, columns, value => object(value) && Object.keys(value).length === 2 &&
           text(value.unit, 128) && ids(value.evidenceIds)) &&
         parseSheetOperations(attrs, sheet as unknown as Spreadsheet) !== null;
+    }
+    case 'retainedBlock': {
+      const { originalType, payload, blockId } = attrs;
+      const structural = new Set(['doc', 'text', 'hardBreak', 'referenceMention', 'listItem', 'taskItem']);
+      if (typeof originalType !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,64}$/.test(originalType)) return false;
+      if (persistedBlockTypes.includes(originalType as typeof persistedBlockTypes[number]) || structural.has(originalType)) return false;
+      if (!object(payload) || payload.type !== originalType) return false;
+      if (new TextEncoder().encode(JSON.stringify(payload)).length > 65_536) return false;
+      if (object(payload.attrs) && 'blockId' in payload.attrs && blockId !== undefined && payload.attrs.blockId !== blockId) return false;
+      return true;
     }
     case 'experiment':
     case 'evidence': {

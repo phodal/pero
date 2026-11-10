@@ -187,6 +187,8 @@ function proseHandler(node: NotebookNode, path: string): Attempt {
   if (node.type === "codeBlock" && node.attrs?.language !== undefined && typeof node.attrs.language !== "string") {
     losses.push(...both(path, "outside-subset", "Code language is not a string"));
   }
+  const represented = node.type === "heading" ? ["blockId", "level"] : node.type === "codeBlock" ? ["blockId", "language"] : ["blockId"];
+  losses.push(...unrepresented(node, path, represented));
   const id = editorBlockId(node);
   if (!id) losses.push({ path, target: "blockNote", code: "missing-editor-block-id", detail: "No editor block id was invented for this block" });
   const level = node.attrs?.level;
@@ -233,8 +235,9 @@ function referenceHandler(node: NotebookNode, path: string): Attempt {
   if (state === "missing" || state === "partial") losses.push(...both(path, "missing-object-identity", "The owner app, kind, and id are incomplete. No object id was invented."));
   else if (state === "unpinned") losses.push(...both(path, "unpinned-object-version", "The object version is empty. The editor block id was not reused as a version."));
   if (node.attrs?.snapshot != null) {
-    losses.push({ path, target: "blockNote", code: "snapshot-not-in-editor-props", detail: "The snapshot stays on the notebook node. BlockNote props are only booleans, numbers, and strings." });
+    losses.push(...both(path, "snapshot-not-in-editor-props", "The snapshot stays on the notebook node. BlockNote props and a MyST cite identifier cannot carry it."));
   }
+  losses.push(...unrepresented(node, path, ["blockId", "label", "source", "snapshot"]));
   losses.push({ path, target: "myst", code: "myst-cite-not-owner-record", detail: "MyST cite keeps one identifier string. It does not replace the owner app, kind, id, and version fields." });
   const source = identity.reference;
   const label = typeof node.attrs?.label === "string" ? node.attrs.label : "";
@@ -253,6 +256,12 @@ function referenceHandler(node: NotebookNode, path: string): Attempt {
     children: [] as [],
   } : undefined;
   return { myst: cite, block, losses };
+}
+
+function unrepresented(node: NotebookNode, path: string, represented: string[]): Loss[] {
+  const extra = Object.keys(node.attrs ?? {}).filter(key => !represented.includes(key));
+  if (!extra.length) return [];
+  return both(path, "unrepresented-attribute", `${node.type} keeps ${extra.join(", ")} only in the stored notebook node. Replacement is refused.`);
 }
 
 function both(path: string, code: string, detail: string): Loss[] {

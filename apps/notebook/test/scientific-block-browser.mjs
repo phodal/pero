@@ -1,0 +1,93 @@
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import { createInterface } from 'node:readline';
+import { test } from 'node:test';
+import { chromium, expect } from '@playwright/test';
+
+const app = resolve(import.meta.dirname, '..');
+const root = resolve(app, '../..');
+const token = 'scientific-block-browser';
+const fixture = JSON.parse(await readFile(resolve(root, 'packages/notebook/test/fixtures/snapshot-contract.json'), 'utf8'));
+const report = fixture.bases.paper.reportId;
+const source = {
+  app: 'paper-agent', kind: 'report-citation', id: report, version: report,
+  locator: `pero-app-location://paper-agent/main/report/${report}/citation/${fixture.bases.paper.citationIndex}`,
+};
+
+test('Notebook reviews a real paper reference through the saved entry', { timeout: 120_000 }, async t => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'pero-scientific-block-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const files = new Map(await Promise.all([
+    ['/', 'index.html', 'text/html'], ['/index.js', 'index.js', 'text/javascript'], ['/index.css', 'index.css', 'text/css'],
+    ['/source-evidence.json', 'source-evidence.json', 'application/json'],
+  ].map(async ([path, name, type]) => [path, { body: await readFile(resolve(app, 'dist', name)), type }])));
+  const backend = spawn(process.env.PYTHON || 'python3', [resolve(app, 'backend/server.py')], {
+    env: { ...process.env, PERO_APP_DATA: directory, PERO_APP_TOKEN: token, PYTHONDONTWRITEBYTECODE: '1' },
+    stdio: ['ignore', 'pipe', 'inherit'],
+  });
+  t.after(async () => { if (backend.exitCode === null) { const stopped = once(backend, 'exit'); backend.kill(); await stopped; } });
+  const lines = createInterface({ input: backend.stdout });
+  const [ready] = await once(lines, 'line', { signal: AbortSignal.timeout(10_000) });
+  lines.close();
+  const { port } = JSON.parse(ready);
+  const server = createServer(async (request, response) => {
+    const file = files.get(request.url);
+    if (file) {
+      response.writeHead(200, { 'Content-Type': `${file.type}; charset=utf-8`, 'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:" });
+      return response.end(file.body);
+    }
+    if (request.url === '/host/sdk') return response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}');
+    if (!request.url?.startsWith('/api/')) return response.writeHead(404).end();
+    try {
+      const chunks = [];
+      for await (const chunk of request) chunks.push(chunk);
+      const result = await fetch(`http://127.0.0.1:${port}${request.url}`, {
+        method: request.method, headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': token },
+        ...(chunks.length ? { body: Buffer.concat(chunks) } : {}),
+      });
+      response.writeHead(result.status, { 'Content-Type': 'application/json' }).end(await result.text());
+    } catch (error) { response.writeHead(502).end(String(error)); }
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise(done => { server.close(done); server.closeAllConnections?.(); }));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const created = await fetch(`http://127.0.0.1:${port}/api/entries`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': token },
+    body: JSON.stringify({ document: { schemaVersion: 1, title: 'Paper evidence', content: { type: 'doc', content: [
+      { type: 'paragraph', attrs: { blockId: 'intro' }, content: [{ type: 'text', text: 'Opened from the owner export.' }] },
+      { type: 'evidence', attrs: { blockId: 'paper-block', label: 'Imported report', source, snapshot: null } },
+    ] } } }),
+  });
+  assert.equal(created.status, 201);
+  const entry = await created.json();
+  const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  t.after(async () => {
+    await page.screenshot({ path: '/opt/cursor/artifacts/scientific-block-review.png', fullPage: true }).catch(() => {});
+    await browser.close();
+  });
+  await page.goto(`${origin}/#notebook-entry=${entry.id}`);
+  await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
+  const card = page.locator('[data-editor-block-id="paper-block"]');
+  await expect(card).toContainText(report);
+  await expect(card).toContainText('paper-block');
+  await page.getByRole('button', { name: 'Reject proposal', exact: true }).click();
+  await expect(page.getByText('Rejected. This revision was not changed.')).toBeVisible();
+  await expect(page.locator('.notebook-status')).toContainText('Revision 1');
+  await page.getByRole('textbox', { name: 'Proposed label', exact: true }).fill('Pinned report');
+  await page.getByRole('button', { name: 'Accept proposal', exact: true }).click();
+  await expect(page.locator('.notebook-status')).toContainText('Revision 2');
+  await page.reload();
+  await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
+  await expect(page.getByRole('textbox', { name: 'Label', exact: true })).toHaveValue('Pinned report');
+  await expect(page.locator('[data-object-version]')).toContainText(report);
+  assert.deepEqual(errors, []);
+});

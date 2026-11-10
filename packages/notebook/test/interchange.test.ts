@@ -127,6 +127,25 @@ test("an unknown block is retained and restored, and a block without an id is re
   assert.equal(refused.content.content?.[0].type, "instrumentReading");
 });
 
+test("template origin and any other stored attribute block replacement instead of being dropped", () => {
+  const origin = { templateId: "template-1", revision: 3, instanceId: "instance-1", parameterValues: { sample: "A" }, idMap: { paragraph: "p1" } };
+  const content = doc([
+    { ...paragraph("Measured"), attrs: { blockId: "p1", templateOrigin: origin } },
+    { type: "heading", attrs: { blockId: "h1", level: 2, note: "kept" }, content: [{ type: "text", text: "Setup" }] },
+    { type: "evidence", attrs: { blockId: "block-1", label: "Paper", templateOrigin: origin, source: {
+      app: "paper-agent", kind: "report-citation", id: "report", version: "report", locator: "page 2",
+    }, snapshot: null } },
+  ]);
+  const projected = projectNotebook(content);
+  assert.equal(canReplace(projected, "blockNote"), false);
+  assert.equal(canReplace(projected, "myst"), false);
+  assert.equal(projected.losses.filter(loss => loss.code === "unrepresented-attribute").length >= 3, true);
+  assert.deepEqual(projected.canonical.content?.[0].attrs?.templateOrigin, origin);
+  assert.equal(projected.canonical.content?.[1].attrs?.note, "kept");
+  assert.throws(() => restoreBlockNote(projected), /incomplete/);
+  assert.throws(() => restoreMyst(projected), /incomplete/);
+});
+
 test("the persisted block list is the parser list plus the retention envelope", () => {
   assert.equal(persistedBlockTypes.includes("retainedBlock"), true);
   assert.equal(new Set(persistedBlockTypes).size, persistedBlockTypes.length);

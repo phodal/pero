@@ -324,6 +324,18 @@ def _retained_block(value):
 
 
 def _attributes(kind, value, identities):
+    from block_registry import block as registered_block
+    adapter = registered_block(kind) if kind not in BLOCKS else None
+    if adapter is not None:
+        adapter.validate(value)
+        identity = block_id(value.get('blockId'))
+        if identity in identities:
+            raise ValueError('Duplicate block ID')
+        identities.add(identity)
+        if value.get('templateOrigin') is not None:
+            from templates import parse_template_origin
+            parse_template_origin(value['templateOrigin'])
+        return
     required = {
         'spreadsheet': {'sheet'},
         'evidence': {'label', 'source'},
@@ -453,10 +465,19 @@ def _attributes(kind, value, identities):
         _retained_block(value)
 
 
+def _type_allowed(kind, allowed):
+    if isinstance(kind, str) and kind in allowed:
+        return True
+    if allowed is BLOCKS and isinstance(kind, str):
+        from block_registry import block
+        return block(kind) is not None
+    return False
+
+
 def _node(value, allowed, identities, depth=0):
     fields(value, {'type'}, {'attrs', 'content', 'marks', 'text'})
     kind = value['type']
-    if not isinstance(kind, str) or kind not in allowed or depth > 24:
+    if not _type_allowed(kind, allowed) or depth > 24:
         raise ValueError('Invalid document node type, placement, or nesting')
     _attributes(kind, value.get('attrs', {}), identities)
     if kind == 'text':

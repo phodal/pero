@@ -30,7 +30,7 @@ Pinned sources, read at these commits:
 
 Complete BlockNote and MyST restore covers top-level `paragraph`, `heading`, and `codeBlock`, with marks `bold`, `italic`, and `code` only.
 
-A pinned `evidence` or `experiment` reference with `snapshot: null` can be restored from the BlockNote view. Its props are strings: `label`, `app`, `kind`, `objectId`, `version`, `locator`. `objectId` is the owner id. The BlockNote `id` is only the editor block id.
+A pinned `evidence` or `experiment` reference with `snapshot: null` and no other stored attributes can be restored from the BlockNote view. Its props are strings: `label`, `app`, `kind`, `objectId`, `version`, `locator`. `objectId` is the owner id. The BlockNote `id` is only the editor block id. `templateOrigin` and any other persisted attribute are a loss on both targets, so `canReplace` is false and restore refuses to overwrite them.
 
 These are withheld, and the stored node is unchanged:
 
@@ -45,15 +45,23 @@ These are withheld, and the stored node is unchanged:
 
 An unrecognized node with an editor block id is wrapped as `retainedBlock` before the editor sees it. The payload is the original node. Nodes without that id are refused and are not deleted. The Python parser accepts the envelope and still rejects a raw unknown type. Known documents are not rewritten.
 
-Adding a projection for one more existing node means one entry in the handler map in `packages/notebook/src/interchange.ts`. The walker does not name those types. That map is not a plugin host.
+The interchange handler map only decides which nodes have a lossless BlockNote or MyST view. Storage and reference proposals use `apps/notebook/backend/block_registry.py`. Registering another block there does not add a name to `BLOCKS` or a branch to `parse_operations`.
+
+## Reference proposals
+
+`POST /api/entries/{id}/block-proposals` is the Host path. It requires the existing app token. The body is `proposalId`, `expectedRevision`, `blockId`, `decision`, `label`, and `source`. There is no permission field. Accept appends one revision through the entry store and keeps the previous revision. Reject writes a receipt and does not change the document. The same proposal id and body returns the stored receipt. A different body for that id is rejected. A stale `expectedRevision` is a revision conflict.
+
+Evidence and experiment are registered as proposal adapters. Another block registers with `register_block` / `register_proposal` / `register_operation`. Those lookups are the extension point. Adding one does not add a name to `BLOCKS` or a branch to `parse_operations`.
+
+The evidence card sends this request only when a saved entry is open. The frame adopts the returned revision. The first real object in the persistence test is the paper report export in `packages/notebook/test/fixtures/snapshot-contract.json`, not a synthetic id.
 
 ## Not in this phase
 
 - Replacing the Notebook editor with BlockNote.
 - Embedding MyST build, execute, or reactive packages.
-- Moving sheets, procedures, reviews, or AI proposals onto this projection. That is phase B.
+- Moving every existing Notebook capability onto this registry. That migration is phase B. The evidence and experiment reference proposal is part of phase A.
 - New AI4S blocks for Control Lab, chemistry, or Virtual Cell. That is phase C, and only where those apps already have a real closed loop.
 - Yjs, multiplayer, or a second revision store. Notebook revisions remain the citation freeze.
-- Electron, Wasm, and Native GPUI were not part of this wiring. The behavior lives in the shared Notebook app and its Python document parser.
+- Electron, Wasm, and Native GPUI were not launched here. The Web app was opened in Chrome against the Notebook backend.
 
 Phase A does not close the Notebook research issue, chat citations (#145), or Skills (#156).

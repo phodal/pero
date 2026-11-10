@@ -1,7 +1,9 @@
 import type { NodeViewProps } from '@tiptap/react';
 import { useEditorState } from '@tiptap/react';
 import { useRef, useState } from 'react';
-import { requestAppShell, useAppContext, useAppI18n } from '@pero/app-sdk';
+import { requestAppShell, useAppApi, useAppContext, useAppI18n } from '@pero/app-sdk';
+import { referenceProposal } from '@pero/notebook/scientific-block';
+import { useNotebookContext } from './notebook-context';
 import { Badge, Button, Checkbox, Disclosure, Feedback, Icon, Input, Textarea } from '@pero/app-sdk/ui';
 import { parsePaperCitation, scientificReferenceState, type ScientificReference, type ReferenceSnapshot } from '@pero/notebook';
 import { projectNotebook, readStoredReference } from '@pero/notebook/interchange';
@@ -31,10 +33,16 @@ function ownerAction(source: ScientificReference | null) {
 function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' | 'experiment' }) {
   const { t } = useAppI18n(messages);
   const { name: appName } = useAppContext();
+  const api = useAppApi();
+  const notebook = useNotebookContext();
   const [citation, setCitation] = useState('');
   const [editingReference, setEditingReference] = useState(!view.node.attrs.snapshot);
   const labelInput = useRef<HTMLInputElement>(null);
   const [citationError, setCitationError] = useState(false);
+  const [proposalLabel, setProposalLabel] = useState(String(view.node.attrs.label ?? ''));
+  const [proposalNote, setProposalNote] = useState('');
+  const [proposalError, setProposalError] = useState('');
+  const [proposalBusy, setProposalBusy] = useState(false);
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<{ locator: string; message: string } | null>(null);
   const { label, source, snapshot } = view.node.attrs as { label: string; source: ScientificReference | null; snapshot: ReferenceSnapshot | null };
@@ -67,6 +75,34 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
     catch (cause) { setOpenError({ locator, message: cause instanceof Error ? cause.message : String(cause) }); }
     finally { setOpening(false); }
   };
+  const reviewProposal = async (decision: 'accept' | 'reject') => {
+    if (!notebook || !source) return;
+    if (notebook.dirty) {
+      setProposalError(t('proposalDirty'));
+      return;
+    }
+    setProposalBusy(true);
+    setProposalError('');
+    setProposalNote('');
+    try {
+      const body = referenceProposal({
+        proposalId: crypto.randomUUID(),
+        expectedRevision: notebook.revision,
+        blockId: String(view.node.attrs.blockId),
+        decision,
+        label: proposalLabel,
+        source,
+      });
+      const result = await api.post<{ entry: { revision: number }; proposal: { decision: string; revision: number } }>(
+        `/api/entries/${notebook.entryId}/block-proposals`, body);
+      window.dispatchEvent(new CustomEvent('pero-notebook-entry-committed', { detail: result.entry }));
+      setProposalNote(t(result.proposal.decision === 'accept' ? 'proposalAccepted' : 'proposalRejected', { revision: result.proposal.revision }));
+    } catch (cause) {
+      setProposalError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setProposalBusy(false);
+    }
+  };
   const reference = source && <dl className="notebook-reference-details">{referenceFields.map(([field, labelKey]) =>
     source[field] && <div key={field}><dt>{t(labelKey)}</dt><dd>{source[field]}</dd></div>)}</dl>;
   const status = snapshot ? 'referenceImported' : pinned ? 'referencePinned' : complete ? 'referenceUnpinned' : 'referenceMissing';
@@ -83,6 +119,16 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
       {t('objectVersion')}: {stored.reference?.version || t('interchangeUnpinned')}
     </p>
     {snapshotStays && <p className="notebook-note">{t('snapshotStaysInNotebook')}</p>}
+    {notebook && source && pinned && <fieldset className="notebook-reference-fields" disabled={proposalBusy || !editable}>
+      <legend>{t('reviewReference')}</legend>
+      <label className="notebook-field notebook-reference-wide">{t('proposedLabel')}
+        <Input aria-label={t('proposedLabel')} maxLength={200} value={proposalLabel} onChange={event => setProposalLabel(event.target.value)} />
+      </label>
+      <Button variant="primary" onClick={() => void reviewProposal('accept')}>{t('acceptProposal')}</Button>
+      <Button variant="ghost" onClick={() => void reviewProposal('reject')}>{t('rejectProposal')}</Button>
+      {proposalNote && <p className="notebook-note">{proposalNote}</p>}
+      {proposalError && <Feedback kind="error">{proposalError}</Feedback>}
+    </fieldset>}
     {openError && openError.locator === source?.locator && <Feedback kind="error">{openError.message}</Feedback>}
     {snapshot && <>
       <SnapshotDetails snapshot={snapshot} />

@@ -126,7 +126,7 @@ class EntryStore:
                 raise MissingEntry('Entry not found')
             connection.execute('DELETE FROM revisions WHERE entry_id = ?', (identity,))
             for table in (
-                'drafts', 'worksheet_amendments', 'notebook_entry_table_workflows', 'notebook_entry_table_resyncs',
+                'drafts', 'worksheet_amendments', 'scientific_block_proposals', 'notebook_entry_table_workflows', 'notebook_entry_table_resyncs',
                 'ai_proposal_workspace', 'ai_proposal_archive', 'notebook_comment_threads', 'notebook_local_tasks',
                 'notebook_review_records', 'notebook_review_activity', 'notebook_review_requests',
                 'notebook_workflow_configs', 'notebook_workflow_runs', 'notebook_review_batches',

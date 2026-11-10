@@ -43,7 +43,8 @@
     "./research-tools": "./src/research-tools.ts",
     "./notebook-print": "./src/notebook-print.ts",
     "./source-extraction": "./src/source-extraction.ts",
-    "./interchange": "./src/interchange.ts"
+    "./interchange": "./src/interchange.ts",
+    "./scientific-block": "./src/scientific-block.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"

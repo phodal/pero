@@ -100,12 +100,29 @@ export const notebookExtensions = [
     selectable: true,
     addAttributes() {
       return {
-        originalType: { default: '', rendered: false, parseHTML: () => null },
-        payload: { default: null, rendered: false, parseHTML: () => null },
+        originalType: { default: '', rendered: false },
+        payload: { default: null, rendered: false },
       };
     },
+    parseHTML() {
+      return [{
+        tag: 'div[data-notebook-block="retainedBlock"]',
+        getAttrs: (element: HTMLElement) => {
+          const attrs = {
+            originalType: readAttribute(element, 'originalType', ''),
+            payload: readAttribute(element, 'payload', null),
+          };
+          return isClipboardWidget('retainedBlock', attrs) ? attrs : false;
+        },
+      }];
+    },
     renderHTML({ HTMLAttributes, node }) {
-      return ['div', { ...HTMLAttributes, 'data-notebook-block': 'retainedBlock', 'data-original-type': node.attrs.originalType }];
+      return ['div', {
+        ...HTMLAttributes,
+        'data-notebook-block': 'retainedBlock',
+        'data-notebook-originaltype': JSON.stringify(node.attrs.originalType),
+        'data-notebook-payload': JSON.stringify(node.attrs.payload),
+      }];
     },
     renderText() { return `[${messages.retainedBlock.en}]`; },
     addNodeView() { return ReactNodeViewRenderer(RetainedBlockView); },

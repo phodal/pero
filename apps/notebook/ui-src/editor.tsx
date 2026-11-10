@@ -174,9 +174,9 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
   </>;
 }
 
-export function NotebookEditor({ content, document: entryDocument, onDocumentChange, onCreateEntry, entryId, revision, readonly = false, onChange, historyControls, onSave, onReplaceDocument, chrome, takeInitialFocus }: {
+export function NotebookEditor({ content, document: entryDocument, onDocumentChange, onCreateEntry, entryId, revision, readonly = false, dirty = false, onChange, historyControls, onSave, onReplaceDocument, chrome, takeInitialFocus }: {
   content: NotebookDocument['content']; document: NotebookDocument; onDocumentChange?: (change: Partial<NotebookDocument>) => void;
-  onCreateEntry?: (document: NotebookDocument) => Promise<void>; entryId: string; revision: number;
+  onCreateEntry?: (document: NotebookDocument) => Promise<void>; entryId: string; revision: number; dirty?: boolean;
   historyControls?: DocumentHistoryControls;
   takeInitialFocus?(): boolean;
   onReplaceDocument?(document: NotebookDocument): void;
@@ -228,7 +228,7 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
     editor.view.dispatch(editor.state.tr.setSelection(restored));
   }, [editor, content, readonly]);
   if (!editor) return null;
-  return <NotebookContextProvider value={{ entryId, revision, readonly, document: entryDocument,
+  return <NotebookContextProvider value={{ entryId, revision, readonly, dirty, document: entryDocument,
     getDocument: () => blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] } }}>
     {protection.errors.length > 0 && <Feedback kind="error">{t('documentBlocked')} {protection.errors[0]}</Feedback>}
     <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly || protection.errors.length > 0} onChange={change => onDocumentChange?.(change)}
