@@ -94,7 +94,7 @@ test('workspace empty states render their labels and guidance in the active view
   assert.ok(viewMenu);
   assert.equal(document.querySelector('.notebook-statusbar details[data-menu=view]'), null);
   viewMenu.open = true;
-  assert.deepEqual([...viewMenu.querySelectorAll('[role=tab]')].map(node => node.textContent), ['Notes', 'Procedures', 'Relevant items', 'Metadata', 'Review and activity']);
+  assert.deepEqual([...viewMenu.querySelectorAll('[role=tab]')].map(node => node.textContent), ['Empty', 'Procedures', 'Relevant items', 'Metadata', 'Review and activity']);
   for (const [tab, heading, guidance] of [
     ['Procedures', 'No procedures yet', 'Add a procedure to record materials and step-by-step instructions.'],
     ['Relevant items', 'No relevant items yet', 'Add a named entry reference here'],
