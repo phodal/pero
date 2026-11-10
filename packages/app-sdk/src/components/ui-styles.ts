@@ -170,7 +170,7 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 .pero-ui-tabs-list[data-variant=content]:not([data-unstyled]) { border:0; align-items:center; flex-wrap:nowrap; gap:var(--pero-spacing-1); padding:var(--pero-spacing-1); }
 .pero-content-tab { display:flex; align-items:center; flex:none; max-width:220px; min-width:0; height:max(var(--pero-content-tab),var(--pero-control-height)); border:1px solid transparent; border-radius:var(--pero-radius-selection); box-sizing:border-box; }
 .pero-content-tab[data-pinned] { max-width:160px; }
-.pero-content-tab:has([data-state=active]) { border-color:var(--pero-border); background:var(--pero-accent-soft); }
+.pero-content-tab:has([data-state=active]) { border-color:var(--pero-action); background:var(--pero-accent-soft); }
 .pero-content-tab:not(:has(:disabled)):not(:has([data-state=active])):hover { background:var(--pero-surface-hover); }
 .pero-content-tab:not(:has(:disabled)):not(:has([data-state=active])):active { background:var(--pero-surface-pressed); }
 .pero-content-tab:has([data-state=active]):not(:has(:disabled)):hover { border-color:var(--pero-action); }

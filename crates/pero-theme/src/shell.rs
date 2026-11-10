@@ -52,13 +52,17 @@ pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> 
         .gap(chrome.geo(SPACE_4))
 }
 
-/// A short lift on the leading and top edges, about 2px. The ink is the border
-/// tone, so the seam stays in the same family as the chrome instead of reading
-/// as a black cut.
-pub fn edge_shadow(color: Hsla) -> Vec<BoxShadow> {
-    vec![BoxShadow::new(px(-5.5), px(-5.5), color.opacity(0.7))
-        .blur_radius(px(0.7))
-        .spread_radius(px(-5.))]
+/// Depth on the leading edge of the content surface. Translucent ink draws the
+/// seam, and the short blur keeps it from reading as a black cut.
+pub fn edge_shadow(ink: Hsla) -> Vec<BoxShadow> {
+    vec![
+        BoxShadow::new(px(-1.), px(0.), ink.opacity(0.28))
+            .blur_radius(px(0.))
+            .spread_radius(px(0.)),
+        BoxShadow::new(px(-10.), px(1.), ink.opacity(0.14))
+            .blur_radius(px(14.))
+            .spread_radius(px(-6.)),
+    ]
 }
 
 /// Group related navigation; a separator marks a change of navigation scope,
@@ -121,7 +125,9 @@ pub fn content_tab(
             p.text_muted
         })
         .border_1()
-        .border_color(if state.active {
+        .border_color(if state.active && state.focused {
+            p.action
+        } else if state.active {
             p.border
         } else {
             p.text.opacity(0.)

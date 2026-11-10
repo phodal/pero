@@ -6,19 +6,19 @@
 [data-theme="system"] {
   --pero-bg: #F7F9FC;
   --pero-surface: #FFFFFF;
-  --pero-surface-muted: #EEF3F8;
+  --pero-surface-muted: #D4E0EC;
   --pero-text: #172536;
-  --pero-text-muted: #596B7D;
-  --pero-border: #DCE4ED;
+  --pero-text-muted: #4A5C6E;
+  --pero-border: #C5D3E0;
   --pero-input-border: #748599;
   --pero-action: #007F86;
   --pero-action-hover: #00666D;
   --pero-on-action: #FFFFFF;
   --pero-accent: #55D5DD;
   --pero-on-accent: #142B45;
-  --pero-accent-soft: #E7F3F5;
-  --pero-accent-text: #00777D;
-  --pero-link: #00777D;
+  --pero-accent-soft: #C8E8EA;
+  --pero-accent-text: #00666D;
+  --pero-link: #00666D;
   --pero-focus: #007F86;
   --pero-success: #35704B;
   --pero-on-success: #FFFFFF;
@@ -32,8 +32,8 @@
   --pero-info: #3C65A0;
   --pero-on-info: #FFFFFF;
   --pero-info-bg: #EEF3FC;
-  --pero-surface-hover: #E5EDF3;
-  --pero-surface-pressed: #D7E5ED;
+  --pero-surface-hover: #C9D6E6;
+  --pero-surface-pressed: #B9CADC;
   --pero-action-pressed: #00565C;
   --pero-tint-blue-surface: #F1F6FC;
   --pero-tint-blue-soft: #DFEAF9;

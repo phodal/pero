@@ -135,7 +135,7 @@ pub fn sidebar_row(
     .accessibility_label(label.clone())
     .small().w_full().h(chrome.control(if sub { ROW_SUB } else { ROW_NAV }))
     .rounded(chrome.geo(RADIUS_SELECTION))
-    .border_1().border_color(clear(chrome))
+    .border_1().border_color(if active { chrome.palette.action } else { clear(chrome) })
     .when(active, |row| row.text_color(chrome.palette.accent_text))
     .cursor_pointer()
     .pl(chrome.geo(if sub { SPACE_8 + SUB_INDENT } else { SPACE_8 }))
