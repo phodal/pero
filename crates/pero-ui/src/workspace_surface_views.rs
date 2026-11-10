@@ -279,7 +279,8 @@ impl Workbench {
             })
             .collect::<Vec<_>>();
         let has_recent = !recent.is_empty();
-        let pane = leaf.id.0 as usize;
+        let pane_id = leaf.id;
+        let pane = pane_id.0 as usize;
         div()
             .id(("pane-empty", pane))
             .flex_1()
@@ -334,7 +335,8 @@ impl Workbench {
                                     chrome,
                                     cx,
                                 )
-                                .on_click(cx.listener(|this, _, window, cx| {
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.focus_pane(pane_id, window, cx);
                                     this.new_chat(cx);
                                     let composer = this.chat.read(cx).composer.clone();
                                     composer.update(cx, |input, cx| input.focus(window, cx));
@@ -383,7 +385,7 @@ impl Workbench {
                                     ))
                                     .tooltip(title)
                                     .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.reopen_closed_at(index, window, cx);
+                                        this.reopen_closed_at(pane_id, index, window, cx);
                                     }))
                                     .into_any_element()
                                 })),

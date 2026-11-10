@@ -107,25 +107,24 @@ impl Workbench {
         cx.stop_propagation();
     }
     pub(crate) fn reopen_closed_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.reopen_closed_at(
-            self.navigation
-                .focused_tabs()
-                .map(|tabs| tabs.closed_items().len())
-                .and_then(|len| len.checked_sub(1))
-                .unwrap_or(0),
-            window,
-            cx,
-        );
+        if let Some((pane, index)) = self.navigation.pane_layout().and_then(|layout| {
+            let pane = layout.focused?;
+            let index = layout.leaf(pane)?.tabs.closed_items().len().checked_sub(1)?;
+            Some((pane, index))
+        }) {
+            self.reopen_closed_at(pane, index, window, cx);
+        }
         cx.stop_propagation();
     }
     pub(crate) fn reopen_closed_at(
         &mut self,
+        pane: PaneId,
         index: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.remember_current_location(cx);
-        if let Some(item) = self.navigation.reopen_closed_at(index) {
+        if let Some(item) = self.navigation.reopen_closed_at(pane, index) {
             self.ensure_document_panes(window, cx);
             self.activate_route(item.route, window, cx);
         }
