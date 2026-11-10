@@ -68,8 +68,8 @@ function InsertMenu({ name, children }: { name: string; children: ReactNode }) {
   </div>;
 }
 
-function EditorToolbar({ editor, historyControls, insertTools }: {
-  historyControls?: DocumentHistoryControls; editor: Editor; insertTools?: ReactNode;
+function EditorToolbar({ editor, historyControls, insertTools, entryId }: {
+  historyControls?: DocumentHistoryControls; editor: Editor; insertTools?: ReactNode; entryId: string;
 }) {
   const { t } = useAppI18n(messages);
   const status = useEditorState({
@@ -81,8 +81,11 @@ function EditorToolbar({ editor, historyControls, insertTools }: {
   });
   return <div className="notebook-commandbar">
     <div className="notebook-command-fixed">
-      <IconButton label={t('undo')} disabled={!(historyControls?.canUndo ?? status.canUndo)} onClick={() => historyControls ? historyControls.undo() : editor.chain().focus().undo().run()}><Icon name="undo" /></IconButton>
-      <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
+      <Button variant="ghost" className="notebook-print-trigger" aria-label={t('printAction')} onClick={() => window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } }))}><Icon name="print" size={12} /><Icon name="chevron-down" size={12} /></Button>
+      <span className="notebook-history">
+        <IconButton label={t('undo')} disabled={!(historyControls?.canUndo ?? status.canUndo)} onClick={() => historyControls ? historyControls.undo() : editor.chain().focus().undo().run()}><Icon name="undo" /></IconButton>
+        <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
+      </span>
       {insertTools}
     </div>
     <span className="notebook-text-tools"><NotebookTextTools editor={editor} entryTools /></span>
@@ -210,7 +213,7 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
     getDocument: () => ({ ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] }) }}>
     <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onChange={change => onDocumentChange?.(change)}
       onReplaceDocument={readonly ? undefined : onReplaceDocument} chrome={chrome} historyControls={historyControls}
-      tools={!readonly && <EditorToolbar historyControls={historyControls} editor={editor}
+        tools={!readonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId}
         insertTools={<InsertMenu name={t('insertWord')}>
           <NotebookInsertTools editor={editor} document={entryDocument} entryId={entryId} revision={revision} onCreateEntry={onCreateEntry} />
         </InsertMenu>} />}

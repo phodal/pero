@@ -58,6 +58,7 @@ html, body, #app { height: 100%; }
 .notebook-entry-status[data-status="completed"] { background: var(--pero-success-bg); color: var(--pero-text); }
 .notebook-notes-panel[data-split] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem); align-items: start; }
 .notebook-split-pane { min-width: 0; max-height: 100%; overflow: auto; padding: var(--pero-spacing-3); border-inline-start: var(--pero-hairline); }
+.notebook-cell-link { position: absolute; z-index: 2; inset-inline-end: 2px; bottom: 0; color: var(--pero-tint-blue-strong); font-size: var(--pero-font-caption); }
 .notebook-entry-title svg { color: color-mix(in srgb, var(--pero-text) 30%, var(--pero-surface)); }
 .notebook-entry-head .notebook-title { flex: 1 1 auto; width: auto; margin: 0; padding: 0; border: 0; background: transparent; font: var(--pero-font-weight-semibold) 35px/1.15 var(--pero-font-family-sans); letter-spacing: 0; }
 .notebook-entry-head .notebook-title:focus { outline: none; }
@@ -95,6 +96,7 @@ html, body, #app { height: 100%; }
 .notebook-format .pero-select .pero-select-trigger { appearance: none; width: auto; min-height: 24px; padding: 0 6px; border: 0; border-radius: 3px; background: var(--notebook-chip); box-shadow: none; color: inherit; font: inherit; gap: 2px; }
 .notebook-sheet-format .pero-select .pero-select-trigger { appearance: none; width: auto; min-height: 24px; height: 24px; padding: 0 2px; border: 0; border-radius: 4px; background: transparent; box-shadow: none; color: inherit; font: inherit; gap: 2px; }
 .notebook-command-fixed { display: flex; flex: 0 0 auto; align-items: center; gap: var(--pero-spacing-2); overflow: visible; }
+.notebook-history { display: inline-flex; align-items: center; gap: 1px; }
 .notebook-format { display: flex; flex: 1 1 auto; align-items: center; min-width: 0; gap: var(--pero-spacing-2); overflow: visible; font-size: var(--pero-font-tab); }
 .notebook-format > .notebook-toolbar.pero-ui-toolbar:not([data-unstyled]) { flex: 0 1 auto; width: auto; min-width: 0; border-top: 0; padding: 0; }
 .notebook-overflow { position: relative; display: flex; flex: 0 0 auto; }
@@ -105,7 +107,9 @@ html, body, #app { height: 100%; }
 .notebook-procedure-tools > .notebook-format { flex: 1 1 18rem; }
 .notebook-insert { position: relative; display: flex; }
 .notebook-commandbar .notebook-insert-trigger.pero-ui-button:not([data-variant=unstyled]) { padding-inline: 10px; }
+.notebook-commandbar .notebook-print-trigger.pero-ui-button:not([data-variant=unstyled]) { width: auto; min-width: 37px; height: 24px; padding-inline: 6px; gap: 2px; }
 .notebook-format .notebook-overflow-trigger.pero-ui-button:not([data-variant=unstyled]) { padding-inline: 11px; }
+.notebook-format .notebook-ai-tools.pero-ui-button:not([data-variant=unstyled]) { width: auto; min-width: 105px; height: 24px; padding-inline: 8px; gap: 4px; }
 .notebook-insert-trigger { gap: 4px; height: 24px; padding: 0 10px; border-radius: 3px; background: var(--notebook-chip); font-weight: var(--pero-font-weight-medium); }
 .notebook-insert > .notebook-menu { position: static; }
 .notebook-insert .notebook-menu-panel { top: calc(100% + 4px); left: 0; }
@@ -403,10 +407,14 @@ html, body, #app { height: 100%; }
 .notebook-block[data-kind="spreadsheet"] .notebook-block-title { flex: 1 1 auto; }
 .notebook-block[data-kind="spreadsheet"] .notebook-block-name { flex: 0 1 auto; width: auto; height: 22px; min-height: 0; min-width: 3rem; max-width: 100%; field-sizing: content; padding-block: 0; color: var(--pero-text); font-size: var(--pero-font-body); }
 .notebook-block[data-kind="spreadsheet"] .notebook-block-actions { display: flex; flex: 0 0 auto; gap: var(--pero-spacing-1); }
+.notebook-block[data-kind="spreadsheet"]:not([data-collapsed]) .notebook-block-actions { gap: 14px; }
 .notebook-block[data-kind="spreadsheet"] .notebook-block-actions .pero-ui-icon-button:not([data-variant=unstyled]) { width: 24px; height: 24px; min-height: 24px; padding: 0; border-radius: 4px; background: transparent; color: var(--pero-text); }
 .notebook-block[data-kind="spreadsheet"] .notebook-block-actions .pero-ui-icon-button:not([data-variant=unstyled]):hover,
-.notebook-block[data-kind="spreadsheet"] .notebook-sheet-download.pero-ui-icon-button:not([data-variant=unstyled]) { background: color-mix(in srgb, var(--pero-text) 6%, var(--pero-surface)); }
+.notebook-block[data-kind="spreadsheet"][data-collapsed] .notebook-sheet-download.pero-ui-icon-button:not([data-variant=unstyled]) { background: color-mix(in srgb, var(--pero-text) 6%, var(--pero-surface)); }
+.notebook-block[data-kind="spreadsheet"]:not([data-collapsed]) .notebook-sheet-download.pero-ui-icon-button:not([data-variant=unstyled]) { width: 35px; height: 35px; min-height: 35px; background: var(--notebook-chip); }
+.notebook-block[data-kind="spreadsheet"]:not([data-collapsed]) .notebook-sheet-download.pero-ui-icon-button:not([data-variant=unstyled]):hover { background: var(--notebook-chip-hover); }
 .notebook-block[data-kind="spreadsheet"] .notebook-block-actions svg { width: 14px; height: 14px; }
+.notebook-block[data-kind="spreadsheet"]:not([data-collapsed]) .notebook-sheet-download svg { width: 16px; height: 16px; }
 .notebook-header-tools > summary { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; list-style: none; cursor: pointer; border-radius: var(--pero-radius-sm); }
 .notebook-header-tools > summary::-webkit-details-marker, .notebook-header-tools > summary::marker { content: none; }
 .notebook-header-tools[open] { display: contents; }
@@ -441,11 +449,15 @@ html, body, #app { height: 100%; }
 .notebook-sheet-format .notebook-swatch { border-color: var(--notebook-frame); }
 .notebook-sheet-format > .pero-ui-button u { font-size: 13px; line-height: 1; text-underline-offset: 2px; }
 .notebook-sheet-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--pero-spacing-2); box-sizing: border-box; min-height: 52px; margin-top: 0; padding: 8px 32px 8px 18px; border-top: 1px solid var(--notebook-grid-line); background: var(--pero-bg); }
+.notebook-block[data-kind="spreadsheet"] .notebook-sheet-operations { box-sizing: border-box; border-top: 1px solid var(--notebook-grid-line); background: var(--pero-bg); color: var(--pero-text); }
+.notebook-block[data-kind="spreadsheet"] .notebook-sheet-operations > summary { box-sizing: border-box; min-height: 28px; padding: 4px 18px; color: var(--pero-text); font-size: var(--pero-font-caption); font-weight: var(--pero-font-weight-medium); cursor: pointer; }
+.notebook-block[data-kind="spreadsheet"] .notebook-sheet-operations[open] > .notebook-science-panel { padding: 0 18px 12px; background: var(--pero-surface); }
 .notebook-add-rows { display: inline-flex; align-items: center; gap: 8px; }
 .notebook-add-rows .pero-ui-input:not([data-unstyled]) { flex: 0 0 80px; width: 80px; min-width: 0; height: 36px; min-height: 36px; padding-inline: 8px; border-color: var(--notebook-frame); border-radius: 4px; text-align: center; font-size: var(--pero-font-body); }
 .notebook-add-rows .pero-ui-button:not([data-variant=unstyled]) { flex: 0 0 auto; height: 36px; min-height: 36px; min-width: 116px; padding-inline: 16px; border: 0; border-radius: 4px; background: var(--notebook-chip); color: var(--pero-text); font-size: var(--pero-font-body); white-space: nowrap; }
 .notebook-sheet-format > .pero-ui-button:not([data-variant=unstyled]) { flex: 0 0 auto; width: 33px; min-width: 33px; min-height: 35px; height: 35px; padding: 0; border-radius: 4px; background: var(--notebook-chip); }
 .notebook-sheet-format > .notebook-format-menu.pero-ui-button:not([data-variant=unstyled]) { width: auto; min-width: 56px; padding-inline: 8px; gap: 2px; }
+.notebook-sheet-format > .notebook-format-menu.pero-ui-button:not([data-variant=unstyled]):has(.notebook-align-mark) { min-width: 61px; }
 .notebook-sheet-format .notebook-formula-fx.pero-ui-button:not([data-variant=unstyled]) { width: auto; min-width: 60px; height: 35px; gap: 2px; padding-inline: 10px; border-radius: 4px; background: var(--notebook-chip); color: var(--pero-text); font-family: Georgia, 'Iowan Old Style', Palatino, serif; font-style: italic; font-size: 14px; }
 .notebook-sheet-format .pero-select { flex: 0 0 auto; width: auto; }
 .notebook-sheet-format .notebook-color-select .pero-select-trigger { position: relative; width: auto; min-width: 55px; height: 35px; padding-inline: 8px; justify-content: center; border-radius: 4px; background: var(--notebook-chip); }
