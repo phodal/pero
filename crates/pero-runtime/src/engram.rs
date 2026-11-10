@@ -84,8 +84,11 @@ fn server(binary: &str, project: &str, data_dir: &Path) -> McpServer {
     let mut tools = READ_TOOLS.to_vec();
     tools.extend_from_slice(WRITE_TOOLS);
     let mut policy = BTreeMap::new();
-    for name in tools.iter() {
+    for name in READ_TOOLS {
         policy.insert((*name).to_owned(), McpToolDecision::Allow);
+    }
+    for name in WRITE_TOOLS {
+        policy.insert((*name).to_owned(), McpToolDecision::Ask);
     }
     let mut meta = serde_json::Map::new();
     meta.insert(
@@ -203,8 +206,8 @@ mod tests {
         assert!(!alpha_server.args[3].contains("mem_session_start"));
         let policy = &alpha_server.meta.as_ref().unwrap()[TOOL_POLICY_CAPABILITY];
         assert_eq!(policy["default"], "deny");
-        assert_eq!(policy["tools"]["mem_save"], "allow");
-        assert_eq!(policy["tools"]["mem_update"], "allow");
+        assert_eq!(policy["tools"]["mem_save"], "ask");
+        assert_eq!(policy["tools"]["mem_update"], "ask");
         assert_eq!(policy["tools"]["mem_search"], "allow");
         assert!(policy["tools"].get("mem_delete").is_none());
         assert!(!home.join("engram").exists());
