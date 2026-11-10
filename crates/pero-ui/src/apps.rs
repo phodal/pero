@@ -190,17 +190,24 @@ mod surface {
         }
 
         pub(crate) fn installed_app_title(&self, name: &str, display_name: &str) -> String {
-            if name == "automations" {
-                self.t("nav.automations").to_string()
-            } else if name == "paper-agent" {
-                self.t("nav.papers").to_string()
-            } else if name == "environments" {
-                self.t("nav.environments").to_string()
-            } else if name == "connectors" {
-                self.t("nav.customize").to_string()
-            } else {
-                display_name.to_string()
-            }
+            let key = match name {
+                "automations" => "nav.automations",
+                "paper-agent" => "nav.papers",
+                "environments" => "nav.environments",
+                "connectors" => "nav.customize",
+                "insights" => "nav.insights",
+                "data" => "nav.data",
+                "compute" => "nav.compute",
+                "lab" => "nav.lab",
+                "control-lab" => "nav.control_lab",
+                "hpc" => "nav.hpc",
+                "scientific-viewer" => "nav.viewer",
+                "virtual-cell" => "nav.virtual_cell",
+                "lcms2yield" => "nav.lcms",
+                "skills" => "nav.skills",
+                _ => "",
+            };
+            if key.is_empty() { display_name.to_string() } else { self.t(key).to_string() }
         }
 
         pub(crate) fn refresh_apps(&mut self, cx: &mut Context<Self>) {
