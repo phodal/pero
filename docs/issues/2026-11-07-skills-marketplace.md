@@ -27,4 +27,4 @@ github_url: https://github.com/phodal/pero/issues/156
 
 JSON、中文索引和截图已获用户明确授权纳入本次 PR。2026-11-09 将市场改动从旧的混合工作区移植到最新上游 `f0b8065eb300d4be0e5c5f89655d9fe3350fd995`，独立分支只提交市场相关内容，保留原工作区其他修改。
 
-[实施边界](../exec-plans/2026-11-07-skills-marketplace.md)与[验证记录](../fitness/skills-marketplace.md)维护完整命令和证据。签名安装包和科研结论认证不在 #156 原文验收里。2026-11-10 的复核仍缺当前头上的深色/窄窗截图，以及一次显式 opt-in 真实模型调用；#156 保持开放。
+[实施边界](../exec-plans/2026-11-07-skills-marketplace.md)与[验证记录](../fitness/skills-marketplace.md)维护完整命令和证据。签名安装包和科研结论认证不在 #156 原文验收里。2026-11-10 已补上深色/窄窗现场截图和第 9 条权限回归。显式 opt-in 真实模型仍未跑，#156 保持开放。
