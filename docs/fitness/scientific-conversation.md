@@ -219,3 +219,16 @@ does not retarget the original token, and a short Paper location is rejected.
 
 This still does not open the Workbench. Theme, narrow layout, long formulas,
 wide tables, keyboard copy and restart were not observed for these labels.
+
+Later the same day, two display attempts were made on Linux with `DISPLAY=:1`:
+
+- `node scripts/cargo.mjs +nightly-2026-10-28 build -j1 -p pero-ui --features native --bin pero-native`
+  failed after `libgtk-3-dev` and `libwebkit2gtk-4.1-dev` were installed. The
+  compile still cannot read the generated `Workbench-bold.ttf` and
+  `JetBrainsMono-Regular.ttf`, and `crates/pero-ui/src/native_web.rs` does not
+  match the installed `webkit2gtk` 2.0 (`prelude`, `can_go_back`).
+- `node scripts/build/wasm.mjs --chat-only` exited 0. Headless Chrome loaded
+  that shared chat Wasm and painted the empty “Start with a task” shell. The
+  injected table receipt and formula did not become the visible conversation,
+  so the screenshot is not acceptance of the new receipt. Dark, narrow, keyboard
+  copy and restart were not observed. `npm run dev:native` refuses Linux.
