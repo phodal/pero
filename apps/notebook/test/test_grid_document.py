@@ -16,6 +16,10 @@ class GridDocumentTest(unittest.TestCase):
         def document(value):
             return {'schemaVersion': 1, 'title': 'Grid', 'content': {'type': 'doc', 'content': [{'type': 'spreadsheet', 'attrs': value}]}}
         self.assertEqual(NotebookDocument.parse(document(attrs)).wire(), document(attrs))
+        identified = document(attrs)
+        identified['identity'] = {'code': 'EXP25000012', 'status': 'in_progress'}
+        identified['notices'] = [{'id': 'mention-1', 'name': 'Ada', 'at': '2026-11-10T00:00:00.000Z', 'note': 'check the table'}]
+        self.assertEqual(NotebookDocument.parse(identified).wire(), identified)
         cases = [
             ('formats', {'D1': {'bold': True}}), ('formats', {'A1': {'bold': 1}}),
             ('formats', {'A1': {'precision': 13}}), ('formats', {'A1': {'foreground': 'red'}}),
@@ -29,3 +33,4 @@ class GridDocumentTest(unittest.TestCase):
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 changed = deepcopy(attrs); changed[key] = value
                 NotebookDocument.parse(document(changed))
+

@@ -53,6 +53,11 @@ html, body, #app { height: 100%; }
 .notebook-view-actions .notebook-menu[data-icon] > summary svg { width: 12px; height: 12px; }
 .notebook-entry-head { box-sizing: border-box; margin: 0; padding-block: 35px 0; padding-inline: clamp(32px, 9vw, 96px) 0; border: 0; background: var(--pero-material-reading); }
 .notebook-entry-title { display: flex; align-items: center; gap: var(--pero-spacing-1); padding-bottom: 0; padding-inline-start: 0; border-bottom: 1px solid color-mix(in srgb, var(--pero-tint-blue-strong) 78%, var(--pero-info-bg)); }
+.notebook-entry-code { flex: 0 0 auto; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.notebook-entry-status { flex: 0 0 auto; height: 24px; padding-inline: 8px; border-radius: 999px; background: var(--pero-tint-blue-soft); color: var(--pero-tint-blue-text); font-size: var(--pero-font-caption); }
+.notebook-entry-status[data-status="completed"] { background: var(--pero-success-bg); color: var(--pero-text); }
+.notebook-notes-panel[data-split] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem); align-items: start; }
+.notebook-split-pane { min-width: 0; max-height: 100%; overflow: auto; padding: var(--pero-spacing-3); border-inline-start: var(--pero-hairline); }
 .notebook-entry-title svg { color: color-mix(in srgb, var(--pero-text) 30%, var(--pero-surface)); }
 .notebook-entry-head .notebook-title { flex: 1 1 auto; width: auto; margin: 0; padding: 0; border: 0; background: transparent; font: var(--pero-font-weight-semibold) 35px/1.15 var(--pero-font-family-sans); letter-spacing: 0; }
 .notebook-entry-head .notebook-title:focus { outline: none; }

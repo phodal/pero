@@ -469,6 +469,35 @@ def nodes(node):
         yield from nodes(child)
 
 
+def parse_entry_identity(value):
+    fields(value, {'code', 'status'})
+    if not isinstance(value['code'], str) or not re.fullmatch(r'EXP\d{8}', value['code']):
+        raise ValueError('Invalid entry code')
+    if value['status'] not in {'in_progress', 'completed'}:
+        raise ValueError('Invalid entry status')
+    return {'code': value['code'], 'status': value['status']}
+
+
+def parse_entry_notices(value):
+    if not isinstance(value, list) or len(value) > 100:
+        raise ValueError('Invalid entry notices')
+    seen = set()
+    notices = []
+    for item in value:
+        fields(item, {'id', 'name', 'at', 'note'})
+        notice_id = block_id(item['id'])
+        if notice_id in seen:
+            raise ValueError('Duplicate entry notice')
+        seen.add(notice_id)
+        name = string(item['name'], 'notice name', 80, required=True)
+        note = string(item['note'], 'notice note', 500)
+        at = string(item['at'], 'notice time', 40, required=True)
+        if not re.match(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', at):
+            raise ValueError('Invalid notice time')
+        notices.append({'id': notice_id, 'name': name.strip(), 'at': at, 'note': note.strip()})
+    return tuple(notices)
+
+
 @dataclass(frozen=True)
 class NotebookDocument:
     title: str
@@ -476,10 +505,12 @@ class NotebookDocument:
     metadata: NotebookMetadata | None = None
     procedures: tuple[NotebookProcedure, ...] | None = None
     template_origin: dict | None = None
+    identity: dict | None = None
+    notices: tuple | None = None
 
     @classmethod
     def parse(cls, value):
-        fields(value, {'schemaVersion', 'title', 'content'}, {'metadata', 'procedures', 'templateOrigin'})
+        fields(value, {'schemaVersion', 'title', 'content'}, {'metadata', 'procedures', 'templateOrigin', 'identity', 'notices'})
         if type(value['schemaVersion']) is not int or value['schemaVersion'] != 1:
             raise ValueError('Unsupported Notebook document version')
         title = string(value['title'], 'entry title', MAX_TITLE, required=True)
@@ -489,7 +520,9 @@ class NotebookDocument:
         origin = parse_template_origin(value['templateOrigin']) if value.get('templateOrigin') is not None else None
         document = cls(title, value['content'],
                        NotebookMetadata.parse(value['metadata']) if 'metadata' in value else None,
-                       parse_procedures(value['procedures'], identities) if 'procedures' in value else None, origin)
+                       parse_procedures(value['procedures'], identities) if 'procedures' in value else None, origin,
+                       parse_entry_identity(value['identity']) if 'identity' in value else None,
+                       parse_entry_notices(value['notices']) if 'notices' in value else None)
         if len(document.serialized().encode()) > MAX_DOCUMENT_BYTES:
             raise ValueError('Notebook document exceeds the size limit')
         return document
@@ -502,6 +535,10 @@ class NotebookDocument:
             result['procedures'] = [item.wire() for item in self.procedures]
         if self.template_origin is not None:
             result['templateOrigin'] = self.template_origin
+        if self.identity is not None:
+            result['identity'] = self.identity
+        if self.notices is not None:
+            result['notices'] = list(self.notices)
         return result
 
     def serialized(self):

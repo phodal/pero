@@ -23,6 +23,7 @@
     "./science-review": "./src/science-review.ts",
     "./review": "./src/review.ts",
     "./grid-presentation": "./src/grid-presentation.ts",
+    "./entry-record": "./src/entry-record.ts",
     "./worksheet-structure": "./src/worksheet-structure.ts",
     "./formula-inspection": "./src/formula-inspection.ts",
     "./templates": "./src/templates.ts",

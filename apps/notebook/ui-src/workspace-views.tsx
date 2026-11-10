@@ -1,3 +1,7 @@
+import { EntryIdentity } from './entry-identity';
+import { EntryMentionDialog } from './entry-mention-dialog';
+import { EntryNotices } from './entry-notices';
+import { EntryWorkspaceActions } from './entry-workspace-actions';
 import { messages as notebookMessages } from './messages';
 import { NamedReferenceTools, NotebookReplacementTools, NotebookStatusBar } from './notebook-reference-controls';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -286,6 +290,8 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   const [selectedProcedure, setSelectedProcedure] = useState('');
   const [procedureTarget, setProcedureTarget] = useState<{ id: string; ownerId: string } | null>(null);
   const [notice, setNotice] = useState('');
+  const [split, setSplit] = useState(false);
+  const [mention, setMention] = useState<{ name: string; note: string } | null>(null);
   const items = useMemo(() => notebookSearchItems(document.content, document.procedures), [document.content, document.procedures]);
   const relevant = useMemo(() => notebookRelevantItems(document.content), [document.content]);
   const results = useMemo(() => searchNotebook(items, query), [items, query]);
@@ -347,6 +353,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   }, [pendingBlock, tab, editor, t]);
   const openSearch = () => { navigated.current = false; setDialog('search'); };
   const downloadJson = () => downloadFile('Notebook.json', JSON.stringify({ ...document, content: editor.getJSON() }, null, 2), 'application/json');
+  const protocolPane = <ProceduresView procedures={document.procedures ?? []} readonly={readonly} selected={selectedProcedure} setSelected={setSelectedProcedure} onCopyLink={id => void copyLink(id)} onChange={procedures => onChange({ procedures })} />;
   return <Tabs className="notebook-workspace" data-notebook-entry-id={entryId} data-notebook-view={view} value={tab} onValueChange={setTab} onKeyDown={event => {
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
   }}>
@@ -357,6 +364,10 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
           {(['relevant', 'metadata'] as const).map(value => <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}
           <NotebookMenu name={t('viewMenu')} menu="view" icon="chevron-down">
             {(['procedures', 'review'] as const).map(value => <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}
+            <EntryWorkspaceActions readonly={readonly} split={split} procedures={document.procedures ?? []}
+              onToggleSplit={() => setSplit(value => !value)}
+              onAdded={(procedures, id) => { onChange({ procedures }); setSelectedProcedure(id); setSplit(true); setError(''); }}
+              onError={setError} onMention={() => setMention({ name: '', note: '' })} />
           </NotebookMenu>
         </TabsList>
       </div>
@@ -370,7 +381,8 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}
     {notice && <Feedback kind="success">{notice}</Feedback>}
-    <TabsContent className="notebook-notes-panel" value="notes" forceMount>
+    <TabsContent className="notebook-notes-panel" value="notes" forceMount data-split={split || undefined}>
+      <div className="notebook-notes-main">
       <div className="notebook-entry-head">
         <div className="notebook-entry-title">
           <Icon size={26} glyph={{ viewBox: '0 0 24 24', children: <>
@@ -379,12 +391,15 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
           </> }} />
           {readonly ? <h1 className="notebook-title">{document.title}</h1> : <Input unstyled data-notebook-document-edit className="notebook-title" aria-label={notebook('title')} placeholder={notebook('untitled')}
             value={document.title} maxLength={200} onChange={event => onChange({ title: event.target.value })} />}
+          <EntryIdentity entryId={entryId} stored={document.identity} readonly={readonly} onChange={onChange} />
         </div>
       </div>
       {children}
+      </div>
+      {split && tab === 'notes' && <aside className="notebook-split-pane" aria-label={t('procedures')}>{protocolPane}</aside>}
     </TabsContent>
     <TabsContent className="notebook-workspace-panel" value="procedures" forceMount>
-      <ProceduresView procedures={document.procedures ?? []} readonly={readonly} selected={selectedProcedure} setSelected={setSelectedProcedure} onCopyLink={id => void copyLink(id)} onChange={procedures => onChange({ procedures })} />
+      {split && tab === 'notes' ? null : protocolPane}
     </TabsContent>
     <TabsContent className="notebook-workspace-panel" value="relevant" forceMount>
       <p className="notebook-workspace-hint">{t('relevantHint')}</p>
@@ -401,8 +416,12 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
       <MetadataView metadata={metadata} readonly={readonly} onChange={value => onChange({ metadata: value })} />
     </TabsContent>
     <TabsContent className="notebook-workspace-panel" value="review">
+      <EntryNotices notices={document.notices ?? []} />
       <ReviewerPanel entryId={entryId} revision={revision} document={document} readonly={readonly} onRevealBlock={openBlock} />
     </TabsContent>
+    {mention && <EntryMentionDialog draft={mention} notices={document.notices ?? []} editor={editor}
+      onDraft={setMention} onClose={() => setMention(null)}
+      onSaved={notices => { onChange({ notices }); setError(''); }} onInvalid={setError} />}
     <div className="notebook-statusbar">
       <NotebookStatusBar editor={editor} variant="output" />
       <Button variant="ghost" onClick={() => window.document.dispatchEvent(new CustomEvent('pero:notebook-shortcuts'))}>{t('keyboardShortcuts')}</Button>

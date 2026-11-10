@@ -1,6 +1,7 @@
 import type { PaperCitationEvidence } from "./paper-evidence.ts";
 import type { ControlEvidenceSnapshot } from "./control-evidence.ts";
 import type { TemplateOrigin } from "./templates.ts";
+import type { EntryIdentity, EntryNotice } from "./entry-record.ts";
 import type { NotebookMetadata, NotebookProcedure } from "./workspace.ts";
 
 /** The editor tree is the persisted content of a Notebook revision. */
@@ -19,6 +20,8 @@ export interface NotebookDocument {
   metadata?: NotebookMetadata;
   procedures?: NotebookProcedure[];
   templateOrigin?: TemplateOrigin;
+  identity?: EntryIdentity;
+  notices?: EntryNotice[];
 }
 
 /** The owner ID locates the live object. The version identifies the cited snapshot. */
