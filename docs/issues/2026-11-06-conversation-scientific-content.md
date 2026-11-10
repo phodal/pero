@@ -73,8 +73,8 @@ Scientific Authoring + Computational Verification 是整体方向，但展示、
 ### 后续增量：完整科学表达与引用
 
 - [x] 补齐上表各类型，逐项记录支持范围及未支持项；化学至少覆盖反应式和真实 RDKit 二维结构。支持范围见文末记录。反应式是 LaTeX，不是反应机理。二维结构是 Scientific Viewer 的 RDKit 回执。
-- [x] 文献、公式、图、表的引用可稳定定位；修订和重新编号不把历史引用静默指向另一内容。身份分别是 DOI、BibTeX 原文哈希、公式源码哈希、图/表回执哈希。显示顺序不参与身份。Paper 位置沿用现有 `pero-app-location`。
-- [x] 已展示内容能继续作为明确版本的后续对话上下文；可交付或关联 Paper 稿件，来源关系不丢失。回执和引用留在会话工具结果里。关联使用原 Paper 位置，不另建稿件编辑器。
+- [x] 文献、公式、图、表的引用可稳定定位；修订和重新编号不把历史引用静默指向另一内容。会话消息里的 DOI、BibTeX 原文和 Paper 位置会显示稳定 token，并可复制。DOI 通过现有网页链接打开，Paper 通过现有 App 位置打开。公式是源码哈希，图和表是回执哈希。显示顺序不参与身份。
+- [x] 已展示内容能继续作为明确版本的后续对话上下文；可交付或关联 Paper 稿件，来源关系不丢失。回执和引用留在会话里。Paper 关联只打开已保存的 `pero-app-location`，不另建稿件编辑器。重启后同一引用仍在，不重新请求模型。
 
 ### 共同验收
 
@@ -270,6 +270,8 @@ ngspice 主动滤波器没有走会话改参闭环。完整论文编辑器不属
 - 深色和 780px 窄窗下，图注和公式仍在消息流中；窄窗里长引用换行。
 - 重启后同一 `artifact_id`，fixture 请求数仍是 2。原始记录打开 `results.json`，复制全文与数据集字节一致。
 
-证据在 `test-results/scientific-chat/`：`table-light.png`、`equations-light.png`、`equations-dark.png`、`narrow-dark.png`、`original-records.png`、`table-receipt.json`、`chart-receipt.json`、`result.json`。`realModel` 为 false。没有使用静态 HTML。
+同一条助手消息末尾还有 `doi:10.1000/scientific-chat.1`、对应 BibTeX 条目和一条 Paper 位置。会话显示这三个稳定 token。复制 DOI 得到 `doi:10.1000/scientific-chat.1`。打开 DOI 使用现有网页链接 `https://doi.org/…`。打开 Paper 使用现有 App 位置，不创建文稿。重启后这三个 token 仍在，fixture 请求数不增加。
+
+证据在 `test-results/scientific-chat/`：`table-light.png`、`equations-light.png`、`equations-dark.png`、`narrow-dark.png`、`literature-light.png`、`original-records.png`、`table-receipt.json`、`chart-receipt.json`、`result.json`。`realModel` 为 false。没有使用静态 HTML。
 
 Native 仍缺 macOS 上的 `npm run dev:native`，或先让 Linux `webkit2gtk` 调用与 `crates/pero-ui/src/native_web.rs` 一致后再构建 `pero-native`。这不是本 PR 的兼容层改造。

@@ -229,6 +229,8 @@ relaunching without another provider call all passed. Light, dark and 780px
 captures are under `test-results/scientific-chat/`. `result.json` records
 `realHarness: true` and `realModel: false`.
 
+The same assistant message carries `doi:10.1000/scientific-chat.1`, one BibTeX entry, and one Paper location. The transcript shows those tokens. Copy uses the DOI token. Open DOI is the existing web link. Open paper is the existing App location. Restart keeps the three tokens without another provider call.
+
 An earlier headless page that only painted “Start with a task” is not this run.
 A collapsed multi-tool group was hiding the receipts; they now stay in the
 message stream while the tool log stays collapsed.
