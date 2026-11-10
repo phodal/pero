@@ -32,7 +32,7 @@ colors:
     on-action: "#FFFFFF"
     accent: "#55D5DD"
     on-accent: "#142B45"
-    accent-soft: "#C8E8EA"
+    accent-soft: "#E7F3F5"
     accent-text: "#00666D"
     link: "#00666D"
     focus: "#007F86"
@@ -48,8 +48,8 @@ colors:
     info: "#3C65A0"
     on-info: "#FFFFFF"
     info-bg: "#EEF3FC"
-    surface-hover: "#C9D6E6"
-    surface-pressed: "#B9CADC"
+    surface-hover: "#E5EDF3"
+    surface-pressed: "#D7E5ED"
     action-pressed: "#00565C"
     tint-blue-surface: "#F1F6FC"
     tint-blue-soft: "#DFEAF9"
@@ -266,7 +266,7 @@ Desktop 侧栏与 Chat 布局由 GPUI 宿主和 Host 设置管理，窄窗适配
 | 深空蓝 | `#142B45` | 标题、信息结构、深色封面 |
 | 光谱青 | `#007F86` | 浅色模式主操作、品牌强调 |
 | 离子青 | `#55D5DD` | 深色模式主操作、重点图形 |
-| 冰青 | `#E7F3F5` | 最浅的装饰分区 |
+| 冰青 | `#E7F3F5` | 浅色分区、强调背景 |
 | 冰白 | `#F7F9FC` | 页面底色、内容留白 |
 | 岩灰 | `#4A5C6E` | 次级文字、说明 |
 

@@ -65,8 +65,8 @@ export const designContract = {
       "dark": "#192A3B"
     },
     "list": {
-      "light": "#E4EDF5",
-      "dark": "#214058"
+      "light": "#F1F5F9",
+      "dark": "#3D4C5B"
     },
     "reading": {
       "light": "#FFFFFF",
@@ -93,7 +93,7 @@ export const designContract = {
       "dark": "#0B1420"
     },
     "accentSoft": {
-      "light": "#C8E8EA",
+      "light": "#E7F3F5",
       "dark": "#12363E"
     },
     "border": {
