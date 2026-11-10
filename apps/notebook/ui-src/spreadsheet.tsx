@@ -5,10 +5,10 @@ import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, Icon, IconButton, Input, Select, Table } from '@pero/app-sdk/ui';
 import { spreadsheetLimits } from '@pero/notebook';
-import { cellAddress, evaluateSpreadsheet, formulaFunctions, isExternalFormula, type Spreadsheet } from '@pero/notebook/spreadsheet';
+import { cellAddress, evaluateSpreadsheet, formulaFunctions, type Spreadsheet } from '@pero/notebook/spreadsheet';
 import {
   cellRangeLabel, clearCellRange, encodeCellRange, fillCellRange, normalizeCellRange, parseCellClipboard,
-  pasteCellGrid, rangeContains, type CellPosition, type RangeEditError,
+  pasteCellGrid, rangeContains, writeCellValue, type CellPosition, type RangeEditError,
 } from '@pero/notebook/spreadsheet-range';
 import {
   clipboardTarget, emptyGridPresentation, exportWorksheetCsv, formatCellRange, formatCellValue, gridDimensionLimits,
@@ -123,6 +123,9 @@ export function SpreadsheetView(view: NodeViewProps) {
   const keepRangeFocus = useRef(false);
   const separateNextEdit = useRef(false);
   const formulaInput = useRef<HTMLInputElement>(null);
+  const editSession = useRef<{ cell: string; baseline: string } | null>(null);
+  const draftRef = useRef<{ cell: string; text: string } | null>(null);
+  const [editEpoch, setEditEpoch] = useState(0);
   const calculation = useEditorState({ editor: view.editor, selector: ({ editor }) => worksheetCalculation(editor.state.doc, blockId) });
   const values = useMemo(() => calculation?.values ?? evaluateSpreadsheet(sheet), [calculation, sheet]);
   const hasMultipleSheets = useEditorState({ editor: view.editor, selector: ({ editor }) => worksheetBlocks(editor.state.doc).length > 1 });
@@ -145,7 +148,41 @@ export function SpreadsheetView(view: NodeViewProps) {
   const rangeAddress = cellRangeLabel(range);
   const isRange = range.start.column !== range.end.column || range.start.row !== range.end.row;
   const address = cellAddress(active.column, active.row);
-  const source = sheet.cells[address] ?? '';
+  const storedSource = sheet.cells[address] ?? '';
+  const source = draftRef.current?.cell === address ? draftRef.current.text : storedSource;
+  void editEpoch;
+  const beginEdit = (position: CellPosition) => {
+    const cell = cellAddress(position.column, position.row);
+    if (editSession.current?.cell !== cell) editSession.current = { cell, baseline: sheet.cells[cell] ?? '' };
+  };
+  const finishEdit = (cell: string) => {
+    if (editSession.current?.cell === cell) editSession.current = null;
+    if (draftRef.current?.cell === cell) draftRef.current = null;
+    setEditEpoch(value => value + 1);
+  };
+  const editCell = (position: CellPosition, value: string, batch = false) => {
+    if (!view.editor.isEditable) return;
+    const cell = cellAddress(position.column, position.row);
+    if (editSession.current?.cell !== cell) editSession.current = { cell, baseline: sheet.cells[cell] ?? '' };
+    const baseline = editSession.current.baseline;
+    draftRef.current = { cell, text: value };
+    let failure: RangeEditError | null = null;
+    setSheet(current => {
+      const attempt = writeCellValue(current, position, value);
+      if ('error' in attempt) {
+        failure = attempt.error;
+        if ((current.cells[cell] ?? '') === baseline) return current;
+        const cells = { ...current.cells };
+        if (baseline) cells[cell] = baseline;
+        else delete cells[cell];
+        return { ...current, cells };
+      }
+      return attempt.sheet;
+    }, batch);
+    setEditEpoch(epoch => epoch + 1);
+    if (failure === 'external') setError(t('externalFormula'));
+    else if (failure === null) setError(previous => previous === t('externalFormula') ? '' : previous);
+  };
   const setGrid = (edit: (current: WorksheetGrid) => WorksheetGrid | null, batch = false) => view.editor.commands.command(({ tr }) => {
     if (!view.editor.isEditable) return false;
     const position = view.getPos();
@@ -163,7 +200,8 @@ export function SpreadsheetView(view: NodeViewProps) {
   });
   const setSheet = (edit: (current: Spreadsheet) => Spreadsheet | null, batch = false) => setGrid(current => {
     const next = edit(current.sheet);
-    return next ? { ...current, sheet: next } : null;
+    if (!next) return null;
+    return next === current.sheet ? current : { ...current, sheet: next };
   }, batch);
   const structure = (change: AxisChange) => view.editor.commands.command(({ tr }) => {
     if (!view.editor.isEditable) return false;
@@ -221,22 +259,8 @@ export function SpreadsheetView(view: NodeViewProps) {
   const inspection = useMemo(() => (inspector || isFormulaError(values[address])) && !calculation?.ambiguous
     ? inspectWorksheetCell(worksheetBlocks(view.editor.state.doc), calculation?.name ?? label, address) : null,
   [inspector, calculation, values, address, label, view.editor]);
-  const updateCell = (cell: string, value: string, batch = false) => {
-    if (!view.editor.isEditable) return;
-    if (isExternalFormula(value)) {
-      setError(t('externalFormula'));
-      return;
-    }
-    setSheet(current => {
-      const cells = { ...current.cells };
-      if (value) cells[cell] = value;
-      else delete cells[cell];
-      return { ...current, cells };
-    }, batch);
-    setError(previous => previous === t('externalFormula') ? '' : previous);
-  };
   const insertFunction = (name: string) => {
-    updateCell(address, `=${name}()`);
+    editCell(active, `=${name}()`);
     requestAnimationFrame(() => {
       formulaInput.current?.focus();
       formulaInput.current?.setSelectionRange(name.length + 2, name.length + 2);
@@ -465,11 +489,9 @@ export function SpreadsheetView(view: NodeViewProps) {
       </DropdownMenu>
       <div className="notebook-formula-field">
       <output aria-label={t(isRange ? 'selectedRange' : 'cell', { address: rangeAddress })}>{rangeAddress}</output>
-      <FormulaInput ref={formulaInput} onComplete={value => updateCell(address, value, true)} aria-label={t('rawCell')} placeholder="" value={source} readOnly={!editable}
-        maxLength={spreadsheetLimits.cellLength} onChange={event => {
-          // A rejected value does not change sheet state, so the controlled input must be put back.
-          if (isExternalFormula(event.target.value)) { event.target.value = source; setError(t('externalFormula')); return; }
-          updateCell(address, event.target.value);
+      <FormulaInput ref={formulaInput} onComplete={value => editCell(active, value, true)} aria-label={t('rawCell')} placeholder="" value={source} readOnly={!editable}
+        maxLength={spreadsheetLimits.cellLength} onFocus={() => beginEdit(active)} onBlur={() => finishEdit(address)} onChange={event => {
+          editCell(active, event.target.value);
         }}
         onPaste={event => paste(event, active)} onKeyDown={event => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); focusCell(active); }
@@ -503,8 +525,8 @@ export function SpreadsheetView(view: NodeViewProps) {
               data-range-selected={isRange && rangeContains(range, position) || undefined} data-error={isFormulaError(computed) || undefined}>
               <span className="notebook-cell-display" aria-hidden="true"><span>{text}</span></span>
               {presentation.annotations[key]?.url && <a className="notebook-cell-link" href={presentation.annotations[key].url} target="_blank" rel="noreferrer">{t('openLink')}</a>}
-              <FormulaInput unstyled onComplete={value => updateCell(key, value, true)} className="notebook-cell" aria-label={t('cell', { address: key })} data-cell={key}
-                value={editable && focused === key ? raw : text} readOnly={!editable} maxLength={spreadsheetLimits.cellLength}
+              <FormulaInput unstyled onComplete={value => editCell(position, value, true)} className="notebook-cell" aria-label={t('cell', { address: key })} data-cell={key}
+                value={editable && focused === key ? (draftRef.current?.cell === key ? draftRef.current.text : raw) : text} readOnly={!editable} maxLength={spreadsheetLimits.cellLength}
                 onMouseDown={event => {
                   if (event.button !== 0) return;
                   if (event.shiftKey) {
@@ -513,10 +535,9 @@ export function SpreadsheetView(view: NodeViewProps) {
                     focusCell(position);
                   } else selectCell(position);
                 }}
-                onFocus={() => { if (!keepRangeFocus.current) selectCell(position); setFocused(key); }} onBlur={() => setFocused(null)}
+                onFocus={() => { beginEdit(position); if (!keepRangeFocus.current) selectCell(position); setFocused(key); }} onBlur={() => { finishEdit(key); setFocused(null); }}
                 onChange={event => {
-                  if (isExternalFormula(event.target.value)) { event.target.value = sheet.cells[key] ?? ''; setError(t('externalFormula')); return; }
-                  if (isRange) selectCell(position); updateCell(key, event.target.value);
+                  if (isRange) selectCell(position); editCell(position, event.target.value);
                 }}
                 onKeyDown={event => onKey(event, position)} onCopy={copy} onCut={cut} onPaste={event => paste(event, position)} />
             </td>;

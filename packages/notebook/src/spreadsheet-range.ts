@@ -153,6 +153,17 @@ function editSheet(sheet: Spreadsheet) {
 export type RangeEditError = "limit" | "external";
 export type RangeEdit = { readonly sheet: Spreadsheet } | { readonly error: RangeEditError };
 
+/** Admit one typed or completed cell. Paste and fill use their own range
+ * transitions and the same external-formula rule. An unchanged value returns
+ * the same sheet. */
+export function writeCellValue(sheet: Spreadsheet, position: CellPosition, value: string): RangeEdit {
+  if (!positionInSheet(position, sheet.columns, sheet.rows) || value.length > spreadsheetLimits.cellLength) return { error: "limit" };
+  if (isExternalFormula(value)) return { error: "external" };
+  const edit = editSheet(sheet);
+  edit.set(position.column, position.row, value);
+  return { sheet: edit.finish() };
+}
+
 export function pasteCellGrid(sheet: Spreadsheet, target: CellPosition, rows: readonly (readonly string[])[]): RangeEdit {
   const limits = spreadsheetLimits;
   if (!positionInSheet(target, limits.columns, limits.rows) || target.row + rows.length > limits.rows) return { error: "limit" };

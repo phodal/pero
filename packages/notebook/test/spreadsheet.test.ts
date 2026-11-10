@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { isExternalFormula } from "../src/formula-policy.ts";
-import { fillCellRange, pasteCellGrid } from "../src/spreadsheet-range.ts";
+import { fillCellRange, pasteCellGrid, writeCellValue } from "../src/spreadsheet-range.ts";
 import {
   cellAddress,
   evaluateSpreadsheet,
@@ -192,4 +192,9 @@ test("external formula policy matches the shared cases and keeps supported edits
     "down",
   ), { error: "external" });
   assert.deepEqual(pasteCellGrid(sheet, { column: 1, row: 1 }, [["x".repeat(5000)]]), { error: "limit" });
+  assert.deepEqual(writeCellValue(sheet, { column: 1, row: 1 }, '=PY("1")'), { error: "external" });
+  assert.equal(sheet.cells.B1, "1");
+  const ordinary = writeCellValue(sheet, { column: 1, row: 1 }, "=A1*6");
+  assert.equal("sheet" in ordinary && ordinary.sheet.cells.B2, "=A1*6");
+  assert.equal("sheet" in ordinary && writeCellValue(ordinary.sheet, { column: 1, row: 1 }, "=A1*6").sheet, ordinary.sheet);
 });
