@@ -1,5 +1,25 @@
 # Notebook verification
 
+## Header navigation removal (2026-11-10)
+
+On top of `9b30b913`, the document-name, Relevant items and Metadata header
+buttons and their now-empty row are removed. Workspace navigation remains in
+the bottom View menu, using the shared vertical Tabs controls for Notes,
+Procedures, Relevant items, Metadata and Review. The document title, content,
+draft/revision ownership and toolbar actions are unchanged. Obsolete header
+tab styles are removed rather than hidden.
+
+Local validation: Notebook build and typecheck pass; 141 package and 82 editor
+tests pass, along with all 119 Python tests with real OCR enabled (no skips).
+Browser coverage now asserts the header controls are absent and
+checks repeated view changes, menu reopening, keyboard navigation and viewport
+bounds at 600px in dark mode. Runtime browser verification is pending CI:
+Chromium cannot create its process-singleton socket in this environment, even
+after an approved unsandboxed retry. No local browser or Native visual pass is
+claimed. Root `npm run check` is blocked by missing generated reader Wasm types;
+the standalone icon check also needs the absent pinned GPUI assets. Theme,
+design, SDK token, locale and protocol generated checks pass separately.
+
 ## Exact head: `9b0c987a` (2026-11-09)
 
 Verified head: `9b0c987a90df71392f97b20783db5aa8e85bfd6b`
