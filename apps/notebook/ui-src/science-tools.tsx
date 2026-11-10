@@ -4,7 +4,7 @@ import type { GenerationTarget, AIApplication } from '@pero/notebook/ai-generati
 import { useRef, useState } from 'react';
 import type { Editor, JSONContent } from '@tiptap/core';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Dialog, Feedback, Field, Icon, NativeSelect } from '@pero/app-sdk/ui';
+import { Button, Dialog, Feedback, Field, Icon, IconButton, NativeSelect } from '@pero/app-sdk/ui';
 import { ChemistryPanel, SequencePanel } from './science-tools-calculations';
 import { PlatePanel } from './science-tools-plate';
 import { CandidateReviewPanel, RecordedChecksPanel } from './science-tools-review';
@@ -18,6 +18,8 @@ type Tool = typeof toolNames[number];
 export function NotebookScienceTools({ editor, onInsert, getTarget = () => null, initial = 'review', label, className, caret = false }: { editor: Editor; onInsert(nodes: JSONContent[]): void; getTarget?(): GenerationTarget | null; initial?: Tool; label?: string; className?: string; caret?: boolean }) {
   const { t } = useAppI18n(scienceMessages);
   const [open, setOpen] = useState(false), [tool, setTool] = useState<Tool>('review'), [notice, setNotice] = useState(''), [error, setError] = useState('');
+  const [showLimits, setShowLimits] = useState(false);
+  const limitsTrigger = useRef<HTMLButtonElement>(null);
   const base = useRef(''), lastInserted = useRef('');
   const insertSnapshot = (snapshot: unknown, nodes: JSONContent[]) => {
     if (editor.isDestroyed || !editor.isEditable || JSON.stringify(editor.getJSON()) !== base.current) { setError(t('stale')); return false; }
@@ -56,10 +58,16 @@ export function NotebookScienceTools({ editor, onInsert, getTarget = () => null,
   };
   const props = { onSnapshot, getContent: () => JSON.stringify(editor.getJSON()) };
   return <>
-    <Button variant="ghost" className={className} disabled={!editor.isEditable} onClick={() => { base.current = JSON.stringify(editor.getJSON()); lastInserted.current = ''; setNotice(''); setError(''); setTool(initial); setOpen(true); }}>{label ?? t('tools')}{caret && <Icon name="chevron-down" size={12} />}</Button>
-    {open && <Dialog title={label ?? t('tools')} size="lg" className="notebook-science-dialog" closeLabel={t('close')} onClose={() => setOpen(false)} dismissOnBackdrop>
-      <p className="notebook-note">{t('scope')}</p>
-      <Field label={t('tools')}>{control => <NativeSelect {...control} value={tool} onChange={event => { setTool(event.target.value as Tool); setNotice(''); setError(''); }}>{toolNames.map(name => <option key={name} value={name}>{t(name)}</option>)}</NativeSelect>}</Field>
+    <Button variant="ghost" className={className} disabled={!editor.isEditable} onClick={() => { base.current = JSON.stringify(editor.getJSON()); lastInserted.current = ''; setNotice(''); setError(''); setShowLimits(false); setTool(initial); setOpen(true); }}>{label ?? t('tools')}{caret && <Icon name="chevron-down" size={12} />}</Button>
+    {open && <Dialog title={label ?? t('tools')} size="lg" className="notebook-science-dialog" closeLabel={t('close')} onClose={() => { setShowLimits(false); setOpen(false); }} dismissOnBackdrop>
+      <div className="notebook-science-tool-picker">
+        <Field label={t('tools')}>{control => <NativeSelect {...control} value={tool} onChange={event => { setTool(event.target.value as Tool); setNotice(''); setError(''); }}>{toolNames.map(name => <option key={name} value={name}>{t(name)}</option>)}</NativeSelect>}</Field>
+        <IconButton ref={limitsTrigger} label={t('limits')} onClick={() => setShowLimits(true)}><Icon name="info" /></IconButton>
+      </div>
+      {showLimits && <Dialog size="sm" title={t('limits')} closeLabel={t('close')} restoreFocus={false} onClose={() => {
+        setShowLimits(false);
+        requestAnimationFrame(() => limitsTrigger.current?.focus());
+      }}><p>{t('scope')}</p></Dialog>}
       {notice && <Feedback kind="success">{notice}</Feedback>}{error && <Feedback kind="error">{error}</Feedback>}
       <div key={tool} className="notebook-science-content">
         {tool === 'formula' ? <FormulaSandboxPanel worksheets={worksheetBlocks(editor.state.doc)} onSnapshot={onSnapshot} onInsertExample={onInsertExample} /> : tool === 'ai' ? <NotebookAITools key={getTarget()?.entryId ?? "unavailable"} {...props} getTarget={getTarget} onApply={onApply} /> : tool === 'sequence' ? <SequencePanel {...props} /> : tool === 'chemistry' ? <ChemistryPanel {...props} /> : tool === 'plate' ? <PlatePanel {...props} /> : tool === 'checks' ? <RecordedChecksPanel {...props} /> : tool === 'review' ? <CandidateReviewPanel {...props} /> : <div className="notebook-science-panel">

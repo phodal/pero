@@ -27,6 +27,7 @@ export const scienceMessages = {
   formula: { en: 'Formula workbench', zh: '公式工作台' },
   ai: { en: 'Generate with Host Agent', zh: '使用 Host Agent 生成' },
   tools: { en: 'Scientific tools', zh: '科研工具' }, close: { en: 'Close', zh: '关闭' },
+  limits: { en: 'Limits', zh: '边界说明' },
   scope: { en: 'Local calculations and human review. Results are not measured evidence or owner verification.', zh: '本地计算与人工复核。结果不等于实测证据或来源方验证。' },
   sequence: { en: 'Sequence analysis', zh: '序列分析' }, chemistry: { en: 'Reaction calculations', zh: '反应计算' }, plate: { en: 'Plate layout', zh: '孔板布局' }, review: { en: 'Candidate review', zh: '候选数据复核' }, checks: { en: 'Recorded checks', zh: '已记录检查' }, capabilities: { en: 'Methods and limits', zh: '方法与边界' },
   insert: { en: 'Insert snapshot', zh: '插入快照' }, inserted: { en: 'Snapshot inserted as new content.', zh: '已将快照插入为新内容。' },
