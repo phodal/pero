@@ -5,8 +5,8 @@ import { Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMe
 import { moveBlock, rememberWidgetFocus, notebookBlockAt } from './block-order';
 import { messages } from './messages';
 
-type Kind = 'namedReference' | 'spreadsheet' | 'evidence' | 'experiment' | 'finding' | 'attachment' | 'inputTable' | 'registrationTable' | 'lookupTable' | 'savedSearch' | 'mixturePrep' | 'appCanvas' | 'sampleIntake' | 'reactionScheme' | 'chemical' | 'sourceExcerpt';
-const icons = { namedReference: 'document', spreadsheet: 'table', evidence: 'document', experiment: 'flask', finding: 'search', attachment: 'file', inputTable: 'table', registrationTable: 'table', lookupTable: 'search', savedSearch: 'search', mixturePrep: 'flask', appCanvas: 'document', sampleIntake: 'flask', reactionScheme: 'flask', chemical: 'flask', sourceExcerpt: 'document' } as const;
+type Kind = 'namedReference' | 'spreadsheet' | 'evidence' | 'experiment' | 'finding' | 'attachment' | 'inputTable' | 'registrationTable' | 'lookupTable' | 'savedSearch' | 'mixturePrep' | 'appCanvas' | 'sampleIntake' | 'reactionScheme' | 'chemical' | 'sourceExcerpt' | 'retainedBlock';
+const icons = { namedReference: 'document', spreadsheet: 'table', evidence: 'document', experiment: 'flask', finding: 'search', attachment: 'file', inputTable: 'table', registrationTable: 'table', lookupTable: 'search', savedSearch: 'search', mixturePrep: 'flask', appCanvas: 'document', sampleIntake: 'flask', reactionScheme: 'flask', chemical: 'flask', sourceExcerpt: 'document', retainedBlock: 'document' } as const;
 
 export function BlockFrame({ view, kind, title, caption, actions, menuActions, help, style, children }: {
   view: NodeViewProps; kind: Kind; title?: ReactNode; caption?: ReactNode; actions?: ReactNode; menuActions?: ReactNode;

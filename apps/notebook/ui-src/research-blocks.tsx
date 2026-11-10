@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { requestAppShell, useAppContext, useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Checkbox, Disclosure, Feedback, Icon, Input, Textarea } from '@pero/app-sdk/ui';
 import { parsePaperCitation, scientificReferenceState, type ScientificReference, type ReferenceSnapshot } from '@pero/notebook';
+import { projectNotebook, readStoredReference } from '@pero/notebook/interchange';
 import { parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
 import { BlockFrame } from './block-frame';
 import { notebookEvidence } from './evidence-model';
@@ -38,6 +39,9 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
   const [openError, setOpenError] = useState<{ locator: string; message: string } | null>(null);
   const { label, source, snapshot } = view.node.attrs as { label: string; source: ScientificReference | null; snapshot: ReferenceSnapshot | null };
   const referenceState = scientificReferenceState(source);
+  const stored = readStoredReference(view.node.toJSON());
+  const interchange = projectNotebook({ type: 'doc', content: [view.node.toJSON()] });
+  const snapshotStays = interchange.losses.some(loss => loss.code === 'snapshot-not-in-editor-props');
   const complete = referenceState === 'unpinned' || referenceState === 'pinned';
   const pinned = referenceState === 'pinned';
   const editable = view.editor.isEditable;
@@ -73,6 +77,12 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
       : <strong>{label || t(kind)}</strong>}
     caption={<Badge tone={pinned ? 'info' : 'neutral'}>{t(status)}</Badge>}
     actions={openAction && <Button variant="ghost" busy={opening} onClick={() => void openSource()}><Icon name="open" />{t(openAction)}</Button>}>
+    <p className="notebook-note" data-editor-block-id={stored.editorBlockId ?? ''} data-object-version={stored.reference?.version ?? ''}>
+      {t('editorBlock')}: {stored.editorBlockId ?? t('interchangeMissing')}
+      {' · '}
+      {t('objectVersion')}: {stored.reference?.version || t('interchangeUnpinned')}
+    </p>
+    {snapshotStays && <p className="notebook-note">{t('snapshotStaysInNotebook')}</p>}
     {openError && openError.locator === source?.locator && <Feedback kind="error">{openError.message}</Feedback>}
     {snapshot && <>
       <SnapshotDetails snapshot={snapshot} />

@@ -42,7 +42,8 @@
     "./source-excerpt": "./src/source-excerpt.ts",
     "./research-tools": "./src/research-tools.ts",
     "./notebook-print": "./src/notebook-print.ts",
-    "./source-extraction": "./src/source-extraction.ts"
+    "./source-extraction": "./src/source-extraction.ts",
+    "./interchange": "./src/interchange.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"

@@ -15,6 +15,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, Feedback, FilePicker, Icon, IconButton } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
+import { protectUnknownNodes } from '@pero/notebook/interchange';
 import { readWorkbook } from '@pero/notebook/workbook';
 import { NotebookReferenceMentionPicker } from './reference-mention';
 import { activeNotebookBlock, rememberWidgetFocus } from './block-order';
@@ -183,10 +184,13 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
 }) {
   const { t } = useAppI18n(messages);
   const documentRef = useRef(entryDocument); documentRef.current = entryDocument;
+  const protection = protectUnknownNodes(content);
+  const blockedRef = useRef(protection.errors.length > 0);
+  blockedRef.current = protection.errors.length > 0;
   const editor = useEditor({
     extensions: historyControls ? notebookExtensions.map(extension => extension.name === 'starterKit' ? extension.configure({ undoRedo: false }) : extension) : notebookExtensions,
-    content,
-    editable: !readonly,
+    content: protection.errors.length ? { type: 'doc', content: [{ type: 'paragraph' }] } : protection.content,
+    editable: !readonly && protection.errors.length === 0,
     editorProps: {
       attributes: { 'aria-label': t('body'), 'aria-multiline': 'true', role: 'textbox', class: 'notebook-prose' },
       handleDOMEvents: {
@@ -196,16 +200,25 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
         },
       },
     },
-    onUpdate: ({ editor: instance, transaction }) => onChange?.(instance.getJSON() as NotebookDocument['content'], notebookHistoryGroup(transaction)),
+    onUpdate: ({ editor: instance, transaction }) => {
+      if (blockedRef.current) return;
+      onChange?.(instance.getJSON() as NotebookDocument['content'], notebookHistoryGroup(transaction));
+    },
   });
   useLayoutEffect(() => {
     // EditorContent has attached the view; focus before the title can take input.
     if (editor && takeInitialFocus?.()) editor.view.focus();
   }, [editor, takeInitialFocus]);
   useEffect(() => {
-    if (!editor || JSON.stringify(editor.getJSON()) === JSON.stringify(content)) return;
+    if (!editor) return;
+    const next = protectUnknownNodes(content);
+    const blocked = next.errors.length > 0;
+    blockedRef.current = blocked;
+    const editable = !readonly && !blocked;
+    if (editor.isEditable !== editable) editor.setEditable(editable);
+    if (blocked || JSON.stringify(editor.getJSON()) === JSON.stringify(next.content)) return;
     const selection = editor.state.selection;
-    editor.commands.setContent(content, { emitUpdate: false });
+    editor.commands.setContent(next.content, { emitUpdate: false });
     const doc = editor.state.doc;
     const anchor = Math.min(selection.anchor, doc.content.size), head = Math.min(selection.head, doc.content.size);
     const node = doc.nodeAt(anchor);
@@ -213,11 +226,12 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
       ? NodeSelection.create(doc, anchor)
       : TextSelection.between(doc.resolve(anchor), doc.resolve(head));
     editor.view.dispatch(editor.state.tr.setSelection(restored));
-  }, [editor, content]);
+  }, [editor, content, readonly]);
   if (!editor) return null;
   return <NotebookContextProvider value={{ entryId, revision, readonly, document: entryDocument,
-    getDocument: () => ({ ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] }) }}>
-    <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onChange={change => onDocumentChange?.(change)}
+    getDocument: () => blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] } }}>
+    {protection.errors.length > 0 && <Feedback kind="error">{t('documentBlocked')} {protection.errors[0]}</Feedback>}
+    <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly || protection.errors.length > 0} onChange={change => onDocumentChange?.(change)}
       onReplaceDocument={readonly ? undefined : onReplaceDocument} chrome={chrome} historyControls={historyControls}
         tools={!readonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId}
         insertTools={<InsertMenu name={t('insertWord')}>
@@ -225,7 +239,7 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
         </InsertMenu>} />}
       helpTools={<>
         <NotebookCommandTools entryId={entryId} readonly={readonly} handlers={{ save: onSave,
-          export: () => downloadFile('Notebook.json', JSON.stringify({ ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
+          export: () => downloadFile('Notebook.json', JSON.stringify(blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
           print: () => { window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } })); },
           ...(!readonly ? { section: () => insertBlocks(editor, [{ type: 'section', content: [{ type: 'paragraph' }] }]),
             symbols: () => { editor.view.dom.dispatchEvent(new CustomEvent(NOTEBOOK_SYMBOLS_EVENT)); } } : {}),

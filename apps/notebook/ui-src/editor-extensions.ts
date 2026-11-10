@@ -25,6 +25,7 @@ import { MixturePrepView } from './mixture';
 import { emptyMixturePreparation } from '@pero/notebook/mixture';
 import { NotebookTemplateOrigin } from './template-origin';
 import { SavedSearchView } from './saved-search';
+import { RetainedBlockView } from './retained-block';
 
 export const widgets = [
   { name: 'namedReference', icon: 'document', defaults: { kind: 'entry', name: '', notes: '' }, view: NamedReferenceView },
@@ -46,7 +47,7 @@ export const widgets = [
 ] as const;
 
 const addressed = ['section', 'paragraph', 'heading', 'blockquote', 'horizontalRule', 'codeBlock', 'bulletList', 'orderedList', 'listItem', 'taskList', 'taskItem',
-  ...widgets.map(widget => widget.name)];
+  'retainedBlock', ...widgets.map(widget => widget.name)];
 
 function readAttribute(element: HTMLElement, key: string, fallback: unknown) {
   const raw = element.getAttribute(`data-notebook-${key.toLowerCase()}`);
@@ -92,6 +93,23 @@ export const notebookExtensions = [
     renderText() { return `[${messages[widget.name].en}]`; },
     addNodeView() { return ReactNodeViewRenderer(widget.view); },
   })),
+  Node.create({
+    name: 'retainedBlock',
+    group: 'block',
+    atom: true,
+    selectable: true,
+    addAttributes() {
+      return {
+        originalType: { default: '', rendered: false, parseHTML: () => null },
+        payload: { default: null, rendered: false, parseHTML: () => null },
+      };
+    },
+    renderHTML({ HTMLAttributes, node }) {
+      return ['div', { ...HTMLAttributes, 'data-notebook-block': 'retainedBlock', 'data-original-type': node.attrs.originalType }];
+    },
+    renderText() { return `[${messages.retainedBlock.en}]`; },
+    addNodeView() { return ReactNodeViewRenderer(RetainedBlockView); },
+  }),
   NotebookTemplateOrigin.configure({ types: addressed }),
   NotebookIdentity.configure({ attributeName: 'blockId', types: addressed }),
 ];

@@ -25,7 +25,8 @@ MARKS = {'bold', 'italic', 'strike', 'code', 'underline', 'subscript', 'superscr
 BLOCKS = {
     'paragraph', 'heading', 'blockquote', 'horizontalRule', 'codeBlock',
     'bulletList', 'orderedList', 'taskList', 'spreadsheet', 'evidence',
-    'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake', 'reactionScheme', 'chemical', 'sourceExcerpt', 'namedReference',
+    'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake',
+    'reactionScheme', 'chemical', 'sourceExcerpt', 'namedReference', 'retainedBlock',
 }
 CONTAINERS = {
     'doc': BLOCKS,
@@ -41,7 +42,7 @@ CONTAINERS = {
     'section': BLOCKS,
 }
 REQUIRED_CHILDREN = {'doc', 'blockquote', 'bulletList', 'orderedList', 'taskList', 'section'}
-DOMAIN_BLOCKS = {'spreadsheet', 'evidence', 'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake', 'reactionScheme', 'chemical', 'sourceExcerpt', 'namedReference'}
+DOMAIN_BLOCKS = {'spreadsheet', 'evidence', 'experiment', 'finding', 'section', 'attachment', 'savedSearch', 'inputTable', 'registrationTable', 'lookupTable', 'mixturePrep', 'appCanvas', 'sampleIntake', 'reactionScheme', 'chemical', 'sourceExcerpt', 'namedReference', 'retainedBlock'}
 SHA256 = re.compile(r'[a-f0-9]{64}')
 RUN_ID = re.compile(r'[a-f0-9]{32}')
 CONTROL_NAME = re.compile(r'[a-zA-Z0-9_-]{1,128}')
@@ -305,6 +306,23 @@ def _snapshot(kind, snapshot, source):
         raise ValueError('Invalid imported snapshot type')
 
 
+def _retained_block(value):
+    """Keep an unrecognized block verbatim. The envelope is not a new scientific object."""
+    original = value['originalType']
+    structural = {'doc', 'text', 'hardBreak', 'referenceMention', 'listItem', 'taskItem'}
+    if not isinstance(original, str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,64}', original) or original in BLOCKS or original in structural:
+        raise ValueError('Invalid retained block type')
+    payload = value['payload']
+    if not isinstance(payload, dict) or payload.get('type') != original:
+        raise ValueError('Invalid retained block payload')
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+    if len(encoded.encode()) > 65_536:
+        raise ValueError('Retained block payload is too large')
+    attrs = payload.get('attrs')
+    if isinstance(attrs, dict) and attrs.get('blockId') not in (None, value['blockId']):
+        raise ValueError('Retained block id does not match its payload')
+
+
 def _attributes(kind, value, identities):
     required = {
         'spreadsheet': {'sheet'},
@@ -325,6 +343,7 @@ def _attributes(kind, value, identities):
         'registrationTable': {'table', 'receipts'},
         'lookupTable': {'query', 'snapshot'},
         'savedSearch': {'label', 'queryId', 'queryRevision', 'mode', 'snapshot'},
+        'retainedBlock': {'originalType', 'payload'},
     }.get(kind, set())
     if kind in DOMAIN_BLOCKS:
         required = required | {'blockId'}
@@ -430,6 +449,8 @@ def _attributes(kind, value, identities):
     elif kind == 'savedSearch':
         from saved_search import parse_saved_search_attributes
         parse_saved_search_attributes(value)
+    elif kind == 'retainedBlock':
+        _retained_block(value)
 
 
 def _node(value, allowed, identities, depth=0):
