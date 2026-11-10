@@ -101,7 +101,7 @@ impl Manager {
             data_home: self.settings_path.as_deref().and_then(|path| path.parent()),
             insights: scope.as_ref().is_some_and(|scope| scope.app == "insights")
                 || binding.is_some_and(|binding| binding.app.as_str() == "insights"),
-        })?;
+        });
         if binding.is_none() {
             if let Some(path) = &self.settings_path {
                 pero_runtime::settings::save_chat_agent(path, agent_id)

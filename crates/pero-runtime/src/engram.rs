@@ -35,10 +35,10 @@ pub struct Attach<'a> {
 }
 
 /// Insights sessions and a disabled switch receive nothing. Markdown layers load without a
-/// binary. A filled binary that is not an executable fails the session before a process starts.
-pub fn attach(agent: &mut AgentConfig, input: Attach<'_>) -> Result<(), String> {
+/// binary. An unavailable external server is omitted from the session.
+pub fn attach(agent: &mut AgentConfig, input: Attach<'_>) {
     if input.insights || !input.settings.enabled {
-        return Ok(());
+        return;
     }
     let data_home = input.data_home.filter(|path| path.is_absolute());
     let workspace = input.workspace.canonicalize().ok();
@@ -52,20 +52,17 @@ pub fn attach(agent: &mut AgentConfig, input: Attach<'_>) -> Result<(), String> 
             agent.memory_instructions.push_str(&notes);
         }
     }
-    if input.settings.binary.is_empty() {
-        return Ok(());
-    }
     if !input.settings.valid() || !Path::new(&input.settings.binary).is_file() {
-        return Err("engram.binary_missing".into());
+        return;
     }
     let Some(data_home) = data_home else {
-        return Err("engram.data_home".into());
+        return;
     };
     let Some(workspace) = workspace else {
-        return Err("engram.workspace".into());
+        return;
     };
     if agent.mcp_server_names().iter().any(|name| name == SERVER_NAME) {
-        return Err("engram.name".into());
+        return;
     }
     let key = project_key(&workspace);
     agent.mcp_servers.push(server(
@@ -77,7 +74,6 @@ pub fn attach(agent: &mut AgentConfig, input: Attach<'_>) -> Result<(), String> 
         agent.memory_instructions.push_str("\n\n");
     }
     agent.memory_instructions.push_str(INSTRUCTIONS);
-    Ok(())
 }
 
 pub fn project_key(canonical_workspace: &Path) -> String {
@@ -158,8 +154,7 @@ mod tests {
                 data_home: Some(&root.join("home")),
                 insights: true,
             },
-        )
-        .unwrap();
+        );
         assert!(session.mcp_servers.is_empty());
         assert!(session.memory_instructions.is_empty());
         assert!(!root.join("home").join("engram").exists());
@@ -173,8 +168,7 @@ mod tests {
                 data_home: Some(&root.join("home")),
                 insights: false,
             },
-        )
-        .unwrap();
+        );
         assert!(disabled.mcp_servers.is_empty());
         let _ = fs::remove_dir_all(&root);
     }
@@ -195,7 +189,7 @@ mod tests {
         let mut first = agent();
         let mut second = agent();
         for (session, workspace) in [(&mut first, &alpha), (&mut second, &beta)] {
-            attach(session, Attach { settings: settings.clone(), workspace, data_home: Some(&home), insights: false }).unwrap();
+            attach(session, Attach { settings: settings.clone(), workspace, data_home: Some(&home), insights: false });
         }
         let McpServer::Stdio(alpha_server) = &first.mcp_servers[0] else { panic!("stdio") };
         let McpServer::Stdio(beta_server) = &second.mcp_servers[0] else { panic!("stdio") };
@@ -217,14 +211,6 @@ mod tests {
         assert!(first.memory_instructions.contains("Omit the project argument"));
         assert!(first.memory_instructions.contains("drops the old text"));
 
-        let relative = EngramSettings { enabled: true, binary: "engram".into() };
-        assert!(!relative.valid());
-        let mut rejected = agent();
-        assert_eq!(
-            attach(&mut rejected, Attach { settings: relative, workspace: &alpha, data_home: Some(&home), insights: false }).unwrap_err(),
-            "engram.binary_missing"
-        );
-        assert!(rejected.mcp_servers.is_empty());
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -243,18 +229,30 @@ mod tests {
         fs::write(home.join("memory").join("global.md"), "GLOBAL-NOTE").unwrap();
         fs::write(home.join("memory").join("projects").join(format!("{key}.md")), "PROJECT-NOTE").unwrap();
         let settings = EngramSettings { enabled: true, binary: String::new() };
-        let mut session = agent();
-        attach(&mut session, Attach { settings: settings.clone(), workspace: &alpha, data_home: Some(&home), insights: false }).unwrap();
-        assert!(session.mcp_servers.is_empty());
-        assert!(session.memory_instructions.contains("GLOBAL-NOTE"));
-        assert!(session.memory_instructions.contains("PROJECT-NOTE"));
-        assert!(!session.memory_instructions.contains("topic_key"));
+        for binary in [
+            String::new(),
+            "engram".into(),
+            home.join("missing").to_string_lossy().into_owned(),
+        ] {
+            let mut session = agent();
+            attach(&mut session, Attach {
+                settings: EngramSettings { enabled: true, binary },
+                workspace: &alpha,
+                data_home: Some(&home),
+                insights: false,
+            });
+            assert!(session.mcp_servers.is_empty());
+            assert!(session.memory_instructions.contains("GLOBAL-NOTE"));
+            assert!(session.memory_instructions.contains("PROJECT-NOTE"));
+            assert!(!session.memory_instructions.contains("topic_key"));
+        }
+        assert!(!home.join("engram").exists());
         let mut other = agent();
-        attach(&mut other, Attach { settings: settings.clone(), workspace: &beta, data_home: Some(&home), insights: false }).unwrap();
+        attach(&mut other, Attach { settings: settings.clone(), workspace: &beta, data_home: Some(&home), insights: false });
         assert!(other.memory_instructions.contains("GLOBAL-NOTE"));
         assert!(!other.memory_instructions.contains("PROJECT-NOTE"));
         let mut insights = agent();
-        attach(&mut insights, Attach { settings, workspace: &alpha, data_home: Some(&home), insights: true }).unwrap();
+        attach(&mut insights, Attach { settings, workspace: &alpha, data_home: Some(&home), insights: true });
         assert!(insights.memory_instructions.is_empty());
         let _ = fs::remove_dir_all(&root);
     }
@@ -290,8 +288,8 @@ mod tests {
         let settings = EngramSettings { enabled: true, binary: binary.to_string_lossy().into() };
         let mut alpha_agent = agent();
         let mut beta_agent = agent();
-        attach(&mut alpha_agent, Attach { settings: settings.clone(), workspace: &alpha, data_home: Some(&home), insights: false }).unwrap();
-        attach(&mut beta_agent, Attach { settings, workspace: &beta, data_home: Some(&home), insights: false }).unwrap();
+        attach(&mut alpha_agent, Attach { settings: settings.clone(), workspace: &alpha, data_home: Some(&home), insights: false });
+        attach(&mut beta_agent, Attach { settings, workspace: &beta, data_home: Some(&home), insights: false });
         let saved = call(&alpha_agent, "mem_save", serde_json::json!({
             "title": "private offset",
             "content": "ALPHA-SECRET-9041 is private to alpha. source_ref=transcript:sess/evt",
