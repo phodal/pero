@@ -26,6 +26,7 @@ import { NotebookTextTools } from './text-tools';
 import { NotebookWorkspace, type NotebookChrome } from './workspace-views';
 import { NotebookScienceTools } from './science-tools';
 import { createStructuredTable } from '@pero/notebook/structured-table';
+import { gridDimensionLimits } from '@pero/notebook/grid-presentation';
 import { NotebookTemplateTools } from './template-tools';
 import { NotebookSavedSearchTools } from './saved-search';
 
@@ -118,8 +119,8 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
       insertBlocks(editor, [{
         type: widget.name, attrs: widget.name === 'spreadsheet' ? {
           label: nextWorksheetName(editor.state.doc),
-          columnWidths: Object.fromEntries(Array.from({ length: widget.defaults.sheet.columns }, (_, column) => [column, 160])),
-          rowHeights: Object.fromEntries(Array.from({ length: widget.defaults.sheet.rows }, (_, row) => [row, 38])),
+          columnWidths: Object.fromEntries(Array.from({ length: widget.defaults.sheet.columns }, (_, column) => [column, gridDimensionLimits.column.default])),
+          rowHeights: Object.fromEntries(Array.from({ length: widget.defaults.sheet.rows }, (_, row) => [row, gridDimensionLimits.row.default])),
         } : ['inputTable', 'registrationTable'].includes(widget.name) ? { table: createStructuredTable(crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()), receipts: [] } : undefined,
       }]);
       closeMenu(event.currentTarget);

@@ -92,7 +92,7 @@ export const FormulaInput = forwardRef<HTMLInputElement, Props>(function Formula
       <p className="notebook-note">{t('hint')}</p>
       {names.map((name, index) => <Button key={name} id={`${id}-${index}`} role="option" aria-selected={selected === index}
         variant="ghost" tabIndex={-1} onPointerDown={event => event.preventDefault()} onClick={() => accept(name)}>
-        <strong>{name}</strong><span>{formulaHelp[name].syntax}</span><small>{formulaHelp[name].description}</small>
+        <span className="notebook-formula-name">{name}</span><span className="notebook-formula-syntax">{formulaHelp[name].syntax}</span><small>{formulaHelp[name].description}</small>
       </Button>)}
     </div>, document.body)}
   </>;

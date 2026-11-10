@@ -15,7 +15,7 @@
 @media print {
   body:has(> .notebook-print-output) > :not(.notebook-print-output) { display: none !important; }
   body:has(> .notebook-print-output), .notebook-print-output { margin: 0 !important; padding: 0 !important; height: auto !important; overflow: visible !important; background: white !important; color: black !important; }
-  .notebook-print-output { display: block !important; font: 10pt/1.4 system-ui, sans-serif; }
+  .notebook-print-output { display: block !important; font: 10pt/1.4 var(--pero-font-family-sans, system-ui, sans-serif); }
   .notebook-print-document th, .notebook-print-document td { border: 1px solid #777; }
   .notebook-print-document thead { display: table-header-group; }
   .notebook-print-document tr, .notebook-print-document img { break-inside: avoid; }

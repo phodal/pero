@@ -28,7 +28,7 @@ import { FormulaInput } from './formula-input';
 import { FormulaSourceTree } from './formula-source-tree';
 import './grid-interactions.css';
 
-const rowIndexWidth = 68;
+const rowIndexWidth = 40;
 import { CellAnnotations } from './cell-annotations';
 import { messages } from './messages';
 import { renameWorksheet, worksheetBlocks, worksheetCalculation } from './worksheet-model';
