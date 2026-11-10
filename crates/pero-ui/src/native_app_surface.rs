@@ -7,11 +7,34 @@ use gpui_kit::{base::ElementExt, component::{notification::Notification, WindowE
 use gpui_webview::WebView;
 use pero_contracts::HostEvent;
 use serde_json::{Value, json};
+use std::time::Duration;
+
+/// Cover stays up until the App posts `pero:app:ready`, then fades before the
+/// native page is shown. The page paints above GPUI, so revealing it earlier
+/// would hide the fade.
+const OPENING_FADE: Duration = Duration::from_millis(320);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Opening {
+    Cover,
+    Dismissing,
+    Open,
+}
+
+fn ease_in_out(t: f32) -> f32 {
+    let t = t.clamp(0., 1.);
+    if t < 0.5 {
+        4. * t * t * t
+    } else {
+        1. - (-2. * t + 2.).powi(3) / 2.
+    }
+}
 
 pub(crate) struct NativeAppPage {
     view: Option<Entity<WebView>>,
     error: Option<String>,
     ready: bool,
+    opening: Opening,
     shortcuts: pero_contracts::shortcuts::ShortcutMenu,
     location: Option<String>,
     context: Value,
@@ -128,9 +151,13 @@ impl NativeAppPage {
                         match message["type"].as_str() {
                             Some("loaded" | "pero:app:ready") => {
                                 this.publish_shortcuts(cx);
+                                let became_ready = message["type"] == "pero:app:ready" && !this.ready;
                                 this.ready |= message["type"] == "pero:app:ready";
                                 if this.ready {
                                     if let Some(location)=this.location.take() {this.navigate(location,cx);}
+                                }
+                                if became_ready {
+                                    this.dismiss_opening(cx);
                                 }
                                 this.send(
                                     json!({"type":"pero:app:context","context":this.context}),
@@ -169,11 +196,48 @@ impl NativeAppPage {
             view,
             error,
             ready: false,
+            opening: Opening::Cover,
             location:None,
             context: Value::Null,
             pending: Default::default(),
             docling_live,
         }
+    }
+    /// `pero:app:ready` means the App SDK is mounted. The cover fades, then the
+    /// native page is shown. Reduced motion skips the fade.
+    fn dismiss_opening(&mut self, cx: &mut Context<Self>) {
+        if self.opening != Opening::Cover {
+            return;
+        }
+        if cx.reduce_motion() {
+            self.opening = Opening::Open;
+            return;
+        }
+        self.opening = Opening::Dismissing;
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(OPENING_FADE).await;
+            let _ = this.update(cx, |this, cx| {
+                if this.opening == Opening::Dismissing {
+                    this.opening = Opening::Open;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
+    fn opening_cover(&self, cx: &mut Context<Self>) -> Div {
+        let locale = self.context["locale"].as_str().unwrap_or("en");
+        let chrome = pero_theme::Chrome::from_app(cx);
+        pero_theme::opening_panel(
+            "native-app-page-opening",
+            pero_contracts::i18n::text(locale, "apps.loading_panel_kicker"),
+            pero_contracts::i18n::text(locale, "apps.loading_panel"),
+            pero_contracts::i18n::text(locale, "apps.loading_panel_hint"),
+            chrome,
+        )
+        .absolute()
+        .inset_0()
+        .bg(chrome.palette.bg)
     }
     pub fn navigate(&mut self, location:String, cx:&App) {
         if self.ready {self.send(json!({"type":"pero:app:location","location":location}),cx);}
@@ -264,10 +328,16 @@ impl Drop for NativeAppPage {
 }
 impl Render for NativeAppPage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if let Some(view) = self.view.as_ref().filter(|_| self.error.is_none() && self.context["active"] != false) {
+        let active = self.error.is_none() && self.context["active"] != false;
+        let reveal = active && self.opening == Opening::Open;
+        if let Some(view) = &self.view {
             view.update(cx, |view, _| {
-                if !view.visible() {
-                    view.show();
+                if reveal {
+                    if !view.visible() {
+                        view.show();
+                    }
+                } else if view.visible() {
+                    view.hide();
                 }
             });
         }
@@ -279,21 +349,17 @@ impl Render for NativeAppPage {
             .min_h_0()
             .min_w_0()
             .h_full()
-            .children(self.view.clone().filter(|_| self.error.is_none() && self.context["active"] != false))
-            .when(!self.ready && self.error.is_none(), |el| {
-                let locale = self.context["locale"].as_str().unwrap_or("en");
-                let chrome = pero_theme::Chrome::from_app(cx);
+            .children(self.view.clone().filter(|_| reveal))
+            .when(active && self.opening == Opening::Cover, |el| {
+                el.child(self.opening_cover(cx))
+            })
+            .when(active && self.opening == Opening::Dismissing, |el| {
                 el.child(
-                    pero_theme::opening_panel(
-                        "native-app-page-opening",
-                        pero_contracts::i18n::text(locale, "apps.loading_panel_kicker"),
-                        pero_contracts::i18n::text(locale, "apps.loading_panel"),
-                        pero_contracts::i18n::text(locale, "apps.loading_panel_hint"),
-                        chrome,
-                    )
-                    .absolute()
-                    .inset_0()
-                    .bg(chrome.palette.bg),
+                    self.opening_cover(cx).with_animation(
+                        "native-app-opening-dismiss",
+                        Animation::new(OPENING_FADE).with_easing(ease_in_out),
+                        |cover, delta| cover.opacity(1. - delta),
+                    ),
                 )
             })
     }

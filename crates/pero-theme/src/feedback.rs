@@ -1,8 +1,10 @@
 //! Shared Native feedback. Hosts own status, recovery commands and disclosure state.
 use crate::{
-    Chrome, ICON_GAP, RADIUS_PANEL, RADIUS_SELECTION, SPACE_8, SPACE_12, SPACE_16, SPACE_20,
+    Chrome, RADIUS_PANEL, RADIUS_SELECTION, SPACE_8, SPACE_12, SPACE_16, SPACE_20,
     SPACE_24, TYPE_BODY, TYPE_CAPTION, TYPE_HEADING, TYPE_TITLE,
 };
+use std::time::Duration;
+
 use gpui_kit::{component::Icon, prelude::*, *};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -106,19 +108,7 @@ pub fn opening_panel(
                         .whitespace_normal()
                         .child(description.into()),
                 )
-                .child(
-                    div()
-                        .mt(chrome.geo(SPACE_8))
-                        .flex()
-                        .items_center()
-                        .gap(chrome.geo(ICON_GAP))
-                        .text_color(p.info)
-                        .child(
-                            Icon::default()
-                                .path("icons/loader-circle.svg")
-                                .size(chrome.text(TYPE_HEADING)),
-                        ),
-                ),
+                .child(opening_spinner(chrome)),
         )
 }
 
@@ -148,6 +138,14 @@ fn opening_motif(chrome: Chrome) -> Div {
                         .flex()
                         .items_center()
                         .justify_center()
+                        .with_animation(
+                            "opening-sparkle",
+                            Animation::new(Duration::from_millis(1400)).repeat(),
+                            |mark, delta| {
+                                let wave = (delta * std::f32::consts::TAU).sin().abs();
+                                mark.opacity(0.4 + 0.6 * wave)
+                            },
+                        )
                         .child(
                             Icon::default()
                                 .path("icons/sparkles.svg")
@@ -158,6 +156,27 @@ fn opening_motif(chrome: Chrome) -> Div {
         )
         .child(opening_connector(chrome))
         .child(opening_tile("icons/file.svg", 40., chrome))
+}
+
+/// Linear spin. An ease that settles each turn reads as a pause, which is the
+/// frozen state this indicator is meant to avoid.
+fn opening_spinner(chrome: Chrome) -> Div {
+    div()
+        .mt(chrome.geo(SPACE_8))
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_color(chrome.palette.info)
+        .child(
+            Icon::default()
+                .path("icons/loader-circle.svg")
+                .size(px(22.))
+                .with_animation(
+                    "opening-spinner",
+                    Animation::new(Duration::from_millis(900)).repeat(),
+                    |icon, delta| icon.rotate(percentage(delta)),
+                ),
+        )
 }
 
 fn opening_tile(path: &'static str, size: f32, chrome: Chrome) -> Div {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAppApi, useAppContext, useAppI18n, useNavigate } from '@pero/app-sdk';
-import { AppFrame, Badge, Button, Card, Dialog, EnvironmentInspector, Feedback, FilePicker, LoadingSkeleton, Select, SkeletonText, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { AppFrame, Badge, Button, Card, Dialog, EnvironmentInspector, Feedback, FilePicker, Select, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { seriesStyle } from '@pero/app-sdk/chart';
 import { messages, type CaseState, type Reaction } from './messages';
 import { detectColumns, readCsv, yieldPercent, uploadSmiles, matchingPredictions } from './plot';
@@ -69,8 +69,20 @@ export default function Lcms2Yield() {
     value === 'PASS' ? t('matchesFactors') : value === 'FAIL' ? t('fail') : value === 'INCONCLUSIVE' ? t('inconclusive') : t('unrun');
 
   return <AppFrame label={t('title')}>
-    {loading && !state ? <LoadingSkeleton label={t('loading')}><SkeletonText /></LoadingSkeleton> : null}
-    {error ? <div className="yield-recovery"><Feedback kind="error" variant="block">{t('operationFailed')}</Feedback><Button onClick={() => void refresh()}>{t('retry')}</Button><details><summary>{t('details')}</summary><p>{error}</p></details></div> : null}
+    {!state ? <div className="yield-opening" role="status" aria-busy={loading || !error}>
+      <div className="yield-opening-card">
+        {error && !loading ? <>
+          <h2>{t('loadFailed')}</h2>
+          <p>{t('operationFailed')}</p>
+          <Button onClick={() => void refresh()}>{t('retry')}</Button>
+          <details><summary>{t('details')}</summary><p>{error}</p></details>
+        </> : <>
+          <span className="yield-spinner" aria-hidden="true" />
+          <p className="yield-opening-lead">{t('loading')}</p>
+        </>}
+      </div>
+    </div> : null}
+    {state && error ? <div className="yield-recovery"><Feedback kind="error" variant="block">{t('operationFailed')}</Feedback><Button onClick={() => void refresh()}>{t('retry')}</Button><details><summary>{t('details')}</summary><p>{error}</p></details></div> : null}
     {state ? <div className="yield-shell">
       <aside className="yield-input">
         <Select label={t('task')} value={task} onChange={value => setTask(value as Task)} options={[{ value: 'predict', label: t('taskPredict') }, { value: 'train', label: t('taskTrain') }]} />
