@@ -353,19 +353,19 @@ interface Visit {
   errors: string[];
 }
 
-function visit(node: NotebookNode, path: string): Visit {
+function visit(node: NotebookNode, path: string, parentType = "doc"): Visit {
   if (!node || typeof node !== "object" || typeof node.type !== "string") return { node, changed: false, errors: [`${path} is not a notebook node`] };
   if (node.type === "retainedBlock") {
     const error = retainedError(node);
     return { node, changed: false, errors: error ? [`${path} ${error}`] : [] };
   }
-  if (!knownTypes.has(node.type)) return wrapUnknown(node, path);
+  if (!knownTypes.has(node.type)) return wrapUnknown(node, path, parentType);
   if (node.content === undefined) return { node, changed: false, errors: [] };
   if (!Array.isArray(node.content)) return { node, changed: false, errors: [`${path} content is not a list`] };
   let changed = false;
   const errors: string[] = [];
   const content = node.content.map((child, index) => {
-    const result = visit(child, `${path}.${index}`);
+    const result = visit(child, `${path}.${index}`, node.type);
     changed ||= result.changed;
     errors.push(...result.errors);
     return result.node;
@@ -374,10 +374,22 @@ function visit(node: NotebookNode, path: string): Visit {
   return changed ? { node: { ...node, content }, changed: true, errors } : { node, changed: false, errors };
 }
 
-function wrapUnknown(node: NotebookNode, path: string): Visit {
+const retainedParents = new Set(["doc", "blockquote", "listItem", "taskItem", "section"]);
+const originalTypePattern = /^[A-Za-z][A-Za-z0-9_-]{0,64}$/;
+
+function wrapUnknown(node: NotebookNode, path: string, parentType: string): Visit {
   const id = node.attrs?.blockId;
+  if (!retainedParents.has(parentType)) {
+    return { node, changed: false, errors: [`${path} ${node.type} cannot be retained inside ${parentType}, so it was left untouched`] };
+  }
   if (typeof id !== "string" || !blockIdPattern.test(id)) {
     return { node, changed: false, errors: [`${path} ${node.type} has no editor block id, so it was left untouched and was not removed`] };
+  }
+  if (!originalTypePattern.test(node.type) || persistedBlockTypes.includes(node.type as typeof persistedBlockTypes[number])) {
+    return { node, changed: false, errors: [`${path} ${node.type} cannot be stored as a retained block, so it was left untouched`] };
+  }
+  if (new TextEncoder().encode(JSON.stringify(node)).length > 65_536) {
+    return { node, changed: false, errors: [`${path} ${node.type} is too large to retain, so it was left untouched`] };
   }
   return {
     node: { type: "retainedBlock", attrs: { blockId: id, originalType: node.type, payload: node } },

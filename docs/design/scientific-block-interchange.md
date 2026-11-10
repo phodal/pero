@@ -49,7 +49,7 @@ The interchange handler map only decides which nodes have a lossless BlockNote o
 
 ## Reference proposals
 
-`POST /api/entries/{id}/block-proposals` is the Host path. It requires the existing app token. The body is `proposalId`, `expectedRevision`, `blockId`, `decision`, `label`, and `source`. There is no permission field. Accept appends one revision through the entry store and keeps the previous revision. Reject writes a receipt and does not change the document. The same proposal id and body returns the stored receipt. A different body for that id is rejected. A stale `expectedRevision` is a revision conflict.
+The Host agent submits `propose_reference` through the existing `POST /api/agent-apply` route. That stores one pending proposal and does not change the document or mix with other edits. The same proposal id and body is idempotent. A different body conflicts. The evidence card only accepts or rejects that stored proposal through `POST /api/entries/{id}/block-proposals`, sending the proposal id, expected revision, and decision. It cannot supply a new reference or a permission field. Accept appends one revision in the same transaction as the receipt, after a deep copy of the document is checked for template lineage. Reject does not change the revision. A stale expected revision is a conflict. Both routes use the existing Host token check.
 
 Evidence and experiment are registered as proposal adapters. Another block registers with `register_block` / `register_proposal` / `register_operation`. Those lookups are the extension point. Adding one does not add a name to `BLOCKS` or a branch to `parse_operations`.
 

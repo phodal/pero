@@ -87,6 +87,43 @@ class ScientificBlockTests(unittest.TestCase):
         self.assertEqual(apply_operations(document, operations).block('paper-block')['attrs']['label'], 'marked')
         self.assertEqual(document.block('paper-block')['attrs']['label'], 'Imported report')
 
+    def test_accept_rejects_an_adapter_that_drops_template_lineage(self):
+        from block_registry import register_proposal, proposal_adapter
+        origin = {'templateId': 'template-1', 'revision': 1, 'instanceId': 'instance-1', 'parameterValues': {}, 'idMap': {}}
+        document = {'schemaVersion': 1, 'title': 'Gauge', 'content': {'type': 'doc', 'content': [
+            {'type': 'gaugeReading', 'attrs': {'blockId': 'gauge', 'schemaVersion': 1, 'reading': 'kept', 'templateOrigin': origin}},
+        ]}}
+
+        def drop_origin(attrs, label, source):
+            updated = dict(attrs)
+            updated.pop('templateOrigin', None)
+            updated['reading'] = label
+            updated['source'] = source
+            return updated
+
+        from block_registry import _proposals
+        from scientific_block import BlockProposalStore, BlockReview, ProposeReference
+        previous = proposal_adapter('gaugeReading')
+        if previous is None:
+            register_proposal('gaugeReading', drop_origin)
+        else:
+            _proposals['gaugeReading'] = drop_origin
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                store = EntryStore(directory)
+                proposals = BlockProposalStore(store)
+                created = store.create(NotebookDocument.parse(document))
+                proposals.propose(created.identity, 1, ProposeReference('drop-1', 'gauge', 'next', SOURCE))
+                with self.assertRaises(ValueError):
+                    proposals.review(created.identity, BlockReview('drop-1', 1, 'accept'))
+                self.assertEqual(store.read(created.identity).revision, 1)
+                self.assertEqual(store.read(created.identity).document.block('gauge')['attrs']['templateOrigin'], origin)
+        finally:
+            if previous is None:
+                _proposals.pop('gaugeReading', None)
+            else:
+                _proposals['gaugeReading'] = previous
+
     def test_host_proposal_reviews_the_real_paper_reference(self):
         with tempfile.TemporaryDirectory() as directory:
             store = EntryStore(directory)
@@ -116,25 +153,40 @@ class ScientificBlockTests(unittest.TestCase):
                     self.assertEqual(evidence['attrs']['blockId'], 'paper-block')
                     self.assertEqual(evidence['attrs']['source']['id'], REPORT)
                     self.assertNotEqual(evidence['attrs']['blockId'], evidence['attrs']['source']['version'])
-                    proposal = {'proposalId': 'proposal-1', 'expectedRevision': 1, 'blockId': 'paper-block',
-                                'decision': 'reject', 'label': 'Should not apply', 'source': SOURCE}
-                    status, rejected = request('POST', f'/api/entries/{entry_id}/block-proposals', proposal)
+                    propose = {'entryId': entry_id, 'baseRevision': 1, 'operations': [{
+                        'op': 'propose_reference', 'proposalId': 'proposal-1', 'blockId': 'paper-block',
+                        'label': 'Should not apply', 'source': SOURCE}]}
+                    self.assertEqual(request('POST', '/api/agent-apply', propose, authorized=False)[0], 401)
+                    status, proposed = request('POST', '/api/agent-apply', propose)
+                    self.assertEqual((status, proposed['proposal']['decision'], proposed['entry']['revision']), (200, 'pending', 1))
+                    status, replay = request('POST', '/api/agent-apply', propose)
+                    self.assertEqual((status, replay['replayed'], replay['entry']['revision']), (200, True, 1))
+                    changed = {'entryId': entry_id, 'baseRevision': 1, 'operations': [{
+                        'op': 'propose_reference', 'proposalId': 'proposal-1', 'blockId': 'paper-block',
+                        'label': 'Different', 'source': SOURCE}]}
+                    self.assertEqual(request('POST', '/api/agent-apply', changed)[0], 400)
+                    mixed = {'entryId': entry_id, 'baseRevision': 1, 'operations': [
+                        propose['operations'][0], {'op': 'replace_text', 'blockId': 'intro', 'match': 'Opened', 'replacement': 'Changed'}]}
+                    self.assertEqual(request('POST', '/api/agent-apply', mixed)[0], 400)
+                    self.assertEqual(request('POST', f'/api/entries/{entry_id}/block-proposals', {
+                        'proposalId': 'proposal-1', 'expectedRevision': 4, 'decision': 'reject'})[0], 409)
+                    status, rejected = request('POST', f'/api/entries/{entry_id}/block-proposals', {
+                        'proposalId': 'proposal-1', 'expectedRevision': 1, 'decision': 'reject'})
                     self.assertEqual((status, rejected['proposal']['revision'], rejected['entry']['revision']), (200, 1, 1))
                     self.assertEqual(rejected['entry']['document']['content']['content'][1]['attrs']['label'], 'Imported report')
-                    status, replay = request('POST', f'/api/entries/{entry_id}/block-proposals', proposal)
-                    self.assertEqual((status, replay['replayed'], replay['entry']['revision']), (200, True, 1))
-                    conflict = dict(proposal, proposalId='proposal-2', decision='accept', expectedRevision=4, label='Pinned report')
-                    self.assertEqual(request('POST', f'/api/entries/{entry_id}/block-proposals', conflict)[0], 409)
-                    denied = dict(proposal, proposalId='proposal-3', authorized=True)
-                    self.assertEqual(request('POST', f'/api/entries/{entry_id}/block-proposals', denied)[0], 400)
-                    accept = dict(proposal, proposalId='proposal-4', decision='accept', label='Pinned report')
-                    status, accepted = request('POST', f'/api/entries/{entry_id}/block-proposals', accept)
-                    self.assertEqual((status, accepted['entry']['revision']), (200, 2))
-                    saved = accepted['entry']['document']['content']['content'][1]['attrs']
+                    status, accepted = request('POST', '/api/agent-apply', {'entryId': entry_id, 'baseRevision': 1, 'operations': [{
+                        'op': 'propose_reference', 'proposalId': 'proposal-4', 'blockId': 'paper-block',
+                        'label': 'Pinned report', 'source': SOURCE}]})
+                    self.assertEqual(status, 200)
+                    status, reviewed = request('POST', f'/api/entries/{entry_id}/block-proposals', {
+                        'proposalId': 'proposal-4', 'expectedRevision': 1, 'decision': 'accept'})
+                    self.assertEqual((status, reviewed['entry']['revision']), (200, 2))
+                    saved = reviewed['entry']['document']['content']['content'][1]['attrs']
                     self.assertEqual(saved['label'], 'Pinned report')
                     self.assertEqual(saved['source'], SOURCE)
                     self.assertEqual(request('GET', f'/api/entries/{entry_id}/revisions/1')[1]['document']['content']['content'][1]['attrs']['label'], 'Imported report')
-                    status, again = request('POST', f'/api/entries/{entry_id}/block-proposals', accept)
+                    status, again = request('POST', f'/api/entries/{entry_id}/block-proposals', {
+                        'proposalId': 'proposal-4', 'expectedRevision': 1, 'decision': 'accept'})
                     self.assertEqual((status, again['replayed'], again['entry']['revision']), (200, True, 2))
                     self.assertEqual(len(store.history(entry_id)), 2)
                 finally:

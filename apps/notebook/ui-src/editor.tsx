@@ -201,7 +201,7 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
       },
     },
     onUpdate: ({ editor: instance, transaction }) => {
-      if (blockedRef.current) return;
+      if (!transaction.docChanged || blockedRef.current) return;
       onChange?.(instance.getJSON() as NotebookDocument['content'], notebookHistoryGroup(transaction));
     },
   });
@@ -232,13 +232,13 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
     getDocument: () => blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] } }}>
     {protection.errors.length > 0 && <Feedback kind="error">{t('documentBlocked')} {protection.errors[0]}</Feedback>}
     <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly || protection.errors.length > 0} onChange={change => onDocumentChange?.(change)}
-      onReplaceDocument={readonly ? undefined : onReplaceDocument} chrome={chrome} historyControls={historyControls}
+      onReplaceDocument={readonly || protection.errors.length ? undefined : onReplaceDocument} chrome={chrome ? { ...chrome, retainedContent: protection.errors.length ? entryDocument.content : undefined } : chrome} historyControls={historyControls}
         tools={!readonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId}
         insertTools={<InsertMenu name={t('insertWord')}>
           <NotebookInsertTools editor={editor} document={entryDocument} entryId={entryId} revision={revision} onCreateEntry={onCreateEntry} />
         </InsertMenu>} />}
       helpTools={<>
-        <NotebookCommandTools entryId={entryId} readonly={readonly} handlers={{ save: onSave,
+        <NotebookCommandTools entryId={entryId} readonly={readonly || protection.errors.length > 0} handlers={{ save: onSave,
           export: () => downloadFile('Notebook.json', JSON.stringify(blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
           print: () => { window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } })); },
           ...(!readonly ? { section: () => insertBlocks(editor, [{ type: 'section', content: [{ type: 'paragraph' }] }]),

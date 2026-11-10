@@ -247,8 +247,13 @@ def handler(store, secret):
                 identity = entry_id(data['entryId'])
                 revision = integer(data['baseRevision'], 'base revision')
                 operations = parse_operations(data['operations'], lambda: uuid4().hex)
+                reference_proposals = [operation for operation in operations if getattr(operation, 'registry_op', None) == 'propose_reference']
+                if reference_proposals:
+                    if len(reference_proposals) != 1 or len(operations) != 1:
+                        raise ValueError('A reference proposal cannot be mixed with document edits')
+                    return self.reply(200, block_proposals.propose(identity, revision, reference_proposals[0]))
                 entry = store.commit(identity, revision, lambda document: apply_operations(document, operations))
-                return self.reply(200, {**entry.wire(summary=True), 'blockIds': [op.identity for op in operations]})
+                return self.reply(200, {**entry.wire(summary=True), 'blockIds': [operation.identity for operation in operations]})
             match = ENTRY_PATH.fullmatch(self.path)
             if match and not match[2]:
                 data = fields(self.body(), {'baseRevision', 'document'})

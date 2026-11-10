@@ -1,8 +1,8 @@
 import type { NodeViewProps } from '@tiptap/react';
 import { useEditorState } from '@tiptap/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { requestAppShell, useAppApi, useAppContext, useAppI18n } from '@pero/app-sdk';
-import { referenceProposal } from '@pero/notebook/scientific-block';
+import { referenceReview, type StoredReferenceProposal } from '@pero/notebook/scientific-block';
 import { useNotebookContext } from './notebook-context';
 import { Badge, Button, Checkbox, Disclosure, Feedback, Icon, Input, Textarea } from '@pero/app-sdk/ui';
 import { parsePaperCitation, scientificReferenceState, type ScientificReference, type ReferenceSnapshot } from '@pero/notebook';
@@ -39,7 +39,7 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
   const [editingReference, setEditingReference] = useState(!view.node.attrs.snapshot);
   const labelInput = useRef<HTMLInputElement>(null);
   const [citationError, setCitationError] = useState(false);
-  const [proposalLabel, setProposalLabel] = useState(String(view.node.attrs.label ?? ''));
+  const [pendingProposal, setPendingProposal] = useState<StoredReferenceProposal | null>(null);
   const [proposalNote, setProposalNote] = useState('');
   const [proposalError, setProposalError] = useState('');
   const [proposalBusy, setProposalBusy] = useState(false);
@@ -75,8 +75,18 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
     catch (cause) { setOpenError({ locator, message: cause instanceof Error ? cause.message : String(cause) }); }
     finally { setOpening(false); }
   };
+  useEffect(() => {
+    const blockId = view.node.attrs.blockId;
+    if (!notebook || !pinned || typeof blockId !== 'string') { setPendingProposal(null); return; }
+    let live = true;
+    void api.get<{ proposals: StoredReferenceProposal[] }>(`/api/entries/${notebook.entryId}/block-proposals`).then(result => {
+      if (live) setPendingProposal(result.proposals.find(item => item.decision === 'pending' && item.blockId === blockId) ?? null);
+    }).catch(() => { if (live) setPendingProposal(null); });
+    return () => { live = false; };
+  }, [api, notebook, pinned, view.node.attrs.blockId]);
   const reviewProposal = async (decision: 'accept' | 'reject') => {
-    if (!notebook || !source) return;
+    if (!notebook || !pendingProposal) return;
+    if (typeof view.node.attrs.blockId !== 'string') { setProposalError(t('interchangeMissing')); return; }
     if (notebook.dirty) {
       setProposalError(t('proposalDirty'));
       return;
@@ -85,18 +95,11 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
     setProposalError('');
     setProposalNote('');
     try {
-      const body = referenceProposal({
-        proposalId: crypto.randomUUID(),
-        expectedRevision: notebook.revision,
-        blockId: String(view.node.attrs.blockId),
-        decision,
-        label: proposalLabel,
-        source,
-      });
-      const result = await api.post<{ entry: { revision: number }; proposal: { decision: string; revision: number } }>(
+      const body = referenceReview({ proposalId: pendingProposal.proposalId, expectedRevision: notebook.revision, decision });
+      const result = await api.post<{ entry: { id: string; revision: number; document: { schemaVersion: number } }; proposal: { decision: string; revision: number } }>(
         `/api/entries/${notebook.entryId}/block-proposals`, body);
-      window.dispatchEvent(new CustomEvent('pero-notebook-entry-committed', { detail: result.entry }));
       setProposalNote(t(result.proposal.decision === 'accept' ? 'proposalAccepted' : 'proposalRejected', { revision: result.proposal.revision }));
+      if (result.proposal.decision === 'accept') window.dispatchEvent(new CustomEvent('pero-notebook-entry-committed', { detail: result.entry }));
     } catch (cause) {
       setProposalError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -119,11 +122,9 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
       {t('objectVersion')}: {stored.reference?.version || t('interchangeUnpinned')}
     </p>
     {snapshotStays && <p className="notebook-note">{t('snapshotStaysInNotebook')}</p>}
-    {notebook && source && pinned && <fieldset className="notebook-reference-fields" disabled={proposalBusy || !editable}>
+    {notebook && pendingProposal && <fieldset className="notebook-reference-fields" disabled={proposalBusy || !editable}>
       <legend>{t('reviewReference')}</legend>
-      <label className="notebook-field notebook-reference-wide">{t('proposedLabel')}
-        <Input aria-label={t('proposedLabel')} maxLength={200} value={proposalLabel} onChange={event => setProposalLabel(event.target.value)} />
-      </label>
+      <p>{t('proposalWording')}: {pendingProposal.label}</p>
       <Button variant="primary" onClick={() => void reviewProposal('accept')}>{t('acceptProposal')}</Button>
       <Button variant="ghost" onClick={() => void reviewProposal('reject')}>{t('rejectProposal')}</Button>
       {proposalNote && <p className="notebook-note">{proposalNote}</p>}

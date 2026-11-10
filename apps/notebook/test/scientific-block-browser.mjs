@@ -66,7 +66,7 @@ test('Notebook reviews a real paper reference through the saved entry', { timeou
   });
   assert.equal(created.status, 201);
   const entry = await created.json();
-  const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
+  const browser = await chromium.launch({ ...(process.env.PERO_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PERO_CHROMIUM_EXECUTABLE } : { executablePath: '/usr/bin/google-chrome' }), headless: true, args: ['--no-sandbox'] });
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -74,15 +74,31 @@ test('Notebook reviews a real paper reference through the saved entry', { timeou
     await page.screenshot({ path: '/opt/cursor/artifacts/scientific-block-review.png', fullPage: true }).catch(() => {});
     await browser.close();
   });
+  const proposed = await fetch(`http://127.0.0.1:${port}/api/agent-apply`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': token },
+    body: JSON.stringify({ entryId: entry.id, baseRevision: 1, operations: [{
+      op: 'propose_reference', proposalId: 'proposal-browser', blockId: 'paper-block', label: 'Pinned report', source,
+    }] }),
+  });
+  assert.equal(proposed.status, 200, await proposed.text());
   await page.goto(`${origin}/#notebook-entry=${entry.id}`);
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
   const card = page.locator('[data-editor-block-id="paper-block"]');
   await expect(card).toContainText(report);
   await expect(card).toContainText('paper-block');
+  await expect(page.getByText('Proposal wording: Pinned report')).toBeVisible();
   await page.getByRole('button', { name: 'Reject proposal', exact: true }).click();
   await expect(page.getByText('Rejected. This revision was not changed.')).toBeVisible();
   await expect(page.locator('.notebook-status')).toContainText('Revision 1');
-  await page.getByRole('textbox', { name: 'Proposed label', exact: true }).fill('Pinned report');
+  const second = await fetch(`http://127.0.0.1:${port}/api/agent-apply`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': token },
+    body: JSON.stringify({ entryId: entry.id, baseRevision: 1, operations: [{
+      op: 'propose_reference', proposalId: 'proposal-browser-2', blockId: 'paper-block', label: 'Pinned report', source,
+    }] }),
+  });
+  assert.equal(second.status, 200, await second.text());
+  await page.reload();
+  await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
   await page.getByRole('button', { name: 'Accept proposal', exact: true }).click();
   await expect(page.locator('.notebook-status')).toContainText('Revision 2');
   await page.reload();

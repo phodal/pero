@@ -146,6 +146,22 @@ test("template origin and any other stored attribute block replacement instead o
   assert.throws(() => restoreMyst(projected), /incomplete/);
 });
 
+test("retention refuses an illegal type name, an oversized payload, and an unknown child of a paragraph", () => {
+  const illegal = protectUnknownNodes(doc([{ type: "bad.type", attrs: { blockId: "bad-1" } }]));
+  assert.equal(illegal.changed, false);
+  assert.match(illegal.errors[0], /cannot be stored/);
+  const huge = "x".repeat(70_000);
+  const oversized = protectUnknownNodes(doc([{ type: "instrumentReading", attrs: { blockId: "big-1", reading: huge } }]));
+  assert.equal(oversized.changed, false);
+  assert.match(oversized.errors[0], /too large/);
+  const nested = protectUnknownNodes(doc([{ type: "paragraph", attrs: { blockId: "p1" }, content: [
+    { type: "text", text: "before" }, { type: "instrumentReading", attrs: { blockId: "inside" } },
+  ] }]));
+  assert.equal(nested.changed, false);
+  assert.match(nested.errors[0], /cannot be retained inside paragraph/);
+  assert.equal(nested.content.content?.[0].content?.[1].type, "instrumentReading");
+});
+
 test("the persisted block list is the parser list plus the retention envelope", () => {
   assert.equal(persistedBlockTypes.includes("retainedBlock"), true);
   assert.equal(new Set(persistedBlockTypes).size, persistedBlockTypes.length);

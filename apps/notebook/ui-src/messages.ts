@@ -236,7 +236,7 @@ export const messages = {
   interchangeUnpinned: { en: 'Not pinned', zh: '未固定版本' },
   snapshotStaysInNotebook: { en: 'The imported snapshot stays in the notebook record. It is not copied into the editor block id or a rich-text table.', zh: '导入的快照留在笔记记录中。它不会写入编辑块 ID，也不会写入富文本表格。' },
   reviewReference: { en: 'Review reference proposal', zh: '审查引用提案' },
-  proposedLabel: { en: 'Proposed label', zh: '建议标签' },
+  proposalWording: { en: 'Proposal wording', zh: '提案措辞' },
   acceptProposal: { en: 'Accept proposal', zh: '接受提案' },
   rejectProposal: { en: 'Reject proposal', zh: '拒绝提案' },
   proposalAccepted: { en: 'Accepted as revision {revision}. The previous revision is unchanged.', zh: '已接受为版本 {revision}。上一版本保持不变。' },
