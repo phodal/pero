@@ -87,3 +87,36 @@ export function isExternalFormula(source: string): boolean {
   }
   return false;
 }
+
+export interface CellEditAdmission {
+  readonly stored: string;
+  readonly display: string;
+  readonly external: boolean;
+}
+
+/** The whole value is "=" plus an external function name still being typed. */
+function externalNamePrefix(value: string): boolean {
+  if (!value.startsWith("=") || isExternalFormula(value)) return false;
+  let body = "";
+  for (const character of value.slice(1)) {
+    if (isIgnorable(character)) continue;
+    if (!/[A-Za-z0-9_.]/.test(character)) return false;
+    body += character;
+  }
+  if (!/^[A-Za-z_]/.test(body)) return false;
+  const name = bareName(body);
+  return externalFormulaNames.some(candidate => candidate.startsWith(name));
+}
+
+/** `baseline` is the cell when editing started. `admitted` is the last stored
+ * value. An external call is not stored. Replacing the field keeps `admitted`;
+ * typing the call restores `baseline`, so a saved "=PY" cannot absorb the next
+ * characters. A bare external-name prefix is shown and not stored. */
+export function admitCellEdit(baseline: string, admitted: string, next: string): CellEditAdmission {
+  if (isExternalFormula(next)) {
+    const stored = next.startsWith(admitted) ? baseline : admitted;
+    return { stored, display: stored, external: true };
+  }
+  if (externalNamePrefix(next)) return { stored: admitted, display: next, external: false };
+  return { stored: next, display: next, external: false };
+}

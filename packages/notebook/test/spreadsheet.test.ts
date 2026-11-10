@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { isExternalFormula } from "../src/formula-policy.ts";
+import { admitCellEdit, isExternalFormula } from "../src/formula-policy.ts";
 import { fillCellRange, pasteCellGrid, writeCellValue } from "../src/spreadsheet-range.ts";
 import {
   cellAddress,
@@ -192,6 +192,10 @@ test("external formula policy matches the shared cases and keeps supported edits
     "down",
   ), { error: "external" });
   assert.deepEqual(pasteCellGrid(sheet, { column: 1, row: 1 }, [["x".repeat(5000)]]), { error: "limit" });
+  assert.deepEqual(admitCellEdit("", "=", '=PY("1")'), { stored: "", display: "", external: true });
+  assert.deepEqual(admitCellEdit("=SUM(4,5)", "=SUM(4,5)", "='[Book]Data'!A1"), { stored: "=SUM(4,5)", display: "=SUM(4,5)", external: true });
+  assert.deepEqual(admitCellEdit("", "=", "=PY"), { stored: "=", display: "=PY", external: false });
+  assert.deepEqual(admitCellEdit("", "", "=A1*6"), { stored: "=A1*6", display: "=A1*6", external: false });
   assert.deepEqual(writeCellValue(sheet, { column: 1, row: 1 }, '=PY("1")'), { error: "external" });
   assert.equal(sheet.cells.B1, "1");
   const ordinary = writeCellValue(sheet, { column: 1, row: 1 }, "=A1*6");

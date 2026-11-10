@@ -36,7 +36,7 @@ test('typed external formulas stay visible but unstored, while ordinary formulas
   };
   await React.act(async () => cell('C1').focus());
   await typeInto(cell('C1'), '=PY("1")');
-  assert.equal(cell('C1').value, '=PY("1")', 'the rejected characters stay in the focused input');
+  assert.equal(cell('C1').value, '', 'later keystrokes do not stick to a stripped prefix');
   assert.equal(stored().C1, undefined);
   assert.equal(stored().A1, '2');
   assert.match(root().textContent ?? '', /will not store it/);
@@ -50,6 +50,12 @@ test('typed external formulas stay visible but unstored, while ordinary formulas
 
   await React.act(async () => cell('B1').focus());
   await typeInto(cell('B1'), '=A1*6');
+  assert.equal(stored().B1, '=A1*6');
+  await React.act(async () => {
+    setter.call(cell('B1'), "='[Book]Data'!A1");
+    cell('B1').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+  assert.equal(cell('B1').value, '=A1*6');
   assert.equal(stored().B1, '=A1*6');
   await React.act(async () => cell('B1').blur());
   assert.equal(cell('B1').value, '12');

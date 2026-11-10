@@ -1,6 +1,8 @@
 import { spreadsheetLimits } from "./document.ts";
-import { isExternalFormula } from "./formula-policy.ts";
+import { admitCellEdit, isExternalFormula } from "./formula-policy.ts";
 import { cellAddress, shiftFormula, type Spreadsheet } from "./spreadsheet.ts";
+
+export { admitCellEdit };
 
 export interface CellPosition {
   column: number;
