@@ -1,4 +1,4 @@
-import { createNotebook, ensureMoreTools, toggleSpreadsheetPanel } from './notebook-browser-actions.mjs';
+import { closeInsertMenu, createNotebook, ensureMoreTools, toggleSpreadsheetPanel } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 import { writeWorkbook } from '@pero/notebook/workbook';
@@ -16,6 +16,7 @@ export async function verifyGridTools(page, origin) {
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(workbook) });
   const tables = page.locator('[data-kind=spreadsheet]');
   await expect(tables).toHaveCount(2);
+  await closeInsertMenu(page);
   const data = tables.nth(0), dependent = tables.nth(1);
   const cell = address => data.locator(`[data-cell=${address}]`);
   await toggleSpreadsheetPanel(page, data, 'Worksheet tools');

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 import { writeWorkbook } from '@pero/notebook/workbook';
-import { createNotebook, ensureMoreTools, toggleSpreadsheetPanel } from './notebook-browser-actions.mjs';
+import { closeInsertMenu, createNotebook, ensureMoreTools, toggleSpreadsheetPanel } from './notebook-browser-actions.mjs';
 
 /** Real pointer/keyboard/layout acceptance, run in the existing backend/browser
  * fixture after other notebook scenarios. No new server or mock editor. */
@@ -28,6 +28,8 @@ export async function verifyDirectGridInteractions(page, origin) {
     await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 8 });
     await page.mouse.up();
   };
+  await expect(page.locator('[data-kind=spreadsheet]')).toHaveCount(2);
+  await closeInsertMenu(page);
   await cell('A1').click();
   await toggleSpreadsheetPanel(page, data, 'Cell details');
   await data.getByLabel('Unit', { exact: true }).fill('mL');

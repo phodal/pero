@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
-import { createNotebook, ensureMoreTools, openNotebookMenu } from './notebook-browser-actions.mjs';
+import { closeInsertMenu, createNotebook, ensureMoreTools, openNotebookMenu } from './notebook-browser-actions.mjs';
 
 /** Real Notebook UI + SQLite. Does not simulate a remote account or a configured model. */
 export async function verifyRemainingNotebookWorkflows(page, origin, output) {
@@ -37,6 +37,8 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   await dialog.getByRole('textbox', { name: 'Notebook filename' }).fill('reviewed-source.txt');
   await page.screenshot({ path: resolve(output, 'notebook-staged-file-preview.png'), fullPage: true });
   await button('Insert reviewed file', dialog).click();
+  await expect(dialog).toHaveCount(0);
+  await closeInsertMenu(page);
   await expect(page.locator('[data-kind=attachment]')).toHaveCount(1); await save();
   const saved = await page.request.get(`${origin}/api/entries/${created.id}`).then(result => result.json());
   const attachment = saved.document.content.content.find(node => node.type === 'attachment');
@@ -57,6 +59,7 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   await expect(dialog).toContainText('Earlier protocol step'); await expect(dialog).toContainText('Later protocol step');
   await page.screenshot({ path: resolve(output, 'notebook-template-revision-diff.png'), fullPage: true });
   await button('Close', dialog).click();
+  await closeInsertMenu(page);
   const unchanged = await page.request.get(`${origin}/api/entries/${created.id}`).then(result => result.json());
   assert.deepEqual(unchanged, saved, 'Read-only comparison must never update the saved entry');
 
@@ -68,6 +71,7 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   await expect(dialog).toContainText('No configured Host agent is available');
   await expect(button('Generate candidates', dialog)).toBeDisabled();
   await button('Close', dialog).click();
+  await closeInsertMenu(page);
   await page.setViewportSize({ width: 760, height: 950 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: true, active: true } }, location.origin));
   await openNotebookMenu(page, 'file');

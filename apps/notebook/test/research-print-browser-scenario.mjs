@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
-import { createNotebook, ensureMoreTools, openNotebookMenu } from './notebook-browser-actions.mjs';
+import { closeInsertMenu, createNotebook, ensureMoreTools, openNotebookMenu } from './notebook-browser-actions.mjs';
 
 /** CI browser acceptance: real saved revisions, rendered print CSS and retained late edits. */
 export async function verifyResearchPrintTools(page, origin, output) {
@@ -24,6 +24,7 @@ export async function verifyResearchPrintTools(page, origin, output) {
   await button('Insert editable worksheet and recipe', dialog).click();
   await expect(dialog.getByText(/already been inserted/)).toBeVisible();
   await button('Close', dialog).click();
+  await closeInsertMenu(page);
   await expect(page.locator('[data-kind=spreadsheet]')).toHaveCount(1);
   await expect(page.locator('[data-kind=mixturePrep]')).toHaveCount(1);
   await expect(page.locator('[data-kind=spreadsheet] [data-cell=C6]')).toHaveValue('2200');

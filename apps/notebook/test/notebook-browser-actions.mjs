@@ -40,6 +40,13 @@ export async function ensureMoreTools(page) {
   await expect(more).toHaveJSProperty('open', true);
 }
 
+/** Return to the document after a menu-owned dialog or file import has finished. */
+export async function closeInsertMenu(page) {
+  const details = page.locator('details.notebook-menu[data-menu="insert"]');
+  if (await details.evaluate(node => node.open)) await page.getByRole('button', { name: 'Insert', exact: true }).click();
+  await expect(details).toHaveJSProperty('open', false);
+}
+
 /** Creation retains the old draft while the real backend request is in flight. */
 export async function createNotebook(page, origin, title) {
   const creating = page.waitForResponse(response =>

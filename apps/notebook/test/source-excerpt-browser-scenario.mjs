@@ -1,4 +1,4 @@
-import { createNotebook, ensureMoreTools, openNotebookMenu } from './notebook-browser-actions.mjs';
+import { closeInsertMenu, createNotebook, ensureMoreTools, openNotebookMenu } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
@@ -35,6 +35,8 @@ export async function verifySourceExcerpts(page, origin, output) {
   await expect(dialog.getByLabel('Start offset (codepoints, inclusive)', { exact: true })).toHaveValue('2');
   await expect(dialog.getByLabel('End offset (codepoints, exclusive)', { exact: true })).toHaveValue('8');
   await button('Insert source excerpt', dialog).click();
+  await expect(dialog).toHaveCount(0);
+  await closeInsertMenu(page);
   const block = page.locator('[data-kind=sourceExcerpt]').first();
   await expect(block.getByText('Retained text integrity verified.', { exact: true })).toBeVisible();
   await expect(block.getByText('Original attachment is available and unchanged.', { exact: true })).toBeVisible();

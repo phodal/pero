@@ -1,4 +1,4 @@
-import { ensureMoreTools } from './notebook-browser-actions.mjs';
+import { closeInsertMenu, ensureMoreTools } from './notebook-browser-actions.mjs';
 import { verifyRegistrationWaiver } from './registration-waiver-browser-scenario.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
@@ -63,6 +63,7 @@ export async function verifyTableWorkflows(page, origin, output) {
   assert.equal((await request('/api/templates/' + published.id)).revision, 1);
   await page.screenshot({ path: resolve(output, 'workflows-template-collections-light.png'), fullPage: true });
   await page.getByRole('dialog', { name: 'Templates', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
+  await closeInsertMenu(page);
 
   const input = page.locator('[data-kind=inputTable]');
   const registration = page.locator('[data-kind=registrationTable]');

@@ -1,4 +1,4 @@
-import { createNotebook, ensureMoreTools } from './notebook-browser-actions.mjs';
+import { closeInsertMenu, createNotebook, ensureMoreTools } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
@@ -12,6 +12,8 @@ export async function verifyScientificDesigns(page, origin, output) {
   await ensureMoreTools(page);
   await button('Insert reaction sketch').click();
   const reaction = page.locator('[data-kind=reactionScheme]').first();
+  await expect(reaction).toBeVisible();
+  await closeInsertMenu(page);
   await reaction.getByLabel('Name', { exact: true }).fill('Explicit graph conversion');
   await button('Add molecule', reaction).click();
   await reaction.getByLabel('Molecule Name', { exact: true }).fill('Starting graph');
@@ -67,6 +69,7 @@ export async function verifyScientificDesigns(page, origin, output) {
   await expect(button('A1', dialog)).toHaveAttribute('title', 'A1: Control');
   await expect(dialog.getByLabel('Plate barcode', { exact: true })).toHaveValue('PLATE-7');
   await button('Insert snapshot', dialog).click(); await button('Close', dialog).click();
+  await closeInsertMenu(page);
   await button('Save revision').click(); await expect(page.locator('.notebook-status')).toHaveText('Revision 2');
   const records = await (await page.request.get(`${origin}/api/scientific/reactions`)).json();
   assert.ok(records.records.some(record => record.definition.name === 'Explicit graph conversion'));
