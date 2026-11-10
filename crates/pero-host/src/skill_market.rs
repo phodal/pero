@@ -29,9 +29,19 @@ impl Market {
         let Some(location) = self.location.clone() else {
             return Err(self.store_error());
         };
-        // A refresh must see a removed or replaced catalog file. The installed-state
-        // lock is not involved; only the unchanged file reuses the parsed bytes.
-        let stamp = catalog_stamp(&location)?;
+        // Refresh reuses the parsed catalog only while length and mtime match.
+        // Removal, or a rewrite that changes either, is read again. A replacement
+        // that keeps both can still match this cache. Catalog I/O does not take
+        // the installed-state lock.
+        let stamp = match &location {
+            CatalogLocation::File(path) => {
+                let meta = std::fs::metadata(path).map_err(|_| {
+                    "Skill catalog is unavailable; rebuild or update Pero".to_string()
+                })?;
+                (meta.len(), meta.modified().ok())
+            }
+            CatalogLocation::Bundled(content) => (content.len() as u64, None),
+        };
         {
             let guard = self.catalog.lock().map_err(|error| error.to_string())?;
             if let Some(cached) = guard.as_ref() {
@@ -127,19 +137,6 @@ pub(super) fn open(settings: Option<&Path>) -> Market {
         location,
         catalog: Arc::new(Mutex::new(None)),
         control,
-    }
-}
-
-fn catalog_stamp(
-    location: &CatalogLocation,
-) -> Result<(u64, Option<std::time::SystemTime>), String> {
-    match location {
-        CatalogLocation::File(path) => {
-            let meta = std::fs::metadata(path)
-                .map_err(|_| "Skill catalog is unavailable; rebuild or update Pero".to_string())?;
-            Ok((meta.len(), meta.modified().ok()))
-        }
-        CatalogLocation::Bundled(content) => Ok((content.len() as u64, None)),
     }
 }
 
@@ -278,6 +275,15 @@ mod tests {
         assert_eq!(
             market.catalog_document().unwrap()["schema_version"].as_u64(),
             Some(1)
+        );
+        std::fs::write(
+            &catalog,
+            r#"{"schema_version":1,"skills":[],"marker":"rewritten"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            market.catalog_document().unwrap()["marker"].as_str(),
+            Some("rewritten")
         );
         std::fs::remove_file(&catalog).unwrap();
         assert!(
