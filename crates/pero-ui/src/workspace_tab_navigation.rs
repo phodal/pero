@@ -107,10 +107,9 @@ impl WorkspaceNavigation {
         self.focus_pane(pane);
         target
     }
-    pub(crate) fn reopen_closed_view(&mut self) -> Option<PaneItem> {
+    pub(crate) fn reopen_closed_at(&mut self, pane: PaneId, index: usize) -> Option<PaneItem> {
         let layout = self.pane_layout.as_mut()?;
-        let pane = layout.focused?;
-        let item = layout.reopen_closed(pane)?;
+        let item = layout.reopen_closed_at(pane, index)?;
         if let WorkspaceRoute::Content(source) = &item.route {
             if !self.items.contains(source) {
                 self.items.push(source.clone());
@@ -178,6 +177,42 @@ impl WorkspaceNavigation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn reopening_targets_its_pane_without_prior_pointer_focus() {
+        let app = |name: &str| WorkspaceItem::App {
+            name: name.into(),
+            panel: "main".into(),
+        };
+        let mut navigation = WorkspaceNavigation::default();
+        navigation.open(app("left"));
+        let left = navigation.pane_layout().unwrap().focused.unwrap();
+        let view = navigation.active_view_id().unwrap();
+        navigation.close_view(view).unwrap();
+        let right = navigation
+            .pane_layout_mut()
+            .unwrap()
+            .split_empty(left, pero_contracts::workspace_panes::SplitDirection::Right)
+            .unwrap();
+        navigation.focus_pane(right);
+        for name in ["older", "newer"] {
+            navigation.open(app(name));
+            let view = navigation.active_view_id().unwrap();
+            navigation.close_view(view).unwrap();
+        }
+        navigation.focus_pane(left);
+        let restored = navigation.reopen_closed_at(right, 0).unwrap();
+        assert_eq!(restored.route, WorkspaceRoute::Content(app("older")));
+        let layout = navigation.pane_layout().unwrap();
+        assert_eq!(layout.focused, Some(right));
+        assert_eq!(navigation.current(), Some(&app("older")));
+        assert!(layout.leaf(left).unwrap().tabs.active().is_none());
+        assert_eq!(layout.leaf(left).unwrap().tabs.closed_items().len(), 1);
+        assert_eq!(
+            layout.leaf(right).unwrap().tabs.closed_items()[0].route,
+            WorkspaceRoute::Content(app("newer"))
+        );
+        assert!(layout.valid());
+    }
     #[test]
     fn quick_open_replaces_temporary_views_and_escape_restores_original_pane_and_kind() {
         let doc = |name: &str| WorkspaceItem::Document {

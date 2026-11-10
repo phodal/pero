@@ -9,8 +9,12 @@ impl PaneLayout {
         self.admit_history_item(item)
     }
     pub fn reopen_closed(&mut self, pane: PaneId) -> Option<PaneItem> {
+        let index = self.leaf(pane)?.tabs.closed_items().len().checked_sub(1)?;
+        self.reopen_closed_at(pane, index)
+    }
+    pub fn reopen_closed_at(&mut self, pane: PaneId, index: usize) -> Option<PaneItem> {
         let id = self.allocate_view_id();
-        let item = self.leaf_mut(pane)?.tabs.reopen_closed(id)?;
+        let item = self.leaf_mut(pane)?.tabs.reopen_closed_at(index, id)?;
         self.admit_history_item(item)
     }
     pub fn restore_history_entry(&mut self, pane: PaneId, entry: HistoryEntry) -> Option<PaneItem> {

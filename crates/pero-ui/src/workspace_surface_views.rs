@@ -257,8 +257,142 @@ impl Workbench {
                         .into_any_element()
                 }
             }
-            _ => div().flex_1().min_h_0().min_w_0().into_any_element(),
+            None => self.empty_pane(leaf, cx),
+            Some(_) => div().flex_1().min_h_0().min_w_0().into_any_element(),
         }
+    }
+    fn empty_pane(&self, leaf: &PaneLeaf, cx: &mut Context<Self>) -> AnyElement {
+        let chrome = pero_theme::Chrome::from_app(cx);
+        let recent = leaf
+            .tabs
+            .closed_items()
+            .iter()
+            .enumerate()
+            .rev()
+            .take(6)
+            .filter_map(|(index, entry)| {
+                let WorkspaceRoute::Content(item) = &entry.route else {
+                    return None;
+                };
+                let (title, icon) = self.content_label(item, cx);
+                Some((index, title, icon))
+            })
+            .collect::<Vec<_>>();
+        let has_recent = !recent.is_empty();
+        let pane_id = leaf.id;
+        let pane = pane_id.0 as usize;
+        div()
+            .id(("pane-empty", pane))
+            .flex_1()
+            .min_h_0()
+            .min_w_0()
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .overflow_y_scroll()
+            .px(chrome.geo(pero_theme::SPACE_24))
+            .py(chrome.geo(pero_theme::SPACE_24))
+            .child(
+                div()
+                    .w_full()
+                    .max_w(px(420.))
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap(chrome.geo(pero_theme::SPACE_16))
+                    .child(
+                        div()
+                            .text_size(chrome.text(pero_theme::TYPE_HEADING))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(chrome.palette.text)
+                            .text_center()
+                            .child(self.t("workspace.empty")),
+                    )
+                    .child(
+                        div()
+                            .max_w(px(360.))
+                            .text_size(chrome.text(pero_theme::TYPE_BODY))
+                            .text_color(chrome.palette.text_muted)
+                            .text_center()
+                            .whitespace_normal()
+                            .child(self.t(if has_recent {
+                                "workspace.empty_closed_hint"
+                            } else {
+                                "workspace.empty_hint"
+                            })),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(chrome.geo(pero_theme::SPACE_8))
+                            .child(
+                                pero_theme::action_button(
+                                    ("pane-empty-chat", pane),
+                                    self.t("chat.new"),
+                                    pero_theme::ActionKind::Primary,
+                                    chrome,
+                                    cx,
+                                )
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.focus_pane(pane_id, window, cx);
+                                    this.new_chat(cx);
+                                    let composer = this.chat.read(cx).composer.clone();
+                                    composer.update(cx, |input, cx| input.focus(window, cx));
+                                })),
+                            )
+                            .child(
+                                pero_theme::action_button(
+                                    ("pane-empty-apps", pane),
+                                    self.t("apps.manage"),
+                                    pero_theme::ActionKind::Ghost,
+                                    chrome,
+                                    cx,
+                                )
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.navigate(crate::workspace::WorkbenchPage::Apps, cx);
+                                    this.refresh_apps(cx);
+                                })),
+                            ),
+                    )
+                    .when(has_recent, |column| {
+                        column.child(
+                            div()
+                                .w_full()
+                                .flex()
+                                .flex_col()
+                                .gap(chrome.geo(pero_theme::SPACE_4))
+                                .child(
+                                    div()
+                                        .px(chrome.geo(pero_theme::SPACE_8))
+                                        .text_size(chrome.text(pero_theme::TYPE_CAPTION))
+                                        .text_color(chrome.palette.text_muted)
+                                        .child(self.t("workspace.recently_closed")),
+                                )
+                                .children(recent.into_iter().map(|(index, title, icon)| {
+                                    pero_theme::action_button(
+                                        SharedString::from(format!("pane-reopen:{pane}:{index}")),
+                                        title.clone(),
+                                        pero_theme::ActionKind::Ghost,
+                                        chrome,
+                                        cx,
+                                    )
+                                    .w_full()
+                                    .justify_start()
+                                    .icon(Icon::default().path(
+                                        pero_chat_ui::icon_theme::asset_path(&icon),
+                                    ))
+                                    .tooltip(title)
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        this.reopen_closed_at(pane_id, index, window, cx);
+                                    }))
+                                    .into_any_element()
+                                })),
+                        )
+                    }),
+            )
+            .into_any_element()
     }
     pub(crate) fn open_item_in_pane(
         &mut self,
