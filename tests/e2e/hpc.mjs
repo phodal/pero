@@ -44,9 +44,13 @@ async function open() {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('locale-en').click());
   await expect.poll(async () => (await state()).apps?.some(item => item.name === 'hpc')).toBe(true);
-  await clickAppShortcut(page, 'apps');
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
-  await clickAppOpen(page, 'hpc');
+  // The enabled App stays in the sidebar. Its catalog Open control is a small canvas target.
+  if ((await state()).sidebarButtonBounds?.hpc) await clickAppShortcut(page, 'hpc');
+  else {
+    await clickAppShortcut(page, 'apps');
+    await clickAppOpen(page, 'hpc');
+  }
   frame = page.frameLocator('iframe[title="hpc"]');
   await expect(frame.getByRole('heading', { name: 'HPC Benchmarks', exact: true })).toBeVisible({ timeout: 30000 });
   await expect.poll(async () => (await get('/api/state')).runtime.reframeAvailable).toBe(true);
@@ -172,7 +176,11 @@ try {
   expect((await damagedRecheck).status()).toBe(202);
   await expect.poll(async () => (await get(`/api/runs/${other.id}`)).run.operation).toBeNull();
   expect((await get(`/api/runs/${other.id}`)).run.verification.status).toBe('incomplete');
-  await expect(frame.getByRole('region', { name: 'Run details', exact: true }).getByText('Incomplete', { exact: true })).toBeVisible();
+  const details = frame.getByRole('region', { name: 'Run details', exact: true });
+  await expect.poll(async () => {
+    const text = await details.innerText();
+    return { incomplete: text.includes('Incomplete'), verifying: text.includes('Verifying'), passed: text.includes('Passed') };
+  }).toEqual({ incomplete: true, verifying: false, passed: false });
   await page.screenshot({ path: resolve(out, 'incomplete-evidence.png') });
   checks.push('Damaged original samples replace the old PASS with visible incomplete evidence');
 
