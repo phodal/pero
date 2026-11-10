@@ -1,13 +1,13 @@
 @import "../../packages/pero-design/src/tokens.css";
 
-html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body)/1.4 system-ui, sans-serif; }
-#loading { position: fixed; inset: 0; display: grid; place-items: center; font: var(--pero-font-body) system-ui, sans-serif; color: var(--pero-text-muted); background: var(--pero-material-chrome); }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body)/1.4 var(--pero-font-family-sans, system-ui, sans-serif); }
+#loading { position: fixed; inset: 0; display: grid; place-items: center; font: var(--pero-font-body) var(--pero-font-family-sans, system-ui, sans-serif); color: var(--pero-text-muted); background: var(--pero-material-chrome); }
 canvas { display: block; }
 body > input, body > textarea { font-size: var(--pero-font-body); }
 #pero-app-surface { position: fixed; z-index: 2; background: var(--pero-material-chrome); overflow: hidden; }
 #pero-app-surface[hidden], #pero-app-surface .app-panel-surface[hidden], #pero-app-surface iframe[hidden], .app-panel-status[hidden] { display: none; }
 #pero-app-surface iframe { display: block; width: 100%; height: 100%; border: 0; }
-.app-panel-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; overflow: auto; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body)/1.4 system-ui, sans-serif; padding: var(--pero-spacing-6); }
+.app-panel-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; overflow: auto; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body)/1.4 var(--pero-font-family-sans, system-ui, sans-serif); padding: var(--pero-spacing-6); }
 .app-panel-status-card {
   box-sizing: border-box;
   display: flex;
@@ -46,7 +46,7 @@ body > input, body > textarea { font-size: var(--pero-font-body); }
 .app-panel-status button:disabled { opacity: 0.6; cursor: default; }
 .app-panel-status :is(button, summary):focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
 
-.app-preparation { position: fixed; z-index: 100; right: 12px; bottom: 12px; box-sizing: border-box; width: min(520px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; padding: 12px; background: var(--pero-surface); color: var(--pero-text); border: 1px solid var(--pero-border); font: 14px system-ui, sans-serif; }
+.app-preparation { position: fixed; z-index: 100; right: 12px; bottom: 12px; box-sizing: border-box; width: min(520px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; padding: 12px; background: var(--pero-surface); color: var(--pero-text); border: 1px solid var(--pero-border); font: var(--pero-font-body) var(--pero-font-family-sans, system-ui, sans-serif); }
 .app-preparation[hidden] { display: none; }
 .app-preparation-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .app-preparation p { margin: 12px 0; overflow-wrap: anywhere; }
