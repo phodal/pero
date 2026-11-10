@@ -10,6 +10,8 @@ html, body, #app { height: 100%; }
 .notebook-nav-reopen { flex: 0 0 auto; padding: var(--pero-spacing-1) var(--pero-spacing-2); border-bottom: var(--pero-hairline); background: var(--pero-material-chrome); }
 .notebook-list { list-style: none; margin: 0; padding: var(--pero-spacing-1); }
 .notebook-list .pero-list-title { white-space: normal; overflow-wrap: anywhere; }
+.notebook-list .pero-list-row .pero-ui-icon-button:not([data-variant=unstyled]) { width: 24px; height: 24px; min-height: 24px; padding: 0; color: var(--pero-text-muted); }
+.notebook-list .pero-list-row .pero-ui-icon-button svg { width: 14px; height: 14px; }
 .notebook-page { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--pero-bg); }
 .notebook-empty { flex: 1; align-content: center; color: var(--pero-text); }
 .notebook-empty .pero-ui-empty-description { max-width: 26rem; }
@@ -152,7 +154,7 @@ html, body, #app { height: 100%; }
 .notebook-editor-tools .notebook-toolbar-secondary.pero-ui-toolbar:not([data-unstyled]) { position: absolute; z-index: 30; top: calc(100% + 4px); right: 0; left: auto; flex-wrap: wrap; width: min(36rem, 100%); max-width: min(36rem, 100%); max-height: min(28rem, 60vh); overflow: auto; }
 .notebook-toolbar-divider { align-self: stretch; width: 6px; margin: 0; background: transparent; }
 .notebook-toolbar .notebook-heading-select { margin-inline-end: 6px; }
-.notebook-toolbar .notebook-color-select { margin-inline: 7px 6px; }
+.notebook-toolbar .notebook-color-select { margin-inline: 3px; }
 .notebook-text-tools { display: contents; }
 .notebook-workspace:not([data-notebook-view="notes"]) .notebook-text-tools { display: none; }
 .notebook-editor-surface { min-height: 100%; }
@@ -349,6 +351,9 @@ html, body, #app { height: 100%; }
   .notebook-paper { margin-top: var(--pero-spacing-1); padding: var(--pero-spacing-2); }
 }
 @media (max-width: 650px) {
+  .notebook-commandbar { flex-wrap: wrap; }
+  .notebook-format { flex-basis: 100%; flex-wrap: wrap; }
+  .notebook-format > .notebook-toolbar.pero-ui-toolbar:not([data-unstyled]) { flex-wrap: wrap; overflow: visible; contain: none; }
   .notebook-reference-fields, .notebook-reference-details > div { grid-template-columns: 1fr; }
 }
 .notebook-cell-annotations { margin-top: var(--pero-spacing-1); }
@@ -376,9 +381,14 @@ html, body, #app { height: 100%; }
 .notebook-text-blue { color: var(--pero-info); }
 .notebook-text-green { color: var(--pero-success); }
 .notebook-text-rose { color: var(--pero-error); }
-.notebook-text-amber { color: var(--pero-warning); }
+.notebook-text-amber { color: light-dark(var(--pero-amber-ink), var(--pero-amber-dark-text)); }
 .notebook-text-default { color: var(--pero-text); }
-.notebook-color-select :is(.notebook-text-default, .notebook-text-blue, .notebook-text-green, .notebook-text-rose, .notebook-text-amber) { border-bottom: 2px solid currentColor; line-height: 1; }
+.notebook-text-orange { color: light-dark(var(--pero-orange-ink), var(--pero-orange-dark-text)); }
+.notebook-text-violet { color: light-dark(var(--pero-violet-ink), var(--pero-violet-dark-text)); }
+.notebook-color-glyph { border-bottom: 2px solid currentColor; line-height: 1; }
+.notebook-highlight-glyph { color: var(--pero-text); border: 1px solid var(--pero-border-control); border-radius: 2px; padding: 1px 2px; line-height: 1; }
+.notebook-swatch-ink { background: currentColor; }
+.notebook-swatch-fill.notebook-background-default { background: transparent; }
 .notebook-symbols { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--pero-spacing-1); }
 .notebook-prose a { color: var(--pero-link); text-decoration: underline; }
 .notebook-section.notebook-block { margin: 8px 0 var(--pero-spacing-2); border: 0; background: transparent; }
@@ -525,6 +535,8 @@ form.notebook-workspace-actions { align-items: end; }
 .notebook-science-panel { display: grid; gap: var(--pero-spacing-3); min-width: 0; }
 .notebook-science-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--pero-spacing-3); }
 .notebook-control-canvas-inputs { grid-column: 1 / -1; min-width: 0; }
+.notebook-science-tool-picker { display: flex; align-items: end; gap: var(--pero-spacing-2); min-width: 0; }
+.notebook-science-tool-picker > :first-child { flex: 1 1 auto; min-width: 0; }
 .notebook-science-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-spacing-2); }
 .notebook-science-actions label { display: inline-flex; align-items: center; gap: var(--pero-spacing-1); }
 .notebook-molecule-editor, .notebook-molecule-controls { display: grid; gap: var(--pero-spacing-2); min-width: 0; }
@@ -617,7 +629,9 @@ form.notebook-workspace-actions { align-items: end; }
 .notebook-background-blue { background: var(--pero-info-bg); }
 .notebook-background-green { background: var(--pero-success-bg); }
 .notebook-background-rose { background: var(--pero-error-bg); }
-.notebook-background-amber { background: var(--pero-warning-bg); }
+.notebook-background-amber { background: light-dark(var(--pero-amber-tint), var(--pero-amber-dark-surface)); }
+.notebook-background-orange { background: light-dark(var(--pero-orange-tint), var(--pero-orange-dark-surface)); }
+.notebook-background-violet { background: light-dark(var(--pero-violet-tint), var(--pero-violet-dark-surface)); }
 .notebook-reference-mention { background: var(--pero-info-bg); color: var(--pero-info); border-radius: var(--pero-radius-sm); }
 .notebook-code-block .pero-ui-code-editor { height: 240px; }
 

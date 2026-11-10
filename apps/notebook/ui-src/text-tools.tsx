@@ -4,10 +4,11 @@ import { Extension, getMarkRange, Mark, type Editor } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { AllSelection, Plugin } from '@tiptap/pm/state';
 import { useEditorState } from '@tiptap/react';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, Field, Icon, IconButton, Input, Select, Toolbar } from '@pero/app-sdk/ui';
-const textTones = ['blue', 'green', 'rose', 'amber'] as const;
+const textTones = ['blue', 'green', 'rose', 'amber', 'orange', 'violet'] as const;
+export const notebookColorOptions = ['default', ...textTones] as const;
 type TextTone = typeof textTones[number];
 
 /** Persist semantic colors, never arbitrary CSS from a pasted document. */
@@ -105,6 +106,7 @@ export const messages = {
   taskList: { en: 'Checklist', zh: '检查清单' },
   blockquote: { en: 'Quote', zh: '引用' },
   codeBlock: { en: 'Code block', zh: '代码块' },
+  horizontalRule: { en: 'Divider', zh: '分隔线' },
   bold: { en: 'Bold', zh: '粗体' },
   italic: { en: 'Italic', zh: '斜体' },
   underline: { en: 'Underline', zh: '下划线' },
@@ -113,12 +115,14 @@ export const messages = {
   subscript: { en: 'Subscript', zh: '下标' },
   superscript: { en: 'Superscript', zh: '上标' },
   textColor: { en: 'Text color', zh: '文字颜色' },
-  textBackground: { en: 'Text background', zh: '文字背景' },
+  textBackground: { en: 'Highlight', zh: '文字高亮' },
   default: { en: 'Default', zh: '默认' },
   blue: { en: 'Blue', zh: '蓝色' },
   green: { en: 'Green', zh: '绿色' },
   rose: { en: 'Rose', zh: '玫红' },
   amber: { en: 'Amber', zh: '琥珀色' },
+  orange: { en: 'Orange', zh: '橙色' },
+  violet: { en: 'Violet', zh: '紫色' },
   clear: { en: 'Clear formatting', zh: '清除格式' },
   indent: { en: 'Indent list item', zh: '增加列表缩进' },
   outdent: { en: 'Outdent list item', zh: '减少列表缩进' },
@@ -134,14 +138,14 @@ export const messages = {
   cancel: { en: 'Cancel', zh: '取消' },
   close: { en: 'Close', zh: '关闭' },
   symbols: { en: 'Insert symbol', zh: '插入符号' },
-  more: { en: 'More', zh: '更多' },
+  more: { en: 'More formatting', zh: '更多格式' },
   symbolLabel: { en: 'Insert {symbol} ({name})', zh: '插入 {symbol}（{name}）' },
   greek: { en: 'Greek letters', zh: '希腊字母' },
   mathematical: { en: 'Mathematics and units', zh: '数学与单位' },
 } as const;
 
 const marks = ['bold', 'italic', 'underline', 'strike', 'code', 'subscript', 'superscript'] as const;
-const blocks = ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'] as const;
+export const notebookBlockStyles = ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'] as const;
 const headingLevels = [1, 2, 3, 4, 5, 6] as const;
 type HeadingLevel = typeof headingLevels[number];
 const glyphs = {
@@ -169,7 +173,9 @@ const symbols = {
 
 /** Labeled overflow, outside the scrolling icon row so the panel is not clipped. */
 function FormatMenu({ name, children }: { name: string; children: ReactNode }) {
-  const ref = useRef<HTMLDetailsElement>(null);
+  const ref = useRef<HTMLDetailsElement>(null), trigger = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     const close = (event: PointerEvent) => {
       const node = ref.current;
@@ -181,17 +187,23 @@ function FormatMenu({ name, children }: { name: string; children: ReactNode }) {
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
   }, []);
-  return <div className="notebook-overflow">
-    <Button variant="ghost" className="notebook-overflow-trigger" onClick={() => {
+  return <div className="notebook-overflow" onKeyDown={event => {
+    if (event.key !== 'Escape' || !ref.current?.open) return;
+    event.preventDefault();
+    event.stopPropagation();
+    ref.current.open = false;
+    trigger.current?.focus();
+  }}>
+    <Button ref={trigger} variant="ghost" className="notebook-overflow-trigger" aria-expanded={open} aria-controls={menuId} onClick={() => {
       const node = ref.current;
       if (!node) return;
       node.open = !node.open;
       if (!node.open) return;
       node.ownerDocument.querySelectorAll('details.notebook-menu[open]').forEach(other => { if (other !== node) other.removeAttribute('open'); });
     }}>{name}<Icon name="chevron-down" size={12} /></Button>
-    <details ref={ref} className="notebook-menu" data-menu="format">
-      <summary className="notebook-visually-hidden">{name}</summary>
-      <div className="notebook-menu-panel">{children}</div>
+    <details ref={ref} className="notebook-menu" data-menu="format" onToggle={event => setOpen(event.currentTarget.open)}>
+      <summary className="notebook-visually-hidden" tabIndex={-1} aria-hidden="true">{name}</summary>
+      <div id={menuId} className="notebook-menu-panel">{children}</div>
     </details>
   </div>;
 }
@@ -215,7 +227,7 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
       for (let depth = $from.depth; depth > 0; depth--) {
         const name = $from.node(depth).type.name;
         if (!listItem && (name === 'taskItem' || name === 'listItem')) listItem = name;
-        if (format === 'paragraph' && blocks.includes(name as typeof blocks[number])) format = name;
+        if (format === 'paragraph' && notebookBlockStyles.includes(name as typeof notebookBlockStyles[number])) format = name;
       }
       const inline = $from.parent.inlineContent && $to.parent.inlineContent;
       const text = inline || instance.state.selection instanceof AllSelection;
@@ -302,7 +314,23 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
     closeDialog();
   };
 
-  const headingValue = status.format.startsWith('heading-') ? status.format : status.format === 'paragraph' ? 'paragraph' : '';
+  const headingValue = status.format.startsWith('heading-') ? status.format : '';
+  const colorSelect = (mark: 'textColor' | 'textBackground', value: string) => {
+    const foreground = mark === 'textColor';
+    return <Select className="notebook-color-select" label={t(mark)} title={t(mark)} value={value}
+      disabled={!status.text || !editor.can().setMark(mark, { tone: 'blue' })} searchable={false}
+      leading={foreground
+        ? <span aria-hidden="true" className={`notebook-color-glyph notebook-text-${value}`}>A</span>
+        : <span aria-hidden="true" className={`notebook-highlight-glyph notebook-background-${value}`}>A</span>}
+      options={notebookColorOptions.map(tone => ({ value: tone, label: t(tone),
+        leading: <span className={`notebook-swatch notebook-swatch-${foreground ? 'ink' : 'fill'} notebook-${foreground ? 'text' : 'background'}-${tone}`} />,
+      }))}
+      onChange={tone => {
+        const command = editor.chain().focus();
+        if (tone === 'default') command.unsetMark(mark).run();
+        else command.setMark(mark, { tone }).run();
+      }} />;
+  };
   const toggleMark = (mark: typeof marks[number]) => {
     const command = editor.chain().focus();
     if (mark === 'subscript') command.unsetMark('superscript');
@@ -311,16 +339,17 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
   };
   const markButton = (mark: typeof marks[number]) => <IconButton key={mark} label={t(mark)} aria-pressed={status.marks.includes(mark)}
     disabled={!status.enabledMarks.includes(mark)} onMouseDown={event => event.preventDefault()} onClick={() => toggleMark(mark)}>{glyphs[mark]}</IconButton>;
-  const blockButton = (block: typeof blocks[number], icon: 'bullet' | 'ordered' | 'task' | 'quote' | 'code') => <IconButton key={block} label={t(block)} aria-pressed={status.format === block}
+  const blockButton = (block: typeof notebookBlockStyles[number], icon: 'bullet' | 'ordered' | 'task' | 'quote' | 'code') => <IconButton key={block} label={t(block)} aria-pressed={status.format === block}
     disabled={!status.text} onMouseDown={event => event.preventDefault()} onClick={() => chooseFormat(block)}><Icon name={icon} /></IconButton>;
 
   return <div className="notebook-format">
     <Toolbar className="notebook-toolbar" role="group" aria-label={t('format')}>
-    <Select className="notebook-heading-select" label={t('format')} value={headingValue} disabled={!status.text} searchable={false} menuMinWidth={0}
+    <Select className="notebook-heading-select" label={t('format')} value={status.format} disabled={!status.text} searchable={false} title={t('style')}
       leading={<span aria-hidden="true" className="notebook-heading-mark">{headingValue.startsWith('heading-') ? `H${headingValue.slice(8)}` : 'H'}</span>}
       options={[
         { value: 'paragraph', label: t('paragraph') },
         ...headingLevels.map(level => ({ value: `heading-${level}`, label: t('heading', { level }) })),
+        ...notebookBlockStyles.map(block => ({ value: block, label: t(block) })),
       ]} onChange={chooseFormat} />
     {markButton('bold')}
     {markButton('italic')}
@@ -328,14 +357,8 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
     {markButton('strike')}
     <IconButton label={t(status.link ? 'editLink' : 'insertLink')} aria-pressed={status.link} disabled={!status.canLink}
       onMouseDown={event => event.preventDefault()} onClick={openLink}><Icon name="link" /></IconButton>
-    <Select className="notebook-color-select" label={t('textColor')} value={status.tone} disabled={!status.text || !editor.can().setMark('textColor', { tone: 'blue' })}
-      searchable={false} menuMinWidth={0} leading={<span aria-hidden="true" className={`notebook-text-${status.tone}`}>A</span>}
-      options={['default', ...textTones].map(tone => ({ value: tone, label: t(tone as 'default' | TextTone) }))}
-      onChange={tone => {
-        const command = editor.chain().focus();
-        if (tone === 'default') command.unsetMark('textColor').run();
-        else command.setMark('textColor', { tone }).run();
-      }} />
+    {colorSelect('textColor', status.tone)}
+    {editor.schema.marks.textBackground && colorSelect('textBackground', status.background)}
     {markButton('subscript')}
     {markButton('superscript')}
     <span className="notebook-toolbar-divider" />
@@ -345,20 +368,10 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
     </Toolbar>
     {entryTools && <EntryAiTools editor={editor} />}
     <FormatMenu name={t('more')}>
-      {markButton('code')}
-      {editor.schema.marks.textBackground && <Select className="notebook-color-select" label={t('textBackground')} triggerLabel={t('textBackground')} value={status.background}
-        disabled={!status.text || !editor.can().setMark('textBackground', { tone: 'blue' })} searchable={false}
-        leading={<span aria-hidden="true" className={`notebook-swatch notebook-background-${status.background}`} />}
-        options={['default', ...textTones].map(tone => ({ value: tone, label: t(tone as 'default' | TextTone) }))}
-        onChange={tone => {
-          const command = editor.chain().focus();
-          if (tone === 'default') command.unsetMark('textBackground').run();
-          else command.setMark('textBackground', { tone }).run();
-        }} />}
-      <Button variant="ghost" aria-label={t('blockquote')} aria-pressed={status.format === 'blockquote'} disabled={!status.text}
-        onMouseDown={event => event.preventDefault()} onClick={() => chooseFormat('blockquote')}>{t('blockquote')}</Button>
-      <Button variant="ghost" aria-label={t('codeBlock')} aria-pressed={status.format === 'codeBlock'} disabled={!status.text}
-        onMouseDown={event => event.preventDefault()} onClick={() => chooseFormat('codeBlock')}>{t('codeBlock')}</Button>
+      <Button variant="ghost" aria-pressed={status.marks.includes('code')} disabled={!status.enabledMarks.includes('code')}
+        onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('code')}>{t('code')}</Button>
+      {editor.schema.nodes.horizontalRule && <Button variant="ghost" disabled={!status.inline || !editor.can().setHorizontalRule()}
+        onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().setHorizontalRule().run()}>{t('horizontalRule')}</Button>}
       <Button variant="ghost" aria-label={t('indent')} disabled={!status.canIndent} onMouseDown={event => event.preventDefault()}
         onClick={() => status.listItem && editor.chain().focus().sinkListItem(status.listItem).run()}>{t('indent')}</Button>
       <Button variant="ghost" aria-label={t('outdent')} disabled={!status.canOutdent} onMouseDown={event => event.preventDefault()}
