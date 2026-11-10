@@ -603,6 +603,11 @@ impl ChatPanel {
                 el.children(
                     tools
                         .iter()
+                        .map(|tool| self.embedded_preview(&chat.id, tool, cx)),
+                )
+                .children(
+                    tools
+                        .iter()
                         .map(|tool| self.tool_notices(&chat.id, tool, true, cx)),
                 )
             })

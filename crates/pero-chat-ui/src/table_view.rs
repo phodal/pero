@@ -73,6 +73,8 @@ pub struct TableView {
     #[serde(skip)]
     pub(crate) source_bounds: crate::view_bounds::ViewBounds,
     #[serde(skip)]
+    pub(crate) cite_bounds: crate::view_bounds::ViewBounds,
+    #[serde(skip)]
     missing: bool,
     #[serde(skip)]
     nulls: bool,
@@ -182,6 +184,7 @@ impl TableView {
             artifact_id: receipt.artifact_id,
             data_bounds: Default::default(),
             source_bounds: Default::default(),
+            cite_bounds: Default::default(),
             missing: table
                 .rows
                 .iter()
@@ -369,6 +372,8 @@ impl ChatPanel {
                             chrome,
                             cx,
                         )
+                        .relative()
+                        .child(table.cite_bounds.probe())
                         .on_click(move |_, _, cx| {
                             cx.write_to_clipboard(ClipboardItem::new_string(citation.clone()))
                         }),
