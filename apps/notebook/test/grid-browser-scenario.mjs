@@ -30,8 +30,11 @@ export async function verifyGridTools(page, origin) {
   await expect(cell('A1').locator('..')).toHaveAttribute('data-bold', 'true');
   await data.getByRole('button', { name: 'Text color', exact: true }).click();
   await page.getByRole('option', { name: 'Green', exact: true }).click();
-  await data.getByRole('button', { name: 'Alignment', exact: true }).click();
-  await page.getByRole('option', { name: 'Right', exact: true }).click();
+  await data.getByRole('button', { name: 'Right', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Left', exact: true }).click();
+  await expect(cell('A1')).toHaveCSS('text-align', 'left');
+  await data.getByRole('button', { name: 'Left', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Right', exact: true }).click();
   await expect(cell('A1')).toHaveCSS('text-align', 'right');
 
   await cell('A2').click();
