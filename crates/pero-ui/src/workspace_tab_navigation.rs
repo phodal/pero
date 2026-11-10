@@ -107,10 +107,10 @@ impl WorkspaceNavigation {
         self.focus_pane(pane);
         target
     }
-    pub(crate) fn reopen_closed_view(&mut self) -> Option<PaneItem> {
+    pub(crate) fn reopen_closed_at(&mut self, index: usize) -> Option<PaneItem> {
         let layout = self.pane_layout.as_mut()?;
         let pane = layout.focused?;
-        let item = layout.reopen_closed(pane)?;
+        let item = layout.reopen_closed_at(pane, index)?;
         if let WorkspaceRoute::Content(source) = &item.route {
             if !self.items.contains(source) {
                 self.items.push(source.clone());
