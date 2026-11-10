@@ -61,7 +61,7 @@ export const designContract = {
       "dark": "#0B1420"
     },
     "sidebar": {
-      "light": "#D4E0EC",
+      "light": "#EEF3F8",
       "dark": "#192A3B"
     },
     "list": {

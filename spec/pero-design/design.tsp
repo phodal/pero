@@ -119,7 +119,7 @@ model Metrics {
 /** Page is canvas (`bg`). */
 model PageColor { light: "#F7F9FC"; dark: "#0B1420"; }
 /** Sidebar is `surface-muted`. */
-model SidebarColor { light: "#D4E0EC"; dark: "#192A3B"; }
+model SidebarColor { light: "#EEF3F8"; dark: "#192A3B"; }
 /** One step from the reading surface toward the sidebar. Pinned so both renderers share one hex. */
 model ListColor { light: "#E4EDF5"; dark: "#214058"; }
 /** Reading is `surface` (white in light, surface in dark). */
