@@ -206,3 +206,16 @@ succeeded.
 A second `pero-chat-ui` native library run passed 44 tests, adding the molecule
 receipt test and the formula-source citation assertion. Wasm and the Workbench
 were still not run, so the RDKit SVG was not observed inside GPUI.
+
+## 2026-11-10 Stable citations
+
+`go -C harness/go test -count=1 ./charts` passes, including a table whose method
+is “mean of the saved samples” and whose value origin is calculated. A null cell
+stays null. Changing the origin changes the receipt bytes.
+
+`PERO_GPUI_KIT_PATH=/tmp/gpui-kit CARGO_BUILD_JOBS=1 rustup run nightly-2026-10-28 node scripts/cargo.mjs test -j1 -p pero-chat-ui --features native --lib`
+passes 46 tests. Citation tests show that reversing saved chart/table identities
+does not retarget the original token, and a short Paper location is rejected.
+
+This still does not open the Workbench. Theme, narrow layout, long formulas,
+wide tables, keyboard copy and restart were not observed for these labels.
