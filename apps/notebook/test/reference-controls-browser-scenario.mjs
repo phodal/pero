@@ -43,10 +43,23 @@ export async function verifyReferenceControls(page, origin, output) {
     await button('Replace or restore document').click();
     await expect(documentActions).toBeVisible();
   };
+  const closeDocumentActions = async () => {
+    await button('Close', documentActions).click();
+    await expect(documentActions).toHaveCount(0);
+  };
   await openDocumentActions();
   await button('Restore Pero example').click();
   dialog = page.getByRole('dialog', { name: 'Restore Pero example', exact: true });
-  await button('Cancel', dialog).click(); await expect(title()).toHaveValue('Original working draft');
+  await button('Cancel', dialog).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(documentActions).toBeVisible();
+  await closeDocumentActions();
+  await expect(notebookTab(page, 'Metadata')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByLabel('Project label', { exact: true })).toHaveValue('Current project');
+  await openNotebookView(page, 'Notes');
+  await expect(title()).toHaveValue('Original working draft');
+  await expect(body()).toContainText('Keep these observations.');
+  await openDocumentActions();
   await button('Restore Pero example').click();
   await button('Replace with example').click();
   await expect(title()).toHaveValue('Pero research notebook example');
@@ -62,9 +75,11 @@ export async function verifyReferenceControls(page, origin, output) {
     await documentActions.locator('input[type=file][accept=".json,application/json"]').setInputFiles({ name: 'replacement.json', mimeType: 'application/json', buffer: Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)) });
   };
   await choose('{bad json'); await expect(page.getByRole('alert').filter({ hasText: /JSON/ })).toBeVisible();
+  await closeDocumentActions();
   await expect(title()).toHaveValue('Pero research notebook example');
   await choose({ schemaVersion: 1, title: 'Invalid', content: { type: 'doc', content: [{ type: 'unknown' }] } });
   await expect(page.getByRole('alert').filter({ hasText: /Invalid|Unsupported/ })).toBeVisible();
+  await closeDocumentActions();
   await expect(title()).toHaveValue('Pero research notebook example');
   const replacement = { schemaVersion: 1, title: 'Imported current document', content: { type: 'doc', content: [
     { type: 'namedReference', attrs: { blockId: 'imported-card', name: 'Imported preparation', notes: 'Recorded without a source ID.', kind: 'entry' } },
