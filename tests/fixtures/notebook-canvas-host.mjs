@@ -63,7 +63,7 @@ async function launchHost(directory) {
 }
 
 /** No synthetic App projection, owner receipt or approval ticket enters here. */
-export async function createNotebookCanvasHost(t) {
+export async function createNotebookCanvasHost(t, { controlLab = false } = {}) {
   const pythonEnvironment = canvasPythonEnvironment();
   const directory = await mkdtemp(resolve(tmpdir(), 'pero-notebook-canvas-browser-'));
   let host, server;
@@ -91,7 +91,7 @@ export async function createNotebookCanvasHost(t) {
   });
   await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ app_python: { default: pythonEnvironment } }));
   host = await launchHost(directory);
-  for (const name of ['notebook', 'data']) {
+  for (const name of ['notebook', 'data', ...(controlLab ? ['control-lab'] : [])]) {
     const target = resolve(directory, 'sources', name);
     await mkdir(resolve(target, 'dist'), { recursive: true });
     await cp(resolve(root, 'apps', name, 'backend'), resolve(target, 'backend'), { recursive: true });
@@ -99,6 +99,9 @@ export async function createNotebookCanvasHost(t) {
     if (name === 'notebook') {
       await cp(resolve(root, 'apps/notebook/dist'), resolve(target, 'dist'), { recursive: true });
       await cp(resolve(root, 'packages/source-extraction/python/pero_source_tools.py'), resolve(target, 'backend/pero_source_tools.py'));
+    } else if (name === 'control-lab') {
+      for (const file of ['index.html', 'index.js', 'index.css'])
+        await cp(resolve(root, 'apps/control-lab/dist', file), resolve(target, 'dist', file));
     } else {
       await mkdir(resolve(target, 'backend/_core'), { recursive: true });
       for (const name of ['dataset.py', 'view.py', 'chart_document.py'])
@@ -123,18 +126,22 @@ export async function createNotebookCanvasHost(t) {
     assert.equal(response.ok, true, JSON.stringify(value));
     return value;
   };
-  const files = new Map(await Promise.all([
-    ['/', 'index.html', 'text/html'], ['/index.js', 'index.js', 'text/javascript'], ['/index.css', 'index.css', 'text/css'],
-  ].map(async ([path, name, type]) => [path, {
-    body: await readFile(resolve(directory, 'sources/notebook/dist', name)), type,
-  }])));
+  const assets = [['index.html', 'text/html'], ['index.js', 'text/javascript'], ['index.css', 'text/css']];
+  const files = new Map();
+  for (const name of ['notebook', ...(controlLab ? ['control-lab'] : [])]) {
+    const prefix = name === 'notebook' ? '/' : '/control-lab/';
+    for (const [file, type] of assets) files.set(prefix + (file === 'index.html' ? '' : file), {
+      body: await readFile(resolve(directory, 'sources', name, 'dist', file)), type,
+    });
+  }
   server = createServer(async (request, response) => {
     try {
       const file = files.get(request.url);
+      const name = controlLab && request.headers.referer && new URL(request.headers.referer).pathname === '/control-lab/' ? 'control-lab' : 'notebook';
       if (file) return response.writeHead(200, { 'Content-Type': file.type,
         'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:" }).end(file.body);
       if (request.url === '/host/sdk') {
-        const value = await host.request('sdkcontext', { name: 'notebook' });
+        const value = await host.request('sdkcontext', { name });
         return response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(value));
       }
       const chunks = [];
@@ -152,8 +159,8 @@ export async function createNotebookCanvasHost(t) {
         return response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(value));
       }
       if (request.url?.startsWith('/api/')) {
-        await host.request('apiaccess', { name: 'notebook', path: new URL(request.url, 'http://localhost').pathname });
-        const result = await backendResponse('notebook', request.url, request.method, body);
+        await host.request('apiaccess', { name, path: new URL(request.url, 'http://localhost').pathname });
+        const result = await backendResponse(name, request.url, request.method, body);
         return response.writeHead(result.status, { 'Content-Type': 'application/json' }).end(await result.text());
       }
       response.writeHead(404).end();
@@ -164,7 +171,7 @@ export async function createNotebookCanvasHost(t) {
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   return {
-    origin: `http://127.0.0.1:${server.address().port}`, confirmations, requests, backend,
+    origin: `http://127.0.0.1:${server.address().port}`, confirmations, requests, backend, backendResponse,
     request: (action, fields) => host.request(action, fields),
     async restart() { canvas.close(); await host.close(); host = await launchHost(directory); },
     async changeDataDeclaration() {

@@ -1,5 +1,41 @@
 # Notebook verification
 
+## Control Lab creation through Notebook Canvas (2026-11-10)
+
+Local changes based on `58a3307f` were built and tested on macOS with Chromium,
+the real Rust Host, both production App bundles and the declared Python 3.12
+dependencies. The harness uses loopback HTTP, a test-controlled shell approval
+callback and the Workbench navigation parser to deliver App location events.
+
+[The acceptance test](../../tests/e2e/notebook-control-canvas.mjs) binds the
+PI analytic case to a recorded 8 s horizon and a table-pinned 1,001-sample
+count. It recovers the original action receipt after restarting the Host and
+confirms a second approved submission keeps the same experiment ID. Changing
+the horizon to 9 s makes the old binding stale. A new saved binding creates a
+distinct specification. Both real python-control verification runs report
+PASS. Both exports go through the existing Notebook importer. The original
+Finding still cites the 8 s trial, which reopens in the actual Control Lab UI
+with its original trial and report IDs.
+
+The Chromium ledger and inspected screenshots are under
+`test-results/notebook-canvas/`. The existing Data Canvas Chromium test also
+passed.
+
+The same workflow passed in a separate macOS arm64 Electron 45.1.0 run with
+an isolated Workbench profile. It passed again after rebasing onto `e79ffaf5`
+and rebuilding Desktop and both Apps. macOS Accessibility observed and pressed the
+actual Electron main-process confirmation sheet buttons. Cancel created no
+experiment. Run once created the 8 s experiment, and approving it again
+after restarting Electron and Host kept the owner count at one. A saved 9 s
+binding created the second experiment. The Control Lab UI ran and exported
+both passing trials. Notebook revision 5 retained the original Finding from
+revision 3, and opening its reference displayed the original 8 s trial,
+report ID and specification hash in Control Lab. The solver emitted runtime
+warnings during the run. Both exports passed the Notebook import checks.
+
+The Electron evidence ledger, native confirmation capture and reopened
+trial screenshot are under `test-results/notebook-canvas/electron/`.
+
 ## Header navigation removal (2026-11-10)
 
 On top of `9b30b913`, the document-name, Relevant items and Metadata header
