@@ -358,24 +358,20 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
   }}>
     <div className="notebook-jupyter">
-      <div className="notebook-menubar">
+      <div className="notebook-command-row">
+      {chrome?.snapshot ? <div className="notebook-toolbar-end">
+        <Button variant="ghost" onClick={chrome.onBack}>{notebook('backToDraft')}</Button>
+        <Button variant="ghost" disabled={chrome.restoreDisabled} onClick={chrome.onRestore}>{notebook('restoreDraft')}</Button>
+      </div> : tools}
         <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
-          <TabsTrigger value="notes" data-view="notes" aria-label={t('notes')}>{document.title.trim() || notebook('untitled')}</TabsTrigger>
-          {(['relevant', 'metadata'] as const).map(value => <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}
           <NotebookMenu name={t('viewMenu')} menu="view" icon="chevron-down">
-            {(['procedures', 'review'] as const).map(value => <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}
+            {views.map(value => <TabsTrigger key={value} value={value} {...(value === 'notes' ? { 'data-view': 'notes', 'aria-label': t('notes') } : {})}>{t(value)}</TabsTrigger>)}
             <EntryWorkspaceActions readonly={readonly} split={split} procedures={document.procedures ?? []}
               onToggleSplit={() => setSplit(value => !value)}
               onAdded={(procedures, id) => { onChange({ procedures }); setSelectedProcedure(id); setSplit(true); setError(''); }}
               onError={setError} onMention={() => setMention({ name: '', note: '' })} />
           </NotebookMenu>
         </TabsList>
-      </div>
-      <div className="notebook-command-row">
-      {chrome?.snapshot ? <div className="notebook-toolbar-end">
-        <Button variant="ghost" onClick={chrome.onBack}>{notebook('backToDraft')}</Button>
-        <Button variant="ghost" disabled={chrome.restoreDisabled} onClick={chrome.onRestore}>{notebook('restoreDraft')}</Button>
-      </div> : tools}
       </div>
       <div className="notebook-diagnostics-host" />
     </div>

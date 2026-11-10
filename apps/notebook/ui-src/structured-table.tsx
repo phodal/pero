@@ -24,7 +24,7 @@ export const structuredTableMessages = {
   pickCatalog: { en: 'Choose catalog value for {cell}', zh: '为 {cell} 选择目录值' },
   autofill: { en: 'After registration, fill references into', zh: '登记后将引用填入' },
   autofillNone: { en: 'Do not autofill', zh: '不自动填充' },
-  autofillHint: { en: 'Choose an optional object column to fill empty cells with committed catalog, record and version identities. Existing values stay unchanged. Filled references are draft edits, not a second registration.', zh: '选择可选对象列，将已提交的目录、记录和版本身份填入空单元格。保留已有值。填入的引用属于草稿编辑，不会再次登记。' },
+  autofillHint: { en: 'Fills empty cells with registered references. Existing values stay unchanged.', zh: '将已登记的引用填入空单元格，保留已有值。' },
   committed: { en: 'The local catalog committed {count} records. Any filled references belong to this draft; save the entry to retain them.', zh: '本地目录已提交 {count} 条记录。填入的引用属于当前草稿，请保存笔记以保留这些引用。' },
   receiptUnapplied: { en: 'The catalog committed this snapshot, but the notebook is now read-only. The draft was not changed.', zh: '目录已提交此快照，但笔记现为只读。草稿未更改。' },
   filteredEmpty: { en: 'No rows match this view. Show all rows or edit its filter.', zh: '没有匹配此视图的行。请显示全部行或修改筛选条件。' },
@@ -38,7 +38,8 @@ export const structuredTableMessages = {
   hashUnavailable: { en: 'Secure hashing is unavailable. Open Notebook in a secure browser context to submit; your editable draft is retained.', zh: '当前无法进行安全摘要计算。请在安全的浏览器环境中打开 Notebook 后提交；可编辑草稿仍已保留。' },
   resubmit: { en: 'Confirm snapshot in this catalog', zh: '在当前目录中确认此快照' },
   localCatalog: { en: 'Notebook local catalog', zh: 'Notebook 本地目录' },
-  catalogScope: { en: 'Records are stored in this Notebook installation, not an external inventory or registry. Saving a notebook does not register rows.', zh: '记录保存于当前 Notebook 安装的本地目录，不会写入外部库存或注册系统。保存笔记不会登记行。' },
+  registrationScope: { en: 'Registration scope', zh: '登记范围' },
+  catalogScope: { en: 'Registers rows in the local Notebook catalog.', zh: '将数据行登记到本地笔记目录。' },
   inputDraft: { en: 'Input draft', zh: '输入草稿' },
   submitted: { en: 'Submitted snapshot', zh: '已提交快照' },
   changed: { en: 'Unsubmitted changes', zh: '有尚未提交的更改' },
@@ -73,7 +74,7 @@ export const structuredTableMessages = {
   record: { en: 'Record', zh: '记录' },
   row: { en: 'Row', zh: '行' },
   version: { en: 'Version', zh: '版本' },
-  noRows: { en: 'No draft rows. Add a row to enter values.', zh: '尚无草稿行，请添加行输入数据。' },
+  noRows: { en: 'No rows', zh: '暂无数据行' },
   lookupSchema: { en: 'Schema ID (empty searches all schemas)', zh: '数据结构 ID（留空查询全部）' },
   lookupText: { en: 'Search catalog records', zh: '搜索目录记录' },
   lookupLimit: { en: 'Maximum records', zh: '最多显示的记录数' },
@@ -176,7 +177,6 @@ function ReceiptHistory({ receipts }: { receipts: RegistrationReceipt[] }) {
   const { t } = useAppI18n(structuredTableMessages);
   if (!receipts.length) return null;
   return <Disclosure variant="inline" summary={t('receiptHistory', { count: receipts.length })}>
-    <p className="notebook-note">{t('receiptScope')}</p>
     {[...receipts].reverse().map(receipt => <Disclosure key={`${receipt.catalogId}:${receipt.submissionId}`} variant="inline" summary={`${receipt.registeredAt} · ${receipt.records.length}`}>
       {receipt.waiver && <WaiverAudit waiver={receipt.waiver} />}
       <dl className="notebook-reference-details">
@@ -251,12 +251,15 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
     finally { inFlight.current = false; if (mounted.current) setBusy(false); }
   };
   const kind = registration ? 'registrationTable' : 'inputTable';
-  return <BlockFrame view={view} kind={kind} title={<Input className="notebook-block-name" unstyled aria-label={t('tableName')} placeholder={t(kind)} maxLength={200} readOnly={!editable} value={table.name} onChange={event => edit({ type: 'name', value: event.target.value })} />}
+  return <BlockFrame view={view} kind={kind}
+    help={registration ? { title: t('registrationScope'), content: <p>{t('catalogScope')}</p> } : undefined}
+    title={<Input className="notebook-block-name" unstyled aria-label={t('tableName')} placeholder={t(kind)} maxLength={200} readOnly={!editable} value={table.name} onChange={event => edit({ type: 'name', value: event.target.value })} />}
     caption={<Badge tone={submitted ? 'info' : 'neutral'}>{t(submitted ? 'submitted' : receipts.length ? 'changed' : 'inputDraft')}</Badge>}>
-    <div className="notebook-structured-metadata"><span>{t('schema')}: <code>{table.schema.id}</code></span><span>{t('revision', { number: table.schema.revision })}</span></div>
-    {registration && <p className="notebook-note">{t('catalogScope')}</p>}
+    <Disclosure variant="inline" summary={t('schema')}>
+      <p><code>{table.schema.id}</code> · {t('revision', { number: table.schema.revision })}</p>
+    </Disclosure>
     <TableWorkflowTools table={table} receipts={receipts} editable={editable} activeView={activeView} onViewChange={setActiveView} onApplyTable={next => { if (mounted.current && view.editor.isEditable) view.updateAttributes({ table: next }); }} />
-    {activeView && !viewError && <p className="notebook-note">{t('projected', { name: activeView.name, visible: projected.rows.length, total: table.rows.length })}</p>}
+    {activeView && !viewError && <p role="status">{t('projected', { name: activeView.name, visible: projected.rows.length, total: table.rows.length })}</p>}
     {viewError && <Feedback kind="warning">{viewError}</Feedback>}
     {issues.length > 0 && <Feedback kind="warning">{t('validation', { count: issues.length })}
       <ul>{issues.filter(issue => !issue.rowId).map((issue, index) => <li key={index}>{issue.columnId ? `${table.schema.columns.find(col => col.id === issue.columnId)?.name || issue.columnId}: ` : ''}{t(issueKey(issue.code))}</li>)}</ul>
@@ -264,8 +267,6 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
     <div className="notebook-structured-scroll"><table className="notebook-structured-grid"><thead><tr><th>{t('row')}</th>
       {projected.columns.map(col => <th key={col.id}>
         {editable ? <Button variant="ghost" title={t('columnSettings')} onClick={() => setColumn(col)}>{col.name || t('columnSettings')}{col.required ? ' *' : ''}</Button> : <strong>{col.name}{col.required ? ' *' : ''}</strong>}
-        <div className="notebook-note">{t(col.type)}</div>
-        {col.type === 'quantity' && <small>{t('quantityHint', { units: col.units.join(', ') })}</small>}
       </th>)}{editable && <th />}</tr></thead>
       <tbody>{projected.rows.map(row => { const index = table.rows.findIndex(item => item.id === row.id); return <tr key={row.id}><th scope="row" title={row.id}>{index + 1}</th>
         {projected.columns.map(col => { const label = `${col.name}, ${t('row')} ${index + 1}`; return <td key={col.id}>
@@ -275,7 +276,7 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
         {editable && <td><Button variant="ghost" onClick={() => edit({ type: 'removeRow', id: row.id })}>{t('removeRow', { number: index + 1 })}</Button></td>}
       </tr>; })}</tbody></table></div>
     {!!table.rows.length && !projected.rows.length && <p>{t('filteredEmpty')}</p>}
-    {!table.rows.length && <p className="notebook-note">{t('noRows')}</p>}
+    {!table.rows.length && !editable && <p className="notebook-note">{t('noRows')}</p>}
     {editable && <div className="notebook-structured-actions">
       <Button variant="ghost" disabled={table.rows.length >= structuredTableLimits.rows} onClick={() => edit({ type: 'addRow', id: identity() })}>{t('addRow')}</Button>
       <Button variant="ghost" disabled={table.schema.columns.length >= structuredTableLimits.columns} onClick={() => setColumn({ id: identity(), name: t('column', { number: table.schema.columns.length + 1 }), type: 'text', required: false, options: [], units: [] })}>{t('addColumn')}</Button>
@@ -290,7 +291,7 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
       </Disclosure>}
       <Field label={t('autofill')}>{control => <NativeSelect {...control} value={referenceColumnId} disabled={!editable} onChange={event => setAutofill({ scope: viewScope, columnId: event.target.value })}>
         <option value="">{t('autofillNone')}</option>{autofillColumns.map(column => <option key={column.id} value={column.id}>{column.name}</option>)}
-      </NativeSelect>}</Field><p className="notebook-note">{t('autofillHint')}</p>
+      </NativeSelect>}</Field>
       <Button variant="primary" busy={busy} disabled={!!issues.length || !hash || receipts.length >= structuredTableLimits.receipts} onClick={() => void submit()}>{t(error ? 'retrySubmit' : submitted ? 'resubmit' : 'submit')}</Button>
     </>}
     {confirmation?.scope === viewScope && <Feedback kind={confirmation.applied ? 'success' : 'warning'}>{t(confirmation.applied ? 'committed' : 'receiptUnapplied', { count: confirmation.receipt.records.length })}</Feedback>}
@@ -333,7 +334,7 @@ export function LookupTableView(view: NodeViewProps) {
     } catch (cause) { if (mounted.current) setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { if (mounted.current) setBusy(false); }
   };
-  return <BlockFrame view={view} kind="lookupTable" title={<strong>{t('lookupTable')}</strong>} caption={<Badge>{t('localCatalog')}</Badge>}>
+  return <BlockFrame view={view} kind="lookupTable" title={<strong>{t('lookupTable')}</strong>}>
     <div className="notebook-structured-query">
       <label className="notebook-field">{t('lookupSchema')}<Input maxLength={128} value={query.schemaId} readOnly={!editable || busy} onChange={event => update({ schemaId: event.target.value })} /></label>
       <label className="notebook-field">{t('lookupText')}<Input maxLength={200} value={query.text} readOnly={!editable || busy} onChange={event => update({ text: event.target.value })} /></label>

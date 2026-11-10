@@ -352,19 +352,25 @@ function Notebook() {
     });
   });
 
-  return <AppFrame label={t('notebook')} className="notebook-app"
-    tools={<><Button variant="ghost" aria-expanded={navigationOpen} aria-controls="notebook-list"
-      onClick={() => setNavigationOpen(open => !open)}>{t('notebooks')}</Button><Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button>
-      <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} /></>}
-    actions={<IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>}>
+  const catalogActions = <>
+    <Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button>
+    <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />
+    <IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>
+  </>;
+  return <AppFrame label={t('notebook')} className="notebook-app">
     {catalogError && <Feedback kind="error" variant="block">{catalogError} <Button onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
     {error && <Feedback kind="error" variant="block">{error}</Feedback>}
     {replacementNotice && <Feedback kind="success" variant="block">{replacementNotice}</Feedback>}
     {!entries ? (catalogError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
       : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />}
-        heading={t('noNotebooks')} description={t('start')} />
+        heading={t('noNotebooks')} description={t('start')} actions={catalogActions} />
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
+          <div className="notebook-nav-tools">
+            <Button variant="ghost" aria-expanded={navigationOpen} aria-controls="notebook-list"
+              onClick={() => setNavigationOpen(false)}>{t('notebooks')}</Button>
+            {catalogActions}
+          </div>
           <ul className="notebook-list">
             {entries.map(entry => {
               const local = drafts[entry.id];
@@ -375,6 +381,10 @@ function Notebook() {
           </ul>
         </SplitPane>}
         <SplitPane as="section" id="notebook-document" aria-label={t('body')} min={350} className="notebook-page">
+          {!navigationOpen && <div className="notebook-nav-reopen">
+            <Button variant="ghost" aria-expanded={false} aria-controls="notebook-list"
+              onClick={() => setNavigationOpen(true)}>{t('notebooks')}</Button>
+          </div>}
           {openError && <Feedback kind="error" variant="block">{openError} <Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback>}
           {!shown || !draft || !current ? (openError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
             : <div className="notebook-document" onKeyDownCapture={event => {

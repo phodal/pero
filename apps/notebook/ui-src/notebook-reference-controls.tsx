@@ -16,7 +16,7 @@ export function NamedReferenceView(view: NodeViewProps) {
   const [editing, setEditing] = useState(false);
   return <BlockFrame view={view} kind="namedReference" title={<strong>{view.node.attrs.name}</strong>}
     actions={view.editor.isEditable && <Button variant="ghost" onClick={() => setEditing(true)}>{t('editNamedReference')}</Button>}>
-    <p>{view.node.attrs.notes}</p><small>{t('namedReferenceKind')}</small>
+    <p>{view.node.attrs.notes}</p>
     {editing && <ReferenceDialog initial={view.node.attrs} onClose={() => setEditing(false)} onInsert={attrs => { view.updateAttributes(attrs); setEditing(false); }} />}
   </BlockFrame>;
 }

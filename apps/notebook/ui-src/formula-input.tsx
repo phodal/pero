@@ -7,7 +7,6 @@ import { inspectFormulaSyntax } from '@pero/notebook/formula-syntax';
 
 const messages = {
   suggestions: { en: 'Formula function suggestions', zh: '公式函数建议' },
-  hint: { en: 'Arrow keys choose a function. Enter or Tab inserts it; Escape dismisses.', zh: '方向键选择函数，Enter 或 Tab 插入，Escape 关闭。' },
 };
 type Props = ComponentPropsWithoutRef<typeof Input> & { value: string; onComplete(value: string): void };
 
@@ -89,7 +88,6 @@ export const FormulaInput = forwardRef<HTMLInputElement, Props>(function Formula
     {formula && <div className={['pero-ui-input', props.className, 'notebook-formula-highlight'].filter(Boolean).join(' ')}
       data-unstyled={props.unstyled || undefined} aria-hidden="true"><span style={{ transform: `translateX(${-scroll}px)` }}>{highlights}{value.slice(offset)}</span></div>}
     {!!names.length && createPortal(<div id={id} role="listbox" aria-label={t('suggestions')} className="notebook-formula-completions" style={position}>
-      <p className="notebook-note">{t('hint')}</p>
       {names.map((name, index) => <Button key={name} id={`${id}-${index}`} role="option" aria-selected={selected === index}
         variant="ghost" tabIndex={-1} onPointerDown={event => event.preventDefault()} onClick={() => accept(name)}>
         <span className="notebook-formula-name">{name}</span><span className="notebook-formula-syntax">{formulaHelp[name].syntax}</span><small>{formulaHelp[name].description}</small>

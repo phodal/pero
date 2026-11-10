@@ -337,7 +337,8 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await page.reload();
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
-  await expect(page.locator('.notebook-menubar [role=tab][data-view=notes]')).toHaveText('Copied review');
+  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
+  await expect(page.locator('.notebook-command-row details[data-menu=view]')).toHaveCount(1);
   await expect(page.locator('.notebook-statusbar details[data-menu=view]')).toHaveCount(0);
   await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
   await finding.scrollIntoViewIfNeeded();
@@ -360,7 +361,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(page.locator('[data-kind=spreadsheet]').first().locator('[data-cell=A1]')).toHaveValue('4');
   await page.getByRole('textbox', { name: 'Notebook title' }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(output, 'copied-notebook-narrow-dark.png'), fullPage: true });
-  await expect(page.locator('.notebook-menubar [role=tab][data-view=notes]')).toHaveText('Copied review');
+  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await finding.scrollIntoViewIfNeeded();
   await expect(finding.getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
   await expect(finding.getByRole('checkbox', { name: /Locked control trial/ })).toBeChecked();

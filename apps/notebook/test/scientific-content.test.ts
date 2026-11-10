@@ -50,7 +50,7 @@ test('scientific blocks draw graphs, submit local records, retain pinned derivat
   });
   const data = () => editor.getJSON().content.find((node: any) => node.type === 'reactionScheme').attrs;
   await mount({ type: 'doc', content: [{ type: 'reactionScheme', attrs: { blockId: 'reaction-block', reaction: reaction(), record: null } }] });
-  await fill('Element', 'O'); await fill('Atom X (0–600)', '180'); await click(button('Add atom'));
+  await fill('Element', 'O'); await fill('X', '180'); await click(button('Add atom'));
   assert.equal(data().reaction.molecules[0].graph.atoms.length, 2);
   await fill('Bond to atom', 'c'); await fill('Bond order', '2'); await click(button('Set bond'));
   assert.equal(data().reaction.molecules[0].graph.bonds[0].order, 2);
@@ -157,7 +157,7 @@ test('chemical imports retain supplied pins without claiming extraction before a
   await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.Fixture, {
     content: { type: 'doc', content: [{ type: 'chemical', attrs: { blockId: 'chemical', chemical } }] }, capture: (value: any) => { editor = value; },
   })));
-  const status = () => document.querySelector('[data-kind=chemical] p[role=status]')!.textContent!;
+  const status = () => document.querySelector('[data-kind=chemical] [role=status]')!.textContent!;
   const saved = () => editor.getJSON().content.find((node: any) => node.type === 'chemical').attrs.chemical;
   const settle = async (condition: () => boolean) => {
     const deadline = Date.now() + 3000;

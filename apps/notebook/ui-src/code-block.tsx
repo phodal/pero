@@ -7,7 +7,7 @@ import { rememberWidgetFocus } from './block-order';
 export const notebookCodeLanguages = ['plaintext', 'python', 'javascript'] as const;
 const messages = {
   language: { en: 'Code language', zh: '代码语言' },
-  code: { en: 'Code source (not executed)', zh: '代码内容（不执行）' },
+  code: { en: 'Code', zh: '代码' },
   plaintext: { en: 'Plain text', zh: '纯文本' },
   remove: { en: 'Remove code block', zh: '删除代码块' },
 };

@@ -45,11 +45,14 @@ export function MixturePrepView(view: NodeViewProps) {
   </div>;
   let estimate: MixtureQuantity | null = null, estimateError = '';
   try { estimate = mixtureQSEstimate(draft); } catch (cause) { estimateError = cause instanceof Error ? cause.message : String(cause); }
-  return <BlockFrame view={view} kind="mixturePrep" title={<strong>{draft.name || t('title')}</strong>} caption={saved && <Badge>v{saved.revision}</Badge>}>
-    <p className="notebook-note">{t('local')}</p>
+  return <BlockFrame view={view} kind="mixturePrep"
+    title={editable
+      ? <Input unstyled className="notebook-block-name" aria-label={t('name')} placeholder={t('title')} maxLength={200}
+        value={draft.name} onChange={event => changeRecipe({ name: event.target.value })} />
+      : <strong>{draft.name || t('title')}</strong>}
+    caption={saved && <Badge>v{saved.revision}</Badge>}>
     {error && <Feedback kind="error">{error}</Feedback>}
     <div className="notebook-mixture-form">
-      <Field label={t('name')}>{control => <Input {...control} disabled={!editable} maxLength={200} value={draft.name} onChange={event => changeRecipe({ name: event.target.value })} />}</Field>
       <Field label={t('output')}>{control => <Input {...control} disabled={!editable} maxLength={200} value={draft.output} onChange={event => changeRecipe({ output: event.target.value })} />}</Field>
       {quantity(t('target'), draft.target, target => changeRecipe({ target }), Object.keys(mixtureUnits).filter(unit => !draft.ingredients.some(i => i.mode === 'qs') || mixtureDimension(unit) === 'volume'))}
       <Field label={t('notes')}>{control => <Textarea {...control} disabled={!editable} maxLength={4000} value={draft.notes} onChange={event => changeRecipe({ notes: event.target.value })} />}</Field>
@@ -72,11 +75,10 @@ export function MixturePrepView(view: NodeViewProps) {
     {editable && <Button disabled={draft.ingredients.length >= 100} onClick={() => changeRecipe({ ingredients: [...draft.ingredients, { id: crypto.randomUUID(), reference: '', source: '', mode: 'quantity', target: { value: null, unit: draft.target.unit } }] })}>{t('add')}</Button>}
     {draft.ingredients.some(i => i.mode === 'qs') && <>
       <Select label={t('assumption')} disabled={!editable} value={draft.additiveVolumes ? 'yes' : 'no'} options={[{ value: 'no', label: t('off') }, { value: 'yes', label: t('on') }]} onChange={value => changeRecipe({ additiveVolumes: value === 'yes' })} />
-      <p>{t('caveat')}</p><p>{t('assumption')}: {shownAmount(estimate?.value)} {estimate?.unit}</p>
+      <p role="status">{t('assumption')}: {shownAmount(estimate?.value)} {estimate?.unit}</p>
       {estimateError && <Feedback kind="error">{estimateError}</Feedback>}
     </>}
     {editable && <><Button disabled={!dirty || state.recipes.length >= 100} onClick={() => run(() => update(saveMixtureRecipe(state)))}>{t('save')}</Button>
-      {dirty && <p>{t('dirty')}</p>}
       <div className="notebook-mixture-form">
         <Field label={t('operator')}>{control => <Input {...control} maxLength={200} value={operator} onChange={event => setOperator(event.target.value)} />}</Field>
         <Field label={t('actualOutput')}>{control => <Input {...control} maxLength={200} value={output} onChange={event => setOutput(event.target.value)} />}</Field>

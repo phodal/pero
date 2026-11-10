@@ -141,7 +141,7 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
         menu?.removeAttribute('open');
       }}>{t('plateGeometry', { wells: rows * columns, rows, columns })}</Button>)}
     </details>
-    <FilePicker compact label={t('attachment')} emptyLabel="" variant="ghost" busy={importing} onFile={file => {
+    <FilePicker compact label={t('attachment')} title={contentT('attachmentFileLimit')} emptyLabel="" variant="ghost" busy={importing} onFile={file => {
       setImporting(true); setError('');
       void createAttachment(file, contentT).then(attrs => { if (!editor.isDestroyed) insertBlocks(editor, [{ type: 'attachment', attrs }]); })
         .catch(cause => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setImporting(false));

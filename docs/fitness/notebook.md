@@ -1,5 +1,27 @@
 # Notebook verification
 
+## Block copy and controls (2026-11-10)
+
+Local worktree changes based on `07fcd4ff` move scientific names into the
+editable block header, replace the drawing instructions with a canvas empty
+state, and reveal atom and bond controls as their selections become relevant.
+The shared BlockFrame menu opens SDK dialogs for drawing scope, worksheet
+shortcuts, attachment storage, registration scope, and Canvas permissions.
+Source revision and verification status remain visible while IDs and
+timestamps are available on demand.
+
+The Notebook build, typecheck, and all three Chromium browser tests passed
+with the local Notebook Python environment. The scientific scenario exercised
+empty-to-populated drawing, keyboard expansion of exact positioning, bond
+creation, JSON download and import, and focus returning to the block menu
+after Escape. Inspected the local Chinese dark empty canvas and Chromium
+captures at 1320 × 950 light and 520 × 900 dark in
+`test-results/notebook/scientific-graph-light.png` and
+`test-results/notebook/scientific-graph-narrow-dark.png`. The sample intake
+scenario also passed at 600 × 900 dark. The editor suite passed 82 of 83 tests,
+with the previously recorded scoped-keyboard assertion still failing.
+Electron, Native, and installed App approvals were outside this pass.
+
 ## New notebook body focus (2026-11-10)
 
 Local changes on `71e7c7d7` focus the first paragraph when a blank notebook

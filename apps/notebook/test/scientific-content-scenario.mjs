@@ -17,9 +17,17 @@ export async function verifyScientificDesigns(page, origin, output) {
   await reaction.getByLabel('Name', { exact: true }).fill('Explicit graph conversion');
   await button('Add molecule', reaction).click();
   await reaction.getByLabel('Molecule Name', { exact: true }).fill('Starting graph');
+  const emptyCanvasHint = reaction.getByText('Click the canvas to add an atom', { exact: true });
+  await expect(emptyCanvasHint).toBeVisible();
+  await expect(reaction.getByLabel('Bond to atom', { exact: true })).toHaveCount(0);
   await button('Add atom', reaction).click();
+  await expect(emptyCanvasHint).toHaveCount(0);
   await reaction.getByLabel('Element', { exact: true }).selectOption('O');
-  await reaction.getByLabel('Atom X (0–600)', { exact: true }).fill('180');
+  const position = reaction.getByText('Exact position', { exact: true });
+  await position.press('Enter');
+  const x = reaction.getByRole('spinbutton', { name: 'X', exact: true });
+  await expect(x).toBeVisible();
+  await x.fill('180');
   await button('Add atom', reaction).click();
   const from = await reaction.getByLabel('Bond to atom', { exact: true }).locator('option').nth(1).getAttribute('value');
   await reaction.getByLabel('Bond to atom', { exact: true }).selectOption(from);
@@ -31,19 +39,27 @@ export async function verifyScientificDesigns(page, origin, output) {
   await reaction.getByLabel('Molecule Name', { exact: true }).fill('Product graph');
   await button('Add atom', reaction).click();
   await button('Save local reaction record', reaction).click();
-  await expect(reaction.getByText(/Saved local record:/)).toBeVisible();
+  await expect(reaction.getByText('Saved local record · v1', { exact: true })).toBeVisible();
   await expect(button('Save next local revision', reaction)).toBeDisabled();
   await button('Embed saved molecule', reaction).click();
   const chemical = page.locator('[data-kind=chemical]').first();
   await expect(chemical.getByText(/Extracted from recorded/)).toBeVisible();
   const download = page.waitForEvent('download');
-  await button('Download chemical JSON', chemical).click();
+  await button('Block actions', chemical).click();
+  await page.getByRole('menuitem', { name: 'Download JSON', exact: true }).click();
   const chunks = [];
   for await (const chunk of await (await download).createReadStream()) chunks.push(chunk);
   const downloaded = Buffer.concat(chunks), exported = JSON.parse(downloaded.toString());
   assert.equal(exported.format, 'pero-chemical/1'); assert.equal(exported.chemical.source.revision, 1);
   await chemical.getByLabel('Chemical JSON file', { exact: true }).setInputFiles({ name: 'chemical.json', mimeType: 'application/json', buffer: downloaded });
   await expect(chemical.getByText(/Extracted from recorded/)).toBeVisible();
+  await button('Block actions', chemical).click();
+  await page.getByRole('menuitem', { name: 'Supported features', exact: true }).click();
+  const support = page.getByRole('dialog', { name: 'Supported features', exact: true });
+  await expect(support).toContainText('Explicit atoms');
+  await support.getByRole('button', { name: 'Close', exact: true }).press('Escape');
+  await expect(button('Block actions', chemical)).toBeFocused();
+  await chemical.getByRole('group', { name: 'Molecular drawing' }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(output, 'scientific-graph-light.png'), fullPage: true });
 
   await ensureMoreTools(page);
@@ -79,5 +95,6 @@ export async function verifyScientificDesigns(page, origin, output) {
   await page.setViewportSize({ width: 520, height: 900 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: true, active: true } }, location.origin));
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'pero-dark');
+  await chemical.getByRole('group', { name: 'Molecular drawing' }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(output, 'scientific-graph-narrow-dark.png'), fullPage: true });
 }

@@ -90,6 +90,9 @@ const gridMessages = {
   fillLimit: { en: 'A filled formula exceeds the cell length limit.', zh: '填充后的公式超出单元格长度限制。' },
   clearCells: { en: 'Clear cells', zh: '清空单元格' },
   selectedRange: { en: 'Selected range {address}', zh: '已选区域 {address}' },
+  worksheetHelp: { en: 'Worksheet shortcuts', zh: '工作表快捷操作' },
+  formulaPlaceholder: { en: 'Value or =formula', zh: '输入值或以 = 开始公式' },
+  pasteHint: { en: 'Paste CSV or TSV into the selected cell.', zh: '将 CSV 或 TSV 粘贴到选中的单元格。' },
   rangeHint: {
     en: 'Shift-click or use Shift with the arrow keys to select a range.',
     zh: '按住 Shift 单击或使用 Shift 加方向键来选择区域。',
@@ -412,8 +415,10 @@ export function SpreadsheetView(view: NodeViewProps) {
     setError(result === 'invalid' ? t('invalidSheetName') : result === 'duplicate' ? t('workbookNameConflict') : '');
     setWorksheetName(null);
   };
-  return <BlockFrame view={view} kind="spreadsheet"
+  const gridWidth = rowIndexWidth + Array.from({ length: sheet.columns }, (_, column) => axisControls.size('column', column)).reduce((sum, width) => sum + width, 0);
+  return <BlockFrame view={view} kind="spreadsheet" style={{ '--notebook-grid-width': `${gridWidth}px` } as CSSProperties}
     actions={editable && <IconButton className="notebook-sheet-download" label={t('exportCsv')} disabled={exporting} onClick={() => downloadFile(`${(calculation?.name ?? label).replace(/[<>|"\u0000-\u001f]/g, '_')}.csv`, exportWorksheetCsv(sheet, values), 'text/csv;charset=utf-8')}><Icon name="download" /></IconButton>}
+    help={editable ? { title: t('worksheetHelp'), content: <ul><li>{t('pasteHint')}</li><li>{t('rangeHint')}</li><li>{axisControls.instructions}</li></ul> } : undefined}
     menuActions={<>
       {editable && <DropdownMenuItem onSelect={() => setToolsOpen(value => !value)}>{t('worksheetTools')}</DropdownMenuItem>}
       {editable && <DropdownMenuItem onSelect={() => setDetailsOpen(value => !value)}>{t('cellDetails')}</DropdownMenuItem>}
@@ -456,7 +461,6 @@ export function SpreadsheetView(view: NodeViewProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <p className="notebook-note">{t('gridHint')} {t('rangeHint')} {axisControls.instructions}</p>
     </div>}
     {(detailsOpen || !editable) && <CellAnnotations view={view} address={address} editable={editable} />}
     <div className="notebook-sheet-format" role="group" aria-label={t('format')}>
@@ -502,7 +506,7 @@ export function SpreadsheetView(view: NodeViewProps) {
       </DropdownMenu>
       <div className="notebook-formula-field">
       <output aria-label={t(isRange ? 'selectedRange' : 'cell', { address: rangeAddress })}>{rangeAddress}</output>
-      <FormulaInput ref={formulaInput} onComplete={value => editCell(active, value, true)} aria-label={t('rawCell')} placeholder="" value={source} readOnly={!editable}
+      <FormulaInput ref={formulaInput} onComplete={value => editCell(active, value, true)} aria-label={t('rawCell')} placeholder={editable ? t('formulaPlaceholder') : ''} value={source} readOnly={!editable}
         maxLength={spreadsheetLimits.cellLength} onFocus={() => beginEdit(active)} onBlur={() => finishEdit(address)} onChange={event => {
           const shown = editCell(active, event.target.value);
           if (event.target.value !== shown) event.target.value = shown;
@@ -513,8 +517,7 @@ export function SpreadsheetView(view: NodeViewProps) {
       </div>
       </div>
     </div>
-    <div ref={grid} onScrollCapture={axisControls.rememberScroll}
-      style={{ '--notebook-grid-width': `${rowIndexWidth + Array.from({ length: sheet.columns }, (_, column) => axisControls.size('column', column)).reduce((sum, width) => sum + width, 0)}px` } as CSSProperties}>
+    <div ref={grid} onScrollCapture={axisControls.rememberScroll}>
       <Table label={t('spreadsheet')} density="compact" layout="fixed" className="notebook-grid-scroll" tableClassName="notebook-grid">
         <colgroup><col style={{ width: rowIndexWidth }} />{Array.from({ length: sheet.columns }, (_, column) => <col key={column} style={{ width: axisControls.size('column', column) }} />)}</colgroup>
         <thead><tr><th scope="col" aria-label="#" />

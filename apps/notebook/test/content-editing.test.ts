@@ -92,7 +92,7 @@ test('Code blocks follow live read-only changes without replacing their document
   });
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'notebook', locale: 'en' }) },
     React.createElement(ui.Fixture, { capture: (value: any) => { editor = value; } })));
-  const source = () => document.querySelector('[aria-label="Code source (not executed)"]')!;
+  const source = () => document.querySelector('[aria-label="Code"]')!;
   const language = () => document.querySelector<HTMLButtonElement>('button[aria-label="Code language"]')!;
   const remove = () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Remove code block');
   const node = editor.state.doc.firstChild;

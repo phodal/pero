@@ -89,16 +89,17 @@ test('workspace empty states render their labels and guidance in the active view
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'notebook', locale: 'en' }) },
     React.createElement(ui.NotebookWorkspace, { editor, entryId: 'empty', revision: 1, document: { schemaVersion: 1, title: 'Empty', content }, readonly: false, onChange() {} })));
   assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Notebook title"]')?.value, 'Empty');
-  const notes = document.querySelector<HTMLElement>('.notebook-menubar [role=tab][data-view=notes]');
-  assert.equal(notes?.textContent, 'Empty');
-  assert.equal(notes?.getAttribute('aria-label'), 'Notes');
-  assert.deepEqual([...document.querySelectorAll('.notebook-menubar > .notebook-view-tabs > [role=tab]')].map(node => node.textContent), ['Empty', 'Relevant items', 'Metadata']);
+  assert.equal(document.querySelector('.notebook-menubar'), null);
+  const viewMenu = document.querySelector<HTMLDetailsElement>('.notebook-command-row details[data-menu=view]');
+  assert.ok(viewMenu);
   assert.equal(document.querySelector('.notebook-statusbar details[data-menu=view]'), null);
+  viewMenu.open = true;
+  assert.deepEqual([...viewMenu.querySelectorAll('[role=tab]')].map(node => node.textContent), ['Notes', 'Procedures', 'Relevant items', 'Metadata', 'Review and activity']);
   for (const [tab, heading, guidance] of [
     ['Procedures', 'No procedures yet', 'Add a procedure to record materials and step-by-step instructions.'],
     ['Relevant items', 'No relevant items yet', 'Add a named entry reference here'],
   ]) {
-    const trigger = [...document.querySelectorAll<HTMLElement>('[role=tab]')].find(node => node.textContent === tab)!;
+    const trigger = [...viewMenu.querySelectorAll<HTMLElement>('[role=tab]')].find(node => node.textContent === tab)!;
     await React.act(async () => trigger.focus());
     const panel = document.querySelector('[role=tabpanel][data-state=active]')!;
     assert.equal(panel.querySelector('.pero-ui-empty-heading')?.textContent, heading);
