@@ -83,10 +83,10 @@
   --pero-role-border: var(--pero-border);
   --pero-role-danger: var(--pero-error);
   --pero-role-focus: var(--pero-focus);
-  --pero-role-list: #E4EDF5;
+  --pero-role-list: #F1F5F9;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --pero-role-list: #214058; }
+  :root { --pero-role-list: #3D4C5B; }
 }
 /* Materials, aliases, and the type-size floor. Contract numbers are generated. */
 :root {

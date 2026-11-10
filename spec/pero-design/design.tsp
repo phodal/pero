@@ -119,9 +119,9 @@ model Metrics {
 /** Page is canvas (`bg`). */
 model PageColor { light: "#F7F9FC"; dark: "#0B1420"; }
 /** Sidebar is `surface-muted`. */
-model SidebarColor { light: "#D4E0EC"; dark: "#192A3B"; }
-/** One step from the reading surface toward the sidebar. Pinned so both renderers share one hex. */
-model ListColor { light: "#E4EDF5"; dark: "#214058"; }
+model SidebarColor { light: "#EEF3F8"; dark: "#192A3B"; }
+/** List is the sidebar surface mixed 18% toward white, pinned so both renderers share one hex. */
+model ListColor { light: "#F1F5F9"; dark: "#3D4C5B"; }
 /** Reading is `surface` (white in light, surface in dark). */
 model ReadingColor { light: "#FFFFFF"; dark: "#121F2E"; }
 model TextColor { light: "#172536"; dark: "#EAF1F8"; }
@@ -129,7 +129,7 @@ model TextMutedColor { light: "#4A5C6E"; dark: "#ACBBCB"; }
 model ActionColor { light: "#007F86"; dark: "#55D5DD"; }
 model ActionHoverColor { light: "#00666D"; dark: "#82E5EA"; }
 model OnActionColor { light: "#FFFFFF"; dark: "#0B1420"; }
-model AccentSoftColor { light: "#C8E8EA"; dark: "#12363E"; }
+model AccentSoftColor { light: "#E7F3F5"; dark: "#12363E"; }
 model BorderColor { light: "#C5D3E0"; dark: "#34485D"; }
 /** Danger is the theme `error` role. */
 model DangerColor { light: "#B54445"; dark: "#F1A4A4"; }
