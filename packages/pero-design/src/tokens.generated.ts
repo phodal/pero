@@ -61,12 +61,12 @@ export const designContract = {
       "dark": "#0B1420"
     },
     "sidebar": {
-      "light": "#EEF3F8",
+      "light": "#D4E0EC",
       "dark": "#192A3B"
     },
     "list": {
-      "light": "#F1F5F9",
-      "dark": "#3D4C5B"
+      "light": "#E4EDF5",
+      "dark": "#214058"
     },
     "reading": {
       "light": "#FFFFFF",
@@ -77,7 +77,7 @@ export const designContract = {
       "dark": "#EAF1F8"
     },
     "textMuted": {
-      "light": "#596B7D",
+      "light": "#4A5C6E",
       "dark": "#ACBBCB"
     },
     "action": {
@@ -93,11 +93,11 @@ export const designContract = {
       "dark": "#0B1420"
     },
     "accentSoft": {
-      "light": "#E7F3F5",
+      "light": "#C8E8EA",
       "dark": "#12363E"
     },
     "border": {
-      "light": "#DCE4ED",
+      "light": "#C5D3E0",
       "dark": "#34485D"
     },
     "danger": {

@@ -53,7 +53,7 @@ export function FormsExample() {
       { id: 'status', header: '核验状态', size: 160, cell: row => <Badge tone={row.tone}>{row.label}</Badge> },
     ]}/></RadioGroup></section>
     <Disclosure summary="无结果时"><EmptyState heading="还没有结果" description="先填写设置，再明确启动任务。" actions={<Button onClick={() => { setSubmitted(true); document.querySelector<HTMLInputElement>('.catalog-form input')?.focus(); }}>填写设置</Button>}/></Disclosure>
-    {open && <Dialog title="设置数据来源与复核方式" closeLabel="关闭来源设置" onClose={() => setOpen(false)} footer={<Button variant="primary" onClick={() => { setOpen(false); setMessage('来源设置已应用'); }}>应用</Button>}>
+    {open && <Dialog title="设置数据来源与复核方式" closeLabel="关闭来源设置" onClose={() => setOpen(false)} footerStart={<span>来源只改变这次演示的说明，不会发送，也不会覆盖已经填写的很长的实验名称。</span>} footer={<><Button onClick={() => setOpen(false)}>关闭</Button><Button variant="primary" onClick={() => { setOpen(false); setMessage('来源设置已应用'); }}>应用</Button></>}>
       <Field label="数据来源" description="选择框浮层应在弹窗内正常显示。">{control => <Select {...control} label="数据来源" value={source} onChange={setSource} options={[{value:'local',label:'本地观测文件'},{value:'example',label:'示例数据（未核验）'},{value:'remote',label:'远程数据（不可用）',disabled:true}]}/>}</Field>
       <Feedback kind="info" variant="block">来源和验证结论分别展示。关闭设置不会清空表单。</Feedback>
     </Dialog>}

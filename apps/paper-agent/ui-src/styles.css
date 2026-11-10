@@ -131,8 +131,6 @@ html,body,#app{height:100%;margin:0;background:var(--pero-material-chrome)}
 .pa-tex-reader>.pero-ui-feedback{flex:none;margin:12px}.pa-tex-reader>.pero-ui-feedback p{white-space:pre-wrap;max-height:160px;overflow:auto}
 .pa-tex-provenance{position:absolute;bottom:8px;left:12px;font-size:var(--pero-font-caption);color:var(--pero-text-muted);background:var(--pero-surface);padding:2px 6px;border-radius:3px;pointer-events:none}
 .pa-workbench .pa-tex-source-dialog.pero-ui-dialog[data-size=lg]{width:min(1040px,calc(100vw - 24px));max-height:calc(100dvh - 24px);border:0.5px solid var(--pero-border);border-radius:6px;box-shadow:none}
-.pa-tex-source-dialog .pero-ui-dialog-head{border-bottom:0.5px solid var(--pero-border)}
-.pa-tex-source-dialog .pero-ui-dialog-head h2{font-size:var(--pero-font-body)}
 .pa-tex-source-dialog .pa-source-browser{margin-top:0}.pa-tex-source-dialog .pa-source-split{margin-top:0;min-height:360px;max-height:65vh}
 .pa-original-view{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--pero-material-reading)}
 .pa-original-view iframe{flex:1;min-height:0;width:100%;border:0;background:var(--pero-surface)}

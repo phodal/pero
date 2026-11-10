@@ -104,7 +104,7 @@
       roadmap:{title:tr('计算留在数据旁边。'),body:para('计算可以留在个人电脑、实验室或云端，协调也可以自己部署。托管服务仍在规划。')}
     };
     if(name==='data')contents.data={title:tr('全部测试组合 · 逐基因数据'),body:para('指标覆盖全部测试组合；切换图中的组合不会改变分母。')+'<div class="table-scroll"><table class="data-table"><thead><tr><th>Combination</th><th>Gene</th><th>Observed Δ</th><th>Predicted Δ</th><th>Squared error</th></tr></thead><tbody>'+r.rows.map(row=>r.genes.map((gene,g)=>'<tr><td>'+row.id+'</td><td>'+gene+'</td><td>'+fmt(row.observed[g])+'</td><td>'+fmt(row.predicted[g])+'</td><td>'+fmt(row.squaredError[g])+'</td></tr>').join('')).join('')+'</tbody></table></div><button class="btn btn-primary" data-export="csv">'+tr('下载 CSV 数据')+'</button>'};
-    const content=contents[name];if(!content)return;$('#dialog-title').textContent=content.title;$('#dialog-body').innerHTML=content.body;if(!$('#detail-dialog').open)$('#detail-dialog').showModal();
+    const content=contents[name];if(!content)return;$('#dialog-title').textContent=content.title;$('#dialog-body').innerHTML=content.body;const detail=$('#detail-dialog');if(!detail.open)detail.showModal();detail.focus();
   }
   document.addEventListener('click',event=>{
     const target=event.target.closest('button,a');if(!target)return;

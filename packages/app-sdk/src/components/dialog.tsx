@@ -110,11 +110,24 @@ export const Dialog = forwardRef<HTMLDialogElement, DialogProps>(function Dialog
     const previous = doc.activeElement instanceof doc.defaultView!.HTMLElement ? doc.activeElement : null;
     showModal(dialog);
     const selector = initialFocusRef.current ?? DEFAULT_INITIAL_FOCUS;
+    const focusQuiet = (node: HTMLElement) => {
+      try { node.focus({ preventScroll: true, focusVisible: false } as FocusOptions); }
+      catch { node.focus(); }
+    };
+    // showModal focuses the first control and paints a keyboard ring. Opening
+    // should land on the requested field, or on the dialog, so the close icon rests.
+    let placed = false;
     try {
-      dialog.querySelector<HTMLElement>(selector)?.focus();
+      const target = dialog.querySelector<HTMLElement>(selector);
+      if (target) {
+        if (doc.activeElement === target) focusQuiet(dialog);
+        focusQuiet(target);
+        placed = doc.activeElement === target;
+      }
     } catch {
-      // An invalid initialFocus selector leaves the focus showModal chose.
+      // An invalid initialFocus selector leaves focus on the dialog.
     }
+    if (!placed) focusQuiet(dialog);
     return () => {
       const activeBeforeClose = doc.activeElement instanceof doc.defaultView!.HTMLElement ? doc.activeElement : null;
       if (dialog.open) dialog.close();
@@ -146,12 +159,14 @@ export const Dialog = forwardRef<HTMLDialogElement, DialogProps>(function Dialog
     </header>
     <div className={classes('pero-ui-dialog-body', bodyClassName)}>{children}</div>
     {(footer || footerStart) && <footer className={classes('pero-ui-dialog-foot', footerClassName)}>
-      <div className="pero-ui-dialog-foot-start">{footerStart}</div>{footer}
+      <div className="pero-ui-dialog-foot-start">{footerStart}</div>
+      {footer && <div className="pero-ui-dialog-foot-actions">{footer}</div>}
     </footer>}
   </>;
   return <dialog
     {...rest}
     ref={setDialog}
+    tabIndex={rest.tabIndex ?? -1}
     className={classes('pero-ui-dialog', className)}
     data-size={size}
     data-presentation={presentation}

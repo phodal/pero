@@ -232,7 +232,7 @@ pub(crate) fn sessions(ui: Ui<'_>, width: f32, props: SessionsProps, search: Any
     let p = ui.palette; let chrome = ui.chrome(); let mut index = 0;
     let empty = props.groups.is_empty() && props.ungrouped.is_empty();
     div().id("sessions-list").w(px(width)).flex_shrink_0().h_full().flex().flex_col()
-        .bg(p.surface).border_r(px(0.5)).border_color(p.border).p(px(8.))
+        .bg(p.surface).border_r(px(1.)).border_color(p.border).p(px(8.))
         .child(div().flex().items_center().justify_between().gap(chrome.geo(pero_theme::SPACE_8))
             .child(div().pl(chrome.geo(pero_theme::SPACE_8)).text_size(chrome.text(pero_theme::TYPE_TAB)).text_color(p.text_muted).child(ui.t("nav.sessions")))
             .child(pero_theme::ghost_icon_button("session-search-toggle", chrome, cx)
@@ -339,7 +339,9 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
     let p = ui.palette; let chrome = ui.chrome(); let collapsed = props.collapsed;
     let nav = |id: &'static str, label: &'static str, icon: &'static str, selected: bool, action: SidebarAction| {
         let element = if collapsed {
-            pero_theme::ghost_icon_button(id, chrome, cx).selected(selected).icon(Icon::default().path(icon))
+            pero_theme::ghost_icon_button(id, chrome, cx).selected(selected)
+                .when(selected, |button| button.border_color(chrome.palette.action))
+                .icon(Icon::default().path(icon))
                 .tooltip(label).accessibility_label(label).on_click(click(&on_action, action)).into_any_element()
         } else {
             pero_theme::sidebar_row(id, label, None, None, selected, pero_theme::RowLevel::Nav,
@@ -363,7 +365,9 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                 let action = SidebarAction::OpenApp { name: app.name.clone(), panel: app.panel };
                 let element = if collapsed {
                     pero_theme::ghost_icon_button(("sidebar-app", index), chrome, cx)
-                        .selected(app.active).icon(Icon::default().path(app.icon)).tooltip(app.label.clone()).accessibility_label(app.label)
+                        .selected(app.active)
+                        .when(app.active, |button| button.border_color(chrome.palette.action))
+                        .icon(Icon::default().path(app.icon)).tooltip(app.label.clone()).accessibility_label(app.label)
                         .on_click(click(&on_action, action)).into_any_element()
                 } else {
                     pero_theme::sidebar_row(("sidebar-app", index), app.label, None, app.badge.map(Into::into), app.active, pero_theme::RowLevel::Nav,

@@ -703,7 +703,7 @@ impl Render for Workbench {
                             .relative()
                             .rounded_tl(px(pero_theme::RADIUS_PANEL))
                             .bg(p.bg)
-                            .shadow(pero_theme::edge_shadow(p.border))
+                            .shadow(pero_theme::edge_shadow(p.text))
                             .child(
                                 canvas(
                                     |bounds, _, _| note_content_corner(bounds.origin),
