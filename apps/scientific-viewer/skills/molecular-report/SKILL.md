@@ -67,7 +67,13 @@ molecular mass (Da). TPSA is Å², MolLogP is a calculated dimensionless estimat
 are counts. Do not relabel these as experimental measurements or infer toxicity,
 synthesis feasibility, physical stability or biological activity from parsing.
 
-For drawings, retain each actual SVG with its input and engine version. Use an
-advertised artifact-delivery tool when available; otherwise report the saved file
-and its display limitation. Do not invent an inline molecule receipt, paste SVG
-as LaTeX or claim a drawing was displayed merely because it was generated.
+When `molecule_render` is advertised, call it with the same `format` and at most
+four `records`. Its receipt is the inline drawing and descriptor table. Cite
+`citation` when the conversation returns to these structures. Do not paste the
+SVG, copy it into LaTeX, or replace it with `table_render`. A later record is a
+new receipt; do not reuse an older drawing or descriptor for it.
+
+If `molecule_render` is not advertised, retain each actual SVG with its input and
+engine version. Use an advertised artifact-delivery tool when available; otherwise
+report the saved file and say the drawing is not inline. Do not invent a different
+molecule receipt or claim a drawing was displayed merely because it was generated.
