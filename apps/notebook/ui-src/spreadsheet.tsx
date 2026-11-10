@@ -605,7 +605,7 @@ export function SpreadsheetView(view: NodeViewProps) {
           max={gridDimensionLimits[dialog === 'resizeRow' ? 'row' : 'column'].max} value={size} onChange={event => setSize(event.target.value)} /></label>}
     </Dialog>}
     {dialog === 'functions' && <Dialog title={t('functionHelp')} closeLabel={t('close')} onClose={() => setDialog(null)}
-      footer={<Button onClick={() => { updateCell(address, `=${functionName}()`); setDialog(null); requestAnimationFrame(() => {
+      footer={<Button onClick={() => { editCell(active, `=${functionName}()`); setDialog(null); requestAnimationFrame(() => {
         formulaInput.current?.focus(); formulaInput.current?.setSelectionRange(functionName.length + 2, functionName.length + 2);
       }); }}>{t('insertFunction')}</Button>}>
       <Select label={t('searchFunctions')} searchable showHint value={functionName} onChange={setFunctionName}
