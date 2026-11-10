@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 from document import NotebookDocument
 from operations import apply_operations, parse_operations
 from server import handler
-from store import EntryStore
+from store import EntryStore, MissingEntry
 
 
 def workspace_document():
@@ -108,6 +108,36 @@ class WorkspaceDocumentTest(unittest.TestCase):
                     self.assertEqual(status, 201)
                     self.assertEqual(entry['document'], valid)
                     self.assertEqual(len(store.list()), 1)
+                finally:
+                    server.shutdown()
+                    worker.join(3)
+
+    def test_delete_removes_entry_revisions_and_rejects_missing_ids(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = EntryStore(directory)
+            kept = store.create(NotebookDocument.parse(workspace_document()))
+            removed = store.create(NotebookDocument.parse({**workspace_document(), 'title': 'Disposable'}))
+            store.commit(removed.identity, 1, lambda document: NotebookDocument.parse({**document.wire(), 'title': 'Disposable v2'}))
+            with ThreadingHTTPServer(('127.0.0.1', 0), handler(store, 'fixture')) as server:
+                worker = threading.Thread(target=server.serve_forever, daemon=True)
+                worker.start()
+                try:
+                    connection = HTTPConnection('127.0.0.1', server.server_port)
+                    connection.request('DELETE', f'/api/entries/{removed.identity}', headers={'X-Pero-App-Token': 'fixture'})
+                    response = connection.getresponse()
+                    body = json.loads(response.read())
+                    connection.close()
+                    self.assertEqual(response.status, 200)
+                    self.assertEqual(body, {'deleted': True, 'id': removed.identity})
+                    self.assertEqual([entry['id'] for entry in store.list()], [kept.identity])
+                    with self.assertRaises(MissingEntry):
+                        store.read(removed.identity)
+                    connection = HTTPConnection('127.0.0.1', server.server_port)
+                    connection.request('DELETE', f'/api/entries/{removed.identity}', headers={'X-Pero-App-Token': 'fixture'})
+                    missing = connection.getresponse()
+                    self.assertEqual(missing.status, 404)
+                    missing.read()
+                    connection.close()
                 finally:
                     server.shutdown()
                     worker.join(3)
