@@ -1,5 +1,21 @@
 # Notebook verification
 
+## Text formatting toolbar (2026-11-10)
+
+Local changes based on `b27158d1` give the shared Select popup enough room
+for full color names and an optional leading swatch. Notebook exposes
+foreground and highlight palettes in the main toolbar, adds orange and
+violet to both, and groups headings, lists, quotes and code blocks in the
+style selector. More formatting includes the divider command. The toolbar
+wraps in narrow windows so the controls remain visible.
+
+The build, Notebook and App SDK typechecks, six text editing tests, twelve
+Select tests, and three Chromium browser tests passed. The main browser flow
+selected violet by keyboard, applied orange highlight and read both marks back
+from the saved revision. Inspected `editor-color-menu-narrow-dark.png` at
+620 × 900 in Chinese and `editor-highlight-menu-light.png` at 1320 × 950 in
+English under `test-results/notebook/`. This pass covered the browser App.
+
 ## Block copy and controls (2026-11-10)
 
 Local worktree changes based on `07fcd4ff` move scientific names into the

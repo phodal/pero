@@ -35,6 +35,15 @@ function CodeBlockView(view: NodeViewProps) {
   </NodeViewWrapper>;
 }
 
+/** TipTap mounts a content hole for non-leaf React node views. CodeMirror owns
+ * the editable surface, so detach that hole or ProseMirror mirrors the source above it. */
+function codeBlockNodeView(props: Parameters<ReturnType<typeof ReactNodeViewRenderer>>[0]) {
+  const nodeView = ReactNodeViewRenderer(CodeBlockView)(props);
+  nodeView.contentDOM?.remove();
+  Object.defineProperty(nodeView, 'contentDOM', { get: () => null });
+  return nodeView;
+}
+
 /** Keep StarterKit's text model, commands, fenced input and HTML exchange. No execution authority. */
 export const NotebookCodeBlock = CodeBlock.extend({
   addAttributes() {
@@ -48,5 +57,5 @@ export const NotebookCodeBlock = CodeBlock.extend({
       rendered: false,
     } };
   },
-  addNodeView() { return ReactNodeViewRenderer(CodeBlockView); },
+  addNodeView() { return codeBlockNodeView; },
 });

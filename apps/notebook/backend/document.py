@@ -95,7 +95,7 @@ def text_mark(value):
     attrs = value.get('attrs', {})
     if kind in {'textColor', 'textBackground'}:
         fields(attrs, {'tone'})
-        if attrs['tone'] not in {'blue', 'green', 'rose', 'amber'}:
+        if attrs['tone'] not in ('blue', 'green', 'rose', 'amber', 'orange', 'violet'):
             raise ValueError('Invalid text color')
     elif kind == 'link':
         fields(attrs, {'href'}, {'target', 'rel', 'class', 'title'})

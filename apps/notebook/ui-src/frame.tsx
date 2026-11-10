@@ -5,7 +5,7 @@ import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Disclosure, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
 import { documentHistory, transitionDocument, type DocumentHistory } from '@pero/notebook/document-history';
 import { NotebookEditor } from './editor';
@@ -63,7 +63,7 @@ function Notebook() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [history, setHistory] = useState<NotebookEntrySummary[] | null>(null);
   const [snapshot, setSnapshot] = useState<NotebookEntry | null>(null);
-  const [busy, setBusy] = useState<'create' | 'save' | 'history' | 'reload' | 'agent' | null>(null);
+  const [busy, setBusy] = useState<'create' | 'save' | 'history' | 'reload' | 'agent' | 'delete' | null>(null);
   const [catalogError, setCatalogError] = useState('');
   const [openError, setOpenError] = useState('');
   const [error, setError] = useState('');
@@ -257,6 +257,25 @@ function Notebook() {
     updateList(entry);
     choose(entry.id);
   });
+  const removeNotebook = (id: string) => {
+    if (!window.confirm(t('deleteNotebookConfirm'))) return;
+    void perform('delete', async () => {
+      await api.del(endpoint(id));
+      catalogRequest.current++;
+      setDrafts(previous => {
+        const { [id]: _removed, ...rest } = previous;
+        return rest;
+      });
+      let remaining: NotebookEntrySummary[] = [];
+      setEntries(previous => {
+        remaining = previous?.filter(entry => entry.id !== id) ?? [];
+        return remaining;
+      });
+      setSelected(currentId => currentId === id ? (remaining[0]?.id || '') : currentId);
+      setSnapshot(previous => previous?.id === id ? null : previous);
+      setHistory(null);
+    });
+  };
   useEffect(() => {
     const openRevision = (event: Event) => {
       const target = (event as CustomEvent<{ entryId?: unknown; revision?: unknown }>).detail;
@@ -376,7 +395,15 @@ function Notebook() {
               const local = drafts[entry.id];
               return <li key={entry.id}><ListRow title={local?.document.title || entry.title} current={entry.id === selected}
                 onOpen={() => { if (!busy) choose(entry.id); }}
-                meta={local?.dirty ? t('unsaved') : t('revision', { number: entry.revision })} /></li>;
+                meta={local?.dirty ? t('unsaved') : t('revision', { number: entry.revision })}
+                trailing={<DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <IconButton label={t('notebookActions')} disabled={!!busy}><Icon name="more" /></IconButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem danger disabled={!!busy} onSelect={() => removeNotebook(entry.id)}>{t('deleteNotebook')}</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>} /></li>;
             })}
           </ul>
         </SplitPane>}
