@@ -14,7 +14,7 @@ export async function verifyNotebookComponents(page, origin, output) {
     await page.getByRole('option', { name: value, exact: true }).click();
   };
   const insert = async name => {
-    await button('Insert').click();
+    await ensureMoreTools(page);
     await page.getByRole('menuitem', { name, exact: true }).click();
   };
   const shot = name => page.screenshot({ path: resolve(output, `components-${name}.png`), fullPage: true });

@@ -28,12 +28,16 @@ export async function toggleSpreadsheetPanel(page, grid, name) {
   await page.getByRole('menuitem', { name, exact: true }).click();
 }
 
-/** Insert actions stay in the Insert menu. The trigger is a real button; the details keeps dialogs mounted. */
+/** Extended insert tools live in More blocks; both disclosures keep dialogs mounted. */
 export async function ensureMoreTools(page) {
   const details = page.locator('details.notebook-menu[data-menu="insert"]');
-  if (await details.evaluate(node => node.open)) return;
-  await page.getByRole('button', { name: 'Insert', exact: true }).click();
+  if (!(await details.evaluate(node => node.open))) await page.getByRole('button', { name: 'Insert', exact: true }).click();
   await expect(details).toHaveJSProperty('open', true);
+  const more = details.locator('details.notebook-submenu').filter({
+    has: page.locator('summary').filter({ hasText: /^More blocks$/ }),
+  });
+  if (!(await more.evaluate(node => node.open))) await more.locator(':scope > summary').click();
+  await expect(more).toHaveJSProperty('open', true);
 }
 
 /** Creation retains the old draft while the real backend request is in flight. */
