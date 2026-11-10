@@ -86,6 +86,7 @@ pub struct ToolLocation {
 pub struct Tool {
     pub table: Option<crate::table_view::TableView>,
     pub chart: Option<crate::chart_view::ChartView>,
+    pub control: Option<crate::control_result::ControlResult>,
     pub chart_error: Option<String>,
     #[serde(skip)]
     pub chart_reader: Option<Entity<ContentReader>>,
@@ -422,6 +423,7 @@ impl Conversation {
                         self.tools.push(Tool {
                             table: None,
                             chart: None,
+                            control: None,
                             chart_error: None,
                             chart_reader: None,
                             id: id.clone(),
@@ -542,6 +544,7 @@ impl Conversation {
 
                 tool.table = None;
                 tool.chart = None;
+                tool.control = None;
                 tool.chart_error = None;
                 if tool.status == "completed" && !tool.cancelled && tool.title == "chart_render" {
                     match crate::chart_view::ChartView::from_content(&tool.content) {
@@ -553,6 +556,12 @@ impl Conversation {
                 if tool.status == "completed" && !tool.cancelled && tool.title == "table_render" {
                     match crate::table_view::TableView::from_content(&tool.content, cx) {
                         Ok(table) => tool.table = Some(table),
+                        Err(error) => tool.chart_error = Some(error),
+                    }
+                }
+                if tool.status == "completed" && !tool.cancelled && tool.content.trim_start().starts_with('{') && tool.content.contains("pero.control-conversation.v1") {
+                    match crate::control_result::ControlResult::from_content(&tool.content, cx) {
+                        Ok(result) => tool.control = Some(result),
                         Err(error) => tool.chart_error = Some(error),
                     }
                 }

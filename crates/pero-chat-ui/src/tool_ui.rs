@@ -93,7 +93,7 @@ mod rendering {
         tool.status == "completed"
             && !tool.cancelled
             && tool.chart_error.is_none()
-            && (tool.table.is_some() || tool.chart.is_some())
+            && (tool.table.is_some() || tool.chart.is_some() || tool.control.is_some())
     }
 
     impl ChatPanel {
@@ -139,6 +139,7 @@ mod rendering {
                 .when(embedded, |el| {
                     el.children(tool.table.as_ref().map(|table| self.inline_table(conversation_id, &tool.id, table, cx)))
                         .children(tool.chart.as_ref().map(|chart| self.inline_chart(conversation_id, &tool.id, chart, cx)))
+                        .children(tool.control.as_ref().map(|result| self.inline_control(conversation_id, &tool.id, result, cx)))
                 })
                 .child(
                     Button::new(("tool-toggle", row))
@@ -325,6 +326,7 @@ mod rendering {
                 .when(!embedded_result(tool), |el| {
                     el.children(tool.table.as_ref().map(|table| self.inline_table(conversation_id, &tool.id, table, cx)))
                         .children(tool.chart.as_ref().map(|chart| self.inline_chart(conversation_id, &tool.id, chart, cx)))
+                        .children(tool.control.as_ref().map(|result| self.inline_control(conversation_id, &tool.id, result, cx)))
                 })
                 .children(self.approval(conversation_id, Some(&tool.id), cx))
                 .when(show_failure && (tool.status == "failed" || tool.body.failed()) && !tool.cancelled, |el| {
