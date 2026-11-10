@@ -18,12 +18,15 @@ class TableDocument:
     columns: tuple[TableColumn, ...]
     dataset: Dataset
     view: DatasetView
+    method: str = ""
+    value_origin: str = "unspecified"
 
     @classmethod
     def admit(cls, value, dataset: Dataset, view: DatasetView):
-        if not isinstance(value, dict) or set(value) - {"title", "description", "columns"}:
+        if not isinstance(value, dict) or set(value) - {"title", "description", "columns", "method", "valueOrigin"}:
             raise Invalid("Table needs title, optional description and columns")
         title, description = value.get("title"), value.get("description", "")
+        method, origin = value.get("method", ""), value.get("valueOrigin", "unspecified")
         if not isinstance(title, str) or not title.strip() or len(title) > 160:
             raise Invalid("Table title must contain 1–160 characters")
         if not isinstance(description, str) or len(description) > 2048:
@@ -43,7 +46,11 @@ class TableDocument:
             if any(not isinstance(s, str) or len(s) > 160 for s in (label, unit)) or not label.strip():
                 raise Invalid("Column labels and units must be strings up to 160 characters")
             parsed.append(TableColumn(field, label, unit))
-        return cls(title, description, tuple(parsed), dataset, view)
+        if not isinstance(method, str) or len(method) > 500:
+            raise Invalid("Table method must be a declaration of at most 500 characters")
+        if origin not in ("reported", "calculated", "unspecified"):
+            raise Invalid("Table value origin must be reported, calculated, or unspecified")
+        return cls(title, description, tuple(parsed), dataset, view, method, origin)
 
     def json(self):
         records = self.view.selection.apply(self.view.query.apply(self.dataset))
@@ -59,7 +66,8 @@ class TableDocument:
                 cells.append({"kind": cell.kind.value if cell else "missing",
                               "display": cell.display if cell else "—"})
             rows.append(cells)
-        return {"title": self.title, "description": self.description,
+        return {"title": self.title, "description": self.description, "method": self.method,
+                "valueOrigin": self.value_origin,
                 "columns": [{"field": c.field, "label": c.label, "unit": c.unit} for c in self.columns],
                 "rows": rows,
                 "source": {"label": self.dataset.name, "dataset": self.dataset.id,
