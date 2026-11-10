@@ -7,7 +7,7 @@
 .pa-html-review{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:0 0 8px}
 .pa-html-review .pero-ui-button{height:auto;min-height:var(--pero-control-height);padding:0 4px;font-size:var(--pero-font-caption);font-weight:500}
 
-.pa-reading-review-dialog.pero-ui-dialog{border:0.5px solid var(--pero-border);border-radius:6px;box-shadow:none}.pa-reading-review-dialog label{display:flex;align-items:flex-start;gap:6px;font-size:var(--pero-font-body)}.pa-reading-review-dialog .pero-ui-dialog-head{border-bottom:0.5px solid var(--pero-border)}
+.pa-reading-review-dialog.pero-ui-dialog{border:0.5px solid var(--pero-border);border-radius:6px;box-shadow:none}.pa-reading-review-dialog label{display:flex;align-items:flex-start;gap:6px;font-size:var(--pero-font-body)}
 .pa-html-reading{position:relative;min-width:0}.pa-html-reading iframe{color-scheme:normal}
 .pa-html-chrome{position:sticky;top:0;z-index:3;display:flex;justify-content:flex-end;align-items:center;gap:8px;min-height:0;pointer-events:none}
 .pa-html-chrome>.pero-ui-popover,.pa-html-chrome>.pa-html-selection,.pa-html-chrome>.pa-html-image-status{pointer-events:auto}

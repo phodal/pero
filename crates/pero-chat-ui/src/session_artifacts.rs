@@ -76,6 +76,9 @@ pub(crate) struct SessionArtifacts {
     pub anchors: HashMap<String, ScrollAnchor>,
     pub bounds: HashMap<String, crate::view_bounds::ViewBounds>,
     pub pane_width: Option<f32>,
+    /// Full width the side column was measured against. The resize handle
+    /// clamps to this, including when the column sits outside the chat.
+    pub side_limit: f32,
     pub resize: Option<ArtifactPaneResize>,
     pub narrow: bool,
     pub surface_covered: bool,

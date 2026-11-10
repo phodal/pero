@@ -206,6 +206,13 @@ export class DesktopApps {
         fields = { name: command.name };
       }
       const catalog = await this.request<AppRecord[]>(action!, fields);
+      await Promise.all(catalog.map(async app => {
+        if (!app.enabled) return;
+        try {
+          const info = await this.request<{ columnHeader?: { actions?: unknown[] } }>('sdkcontext', { name: app.name });
+          if (info.columnHeader?.actions?.length) Object.assign(app, { columnHeader: info.columnHeader });
+        } catch { /* The catalog summary does not carry column headers; skip when the definition cannot be read. */ }
+      }));
       this.send({ version: 1, kind: 'apps_catalog', request_id: null, text: '', data: catalog });
     } catch (error) {
       this.send({ version: 1, kind: 'apps_error', request_id: null, text: (error as Error).message });

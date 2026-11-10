@@ -138,6 +138,10 @@ fn notebook_catalog_projects_installed_declarations_without_granting_access() {
     manifest["contributes"]["writes"] = serde_json::json!([
         {"name":"compare","description":"Compare selected observations","path":"/api/compare","schema":{"type":"object"}}
     ]);
+    manifest["contributes"]["canvases"] = serde_json::json!([
+        {"id":"comparison","title":"Comparison","read":"/internal/canvas/read",
+         "status":"/internal/canvas/status","inputs":{"type":"object"},"actions":[]}
+    ]);
     fs::write(source.join("app.json"), serde_json::to_vec(&manifest).unwrap()).unwrap();
     let root = workspace.0.join("managed/apps");
     let mut store = AppStore::open(root.clone(), PythonEnvironments::default()).unwrap();
@@ -146,6 +150,10 @@ fn notebook_catalog_projects_installed_declarations_without_granting_access() {
     manifest["displayName"] = serde_json::json!("Notebook");
     manifest.as_object_mut().unwrap().remove("backend");
     manifest["contributes"].as_object_mut().unwrap().remove("writes");
+    manifest["contributes"].as_object_mut().unwrap().remove("canvases");
+    manifest["contributes"]["columnHeader"] = serde_json::json!({
+        "actions":[{"id":"save","label":"Save revision","icon":"save"}]
+    });
     fs::write(source.join("app.json"), serde_json::to_vec(&manifest).unwrap()).unwrap();
     store.install(&source).unwrap();
     let notebook = AppName::try_from("notebook".to_owned()).unwrap();
@@ -154,18 +162,24 @@ fn notebook_catalog_projects_installed_declarations_without_granting_access() {
     store.set_enabled(&notebook, true).unwrap();
     let catalog = |store: &AppStore| serde_json::to_value(store.sdk_context(&notebook).unwrap()).unwrap();
     let before = catalog(&store);
+    assert_eq!(before["columnHeader"], manifest["contributes"]["columnHeader"]);
     let cell_record = before["appViews"].as_array().unwrap().iter().find(|app| app["app"] == "virtual-cell").unwrap();
     assert_eq!(cell_record["enabled"], false);
     assert_eq!(cell_record["panels"], serde_json::json!([{"id":"main","title":"Cell atlas"},{"id":"comparison","title":"Comparison"}]));
     assert_eq!(cell_record["actions"], serde_json::json!([{"name":"compare","description":"Compare selected observations"}]));
+    assert_eq!(cell_record["canvases"], serde_json::json!([
+        {"id":"comparison","title":"Comparison","inputs":{"type":"object"}}
+    ]));
     let public_fields = cell_record.as_object().unwrap().keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(public_fields, ["actions","app","enabled","panels","revision","title","version"].into_iter().collect());
+    assert_eq!(public_fields, ["actions","app","canvases","enabled","panels","revision","title","version"].into_iter().collect());
     assert_eq!(before["permissions"]["host"], serde_json::json!([]));
     assert!(!serde_json::to_string(&before).unwrap().contains("/api/compare"));
+    assert!(!serde_json::to_string(&before).unwrap().contains("/internal/canvas/"));
     assert!(!serde_json::to_string(&before).unwrap().contains("dist/index.html"));
     store.set_enabled(&cell, true).unwrap();
     let ordinary = serde_json::to_value(store.sdk_context(&cell).unwrap()).unwrap();
-    assert!(ordinary.get("appViews").is_none(), "Existing App SDK context remains unchanged");
+    assert!(ordinary.get("appViews").is_none(), "Only Notebook receives installed App discovery");
+    assert!(ordinary.get("columnHeader").is_none(), "Undeclared column headers remain omitted");
     assert_eq!(catalog(&store)["appViews"][1]["enabled"], true);
     assert!(store.processes.is_empty(), "Discovery must not resolve or start an App backend");
     store.set_enabled(&cell, false).unwrap();

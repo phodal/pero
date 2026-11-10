@@ -2,7 +2,7 @@ use crate::{
     app::Workbench,
     components::{
         ActionHandler, Ui,
-        chrome, sidebar,
+        sidebar,
         workspace::{self, AgentRow, WorkspaceAction},
     },
 };
@@ -52,7 +52,7 @@ impl Workbench {
             .flex_shrink_0()
     }
 
-    fn sidebar(&self, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {
+    pub(crate) fn sidebar(&self, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {
         let actions = self.navigation_actions(cx);
         let settings = div().relative()
             .child(self.settings_menu(self.sidebar_collapsed, cx))
@@ -82,36 +82,11 @@ impl Workbench {
         cx.notify();
     }
 
-    fn window_titlebar(
-        &self,
-        show_workspace_controls: bool,
-        dragging: &Entity<bool>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let single_pane = self.navigation.pane_layout().filter(|_| self.navigation.pane_layout_visible()).and_then(|layout| {
-            let leaves = layout.leaves();
-            (leaves.len() == 1).then(|| leaves[0].clone())
-        });
-        let tabs = if let Some(ref leaf) = single_pane { Some(div().flex_1().min_w_0().h_full().child(self.pane_tab_bar(leaf, crate::workspace_pane_tabs::TabBarPlacement::WindowChrome, cx)).into_any_element()) }
-            else { show_workspace_controls.then(|| self.content_tabs(false, cx).into_any_element()) };
-        chrome::window_titlebar(
-            self.ui(cx),
-            self.sidebar_collapsed,
-            self.layout.sidebar_width,
-            tabs,
-            self.shortcut_label(pero_contracts::shortcuts::CommandId::SearchWorkspace,cx),
-            cx.listener(|this, _, _, cx| this.toggle_sidebar(cx)),
-            cx.listener(|this, _, window, cx| this.toggle_spotlight(window, cx)),
-            dragging,
-            window,
-            cx,
-        )
-    }
-
-    fn sidebar_resize(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn sidebar_resize(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let seam = Hsla { l: (p.border.l - 0.06).max(0.), ..p.border };
+        let below_band = pero_theme::Chrome::from_app(cx).control(pero_theme::WINDOW_TITLEBAR)
+            + px(pero_theme::RADIUS_PANEL + 4.);
         div()
             .id("sidebar-resize")
             .group("sidebar-resize")
@@ -124,7 +99,7 @@ impl Workbench {
             .right_0()
             .w(px(4.))
             .h_full()
-            .child(div().absolute().right_0().top(px(pero_theme::RADIUS_PANEL + 4.)).bottom_0().w(px(1.))
+            .child(div().absolute().right_0().top(below_band).bottom_0().w(px(1.))
                 .group_hover("sidebar-resize", |el| el.bg(seam))
                 .when(self.sidebar_resize_focus.is_focused(window), |el| el.bg(seam)))
             .cursor(CursorStyle::ResizeLeftRight)
@@ -394,8 +369,12 @@ impl Render for Workbench {
         let chat_width = layout.chat_width;
         let dock = layout.chat == ChatPlacement::Dock;
         let narrow = layout.narrow;
-        let show_workspace_controls = self.navigation.titlebar_tabs().next().is_some()
-            || matches!(self.navigation.current(), Some(WorkspaceItem::Project(_)));
+        let resources_width = self.claimed_resources_width(cx);
+        let dock_span = if dock {
+            (chat_width - resources_width).max(0.)
+        } else {
+            chat_width
+        };
         if !layout.embedded_surface_visible
             || !matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }))
         {
@@ -674,7 +653,6 @@ impl Render for Workbench {
             .font_weight(FontWeight::NORMAL)
             .line_height(relative(1.3))
             .child(self.layout_drag_events(cx))
-            .child(self.window_titlebar(show_workspace_controls, &dragging, window, cx))
             .child(
                 div()
                     .flex_1()
@@ -682,16 +660,7 @@ impl Render for Workbench {
                     .w_full()
                     .flex()
                     .bg(p.surface_muted)
-                    .child(
-                        div()
-                            .relative()
-                            .h_full()
-                            .flex_shrink_0()
-                            .child(self.sidebar(sidebar_width, cx))
-                            .when(!self.sidebar_collapsed, |el| {
-                                el.child(self.sidebar_resize(window, cx))
-                            }),
-                    )
+                    .child(self.sidebar_column(&dragging, window, cx))
                     .child(
                         div()
                             .flex_1()
@@ -699,25 +668,50 @@ impl Render for Workbench {
                             .h_full()
                             .flex()
                             .flex_col()
-                            .overflow_hidden()
-                            .relative()
-                            .rounded_tl(px(pero_theme::RADIUS_PANEL))
-                            .bg(p.bg)
-                            .shadow(pero_theme::edge_shadow(p.border))
+                            .bg(p.surface_muted)
                             .child(
-                                canvas(
-                                    |bounds, _, _| note_content_corner(bounds.origin),
-                                    |_, _, _, _| {},
-                                )
-                                .absolute()
-                                .top_0()
-                                .left_0()
-                                .size_full(),
-                            )
-                            .when(
-                        self.web_entry_open || self.navigation.page() == WorkbenchPage::Web,
-                        |el| el.child(self.web_toolbar(cx)),
-                    )
+                                div()
+                                    .flex_1()
+                                    .min_h_0()
+                                    .flex()
+                                    .flex_col()
+                                    .child(
+                                        div()
+                                            .id("workbench-columns")
+                                            .flex_1()
+                                            .min_h_0()
+                                            .w_full()
+                                            .flex()
+                                            .child(
+                                                div()
+                                                    .id("workbench-main-column")
+                                                    .flex_1()
+                                                    .min_w_0()
+                                                    .h_full()
+                                                    .flex()
+                                                    .flex_col()
+                                                    .child(self.main_titleband(&dragging, window, cx))
+                                                    .child(
+                                                        div()
+                                                            .flex_1()
+                                                            .min_h_0()
+                                                            .overflow_hidden()
+                                                            .relative()
+                                                            .flex()
+                                                            .flex_col()
+                                                            .rounded_tl(px(pero_theme::RADIUS_PANEL))
+                                                            .bg(p.bg)
+                                                            .shadow(pero_theme::edge_shadow(p.border))
+                                                            .child(
+                                                                canvas(
+                                                                    |bounds, _, _| note_content_corner(bounds.origin),
+                                                                    |_, _, _, _| {},
+                                                                )
+                                                                .absolute()
+                                                                .top_0()
+                                                                .left_0()
+                                                                .size_full(),
+                                                            )
                     .children(self.recovery_controls(cx))
                     .when(self.error.is_some(), |el| {
                         el.child(
@@ -822,13 +816,20 @@ impl Render for Workbench {
                                 )
                             })
                             .when(dock, |el| {
-                                el.child(self.chat_dock(chat_width, narrow, window, cx))
+                                el.child(self.chat_dock(dock_span, narrow, window, cx))
                             })
                             .when(floating, |el| {
                                 el.child(self.floating_app_chat(width, window, cx))
                             }),
                     )
+                                                    ),
+                                            )
+                                            .when(resources_width > 0., |row| {
+                                                row.child(self.resources_column(&dragging, window, cx))
+                                            }),
+                                    )
                     .when(self.terminal.visible, |el| el.child(self.terminal_panel((f32::from(window.viewport_size().height)*0.4).clamp(180.,320.),cx))),
+                                )
                     )
             )
             .when(self.spotlight.is_some(), |el| {

@@ -1,4 +1,5 @@
 //! Public SDK context contains declarations, never backend paths or credentials.
+use super::definition::AppColumnHeader;
 use super::{AppName, AppStore};
 use serde::Serialize;
 
@@ -23,6 +24,9 @@ pub struct Context {
     name: AppName, version: String, permissions: Permissions,
     #[serde(rename = "appViews", skip_serializing_if = "Option::is_none")]
     app_views: Option<Vec<InstalledAppViews>>,
+    /// Copied from the installed definition. The catalog summary does not carry it.
+    #[serde(rename = "columnHeader", skip_serializing_if = "AppColumnHeader::is_empty")]
+    column_header: AppColumnHeader,
 }
 
 impl AppStore {
@@ -50,9 +54,15 @@ impl AppStore {
                 }).collect(),
             }
         }).collect());
-        Ok(Context { name: name.clone(), version: definition.version.clone(), app_views, permissions: Permissions {
-            api, events: definition.permissions.events.clone(), host: definition.permissions.host.clone(),
-        } })
+        Ok(Context {
+            name: name.clone(),
+            version: definition.version.clone(),
+            app_views,
+            permissions: Permissions {
+                api, events: definition.permissions.events.clone(), host: definition.permissions.host.clone(),
+            },
+            column_header: definition.contributes.column_header.clone(),
+        })
     }
 }
 

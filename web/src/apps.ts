@@ -11,6 +11,8 @@ import { AppDocuments } from '../../packages/content-source/app-document';
 import type { IconThemePackage } from '../../packages/icons/theme';
 import type { DocumentHeader } from '../../protocol/generated/host';
 
+declare global { interface Window { peroColumnHeader?(json: string): void } }
+
 export type AppSurface = { visible: boolean; name?: string; panel?: string; left?: number; top?: number; width?: number; height?: number; dark: boolean; locale: string; appearance?: AppearanceSnapshot; pane?:number; focused?:boolean; open?:{name:string;panel:string}[] };
 export type AppSurfaceSlot=Omit<AppSurface,'dark'|'locale'|'appearance'|'open'>;
 export type AppSurfaceBatch = {surfaces:AppSurfaceSlot[];dark:boolean;locale:string;appearance?:AppearanceSnapshot;open?:{name:string;panel:string}[]};
@@ -24,6 +26,11 @@ type SlotRequest = { frame: Frame; id: string; rect: AppChatSlot['rect'] };
 export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:ReturnType<AppDocuments['admit']>)=>void,onFocus?:(pane:number)=>void,onChatSlot?:(slot:AppChatSlot|null)=>boolean|Promise<boolean>,onExamples?:(json:string)=>void,mcpSettings?:(input:unknown)=>Promise<unknown>) {
   const frames = new Map<string, Frame>();
   const examples=mountAppExamples((scope,request)=>frames.get(`${scope.app}:${scope.panel}`)?.element.contentWindow?.postMessage(request,'*'),onExamples);
+  window.peroColumnHeader = json => {
+    const value = JSON.parse(json) as { name?: string; panel?: string; id?: string };
+    const frame = frames.get(`${value.name}:${value.panel}`);
+    frame?.element.contentWindow?.postMessage({ type: 'pero:app:event', event: 'column-header', value: { id: value.id } }, '*');
+  };
   const appUse = mountAppUseFrames();
   const presence = new Map<string, AppUsePresence & { thread: string }>();
   const mounts=new Map<string,Mount>();
@@ -87,7 +94,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     // Cache only deliveries made after the App has installed its listener.
     if (!frame.ready) return;
     const value=mounts.get(key(frame.name,frame.panel))?.surface||surface;
-    const next={appearance:value.appearance,dark:value.dark,locale:normalizeLocale(value.locale),active:value.visible,titlebar:true};
+    const next={appearance:value.appearance,dark:value.dark,locale:normalizeLocale(value.locale),active:value.visible,titlebar:true,hostColumnHeader:true};
     const serialized=JSON.stringify(next);
     if(frame.contextKey===serialized)return;
     frame.contextKey=serialized;

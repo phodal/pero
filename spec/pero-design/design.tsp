@@ -125,12 +125,12 @@ model ListColor { light: "#F1F5F9"; dark: "#3D4C5B"; }
 /** Reading is `surface` (white in light, surface in dark). */
 model ReadingColor { light: "#FFFFFF"; dark: "#121F2E"; }
 model TextColor { light: "#172536"; dark: "#EAF1F8"; }
-model TextMutedColor { light: "#596B7D"; dark: "#ACBBCB"; }
+model TextMutedColor { light: "#4A5C6E"; dark: "#ACBBCB"; }
 model ActionColor { light: "#007F86"; dark: "#55D5DD"; }
 model ActionHoverColor { light: "#00666D"; dark: "#82E5EA"; }
 model OnActionColor { light: "#FFFFFF"; dark: "#0B1420"; }
 model AccentSoftColor { light: "#E7F3F5"; dark: "#12363E"; }
-model BorderColor { light: "#DCE4ED"; dark: "#34485D"; }
+model BorderColor { light: "#C5D3E0"; dark: "#34485D"; }
 /** Danger is the theme `error` role. */
 model DangerColor { light: "#B54445"; dark: "#F1A4A4"; }
 model FocusColor { light: "#007F86"; dark: "#55D5DD"; }

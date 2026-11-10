@@ -11,8 +11,22 @@ use gpui_kit::{
 };
 use pero_contracts::{
     session_artifact::{ArtifactSource, SessionArtifact},
-    workbench::LayoutPreferences,
+    workbench::{LayoutPreferences, ResourceTab},
 };
+
+/// Side resources column measured for the workbench titleband.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ResourceColumn {
+    pub width: f32,
+    pub primary: ResourcePrimary,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResourcePrimary {
+    Files,
+    Artifacts,
+    Changes,
+}
 
 impl ChatPanel {
     /// Chat column keeps this much space before the artifact column replaces it.
@@ -38,6 +52,102 @@ impl ChatPanel {
             .small()
             .h(px(24.))
             .label(label.to_owned())
+    }
+
+    fn note_resource_column(&mut self, next: Option<ResourceColumn>, cx: &mut Context<Self>) {
+        let changed = match (self.resource_column, next) {
+            (None, None) => false,
+            (Some(current), Some(next)) => {
+                current.primary != next.primary || (current.width - next.width).abs() >= 0.5
+            }
+            _ => true,
+        };
+        if changed {
+            self.resource_column = next;
+            cx.notify();
+        }
+    }
+
+    pub fn resource_column_toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
+        let Some(thread) = self
+            .active_chat
+            .and_then(|index| self.chats.get(index))
+            .map(|chat| chat.id.clone())
+        else {
+            return div().into_any_element();
+        };
+        let Some(state) = self.artifacts.conversations.get(&thread) else {
+            return div().into_any_element();
+        };
+        self.pane_toolbar(&thread, state, false, true, cx)
+    }
+
+    /// Files, artifacts, or changes for the workbench resources column.
+    /// The column header is painted by the shell, so this is only the body.
+    pub fn resource_column_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let Some(thread) = self
+            .active_chat
+            .and_then(|index| self.chats.get(index))
+            .map(|chat| chat.id.clone())
+        else {
+            return div().into_any_element();
+        };
+        let Some(state) = self.artifacts.conversations.get(&thread) else {
+            return div().into_any_element();
+        };
+        let pane = if state.show_changes {
+            self.changes_panel(&thread, state, cx)
+        } else if self.files.selection.tab == ResourceTab::Files {
+            self.file_panel(&thread, cx)
+        } else {
+            self.artifact_panel(&thread, state, cx)
+        };
+        let shown = self
+            .resource_column
+            .map(|column| column.width)
+            .unwrap_or_else(|| self.artifact_pane_width());
+        let limit = self.artifacts.side_limit.max(shown);
+        div()
+            .size_full()
+            .relative()
+            .min_h_0()
+            .min_w_0()
+            .child(self.artifact_resize_capture(cx))
+            .child(pane)
+            .child(
+                div()
+                    .id(SharedString::from(format!("artifact-column-resize-{thread}")))
+                    .absolute()
+                    .left_0()
+                    .top_0()
+                    .bottom_0()
+                    .w(px(12.))
+                    .cursor(CursorStyle::ResizeLeftRight)
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                            if event.click_count == 2 {
+                                this.artifacts.resize = None;
+                                this.set_artifact_pane_width(
+                                    f32::from(LayoutPreferences::DEFAULT_ARTIFACT_PANE_WIDTH),
+                                    cx,
+                                );
+                                cx.emit(ChatAction::ArtifactPaneWidth {
+                                    width: this.artifact_pane_width(),
+                                });
+                            } else {
+                                this.artifacts.resize = Some(ArtifactPaneResize {
+                                    origin_x: event.position.x.into(),
+                                    origin_width: shown,
+                                    max_width: limit,
+                                    vertical: false,
+                                });
+                            }
+                            cx.stop_propagation();
+                        }),
+                    ),
+            )
+            .into_any_element()
     }
 
     pub(crate) fn artifact_icon_button(
@@ -147,7 +257,9 @@ impl ChatPanel {
         {
             self.prepare_file_reader(&thread, window, cx);
         }
-        let available = f32::from(size.width);
+        let reported = self.resource_column.map(|column| column.width).unwrap_or(0.);
+        let available = f32::from(size.width) + if self.host_titleband { reported } else { 0. };
+        self.artifacts.side_limit = available;
         self.artifacts.narrow = available
             < Self::CHAT_COLUMN_MIN + f32::from(LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH);
         let state = self.artifacts.conversations.get(&thread);
@@ -158,6 +270,14 @@ impl ChatPanel {
             && self.files.selection.tab == pero_contracts::workbench::ResourceTab::Artifacts
             && state.is_some_and(|state| state.maximized);
         let split = open && !self.artifacts.narrow && !maximized;
+        let resource_primary = if reviewing {
+            ResourcePrimary::Changes
+        } else if self.files.selection.tab == ResourceTab::Files {
+            ResourcePrimary::Files
+        } else {
+            ResourcePrimary::Artifacts
+        };
+        let mut side_width = None;
         let count = state.map_or(0, |state| state.items.len());
         let toggle_thread = thread.clone();
         let title = self.t(
@@ -208,6 +328,7 @@ impl ChatPanel {
                         &thread,
                         state.expect("open artifact catalog"),
                         false,
+                        false,
                         cx,
                     )))
                 })
@@ -245,6 +366,10 @@ impl ChatPanel {
             };
             if !split {
                 pane
+            } else if !bottom && self.host_titleband {
+                // The workbench column owns this header and body. Leaving the pane here would sit under that header.
+                side_width = Some(self.artifact_column_width(available));
+                chat
             } else {
                 let height = f32::from(size.height);
                 let bottom_limit = (height - Self::BOTTOM_CHAT_RESERVE).max(Self::BOTTOM_PANE_MIN);
@@ -254,7 +379,8 @@ impl ChatPanel {
                         .unwrap_or(Self::BOTTOM_PANE_DEFAULT)
                         .clamp(Self::BOTTOM_PANE_MIN, bottom_limit)
                 } else {
-                    self.artifact_column_width(available)
+                    side_width = Some(self.artifact_column_width(available));
+                    side_width.expect("side column width")
                 };
                 let compact_toolbar = !bottom && shown < 456.;
                 let has_identity = !reviewing
@@ -307,36 +433,40 @@ impl ChatPanel {
                             .flex()
                             .flex_col()
                             .border_color(border)
-                            .child(
-                                div()
-                                    .h(px(pane_header_height))
-                                    .min_h(px(pane_header_height))
-                                    .flex()
-                                    .items_center()
-                                    .min_w_0()
-                                    .child(
-                                        div().flex_1().min_w_0().child(self.pane_toolbar(
-                                            &thread,
-                                            collection,
-                                            compact_toolbar,
-                                            cx,
-                                        )),
-                                    )
-                                    .when(self.docked, |row| {
-                                        row.child(
-                                            self.artifact_icon_button(
+                            // A bottom-stacked artifact pane is not a titleband column; this placement keeps its in-pane toolbar.
+                            .when(bottom || !self.host_titleband, |column| {
+                                column.child(
+                                    div()
+                                        .h(px(pane_header_height))
+                                        .min_h(px(pane_header_height))
+                                        .flex()
+                                        .items_center()
+                                        .min_w_0()
+                                        .child(
+                                            div().flex_1().min_w_0().child(self.pane_toolbar(
                                                 &thread,
-                                                "workspace-chat-close",
-                                                "close-chat",
-                                                "panel-right-close",
-                                                self.t("chat.close_panel"),
-                                            )
-                                            .on_click(cx.listener(|_, _, _, cx| {
-                                                cx.emit(ChatAction::ClosePanel)
-                                            })),
+                                                collection,
+                                                compact_toolbar,
+                                                false,
+                                                cx,
+                                            )),
                                         )
-                                    }),
-                            )
+                                        .when(self.docked, |row| {
+                                            row.child(
+                                                self.artifact_icon_button(
+                                                    &thread,
+                                                    "workspace-chat-close",
+                                                    "close-chat",
+                                                    "panel-right-close",
+                                                    self.t("chat.close_panel"),
+                                                )
+                                                .on_click(cx.listener(|_, _, _, cx| {
+                                                    cx.emit(ChatAction::ClosePanel)
+                                                })),
+                                            )
+                                        }),
+                                )
+                            })
                             .child(div().flex_1().min_h_0().min_w_0().child(pane))
                             .child(
                                 div()
@@ -397,6 +527,13 @@ impl ChatPanel {
         } else {
             chat
         };
+        self.note_resource_column(
+            side_width.map(|width| ResourceColumn {
+                width,
+                primary: resource_primary,
+            }),
+            cx,
+        );
         div()
             .w(size.width)
             .h(size.height)

@@ -8,8 +8,8 @@
   --pero-surface: #FFFFFF;
   --pero-surface-muted: #EEF3F8;
   --pero-text: #172536;
-  --pero-text-muted: #596B7D;
-  --pero-border: #DCE4ED;
+  --pero-text-muted: #4A5C6E;
+  --pero-border: #C5D3E0;
   --pero-input-border: #748599;
   --pero-action: #007F86;
   --pero-action-hover: #00666D;
@@ -17,8 +17,8 @@
   --pero-accent: #55D5DD;
   --pero-on-accent: #142B45;
   --pero-accent-soft: #E7F3F5;
-  --pero-accent-text: #00777D;
-  --pero-link: #00777D;
+  --pero-accent-text: #00666D;
+  --pero-link: #00666D;
   --pero-focus: #007F86;
   --pero-success: #35704B;
   --pero-on-success: #FFFFFF;

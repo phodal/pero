@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useAppContext, useHostCapability, useInstalledSkill} from '@pero/app-sdk';
-import {Button, Checkbox, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, Input, ListRow, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger, ToggleGroup, ToggleGroupItem} from '@pero/app-sdk/ui';
+import {Button, Checkbox, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, Input, ListRow, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
 import {findSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
 import type {Catalog, EvidenceSection, Installations, Skill, Update} from './types';
 
@@ -162,9 +162,6 @@ export function SkillsMarket() {
             <div className="skills-search"><Icon name="search" size={18}/><Input ref={search} type="search" aria-label={text('搜索科研技能','Search research skills')} placeholder={text('搜索用途、技能名称或来源…','Search tasks, skill names or sources…')} value={query} onChange={event=>filter(()=>setQuery(event.target.value))}/><kbd>Ctrl K</kbd></div>
             <Select label={text('科研分类','Research category')} value={category} options={[{value:'',label:text('全部科研分类','All categories')},...categories]} onChange={value=>filter(()=>setCategory(value))}/>
           </div>
-          <ToggleGroup className="skills-quick-filters" type="single" value={category||'all'} aria-label={text('常用科研分类','Common research categories')} onValueChange={value=>{if(value)filter(()=>setCategory(value==='all'?'':value));}}>
-            {([['all','全部','All'],['writing','论文写作','Writing'],['literature','文献管理','Literature'],['statistics','统计分析','Statistics'],['visualization','科研绘图','Visualization'],['research-design','研究设计','Research design']] as const).map(([key,cn,en])=><ToggleGroupItem value={key} key={key}>{text(cn,en)}</ToggleGroupItem>)}
-          </ToggleGroup>
           <div className="skills-status">
             {loading&&<Feedback>{catalog?text('正在刷新，保留当前目录。','Refreshing; the current catalog remains visible.'):text('正在读取技能目录…','Loading the skill catalog…')}</Feedback>}
             {error&&<Feedback kind="error">{text('读取未完成，已保留可用内容。','Loading is incomplete; available content is retained.')} {error} <Button variant="link" disabled={loading} onClick={()=>void load()}>{text('重试','Retry')}</Button></Feedback>}

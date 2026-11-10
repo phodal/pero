@@ -357,7 +357,12 @@ impl PaneTabSet {
         Some(removed)
     }
     pub fn reopen_closed(&mut self, new_id: ViewId) -> Option<PaneItem> {
-        let entry = self.closed.last()?.clone();
+        let index = self.closed.len().checked_sub(1)?;
+        self.reopen_closed_at(index, new_id)
+    }
+    /// Restores one closed view and drops only that entry. The newest close is last.
+    pub fn reopen_closed_at(&mut self, index: usize, new_id: ViewId) -> Option<PaneItem> {
+        let entry = self.closed.get(index)?.clone();
         let item = PaneItem {
             id: new_id,
             route: entry.route,
@@ -370,7 +375,7 @@ impl PaneTabSet {
             item.reading = reading;
         }
         self.focus(opened.active);
-        self.closed.pop();
+        self.closed.remove(index);
         self.item(opened.active).cloned()
     }
     pub fn observe(&mut self, id: ViewId, reading: ReaderState) {
@@ -826,6 +831,21 @@ mod tests {
         assert_eq!(ids(tabs.bulk_close_ids(Some(ViewId(3)))), [1, 4]);
         assert_eq!(ids(tabs.bulk_close_ids(None)), [1, 3, 4]);
         assert_eq!(tabs.items().len(), 4);
+        assert!(tabs.valid());
+    }
+    #[test]
+    fn reopening_an_older_closed_tab_leaves_the_newer_one_closed() {
+        let mut tabs = PaneTabSet::default();
+        tabs.open(item(1, "/one"), OpenIntent::Permanent).unwrap();
+        tabs.open(item(2, "/two"), OpenIntent::Permanent).unwrap();
+        tabs.close(ViewId(1));
+        tabs.close(ViewId(2));
+        assert!(tabs.active().is_none());
+        let restored = tabs.reopen_closed_at(0, ViewId(3)).unwrap();
+        assert_eq!(restored.route, item(1, "/one").route);
+        assert_eq!(tabs.closed_items().len(), 1);
+        assert_eq!(tabs.closed_items()[0].route, item(2, "/two").route);
+        assert!(tabs.reopen_closed_at(3, ViewId(4)).is_none());
         assert!(tabs.valid());
     }
     #[test]

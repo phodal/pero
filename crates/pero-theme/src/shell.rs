@@ -6,8 +6,9 @@ use crate::{
 };
 use gpui_kit::{prelude::*, *};
 
-/// One window bar: platform controls, optional content tabs, and global actions.
-/// The content already owns its title, so there is deliberately no title slot.
+/// Flat single-column bar. The workbench titleband is the headers of the
+/// columns under it: each segment is that column's primary and actions, at
+/// that column's width. It is not a row of global buttons.
 pub fn window_bar(
     id: impl Into<ElementId>,
     leading: AnyElement,
@@ -121,7 +122,9 @@ pub fn content_tab(
             p.text_muted
         })
         .border_1()
-        .border_color(if state.active {
+        .border_color(if state.active && state.focused {
+            p.action
+        } else if state.active {
             p.border
         } else {
             p.text.opacity(0.)

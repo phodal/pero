@@ -77,7 +77,7 @@ export const designContract = {
       "dark": "#EAF1F8"
     },
     "textMuted": {
-      "light": "#596B7D",
+      "light": "#4A5C6E",
       "dark": "#ACBBCB"
     },
     "action": {
@@ -97,7 +97,7 @@ export const designContract = {
       "dark": "#12363E"
     },
     "border": {
-      "light": "#DCE4ED",
+      "light": "#C5D3E0",
       "dark": "#34485D"
     },
     "danger": {

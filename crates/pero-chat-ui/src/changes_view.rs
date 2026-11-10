@@ -369,7 +369,6 @@ impl ChatPanel {
         };
         let appearance = pero_theme::UiAppearance::global(cx);
         let p = &appearance.palette.clone();
-        let code = appearance.typography.code;
         let review = &chat.changes;
         let selected_record = review
             .selected
@@ -719,38 +718,49 @@ impl ChatPanel {
                     };
                     let lines: Vec<_> = comparison.lines().into_iter().filter(visible).collect();
                     let limited = lines.len() > 5000;
+                    let code = (appearance.typography.code - 2.).max(12.);
+                    let line_height = px((code * 1.4).ceil());
+                    let max_line_number = lines
+                        .iter()
+                        .flat_map(|line| [line.old, line.new])
+                        .flatten()
+                        .max()
+                        .unwrap_or(1);
+                    let digits = (max_line_number.max(1).ilog10() + 1).max(3);
+                    let gutter_width = px((code * 0.65 * digits as f32).ceil());
+                    let gutter = |number: Option<usize>| {
+                        div()
+                            .w(gutter_width)
+                            .flex_shrink_0()
+                            .text_right()
+                            .text_color(p.text_muted)
+                            .child(number.map(|n| n.to_string()).unwrap_or_default())
+                    };
                     let cell = |line: Option<&pero_contracts::workspace_changes::DiffLine>,
-                                right: bool| {
-                        let bg = match line.map(|line| line.kind) {
-                            Some(DiffLineKind::Added) => p.success_bg,
-                            Some(DiffLineKind::Deleted) => p.error_bg,
-                            _ => p.surface,
+                                old: bool,
+                                new: bool| {
+                        let (bg, marker, text) = match line {
+                            Some(line) => match line.kind {
+                                DiffLineKind::Added => (p.success_bg, "+", &line.text[1..]),
+                                DiffLineKind::Deleted => (p.error_bg, "-", &line.text[1..]),
+                                DiffLineKind::Context => (p.surface, "", &line.text[1..]),
+                                DiffLineKind::Header => (p.surface, "", line.text.as_str()),
+                            },
+                            None => (p.surface, "", ""),
                         };
-                        let number = line
-                            .and_then(|line| if right { line.new } else { line.old })
-                            .map(|n| n.to_string())
-                            .unwrap_or_default();
                         div()
                             .flex_1()
                             .min_w_0()
-                            .min_h(px(code * 1.5))
+                            .min_h(line_height)
                             .bg(bg)
                             .flex()
-                            .gap(px(8.))
+                            .items_start()
+                            .gap(px(4.))
                             .px(px(8.))
-                            .child(
-                                div()
-                                    .w(px(code * 3.5))
-                                    .flex_shrink_0()
-                                    .text_color(p.text_muted)
-                                    .child(number),
-                            )
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .child(line.map(|line| line.text.clone()).unwrap_or_default()),
-                            )
+                            .when(old, |el| el.child(gutter(line.and_then(|line| line.old))))
+                            .when(new, |el| el.child(gutter(line.and_then(|line| line.new))))
+                            .child(div().w(px(code)).flex_shrink_0().child(marker))
+                            .child(div().flex_1().min_w_0().whitespace_normal().child(text.to_owned()))
                     };
                     let rows = if review.split {
                         comparison
@@ -778,8 +788,8 @@ impl ChatPanel {
                                         )
                                     })
                                     .when(header.is_none(), |el| {
-                                        el.child(cell(row.left.as_ref(), false))
-                                            .child(cell(row.right.as_ref(), true))
+                                        el.child(cell(row.left.as_ref(), true, false))
+                                            .child(cell(row.right.as_ref(), false, true))
                                     })
                                     .into_any_element()
                             })
@@ -790,27 +800,10 @@ impl ChatPanel {
                             .take(5000)
                             .enumerate()
                             .map(|(index, line)| {
-                                let bg = match line.kind {
-                                    DiffLineKind::Added => p.success_bg,
-                                    DiffLineKind::Deleted => p.error_bg,
-                                    _ => p.surface,
-                                };
-                                let nums = format!(
-                                    "{:>4} {:>4}",
-                                    line.old.map(|n| n.to_string()).unwrap_or_default(),
-                                    line.new.map(|n| n.to_string()).unwrap_or_default()
-                                );
                                 div()
                                     .id(("diff-line", index))
-                                    .bg(bg)
                                     .flex()
-                                    .gap(px(12.))
-                                    .px(px(12.))
-                                    .min_h(px(code * 1.5))
-                                    .child(
-                                        div().flex_shrink_0().text_color(p.text_muted).child(nums),
-                                    )
-                                    .child(div().flex_1().min_w_0().child(line.text.clone()))
+                                    .child(cell(Some(line), true, true))
                                     .into_any_element()
                             })
                             .collect::<Vec<_>>()
@@ -822,8 +815,9 @@ impl ChatPanel {
                                 .flex_1()
                                 .min_h_0()
                                 .overflow_y_scroll()
-                                .font_family("JetBrains Mono")
+                                .font_family(cx.theme().mono_font_family.clone())
                                 .text_size(px(code))
+                                .line_height(line_height)
                                 .py(px(8.))
                                 .children(rows),
                         )

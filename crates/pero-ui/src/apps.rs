@@ -8,6 +8,29 @@ pub(crate) struct AppPanel {
     pub entry: String,
 }
 
+/// One `contributes.columnHeader` action, read from the installed definition.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub(crate) struct ColumnHeaderAction {
+    pub id: String,
+    pub label: String,
+    #[serde(default, rename = "zh")]
+    pub chinese_label: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub(crate) struct ColumnHeaderContribution {
+    #[serde(default)]
+    pub actions: Vec<ColumnHeaderAction>,
+}
+
+impl ColumnHeaderContribution {
+    fn is_empty(&self) -> bool {
+        self.actions.is_empty()
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct InstalledApp {
     pub name: String,
@@ -20,6 +43,10 @@ pub(crate) struct InstalledApp {
     #[serde(default)]
     pub tenure: String,
     pub panels: Vec<AppPanel>,
+    /// Not part of the host catalog summary. The shell copies it from the
+    /// installed definition when that definition is available.
+    #[serde(default, rename = "columnHeader", skip_serializing_if = "ColumnHeaderContribution::is_empty")]
+    pub column_header: ColumnHeaderContribution,
 }
 
 /// App shortcut placement and optional catalog management.
@@ -160,7 +187,8 @@ mod surface {
                 _ => ("apps.env_failed", "apps.env_failed_hint", FeedbackKind::Error),
             };
             let mut actions = Vec::new();
-            if value.phase == "failed" || value.phase == "required" {
+            let header_owns_retry = value.phase == "failed" && self.focused_app().is_some_and(|(name, _)| name == value.name);
+            if (value.phase == "failed" || value.phase == "required") && !header_owns_retry {
                 actions.push(action_button("app-env-retry", self.t(if value.phase == "required" {
                     "apps.env_prepare"
                 } else { "apps.env_retry" }), ActionKind::Primary, chrome, cx)
@@ -190,17 +218,24 @@ mod surface {
         }
 
         pub(crate) fn installed_app_title(&self, name: &str, display_name: &str) -> String {
-            if name == "automations" {
-                self.t("nav.automations").to_string()
-            } else if name == "paper-agent" {
-                self.t("nav.papers").to_string()
-            } else if name == "environments" {
-                self.t("nav.environments").to_string()
-            } else if name == "connectors" {
-                self.t("nav.customize").to_string()
-            } else {
-                display_name.to_string()
-            }
+            let key = match name {
+                "automations" => "nav.automations",
+                "paper-agent" => "nav.papers",
+                "environments" => "nav.environments",
+                "connectors" => "nav.customize",
+                "insights" => "nav.insights",
+                "data" => "nav.data",
+                "compute" => "nav.compute",
+                "lab" => "nav.lab",
+                "control-lab" => "nav.control_lab",
+                "hpc" => "nav.hpc",
+                "scientific-viewer" => "nav.viewer",
+                "virtual-cell" => "nav.virtual_cell",
+                "lcms2yield" => "nav.lcms",
+                "skills" => "nav.skills",
+                _ => "",
+            };
+            if key.is_empty() { display_name.to_string() } else { self.t(key).to_string() }
         }
 
         pub(crate) fn refresh_apps(&mut self, cx: &mut Context<Self>) {
@@ -376,6 +411,7 @@ mod surface {
                 #[cfg(target_family="wasm")]
                 {
                 let owner = cx.entity().clone();
+                let chrome = pero_theme::Chrome::from_app(cx);
                 return div()
                     .on_prepaint(move |bounds, _, cx| {
                         owner.update(cx, |this, cx| this.sync_app_surface(Some(bounds), cx))
@@ -383,12 +419,17 @@ mod surface {
                     .flex_1()
                     .min_w_0()
                     .h_full()
-                    .p(px(pero_theme::WorkbenchStyle::PAGE))
-                    .text_color(p.text_muted)
                     .child(if !self.layout.embedded_surface_visible {
-                        ""
+                        div().into_any_element()
                     } else {
-                        self.t("apps.loading_panel")
+                        pero_theme::opening_panel(
+                            "wasm-app-loading-feedback",
+                            self.t("apps.loading_panel_kicker"),
+                            self.t("apps.loading_panel"),
+                            self.t("apps.loading_panel_hint"),
+                            chrome,
+                        )
+                        .into_any_element()
                     })
                     .into_any_element();
                 }
@@ -568,6 +609,7 @@ mod tests {
                 } else {
                     vec![]
                 },
+                column_header: ColumnHeaderContribution::default(),
             };
             let mut workspace = AppCatalog::default();
             workspace.replace_catalog(vec![app(true, true)]);

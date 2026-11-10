@@ -231,7 +231,7 @@ pub fn lookup(section: &str, value: &str) -> Option<&'static str> {
         ("extensions", "jpeg") => Some("image"),
         ("extensions", "gif") => Some("image"),
         ("extensions", "webp") => Some("image"),
-        ("apps", "virtual-cell") => Some("network"),
+        ("apps", "virtual-cell") => Some("dna"),
         ("apps", "scientific-viewer") => Some("microscope"),
         ("apps", "paper-agent") => Some("book-open-text"),
         ("apps", "control-lab") => Some("activity"),
@@ -244,7 +244,7 @@ pub fn lookup(section: &str, value: &str) -> Option<&'static str> {
         ("apps", "connectors") => Some("plug"),
         ("apps", "automations") => Some("clock"),
         ("apps", "environments") => Some("server"),
-        ("apps", "skills") => Some("book-open-text"),
+        ("apps", "skills") => Some("lightbulb"),
         _ => None,
     }
 }

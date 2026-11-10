@@ -149,7 +149,7 @@ export default function HpcBenchmarks() {
 
   return <div className="hpc-app" {...appObjectProps("hpc-benchmarks")}>
     <h1 className="visually-hidden">{t("title")}</h1>
-    <AppBar className="app-header" aria-label={t("title")} actions={<>
+    <AppBar columnHeader className="app-header" aria-label={t("title")} actions={<>
       <IconButton label={t("refresh")} disabled={loading || busy} onClick={() => void refresh().catch(onError)}><Icon name="sync" size={16} /></IconButton>
         <Button className="discuss-button" aria-label={t("discuss")} title={t("discuss")} disabled={loading || !selectedBenchmark} onClick={() => void discuss().catch(onError)}><Icon name="agent" size={14} /><span>{t("discuss")}</span></Button>
         <Button variant="primary" disabled={loading || busy || Boolean(active) || !selectedBenchmark?.available || !data?.runtime.reframeAvailable} onClick={() => void startRun()}><Icon name="play" size={14} />{t(selectedBenchmark?.available ? "run" : "runBenchmark")}</Button>

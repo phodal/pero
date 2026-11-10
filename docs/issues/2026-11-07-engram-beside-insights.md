@@ -108,9 +108,9 @@ only keeps the denied tools out of the prompt.
 One data directory per project key makes `all_projects` unable to cross
 projects. Pero still does not treat the project name as the boundary.
 
-Disabled and missing-binary states do nothing and do not create a directory.
-An enabled setting with a missing or relative binary fails that session
-explicitly and does not fall back to `~/.engram`.
+Disabled memory adds nothing. When memory is enabled but the external Engram
+server cannot be attached, the session starts with the available Markdown
+notes. It does not launch an Engram process or fall back to `~/.engram`.
 
 `topic_key` still overwrites. Host session instructions say to omit it and to
 include the Host session id in the saved text. That instruction is not a
@@ -139,8 +139,8 @@ write tools.
 
 Use synthetic values only.
 
-- Disabled, or enabled with a missing binary: no directory, no process, and the
-  session either starts without Engram or reports the missing binary.
+- Disabled, or enabled with a missing binary: the session starts without Engram,
+  and no Engram directory or process is created.
 - Enabled: session A saves a unique value through `mem_save`; a new session B
   in the same project directory finds it by `mem_search` without copying the
   chat. Restarting the MCP process keeps the value.

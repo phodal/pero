@@ -14,6 +14,9 @@ test('content associations retain explicit format and language authority', () =>
     [{ kind: 'code', language: 'new-language' }, 'file-code'],
     [{ path: '/work/unknown.suffix' }, 'file'],
     [{ kind: 'app', app: 'paper-agent' }, 'book-open-text'],
+    [{ kind: 'app', app: 'virtual-cell' }, 'dna'],
+    [{ kind: 'app', app: 'compute' }, 'network'],
+    [{ kind: 'app', app: 'skills' }, 'lightbulb'],
     [{ kind: 'app', app: 'third-party' }, 'layout-grid'],
     [{ app: '' }, 'layout-grid'],
   ] as const) assert.equal(registry.resolve(input), expected);

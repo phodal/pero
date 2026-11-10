@@ -27,7 +27,7 @@ import {setActiveIconTheme,type IconThemePackage} from '../../icons/theme';
 export {getActiveIconTheme} from '../../icons/theme';
 export type {IconThemePackage} from '../../icons/theme';
 
-export type AppContext = { locale: 'en' | 'zh-CN'; dark: boolean; active: boolean; appearance?: AppearanceSnapshot; iconTheme?:IconThemePackage|null; name?: string; version?: string; slots?: string[]; permissions?: { api: string[]; events: string[]; host: string[] } };
+export type AppContext = { locale: 'en' | 'zh-CN'; dark: boolean; active: boolean; hostColumnHeader?: boolean; appearance?: AppearanceSnapshot; iconTheme?:IconThemePackage|null; name?: string; version?: string; slots?: string[]; permissions?: { api: string[]; events: string[]; host: string[] } };
 const Context = createContext<AppContext>({ locale: 'en', dark: false, active: true });
 
 /** The parent owns context; the App frame never receives Desktop credentials. */
@@ -50,9 +50,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           previous.locale === value.locale
           && previous.dark === value.dark
           && previous.active === value.active
+          && previous.hostColumnHeader === (value.hostColumnHeader === true)
           && JSON.stringify(previous.appearance) === JSON.stringify(appearance)
         ) return previous;
-        return { ...previous, locale: value.locale, dark: value.dark, active: value.active, appearance, iconTheme: previous.iconTheme };
+        return { ...previous, locale: value.locale, dark: value.dark, active: value.active, hostColumnHeader: value.hostColumnHeader === true, appearance, iconTheme: previous.iconTheme };
       });
     };
     const stopAppUse = installAppUseBridge();
@@ -74,6 +75,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return <Context.Provider value={context}><AppApiProvider appName={context.name || location.hostname || 'app'} appVersion={context.version}
     locale={context.locale} active={context.active} allowedApiPaths={context.permissions?.api ?? ['/api']}
     allowedEvents={context.permissions?.events ?? []} allowedHostCapabilities={context.permissions?.host ?? []}
+    columnHeader={context.hostColumnHeader === true}
     subscribeFn={subscribeAppEvent} navigateFn={navigateApp} notifyFn={notifyApp} setBadgeFn={setAppBadge}
     launchChatFn={async options => (await launchAppChat(options)).threadId} mountConversationFn={context.slots?.includes('conversation') ? mountAppConversation : undefined} mountSessionConversationFn={context.slots?.includes('session-conversation') ? mountAppConversation : undefined} hostCallFn={callAppHost} surface={appSurface}>
     {children}</AppApiProvider></Context.Provider>;

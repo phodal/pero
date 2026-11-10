@@ -7,11 +7,34 @@ use gpui_kit::{base::ElementExt, component::{notification::Notification, WindowE
 use gpui_webview::WebView;
 use pero_contracts::HostEvent;
 use serde_json::{Value, json};
+use std::time::Duration;
+
+/// Cover stays up until the App posts `pero:app:ready`, then fades before the
+/// native page is shown. The page paints above GPUI, so revealing it earlier
+/// would hide the fade.
+const OPENING_FADE: Duration = Duration::from_millis(320);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Opening {
+    Cover,
+    Dismissing,
+    Open,
+}
+
+fn ease_in_out(t: f32) -> f32 {
+    let t = t.clamp(0., 1.);
+    if t < 0.5 {
+        4. * t * t * t
+    } else {
+        1. - (-2. * t + 2.).powi(3) / 2.
+    }
+}
 
 pub(crate) struct NativeAppPage {
     view: Option<Entity<WebView>>,
     error: Option<String>,
     ready: bool,
+    opening: Opening,
     shortcuts: pero_contracts::shortcuts::ShortcutMenu,
     location: Option<String>,
     context: Value,
@@ -132,9 +155,13 @@ impl NativeAppPage {
                         match message["type"].as_str() {
                             Some("loaded" | "pero:app:ready") => {
                                 this.publish_shortcuts(cx);
+                                let became_ready = message["type"] == "pero:app:ready" && !this.ready;
                                 this.ready |= message["type"] == "pero:app:ready";
                                 if this.ready {
                                     if let Some(location)=this.location.take() {this.navigate(location,cx);}
+                                }
+                                if became_ready {
+                                    this.dismiss_opening(cx);
                                 }
                                 this.send(
                                     json!({"type":"pero:app:context","context":this.context}),
@@ -173,12 +200,49 @@ impl NativeAppPage {
             view,
             error,
             ready: false,
+            opening: Opening::Cover,
             location:None,
             context: Value::Null,
             pending: Default::default(),
             canvas_owner: name == "notebook",
             docling_live,
         }
+    }
+    /// `pero:app:ready` means the App SDK is mounted. The cover fades, then the
+    /// native page is shown. Reduced motion skips the fade.
+    fn dismiss_opening(&mut self, cx: &mut Context<Self>) {
+        if self.opening != Opening::Cover {
+            return;
+        }
+        if cx.reduce_motion() {
+            self.opening = Opening::Open;
+            return;
+        }
+        self.opening = Opening::Dismissing;
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(OPENING_FADE).await;
+            let _ = this.update(cx, |this, cx| {
+                if this.opening == Opening::Dismissing {
+                    this.opening = Opening::Open;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
+    fn opening_cover(&self, cx: &mut Context<Self>) -> Div {
+        let locale = self.context["locale"].as_str().unwrap_or("en");
+        let chrome = pero_theme::Chrome::from_app(cx);
+        pero_theme::opening_panel(
+            "native-app-page-opening",
+            pero_contracts::i18n::text(locale, "apps.loading_panel_kicker"),
+            pero_contracts::i18n::text(locale, "apps.loading_panel"),
+            pero_contracts::i18n::text(locale, "apps.loading_panel_hint"),
+            chrome,
+        )
+        .absolute()
+        .inset_0()
+        .bg(chrome.palette.bg)
     }
     pub fn navigate(&mut self, location:String, cx:&App) {
         if self.ready {self.send(json!({"type":"pero:app:location","location":location}),cx);}
@@ -221,6 +285,7 @@ impl NativeAppPage {
     }
     pub(crate) fn sync(&mut self, mut context: Value, cx: &mut Context<Self>) {
         context["titlebar"]=json!(true);
+        context["hostColumnHeader"]=json!(true);
         if !context["active"].as_bool().unwrap_or(false) || self.error.is_some() {
             if let Some(view) = &self.view {
                 view.update(cx, |view, _| view.hide());
@@ -260,6 +325,12 @@ impl NativeAppPage {
         Ok(())
     }
 }
+impl NativeAppPage {
+    pub(crate) fn failure(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
+}
+
 impl Drop for NativeAppPage {
     fn drop(&mut self) {
         // A request queued before tab close may not reach prepare until later.
@@ -270,27 +341,40 @@ impl Drop for NativeAppPage {
 }
 impl Render for NativeAppPage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if let Some(view) = self.view.as_ref().filter(|_| self.error.is_none() && self.context["active"] != false) {
+        let active = self.error.is_none() && self.context["active"] != false;
+        let reveal = active && self.opening == Opening::Open;
+        if let Some(view) = &self.view {
             view.update(cx, |view, _| {
-                if !view.visible() {
-                    view.show();
+                if reveal {
+                    if !view.visible() {
+                        view.show();
+                    }
+                } else if view.visible() {
+                    view.hide();
                 }
             });
         }
         div()
+            .relative()
             .flex()
             .flex_col()
             .flex_1()
             .min_h_0()
             .min_w_0()
             .h_full()
-            .when(!self.ready && self.error.is_none(), |el| {
-                el.child(pero_contracts::i18n::text(
-                    self.context["locale"].as_str().unwrap_or("en"),
-                    "apps.loading_panel",
-                ))
+            .children(self.view.clone().filter(|_| reveal))
+            .when(active && self.opening == Opening::Cover, |el| {
+                el.child(self.opening_cover(cx))
             })
-            .children(self.view.clone().filter(|_| self.error.is_none() && self.context["active"] != false))
+            .when(active && self.opening == Opening::Dismissing, |el| {
+                el.child(
+                    self.opening_cover(cx).with_animation(
+                        "native-app-opening-dismiss",
+                        Animation::new(OPENING_FADE).with_easing(ease_in_out),
+                        |cover, delta| cover.opacity(1. - delta),
+                    ),
+                )
+            })
     }
 }
 pub(crate) struct RetainedApp {
@@ -603,25 +687,26 @@ impl Workbench {
             .h_full()
             .when_some(error.clone(), |el, error| {
                 let diagnostics = format!("App: {name}\nPanel: {panel}\n{error}");
+                let header_owns_retry = self.focused_app().is_some_and(|(active, active_panel)| active == name && active_panel == panel);
                 el.child(
                     pero_theme::feedback("native-app-error-feedback", self.t("apps.open_failed"), self.t("apps.open_failed_hint"),
                         pero_theme::FeedbackKind::Error, chrome)
                         .child(pero_theme::feedback_actions([
-                            pero_theme::action_button("native-app-retry", self.t("apps.retry_open"),
+                            (!header_owns_retry).then(|| pero_theme::action_button("native-app-retry", self.t("apps.retry_open"),
                                 pero_theme::ActionKind::Primary, chrome, cx)
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.native_app_pages.remove(&(name.clone(), panel.clone()));
                                     this.pending_app=Some((name.clone(),panel.clone()));
                                     this.refresh_apps(cx);
-                                })).into_any_element(),
-                            pero_theme::action_button("native-app-error-details", self.t(if self.apps.error_details_open {
+                                })).into_any_element()),
+                            Some(pero_theme::action_button("native-app-error-details", self.t(if self.apps.error_details_open {
                                     "apps.hide_diagnostics"
                                 } else { "apps.show_diagnostics" }), pero_theme::ActionKind::Ghost, chrome, cx)
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.apps.error_details_open = !this.apps.error_details_open;
                                     cx.notify();
-                                })).into_any_element(),
-                        ], chrome))
+                                })).into_any_element()),
+                        ].into_iter().flatten(), chrome))
                         .when(self.apps.error_details_open, |el| el.child(
                             div().flex().flex_col().gap(px(8.)).min_w_0()
                                 .child(pero_theme::feedback_details("native-app-diagnostics", error, chrome))
@@ -640,8 +725,13 @@ impl Workbench {
                     if let Some(page) = self.native_app_pages.get(&key) {
                         el.child(page.view.clone())
                     } else {
-                        el.child(pero_theme::feedback("native-app-loading-feedback", self.t("apps.loading_panel"), self.t("apps.loading_panel_hint"),
-                            pero_theme::FeedbackKind::Progress, chrome))
+                        el.child(pero_theme::opening_panel(
+                            "native-app-loading-feedback",
+                            self.t("apps.loading_panel_kicker"),
+                            self.t("apps.loading_panel"),
+                            self.t("apps.loading_panel_hint"),
+                            chrome,
+                        ))
                     }
                 },
             )

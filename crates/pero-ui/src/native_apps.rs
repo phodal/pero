@@ -250,6 +250,7 @@ impl NativeApps {
                         _ => anyhow::bail!("Unsupported App action"),
                     };
                     event.data = this.request(action, fields)?;
+                    this.attach_column_headers(&mut event.data);
                 }
                 Ok(event)
             })();
@@ -257,6 +258,18 @@ impl NativeApps {
                 .unwrap_or_else(|error| HostEvent::new("apps_error", None, error.to_string()));
             let _ = this.events.send_blocking(event);
         });
+    }
+    /// The catalog summary does not carry column-header actions. Copy them
+    /// from the installed definition's SDK context onto the workbench copy.
+    fn attach_column_headers(&self, data: &mut Value) {
+        let Some(apps) = data.as_array_mut() else { return };
+        for app in apps {
+            if app.get("enabled") != Some(&Value::Bool(true)) { continue; }
+            let Some(name) = app.get("name").and_then(|name| name.as_str()).map(str::to_owned) else { continue };
+            let Ok(info) = self.request::<Value>("sdkcontext", json!({"name": name})) else { continue };
+            let Some(actions) = info.get("columnHeader").and_then(|header| header.get("actions")).and_then(|actions| actions.as_array()) else { continue };
+            if !actions.is_empty() { app["columnHeader"] = info["columnHeader"].clone(); }
+        }
     }
     // WKURLSchemeTask does not supply reliable frame provenance. macOS IPC does:
     // Wry derives request.uri from WKScriptMessage.frameInfo().request().URL.

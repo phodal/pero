@@ -17,15 +17,15 @@ colors:
     canvas: "#F7F9FC"
     white: "#FFFFFF"
     surface-muted: "#EEF3F8"
-    muted: "#596B7D"
-    border: "#DCE4ED"
+    muted: "#4A5C6E"
+    border: "#C5D3E0"
   light:
     bg: "#F7F9FC"
     surface: "#FFFFFF"
     surface-muted: "#EEF3F8"
     text: "#172536"
-    text-muted: "#596B7D"
-    border: "#DCE4ED"
+    text-muted: "#4A5C6E"
+    border: "#C5D3E0"
     input-border: "#748599"
     action: "#007F86"
     action-hover: "#00666D"
@@ -33,8 +33,8 @@ colors:
     accent: "#55D5DD"
     on-accent: "#142B45"
     accent-soft: "#E7F3F5"
-    accent-text: "#00777D"
-    link: "#00777D"
+    accent-text: "#00666D"
+    link: "#00666D"
     focus: "#007F86"
     success: "#35704B"
     on-success: "#FFFFFF"
@@ -268,7 +268,7 @@ Desktop 侧栏与 Chat 布局由 GPUI 宿主和 Host 设置管理，窄窗适配
 | 离子青 | `#55D5DD` | 深色模式主操作、重点图形 |
 | 冰青 | `#E7F3F5` | 浅色分区、强调背景 |
 | 冰白 | `#F7F9FC` | 页面底色、内容留白 |
-| 岩灰 | `#596B7D` | 次级文字、说明 |
+| 岩灰 | `#4A5C6E` | 次级文字、说明 |
 
 深空蓝与光谱青提供默认品牌识别。内容底色可以使用中性或轻染色表面，通过文字对比、
 留白和表面层次保持阅读清晰。杏橘、焦橘、奶油与可可可用于品牌插画、内容分区和温暖的强调。
@@ -327,7 +327,7 @@ hover、pressed、selected 和 focus 按控件含义设计；选中是持续状�
 `colors.light` 与 `colors.dark` 定义默认明暗主题，以下是当前配对；局部配色遵循上面的用途与可读性规则。
 
 - 浅色主按钮：光谱青底、白字；暗色主按钮：离子青底、深色字。
-- 浅色链接与强调文字使用 `#00777D`，链接保留下划线。
+- 浅色链接与强调文字使用 `#00666D`，链接保留下划线。
 - 强调背景与文字使用 `accent-soft` / `accent-text` 配对，亮青使用 `on-accent` 深色文字。
 - 成功、警告、错误、信息使用各主题中的语义色，配明确文字或图标。实色状态背景使用对应 `on-*` 前景。
 - 装饰分隔使用 `border`；输入边界使用 `input-border`；键盘焦点使用 `focus`。文本输入、Textarea 与搜索框使用贴合边框的 1px `text-muted` 焦点细线；校验失败时保留 `error` 边界。

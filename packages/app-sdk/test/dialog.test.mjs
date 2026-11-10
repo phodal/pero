@@ -261,6 +261,15 @@ test('dialog is a native modal with refusal, escape, form, focus and backdrop bo
   });
   assert.deepEqual(opened, ['backdrop']);
 
+  await render(h(Dialog, {
+    id: 'plain', title: 'Plain', closeLabel: 'Close', onClose: () => {},
+    footerStart: h('span', null, 'Saved locally.'),
+    footer: h('button', { type: 'button', id: 'plain-ok' }, 'OK'),
+  }, 'No fields here.'));
+  assert.equal(document.activeElement, document.getElementById('plain'));
+  assert.notEqual(document.activeElement, document.querySelector('#plain .pero-ui-dialog-close'));
+  assert.equal(document.getElementById('plain-ok').parentElement.className, 'pero-ui-dialog-foot-actions');
+
   await render(h(Dialog, { id: 'quiet', title: 'Quiet', closeButton: false, open: false, onClose: () => {} }, 'hidden'));
   assert.equal(Boolean(document.getElementById('quiet').open), false);
   assert.equal(document.querySelector('#quiet .pero-ui-dialog-close'), null);
