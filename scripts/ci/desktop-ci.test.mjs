@@ -296,6 +296,24 @@ test('fast reader contracts install their locked Paper runtime before testing', 
   }
 });
 
+test('Paper backend CI consumers package their shared parser before direct Python imports', () => {
+  const consumers = [
+    ['.github/workflows/ci.yml', 'generated', 'node --test scripts/ci/*.test.mjs'],
+    ['.github/workflows/ci.yml', 'core', "python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v"],
+    ['.github/workflows/ci.yml', 'windows-acl-sandbox', 'python -m unittest discover -s apps/paper-agent/test -p test_research_import.py -v'],
+    ['.github/workflows/paper-fisher.yml', 'fisher', "python -m unittest discover -s apps/paper-agent/test -p 'test_fisher*.py' -v"],
+    ['.github/workflows/paper-docling-macos.yml', 'docling', 'python apps/paper-agent/test/manual/docling_ci.py'],
+    ['.github/workflows/notebook.yml', 'notebook', 'npm run test:notebook'],
+  ];
+  for (const [file, job, command] of consumers) {
+    const steps = YAML.parse(readFileSync(file, 'utf8')).jobs[job].steps;
+    const node = steps.findIndex(step => step.uses?.startsWith('actions/setup-node@'));
+    const packaged = steps.findIndex(step => step.run?.includes('node scripts/build/source-parsers.mjs'));
+    const consumer = steps.findIndex(step => step.run?.includes(command));
+    assert.ok(node >= 0 && packaged > node && consumer > packaged, `${file}: ${job} must package the real shared parser before ${command}`);
+  }
+});
+
 test('ordinary fast contracts cover Product shutdown without native Electron', () => {
   const job = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.generated;
   const install = job.steps.findIndex(step => step.run === 'npm ci');

@@ -39,11 +39,11 @@ pub(crate) fn show(prompt: Prompt, window: &mut Window, cx: &mut App) {
     OPEN.with(|open| open.set(Some(id)));
     window.open_dialog(cx, move |dialog, window, _| {
         dialog
-            .title(if prompt.revoke { "Disable optional OCR?" } else { "Install this optional Docling component?" })
+            .title(prompt.action.clone().unwrap_or_else(|| if prompt.revoke { "Disable optional OCR?".into() } else { "Install this optional Docling component?".into() }))
             .w((window.viewport_size().width - px(48.)).min(px(680.)))
             .overlay_closable(false)
             .child(div().id("docling-confirmation-detail").max_h(px(420.)).overflow_y_scroll().child(prompt.summary.clone()))
-            .child(if prompt.revoke { "Downloaded files are retained." } else { "Cancel to continue selecting values manually. Software and model downloads require separate approval." })
+            .child(if prompt.action.is_some() { "Only this saved binding and declared action will be allowed. Cancel leaves it unexecuted." } else if prompt.revoke { "Downloaded files are retained." } else { "Cancel to continue selecting values manually. Software and model downloads require separate approval." })
             // Enter on the dialog, Escape, and its close button all deny. Only
             // activating the explicitly labelled footer action grants consent.
             .on_ok(move |_, window, cx| { answer(id, false, window, cx); false })
@@ -55,7 +55,7 @@ pub(crate) fn show(prompt: Prompt, window: &mut Window, cx: &mut App) {
             .footer(DialogFooter::new().child(
                 Button::new("docling-cancel").label("Cancel").on_click(move |_, window, cx| answer(id, false, window, cx))
             ).child(
-                Button::new("docling-confirm").label(if prompt.revoke { "Disable OCR" } else { "Install component" })
+                Button::new("docling-confirm").label(if prompt.action.is_some() { "Run once" } else if prompt.revoke { "Disable OCR" } else { "Install component" })
                     .on_click(move |_, window, cx| answer(id, true, window, cx))
             ))
     });

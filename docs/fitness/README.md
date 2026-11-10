@@ -1,5 +1,8 @@
 # Quality gates
 
+Notebook block editing, Excel calculation and exchange, and versioned evidence:
+[Notebook verification](notebook.md).
+
 GPUI Kit 0.9.0 dependency migration, retained local fixes and runtime checks:
 [Kit upgrade](gpui-kit-0.9.md).
 

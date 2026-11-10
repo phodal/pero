@@ -233,8 +233,15 @@ func (k *Kernel) roundTrip(ctx context.Context, op, body string, host Host) (Out
 	}
 	proc := k.proc
 	watch, stop := context.WithCancel(context.Background())
-	defer stop()
+	watchDone := make(chan struct{})
+	defer func() {
+		stop()
+		// Retire this cell's cancellation owner before the caller can cancel
+		// its completed context or start another cell on the same process.
+		<-watchDone
+	}()
 	go func() {
+		defer close(watchDone)
 		select {
 		case <-ctx.Done():
 			if proc != nil {

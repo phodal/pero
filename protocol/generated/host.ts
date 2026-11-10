@@ -118,6 +118,8 @@ export type QuestionReply = AnsweredQuestions | CancelledQuestions;
 export type EngramSettingsRequest = GetEngramSettings | SetEngramSettings | SetEngramDocument;
 export type EngramBinary = string;
 export type AppRequest =
+  | NotebookProjectsApp
+  | AppCanvasRequest
   | SkillMarketApp
   | LocalEnvironmentApp
   | EnvironmentInspectionApp
@@ -142,6 +144,11 @@ export type AppRequest =
   | AutomationApp
   | ResearchAssetsApp;
 export type AppName = string;
+export type NotebookProjectsOperation = NotebookProjectsList | NotebookProjectsChange;
+export type NotebookRevision = number;
+export type RequestId = string;
+export type CanvasOperation =
+  CanvasMount | CanvasRead | CanvasRelease | CanvasPrepare | CanvasDecide | CanvasStatus | CanvasCancel;
 export type SkillMarketOperation =
   | SkillMarketRead
   | SkillMarketEntryOperation
@@ -155,7 +162,6 @@ export type SkillMarketOperation =
 export type SkillMarketId = string;
 export type SkillRevision = string;
 export type SkillDigest = string;
-export type RequestId = string;
 export type LocalEnvironmentOperation =
   LocalEnvironmentCreate | LocalEnvironmentList | LocalEnvironmentPrepare | LocalEnvironmentBind;
 export type AgentRunRequest =
@@ -1769,6 +1775,92 @@ export interface SetEngramDocument {
   scope: string;
   text: string;
 }
+export interface NotebookProjectsApp {
+  action: "notebook-projects";
+  name: AppName;
+  request: NotebookProjectsOperation;
+  method: "apps";
+  id: RequestId;
+}
+export interface NotebookProjectsList {
+  operation: "list";
+}
+export interface NotebookProjectsChange {
+  operation: "review" | "apply";
+  change: NotebookProjectLink;
+}
+export interface NotebookProjectLink {
+  projectId: string;
+  entryId: string;
+  revision: NotebookRevision;
+  expectedRevision: string | null;
+  linked: boolean;
+  readOnly: boolean;
+}
+export interface AppCanvasRequest {
+  action: "canvas";
+  name: AppName;
+  request: CanvasOperation;
+  method: "apps";
+  id: RequestId;
+}
+export interface CanvasMount {
+  operation: "mount";
+  source: CanvasSource;
+}
+export interface CanvasSource {
+  entryId: string;
+  revision: NotebookRevision;
+  blockId: string;
+  binding: CanvasBinding;
+  readOnly: boolean;
+}
+export interface CanvasBinding {
+  id: string;
+  app: AppName;
+  panel: AppName;
+  view: AppName;
+  declaration: string;
+  inputs: AppDocumentSchema;
+}
+/**
+ * Public catalog: no local paths or backend credentials.
+ */
+export interface AppDocumentSchema {
+  [k: string]: unknown | undefined;
+}
+export interface CanvasRead {
+  operation: "read";
+  instance: string;
+}
+export interface CanvasRelease {
+  operation: "release";
+  instance: string;
+}
+export interface CanvasPrepare {
+  operation: "prepare";
+  instance: string;
+  operationId: string;
+  action: AppName;
+  params: AppDocumentSchema;
+}
+export interface CanvasDecide {
+  operation: "decide";
+  instance: string;
+  operationId: string;
+  ticket: string;
+  allow: boolean;
+}
+export interface CanvasStatus {
+  operation: "status";
+  instance: string;
+  operationId: string;
+}
+export interface CanvasCancel {
+  operation: "cancel";
+  instance: string;
+  operationId: string;
+}
 export interface SkillMarketApp {
   action: "skillsmarket";
   name: AppName;
@@ -1895,12 +1987,6 @@ export interface AgentRunPrepare {
 }
 export interface AgentScope {
   workspaceId: string;
-}
-/**
- * Public catalog: no local paths or backend credentials.
- */
-export interface AppDocumentSchema {
-  [k: string]: unknown | undefined;
 }
 export interface AgentRunTerminal {
   operation: "terminal";
@@ -3760,6 +3846,8 @@ export interface AppsResultEvent {
 export interface AppSuccess {
   ok: true;
   value:
+    | NotebookProjectsReply
+    | CanvasReply
     | SkillMarketCatalog
     | SkillMarketInstalled
     | SkillMarketUpdate
@@ -3787,6 +3875,65 @@ export interface AppSuccess {
     | AppGrant
     | ResearchAssetReply
     | ResearchBundleReply;
+}
+export interface NotebookProjectsReply {
+  state?: string;
+  summary?: string;
+  projects?: NotebookProjectSummary[];
+  entries?: NotebookSavedEntry[];
+}
+export interface NotebookProjectSummary {
+  id: string;
+  title: string;
+  entries: NotebookProjectEntryRef[];
+}
+export interface NotebookProjectEntryRef {
+  id: string;
+  revision: string;
+}
+export interface NotebookSavedEntry {
+  id: string;
+  title: string;
+  revision: string;
+}
+export interface CanvasReply {
+  history?: CanvasHistoryItem[];
+  state?: string;
+  instance?: string;
+  source?: CanvasSource;
+  projection?: CanvasProjection;
+  ticket?: string;
+  summary?: string;
+  message?: string;
+  receipt?: AppDocumentSchema;
+}
+export interface CanvasHistoryItem {
+  operationId: string;
+  action: AppName;
+  state: string;
+}
+export interface CanvasProjection {
+  title: string;
+  fields: CanvasField[];
+  columns: string[];
+  rows: string[][];
+  notice: string;
+  actions: CanvasAction[];
+}
+export interface CanvasField {
+  label: string;
+  value: string;
+}
+export interface CanvasAction {
+  name: AppName;
+  label: string;
+  params: AppDocumentSchema;
+  inputs?: CanvasActionInput[];
+}
+export interface CanvasActionInput {
+  name: string;
+  label: string;
+  maxLength: number;
 }
 export interface SkillMarketCatalog {
   schema_version: number;
@@ -3870,11 +4017,35 @@ export interface AppSdkContext {
   name: AppName;
   version: string;
   permissions: AppSdkPermissions;
+  appViews?: InstalledAppViews[];
 }
 export interface AppSdkPermissions {
   api: string[];
   events: string[];
   host: string[];
+}
+export interface InstalledAppViews {
+  canvases?: DeclaredCanvasView[];
+  app: AppName;
+  title: string;
+  version: string;
+  revision: string;
+  enabled: boolean;
+  panels: DeclaredAppPanel[];
+  actions: DeclaredAppAction[];
+}
+export interface DeclaredCanvasView {
+  id: AppName;
+  title: string;
+  inputs: AppDocumentSchema;
+}
+export interface DeclaredAppPanel {
+  id: AppName;
+  title: string;
+}
+export interface DeclaredAppAction {
+  name: AppName;
+  description: string;
 }
 export interface AgentRun {
   id: string;

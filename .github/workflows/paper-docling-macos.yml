@@ -8,6 +8,8 @@ on:
     paths:
       - .github/workflows/paper-docling-macos.yml
       - apps/paper-agent/app.json
+      - packages/source-extraction/**
+      - scripts/build/source-parsers.mjs
       - apps/paper-agent/requirements-docling*.txt
       - apps/paper-agent/backend/paper_agent/docling*.py
       - apps/paper-agent/backend/paper_agent/numeric*.py
@@ -73,6 +75,7 @@ jobs:
       - name: Prepare ordinary Paper dependencies, separately from Docling
         timeout-minutes: 5
         run: |
+          node scripts/build/source-parsers.mjs
           python -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
 
       # Cargo's existing wrapper needs these pinned workspace manifest inputs;

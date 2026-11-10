@@ -2,6 +2,8 @@
 mod agent_access;
 mod sdk;
 pub mod agent;
+pub mod canvas;
+pub mod canvas_history;
 pub mod agent_plugin;
 mod agent_preparation;
 pub mod agent_run;

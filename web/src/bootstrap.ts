@@ -115,6 +115,13 @@ try {
         now: () => performance.now(),
       });
     }
+    if ('action' in value && value.action === 'notebook_research_source' && 'app' in value) {
+      const catalog = JSON.parse(snapshot()).apps as { name: string; enabled: boolean; panels: { id: string }[] }[] | undefined;
+      if (!catalog?.some(app => app.name === value.app && app.enabled && app.panels.some(panel => panel.id === 'main')))
+        throw new Error('Research source App is unavailable');
+      receive_host_event(JSON.stringify({version:1,kind:'notebook_research_source',request_id:null,text:'',data:value}));
+      return;
+    }
     return window.pero?window.pero.appsCommand(value):Promise.reject(new Error(t('error.browser')));},launchAppChat,({header,text,location})=>receive_host_event(JSON.stringify({version:1,kind:'document_open',request_id:null,text,data:location?{header,location}:header})),pane=>receive_host_event(JSON.stringify({version:1,kind:'pane_focus',request_id:null,text:'',data:{id:pane}})),async slot=>{
     receive_host_event(JSON.stringify({version:1,kind:'app_chat_slot',request_id:null,text:'',data:slot}));
     if(!slot)return false;

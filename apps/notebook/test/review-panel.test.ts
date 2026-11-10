@@ -1,0 +1,99 @@
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { spawn } from 'node:child_process';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createInterface } from 'node:readline';
+import test from 'node:test';
+import { createUiRuntime } from '../../../packages/app-sdk/test/ui-test-runtime.mjs';
+
+// The UI uses the real HTTP/SQLite domain. Only a transport interruption is injected.
+test('local review UI retains rejected input, requires explicit decisions, archives old approval and cancels dialogs', { timeout: 20_000 }, async t => {
+  const app = fileURLToPath(new URL('..', import.meta.url));
+  const directory = await mkdtemp(resolve(tmpdir(), 'notebook-review-ui-'));
+  const backend = spawn('python3', [resolve(app, 'backend/server.py')], { env: { ...process.env, PERO_APP_DATA: directory, PERO_APP_TOKEN: 'review-ui', PYTHONDONTWRITEBYTECODE: '1' }, stdio: ['ignore', 'pipe', 'inherit'] });
+  t.after(async () => { if (backend.exitCode === null) { const ended = once(backend, 'exit'); backend.kill(); await ended; } await rm(directory, { recursive: true, force: true }); });
+  const lines = createInterface({ input: backend.stdout });
+  const [ready] = await once(lines, 'line', { signal: AbortSignal.timeout(8000) }); lines.close();
+  const origin = `http://127.0.0.1:${JSON.parse(ready).port}`;
+  const actualFetch = (path: string, init: RequestInit = {}) => { const headers = new Headers(init.headers); headers.set('X-Pero-App-Token', 'review-ui'); headers.set('Content-Type', 'application/json'); return fetch(origin + path, { ...init, headers }); };
+  const content = { schemaVersion: 1, title: 'Pinned experiment', content: { type: 'doc', content: [{ type: 'paragraph', attrs: { blockId: 'notes' }, content: [{ type: 'text', text: 'Recorded source' }] }] } };
+  const created = await actualFetch('/api/entries', { method: 'POST', body: JSON.stringify({ document: content }) }).then(value => value.json());
+  let failNext = false, submitted = 0;
+  const runtime = await createUiRuntime(t, { resolveDir: resolve(app, 'ui-src'), contents: `export { ReviewerPanel } from './review-panel'; export { AppSdkProvider, createAppHost } from '@pero/app-sdk';` });
+  const { React, ui, render, click, dom } = runtime;
+  dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); this.open = false; };
+  dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); this.open = true; };
+  const host = ui.createAppHost({ name: 'notebook', locale: 'en', allowedApiPaths: ['/api'], fetch: async (path: string, init: RequestInit) => {
+    if (init.method === 'POST') { submitted++; if (failNext) { failNext = false; return new Response(JSON.stringify({ detail: 'Connection interrupted. Retry retained input.' }), { status: 503 }); } }
+    return actualFetch(path, init);
+  } });
+  const mount = (revision = 1, document = content) => render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.ReviewerPanel, { entryId: created.id, revision, document })));
+  const button = (text: string, root: ParentNode = document) => {
+    const found = [...root.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent?.trim() === text || node.getAttribute('aria-label') === text);
+    assert.ok(found, `Missing button: ${text}`); return found;
+  };
+  const tab = (label: string) => { const found = [...document.querySelectorAll<HTMLElement>('[role=tab]')].find(node => node.textContent === label); assert.ok(found); return found; };
+  const dialog = () => { const found = document.querySelector<HTMLElement>('dialog'); assert.ok(found); return found; };
+  const field = (label: string) => { const found = [...document.querySelectorAll<HTMLLabelElement>('label')].find(node => node.textContent === label); assert.ok(found, `Missing label: ${label}`); const control = document.getElementById(found.htmlFor) as HTMLInputElement | HTMLTextAreaElement; assert.ok(control); return control; };
+  const fill = async (node: HTMLInputElement | HTMLTextAreaElement, value: string) => React.act(async () => {
+    const prototype = node.tagName === 'TEXTAREA' ? dom.window.HTMLTextAreaElement.prototype : dom.window.HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(node, value);
+    node.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+  const settled = async (condition: () => boolean) => {
+    const end = Date.now() + 5000;
+    while (!condition() && Date.now() < end) await React.act(async () => new Promise<void>(done => setImmediate(done)));
+    assert.ok(condition(), `UI condition did not settle: ${document.body.textContent?.slice(-3000)}`);
+  };
+  await mount();
+  await settled(() => !button('Start comment thread').disabled);
+  assert.deepEqual([...document.querySelectorAll('.pero-ui-empty-heading')].map(node => node.textContent), [
+    'No comment threads yet', 'No local tasks yet', 'No local review records yet', 'No recorded changes yet',
+  ]);
+  await click(button('Start comment thread'));
+  await fill(field('Comment'), 'Keep this question after failure'); failNext = true;
+  await click(button('Save record', dialog()));
+  await settled(() => dialog().textContent?.includes('Connection interrupted') === true);
+  assert.equal(field('Comment').value, 'Keep this question after failure');
+  await React.act(async () => { const save = button('Save record', dialog()); save.click(); save.click(); });
+  await settled(() => document.querySelector('dialog') === null);
+  assert.match(document.querySelector('.notebook-review-comments')!.textContent!, /Keep this question/);
+  assert.equal(submitted, 2);
+  await click(button('Resolve thread')); await settled(() => !![...document.querySelectorAll('button')].find(node => node.textContent === 'Reopen thread'));
+  await click(button('Reopen thread')); await settled(() => !![...document.querySelectorAll('button')].find(node => node.textContent === 'Resolve thread'));
+  await click(button('Reply')); await fill(field('Comment'), 'Reply that should not be submitted');
+  const beforeCancel = submitted;
+  await React.act(async () => dialog().dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  assert.equal(document.querySelector('dialog'), null); assert.equal(submitted, beforeCancel);
+  await click(tab('Human review'));
+  await click(button('Request local self-review · r1'));
+  await settled(() => !button('Save record', dialog()).disabled);
+  await click(button('Save record', dialog())); await settled(() => !document.querySelector('dialog'));
+  await click(button('Record my approval'));
+  assert.equal(button('Confirm local action', dialog()).disabled, true);
+  await fill(field('Review note or decision reason'), 'I checked the saved source.');
+  await settled(() => !!dialog().querySelector('.notebook-review-snapshot pre'));
+  const check = dialog().querySelector<HTMLElement>('[role=checkbox],input[type=checkbox]'); assert.ok(check); await click(check);
+  assert.equal(button('Confirm local action', dialog()).disabled, false);
+  await click(button('Confirm local action', dialog())); await settled(() => !document.querySelector('dialog'));
+  const revised = structuredClone(content); revised.title = 'Changed experiment';
+  await actualFetch(`/api/entries/${created.id}`, { method: 'POST', body: JSON.stringify({ baseRevision: 1, document: revised }) });
+  await mount(2, revised);
+  await settled(() => document.body.textContent?.includes('Older revision; does not review the latest content') === true);
+  assert.match(document.body.textContent!, /Approved locally/);
+  const recordedDecision = [...document.querySelectorAll('p')].find(node => node.textContent?.startsWith('Recorded decision:'));
+  assert.ok(recordedDecision);
+  assert.equal(recordedDecision.textContent!.includes('\\n'), false, 'A literal backslash-n must not be displayed between the timestamp and reason');
+  assert.equal(recordedDecision.querySelectorAll('br').length, 1, 'The recorded reason starts on a new line');
+  await click(button('Request a fresh review · r2'));
+  await settled(() => !button('Save record', dialog()).disabled);
+  await click(button('Save record', dialog())); await settled(() => !document.querySelector('dialog'));
+  const state = await actualFetch(`/api/entries/${created.id}/review-workspace`).then(value => value.json());
+  assert.equal(state.reviews.length, 2); assert.equal(state.reviews[0].status, 'requested'); assert.equal(state.reviews[0].anchor.revision, 2);
+  assert.equal(state.reviews[1].status, 'approved'); assert.equal(state.reviews[1].anchor.revision, 1);
+  await click(tab('History and compare'));
+  await settled(() => document.body.textContent?.includes('1 changes') === true);
+});

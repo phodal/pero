@@ -23,6 +23,33 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 } });
 const { DesktopApps } = await import('./apps.ts');
 
+test('Host SDK context carries installed view discovery without backend resolution or new authority', async () => {
+  let enabled = true;
+  const context = { name: 'notebook', version: '1', permissions: { api: ['/api'], events: [], host: [] },
+    appViews: [{ app: 'demo', title: 'Demo', version: '2', revision: 'a'.repeat(64), enabled: true,
+      panels: [{ id: 'main', title: 'Main' }], actions: [{ name: 'save', description: 'Save a result' }] }] };
+  const apps = new DesktopApps(command => {
+    const request = command as { id: string; name: string; action: string };
+    assert.equal(request.action, 'sdkcontext');
+    apps.accept({ version: 1, kind: 'apps_result', request_id: request.id, text: '', data: enabled
+      ? { ok: true, value: request.name === 'notebook' ? context : { name: request.name, version: '1', permissions: context.permissions } }
+      : { ok: false, error: 'App is not installed or enabled' } });
+  }, () => { throw new Error('Discovery must not publish Host events'); }, async () => undefined);
+  try {
+    for (const name of ['notebook', 'demo']) {
+      const response = await apps.serve(new Request(`pero-app://${name}/host/sdk`));
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('Cache-Control'), 'no-store');
+      const actual = await response.json();
+      assert.deepEqual(actual.permissions, context.permissions);
+      assert.deepEqual(actual.slots, ['conversation']);
+      assert.deepEqual(actual.appViews, name === 'notebook' ? context.appViews : undefined);
+    }
+    enabled = false;
+    assert.equal((await apps.serve(new Request('pero-app://notebook/host/sdk'))).status, 503);
+  } finally { apps.close(); }
+});
+
 test('App assets keep declared frame origins and allow same-app ancestors only for bundled reader frames', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pero-app-frames-'));
   const assets = ['index.html', 'artifact.html', '_reader/reader.html', '_paper-reader/frame.html',
@@ -107,4 +134,52 @@ test('Scientific Viewer reads fixed Host snapshots without backend startup or pu
     assert.equal((await apps.serve(new Request('pero-app://scientific-viewer/host/artifacts/chat/item/1'))).status, 503);
     assert.equal(resolutions, fixtures.length, 'Refused requests must not resolve or read a snapshot');
   } finally { apps.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('Canvas transport rejects foreign origin and renderer consent; private tickets never reach App', async () => {
+  const calls: any[] = [];
+  const apps = new DesktopApps(command => {
+    const request = command as any; calls.push(request);
+    assert.equal(request.action, 'canvas'); assert.equal(request.name, 'notebook');
+    apps.accept({ version: 1, kind: 'apps_result', request_id: request.id, text: '', data: { ok: true, value: request.request.operation === 'prepare'
+      ? { state: 'requires-approval', ticket: 'private', summary: 'Exact saved source' }
+      : { state: 'completed', receipt: { operationId: 'op' } } } });
+  }, () => assert.fail('Private event forwarded'), async () => undefined, undefined, undefined, undefined, undefined, async () => true);
+  const action = { operation: 'act', instance: 'instance', operationId: 'op', action: 'canvas-archive', params: { archived: true } };
+  const request = (name: string, body: object, origin = `pero-app://${name}`) => new Request(`pero-app://${name}/host/canvas`, { method: 'POST', headers: { Origin: origin }, body: JSON.stringify(body) });
+  try {
+    assert.equal((await apps.serve(request('data', action))).status, 403);
+    assert.equal((await apps.serve(request('notebook', action, 'pero-app://data'))).status, 403);
+    assert.equal((await apps.serve(request('notebook', { ...action, allow: true }))).status, 503);
+    assert.equal(calls.length, 0);
+    const response = await apps.serve(request('notebook', action));
+    assert.deepEqual(await response.json(), { state: 'completed', receipt: { operationId: 'op' } });
+    assert.equal(calls.length, 2); assert.equal(calls[1].request.ticket, 'private');
+    assert.equal(response.headers.get('Cache-Control'), 'no-store');
+  } finally { apps.close(); }
+});
+
+test('Notebook project route keeps foreign origins and generic preference writes out of trusted confirmation', async () => {
+  const calls: any[] = [], prompts: string[] = [];
+  const apps = new DesktopApps((request: any) => {
+    calls.push(request); assert.equal(request.action, 'notebook-projects'); assert.equal(request.name, 'notebook');
+    apps.accept({ version: 1, kind: 'apps_result', request_id: request.id, text: '', data: { ok: true,
+      value: request.request.operation === 'review' ? { summary: 'Actual Host project / saved Notebook v2' } : { state: 'completed', projects: [] } } });
+  }, () => {}, async () => undefined, undefined, undefined, undefined, undefined,
+  async summary => { prompts.push(summary); return true; });
+  const change = { projectId: 'host-project', entryId: 'a'.repeat(32), revision: 2, expectedRevision: null, linked: true, readOnly: false };
+  const request = (name: string, input: any, origin = `pero-app://${name}`) => new Request(`pero-app://${name}/host/notebook-projects`,
+    { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+  try {
+    assert.equal((await apps.serve(request('data', { operation: 'list' }))).status, 403);
+    assert.equal((await apps.serve(request('notebook', { operation: 'list' }, 'pero-app://data'))).status, 403);
+    assert.equal((await apps.serve(request('notebook', { operation: 'apply', change }))).status, 503);
+    assert.equal((await apps.serve(request('notebook', { operation: 'set', change, allow: true }))).status, 503);
+    assert.equal(calls.length, 0); assert.equal(prompts.length, 0);
+    const response = await apps.serve(request('notebook', { operation: 'set', change }));
+    assert.equal(response.status, 200); assert.equal(response.headers.get('Cache-Control'), 'no-store');
+    assert.equal((await response.json()).state, 'completed'); assert.equal(prompts.length, 1);
+    assert.deepEqual(calls.map(item => item.request.operation), ['review', 'apply']);
+    assert.deepEqual(calls[1].request.change, change);
+  } finally { apps.close(); }
 });

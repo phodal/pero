@@ -7,7 +7,7 @@ import { failures } from './gate.mjs';
 
 const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
 const { steps } = workflow.jobs.core;
-const checks = steps.filter(step => step.run && !['npm', 'gpui', 'paper_python', 'viewer_python',
+const checks = steps.filter(step => step.run && !['npm', 'gpui', 'paper_python', 'notebook_canvas_python', 'viewer_python',
   'hpc_npm', 'automations_npm', 'paper_npm', 'viewer_npm', 'host_build', 'mcp_build'].includes(step.id));
 
 // Interpret only this workflow's deliberately small condition vocabulary. This
@@ -56,10 +56,11 @@ test('every assertion failure leaves independent core checks running and the gat
 test('failed prerequisites skip their consumers without hiding unrelated checks', () => {
   for (const [failed, skipped, running] of [
     ['paper_npm', ['paper_components', 'paper_types', 'paper_availability', 'paper_manual', 'app_build_contracts'], ['viewer_unit', 'hpc_ui', 'core_types', 'rust_tests', 'host_stdio']],
-    ['rust', ['rust_tests', 'host_build', 'host_stdio'], ['paper_components', 'core_types', 'app_use', 'mcp_build']],
-    ['host_build', ['host_stdio', 'host_research', 'host_mcp_settings', 'host_mcp_ownership', 'host_automation', 'host_app_automation', 'host_app_agent', 'control_lab_host'], ['rust_tests', 'core_types', 'mcp_build', 'control_lab']],
+    ['rust', ['rust_tests', 'host_build', 'host_stdio', 'app_canvas'], ['paper_components', 'core_types', 'app_use', 'mcp_build']],
+    ['host_build', ['app_canvas', 'host_stdio', 'host_research', 'host_mcp_settings', 'host_mcp_ownership', 'host_automation', 'host_app_automation', 'host_app_agent', 'control_lab_host'], ['rust_tests', 'core_types', 'mcp_build', 'control_lab']],
     ['mcp_build', ['host_mcp_settings', 'host_mcp_ownership'], ['host_stdio', 'host_research', 'host_app_agent']],
     ['paper_python', ['paper_backend', 'paper_pdf_http', 'paper_source_http', 'paper_source_cli', 'host_research'], ['data_backend', 'viewer_backend', 'paper_components', 'host_stdio']],
+    ['notebook_canvas_python', ['app_canvas'], ['paper_backend', 'core_types', 'host_build', 'host_stdio']],
     ['npm', ['core_types', 'app_use', 'paper_components', 'host_stdio'], ['rust_tests', 'host_build', 'paper_backend', 'data_backend']],
   ]) {
     const result = outcomes([failed]);
@@ -102,6 +103,24 @@ test('Viewer inspection survives bridge failure and retains screenshot evidence'
   assert.equal(artifacts.if, viewer.if);
   assert.ok(workflow.jobs.complete.needs.includes('scientific-viewer'));
   assert.deepEqual(failures({ 'scientific-viewer': { result: 'failure' } }, false), ['scientific-viewer']);
+});
+
+test('Notebook browser and type checks survive unit failures and gate completion', () => {
+  assert.equal(workflow.jobs.notebook.uses, "./.github/workflows/notebook.yml");
+  const job = YAML.parse(readFileSync('.github/workflows/notebook.yml', 'utf8')).jobs.notebook;
+  const prepare = job.steps.find(step => step.id === 'prepare');
+  assert.match(prepare.run, /npm --prefix apps\/notebook run build/);
+  assert(job.steps.some(step => step.run === 'npm run test:notebook'));
+  for (const command of ['typecheck', 'test:browser']) {
+    const step = job.steps.find(step => step.run === `npm --prefix apps/notebook run ${command}`);
+    assert.deepEqual(dependencies(step), ['prepare']);
+  }
+  for (const step of job.steps) assert.equal(step['continue-on-error'], undefined);
+  const evidence = job.steps.at(-1);
+  assert.equal(evidence.if, 'always()');
+  assert.equal(evidence.with.path, 'test-results/notebook/');
+  assert(workflow.jobs.complete.needs.includes('notebook'));
+  assert.deepEqual(failures({ notebook: { result: 'failure' } }, false), ['notebook']);
 });
 
 test('Control Lab split selects every existing runtime test exactly once', () => {

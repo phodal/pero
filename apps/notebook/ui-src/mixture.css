@@ -1,0 +1,4 @@
+.notebook-mixture-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: var(--pero-spacing-3); margin-block: var(--pero-spacing-3); }
+.notebook-mixture-quantity { display: flex; align-items: end; gap: var(--pero-spacing-2); }
+.notebook-mixture-quantity > * { min-width: 0; flex: 1; }
+.notebook-mixture-ingredient { border: 1px solid var(--pero-border); border-radius: var(--pero-radius-md, 8px); margin-block: var(--pero-spacing-3); padding: var(--pero-spacing-3); min-width: 0; }

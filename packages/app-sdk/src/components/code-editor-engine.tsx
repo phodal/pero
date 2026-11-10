@@ -2,9 +2,11 @@
 import { useEffect, useRef } from 'react';
 import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView, drawSelection, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
-import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { LRLanguage, StreamLanguage, HighlightStyle, syntaxHighlighting, indentUnit } from '@codemirror/language';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { tags } from '@lezer/highlight';
+import { parser as javascriptParser } from '@lezer/javascript';
+import { python } from '@codemirror/legacy-modes/mode/python';
 
 const KEYWORD = /^(?:classDiagram|erDiagram|flowchart|stateDiagram-v2|stateDiagram|sequenceDiagram|class|namespace|participant|actor|direction|note|graph)\b/;
 const ARROW = /^(?:<\|--|--\|>|<\|\.\.|o--|\*--|-->|<--|==>|--|\.\.>)/;
@@ -66,7 +68,10 @@ const theme = EditorView.theme({
   '.cm-cursor': { borderLeftColor: 'var(--pero-source-foreground, var(--pero-text))' },
 });
 
+const languages = { mermaid, python: StreamLanguage.define(python), javascript: LRLanguage.define({ parser: javascriptParser }), plaintext: [] };
+
 export type CodeEditorProps = {
+  language?: keyof typeof languages;
   id?: string;
   value: string;
   label: string;
@@ -77,12 +82,13 @@ export type CodeEditorProps = {
 };
 
 /** Editable source. The caller owns the text; this view only reports edits. */
-export function CodeEditorEngine({ id, value, label, disabled = false, onChange, ...aria }: CodeEditorProps) {
+export function CodeEditorEngine({ id, value, label, disabled = false, language = 'mermaid', onChange, ...aria }: CodeEditorProps) {
   const holder = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const access = useRef(new Compartment());
   const editing = useRef(new Compartment());
+  const syntax = useRef(new Compartment());
   onChangeRef.current = onChange;
 
   useEffect(() => {
@@ -93,7 +99,7 @@ export function CodeEditorEngine({ id, value, label, disabled = false, onChange,
       state: EditorState.create({
         doc: value,
         extensions: [
-          mermaid,
+          syntax.current.of([languages[language], indentUnit.of(language === 'mermaid' ? '  ' : '    ')]),
           syntaxHighlighting(colors),
           lineNumbers(),
           highlightActiveLine(),
@@ -139,10 +145,11 @@ export function CodeEditorEngine({ id, value, label, disabled = false, onChange,
           'aria-invalid': aria['aria-invalid'] ? 'true' : 'false',
             'aria-readonly': String(disabled), 'aria-disabled': String(disabled),
         })),
+        syntax.current.reconfigure([languages[language], indentUnit.of(language === 'mermaid' ? '  ' : '    ')]),
         editing.current.reconfigure([EditorState.readOnly.of(disabled), EditorView.editable.of(!disabled)]),
       ],
     });
-  }, [id, label, disabled, aria['aria-describedby'], aria['aria-invalid']]);
+  }, [id, label, disabled, language, aria['aria-describedby'], aria['aria-invalid']]);
 
   return <div className="pero-source-pane" ref={holder} />;
 }

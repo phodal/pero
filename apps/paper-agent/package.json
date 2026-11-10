@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "pretest": "node ../../scripts/build/source-parsers.mjs",
     "build": "node ../../scripts/build/apps.mjs --app paper-agent",
     "test": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
     "typecheck": "../../node_modules/.bin/tsc -p tsconfig.json"

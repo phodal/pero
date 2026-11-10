@@ -187,3 +187,45 @@ export type ContextMenuSeparatorProps = Omit<React.ComponentPropsWithoutRef<type
 export const ContextMenuSeparator = forwardRef<HTMLDivElement, ContextMenuSeparatorProps>(function ContextMenuSeparator({ unstyled, className, ...props }, forwardedRef) {
   return <Primitive.Separator {...props} className={classes('pero-ui-dropdown-separator', className)} data-unstyled={unstyled || undefined} ref={useStableRef(forwardedRef)} />;
 });
+
+export type ContextMenuSubProps = React.ComponentPropsWithoutRef<typeof Primitive.Sub>;
+
+/** Nested context submenu. Open and dismiss stay on Radix. */
+export function ContextMenuSub(props: ContextMenuSubProps) {
+  return <Primitive.Sub {...props} />;
+}
+
+export type ContextMenuSubTriggerProps = Omit<React.ComponentPropsWithoutRef<typeof Primitive.SubTrigger>, 'asChild'> & {
+  unstyled?: boolean;
+};
+
+export const ContextMenuSubTrigger = forwardRef<HTMLDivElement, ContextMenuSubTriggerProps>(function ContextMenuSubTrigger({ unstyled, className, children, ...props }, forwardedRef) {
+  return <Primitive.SubTrigger {...props} className={classes('pero-ui-dropdown-item pero-ui-dropdown-sub-trigger', className)} data-unstyled={unstyled || undefined} ref={useStableRef(forwardedRef)}>
+    {children}
+    {!unstyled && <span className="pero-ui-dropdown-indicator pero-ui-dropdown-sub-chevron" aria-hidden="true"><Icon name="chevron-right" size={12} /></span>}
+  </Primitive.SubTrigger>;
+});
+
+export type ContextMenuSubContentProps = React.ComponentPropsWithoutRef<typeof Primitive.SubContent> & {
+  unstyled?: boolean;
+  container?: HTMLElement | null;
+};
+
+export const ContextMenuSubContent = forwardRef<HTMLDivElement, ContextMenuSubContentProps>(function ContextMenuSubContent({
+  unstyled, className, container: containerOverride, sideOffset = 4, collisionPadding = 8, style, onEscapeKeyDown, ...props
+}, forwardedRef) {
+  const anchor = useContext(AnchorContext);
+  const trigger = anchor?.trigger ?? null;
+  const container = trigger ? resolvePopupContainer(trigger, containerOverride) : containerOverride ?? undefined;
+  const outerRef = useStableRef(forwardedRef);
+  const [content, setContent] = useState<HTMLDivElement | null>(null);
+  const ref = useCallback((node: HTMLDivElement | null) => { setContent(node); outerRef(node); }, [outerRef]);
+  useMenuTheme(content, trigger, container, style);
+  return <Primitive.Portal container={container}>
+    <Primitive.SubContent {...props} sideOffset={sideOffset} collisionPadding={collisionPadding}
+      className={classes('pero-ui-dropdown-content pero-ui-dropdown-sub-content', className)} data-unstyled={unstyled || undefined}
+      style={{ ...menuThemeStyle(trigger, container ?? undefined), ...style }}
+      onEscapeKeyDown={event => { event.stopPropagation(); onEscapeKeyDown?.(event); }}
+      ref={ref} />
+  </Primitive.Portal>;
+});

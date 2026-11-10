@@ -1,0 +1,84 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { applyIntakePropagation, bindCatalogSelection, bindIntake, catalogBoxes, intakeRequests, intakeWorklistCsv, isSampleIntake, parseIntakeFile, resolveIntake, sampleIntakeDefaults, stageIntakePropagation } from '../src/sample-intake.ts';
+import type { CatalogSnapshot } from '../src/structured-table.ts';
+const snapshot: CatalogSnapshot = { source: 'notebook-local-catalog', catalogId: 'local', query: { text: '', schemaId: '', limit: 200 }, refreshedAt: '2026-11-09T00:00:00Z', total: 1, records: [{ id: 'r1', version: 1, schemaId: 's1', schemaRevision: 1, tableId: 't1', rowId: 'row1', name: 'Sample', registeredAt: '2026-11-09T00:00:00Z', columns: [{ id: 'barcode', name: 'Barcode', type: 'text', required: true, units: [], options: [] }], values: { barcode: { type: 'text', value: '00123' } } }] };
+test('source lookup distinguishes exact text, missing, ambiguous, duplicate and incomplete', () => {
+  const request = { input: '00123', row: 1, well: '' };
+  assert.equal(resolveIntake(request, snapshot, 'barcode').status, 'unique');
+  assert.equal(resolveIntake({ ...request, input: '123' }, snapshot, 'barcode').status, 'missing');
+  assert.equal(resolveIntake(request, snapshot, '$id').status, 'missing');
+  assert.equal(resolveIntake(request, { ...snapshot, total: 2, records: [...snapshot.records, { ...snapshot.records[0], id: 'r2' }] }, 'barcode').status, 'ambiguous');
+  assert.equal(resolveIntake(request, snapshot, 'barcode', [request]).status, 'duplicate');
+  assert.equal(resolveIntake(request, { ...snapshot, total: 201 }, 'barcode').status, 'incomplete');
+});
+test('explicit selected versions retain provenance across reload and catalog changes', () => {
+  const intake = { ...structuredClone(sampleIntakeDefaults.intake), mode: 'barcode' as const, field: 'barcode', input: '00123' };
+  const result = resolveIntake(intakeRequests(intake)[0], structuredClone(snapshot), 'barcode');
+  const next = bindIntake(intake, result, 'r1');
+  result.snapshot.records[0].version = 2;
+  assert.equal(next.bindings[0].snapshot.records[0].version, 1);
+  assert.equal(next.bindings[0].source.input, '00123');
+  assert.ok(isSampleIntake(JSON.parse(JSON.stringify(next))));
+  assert.throws(() => bindIntake(next, result, 'r1'), /Duplicate/);
+  assert.throws(() => bindIntake(intake, result, 'invented'), /Select/);
+  assert.throws(() => bindIntake(intake, { ...result, status: 'incomplete' }, 'r1'), /incomplete/);
+  assert.equal(isSampleIntake({ ...next, bindings: [{ ...next.bindings[0], source: { ...next.bindings[0].source, input: 'wrong' } }] }), false);
+});
+test('bounded CSV/TSV sources preserve quoted IDs and validate plate mapping', () => {
+  assert.deepEqual(parseIntakeFile('id\r\n"a,b"\r\n"a""b"', ','), [['id'], ['a,b'], ['a"b']]);
+  assert.throws(() => parseIntakeFile('"unfinished', ','), /Unclosed/);
+  assert.throws(() => parseIntakeFile('"a"x', ','), /Malformed/);
+  assert.throws(() => parseIntakeFile('x'.repeat(100001), ','), /exceeds/);
+  const plate = { ...sampleIntakeDefaults.intake, mode: 'plate' as const, input: 'well\tid\nA1\tr1\nH12\tr1' };
+  const requests = intakeRequests(plate);
+  let next = bindIntake(plate, resolveIntake(requests[0], snapshot, '$id'), 'r1');
+  next = bindIntake(next, resolveIntake(requests[1], snapshot, '$id'), 'r1');
+  assert.equal(next.bindings.length, 2);
+  assert.throws(() => intakeRequests({ ...plate, input: 'well\tid\nA1\tr1\nA1\tr2' }), /once/);
+  assert.throws(() => intakeRequests({ ...plate, input: 'well\tid\nI1\tr1' }), /outside/);
+  assert.throws(() => intakeRequests({ ...plate, input: 'id\tr1' }), /headers/);
+});
+
+test('box browsing uses explicit actual text fields and freezes chosen catalog versions', () => {
+  const source = structuredClone(snapshot);
+  source.records[0].columns.push({ id: 'box', name: 'Storage box', type: 'text', required: false, units: [], options: [] });
+  source.records[0].values.box = { type: 'text', value: 'Box A' };
+  source.records.push({ ...structuredClone(source.records[0]), id: 'r2', values: { ...source.records[0].values, box: { type: 'text', value: 'Box B' } } });
+  source.total = 2;
+  assert.deepEqual(catalogBoxes(source, 'box').map(box => [box.label, box.records.map(record => record.id)]), [['Box A', ['r1']], ['Box B', ['r2']]]);
+  assert.deepEqual(catalogBoxes(source, 'invented-location'), []);
+  const next = bindCatalogSelection(structuredClone(sampleIntakeDefaults.intake), source, ['r2']);
+  source.records[1].version = 8;
+  assert.equal(next.bindings[0].snapshot.records[0].version, 1);
+  assert.equal(next.bindings[0].source.field, '$id');
+  assert.ok(isSampleIntake(next));
+  assert.throws(() => bindCatalogSelection(next, source, ['r2']), /Duplicate/);
+  assert.throws(() => bindCatalogSelection(next, source, ['absent']), /no longer/);
+});
+test('staged local propagation is atomic, rejects changes/conflicts and retains input evidence', () => {
+  const source = bindCatalogSelection(structuredClone(sampleIntakeDefaults.intake), snapshot, ['r1']);
+  const target = structuredClone(sampleIntakeDefaults.intake);
+  const plan = stageIntakePropagation('source', source, 'destination', target);
+  assert.equal(target.bindings.length, 0);
+  const applied = applyIntakePropagation(plan, source, target);
+  assert.deepEqual(applied.bindings, source.bindings);
+  assert.notEqual(applied.bindings[0], source.bindings[0]);
+  assert.ok(isSampleIntake(JSON.parse(JSON.stringify(applied))));
+  assert.throws(() => applyIntakePropagation(plan, { ...source, name: 'changed' }, target), /changed/);
+  assert.throws(() => applyIntakePropagation(plan, source, { ...target, name: 'changed' }), /changed/);
+  assert.throws(() => stageIntakePropagation('source', source, 'destination', applied), /duplicate/);
+  assert.throws(() => stageIntakePropagation('source', source, 'source', target), /different/);
+  const plate = { ...sampleIntakeDefaults.intake, mode: 'plate' as const, input: 'well\tid\nA1\tr1' };
+  const bound = bindIntake(plate, resolveIntake(intakeRequests(plate)[0], snapshot, '$id'), 'r1');
+  assert.throws(() => stageIntakePropagation('source', bound, 'target', { ...target, plateSize: { rows: 4, columns: 6 } }), /sizes/);
+});
+test('review CSV exports selected versions and provenance with formula-safe quoting', () => {
+  const source = structuredClone(snapshot); source.records[0].name = '=SUM(1,2)';
+  const intake = bindCatalogSelection(structuredClone(sampleIntakeDefaults.intake), source, ['r1']);
+  const csv = intakeWorklistCsv(intake), rows = parseIntakeFile(csv, ',');
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows[1].slice(0, 7), ['r1', '1', 'local', "'=SUM(1,2)", 'manual', 'r1', '$id']);
+  assert.equal(rows[1].at(-1), snapshot.refreshedAt);
+  assert.equal(intake.bindings[0].snapshot.records[0].name, '=SUM(1,2)');
+});

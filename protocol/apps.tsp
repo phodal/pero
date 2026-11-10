@@ -30,9 +30,31 @@ model AppRecord {
 model BackendAccess { url: string; token: string; ...AppClosed; }
 model AppAccess { root: string; entry: string; frameOrigins?: string[]; backend?: BackendAccess; ...AppClosed; }
 model AppSdkPermissions {api:string[];events:string[];host:string[];...AppClosed}
-model AppSdkContext {name:AppName;version:string;permissions:AppSdkPermissions;...AppClosed}
+model DeclaredAppPanel {id:AppName;title:string;...AppClosed}
+model DeclaredAppAction {name:AppName;description:string;...AppClosed}
+model DeclaredCanvasView {id:AppName;title:string;inputs:AppDocumentSchema;...AppClosed}
+model InstalledAppViews {canvases?:DeclaredCanvasView[];app:AppName;title:string;version:string;revision:string;enabled:boolean;panels:DeclaredAppPanel[];actions:DeclaredAppAction[];...AppClosed}
+model AppSdkContext {name:AppName;version:string;permissions:AppSdkPermissions;appViews?:InstalledAppViews[];...AppClosed}
 model AppApiAccess {action:"apiaccess";name:AppName;path:string;...RequestBase}
 model AppSdkRequest {action:"sdkcontext";name:AppName;...RequestBase}
+model CanvasBinding {id:string;app:AppName;panel:AppName;view:AppName;declaration:string;inputs:AppDocumentSchema;...AppClosed}
+@minValue(1) @maxValue(2147483647) scalar NotebookRevision extends uint32;
+model CanvasSource {entryId:string;revision:NotebookRevision;blockId:string;binding:CanvasBinding;readOnly:boolean;...AppClosed}
+model CanvasMount {operation:"mount";source:CanvasSource;...AppClosed}
+model CanvasRead {operation:"read";instance:string;...AppClosed}
+model CanvasRelease {operation:"release";instance:string;...AppClosed}
+model CanvasPrepare {operation:"prepare";instance:string;operationId:string;action:AppName;params:AppDocumentSchema;...AppClosed}
+model CanvasDecide {operation:"decide";instance:string;operationId:string;ticket:string;allow:boolean;...AppClosed}
+model CanvasStatus {operation:"status";instance:string;operationId:string;...AppClosed}
+model CanvasCancel {operation:"cancel";instance:string;operationId:string;...AppClosed}
+@oneOf union CanvasOperation {CanvasMount,CanvasRead,CanvasRelease,CanvasPrepare,CanvasDecide,CanvasStatus,CanvasCancel}
+model AppCanvasRequest {action:"canvas";name:AppName;request:CanvasOperation;...RequestBase}
+model CanvasField {label:string;value:string;...AppClosed}
+model CanvasActionInput {name:string;label:string;maxLength:uint32;...AppClosed}
+model CanvasAction {name:AppName;label:string;params:AppDocumentSchema;inputs?:CanvasActionInput[];...AppClosed}
+model CanvasProjection {title:string;fields:CanvasField[];columns:string[];rows:string[][];notice:string;actions:CanvasAction[];...AppClosed}
+model CanvasHistoryItem {operationId:string;action:AppName;state:string;...AppClosed}
+model CanvasReply {history?:CanvasHistoryItem[];state?:string;instance?:string;source?:CanvasSource;`projection`?:CanvasProjection;ticket?:string;summary?:string;message?:string;receipt?:AppDocumentSchema;...AppClosed}
 model RequestBase { method: "apps"; id: RequestId; ...AppClosed; }
 model ListApps { action: "list"; ...RequestBase; }
 model InstallApp { action: "install"; path: string; ...RequestBase; }
@@ -73,6 +95,15 @@ model UninstallApp { action: "uninstall"; name: AppName; ...RequestBase; }
 model ResolveApp { action: "resolve"; name: AppName; ...RequestBase; }
 /** Static UI access without dependency preparation or backend startup. */
 model ResolveStaticApp { action: "resolve_static"; name: AppName; ...RequestBase; }
+model NotebookProjectLink {projectId:string;entryId:string;revision:NotebookRevision;expectedRevision:string|null;linked:boolean;readOnly:boolean;...AppClosed}
+model NotebookProjectsList {operation:"list";...AppClosed}
+model NotebookProjectsChange {operation:"review"|"apply";change:NotebookProjectLink;...AppClosed}
+@oneOf union NotebookProjectsOperation {NotebookProjectsList,NotebookProjectsChange}
+model NotebookProjectsApp {action:"notebook-projects";name:AppName;request:NotebookProjectsOperation;...RequestBase}
+model NotebookProjectEntryRef {id:string;revision:string;...AppClosed}
+model NotebookProjectSummary {id:string;title:string;entries:NotebookProjectEntryRef[];...AppClosed}
+model NotebookSavedEntry {id:string;title:string;revision:string;...AppClosed}
+model NotebookProjectsReply {state?:string;summary?:string;projects?:NotebookProjectSummary[];entries?:NotebookSavedEntry[];...AppClosed}
 model ProjectResourcesApp { action: "projectresources"; name: AppName; ...RequestBase; }
 /** An App catalog observation; revisions do not claim complete experimental provenance. */
 model ProjectResourceReference { app: string; kind: string; id: string; revision: string; ...AppClosed; }
@@ -167,9 +198,9 @@ model LocalEnvironmentBind { operation:"bind";id:AppName;...AppClosed; }
 @oneOf union LocalEnvironmentOperation { LocalEnvironmentCreate,LocalEnvironmentList,LocalEnvironmentPrepare,LocalEnvironmentBind }
 model LocalEnvironmentApp {action:"localenvironment";name:AppName;request:LocalEnvironmentOperation;...RequestBase;}
 model LocalEnvironmentRecord {id:AppName;label:string;target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice"|"lcms2yield.inference";dependencies:string[];state:"created"|"preparing"|"ready"|"failed";log:string[];error:string|null;bound:boolean;...AppClosed;}
-@oneOf union AppRequest { SkillMarketApp, LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ResolveStaticApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
+@oneOf union AppRequest { NotebookProjectsApp, AppCanvasRequest, SkillMarketApp, LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ResolveStaticApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: SkillMarketCatalog | SkillMarketInstalled | SkillMarketUpdate | SkillMarketCancelled | LocalEnvironmentRecord[] | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
+model AppSuccess { ok: true; value: NotebookProjectsReply | CanvasReply | SkillMarketCatalog | SkillMarketInstalled | SkillMarketUpdate | SkillMarketCancelled | LocalEnvironmentRecord[] | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 

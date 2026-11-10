@@ -14,8 +14,10 @@ mod environment_uses;
 #[cfg(test)]
 mod environment_execution;
 mod apps;
+mod app_canvas;
 mod research_assets;
 mod project_resources;
+mod notebook_projects;
 mod paper_reproduction;
 mod local_repo;
 mod contributions;

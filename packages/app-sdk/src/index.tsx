@@ -14,6 +14,10 @@ import { mountAppConversation } from './chat-slot';
 import { AppApiProvider } from './host';
 import { subscribeAppEvent, navigateApp, notifyApp, setAppBadge, launchAppChat, callAppHost } from './iframe-host';
 export { openAppSession, requestAppShell, useInstalledSkill } from './iframe-host';
+export { DeclaredAppCanvas } from './app-canvas';
+export type { CanvasSource } from './app-canvas';
+export { listInstalledAppViews } from './installed-app-views';
+export type { InstalledAppViews } from './installed-app-views';
 export { openPaperApp } from './navigation';
 export { openDocument } from './document';
 export type { AppDocumentInput } from './document';
@@ -96,3 +100,6 @@ export function useAppDataChanged(refresh:()=>void|Promise<void>){
   const latest=useRef(refresh);latest.current=refresh;
   useEffect(()=>{const receive=()=>{void latest.current();};window.addEventListener('pero:app:data-changed',receive);return()=>window.removeEventListener('pero:app:data-changed',receive);},[]);
 }
+
+export { listNotebookProjects, setNotebookProjectLink, cancelNotebookProjectLink } from './notebook-projects';
+export type { NotebookProjectCatalog, NotebookProjectLink } from './notebook-projects';

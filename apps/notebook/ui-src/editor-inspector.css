@@ -1,0 +1,14 @@
+/* Diagnostic content stays scrollable beside the live editor; shared controls keep their own styles. */
+.notebook-editor-diagnostics { flex: 0 0 auto; min-width: 0; }
+.notebook-editor-diagnostics > section {
+  box-sizing: border-box;
+  max-height: min(26rem, 40dvh);
+  overflow: auto;
+  margin-top: var(--pero-spacing-2);
+  padding: var(--pero-spacing-3);
+  border: var(--pero-hairline);
+  background: var(--pero-surface-muted);
+}
+.notebook-editor-diagnostics pre, .notebook-editor-diagnostics output { white-space: pre-wrap; overflow-wrap: anywhere; }
+.notebook-editor-diagnostics pre { margin-block: var(--pero-spacing-2); }
+@media print { .notebook-editor-diagnostics { display: none !important; } }

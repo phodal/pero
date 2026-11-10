@@ -29,6 +29,8 @@ npm.npm_translate_lock(
         "//:package.json",
         "//:pnpm-workspace.yaml",
         "//:desktop/package.json",
+        "//:packages/app-sdk/package.json",
+        "//:packages/notebook/package.json",
         "//:web/package.json",
     ],
     run_lifecycle_hooks = False,

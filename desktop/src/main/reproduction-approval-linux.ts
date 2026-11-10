@@ -25,12 +25,16 @@ const channel = 'pero:reproduction-approval';
 const pendingOwners = new WeakSet<BrowserWindow>();
 
 /** A one-request trusted Host surface. This does not carry or create compute authority. */
-export function confirmLinuxReproduction(owner: BrowserWindow, summary: string, signal: AbortSignal): Promise<boolean> {
+export function confirmLinuxReproduction(owner: BrowserWindow, summary: string, signal: AbortSignal, canvas: boolean | 'project' = false): Promise<boolean> {
   if (signal.aborted || owner.isDestroyed() || !owner.isEnabled() || pendingOwners.has(owner)) return Promise.resolve(false);
   // Electron resolves system preference and the Desktop/Product explicit override.
   // Select one bundled document; no renderer or App supplies CSS or markup.
   const dark = nativeTheme.shouldUseDarkColors;
-  const documentURL = documentURLs[dark ? 'dark' : 'light'];
+  const original = documentURLs[dark ? 'dark' : 'light'];
+  const title = canvas === 'project' ? 'Host project reference' : canvas ? 'App Canvas action' : 'Paper reproduction';
+  const documentURL = canvas ? original.replaceAll(encodeURIComponent('Paper reproduction'), encodeURIComponent(title))
+    .replace(encodeURIComponent('Run this frozen local computation once?'), encodeURIComponent(canvas === 'project' ? 'Update this Host project reference?' : 'Run this declared App action once?'))
+    .replace(encodeURIComponent('Run once'), encodeURIComponent(canvas === 'project' ? 'Update reference' : 'Run once')) : original;
   const ownerContents = owner.webContents;
   const nonce = randomUUID();
   const isolated = session.fromPartition(`reproduction-approval-${nonce}`);
@@ -39,7 +43,7 @@ export function confirmLinuxReproduction(owner: BrowserWindow, summary: string, 
   const denyDownload = (event: Electron.Event) => event.preventDefault();
   isolated.on('will-download', denyDownload);
   const popup = new BrowserWindow({ parent: owner, modal: true, show: false, width: 640, height: 430,
-    title: 'Paper reproduction', backgroundColor: (dark ? themes.dark : themes.light).surface, autoHideMenuBar: true, minimizable: false, maximizable: false,
+    title, backgroundColor: (dark ? themes.dark : themes.light).surface, autoHideMenuBar: true, minimizable: false, maximizable: false,
     webPreferences: { session: isolated, preload: resolve(typeof __dirname === 'string' ? __dirname : dirname(fileURLToPath(import.meta.url)), 'reproduction-approval-preload.cjs'),
       contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: false, devTools: false,
       navigateOnDragDrop: false, safeDialogs: true } });

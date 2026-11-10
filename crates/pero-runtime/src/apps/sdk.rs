@@ -6,10 +6,24 @@ use serde::Serialize;
 #[derive(Serialize)]
 pub struct Permissions { api: Vec<String>, events: Vec<String>, host: Vec<String> }
 #[derive(Serialize)]
+pub struct DeclaredPanel { id: AppName, title: String }
+#[derive(Serialize)]
+pub struct DeclaredAction { name: AppName, description: String }
+#[derive(Serialize)]
+pub struct DeclaredCanvas { id: AppName, title: String, inputs: serde_json::Value }
+/// Discovery is a projection of installed declarations, never an execution grant.
+#[derive(Serialize)]
+pub struct InstalledAppViews {
+    app: AppName, title: String, version: String, revision: String, enabled: bool,
+    panels: Vec<DeclaredPanel>, actions: Vec<DeclaredAction>,
+    #[serde(skip_serializing_if="Vec::is_empty")]
+    canvases: Vec<DeclaredCanvas>,
+}
+#[derive(Serialize)]
 pub struct Context {
-    name: AppName,
-    version: String,
-    permissions: Permissions,
+    name: AppName, version: String, permissions: Permissions,
+    #[serde(rename = "appViews", skip_serializing_if = "Option::is_none")]
+    app_views: Option<Vec<InstalledAppViews>>,
     /// Copied from the installed definition. The catalog summary does not carry it.
     #[serde(rename = "columnHeader", skip_serializing_if = "AppColumnHeader::is_empty")]
     column_header: AppColumnHeader,
@@ -24,9 +38,26 @@ impl AppStore {
             else if definition.permissions.host.iter().any(|grant| grant == "agent") { vec!["/api/workspaces".into(), "/api/harnesses".into()] }
             else { Vec::new() }
         });
+        let app_views = (name.as_str() == "notebook").then(|| self.installed.values().map(|app| {
+            let definition = &app.definition;
+            InstalledAppViews {
+                app: definition.name.clone(), title: definition.display_name.clone(),
+                version: definition.version.clone(), revision: definition.revision(), enabled: app.enabled,
+                panels: definition.contributes.panels.iter().map(|panel| DeclaredPanel {
+                    id: panel.id.clone(), title: panel.title.clone(),
+                }).collect(),
+                canvases: definition.contributes.canvases.iter().map(|view| DeclaredCanvas {
+                    id: view.id.clone(), title: view.title.clone(), inputs: view.inputs.clone(),
+                }).collect(),
+                actions: definition.contributes.writes.iter().map(|action| DeclaredAction {
+                    name: action.name.clone(), description: action.description.clone(),
+                }).collect(),
+            }
+        }).collect());
         Ok(Context {
             name: name.clone(),
             version: definition.version.clone(),
+            app_views,
             permissions: Permissions {
                 api, events: definition.permissions.events.clone(), host: definition.permissions.host.clone(),
             },

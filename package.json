@@ -5,13 +5,15 @@
   "workspaces": [
     "desktop",
     "web",
-    "packages/app-sdk"
+    "packages/app-sdk",
+    "packages/notebook"
   ],
   "scripts": {
     "dev": "npm run build && npm run start --workspace @pero/desktop",
     "dev:web": "npm run dev --workspace @pero/web",
     "dev:apps": "npm run build && node scripts/dev/apps.mjs",
     "dev:paper": "npm run build && node scripts/dev/apps.mjs --app paper-agent",
+    "dev:notebook": "node scripts/build/apps.mjs --app notebook && node scripts/dev/apps.mjs --app notebook",
     "dev:hpc": "npm run build && node scripts/dev/apps.mjs --app hpc",
     "dev:native": "node scripts/dev/native.mjs",
     "dev:design": "npm --prefix packages/pero-design run dev",
@@ -45,6 +47,8 @@
     "test:computer:contracts": "node tests/contracts/computer-use.mjs && node scripts/cargo.mjs test -p pero-contracts computer_use",
     "test:apps": "node tests/e2e/apps.mjs",
     "test:paper": "node tests/e2e/paper-agent.mjs",
+    "test:notebook": "npm test --workspace @pero/notebook && npm test --prefix apps/notebook",
+    "test:notebook:desktop": "node tests/e2e/notebook.mjs",
     "test:apps:contracts": "node tests/contracts/apps.mjs",
     "test:local-execution": "node tests/e2e/local-execution.mjs",
     "test:composer": "node tests/e2e/composer.mjs",

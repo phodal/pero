@@ -14,7 +14,7 @@ pub(crate) struct ProjectResources {
 
 impl ProjectResources {
     pub(crate) fn resolve(store: &mut AppStore, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<Self, String> {
-        if !matches!(name.as_str(), "paper-agent" | "control-lab" | "lab") {
+        if !matches!(name.as_str(), "paper-agent" | "control-lab" | "lab" | "notebook") {
             return Err("This App has no project resource catalog".into());
         }
         // Resolving never installs or enables an App. Its existing backend may start.
@@ -31,6 +31,7 @@ impl ProjectResources {
         let resources = match self.app.as_str() {
             "paper-agent" => get::<PaperLibrary>(&client, &self.backend, "/api/library")?.resources()?,
             "control-lab" => get::<ControlCatalog>(&client, &self.backend, "/api/experiments")?.resources()?,
+            "notebook" => get::<NotebookCatalog>(&client, &self.backend, "/api/entries")?.resources()?,
             "lab" => get::<LabCatalog>(&client, &self.backend, "/api/state")?.resources()?,
             _ => unreachable!("App catalog was selected at the boundary"),
         };
@@ -138,12 +139,37 @@ impl LabCatalog {
     }
 }
 
+#[derive(Deserialize)]
+struct NotebookCatalog { entries: Vec<NotebookEntry> }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NotebookEntry { id: String, title: String, revision: u64, updated_at: String }
+impl NotebookCatalog {
+    fn resources(self) -> Result<Vec<ProjectResourceSummary>, String> {
+        self.entries.into_iter().map(|entry| {
+            if entry.revision == 0 { return Err("Notebook returned an invalid saved revision".into()); }
+            resource("notebook", "entry", entry.id, entry.revision.to_string(), entry.title, entry.updated_at, "saved".into())
+        }).collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
     use std::net::TcpListener;
     use std::io::{BufRead, BufReader, Write};
+
+    #[test]
+    fn notebook_catalog_retains_real_saved_revisions_and_owner_navigation() {
+        let catalog:NotebookCatalog=serde_json::from_value(json!({"entries":[{"id":"a".repeat(32),"title":"Actual saved notebook","revision":7,"updatedAt":"2026-11-09T00:00:00Z"}]})).unwrap();
+        let row=catalog.resources().unwrap().remove(0);
+        assert_eq!(row.reference.app,"notebook");assert_eq!(row.reference.kind,"entry");assert_eq!(row.reference.revision,"7");
+        assert_eq!(row.location,format!("pero-app-location://notebook/main/entry/{}","a".repeat(32)));
+        assert_eq!(row.status,"saved");assert_eq!(row.verification,None);
+        let invalid:NotebookCatalog=serde_json::from_value(json!({"entries":[{"id":"../file","title":"Invalid","revision":1,"updatedAt":""}]})).unwrap();
+        assert!(invalid.resources().is_err());
+    }
 
     #[test]
     fn catalog_observations_preserve_app_facts() {

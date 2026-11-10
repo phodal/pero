@@ -1,0 +1,60 @@
+name: Notebook contracts
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  notebook:
+    name: Notebook revisions, workbook and browser contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/notebook/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Prepare Notebook dependencies and browser
+        id: prepare
+        run: |
+          npm ci --ignore-scripts
+          node scripts/build/source-parsers.mjs
+          python -c 'import json,subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","--only-binary=:all:",*json.load(open("apps/notebook/app.json"))["backend"]["dependencies"]])'
+          sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+          npm ci --prefix apps/notebook --ignore-scripts
+          npx playwright install --with-deps chromium
+          npm --prefix apps/notebook run build
+      - name: Verify documents, formulas, XLSX exchange and Agent revisions
+        env:
+          NOTEBOOK_REAL_OCR: "1"
+        run: npm run test:notebook
+      - name: Verify packaged source parser imports
+        run: node --test scripts/build/source-parsers.test.mjs
+      - name: Verify installed App catalog owner contracts
+        run: node --test packages/app-sdk/test/installed-app-views.test.mjs packages/app-sdk/test/app-canvas.test.mjs desktop/src/main/apps-frames.test.ts desktop/src/main/app-canvas.test.ts desktop/src/main/notebook-projects.test.ts
+      - name: Verify Notebook types
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: npm --prefix apps/notebook run typecheck
+      - name: Verify real editor persistence, imports and clipboard references
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: npm --prefix apps/notebook run test:browser
+      - name: Retain Notebook browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: notebook-browser-${{ github.sha }}
+          path: test-results/notebook/
+          if-no-files-found: warn
+

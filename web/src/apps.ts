@@ -241,6 +241,10 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
           return mcpSettings(input);
         }
         const value = appPresentation(operation,input);
+        if (value.kind === 'research-source') {
+          if (frame.name !== 'notebook' || frame.panel !== 'main') throw new Error('This App cannot open Notebook evidence');
+          return command({action:'notebook_research_source',app:value.app,href:value.href});
+        }
         if (value.kind === 'skill') {
           if (frame.name !== 'skills') throw new Error('Open installed skills from the Skills market');
           return command({action:'skill_chat_open',source:value.source,message:value.message});

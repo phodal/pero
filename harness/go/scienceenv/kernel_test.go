@@ -59,6 +59,37 @@ func TestPythonKernelKeepsStateAndReplOwnsMCP(t *testing.T) {
 	}
 }
 
+func TestKernelCompletedCellCancellationKeepsState(t *testing.T) {
+	// A completed cell no longer owns cancellation of the persistent process.
+	kernel, err := Start(Config{Language: Python, Interpreter: pythonBin(t), Workspace: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { kernel.Close() })
+	for _, op := range []string{"load", "exec"} {
+		t.Run(op, func(t *testing.T) {
+			for i := 0; i < 100; i++ {
+				ctx, cancel := context.WithCancel(t.Context())
+				var out Output
+				var err error
+				if op == "load" {
+					out, err = kernel.Load(ctx, "MARKER = 42", Host{})
+				} else {
+					out, err = kernel.Exec(ctx, "MARKER = 42", Host{})
+				}
+				cancel()
+				if err != nil || out.Error != "" {
+					t.Fatalf("completed cell %d: %+v %v", i, out, err)
+				}
+				out, err = kernel.Exec(t.Context(), "print(MARKER)", Host{})
+				if err != nil || out.Error != "" || strings.TrimSpace(out.Stdout) != "42" {
+					t.Fatalf("state after completed cell %d: %+v %v", i, out, err)
+				}
+			}
+		})
+	}
+}
+
 func TestKernelCancelDiscardsState(t *testing.T) {
 	python := pythonBin(t)
 	kernel, err := Start(Config{Language: Python, Interpreter: python, Workspace: t.TempDir()})

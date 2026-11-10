@@ -2,6 +2,7 @@ export type AppPresentation =
   | { kind: 'page'; page: 'conversation' | 'document' | 'web' | 'projects' | 'agents' | 'tasks' | 'workers' | 'apps' | 'insights' | 'connections' }
   | { kind: 'app'; name: string; panel: string }
   | { kind: 'session'; sessionId: string }
+  | { kind: 'research-source'; app: 'paper-agent' | 'control-lab'; href: string }
   | { kind: 'skill'; source: string; message: string }
   | { kind: 'notify'; message: string; tone: 'info' | 'success' | 'error' }
   | { kind: 'badge'; count: number };
@@ -10,6 +11,15 @@ export type AppPresentation =
 export function appPresentation(operation: unknown, input: unknown): AppPresentation {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid App presentation request');
   const value = input as Record<string, unknown>;
+  if (operation === 'open-research-source' && typeof value.href === 'string' && Object.keys(value).length === 1) {
+    const href = value.href;
+    if (href !== href.trim()) throw new Error('Invalid research source location');
+    if (/^pero-app-location:\/\/paper-agent\/main\/report\/[a-f0-9]{64}\/(?:citation\/[0-9]{1,9}|passage\/[a-f0-9]{64})$/.test(href))
+      return { kind: 'research-source', app: 'paper-agent', href };
+    if (/^pero-app-location:\/\/control-lab\/main\/experiment\/[a-f0-9]{32}\/trial\/[a-f0-9]{32}$/.test(href))
+      return { kind: 'research-source', app: 'control-lab', href };
+    throw new Error('Invalid research source location');
+  }
   if (operation === 'use-skill' && typeof value.source === 'string' && value.source.startsWith('pero-market-skill:') && value.source.length <= 4096 &&
       (value.message === undefined || typeof value.message === 'string' && value.message.length <= 64000) && Object.keys(value).every(key => ['source','message'].includes(key)))
     return {kind:'skill',source:value.source,message:typeof value.message === 'string' ? value.message : ''};

@@ -1,0 +1,7 @@
+[project]
+name = "pero-notebook"
+version = "0.1.0"
+description = "Versioned local research records for Pero"
+requires-python = ">=3.10"
+dependencies = []
+license = "Apache-2.0"

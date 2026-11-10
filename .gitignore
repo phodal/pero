@@ -192,3 +192,7 @@ apps/**/dist
 !apps/connectors/ui-src/assets/connectors/*.png
 
 # Shared Point SDK runtime is built once and packaged with the Host.
+
+# Shared local PDF/OCR primitives packaged with their consuming Apps.
+/apps/notebook/backend/pero_source_tools.py
+/apps/paper-agent/backend/pero_source_tools.py

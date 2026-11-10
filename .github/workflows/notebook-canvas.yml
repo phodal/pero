@@ -1,0 +1,68 @@
+name: Notebook Canvas Chromium and real owners
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    name: Notebook Canvas real Host and Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/notebook/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Checkout pinned GPUI manifest inputs
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" config core.autocrlf false
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
+          git -C "$kit" checkout --detach FETCH_HEAD
+      - name: Build Notebook and prepare Chromium
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/notebook --ignore-scripts
+          npm --prefix apps/notebook run build
+          npx playwright install --with-deps chromium
+      - name: Build real Host without Desktop or Wasm
+        run: node scripts/cargo.mjs build --locked -p pero-host
+      - name: Prepare declared Notebook Python environment
+        run: |
+          python -m venv "$RUNNER_TEMP/notebook-canvas-python"
+          "$RUNNER_TEMP/notebook-canvas-python/bin/python" -c 'import json,subprocess,sys; dependencies=json.load(open("apps/notebook/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
+          echo "PERO_APP_PYTHON=$RUNNER_TEMP/notebook-canvas-python/bin/python" >> "$GITHUB_ENV"
+      - name: Verify Canvas against actual Notebook and Data owners
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: node --test tests/e2e/notebook-canvas-browser.mjs
+      - name: Retain Canvas browser evidence and verification scope
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: notebook-canvas-browser-${{ github.sha }}
+          path: test-results/notebook-canvas/
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
+import { readFile, mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { chromium, expect } from '@playwright/test';
+
+test('packaged Notebook diagnostics and legacy redirect work under App CSP', async t => {
+  const dist = resolve(import.meta.dirname, '../dist');
+  const files = new Map(await Promise.all(['diagnostics.html', 'diagnostics.js', 'editor-probe.html', 'editor-probe.js', 'source-evidence.json', 'index.css'].map(async name => ['/' + name, await readFile(resolve(dist, name))])));
+  const server = createServer((request, response) => {
+    const file = files.get(request.url?.split('?')[0]);
+    if (request.url === '/host/sdk') return response.writeHead(200, { 'Content-Type': 'application/json' }).end('{}');
+    if (!file) return response.writeHead(404).end();
+    const type = request.url.includes('.html') ? 'text/html' : request.url.includes('.js') && !request.url.includes('.json') ? 'text/javascript' : request.url.endsWith('.css') ? 'text/css' : 'application/json';
+    response.writeHead(200, { 'Content-Type': type + '; charset=utf-8', 'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:" }).end(file);
+  });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => new Promise(done => { server.close(done); server.closeAllConnections(); }));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.PERO_CHROMIUM_EXECUTABLE });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto(origin + '/editor-probe.html?next=https://untrusted.invalid#private');
+  await expect(page).toHaveURL(origin + '/diagnostics.html');
+  await expect(page.getByLabel('Read-only source text')).toContainText('import');
+  await page.getByLabel('Packaged source', { exact: true }).selectOption('packages/notebook/src/formula-syntax.ts');
+  await expect(page.getByLabel('Read-only source text')).toContainText('export');
+  await expect(page.getByText('Evidence build SHA-256:', { exact: false })).toBeVisible();
+  await page.locator('summary').click();
+  await expect(page.getByText(/react: 19.2.8/).first()).toBeVisible();
+  const output = resolve(import.meta.dirname, '../../../test-results/notebook'); await mkdir(output, { recursive: true });
+  await page.screenshot({ path: resolve(output, 'source-diagnostics-light.png'), fullPage: true });
+  await page.route('**/source-evidence.json', route => route.fulfill({ status: 404 }));
+  await page.reload(); await expect(page.getByText(/was not packaged/)).toBeVisible();
+  await page.unroute('**/source-evidence.json');
+  await page.getByRole('button', { name: 'Retry source evidence', exact: true }).click();
+  await expect(page.getByLabel('Read-only source text')).toBeVisible();
+  const noScript = await browser.newPage({ javaScriptEnabled: false });
+  await noScript.goto(origin + '/editor-probe.html');
+  await expect(noScript.getByRole('link', { name: 'Open Notebook diagnostics' })).toHaveAttribute('href', './diagnostics.html');
+  await expect(noScript.getByText('Automatic navigation requires JavaScript. Use the link above.')).toBeVisible();
+  assert.deepEqual(errors, []);
+});

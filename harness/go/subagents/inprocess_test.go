@@ -471,3 +471,77 @@ func TestAutoCompactWindowReservesHeadroom(t *testing.T) {
 		t.Fatalf("missing policy err=%v", err)
 	}
 }
+
+func TestInProcessTerminalOutcomes(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		failure error
+		status  harness.SubagentStatus
+		reason  harness.FinishKind
+	}{
+		{"provider cancellation", nil, harness.SubagentAborted, harness.FinishAborted},
+		{"child cancellation", nil, harness.SubagentAborted, harness.FinishAborted},
+		{"deadline", context.DeadlineExceeded, harness.SubagentAborted, harness.FinishAborted},
+		{"provider failure", errors.New("provider failed"), harness.SubagentFailed, harness.FinishError},
+		{"completed", nil, harness.SubagentCompleted, harness.FinishStop},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cancelled := test.name == "provider cancellation" || test.name == "child cancellation"
+			started, stopped := make(chan struct{}), make(chan struct{})
+			adapter := harness.AdapterFunc(func(ctx context.Context, _ harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+				close(started)
+				defer close(stopped)
+				if cancelled {
+					<-ctx.Done()
+					return harness.Completion{}, ctx.Err()
+				}
+				return answer("child-result"), test.failure
+			})
+			ctx, h, parent := fixture(t, adapter)
+			provider := &inProcessProvider{h: h, name: "terminal-outcomes"}
+			run, err := provider.Prepare(ctx, harness.SubagentRequest{Parent: parent, Prompt: "work", Depth: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = run.Dispose(context.Background()) })
+			run.Begin()
+			select {
+			case <-started:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			if test.name == "provider cancellation" {
+				run.Cancel(context.Canceled)
+			} else if test.name == "child cancellation" {
+				// Agent retirement can cancel the child before the provider's
+				// separate lifetime is cancelled. Keep that ordering deterministic.
+				run.Child.Cancel(context.Canceled)
+			}
+			select {
+			case result := <-run.Result:
+				if result.Status != test.status || result.Reason != test.reason || result.ChildID != run.ChildID {
+					t.Fatalf("child result=%+v want status=%s reason=%s", result, test.status, test.reason)
+				}
+				if test.name == "provider failure" && result.Diagnostic != test.failure.Error() {
+					t.Fatalf("provider failure lost: %+v", result)
+				}
+				if test.name == "completed" && (len(result.Output) != 1 || result.Output[0].Text != "child-result") {
+					t.Fatalf("completed output lost: %+v", result)
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			if err := run.Dispose(ctx); err != nil && !errors.Is(err, harness.ErrAgentDisposalInProgress) {
+				t.Fatal(err)
+			}
+			if err := h.Agents().WaitRetired(ctx, run.Child); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-stopped:
+			default:
+				t.Fatal("retirement preceded provider exit")
+			}
+		})
+	}
+}

@@ -4,6 +4,8 @@ on:
     paths:
       - 'apps/paper-agent/**'
       - 'packages/app-sdk/**'
+      - 'packages/source-extraction/**'
+      - 'scripts/build/source-parsers.mjs'
       - 'tests/e2e/paper-fisher-*.mjs'
       - '.github/workflows/paper-fisher.yml'
   workflow_dispatch:
@@ -30,6 +32,7 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm ci --prefix apps/paper-agent --ignore-scripts
+          node scripts/build/source-parsers.mjs
           python -c 'import json,subprocess,sys; deps=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*deps],check=True)'
           npx playwright install --with-deps chromium
       - name: Opt in to the public original scan and verify its pinned digest

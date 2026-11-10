@@ -1,0 +1,11 @@
+[
+  "apps/notebook/ui-src/editor-extensions.ts",
+  "apps/notebook/backend/store.py",
+  "packages/notebook/src/spreadsheet.ts",
+  "packages/notebook/src/formula-inspection.ts",
+  "packages/notebook/src/formula-source-ast.ts",
+  "packages/notebook/src/formula-syntax.ts",
+  "packages/notebook/src/workbook.ts",
+  "packages/notebook/src/mixture.ts",
+  "apps/notebook/backend/drafts.py"
+]

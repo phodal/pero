@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "name": "notebook",
+  "version": "0.1.0",
+  "displayName": "Notebook",
+  "description": "Write, link and review versioned research records.",
+  "permissions": { "host": ["agent"] },
+  "contributes": {
+    "panels": [{ "id": "main", "title": "Notebook", "entry": "dist/index.html" }],
+    "writes": [
+      {
+        "name": "read-entry",
+        "description": "Read an identified saved Notebook entry or one block. Omit revision for the current saved revision. Large entries return format=block-index with up to 100 block IDs/types, including nested blocks. Select a blockId to read it, or page the index using view=index, returned revision and offset=nextOffset. view=index also requests an index for small entries. To read every document field (including nodes without IDs), request offset=0 without view or blockId. Large blocks and explicit offset reads return format=json-chunk with content, offset, nextOffset and totalCharacters. Concatenate content strings in offset order, then parse JSON to recover the complete document or block. Continue with the same entryId, returned revision, blockId (if selected), and offset=nextOffset until nextOffset is null. offset=0 explicitly requests chunks. Offsets count Unicode characters, not bytes. Use the returned revision as baseRevision for edits. This route does not modify Notebook.",
+        "path": "/api/agent-read",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "entryId": { "type": "string", "minLength": 32, "maxLength": 32 },
+            "revision": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+            "blockId": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "offset": { "type": "integer", "minimum": 0, "description": "Character offset for JSON chunks, block offset for view=index. Nonzero offsets require an explicit revision." },
+            "view": { "type": "string", "enum": ["index"] }
+          },
+          "required": ["entryId"],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "apply-edits",
+        "description": "Commit scoped edits to the saved entry at baseRevision. Read the target first. replace_text requires a unique exact match within one formatted text segment. set_cells stores raw inputs at uppercase addresses; empty values clear cells. Formulas that contact another program or service are rejected. add_finding references pinned evidence or experiments in this entry. Insert operations append when afterBlockId is omitted. Move and delete address top-level blocks; referenced evidence cannot be deleted. The batch commits together or fails. Re-read after a revision conflict.",
+        "path": "/api/agent-apply",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "entryId": { "type": "string", "minLength": 32, "maxLength": 32 },
+            "baseRevision": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+            "operations": {
+              "type": "array", "minItems": 1, "maxItems": 20,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": { "type": "string", "enum": ["set_cells"] },
+                      "blockId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "cells": { "type": "object", "description": "Uppercase cell addresses mapped to raw strings up to 4096 characters." }
+                    },
+                    "required": ["op", "blockId", "cells"], "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": { "type": "string", "enum": ["replace_text"] },
+                      "blockId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "match": { "type": "string", "minLength": 1, "maxLength": 32768 },
+                      "replacement": { "type": "string", "maxLength": 32768 }
+                    },
+                    "required": ["op", "blockId", "match", "replacement"], "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": { "type": "string", "enum": ["add_finding"] },
+                      "claim": { "type": "string", "minLength": 1, "maxLength": 32768 },
+                      "limitations": { "type": "string", "maxLength": 32768 },
+                      "evidenceIds": {
+                        "type": "array", "maxItems": 100,
+                        "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+                      }
+                    },
+                    "required": ["op", "claim", "limitations", "evidenceIds"], "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": { "type": "string", "enum": ["insert_text_block"] },
+                      "kind": { "type": "string", "enum": ["paragraph", "heading", "codeBlock"] },
+                      "text": { "type": "string", "minLength": 1, "maxLength": 32768 },
+                      "afterBlockId": { "type": "string", "minLength": 1, "maxLength": 128 }
+                    },
+                    "required": ["op", "kind", "text"], "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": { "type": "string", "enum": ["insert_spreadsheet"] },
+                      "name": { "type": "string", "minLength": 1, "maxLength": 31 },
+                      "rows": { "type": "integer", "minimum": 1, "maximum": 200 },
+                      "columns": { "type": "integer", "minimum": 1, "maximum": 50 },
+                      "cells": { "type": "object", "description": "Uppercase cell addresses mapped to raw strings up to 4096 characters." },
+                      "afterBlockId": { "type": "string", "minLength": 1, "maxLength": 128 }
+                    },
+                    "required": ["op", "name", "rows", "columns", "cells"], "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": { "type": "string", "enum": ["move_block"] },
+                      "blockId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "anchorBlockId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "side": { "type": "string", "enum": ["before", "after"] }
+                    },
+                    "required": ["op", "blockId", "anchorBlockId", "side"], "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": { "type": "string", "enum": ["delete_block"] },
+                      "blockId": { "type": "string", "minLength": 1, "maxLength": 128 }
+                    },
+                    "required": ["op", "blockId"], "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": ["entryId", "baseRevision", "operations"],
+          "additionalProperties": false
+        }
+      }
+    ]
+  },
+  "backend": { "type": "python", "entry": "backend/server.py", "dependencies": [
+    "pypdfium2==5.0.0", "Pillow==12.0.0", "python-docx==1.2.0", "openpyxl==3.1.5", "python-pptx==1.0.2"
+  ] }
+}

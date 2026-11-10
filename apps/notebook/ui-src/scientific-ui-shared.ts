@@ -1,0 +1,43 @@
+import { AppApiError } from '@pero/app-sdk';
+
+export function scientificError(cause: unknown): string {
+  if (cause instanceof AppApiError) { try { const body = JSON.parse(cause.body); if (typeof body.detail === 'string') return body.detail; } catch { /* A non-JSON Host failure retains its message. */ } }
+  return cause instanceof Error ? cause.message : String(cause);
+}
+export const scientificMessages = {
+  reactionScheme: { en: 'Reaction sketch', zh: '反应草图' }, chemical: { en: 'Chemical structure', zh: '化学结构' },
+  name: { en: 'Name', zh: '名称' }, notes: { en: 'Notes', zh: '备注' },
+  addReaction: { en: 'Insert reaction sketch', zh: '插入反应草图' }, addChemical: { en: 'Insert chemical structure', zh: '插入化学结构' },
+  addMolecule: { en: 'Add molecule', zh: '添加分子' }, molecule: { en: 'Molecule', zh: '分子' }, role: { en: 'Reaction role', zh: '反应角色' },
+  reactant: { en: 'Reactant', zh: '反应物' }, product: { en: 'Product', zh: '产物' }, agent: { en: 'Agent / solvent', zh: '试剂 / 溶剂' },
+  removeMolecule: { en: 'Remove selected molecule', zh: '移除所选分子' }, submit: { en: 'Save local reaction record', zh: '保存本地反应记录' },
+  nextRevision: { en: 'Save next local revision', zh: '保存本地下一个修订' }, saved: { en: 'Saved local record', zh: '已保存本地记录' },
+  draft: { en: 'Unsaved local draft', zh: '未保存的本地草稿' }, changed: { en: 'Draft differs from the pinned local record.', zh: '草稿与固定的本地记录不同。' },
+  reloadRecord: { en: 'Load latest local record', zh: '加载本地最新记录' }, embed: { en: 'Embed saved molecule', zh: '嵌入已保存分子' },
+  recordScope: { en: 'Local saved record only. It does not register a chemical, execute a reaction, authenticate a scientist or verify the chemistry.', zh: '仅为本地保存记录。不会注册化学品、执行反应、验证人员身份或验证化学结论。' },
+  graphLimits: { en: 'Explicit atoms, single/double/triple bonds and formal charges only. No stereochemistry, aromaticity, implicit hydrogens, valence assignment, reaction balancing or chemical safety validation.', zh: '仅支持显式原子、单/双/三键和形式电荷。不校验立体化学、芳香性、隐式氢、化合价、反应配平或化学安全性。' },
+  drawHint: { en: 'Click empty space to add an atom. Select two atoms to connect them. The coordinate controls also work with a keyboard.', zh: '点击空白处添加原子。选择两个原子后连接。坐标控件也支持键盘操作。' },
+  drawing: { en: 'Molecular drawing', zh: '分子绘图' }, element: { en: 'Element', zh: '元素' }, charge: { en: 'Formal charge', zh: '形式电荷' },
+  x: { en: 'Atom X (0–600)', zh: '原子 X（0–600）' }, y: { en: 'Atom Y (0–320)', zh: '原子 Y（0–320）' }, addAtom: { en: 'Add atom', zh: '添加原子' },
+  atom: { en: 'Selected atom', zh: '所选原子' }, none: { en: 'None', zh: '无' }, bondTo: { en: 'Bond to atom', zh: '连接到原子' },
+  order: { en: 'Bond order', zh: '键级' }, bond: { en: 'Set bond', zh: '设置化学键' }, removeBond: { en: 'Remove bond', zh: '移除化学键' },
+  updateAtom: { en: 'Update atom', zh: '更新原子' }, removeAtom: { en: 'Remove atom and bonds', zh: '移除原子及其化学键' },
+  json: { en: 'Download chemical JSON', zh: '下载化学结构 JSON' }, mol: { en: 'Download MOL', zh: '下载 MOL' },
+  importJson: { en: 'Import chemical JSON', zh: '导入化学结构 JSON' }, importLabel: { en: 'Chemical JSON file', zh: '化学结构 JSON 文件' },
+  drawn: { en: 'User-drawn local graph', zh: '用户绘制的本地图' }, extracted: { en: 'Extracted from recorded reaction revision', zh: '提取自已记录的反应修订' }, modified: { en: 'Modified from recorded reaction revision', zh: '由已记录的反应修订修改而来' },
+  unverified: { en: 'Unverified supplied reaction source', zh: '未经核实的所提供反应来源' },
+  provenance: { en: 'Only a matching local reaction revision, molecule and original graph establish this source. Imported references remain unverified until matched; this is not chemical validation.', zh: '仅当本地反应修订、分子及原始图形均匹配时，才确认此来源。导入引用在匹配前仍未经核实；这不代表化学验证。' },
+  checkSource: { en: 'Check local reaction source', zh: '检查本地反应来源' },
+  plateLibrary: { en: 'Reusable plate designs', zh: '可复用孔板设计' }, designName: { en: 'Plate design name', zh: '孔板设计名称' },
+  description: { en: 'Design description', zh: '设计说明' }, barcode: { en: 'Plate barcode', zh: '孔板条码' }, plateType: { en: 'Plate type / material', zh: '孔板类型 / 材质' },
+  capacity: { en: 'Well capacity (µL, optional)', zh: '孔容量（µL，选填）' }, metadata: { en: 'Additional plate metadata', zh: '其他孔板元数据' },
+  key: { en: 'Field name', zh: '字段名称' }, value: { en: 'Field value', zh: '字段值' }, addField: { en: 'Add metadata field', zh: '添加元数据字段' },
+  removeField: { en: 'Remove metadata field', zh: '移除元数据字段' }, saveDesign: { en: 'Save as new reusable design', zh: '保存为新的可复用设计' },
+  updateDesign: { en: 'Save next design revision', zh: '保存设计下一修订' }, loadDesigns: { en: 'Refresh design library', zh: '刷新设计库' },
+  loadDesign: { en: 'Load selected design', zh: '加载所选设计' }, selectDesign: { en: 'Saved plate design', zh: '已保存孔板设计' },
+  loadWarning: { en: 'Loading a design replaces this working layout and metadata. Saved design revisions stay unchanged.', zh: '加载设计会替换当前工作布局和元数据。已保存的设计修订保持不变。' },
+  confirmLoad: { en: 'Replace working layout', zh: '替换工作布局' }, cancel: { en: 'Cancel', zh: '取消' },
+  savedDesign: { en: 'Saved plate design revision', zh: '已保存孔板设计修订' }, emptyLibrary: { en: 'No local plate designs have been saved.', zh: '尚未保存本地孔板设计。' },
+  plateScope: { en: 'Design metadata only. Barcode and capacity are user-provided labels, not verified physical inventory or instrument settings.', zh: '仅设计元数据。条码和容量由用户提供，并非已验证的实物库存或仪器设置。' },
+  requestPending: { en: 'Saving…', zh: '正在保存…' }, reloadWarning: { en: 'Loading replaces the current draft. Keep a notebook revision first if you need both versions.', zh: '加载会替换当前草稿。如需保留两个版本，请先保存笔记修订。' },
+};

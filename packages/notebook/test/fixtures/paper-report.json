@@ -1,0 +1,85 @@
+{
+  "schema": "pero.paper-agent-report.v1",
+  "intentId": "055998a2ddf7062488bba4cd7ef25040f0d05326ea67c143cb98eee9d7e909e2",
+  "title": "Notebook citation fixture",
+  "sections": [
+    {
+      "heading": "Page observations",
+      "content": "Page two includes the fixture evidence.",
+      "paperIds": [
+        "6a222eb3726790949a250477de6ed6f60c9b410821f4c75f459eac32dd4f501a"
+      ],
+      "evidence": [
+        {
+          "paperId": "6a222eb3726790949a250477de6ed6f60c9b410821f4c75f459eac32dd4f501a",
+          "quote": "Exact original evidence.",
+          "passageId": "baa1d7cfa3281bc20644ee819aee27ec664711706bf8d9d0ffc1d3895de33558"
+        },
+        {
+          "paperId": "6a222eb3726790949a250477de6ed6f60c9b410821f4c75f459eac32dd4f501a",
+          "quote": "Second page. Exact original evidence.",
+          "passageId": "baa1d7cfa3281bc20644ee819aee27ec664711706bf8d9d0ffc1d3895de33558"
+        }
+      ]
+    }
+  ],
+  "experiments": [],
+  "limitations": "Synthetic fixture generated for Notebook integration tests.",
+  "acceptance": "unverified",
+  "id": "0f652adb440554f10c16d1d15bac07b7f7f47f5052958802c9f61a22629b4210",
+  "inputDigest": "sha256:0ac74ac56ad27f543ce7cbf28b95a928ea7fd49851d06a10dd5570fa5f38a2c4",
+  "createdAt": "2026-10-29T00:00:00Z",
+  "binding": {
+    "provenance": "user-imported"
+  },
+  "retrieval": {
+    "method": "pero.paper-search.fts5-bm25.v1",
+    "sourceIds": [
+      "52e43a1b2b2019af079be42882d299f714f559806c3acd9815851adf2929ce87"
+    ],
+    "passageIds": [
+      "baa1d7cfa3281bc20644ee819aee27ec664711706bf8d9d0ffc1d3895de33558",
+      "0b5ae77ff6e59feeb3b74ff6562be481616c7dde5b2ffbc1c39ad0d9ea36ff38"
+    ],
+    "totalMatches": 2,
+    "unmatchedPaperIds": [],
+    "queryTerms": [
+      "second",
+      "page"
+    ],
+    "queryTruncated": false
+  },
+  "sources": [
+    {
+      "id": "6a222eb3726790949a250477de6ed6f60c9b410821f4c75f459eac32dd4f501a",
+      "source": "local-pdf",
+      "sourceId": "e4ff73ae24644495e006ea4ebc073e13c282ec37ca2635353a0a78e51772ab52",
+      "title": "Notebook citation fixture",
+      "url": "urn:sha256:e4ff73ae24644495e006ea4ebc073e13c282ec37ca2635353a0a78e51772ab52",
+      "contentKind": "full-text",
+      "contentDigest": "sha256:b0dab21d0b42ad9f813845d3cb0535a04c509d20077a9aeb124a41265bfdb4fd",
+      "fetchedAt": "2026-10-29T00:00:00Z",
+      "authors": []
+    }
+  ],
+  "passages": [
+    {
+      "id": "baa1d7cfa3281bc20644ee819aee27ec664711706bf8d9d0ffc1d3895de33558",
+      "paperId": "6a222eb3726790949a250477de6ed6f60c9b410821f4c75f459eac32dd4f501a",
+      "documentId": "52e43a1b2b2019af079be42882d299f714f559806c3acd9815851adf2929ce87",
+      "fileDigest": "e4ff73ae24644495e006ea4ebc073e13c282ec37ca2635353a0a78e51772ab52",
+      "page": 2,
+      "start": 0,
+      "content": "Second page. Exact original evidence.\r\nExact original evidence."
+    },
+    {
+      "id": "0b5ae77ff6e59feeb3b74ff6562be481616c7dde5b2ffbc1c39ad0d9ea36ff38",
+      "paperId": "6a222eb3726790949a250477de6ed6f60c9b410821f4c75f459eac32dd4f501a",
+      "documentId": "52e43a1b2b2019af079be42882d299f714f559806c3acd9815851adf2929ce87",
+      "fileDigest": "e4ff73ae24644495e006ea4ebc073e13c282ec37ca2635353a0a78e51772ab52",
+      "page": 1,
+      "start": 0,
+      "content": "First page. Exact original evidence.\r\nExact original evidence."
+    }
+  ]
+}

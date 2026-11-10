@@ -53,6 +53,9 @@ enum Request {
     },
     Apiaccess { method: Method, id: String, name: AppName, path: String },
     Sdkcontext { method: Method, id: String, name: AppName },
+    #[serde(rename = "notebook-projects")]
+    NotebookProjects { method: Method, id: String, name: AppName, request: crate::notebook_projects::Request },
+    Canvas { method: Method, id: String, name: AppName, request: crate::app_canvas::Request },
     Agentcatalog { method: Method, id: String, name: AppName, path: String },
     Prepare { method: Method, id: String, name: AppName },
     Doclingruntime { method: Method, id: String, name: AppName, request: pero_runtime::apps::docling_runtime::Request },
@@ -122,6 +125,8 @@ enum Request {
 
 #[derive(Clone)]
 pub struct Apps {
+    settings: Option<PathBuf>,
+    canvas: std::sync::Arc<std::sync::Mutex<pero_runtime::apps::canvas::CanvasInstances>>,
     market: skill_market::Market,
     store: std::sync::Arc<std::sync::Mutex<Result<AppStore, String>>>,
     builtins: Option<PathBuf>,
@@ -207,6 +212,8 @@ impl Apps {
             Ok(store)
         })();
         Self {
+            settings: settings.map(Path::to_path_buf),
+            canvas: Default::default(),
             market: skill_market::open(settings),
             store: std::sync::Arc::new(std::sync::Mutex::new(store)),
             builtins,
@@ -270,6 +277,9 @@ impl Apps {
                 let guard=self.store.lock().map_err(|e|e.to_string())?;
                 return serde_json::to_value(guard.as_ref().map_err(Clone::clone)?.local_environments(name,pero_runtime::apps::local_environment::Request::List)?).map_err(|e|e.to_string());
             }
+            if let Request::Canvas { name, request, .. } = &request {
+                return crate::app_canvas::execute(self.store.clone(), self.canvas.clone(), name, request.clone());
+            }
             let mut guard = if agents.is_some() {
                 self.store.try_lock().map_err(|_| APP_PREPARING.to_string())?
             } else { self.store.lock().map_err(|error| error.to_string())? };
@@ -281,6 +291,11 @@ impl Apps {
                 let _ = crate::emit(event);
             };
             match request {
+                Request::Canvas { .. } => unreachable!(),
+                Request::NotebookProjects { method, id, name, request } => {
+                    let _ = (method, id);
+                    return crate::notebook_projects::execute(store, self.settings.as_deref(), &name, request);
+                },
                 Request::Skillsmarket {method,id,name,request} => {
                     let _=(method,id);store.require_grant(&name,"skills")?;
                     drop(guard);

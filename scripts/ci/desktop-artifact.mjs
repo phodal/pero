@@ -13,6 +13,7 @@ export function runtimePaths(directory) {
     ...['wasm', 'chat-wasm', 'reader-wasm', 'content-wasm'].map(name => `web/src/${name}`),
     ...product.apps.flatMap(name => [
       `apps/${name}/dist`,
+      ...(['notebook', 'paper-agent'].includes(name) ? [`apps/${name}/backend/pero_source_tools.py`] : []),
       // These generated Python inputs are outside dist but installed with the
       // backend. Require each file so an incomplete build cannot be archived.
       ...(name === 'data' ? ['dataset.py', 'view.py', 'chart_document.py'] : [])
