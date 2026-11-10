@@ -149,3 +149,40 @@ Native also replayed the saved real GPT molecular conversation with no configure
 provider after rebuilding the final font/table changes. The observed window
 showed both exact descriptor rows, intact stereo input, Å², the invalid row and
 its null values; this was a visual CUA observation, not a second model run.
+
+## 2026-11-10 Control Lab receipt
+
+Linux x86_64, master `ce9e2a3a`, Python 3.12.3 with the locked `control==0.10.2`,
+`numpy==2.2.6` and `scipy==1.18.1` in a temporary virtualenv. ngspice was not
+installed. No model API was called.
+
+`/tmp/control-lab-py/bin/python -m unittest discover -s apps/control-lab/test -p 'test_*.py'`
+ran 53 tests: 48 passed, 5 skipped. The skips are the existing solver gate and
+real ngspice cases. The new tests cover:
+
+- saved observations whose parameters then change stay `unchecked`, drop the curve,
+  and list the old report under `notApplicable`;
+- unavailable, computation failure and no attempt use different verdicts, with
+  null actuals;
+- the agent-step `project` action returns the receipt rather than an agent summary,
+  and a second call does not execute the solver;
+- real `python-control` proposals at kp=1 and kp=3 on robust-pid, horizon 2 s and
+  201 samples. Both receipts are `check_failed`. Nominal final-window errors are
+  0.2594973325520875 and 0.012463386149768274 against limit 0.01. Their versions
+  and report ids differ. The inline curve is 16 of the 201 saved reference
+  samples, compared by exact sample value. Replaying `project` returns the same
+  receipt.
+
+`node --test apps/control-lab/test/agent-schema.test.ts` passed.
+
+`PERO_GPUI_KIT_PATH` pointed at gpui-kit `7591a35` (0.9.0). With nightly-2026-10-28
+and one Cargo job:
+
+`node scripts/cargo.mjs test -j1 -p pero-chat-ui --features native --lib`
+
+passed 43 library tests, including the three receipt tests for distinct statuses,
+rejected inherited checks, forged pass receipts, and null values staying blank.
+This is a native library build. Wasm was not built or run. No Workbench window
+was opened, so theme, narrow layout, keyboard and copy were not visually checked
+for the new receipt. The parser and button actions exist; they are not a
+screenshot acceptance.
