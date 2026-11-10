@@ -42,6 +42,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   await button('Collapse section', section).click();
   await expect(button('Expand section', section)).toHaveAttribute('aria-expanded', 'false');
   await button('Expand section', section).click();
+  await ensureMoreTools(page);
   const attachmentInput = page.locator('input[type=file]:not([accept])');
   await attachmentInput.setInputFiles({ name: 'oversize.txt', mimeType: 'text/plain', buffer: Buffer.alloc(512 * 1024 + 1) });
   await expect(page.getByText('This file exceeds the 512 KiB attachment limit.')).toBeVisible();

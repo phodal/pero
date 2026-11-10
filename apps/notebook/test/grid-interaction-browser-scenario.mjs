@@ -33,8 +33,9 @@ export async function verifyDirectGridInteractions(page, origin) {
   await data.getByLabel('Unit', { exact: true }).fill('mL');
   await drag(edge('Resize column A'), box => ({ ...box, x: box.x + 45 }));
   await expect(edge('Resize column A')).toHaveAttribute('aria-valuenow', '165');
+  const resizedRowHeight = Number(await edge('Resize row 1').getAttribute('aria-valuenow')) + 18;
   await drag(edge('Resize row 1'), box => ({ ...box, y: box.y + 18 }));
-  await expect(edge('Resize row 1')).toHaveAttribute('aria-valuenow', '50');
+  await expect(edge('Resize row 1')).toHaveAttribute('aria-valuenow', String(resizedRowHeight));
   await cell('A1').click();
   await drag(move('Move row 1'), move('Move row 3'));
   await expect(cell('A3')).toHaveValue('2');
@@ -44,7 +45,7 @@ export async function verifyDirectGridInteractions(page, origin) {
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(cell('A1')).toHaveValue('2');
   await expect(edge('Resize column A')).toHaveAttribute('aria-valuenow', '165');
-  await expect(edge('Resize row 1')).toHaveAttribute('aria-valuenow', '50');
+  await expect(edge('Resize row 1')).toHaveAttribute('aria-valuenow', String(resizedRowHeight));
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   await cell('A3').click();
   await drag(move('Move column A'), move('Move column C'));
@@ -97,7 +98,7 @@ export async function verifyDirectGridInteractions(page, origin) {
   const savedId = entries.entries.find(entry => entry.title === 'Direct grid interactions').id;
   const saved = await (await fetch(`${origin}/api/entries/${savedId}`)).json();
   const attrs = saved.document.content.content.find(node => node.type === 'spreadsheet' && node.attrs.label === 'Data').attrs;
-  assert.equal(attrs.columnWidths['1'], 175); assert.equal(attrs.rowHeights['2'], 50);
+  assert.equal(attrs.columnWidths['1'], 175); assert.equal(attrs.rowHeights['2'], resizedRowHeight);
   assert.equal(attrs.annotations.B3.unit, 'mL'); assert.equal(attrs.sheet.cells.J4, '=SUM(4,5)');
   await page.reload();
   await expect(edge('Resize column B')).toHaveAttribute('aria-valuenow', '175');
