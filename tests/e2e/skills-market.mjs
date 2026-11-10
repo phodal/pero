@@ -149,7 +149,8 @@ try {
   const installedDetail=frame.getByRole('dialog',{name:'Skill details',exact:true});
   await expect(installedDetail.getByRole('heading',{name:entry.name,exact:true})).toBeVisible();
   for (const label of ['Inputs','Outputs','Dependencies']) await expect(installedDetail.getByRole('heading',{name:label,exact:true})).toBeVisible();
-  await expect(installedDetail).toContainText(entry.inputs[0].text.slice(0,40).replace(/\s+/g,' ').trim());
+  const visibleInput = entry.inputs[0].text.split('```')[0].replace(/\s+/g,' ').trim().slice(0,40);
+  await expect(installedDetail).toContainText(visibleInput);
   await expect(installedDetail).not.toContainText('OUTDATED_DESCRIPTION_FIXTURE');
   const enabled = frame.getByRole('switch',{name:'Use in subsequent ordinary chats'});
   await enabled.press('Space');

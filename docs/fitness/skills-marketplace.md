@@ -71,6 +71,22 @@ node tests/e2e/skills-market-chat.mjs
 
 机器回执写入被忽略的 `test-results/skills-market/`；公共来源获取需显式设置 `PERO_SKILLS_MARKET_PUBLIC=1`，其他默认测试只使用本地 Git 和回环网络。上述市场专项命令已在本地执行。新增 CI 工作流因当前提交账号令牌缺少 `workflow` scope 被 GitHub 拒绝，已保留本地补丁而未纳入 PR；不能将这些专项场景宣称为自动 CI 覆盖。
 
-## 未验收范围
+## 2026-11-10 按 #156 原文复核
 
-Native 窗口、签名发布包、真实付费模型和真实科研结果未验收。目录包含不支持安装的 ZIP/动态执行条目，未知或仅仓库级许可证据不会强行安装。静态技能不自动安装第三方依赖。旧会话已加载的正文不能通过停用/移除抹除，应停止原会话后重新开始。#156 保持开放。
+对照 [issue #156](https://github.com/phodal/pero/issues/156) 的十二条验收，不把签名安装包或科研结论认证加进关闭条件。原文「Out of Scope」已排除科研结论认证和全平台一次性认证。签名包不是验收条目。
+
+在 `71e7c7d78cfda0f97d5c10716831a5f898a7047b` 上重新执行：
+
+- `python3 scripts/research-skills/verify.py`：32 / 1985 / 1766 / 124 / 95，待审、不可读、未解析子模块均为 0。按 Host 许可规则可直接安装 667 条。
+- Python catalog 8 项、Skills catalog 5 项、`pero-runtime` skill market 7 项通过。
+- `PERO_SKILLS_MARKET_PUBLIC=1 node tests/runtime/skills-market.mjs`：通过。公开来源 `blader/humanizer/SKILL.md` 提交 `0ef9fe5bc3572734fd3ae6c448fe00a30cd5dcf0`，正文 SHA-256 `0612f1dfb1672b0ea9b97e139bf1f06cabe98d8b27424fe8ff01e1fb4cc99cad`。模型是回环脚本，不是真实模型。
+- Electron 工作台（GPUI Wasm，非独立 Native 壳、非签名包）跑到浅色目录、键盘详情、目录文件被移走后的刷新失败仍保留列表，以及已安装浅色详情。深色/窄窗切换停在打开设置：设置按钮的命中点不是画布，未改侧栏。
+
+目录刷新曾在文件已被移走后继续返回第一次缓存，界面不显示失败。Host 现在按文件标识重新读取；文件不存在时返回 “Skill catalog is unavailable”，已显示的列表仍由 App 保留。
+
+## 仍阻塞关闭的原文条目
+
+- 第 11 条的深色、窄窗现场截图还没有在当前头上完成。浅色目录、键盘详情、刷新失败保留和已安装详情已在本次 Electron 工作台观察到。
+- 第 12 条的显式 opt-in 真实模型没有跑。本机 `node_modules/.bin/codex login status` 为 Not logged in，开发 `.env` 和环境变量都没有 `DEEPSEEK_API_KEY`。不能把回环模型写成真实模型。下一步只能由操作者在本机执行 `node_modules/.bin/codex login`，或把已有的 `DEEPSEEK_API_KEY` 写入开发 `.env`（不要贴到对话里），然后再跑一次固定材料的真实调用。
+
+目录包含不支持安装的 ZIP/动态执行条目。未知或仅仓库级许可不会强行安装。静态技能不自动安装第三方依赖。旧会话已加载的正文不能通过停用/移除抹除。#156 在第 11 条剩余截图和第 12 条真实模型完成前保持开放。

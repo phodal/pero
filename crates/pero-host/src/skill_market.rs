@@ -17,6 +17,7 @@ pub(super) struct Market {
     control: pero_runtime::skill_market::AcquisitionControl,
 }
 struct CachedCatalog {
+    stamp: (u64, Option<std::time::SystemTime>),
     entries: std::collections::HashMap<String, SkillCatalogEntry>,
     served: Arc<Vec<u8>>,
 }
@@ -25,15 +26,20 @@ impl Market {
         self.control.shutdown();
     }
     fn load(&self) -> Result<Arc<CachedCatalog>, String> {
-        {
-            let guard = self.catalog.lock().map_err(|error| error.to_string())?;
-            if let Some(cached) = guard.as_ref() {
-                return Ok(Arc::clone(cached));
-            }
-        }
         let Some(location) = self.location.clone() else {
             return Err(self.store_error());
         };
+        // A refresh must see a removed or replaced catalog file. The installed-state
+        // lock is not involved; only the unchanged file reuses the parsed bytes.
+        let stamp = catalog_stamp(&location)?;
+        {
+            let guard = self.catalog.lock().map_err(|error| error.to_string())?;
+            if let Some(cached) = guard.as_ref() {
+                if cached.stamp == stamp {
+                    return Ok(Arc::clone(cached));
+                }
+            }
+        }
         let bytes = match &location {
             CatalogLocation::File(path) => std::fs::read(path)
                 .map_err(|_| "Skill catalog is unavailable; rebuild or update Pero".to_string())?,
@@ -44,12 +50,14 @@ impl Market {
         }
         let served = Arc::new(sanitize_catalog(&bytes)?);
         let entries = SkillMarketStore::index_catalog(&bytes)?;
-        let cached = Arc::new(CachedCatalog { entries, served });
+        let cached = Arc::new(CachedCatalog {
+            stamp,
+            entries,
+            served,
+        });
         let mut guard = self.catalog.lock().map_err(|error| error.to_string())?;
-        if guard.is_none() {
-            *guard = Some(Arc::clone(&cached));
-        }
-        Ok(guard.as_ref().map(Arc::clone).unwrap_or(cached))
+        *guard = Some(Arc::clone(&cached));
+        Ok(cached)
     }
     fn store_error(&self) -> String {
         self.store
@@ -119,6 +127,19 @@ pub(super) fn open(settings: Option<&Path>) -> Market {
         location,
         catalog: Arc::new(Mutex::new(None)),
         control,
+    }
+}
+
+fn catalog_stamp(
+    location: &CatalogLocation,
+) -> Result<(u64, Option<std::time::SystemTime>), String> {
+    match location {
+        CatalogLocation::File(path) => {
+            let meta = std::fs::metadata(path)
+                .map_err(|_| "Skill catalog is unavailable; rebuild or update Pero".to_string())?;
+            Ok((meta.len(), meta.modified().ok()))
+        }
+        CatalogLocation::Bundled(content) => Ok((content.len() as u64, None)),
     }
 }
 
@@ -233,6 +254,39 @@ mod tests {
         assert!(market.selections().unwrap().is_empty());
         assert!(market.context_candidates("audit").unwrap().is_empty());
         assert!(market.catalog_document().unwrap_err().contains("Harness"));
+    }
+
+    #[test]
+    fn refresh_observes_a_removed_catalog_file() {
+        let root = std::env::temp_dir().join(format!(
+            "pero-market-refresh-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let catalog = root.join("catalog.json");
+        std::fs::write(&catalog, r#"{"schema_version":1,"skills":[]}"#).unwrap();
+        let market = Market {
+            store: Arc::new(Mutex::new(Err("unused".into()))),
+            location: Some(CatalogLocation::File(catalog.clone())),
+            catalog: Arc::new(Mutex::new(None)),
+            control: Default::default(),
+        };
+        assert_eq!(
+            market.catalog_document().unwrap()["schema_version"].as_u64(),
+            Some(1)
+        );
+        std::fs::remove_file(&catalog).unwrap();
+        assert!(
+            market
+                .catalog_document()
+                .unwrap_err()
+                .contains("unavailable")
+        );
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
