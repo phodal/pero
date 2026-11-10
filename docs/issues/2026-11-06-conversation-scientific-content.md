@@ -80,7 +80,7 @@ Scientific Authoring + Computational Verification 是整体方向，但展示、
 
 - [x] 历史恢复/重启后可重现已保存的内容；回放不重新计算或调用模型。既有图表/表格已在此前的 Workbench 重启中验证。本次 Control Lab 回执验证了存储重放不再求解；没有再跑桌面重启。
 - [x] 内容主要在会话流可见，来源/长表/深入交互按需展开；不能只交付侧栏文件、源码或截图。
-- [ ] 实际检查明暗主题、窄窗、长公式/宽表、键盘与复制；Web/Wasm 和 Native 分别记录观察与截图，构建成功不代替界面验收。2026-11-10：Native `pero-native` 在本机因缺少生成字体和 webkit2gtk 2.0 API 不匹配未能链接。共享 Chat Wasm 已构建，无头 Chrome 只看到空的 “Start with a task” 壳，注入的回执没有成为可见会话。因此这项仍未验收。
+- [ ] 实际检查明暗主题、窄窗、长公式/宽表、键盘与复制；Web/Wasm 和 Native 分别记录观察与截图，构建成功不代替界面验收。2026-11-10：Electron 工作台加载完整 Wasm，经 Host 和真实 harness 跑通图表/表格回执。浅色、深色、780px 窄窗、公式源码复制、表格 `table:{artifactId}` 复制、原始 JSON 复制和重启不追加模型请求均已在会话流里观察到。Native `pero-native` 仍未在本机完成：`npm run dev:native` 拒绝非 macOS，Linux 上 `native_web.rs` 的 `webkit2gtk::prelude::WebViewExt` / `can_go_back` 与已安装的 webkit2gtk 2.0 不一致。生成字体已由官方字体脚本产出，不再是缺字体。因此 Native 这一半仍未验收。
 - [x] 用 PDE、控制优化、负二项分布和化学反应等材料检验表达能力；展示这些表达式不等于已经支持对应 CFD、MPC 或单细胞计算。
 - [x] fixture 接线、真实工具、真实模型和科学接受分别记录；首例真实计算使用既有受支持方法，不要求泛化到所有学科。
 
@@ -257,3 +257,19 @@ Control Lab 继续拥有求解和检查。新增只读 `project-result`（agent-
 | 算法描述 | 普通 Markdown 伪代码 | 不把流程图当成验证 |
 
 ngspice 主动滤波器没有走会话改参闭环。完整论文编辑器不属于本 issue。
+
+## 2026-11-10 Workbench 会话流
+
+多个科学工具会收进同一个 “Tool” 组。组折叠时，图表、表格、控制结果和分子回执仍留在会话流里；工具日志继续折叠。
+
+`DISPLAY=:1 PERO_TEST_SOFTWARE_GL=1 node tests/e2e/scientific-chat.mjs` 启动 Electron 工作台、Host 和 `target/debug/pero-agent-acp`。模型是 loopback fixture，`table_render` 与 `chart_render` 是真实 harness。会话里看到：
+
+- 表：`Method: declared sample mean; not a statistical test`，`Declared as calculated values, not independently checked`，`table:1795f6214bc7076bc9410edef1ea6eb605658c06c5d13ce60cf53f15af8533b9`。`0.0100`、显式 `0`、`null` 和 `9007199254740993` 都保留。
+- 图：`Method: declared line of the supplied values`，`chart:126c469f26003d2bd7777a0373e016319dfae24754f1b20146ba27eb8e2f0597`，并写明来源声明不是实验验证。
+- 长公式、矩阵、负二项和反应式在同一条助手消息里；`\notACommand` 仍是局部失败。复制 PDE 源码得到 `\rho\left(`。
+- 深色和 780px 窄窗下，图注和公式仍在消息流中；窄窗里长引用换行。
+- 重启后同一 `artifact_id`，fixture 请求数仍是 2。原始记录打开 `results.json`，复制全文与数据集字节一致。
+
+证据在 `test-results/scientific-chat/`：`table-light.png`、`equations-light.png`、`equations-dark.png`、`narrow-dark.png`、`original-records.png`、`table-receipt.json`、`chart-receipt.json`、`result.json`。`realModel` 为 false。没有使用静态 HTML。
+
+Native 仍缺 macOS 上的 `npm run dev:native`，或先让 Linux `webkit2gtk` 调用与 `crates/pero-ui/src/native_web.rs` 一致后再构建 `pero-native`。这不是本 PR 的兼容层改造。

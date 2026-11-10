@@ -217,18 +217,24 @@ stays null. Changing the origin changes the receipt bytes.
 passes 46 tests. Citation tests show that reversing saved chart/table identities
 does not retarget the original token, and a short Paper location is rejected.
 
-This still does not open the Workbench. Theme, narrow layout, long formulas,
-wide tables, keyboard copy and restart were not observed for these labels.
+`DISPLAY=:1 PERO_TEST_SOFTWARE_GL=1 node tests/e2e/scientific-chat.mjs` then
+opened the Electron workbench against `target/debug/pero-host` and
+`target/debug/pero-agent-acp`. The model is the loopback fixture. The harness
+tools are real. The visible transcript shows the table method, calculated
+origin, `table:1795f6214bc7076bc9410edef1ea6eb605658c06c5d13ce60cf53f15af8533b9`,
+the chart method, `chart:126c469f26003d2bd7777a0373e016319dfae24754f1b20146ba27eb8e2f0597`,
+and the sentence that a source declaration is not experimental verification.
+Copying the table citation and the PDE source, opening `results.json`, and
+relaunching without another provider call all passed. Light, dark and 780px
+captures are under `test-results/scientific-chat/`. `result.json` records
+`realHarness: true` and `realModel: false`.
 
-Later the same day, two display attempts were made on Linux with `DISPLAY=:1`:
+An earlier headless page that only painted “Start with a task” is not this run.
+A collapsed multi-tool group was hiding the receipts; they now stay in the
+message stream while the tool log stays collapsed.
 
-- `node scripts/cargo.mjs +nightly-2026-10-28 build -j1 -p pero-ui --features native --bin pero-native`
-  failed after `libgtk-3-dev` and `libwebkit2gtk-4.1-dev` were installed. The
-  compile still cannot read the generated `Workbench-bold.ttf` and
-  `JetBrainsMono-Regular.ttf`, and `crates/pero-ui/src/native_web.rs` does not
-  match the installed `webkit2gtk` 2.0 (`prelude`, `can_go_back`).
-- `node scripts/build/wasm.mjs --chat-only` exited 0. Headless Chrome loaded
-  that shared chat Wasm and painted the empty “Start with a task” shell. The
-  injected table receipt and formula did not become the visible conversation,
-  so the screenshot is not acceptance of the new receipt. Dark, narrow, keyboard
-  copy and restart were not observed. `npm run dev:native` refuses Linux.
+Native remains unrun. `npm run dev:native` refuses Linux. The generated font
+files now exist from `scripts/build/fonts.mjs`, but
+`crates/pero-ui/src/native_web.rs` still calls `webkit2gtk::prelude::WebViewExt`
+and `can_go_back`, which do not match webkit2gtk 2.0. That desktop build is a
+macOS step, not a compatibility rewrite in this change.
